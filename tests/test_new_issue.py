@@ -331,3 +331,66 @@ def test_rest_503_preflight_does_not_block_working_graphql_create(mock_run, caps
     output = json.loads(capsys.readouterr().out)
     assert output["Success"] is True
     assert output["Data"]["issue_number"] == 321
+
+
+def _called_commands(mock_run) -> list[list[str]]:
+    return [call.args[0] for call in mock_run.call_args_list]
+
+
+@patch("subprocess.run")
+def test_dry_run_reports_plan_and_makes_no_write_call(mock_run, capsys):
+    mock_run.side_effect = [_completed(stdout="https://github.com/o/r\n")]
+
+    rc = main(
+        [
+            "--source",
+            "human",
+            "--title",
+            "Bug: x",
+            "--labels",
+            "bug, P1",
+            "--dry-run",
+        ]
+    )
+
+    data = json.loads(capsys.readouterr().out)["Data"]
+    assert rc == 0
+    assert data["action"] == "would_create"
+    assert data["dryRun"] is True
+    assert data["labels"] == ["source:human", "bug", "P1"]
+    for cmd in _called_commands(mock_run):
+        assert cmd[:3] != ["gh", "issue", "create"]
+        assert cmd[:3] != ["gh", "label", "create"]
+        assert cmd[:3] != ["gh", "issue", "edit"]
+
+
+@patch("subprocess.run")
+def test_dry_run_still_rejects_an_empty_title(mock_run, capsys):
+    rc = main(["--source", "human", "--title", "  ", "--dry-run"])
+
+    assert rc == 2
+    assert json.loads(capsys.readouterr().out)["Error"]["Type"] == "InvalidParams"
+    mock_run.assert_not_called()
+
+
+@patch("subprocess.run")
+def test_dry_run_still_requires_step_zero_evidence_for_agent_source(mock_run, capsys):
+    rc = main(["--source", "agent", "--title", "Agent idea", "--dry-run"])
+
+    assert rc == 2
+    assert json.loads(capsys.readouterr().out)["Success"] is False
+    mock_run.assert_not_called()
+
+
+@patch("subprocess.run")
+def test_default_run_has_no_dry_run_key(mock_run, capsys):
+    mock_run.side_effect = [
+        _completed(stdout="https://github.com/o/r\n"),
+        _completed(rc=0),
+        _completed(stdout="https://github.com/o/r/issues/7\n"),
+    ]
+
+    rc = main(["--source", "human", "--title", "Bug: y"])
+
+    assert rc == 0
+    assert "dryRun" not in json.loads(capsys.readouterr().out)["Data"]

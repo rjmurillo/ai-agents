@@ -81,6 +81,11 @@ def build_parser() -> argparse.ArgumentParser:
     body_group = parser.add_mutually_exclusive_group(required=True)
     body_group.add_argument("--body", help="Reply text (inline)")
     body_group.add_argument("--body-file", help="Path to file containing reply")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Validate the reply and report the target endpoint; post nothing",
+    )
     return parser
 
 
@@ -97,6 +102,43 @@ def _not_found_message(owner: str, repo: str, pr: int, comment_id: int) -> str:
     if comment_id:
         return f"Comment {comment_id} not found on {owner}/{repo}#{pr}"
     return f"Pull request {owner}/{repo}#{pr} not found"
+
+
+def _check_target_exists(owner: str, repo: str, pr: int, comment_id: int) -> None:
+    """Read the reply target, so a dry run fails like a real run on a missing PR or comment.
+
+    A threaded reply posts to the PR-scoped endpoint, so the comment must belong to ``pr``.
+    """
+    if comment_id:
+        endpoint = f"repos/{owner}/{repo}/pulls/comments/{comment_id}"
+    else:
+        endpoint = f"repos/{owner}/{repo}/pulls/{pr}"
+    try:
+        result = subprocess.run(
+            ["gh", "api", endpoint],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        error_and_exit("Timed out after 30s reading the reply target; nothing was posted.", 3)
+    if result.returncode != 0:
+        if _is_not_found(result):
+            error_and_exit(_not_found_message(owner, repo, pr, comment_id), 2)
+        error_and_exit(f"Failed to read the reply target: {result.stderr or result.stdout}", 3)
+    if comment_id and not _comment_belongs_to_pr(result.stdout, pr):
+        error_and_exit(_not_found_message(owner, repo, pr, comment_id), 2)
+
+
+def _comment_belongs_to_pr(comment_json: str, pr: int) -> bool:
+    """True when the review comment's ``pull_request_url`` ends with ``/pulls/<pr>``."""
+    try:
+        url = json.loads(comment_json).get("pull_request_url", "")
+    except (ValueError, AttributeError):
+        return False
+    return isinstance(url, str) and url.rstrip("/").endswith(f"/pulls/{pr}")
 
 
 def _resolve_body(args: argparse.Namespace) -> str:
@@ -130,6 +172,24 @@ def main(argv: list[str] | None = None) -> int:
         endpoint = f"repos/{owner}/{repo}/pulls/{pr}/comments/{args.comment_id}/replies"
     else:
         endpoint = f"repos/{owner}/{repo}/issues/{pr}/comments"
+
+    if args.dry_run:
+        _check_target_exists(owner, repo, pr, args.comment_id)
+        print(
+            json.dumps(
+                {
+                    "success": True,
+                    "action": "would_post",
+                    "dryRun": True,
+                    "pull_request": pr,
+                    "in_reply_to": args.comment_id or None,
+                    "endpoint": endpoint,
+                    "body_chars": len(body),
+                },
+                indent=2,
+            )
+        )
+        return 0
 
     result = subprocess.run(
         ["gh", "api", endpoint, "-X", "POST", "-f", f"body={body}"],

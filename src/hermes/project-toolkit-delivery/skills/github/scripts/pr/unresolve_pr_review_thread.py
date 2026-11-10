@@ -57,10 +57,11 @@ mutation($threadId: ID!) {
 }"""
 
 _THREADS_QUERY = """\
-query($owner: String!, $name: String!, $prNumber: Int!) {
+query($owner: String!, $name: String!, $prNumber: Int!, $cursor: String) {
     repository(owner: $owner, name: $name) {
         pullRequest(number: $prNumber) {
-            reviewThreads(first: 100) {
+            reviewThreads(first: 100, after: $cursor) {
+                pageInfo { hasNextPage endCursor }
                 nodes {
                     id
                     isResolved
@@ -75,6 +76,9 @@ query($owner: String!, $name: String!, $prNumber: Int!) {
         }
     }
 }"""
+
+
+_MAX_PAGES = 50
 
 
 def unresolve_review_thread(thread_id: str) -> bool:
@@ -115,15 +119,28 @@ def get_resolved_threads(pr_number: int) -> list[dict]:
     owner = repo_info["owner"]["login"]
     name = repo_info["name"]
 
-    data = gh_graphql(
-        _THREADS_QUERY,
-        {"owner": owner, "name": name, "prNumber": pr_number},
+    resolved: list[dict] = []
+    cursor = ""
+    for _ in range(_MAX_PAGES):
+        variables: dict = {"owner": owner, "name": name, "prNumber": pr_number}
+        if cursor:
+            variables["cursor"] = cursor
+        data = gh_graphql(_THREADS_QUERY, variables)
+        threads = data.get("repository", {}).get("pullRequest", {}).get("reviewThreads", {})
+        resolved.extend(t for t in threads.get("nodes", []) if t.get("isResolved", False))
+        page_info = threads.get("pageInfo") or {}
+        if not page_info.get("hasNextPage", False):
+            return resolved
+        cursor = page_info.get("endCursor") or ""
+        if not cursor:
+            raise RuntimeError(
+                f"review thread pagination on PR #{pr_number} returned no cursor; "
+                f"read {len(resolved)} resolved thread(s) before it stopped"
+            )
+    raise RuntimeError(
+        f"review thread pagination on PR #{pr_number} exceeded {_MAX_PAGES} pages; "
+        f"read {len(resolved)} resolved thread(s) before it stopped"
     )
-
-    threads = (
-        data.get("repository", {}).get("pullRequest", {}).get("reviewThreads", {}).get("nodes", [])
-    )
-    return [t for t in threads if t.get("isResolved", False)]
 
 
 # ---------------------------------------------------------------------------
@@ -159,14 +176,35 @@ def build_parser() -> argparse.ArgumentParser:
     group.add_argument(
         "--pull-request",
         type=int,
-        help="PR number (unresolves all resolved threads when used with --all)",
+        help="PR number. Requires --all, which unresolves every resolved thread on the PR",
     )
     parser.add_argument(
         "--all",
         action="store_true",
-        help="Unresolve all resolved threads on the PR",
+        help="Unresolve all resolved threads on the PR (required with --pull-request)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="List the threads that would be unresolved; unresolve nothing",
     )
     return parser
+
+
+def _validate_scope_flags(args: argparse.Namespace) -> None:
+    """Require --all for the bulk mode and refuse it for a single thread."""
+    if args.pull_request is not None and not args.all:
+        error_and_exit(
+            "--pull-request unresolves every resolved thread on the PR and needs "
+            "--all. Expected: --pull-request N --all, or --thread-id PRRT_...",
+            2,
+        )
+    if args.thread_id and args.all:
+        error_and_exit(
+            "--all applies to --pull-request only. Expected: --thread-id PRRT_... "
+            "alone, or --pull-request N --all",
+            2,
+        )
 
 
 def _validate_thread_id(thread_id: str) -> None:
@@ -177,20 +215,74 @@ def _validate_thread_id(thread_id: str) -> None:
         error_and_exit("Invalid ThreadId format. Expected PRRT_... format.", 2)
 
 
+_THREAD_QUERY = """\
+query($threadId: ID!) {
+    node(id: $threadId) {
+        ... on PullRequestReviewThread { id isResolved }
+    }
+}"""
+
+
+def _preview_single(thread_id: str) -> int:
+    """Read the thread and report the plan; exit 1 where a real run's mutation would fail."""
+    try:
+        data = gh_graphql(_THREAD_QUERY, {"threadId": thread_id})
+    except RuntimeError as exc:
+        print(f"WARNING: Could not read thread {thread_id}: {exc}", file=sys.stderr)
+        data = {}
+    node = data.get("node")
+    found = isinstance(node, dict) and node.get("id") == thread_id
+    result: dict[str, object] = {
+        "Success": found,
+        "ThreadId": thread_id,
+        "Action": "would_unresolve",
+        "DryRun": True,
+    }
+    if found:
+        result["AlreadyUnresolved"] = node.get("isResolved") is False
+    else:
+        print(f"WARNING: Thread {thread_id} not found or not readable.", file=sys.stderr)
+    print(json.dumps(result, indent=2))
+    return 0 if found else 1
+
+
+def _unresolve_single(args: argparse.Namespace) -> int:
+    """Unresolve one thread, or report the plan under --dry-run."""
+    _validate_thread_id(args.thread_id)
+    if args.dry_run:
+        return _preview_single(args.thread_id)
+    success = unresolve_review_thread(args.thread_id)
+    result = {
+        "Success": success,
+        "ThreadId": args.thread_id,
+        "Action": "unresolve",
+    }
+    print(json.dumps(result, indent=2))
+    return 0 if success else 1
+
+
+def _report_nothing_resolved(args: argparse.Namespace) -> int:
+    """Report a PR with no resolved threads; under --dry-run the result carries the marker."""
+    print(f"No resolved threads on PR #{args.pull_request} to unresolve", file=sys.stderr)
+    result: dict[str, object] = {
+        "TotalResolved": 0,
+        "Unresolved": 0,
+        "Failed": 0,
+        "Success": True,
+    }
+    if args.dry_run:
+        result["DryRun"] = True
+    print(json.dumps(result, indent=2))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    _validate_scope_flags(args)
     assert_gh_authenticated()
 
     if args.thread_id:
-        _validate_thread_id(args.thread_id)
-        success = unresolve_review_thread(args.thread_id)
-        result = {
-            "Success": success,
-            "ThreadId": args.thread_id,
-            "Action": "unresolve",
-        }
-        print(json.dumps(result, indent=2))
-        return 0 if success else 1
+        return _unresolve_single(args)
 
     # Unresolve all resolved threads
     try:
@@ -200,17 +292,27 @@ def main(argv: list[str] | None = None) -> int:
         return 3
 
     if not resolved_threads:
-        print(f"No resolved threads on PR #{args.pull_request} to unresolve")
-        result = {
-            "TotalResolved": 0,
-            "Unresolved": 0,
-            "Failed": 0,
-            "Success": True,
-        }
-        print(json.dumps(result, indent=2))
-        return 0
+        return _report_nothing_resolved(args)
 
-    print(f"Found {len(resolved_threads)} resolved thread(s) on PR #{args.pull_request}")
+    print(
+        f"Found {len(resolved_threads)} resolved thread(s) on PR #{args.pull_request}",
+        file=sys.stderr,
+    )
+
+    if args.dry_run:
+        print(
+            json.dumps(
+                {
+                    "Success": True,
+                    "Action": "would_unresolve",
+                    "DryRun": True,
+                    "TotalResolved": len(resolved_threads),
+                    "ThreadIds": [t["id"] for t in resolved_threads],
+                },
+                indent=2,
+            )
+        )
+        return 0
 
     unresolved_count = 0
     failed_count = 0
@@ -226,15 +328,17 @@ def main(argv: list[str] | None = None) -> int:
             if first.get("databaseId"):
                 comment_id = first["databaseId"]
 
-        print(f"  Unresolving thread {thread['id']} (comment {comment_id} by @{author})...")
+        print(
+            f"  Unresolving thread {thread['id']} (comment {comment_id} by @{author})...",
+            file=sys.stderr,
+        )
 
         if unresolve_review_thread(thread["id"]):
             unresolved_count += 1
         else:
             failed_count += 1
 
-    print()
-    print(f"Summary: {unresolved_count} unresolved, {failed_count} failed")
+    print(f"Summary: {unresolved_count} unresolved, {failed_count} failed", file=sys.stderr)
 
     result = {
         "TotalResolved": len(resolved_threads),
