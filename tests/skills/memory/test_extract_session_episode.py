@@ -4707,3 +4707,74 @@ class TestJsonMetricsDuration:
         metrics = extract_session_episode.json_metrics(data)
         assert metrics["tool_calls"] is None
         assert metrics["duration_minutes"] == 30
+
+
+class TestDryRun:
+    """--dry-run extracts and prints the episode but writes nothing (agentskills.io guide)."""
+
+    @staticmethod
+    def _log(tmp_path):
+        log = tmp_path / "2026-05-31-session-9002.json"
+        log.write_text(json.dumps(_json_log([{"action": "x", "outcome": "ok"}])), encoding="utf-8")
+        return log
+
+    def test_prints_episode_and_creates_neither_directory_nor_file(self, tmp_path, capsys):
+        out = tmp_path / "ep"
+
+        rc = extract_session_episode.main(
+            [str(self._log(tmp_path)), "--output-path", str(out), "--dry-run"]
+        )
+
+        captured = capsys.readouterr()
+        assert rc == 0
+        preview = json.loads(captured.out)
+        assert preview["dry_run"] is True
+        assert preview["would_write"].endswith("episode-2026-05-31-session-9002.json")
+        assert preview["episode"]["id"]
+        assert "Dry run: would write" in captured.err
+        assert not out.exists()
+
+    def test_existing_episode_without_force_still_exits_1(self, tmp_path, capsys):
+        log = self._log(tmp_path)
+        out = tmp_path / "ep"
+        assert extract_session_episode.main([str(log), "--output-path", str(out)]) == 0
+        capsys.readouterr()
+        before = {p.name: p.read_bytes() for p in out.iterdir()}
+
+        rc = extract_session_episode.main([str(log), "--output-path", str(out), "--dry-run"])
+
+        assert rc == 1
+        assert "--force" in capsys.readouterr().err
+        assert {p.name: p.read_bytes() for p in out.iterdir()} == before
+
+    def test_force_with_dry_run_leaves_the_existing_episode_untouched(self, tmp_path, capsys):
+        log = self._log(tmp_path)
+        out = tmp_path / "ep"
+        extract_session_episode.main([str(log), "--output-path", str(out)])
+        existing = next(out.iterdir())
+        existing.write_text('{"sentinel": true}\n', encoding="utf-8")
+        capsys.readouterr()
+
+        rc = extract_session_episode.main(
+            [str(log), "--output-path", str(out), "--force", "--dry-run"]
+        )
+
+        assert rc == 0
+        assert existing.read_text(encoding="utf-8") == '{"sentinel": true}\n'
+
+    def test_dry_run_with_validate_exits_2_and_names_the_expected_forms(self, tmp_path, capsys):
+        rc = extract_session_episode.main([str(tmp_path), "--validate", "--dry-run"])
+
+        assert rc == 2
+        err = capsys.readouterr().err
+        assert "extraction only" in err
+        assert "--validate PATH" in err
+
+    def test_default_run_still_writes_the_episode(self, tmp_path, capsys):
+        out = tmp_path / "ep"
+
+        rc = extract_session_episode.main([str(self._log(tmp_path)), "--output-path", str(out)])
+
+        assert rc == 0
+        assert len(list(out.glob("episode-*.json"))) == 1
+        assert "dry_run" not in json.loads(capsys.readouterr().out)
