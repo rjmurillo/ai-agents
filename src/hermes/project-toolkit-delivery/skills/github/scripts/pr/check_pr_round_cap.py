@@ -565,9 +565,10 @@ def main(argv: list[str] | None = None) -> int:
         (prior_state or {}).get("escalated") is True or result["action"] == "ESCALATE",
         head_sha,
         *scan_args,
+        pr_checkout=bool(args.worktree),
         # A dry run must not change the repository, so it never fetches a missing
         # live head; the scan reports it as unverified instead.
-        pr_checkout=bool(args.worktree) and not args.dry_run,
+        fetch_missing_head=not args.dry_run,
     )
     if orphaned["warning"]:
         logger.warning(

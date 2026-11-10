@@ -106,11 +106,13 @@ class TestDryRunFetchesNothing(MainHarness):
         scan = self._scan_call([], capsys)
 
         assert scan.call_args.kwargs["pr_checkout"] is True
+        assert scan.call_args.kwargs["fetch_missing_head"] is True
 
-    def test_dry_run_never_asks_the_scan_to_fetch(self, capsys):
+    def test_dry_run_keeps_the_worktree_scan_but_forbids_the_fetch(self, capsys):
         scan = self._scan_call(["--dry-run"], capsys)
 
-        assert scan.call_args.kwargs["pr_checkout"] is False
+        assert scan.call_args.kwargs["pr_checkout"] is True
+        assert scan.call_args.kwargs["fetch_missing_head"] is False
         assert scan.call_args.args[2] == "RUNNER"
 
 
