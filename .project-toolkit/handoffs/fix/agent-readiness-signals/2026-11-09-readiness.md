@@ -2,119 +2,85 @@
 
 ## Status
 
-The user requested fixes for all failing readiness signals, with delegated work.
-The user approved finishing repository-side work while preserving the privacy contract.
-Repository-side implementation and validation are complete.
-The user authorized committing, shipping, and driving the pull request to merge.
-Shipping uses `fix/agent-readiness-signals` and preserves the privacy contract.
-No remote readiness score has been certified.
-No package releases or external telemetry were performed.
+The user authorized repository-side repairs, commits, PR creation, and merge.
+The existing privacy contract remains unchanged.
+Dependency checker repairs are committed and pass focused validation.
+Full preflight and fresh independent review must precede the push.
+The previous push failed because required security review proof was absent.
+No successful push or PR creation has been observed.
 
 ## State Record
 
 - **Remote**: rjmurillo/ai-agents
 - **Branch**: fix/agent-readiness-signals
 - **Worktree**: ~/src/GitHub/rjmurillo/ai-agents4
-- **Head SHA**: ebda94fd22a16774f6ede538913671d11a298257
-- **Timestamp**: 2026-11-10T01:11:12+00:00
-- **Objective**: Complete repository-side readiness fixes while preserving the existing privacy contract.
-- **Non-goals**: Client telemetry, hosted runtime infrastructure, package releases, and security configuration changes.
+- **Head SHA**: ac6a0fd3e1fc8e39e9925e210ba77e7b4b6738aa
+- **Timestamp**: 2026-11-10T04:24:15+00:00
+- **Objective**: Ship repository-side readiness repairs without adding client telemetry.
+- **Non-goals**: Hosted infrastructure, package releases, and security configuration changes.
 - **Risk tier**: shared-repository
-- **Acceptance**: New checks catch violations and pass against the complete repository corpus.
-- **Phase**: complete
-- **Next action**: Ship through a pull request after current-main validation and SHA-bound review.
-- **Validation run**: CI/workflow regression passed 5340 tests, with 27 existing skips.
-- **Residual risks**: Runtime signals remain unsupported. Remote CI timing and delivery cadence remain unverified.
+- **Acceptance**: New checks detect violations and pass the complete repository corpus.
+- **Phase**: validation and review
+- **Next action**: Run exact-tip preflight and fresh independent review.
+- **Validation run**: Focused tests, Ruff, mypy, and dependency corpus checks passed.
+- **Residual risks**: Remote CI timing and delivery cadence remain unverified.
 - **Escalation owner**: Repository owner.
-
-## Files Modified
-
-- `.github/ISSUE_TEMPLATE/bug_report.yml`: Requires actionable bug reports.
-- `.github/ISSUE_TEMPLATE/feature_request.yml`: Requires problem statements and acceptance criteria.
-- `.github/workflows/duplicate-code.yml`: Runs the locked duplication ratchet.
-- `.github/workflows/dependency-hygiene.yml`: Checks dependency usage, constraints, and lockfiles.
-- `.github/workflows/workflow-failure-alert.yml`: Routes unattended failures to GitHub issues.
-- `.github/workflows/pytest.yml`: Adds one balanced test group and locked scanner installation.
-- `scripts/validation/check_duplicate_code.py`: Rejects new duplication and stale baseline entries.
-- `scripts/validation/check_unused_dependencies.py`: Checks dependency usage with granular exemptions.
-- `scripts/validation/check_dependency_drift.py`: Compares Python and npm dependency constraints.
-- `scripts/validation/dependency_hygiene_policy.py`: Validates granular dependency policy.
-- `scripts/ci/workflow_failure_alert.py`: Validates event metadata before publishing alerts.
-- `docs/agent-readiness.md`: Separates implemented checks from runtime and ownership decisions.
-
-`git status --short` lists related tests, integration changes, documentation, and lockfiles.
 
 ## Decisions Made
 
-- Preserve the existing privacy contract and finish repository-side work.
-  - Alternatives considered: Adding client telemetry and runtime infrastructure.
-  - Provenance: The user's explicit request to finish repository-side work while preserving privacy.
-- Commit and ship through a pull request without publishing a package release.
-  - Alternatives considered: Leaving the completed implementation uncommitted.
-  - Provenance: The user's explicit request to commit, ship, and drive the pull request to merge.
-- Use jscpd with an integrity-locked npm installation.
-  - Alternatives considered: An unlocked `npx` fallback.
-  - Provenance: Independent review identified lifecycle-script and lockfile bypass risks.
-- Preserve the existing duplication ceiling.
-  - Alternatives considered: Baseline growth and broad authored-code exclusions.
-  - Provenance: The baseline matched an immutable HEAD snapshot before integration.
-- Reuse GitHub issue alerting instead of adding an external provider.
-  - Alternatives considered: Client telemetry and third-party incident integrations.
-  - Provenance: Existing alert helpers and the README privacy statement.
+- Preserve existing host CLI, model, and user-invoked outbound behavior.
+  - Provenance: The user required preserving the existing README privacy contract.
+- Do not add installed-client telemetry, hosted services, or remote flags.
+  - Provenance: The user limited work to repository-side readiness repairs.
+- Use integrity-locked jscpd without an automatic npx fallback.
+  - Provenance: Security review required avoiding unlocked downloads and lifecycle execution.
+- Keep duplication ceilings and narrowly evidenced dependency exemptions.
+  - Provenance: Existing validator contracts prohibit baseline growth and blanket suppressions.
+- Reuse existing GitHub issue alerting without ingesting workflow artifacts.
+  - Provenance: Existing alert helpers support the approved repository-side failure routing.
+- Preserve upstream Ruff security checks and Bandit removal.
+  - Provenance: The committed main merge retained the upstream security-tooling change.
+- Compare Python constraints only when declaration markers overlap.
+  - Provenance: Round-three QA reproduced false conflicts from mutually exclusive Windows markers.
+- Reject unsupported marker predicates explicitly rather than guessing compatibility.
+  - Provenance: The repaired checker documents configuration exit two for unsupported predicates.
+- Use existing locked packaging interval APIs without changing package versions.
+  - Provenance: Locked packaging provides exact prerelease intervals; regenerated metadata preserves every package version.
 
-## Validation Evidence
+## Latest Validation Evidence
 
-- CI/workflow suites passed 5340 tests, with 27 skips.
-- Scanner and matrix wiring tests passed 100 tests.
-- All readiness feature tests passed 195 tests.
-- Statement coverage across the five automation modules reached 96.46 percent.
-- Gate integration tests passed 406 tests, with three skips.
-- Full duplication scanning examined 3408 Python files without new duplication.
-- Dependency usage checked 31 declarations across three manifests without findings.
-- Dependency drift checked three Python and six npm manifests without findings.
-- Ruff and mypy passed for the reviewed automation.
-- All three uv lockfiles matched their manifests.
-- Actionlint and workflow planning passed for all four changed workflows.
-- The latest workflow planning run took 115 seconds.
-- Windows workflow jobs cannot run through Linux act.
-- A fresh npm installation verified jscpd 5.4.3 without lifecycle scripts.
-- The first pre-PR run failed two gates.
-- Generated ownership classification was repaired and checked directly.
-- Workflow planning exceeded the pre-PR wrapper's 300-second cap during that run.
-- The later direct planning run passed without changing that cap.
-- The next pre-PR run passed 118 gates, with two justified skips.
-- Its sole failure identified the handoff's unportable absolute path.
-- The handoff now uses the resume checker's supported home-relative location.
-- Final full pre-PR validation exited zero after 309 seconds.
-- It reported 119 passing gates, two accepted skips, and no failures.
-- Spec contradiction skipped because no pull request could be resolved.
-- Review-marker validation skipped under its existing advisory policy.
+- 2026-11-10: All 220 focused dependency checker tests passed.
+- 2026-11-10: Ruff checks and formatting passed for repaired Python files.
+- 2026-11-10: Mypy passed for the three repaired implementation modules.
+- 2026-11-10: Dependency usage examined 30 declarations across three manifests without findings.
+- 2026-11-10: Drift examined three Python manifests and six npm manifests without findings.
+- 2026-11-10: Root lock validation passed after metadata-only regeneration.
+- 2026-11-10: Validation authority passed for seven local targets and one generated lock.
+- 2026-11-10: Historical preflight at 8f573a920 passed 119 gates with two accepted skips.
+- 2026-11-10: Historical regression at 8f573a920 passed 5351 tests with 27 explained skips.
 
-Temporary command logs use the `/tmp/readiness-` prefix.
-They are execution receipts, not durable acceptance evidence.
+Historical results do not certify the repaired tip.
+The operator approved repairs and a fresh review cycle after QA findings.
+Earlier review results cannot authorize the repaired code's security marker.
 
-## External Follow-up
+## Execution Receipts
 
-- Runtime telemetry and hosted infrastructure are outside the approved scope.
-- Release cadence cannot be established through local tests.
-- Publishing prerequisites require owner-controlled configuration.
-- No remote run has verified the CI latency target.
+Ignored scratch contains repair risk, authority, test, and review receipts.
+The authority record is `.project-toolkit/scratch/validation-authority-record.json`.
+Copy its decision summary into the PR description.
+The allocated PR body is `.project-toolkit/scratch/pr-body-60f5310a4fce4667288faf24824a0d63.md`.
 
 ## Next Steps
 
-1. Keep runtime signals explicitly unsupported without adding client telemetry.
-2. Verify remote checks after the authorized push.
-3. Reevaluate readiness only after the relevant workflows run remotely.
+1. Complete exact-tip preflight and the build exit gates.
+2. Complete fresh independent review and record genuine SHA-bound review proof.
+3. Push normally, create the requested PR, and immediately link its URL.
+4. Resolve remote checks and review findings before merging the reviewed head.
 
 ## Verification on Resume
 
-Run `uv run python scripts/validation/check_handoff_resume.py` with this file.
-Confirm the branch, HEAD, and worktree before editing.
-Inspect `git status --short` for existing user changes.
-Check completed delegate reports before repeating their investigation.
-
-## Related
-
-- No issue or pull request existed at local implementation closeout.
-- Session log creation is discontinued.
-- Operational limits are documented in `docs/agent-readiness.md`.
+Check the recorded branch, worktree, and reachable checkpoint before editing.
+Inspect existing changes before changing files.
+Read completed delegate reports before repeating their investigations.
+Do not bypass hooks, review gates, security requirements, or branch policies.
+Session log creation remains discontinued.
