@@ -75,10 +75,11 @@ There is no renamed `collection_sessions.py` compatibility entry point.
 35. `stats.terminated_by` from Codex `task_complete.error.codex_error_info` and Claude `isApiErrorMessage` records, shown in the transcript header and as its last entry. Droid matching moves to issue 7188 (issue 7189).
 36. `--min-idle-minutes` (default 15) quiet window on `stats.last_ts`, counted as `sessions_skipped_idle` (issue 7189).
 37. `failed_conversations` leaves out failures caused only by provider termination, and the report states how many (issue 7189).
-38. Repository scope from Git metadata: the main checkout plus registered linked worktrees, in `repository_scope.py`.
-39. A `scope_resolution` inventory block and summary that list included roots, rejected roots, and reasons.
-40. Removed worktrees are rejected with a reason, fence off their subtree, and join only through an explicit `--repo PATH`; `--no-worktrees` opts out.
-41. Clone discovery is reported as unsupported. No conversation branch filter exists, and collection never changes a branch.
+38. Harness-balanced sampling in `session_sampling.py`, with per-harness counts, an omitted-harness notice, and a deterministic cap rule (issue #7187).
+39. Repository scope from Git metadata: the main checkout plus registered linked worktrees, in `repository_scope.py`.
+40. A `scope_resolution` inventory block and summary that list included roots, rejected roots, and reasons.
+41. Removed worktrees are rejected with a reason, fence off their subtree, and join only through an explicit `--repo PATH`; `--no-worktrees` opts out.
+42. Clone discovery is reported as unsupported. No conversation branch filter exists, and collection never changes a branch.
 
 Do not replace local files wholesale with the newest upstream tree.
 Do not restore removed local adaptations merely because upstream still includes them.
