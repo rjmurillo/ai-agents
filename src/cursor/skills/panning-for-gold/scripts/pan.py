@@ -166,11 +166,26 @@ def cmd_synth(args: argparse.Namespace) -> int:
     return 0
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s init --workspace panning
+  %(prog)s validate --inventory inventory.md
+  %(prog)s merge --pass1 pass1.md --final final.md --output merged.md
+
+exit codes:
+  0  ok
+  1  logic error
+  2  config error
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Construct the top-level parser."""
     parser = argparse.ArgumentParser(
         prog="pan.py",
         description="Triage raw input into evaluated thread inventories.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     sub = parser.add_subparsers(dest="command", required=True)
 

@@ -184,9 +184,27 @@ def _cmd_recheck(
     return 0
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s check records/defect-001.json
+  %(prog)s report records/defect-001.json --output-format json
+  %(prog)s recheck records/defect-001.json --rev origin/main
+
+exit codes:
+  0  ok
+  1  a record is invalid
+  2  bad path, unreadable JSON, or bad argument
+  3  git cannot run, or the revision does not resolve
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the argument parser."""
-    parser = argparse.ArgumentParser(description="Defect lineage records (issue #5638).")
+    parser = argparse.ArgumentParser(
+        description="Defect lineage records (issue #5638).",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("--root", default=".", help="repository root (default: cwd)")
     sub = parser.add_subparsers(dest="command", required=True)
     check = sub.add_parser("check", help="validate records")

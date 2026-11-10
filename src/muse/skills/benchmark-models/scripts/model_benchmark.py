@@ -824,8 +824,28 @@ def dry_run_report(
     return "\n".join(lines)
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s prompt.md --models claude,gpt --output markdown
+  %(prog)s --prompt "Summarize this repo" --dry-run
+  %(prog)s prompt.md --models claude --judge --skip-unavailable
+
+exit codes:
+  0  ok
+  1  runtime error
+  2  config or usage error
+  3  external dependency failure
+  4  authentication or authorization failure
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="model_benchmark", description=__doc__.splitlines()[0])
+    p = argparse.ArgumentParser(
+        prog="model_benchmark",
+        description=__doc__.splitlines()[0],
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     p.add_argument("prompt_file", nargs="?", help="prompt file path (or inline text)")
     p.add_argument("--prompt", help="inline prompt text")
     p.add_argument("--models", help="comma-separated providers (default: claude)")

@@ -1816,9 +1816,28 @@ def _load_json_artifact(path: Path, name: str) -> dict[str, Any] | None:
 # ---------------------------------------------------------------------------
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --target .
+  %(prog)s --target . --diff-base origin/main --format summary
+  %(prog)s --target . --phases 1,2 --severity-threshold medium
+
+exit codes:
+  0  no findings at or above the severity threshold
+  1  error or inconclusive run
+  2  configuration error, such as an invalid --diff-base
+  3  external dependency failure, such as git unavailable
+  10  findings at or above the severity threshold
+"""
+
+
 def _build_parser() -> argparse.ArgumentParser:
     """Build the argument parser."""
-    parser = argparse.ArgumentParser(description="Documentation accuracy scanner (Phases 1-3)")
+    parser = argparse.ArgumentParser(
+        description="Documentation accuracy scanner (Phases 1-3)",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument(
         "--target",
         "-t",

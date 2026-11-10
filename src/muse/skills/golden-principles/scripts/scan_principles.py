@@ -378,9 +378,24 @@ def _find_repo_root() -> str | None:
     return None
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --directory .
+  %(prog)s --diff-scope origin/main --format json
+  %(prog)s --rules actions-pinned,yaml-logic -o findings.txt
+
+exit codes:
+  0  clean
+  1  script error
+  10  violations detected
+"""
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Golden principles scanner with agent-readable remediation",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "files",

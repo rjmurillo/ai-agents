@@ -106,29 +106,22 @@ def sensitivity_analysis(
     return sensitivity
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --criteria-file criteria.json
+
+exit codes:
+  0  clear winner (over 20%% score gap)
+  1  tie within 10%% needs human judgment, or path traversal rejected
+  2  criteria file not found, not valid JSON, or failed validation
+"""
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Calculate weighted decision scores",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Example criteria file format (JSON):
-{
-  "weights": {
-    "strategic": 40.0,
-    "operational": 30.0,
-    "risk": 30.0
-  },
-  "options": {
-    "build": {
-      "strategic": {"alignment": 9, "optionality": 8, "upside": 9},
-      "operational": {"time_to_value": 5, "team_fit": 8, "integration": 7},
-      "risk": {"vendor": 10, "execution": 6, "regulatory": 8}
-    },
-    "buy": { ... },
-    "partner": { ... }
-  }
-}
-        """,
+        epilog=_HELP_EPILOG,
     )
 
     parser.add_argument(

@@ -80,19 +80,26 @@ def run_gate(args: argparse.Namespace) -> int:
     return 1 if result["verdict"] == "BLOCK" else 0
 
 
+_HELP_EPILOG = """\
+Every subcommand is read-only and prints one JSON object on stdout.
+
+examples:
+  %(prog)s scan src --base . --changed delete_user
+  %(prog)s preview-files --root . --pattern 'tmp/*.tmp'
+  %(prog)s gate --evidence evidence.json --scan scan.json
+
+exit codes:
+  0  scan ran, preview counted, or gate verdict is PASS or SKIP
+  1  scan decision unknown, preview refused, or gate verdict BLOCK
+  2  missing path, no scannable file, unreadable JSON, or bad arguments
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="destructive_gate.py",
         description=__doc__.splitlines()[0],
-        epilog=(
-            "examples:\n"
-            "  destructive_gate.py scan src/ --base . --changed delete_user\n"
-            "  destructive_gate.py preview-files --root . --pattern 'build/*.tmp'\n"
-            "  destructive_gate.py gate --evidence evidence.json --scan scan.json\n\n"
-            "Every subcommand is read-only and prints one JSON object on stdout.\n"
-            "Exit codes: 0 ok, 1 logic (unknown scan, refused preview, gate BLOCK),\n"
-            "2 config (missing path, unreadable JSON, bad arguments)."
-        ),
+        epilog=_HELP_EPILOG,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     sub = parser.add_subparsers(dest="command", required=True)

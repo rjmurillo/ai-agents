@@ -133,17 +133,24 @@ def save_document(content: str, output_dir: Path, name: str) -> Path:
     return output_path
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --name "API Gateway Resilience" --dry-run
+  %(prog)s --name "DB Failover" --system "Payment Service" --region us-east-1
+  %(prog)s --name "Cache Partition" --output out/chaos --json
+
+exit codes:
+  0  experiment document generated (or printed with --dry-run)
+  1  generation failed; the error is on stderr
+"""
+
+
 def main() -> Result:
     """Main entry point."""
     parser = argparse.ArgumentParser(
         description="Generate a chaos experiment document",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-    python generate_experiment.py --name "API Gateway Resilience"
-    python generate_experiment.py --name "DB Failover" --system "Payment Service"
-    python generate_experiment.py --name "Cache Partition" --output ./out/chaos/
-        """,
+        epilog=_HELP_EPILOG,
     )
 
     parser.add_argument(
