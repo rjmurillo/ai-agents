@@ -492,6 +492,7 @@ def test_configuration_uses_named_native_jobs() -> None:
         "markdown-check",
         "python-autofix",
         "python-check",
+        "python-quality-advisory",
         "workflow-validation",
         "actionlint",
         "yaml-advisory",
@@ -753,6 +754,7 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         # (`_merge_authored_adr_paths`), so lefthook must not skip it.
         "adr-review-policy",
         "python-check",
+        "python-quality-advisory",
         "workflow-validation",
         "actionlint",
         "yaml-advisory",

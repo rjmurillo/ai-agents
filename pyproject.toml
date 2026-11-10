@@ -181,6 +181,9 @@ select = [
 ]
 ignore = []
 
+[tool.ruff.lint.pydocstyle]
+convention = "pep257"
+
 [tool.ruff.lint.mccabe]
 max-complexity = 15
 

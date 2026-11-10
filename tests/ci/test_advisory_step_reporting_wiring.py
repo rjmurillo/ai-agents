@@ -106,6 +106,7 @@ RUN_MODE_ROWS = [
 LEFTHOOK_ROWS = [
     ("python-autofix", "python-autofix"),
     ("python-check", "python-check"),
+    ("python-quality-advisory", "python-quality-advisory"),
     ("worktree-gc-report", "worktree-gc-report"),
     ("branch-config-prune-report", "branch-config-prune-report"),
     ("python-lint-advisory", "python-lint-advisory"),
@@ -290,6 +291,7 @@ def test_a_lefthook_advisory_job_reports_through_the_helper(job: str, validator:
         ("python-lint-advisory", 120),
         ("python-autofix", 300),
         ("python-check", 300),
+        ("python-quality-advisory", 300),
     ],
 )
 def test_the_reporter_timeout_stays_under_the_lefthook_job_timeout(
