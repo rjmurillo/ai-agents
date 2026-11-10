@@ -4378,8 +4378,8 @@ def _install_trusted_root(config_arg: str) -> InstallTrust | None:
         #
         # Testing only "root is not below the project" leaves the
         # ancestor direction open, and that direction is the whole
-        # bypass: with the project at $HOME/repo and
-        # CLAUDE_PLUGIN_ROOT=$HOME, the root is not below the project
+        # bypass: with the project at $HOME/repo and COPILOT_PLUGIN_ROOT or
+        # CLAUDE_PLUGIN_ROOT set to $HOME, the root is not below the project
         # (so a one-way test passes it) while every PR-controlled file
         # in the repo IS inside the root, so condition 4 passes too. A
         # config the checked-out PR wrote would then be install-trusted
