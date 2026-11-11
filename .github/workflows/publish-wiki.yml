@@ -1,0 +1,51 @@
+name: Publish Training Wiki
+# Issue #7202, epic #7201. One-way mirror of docs/training/ to the GitHub wiki.
+# This file holds triggers and one call. Every decision lives in
+# scripts/ci/publish_wiki.py, which has the tests (ADR-006).
+#
+# The wiki is read-only for people: a wiki edit is overwritten on the next run.
+#
+# Credential: WIKI_PUSH_TOKEN if the environment wiki-publish has that secret,
+# else the workflow token. The job names the environment because ADR-101 keeps
+# stored secrets out of repository scope (tests/ci/test_workflow_secret_environment_scope.py). The script reports BLOCKED (exit 4) when the wiki refuses the
+# credential, and SKIP (exit 0) when the wiki repo does not exist yet or no
+# credential is present. Run it by hand with dry_run on to see the planned diff.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/training/**'
+      - 'scripts/ci/publish_wiki.py'
+      - '.github/workflows/publish-wiki.yml'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Print the planned wiki diff and push nothing'
+        required: false
+        default: true
+        type: boolean
+permissions:
+  contents: write
+concurrency:
+  group: publish-wiki
+  cancel-in-progress: false
+jobs:
+  publish:
+    name: Mirror docs/training to the wiki
+    environment: wiki-publish
+    runs-on: ubuntu-26.04-arm
+    timeout-minutes: 10
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Publish
+        env:
+          WIKI_TOKEN: ${{ secrets.WIKI_PUSH_TOKEN || github.token }}
+          WIKI_DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: python3 scripts/ci/publish_wiki.py
