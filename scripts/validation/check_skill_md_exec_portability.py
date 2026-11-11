@@ -288,7 +288,12 @@ def scan_literal_plugin_paths(repo_root: Path) -> tuple[list[str], int]:
     for path in files:
         text = _read_scan_text(path)
         rel = path.relative_to(repo_root).as_posix()
-        hits.extend(f"{rel}:{line}: .claude/{lit}" for line, lit in find_literal_plugin_paths(text))
+        # A generated TOML agent is scanned as decoded text, so its line numbers do not
+        # exist in the file; point at line 1 instead.
+        hits.extend(
+            f"{rel}:{1 if path.suffix == '.toml' else line}: .claude/{lit}"
+            for line, lit in find_literal_plugin_paths(text)
+        )
     return hits, len(files)
 
 

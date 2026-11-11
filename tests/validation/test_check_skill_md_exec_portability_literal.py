@@ -221,7 +221,7 @@ class TestScanLiteralPluginPaths:
         body = "Run this:\\npython3 .claude/skills/demo/scripts/x.py --flag\\n"
         _write(tmp_path, "src/codex/agents/helper.toml", f'developer_instructions = "{body}"\n')
         hits, _ = cep.scan_literal_plugin_paths(tmp_path)
-        assert [h.split(":")[0] for h in hits] == ["src/codex/agents/helper.toml"]
+        assert [h.split(":")[:2] for h in hits] == [["src/codex/agents/helper.toml", "1"]]
 
     def test_a_clean_generated_toml_agent_has_no_hits(self, tmp_path: Path) -> None:
         """Negative control for the TOML decode."""

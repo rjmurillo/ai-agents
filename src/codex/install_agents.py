@@ -214,14 +214,23 @@ def _warn_handoff(plan: Plan, name: str, prefix: str) -> None:
     agent = name[: -len(AGENT_SUFFIX)]
     plan.warnings.append(
         f"other shipped agents hand work to `{agent}`; that name still reaches your own "
-        f"`{agent}` agent, not `{prefix}-{agent}`"
+        f"`{agent}` agent, not `{namespaced_file_name(prefix, agent)}`"
     )
 
 
 def _plan_namespaced(
-    plan: Plan, target: Path, name: str, data: bytes, owned: Ownership, prefix: str
+    plan: Plan,
+    target: Path,
+    name: str,
+    data: bytes,
+    owned: Ownership,
+    prefix: str,
+    taken: set[str],
 ) -> None:
     ns_name = namespaced_file_name(prefix, name)
+    if ns_name in taken:
+        plan.conflicts.append(f"{ns_name} (namespaced name of {name}) is also a shipped agent")
+        return
     ns_data = namespaced_bytes(data, prefix, name)
     if _decide(plan, target, ns_name, ns_data, owned, source=name):
         plan.lines[-1] += f"  (namespaced from {name} to avoid a conflict)"
@@ -273,14 +282,23 @@ def _plan_owned_leftovers(
     for name in sorted(set(owned.files) - set(plan.record.files)):
         source = owned.sources.get(name)
         current = _disk_hash(target / name)
-        if current is not None and current != owned.files[name]:
+        if current is None:
+            # The user deleted it. Do not bring it back; the record goes.
+            plan.lines.append(f"  dropped: {name} (recorded copy is already gone)")
+            continue
+        follows_source = source in shipped and source not in plan.shipped_ours
+        wanted = (
+            namespaced_bytes(shipped[source], namespace_prefix_of(name, source), source)
+            if follows_source and source is not None
+            else None
+        )
+        # An interrupted upgrade leaves the new bytes on disk and the old hash on record.
+        interrupted = wanted is not None and current == sha256_hex(wanted)
+        if current != owned.files[name] and not interrupted:
             _keep_edited(plan, name, owned)
-        elif source in shipped and source not in plan.shipped_ours:
-            prefix = namespace_prefix_of(name, source)
-            _decide(
-                plan, target, name, namespaced_bytes(shipped[source], prefix, source), owned, source
-            )
-        elif current is not None:
+        elif wanted is not None and source is not None:
+            _decide(plan, target, name, wanted, owned, source)
+        else:
             plan.removes.append(name)
             reason = "no longer shipped" if source not in shipped else "plain agent is installed"
             plan.note("removed", name, f" ({reason})")
@@ -290,14 +308,14 @@ def build_install_plan(
     shipped: dict[str, bytes], target: Path, owned: Ownership, namespace: str | None
 ) -> Plan:
     plan = Plan()
+    taken = set(shipped)
     for name, data in shipped.items():
         if _decide(plan, target, name, data, owned):
             plan.shipped_ours.add(name)
             continue
         prior = _prior_namespaced_copy(target, name, owned)
-        if (
-            prior is not None
-        ):  # an earlier --namespace run owns this agent; the leftover pass upgrades it
+        # An earlier --namespace run owns this agent; the leftover pass upgrades it.
+        if prior is not None:
             prefix = namespace_prefix_of(prior, name)
             _warn_handoff(plan, name, prefix)
             if namespace is not None and namespace != prefix:
@@ -308,7 +326,7 @@ def build_install_plan(
         if namespace is None:
             plan.conflicts.append(_conflict_text(target, name, owned))
         else:
-            _plan_namespaced(plan, target, name, data, owned, namespace)
+            _plan_namespaced(plan, target, name, data, owned, namespace, taken)
     _plan_owned_leftovers(plan, target, shipped, owned)
     return plan
 
