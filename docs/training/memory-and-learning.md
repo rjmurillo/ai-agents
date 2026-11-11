@@ -14,7 +14,7 @@ You will check each step with output you can compare to this page.
 
 ## How memory works
 
-Serena is the only memory backend ([ADR-106](../../.project-toolkit/architecture/ADR-106-serena-only-memory-architecture.md)). A memory is a plain Markdown file under `.serena/memories/`. It travels with the repository, so it stays readable when the MCP server is down. The forgetful server was removed in [#5575](https://github.com/rjmurillo/ai-agents/pull/5575). The decision record landed in [#5656](https://github.com/rjmurillo/ai-agents/pull/5656).
+Serena is the only memory backend ([ADR-106](../../.project-toolkit/architecture/ADR-106-serena-only-memory-architecture.md)). A memory is a plain Markdown file under `.serena/memories/`. It travels with the repository, so it stays readable when the MCP server is down. The second memory server was removed in [#5575](https://github.com/rjmurillo/ai-agents/pull/5575). The decision record landed in [#5656](https://github.com/rjmurillo/ai-agents/pull/5656).
 
 The rule for reading is: search first, then read by name. Do not list every memory. A full `list_memories` call costs thousands of tokens (see `.serena/memories/README.md`).
 
