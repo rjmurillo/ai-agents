@@ -119,7 +119,11 @@ def validate_source(source: Path) -> list[str]:
     if "README.md" not in names:
         problems.append("README.md is missing, it is the index and becomes Home")
     for name in names:
-        head = (source / name).read_text(encoding="utf-8").lstrip("\ufeff")
+        try:
+            head = (source / name).read_text(encoding="utf-8").lstrip("\ufeff")
+        except UnicodeDecodeError:
+            problems.append(f"{name}: not valid UTF-8")
+            continue
         if head.startswith("---"):
             problems.append(f"{name}: YAML front matter is not allowed, the wiki shows it as text")
         if "\x00" in head:

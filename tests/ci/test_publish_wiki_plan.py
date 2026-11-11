@@ -167,3 +167,21 @@ def test_a_nul_character_in_a_page_is_refused_not_a_crash(repo: Path) -> None:
     write(repo, "docs/training/first-page.md", "# F\n\nbefore \x00 after\n")
     with pytest.raises(pw.SourceError, match="NUL character"):
         plan_for(repo)
+
+
+def test_a_page_that_is_not_utf8_is_refused_not_a_traceback(repo: Path) -> None:
+    (repo / "docs/training/first-page.md").write_bytes(b"# F\n\n\xff\xfe broken\n")
+    with pytest.raises(pw.SourceError, match="first-page.md: not valid UTF-8"):
+        plan_for(repo)
+
+
+def test_a_readme_that_is_not_utf8_is_refused_too(repo: Path) -> None:
+    (repo / "docs/training/README.md").write_bytes(b"# T\n\n\xff\n")
+    with pytest.raises(pw.SourceError, match="README.md: not valid UTF-8"):
+        plan_for(repo)
+
+
+def test_a_nul_character_in_the_readme_is_refused(repo: Path) -> None:
+    write(repo, "docs/training/README.md", README + "\nbefore \x00 after\n")
+    with pytest.raises(pw.SourceError, match="README.md: contains a NUL character"):
+        plan_for(repo)

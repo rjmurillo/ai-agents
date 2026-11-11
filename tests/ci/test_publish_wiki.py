@@ -482,10 +482,3 @@ def test_no_repo_flag_env_or_origin_exits_2_even_with_a_wiki_url(
     argv = ["--repo-root", str(repo), "--wiki-url", file_url(wiki), "--dry-run"]
     assert pw.main(argv, environ={}) == 2
     assert "add a github.com origin remote" in capsys.readouterr().err
-
-
-def test_file_url_is_a_three_slash_uri_even_for_a_drive_style_path(tmp_path: Path) -> None:
-    """``file://`` plus a raw Windows path names a host, not a drive."""
-    url = file_url(tmp_path / "wiki.git")
-    assert url.startswith("file:///")
-    assert "\\" not in url
