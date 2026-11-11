@@ -24,6 +24,23 @@ skipped. ``allowed-tools`` lists live there, and which keys the Codex and Muse
 platform files keep is a platform decision (``templates/platforms/*.yaml``),
 not a prose defect.
 
+A second rule covers dispatch written in prose (ADR-115 Decision 13). A file
+that names ``subagent_type`` anywhere outside frontmatter, even on a line
+attributed to Claude Code, must carry the host-delegation paragraph, marked by
+``**Delegation on each host.**``
+(``templates/skills/partials/host-delegation.mustache``). The paragraph names
+Codex ``spawn_agent`` and Muse Code ``subagent_spawn`` and tells the model to run
+the step itself when the host has no subagent tool. Narrowest correct scope:
+
+* The file carries the marker itself, or
+* it sits under ``skills/<name>/`` and that skill's ``SKILL.md`` carries it. A
+  script that prints a hint, or a reference file the model loads from
+  ``SKILL.md``, is covered by the skill body that loaded it.
+
+A file under ``src/claude`` is not scanned: Claude Code registers ``Task``. The
+Codex and Muse trees are generated from the same sources, so a miss there is a
+miss in the source.
+
 Exit codes: 0 clean, 1 violations found, 2 a scanned tree is missing.
 """
 
@@ -39,6 +56,9 @@ SHIPPED_TREES: tuple[str, ...] = ("src/codex", "src/muse")
 ATTRIBUTION = "Claude Code"
 BARE_TASK = re.compile(r"(?<![A-Za-z0-9_])Task\(")
 BARE_ASK = re.compile(r"AskUserQuestion")
+SUBAGENT_TYPE = "subagent_type"
+DELEGATION_MARKER = "**Delegation on each host.**"
+MISSING_DELEGATION = "subagent_type without the host-delegation paragraph"
 
 
 def _body_lines(path: Path, text: str) -> Iterator[tuple[int, str]]:
@@ -65,15 +85,44 @@ def line_violation(line: str) -> str | None:
     return None
 
 
-def scan_file(path: Path) -> list[tuple[int, str]]:
-    """Return (line number, tool) for every bare Claude-only call in one file."""
+def _read(path: Path) -> str | None:
     try:
-        text = path.read_text(encoding="utf-8")
+        return path.read_text(encoding="utf-8")
     except (UnicodeDecodeError, OSError):
+        return None
+
+
+def _skill_root(tree: Path, path: Path) -> Path | None:
+    """Return ``<tree>/skills/<name>`` for a file inside a skill, else None."""
+    parts = path.relative_to(tree).parts
+    if len(parts) < 3 or parts[0] != "skills":
+        return None
+    return tree / parts[0] / parts[1]
+
+
+def _skill_carries_marker(tree: Path, path: Path) -> bool:
+    root = _skill_root(tree, path)
+    if root is None:
+        return False
+    body = _read(root / "SKILL.md")
+    return body is not None and DELEGATION_MARKER in body
+
+
+def scan_file(path: Path, *, covered: bool = False) -> list[tuple[int, str]]:
+    """Return (line number, problem) for one file.
+
+    ``covered`` says the owning skill's SKILL.md carries the delegation
+    paragraph, which satisfies the prose rule for a script or reference file.
+    """
+    text = _read(path)
+    if text is None:
         return []
+    has_marker = covered or DELEGATION_MARKER in text
     found: list[tuple[int, str]] = []
     for number, line in _body_lines(path, text):
         tool = line_violation(line)
+        if tool is None and SUBAGENT_TYPE in line and not has_marker:
+            tool = MISSING_DELEGATION
         if tool is not None:
             found.append((number, tool))
     return found
@@ -85,9 +134,14 @@ def scan_tree(tree: Path) -> tuple[int, list[tuple[Path, int, str]]]:
     violations: list[tuple[Path, int, str]] = []
     for path in sorted(p for p in tree.rglob("*") if p.is_file()):
         examined += 1
-        for number, tool in scan_file(path):
+        covered = _skill_carries_marker(tree, path)
+        for number, tool in scan_file(path, covered=covered):
             violations.append((path, number, tool))
     return examined, violations
+
+
+def _describe(tool: str) -> str:
+    return tool if tool == MISSING_DELEGATION else f"bare {tool} call"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -111,7 +165,7 @@ def main(argv: list[str] | None = None) -> int:
         violations.extend(found)
     for path, number, tool in violations:
         rel = path.relative_to(root).as_posix()
-        print(f"{rel}:{number}: bare {tool} call; name each host's tool, see issue #7226")
+        print(f"{rel}:{number}: {_describe(tool)}; name each host's tool, see issue #7226")
     print(
         f"host-neutral-dispatch: {len(violations)} violation(s) in {total_examined} files examined"
     )

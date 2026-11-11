@@ -2,7 +2,7 @@
 
 Load this when a step names a command that your harness does not run as written. The workflow, gates, and status vocabulary are identical across Claude Code, Copilot CLI, and VS Code. Only the rows below differ. Each row was compared between the retired Claude body and the retired Copilot body of the `pr-comment-responder` agent.
 
-Codex delegates with `spawn_agent` and `agent_type="orchestrator"`. Muse Code delegates with `subagent_spawn` and `role="orchestrator"`. A host with no subagent tool runs the step itself.
+**Delegation on each host.** "Delegate to the `X` agent" means the host's subagent tool: Claude Code `Task` with `subagent_type="X"`; Copilot CLI `task` with `agent_type="project-toolkit:X"`; Codex `spawn_agent` with `agent_type="X"`, plus `fork_turns="none"` when the agent reviews or judges work (the default hands it your whole history); Muse Code `subagent_spawn` with `role="X"` and an `objective`, plus `worktree_isolation: true` for an agent that writes files. If the host has no subagent tool, or no `X` agent is installed, run the step yourself in this session.
 
 | Concern | Claude Code | Copilot CLI | VS Code |
 |---------|-------------|-------------|---------|
