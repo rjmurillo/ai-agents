@@ -10,7 +10,7 @@ Start with the migration and install units if you are moving to v0.7.0. The rest
 
 Each entry names the issue that writes the page and who the page is for. An entry shown as plain code has no page yet. When a page lands, its pull request turns the code into a link.
 
-- `migrate-v0-6-to-v0-7.md` (#7203): moving from v0.6.0 to v0.7.0. For anyone with an existing install.
+- [Move a v0.6.0 install to v0.7](migrate-v0-6-to-v0-7.md) (#7203): moving from v0.6.0 to v0.7.0. For anyone with an existing install.
 
 - `install-on-every-host.md` (#7204): install and verify the toolkit on Claude Code, Codex, Cursor, Grok Build, Pi, Hermes, and Muse. For new users.
 
