@@ -19,14 +19,14 @@ function makeSource(entries: BundleEntry[]): BundleSource {
   };
 }
 
-function makeEmitter(canEmit = true): TargetEmitter & {
+function makeEmitter(divergent: string[] = []): TargetEmitter & {
   written: Array<{ entry: BundleEntry; content: Buffer }>;
 } {
   const written: Array<{ entry: BundleEntry; content: Buffer }> = [];
   return {
     written,
-    canEmit() {
-      return canEmit;
+    async diverges(entry) {
+      return divergent.includes(entry.relativePath);
     },
     async emit(entry, content) {
       written.push({ entry, content });
@@ -41,13 +41,32 @@ const target: TargetContext = {
 };
 
 describe("init", () => {
-  test("returns 2 when canEmit is false", async () => {
+  test("returns 2 and writes nothing when a file diverges", async () => {
+    const emitter = makeEmitter(["b.md"]);
     const code = await init(
-      makeSource([{ relativePath: "a", size: 1 }]),
-      makeEmitter(false),
+      makeSource([
+        { relativePath: "a.md", size: 1 },
+        { relativePath: "b.md", size: 1 },
+      ]),
+      emitter,
       target,
     );
     expect(code).toBe(2);
+    expect(emitter.written).toHaveLength(0);
+  });
+
+  test("force overwrites diverging files", async () => {
+    const emitter = makeEmitter(["b.md"]);
+    const code = await init(
+      makeSource([
+        { relativePath: "a.md", size: 1 },
+        { relativePath: "b.md", size: 1 },
+      ]),
+      emitter,
+      { ...target, force: true },
+    );
+    expect(code).toBe(0);
+    expect(emitter.written).toHaveLength(2);
   });
 
   test("vendors all entries when no transforms", async () => {

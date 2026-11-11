@@ -47,6 +47,8 @@ from typing import Any
 
 import pytest
 
+from tests.pwsh_launcher_probe import require_working_pwsh
+
 pytestmark = pytest.mark.windows_path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -486,13 +488,13 @@ def test_anchor_is_load_bearing_when_no_plugin_root_var_set(tmp_path: Path) -> N
     )
 
 
-@pytest.mark.skipif(shutil.which("pwsh") is None, reason="pwsh not installed")
 def test_every_powershell_command_resolves_under_pwsh(tmp_path: Path) -> None:
     """Every emitted powershell path resolves under pwsh, incl. the fallback.
 
     Batches all Test-Path checks into a single pwsh invocation per scenario
     to avoid N subprocess spawns that flake under xdist load (issue #4928).
     """
+    require_working_pwsh()
     doc = _generate(tmp_path)
     plugin_root = str(tmp_path / "plugin")
     userland = tmp_path / "userland"

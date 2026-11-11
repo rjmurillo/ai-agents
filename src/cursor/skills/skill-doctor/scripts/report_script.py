@@ -2,7 +2,7 @@
 
 
 def page_script(card_data: str, clamp_px: int) -> str:
-    """Diff collapsing plus a canvas-drawn 1200x675 share image."""
+    """Diff collapsing, prompt copy buttons, print expansion, and a canvas share image."""
     script = r"""
 (function () {
   var CARD = __CARD__;
@@ -27,7 +27,7 @@ def page_script(card_data: str, clamp_px: int) -> str:
     button.addEventListener('click', function () {
       var collapsed = wrap.dataset.collapsed === 'true';
       wrap.dataset.collapsed = collapsed ? 'false' : 'true';
-      button.textContent = collapsed ? 'show less' : 'show more';
+      button.textContent = collapsed ? 'Show less' : 'Show more';
       if (!collapsed) wrap.scrollIntoView({ block: 'nearest' });
     });
     syncToggle(wrap, button);
@@ -36,24 +36,76 @@ def page_script(card_data: str, clamp_px: int) -> str:
     }
   });
 
-  // --- share image -------------------------------------------------------
-  var MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
-  var FG = '#1a1522', MUTED = '#5d5966', MUTED2 = '#918d9a', ACCENT = '#2a1eff';
-  var LINE = 'rgba(13,10,61,0.16)', LINE_SOFT = 'rgba(13,10,61,0.07)';
-  var PANEL = '#f6f5fb';
-  var W = 1200, H = 675;
-
-  function drawMark(c, x, y, size) {
-    var scale = size / CARD.viewbox[0];
-    c.save();
-    c.translate(x, y);
-    c.scale(scale, scale);
-    CARD.paths.forEach(function (path) {
-      c.fillStyle = path.fill;
-      c.fill(new Path2D(path.d), 'evenodd');
-    });
-    c.restore();
+  // --- handoff prompts: copy and select all -------------------------------
+  function selectNode(node) {
+    var details = node.closest('details');
+    if (details) details.open = true;
+    var range = document.createRange();
+    range.selectNodeContents(node);
+    var selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
   }
+
+  function flash(status, message) {
+    status.textContent = message;
+    setTimeout(function () { status.textContent = ''; }, 3000);
+  }
+
+  function copyPrompt(node, status) {
+    var text = node.textContent;
+    var legacy = function () {
+      selectNode(node);
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      flash(status, ok ? 'Copied.' : 'Could not copy. The text is selected; press Ctrl+C.');
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(
+        function () { flash(status, 'Copied.'); }, legacy);
+    } else {
+      legacy();
+    }
+  }
+
+  document.querySelectorAll('.handoff').forEach(function (box) {
+    var node = box.querySelector('.prompt');
+    var status = box.querySelector('.copy-status');
+    var copy = box.querySelector('.copy-btn');
+    var all = box.querySelector('.select-btn');
+    if (!node || !status) return;
+    if (copy) copy.addEventListener('click', function () { copyPrompt(node, status); });
+    if (all) all.addEventListener('click', function () {
+      selectNode(node);
+      flash(status, 'Selected. Press Ctrl+C to copy.');
+    });
+  });
+
+  // --- print: expand every collapsed section, then restore ----------------
+  var reopened = [];
+  var unclamped = [];
+  window.addEventListener('beforeprint', function () {
+    document.querySelectorAll('details:not([open])').forEach(function (d) {
+      d.open = true;
+      reopened.push(d);
+    });
+    document.querySelectorAll('.diff-wrap[data-collapsed="true"]').forEach(function (w) {
+      w.dataset.collapsed = 'false';
+      unclamped.push(w);
+    });
+  });
+  window.addEventListener('afterprint', function () {
+    reopened.forEach(function (d) { d.open = false; });
+    reopened = [];
+    unclamped.forEach(function (w) { w.dataset.collapsed = 'true'; });
+    unclamped = [];
+  });
+
+  // --- share image -------------------------------------------------------
+  var SANS = 'system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+  var FG = '#15181e', MUTED = '#4b5260', ACCENT = '#2a4bd0';
+  var LINE = '#c3c9d4', LINE_SOFT = '#e1e5ec', PANEL = '#eef0f4', BG = '#f5f6f8';
+  var W = 1200, H = 675;
 
   function drawCard(scale) {
     var canvas = document.createElement('canvas');
@@ -62,89 +114,47 @@ def page_script(card_data: str, clamp_px: int) -> str:
     var c = canvas.getContext('2d');
     c.scale(scale, scale);
 
-    function font(weight, size) { c.font = weight + ' ' + size + 'px ' + MONO; }
-    function track(value) { try { c.letterSpacing = value; } catch (e) {} }
-    function rule(x, y, w, h) { c.fillStyle = LINE; c.fillRect(x, y, w, h); }
+    function font(weight, size) { c.font = weight + ' ' + size + 'px ' + SANS; }
     function text(str, x, y, align) {
       c.textAlign = align || 'left';
       c.textBaseline = 'middle';
       c.fillText(str, x, y);
       c.textAlign = 'left';
     }
-    function dots(x, y, w, h, step) {
-      c.save();
-      c.beginPath();
-      c.rect(x, y, w, h);
-      c.clip();
-      c.fillStyle = LINE_SOFT;
-      for (var i = x; i < x + w; i += step) {
-        for (var j = y; j < y + h; j += step) {
-          c.beginPath();
-          c.arc(i + 1, j + 1, 1, 0, Math.PI * 2);
-          c.fill();
-        }
+    function fit(str, maxWidth) {
+      if (c.measureText(str).width <= maxWidth) return str;
+      while (str.length > 1 && c.measureText(str + '…').width > maxWidth) {
+        str = str.slice(0, -1);
       }
-      c.restore();
+      return str + '…';
     }
 
-    c.fillStyle = '#fff';
+    c.fillStyle = BG;
     c.fillRect(0, 0, W, H);
-    dots(0, 0, W, H, 22);
-
     var fx = 48, fy = 40, fw = 1104, fh = 595;
     c.fillStyle = '#fff';
     c.fillRect(fx, fy, fw, fh);
-    rule(fx, fy, fw, 1);
-    rule(fx, fy + fh - 1, fw, 1);
-    rule(fx, fy, 1, fh);
-    rule(fx + fw - 1, fy, 1, fh);
-
-    // meta bar
-    var barBottom = fy + 38;
-    rule(fx, barBottom, fw, 1);
-    font('400', 11);
-    track('1.1px');
-    c.fillStyle = MUTED2;
-    var handle = CARD.handle.toUpperCase();
-    text(handle, fx + 16, fy + 19);
-    var handleEnd = fx + 16 + c.measureText(handle).width + 14;
-    var harness = CARD.harness.toUpperCase();
-    var harnessW = c.measureText(harness).width + 12;
-    var harnessX = fx + fw - 16 - harnessW;
     c.strokeStyle = LINE;
     c.lineWidth = 1;
-    c.strokeRect(harnessX + 0.5, fy + 8.5, harnessW - 1, 21);
-    text(harness, harnessX + 6, fy + 19);
-    var meta = CARD.meta.toUpperCase();
-    var metaX = harnessX - 14 - c.measureText(meta).width;
-    text(meta, metaX, fy + 19);
-    rule(handleEnd, fy + 19, Math.max(0, metaX - 14 - handleEnd), 1);
-    track('normal');
+    c.strokeRect(fx + 0.5, fy + 0.5, fw - 1, fh - 1);
 
-    // body
-    dots(fx + 1, barBottom + 1, fw - 2, 404, 26);
-    font('400', 11);
-    track('0.4px');
-    c.fillStyle = ACCENT;
-    text('# ' + CARD.eyebrow, fx + 36, barBottom + 18);
-    font('500', 34);
-    track('-2px');
+    // header: title, then handle, harness and scope
+    font('700', 36);
     c.fillStyle = FG;
-    text(CARD.title, fx + 36, barBottom + 52);
-    track('normal');
+    text(fit(CARD.title, fw - 72), fx + 36, fy + 50);
+    font('400', 16);
+    c.fillStyle = MUTED;
+    text(fit(CARD.handle + '  ·  ' + CARD.harness + '  ·  ' + CARD.meta, fw - 72),
+      fx + 36, fy + 88);
 
-    var mainMid = barBottom + 74 + (405 - 74) / 2;
-
-    font('600', 170);
-    track('-8px');
+    var bodyTop = fy + 112;
+    var mainMid = bodyTop + 150;
+    font('700', 170);
     c.fillStyle = ACCENT;
     text(CARD.grade, fx + 186, mainMid - 15, 'center');
-    track('normal');
-    font('400', 11);
-    track('1.5px');
-    c.fillStyle = MUTED2;
-    text(CARD.grade_label.toUpperCase(), fx + 186, mainMid + 88, 'center');
-    track('normal');
+    font('400', 16);
+    c.fillStyle = MUTED;
+    text(CARD.grade_label, fx + 186, mainMid + 88, 'center');
 
     var bx = fx + 392;
     var bw = fx + fw - 36 - bx;
@@ -152,50 +162,36 @@ def page_script(card_data: str, clamp_px: int) -> str:
     var top = mainMid - (CARD.bars.length * rowH + (CARD.bars.length - 1) * gap) / 2;
     CARD.bars.forEach(function (bar, index) {
       var y = top + index * (rowH + gap);
-      font('500', 14);
+      font('500', 16);
       c.fillStyle = FG;
-      text(bar[0].toLowerCase(), bx, y + 9);
-      font('600', 14);
+      text(bar[0], bx, y + 9);
+      font('700', 16);
       text(String(bar[1]), bx + bw, y + 9, 'right');
       c.fillStyle = LINE_SOFT;
-      c.fillRect(bx, y + 27, bw, 8);
-      c.strokeStyle = LINE;
-      c.strokeRect(bx + 0.5, y + 27.5, bw - 1, 7);
+      c.fillRect(bx, y + 25, bw, 10);
       c.fillStyle = ACCENT;
-      c.fillRect(bx, y + 27, bw * Math.max(0, Math.min(100, bar[1])) / 100, 8);
+      c.fillRect(bx, y + 25, bw * Math.max(0, Math.min(100, bar[1])) / 100, 10);
     });
 
-    // stats
-    var sy = barBottom + 405;
+    // stats band
+    var sy = fy + fh - 128;
     c.fillStyle = PANEL;
     c.fillRect(fx + 1, sy, fw - 2, 96);
-    rule(fx, sy, fw, 1);
-    var colW = (fw - 2) / 3;
+    var colW = (fw - 2) / CARD.stats.length;
     CARD.stats.forEach(function (stat, index) {
       var cx = fx + 1 + index * colW;
-      if (index) rule(cx, sy, 1, 96);
-      font('600', 40);
+      font('700', 36);
       c.fillStyle = FG;
-      text(stat[0], cx + 24, sy + 40);
-      font('400', 12);
+      text(stat[0], cx + 36, sy + 36);
+      font('400', 15);
       c.fillStyle = MUTED;
-      text(stat[1], cx + 24, sy + 72);
+      text(stat[1], cx + 36, sy + 72);
     });
 
-    // footer
-    var gy = sy + 96;
-    c.fillStyle = '#fff';
-    c.fillRect(fx + 1, gy, fw - 2, fy + fh - gy - 1);
-    rule(fx, gy, fw, 1);
-    drawMark(c, fx + 16, gy + 15, 27);
-    font('600', 15);
-    track('-0.45px');
-    c.fillStyle = FG;
-    text(CARD.stamp[0], fx + 54, gy + 20);
-    track('normal');
-    font('400', 11);
-    c.fillStyle = MUTED2;
-    text(CARD.stamp[1], fx + 54, gy + 37);
+    // neutral tool label
+    font('400', 13);
+    c.fillStyle = MUTED;
+    text(CARD.eyebrow, fx + 36, fy + fh - 16);
 
     return canvas;
   }
@@ -219,7 +215,7 @@ def page_script(card_data: str, clamp_px: int) -> str:
         a.click();
         setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
         button.disabled = false;
-        button.textContent = 'saved \u2713';
+        button.textContent = 'Saved';
         setTimeout(function () { button.textContent = label; }, 2000);
       }, 'image/png');
     });

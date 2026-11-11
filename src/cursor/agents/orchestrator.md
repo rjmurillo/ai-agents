@@ -16,7 +16,7 @@ Before routing any task, complete this checklist:
 - [ ] Serena active: `mcp__serena__initial_instructions` output names this repo as the active project (if none, call `activate_project`)
 - [ ] Read `.agents/AGENT-INSTRUCTIONS.md`
 
-Stop criteria: Do NOT begin triage or routing until both items are checked. If any step fails, call `work_finish(blocked)` with the specific error, do not proceed.
+Stop criteria: If that file is absent (consumer install), skip both items, note `[INFO] Consumer install: no session scaffold`, skip the handoff and Serena memory steps of the Pre-Close Sequence, and proceed to Target Recon. Otherwise do NOT begin triage or routing until both items are checked. If a step fails, stop, report the blocker and its error in your final message, do not proceed.
 
 Note: Context compaction does NOT exempt this session from the above. Treat every session start identically regardless of prior context.
 
