@@ -93,9 +93,7 @@ cat > complete.json <<'EOF'
   ]
 }
 EOF
-cat > delegated.json <<'EOF'
-{"context": {"material_decision": false}, "decisions": []}
-EOF
+echo '{"context": {"material_decision": false}, "decisions": []}' > delegated.json
 ```
 
 Run the incomplete brief first.
@@ -370,19 +368,7 @@ exit=0
 SINGLE_LOOP 0 [] [{'rule': 'cheap-gate-not-run', 'subject': 'lint'}]
 ```
 
-Lint is cheap and available, and nobody ran it. The classifier warns. Now let the report lean on that unrun check.
-
-```bash
-sed 's/, "cheap": true, "available": true/, "used_as_support": true/' states.json > unsupported.json
-python3 "$CLS" unsupported.json > out.json; echo "exit=$?"; python3 show.py out.json
-```
-
-```text
-exit=1
-SINGLE_LOOP 0 [{'rule': 'unverified-support', 'subject': 'lint'}] []
-```
-
-A `NOT RUN` check cannot back a conclusion. A check named with no state, or with words like "should run" or "pending", is also a violation. Expensive or credentialed checks are never required. The duty is to report their state honestly. The skill carries the full model: [SKILL.md](../../src/claude/skills/evidence-provenance/SKILL.md) and [the lineage model](../../src/claude/skills/evidence-provenance/references/lineage-model.md).
+Lint is cheap and available, and nobody ran it. The classifier warns. If the report leaned on that unrun check (`"used_as_support": true`), the classifier would exit `1` with `unverified-support`. A `NOT RUN` check cannot back a conclusion. A check named with no state, or with words like "should run" or "pending", is also a violation. Expensive or credentialed checks are never required. The duty is to report their state honestly. The skill carries the full model: [SKILL.md](../../src/claude/skills/evidence-provenance/SKILL.md) and [the lineage model](../../src/claude/skills/evidence-provenance/references/lineage-model.md).
 
 ### Step 5: Keep long output out of the agent's context
 
@@ -409,21 +395,15 @@ The full output went to a file. The agent sees the receipt, a head, and a tail. 
 
 ```bash
 ART="$(sed -n 's/^artifact: //p' "$WORK/receipt.txt")"
-python3 "$RWR" read "$ART" --offset 0 --length 20
+python3 "$RWR" read "$ART" --offset 0 --length 6
 ```
 
 ```text
 1
 2
 3
-4
-5
-6
-7
-8
-9
-10
-[range 0-20 of 8893 bytes; next_offset=20]
+
+[range 0-6 of 8893 bytes; next_offset=6]
 ```
 
 The `[range ...]` line goes to stderr, so it shows in your terminal but not in a redirected file. Pass `next_offset` as the next `--offset` to keep paging.
@@ -471,7 +451,7 @@ You finished if you saw all of these:
 | 1 | `True True` |
 | 2 | `exit=2` with `incomplete`, then `ask`, then `skip` |
 | 3 | `PASS` with `exit=0`, then `BLOCK` with `exit=1` and the cardinality reason |
-| 4 | `inflated-confidence` with `exit=1`, `CORROBORATED 1`, then `unverified-support` with `exit=1` |
+| 4 | `inflated-confidence` with `exit=1`, then `CORROBORATED 1`, then a `cheap-gate-not-run` warning |
 | 5 | A receipt with `truncated: true`, a ranged read, and `exit=7` |
 | 6 | Two matching headings |
 
