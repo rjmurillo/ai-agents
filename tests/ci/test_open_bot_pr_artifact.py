@@ -25,6 +25,14 @@ _STATS = ".serena/memories/pr-review/stats.md"
 _REPORT = ".project-toolkit/metrics/report.md"
 
 
+def _symlink_or_skip(link: Path, target: Path) -> None:
+    """Create a symlink, or skip where the platform cannot (Windows, no dev mode)."""
+    try:
+        link.symlink_to(target)
+    except (OSError, NotImplementedError):
+        pytest.skip("this platform cannot create symlinks")
+
+
 @pytest.fixture
 def checkout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     work = tmp_path / "work"
@@ -77,7 +85,7 @@ def test_a_symlink_source_is_skipped_not_followed(tmp_path: Path, checkout: Path
     secret.write_text("secret", encoding="utf-8")
     root = tmp_path / "artifact"
     (root / ".serena/memories/pr-review").mkdir(parents=True)
-    (root / _STATS).symlink_to(secret)
+    _symlink_or_skip(root / _STATS, secret)
     assert import_artifact(str(root), [_STATS]) == []
     assert not (checkout / _STATS).exists()
 
@@ -90,7 +98,7 @@ def test_a_symlinked_directory_that_escapes_the_artifact_is_refused(
     (outside / "memories/pr-review/stats.md").write_text("outside", encoding="utf-8")
     root = tmp_path / "artifact"
     root.mkdir()
-    (root / ".serena").symlink_to(outside)
+    _symlink_or_skip(root / ".serena", outside)
     with pytest.raises(RuntimeError, match="escapes"):
         import_artifact(str(root), [_STATS])
     assert not (checkout / _STATS).exists()
@@ -101,7 +109,7 @@ def test_a_symlink_destination_is_refused(tmp_path: Path, checkout: Path) -> Non
     target.write_text("victim", encoding="utf-8")
     dest = checkout / _STATS
     dest.parent.mkdir(parents=True)
-    dest.symlink_to(target)
+    _symlink_or_skip(dest, target)
     root = _artifact(tmp_path, {_STATS: "stats"})
     with pytest.raises(RuntimeError, match="symlink"):
         import_artifact(str(root), [_STATS])
@@ -118,7 +126,7 @@ def test_main_exits_git_failed_when_the_import_hits_a_symlink_destination(
     target = tmp_path / "victim.txt"
     target.write_text("victim", encoding="utf-8")
     dest = checkout / "stats.md"
-    dest.symlink_to(target)
+    _symlink_or_skip(dest, target)
     root = _artifact(tmp_path, {"stats.md": "stats"})
     calls: list[list[str]] = []
 
@@ -206,7 +214,7 @@ def test_a_symlinked_destination_directory_is_refused_before_anything_is_created
 ) -> None:
     outside = tmp_path / "outside"
     outside.mkdir()
-    (checkout / ".serena").symlink_to(outside)
+    _symlink_or_skip(checkout / ".serena", outside)
     root = _artifact(tmp_path, {_STATS: "stats"})
     with pytest.raises(RuntimeError, match="leaves the checkout"):
         import_artifact(str(root), [_STATS])
