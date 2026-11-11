@@ -81,7 +81,7 @@ scripts, README, and other support files.
 # GitHub Actions
 - name: Check code quality
   run: |
-    python3 .claude/skills/code-qualities-assessment/scripts/assess.py \
+    python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/code-qualities-assessment/scripts/assess.py" \
       --target src/ \
       --changed-only \
       --format json \
@@ -92,7 +92,7 @@ scripts, README, and other support files.
 
 ```python
 #!/bin/bash
-python3 .claude/skills/code-qualities-assessment/scripts/assess.py \
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/code-qualities-assessment/scripts/assess.py" \
   --target $(git diff --cached --name-only) \
   --format markdown
 ```text
