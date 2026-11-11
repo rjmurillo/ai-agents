@@ -27,6 +27,7 @@ import json
 import os
 import shutil
 import subprocess
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 import pytest
@@ -71,7 +72,7 @@ def parse_events(stdout: str) -> list[dict[str, object]]:
     return events
 
 
-def spawned_agents(events: list[dict[str, object]], names: list[str]) -> set[str]:
+def spawned_agents(events: Sequence[Mapping[str, object]], names: list[str]) -> set[str]:
     """Return the names of ``names`` that a spawn record shows as spawned.
 
     A spawn record is an event whose serialized text mentions ``spawn`` or
