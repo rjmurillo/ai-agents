@@ -37,10 +37,15 @@ _PLUGIN_ROOT_VARS = ("CLAUDE_PLUGIN_ROOT", "COPILOT_PLUGIN_ROOT", "GITHUB_WORKSP
 _PROBE_TIMEOUT_SECONDS = 60
 
 
-def _probe_script(demo_path: Path, claude_dir: Path, relative: str) -> bool:
-    """Run `--help` on one vendored script; True when it exits 0."""
+def _probe_script(demo_path: Path, relative: str) -> bool:
+    """Run `--help` on one vendored script; True when it exits 0.
+
+    The script path stays relative to the install directory, which is passed
+    only as ``cwd``. No value read from the environment reaches the argument
+    list, so the interpreter always runs a path built from PROBE_SCRIPTS.
+    """
     env = {k: v for k, v in os.environ.items() if k not in _PLUGIN_ROOT_VARS}
-    script = claude_dir / relative
+    script = Path(".claude") / relative
     try:
         result = subprocess.run(
             [sys.executable, str(script), "--help"],
@@ -54,12 +59,16 @@ def _probe_script(demo_path: Path, claude_dir: Path, relative: str) -> bool:
             check=False,
         )
     except subprocess.TimeoutExpired:
-        print(f"::error::vendored script timed out after {_PROBE_TIMEOUT_SECONDS}s: {script}")
+        print(
+            f"::error::vendored script timed out after {_PROBE_TIMEOUT_SECONDS}s: "
+            f"{demo_path / script}"
+        )
         return False
     if result.returncode != 0:
         detail = (result.stderr.strip().splitlines() or ["no stderr"])[-1]
         print(
-            f"::error::vendored script failed --help (exit {result.returncode}): {script}: {detail}"
+            f"::error::vendored script failed --help (exit {result.returncode}): "
+            f"{demo_path / script}: {detail}"
         )
         return False
     return True
@@ -103,7 +112,7 @@ def run(_argv: list[str] | None = None) -> int:
     if missing:
         return 1
 
-    failed = [rel for rel in PROBE_SCRIPTS if not _probe_script(demo_path, claude_dir, rel)]
+    failed = [rel for rel in PROBE_SCRIPTS if not _probe_script(demo_path, rel)]
     if failed:
         return 1
 
