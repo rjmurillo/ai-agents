@@ -63,10 +63,6 @@
       [
         "result = subprocess.run(",
         3
-      ],
-      [
-        "result = subprocess.run(",
-        4
       ]
     ],
     "github/scripts/pr/close_pr.py": [

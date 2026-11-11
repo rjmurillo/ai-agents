@@ -11,7 +11,11 @@ Enumerates issues in a repository with filtering capabilities:
 - Result limit
 
 Emits the standard skill envelope. In JSON mode, stdout is:
-``{"Success": bool, "Data": {"issues": [...], "count": int}, ...}``.
+``{"Success": bool, "Data": {"issues": [...], "count": int, "truncated": bool}, ...}``.
+``count`` is the number of rows returned, not a total. ``truncated`` is true when
+more matching issues exist past ``--limit``; the script asks ``gh`` for one extra
+row to know. GitHub search returns at most 1000 rows, so a ``--search`` that
+returns 1000 rows also reports ``truncated``: the cap hides whether more exist.
 Failure paths emit the same envelope with ``Error`` populated.
 
 Mirrors the PR-side ``get_pull_requests.py`` precedent, providing a
@@ -173,7 +177,17 @@ def _resolve_repo(args: argparse.Namespace, fmt: str) -> tuple[str, str]:
     return resolved.owner, resolved.repo
 
 
+#: Most rows GitHub search returns for one query, whatever limit gh is given.
+_SEARCH_RESULT_CAP = 1000
+
+
 def _build_issue_list_args(args: argparse.Namespace, repo_flag: str) -> list[str]:
+    # One extra row tells main() whether more issues exist past the limit. Under
+    # --search, GitHub returns at most 1000 rows and gh caps silently, so the
+    # extra row is not requested past that cap.
+    fetch_limit = args.limit + 1
+    if args.search:
+        fetch_limit = min(fetch_limit, _SEARCH_RESULT_CAP)
     list_args = [
         "gh",
         "issue",
@@ -181,7 +195,7 @@ def _build_issue_list_args(args: argparse.Namespace, repo_flag: str) -> list[str
         "--repo",
         repo_flag,
         "--limit",
-        str(args.limit),
+        str(fetch_limit),
         "--json",
         "number,title,state,labels,assignees,author,url,createdAt,updatedAt",
     ]
@@ -352,12 +366,18 @@ def main(argv: list[str] | None = None) -> int:
     _require_gh_auth(fmt)
     owner, repo = _resolve_repo(args, fmt)
     issues = _run_issue_list(_build_issue_list_args(args, f"{owner}/{repo}"), fmt)
-    output = [_format_issue(issue) for issue in issues if isinstance(issue, dict)]
+    # A search that fills its cap cannot show whether more matches exist, so it
+    # reports truncated rather than claim a complete read.
+    truncated = len(issues) > args.limit or (
+        bool(args.search) and len(issues) >= _SEARCH_RESULT_CAP
+    )
+    output = [_format_issue(issue) for issue in issues[: args.limit] if isinstance(issue, dict)]
 
+    summary = f"{len(output)} issue(s)" + (" (truncated, more exist)" if truncated else "")
     write_skill_output(
-        {"issues": output, "count": len(output)},
+        {"issues": output, "count": len(output), "truncated": truncated},
         output_format=fmt,
-        human_summary=f"{len(output)} issue(s)",
+        human_summary=summary,
         status="PASS",
         script_name="list_issues.py",
     )

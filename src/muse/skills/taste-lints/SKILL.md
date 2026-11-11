@@ -71,7 +71,7 @@ Skills exceeding 500 lines need progressive disclosure refactoring.
 
 ## Process
 
-1. Run `python3 .claude/skills/taste-lints/scripts/taste_lints.py` with target files
+1. Run `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/taste-lints/scripts/taste_lints.py"` with target files
 2. Review AGENT_REMEDIATION blocks in output
 3. Apply suggested fixes
 4. Re-run to confirm compliance
@@ -84,23 +84,23 @@ Skills exceeding 500 lines need progressive disclosure refactoring.
 
 ```bash
 # Scan staged files
-python3 .claude/skills/taste-lints/scripts/taste_lints.py --git-staged
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/taste-lints/scripts/taste_lints.py" --git-staged
 
 # Scope to a pull request diff (only files changed vs the base branch)
-python3 .claude/skills/taste-lints/scripts/taste_lints.py --diff-scope "origin/$BASE_BRANCH"
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/taste-lints/scripts/taste_lints.py" --diff-scope "origin/$BASE_BRANCH"
 
 # Scan specific files
-python3 .claude/skills/taste-lints/scripts/taste_lints.py path/to/file.py
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/taste-lints/scripts/taste_lints.py" path/to/file.py
 
 # Scan a directory
-python3 .claude/skills/taste-lints/scripts/taste_lints.py --directory src/
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/taste-lints/scripts/taste_lints.py" --directory src/
 
 # Text output lists at most 100 violations (errors first when cut); --max-violations 0 lists all
 # JSON output (never cut)
-python3 .claude/skills/taste-lints/scripts/taste_lints.py --format json --git-staged
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/taste-lints/scripts/taste_lints.py" --format json --git-staged
 
 # Run specific rules only
-python3 .claude/skills/taste-lints/scripts/taste_lints.py --rules file-size,naming
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/taste-lints/scripts/taste_lints.py" --rules file-size,naming
 ```
 
 ## Exit Codes
