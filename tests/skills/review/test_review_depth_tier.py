@@ -306,7 +306,16 @@ def test_contract_keeps_context_mode_first_line():
 
 
 @pytest.mark.parametrize(
-    "lockfile", ["uv.lock", "Cargo.lock", "web/package-lock.json", "pnpm-lock.yaml", "svc/go.sum"]
+    "lockfile",
+    [
+        "uv.lock",
+        "Cargo.lock",
+        "bun.lockb",
+        "web/package-lock.json",
+        "src/App/packages.lock.json",
+        "pnpm-lock.yaml",
+        "svc/go.sum",
+    ],
 )
 def test_lockfiles_are_excluded_by_default(lockfile):
     diff = _file_diff("pkg/a.py", ["x = 1"]) + _file_diff(lockfile, ["dep"] * 5000)

@@ -64,7 +64,14 @@ CALLER_TRACE_FLOOR: dict[str, dict[str, int]] = {
 # Lockfiles never count: no reviewer reads them as authored code, and a bulk
 # dependency bump would otherwise lift a small change to ``high``.  Generated
 # trees are repository-specific, so the caller passes those with ``--exclude``.
-DEFAULT_EXCLUDES: tuple[str, ...] = ("*.lock", "*package-lock.json", "*pnpm-lock.yaml", "*go.sum")
+DEFAULT_EXCLUDES: tuple[str, ...] = (
+    "*.lock",
+    "*.lockb",
+    "*package-lock.json",
+    "*packages.lock.json",
+    "*pnpm-lock.yaml",
+    "*go.sum",
+)
 
 SOURCE_SUFFIXES = frozenset(
     {
