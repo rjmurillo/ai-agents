@@ -15,8 +15,10 @@ contract, or prompt, and it files no issue (issue #7153).
 
 ## Cluster definition
 
-This definition was fixed before the first run. Change it only in a reviewed
-pull request that states why, never to move a count.
+The signals, threshold, window, and area depth were fixed before the first run.
+The population was corrected twice afterward; see Population correction. Change
+the definition only in a reviewed pull request that states why, never to move a
+count.
 
 - **Agent pull request:** the body carries `Generated with [Claude Code]`, or the author is a bot account (`github_core.bot_config.is_bot`). Dependency bots (dependabot, renovate) are excluded. Agents here open pull requests under the owner's login, so the trailer is the usable marker.
 - **Intervention:** the first comment of a review thread. The author is not a bot and has OWNER, MEMBER, or COLLABORATOR standing on the repository, so an outside contributor cannot mint a cluster with a forged trailer. The pull request author is not excluded, because on a trailer pull request the owner is both nominal author and human reviewer. Later replies do not count.
@@ -47,6 +49,11 @@ removed the owner's own pull requests and threads, so the zero measured the
 filter, not the repository. The population above replaces it. Threshold,
 window, signals, and area depth did not change, and no cluster count was
 read before the change.
+
+A second correction followed a security review. A thread now counts only when
+its first comment has OWNER, MEMBER, or COLLABORATOR standing. Without it, an
+outside contributor could put the trailer in a pull request body and comment on
+it to mint a cluster. The cluster count was 36 before and after the change.
 
 Known limit: an agent that opens a thread under the owner's login cannot be
 told from the owner. Such a thread counts as an intervention.
