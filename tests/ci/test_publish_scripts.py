@@ -47,7 +47,18 @@ class TestVerifyNpmPackageMetadata:
 
     @pytest.mark.parametrize(
         "repository",
-        [None, "", {}, {"url": ""}, {"url": "git+https://github.com/other/repo.git"}, 7],
+        [
+            None,
+            "",
+            {},
+            {"url": ""},
+            {"url": "git+https://github.com/other/repo.git"},
+            {"url": "git+https://github.com/rjmurillo/ai-agents-fork.git"},
+            {"url": "https://github.com/rjmurillo/ai-agents/tree/evil"},
+            {"url": "https://evil.example/github.com/rjmurillo/ai-agents"},
+            {"url": "http://github.com/rjmurillo/ai-agents"},
+            7,
+        ],
     )
     def test_missing_or_foreign_repository_fails(self, tmp_path: Path, repository: object) -> None:
         pkg = {k: v for k, v in _VALID_PKG.items() if k != "repository"}
@@ -56,8 +67,17 @@ class TestVerifyNpmPackageMetadata:
         _write_pkg(tmp_path / "package.json", pkg)
         assert vnpm.main(["--package-dir", str(tmp_path)]) == vnpm.EXIT_INVALID
 
-    def test_repository_given_as_a_url_string_passes(self, tmp_path: Path) -> None:
-        pkg = {**_VALID_PKG, "repository": "https://github.com/rjmurillo/ai-agents"}
+    @pytest.mark.parametrize(
+        "repository",
+        [
+            "https://github.com/rjmurillo/ai-agents",
+            "git+https://github.com/rjmurillo/ai-agents.git",
+            "github:rjmurillo/ai-agents",
+            {"url": "git+https://github.com/rjmurillo/ai-agents.git", "directory": "x"},
+        ],
+    )
+    def test_the_repository_forms_npm_writes_pass(self, tmp_path: Path, repository: object) -> None:
+        pkg = {**_VALID_PKG, "repository": repository}
         _write_pkg(tmp_path / "package.json", pkg)
         assert vnpm.main(["--package-dir", str(tmp_path)]) == vnpm.EXIT_OK
 

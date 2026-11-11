@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,13 @@ from typing import Any
 EXIT_OK = 0
 EXIT_INVALID = 1
 EXIT_USAGE = 2
+
+# Exact match, so a fork or a look-alike host cannot pass. Accepts the forms npm
+# writes: git+https://github.com/OWNER/REPO.git, https://github.com/OWNER/REPO,
+# and the github:OWNER/REPO shorthand.
+_REPOSITORY_URL = re.compile(
+    r"(?:(?:git\+)?https://github\.com/rjmurillo/ai-agents(?:\.git)?/?|github:rjmurillo/ai-agents)"
+)
 
 
 def check_package_metadata(pkg: dict[str, Any]) -> list[str]:
@@ -38,8 +46,10 @@ def check_package_metadata(pkg: dict[str, Any]) -> list[str]:
     url = repository.get("url") if isinstance(repository, dict) else repository
     # npm provenance (E422) refuses a package whose repository.url does not match
     # the repository that built it (issue #7217).
-    if not isinstance(url, str) or "github.com/rjmurillo/ai-agents" not in url:
-        errors.append("repository.url must name github.com/rjmurillo/ai-agents")
+    if not isinstance(url, str) or not _REPOSITORY_URL.fullmatch(url):
+        errors.append(
+            "repository.url must be the https URL or github: shorthand of rjmurillo/ai-agents"
+        )
     if not pkg.get("bin"):
         errors.append("bin entry required")
     if not pkg.get("files"):
