@@ -40,7 +40,7 @@ Muse has no plugin manifest in this repository. ADR-115 planned a generated `.mu
    [ -e ~/workspace/lib ] || cp -R src/muse/lib ~/workspace/lib
    ```
 
-   The README loop does not include this step. Without it, skill scripts fail. See "If it fails".
+   The README loop does not include this step (tracked in [#7278](https://github.com/rjmurillo/ai-agents/issues/7278)). Without it, skill scripts fail. See "If it fails".
 
 ## Check your result
 
