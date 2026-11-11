@@ -26,22 +26,33 @@ from pathlib import Path
 EXIT_OK, EXIT_MISSING, EXIT_USAGE, EXIT_UNREADABLE = 0, 1, 2, 3
 
 # npm prefixes every tarball member with ``package/``.
+ASSETS_PREFIX = "package/bundle/assets/"
 REQUIRED_FILES = (
     "package/package.json",
     "package/README.md",
     "package/LICENSE",
     "package/dist/cli.js",
 )
-REQUIRED_TREES = ("package/bundle/assets/",)
+# ``init`` copies these three trees. A bundle that holds only top-level files
+# (CLAUDE.md, AGENTS.md, notices) would pass a bare "any file" check.
+REQUIRED_TREES = (
+    "package/bundle/assets/agents/",
+    "package/bundle/assets/skills/",
+    "package/bundle/assets/rules/",
+)
 
 
-def missing_entries(members: Sequence[str]) -> list[str]:
-    """Return the required entries that no member satisfies."""
-    names = set(members)
-    missing = [path for path in REQUIRED_FILES if path not in names]
+def missing_entries(members: Sequence[tuple[str, bool, int]]) -> list[str]:
+    """Return the required entries no member satisfies.
+
+    Each member is ``(name, is_regular_file, size)``. A required file must be a
+    non-empty regular file. A required tree must hold one non-empty regular file.
+    """
+    files = {name for name, is_file, size in members if is_file and size > 0}
+    missing = [path for path in REQUIRED_FILES if path not in files]
     for tree in REQUIRED_TREES:
-        if not any(name.startswith(tree) and not name.endswith("/") for name in names):
-            missing.append(f"{tree}* (at least one file)")
+        if not any(name.startswith(tree) for name in files):
+            missing.append(f"{tree}* (at least one non-empty file)")
     return missing
 
 
@@ -68,7 +79,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return EXIT_MISSING
     try:
         with tarfile.open(tarball, "r:gz") as archive:
-            members = [member.name for member in archive.getmembers()]
+            members = [(m.name, m.isfile(), m.size) for m in archive.getmembers()]
     except (OSError, tarfile.TarError) as exc:
         print(
             f"[BLOCKED] tarball contents: cannot read {tarball.name}, {type(exc).__name__}",
@@ -80,7 +91,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         for entry in missing:
             print(f"[FAIL] tarball contents: {tarball.name} lacks {entry}", file=sys.stderr)
         return EXIT_MISSING
-    assets = sum(1 for name in members if name.startswith("package/bundle/assets/"))
+    assets = sum(1 for name, is_file, _ in members if is_file and name.startswith(ASSETS_PREFIX))
     print(
         f"tarball contents OK: {tarball.name}, {len(members)} entries, {assets} in bundle/assets/"
     )
