@@ -61,6 +61,11 @@ CALLER_TRACE_FLOOR: dict[str, dict[str, int]] = {
     "high": {"callers": 10, "files": 3},
 }
 
+# Lockfiles never count: no reviewer reads them as authored code, and a bulk
+# dependency bump would otherwise lift a small change to ``high``.  Generated
+# trees are repository-specific, so the caller passes those with ``--exclude``.
+DEFAULT_EXCLUDES: tuple[str, ...] = ("*.lock", "*package-lock.json", "*pnpm-lock.yaml", "*go.sum")
+
 SOURCE_SUFFIXES = frozenset(
     {
         ".py", ".ps1", ".psm1", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs",
@@ -189,6 +194,7 @@ def tier_for(signals: Signals) -> tuple[str, list[str]]:
 
 
 def compute(diff_text: str, excludes: Sequence[str] = ()) -> dict[str, object]:
+    excludes = (*DEFAULT_EXCLUDES, *excludes)
     signals = parse_diff(diff_text, excludes)
     tier, reasons = tier_for(signals)
     header = (

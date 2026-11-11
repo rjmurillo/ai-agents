@@ -44,7 +44,10 @@ REVIEW_DEPTH: <tier> lines=<n> files=<n> dirs=<n> public_symbols=<n>
 With no header, count the four signals from the diff you were given using the
 table below, take the highest tier any signal reaches, and say you counted them.
 Count after the same exclusions the scope accounting names (generated files,
-vendored dependencies, lockfiles, fixture data).
+vendored dependencies, lockfiles, fixture data). The script excludes lockfiles
+on its own and takes other paths from `--exclude`. When your scope accounting
+excludes paths the header counted, recount without them and use the lower tier,
+stating both.
 
 | Signal | Elevated at | High at | Counts |
 |---|---|---|---|

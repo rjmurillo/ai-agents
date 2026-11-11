@@ -166,7 +166,7 @@ def test_exclude_glob_removes_generated_files_from_every_signal():
     result = mod.compute(diff, ("gen/*",))
     assert result["tier"] == "standard"
     assert result["signals"]["files"] == 1
-    assert result["excluded_globs"] == ["gen/*"]
+    assert result["excluded_globs"][-1] == "gen/*"
 
 
 def test_file_headers_do_not_count_as_changed_lines():
@@ -303,3 +303,28 @@ def test_contract_keeps_context_mode_first_line():
     text = CONTRACT.read_text(encoding="utf-8")
     assert "first line after the `CONTEXT_MODE:` header" in text
     assert "ahead of the `CONTEXT_MODE:` header" not in text
+
+
+@pytest.mark.parametrize(
+    "lockfile", ["uv.lock", "Cargo.lock", "web/package-lock.json", "pnpm-lock.yaml", "svc/go.sum"]
+)
+def test_lockfiles_are_excluded_by_default(lockfile):
+    diff = _file_diff("pkg/a.py", ["x = 1"]) + _file_diff(lockfile, ["dep"] * 5000)
+    result = mod.compute(diff)
+    assert result["tier"] == "standard"
+    assert result["signals"] == {"lines": 1, "files": 1, "dirs": 1, "public_symbols": 0}
+
+
+def test_default_exclusion_does_not_hide_a_source_file_named_like_a_lockfile():
+    diff = _file_diff("pkg/lockfile.py", ["x = 1"] * 300)
+    assert _tier(diff) == "elevated"
+
+
+def test_default_excludes_are_reported_alongside_caller_excludes():
+    result = mod.compute(_lines_diff(3), ("gen/*",))
+    assert result["excluded_globs"] == [*mod.DEFAULT_EXCLUDES, "gen/*"]
+
+
+def test_contract_tells_the_reviewer_to_recount_when_it_excludes_more():
+    text = CONTRACT.read_text(encoding="utf-8")
+    assert "recount without them and use the lower tier" in text
