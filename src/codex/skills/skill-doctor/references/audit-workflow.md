@@ -32,7 +32,7 @@ python3 "$SKILL_ROOT/scripts/assemble_report.py" "$REPORT_DIR/report.json" \
   --manifest "$REPORT_DIR/audit_manifest.json" --out "$REPORT_DIR/report.json"
 ```
 
-It recomputes the score artifact from `scores.json` and sets `scores`, `stats.sessions_analyzed`, each `sampling.per_harness.<harness>.overall`, and the `audit` object (`scores` and `records`, plus `catalog` from the manifest). Leave out `--manifest` when the collector ran without `--audit-manifest`. It drops `grade` so the renderer derives it. It exits 1 and writes nothing when the scores are invalid, `--artifact` does not match the recomputation, or the result fails the renderer's checks; it exits 2 on an unreadable file. Writing over the draft is safe: a failed run leaves it unchanged.
+It recomputes the score artifact from `scores.json` and sets `scores`, `stats.sessions_analyzed`, each `sampling.per_harness.<harness>.overall`, and the `audit` object (`scores` and `records`, plus `catalog` from the manifest). Leave out `--manifest` when the collector ran without `--audit-manifest`. It drops `grade` so the renderer derives it. It exits 1 and writes nothing when the scores are invalid, a harness's `sampled` count differs from its scored sessions (import every batch first), `--artifact` does not match the recomputation, or the result fails the renderer's checks; it exits 2 on an unreadable file. Writing over the draft is safe: a failed run leaves it unchanged.
 
 ## Batched reviews
 

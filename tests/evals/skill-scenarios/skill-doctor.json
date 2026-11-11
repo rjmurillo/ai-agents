@@ -62,6 +62,30 @@
       ],
       "expected_gate": "skill-doctor-unevaluated-candidate-handoff",
       "rationale": "Diagnosis surfaces the candidate without a change bar, keeps it unevaluated, and hands evaluation to skillopt and routing to skillforge without starting either."
+    },
+    {
+      "id": "S6",
+      "desc": "Report numbers come from assemble_report.py, not a hand copy",
+      "input": "Skill-doctor has scored every sampled session into scores.json and written score_artifact.json. Explain how the scores reach report.json. Do not execute tools. Answer in three short bullets.",
+      "expected_signals": [
+        "assemble_report.py",
+        "scores.json",
+        "draft"
+      ],
+      "expected_gate": "skill-doctor-assembled-scores",
+      "rationale": "Step 5 writes the report without numbers and lets assemble_report.py recompute and fill them, so no reported score is copied by hand."
+    },
+    {
+      "id": "S7",
+      "desc": "No manifest flag when collection skipped the audit manifest",
+      "input": "Skill-doctor collected sessions without --audit-manifest and scored them. Give the exact assemble command for report.json. Do not execute tools. Answer with the command and one sentence.",
+      "expected_signals": [
+        "assemble_report.py",
+        "--scores",
+        "--out"
+      ],
+      "expected_gate": "skill-doctor-assemble-without-manifest",
+      "rationale": "The catalog comes only from an audit manifest the collector wrote; without one, the assemble command leaves out --manifest rather than inventing a catalog."
     }
   ]
 }

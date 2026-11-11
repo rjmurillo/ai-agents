@@ -12,7 +12,9 @@ Writes:
   - ``audit``: ``scores`` (the artifact), ``records`` (the scored sessions), and
     ``catalog`` from the audit manifest when one is given
 
-``grade`` is dropped so the renderer derives it from the new ``overall``.
+``grade`` is dropped so the renderer derives it from the new ``overall``. Each
+harness's ``sampling.per_harness.<harness>.sampled`` count must equal its scored
+count, so a partly imported batch review cannot be graded as complete.
 
 Exit codes: 0 written, 1 invalid or inconsistent input (nothing written),
 2 bad arguments or an unreadable file. Python 3.10+, stdlib only.
@@ -67,6 +69,33 @@ def _catalog_of(manifest: Any) -> list[Any]:
     return catalog
 
 
+def _is_count(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _coverage_errors(draft: Mapping[str, Any], artifact: Mapping[str, Any]) -> list[str]:
+    """Every sampled session must be scored before the report is graded."""
+    sampling = draft.get("sampling")
+    per_harness = sampling.get("per_harness") if isinstance(sampling, dict) else None
+    if not isinstance(per_harness, dict) or not per_harness:
+        return ["report draft needs sampling.per_harness with each harness's sampled count"]
+    scored = {name: s["sessions_scored"] for name, s in artifact["per_harness"].items()}
+    errors = [
+        f"scored harness {name!r} is missing from sampling.per_harness"
+        for name in sorted(set(scored) - set(per_harness))
+    ]
+    for name, entry in sorted(per_harness.items()):
+        sampled = entry.get("sampled") if isinstance(entry, dict) else None
+        if not _is_count(sampled):
+            errors.append(f"sampling.per_harness.{name}.sampled must be an integer")
+        elif sampled != scored.get(name, 0):
+            errors.append(
+                f"harness {name!r}: {scored.get(name, 0)} of {sampled} sampled sessions are "
+                "scored; score every sampled session before assembling"
+            )
+    return errors
+
+
 def _set_harness_overall(report: dict[str, Any], artifact: Mapping[str, Any]) -> None:
     sampling = report.setdefault("sampling", {})
     per_harness = sampling.setdefault("per_harness", {})
@@ -89,6 +118,9 @@ def assemble(
     rebuilt = recompute_artifact(scores)
     if artifact is not None and _canonical(artifact) != _canonical(rebuilt):
         raise AssemblyError(["score artifact does not recompute from the scored records"])
+    coverage = _coverage_errors(draft, rebuilt)
+    if coverage:
+        raise AssemblyError(coverage)
     report = copy.deepcopy(dict(draft))
     report.pop("grade", None)
     report["scores"] = {key: rebuilt["dimensions"][key]["score"] for key in DIMENSIONS}
@@ -130,6 +162,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         print(f"error: cannot read input: {exc}", file=sys.stderr)
         return 2
+    for flag, path, value in (
+        ("--artifact", args.artifact, inputs[2]),
+        ("--manifest", args.manifest, inputs[3]),
+    ):
+        if path is not None and value is None:
+            print(f"error: {flag} {path} holds JSON null, not an object", file=sys.stderr)
+            return 1
     try:
         report = assemble(*inputs)
     except AssemblyError as exc:

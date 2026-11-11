@@ -205,3 +205,64 @@ def test_unscored_harness_keeps_no_overall_from_the_draft(tmp_path: Path) -> Non
     assert code == 0
     assert per_harness["claude"] == {"scoreable": 2, "sampled": 0}
     assert "overall" in per_harness["codex"]
+
+
+def test_partly_scored_sample_exits_1_and_writes_nothing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    scores = copy.deepcopy(load("scores.json"))
+    scores["sessions"] = [s for s in scores["sessions"] if s["harness"] == "copilot"]
+
+    code, out = run(tmp_path, scores=scores)
+
+    assert code == 1
+    assert not out.exists()
+    assert "'codex': 0 of 3 sampled sessions are scored" in capsys.readouterr().err
+
+
+def test_scored_harness_missing_from_the_draft_exits_1(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    draft = copy.deepcopy(load("draft.json"))
+    del draft["sampling"]["per_harness"]["codex"]
+
+    code, out = run(tmp_path, draft=draft)
+
+    assert code == 1
+    assert not out.exists()
+    assert "scored harness 'codex' is missing" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("sampling", [None, {}, {"per_harness": {}}])
+def test_draft_without_sampled_counts_exits_1(tmp_path: Path, sampling: Any) -> None:
+    draft = copy.deepcopy(load("draft.json"))
+    draft["sampling"] = sampling
+
+    code, out = run(tmp_path, draft=draft)
+
+    assert code == 1
+    assert not out.exists()
+
+
+@pytest.mark.parametrize("sampled", [None, "3", True])
+def test_non_integer_sampled_count_exits_1(tmp_path: Path, sampled: Any) -> None:
+    draft = copy.deepcopy(load("draft.json"))
+    draft["sampling"]["per_harness"]["codex"]["sampled"] = sampled
+
+    code, out = run(tmp_path, draft=draft)
+
+    assert code == 1
+    assert not out.exists()
+
+
+@pytest.mark.parametrize("flag", ["--artifact", "--manifest"])
+def test_explicit_file_holding_json_null_exits_1(
+    tmp_path: Path, flag: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    null_file = write(tmp_path / "null.json", None)
+
+    code, out = run(tmp_path, flag, str(null_file))
+
+    assert code == 1
+    assert not out.exists()
+    assert "JSON null" in capsys.readouterr().err

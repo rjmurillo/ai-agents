@@ -106,7 +106,8 @@ def test_rerunning_the_chain_gives_identical_outputs(chain: Path, tmp_path_facto
     first = _outputs(chain)
     second_dir = tmp_path_factory.mktemp("second")
     for name in ("score_artifact.json", "report.json"):
-        (second_dir / name).write_text((chain / name).read_text(encoding="utf-8"))
+        text = (chain / name).read_text(encoding="utf-8")
+        (second_dir / name).write_text(text, encoding="utf-8")
     render_report.main([str(second_dir / "report.json")])
     public_export.main([str(second_dir / "report.json"), "--out", str(second_dir / "public.json")])
 
