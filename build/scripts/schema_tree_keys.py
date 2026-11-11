@@ -10,8 +10,6 @@ Each function returns error strings; an empty list is valid.
 
 from __future__ import annotations
 
-from agent_toml import output_option_errors
-
 # `instructions` is the default and today's Copilot output; `cursor-mdc` writes
 # Cursor `.mdc` rules. generate_rules.py imports this tuple, so there is one list.
 RULES_OUTPUT_FORMATS = ("instructions", "cursor-mdc")
@@ -96,7 +94,6 @@ def validate_agents_tree_copy(name: str, stanza: dict[str, object]) -> list[str]
                 errors.append(f"`artifacts.{name}.{key}`: requires `frontmatterKeep`")
         return errors
     errors.extend(validate_frontmatter_keep(name, stanza))
-    errors.extend(output_option_errors(name, stanza))
     for required in ("sourceDir", "outputDir"):
         if required not in stanza:
             errors.append(f"`artifacts.{name}.frontmatterKeep`: requires `{required}`")

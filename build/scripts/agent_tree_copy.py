@@ -89,6 +89,7 @@ from yaml_loader import ConfigError, load_platform_config, validate_relative_pat
 KEEP_KEY = "frontmatterKeep"
 REPLACE_KEY = "bodyReplace"
 _READONLY_KEY = "readonly"
+_READONLY_SKIP_REASON = "tools list restricts it beyond what readonly can express"
 _SOURCE_SUFFIX = ".md"
 _DEFAULT_EXCLUDES = ("AGENTS.md", "CLAUDE.md")
 
@@ -186,8 +187,13 @@ def render_agent(
     )
 
 
-def _body_replacements(stanza: dict[str, object]) -> dict[str, list[tuple[str, str]]]:
-    """Return ``{file name: [(from, to), ...]}`` from the ``bodyReplace`` mapping."""
+def _body_replacements(
+    stanza: dict[str, object], source_dir: Path, excludes: frozenset[str]
+) -> dict[str, list[tuple[str, str]]]:
+    """Return ``{file name: [(from, to), ...]}`` from the ``bodyReplace`` mapping.
+
+    Fails when a named file is not in ``source_dir`` or is excluded from the copy.
+    """
     raw = stanza.get(REPLACE_KEY, {})
     problem = f"`artifacts.agents.{REPLACE_KEY}` must map agent file names to {{from: to}} maps"
     if not isinstance(raw, dict):
@@ -199,6 +205,14 @@ def _body_replacements(stanza: dict[str, object]) -> dict[str, list[tuple[str, s
         if not all(isinstance(k, str) and k and isinstance(v, str) for k, v in pairs.items()):
             raise AgentCopyError(problem)
         edits[file] = list(pairs.items())
+    missing = sorted(set(edits) - {p.name for p in source_dir.glob(f"*{_SOURCE_SUFFIX}")})
+    if missing:
+        raise AgentCopyError(f"bodyReplace names agents not in {source_dir}: {missing}")
+    excluded = sorted(set(edits) & excludes)
+    if excluded:
+        raise AgentCopyError(
+            f"bodyReplace names agents that are excluded from the copy: {excluded}"
+        )
     return edits
 
 
@@ -248,15 +262,6 @@ def _excludes(stanza: dict[str, object]) -> frozenset[str]:
     return frozenset(raw)
 
 
-def _skip_line(name: str, skip_restricted: bool) -> str:
-    reason = (
-        "declares a tools list"
-        if skip_restricted
-        else "tools list restricts it beyond what readonly can express"
-    )
-    return f"  SKIPPED: {name} ({reason})"
-
-
 def generate_agent_copies(
     repo_root: Path, config_path: Path, *, check: bool = False, what_if: bool = False
 ) -> AgentCopyResult | None:
@@ -278,15 +283,7 @@ def generate_agent_copies(
     if not source_dir.is_dir():
         raise AgentCopyError(f"sourceDir not found: {source_dir}")
     excludes = _excludes(stanza)
-    replacements = _body_replacements(stanza)
-    missing = sorted(set(replacements) - {p.name for p in source_dir.glob(f"*{_SOURCE_SUFFIX}")})
-    if missing:
-        raise AgentCopyError(f"bodyReplace names agents not in {source_dir}: {missing}")
-    excluded = sorted(set(replacements) & excludes)
-    if excluded:
-        raise AgentCopyError(
-            f"bodyReplace names agents that are excluded from the copy: {excluded}"
-        )
+    replacements = _body_replacements(stanza, source_dir, excludes)
     sources = [p for p in sorted(source_dir.glob(f"*{_SOURCE_SUFFIX}")) if p.name not in excludes]
     if not sources:
         raise AgentCopyError(f"no agent files found under {source_dir}")
@@ -321,7 +318,8 @@ def generate_agent_copies(
                     "restricts it"
                 )
             result.skipped.append(src.name)
-            print(_skip_line(src.name, options.skip_restricted))
+            why = "declares a tools list" if options.skip_restricted else _READONLY_SKIP_REASON
+            print(f"  SKIPPED: {src.name} ({why})")
             continue
         expected.add(f"{src.stem}{options.suffix}")
         _emit(
