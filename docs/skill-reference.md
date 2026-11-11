@@ -159,7 +159,7 @@ Classifies problems into Cynefin Framework domains (Clear, Complicated, Complex,
 
 ### business-strategy (optional pack)
 
-Routes a founder or business problem to the right framework (customer discovery, positioning, pricing, sales, growth, persuasion), then loads it on demand. Ships as an **optional pack**: it is not installed by a default `ai-agents init`. Add it with `npx ai-agents init --pack business` (see [installation.md](installation.md#optional-skill-packs)).
+Routes a founder or business problem to the right framework (customer discovery, positioning, pricing, sales, growth, persuasion), then loads it on demand. Ships as an **optional pack**: it is not installed by a default `ai-agents init`. Add it with `npx @rjmurillo/ai-agents init --pack business` once the package is published to npm (see [installation.md](installation.md#optional-skill-packs)).
 
 ## Documentation
 
