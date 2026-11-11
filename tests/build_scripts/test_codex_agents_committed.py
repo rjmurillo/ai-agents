@@ -25,7 +25,8 @@ PARAGRAPH = (
     "`analyst`, `code-reviewer`, `comment-analyzer`, `security`. "
     "When a step above hands work to one of them, do that step yourself "
     "in this session and say that you did. "
-    "If the step is a security review, state that no security agent reviewed it.\n"
+    "If the step is a security review or clears a security flag, do not mark it done: "
+    "state that no security agent reviewed it and leave the flag open for the user.\n"
 )
 # Edits templates/platforms/codex.yaml makes to orchestrator.md: the rows for agents
 # Codex does not install go, and the delegation tool is spawn_agent.

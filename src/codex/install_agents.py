@@ -39,7 +39,7 @@ AGENT_SUFFIX = ".toml"
 PREFIX_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 _NAME_LINE = re.compile(r'^name = "([^"\n]*)"\n')
 EXIT_OK, EXIT_REFUSED, EXIT_USAGE, EXIT_IO = 0, 1, 2, 3
-_KINDS = ("installed", "updated", "adopted", "removed", "conflicts", "skipped")
+_KINDS = ("installed", "updated", "adopted", "removed", "namespaced", "skipped")
 
 
 class InstallError(Exception):
@@ -291,10 +291,10 @@ def build_install_plan(
                     f"{name} stays installed as {prior}; --namespace {namespace} was not applied"
                 )
             continue
-        plan.counts["conflicts"] += 1
         if namespace is None:
             plan.conflicts.append(_conflict_text(target, name, owned))
         else:
+            plan.counts["namespaced"] += 1
             _plan_namespaced(plan, target, name, data, owned, namespace)
     _plan_owned_leftovers(plan, target, shipped, owned)
     return plan

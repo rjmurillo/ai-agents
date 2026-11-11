@@ -63,7 +63,7 @@ def test_generate_writes_three_outputs_per_agent(staging: Path) -> None:
 
 
 def test_generate_agents_skips_the_codex_toml_stanza(staging: Path) -> None:
-    """ADR-115 Decision 7: generate_agents.py leaves the frontmatterKeep stanza to agent_tree_copy."""
+    """ADR-115 Decision 7: generate_agents.py leaves the Codex TOML stanza to agent_tree_copy."""
     assert (staging / "templates" / "platforms" / "codex.yaml").is_file()
 
     rc = generate_agents.generate_agents(

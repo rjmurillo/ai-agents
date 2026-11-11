@@ -206,6 +206,7 @@ LITERAL_ALLOWANCES: dict[str, str] = {
 LITERAL_EXTRA_DIRS: tuple[tuple[str, ...], ...] = (
     ("src", "claude", "agents"),
     ("src", "claude", "rules"),
+    ("src", "codex", "agents"),
     ("src", "copilot-cli", "agents"),
     ("src", "copilot-cli", "instructions"),
     ("src", "cursor", "agents"),

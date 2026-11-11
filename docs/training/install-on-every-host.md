@@ -6,7 +6,7 @@
 
 Install `project-toolkit` on your AI coding tool and finish with a check that shows it loaded. This page is for new users on any of nine hosts.
 
-We ran the commands on 2026-11-11 with main at `d34536c95c`. Counts come from the tree at that commit.
+We ran the commands on 2026-11-11 with main at `d34536c95c`. Counts come from the tree at that commit. The Codex agent install step is newer: it ran on 2026-11-11 on the branch that adds it, against codex 0.166.0 and 0.167.0, through `test_codex_agents_install_and_load`. Run it again on main after that branch merges.
 
 | Host | Version we ran | Skills | Agents | Route | Ran end to end |
 |------|----------------|--------|--------|-------|----------------|
@@ -493,9 +493,11 @@ The second command prints the number of toolkit skills that Codex puts in its pr
 105
 ```
 
-The `VERSION` is always `1.0.0`. The tree has no version field (ADR-092), so Codex reports a default. Codex gets no rules, and the plugin itself carries no agents. It loads agents only from `.codex/agents/` or `$CODEX_HOME/agents/`, which step 2 fills, and no plugin path carries rules.
+The `VERSION` is always `1.0.0`. The tree has no version field (ADR-092), so Codex reports a default. Codex gets no rules, and registers no plugin component for agents. It loads agents only from `.codex/agents/` or `$CODEX_HOME/agents/`, which step 2 fills, and no plugin path carries rules.
 
-Not run: a Codex model turn that uses a skill.
+To check the agents after step 2, run `codex debug prompt-input hi` and look for each agent name in the `agent_type` list of the `spawn_agent` tool. The list appears only once a custom agent exists.
+
+Not run: a Codex model turn that uses a skill or an agent.
 
 Stale check: the installed folder is named `1.0.0` and never changes. Codex keeps a git snapshot of the marketplace. Read its SHA and compare it with the `git ls-remote` SHA:
 

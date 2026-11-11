@@ -80,7 +80,10 @@ def not_installed_paragraph(skipped_stems: list[str]) -> str:
     )
     # A skipped `security` agent gets its own sentence: a self-review must not pass as its review.
     if "security" in skipped_stems:
-        text += " If the step is a security review, state that no security agent reviewed it."
+        text += (
+            " If the step is a security review or clears a security flag, do not mark it done: "
+            "state that no security agent reviewed it and leave the flag open for the user."
+        )
     return text + "\n"
 
 
