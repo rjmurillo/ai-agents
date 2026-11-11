@@ -9,8 +9,9 @@ hook that no longer existed. Nothing in a session told the reader that the
 thing which blocked them came from a stale install.
 
 This hook states it. At session start it compares the hooks each shipped
-manifest actually enforces against every installed copy of the same plugin it
-can find on disk, and names what diverges.
+manifest actually enforces against each active installed copy of the same plugin
+(the installs Claude Code lists in `installed_plugins.json`, or every copy on
+disk when no record is readable or the harness keeps none), and names what diverges.
 
 "Actually enforces" is the load-bearing part. A Claude registration usually
 names `invoke_dispatch_claude.py --group <id>` rather than a hook script, and
@@ -83,6 +84,10 @@ from plugin_hook_drift_model import (  # noqa: E402
     read_plugin_identity,
     root_registrations,
 )
+from plugin_hook_drift_record import (  # noqa: E402
+    INSTALLED_PLUGINS_FILE,
+    read_active_installs,
+)
 from plugin_hook_drift_report import (  # noqa: E402
     format_message,
 )
@@ -141,6 +146,9 @@ class PluginSurface:
     source_rel: Path
     search_roots: tuple[Path, ...]
     schema: str = CLAUDE_SCHEMA
+    # The harness's own record of active installs. None means the harness keeps
+    # no such record, so every copy found on disk is evaluated (Copilot CLI).
+    active_record: Path | None = None
 
 
 def copilot_home(home: Path) -> Path:
@@ -172,6 +180,7 @@ def plugin_surfaces(home: Path) -> tuple[PluginSurface, ...]:
             label="Claude Code",
             source_rel=Path(".claude"),
             search_roots=(home / ".claude" / "plugins",),
+            active_record=home / ".claude" / "plugins" / INSTALLED_PLUGINS_FILE,
         ),
         PluginSurface(
             label="Copilot CLI",
@@ -350,8 +359,33 @@ def _opaque_path(path: Path) -> str:
     return token
 
 
+def _installs_to_compare(
+    surface: PluginSurface,
+    search_root: Path,
+    plugin_name: str,
+    budget: ScanBudget,
+    outcome: ScanOutcome,
+) -> list[Path]:
+    """Install roots to compare under ``search_root``.
+
+    A surface with an active-install record evaluates only the installs the
+    harness lists, so superseded cache copies are not drift (Issue #7227). A
+    missing or unknown-schema record falls back to the walk of every copy,
+    with one note saying so. A surface with no record always walks.
+    """
+    if surface.active_record is not None and search_root.is_dir():
+        active, fallback_note = read_active_installs(
+            surface.active_record, plugin_name, search_root
+        )
+        if active is not None:
+            return active
+        outcome.notes.append(f"{surface.label}: {fallback_note}; checking every cached copy")
+    return find_installed_roots(search_root, plugin_name, budget)
+
+
 def check_installed_plugins(project_dir: Path, home: Path) -> ScanOutcome:
-    """Compare every installed copy found on disk against its shipped source.
+    """Compare each active installed copy against its shipped source (see
+    :func:`_installs_to_compare`).
 
     ``notes`` carries per-surface problems that are not a specific install's
     fault, such as a source manifest this checkout cannot read. ``incomplete``
@@ -383,7 +417,9 @@ def check_installed_plugins(project_dir: Path, home: Path) -> ScanOutcome:
             continue
         for search_root in surface.search_roots:
             budget = ScanBudget()
-            for install_path in find_installed_roots(search_root, plugin_name, budget):
+            for install_path in _installs_to_compare(
+                surface, search_root, plugin_name, budget, outcome
+            ):
                 outcome.reports.append(
                     compare_install(surface.label, install_path, source, surface.schema)
                 )

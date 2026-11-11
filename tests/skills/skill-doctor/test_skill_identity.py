@@ -296,3 +296,17 @@ def test_discovery_lists_a_path_reached_through_two_roots_once(tmp_path):
     path = _skill(repo, "shared", "Same")
     skills = discover_skills([repo], tmp_path / "codex", [repo / ".claude" / "skills"], False)
     assert skills["shared"]["definitions"][0]["paths"] == [str(path)]
+
+
+def test_manifest_catalog_keeps_distinct_contents_and_collapses_identical_copies(tmp_path):
+    import audit_manifest as am
+
+    repos = [tmp_path / name for name in ("first", "second", "third")]
+    for index, repo in enumerate(repos):
+        _skill(repo, "shared", "Other" if index == 1 else "Same")
+    skills = discover_skills(repos, tmp_path / "codex", [], False)
+
+    catalog = am._catalog(sorted(skills.values(), key=lambda s: s["name"]), repos)
+
+    assert len(catalog) == 2
+    assert sorted(len(entry["aliases"]) for entry in catalog) == [0, 1]

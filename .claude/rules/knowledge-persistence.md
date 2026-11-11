@@ -110,6 +110,10 @@ Before persisting anything, ask in order:
    - Evidence or rationale -> memory (`.serena/memories/<topic>/<name>.md`)
    - Already fully represented elsewhere -> delete or merge
 
+## Provenance of the placement contract
+
+The always-on tier summary traces to these source-repository records. They are citations, not commands: `parallel-001-worktree-isolation.md`, `update_memory_index_tokens.py`, and commit `78e808238`, corrected in `9cd7097f1`.
+
 ## Past artifacts are not proof
 
 Anything written in a past session (a handoff, a session note, a commit message, a PR description, a memory) is a recommendation frozen at its writing date, not proof of the current tree. Before acting on such a claim, re-verify it with a command against the current tree and cite the command, not the note.

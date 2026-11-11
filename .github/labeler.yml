@@ -138,7 +138,7 @@ dependencies:
 agent-orchestrator:
   - changed-files:
       - any-glob-to-any-file:
-          - "src/claude/orchestrator.md"
+          - "src/claude/agents/orchestrator.md"
           - "src/copilot-cli/agents/orchestrator.agent.md"
           - "src/vs-code-agents/orchestrator.agent.md"
           - "templates/agents/orchestrator.shared.md"
@@ -146,7 +146,7 @@ agent-orchestrator:
 agent-analyst:
   - changed-files:
       - any-glob-to-any-file:
-          - "src/claude/analyst.md"
+          - "src/claude/agents/analyst.md"
           - "src/copilot-cli/agents/analyst.agent.md"
           - "src/vs-code-agents/analyst.agent.md"
           - "templates/agents/analyst.shared.md"
@@ -154,7 +154,7 @@ agent-analyst:
 agent-architect:
   - changed-files:
       - any-glob-to-any-file:
-          - "src/claude/architect.md"
+          - "src/claude/agents/architect.md"
           - "src/copilot-cli/agents/architect.agent.md"
           - "src/vs-code-agents/architect.agent.md"
           - "templates/agents/architect.shared.md"
@@ -162,7 +162,7 @@ agent-architect:
 agent-implementer:
   - changed-files:
       - any-glob-to-any-file:
-          - "src/claude/implementer.md"
+          - "src/claude/agents/implementer.md"
           - "src/copilot-cli/agents/implementer.agent.md"
           - "src/vs-code-agents/implementer.agent.md"
           - "templates/agents/implementer.shared.md"
@@ -170,7 +170,7 @@ agent-implementer:
 agent-milestone-planner:
   - changed-files:
       - any-glob-to-any-file:
-          - "src/claude/milestone-planner.md"
+          - "src/claude/agents/milestone-planner.md"
           - "src/copilot-cli/agents/milestone-planner.agent.md"
           - "src/vs-code-agents/milestone-planner.agent.md"
           - "templates/agents/milestone-planner.shared.md"
@@ -178,7 +178,7 @@ agent-milestone-planner:
 agent-task-decomposer:
   - changed-files:
       - any-glob-to-any-file:
-          - "src/claude/task-decomposer.md"
+          - "src/claude/agents/task-decomposer.md"
           - "src/copilot-cli/agents/task-decomposer.agent.md"
           - "src/vs-code-agents/task-decomposer.agent.md"
           - "templates/agents/task-decomposer.shared.md"
@@ -186,7 +186,7 @@ agent-task-decomposer:
 agent-critic:
   - changed-files:
       - any-glob-to-any-file:
-          - "src/claude/critic.md"
+          - "src/claude/agents/critic.md"
           - "src/copilot-cli/agents/critic.agent.md"
           - "src/vs-code-agents/critic.agent.md"
           - "templates/agents/critic.shared.md"
@@ -194,7 +194,7 @@ agent-critic:
 agent-qa:
   - changed-files:
       - any-glob-to-any-file:
-          - "src/claude/qa.md"
+          - "src/claude/agents/qa.md"
           - "src/copilot-cli/agents/qa.agent.md"
           - "src/vs-code-agents/qa.agent.md"
           - "templates/agents/qa.shared.md"
@@ -202,7 +202,7 @@ agent-qa:
 agent-security:
   - changed-files:
       - any-glob-to-any-file:
-          - "src/claude/security.md"
+          - "src/claude/agents/security.md"
           - "src/copilot-cli/agents/security.agent.md"
           - "src/vs-code-agents/security.agent.md"
           - "templates/agents/security.shared.md"
@@ -210,7 +210,7 @@ agent-security:
 agent-devops:
   - changed-files:
       - any-glob-to-any-file:
-          - "src/claude/devops.md"
+          - "src/claude/agents/devops.md"
           - "src/copilot-cli/agents/devops.agent.md"
           - "src/vs-code-agents/devops.agent.md"
           - "templates/agents/devops.shared.md"
@@ -218,7 +218,7 @@ agent-devops:
 agent-roadmap:
   - changed-files:
       - any-glob-to-any-file:
-          - "src/claude/roadmap.md"
+          - "src/claude/agents/roadmap.md"
           - "src/copilot-cli/agents/roadmap.agent.md"
           - "src/vs-code-agents/roadmap.agent.md"
           - "templates/agents/roadmap.shared.md"
@@ -226,7 +226,7 @@ agent-roadmap:
 agent-explainer:
   - changed-files:
       - any-glob-to-any-file:
-          - "src/claude/explainer.md"
+          - "src/claude/agents/explainer.md"
           - "src/copilot-cli/agents/explainer.agent.md"
           - "src/vs-code-agents/explainer.agent.md"
           - "templates/agents/explainer.shared.md"
@@ -234,7 +234,7 @@ agent-explainer:
 agent-retrospective:
   - changed-files:
       - any-glob-to-any-file:
-          - "src/claude/retrospective.md"
+          - "src/claude/agents/retrospective.md"
           - "src/copilot-cli/agents/retrospective.agent.md"
           - "src/vs-code-agents/retrospective.agent.md"
           - "templates/agents/retrospective.shared.md"
