@@ -49,6 +49,15 @@ def test_a_helper_that_runs_git_grep_is_not_returned() -> None:
     assert inputs.tree_scanner_modules({"tests/scan_helpers.py": SCANNER_TEXT}) == set()
 
 
+def test_a_test_that_imports_a_git_grep_helper_is_a_tree_scanner() -> None:
+    sources = {
+        "tests/scan_helpers.py": SCANNER_TEXT,
+        "tests/test_via_helper.py": "from tests.scan_helpers import mentions\n",
+        "tests/test_other.py": "def test_x(): pass\n",
+    }
+    assert inputs.tree_scanner_modules(sources) == {"tests/test_via_helper.py"}
+
+
 def test_prose_that_mentions_grep_is_not_a_tree_scanner() -> None:
     sources = {"tests/test_prose.py": '"""We grep the tree and list ls-files."""\n'}
     assert inputs.tree_scanner_modules(sources) == set()

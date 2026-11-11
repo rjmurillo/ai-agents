@@ -17,13 +17,14 @@ through a subprocess or a computed path is not found, and a helper module is
 followed one hop (a test module that mentions the helper's name counts).
 
 A second rule covers tests that scan the whole tracked tree through a ``git``
-subprocess (``git grep``, ``git ls-files``). Such a test has no Python
+subprocess (``git grep``, ``git ls-files``), directly or through a helper module
+(one hop, as for corpus readers). Such a test has no Python
 dependency on any Markdown file, and a brand-new file is named by no test, so
 the name match above cannot find it. Issue #7286: a new ``docs/`` page broke
 a decommission-scope test (it greps every tracked file) in CI while pre-push
 selected nothing. When the diff holds a Markdown file, every tree-scanner module is
-re-selected. The cost is one run of those modules (about 78 s at ``-n 4``
-measured 2026-11-11, inside the 180 s pre-push budget), paid only on a diff that
+re-selected. The cost is one run of those modules (87 modules, 57 s at
+``-n 4`` measured 2026-11-11, inside the 180 s pre-push budget), paid only on a diff that
 touches Markdown.
 
 Fail-safe: when git cannot name a base or the changed paths, every corpus is
@@ -159,15 +160,23 @@ def reader_modules(changed: Iterable[str], sources: Mapping[str, str]) -> set[st
 
 
 def tree_scanner_modules(sources: Mapping[str, str]) -> set[str]:
-    """Return the test modules (keys of `sources`) that run ``git grep`` or ``git ls-files``.
+    """Return the test modules (keys of `sources`) that scan the tracked tree through git.
 
-    Textual and over-inclusive on purpose: a module that names either
-    subcommand but scans one directory runs one extra time.
+    A test module counts when it names ``git grep`` or ``git ls-files`` itself,
+    or mentions the module name of a non-test helper that does (one hop, as in
+    `reader_modules`). Textual and over-inclusive on purpose: a module that
+    names either subcommand but scans one directory runs one extra time.
     """
+    helpers = {
+        PurePosixPath(rel).stem
+        for rel, text in sources.items()
+        if not _TEST_MODULE.fullmatch(PurePosixPath(rel).name) and _TREE_SCAN.search(text)
+    }
     return {
         rel
         for rel, text in sources.items()
-        if _TEST_MODULE.fullmatch(PurePosixPath(rel).name) and _TREE_SCAN.search(text)
+        if _TEST_MODULE.fullmatch(PurePosixPath(rel).name)
+        and (_TREE_SCAN.search(text) or any(helper in text for helper in helpers))
     }
 
 
