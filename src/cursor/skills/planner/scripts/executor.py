@@ -400,7 +400,7 @@ def get_step_5_guidance(plan_file: str) -> dict:
             "  **Evidence**:",
             "  [Specific code/behavior that demonstrates the issue]",
             "",
-            "Then use AskUserQuestion with options:",
+            "Then ask with the host ask tool (Claude Code: AskUserQuestion; Muse Code or Codex Plan mode: request_user_input; else a chat question), offering:",
             "  - **Fix**: Delegate to @agent-developer to resolve",
             "  - **Skip**: Accept the issue as-is",
             "  - **Alternative**: User provides different approach",

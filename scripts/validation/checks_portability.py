@@ -105,6 +105,18 @@ def validate_skill_md_exec_portability(repo_root: Path) -> bool:
     )
 
 
+def validate_host_neutral_dispatch(repo_root: Path) -> bool:
+    """Fail when a shipped Codex or Muse file calls a Claude-only tool bare (issue #7226).
+
+    Wraps ``scripts/validation/check_host_neutral_dispatch.py``. Neither host
+    registers ``Task`` or ``AskUserQuestion``, so a skill line naming one with
+    no other host beside it sends the model to a tool that does not exist.
+    """
+    return _run_portability_validator(
+        repo_root, "scripts/validation/check_host_neutral_dispatch.py"
+    )
+
+
 def validate_skill_resolver_anchoring(repo_root: Path) -> bool:
     """Fail when a SKILL.md script-path resolver can select a stale copy.
 

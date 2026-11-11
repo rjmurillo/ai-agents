@@ -1,13 +1,16 @@
 # ADR Debate Protocol
 
+**Delegation on each host.** "Delegate to the `X` agent" means the host's subagent tool: Claude Code `Task` with `subagent_type="X"`; Copilot CLI `task` with `agent_type="project-toolkit:X"`; Codex `spawn_agent` with `agent_type="X"`; Muse Code `subagent_spawn` with `role="X"`. If the host has no subagent tool, or no `X` agent is installed, run the step yourself in this session.
+
 Detailed phases for multi-agent ADR validation.
 
 ## Phase 0: Related Work Research
 
 Before launching independent reviews, use analyst agent to search for related work:
 
+Delegate to the `analyst` agent with this prompt:
+
 ````text
-Task(subagent_type="analyst", prompt="""
 ADR Related Work Research
 
 ## ADR Being Reviewed
@@ -53,7 +56,6 @@ Key topics: [Extract 3-5 keywords from ADR]
 - [Are there gaps already known?]
 - [Should any issues be linked?]
 - [Are any PRs already implementing this?]
-""")
 ````
 
 Include related work findings in each Phase 1 agent prompt as context.
@@ -99,10 +101,9 @@ P0 = blocking, P1 = important, P2 = nice-to-have
 
 **Agent Invocation Pattern:**
 
-```python
-Task(
-    subagent_type="architect",
-    prompt="""
+Delegate to the `architect` agent with this prompt:
+
+```text
 ADR Review Request (Phase 1: Independent Review)
 
 ## ADR Content
@@ -131,8 +132,6 @@ Path: [Claims ledger path]
    paths, and cross-artifact contracts. Check claims the ledger omits. Build a
    ledger when none is passed.
 7. Return structured review per Phase 1 format
-""",
-)
 ```
 
 Repeat for: critic, independent-thinker, security, analyst, high-level-advisor.
@@ -150,10 +149,9 @@ After all 6 reviews complete:
 
 **Conflict Resolution Pattern:**
 
-```python
-Task(
-    subagent_type="high-level-advisor",
-    prompt="""
+Delegate to the `high-level-advisor` agent with this prompt:
+
+```text
 ADR Conflict Resolution Required
 
 ## Conflict 1: [Description]
@@ -170,8 +168,6 @@ For each conflict, provide:
 2. Rationale
 3. Whether ADR should be split
 4. Final P0/P1/P2 classification
-""",
-)
 ```
 
 ## Phase 3: Resolution
@@ -201,10 +197,9 @@ If 2+ agents flag scope concerns, recommend splitting:
 
 Re-invoke each agent to review proposed updates:
 
-```python
-Task(
-    subagent_type="[agent]",
-    prompt="""
+Delegate to the `[agent]` agent with this prompt:
+
+```text
 ADR Convergence Check (Round [N])
 
 ## Updated ADR
@@ -223,8 +218,6 @@ Provide ONE position:
 - **Accept**: No blocking concerns remain
 - **Disagree-and-Commit**: Reservations exist but agree to proceed (document dissent)
 - **Block**: Unresolved P0 concerns (specify what remains)
-""",
-)
 ```
 
 **Consensus Criteria:**

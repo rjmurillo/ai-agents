@@ -47,23 +47,25 @@ none is found, ask what to plan rather than inferring it.
 
 ## Process
 
+**Delegation on each host.** "Delegate to the `X` agent" means the host's subagent tool: Claude Code `Task` with `subagent_type="X"`; Copilot CLI `task` with `agent_type="project-toolkit:X"`; Codex `spawn_agent` with `agent_type="X"`; Muse Code `subagent_spawn` with `role="X"`. If the host has no subagent tool, or no `X` agent is installed, run the step yourself in this session.
+
 1. Read the spec or issue.
 2. Map sub-problems to existing code. What already exists? Use Grep and Glob to
    verify rather than assuming.
 
    **Bound the search.** If three tool calls have not surfaced anything useful, stop searching and switch to first-principles reasoning. Document what you tried (which tool, what query, what came back) so the user can extend the search if the answer matters more than your time budget suggests.
-3. `Task(subagent_type="milestone-planner")`: You are a project planner. Break
+3. Delegate to the `milestone-planner` agent: You are a project planner. Break
    the spec into milestones with clear exit criteria. Each milestone is
    independently shippable. Sequence by dependencies. Flag parallel
    opportunities.
-4. `Task(subagent_type="task-decomposer")`: You are a work breakdown specialist.
+4. Delegate to the `task-decomposer` agent: You are a work breakdown specialist.
    Decompose each milestone into atomic tasks. Each task is independently
    verifiable with a clear done definition. Size by complexity (S/M/L), not time.
 5. `Skill(skill="execution-plans")` to persist the plan as a versioned artifact.
-6. `Task(subagent_type="analyst")`: You are a risk analyst. Run a pre-mortem on
+6. Delegate to the `analyst` agent: You are a risk analyst. Run a pre-mortem on
    this plan. What fails first? What dependencies are fragile? What assumptions
    are untested?
-7. `Task(subagent_type="critic")`: You are a plan reviewer. Validate: is scope
+7. Delegate to the `critic` agent: You are a plan reviewer. Validate: is scope
    complete? Can tasks execute in the stated sequence? Are estimates credible?
    Is anything missing?
 
@@ -104,7 +106,7 @@ Use commas, periods, colons, parentheses, hyphens, or restructure.
 
 ## Writing Style
 
-Applies to `AskUserQuestion`, replies to user-facing questions, and findings (review output, analysis reports, retro write-ups, PR descriptions). `AskUserQuestion` format is structure; this section is prose quality.
+Applies to structured asks (Claude Code: `AskUserQuestion`), replies to user-facing questions, and findings (review output, analysis reports, retro write-ups, PR descriptions). `AskUserQuestion` format is structure; this section is prose quality.
 
 Rules:
 
@@ -160,7 +162,7 @@ Format when triggered:
 
 1. **Name the ambiguity in one sentence.** What is unclear and why it matters. Example: `Unclear whether the new session-cleanup job should delete the log file or just mark it archived. Affects every downstream consumer that reads old sessions for analytics.`
 2. **Present 2 to 4 options with trade-offs.** Each option lands on a consequence the user can evaluate. Use the Completeness scoring rule above when the options differ in coverage.
-3. **Ask.** Single, specific question. Use `AskUserQuestion` when the answer is one of a small set (build the brief with the `decision-question` skill); use plain prose when the answer is open-ended.
+3. **Ask.** Single, specific question. Use the host's structured ask tool (Claude Code: `AskUserQuestion`) when the answer is one of a small set (build the brief with the `decision-question` skill); use plain prose when the answer is open-ended.
 
 Do not trigger this protocol for:
 
@@ -174,7 +176,7 @@ Default for ambiguous-but-low-cost cases: act minimally, flag what you assumed, 
 
 ### Unattended runs
 
-Unattended: no human reads `AskUserQuestion` (scheduled trigger, fleet worker, headless session). Never end on a question: unread, it stalls.
+Unattended: no human reads a structured ask (Claude Code: `AskUserQuestion`) (scheduled trigger, fleet worker, headless session). Never end on a question: unread, it stalls.
 
 Instead: record the ambiguity, options with trade-offs, branch taken, and why, to the per-issue handoff or the run's report; take the safest reversible branch and continue.
 

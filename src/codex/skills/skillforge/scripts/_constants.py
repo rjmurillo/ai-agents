@@ -66,7 +66,7 @@ KNOWN_TOOLS = {
     "WebSearch",
     "TodoWrite",
     "NotebookEdit",
-    "AskUserQuestion",
+    "AskUserQuestion",  # Claude Code tool name
 }
 
 # Field constraints

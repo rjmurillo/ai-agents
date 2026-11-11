@@ -4,7 +4,7 @@ Migrated from `.claude/rules/voice.md` (epic #5456, M4). Applies to autoplan's P
 
 ## Writing Style
 
-Applies to `AskUserQuestion`, replies to user-facing questions, and findings (review output, analysis reports, retro write-ups, PR descriptions). `AskUserQuestion` format is structure; this section is prose quality.
+Applies to structured asks (Claude Code: `AskUserQuestion`), replies to user-facing questions, and findings (review output, analysis reports, retro write-ups, PR descriptions). `AskUserQuestion` format is structure; this section is prose quality.
 
 Rules:
 
@@ -60,7 +60,7 @@ Format when triggered:
 
 1. **Name the ambiguity in one sentence.** What is unclear and why it matters. Example: `Unclear whether the new session-cleanup job should delete the log file or just mark it archived. Affects every downstream consumer that reads old sessions for analytics.`
 2. **Present 2 to 3 options with trade-offs.** Each option lands on a consequence the user can evaluate. Use the Completeness scoring rule above when the options differ in coverage.
-3. **Ask.** Single, specific question. Use `AskUserQuestion` when the answer is one of a small set (build the brief with the `decision-question` skill); use plain prose when the answer is open-ended.
+3. **Ask.** Single, specific question. Use the host's structured ask tool (Claude Code: `AskUserQuestion`) when the answer is one of a small set (build the brief with the `decision-question` skill); use plain prose when the answer is open-ended.
 
 Do not trigger this protocol for:
 
@@ -74,7 +74,7 @@ Default for ambiguous-but-low-cost cases: act minimally, flag what you assumed, 
 
 ### Unattended runs
 
-Unattended: no human reads `AskUserQuestion` (scheduled trigger, fleet worker, headless session). Never end on a question: unread, it stalls.
+Unattended: no human reads a structured ask (Claude Code: `AskUserQuestion`) (scheduled trigger, fleet worker, headless session). Never end on a question: unread, it stalls.
 
 Instead: record the ambiguity, options with trade-offs, branch taken, and why, to the per-issue handoff or the run's report; take the safest reversible branch and continue.
 
