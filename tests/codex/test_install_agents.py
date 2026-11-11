@@ -13,7 +13,9 @@ from tests.codex.conftest import (
     OWNERSHIP,
     SCRIPT,
     agent_bytes,
+    child_env,
     ia,
+    make_symlink,
     read_record,
     run_installer,
     target_dir,
@@ -219,7 +221,7 @@ def test_uninstall_dry_run_removes_nothing(world):
 def test_malformed_ownership_exits_2(world, bad, capsys):
     target = target_dir(world)
     target.mkdir(parents=True)
-    (target / OWNERSHIP).write_text(bad)
+    (target / OWNERSHIP).write_text(bad, encoding="utf-8")
     assert run_installer(world) == 2
     assert "ownership file" in capsys.readouterr().err
 
@@ -229,7 +231,7 @@ def test_symlinked_target_is_a_conflict(world, tmp_path):
     target.mkdir(parents=True)
     outside = tmp_path / "outside.toml"
     outside.write_bytes(agent_bytes("qa"))
-    (target / "qa.toml").symlink_to(outside)
+    make_symlink((target / "qa.toml"), outside)
     assert run_installer(world) == 1
     assert outside.read_bytes() == agent_bytes("qa")
 
@@ -244,11 +246,15 @@ def test_script_runs_from_a_copy_next_to_its_agents(world, tmp_path):
     """Subprocess run from a copied plugin dir, as from the Codex plugin cache."""
     plugin = tmp_path / "plugin"
     shutil.copy(SCRIPT, plugin / "install_agents.py")
-    env = {"PATH": "/usr/bin:/bin", "CODEX_HOME": str(world.home), "HOME": str(tmp_path / "h")}
+    env = child_env(
+        CODEX_HOME=str(world.home), HOME=str(tmp_path / "h"), USERPROFILE=str(tmp_path / "h")
+    )
     done = subprocess.run(
         [sys.executable, str(plugin / "install_agents.py"), "--project", str(world.project)],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         env=env,
         check=False,
     )
@@ -265,6 +271,8 @@ def test_script_runs_from_a_copy_next_to_its_agents(world, tmp_path):
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         env=env,
         check=False,
     )
@@ -318,6 +326,11 @@ def test_a_clean_run_never_returns_3(world):
 
 def test_module_entry_point_exits_with_main_status(world, tmp_path):
     done = subprocess.run(
-        [sys.executable, str(SCRIPT), "--help"], capture_output=True, text=True, check=False
+        [sys.executable, str(SCRIPT), "--help"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
     )
     assert done.returncode == 0 and "--namespace" in done.stdout

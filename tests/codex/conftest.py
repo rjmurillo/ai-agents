@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -25,6 +26,22 @@ def agent_bytes(name: str, body: str = "do the work") -> bytes:
     )
 
 
+def make_symlink(link: Path, target: Path) -> None:
+    """Create ``link`` pointing at ``target``, or skip where the host forbids symlinks."""
+    try:
+        link.symlink_to(target)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks unavailable on this host")
+
+
+def child_env(**extra: str) -> dict[str, str]:
+    """A minimal environment for a child interpreter that still starts on Windows."""
+    keep = ("PATH", "SYSTEMROOT", "TEMP", "TMP", "USERPROFILE", "HOME")
+    env = {name: os.environ[name] for name in keep if name in os.environ}
+    env.update(extra)
+    return env
+
+
 def write_shipped(agents: Path, **bodies: str) -> None:
     agents.mkdir(parents=True, exist_ok=True)
     for old in agents.glob("*.toml"):
@@ -44,6 +61,7 @@ def world(tmp_path, monkeypatch):
     project.mkdir()
     monkeypatch.setenv("CODEX_HOME", str(home))
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
     return type("W", (), {"agents": agents, "home": home, "project": project})()
 
 
@@ -65,4 +83,4 @@ def target_dir(world) -> Path:
 
 
 def read_record(world, target=None) -> dict:
-    return json.loads(((target or target_dir(world)) / OWNERSHIP).read_text())
+    return json.loads(((target or target_dir(world)) / OWNERSHIP).read_text(encoding="utf-8"))

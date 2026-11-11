@@ -91,14 +91,14 @@ def test_symlink_conflict_names_the_symlink(world, capsys):
     target = target_dir(world)
     target.mkdir(parents=True)
     victim = world.project / "victim.txt"
-    victim.write_text("keep")
+    victim.write_text("keep", encoding="utf-8")
     try:
         (target / "qa.toml").symlink_to(victim)
     except OSError:
         pytest.skip("symlinks unavailable")
     assert run_installer(world) == 1
     assert "qa.toml is a symlink" in capsys.readouterr().err
-    assert victim.read_text() == "keep"
+    assert victim.read_text(encoding="utf-8") == "keep"
 
 
 def test_undecodable_config_toml_warns_instead_of_crashing(world, capsys):

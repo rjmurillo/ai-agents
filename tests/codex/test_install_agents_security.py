@@ -12,6 +12,7 @@ from tests.codex.conftest import (
     OWNERSHIP,
     agent_bytes,
     ia,
+    make_symlink,
     run_installer,
     target_dir,
 )
@@ -63,7 +64,7 @@ def test_ownership_valid_hash_is_accepted(world):
 def test_uninstall_with_not_a_file_marker_cannot_unlink_a_directory(world):
     target = _plant_ownership(world, {"files": {"victim.toml": "not-a-file"}})
     (target / "victim.toml").mkdir()
-    (target / "victim.toml" / "keep.txt").write_text("x")
+    (target / "victim.toml" / "keep.txt").write_text("x", encoding="utf-8")
     assert run_installer(world, "--uninstall") == 2
     assert (target / "victim.toml" / "keep.txt").is_file()
 
@@ -71,8 +72,8 @@ def test_uninstall_with_not_a_file_marker_cannot_unlink_a_directory(world):
 def test_uninstall_with_symlink_marker_cannot_unlink_a_symlink(world, tmp_path):
     target = _plant_ownership(world, {"files": {"victim.toml": "symlink"}})
     outside = tmp_path / "outside.toml"
-    outside.write_text("x")
-    (target / "victim.toml").symlink_to(outside)
+    outside.write_text("x", encoding="utf-8")
+    make_symlink((target / "victim.toml"), outside)
     assert run_installer(world, "--uninstall") == 2
     assert (target / "victim.toml").is_symlink()
 
@@ -137,15 +138,15 @@ def test_ownership_file_symlink_is_refused(world, tmp_path):
     target = target_dir(world)
     target.mkdir(parents=True)
     outside = tmp_path / "evil.json"
-    outside.write_text(json.dumps({"files": {}}))
-    (target / OWNERSHIP).symlink_to(outside)
+    outside.write_text(json.dumps({"files": {}}), encoding="utf-8")
+    make_symlink((target / OWNERSHIP), outside)
     assert run_installer(world) == 2
 
 
 def test_project_dot_codex_symlink_is_refused_and_nothing_written(world, tmp_path):
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
-    (world.project / ".codex").symlink_to(elsewhere)
+    make_symlink((world.project / ".codex"), elsewhere)
     assert run_installer(world) == 2
     assert list(elsewhere.iterdir()) == []
 
@@ -154,7 +155,7 @@ def test_project_agents_symlink_is_refused_and_nothing_written(world, tmp_path):
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     (world.project / ".codex").mkdir()
-    (world.project / ".codex" / "agents").symlink_to(elsewhere)
+    make_symlink((world.project / ".codex" / "agents"), elsewhere)
     assert run_installer(world) == 2
     assert list(elsewhere.iterdir()) == []
 
@@ -162,7 +163,7 @@ def test_project_agents_symlink_is_refused_and_nothing_written(world, tmp_path):
 def test_user_agents_symlink_is_refused_and_nothing_written(world, tmp_path):
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
-    (world.home / "agents").symlink_to(elsewhere)
+    make_symlink((world.home / "agents"), elsewhere)
     assert run_installer(world, "--user", project=False) == 2
     assert list(elsewhere.iterdir()) == []
 
@@ -170,7 +171,7 @@ def test_user_agents_symlink_is_refused_and_nothing_written(world, tmp_path):
 def test_symlink_refusal_also_covers_dry_run_and_uninstall(world, tmp_path):
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
-    (world.project / ".codex").symlink_to(elsewhere)
+    make_symlink((world.project / ".codex"), elsewhere)
     assert run_installer(world, "--dry-run") == 2
     assert run_installer(world, "--uninstall") == 2
 
@@ -178,6 +179,6 @@ def test_symlink_refusal_also_covers_dry_run_and_uninstall(world, tmp_path):
 def test_a_symlinked_project_root_itself_is_allowed(world, tmp_path):
     """Negative control: only components below the root are checked."""
     link = tmp_path / "proj-link"
-    link.symlink_to(world.project)
+    make_symlink(link, world.project)
     assert ia.main(["--project", str(link)], agents_dir=world.agents) == 0
     assert (world.project / ".codex" / "agents" / "qa.toml").is_file()

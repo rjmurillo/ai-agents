@@ -21,7 +21,7 @@ def test_namespace_installs_prefixed_file_with_prefixed_parsed_name(world, capsy
     target.mkdir(parents=True)
     (target / "qa.toml").write_bytes(agent_bytes("qa", "theirs"))
     assert run_installer(world, "--namespace", "tk") == 0
-    parsed = tomllib.loads((target / "tk-qa.toml").read_text())
+    parsed = tomllib.loads((target / "tk-qa.toml").read_text(encoding="utf-8"))
     assert parsed["name"] == "tk-qa"
     assert parsed["developer_instructions"] == "q1"
     assert b"theirs" in (target / "qa.toml").read_bytes()
@@ -37,7 +37,10 @@ def test_namespaced_file_survives_a_later_plain_run_and_upgrades(world):
     run_installer(world, "--namespace", "tk")
     write_shipped(world.agents, architect="a1", critic="c1", qa="q2")
     assert run_installer(world) == 0
-    assert tomllib.loads((target / "tk-qa.toml").read_text())["developer_instructions"] == "q2"
+    assert (
+        tomllib.loads((target / "tk-qa.toml").read_text(encoding="utf-8"))["developer_instructions"]
+        == "q2"
+    )
     assert b"theirs" in (target / "qa.toml").read_bytes()
 
 
@@ -51,7 +54,7 @@ def test_deleted_namespaced_copy_is_reinstalled_and_reruns_agree(world):
     assert run_installer(world) == 1
     assert not (target / "tk-qa.toml").exists()
     assert run_installer(world, "--namespace", "tk") == 0
-    assert tomllib.loads((target / "tk-qa.toml").read_text())["name"] == "tk-qa"
+    assert tomllib.loads((target / "tk-qa.toml").read_text(encoding="utf-8"))["name"] == "tk-qa"
     assert "tk-qa.toml" in read_record(world)["files"]
     assert run_installer(world) == 0
     assert b"theirs" in (target / "qa.toml").read_bytes()

@@ -285,6 +285,11 @@ def generate_agent_copies(
     keep = _keep_list(stanza)
     options = _as_copy_error(lambda: read_output_options(stanza))
     source_dir, output_dir = _resolve_dirs(repo_root, stanza)
+    if output_dir.is_symlink():
+        # A redirected output folder would let the prune step delete files outside the repo.
+        raise AgentCopyError(
+            f"{output_dir}: output directory is a symlink; refusing to write or prune"
+        )
     if not source_dir.is_dir():
         raise AgentCopyError(f"sourceDir not found: {source_dir}")
     excludes = _excludes(stanza)

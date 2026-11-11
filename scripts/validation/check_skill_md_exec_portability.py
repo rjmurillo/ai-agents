@@ -215,7 +215,7 @@ LITERAL_EXTRA_DIRS: tuple[tuple[str, ...], ...] = (
     ("templates", "agents"),
     ("templates", "rules"),
 )
-_LITERAL_SUFFIXES = frozenset({".md", ".mdc", ".tmpl", ".mustache"})
+_LITERAL_SUFFIXES = frozenset({".md", ".mdc", ".tmpl", ".mustache", ".toml"})
 
 
 def find_literal_plugin_paths(text: str) -> list[tuple[int, str]]:

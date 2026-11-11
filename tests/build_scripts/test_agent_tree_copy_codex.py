@@ -118,7 +118,7 @@ def test_paragraph_lists_the_derived_sorted_skip_list_in_every_body(tmp_path: Pa
     _source(tmp_path, "alpha", _agent("alpha", "tools: Read\n"))
     _generate(tmp_path)
     for stem in ("free", "other"):
-        text = tomllib.loads((_out(tmp_path) / f"{stem}.toml").read_text())
+        text = tomllib.loads((_out(tmp_path) / f"{stem}.toml").read_text(encoding="utf-8"))
         body = text["developer_instructions"]
         assert "## Agents not installed on this host" in body
         assert "`alpha`, `zeta`" in body
@@ -128,7 +128,7 @@ def test_paragraph_lists_the_derived_sorted_skip_list_in_every_body(tmp_path: Pa
 def test_no_paragraph_when_nothing_is_skipped(tmp_path: Path) -> None:
     _source(tmp_path, "free", _agent("free"))
     _generate(tmp_path)
-    parsed = tomllib.loads((_out(tmp_path) / "free.toml").read_text())
+    parsed = tomllib.loads((_out(tmp_path) / "free.toml").read_text(encoding="utf-8"))
     assert "not installed" not in parsed["developer_instructions"]
     assert parsed["developer_instructions"] == "\n# Agent\n\nDoes things.\n"
 
@@ -153,7 +153,7 @@ def test_check_reports_a_stale_toml_and_deletes_nothing(tmp_path: Path) -> None:
     _source(tmp_path, "free", _agent("free"))
     _generate(tmp_path)
     stale = _out(tmp_path) / "ghost.toml"
-    stale.write_text("name = 'ghost'\n")
+    stale.write_text("name = 'ghost'\n", encoding="utf-8")
     result = _generate(tmp_path, check=True)
     assert result.drift == [stale.as_posix()]
     assert stale.exists()
@@ -166,10 +166,33 @@ def test_check_is_clean_after_a_write(tmp_path: Path) -> None:
     assert _generate(tmp_path, check=True).drift == []
 
 
+def test_a_symlinked_output_dir_is_refused_and_nothing_is_deleted(tmp_path: Path) -> None:
+    _source(tmp_path, "free", _agent("free"))
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    keep = elsewhere / "users-own.toml"
+    keep.write_text("name = 'mine'\n", encoding="utf-8")
+    try:
+        _out(tmp_path).symlink_to(elsewhere, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks unavailable on this host")
+    with pytest.raises(atc.AgentCopyError, match="symlink"):
+        _generate(tmp_path)
+    assert keep.exists()
+    assert not (elsewhere / "free.toml").exists()
+
+
+def test_a_plain_output_dir_is_still_written(tmp_path: Path) -> None:
+    """Negative control for the symlink refusal."""
+    _source(tmp_path, "free", _agent("free"))
+    _generate(tmp_path)
+    assert (_out(tmp_path) / "free.toml").exists()
+
+
 def test_markdown_md_files_in_a_toml_output_dir_are_not_pruned(tmp_path: Path) -> None:
     _source(tmp_path, "free", _agent("free"))
     _out(tmp_path).mkdir()
-    (_out(tmp_path) / "note.md").write_text("keep")
+    (_out(tmp_path) / "note.md").write_text("keep", encoding="utf-8")
     _generate(tmp_path)
     assert (_out(tmp_path) / "note.md").exists()
 
@@ -178,7 +201,7 @@ def test_body_replace_applies_before_toml_serialization(tmp_path: Path) -> None:
     _source(tmp_path, "free", _agent("free", body='\nHand to the "security" agent.\n'))
     extra = '    bodyReplace:\n      free.md:\n        "Hand to the": "Report to the"\n'
     atc.generate_agent_copies(tmp_path, _config(tmp_path, extra))
-    parsed = tomllib.loads((_out(tmp_path) / "free.toml").read_text())
+    parsed = tomllib.loads((_out(tmp_path) / "free.toml").read_text(encoding="utf-8"))
     assert parsed["developer_instructions"] == '\nReport to the "security" agent.\n'
 
 
@@ -193,7 +216,7 @@ def test_body_replace_naming_a_skipped_agent_fails(tmp_path: Path) -> None:
 def test_toml_has_exactly_three_keys_in_order(tmp_path: Path) -> None:
     _source(tmp_path, "free", _agent("free", "model: haiku\nmetadata: {a: 1}\n"))
     _generate(tmp_path)
-    assert list(tomllib.loads((_out(tmp_path) / "free.toml").read_text())) == KEYS
+    assert list(tomllib.loads((_out(tmp_path) / "free.toml").read_text(encoding="utf-8"))) == KEYS
 
 
 # name and stem ------------------------------------------------------------------
@@ -237,7 +260,7 @@ def test_check_names_match_stems_accepts_matching_names_and_rejects_others() -> 
 def test_markdown_format_also_checks_names(tmp_path: Path) -> None:
     _source(tmp_path, "file-stem", _agent("other"))
     cfg = _config(tmp_path)
-    cfg.write_text(cfg.read_text().replace("    outputFormat: codex-toml\n", ""))
+    cfg.write_text(cfg.read_text(encoding="utf-8").replace("    outputFormat: codex-toml\n", ""))
     with pytest.raises(atc.AgentCopyError, match="differs from file stem"):
         atc.generate_agent_copies(tmp_path, cfg)
 
@@ -255,7 +278,7 @@ def test_codex_toml_rejects_other_keep_lists(tmp_path: Path, keep: str) -> None:
 def test_unknown_output_format_fails(tmp_path: Path) -> None:
     _source(tmp_path, "free", _agent("free"))
     cfg = _config(tmp_path)
-    cfg.write_text(cfg.read_text().replace("codex-toml", "yaml"))
+    cfg.write_text(cfg.read_text(encoding="utf-8").replace("codex-toml", "yaml"))
     with pytest.raises(atc.AgentCopyError, match="outputFormat"):
         atc.generate_agent_copies(tmp_path, cfg)
 
@@ -269,7 +292,11 @@ def test_skip_with_derive_readonly_fails(tmp_path: Path) -> None:
 def test_non_boolean_skip_fails(tmp_path: Path) -> None:
     _source(tmp_path, "free", _agent("free"))
     cfg = _config(tmp_path)
-    cfg.write_text(cfg.read_text().replace("skipToolRestricted: true", 'skipToolRestricted: "yes"'))
+    cfg.write_text(
+        cfg.read_text(encoding="utf-8").replace(
+            "skipToolRestricted: true", 'skipToolRestricted: "yes"'
+        )
+    )
     with pytest.raises(atc.AgentCopyError, match="boolean"):
         atc.generate_agent_copies(tmp_path, cfg)
 
