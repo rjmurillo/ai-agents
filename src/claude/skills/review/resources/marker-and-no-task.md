@@ -1,6 +1,6 @@
-# Review marker format and the no-Task path
+# Review marker format and the no-subagent path
 
-`/review` loads this file when it writes the PASS marker, or when its harness has no `Task` tool. The reader is `.claude/skills/review/scripts/validate_review_marker.py` (`MARKER_TRAILER_KEY = "Reviewed-By"`, `ARTIFACT_TRAILER_KEY = "Review-Artifact"`).
+`/review` loads this file when it writes the PASS marker, or when its host has no subagent tool. The reader is `.claude/skills/review/scripts/validate_review_marker.py` (`MARKER_TRAILER_KEY = "Reviewed-By"`, `ARTIFACT_TRAILER_KEY = "Review-Artifact"`).
 
 ## Why the marker carries a report
 
@@ -33,9 +33,9 @@ After the marker lands, you may merge `origin/main` into the branch without a ne
 5. Write `marker-message.txt`: the subject `review: /review PASS marker`, a blank line, the contents of `report.txt`, a blank line, then the `Reviewed-By` and `Review-Artifact: $DIGEST` trailers.
 6. `git commit --allow-empty -F marker-message.txt`
 
-## Running without the Task tool
+## Running without a subagent tool
 
-A subagent with no `Task` tool MUST NOT review its own diff and write the marker. Run each axis as its own `claude -p` process, so the reviewer has the axis prompt and nothing from the authoring session.
+A subagent with no such tool MUST NOT review its own diff and write the marker. Run each axis as its own `claude -p` process, so the reviewer has the axis prompt and nothing from the authoring session.
 
 ```bash
 # <axis-prompt> is the resolved references/{role}.md, or resources/technical-review.md for the step 4c correctness pass; context.txt starts with the CONTEXT_MODE line, then the diff.
