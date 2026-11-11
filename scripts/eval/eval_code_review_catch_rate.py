@@ -137,7 +137,15 @@ def load_checkpoint(path: Path | None) -> list[dict[str, Any]]:
     """Rows already finished. Errored or truncated rows are retried."""
     if path is None or not path.exists():
         return []
-    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
+    lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line]
+    rows = []
+    for index, line in enumerate(lines):
+        try:
+            rows.append(json.loads(line))
+        except json.JSONDecodeError:
+            if index == len(lines) - 1:
+                break  # a killed run can leave a half-written last line; its job reruns
+            raise
     return [
         r for r in rows if not r.get("error") and len(r.get("raw", "")) == r.get("raw_chars", -1)
     ]
@@ -253,11 +261,15 @@ def prepare(
 
 
 def validate(
-    entries: list[core.Entry], reviews: dict[str, core.ReviewInput], git: core.GitRun
+    entries: list[core.Entry],
+    reviews: dict[str, core.ReviewInput],
+    jobs: list[Job],
+    git: core.GitRun,
 ) -> dict[str, Any]:
     leaks = {e.id: r for e in entries if (r := core.check_no_leak(e, reviews[e.id], git))}
     return {
         "entries": len(entries),
+        "planned_calls": len(jobs),
         "max_diff_chars": max(r.diff_chars for r in reviews.values()),
         "total_diff_chars": sum(r.diff_chars for r in reviews.values()),
         "leaks": leaks,
@@ -336,7 +348,12 @@ def execute(
         caller = make_caller(api_key, args.model, args.pause, usage)
     print(f"  running {len(jobs)} calls on {args.model}", file=sys.stderr)
     checkpoint = Path(args.checkpoint) if args.checkpoint else None
-    rows = run_jobs(jobs, caller, args.workers, load_checkpoint(checkpoint), checkpoint)
+    try:
+        done = load_checkpoint(checkpoint)
+    except (OSError, ValueError) as exc:
+        print(f"ERROR: cannot read checkpoint {checkpoint}: {exc}", file=sys.stderr)
+        return 2
+    rows = run_jobs(jobs, caller, args.workers, done, checkpoint)
     meta = build_meta(args, REPO_ROOT / args.corpus, len({j.entry for j in jobs}), usage)
     print(write_outputs(args, rows, meta, corpus))
     return 3 if rows and all(r.get("error") for r in rows) else 0
@@ -348,7 +365,11 @@ def main(
     """`caller` and `git` are test seams. Production leaves both at their defaults."""
     args = parse_args(argv)
     if args.report_from:
-        print(report.render_from_results(Path(args.report_from)))
+        try:
+            print(report.render_from_results(Path(args.report_from)))
+        except (OSError, ValueError, KeyError) as exc:
+            print(f"ERROR: cannot render {args.report_from}: {exc}", file=sys.stderr)
+            return 2
         return 0
     if args.rescore:
         return rescore(args)
@@ -356,7 +377,7 @@ def main(
         corpus, entries, reviews = prepare(args, git)
         jobs = plan_jobs(entries, reviews, args.trials)
         if args.validate_corpus:
-            summary = validate(entries, reviews, git)
+            summary = validate(entries, reviews, jobs, git)
             print(json.dumps(summary, indent=2))
             return 2 if summary["leaks"] else 0
     except (core.CorpusError, OSError, ValueError) as exc:

@@ -62,15 +62,17 @@ def repo(tmp_path: Path) -> dict:
     for i in range(4):
         path = root / "pkg" / f"mod{i}.py"
         path.write_text(
-            f"def f{i}(value):\n    return value + {i}  # BUGGY_LINE_{i}_not_checked_at_all\n"
+            f"def f{i}(value):\n    return value + {i}  # BUGGY_LINE_{i}_not_checked_at_all\n",
+            encoding="utf-8",
         )
         (root / "docs").mkdir(exist_ok=True)
-        (root / "docs" / f"note{i}.md").write_text(f"note {i}\n")
+        (root / "docs" / f"note{i}.md").write_text(f"note {i}\n", encoding="utf-8")
         _run(root, "add", "-A")
         _run(root, "commit", "-q", "-m", f"feat: add module {i}")
         introducer = _run(root, "rev-parse", "HEAD")
         path.write_text(
-            f"def f{i}(value):\n    return value - {i}  # REPAIRED_LINE_{i}_now_checked_with_care\n"
+            f"def f{i}(value):\n    return value - {i}  # REPAIRED_LINE_{i}_now_checked\n",
+            encoding="utf-8",
         )
         _run(root, "commit", "-q", "-am", f"fix: repair module {i} arithmetic")
         pairs.append((introducer, _run(root, "rev-parse", "HEAD")))
@@ -327,6 +329,30 @@ class TestFailureModes:
             cli.main(_argv(corpus, "--entries", "CR99", "--dry-run"), git=_git(repo["root"])) == 2
         )
 
+    def test_unreadable_fixing_commit_exits_2_under_validate_corpus(self, tmp_path, repo):
+        corpus = _write_corpus(tmp_path, repo)
+        git = _git(repo["root"])
+        fixes = {fix for _, fix in repo["pairs"]}
+
+        def fix_missing(args):
+            return None if fixes & set(args) else git(args)
+
+        assert cli.main(_argv(corpus, "--validate-corpus"), git=fix_missing) == 2
+
+    def test_validate_corpus_reports_the_planned_call_count(self, tmp_path, repo, capsys):
+        corpus = _write_corpus(tmp_path, repo)
+
+        cli.main(_argv(corpus, "--validate-corpus", "--trials", "2"), git=_git(repo["root"]))
+
+        assert json.loads(capsys.readouterr().out)["planned_calls"] == 8
+
+    def test_report_from_a_missing_or_corrupt_file_exits_2(self, tmp_path):
+        bad = tmp_path / "bad.json"
+        bad.write_bytes(b"\xff\xfe not json")
+
+        assert cli.main(["--report-from", str(tmp_path / "absent.json")]) == 2
+        assert cli.main(["--report-from", str(bad)]) == 2
+
     def test_unreadable_introducer_exits_2(self, tmp_path, repo):
         corpus = _write_corpus(tmp_path, repo)
 
@@ -349,6 +375,45 @@ class TestCheckpoint:
         )
 
         assert code == 0
+
+    def test_a_half_written_last_line_is_dropped_and_its_job_reruns(self, tmp_path, repo):
+        corpus = _write_corpus(tmp_path, repo)
+        checkpoint = tmp_path / "rows.jsonl"
+        cli.main(
+            _argv(corpus, "--checkpoint", str(checkpoint)), caller=_stub(), git=_git(repo["root"])
+        )
+        lines = checkpoint.read_text(encoding="utf-8").splitlines()
+        checkpoint.write_text("\n".join([*lines[:-1], lines[-1][:40]]) + "\n", encoding="utf-8")
+        calls: list[str] = []
+
+        def counting(system, user):
+            calls.append(user)
+            return _stub()(system, user)
+
+        code = cli.main(
+            _argv(corpus, "--checkpoint", str(checkpoint)), caller=counting, git=_git(repo["root"])
+        )
+
+        assert code == 0 and len(calls) == 1
+
+    def test_a_corrupt_interior_line_or_non_utf8_checkpoint_exits_2(self, tmp_path, repo):
+        corpus = _write_corpus(tmp_path, repo)
+        checkpoint = tmp_path / "rows.jsonl"
+        cli.main(
+            _argv(corpus, "--checkpoint", str(checkpoint)), caller=_stub(), git=_git(repo["root"])
+        )
+        lines = checkpoint.read_text(encoding="utf-8").splitlines()
+        checkpoint.write_text("\n".join(["{not json", *lines[1:]]) + "\n", encoding="utf-8")
+
+        interior = cli.main(
+            _argv(corpus, "--checkpoint", str(checkpoint)), caller=_stub(), git=_git(repo["root"])
+        )
+        checkpoint.write_bytes(b"\xff\xfe\n")
+        binary = cli.main(
+            _argv(corpus, "--checkpoint", str(checkpoint)), caller=_stub(), git=_git(repo["root"])
+        )
+
+        assert (interior, binary) == (2, 2)
 
     def test_rescore_reads_stored_responses_with_no_model_call(self, tmp_path, repo):
         corpus = _write_corpus(tmp_path, repo)

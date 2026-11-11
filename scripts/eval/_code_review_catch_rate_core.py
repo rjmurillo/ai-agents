@@ -124,7 +124,10 @@ def parse_corpus(payload: dict[str, Any]) -> Corpus:
     selection = payload.get("selection")
     if not isinstance(selection, dict) or not selection.get("rule"):
         raise CorpusError("selection.rule is required so no entry is chosen by feel")
-    entries = tuple(parse_entry(raw) for raw in payload.get("entries", []))
+    raw_entries = payload.get("entries", [])
+    if not isinstance(raw_entries, list) or not all(isinstance(r, dict) for r in raw_entries):
+        raise CorpusError("entries must be a list of objects")
+    entries = tuple(parse_entry(raw) for raw in raw_entries)
     if not entries:
         raise CorpusError("corpus has no entries")
     ids = [e.id for e in entries]
@@ -194,8 +197,11 @@ def build_review_input(entry: Entry, system: str, git: GitRun) -> ReviewInput:
 
 def check_no_leak(entry: Entry, review: ReviewInput, git: GitRun) -> list[str]:
     """Reasons the prompt carries fixing-commit content. Empty means clean."""
-    fix_subject = (git(("show", entry.fix, "--format=%s", "--no-patch")) or "").strip()
-    fix_patch = git(("show", entry.fix, "--format=", "-p")) or ""
+    fix_subject = git(("show", entry.fix, "--format=%s", "--no-patch"))
+    fix_patch = git(("show", entry.fix, "--format=", "-p"))
+    if fix_subject is None or fix_patch is None:
+        raise CorpusError(f"{entry.id}: fixing commit {entry.fix} is not readable")
+    fix_subject = fix_subject.strip()
     intro_patch, _ = introducing_patch(entry.introducer, git)
     prompt = review.system + "\n" + review.user
     reasons: list[str] = score.leaked_fix_content(

@@ -109,6 +109,15 @@ class TestCorpusParsing:
         with pytest.raises(core.CorpusError, match="schema_version"):
             core.parse_corpus(_payload(schema_version=2))
 
+    @pytest.mark.parametrize("entries", [None, {"a": 1}, "text", [1], [[]], [None]])
+    def test_entries_that_are_not_a_list_of_objects_are_refused(self, entries):
+        with pytest.raises(core.CorpusError, match="list of objects"):
+            core.parse_corpus(
+                _payload(entries=entries)
+                if entries is not None
+                else {**_payload(), "entries": None}
+            )
+
     def test_unreadable_corpus_file_is_refused(self, tmp_path):
         with pytest.raises(core.CorpusError, match="cannot read"):
             core.load_corpus(tmp_path / "absent.json")
@@ -169,6 +178,17 @@ class TestLeakCheck:
         review = core.build_review_input(entry, "SYSTEM", git)
 
         assert core.check_no_leak(entry, review, git) == []
+
+    def test_unreadable_fixing_commit_is_refused_not_passed_vacuously(self):
+        git = FakeGit()
+        entry = core.parse_entry(_raw_entry())
+        review = core.build_review_input(entry, "SYSTEM", git)
+
+        def fix_missing(args):
+            return None if FIX in args else git(args)
+
+        with pytest.raises(core.CorpusError, match="not readable"):
+            core.check_no_leak(entry, review, fix_missing)
 
     def test_fix_content_in_the_prompt_is_detected(self):
         git = FakeGit()
