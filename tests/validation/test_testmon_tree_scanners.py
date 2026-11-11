@@ -3,7 +3,7 @@
 testmon 2.2.0 records Python lines only. A test that runs ``git grep`` over the
 tree has no dependency on a docs page, and a brand-new page is named by no test,
 so a docs-only push selected nothing while CI failed
-``tests/test_forgetful_decommission_scope.py`` on PR #7263. These tests cover the
+the decommission-scope test on PR #7263. These tests cover the
 tree-scanner detector, the Markdown diff, the selection change, and a replay with
 real testmon (with and without xdist) whose control run shows the gap.
 """
@@ -28,7 +28,7 @@ from tests.validation.testmon_repo_helpers import (
 CORPUS = "tests/evals/profile-behavior-runtime-fixtures.json"
 READER = "tests/test_profile_behavior_fixtures.py"
 READER_TEXT = 'PATH = ROOT / "tests" / "evals" / "profile-behavior-runtime-fixtures.json"\n'
-SCANNER = "tests/test_forgetful_decommission_scope.py"
+SCANNER = "tests/test_scope_scan_example.py"
 SCANNER_TEXT = 'subprocess.run([git, "grep", "-ic", TOKEN, "--", "."], cwd=repo)\n'
 
 

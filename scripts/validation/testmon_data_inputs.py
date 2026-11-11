@@ -20,8 +20,8 @@ A second rule covers tests that scan the whole tracked tree through a ``git``
 subprocess (``git grep``, ``git ls-files``). Such a test has no Python
 dependency on any Markdown file, and a brand-new file is named by no test, so
 the name match above cannot find it. Issue #7286: a new ``docs/`` page broke
-``tests/test_forgetful_decommission_scope.py`` in CI while pre-push selected
-nothing. When the diff holds a Markdown file, every tree-scanner module is
+a decommission-scope test (it greps every tracked file) in CI while pre-push
+selected nothing. When the diff holds a Markdown file, every tree-scanner module is
 re-selected. The cost is one run of those modules (about 78 s at ``-n 4``
 measured 2026-11-11, inside the 180 s pre-push budget), paid only on a diff that
 touches Markdown.
