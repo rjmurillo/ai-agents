@@ -63,10 +63,24 @@ def _stream(
     return "\n".join(json.dumps(event) for event in events)
 
 
+_REAL_AMBIENT_INSTRUCTION_PATHS = harness.ambient_instruction_paths
+
+
 @pytest.fixture
 def claude_env(monkeypatch: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
+    """Credentials for the mocked CLI, and a guard that ignores the host layout.
+
+    `run_harness` walks every ancestor of the temp directory for instruction
+    files. Under `run_pytest_non_tmp.py` the temp root can sit under `$HOME`,
+    where a global `~/.claude/CLAUDE.md` makes the real guard refuse every run.
+    Pinning `Path.home` does not help, because the real `$HOME/.claude` is then
+    no longer the skipped config directory. So tests that are not about the
+    guard replace it with one that finds nothing. The guard has its own tests,
+    which restore the real function.
+    """
     monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "oauth-token")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "metered-key")
+    monkeypatch.setattr(harness, "ambient_instruction_paths", lambda start: [])
     return monkeypatch
 
 
@@ -246,9 +260,12 @@ class TestRunHarness:
         (checkout / "scratch").mkdir(parents=True)
         (checkout / "CLAUDE.md").write_text("rules", encoding="utf-8")
         claude_env.setattr(harness.tempfile, "gettempdir", lambda: str(checkout / "scratch"))
+        claude_env.setattr(harness, "ambient_instruction_paths", _REAL_AMBIENT_INSTRUCTION_PATHS)
         install_runner(claude_env, Recorder(stdout=_stream()))
-        with pytest.raises(RuntimeError, match="sits under instruction files"):
+        with pytest.raises(RuntimeError, match="sits under instruction files") as raised:
             harness.run_harness("do X", model=MODEL, skill_dir=None, skill_name=None)
+        # A host CLAUDE.md above tmp_path would also trip the guard, so name the planted file.
+        assert str((checkout / "CLAUDE.md").resolve()) in str(raised.value)
 
     def test_ambient_scan_walks_up_to_ancestors(self, tmp_path: Path) -> None:
         (tmp_path / "a" / "b").mkdir(parents=True)

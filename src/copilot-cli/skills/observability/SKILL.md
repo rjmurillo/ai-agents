@@ -112,32 +112,32 @@ Agent event logs are stored at:
 
 ```bash
 # Show all events in a session log
-python .claude/skills/observability/scripts/query_logs.py .project-toolkit/logs/sess-001.jsonl
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/observability/scripts/query_logs.py" .project-toolkit/logs/sess-001.jsonl
 
 # Check an emission scenario against the event-logging contract
 python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/observability/scripts/check_event_logging.py" scenario.json
 
 # Find errors only
-python .claude/skills/observability/scripts/query_logs.py .project-toolkit/logs/sess-001.jsonl --errors-only
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/observability/scripts/query_logs.py" .project-toolkit/logs/sess-001.jsonl --errors-only
 
 # Find tool calls slower than 500ms
-python .claude/skills/observability/scripts/query_logs.py .project-toolkit/logs/sess-001.jsonl --slow 500
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/observability/scripts/query_logs.py" .project-toolkit/logs/sess-001.jsonl --slow 500
 
 # Filter by agent
-python .claude/skills/observability/scripts/query_logs.py .project-toolkit/logs/sess-001.jsonl --agent implementer
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/observability/scripts/query_logs.py" .project-toolkit/logs/sess-001.jsonl --agent implementer
 
 # Session summary as JSON
-python .claude/skills/observability/scripts/query_logs.py .project-toolkit/logs/sess-001.jsonl --output summary-sessions
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/observability/scripts/query_logs.py" .project-toolkit/logs/sess-001.jsonl --output summary-sessions
 
 # Tool usage summary
-python .claude/skills/observability/scripts/query_logs.py .project-toolkit/logs/sess-001.jsonl --output summary-tools
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/observability/scripts/query_logs.py" .project-toolkit/logs/sess-001.jsonl --output summary-tools
 
 # Filter by time range
-python .claude/skills/observability/scripts/query_logs.py .project-toolkit/logs/sess-001.jsonl \
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/observability/scripts/query_logs.py" .project-toolkit/logs/sess-001.jsonl \
     --since 2026-03-30T10:00:00Z --until 2026-03-30T11:00:00Z
 
 # JSON output for automation
-python .claude/skills/observability/scripts/query_logs.py .project-toolkit/logs/sess-001.jsonl \
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/observability/scripts/query_logs.py" .project-toolkit/logs/sess-001.jsonl \
     --output json --event-type tool_call
 ```
 
