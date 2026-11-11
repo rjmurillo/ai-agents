@@ -50,12 +50,11 @@ Publishing goes through the ADR-113 promotion gate. A real publish runs the gate
 in enforcing mode, so it publishes only when the gate promotes, and until every
 open finding is fixed it will block.
 
-1. Update the version in `packages/ai-agents-cli/package.json` and merge it to the default branch.
+1. Update the version in `packages/ai-agents-cli/package.json` and `VERSION` in `packages/ai-agents-cli/src/cli.ts` to the same value, and merge both to the default branch.
 2. Create the release `vX.Y.Z` on that commit. A real publish needs `release-tag`, and the final job attaches the gate manifest to that release, so the job fails after npm has published if the release does not exist.
 3. Go to [Actions > npm Publish > Run workflow](https://github.com/rjmurillo/ai-agents/actions/workflows/publish.yml)
    on the default branch. Set `dry-run: false` and `release-tag` to `vX.Y.Z` for the
-   `package.json` version. A real publish without `release-tag` is refused. The version
-   also lives in `packages/ai-agents-cli/src/cli.ts` (`VERSION`); change both together.
+   `package.json` version. A real publish without `release-tag` is refused.
 
 The workflow builds the tarball once, hashes it, runs the gate against that digest,
 and publishes the same file after checking the digest again.
