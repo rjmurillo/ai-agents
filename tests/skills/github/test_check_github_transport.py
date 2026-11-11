@@ -19,6 +19,8 @@ from unittest.mock import patch
 
 import pytest
 
+from tests.pwsh_launcher_probe import require_working_pwsh
+
 # Ensure importability
 _project_root = Path(__file__).resolve().parents[3]
 _lib_dir = _project_root / ".claude" / "lib"
@@ -590,10 +592,9 @@ class TestConfiguredLaunchersRun:
     @pytest.mark.parametrize("harness", ["claude_code", "copilot"])
     def test_the_configured_command_runs_from_a_foreign_cwd(self, harness, tmp_path):
         import json
-        import shutil
 
-        if harness == "copilot" and shutil.which("pwsh") is None:
-            pytest.skip("pwsh is not installed on this runner")
+        if harness == "copilot":
+            require_working_pwsh()
 
         result = self._run(harness, tmp_path, COPILOT_PLUGIN_ROOT=str(self.PLUGIN_ROOT))
 
@@ -610,10 +611,8 @@ class TestConfiguredLaunchersRun:
         foreign cwd. Without this, a command that hardcoded an absolute path on
         the developer's machine would pass the case above.
         """
-        import shutil
-
-        if harness == "copilot" and shutil.which("pwsh") is None:
-            pytest.skip("pwsh is not installed on this runner")
+        if harness == "copilot":
+            require_working_pwsh()
 
         result = self._run(harness, tmp_path)
 

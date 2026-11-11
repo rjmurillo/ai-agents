@@ -1,0 +1,69 @@
+{
+  "evaluation": {
+    "diagnosis": "static",
+    "optimization": "not_run"
+  },
+  "generated_at": "2026-11-11T00:00:00Z",
+  "handle": "CANARY-HANDLE-R",
+  "harness": "copilot",
+  "sampling": {
+    "harness_coverage_complete": true,
+    "notice": "Non-probability sample.",
+    "per_harness": {
+      "codex": {
+        "sampled": 3,
+        "scoreable": 8,
+        "skill_candidates": 2
+      },
+      "copilot": {
+        "sampled": 3,
+        "scoreable": 10,
+        "skill_candidates": 4
+      }
+    }
+  },
+  "stats": {
+    "sessions_scanned": 20,
+    "skills_found": 2,
+    "skills_used": 1,
+    "window_days": 45
+  },
+  "suggestions": [
+    {
+      "acceptance_checks": [
+        "efficiency label improves on the held-out case"
+      ],
+      "change": "CANARY-CHANGE-R tighten the discovery step",
+      "evidence": "CANARY-EVIDENCE-R-suggestion",
+      "expected_improvement": "Fewer exploratory reads before the first edit",
+      "mechanism": "CANARY-MECH-R",
+      "missing_evidence": [
+        "No transcript shows the skill firing"
+      ],
+      "owner": "skill",
+      "reproduction": "CANARY-REPRO-R",
+      "risks": [
+        "CANARY-RISK-R"
+      ],
+      "skill": "alpha",
+      "status": "unevaluated",
+      "target": "",
+      "variants": [
+        {
+          "path": "/CANARY-PATH-R/clone-1/alpha/SKILL.md",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        {
+          "path": "/CANARY-PATH-R/global/alpha/SKILL.md",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        }
+      ]
+    }
+  ],
+  "title": "Reproduction fixture report",
+  "top_findings": [
+    "Efficiency below 0.5 in 1 of 6 conversations",
+    "Code quality applicable in 3 of 6 conversations",
+    "1 conversation ended at a provider cutoff"
+  ]
+}

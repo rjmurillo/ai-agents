@@ -40,6 +40,7 @@ DISCOVERY_LENS_IDS = {
     "Proof and analysis toolkit": "proof-and-analysis-toolkit",
     "Research frontier": "research-frontier",
     "Research methodology": "research-methodology",
+    "Institutional knowledge": "institutional-knowledge",
 }
 
 

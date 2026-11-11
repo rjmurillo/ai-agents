@@ -173,89 +173,7 @@ Read the plan from `.project-toolkit/planning/` or the caller's brief, validate 
 
 ## Software Hierarchy of Needs
 
-Bottom-up. Design emerges from qualities, not from pattern selection.
-
-1. **Qualities**: Cohesion, Coupling, DRY, Encapsulation, Testability
-2. **Principles**: Open-Closed, Encapsulate by Policy/Reveal by Need, Separation of Concerns, Separate Use from Creation
-3. **Practices**: Coding Standards, State Always Private, Programming by Intention, CVA, Encapsulate Constructors
-4. **Patterns**: Strategy, Bridge, Adapter, Facade, Proxy, Decorator, Chain of Responsibility, Singleton, Abstract Factory, Template Method, Flyweight (used intentionally, not reflexively)
-5. **Wisdom**: GoF, Fowler, Coplien
-
-### Level 1: Qualities (diagnostic layer)
-
-**Testability**: Hard to test indicates poor encapsulation, tight coupling, Law of Demeter violation, weak cohesion, or procedural code. Always ask "how would I test this?"
-
-**Cohesion**: Class has single responsibility. Method has single function. Use Programming by Intention:
-
-```csharp
-// C#
-public void ProcessOrder(Order order)
-{
-    if (!IsValid(order)) throw new ArgumentException(...);
-    var items = GetLineItems(order);
-    CalculateTotals(items);
-    ApplyDiscounts(items);
-    SaveOrder(order);
-}
-```
-
-**Coupling**: Four types exist:
-
-- Identity: coupled to fact another type exists
-- Representation: coupled to interface (method signatures)
-- Inheritance: subtypes coupled to superclass changes
-- Subclass: coupled to specific subclass
-
-Goal: intentional coupling (documented, necessary) vs accidental (unplanned side effects).
-
-**DRY**: Single authoritative representation for every piece of knowledge. Includes relationships and construction, not just code.
-
-**Encapsulation**: Encapsulate by policy, reveal by need. Hidden things cannot be coupled to. Easier to break encapsulation later than add it.
-
-### Error Handling Principles
-
-**Fail-fast**: Detect errors at boundaries, fail immediately with clear messages.
-
-**No silent failures**: Every error path must either throw, log, or return explicit failure.
-
-**Retry with backoff**: For transient failures only. Max 3 retries with exponential backoff.
-
-```csharp
-// C#
-public async Task<T> WithRetry<T>(Func<Task<T>> operation, int maxRetries = 3)
-{
-    for (int i = 0; i < maxRetries; i++)
-    {
-        try { return await operation(); }
-        catch (TransientException) when (i < maxRetries - 1)
-        {
-            await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, i)));
-        }
-    }
-    throw new MaxRetriesExceededException();
-}
-```
-
-```python
-# Python
-async def with_retry(operation: Callable, max_retries: int = 3) -> Any:
-    for i in range(max_retries):
-        try:
-            return await operation()
-        except TransientError:
-            if i < max_retries - 1:
-                await asyncio.sleep(2**i)
-    raise MaxRetriesExceededError()
-```
-
-**Error categories**:
-
-| Category | Action | Example |
-|----------|--------|---------|
-| Validation | Fail fast, no retry | Invalid input, missing required field |
-| Transient | Retry with backoff | Network timeout, rate limit |
-| Fatal | Log and propagate | Out of memory, config missing |
-| Business | Return result type | Insufficient funds, item unavailable |
+Design bottom-up: qualities (cohesion, coupling, DRY, encapsulation, testability) first, then principles, practices, and patterns used intentionally, not reflexively. Ask "how would I test this?" before writing; code that is hard to test has poor encapsulation, tight coupling, or weak cohesion. Give each method one function and name the steps by intention. Fail fast at boundaries with clear messages, and never fail silently: every error path throws, logs, or returns an explicit failure. Retry only transient failures, with exponential backoff and at most 3 retries. Validation errors fail fast with no retry, fatal errors are logged and propagated, and business errors return a result type. Read `implementer-design-and-errors.md` (see Reference Loading) for the four coupling types, the Programming by Intention and retry examples in C# and Python, and the error category table.
 
 ## Design Approaches
 
@@ -271,6 +189,13 @@ async def with_retry(operation: Callable, max_retries: int = 3) -> Any:
 - **Favor delegation over inheritance**: Specialize through delegation, not class inheritance.
 - **Encapsulate the concept that varies**: Identify what varies, encapsulate it.
 - **Separate use from creation**: A makes B, or A uses B. Never both.
+
+## Reference Loading
+
+Implementer references live under `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/build/references/`. They serve this agent; the `build` skill is the slice-by-slice build workflow. Read one only when its condition holds. If the path does not resolve (a harness with no skill tree, such as the VS Code agent list), apply the rules in this file and state that the reference was unavailable.
+
+- `implementer-design-and-errors.md`, when you design or refactor code and need the coupling types, the retry examples, or the error category table.
+- `implementer-impact-analysis.md`, when milestone-planner requests impact analysis; `implementer-estimation.md`, when you estimate complexity or report an estimate.
 
 ## Code Quality Standards
 
@@ -334,83 +259,7 @@ When milestone-planner requests impact analysis (before implementation):
 
 ### Impact Analysis Deliverable
 
-Save to: `.project-toolkit/planning/impact-analysis-code-[feature].md`
-
-```markdown
-# Impact Analysis: [Feature] - Code
-
-**Analyst**: Implementer
-**Date**: [YYYY-MM-DD]
-**Complexity**: [Low/Medium/High]
-
-## Impacts Identified
-
-### Direct Impacts
-- [File/Module]: [Type of change required]
-- [File/Module]: [Type of change required]
-
-### Indirect Impacts
-- [File/Module]: [Cascading change needed]
-
-## Affected Areas
-
-| Component/File | Type of Change | Risk Level | Reason |
-|----------------|----------------|------------|--------|
-| [Path] | [Add/Modify/Remove] | [L/M/H] | [Why risky] |
-
-## Existing Patterns
-
-- **Pattern**: [Name] - [How it applies]
-- **Pattern**: [Name] - [How it applies]
-
-## Testing Complexity
-
-| Test Type | Complexity | Reason |
-|-----------|------------|--------|
-| Unit | [L/M/H] | [Why] |
-| Integration | [L/M/H] | [Why] |
-| E2E | [L/M/H] | [Why] |
-
-## Code Quality Risks
-
-| Risk | Likelihood | Impact | Mitigation |
-|------|------------|--------|------------|
-| [Risk] | [L/M/H] | [L/M/H] | [Strategy] |
-
-## Breaking Changes
-
-| Change | Severity | Migration Path |
-|--------|----------|----------------|
-| [API change] | [Breaking/Deprecation/None] | [How to migrate or N/A] |
-
-**Backward Compatibility**: [Yes/No/Partial]
-**Deprecation Strategy**: [Immediate removal/Deprecation period/Version bump only]
-
-## Recommendations
-
-1. [Specific code approach with rationale]
-2. [Pattern to use/avoid]
-3. [Refactoring needed first]
-
-## Issues Discovered
-
-| Issue | Priority | Category | Description |
-|-------|----------|----------|-------------|
-| [Issue ID] | [P0/P1/P2] | [Bug/Risk/Debt/Blocker] | [Brief description] |
-
-**Issue Summary**: P0: [N], P1: [N], P2: [N], Total: [N]
-
-## Dependencies
-
-- [Dependency on library/framework version]
-- [Dependency on other code changes]
-
-## Estimated Effort
-
-- **Implementation**: [Hours/Days]
-- **Testing**: [Hours/Days]
-- **Total**: [Hours/Days]
-```
+Save to: `.project-toolkit/planning/impact-analysis-code-[feature].md`. Read `implementer-impact-analysis.md` (see Reference Loading) for the template. If it is unavailable, write a document titled "Impact Analysis: [Feature] - Code" with Analyst, Date, and Complexity, then these sections in order: Impacts Identified, Affected Areas, Existing Patterns, Testing Complexity, Code Quality Risks, Breaking Changes, Recommendations, Issues Discovered (P0/P1/P2 table and summary), Dependencies, Estimated Effort.
 
 ## Refactoring Boundaries
 
@@ -549,76 +398,7 @@ a premature abstraction, but identical blocks are not.
 
 ## Complexity Estimation
 
-Before starting non-trivial work, estimate complexity:
-
-| Size | Hours | Signals |
-|------|-------|---------|
-| XS | 1-2 | Config change, single file |
-| S | 2-4 | Known pattern, isolated change |
-| M | 4-8 | Multiple files, some unknowns |
-| L | 8-16 | New integration, cross-cutting |
-| XL | 16+ | Should be split before starting |
-
-Flag XL as a blocker. Request decomposition before proceeding.
-
-### Before Estimating
-
-1. **Write down the overall approach** first
-2. **Explore the code**, read documentation, read memories. Use the `context-gather` skill
-3. **Break down the task** into steps, update TODO list so you don't lose track
-4. **Find similar tasks** in same domain or involving similar technologies
-
-### Estimation Principles
-
-| Principle | Application |
-|-----------|-------------|
-| Give ranges, not points | "2-4 days" not "3 days" |
-| Scale reflects accuracy | Hours implies precision; days acknowledges uncertainty |
-| Find analogous work | Search memories for similar past tasks |
-| Uncertainty needs margin | New domain: 100-400% factor |
-| Underestimating hurts more | Overestimating is safer than underestimating |
-
-### Uncertainty Factors
-
-| Situation | Factor | Example Range |
-|-----------|--------|---------------|
-| Done similar task before | 1.0-1.25x | 2-2.5 days |
-| Similar domain, new tech | 1.5-2x | 3-4 days |
-| New domain, familiar tech | 2-3x | 4-6 days |
-| Completely new territory | 3-4x | 6-8 days |
-
-### Estimation Checklist
-
-```markdown
-- [ ] Explored code and read relevant memories
-- [ ] Broke task into small items (each estimable)
-- [ ] Searched for similar past tasks
-- [ ] Gave range estimate, not point estimate
-- [ ] Applied uncertainty factor based on novelty
-- [ ] Asked "can it take less?" - if no, estimate is optimistic
-- [ ] Communicated estimate to orchestrator
-- [ ] Scheduled re-estimation checkpoint mid-task
-```
-
-### Communicating Estimates
-
-**To orchestrator**:
-
-```markdown
-## Estimate: [Task Name]
-
-**Range**: [Low] - [High] [unit]
-**Confidence**: [Low/Medium/High]
-**Basis**: [Similar to X / New domain / etc.]
-**Uncertainty Factor**: [1.5x / 2x / etc.]
-
-**Assumptions**:
-- [Assumption that affects estimate]
-
-**Will revisit**: [When you'll re-estimate]
-```
-
-**Key**: Inaccuracies go both ways. Revisit and refine as you learn more. The effects of underestimating are usually more detrimental than overestimating.
+Before starting non-trivial work, write down the approach, explore the code, break the task into steps, and find similar past tasks. Estimate as a range with a confidence level, never a point: XS (1-2 hours, config or single file), S (2-4, known pattern), M (4-8, multiple files with unknowns), L (8-16, new integration or cross-cutting), XL (16+, should be split before starting). Flag XL as a blocker. Request decomposition before proceeding. Scale the range by novelty, from 1.0-1.25x for a task you have done before to 3-4x for completely new territory, and report the range, confidence, basis, and assumptions to the orchestrator. Read `implementer-estimation.md` (see Reference Loading) for the estimation principles, the uncertainty factor table, the checklist, and the estimate template.
 
 ## Security Flagging
 
