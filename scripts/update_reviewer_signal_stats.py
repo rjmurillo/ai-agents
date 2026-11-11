@@ -656,7 +656,7 @@ def _run_agent_intervention_report(owner: str, repo: str) -> int:
     report_path = os.path.join(str(root), INTERVENTION_REPORT_PATH)
     try:
         metrics = run_agent_intervention_report(owner, repo, report_path)
-    except (RuntimeError, OSError, subprocess.SubprocessError, KeyError, TypeError):
+    except (RuntimeError, OSError, subprocess.SubprocessError, KeyError, TypeError, ValueError):
         # A GraphQL timeout, an unwritable report path, or a malformed API node all
         # end the run with the external-error code instead of a bare traceback.
         logger.exception("Failed to build the agent PR intervention report")

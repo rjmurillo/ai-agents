@@ -101,6 +101,13 @@ class TestCountInterventions:
         lookalike = _actor("alice-bot")
         assert m.count_interventions(_pr(threads=[_thread(lookalike)])) == 1
 
+    def test_human_named_like_a_listed_app_is_not_a_bot(self) -> None:
+        # bot-authors.yml lists cursor[bot]; a person named cursor is not that app.
+        person = _actor("cursor")
+        app = _actor("cursor", "Bot")
+        assert m.count_interventions(_pr(threads=[_thread(person)])) == 1
+        assert m.count_interventions(_pr(threads=[_thread(app)])) == 0
+
     def test_review_and_threads_each_count(self) -> None:
         review = {"state": "CHANGES_REQUESTED", "author": HUMAN}
         pr = _pr(threads=[_thread(HUMAN), _thread(HUMAN)], reviews=[review])

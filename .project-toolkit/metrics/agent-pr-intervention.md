@@ -1,27 +1,27 @@
 # Agent PR Intervention Metrics
 
-Generated 2026-11-11 from GitHub PR events. Window: PRs created 2026-10-12 to 2026-11-11 (30 days). Agent-authored PRs in window: 608.
+Generated 2026-11-11 from GitHub PR events. Window: PRs created 2026-10-12 to 2026-11-11 (30 days). Agent-authored PRs in window: 603.
 
 | Outcome | PRs | Zero-touch | Zero-intervention rate | Interventions | Median per intervened PR |
 |---------|-----|------------|------------------------|---------------|--------------------------|
-| merged | 579 | 350 | 60.4% | 665 | 2 |
-| unmerged | 5 | 4 | 80.0% | 1 | 1 |
+| merged | 573 | 345 | 60.2% | 661 | 2 |
+| unmerged | 6 | 5 | 83.3% | 1 | 1 |
 | open | 24 | 18 | 75.0% | 10 | 1 |
 
 ## Zero-touch merge sample
 
-10 of 350 merged PRs with zero interventions, picked at even steps through the PR-number order, newest first.
+10 of 345 merged PRs with zero interventions, picked at even steps through the PR-number order, newest first.
 
 - [#7259](https://github.com/rjmurillo/ai-agents/pull/7259): `fix(tests): cite #7215 in the pwsh launcher probe, not #7231`
-- [#7073](https://github.com/rjmurillo/ai-agents/pull/7073): `feat(hooks): friction branch in the Stop retrospective nudge (REQ-048 TASK-003)`
-- [#6937](https://github.com/rjmurillo/ai-agents/pull/6937): `fix(tests): join api-doc-authoring test server threads before each test ends`
-- [#6850](https://github.com/rjmurillo/ai-agents/pull/6850): `docs(eval): record the S7 baseline versus full run for the reframing check`
-- [#6776](https://github.com/rjmurillo/ai-agents/pull/6776): `fix(evals): key dates.py fix check on the crashing call (follow-up to #6687)`
-- [#6723](https://github.com/rjmurillo/ai-agents/pull/6723): `fix(memory): keep dangling commit events when dropping all would zero commits`
-- [#6572](https://github.com/rjmurillo/ai-agents/pull/6572): `docs(skills): host global workflow rules in decision-question, orchestrator, test`
-- [#6528](https://github.com/rjmurillo/ai-agents/pull/6528): `fix(github): report reply_posted separately in add_pr_review_thread_reply.py`
-- [#6470](https://github.com/rjmurillo/ai-agents/pull/6470): `feat(github): add --check-name filter and failed step names to get_pr_check_logs`
-- [#6345](https://github.com/rjmurillo/ai-agents/pull/6345): `perf(hooks): run pre-push pytest partitions at the same time`
+- [#7090](https://github.com/rjmurillo/ai-agents/pull/7090): `fix(github): report refused sessions as unknown in the completion gate`
+- [#6946](https://github.com/rjmurillo/ai-agents/pull/6946): `feat(eval): explicit prompt caching for GPT-5.6+ eval requests`
+- [#6856](https://github.com/rjmurillo/ai-agents/pull/6856): `fix(validation): analyze each plugin-root script once per scan`
+- [#6779](https://github.com/rjmurillo/ai-agents/pull/6779): `fix(validation): stop a stray Provenance bullet sourcing the last table row (follow-up to #6695)`
+- [#6729](https://github.com/rjmurillo/ai-agents/pull/6729): `fix(testing): fall back to ~/worktrees when the checkout parent is unwritable`
+- [#6581](https://github.com/rjmurillo/ai-agents/pull/6581): `fix(github): add PR_ONLY and CANCELLED_ON_MAIN verdicts to triage_red_check`
+- [#6534](https://github.com/rjmurillo/ai-agents/pull/6534): `test(mutation): run every mutation harness in a blocking CI job`
+- [#6490](https://github.com/rjmurillo/ai-agents/pull/6490): `feat(cursor): ship a generated Cursor plugin tree and marketplace`
+- [#6372](https://github.com/rjmurillo/ai-agents/pull/6372): `fix(skillbook): read continuity first, update it after execution`
 
 ## Definitions
 
@@ -42,8 +42,8 @@ Generated 2026-11-11 from GitHub PR events. Window: PRs created 2026-10-12 to 20
 - **Rows.** `merged`, `unmerged` (closed without merge), and `open` (still in flight).
 - **Window.** PRs created in the trailing 30 days.
 - **Data source.** GitHub PR events only. Session logs are not used. PRs that are not
-  agent-authored are classified from the first page of the PR list and then dropped. Nothing
-  about them is paged further, stored, or reported.
+  agent-authored arrive with the first page of the PR list, are classified, and are dropped in
+  memory. Nothing about them is paged further, stored, or reported.
 
 ## Known limits
 

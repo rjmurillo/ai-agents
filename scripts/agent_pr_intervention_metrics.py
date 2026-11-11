@@ -34,6 +34,9 @@ ZERO_TOUCH_SAMPLE_SIZE = 10
 TITLE_MAX_CHARS = 100
 MAX_PR_PAGES = 100
 MAX_NESTED_PAGES = 50
+# Each thread adds a comments connection to the query cost, so the first page stays
+# small. A PR with more threads is paged to the end by _complete_connection.
+THREADS_FIRST_PAGE = 20
 REPORT_PATH = ".project-toolkit/metrics/agent-pr-intervention.md"
 
 AGENT_TRAILER_PATTERN = re.compile(r"Generated with \[Claude Code\]", re.IGNORECASE)
@@ -78,14 +81,15 @@ query($owner: String!, $repo: String!, $cursor: String) {
           pageInfo { hasNextPage endCursor }
           __REVIEW_NODES__
         }
-        reviewThreads(first: 100) {
+        reviewThreads(first: __THREADS_FIRST__) {
           pageInfo { hasNextPage endCursor }
           __THREAD_NODES__
         }
       }
     }
   }
-}""".replace("__REVIEW_NODES__", _REVIEW_NODES)
+}""".replace("__THREADS_FIRST__", str(THREADS_FIRST_PAGE))
+    .replace("__REVIEW_NODES__", _REVIEW_NODES)
     .replace("__THREAD_NODES__", _THREAD_NODES)
     .replace("__ACTOR__", _ACTOR_FIELDS)
 )
@@ -142,20 +146,16 @@ class InterventionMetrics:
 # ---------------------------------------------------------------------------
 
 
-def _normalize_login(login: str) -> str:
-    return login.lower().removesuffix("[bot]")
-
-
 @functools.cache
 def _repository_bots() -> frozenset[str]:
-    """Lowercased ``repository`` bot logins with any ``[bot]`` suffix removed."""
-    return frozenset(_normalize_login(b) for b in get_bot_authors("repository"))
+    """Lowercased ``repository`` bot logins, matched exactly."""
+    return frozenset(b.lower() for b in get_bot_authors("repository"))
 
 
 @functools.cache
 def _configured_bots() -> frozenset[str]:
-    """Every bot login in ``.github/bot-authors.yml``, normalized."""
-    return frozenset(_normalize_login(b) for b in get_bot_authors())
+    """Every lowercased bot login in ``.github/bot-authors.yml``, matched exactly."""
+    return frozenset(b.lower() for b in get_bot_authors())
 
 
 def is_agent_pr(pr: dict[str, Any], owner: str) -> bool:
@@ -166,9 +166,7 @@ def is_agent_pr(pr: dict[str, Any], owner: str) -> bool:
     trailer into a body and their title would reach the committed report.
     """
     author = pr.get("author") or {}
-    login = _normalize_login(
-        canonicalize_login(author.get("login") or "", author.get("databaseId"))
-    )
+    login = canonicalize_login(author.get("login") or "", author.get("databaseId")).lower()
     if not login:
         return False
     if login in _repository_bots():
@@ -181,14 +179,15 @@ def _is_human(actor: dict[str, Any] | None) -> bool:
 
     A null actor (deleted account) counts as human. A zero-touch claim has to
     be provable, so an unattributable event must not hide an intervention.
-    A ``User`` is a bot only when ``bot-authors.yml`` lists it. A login suffix
-    such as ``-bot`` is not evidence, since any person can pick that name.
+    A ``User`` is a bot only when ``bot-authors.yml`` lists that exact login.
+    A suffix such as ``-bot`` is not evidence, since any person can pick that
+    name, and a human named ``cursor`` is not the ``cursor[bot]`` app.
     """
     if not actor:
         return True
     if actor.get("__typename") == "Bot":
         return False
-    login = _normalize_login(canonicalize_login(actor.get("login") or "", actor.get("databaseId")))
+    login = canonicalize_login(actor.get("login") or "", actor.get("databaseId")).lower()
     return login not in _configured_bots()
 
 
@@ -314,8 +313,8 @@ DEFINITIONS = """\
 - **Rows.** `merged`, `unmerged` (closed without merge), and `open` (still in flight).
 - **Window.** PRs created in the trailing 30 days.
 - **Data source.** GitHub PR events only. Session logs are not used. PRs that are not
-  agent-authored are classified from the first page of the PR list and then dropped. Nothing
-  about them is paged further, stored, or reported.
+  agent-authored arrive with the first page of the PR list, are classified, and are dropped in
+  memory. Nothing about them is paged further, stored, or reported.
 
 ## Known limits
 

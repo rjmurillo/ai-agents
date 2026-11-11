@@ -108,6 +108,11 @@ class TestFetch:
         ):
             m.fetch_prs_created_since(OWNER_NAME, "r", self.SINCE)
 
+    def test_first_page_requests_few_threads_and_the_rest_is_paged(self) -> None:
+        # Thread count drives the GraphQL cost of every page, so keep it small.
+        assert f"reviewThreads(first: {m.THREADS_FIRST_PAGE})" in m._PRS_QUERY
+        assert m.THREADS_FIRST_PAGE < 100
+
     def test_null_follow_up_node_raises(self) -> None:
         pr = _pr(7)
         pr["reviews"] = {"nodes": [], "pageInfo": {"hasNextPage": True, "endCursor": "r1"}}
@@ -200,9 +205,10 @@ class TestCli:
             subprocess.TimeoutExpired("gh", 30),
             OSError("disk"),
             KeyError("createdAt"),
+            ValueError("Invalid isoformat string"),
             TypeError("bad node"),
         ],
-        ids=["timeout", "oserror", "keyerror", "typeerror"],
+        ids=["timeout", "oserror", "keyerror", "valueerror", "typeerror"],
     )
     def test_unexpected_failures_return_2(self, error: Exception) -> None:
         def boom(*_: Any) -> None:
