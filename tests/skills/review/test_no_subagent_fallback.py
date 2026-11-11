@@ -99,7 +99,7 @@ def test_codex_isolation_is_stated_on_the_always_loaded_spawn_path(tree: str) ->
     skill = (REPO_ROOT / tree / SKILL).read_text(encoding="utf-8")
     process = skill[skill.index("\n## Process") : skill.index(SECTION)]
 
-    assert "`spawn_agent` sets `fork_turns` to `none`" in process
+    assert "On Codex, call `spawn_agent` with `fork_turns` set to `none`" in process
 
 
 @pytest.mark.parametrize("tree", TREES)
