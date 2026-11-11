@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { mkdtemp, rm, writeFile, mkdir, symlink, readFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile, mkdir, symlink, readFile, readdir } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -114,6 +114,30 @@ describe("copyTree maintainer files and lib", () => {
   });
 });
 
+describe("copyTree repository-only rules", () => {
+  test("ships rules linked into the plugin tree and drops real files in rules", async () => {
+    await mkdir(join(plugin, "rules"), { recursive: true });
+    await writeFile(join(plugin, "rules", "shared.md"), "shared\n");
+    await mkdir(join(src, "rules"), { recursive: true });
+    await symlink(join(plugin, "rules", "shared.md"), join(src, "rules", "shared.md"));
+    await writeFile(join(src, "rules", "repo-only.md"), "maintainer\n");
+
+    expect(await run()).toBe(1);
+
+    expect(await readFile(join(dest, "rules", "shared.md"), "utf8")).toBe("shared\n");
+    expect(existsSync(join(dest, "rules", "repo-only.md"))).toBe(false);
+  });
+
+  test("keeps real files outside rules", async () => {
+    await mkdir(join(src, "other"), { recursive: true });
+    await writeFile(join(src, "other", "real.md"), "r");
+
+    await run();
+
+    expect(await readFile(join(dest, "other", "real.md"), "utf8")).toBe("r");
+  });
+});
+
 describe("bundle of the real .claude tree", () => {
   const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
@@ -136,5 +160,22 @@ describe("bundle of the real .claude tree", () => {
     expect(existsSync(join(out, "CLAUDE.md"))).toBe(false);
     expect(existsSync(join(out, "AGENTS.md"))).toBe(false);
     expect(existsSync(join(out, "hooks"))).toBe(false);
+  });
+
+  test("ships no repository-only rule", async () => {
+    const out = join(root, "real-rules");
+    const ctx = { allowedRoot: join(repoRoot, "src", "claude"), ancestors: [] };
+    const rulesDir = join(repoRoot, ".claude", "rules");
+    const entries = await readdir(rulesDir, { withFileTypes: true });
+    const linked = entries.filter((e) => e.isSymbolicLink()).map((e) => e.name).sort();
+    const repoOnly = entries.filter((e) => e.isFile()).map((e) => e.name);
+
+    await copyTree(join(repoRoot, ".claude"), out, 0, ctx);
+
+    const shipped = (await readdir(join(out, "rules"))).sort();
+    expect(repoOnly.length).toBeGreaterThan(0);
+    expect(linked).toContain("universal.md");
+    expect(shipped).toEqual(linked);
+    for (const name of repoOnly) expect(shipped, name).not.toContain(name);
   });
 });
