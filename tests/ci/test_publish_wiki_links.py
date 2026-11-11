@@ -284,3 +284,25 @@ def test_backtick_fence_info_string_may_not_hold_a_backtick() -> None:
 def test_fence_may_be_indented_up_to_three_spaces_only() -> None:
     assert fenced_flags("   ```\nin\n   ```\nafter") == [True, True, True, False]
     assert fenced_flags("    ```\nnot a fence") == [False, False]
+
+
+# --- footnotes ---------------------------------------------------------------------
+
+
+def test_footnote_definition_is_not_a_reference_definition(repo: Path) -> None:
+    text = "A claim.[^1]\n\n[^1]: See the notes for details."
+    assert rewrite(repo, text) == text
+
+
+def test_footnote_definition_in_the_index_adds_no_page(repo: Path) -> None:
+    assert readme_page_order("[^1]: first-page.md\n\n[a](second-page.md)") == ["second-page.md"]
+
+
+def test_footnote_label_with_text_after_the_caret_is_still_a_footnote(repo: Path) -> None:
+    text = "[^note]: gone.md is mentioned here"
+    assert rewrite(repo, text) == text
+
+
+def test_a_normal_reference_definition_still_matches_beside_a_footnote(repo: Path) -> None:
+    out = rewrite(repo, "[^1]: a note\n[ref]: first-page.md")
+    assert out == "[^1]: a note\n[ref]: first-page"

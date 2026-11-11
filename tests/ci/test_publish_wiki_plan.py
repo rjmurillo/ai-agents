@@ -161,3 +161,9 @@ def test_safe_removes_double_colons_and_line_breaks() -> None:
     assert "::" not in cleaned
     assert "\n" not in cleaned
     assert "\r" not in cleaned
+
+
+def test_a_nul_character_in_a_page_is_refused_not_a_crash(repo: Path) -> None:
+    write(repo, "docs/training/first-page.md", "# F\n\nbefore \x00 after\n")
+    with pytest.raises(pw.SourceError, match="NUL character"):
+        plan_for(repo)

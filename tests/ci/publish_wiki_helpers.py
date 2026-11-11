@@ -85,3 +85,8 @@ def make_wiki(tmp_path: Path) -> Path:
     git(["commit", "-m", "seed"], seed)
     git(["push", "origin", "HEAD:main"], seed)
     return bare
+
+
+def file_url(path: Path) -> str:
+    """A ``file:`` URL git accepts on every platform (``file://C:\\x`` is not one)."""
+    return path.resolve().as_uri()

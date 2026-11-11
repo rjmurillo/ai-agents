@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from scripts.ci import publish_wiki as pw
-from tests.ci.publish_wiki_helpers import make_repo, make_wiki
+from tests.ci.publish_wiki_helpers import file_url, make_repo, make_wiki
 
 
 def run_with_commit_failing(
@@ -32,7 +32,7 @@ def run_with_commit_failing(
         return real(args, cwd, env)
 
     monkeypatch.setattr(pw, "run_git", fake)
-    argv = ["--repo-root", str(repo), "--repo", "acme/widgets", "--wiki-url", f"file://{wiki}"]
+    argv = ["--repo-root", str(repo), "--repo", "acme/widgets", "--wiki-url", file_url(wiki)]
     return pw.main(argv, environ={"WIKI_TOKEN": token} if token else {})
 
 

@@ -23,7 +23,7 @@ BRANCH = "main"
 SCHEME_RE = re.compile(r"^(?:[a-zA-Z][a-zA-Z0-9+.-]*:|//)")
 INLINE_LINK_RE = re.compile(r'(!?\[[^\]\n]*\]\()(<[^>\n]+>|[^)\s]+)((?:\s+"[^"\n]*")?\))')
 REF_LINK_RE = re.compile(
-    r"^(?P<pre>\s{0,3}\[(?P<label>[^\]\n]+)\]:\s+)(?P<target>(?:<[^>\n]+>|\S+))"
+    r"^(?P<pre>\s{0,3}\[(?P<label>[^\]^\n][^\]\n]*)\]:\s+)(?P<target>(?:<[^>\n]+>|\S+))"
 )
 IMAGE_REF_RE = re.compile(r"!\[(?P<alt>[^\]\n]*)\](?:\[(?P<label>[^\]\n]*)\])?(?!\()")
 CODE_SPAN_RE = re.compile(r"(`+[^`\n]*`+)")

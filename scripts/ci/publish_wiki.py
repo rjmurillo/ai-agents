@@ -122,6 +122,8 @@ def validate_source(source: Path) -> list[str]:
         head = (source / name).read_text(encoding="utf-8").lstrip("\ufeff")
         if head.startswith("---"):
             problems.append(f"{name}: YAML front matter is not allowed, the wiki shows it as text")
+        if "\x00" in head:
+            problems.append(f"{name}: contains a NUL character, the link masker reserves it")
     if problems:
         raise SourceError("\n".join(problems))
     return names

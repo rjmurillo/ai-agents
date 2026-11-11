@@ -9,7 +9,7 @@ in its docstring has a test that drives ``main``:
   3  external git failure
   4  auth rejected (BLOCKED)
 
-The wiki remote is a local bare repository addressed by ``file://``, so push,
+The wiki remote is a local bare repository addressed by a ``file:`` URL, so push,
 deletion, and idempotence are real git operations. No test reaches the network.
 """
 
@@ -28,6 +28,7 @@ from tests.ci.publish_wiki_helpers import (
     BLOB,
     REPO_URL,
     TREE,
+    file_url,
     git,
     make_repo,
     make_wiki,
@@ -47,7 +48,7 @@ def wiki(tmp_path: Path) -> Path:
 
 
 def run_main(repo: Path, wiki: Path | str, *extra: str, env: dict[str, str] | None = None) -> int:
-    url = wiki if isinstance(wiki, str) else f"file://{wiki}"
+    url = wiki if isinstance(wiki, str) else file_url(wiki)
     argv = ["--repo-root", str(repo), "--repo", "acme/widgets", "--wiki-url", url, *extra]
     return pw.main(argv, environ=env or {})
 
@@ -258,7 +259,7 @@ def test_dry_run_env_var_matches_flag(repo: Path, wiki: Path) -> None:
 def test_missing_wiki_repo_skips_with_exit_0(
     repo: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    assert run_main(repo, f"file://{tmp_path}/nope.git") == 0
+    assert run_main(repo, file_url(tmp_path / "nope.git")) == 0
     out = capsys.readouterr().out
     assert out.startswith("Planned 4 wiki files")
     assert "SKIP: the wiki repo does not exist yet" in out
@@ -268,7 +269,7 @@ def test_missing_wiki_repo_skips_with_exit_0(
 def test_dry_run_with_missing_wiki_plans_against_empty(
     repo: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    assert run_main(repo, f"file://{tmp_path}/nope.git", "--dry-run") == 0
+    assert run_main(repo, file_url(tmp_path / "nope.git"), "--dry-run") == 0
     out = capsys.readouterr().out
     assert "NOTE: the wiki repo does not exist yet" in out
     assert "A\tHome.md" in out
@@ -465,7 +466,7 @@ def test_documented_command_works_with_no_flags_and_no_env(
 ) -> None:
     """README step 4: ``publish_wiki.py --dry-run`` from a checkout with a github.com origin."""
     with_origin(repo, "https://github.com/acme/widgets.git")
-    argv = ["--repo-root", str(repo), "--wiki-url", f"file://{wiki}", "--dry-run"]
+    argv = ["--repo-root", str(repo), "--wiki-url", file_url(wiki), "--dry-run"]
     assert pw.main(argv, environ={}) == 0
     assert "DRY RUN:" in capsys.readouterr().out
 
@@ -478,6 +479,13 @@ def test_origin_repo_is_empty_without_a_github_remote(repo: Path) -> None:
 def test_no_repo_flag_env_or_origin_exits_2_even_with_a_wiki_url(
     repo: Path, wiki: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    argv = ["--repo-root", str(repo), "--wiki-url", f"file://{wiki}", "--dry-run"]
+    argv = ["--repo-root", str(repo), "--wiki-url", file_url(wiki), "--dry-run"]
     assert pw.main(argv, environ={}) == 2
     assert "add a github.com origin remote" in capsys.readouterr().err
+
+
+def test_file_url_is_a_three_slash_uri_even_for_a_drive_style_path(tmp_path: Path) -> None:
+    """``file://`` plus a raw Windows path names a host, not a drive."""
+    url = file_url(tmp_path / "wiki.git")
+    assert url.startswith("file:///")
+    assert "\\" not in url
