@@ -4,22 +4,22 @@
 
 | Field | Value |
 |-------|-------|
-| **Status** | In Progress |
+| **Status** | In Review |
 | **Created** | 2026-11-11 |
 | **Owner** | orchestrator |
 | **Complexity** | Medium |
 
 ## Objectives
 
-- [ ] T1 `bootstrap_sweep.py plan`: classify ToolInventory into source classes, read-only tools, excluded tools, seeds, judge digests (AC 1 to 4).
-- [ ] T2 `bootstrap_sweep.py index`: validate evidence manifest and files, coverage, sensitive patterns, deterministic batches (AC 4 to 8).
-- [ ] T3 `bootstrap_sweep.py import`: all-or-nothing judge rows per batch, atomic accepted file (AC 9).
-- [ ] T4 `bootstrap_sweep.py tally`: merge incidents, corroboration, ranking, gaps, incomplete pairs (AC 10 to 12).
-- [ ] T5 `bootstrap_mine.py candidates --sweep-json` via `bootstrap_friction.py` (AC 13).
-- [ ] T6 Judge rubrics under `judges/`: `friction.md`, `knowledge-gap.md`, `human-agent.md`, `agent-friction.md`, `change-review.md`.
-- [ ] T7 `references/friction-sources.md` rewritten around the script; `discovery.md`, `authoring-and-gates.md`, template edits; `institutional-knowledge` lens in forms script and tables (AC 14 to 16).
-- [ ] T8 Tests under `tests/skills/skill-bootstrap/`: positive, negative, edge per AC, exit-code contract.
-- [ ] T9 `build_all.py`, `build_all.py --check`, ruff, pytest for the skill, pre-PR gates that cover changed files.
+- [x] T1 `bootstrap_sweep.py plan`: classify ToolInventory into source classes, read-only tools, excluded tools, seeds, judge digests (AC 1 to 4).
+- [x] T2 `bootstrap_sweep.py index`: validate evidence manifest and files, coverage, sensitive patterns, deterministic batches (AC 4 to 8).
+- [x] T3 `bootstrap_sweep.py import`: all-or-nothing judge rows per batch, atomic accepted file (AC 9).
+- [x] T4 `bootstrap_sweep.py tally`: merge incidents, corroboration, ranking, gaps, incomplete pairs (AC 10 to 12).
+- [x] T5 `bootstrap_mine.py candidates --sweep-json` via `bootstrap_friction.py` (AC 13).
+- [x] T6 Judge rubrics under `judges/`: `friction.md`, `knowledge-gap.md`, `human-agent.md`, `agent-friction.md`, `change-review.md`.
+- [x] T7 `references/friction-sources.md` rewritten around the script; `discovery.md`, `authoring-and-gates.md`, template edits; `institutional-knowledge` lens in forms script and tables (AC 14 to 16).
+- [x] T8 Tests under `tests/skills/skill-bootstrap/`: positive, negative, edge per AC, exit-code contract.
+- [x] T9 `build_all.py`, `build_all.py --check`, ruff, pytest for the skill, pre-PR gates that cover changed files.
 
 ## Sequencing
 
@@ -38,6 +38,7 @@ T1 to T4 and T8 for them go to one implementer (one file, shared helpers). T6 an
 | Date | Update | Agent |
 |------|--------|-------|
 | 2026-11-11 | Created plan from REQ-049 | orchestrator |
+| 2026-11-11 | T1 to T9 landed in rjmurillo/ai-agents#7255; code and security review findings addressed in 156d3439d; dry run of `plan` over this session's MCP tool names added `retrieve` and `extract` read verbs in fb3273ee1; skill tests 1627 passed, 1 skipped at fb3273ee1 | orchestrator |
 
 ## Blockers
 
@@ -47,4 +48,4 @@ T1 to T4 and T8 for them go to one implementer (one file, shared helpers). T6 an
 
 - Spec: `.project-toolkit/specs/requirements/REQ-049-skill-bootstrap-cross-source-friction.md`
 - Issue: #7155 (complementary)
-- PR: (pending)
+- PR: rjmurillo/ai-agents#7255
