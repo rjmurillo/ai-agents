@@ -17,8 +17,10 @@ try:
     # after the paths are removed again.
     import bootstrap_boundary  # noqa: F401
     import bootstrap_helpers  # noqa: F401
+    import bootstrap_review  # noqa: F401
     import bootstrap_sweep  # noqa: F401
     import bootstrap_sweep_import  # noqa: F401
+    import review_clusters  # noqa: F401
     import sweep_helpers
 finally:
     for _path in _IMPORT_PATHS:
