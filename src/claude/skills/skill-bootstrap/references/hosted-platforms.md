@@ -13,6 +13,7 @@ policy during bootstrap.
 - [GitHub merge requirements](#github-merge-requirements)
 - [Azure DevOps policies](#azure-devops-policies)
 - [Build and release](#build-and-release)
+- [Review export for mined review friction](#review-export-for-mined-review-friction)
 
 ## Resolve each hosting role
 
@@ -120,3 +121,46 @@ relationship exists. Tracker mutations need the task's authorization.
    adoption.
 4. Keep version numbers and release status out of durable skill text. They
    change on every release.
+
+## Review export for mined review friction
+
+`bootstrap_mine.py candidates --prs-json <file>` reads a JSON list of merged
+pull requests that you export through the host's supported API. The legacy
+fields stay required. The review fields are optional and unlock
+`review_failures` and `missed_items`.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `number` | integer | Required. The pull request number |
+| `review_rounds` or `reviews` | integer, or list | Required. Rounds of review |
+| `review_threads` | list | Review threads. Present on a pull request that has been read for threads, even when empty |
+| `files` | list of strings | Paths the pull request changed. Needed to place a missed item in an area |
+| `body` | string or null | The description. Scanned for fix-to-introducer phrases |
+| `commit_messages` | list of strings | Scanned for the same phrases |
+| `introduced_by` | list of integers | Pull requests the exporter already linked as the origin of the defect |
+
+Each `review_threads` entry:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `thread_id` | string | Unique within the pull request |
+| `created_at` | ISO 8601 text | When the first comment was written |
+| `human` | boolean | True only when a person, not a bot, opened the thread |
+| `body` | string or null | The first comment. Read for rule citations only |
+| `path` | string or null | The commented file, or null |
+
+Map the fields from the host:
+
+- GitHub: `reviewThreads` nodes. Use the first comment's `createdAt`, `body`,
+  and `path`. Set `human` from the author type and the author's association with
+  the repository, not from the login alone: a name can end in `-bot`.
+- Azure DevOps: pull request threads. Use the first comment of each thread,
+  its `threadContext.filePath`, and the comment type.
+
+Page every pull request and every thread until the host reports no next page.
+If pagination cannot finish, say what you did not read. A partial export reads
+as a smaller project, not as a clean one.
+
+The script does not call a host. Mark `human` true only for a person's thread,
+and decide in the export which pull requests are in scope: the export defines
+the population.
