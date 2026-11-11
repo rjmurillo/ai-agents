@@ -76,7 +76,7 @@ A claim about what another component **does** is load-bearing in the same way a 
 A function's name is not evidence of its behavior. Neither is its call site, a prior PR description, or your memory of it. Open the file and read the body. Then cite the line you are relying on, with its path and line number, and quote it only when the line is the contract:
 
 ```python
-# build/scripts/validate_plugin_manifests.py:318-327 prunes it by name:
+# build/scripts/validate_plugin_manifests.py find_manifests prunes it by name:
 #     excluded_dirs = {".agent-tmp", ".worktrees", "worktrees", "node_modules",
 #                      ".git", "cache", ".pytest_cache", ".pytest_tmp"}
 ```

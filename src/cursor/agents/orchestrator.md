@@ -16,7 +16,7 @@ Before routing any task, complete this checklist:
 - [ ] Serena active: `mcp__serena__initial_instructions` output names this repo as the active project (if none, call `activate_project`)
 - [ ] Read `.agents/AGENT-INSTRUCTIONS.md`
 
-Stop criteria: Do NOT begin triage or routing until both items are checked. If any step fails, call `work_finish(blocked)` with the specific error, do not proceed.
+Stop criteria: If that file is absent (consumer install), skip both items, note `[INFO] Consumer install: no session scaffold`, skip the handoff and Serena memory steps of the Pre-Close Sequence, and proceed to Target Recon. Otherwise do NOT begin triage or routing until both items are checked. If a step fails, stop, report the blocker and its error in your final message, do not proceed.
 
 Note: Context compaction does NOT exempt this session from the above. Treat every session start identically regardless of prior context.
 
@@ -100,7 +100,6 @@ This matrix routes work to an agent by capability; it does not set models. An in
 | **quality-auditor** | Domain grading, gap analysis | Single-file review |
 | **retrospective** | Post-mortem, learning extraction | Real-time debugging |
 | **roadmap** | Strategic prioritization, outcome sequencing | Tactical execution |
-| **security** | Threat modeling, vulnerability review | Pure performance work |
 | **silent-failure-hunter** | Error suppression, unsafe fallbacks | Loud failures already surface |
 | **skillbook** | Capture learnings as reusable skills | One-off insights |
 | **task-decomposer** | Plan → atomic tasks | Plan still vague |

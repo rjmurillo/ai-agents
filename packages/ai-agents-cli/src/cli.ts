@@ -10,9 +10,10 @@ import { init } from "./init.js";
 import { mergeClaudeMd } from "./target/merge-claude-md.js";
 import { mergeCopilotInstructions } from "./target/merge-copilot-instructions.js";
 import { writeAgentsMd } from "./target/write-agents-md.js";
-import { writeVersionPin } from "./target/version-pin.js";
+import { readRecordedHashes, writeVersionPin } from "./target/version-pin.js";
+import { MarkerBlockError } from "./target/append-marker-block.js";
 import { makePackFilter, knownPacks, parsePacks } from "./packs.js";
-import { TARGETS, type BundleEntry, type Target, type TargetContext } from "./types.js";
+import { TARGETS, type Target, type TargetContext } from "./types.js";
 
 const VERSION = "0.1.0";
 const DEFAULT_TARGET: Target = "claude";
@@ -51,6 +52,20 @@ export function parseTarget(value: string): Target {
   );
 }
 
+// The writes a real run makes beyond the vendored files, for --dry-run output.
+function skippedWrites(target: Target): string[] {
+  const writes: string[] = [];
+  if (target === "claude" || target === "both") {
+    writes.push("CLAUDE.md (merge the ai-agents block)");
+  }
+  if (target === "copilot" || target === "both") {
+    writes.push(".github/copilot-instructions.md (merge the ai-agents block)");
+  }
+  writes.push("AGENTS.md (create if missing)");
+  writes.push(".claude/.ai-agents-version.json (write the version pin)");
+  return writes;
+}
+
 // Exported for tests: wires the vendoring pipeline end-to-end.
 export async function runInit(opts: RunInitOptions): Promise<number> {
   const target: TargetContext = {
@@ -59,37 +74,58 @@ export async function runInit(opts: RunInitOptions): Promise<number> {
     dryRun: opts.dryRun,
   };
   const source = new FsBundleSource(opts.assetsDir);
-  const emitter = new FsTargetEmitter();
+  // Hashes from the last install let the emitter tell a consumer edit from an
+  // unmodified vendored file (issue #7218).
+  const recorded = await readRecordedHashes(target.targetDir);
+  const emitter = new FsTargetEmitter(recorded);
 
-  // Capture the manifest as files stream through so the version pin reflects
-  // exactly what was vendored on this run.
-  const manifestEntries: string[] = [];
-  const capture = (entry: BundleEntry): BundleEntry => {
-    manifestEntries.push(entry.relativePath);
-    return entry;
-  };
+  // Validate the instruction files before vendoring anything, in dry-run too.
+  // A half-present marker block then fails the run before any file is written
+  // or any success line is printed, and a preview reports the same failure.
+  const instructionTarget = opts.target ?? DEFAULT_TARGET;
+  try {
+    await writeTargetBlocks(target.targetDir, instructionTarget, true);
+  } catch (err) {
+    if (!(err instanceof MarkerBlockError)) throw err;
+    process.stderr.write(`${err.message}\n`);
+    return 1;
+  }
 
   // Optional skill packs are excluded by default; --pack opts them in. The
-  // filter runs before capture so a non-requested pack's files are neither
+  // filter runs before emit so a non-requested pack's files are neither
   // vendored nor recorded in the version pin (issue #2509).
   const packFilter = makePackFilter(new Set(opts.packs ?? []));
 
-  const code = await init(source, emitter, target, [packFilter, capture]);
+  const code = await init(source, emitter, target, [packFilter]);
   if (code !== 0) return code;
 
-  if (!opts.dryRun) {
-    await writeTargetBlocks(
-      target.targetDir,
-      opts.target ?? DEFAULT_TARGET,
-      opts.dryRun,
-    );
-    await writeAgentsMd(target.targetDir, opts.dryRun);
-    await writeVersionPin(
-      target.targetDir,
-      opts.version,
-      manifestEntries,
-      opts.dryRun,
-    );
+  if (opts.dryRun) {
+    process.stdout.write("Dry run: these writes were skipped:\n");
+    for (const write of skippedWrites(instructionTarget)) {
+      process.stdout.write(`  ${write}\n`);
+    }
+    return 0;
+  }
+
+  const installed = emitter.installedHashes();
+  // The manifest lists what this run selected. The recorded hashes also keep
+  // files an earlier run installed and this run skipped (an optional pack left
+  // out now), so enabling that pack later still tells an untouched file from a
+  // local edit. Hashes from this run's emit pass win over older ones.
+  await writeVersionPin(
+    target.targetDir,
+    opts.version,
+    Object.keys(installed),
+    opts.dryRun,
+    { ...recorded, ...installed },
+  );
+  await writeAgentsMd(target.targetDir, opts.dryRun);
+  try {
+    await writeTargetBlocks(target.targetDir, instructionTarget, opts.dryRun);
+  } catch (err) {
+    if (!(err instanceof MarkerBlockError)) throw err;
+    process.stderr.write(`${err.message}\n`);
+    return 1;
   }
 
   return 0;
@@ -132,7 +168,7 @@ async function main(): Promise<number> {
         "  init [path]   Vendor the ai-agents Claude kit into a repo",
         "",
         "Options:",
-        "  --force       Overwrite existing files that diverge from snapshot",
+        "  --force       Overwrite files under .claude/ that you modified locally",
         "  --dry-run     Show what would be written without touching disk",
         "  --target T    Instruction file(s) to update: claude, copilot, or both",
         "                (default: claude)",

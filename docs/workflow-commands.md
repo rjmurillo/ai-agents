@@ -224,5 +224,5 @@ Key differences:
 
 ## Related
 
-- CLAUDE.md: [Lifecycle commands](../CLAUDE.md#lifecycle-commands) routing rules
-- AGENTS.md: [Skill-First](../AGENTS.md#skill-first) lifecycle references
+- CLAUDE.md: [Lifecycle skills](../CLAUDE.md#lifecycle-skills) routing rules
+- [AGENTS.md](../AGENTS.md): the Skills line lists lifecycle routing

@@ -560,7 +560,7 @@ This project uses a **template-based generation system**. To modify agents:
 | [docs/getting-started.md](docs/getting-started.md) | Step-by-step setup guide |
 | [docs/faq.md](docs/faq.md) | Short answers on install, platforms, agent count, review gates, and requirements |
 | [docs/agent-catalog.md](docs/agent-catalog.md) | All agents with capabilities and examples |
-| [docs/skill-reference.md](docs/skill-reference.md) | All skills with usage descriptions |
+| [docs/skill-reference.md](docs/skill-reference.md) | Selected skills with usage descriptions. The authoritative list is the [skills directory](src/claude/skills/) |
 | [docs/architecture.md](docs/architecture.md) | Plugin structure, template system, design decisions |
 | [docs/customization.md](docs/customization.md) | How to extend and customize agents, skills, and hooks |
 | [docs/installation.md](docs/installation.md) | Complete installation guide |

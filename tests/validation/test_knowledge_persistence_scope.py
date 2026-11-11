@@ -57,10 +57,12 @@ RELOCATED_PHRASES = {
     "single-probe": "MUST NOT assert an absence from a single probe",
 }
 
-# Evidence tails. These are the citations that let a reader check the claim.
+# Evidence tails. These citations let a reader check the claim. They live in
+# the path-scoped knowledge-persistence rule, not in the always-on universal
+# rule, because none of them resolves in a consumer repository (issue #7231).
 RELOCATED_EVIDENCE = [
-    "parallel/parallel-001-worktree-isolation.md",
-    "scripts/memory/update_memory_index_tokens.py",
+    "parallel-001-worktree-isolation.md",
+    "update_memory_index_tokens.py",
     "78e808238",
     "9cd7097f1",
 ]
@@ -103,11 +105,17 @@ def test_relocated_statement_survives_in_every_universal_tree(tree: Path, phrase
     assert phrase in tree.read_text(encoding="utf-8")
 
 
+@pytest.mark.parametrize("citation", RELOCATED_EVIDENCE)
+def test_relocated_evidence_survives_in_knowledge_persistence(citation: str) -> None:
+    """Edge case: the prose can survive while the citation that proves it is cut."""
+    assert citation in KNOWLEDGE_PERSISTENCE.read_text(encoding="utf-8")
+
+
 @pytest.mark.parametrize("tree", UNIVERSAL_TREES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
 @pytest.mark.parametrize("citation", RELOCATED_EVIDENCE)
-def test_relocated_evidence_survives_in_every_universal_tree(tree: Path, citation: str) -> None:
-    """Edge case: the prose can survive while the citation that proves it is cut."""
-    assert citation in tree.read_text(encoding="utf-8")
+def test_relocated_evidence_stays_out_of_the_always_on_rule(tree: Path, citation: str) -> None:
+    """Negative case: a citation that dangles for consumers must not load every turn."""
+    assert citation not in tree.read_text(encoding="utf-8")
 
 
 # Live surfaces: prose a session actually loads and obeys. Historical trees

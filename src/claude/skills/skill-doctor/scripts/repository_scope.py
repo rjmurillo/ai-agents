@@ -193,13 +193,17 @@ def _admit_worktree(scope: RepositoryScope, registration: Path, worktree: Path |
         scope.add(ScopeRoot(worktree, "worktree", "registered linked worktree"))
 
 
-def _expand(scope: RepositoryScope, selected: Path) -> None:
+def _expand(scope: RepositoryScope, selected: Path, expanded: set[Path]) -> None:
+    """Add ``selected``; expand its common directory once per ``expanded`` set."""
     git_dir = git_dir_of(selected)
     if git_dir is None:
         scope.add(ScopeRoot(selected, "selected", "explicit path with no Git metadata"))
         return
     common = common_dir_of(git_dir)
     scope.add(ScopeRoot(selected, "selected", "checkout the run started from or was given"))
+    if common in expanded:
+        return
+    expanded.add(common)
     _admit_main(scope, common)
     for registration, worktree in _registrations(common):
         _admit_worktree(scope, registration, worktree)
@@ -211,9 +215,10 @@ def resolve_repository_scope(repos: Any, expand: bool = True) -> RepositoryScope
     With ``expand`` false, every selected path stands alone.
     """
     scope = RepositoryScope()
+    expanded: set[Path] = set()
     for repo in repos:
         if expand:
-            _expand(scope, Path(repo))
+            _expand(scope, Path(repo), expanded)
         else:
             scope.add(ScopeRoot(Path(repo), "selected", "listed path only (--no-worktrees)"))
     return scope
