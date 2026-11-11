@@ -347,6 +347,7 @@ class TestGetUnresolvedThreads:
             "repository": {
                 "pullRequest": {
                     "reviewThreads": {
+                        "pageInfo": {"hasNextPage": False, "endCursor": None},
                         "nodes": [
                             {"id": "t1", "isResolved": False, "comments": {"nodes": []}},
                             {"id": "t2", "isResolved": True, "comments": {"nodes": []}},
@@ -385,6 +386,7 @@ class TestGetUnresolvedThreads:
             "repository": {
                 "pullRequest": {
                     "reviewThreads": {
+                        "pageInfo": {"hasNextPage": False, "endCursor": None},
                         "nodes": [],
                     },
                 },
@@ -410,6 +412,7 @@ class TestGetUnresolvedThreads:
             "repository": {
                 "pullRequest": {
                     "reviewThreads": {
+                        "pageInfo": {"hasNextPage": False, "endCursor": None},
                         "nodes": [
                             {"id": "t1", "isResolved": True, "comments": {"nodes": []}},
                         ],

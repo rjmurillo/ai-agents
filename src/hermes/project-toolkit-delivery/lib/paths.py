@@ -16,7 +16,9 @@ Two policies:
        directory (Claude Code project layout).
     3. `skills/<skill>/<relpath>` resolved relative to the plugin install
        root discovered by walking up from this file to the
-       `.claude-plugin/plugin.json` marker (vendored install).
+       `.claude-plugin/plugin.json` marker, a `.claude` directory, or a
+       directory holding `skills/` beside `lib/paths.py` (vendored install,
+       including the Codex, Cursor and Muse trees).
   Returns the first candidate that exists, else None. Read-only: it never
   creates anything.
 
@@ -68,6 +70,11 @@ def _plugin_root_env() -> str | None:
     return os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 
 
+def _ships_skills_beside_lib(directory: Path) -> bool:
+    """Return True when ``directory`` holds ``skills/`` and this file under ``lib/``."""
+    return (directory / "skills").is_dir() and (directory / "lib" / "paths.py").is_file()
+
+
 def _plugin_install_root() -> Path | None:
     """Return the marker-discovered plugin install root, or None.
 
@@ -78,10 +85,19 @@ def _plugin_install_root() -> Path | None:
     file lives under ``.claude/`` in every real checkout, so the first
     ``.claude``-named ancestor found walking up from here is unambiguously
     this file's own plugin root.
+
+    The Codex, Cursor and Muse trees carry byte copies of this file but not
+    the Claude marker or a ``.claude`` directory. A directory that holds both
+    ``skills/`` and ``lib/paths.py`` is their root: every harness tree ships
+    its skills and lib side by side.
     """
     cur = Path(__file__).resolve().parent
     while True:
-        if (cur / _PLUGIN_MARKER).is_file() or cur.name == ".claude":
+        if (
+            (cur / _PLUGIN_MARKER).is_file()
+            or cur.name == ".claude"
+            or _ships_skills_beside_lib(cur)
+        ):
             return cur
         if cur.parent == cur:
             return None
