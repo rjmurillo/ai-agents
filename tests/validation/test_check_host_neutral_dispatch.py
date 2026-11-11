@@ -152,6 +152,24 @@ def test_prose_subagent_type_with_paragraph_passes(tmp_path: Path) -> None:
     assert gate.main(["--repo-root", str(root)]) == 0
 
 
+def test_line_naming_every_host_tool_passes_without_the_paragraph(tmp_path: Path) -> None:
+    # The review skill's no-Task resource writes the per-host list inline.
+    line = (
+        "Claude Code: `Task` with `subagent_type`. Codex: `spawn_agent` with "
+        '`fork_turns="none"`. Muse Code: `subagent_spawn` with `role`.'
+    )
+    root = _repo(tmp_path, codex_body=f"# Demo\n\n{line}\n", muse_body=f"# Demo\n\n{line}\n")
+
+    assert gate.main(["--repo-root", str(root)]) == 0
+
+
+def test_line_naming_only_the_codex_tool_still_needs_the_paragraph(tmp_path: Path) -> None:
+    line = "Claude Code: `Task` with `subagent_type`. Codex: `spawn_agent`."
+    root = _repo(tmp_path, codex_body=f"# Demo\n\n{line}\n")
+
+    assert gate.main(["--repo-root", str(root)]) == 1
+
+
 def test_reference_file_is_covered_by_its_skill_body(tmp_path: Path) -> None:
     root = _repo(tmp_path, codex_body=f"# Demo\n\n{MARKER}\n")
     _skill_file(root, "codex", "references/detail.md", f"# Detail\n\n{PROSE_DISPATCH}\n")
