@@ -196,7 +196,7 @@ Exit code 1 lists `update_candidates` and gives `update_args` as a JSON list of 
 
 Each CLI uses only the Python standard library, prints JSON with an `examined` count, writes nothing inside the repository (`bootstrap_eval.py freeze` writes there only with `--allow-in-repo`; `bootstrap_mine.py --out` refuses an in-repo path with no override), and runs on Linux, macOS, and Windows.
 
-`bootstrap_friction.py` is the miner's imported offline-evidence validator, not a separate CLI.
+`bootstrap_friction.py` is the miner's imported offline-evidence validator, not a separate CLI. `review_clusters.py` is the shared review-cluster counting module, not a CLI.
 
 Exit code 0 means success and exit code 1 means findings that need action, for every script. Exit codes 2 and 3 differ by script:
 
