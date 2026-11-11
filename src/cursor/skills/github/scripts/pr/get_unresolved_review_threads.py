@@ -51,8 +51,6 @@ A page cap or a missing cursor leaves ``api_error`` false, because no ``gh``
 call raised. Nothing a PR author controls may set it (ADR-120).
 """
 
-from __future__ import annotations
-
 import argparse
 import json
 import os

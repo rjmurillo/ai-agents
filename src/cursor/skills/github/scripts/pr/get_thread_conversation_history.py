@@ -11,8 +11,6 @@ Exit codes follow ADR-035:
     4 - Auth error
 """
 
-from __future__ import annotations
-
 import argparse
 import json
 import os
