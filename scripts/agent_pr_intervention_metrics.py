@@ -274,9 +274,9 @@ def _fmt_median(value: float | None) -> str:
 
 
 # Mirrors scripts/ci/open_bot_pr.py `_HIDDEN_CATEGORIES`, `_BLANK_LOOKALIKES` and
-# `_IGNORABLE_RANGES`. The
-# publisher refuses a report file that holds any of these, so a title must not carry
-# one. tests/ci/test_open_bot_pr_artifact.py pins the two lists together.
+# `_IGNORABLE_RANGES`. The publisher refuses a report file that holds any of these,
+# so a title must not carry one. tests/ci/test_open_bot_pr_artifact.py pins the two
+# lists together.
 _UNSEEN_CATEGORIES = frozenset({"Cc", "Cf", "Zl", "Zp", "Mn", "Me", "Co", "Cs"})
 _BLANK_LOOKALIKES = frozenset("\u115f\u1160\u3164\uffa0\u2800")
 _IGNORABLE_RANGES = ((0x2065, 0x2065), (0xFFF0, 0xFFF8), (0xE0000, 0xE0FFF))

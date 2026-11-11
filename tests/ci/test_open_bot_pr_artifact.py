@@ -221,6 +221,17 @@ def test_a_symlinked_destination_directory_is_refused_before_anything_is_created
     assert list(outside.iterdir()) == []
 
 
+def test_a_destination_directory_that_resolves_into_dot_git_is_refused(
+    tmp_path: Path, checkout: Path
+) -> None:
+    (checkout / ".git").mkdir()
+    _symlink_or_skip(checkout / ".serena", checkout / ".git")
+    root = _artifact(tmp_path, {_STATS: "stats"})
+    with pytest.raises(RuntimeError, match="protected directory"):
+        import_artifact(str(root), [_STATS])
+    assert list((checkout / ".git").iterdir()) == []
+
+
 def test_an_io_failure_while_copying_is_reported_not_swallowed(
     tmp_path: Path, checkout: Path
 ) -> None:

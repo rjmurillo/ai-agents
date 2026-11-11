@@ -231,11 +231,11 @@ _IGNORABLE_RANGES = ((0x2065, 0x2065), (0xFFF0, 0xFFF8), (0xE0000, 0xE0FFF))
 def _is_hidden_char(char: str) -> bool:
     """Return True for a character that can hide text from a reviewer reading the diff.
 
-    Tab and newlines are fine. Control, format (bidi overrides, zero-width marks),
-    line and paragraph separators, combining and variation marks, and private-use
-    and surrogate code points, the ignorable ranges above, and the blank lookalikes
-    are refused. A
-    lone carriage return is refused by the caller: a terminal redraws the line.
+    Tab and newlines are fine. These are refused: control and format characters
+    (bidi overrides, zero-width marks), line and paragraph separators, combining and
+    variation marks, private-use and surrogate code points, the ignorable ranges
+    above, and the blank lookalikes. The caller also refuses a lone carriage
+    return, because a terminal redraws the line.
     """
     if char in "\n\r\t":
         return False
@@ -270,8 +270,12 @@ def _copy_artifact_file(source: Path, root: Path, destination: Path) -> bool:
         raise RuntimeError(f"artifact file holds control or format characters ({names}): {source}")
     if destination.is_symlink():
         raise RuntimeError(f"refusing to write through a symlink: {destination}")
-    if not destination.parent.resolve().is_relative_to(Path.cwd().resolve()):
+    checkout = Path.cwd().resolve()
+    resolved_parent = destination.parent.resolve()
+    if not resolved_parent.is_relative_to(checkout):
         raise RuntimeError(f"destination leaves the checkout: {destination}")
+    if _PROTECTED_PARTS & set(resolved_parent.relative_to(checkout).parts):
+        raise RuntimeError(f"destination resolves into a protected directory: {destination}")
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_bytes(data)
     return True
