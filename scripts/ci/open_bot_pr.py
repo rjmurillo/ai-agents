@@ -23,13 +23,18 @@ Rules:
     no open pull request deletes the branch, and a closed pull request on a
     deleted branch cannot be reopened.
   - The branch must start with `automation/` so a caller cannot name the base or
-    a human branch. The checkout must be an ancestor of `origin/<base>`, so a
-    `workflow_dispatch` from a feature ref cannot publish that ref's commits.
+    a human branch. The checkout must be an ancestor of `origin/<base>`, so an
+    accidental `workflow_dispatch` from a feature ref cannot publish that ref's
+    commits. This guards against accidents, not a hostile ref: whoever dispatches
+    a ref also controls that ref's copy of this script.
   - `--artifact-dir` names a directory a download step filled. For each `--path`,
     a regular file at `<dir>/<path>` (or `<dir>/<basename>`, the layout of a
     one-file upload) is copied to `<path>`. Nothing else in the directory is read,
     so a forged artifact cannot replace this script or any other file. A symlink
-    source, a symlink destination, and a source outside the directory are refused.
+    source is skipped. A symlink destination, a source outside the directory, an
+    oversized file, a non-UTF-8 file, and a file with control or format characters
+    (bidi overrides, zero-width marks) are refused. No usable file at all fails the
+    run. A human still reads and merges the pull request; no CI check covers it.
   - Every git and gh call has a timeout. A timeout counts as that call failing.
   - Output carries one `outcome=noop|skipped|published` line, and a skip also
     prints a `::notice::` annotation so the run page shows a stalled update.
@@ -53,6 +58,7 @@ import json
 import re
 import subprocess
 import sys
+import unicodedata
 from pathlib import Path
 
 EXIT_SUCCESS = 0
@@ -63,6 +69,7 @@ EXIT_EXTERNAL = 3
 _LS_REMOTE_NO_MATCH = 2  # `git ls-remote --exit-code`: no matching ref
 _PR_LIST_LIMIT = 100
 _MAX_ARTIFACT_BYTES = 1024 * 1024
+_PROTECTED_PARTS = frozenset({".git", ".github"})
 _TIMEOUT_SECONDS = 120
 _TIMED_OUT = 124  # the `timeout(1)` convention
 
@@ -206,6 +213,17 @@ def pr_body(paths: list[str], issue: str) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _is_hidden_char(char: str) -> bool:
+    """Return True for a control character (tab and newlines excepted) or a format character.
+
+    Format characters (category Cf) cover bidi overrides and zero-width marks,
+    which can hide text from a reviewer reading the diff.
+    """
+    if char in "\n\r\t":
+        return False
+    return unicodedata.category(char) in {"Cc", "Cf"}
+
+
 def _copy_artifact_file(source: Path, root: Path, destination: Path) -> bool:
     """Copy `source` to `destination` when it is a regular file inside `root`.
 
@@ -217,13 +235,17 @@ def _copy_artifact_file(source: Path, root: Path, destination: Path) -> bool:
         return False
     if not source.resolve().is_relative_to(root):
         raise RuntimeError(f"artifact entry escapes its directory: {source}")
-    data = source.read_bytes()
-    if len(data) > _MAX_ARTIFACT_BYTES:
+    if source.stat().st_size > _MAX_ARTIFACT_BYTES:
         raise RuntimeError(f"artifact file is over {_MAX_ARTIFACT_BYTES} bytes: {source}")
+    data = source.read_bytes()
     try:
-        data.decode("utf-8")
+        text = data.decode("utf-8")
     except UnicodeDecodeError as exc:
         raise RuntimeError(f"artifact file is not UTF-8: {source}") from exc
+    hidden = sorted({c for c in text if _is_hidden_char(c)})
+    if hidden:
+        names = ", ".join(f"U+{ord(c):04X}" for c in hidden[:5])
+        raise RuntimeError(f"artifact file holds control or format characters ({names}): {source}")
     if destination.is_symlink():
         raise RuntimeError(f"refusing to write through a symlink: {destination}")
     if not destination.parent.resolve().is_relative_to(Path.cwd().resolve()):
@@ -345,11 +367,20 @@ def _bot_branch(value: str) -> str:
     return value
 
 
+def _issue_number(value: str) -> str:
+    """Accept only digits, so the value cannot reshape the pull request body."""
+    if not value.isascii() or not value.isdigit():
+        raise argparse.ArgumentTypeError(f"{value!r} must be an issue number")
+    return value
+
+
 def _repo_path(value: str) -> str:
     """Accept only a relative path that stays inside the checkout."""
     path = Path(value)
-    if not value or path.is_absolute() or ".." in path.parts:
-        raise argparse.ArgumentTypeError(f"{value!r} must be a relative path inside the checkout")
+    if not value or path.is_absolute() or ".." in path.parts or _PROTECTED_PARTS & set(path.parts):
+        raise argparse.ArgumentTypeError(
+            f"{value!r} must be a relative path inside the checkout, outside .git and .github"
+        )
     return value
 
 
@@ -384,7 +415,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--pr-title", help="Pull request title. Defaults to the first --message.")
     parser.add_argument(
-        "--issue", required=True, help="Issue number for the `Refs #N` lines in the body."
+        "--issue",
+        required=True,
+        type=_issue_number,
+        help="Issue number for the `Refs #N` lines in the body.",
     )
     return parser
 

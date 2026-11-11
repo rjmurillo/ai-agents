@@ -240,3 +240,53 @@ def test_main_fails_loud_when_the_artifact_holds_none_of_the_named_paths(
     assert "held none of the named paths" in capsys.readouterr().err
     assert not [c for c in calls if c[0] == "gh"]
     assert not [c for c in calls if c[:2] == ["git", "push"]]
+
+
+@pytest.mark.parametrize("char", ["\u202e", "\u200b", "\x00", "\x1b", "\ufeff"])
+def test_a_file_with_control_or_format_characters_is_refused(
+    tmp_path: Path, checkout: Path, char: str
+) -> None:
+    root = _artifact(tmp_path, {_STATS: f"looks fine{char}but is not"})
+    with pytest.raises(RuntimeError, match="control or format"):
+        import_artifact(str(root), [_STATS])
+    assert not (checkout / _STATS).exists()
+
+
+def test_tabs_and_newlines_are_allowed(tmp_path: Path, checkout: Path) -> None:
+    root = _artifact(tmp_path, {_STATS: "col\tcol\r\nrow\n"})
+    assert import_artifact(str(root), [_STATS]) == [_STATS]
+
+
+def test_the_size_is_checked_before_the_file_is_read(
+    tmp_path: Path, checkout: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _artifact(tmp_path, {_STATS: "x" * (1024 * 1024 + 1)})
+    reads: list[Path] = []
+    real_read = Path.read_bytes
+
+    def spy(self: Path) -> bytes:
+        reads.append(self)
+        return real_read(self)
+
+    monkeypatch.setattr(Path, "read_bytes", spy)
+    with pytest.raises(RuntimeError, match="over"):
+        import_artifact(str(root), [_STATS])
+    assert reads == []
+
+
+@pytest.mark.parametrize(
+    "path", [".git/hooks/pre-commit", ".github/workflows/x.yml", "a/.git/config"]
+)
+def test_a_path_inside_git_or_github_is_a_usage_error(path: str) -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        main(_args(path))
+    assert exit_info.value.code == 2
+
+
+@pytest.mark.parametrize("issue", ["", "12a", "1 2", "#12", "\u0661\u0662", "12\n## Changes"])
+def test_a_non_numeric_issue_is_a_usage_error(issue: str) -> None:
+    args = _args("a.md")
+    args[args.index("--issue") + 1] = issue
+    with pytest.raises(SystemExit) as exit_info:
+        main(args)
+    assert exit_info.value.code == 2

@@ -117,7 +117,7 @@ jobs:
     needs: update-stats
     # Run when the aggregation job failed too: the upload step ran regardless,
     # so whichever report was built still gets published.
-    if: ${{ needs.update-stats.result == 'success' || needs.update-stats.result == 'failure' }}
+    if: ${{ !cancelled() && (needs.update-stats.result == 'success' || needs.update-stats.result == 'failure') }}
     runs-on: ubuntu-26.04-arm
     timeout-minutes: 15
     # The only job that holds write scopes: contents writes the bot branch and
