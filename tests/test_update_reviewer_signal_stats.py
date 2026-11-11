@@ -131,7 +131,7 @@ class TestConfiguration:
         `.serena/memories/pr-comment-responder-skills.md` for the life of the
         script and no such file has ever existed, because the memory is scoped
         under `pr-review/` (issue #4897). The daily workflow passes this same
-        path to `scripts/ci/commit_and_push.py --path`, so a path that resolves
+        path to `scripts/ci/open_bot_pr.py --path`, so a path that resolves
         to nothing commits nothing and the stats never land.
         """
         import sys as _sys

@@ -1,4 +1,4 @@
-"""Tests for the `--branch` publish mode of scripts/ci/commit_and_push.py.
+"""Tests for scripts/ci/open_bot_pr.py.
 
 Issue #7287: the default branch is protected, so update-reviewer-stats.yml
 cannot push to it. Branch mode commits on a bot branch and opens a pull
@@ -25,8 +25,7 @@ _VALIDATOR = (
 _original_path = sys.path.copy()
 try:
     sys.path.insert(0, str(_SCRIPTS_CI))
-    import commit_and_push
-    from commit_and_push import main, pr_body
+    from open_bot_pr import main, pr_body
 finally:
     sys.path[:] = _original_path
 
@@ -237,13 +236,6 @@ def test_missing_gh_binary_exits_usage(monkeypatch: pytest.MonkeyPatch, world: _
     assert main(_ARGS) == 2
 
 
-def test_default_mode_never_calls_gh(world: _World) -> None:
-    args = [a for a in _ARGS if a not in {"--branch", _BRANCH, "--issue", "7287"}]
-    assert main(args) == 0
-    assert world.issued("gh") == []
-    assert world.issued("git", "push") == [["git", "push"]]
-
-
 def test_pull_request_body_passes_the_repo_validator(tmp_path: Path) -> None:
     body = tmp_path / "body.md"
     body.write_text(pr_body(["a.md", "b.json"], "7287"), encoding="utf-8")
@@ -265,7 +257,7 @@ def test_pull_request_body_passes_the_repo_validator(tmp_path: Path) -> None:
         errors="replace",
     )
     assert result.returncode == 0, result.stdout + result.stderr
-    assert commit_and_push.pr_body(["a.md"], None).count("Refs #") == 0
+    assert pr_body(["a.md"], None).count("Refs #") == 0
 
 
 def _workflow_publish_step() -> tuple[dict, dict]:
@@ -275,7 +267,7 @@ def _workflow_publish_step() -> tuple[dict, dict]:
         (_REPO / ".github" / "workflows" / "update-reviewer-stats.yml").read_text(encoding="utf-8")
     )
     job = doc["jobs"]["update-stats"]
-    (step,) = [s for s in job["steps"] if "commit_and_push.py" in s.get("run", "")]
+    (step,) = [s for s in job["steps"] if "open_bot_pr.py" in s.get("run", "")]
     return job, step
 
 

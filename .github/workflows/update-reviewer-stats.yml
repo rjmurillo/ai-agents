@@ -74,7 +74,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh auth setup-git
-          python3 scripts/ci/commit_and_push.py \
+          python3 scripts/ci/open_bot_pr.py \
             --branch automation/reviewer-stats \
             --issue 234 \
             --path .serena/memories/pr-review/pr-comment-responder-skills.md \
