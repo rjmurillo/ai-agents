@@ -20,7 +20,7 @@ Each entry names the issue that writes the page and who the page is for. An entr
 
 - [Clear a blocked commit with Lefthook local gates](local-gates-and-hooks.md) (#7207): local gates with Lefthook, and what to do when a hook blocks. For contributors.
 
-- `build-and-improve-skills.md` (#7208): skillforge, skillify, skillopt, skill-bootstrap, and skill-doctor. For skill authors.
+- [Pick a skill tool, then capture a workflow and tune it](build-and-improve-skills.md) (#7208): skillforge, skillify, skillopt, skill-bootstrap, and skill-doctor. For skill authors.
 
 - [Keep an agent inside its authority and read what it reports](safe-agent-actions.md) (#7209): decision briefs, destructive-change safety, and evidence provenance. For everyone who runs agents.
 
