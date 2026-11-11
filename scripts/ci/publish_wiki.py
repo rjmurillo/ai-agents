@@ -106,6 +106,15 @@ def classify_entry(entry: Path) -> tuple[str | None, str | None]:
     return entry.name, None
 
 
+def read_page(path: Path) -> str:
+    """Read a source page as UTF-8, minus a leading byte order mark.
+
+    The mark must neither hide front matter nor reach the wiki, where it would
+    keep ``first_heading`` from seeing a leading ``# `` line.
+    """
+    return path.read_text(encoding="utf-8").lstrip("\ufeff")
+
+
 def validate_source(source: Path) -> list[str]:
     """Return published source file names (sorted). Raise SourceError on a bad tree."""
     problems: list[str] = []
@@ -120,7 +129,7 @@ def validate_source(source: Path) -> list[str]:
         problems.append("README.md is missing, it is the index and becomes Home")
     for name in names:
         try:
-            head = (source / name).read_text(encoding="utf-8").lstrip("\ufeff")
+            head = read_page(source / name)
         except UnicodeDecodeError:
             problems.append(f"{name}: not valid UTF-8")
             continue
@@ -148,7 +157,7 @@ def banner(repo_url: str) -> str:
 def build_plan(source: Path, repo_root: Path, repo_url: str) -> Plan:
     names = validate_source(source)
     published = {n: page_name(n) for n in names}
-    linked = readme_page_order((source / "README.md").read_text(encoding="utf-8"))
+    linked = readme_page_order(read_page(source / "README.md"))
     orphans = sorted(set(names) - set(linked) - {"README.md"})
     if orphans:
         raise SourceError(
@@ -159,7 +168,7 @@ def build_plan(source: Path, repo_root: Path, repo_url: str) -> Plan:
     files: dict[str, str] = {}
     titles: dict[str, str] = {}
     for name in names:
-        body = (source / name).read_text(encoding="utf-8")
+        body = read_page(source / name)
         try:
             body = rewrite_links(body, repo_root=repo_root, repo_url=repo_url, published=published)
         except SourceError as exc:
@@ -364,6 +373,17 @@ def commit_and_push(
     return EXIT_EXTERNAL
 
 
+def stage_changes(wiki: Path, env: Mapping[str, str]) -> tuple[list[str], str | None]:
+    """Stage every wiki change and list it. The second item is git's stderr if staging failed."""
+    add = run_git(["add", "-A", "-f"], wiki, env)
+    if add.returncode != 0:
+        return [], add.stderr
+    diff = run_git(["diff", "--cached", "--name-status"], wiki, env)
+    if diff.returncode != 0:
+        return [], diff.stderr
+    return [ln for ln in diff.stdout.splitlines() if ln.strip()], None
+
+
 def sync(cfg: Config, plan: Plan, environ: Mapping[str, str]) -> int:
     env = git_env(cfg.token, cfg.wiki_url)
     with tempfile.TemporaryDirectory(prefix="wiki-") as tmp:
@@ -372,9 +392,11 @@ def sync(cfg: Config, plan: Plan, environ: Mapping[str, str]) -> int:
         if stop is not None:
             return stop
         apply_plan(plan, wiki)
-        run_git(["add", "-A", "-f"], wiki, env)
-        diff = run_git(["diff", "--cached", "--name-status"], wiki, env).stdout
-        changes = [ln for ln in diff.splitlines() if ln.strip()]
+        changes, error = stage_changes(wiki, env)
+        if error is not None:
+            detail = safe(redact(error.strip(), cfg.token))
+            print(f"EXTERNAL: git staging failed:\n{detail}", file=sys.stderr)
+            return EXIT_EXTERNAL
         pages = len(plan.files)
         if not changes:
             summary(f"0 changes in {pages} files. Wiki already matches {SOURCE_DIR}.", environ)

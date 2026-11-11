@@ -148,12 +148,13 @@ def test_link_through_a_symlink_that_leaves_the_repo_is_rejected(
         plan_for(repo)
 
 
-def test_workflow_command_in_a_file_name_is_neutralized(repo: Path) -> None:
-    write(repo, "docs/training/::add-mask::x.md", "# x\n")
-    with pytest.raises(pw.SourceError) as raised:
-        plan_for(repo)
-    assert "::" not in str(raised.value)
-    assert "add-mask" in str(raised.value)
+def test_workflow_command_in_a_file_name_is_neutralized() -> None:
+    """Built from a Path, not a file: a colon is not legal in a Windows file name."""
+    name, problem = pw.classify_entry(Path("::add-mask::x.md"))
+    assert name is None
+    assert problem is not None
+    assert "::" not in problem
+    assert "add-mask" in problem
 
 
 def test_safe_removes_double_colons_and_line_breaks() -> None:
@@ -184,4 +185,26 @@ def test_a_readme_that_is_not_utf8_is_refused_too(repo: Path) -> None:
 def test_a_nul_character_in_the_readme_is_refused(repo: Path) -> None:
     write(repo, "docs/training/README.md", README + "\nbefore \x00 after\n")
     with pytest.raises(pw.SourceError, match="README.md: contains a NUL character"):
+        plan_for(repo)
+
+
+def test_a_leading_bom_is_dropped_from_the_published_page_and_the_title_is_found(
+    repo: Path,
+) -> None:
+    (repo / "docs/training/first-page.md").write_bytes(b"\xef\xbb\xbf# First steps\n\nBody.\n")
+    plan = plan_for(repo)
+    assert "\ufeff" not in plan.files["first-page.md"]
+    assert "- [First steps](first-page)" in plan.files["_Sidebar.md"]
+
+
+def test_a_leading_bom_is_dropped_from_the_readme_too(repo: Path) -> None:
+    (repo / "docs/training/README.md").write_bytes(b"\xef\xbb\xbf" + README.encode("utf-8"))
+    plan = plan_for(repo)
+    assert "\ufeff" not in plan.files["Home.md"]
+    assert plan.files["Home.md"].startswith("> **This wiki is a read-only mirror.**")
+
+
+def test_a_bom_does_not_hide_front_matter(repo: Path) -> None:
+    (repo / "docs/training/first-page.md").write_bytes(b"\xef\xbb\xbf---\ntitle: x\n---\n# F\n")
+    with pytest.raises(pw.SourceError, match="front matter"):
         plan_for(repo)

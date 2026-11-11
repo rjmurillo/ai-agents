@@ -9,13 +9,15 @@ from __future__ import annotations
 
 import re
 import shutil
+import time
 from pathlib import Path
 
 import pytest
 
 from scripts.ci import publish_wiki as pw
 from scripts.ci._wiki_links import (
-    INLINE_LINK_RE,
+    bracket_pairs,
+    link_targets,
     mask_code,
     readme_page_order,
     strip_target,
@@ -106,8 +108,7 @@ def test_real_tree_leaves_no_relative_link_in_any_output_file() -> None:
             if fenced:
                 continue
             masked, _ = mask_code(line)
-            for match in INLINE_LINK_RE.finditer(masked):
-                target = match.group(2).strip("<>")
+            for target in link_targets(masked):
                 bare = re.split(r"[#?]", target)[0]
                 if target.startswith(("http://", "https://", "#")) or bare in page_names:
                     continue
@@ -306,3 +307,84 @@ def test_footnote_label_with_text_after_the_caret_is_still_a_footnote(repo: Path
 def test_a_normal_reference_definition_still_matches_beside_a_footnote(repo: Path) -> None:
     out = rewrite(repo, "[^1]: a note\n[ref]: first-page.md")
     assert out == "[^1]: a note\n[ref]: first-page"
+
+
+# --- clickable images and bracket pairing -------------------------------------------
+
+
+def test_clickable_image_rewrites_both_destinations(repo: Path) -> None:
+    write(repo, "docs/training/shot.png", "x")
+    out = rewrite(repo, "[![alt](shot.png)](first-page.md)")
+    assert out == f"[![alt]({BLOB}/docs/training/shot.png?raw=true)](first-page)"
+
+
+def test_clickable_image_with_a_missing_outer_target_is_rejected(repo: Path) -> None:
+    write(repo, "docs/training/shot.png", "x")
+    with pytest.raises(pw.SourceError, match=r"does not exist: gone\.md"):
+        rewrite(repo, "[![alt](shot.png)](gone.md)")
+
+
+def test_clickable_image_with_a_missing_image_is_rejected(repo: Path) -> None:
+    with pytest.raises(pw.SourceError, match=r"does not exist: gone\.png"):
+        rewrite(repo, "[![alt](gone.png)](first-page.md)")
+
+
+def test_clickable_image_in_the_index_counts_as_a_page_link(repo: Path) -> None:
+    write(repo, "docs/assets/shot.png", "x")
+    write(
+        repo,
+        "docs/training/README.md",
+        "# T\n\n[![one](../assets/shot.png)](first-page.md)\n\n[two](second-page.md)\n",
+    )
+    plan = pw.build_plan(repo / pw.SOURCE_DIR, repo, REPO_URL)
+    assert [name for _title, name in plan.order] == ["first-page", "second-page"]
+
+
+def test_link_text_with_balanced_brackets_is_still_a_link(repo: Path) -> None:
+    assert rewrite(repo, "[a [b] c](first-page.md)") == "[a [b] c](first-page)"
+
+
+def test_a_stray_destination_with_no_opening_bracket_is_prose(repo: Path) -> None:
+    assert rewrite(repo, "a](gone.md) is text") == "a](gone.md) is text"
+
+
+def test_link_targets_lists_inline_nested_and_definition_destinations() -> None:
+    line = "[![i](a.png)](b.md) and ![c](d.png) and [e](f.md)\n"
+    assert link_targets(mask_code(line)[0]) == ["a.png", "b.md", "d.png", "f.md"]
+
+
+def test_bracket_pairs_pairs_nested_brackets_in_one_pass() -> None:
+    assert bracket_pairs("[a [b] c]") == {5: 3, 8: 0}
+
+
+def test_unbalanced_brackets_leave_unpaired_closers_out() -> None:
+    assert bracket_pairs("] [x") == {}
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "[" + "![" * 1500,
+        "[" + "![a](b)" * 1500 + "x",
+        "[" + "![a](b" * 1500,
+        "[" * 3000,
+        "[" * 1500 + "](a)" * 1500,
+        "](<" * 1500,
+    ],
+    ids=[
+        "nested-alt",
+        "images-no-close",
+        "open-images",
+        "brackets",
+        "brackets-then-dests",
+        "angles",
+    ],
+)
+def test_hostile_lines_are_handled_in_bounded_time(repo: Path, line: str) -> None:
+    """Page text is untrusted in CI. A nested pattern took 110 s on case one at 3000."""
+    started = time.perf_counter()
+    try:
+        rewrite(repo, line)
+    except pw.SourceError:
+        pass  # a rejected link is an acceptable answer; a stall is not
+    assert time.perf_counter() - started < 5.0

@@ -15,13 +15,16 @@ from __future__ import annotations
 
 import posixpath
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 SOURCE_DIR = "docs/training"
 BRANCH = "main"
 SCHEME_RE = re.compile(r"^(?:[a-zA-Z][a-zA-Z0-9+.-]*:|//)")
-INLINE_LINK_RE = re.compile(r'(!?\[[^\]\n]*\]\()(<[^>\n]+>|[^)\s]+)((?:\s+"[^"\n]*")?\))')
+# The destination of an inline link or image: ](dest "title"). The text before it is
+# paired by bracket_pairs, not by this pattern, so link text may hold brackets, code
+# spans, and images (a clickable image) without any nested or ambiguous quantifier.
+DEST_RE = re.compile(r'\]\((?P<dest><[^>\n]+>|[^)\s]+)(?P<title>\s+"[^"\n]*")?\)')
 REF_LINK_RE = re.compile(
     r"^(?P<pre>\s{0,3}\[(?P<label>[^\]^\n][^\]\n]*)\]:\s+)(?P<target>(?:<[^>\n]+>|\S+))"
 )
@@ -146,10 +149,6 @@ def rewrite_links(
         new = one(raw[1:-1] if angle else raw, image)
         return f"<{new}>" if angle else new
 
-    def inline(match: re.Match[str]) -> str:
-        opener, raw, closer = match.groups()
-        return opener + rewrite_dest(raw, opener.startswith("!")) + closer
-
     def ref(match: re.Match[str]) -> str:
         image = label_key(match.group("label")) in images
         return match.group("pre") + rewrite_dest(match.group("target"), image)
@@ -160,9 +159,47 @@ def rewrite_links(
             lines.append(line)
             continue
         masked, spans = mask_code(line)
-        masked = INLINE_LINK_RE.sub(inline, REF_LINK_RE.sub(ref, masked))
+        masked = rewrite_inline(REF_LINK_RE.sub(ref, masked), rewrite_dest)
         lines.append(unmask_code(masked, spans))
     return "\n".join(lines)
+
+
+def bracket_pairs(line: str) -> dict[int, int]:
+    """Map the index of each ``]`` to the index of the ``[`` that opens it. One pass, linear."""
+    stack: list[int] = []
+    pairs: dict[int, int] = {}
+    for index, char in enumerate(line):
+        if char == "[":
+            stack.append(index)
+        elif char == "]" and stack:
+            pairs[index] = stack.pop()
+    return pairs
+
+
+def rewrite_inline(masked: str, rewrite_dest: Callable[[str, bool], str]) -> str:
+    """Rewrite the destination of every inline link and image on a masked line."""
+    pairs = bracket_pairs(masked)
+
+    def inline(match: re.Match[str]) -> str:
+        opener = pairs.get(match.start())
+        if opener is None:
+            return match.group(0)  # a stray "](x)" with no "[" is prose, not a link
+        image = opener > 0 and masked[opener - 1] == "!"
+        dest = rewrite_dest(match.group("dest"), image)
+        return f"]({dest}{match.group('title') or ''})"
+
+    return DEST_RE.sub(inline, masked)
+
+
+def link_targets(masked: str) -> list[str]:
+    """Every destination on a masked line: inline links and images, and definitions.
+
+    A clickable image, ``[![alt](img)](page)``, yields both ``img`` and ``page``.
+    """
+    pairs = bracket_pairs(masked)
+    found = [m.group("dest").strip("<>") for m in DEST_RE.finditer(masked) if m.start() in pairs]
+    found += [m.group("target").strip("<>") for m in REF_LINK_RE.finditer(masked)]
+    return found
 
 
 def readme_page_order(readme: str) -> list[str]:
@@ -172,9 +209,7 @@ def readme_page_order(readme: str) -> list[str]:
         if fenced:
             continue
         masked, _ = mask_code(line)
-        targets = [m.group(2).strip("<>") for m in INLINE_LINK_RE.finditer(masked)]
-        targets += [m.group("target").strip("<>") for m in REF_LINK_RE.finditer(masked)]
-        for target in targets:
+        for target in link_targets(masked):
             if SCHEME_RE.match(target) or target.startswith("#"):
                 continue
             resolved = posixpath.normpath(posixpath.join(SOURCE_DIR, strip_target(target)))
