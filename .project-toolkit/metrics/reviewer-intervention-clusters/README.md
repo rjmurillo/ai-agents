@@ -19,7 +19,7 @@ This definition was fixed before the first run. Change it only in a reviewed
 pull request that states why, never to move a count.
 
 - **Agent pull request:** the body carries `Generated with [Claude Code]`, or the author is a bot account (`github_core.bot_config.is_bot`). Dependency bots (dependabot, renovate) are excluded. Agents here open pull requests under the owner's login, so the trailer is the usable marker.
-- **Intervention:** the first comment of a review thread. The author is not a bot. The pull request author is not excluded, because on a trailer pull request the owner is both nominal author and human reviewer. Later replies do not count.
+- **Intervention:** the first comment of a review thread. The author is not a bot and has OWNER, MEMBER, or COLLABORATOR standing on the repository, so an outside contributor cannot mint a cluster with a forged trailer. The pull request author is not excluded, because on a trailer pull request the owner is both nominal author and human reviewer. Later replies do not count.
 - **Window:** 90 days. A thread counts when its first comment was created in the trailing 90 days.
 - **Threshold:** 3.
 

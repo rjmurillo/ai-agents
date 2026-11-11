@@ -16,7 +16,8 @@ Population
     excluded. In this repository agents open pull requests under the owner's
     login, so the trailer is the usable marker; the author login is not.
     Human intervention: the first comment of a review thread whose author is
-    not a bot. The pull request author is not excluded: on a trailer pull
+    not a bot and whose ``authorAssociation`` is in ``REVIEWER_ASSOCIATIONS``.
+    The pull request author is not excluded: on a trailer pull
     request the owner is both the nominal author and the human reviewer. An
     agent posting a thread under the same login cannot be told apart from the
     owner; the README states that limit.
@@ -39,6 +40,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import sys
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
@@ -69,10 +71,18 @@ EXIT_AUTH = 4
 DEFAULT_REPORT = ".project-toolkit/metrics/reviewer-intervention-clusters/report.json"
 DEFAULT_DISPOSITIONS = ".project-toolkit/pr-checks/suppressed-finding-dispositions.json"
 AGENT_TRAILER = "Generated with [Claude Code]"
+# Only a commenter with write-level standing is a reviewer. Without this, an outside
+# contributor could mint a cluster by putting the trailer in their own PR body.
+REVIEWER_ASSOCIATIONS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
 # GraphQL reports a bot login without its "[bot]" suffix, so list both forms.
 DEPENDENCY_BOTS = frozenset({"dependabot", "dependabot[bot]", "renovate", "renovate[bot]"})
 MAX_PR_PAGES = 200
 MAX_THREAD_PAGES = 50
+
+# "auth" alone would match "author" in an unrelated message.
+_AUTH_FAILURE = re.compile(
+    r"\b(401|403|unauthorized|bad credentials|authentication|not logged in)\b"
+)
 
 GraphQL = Callable[[str, dict[str, Any] | None], dict[str, Any]]
 
@@ -85,7 +95,7 @@ _ACTOR = "login __typename"
 _THREAD_FIELDS = f"""
   id
   comments(first: 1) {{
-    nodes {{ id body createdAt path author {{ {_ACTOR} }} }}
+    nodes {{ id body createdAt path authorAssociation author {{ {_ACTOR} }} }}
   }}
 """
 
@@ -265,6 +275,8 @@ def extract_interventions(
             login, kind = _actor(comment.get("author"))
             if not login or is_bot(login, kind):
                 continue
+            if comment.get("authorAssociation") not in REVIEWER_ASSOCIATIONS:
+                continue
             thread_id = thread.get("id")
             if not isinstance(thread_id, str) or not thread_id:
                 raise FetchError(f"thread on PR #{pr['number']} has no id")
@@ -339,11 +351,15 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _resolve_output(workspace_root: Path, value: str) -> Path:
+def _resolve_inside(
+    workspace_root: Path, value: str, *, flag: str, under: str, suffix: str
+) -> Path:
+    """Resolve ``value`` against the workspace; it must stay under ``under`` with ``suffix``."""
     root = workspace_root.resolve()
+    base = (root / under).resolve()
     target = (root / value).resolve()
-    if not target.is_relative_to(root) or target.suffix != ".json":
-        raise ValueError(f"--output must be a .json path inside {root}: {value}")
+    if not target.is_relative_to(base) or target.suffix != suffix:
+        raise ValueError(f"{flag} must be a {suffix} path under {under}: {value}")
     return target
 
 
@@ -355,8 +371,18 @@ def main(argv: list[str] | None = None, *, graphql: GraphQL | None = None) -> in
         return EXIT_OK if exc.code == 0 else EXIT_CONFIG
     root = Path(workspace)
     try:
-        output = _resolve_output(root, args.output)
-        dispositions = load_dispositions(root / args.dispositions_file)
+        output = _resolve_inside(
+            root, args.output, flag="--output", under=".project-toolkit/metrics", suffix=".json"
+        )
+        dispositions = load_dispositions(
+            _resolve_inside(
+                root,
+                args.dispositions_file,
+                flag="--dispositions-file",
+                under=".project-toolkit/pr-checks",
+                suffix=".json",
+            )
+        )
         repo_info = resolve_repo_params(args.owner, args.repo)
     except (ValueError, SystemExit) as exc:
         logger.error("configuration error: %s", exc)
@@ -375,7 +401,7 @@ def main(argv: list[str] | None = None, *, graphql: GraphQL | None = None) -> in
     except RuntimeError as exc:
         text = str(exc).lower()
         logger.error("report not written, GitHub request failed: %s", exc)
-        return EXIT_AUTH if "auth" in text or "401" in text else EXIT_EXTERNAL
+        return EXIT_AUTH if _AUTH_FAILURE.search(text) else EXIT_EXTERNAL
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(render_report(report), encoding="utf-8")
     examined = report["examined"]
