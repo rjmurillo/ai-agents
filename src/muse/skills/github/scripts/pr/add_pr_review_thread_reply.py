@@ -13,6 +13,7 @@ and disarms auto-merge nothing.
 
 Exit codes follow ADR-035:
     0 - Success (including a --dry-run preview)
+    1 - Pull request identity moved, or the resolve was not confirmed
     2 - Config/usage error (invalid parameters, file not found)
     3 - External error (API failure)
     4 - Auth error

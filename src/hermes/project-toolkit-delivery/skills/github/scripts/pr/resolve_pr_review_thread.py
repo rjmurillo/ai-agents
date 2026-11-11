@@ -10,7 +10,8 @@ without resolving anything.
 
 Exit codes follow ADR-035:
     0 - Success (including a --dry-run preview)
-    1 - Operation failed or invalid parameters
+    1 - A resolve call failed or was not confirmed
+    2 - Invalid parameters
     3 - API error
     4 - Auth error
 """
