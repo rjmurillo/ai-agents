@@ -407,13 +407,14 @@ def candidates(args: argparse.Namespace) -> Outcome:
 def _add_friction_inputs(args: argparse.Namespace, root: Path, payload: Payload) -> None:
     sessions = getattr(args, "sessions_json", None)
     hosted = getattr(args, "hosted_json", None)
-    if sessions is None and not hosted:
+    sweep = getattr(args, "sweep_json", None)
+    if sessions is None and not hosted and sweep is None:
         return
     # Keep the optional importer out of legacy runs and claims.
     from bootstrap_friction import import_seeds
 
     try:
-        result = import_seeds(root, sessions, hosted or [])
+        result = import_seeds(root, sessions, hosted or [], sweep)
     except (ValueError, OSError, RecursionError) as exc:
         raise ConfigError(f"invalid friction input: {exc}") from exc
     payload["examined"].update(result.pop("examined"))
@@ -794,6 +795,12 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="FILE",
         action="append",
         help="versioned offline hosted friction export; repeatable",
+    )
+
+    p_cand.add_argument(
+        "--sweep-json",
+        metavar="FILE",
+        help="sweep.json from bootstrap_sweep.py tally; adds cross_source_incident seeds",
     )
 
     p_claims = sub.add_parser(

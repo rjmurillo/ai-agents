@@ -27,6 +27,77 @@ HOSTED_SIGNALS = {
 }
 
 
+# Mirrors the enums in bootstrap_sweep.py; test_mine_sweep.py fails if the two drift.
+SWEEP_TYPES = (
+    "knowledge-gap",
+    "human-agent",
+    "agent-process",
+    "agent-tool",
+    "agent-agent",
+    "human-process",
+    "human-tool",
+    "human-human",
+)
+SWEEP_PATTERNS = (
+    "fragmented-context",
+    "inconsistent-linking",
+    "incomplete-evidence",
+    "surface-switching",
+    "review-gate-latency",
+    "work-item-drift",
+    "shadow-work",
+    "lagging-indicator",
+    "access-barrier",
+    "oversized-change",
+    "unclear-ownership",
+    "missing-context",
+    "unstable-checks",
+    "other",
+)
+SWEEP_CLASSES = (
+    "code_review",
+    "work_tracking",
+    "chat",
+    "email",
+    "documents",
+    "meetings",
+    "build_ops",
+    "memory",
+    "work_intelligence",
+    "agent_sessions",
+    "other",
+)
+SWEEP_ACTIONS = (
+    "create-skill",
+    "update-skill",
+    "write-doc",
+    "add-instrument",
+    "fix-process",
+    "ask-owner",
+)
+SWEEP_CORROBORATION = ("classes", "threads", "repo_path")
+SWEEP_INCIDENT_KEYS = frozenset(
+    {
+        "incident",
+        "primary_type",
+        "types",
+        "patterns",
+        "evidence",
+        "locators",
+        "threads",
+        "classes",
+        "judges",
+        "people",
+        "repo_paths",
+        "corroborated",
+        "corroboration",
+        "suggestions",
+        "findings",
+        "summary",
+    }
+)
+
+
 def _require(condition: bool, message: str) -> None:
     if not condition:
         raise ValueError(message)
@@ -90,6 +161,11 @@ def _read(path: str) -> tuple[Payload, Payload]:
     except (OSError, UnicodeError, ValueError, RecursionError) as exc:
         raise ValueError(f"cannot import {path}: {exc}") from exc
     return data, {"input": path, "sha256": hashlib.sha256(raw).hexdigest()}
+
+
+def read_json(path: str) -> tuple[Payload, Payload]:
+    """Strictly load one JSON object; sibling scripts share the 5 MiB cap and key checks."""
+    return _read(path)
 
 
 def _local_scope(value: Any, root: Path) -> None:
@@ -442,7 +518,83 @@ def _hosted(path: str, root: Path) -> tuple[list[Payload], Payload, int]:
     )
 
 
-def import_seeds(root: Path, sessions: str | None, hosted: list[str]) -> Payload:
+def _members(value: Any, allowed: tuple[str, ...]) -> list[str]:
+    items = _list(value)
+    _require(all(isinstance(i, str) and i in allowed for i in items), "unsupported sweep enum")
+    return items
+
+
+def _counts(value: Any, allowed: tuple[str, ...]) -> Payload:
+    counts = _object(value)
+    _require(set(counts) <= set(allowed), "unsupported sweep enum key")
+    for count in counts.values():
+        _require(_count(count) >= 1, "sweep counts must be positive")
+    return counts
+
+
+def _sweep_incident(value: Any) -> Payload:
+    inc = _object(value)
+    _require(set(inc) == SWEEP_INCIDENT_KEYS, "sweep incident has unexpected keys")
+    _require(inc["primary_type"] in SWEEP_TYPES, "unsupported sweep primary_type")
+    types = _counts(inc["types"], SWEEP_TYPES)
+    _require(inc["primary_type"] in types, "primary_type is not among types")
+    evidence = _list(inc["evidence"])
+    _require(bool(evidence) and len(set(evidence)) == len(evidence), "bad sweep evidence ids")
+    _require(all(isinstance(e, str) and e for e in evidence), "bad sweep evidence ids")
+    _require(type(inc["corroborated"]) is bool, "corroborated must be boolean")
+    reasons = _members(inc["corroboration"], SWEEP_CORROBORATION)
+    _require(inc["corroborated"] == bool(reasons), "corroborated disagrees with corroboration")
+    _text(inc["incident"])
+    suggestions = [_object(s) for s in _list(inc["suggestions"])]
+    actions = sorted({s.get("action") for s in suggestions})
+    _require(all(a in SWEEP_ACTIONS for a in actions), "unsupported sweep action")
+    return {
+        "evidence": evidence,
+        "corroborated": inc["corroborated"],
+        "corroboration": reasons,
+        "primary_type": inc["primary_type"],
+        "patterns": _counts(inc["patterns"], SWEEP_PATTERNS),
+        "classes": _members(inc["classes"], SWEEP_CLASSES),
+        "suggestion_actions": actions,
+        "incident": inc["incident"],
+    }
+
+
+def _sweep(path: str) -> tuple[list[Payload], Payload, int]:
+    data, provenance = _read(path)
+    _require(
+        type(data.get("schema_version")) is int and data["schema_version"] == 1,
+        "unsupported sweep schema_version",
+    )
+    index_id, plan_id = _text(data.get("index_id")), _text(data.get("plan_id"))
+    for key in ("coverage", "knowledge_gaps", "incomplete", "single_reader"):
+        _list(data.get(key))
+    incidents = [_sweep_incident(v) for v in _list(data.get("incidents"))]
+    _require(len({i["incident"] for i in incidents}) == len(incidents), "duplicate sweep incident")
+    rows = []
+    for position, inc in enumerate(incidents):
+        source = {**provenance, "locator": f"/incidents/{position}"}
+        row = _seed(
+            ["cross_source_incident", index_id, inc["incident"]],
+            "evidence_items",
+            len(inc["evidence"]),
+            source,
+        )
+        row.update({k: v for k, v in inc.items() if k not in ("incident", "evidence")})
+        rows.append(row)
+    metadata = {
+        "schema_version": 1,
+        "index_id": index_id,
+        "plan_id": plan_id,
+        "incomplete": len(data["incomplete"]),
+        "single_reader": len(data["single_reader"]),
+    }
+    return rows, {**provenance, "metadata": metadata}, len(incidents)
+
+
+def import_seeds(
+    root: Path, sessions: str | None, hosted: list[str], sweep: str | None = None
+) -> Payload:
     """Validate all supplied evidence before returning additive candidate fields.
 
     Zero rows participate in conflict detection but never become candidates.
@@ -462,6 +614,11 @@ def import_seeds(root: Path, sessions: str | None, hosted: list[str]) -> Payload
         inputs.append(source)
         counters["seed_hosted_items"] += len(found)
         counters["seed_records"] += examined
+    if sweep is not None:
+        found, source, examined = _sweep(sweep)
+        rows.extend(found)
+        inputs.append(source)
+        counters["seed_sweep_incidents"] = examined
     candidates = [row for row in _merge(rows) if row["count"] > 0]
     counters["seed_candidates"] = len(candidates)
     return {"candidate_seeds": candidates, "seed_inputs": inputs, "examined": counters}

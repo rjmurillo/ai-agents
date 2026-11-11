@@ -16,7 +16,7 @@
 - [ ] T3 `bootstrap_sweep.py import`: all-or-nothing judge rows per batch, atomic accepted file (AC 9).
 - [ ] T4 `bootstrap_sweep.py tally`: merge incidents, corroboration, ranking, gaps, incomplete pairs (AC 10 to 12).
 - [ ] T5 `bootstrap_mine.py candidates --sweep-json` via `bootstrap_friction.py` (AC 13).
-- [ ] T6 Judge rubrics under `judges/`: `friction.md`, `knowledge-gap.md`, `human-agent.md`, `agent-friction.md`.
+- [ ] T6 Judge rubrics under `judges/`: `friction.md`, `knowledge-gap.md`, `human-agent.md`, `agent-friction.md`, `change-review.md`.
 - [ ] T7 `references/friction-sources.md` rewritten around the script; `discovery.md`, `authoring-and-gates.md`, template edits; `institutional-knowledge` lens in forms script and tables (AC 14 to 16).
 - [ ] T8 Tests under `tests/skills/skill-bootstrap/`: positive, negative, edge per AC, exit-code contract.
 - [ ] T9 `build_all.py`, `build_all.py --check`, ruff, pytest for the skill, pre-PR gates that cover changed files.
