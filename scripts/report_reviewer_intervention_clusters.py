@@ -9,11 +9,17 @@ edits a rule, contract or prompt, and it files no issue (issue #7153).
 The cluster definition lives in the ``review_clusters`` module docstring and
 in ``.project-toolkit/metrics/reviewer-intervention-clusters/README.md``.
 
-Population (fixed before the first run)
-    Agent-authored pull request: the author is a bot account per
-    ``github_core.bot_config.is_bot``, other than ``dependabot[bot]``.
+Population
+    Agent-authored pull request: the body carries ``AGENT_TRAILER``, or the
+    author is a bot account per ``github_core.bot_config.is_bot``. Dependency
+    bots (``DEPENDENCY_BOTS``) are automation, not coding agents, and are
+    excluded. In this repository agents open pull requests under the owner's
+    login, so the trailer is the usable marker; the author login is not.
     Human intervention: the first comment of a review thread whose author is
-    not a bot and is not the pull request author.
+    not a bot. The pull request author is not excluded: on a trailer pull
+    request the owner is both the nominal author and the human reviewer. An
+    agent posting a thread under the same login cannot be told apart from the
+    owner; the README states that limit.
 
 Reads are lossless (``lossless-queue-reads``): every page is fetched until
 the API reports no next page. A missing cursor or a page cap fails the run
@@ -62,7 +68,9 @@ EXIT_AUTH = 4
 
 DEFAULT_REPORT = ".project-toolkit/metrics/reviewer-intervention-clusters/report.json"
 DEFAULT_DISPOSITIONS = ".project-toolkit/pr-checks/suppressed-finding-dispositions.json"
-EXCLUDED_PR_AUTHORS = frozenset({"dependabot[bot]"})
+AGENT_TRAILER = "Generated with [Claude Code]"
+# GraphQL reports a bot login without its "[bot]" suffix, so list both forms.
+DEPENDENCY_BOTS = frozenset({"dependabot", "dependabot[bot]", "renovate", "renovate[bot]"})
 MAX_PR_PAGES = 200
 MAX_THREAD_PAGES = 50
 
@@ -89,6 +97,7 @@ query($owner: String!, $repo: String!, $cursor: String) {{
       nodes {{
         number
         updatedAt
+        body
         author {{ {_ACTOR} }}
         reviewThreads(first: 50) {{
           pageInfo {{ hasNextPage endCursor }}
@@ -167,7 +176,7 @@ def fetch_pull_requests(
 ) -> tuple[list[dict[str, Any]], int]:
     """Return ``(pull_requests, examined)`` for PRs updated at or after ``since``.
 
-    Each returned PR carries ``number``, ``author`` and a complete ``threads``
+    Each returned PR carries ``number``, ``author``, ``body`` and a complete ``threads``
     list. Pull requests arrive ordered by ``updatedAt`` descending, so the
     first one older than ``since`` ends the walk: a comment in the window
     implies its PR was updated in the window.
@@ -196,7 +205,14 @@ def fetch_pull_requests(
             more = _next_cursor(threads_conn, f"PR #{number} threads")
             if more is not None:
                 threads.extend(_remaining_threads(graphql, owner, repo, number, more))
-            result.append({"number": number, "author": pr.get("author"), "threads": threads})
+            result.append(
+                {
+                    "number": number,
+                    "author": pr.get("author"),
+                    "body": pr["body"] if isinstance(pr.get("body"), str) else "",
+                    "threads": threads,
+                }
+            )
         if reached_boundary:
             return result, examined
         cursor = _next_cursor(conn, "pull requests")
@@ -215,18 +231,31 @@ def _actor(raw: object) -> tuple[str, str | None]:
     return (login if isinstance(login, str) else ""), (kind if isinstance(kind, str) else None)
 
 
-def extract_interventions(pull_requests: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
+def is_agent_pull_request(author: str, author_kind: str | None, body: str) -> bool:
+    """Return True when the pull request is agent-authored under the stated population."""
+    if author in DEPENDENCY_BOTS:
+        return False
+    return AGENT_TRAILER in body or (bool(author) and is_bot(author, author_kind))
+
+
+def extract_interventions(
+    pull_requests: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], dict[str, int]]:
     """Keep human-opened threads on agent pull requests.
 
-    Returns ``(interventions, agent_pull_requests)``.
+    Returns ``(interventions, counts)``. ``counts`` holds ``agent_pull_requests``
+    and ``trailer_pull_requests`` (agent pull requests marked by the trailer).
     """
     interventions: list[dict[str, Any]] = []
-    agent_prs = 0
+    counts = {"agent_pull_requests": 0, "trailer_pull_requests": 0}
     for pr in pull_requests:
         author, author_kind = _actor(pr["author"])
-        if not author or author in EXCLUDED_PR_AUTHORS or not is_bot(author, author_kind):
+        body = pr.get("body") or ""
+        if not is_agent_pull_request(author, author_kind, body):
             continue
-        agent_prs += 1
+        counts["agent_pull_requests"] += 1
+        if AGENT_TRAILER in body:
+            counts["trailer_pull_requests"] += 1
         for thread in pr["threads"]:
             comments = _obj(thread.get("comments"), "thread comments")
             first = _nodes(comments, f"thread {thread.get('id')} comments")
@@ -234,7 +263,7 @@ def extract_interventions(pull_requests: list[dict[str, Any]]) -> tuple[list[dic
                 continue
             comment = first[0]
             login, kind = _actor(comment.get("author"))
-            if not login or login == author or is_bot(login, kind):
+            if not login or is_bot(login, kind):
                 continue
             thread_id = thread.get("id")
             if not isinstance(thread_id, str) or not thread_id:
@@ -248,7 +277,7 @@ def extract_interventions(pull_requests: list[dict[str, Any]]) -> tuple[list[dic
                     "path": comment.get("path"),
                 }
             )
-    return interventions, agent_prs
+    return interventions, counts
 
 
 def load_dispositions(path: Path) -> dict[str, Any]:
@@ -274,9 +303,9 @@ def build_report(
     """Fetch, filter and cluster. Raises FetchError or ValueError, never partial."""
     since = now - timedelta(days=review_clusters.WINDOW_DAYS)
     pull_requests, examined_prs = fetch_pull_requests(graphql, owner, repo, since)
-    interventions, agent_prs = extract_interventions(pull_requests)
+    interventions, counts = extract_interventions(pull_requests)
     clustered = review_clusters.cluster_interventions(interventions, dispositions, now=now)
-    clustered["examined"].update({"pull_requests": examined_prs, "agent_pull_requests": agent_prs})
+    clustered["examined"].update({"pull_requests": examined_prs, **counts})
     return {
         "as_of": now.date().isoformat(),
         "repository": f"{owner}/{repo}",
@@ -334,12 +363,13 @@ def main(argv: list[str] | None = None, *, graphql: GraphQL | None = None) -> in
     output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     examined = report["examined"]
     logger.info(
-        "%d clusters in %d interventions (%d in window) across %d agent PRs of %d examined; "
-        "%d dispositions; wrote %s",
+        "%d clusters in %d interventions (%d in window) across %d agent PRs "
+        "(%d with trailer) of %d examined; %d dispositions; wrote %s",
         report["cluster_count"],
         examined["interventions"],
         examined["interventions_in_window"],
         examined["agent_pull_requests"],
+        examined["trailer_pull_requests"],
         examined["pull_requests"],
         examined["dispositions"],
         output.relative_to(root.resolve()),

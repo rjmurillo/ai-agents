@@ -37,10 +37,23 @@ def _thread(tid: str, *, author: dict | None = HUMAN, body: str = "ADR-042", pat
     }
 
 
-def _pr(number: int, threads: list[dict], *, author: dict | None = BOT, updated_age: float = 1):
+TRAILER_BODY = (
+    "## Summary\n\n\U0001f916 Generated with [Claude Code](https://claude.com/claude-code)"
+)
+
+
+def _pr(
+    number: int,
+    threads: list[dict],
+    *,
+    author: dict | None = BOT,
+    body: str = "",
+    updated_age: float = 1,
+):
     return {
         "number": number,
         "updatedAt": _ts(updated_age),
+        "body": body,
         "author": author,
         "reviewThreads": {
             "pageInfo": {"hasNextPage": False, "endCursor": None},
@@ -198,45 +211,111 @@ def test_fetch_fails_loud_at_the_thread_page_cap(monkeypatch: pytest.MonkeyPatch
         rep.fetch_pull_requests(gql, "o", "r", NOW - timedelta(days=90))
 
 
-def test_extract_keeps_only_human_threads_on_agent_prs() -> None:
-    prs = [
-        {"number": 1, "author": BOT, "threads": [_thread("keep")]},
-        {"number": 2, "author": HUMAN, "threads": [_thread("human-pr")]},
-        {
-            "number": 3,
-            "author": {"login": "dependabot[bot]", "__typename": "Bot"},
-            "threads": [_thread("dependabot")],
-        },
-        {"number": 4, "author": None, "threads": [_thread("ghost-author")]},
-        {
-            "number": 5,
-            "author": BOT,
-            "threads": [
-                _thread(
-                    "bot-reviewer",
-                    author={"login": "copilot-pull-request-reviewer", "__typename": "Bot"},
-                ),
-                _thread("self", author=BOT),
-                _thread("no-author", author=None),
-            ],
-        },
-    ]
+def _ex(number: int, author: dict | None, threads: list[dict], body: str = "") -> dict:
+    return {"number": number, "author": author, "body": body, "threads": threads}
 
-    interventions, agent_prs = rep.extract_interventions(prs)
+
+def test_extract_keeps_human_threads_on_bot_authored_prs() -> None:
+    interventions, counts = rep.extract_interventions([_ex(1, BOT, [_thread("keep")])])
 
     assert [i["thread_id"] for i in interventions] == ["keep"]
-    assert agent_prs == 2
+    assert counts == {"agent_pull_requests": 1, "trailer_pull_requests": 0}
+
+
+def test_extract_keeps_owner_threads_on_a_trailer_pr_opened_under_the_owner_login() -> None:
+    prs = [_ex(2, HUMAN, [_thread("owner-correction", author=HUMAN)], body=TRAILER_BODY)]
+
+    interventions, counts = rep.extract_interventions(prs)
+
+    assert [i["thread_id"] for i in interventions] == ["owner-correction"]
+    assert counts == {"agent_pull_requests": 1, "trailer_pull_requests": 1}
+
+
+def test_extract_excludes_a_human_pr_without_the_trailer() -> None:
+    prs = [_ex(3, HUMAN, [_thread("t", author={"login": "other", "__typename": "User"})])]
+
+    interventions, counts = rep.extract_interventions(prs)
+
+    assert interventions == []
+    assert counts == {"agent_pull_requests": 0, "trailer_pull_requests": 0}
+
+
+@pytest.mark.parametrize("login", ["dependabot", "dependabot[bot]", "renovate", "renovate[bot]"])
+def test_extract_excludes_dependency_bots(login: str) -> None:
+    author = {"login": login, "__typename": "Bot"}
+
+    interventions, counts = rep.extract_interventions([_ex(4, author, [_thread("t")])])
+
+    assert interventions == []
+    assert counts["agent_pull_requests"] == 0
+
+
+def test_extract_excludes_a_dependency_bot_pr_even_with_the_trailer() -> None:
+    author = {"login": "renovate", "__typename": "Bot"}
+
+    _, counts = rep.extract_interventions([_ex(5, author, [_thread("t")], body=TRAILER_BODY)])
+
+    assert counts["agent_pull_requests"] == 0
+
+
+def test_extract_drops_bot_commenters_and_commenters_with_no_author() -> None:
+    threads = [
+        _thread(
+            "bot-reviewer",
+            author={"login": "copilot-pull-request-reviewer", "__typename": "Bot"},
+        ),
+        _thread("agent-bot", author=BOT),
+        _thread("no-author", author=None),
+    ]
+
+    interventions, counts = rep.extract_interventions([_ex(6, BOT, threads)])
+
+    assert interventions == []
+    assert counts["agent_pull_requests"] == 1
+
+
+def test_extract_treats_a_pr_with_no_author_as_agent_only_when_the_trailer_is_present() -> None:
+    plain, plain_counts = rep.extract_interventions([_ex(7, None, [_thread("a")])])
+    marked, marked_counts = rep.extract_interventions(
+        [_ex(8, None, [_thread("b")], body=TRAILER_BODY)]
+    )
+
+    assert plain == []
+    assert plain_counts["agent_pull_requests"] == 0
+    assert [i["thread_id"] for i in marked] == ["b"]
+    assert marked_counts["trailer_pull_requests"] == 1
 
 
 def test_extract_skips_a_thread_with_no_comments() -> None:
     thread = {"id": "empty", "comments": {"nodes": []}}
 
-    interventions, agent_prs = rep.extract_interventions(
-        [{"number": 1, "author": BOT, "threads": [thread]}]
-    )
+    interventions, counts = rep.extract_interventions([_ex(1, BOT, [thread])])
 
     assert interventions == []
-    assert agent_prs == 1
+    assert counts["agent_pull_requests"] == 1
+
+
+def test_fetch_carries_the_pr_body_for_the_trailer_check() -> None:
+    gql = FakeGraphQL({None: _page([_pr(9, [], body=TRAILER_BODY)])})
+
+    prs, _ = rep.fetch_pull_requests(gql, "o", "r", NOW - timedelta(days=90))
+
+    assert rep.AGENT_TRAILER in prs[0]["body"]
+
+
+def test_build_report_counts_trailer_prs_authored_under_the_owner_login() -> None:
+    prs = [
+        _pr(n, [_thread(f"T{n}", author=HUMAN)], author=HUMAN, body=TRAILER_BODY) for n in (1, 2, 3)
+    ]
+    prs.append(_pr(4, [_thread("T4", author=HUMAN)], author=HUMAN))
+
+    report = rep.build_report(FakeGraphQL({None: _page(prs)}), "o", "r", {}, NOW)
+
+    assert report["examined"]["pull_requests"] == 4
+    assert report["examined"]["agent_pull_requests"] == 3
+    assert report["examined"]["trailer_pull_requests"] == 3
+    assert report["examined"]["interventions"] == 3
+    assert report["cluster_count"] == 2
 
 
 def test_build_report_finds_a_cluster_at_three_prs() -> None:
@@ -251,6 +330,7 @@ def test_build_report_finds_a_cluster_at_three_prs() -> None:
     }
     assert report["examined"]["pull_requests"] == 3
     assert report["examined"]["agent_pull_requests"] == 3
+    assert report["examined"]["trailer_pull_requests"] == 0
 
 
 def test_build_report_with_two_prs_reports_an_explicit_zero() -> None:

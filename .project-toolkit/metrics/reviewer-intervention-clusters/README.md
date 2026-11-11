@@ -16,10 +16,10 @@ contract, or prompt, and it files no issue (issue #7153).
 ## Cluster definition
 
 This definition was fixed before the first run. Change it only in a reviewed
-pull request that states why, never after reading a result.
+pull request that states why, never to move a count.
 
-- **Agent pull request:** the author is a bot account (`github_core.bot_config.is_bot`), except `dependabot[bot]`.
-- **Intervention:** the first comment of a review thread. The author is a human and is not the pull request author. Later replies do not count.
+- **Agent pull request:** the body carries `Generated with [Claude Code]`, or the author is a bot account (`github_core.bot_config.is_bot`). Dependency bots (dependabot, renovate) are excluded. Agents here open pull requests under the owner's login, so the trailer is the usable marker.
+- **Intervention:** the first comment of a review thread. The author is not a bot. The pull request author is not excluded, because on a trailer pull request the owner is both nominal author and human reviewer. Later replies do not count.
 - **Window:** 90 days. A thread counts when its first comment was created in the trailing 90 days.
 - **Threshold:** 3.
 
@@ -38,9 +38,22 @@ The disposition registry holds no pull request number and no date. Its entries
 cannot join the window or the distinct-pull-request count, so that signal counts
 entries over the whole file. An empty registry gives zero disposition clusters.
 
+## Population correction
+
+The first run used the author login alone to find agent pull requests and
+excluded comments by the pull request author. On 2026-11-10 that read 295
+pull requests of 1621 examined and kept 0 interventions. The filter had
+removed the owner's own pull requests and threads, so the zero measured the
+filter, not the repository. The population above replaces it. Threshold,
+window, signals, and area depth did not change, and no cluster count was
+read before the change.
+
+Known limit: an agent that opens a thread under the owner's login cannot be
+told from the owner. Such a thread counts as an intervention.
+
 ## Reading a result
 
-- `examined` states how much was read: pull requests, agent pull requests, interventions, interventions in the window, dispositions. Zero clusters next to a large `examined` means nothing recurred. Zero next to a small one means little was read.
+- `examined` states how much was read: pull requests, agent pull requests, trailer pull requests, interventions, interventions in the window, dispositions. Zero clusters next to a large `examined` means nothing recurred. Zero next to a small one means little was read.
 - A cluster proves the same marker recurred on three or more pull requests. It does not prove the corrections shared a cause. Read the `evidence` list.
 - An `area` cluster in a busy directory can be volume, not a lesson.
 - A cluster whose fix is skill-shaped routes through a `skill-bootstrap` run. A cluster whose fix is a gate or a contract clause goes to the owner as an issue the owner files.
