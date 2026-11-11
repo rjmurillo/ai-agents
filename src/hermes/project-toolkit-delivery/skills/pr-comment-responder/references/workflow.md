@@ -1,5 +1,7 @@
 # PR Comment Responder Workflow
 
+**Delegation on each host.** "Delegate to the `X` agent" means the host's subagent tool: Claude Code `Task` with `subagent_type="X"`; Copilot CLI `task` with `agent_type="project-toolkit:X"`; Codex `spawn_agent` with `agent_type="X"`; Muse Code `subagent_spawn` with `role="X"`. If the host has no subagent tool, or no `X` agent is installed, run the step yourself in this session.
+
 Full phase-by-phase workflow for PR comment response.
 
 ## Transport (BLOCKING, decided once)
@@ -311,10 +313,9 @@ premise gets `Action: Clarify` and stays open per `reviewer-findings` MUST 4.
 
 For each comment, delegate to orchestrator with full context:
 
-```python
-Task(
-    subagent_type="orchestrator",
-    prompt="""
+Delegate to the `orchestrator` agent with this prompt:
+
+```text
 [Context from Step 3.1]
 
 After analysis, save plan to: `.project-toolkit/pr-comments/PR-[number]/[comment_id]-plan.md`
@@ -328,8 +329,6 @@ Return:
 - Priority: [Critical / Major / Minor / Won't Fix / Question]
 - Action: [Implement / Reply Only / Defer / Clarify]
 - Rationale: [Why this classification]
-""",
-)
 ```
 
 ## Phase 4: Task List Generation
@@ -395,16 +394,13 @@ reviewer answers.
 
 For each task, delegate to orchestrator:
 
-```python
-Task(
-    subagent_type="orchestrator",
-    prompt="""
+Delegate to the `orchestrator` agent with this prompt:
+
+```text
 Implement this PR comment fix:
 [Task details]
 [Comment details]
 [Plan]
-""",
-)
 ```
 
 After implementation:

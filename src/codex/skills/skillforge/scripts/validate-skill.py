@@ -395,7 +395,7 @@ class SkillValidator:
                 "WebSearch",
                 "TodoWrite",
                 "NotebookEdit",
-                "AskUserQuestion",
+                "AskUserQuestion",  # Claude Code tool name
             }
 
         # Check for unknown tools (warning only - custom tools may exist)

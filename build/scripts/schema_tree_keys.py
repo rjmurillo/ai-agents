@@ -76,27 +76,6 @@ def _validate_body_replace(name: str, stanza: dict[str, object]) -> list[str]:
     return errors
 
 
-def _validate_skip_and_format(name: str, stanza: dict[str, object]) -> list[str]:
-    """Check `skipToolRestricted` and `outputFormat` (issue #7226, ADR-115 Decision 7)."""
-    errors: list[str] = []
-    skip = stanza.get("skipToolRestricted")
-    if "skipToolRestricted" in stanza and not isinstance(skip, bool):
-        errors.append(f"`artifacts.{name}.skipToolRestricted`: must be a boolean")
-    elif skip is True and stanza.get("deriveReadonly") is True:
-        errors.append(
-            f"`artifacts.{name}.skipToolRestricted`: cannot combine with `deriveReadonly: true`"
-        )
-    fmt = stanza.get("outputFormat", "markdown")
-    if fmt not in ("markdown", "codex-toml"):
-        errors.append(f"`artifacts.{name}.outputFormat`: must be `markdown` or `codex-toml`")
-    elif fmt == "codex-toml" and stanza.get("frontmatterKeep") != ["name", "description"]:
-        errors.append(
-            f"`artifacts.{name}.outputFormat`: `codex-toml` needs `frontmatterKeep` of exactly "
-            "[name, description]"
-        )
-    return errors
-
-
 def validate_agents_tree_copy(name: str, stanza: dict[str, object]) -> list[str]:
     """Check the agent tree-copy keys (ADR-115 Decision 2).
 
@@ -115,7 +94,6 @@ def validate_agents_tree_copy(name: str, stanza: dict[str, object]) -> list[str]
                 errors.append(f"`artifacts.{name}.{key}`: requires `frontmatterKeep`")
         return errors
     errors.extend(validate_frontmatter_keep(name, stanza))
-    errors.extend(_validate_skip_and_format(name, stanza))
     for required in ("sourceDir", "outputDir"):
         if required not in stanza:
             errors.append(f"`artifacts.{name}.frontmatterKeep`: requires `{required}`")

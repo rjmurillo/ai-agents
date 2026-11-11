@@ -51,11 +51,13 @@ Do NOT invoke for web page performance (that is a different concern).
 
 ## Process
 
+**Asking the user.** "Ask the user" means the host's structured ask tool, at most 3 questions per call: Claude Code `AskUserQuestion`; Muse Code `request_user_input`; Codex `request_user_input` in Plan mode only, never in `codex exec` or a subagent. With no such tool, ask one plain question in chat.
+
 Resolve the driver first. In a repository checkout, use `BENCH="$(git rev-parse --show-toplevel)/.claude/skills/benchmark-models/scripts/model_benchmark.py"`. From an installed skill copy, use the local skill path: `BENCH="$PWD/scripts/model_benchmark.py"` when your shell is in the `benchmark-models` skill directory.
 
 ### Step 1: Pick a prompt and preview auth (dry-run)
 
-Decide the prompt with AskUserQuestion:
+Ask the user to decide the prompt:
 
 - A) Benchmark a skill: pass that skill's `SKILL.md` path as the prompt. To list
   candidates, search the installed skills dir, not just `.` (skills usually live
@@ -86,10 +88,10 @@ per provider. If ALL are NOT READY, STOP: nothing can run. Suggest `claude`,
 
 ### Step 2: Confirm providers and judge
 
-From the dry-run, AskUserQuestion which providers to include (default: all
+From the dry-run, ask the user which providers to include (default: all
 authed). Unauthed providers are skipped cleanly and never abort the batch.
 
-If `ANTHROPIC_API_KEY` is set, AskUserQuestion whether to enable `--judge`
+If `ANTHROPIC_API_KEY` is set, ask the user whether to enable `--judge`
 (quality scoring, ~$0.05). Never auto-enable it; it costs real money. If the key
 is absent, omit `--judge`.
 

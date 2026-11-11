@@ -72,11 +72,13 @@ Print: `PR TYPE: [type]. Running gates: [list].`
 
 Skip non-applicable gates. Do not waste agent invocations on irrelevant dimensions.
 
+**Delegation on each host.** "Delegate to the `X` agent" means the host's subagent tool: Claude Code `Task` with `subagent_type="X"`; Copilot CLI `task` with `agent_type="project-toolkit:X"`; Codex `spawn_agent` with `agent_type="X"`; Muse Code `subagent_spawn` with `role="X"`. If the host has no subagent tool, or no `X` agent is installed, run the step yourself in this session.
+
 ## Gate 1: Functional Testing
 
 Invoke `skill: "code-qualities-assessment"` for quality baseline.
 
-`agent_type: "project-toolkit:qa"`: You are a senior QA engineer. Your job is to catch issues that will cause production incidents. Be skeptical. Cite specific file:line evidence for every finding. Evaluate:
+Delegate to the `qa` agent: You are a senior QA engineer. Your job is to catch issues that will cause production incidents. Be skeptical. Cite specific file:line evidence for every finding. Evaluate:
 
 1. **Unit coverage** - 100% test coverage. Each method in isolation, dependencies injected.
 2. **Integration coverage** - Contracts between components verified. Cross-module boundaries exercised.
@@ -88,7 +90,7 @@ Output: `VERDICT: PASS|WARN|CRITICAL_FAIL` with findings array.
 
 ## Gate 2: Non-Functional Testing
 
-`agent_type: "project-toolkit:analyst"`: You are a performance and reliability engineer. Focus on failure modes, not the happy path. Use measurable criteria, not subjective judgments. Evaluate:
+Delegate to the `analyst` agent: You are a performance and reliability engineer. Focus on failure modes, not the happy path. Use measurable criteria, not subjective judgments. Evaluate:
 
 1. **Performance** - No N+1 queries, no O(n*m) in hot paths, no blocking calls in async context.
 2. **Scalability** - Will this bottleneck under load? Connection pooling, caching strategy, pagination.
@@ -102,7 +104,7 @@ Output: `VERDICT: PASS|WARN|CRITICAL_FAIL` with findings array.
 
 Invoke `skill: "security-scan"` for CWE pattern detection.
 
-`agent_type: "project-toolkit:security"`: You are a security auditor performing OWASP Top 10 review. Assume every input is malicious. Reference CWE numbers for every finding. Evaluate:
+Delegate to the `security` agent: You are a security auditor performing OWASP Top 10 review. Assume every input is malicious. Reference CWE numbers for every finding. Evaluate:
 
 1. **Injection** - Shell (CWE-78), XSS (CWE-79), SQL (CWE-89). No string interpolation in queries.
 2. **Authentication** - Session handling, credential storage, token validation.
@@ -114,7 +116,7 @@ Output: `VERDICT: PASS|WARN|CRITICAL_FAIL` with findings array including CWE ref
 
 ## Gate 4: DevOps Testing
 
-`agent_type: "project-toolkit:devops"`: You are a build and release engineer. Focus on pipeline safety, reproducibility, and supply chain security. Evaluate:
+Delegate to the `devops` agent: You are a build and release engineer. Focus on pipeline safety, reproducibility, and supply chain security. Evaluate:
 
 1. **Pipeline impact** - Do changes affect CI/CD? Are workflow files valid YAML?
 2. **Actions security** - Pinned to SHA? Permissions scoped minimally? No secrets in logs?
@@ -166,7 +168,7 @@ Output: `VERDICT: PASS|WARN|CRITICAL_FAIL|ERROR` with findings array.
 
 ## Gate 6: Observability and Monitoring
 
-`agent_type: "project-toolkit:architect"`: You are an SRE reviewing production readiness. If this code fails at 3am, can oncall diagnose it without reading the source? Evaluate:
+Delegate to the `architect` agent: You are an SRE reviewing production readiness. If this code fails at 3am, can oncall diagnose it without reading the source? Evaluate:
 
 1. **Logging** - Are meaningful events logged? Structured logging with correlation IDs?
 2. **Metrics** - Are SLIs defined for new features? Latency, error rate, throughput tracked?

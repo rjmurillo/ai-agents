@@ -105,6 +105,11 @@ _RULES_CLASS = "rules"
 _LIB_CLASS = "lib"
 _HOOKS_CLASS = "hooks"
 HOOKS_JSON_NAME = "hooks.json"
+# Names the `repo_only` list on the hooks row can never take: each ships or
+# renders on its own path (ADR-109 amendment 2026-11-11).
+_HOOKS_NEVER_REPO_ONLY: frozenset[str] = frozenset(
+    {HOOKS_JSON_NAME, "dispatch_groups.json", "invoke_dispatch_claude.py", "settings.tmpl"}
+)
 
 # Hand-maintained modules that live only in .claude/lib/ (no src/claude/lib
 # counterpart; see .claude/AGENTS.md). The `lib` link row leaves them alone.
@@ -143,6 +148,7 @@ class Row:
     install_tree: Path | None
     compile: str | None = None
     link: bool = False
+    repo_only: frozenset[str] = frozenset()
 
 
 @dataclass
@@ -320,7 +326,79 @@ def _load_one_row(
     compile_name = str(compile_raw) if compile_raw is not None else None
 
     link = _load_link_flag(manifest_path, class_name, entry, plugin_tree, install_tree)
-    return Row(class_name, source, plugin_tree, install_tree, compile_name, link)
+    repo_only = _load_repo_only(manifest_path, class_name, entry, source)
+    return Row(class_name, source, plugin_tree, install_tree, compile_name, link, repo_only)
+
+
+def _repo_only_name_error(source: Path, name: object) -> str | None:
+    """Return why one ``repo_only`` entry is refused, or ``None``.
+
+    An entry is a plain top-level name under the row's ``source``: the
+    ``hooks`` copy row compares only the first path part, so a nested path
+    could never be honored. Separators and dot names are refused outright
+    (CWE-22), and a symlinked entry is refused so the list cannot redirect
+    a render outside ``templates/hooks/`` (CWE-59).
+    """
+    if not isinstance(name, str) or not name.strip():
+        return f"entry {name!r} must be a non-empty string"
+    if name in (".", "..") or "/" in name or "\\" in name:
+        return f"entry {name!r} must be a plain top-level name, not a path or dot name"
+    if name in _HOOKS_NEVER_REPO_ONLY:
+        return f"entry {name!r} must ship or render on its own path and cannot be repo-only"
+    entry_path = source / name
+    if entry_path.is_symlink():
+        return f"entry {name!r} is a symlink, not a real path"
+    if not entry_path.exists():
+        return f"entry {name!r} does not exist under {source}"
+    return None
+
+
+def _load_repo_only(
+    manifest_path: Path,
+    class_name: str,
+    entry: dict[object, object],
+    source: Path,
+) -> frozenset[str]:
+    """Return the row's validated ``repo_only`` names (ADR-109 amendment 2026-11-11).
+
+    Only the ``hooks`` row may carry the field: it names the top-level
+    ``templates/hooks/`` entries that render straight to ``.claude/hooks/``.
+    """
+    if "repo_only" not in entry:
+        return frozenset()
+    where = f"{manifest_path}: row {class_name!r} `repo_only`"
+    if class_name != _HOOKS_CLASS:
+        raise BinplaceConfigError(f"{where} is only valid on the {_HOOKS_CLASS!r} row")
+    raw = entry["repo_only"]
+    if not isinstance(raw, list) or not raw:
+        raise BinplaceConfigError(f"{where} must be a non-empty list of names")
+    seen: set[str] = set()
+    for name in raw:
+        error = _repo_only_name_error(source, name)
+        if error is not None:
+            raise BinplaceConfigError(f"{where}: {error}")
+        if name in seen:
+            raise BinplaceConfigError(f"{where}: duplicate entry {name!r}")
+        seen.add(name)
+    return frozenset(seen)
+
+
+def repo_only_template_files(row: Row) -> list[str]:
+    """Return POSIX paths, relative to ``row.source``, of every repo-only template file.
+
+    A listed directory contributes every file under it (bytecode caches
+    excluded); a listed file contributes itself. Sorted for stable output.
+    """
+    found: list[str] = []
+    for name in sorted(row.repo_only):
+        top = row.source / name
+        paths = sorted(top.rglob("*")) if top.is_dir() else [top]
+        for path in paths:
+            rel = path.relative_to(row.source)
+            if path.is_dir() or is_bytecode_artifact(rel):
+                continue
+            found.append(rel.as_posix())
+    return found
 
 
 def _load_link_flag(
@@ -382,6 +460,7 @@ def claude_allowlist(repo_root: Path) -> set[Path]:
         if row.class_name == _RULES_CLASS:
             # ADR-119 decision 13: rule_templates writes repo-only rules here.
             allow |= {row.install_tree / name for name in _repo_local_names(repo_root, row)}
+        allow |= _repo_only_install_paths(row, row.install_tree)
         if row.link:
             continue
         if row.plugin_tree is None:
@@ -400,6 +479,15 @@ def claude_allowlist(repo_root: Path) -> set[Path]:
     # a hand-protected file would silently stop being tracked as a
     # violation candidate instead of staying protected end to end.
     return {path for path in allow if detect_reason(path) is None}
+
+
+def _repo_only_install_paths(row: Row, install_tree: Path) -> set[Path]:
+    """Install paths ``hook_templates`` writes for the row's ``repo_only`` entries.
+
+    ADR-109 amendment 2026-11-11: those hooks render straight to the install
+    tree, so the write allowlist must name them. Empty for every other row.
+    """
+    return {install_tree / rel for rel in repo_only_template_files(row)}
 
 
 def verified_file_links(repo_root: Path) -> frozenset[Path]:
@@ -551,8 +639,9 @@ def _repo_local_names(repo_root: Path, row: Row) -> frozenset[str]:
     ``.claude/lib`` modules in :data:`REPO_LOCAL_LIB_NAMES` (decision 14).
     Binplace neither links, copies, drift-reports, nor lists those entries as
     unowned. The ``hooks`` row skips ``hooks.json``, which the ``hooks-json``
-    row links (ADR-109 amendment 2026-11-04). Every other row returns the
-    empty set.
+    row links (ADR-109 amendment 2026-11-04), and its ``repo_only`` entries,
+    which ``hook_templates`` renders straight to ``.claude/hooks/`` (amendment
+    2026-11-11). Every other row returns the empty set.
     """
     if row.compile == _SKILLS_COMPILE_DELEGATE:
         return frozenset(repo_local_names(repo_root))
@@ -561,7 +650,7 @@ def _repo_local_names(repo_root: Path, row: Row) -> frozenset[str]:
     if row.class_name == _LIB_CLASS:
         return REPO_LOCAL_LIB_NAMES
     if row.class_name == _HOOKS_CLASS:
-        return frozenset({HOOKS_JSON_NAME})
+        return frozenset({HOOKS_JSON_NAME}) | row.repo_only
     return frozenset()
 
 

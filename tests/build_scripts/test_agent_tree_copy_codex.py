@@ -21,8 +21,6 @@ import agent_toml  # noqa: E402
 import agent_tree_copy as atc  # noqa: E402
 import validate_templates_schema as vts  # noqa: E402
 
-CLAUDE_AGENTS = REPO_ROOT / "src" / "claude" / "agents"
-CODEX_AGENTS = REPO_ROOT / "src" / "codex" / "agents"
 KEYS = ["name", "description", "developer_instructions"]
 
 
@@ -220,15 +218,28 @@ def test_non_string_description_fails_for_toml(tmp_path: Path) -> None:
         _generate(tmp_path)
 
 
-def test_a_skipped_agent_name_mismatch_does_not_fail(tmp_path: Path) -> None:
-    """Only shipped agents are name-checked: a skipped agent produces no file."""
+def test_a_skipped_agent_with_a_mismatched_name_also_fails(tmp_path: Path) -> None:
+    """Every source agent is name-checked, shipped or skipped."""
     _source(tmp_path, "free", _agent("free"))
     _source(tmp_path, "locked", _agent("different", "tools: Read\n"))
-    assert _generate(tmp_path).skipped == ["locked.md"]
+    with pytest.raises(atc.AgentCopyError, match="differs from file stem"):
+        _generate(tmp_path)
 
 
-def test_check_name_matches_stem_returns_the_name() -> None:
-    assert atc._check_name_matches_stem(Path("a.md"), _agent("a")) == "a"
+def test_check_names_match_stems_accepts_matching_names_and_rejects_others() -> None:
+    agent_toml.check_names_match_stems([("a", "a"), ("b", "b")])
+    with pytest.raises(agent_toml.CodexOutputError, match="'x'"):
+        agent_toml.check_names_match_stems([("a", "a"), ("b", "x")])
+    with pytest.raises(agent_toml.CodexOutputError):
+        agent_toml.check_names_match_stems([("a", None)])
+
+
+def test_markdown_format_also_checks_names(tmp_path: Path) -> None:
+    _source(tmp_path, "file-stem", _agent("other"))
+    cfg = _config(tmp_path)
+    cfg.write_text(cfg.read_text().replace("    outputFormat: codex-toml\n", ""))
+    with pytest.raises(atc.AgentCopyError, match="differs from file stem"):
+        atc.generate_agent_copies(tmp_path, cfg)
 
 
 # stanza validation (runtime) -----------------------------------------------------
@@ -251,7 +262,7 @@ def test_unknown_output_format_fails(tmp_path: Path) -> None:
 
 def test_skip_with_derive_readonly_fails(tmp_path: Path) -> None:
     _source(tmp_path, "free", _agent("free"))
-    with pytest.raises(atc.AgentCopyError, match="exclusive"):
+    with pytest.raises(atc.AgentCopyError, match="deriveReadonly"):
         atc.generate_agent_copies(tmp_path, _config(tmp_path, "    deriveReadonly: true\n"))
 
 
@@ -269,16 +280,17 @@ def test_markdown_default_is_unchanged_by_the_new_keys() -> None:
     assert out == "---\nname: a\ndescription: Does a\n---\n\nBody\n"
 
 
-def test_skip_in_markdown_format_appends_the_paragraph() -> None:
-    out = atc.render_agent(
-        _agent("a", body="\nBody\n"),
-        ["name"],
-        derive_readonly_flag=False,
-        source="a.md",
-        skip_tool_restricted=True,
-        appendix=agent_toml.not_installed_paragraph(["z"]),
-    )
+def test_appendix_is_added_to_a_markdown_body() -> None:
+    loaded, body = atc.parse_agent(_agent("a", body="\nBody\n"), "a.md")
+    spec = atc.RenderSpec(["name"], appendix=agent_toml.not_installed_paragraph(["z"]))
+    out = atc.render_parsed(loaded, body, "a.md", spec)
     assert out is not None and out.endswith("say that you did.\n") and "`z`" in out
+
+
+def test_paragraph_adds_the_security_sentence_only_when_security_is_skipped() -> None:
+    with_security = agent_toml.not_installed_paragraph(["analyst", "security"])
+    assert "no security agent reviewed it" in with_security
+    assert "no security agent reviewed it" not in agent_toml.not_installed_paragraph(["analyst"])
 
 
 # schema validation ----------------------------------------------------------------
@@ -336,60 +348,3 @@ def test_schema_accepts_markdown_output_format() -> None:
 def test_schema_codex_toml_needs_exact_keep(keep: list[str]) -> None:
     errors = _errors(_agents(frontmatterKeep=keep, outputFormat="codex-toml"))
     assert any("[name, description]" in e for e in errors)
-
-
-# committed artifacts -------------------------------------------------------------------
-
-
-def _expected_toml(stem: str, restricted: list[str]) -> str:
-    rendered = atc.render_agent(
-        (CLAUDE_AGENTS / f"{stem}.md").read_text(encoding="utf-8"),
-        ["name", "description"],
-        derive_readonly_flag=False,
-        source=stem,
-        skip_tool_restricted=True,
-        appendix=agent_toml.not_installed_paragraph(restricted),
-        output_format=atc.FORMAT_CODEX_TOML,
-    )
-    assert rendered is not None
-    return rendered
-
-
-def _restricted_stems() -> list[str]:
-    sources = [p for p in sorted(CLAUDE_AGENTS.glob("*.md")) if p.name not in atc._DEFAULT_EXCLUDES]
-    return atc._tool_restricted_stems(sources)
-
-
-def _committed() -> list[Path]:
-    return sorted(CODEX_AGENTS.glob("*.toml"))
-
-
-def test_committed_files_exist_and_skip_exactly_the_tool_restricted_agents() -> None:
-    restricted = _restricted_stems()
-    assert restricted, "no tool-restricted agent found: the skip rule is untested"
-    sources = {p.stem for p in CLAUDE_AGENTS.glob("*.md") if p.name not in atc._DEFAULT_EXCLUDES}
-    assert {p.stem for p in _committed()} == sources - set(restricted)
-
-
-@pytest.mark.parametrize("path", _committed(), ids=lambda p: p.stem)
-def test_committed_toml_matches_the_generator_output(path: Path) -> None:
-    parsed = tomllib.loads(path.read_text(encoding="utf-8"))
-    assert list(parsed) == KEYS
-    assert parsed["name"] == path.stem
-    expected = tomllib.loads(_expected_toml(path.stem, _restricted_stems()))
-    assert parsed["developer_instructions"] == expected["developer_instructions"]
-    assert path.read_text(encoding="utf-8") == _expected_toml(path.stem, _restricted_stems())
-
-
-def test_committed_bodies_name_every_skipped_agent() -> None:
-    restricted = _restricted_stems()
-    for path in _committed():
-        body = tomllib.loads(path.read_text(encoding="utf-8"))["developer_instructions"]
-        assert all(f"`{stem}`" in body for stem in restricted), path.name
-
-
-def test_a_tampered_committed_file_would_fail_the_comparison(tmp_path: Path) -> None:
-    """Negative control: the comparison above detects an edited body."""
-    path = _committed()[0]
-    tampered = path.read_text(encoding="utf-8").replace("\\n", "\\n ", 1)
-    assert tampered != _expected_toml(path.stem, _restricted_stems())

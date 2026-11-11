@@ -1,5 +1,7 @@
 # ADR Deletion Workflow
 
+**Delegation on each host.** "Delegate to the `X` agent" means the host's subagent tool: Claude Code `Task` with `subagent_type="X"`; Copilot CLI `task` with `agent_type="project-toolkit:X"`; Codex `spawn_agent` with `agent_type="X"`; Muse Code `subagent_spawn` with `role="X"`. If the host has no subagent tool, or no `X` agent is installed, run the step yourself in this session.
+
 When an ADR file is deleted, this skill triggers a special workflow.
 
 ## Phase D1: Deletion Detection
@@ -18,10 +20,9 @@ uv run python .claude/skills/adr-review/scripts/detect_adr_changes.py
 
 Invoke analyst to assess deletion impact:
 
-```python
-Task(
-    subagent_type="analyst",
-    prompt="""
+Delegate to the `analyst` agent with this prompt:
+
+```text
 ADR Deletion Impact Assessment
 
 ## Deleted ADR
@@ -46,8 +47,6 @@ Status: {last_known_status}
 - **Archive**: Keep copy in `.project-toolkit/architecture/archive/`
 - **Delete**: No dependencies, safe to remove
 - **Block**: Active dependencies require resolution first
-""",
-)
 ```
 
 ## Phase D3: Archival Decision
