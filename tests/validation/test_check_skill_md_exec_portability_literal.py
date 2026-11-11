@@ -6,6 +6,7 @@ A shipped instruction must not run a script through a literal ``.claude/skills``
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -184,7 +185,10 @@ class TestScanLiteralPluginPaths:
         repo = tmp_path / "repo"
         _skill(repo, "demo", "clean\n")
         (repo / "src/claude/agents").mkdir(parents=True)
-        (repo / "src/claude/agents/leak.md").symlink_to(outside / "leak.md")
+        try:
+            (repo / "src/claude/agents/leak.md").symlink_to(outside / "leak.md")
+        except (OSError, NotImplementedError):
+            pytest.skip("symlink creation unavailable on this platform (issue #7226)")
         with pytest.raises(OSError, match="outside the repository root"):
             cep.scan_literal_plugin_paths(repo)
 
@@ -234,6 +238,55 @@ class TestMainExitCode:
         rel = ".claude/skills/demo/SKILL.md"
         baseline.write_text(f'{{"files": {{"{rel}": 5}}, "marker_files": {{}}}}', encoding="utf-8")
         assert cep.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)]) == 1
+
+
+class TestJsonAndUpdateBaseline:
+    def _hit(self, root: Path) -> Path:
+        _skill(root, "demo", "python3 .claude/skills/demo/scripts/x.py\n")
+        _seed(root)
+        baseline = root / "baseline.json"
+        baseline.write_text('{"files": {}, "marker_files": {}}', encoding="utf-8")
+        return baseline
+
+    def test_json_output_is_one_document_that_carries_literal_hits(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture
+    ) -> None:
+        baseline = self._hit(tmp_path)
+        rc = cep.main(
+            ["--repo-root", str(tmp_path), "--baseline", str(baseline), "--output-format", "json"]
+        )
+        report = json.loads(capsys.readouterr().out)
+        assert rc == 1
+        assert report["literal_examined"] == 1
+        assert report["literal"] == [
+            ".claude/skills/demo/SKILL.md:4: .claude/skills/demo/scripts/x.py"
+        ]
+
+    def test_json_output_for_a_clean_tree_is_valid_json(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture
+    ) -> None:
+        _skill(tmp_path, "demo", f"python3 {_PORTABLE}\n")
+        _seed(tmp_path)
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text('{"files": {}, "marker_files": {}}', encoding="utf-8")
+        rc = cep.main(
+            ["--repo-root", str(tmp_path), "--baseline", str(baseline), "--output-format", "json"]
+        )
+        report = json.loads(capsys.readouterr().out)
+        assert rc == 0
+        assert report["literal"] == []
+
+    def test_update_baseline_refuses_while_a_literal_path_exists(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture
+    ) -> None:
+        baseline = self._hit(tmp_path)
+        before = baseline.read_text(encoding="utf-8")
+        rc = cep.main(
+            ["--repo-root", str(tmp_path), "--baseline", str(baseline), "--update-baseline"]
+        )
+        assert rc == 1
+        assert baseline.read_text(encoding="utf-8") == before
+        assert "[LITERAL] .claude/skills/demo/SKILL.md:4" in capsys.readouterr().out
 
 
 class TestCommittedTree:

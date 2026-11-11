@@ -602,6 +602,8 @@ def _print_report(
     dangling: list[tuple[str, str]],
     current: dict[str, int],
     baseline: dict[str, int],
+    literal: list[str],
+    literal_examined: int,
 ) -> None:
     if output_format == "json":
         print(
@@ -612,6 +614,8 @@ def _print_report(
                     "current_total": sum(current.values()),
                     "baseline_total": sum(baseline.values()),
                     "dangling": dangling,
+                    "literal": literal,
+                    "literal_examined": literal_examined,
                 },
                 indent=2,
             )
@@ -681,6 +685,13 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     if args.update_baseline:
+        # The literal check has no baseline, so a rewrite cannot absorb a hit.
+        if literal:
+            if args.output_format == "json":
+                _print_report("json", [], [], [], current, {}, literal, literal_examined)
+            else:
+                _print_literal(literal, literal_examined)
+            return 1
         if refuse_unsafe_baseline_write(
             root,
             scanned_by_root,
@@ -712,8 +723,18 @@ def main(argv: list[str] | None = None) -> int:
     marker_regressions, marker_improvements = diff_marker_baseline(marker_current, marker_baseline)
     regressions.extend(marker_regressions)
     improvements.extend(marker_improvements)
-    _print_report(args.output_format, regressions, improvements, dangling, current, baseline)
-    _print_literal(literal, literal_examined)
+    _print_report(
+        args.output_format,
+        regressions,
+        improvements,
+        dangling,
+        current,
+        baseline,
+        literal,
+        literal_examined,
+    )
+    if args.output_format != "json":
+        _print_literal(literal, literal_examined)
 
     return 1 if (regressions or dangling or literal) else 0
 
