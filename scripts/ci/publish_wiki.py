@@ -69,6 +69,11 @@ CODE_SPAN_RE = re.compile(r"(`+[^`\n]*`+)")
 FENCE_RE = re.compile(r"^\s{0,3}(```|~~~)")
 
 
+def safe(text: str) -> str:
+    """Neutralize text before it reaches a log line: no workflow commands, no line breaks."""
+    return text.replace("::", ":\u200b:").replace("\n", "\\n").replace("\r", "\\r")
+
+
 class SourceError(Exception):
     """The source tree cannot be mirrored faithfully (exit 1)."""
 
@@ -104,13 +109,15 @@ def rewrite_target(
     path, query_sep, query = path.partition("?")
     resolved = posixpath.normpath(posixpath.join(SOURCE_DIR, path))
     if resolved == ".." or resolved.startswith("../") or posixpath.isabs(resolved):
-        raise SourceError(f"link leaves the repository: {target}")
+        raise SourceError(f"link leaves the repository: {safe(target)}")
     parent, base = posixpath.split(resolved)
     if parent == SOURCE_DIR and base in published:
         return published[base] + hash_ + frag
     on_disk = repo_root / resolved
     if not on_disk.exists():
-        raise SourceError(f"link target does not exist: {target} (resolved {resolved})")
+        raise SourceError(f"link target does not exist: {safe(target)} (resolved {safe(resolved)})")
+    if not on_disk.resolve().is_relative_to(repo_root.resolve()):
+        raise SourceError(f"link target resolves outside the repository: {safe(target)}")
     kind = "tree" if on_disk.is_dir() else "blob"
     url = f"{repo_url}/{kind}/{BRANCH}/{resolved}"
     if image and kind == "blob":
@@ -179,16 +186,19 @@ def first_heading(text: str, fallback: str) -> str:
 
 def classify_entry(entry: Path) -> tuple[str | None, str | None]:
     """Return (published name, problem) for one source entry. ``(None, None)`` skips it."""
+    label = safe(entry.name)
+    if entry.is_symlink():
+        return None, f"{label}: symbolic links are not allowed, the publisher would follow them"
     if entry.is_dir():
-        return None, f"{entry.name}/: sub-directories are not allowed, the wiki is flat"
+        return None, f"{label}/: sub-directories are not allowed, the wiki is flat"
     if entry.name.startswith("_"):
         return None, None
     if entry.name == "README.md":
         return entry.name, None
     if entry.suffix != ".md":
-        return None, f"{entry.name}: only .md files may live here"
+        return None, f"{label}: only .md files may live here"
     if not NAME_RE.match(entry.name):
-        return None, f"{entry.name}: use kebab-case, lowercase letters, digits, hyphens"
+        return None, f"{label}: use kebab-case, lowercase letters, digits, hyphens"
     return entry.name, None
 
 
@@ -233,7 +243,7 @@ def build_plan(source: Path, repo_root: Path, repo_url: str) -> Plan:
     if orphans:
         raise SourceError(
             "pages on disk that README.md does not link: "
-            + ", ".join(orphans)
+            + ", ".join(safe(o) for o in orphans)
             + ". Add each to the index so the sidebar lists it."
         )
     files: dict[str, str] = {}
@@ -300,7 +310,11 @@ def classify_failure(stderr: str) -> str:
 
 
 def redact(text: str, token: str | None) -> str:
-    return text.replace(token, "***") if token else text
+    """Mask the token and the base64 credential git sends in the auth header."""
+    if not token:
+        return text
+    creds = base64.b64encode(f"x-access-token:{token}".encode()).decode()
+    return text.replace(creds, "***").replace(token, "***")
 
 
 def summary(line: str, environ: Mapping[str, str]) -> None:
@@ -316,7 +330,10 @@ def apply_plan(plan: Plan, wiki: Path) -> None:
     for stale in sorted(p for p in wiki.glob("*.md") if p.name not in plan.files):
         stale.unlink()
     for name, content in plan.files.items():
-        (wiki / name).write_text(content, encoding="utf-8", newline="\n")
+        target = wiki / name
+        if target.is_symlink():
+            target.unlink()  # never write through a link a wiki committer planted
+        target.write_text(content, encoding="utf-8", newline="\n")
 
 
 @dataclass(frozen=True)
@@ -364,7 +381,11 @@ def clone_wiki(
     cfg: Config, wiki: Path, env: Mapping[str, str], environ: Mapping[str, str]
 ) -> int | None:
     """Clone the wiki into ``wiki``. Return an exit code to stop, or None to continue."""
-    clone = run_git(["clone", "--quiet", "--depth", "1", cfg.wiki_url, str(wiki)], None, env)
+    clone = run_git(
+        ["-c", "core.symlinks=false", "clone", "--quiet", "--depth", "1", cfg.wiki_url, str(wiki)],
+        None,
+        env,
+    )
     if clone.returncode == 0:
         return None
     kind = classify_failure(clone.stderr)
@@ -376,7 +397,8 @@ def clone_wiki(
         return EXIT_EXTERNAL
     note = (
         "SKIP: the wiki repo does not exist yet. A person must create the first page once "
-        "in the GitHub UI (Wiki tab, Create the first page). Nothing was published."
+        "in the GitHub UI (Wiki tab, Create the first page). GitHub gives the same answer "
+        "when the credential cannot see the repository. Nothing was published."
     )
     if not cfg.dry:
         summary(note, environ)
@@ -420,7 +442,7 @@ def sync(cfg: Config, plan: Plan, environ: Mapping[str, str]) -> int:
         if stop is not None:
             return stop
         apply_plan(plan, wiki)
-        run_git(["add", "-A"], wiki, env)
+        run_git(["add", "-A", "-f"], wiki, env)
         diff = run_git(["diff", "--cached", "--name-status"], wiki, env).stdout
         changes = [ln for ln in diff.splitlines() if ln.strip()]
         pages = len(plan.files)

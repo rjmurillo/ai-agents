@@ -15,6 +15,7 @@ deletion, and idempotence are real git operations. No test reaches the network.
 
 from __future__ import annotations
 
+import base64
 import shutil
 import subprocess
 from collections.abc import Mapping, Sequence
@@ -377,3 +378,50 @@ def test_token_never_reaches_output(
     assert run_main(repo, wiki, env={"WIKI_TOKEN": "s3cret-token"}) == 4
     captured = capsys.readouterr()
     assert "s3cret-token" not in captured.out + captured.err
+
+
+# --- hostile wiki ------------------------------------------------------------------
+
+
+def seed_wiki_change(wiki: Path, tmp_path: Path, change: str) -> None:
+    """Push one extra commit to the wiki. ``change`` names the hostile setup."""
+    work = tmp_path / "hostile"
+    git(["clone", "-q", str(wiki), str(work)], tmp_path)
+    if change == "home-symlink":
+        (work / "Home.md").unlink()
+        (work / "Home.md").symlink_to(tmp_path / "victim.txt")
+    if change == "gitignore":
+        write(work, ".gitignore", "*.md\n")
+        write(work, "Home.md", "hand made\n")
+    git(["add", "-A", "-f"], work)
+    git(["commit", "-qm", change], work)
+    git(["push", "-q", "origin", "HEAD:main"], work)
+
+
+def test_wiki_side_symlink_is_not_written_through(repo: Path, wiki: Path, tmp_path: Path) -> None:
+    victim = tmp_path / "victim.txt"
+    victim.write_text("keep me\n", encoding="utf-8")
+    seed_wiki_change(wiki, tmp_path, "home-symlink")
+    assert run_main(repo, wiki) == 0
+    assert victim.read_text(encoding="utf-8") == "keep me\n"
+    assert wiki_files(wiki, tmp_path)["Home.md"].startswith(
+        "> **This wiki is a read-only mirror.**"
+    )
+
+
+def test_wiki_gitignore_cannot_hide_new_pages(repo: Path, wiki: Path, tmp_path: Path) -> None:
+    seed_wiki_change(wiki, tmp_path, "gitignore")
+    assert run_main(repo, wiki) == 0
+    assert "first-page.md" in wiki_files(wiki, tmp_path)
+
+
+def test_redact_masks_the_base64_credential_too() -> None:
+    creds = base64.b64encode(b"x-access-token:s3cret").decode()
+    assert pw.redact(f"header {creds} and s3cret", "s3cret") == "header *** and ***"
+
+
+def test_symlinked_source_page_exits_1(repo: Path, wiki: Path, tmp_path: Path) -> None:
+    (repo / "docs/training/leak.md").symlink_to(tmp_path / "victim.txt")
+    before = commit_count(wiki)
+    assert run_main(repo, wiki) == 1
+    assert commit_count(wiki) == before

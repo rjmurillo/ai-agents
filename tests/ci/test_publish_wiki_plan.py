@@ -110,3 +110,47 @@ def test_real_training_tree_plans_cleanly() -> None:
     plan = pw.build_plan(root / pw.SOURCE_DIR, root, REPO_URL)
     assert "Home.md" in plan.files
     assert "_template.md" not in plan.files
+
+
+# --- hostile trees ---------------------------------------------------------------
+
+
+def test_symlinked_page_is_rejected(repo: Path, tmp_path: Path) -> None:
+    secret = tmp_path / "secret.txt"
+    secret.write_text("token\n", encoding="utf-8")
+    (repo / "docs/training/leak.md").symlink_to(secret)
+    with pytest.raises(pw.SourceError, match="symbolic links are not allowed"):
+        plan_for(repo)
+
+
+def test_symlinked_directory_is_rejected(repo: Path, tmp_path: Path) -> None:
+    (repo / "docs/training/dir").symlink_to(tmp_path)
+    with pytest.raises(pw.SourceError, match="symbolic links are not allowed"):
+        plan_for(repo)
+
+
+def test_link_through_a_symlink_that_leaves_the_repo_is_rejected(
+    repo: Path, tmp_path: Path
+) -> None:
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "data.txt").write_text("x\n", encoding="utf-8")
+    (repo / "docs/assets/out").symlink_to(outside)
+    write(repo, "docs/training/first-page.md", "# F\n\n[x](../assets/out/data.txt)\n")
+    with pytest.raises(pw.SourceError, match="resolves outside the repository"):
+        plan_for(repo)
+
+
+def test_workflow_command_in_a_file_name_is_neutralized(repo: Path) -> None:
+    write(repo, "docs/training/::add-mask::x.md", "# x\n")
+    with pytest.raises(pw.SourceError) as raised:
+        plan_for(repo)
+    assert "::" not in str(raised.value)
+    assert "add-mask" in str(raised.value)
+
+
+def test_safe_removes_double_colons_and_line_breaks() -> None:
+    cleaned = pw.safe("a::b\nc\rd")
+    assert "::" not in cleaned
+    assert "\n" not in cleaned
+    assert "\r" not in cleaned
