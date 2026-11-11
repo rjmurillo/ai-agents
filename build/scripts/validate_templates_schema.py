@@ -67,6 +67,7 @@ AGENTS_KEYS = {
     "excludeFilenames",
     "frontmatterKeep",
     "deriveReadonly",
+    "bodyReplace",
 }
 SKILLS_KEYS = {
     "sourceDir",
