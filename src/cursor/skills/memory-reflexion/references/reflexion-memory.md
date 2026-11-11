@@ -405,7 +405,7 @@ before the discontinuation, or cherry-picked from an older one):
 ## Session End (BLOCKING)
 
 - [ ] Update the per-issue handoff
-- [ ] Extract episode if a session log exists: `.claude/skills/memory/scripts/extract_session_episode.py`
+- [ ] Extract episode if a session log exists: `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py"`
 - [ ] Update Serena memory
 - [ ] Commit all changes (including .project-toolkit/memory/episodes/)
 ```

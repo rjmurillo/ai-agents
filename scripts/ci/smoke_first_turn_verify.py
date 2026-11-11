@@ -29,11 +29,16 @@ def run(_argv: list[str] | None = None) -> int:
     demo_path = Path(demo)
     claude_dir = demo_path / ".claude"
 
+    # lib/ is deliberately absent from this list: skill scripts need it
+    # (ADR-047), and smoke_assert_vendored_tree.py asserts it is present.
+    # CLAUDE.md and AGENTS.md under .claude/ are this repository's maintainer
+    # instructions; Claude Code would load them in every consumer session.
     banned: list[Path] = [
         claude_dir / "hooks",
-        claude_dir / "lib",
         claude_dir / "settings.json",
         claude_dir / "skills" / "github",
+        claude_dir / "CLAUDE.md",
+        claude_dir / "AGENTS.md",
     ]
 
     present: list[str] = [str(p) for p in banned if p.exists()]
