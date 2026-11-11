@@ -27,6 +27,15 @@ PARAGRAPH = (
     "in this session and say that you did. "
     "If the step is a security review, state that no security agent reviewed it.\n"
 )
+# Edits templates/platforms/codex.yaml makes to orchestrator.md: the rows for agents
+# Codex does not install go, and the delegation tool is spawn_agent.
+BODY_EDITS = {
+    "orchestrator": [
+        ("| **analyst** | Research, root cause, feasibility | Already have enough context |\n", ""),
+        ("| **security** | Threat modeling, vulnerability review | Pure performance work |\n", ""),
+        ("Task (for delegation)", "spawn_agent (for delegation)"),
+    ]
+}
 _FRONTMATTER = re.compile(r"\A---\n(.*?)\n---\n(.*)\Z", re.DOTALL)
 _EXCLUDED = {"AGENTS.md", "CLAUDE.md"}
 
@@ -52,6 +61,8 @@ def _committed() -> list[Path]:
 def problems_with(stem: str, committed_text: str) -> list[str]:
     """Differences between a committed file's text and what the source should produce."""
     front, body = _read_source(stem)
+    for old, new in BODY_EDITS.get(stem, []):
+        body = body.replace(old, new)
     try:
         parsed = tomllib.loads(committed_text)
     except tomllib.TOMLDecodeError as exc:
@@ -100,3 +111,19 @@ def test_a_tampered_temp_copy_fails_the_real_comparison(tamper, tmp_path: Path) 
     copy.write_text(tamper(source.read_text(encoding="utf-8")), encoding="utf-8")
     assert problems_with(source.stem, copy.read_text(encoding="utf-8")) != []
     assert problems_with(source.stem, source.read_text(encoding="utf-8")) == []
+
+
+def test_orchestrator_names_no_agent_that_is_not_installed() -> None:
+    """The edited orchestrator must not route to a skipped agent or to Claude's Task tool."""
+    text = tomllib.loads((CODEX_AGENTS / "orchestrator.toml").read_text(encoding="utf-8"))
+    table = text["developer_instructions"].split("Every row above")[0]
+    assert "| **analyst** |" not in table and "| **security** |" not in table
+    assert "Task (for delegation)" not in text["developer_instructions"]
+    assert "spawn_agent (for delegation)" in text["developer_instructions"]
+
+
+def test_the_row_edits_are_load_bearing() -> None:
+    """Negative control: the unedited source still names the skipped agents."""
+    _, body = _read_source("orchestrator")
+    assert "| **analyst** |" in body and "| **security** |" in body
+    assert "Task (for delegation)" in body
