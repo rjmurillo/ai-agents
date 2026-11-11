@@ -36,13 +36,46 @@ class TestRun:
         with patch.dict(os.environ, {"DEMO": str(demo)}):
             assert run() == 1
 
-    def test_lib_dir_present_returns_1(self, tmp_path: Path) -> None:
+    def test_lib_dir_present_returns_0(self, tmp_path: Path) -> None:
+        # Skill scripts import from <root>/lib (ADR-047), so it must ship.
         demo = tmp_path / "demo"
         claude = demo / ".claude"
         (claude / "lib").mkdir(parents=True)
+        (claude / "lib" / "paths.py").write_text("x = 1\n")
+
+        with patch.dict(os.environ, {"DEMO": str(demo)}):
+            assert run() == 0
+
+    @pytest.mark.parametrize("name", ["CLAUDE.md", "AGENTS.md"])
+    def test_maintainer_instructions_present_returns_1(
+        self, tmp_path: Path, name: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        demo = tmp_path / "demo"
+        claude = demo / ".claude"
+        claude.mkdir(parents=True)
+        (claude / name).write_text("maintainer")
 
         with patch.dict(os.environ, {"DEMO": str(demo)}):
             assert run() == 1
+        assert f"excluded path vendored: {claude / name}" in capsys.readouterr().out
+
+    def test_skill_level_claude_md_is_allowed(self, tmp_path: Path) -> None:
+        demo = tmp_path / "demo"
+        skill = demo / ".claude" / "skills" / "memory"
+        skill.mkdir(parents=True)
+        (skill / "CLAUDE.md").write_text("skill-level")
+
+        with patch.dict(os.environ, {"DEMO": str(demo)}):
+            assert run() == 0
+
+    def test_project_root_claude_md_is_allowed(self, tmp_path: Path) -> None:
+        # The CLI merges its block into <project>/CLAUDE.md; only .claude/CLAUDE.md is banned.
+        demo = tmp_path / "demo"
+        (demo / ".claude").mkdir(parents=True)
+        (demo / "CLAUDE.md").write_text("consumer")
+
+        with patch.dict(os.environ, {"DEMO": str(demo)}):
+            assert run() == 0
 
     def test_settings_json_present_returns_1(self, tmp_path: Path) -> None:
         demo = tmp_path / "demo"
