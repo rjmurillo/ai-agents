@@ -15,6 +15,7 @@ import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -122,8 +123,8 @@ class _World:
 
 @pytest.fixture
 def make_world(monkeypatch: pytest.MonkeyPatch) -> Callable[..., _World]:
-    def build(**replies: object) -> _World:
-        fake = _World(**replies)  # type: ignore[arg-type]
+    def build(**replies: Any) -> _World:
+        fake = _World(**replies)
         monkeypatch.setattr(subprocess, "run", fake)
         return fake
 
