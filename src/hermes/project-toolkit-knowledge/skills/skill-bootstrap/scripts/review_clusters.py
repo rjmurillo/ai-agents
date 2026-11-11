@@ -26,18 +26,17 @@ Population (shared by every consumer so counts agree)
     in a thread is not a new intervention. Callers resolve bot status
     themselves and pass it in, so this module needs no host library.
     Known limit: an agent that opens a thread under the owner's login cannot
-    be told from the owner. On 2026-11-11 every counted thread (755 of 755)
-    was opened under the pull request author's login, so no cluster is shown
-    to rest on a correction by a different human.
+    be told from the owner. When every counted thread was opened under the
+    pull request author's login, no cluster is shown to rest on a correction
+    by a different human, and the clusters count repeated review findings
+    under that login, not proven human corrections.
     History: the signals, threshold, window, and area depth were fixed before
     the first run. The population was corrected three times afterward, each
     time for measurement validity and not to move a count: the first run read
     0 interventions because the filter matched author logins and dropped the
     pull request author's own threads; a security review then added the
     commenter standing check, and a second review added the pull request
-    author standing check and the GraphQL ``Bot`` typing. The count was 36
-    clusters from 755 interventions before and after the second and third
-    corrections.
+    author standing check and the GraphQL ``Bot`` typing.
 
 Signals (all explicit)
     rule         A rule citation in the comment body: ``ADR-NNN``, or a

@@ -83,6 +83,15 @@ the whole population: no cluster is shown to rest on a correction by a different
 human, and the report counts owner-login threads on agent pull requests without
 proving a human wrote each one.
 
+A sample read on 2026-11-11 points the other way. Of the 106 interventions on
+pull requests updated in the six days to that date, 30 drawn at random were long,
+structured findings with file and line references and exact quotes of the diff.
+That is consistent with agent-written review posted under the owner's login, and
+the API does not say who typed them. Read the clusters as repeated review
+findings under the owner's login. Do not read them as proven human corrections
+until a signal separates the two, such as a distinct agent account or a marker on
+the comment.
+
 ## Reading a result
 
 - `examined` states how much was read: pull requests, agent pull requests, trailer pull requests, interventions, interventions in the window, dispositions, and the filter funnel (`threads_seen`, `threads_without_comments`, `threads_excluded_bot_or_unknown`, `threads_excluded_no_standing`, `interventions_by_pr_author`, `duplicate_pull_requests_skipped`). Zero clusters next to a large `examined` means nothing recurred. Zero next to a small one means little was read. A jump in a funnel count explains a jump in the result.

@@ -39,7 +39,7 @@
     {"count": 3, "evidence": [{"pr": 6351, "threads": ["PRRT_kwDOQoWRls6rdQPJ"]}, {"pr": 6362, "threads": ["PRRT_kwDOQoWRls6rfTLN"]}, {"pr": 6445, "threads": ["PRRT_kwDOQoWRls6ryj1-"]}], "key": "rules/universal", "signal": "rule", "unit": "pull_request"},
     {"count": 3, "evidence": [{"pr": 6445, "threads": ["PRRT_kwDOQoWRls6ryj1g"]}, {"pr": 7134, "threads": ["PRRT_kwDOQoWRls60xUun"]}, {"pr": 7141, "threads": ["PRRT_kwDOQoWRls60yn4o"]}], "key": "rules/voice", "signal": "rule", "unit": "pull_request"}
   ],
-  "examined": {"agent_pull_requests": 1037, "dispositions": 0, "duplicate_pull_requests_skipped": 0, "interventions": 755, "interventions_by_pr_author": 755, "interventions_in_window": 755, "pull_requests": 1641, "threads_excluded_bot_or_unknown": 2409, "threads_excluded_no_standing": 0, "threads_seen": 3164, "threads_without_comments": 0, "trailer_pull_requests": 1024},
+  "examined": {"agent_pull_requests": 1037, "dispositions": 0, "duplicate_pull_requests_skipped": 0, "interventions": 755, "interventions_by_pr_author": 755, "interventions_in_window": 755, "pull_requests": 1641, "threads_excluded_bot_or_unknown": 2412, "threads_excluded_no_standing": 0, "threads_seen": 3167, "threads_without_comments": 0, "trailer_pull_requests": 1024},
   "repository": "rjmurillo/ai-agents",
   "threshold": 3,
   "window_days": 90
