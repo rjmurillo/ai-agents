@@ -13,10 +13,11 @@ ADR-113 decision 5 and Resolved Question 2, issue #5636. Quoted from
 
 Two routes reach ``publish.yml``:
 
-- ``workflow_dispatch`` on the default branch, with ``dry-run`` and an optional
-  release tag. This route is live. The candidate is the run commit, the head of
-  the default branch. A real publish (``dry-run`` false) runs the gate in
-  enforcing mode, and a dry run runs it advisory.
+- ``workflow_dispatch`` on the default branch, with ``dry-run`` and a release tag.
+  The tag is optional for a dry run and required for a real publish. This route is
+  live. The candidate is the run commit, the head of the default branch. A real
+  publish (``dry-run`` false) runs the gate in enforcing mode, and a dry run runs
+  it advisory.
 
 Different than canonical: decision 5 says the entry point "takes the candidate
 SHA as input". This one does not. A candidate that an input chose would have to
@@ -122,11 +123,16 @@ def decide_route(
         raise RouteRefusedError(f"event {event!r} cannot publish", EXIT_CONFIG)
     if not _BRANCH_RE.fullmatch(default_branch) or ref != f"refs/heads/{default_branch}":
         raise RouteRefusedError("publish runs only from the default branch")
-    return RouteDecision(
+    decision = RouteDecision(
         candidate_sha=_run_commit(run_sha),
         release_tag=_release_tag(release_tag_input),
         dry_run=_dry_run(dry_run_input),
     )
+    if not decision.dry_run and not decision.release_tag:
+        # Without a tag the tag-version check has nothing to compare, so a stale
+        # package.json version would publish unnoticed (issue #7217).
+        raise RouteRefusedError("a real publish needs release-tag, such as v1.2.3", EXIT_CONFIG)
+    return decision
 
 
 def package_version(package_dir: Path) -> str:

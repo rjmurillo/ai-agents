@@ -295,10 +295,19 @@ def test_block_scalar_text_does_not_corrupt_the_allowance_key(
     assert used == {key}
 
 
-def test_allowance_does_not_cover_a_new_key_for_the_same_script(tmp_path: Path) -> None:
+def test_allowance_does_not_cover_a_new_key_for_the_same_script(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # The allowed claude_code entry stays quiet; the same bare call under a
     # new key is reported, so an allowance cannot absorb a new regression.
     script = ".claude/skills/github/scripts/pr/get_pr_context.py"
+    key = (
+        "skills/pr-review/pr-review-config.yaml",
+        "scripts.claude_code.get_pr_context",
+        "bare-path",
+        "skills/github/scripts/pr/get_pr_context.py",
+    )
+    monkeypatch.setattr(checker, "_YAML_ALLOWANCES", {key: "test reason"})
     config = (
         "scripts:\n"
         "  claude_code:\n"

@@ -32,9 +32,14 @@ function shouldExclude(name: string, depth: number): boolean {
 // Context for one bundle run. `allowedRoot` bounds every followed link;
 // `ancestors` holds the realpaths of the directories on the current path, so a
 // link back to one of them is refused instead of recursing until ELOOP (CWE-835).
+//
+// `linkedOnly` ships symlinked files and drops real ones. In .claude/rules a link
+// into src/claude/rules is a shipped rule and a real file is a repository-only
+// rule (ADR-119), so the link structure decides, not a list of names (#7275).
 export interface CopyContext {
   allowedRoot: string;
   ancestors: string[];
+  linkedOnly?: boolean;
 }
 
 // .claude/agents/<name>.md and each shipped .claude/skills/<name> are relative
@@ -94,8 +99,10 @@ export async function copyTree(src: string, dest: string, depth: number, ctx: Co
     const destPath = join(dest, entry.name);
 
     if (await isDirectoryEntry(srcPath, entry, ctx)) {
-      count += await copyTree(srcPath, destPath, depth + 1, inner);
+      const childCtx = depth === 0 && entry.name === "rules" ? { ...inner, linkedOnly: true } : inner;
+      count += await copyTree(srcPath, destPath, depth + 1, childCtx);
     } else {
+      if (ctx.linkedOnly && !entry.isSymbolicLink()) continue;
       const dir = dirname(destPath);
       await mkdir(dir, { recursive: true });
       if (entry.isSymbolicLink()) await assertInsideRoot(srcPath, ctx);

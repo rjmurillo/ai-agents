@@ -15,7 +15,7 @@ import { MarkerBlockError } from "./target/append-marker-block.js";
 import { makePackFilter, knownPacks, parsePacks } from "./packs.js";
 import { TARGETS, type Target, type TargetContext } from "./types.js";
 
-const VERSION = "0.1.0";
+const VERSION = "0.7.0";
 const DEFAULT_TARGET: Target = "claude";
 
 export interface RunInitOptions {
