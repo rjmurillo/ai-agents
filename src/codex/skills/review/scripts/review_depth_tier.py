@@ -240,7 +240,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Iterable[str] | None = None, stdin: str | None = None) -> int:
     args = _build_parser().parse_args(list(argv) if argv is not None else None)
-    diff_text = sys.stdin.read() if stdin is None else stdin
+    # Source files in a diff may not be UTF-8; count them instead of crashing.
+    diff_text = (
+        sys.stdin.buffer.read().decode("utf-8", errors="replace") if stdin is None else stdin
+    )
     if not any(_DIFF_HEADER.match(line) for line in diff_text.splitlines()):
         print("review_depth_tier: no 'diff --git' headers on stdin", file=sys.stderr)
         return 2

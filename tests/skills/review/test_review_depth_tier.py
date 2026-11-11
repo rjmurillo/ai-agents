@@ -10,6 +10,7 @@ exit code.
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -337,3 +338,20 @@ def test_default_excludes_are_reported_alongside_caller_excludes():
 def test_contract_tells_the_reviewer_to_recount_when_it_excludes_more():
     text = CONTRACT.read_text(encoding="utf-8")
     assert "recount without them and use the lower tier" in text
+
+
+def test_cli_counts_a_diff_with_non_utf8_bytes_instead_of_crashing():
+    raw = (
+        b"diff --git a/legacy.txt b/legacy.txt\n--- a/legacy.txt\n+++ b/legacy.txt\n"
+        b"@@ -0,0 +1,2 @@\n+caf\xe9 latin-1\n+plain\n"
+    )
+    # Strict stdin decoding is Python's default outside the C locale; pin it so the
+    # test does not depend on the runner's locale.
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8:strict"}
+    proc = subprocess.run(
+        [sys.executable, str(SCRIPT_PATH)], input=raw, capture_output=True, check=False, env=env
+    )
+    assert proc.returncode == 0, proc.stderr.decode("utf-8", errors="replace")
+    payload = json.loads(proc.stdout)
+    assert payload["signals"]["lines"] == 2
+    assert payload["signals"]["files"] == 1
