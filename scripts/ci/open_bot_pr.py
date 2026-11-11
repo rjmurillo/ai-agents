@@ -73,6 +73,7 @@ _LS_REMOTE_NO_MATCH = 2  # `git ls-remote --exit-code`: no matching ref
 _PR_LIST_LIMIT = 100
 _MAX_ARTIFACT_BYTES = 1024 * 1024
 _PROTECTED_PARTS = frozenset({".git", ".github"})
+_LONE_CR = re.compile(r"\r(?!\n)")
 _TIMEOUT_SECONDS = 120
 _TIMED_OUT = 124  # the `timeout(1)` convention
 
@@ -217,7 +218,7 @@ def pr_body(paths: list[str], issue: str) -> str:
     return "\n".join(lines) + "\n"
 
 
-_HIDDEN_CATEGORIES = frozenset({"Cc", "Cf", "Zl", "Zp", "Mn", "Me", "Co", "Cs", "Cn"})
+_HIDDEN_CATEGORIES = frozenset({"Cc", "Cf", "Zl", "Zp", "Mn", "Me", "Co", "Cs"})
 # Letters and symbols that render blank: Hangul fillers and the empty braille cell.
 _BLANK_LOOKALIKES = frozenset("\u115f\u1160\u3164\uffa0\u2800")
 
@@ -226,8 +227,9 @@ def _is_hidden_char(char: str) -> bool:
     """Return True for a character that can hide text from a reviewer reading the diff.
 
     Tab and newlines are fine. Control, format (bidi overrides, zero-width marks),
-    line and paragraph separators, combining and variation marks, private-use and
-    unassigned code points are refused, as are the blank lookalikes above.
+    line and paragraph separators, combining and variation marks, and private-use
+    and surrogate code points are refused, as are the blank lookalikes above. A
+    lone carriage return is refused by the caller: a terminal redraws the line.
     """
     if char in "\n\r\t":
         return False
@@ -253,6 +255,8 @@ def _copy_artifact_file(source: Path, root: Path, destination: Path) -> bool:
     except UnicodeDecodeError as exc:
         raise RuntimeError(f"artifact file is not UTF-8: {source}") from exc
     hidden = sorted({c for c in text if _is_hidden_char(c)})
+    if _LONE_CR.search(text):
+        hidden.append("\r")
     if hidden:
         names = ", ".join(f"U+{ord(c):04X}" for c in hidden[:5])
         raise RuntimeError(f"artifact file holds control or format characters ({names}): {source}")

@@ -327,3 +327,29 @@ def test_plain_ascii_and_the_arrow_the_stats_file_uses_are_accepted(
 ) -> None:
     root = _artifact(tmp_path, {_STATS: "| a | b |\n| x \u2192 y |\n"})
     assert import_artifact(str(root), [_STATS]) == [_STATS]
+
+
+def test_a_lone_carriage_return_is_refused_but_crlf_is_not(tmp_path: Path, checkout: Path) -> None:
+    ok = _artifact(tmp_path, {_STATS: "line one\r\nline two\r\n"})
+    assert import_artifact(str(ok), [_STATS]) == [_STATS]
+    bad = tmp_path / "bad"
+    (bad / ".serena/memories/pr-review").mkdir(parents=True)
+    (bad / _STATS).write_bytes(b"visible text\rhidden overwrite")
+    with pytest.raises(RuntimeError, match="control or format"):
+        import_artifact(str(bad), [_STATS])
+
+
+def test_the_report_generator_never_emits_a_character_the_publisher_refuses() -> None:
+    """A PR title must not be able to make the daily publish fail."""
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    try:
+        from open_bot_pr import _is_hidden_char
+
+        from scripts.agent_pr_intervention_metrics import _inert_title
+    finally:
+        sys.path.pop(0)
+    hostile = "ok \u26a0\ufe0f \u00e9\u0301 \u202e \u200b \u2028 \u3164 \u2800 \ue000 \x1b \r tail"
+    rendered = _inert_title(hostile)
+    assert [c for c in rendered if _is_hidden_char(c)] == []
+    assert "\r" not in rendered
+    assert "tail" in rendered

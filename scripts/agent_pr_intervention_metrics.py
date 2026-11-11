@@ -273,19 +273,27 @@ def _fmt_median(value: float | None) -> str:
     return "n/a" if value is None else f"{value:g}"
 
 
+# Mirrors scripts/ci/open_bot_pr.py `_HIDDEN_CATEGORIES` and `_BLANK_LOOKALIKES`. The
+# publisher refuses a report file that holds any of these, so a title must not carry
+# one. tests/ci/test_open_bot_pr_artifact.py pins the two lists together.
+_UNSEEN_CATEGORIES = frozenset({"Cc", "Cf", "Zl", "Zp", "Mn", "Me", "Co", "Cs"})
+_BLANK_LOOKALIKES = frozenset("\u115f\u1160\u3164\uffa0\u2800")
+
+
 def _inert_title(title: str) -> str:
     """Render a PR title as an inline code span so it cannot become live Markdown.
 
     Titles are attacker-influenced text written into a committed file. Inside a
     code span, links, HTML and emphasis are not interpreted. Backticks cannot
     appear in the title, because one would close the span, control and format
-    characters (bidi overrides, zero-width marks, escapes) are dropped, and
-    the length is capped.
+    characters (bidi overrides, zero-width marks, escapes), combining and variation
+    marks, and blank lookalikes are dropped, and the length is capped.
     """
     visible = "".join(
         ch
         for ch in title
-        if unicodedata.category(ch) not in ("Cc", "Cf", "Zl", "Zp") or ch.isspace()
+        if ch.isspace()
+        or (unicodedata.category(ch) not in _UNSEEN_CATEGORIES and ch not in _BLANK_LOOKALIKES)
     )
     flat = " ".join(visible.split()).replace("`", "'")
     if len(flat) > TITLE_MAX_CHARS:
