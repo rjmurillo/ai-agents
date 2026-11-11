@@ -92,13 +92,13 @@ After execution:
 
 ```bash
 # Basic usage (30 days, summary output)
-python .claude/skills/metrics/collect_metrics.py
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/metrics/collect_metrics.py"
 
 # Last 90 days as markdown
-python .claude/skills/metrics/collect_metrics.py --since 90 --output markdown
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/metrics/collect_metrics.py" --since 90 --output markdown
 
 # JSON output for automation
-python .claude/skills/metrics/collect_metrics.py --output json
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/metrics/collect_metrics.py" --output json
 
 # Backlog provenance of issues created in the last 7 days (Markdown)
 SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/metrics"
@@ -229,7 +229,7 @@ To generate a monthly dashboard report:
 
 ```bash
 # Generate report
-python .claude/skills/metrics/collect_metrics.py \
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/metrics/collect_metrics.py" \
     --since 30 \
     --output markdown \
     > .project-toolkit/metrics/report-$(date +%Y-%m).md

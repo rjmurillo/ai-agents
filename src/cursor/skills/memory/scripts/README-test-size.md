@@ -42,7 +42,7 @@ Add to `.git/hooks/pre-commit`:
 # Validate memory sizes before commit
 
 echo "Validating memory sizes..."
-python3 .claude/skills/memory/scripts/test_memory_size.py .serena/memories \
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/test_memory_size.py" .serena/memories \
     --pattern "*.md" \
     --fail-fast
 
