@@ -14,6 +14,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+import yaml
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "scripts" / "ci"))
 
@@ -93,6 +94,42 @@ class TestVerifyNpmPackageMetadata:
     def test_check_returns_empty_for_valid(self) -> None:
         errors = vnpm.check_package_metadata(_VALID_PKG)
         assert errors == []
+
+
+_REPO_ROOT = Path(__file__).parent.parent.parent
+_PUBLISH_WORKFLOW = _REPO_ROOT / ".github" / "workflows" / "publish.yml"
+
+
+def _published_package_dir() -> Path:
+    """Return the package directory the publish workflow verifies, read from the workflow."""
+    workflow = yaml.safe_load(_PUBLISH_WORKFLOW.read_text(encoding="utf-8"))
+    return _REPO_ROOT / workflow["env"]["PACKAGE_DIR"]
+
+
+class TestVerifyNpmPackageMetadataRealPackage:
+    """Run the verifier on the package the release publishes, not a fixture (issue #7231).
+
+    The synthetic ``_VALID_PKG`` above passed while the real package.json lacked
+    ``publishConfig``, so the publish job's first gate would have failed on release day.
+    """
+
+    def test_real_package_passes_the_release_verifier(self) -> None:
+        errors = vnpm.check_package_metadata(
+            json.loads((_published_package_dir() / "package.json").read_text(encoding="utf-8"))
+        )
+        assert errors == []
+
+    def test_cli_exits_ok_on_the_real_package(self) -> None:
+        rc = vnpm.main(["--package-dir", str(_published_package_dir())])
+        assert rc == vnpm.EXIT_OK
+
+    def test_cli_exits_invalid_when_real_package_loses_publish_config(self, tmp_path: Path) -> None:
+        """Negative control: the same real manifest minus publishConfig must fail."""
+        pkg = json.loads((_published_package_dir() / "package.json").read_text(encoding="utf-8"))
+        pkg.pop("publishConfig", None)
+        _write_pkg(tmp_path / "package.json", pkg)
+        rc = vnpm.main(["--package-dir", str(tmp_path)])
+        assert rc == vnpm.EXIT_INVALID
 
 
 # ---------------------------------------------------------------------------

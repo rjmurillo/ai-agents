@@ -27,6 +27,10 @@
   "engines": {
     "node": ">=20"
   },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "devDependencies": {
     "typescript": "^7.0.0",
     "@types/node": "^26.0.0"
