@@ -163,7 +163,8 @@ def _repo_only_names(repo_root: Path) -> frozenset[str]:
         return frozenset()
     for row in rows:
         if row.class_name == "hooks":
-            return row.repo_only
+            names: frozenset[str] = row.repo_only
+            return names
     return frozenset()
 
 

@@ -460,10 +460,7 @@ def claude_allowlist(repo_root: Path) -> set[Path]:
         if row.class_name == _RULES_CLASS:
             # ADR-119 decision 13: rule_templates writes repo-only rules here.
             allow |= {row.install_tree / name for name in _repo_local_names(repo_root, row)}
-        if row.repo_only:
-            # ADR-109 amendment 2026-11-11: hook_templates writes repo-only
-            # hooks straight to the install tree.
-            allow |= {row.install_tree / rel for rel in repo_only_template_files(row)}
+        allow |= _repo_only_install_paths(row, row.install_tree)
         if row.link:
             continue
         if row.plugin_tree is None:
@@ -482,6 +479,15 @@ def claude_allowlist(repo_root: Path) -> set[Path]:
     # a hand-protected file would silently stop being tracked as a
     # violation candidate instead of staying protected end to end.
     return {path for path in allow if detect_reason(path) is None}
+
+
+def _repo_only_install_paths(row: Row, install_tree: Path) -> set[Path]:
+    """Install paths ``hook_templates`` writes for the row's ``repo_only`` entries.
+
+    ADR-109 amendment 2026-11-11: those hooks render straight to the install
+    tree, so the write allowlist must name them. Empty for every other row.
+    """
+    return {install_tree / rel for rel in repo_only_template_files(row)}
 
 
 def verified_file_links(repo_root: Path) -> frozenset[Path]:
