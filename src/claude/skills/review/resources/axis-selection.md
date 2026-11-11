@@ -103,7 +103,9 @@ case, 2 Stage-2 axes instead of 15.
 `legal-notices` claims no axis on purpose. A license or notice file is verbatim
 legal text with no behavior and no claim a scanner can check, so it classifies
 without failing the run closed (issue #7280). A legal-only change runs the
-always-on axes alone; beside other files it adds nothing to their selection.
+always-on axes alone, except that a `.md` variant such as `LICENSE.md` also
+matches `docs-and-instructions` and adds `doc-accuracy`. Beside other files a
+legal file adds nothing to their selection.
 A path like `LICENSE-extra.bin` or `licenses/MIT` matches no whole basename
 above and still fails closed.
 

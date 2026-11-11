@@ -63,6 +63,17 @@ class TestLegalNoticeAlone:
         for axis in mod.ALWAYS_ON_CANONICAL:
             assert result["selection_reasons"][axis] == mod._ALWAYS_ON_REASON
 
+    @pytest.mark.parametrize(
+        "path", ["LICENSE.md", "NOTICE.md", "COPYING.md", "THIRD-PARTY-NOTICES.md"]
+    )
+    def test_markdown_variant_also_routes_doc_accuracy(self, path):
+        """A .md legal file is Markdown too, so docs-and-instructions adds doc-accuracy."""
+        result = select([path])
+        assert result["fail_closed"] is False
+        assert result["matched_categories"] == ["docs-and-instructions", "legal-notices"]
+        assert result["canonical_selected"] == sorted(mod.ALWAYS_ON_CANONICAL)
+        assert result["local_selected"] == ["doc-accuracy"]
+
     def test_reports_the_legal_notices_category(self):
         assert select(["LICENSE"])["matched_categories"] == ["legal-notices"]
 
