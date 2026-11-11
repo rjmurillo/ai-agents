@@ -27,12 +27,26 @@ ships the same skill set as `src/codex` (ADR-115 Decision 2).
 
 ## Install into Muse
 
-Muse loads custom skills from `~/workspace/custom-skills/`. Copy
-each skill directory in, skipping any name already present:
+Muse loads custom skills from `~/workspace/custom-skills/`. Skill scripts
+resolve the shared packages from `lib/` one level above that directory, at
+`~/workspace/lib/`. Copy both from the repository root. Without `lib/`, any
+script that imports a shared package exits with `Plugin lib directory not
+found`.
+
+Skill directories already present are skipped. `lib/` is always refreshed,
+because it must match the skill scripts it serves:
 
 ```bash
+mkdir -p ~/workspace/custom-skills ~/workspace/lib
 for d in src/muse/skills/*/; do
   name="$(basename "$d")"
   [ -e ~/workspace/custom-skills/"$name" ] || cp -R "$d" ~/workspace/custom-skills/"$name"
 done
+cp -R src/muse/lib/. ~/workspace/lib/
+```
+
+Check the install by running one skill script:
+
+```bash
+python3 -I ~/workspace/custom-skills/github/scripts/pr/get_pr_checks.py --help
 ```
