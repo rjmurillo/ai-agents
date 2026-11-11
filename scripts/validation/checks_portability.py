@@ -283,7 +283,9 @@ def validate_hook_template_drift(repo_root: Path) -> bool:
     hooks-and-settings counterpart of :func:`validate_rule_template_drift`
     above: it byte-copies every ``templates/hooks/<name>`` in memory and
     compares the result against the committed ``src/claude/hooks/<name>``
-    (``hooks.json`` included) or ``.claude/settings.json`` for the
+    (``hooks.json`` included), ``.claude/hooks/<name>`` for a name in the
+    ``hooks`` binplace row's ``repo_only`` list (ADR-109 amendment 2026-11-11),
+    or ``.claude/settings.json`` for the
     direct-rendered settings template; it never writes. Exit 0 covers "no
     template exists" and "every render matches". Exit 1 or 2 names the
     drifted or malformed file, printed by the shared runner.
