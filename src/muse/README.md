@@ -27,7 +27,13 @@ ships the same skill set as `src/codex` (ADR-115 Decision 2).
 
 ## Install into Muse
 
-Muse loads custom skills from `~/workspace/custom-skills/`. Skill scripts
+Muse means two hosts. This section is for the Muse personal agent. Muse
+Code, the `muse` CLI, does not read `~/workspace/custom-skills/`. It reads
+`${XDG_CONFIG_HOME:-~/.config}/muse/skills/`, with `lib/` beside it at
+`${XDG_CONFIG_HOME:-~/.config}/muse/lib/`. See [Install on Muse
+Code](https://github.com/rjmurillo/ai-agents/blob/main/docs/training/install-on-every-host.md#install-on-muse-code).
+
+The personal agent loads custom skills from `~/workspace/custom-skills/`. Skill scripts
 resolve the shared packages from `lib/` one level above that directory, at
 `~/workspace/lib/`. Copy both from the repository root. Without `lib/`, any
 script that imports a shared package exits with `Plugin lib directory not
