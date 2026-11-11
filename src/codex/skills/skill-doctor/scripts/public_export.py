@@ -26,13 +26,14 @@ from typing import Any
 import report_audit
 import report_evaluation
 from audit_scores import write_atomic
-from render_report import grade_for
+from render_report import GRADES, grade_for
 
 NON_PROBABILITY_NOTE = (
     "Non-probability sample. Results are descriptive for the conversations scored "
     "and are not population estimates or evidence that skills caused outcomes."
 )
 MIN_SUBSTRING_LENGTH = 6
+KNOWN_GRADES = frozenset(letter for _, letter in GRADES) | {"F"}
 
 # Keys whose values (strings, or strings nested in lists and objects) are private.
 PRIVATE_KEYS = frozenset(
@@ -163,11 +164,49 @@ def _shortfalls(audit: Mapping[str, Any]) -> dict[str, Any]:
 
 def _suggestion_counts(report: Mapping[str, Any]) -> dict[str, int]:
     counts = {status: 0 for status in report_evaluation.SUGGESTION_STATUSES}
-    for suggestion in report.get("suggestions") or []:
+    suggestions = report.get("suggestions")
+    for suggestion in suggestions if isinstance(suggestions, list) else []:
+        if not isinstance(suggestion, dict):
+            continue
         status = report_evaluation.suggestion_status(suggestion)
         if status in counts:
             counts[status] += 1
     return counts
+
+
+def _public_grade(report: Mapping[str, Any], overall: float) -> str:
+    """A letter from the fixed grade scale. Any other text is refused, never exported."""
+    grade = report.get("grade")
+    if not isinstance(grade, str):
+        return grade_for(overall)
+    if grade not in KNOWN_GRADES:
+        raise CanaryError("grade is not a letter on the grade scale; refusing to export its text")
+    return str(grade)
+
+
+def _public_evaluation_status(report: Mapping[str, Any]) -> str:
+    """The status line from fixed vocabularies. Unrecognized evaluation text is refused."""
+    evaluation = report_evaluation.evaluation_of(dict(report))
+    if evaluation["diagnosis"] != "static" or (
+        evaluation["optimization"] not in report_evaluation.OPTIMIZATION_STAGES
+    ):
+        raise CanaryError(
+            "evaluation.diagnosis or evaluation.optimization is outside its fixed vocabulary; "
+            "refusing to export its text"
+        )
+    suggestions = report.get("suggestions")
+    safe = {
+        "evaluation": {
+            "diagnosis": evaluation["diagnosis"],
+            "optimization": evaluation["optimization"],
+        },
+        "suggestions": [
+            {"status": report_evaluation.suggestion_status(s)}
+            for s in (suggestions if isinstance(suggestions, list) else [])
+            if isinstance(s, dict)
+        ],
+    }
+    return report_evaluation.evaluation_summary(safe)
 
 
 def export_public(report: Mapping[str, Any]) -> dict[str, Any]:
@@ -178,9 +217,8 @@ def export_public(report: Mapping[str, Any]) -> dict[str, Any]:
     stats = report.get("stats") if isinstance(report.get("stats"), dict) else {}
     audit = report_audit.audit_of(report)
     scores = _scores(report)
-    grade = report.get("grade")
     export: dict[str, Any] = {
-        "grade": grade if isinstance(grade, str) else grade_for(scores.get("overall", 0.0)),
+        "grade": _public_grade(report, scores.get("overall", 0.0)),
         "overall": scores.get("overall"),
         "scores": {k: v for k, v in scores.items() if k != "overall"},
         "weighted_shortfall": _shortfalls(audit),
@@ -189,7 +227,7 @@ def export_public(report: Mapping[str, Any]) -> dict[str, Any]:
             "skills_found": _count(stats.get("skills_found")),
             "skills_used": _count(stats.get("skills_used")),
         },
-        "evaluation_status": report_evaluation.evaluation_summary(dict(report)),
+        "evaluation_status": _public_evaluation_status(report),
         "suggestion_status_counts": _suggestion_counts(report),
         "sampling_note": NON_PROBABILITY_NOTE,
     }

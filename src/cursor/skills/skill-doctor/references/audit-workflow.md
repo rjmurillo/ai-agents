@@ -48,4 +48,4 @@ Each score row carries its `batch_id` and `source_digest`. An import that has mi
 ## Report sections and export
 
 `assemble_report.py` writes the `audit` object for local browsing. The renderer exits 1 when the scorecard and the artifact disagree, so a hand-edited score is caught.
-`report.html` keeps paths and session ids for local use. To share results, run `python3 "$SKILL_ROOT/scripts/public_export.py" "$REPORT_DIR/report.json" --out <path>`; it writes aggregates only and exits 1 if any private value reaches the export.
+`report.html` keeps paths and session ids for local use. To share results, run `python3 "$SKILL_ROOT/scripts/public_export.py" "$REPORT_DIR/report.json" --out <path>`; it writes aggregates only and exits 1 if any private value reaches the export, or if `grade` or the `evaluation` fields hold text outside their fixed vocabulary.
