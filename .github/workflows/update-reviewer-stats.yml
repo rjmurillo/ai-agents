@@ -10,6 +10,7 @@
 # - Aggregates PR review comments by reviewer
 # - Calculates actionability scores using heuristics
 # - Updates the Serena memory file (source of truth)
+# - Publishes the agent PR intervention report (issue #7154)
 # - Commits and pushes changes automatically
 #
 # Related: Issue #234 (Automated daily reviewer signal quality statistics)
@@ -56,6 +57,11 @@ jobs:
           days_back="${DAYS_BACK:-90}"
           uv run --frozen python scripts/update_reviewer_signal_stats.py --days-back "$days_back"
 
+      - name: Build agent PR intervention report
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: uv run --frozen python scripts/update_reviewer_signal_stats.py --agent-intervention
+
       - name: Commit updated stats
         env:
           GH_TOKEN: ${{ github.token }}
@@ -63,6 +69,7 @@ jobs:
           gh auth setup-git
           python3 scripts/ci/commit_and_push.py \
             --path .serena/memories/pr-review/pr-comment-responder-skills.md \
+            --path .project-toolkit/metrics/agent-pr-intervention.md \
             --user-name "github-actions[bot]" \
             --user-email "41898282+github-actions[bot]@users.noreply.github.com" \
             --message "chore(stats): update reviewer signal statistics" \

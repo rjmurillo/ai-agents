@@ -5,6 +5,9 @@ Queries all PRs (open and closed) for review comments, calculates signal quality
 metrics per reviewer, and updates the pr-review/pr-comment-responder-skills
 memory file.
 
+With --agent-intervention it instead writes the agent PR intervention report
+(issue #7154, see scripts/agent_pr_intervention_metrics.py).
+
 Exit codes (ADR-035):
     0 - Success
     1 - Invalid parameters / logic error
@@ -31,6 +34,12 @@ workspace = os.environ.get(
 )
 sys.path.insert(0, workspace)
 
+from scripts.agent_pr_intervention_metrics import (  # noqa: E402
+    REPORT_PATH as INTERVENTION_REPORT_PATH,
+)
+from scripts.agent_pr_intervention_metrics import (  # noqa: E402
+    run_report as run_agent_intervention_report,
+)
 from scripts.github_core.api import (  # noqa: E402
     RateLimitStatus,
     check_workflow_rate_limit,
@@ -625,7 +634,26 @@ def _build_parser() -> argparse.ArgumentParser:
         default="",
         help="Repository name (inferred from git remote if omitted)",
     )
+    parser.add_argument(
+        "--agent-intervention",
+        action="store_true",
+        help="Write the agent PR intervention report (issue #7154) instead of reviewer stats",
+    )
     return parser
+
+
+def _run_agent_intervention_report(owner: str, repo: str) -> int:
+    """Write the agent PR intervention report. Returns an exit code (ADR-035)."""
+    root = get_repo_root()
+    report_path = os.path.join(str(root) if root is not None else ".", INTERVENTION_REPORT_PATH)
+    try:
+        metrics = run_agent_intervention_report(owner, repo, report_path)
+    except RuntimeError:
+        logger.exception("Failed to build the agent PR intervention report")
+        return 2
+    logger.info("Agent PRs in window: %d", metrics.total_prs)
+    logger.info("Wrote %s", report_path)
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -676,6 +704,9 @@ def main(argv: list[str] | None = None) -> int:
     owner = repo_params.owner
     repo = repo_params.repo
     logger.info("Repository: %s/%s", owner, repo)
+
+    if args.agent_intervention:
+        return _run_agent_intervention_report(owner, repo)
 
     # Calculate date range
     since = datetime.now(UTC) - timedelta(days=args.days_back)
