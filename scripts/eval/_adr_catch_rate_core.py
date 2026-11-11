@@ -278,10 +278,10 @@ def parse_phase1_prompts(prompts_md: str) -> dict[str, str]:
     ends = [*starts[1:], phase1_end]
     out: dict[str, str] = {}
     for role, start, end in zip(_ROLE_HEADINGS, starts, ends, strict=True):
-        opener = prompts_md.index("```text\n", start, end) + len("```text\n")
+        opener = prompts_md.index("````text\n", start, end) + len("````text\n")
         # The body holds its own fenced blocks and "###" headings, so the closing
         # fence is the last one before the next role heading.
-        out[role] = prompts_md[opener : prompts_md.rindex("\n```", opener, end)].rstrip("\n")
+        out[role] = prompts_md[opener : prompts_md.rindex("\n````", opener, end)].rstrip("\n")
     return out
 
 

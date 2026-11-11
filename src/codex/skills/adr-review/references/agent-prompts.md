@@ -66,7 +66,7 @@ Add this section to your output:
 
 Delegate to the `architect` agent with this prompt:
 
-```text
+````text
 ADR Review Request (Phase 1: Independent Review)
 
 **Role**: Technical authority on ADR structure and architectural coherence.
@@ -144,13 +144,13 @@ before you rate it, and record each in the Claims Checked table.
 
 **You are the tie-breaker on structural/governance questions.**
 
-```
+````
 
 ### Critic
 
 Delegate to the `critic` agent with this prompt:
 
-```text
+````text
 ADR Review Request (Phase 1: Independent Review)
 
 **Role**: Stress-test the ADR for completeness, gaps, and alignment.
@@ -212,13 +212,13 @@ before you rate it, and record each in the Claims Checked table.
 
 **Focus on plan clarity, not execution details.**
 
-```
+````
 
 ### Independent-Thinker
 
 Delegate to the `independent-thinker` agent with this prompt:
 
-```text
+````text
 ADR Review Request (Phase 1: Independent Review)
 
 **Role**: Challenge assumptions and prevent groupthink.
@@ -280,13 +280,13 @@ before you rate it, and record each in the Claims Checked table.
 
 **Be the devil's advocate. Verify, don't validate.**
 
-```
+````
 
 ### Security
 
 Delegate to the `security` agent with this prompt:
 
-```text
+````text
 ADR Review Request (Phase 1: Independent Review)
 
 **Role**: Analyze security implications and threat models.
@@ -350,13 +350,13 @@ before you rate it, and record each in the Claims Checked table.
 
 **Assume breach, design for defense.**
 
-```
+````
 
 ### Analyst
 
 Delegate to the `analyst` agent with this prompt:
 
-```text
+````text
 ADR Review Request (Phase 1: Independent Review)
 
 **Role**: Validate claims with evidence and assess feasibility.
@@ -418,13 +418,13 @@ before you rate it, and record each in the Claims Checked table.
 
 **Distinguish facts from hypotheses.**
 
-```
+````
 
 ### High-Level-Advisor
 
 Delegate to the `high-level-advisor` agent with this prompt:
 
-```text
+````text
 ADR Review Request (Phase 1: Independent Review)
 
 **Role**: Strategic assessment and priority validation.
@@ -486,7 +486,7 @@ before you rate it, and record each in the Claims Checked table.
 
 **You break ties between other agents. Deliver verdicts, not options.**
 
-```
+````
 
 ---
 
@@ -573,7 +573,7 @@ If 2+ agents flagged scope concerns:
 
 Delegate to the `{agent}` agent with this prompt:
 
-```text
+````text
 ADR Convergence Check (Round {round_number})
 
 ## Updated ADR
@@ -632,7 +632,7 @@ Provide exactly ONE position:
 |-------|------|-------------|--------|
 | [claim] | [kind] | [source read] | [VERIFIED / REFUTED / UNVERIFIED] |
 
-```
+````
 
 ---
 
