@@ -10,29 +10,29 @@ Start with the migration and install units if you are moving to v0.7.0. The rest
 
 Each entry names the issue that writes the page and who the page is for. An entry shown as plain code has no page yet. When a page lands, its pull request turns the code into a link.
 
-- `migrate-v0-6-to-v0-7.md` (#7203): moving from v0.6.0 to v0.7.0. For anyone with an existing install.
+- [Move a v0.6.0 install to v0.7](migrate-v0-6-to-v0-7.md) (#7203): moving from v0.6.0 to v0.7.0. For anyone with an existing install.
 
-- `install-on-every-host.md` (#7204): install and verify the toolkit on Claude Code, Codex, Cursor, Grok Build, Pi, Hermes, and Muse. For new users.
+- [Install the toolkit on your host and check it loaded](install-on-every-host.md) (#7204): install and verify the toolkit on Claude Code, Copilot CLI, VS Code and Visual Studio, Codex, Cursor, Grok Build, Pi, Hermes, and Muse. For new users.
 
-- `lifecycle-and-autoplan.md` (#7205): the spec to ship lifecycle and `/autoplan` routing. For contributors.
+- [Take one change from /spec to /ship, and route requests with /autoplan](lifecycle-and-autoplan.md) (#7205): the spec to ship lifecycle and `/autoplan` routing. For contributors.
 
 - `review-and-pr-feedback.md` (#7206): the review and PR feedback loop with `/review`, `/pr-review`, and pr-autofix. For contributors.
 
-- `local-gates-and-hooks.md` (#7207): local gates with Lefthook, and what to do when a hook blocks. For contributors.
+- [Clear a blocked commit with Lefthook local gates](local-gates-and-hooks.md) (#7207): local gates with Lefthook, and what to do when a hook blocks. For contributors.
 
 - `build-and-improve-skills.md` (#7208): skillforge, skillify, skillopt, skill-bootstrap, and skill-doctor. For skill authors.
 
-- `safe-agent-actions.md` (#7209): decision briefs, destructive-change safety, and evidence provenance. For everyone who runs agents.
+- [Keep an agent inside its authority and read what it reports](safe-agent-actions.md) (#7209): decision briefs, destructive-change safety, and evidence provenance. For everyone who runs agents.
 
-- `memory-and-learning.md` (#7210): memory with Serena, the retrospective nudge, and reflect. For everyone who runs agents.
+- [Search project memory and turn sessions into lessons](memory-and-learning.md) (#7210): memory with Serena, the retrospective nudge, and reflect. For everyone who runs agents.
 
-- `template-first-authoring.md` (#7211): edit templates, then render generated files. For contributors.
+- [Change a rule and a skill through templates](template-first-authoring.md) (#7211): edit templates, then render generated files. For contributors.
 
 - `maintainer-operations.md` (#7212): agent workflow approval, the promotion gate, ruleset drift, and releases. For maintainers.
 
-- `measure-agent-quality.md` (#7213): evals and benchmarks. For maintainers and skill authors.
+- [Measure agent quality with evals and benchmarks](measure-agent-quality.md) (#7213): evals and benchmarks. For maintainers and skill authors.
 
-- `github-skill-scripts.md` (#7214): how-to for the github skill scripts. For contributors.
+- [Do GitHub work with the skill scripts, not raw gh](github-skill-scripts.md) (#7214): how-to for the github skill scripts. For contributors.
 
 ## Page layout
 
