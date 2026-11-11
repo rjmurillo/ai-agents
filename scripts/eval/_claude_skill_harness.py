@@ -207,8 +207,8 @@ def run_harness(
         raise RuntimeError(
             f"{PROVIDER_LABEL} harness sandbox sits under instruction files "
             f"({', '.join(str(path) for path in ambient)}); set TMPDIR to a directory whose "
-            "ancestors hold no CLAUDE.md, CLAUDE.local.md, or .claude/CLAUDE.md, "
-            "including ~/.claude/CLAUDE.md"
+            "ancestors hold no CLAUDE.md, CLAUDE.local.md, or .claude directory. "
+            "~/.claude itself is allowed, but ~/.claude/CLAUDE.md is not"
         )
     seconds = validate_timeout(timeout)
     provider = _ClaudeCLIProvider(executable=executable, timeout=seconds)
