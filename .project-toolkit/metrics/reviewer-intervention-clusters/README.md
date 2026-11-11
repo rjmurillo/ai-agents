@@ -1,8 +1,7 @@
 # Reviewer intervention clusters
 
-A job, scheduled daily when its workflow is enabled, counts repeated human
-corrections on agent pull requests. A repeat
-means a lesson was not carried forward. The job reports; it never edits a rule,
+A script counts repeated review findings on agent pull requests. A repeat means
+a lesson was not carried forward. The script reports; it never edits a rule,
 contract, or prompt, and it files no issue (issue #7153).
 
 ## Files
@@ -13,14 +12,15 @@ contract, or prompt, and it files no issue (issue #7153).
 | `src/claude/skills/skill-bootstrap/scripts/review_clusters.py` | Cluster definition, population rules, and counting. Stdlib only. It lives in a shipped skill so the skill-bootstrap consumer (#7155) imports it and counts the same way. |
 | `scripts/reviewer_intervention_fetch.py` | Lossless GraphQL reads of pull requests and review threads. |
 | `scripts/report_reviewer_intervention_clusters.py` | Filters to the population, clusters, writes `report.json`. |
-| `.github/workflows/update-reviewer-stats.yml` | Holds the step `Cluster repeated review interventions`, scheduled daily at 06:00 UTC when the workflow is enabled. See Status. |
 
 ## Status
 
-As of 2026-11-11 the schedule is not running. `update-reviewer-stats.yml` has
-been disabled since 2026-10-26, and the default-branch ruleset lets only the
-Admin role bypass its pull request rule, so the commit step's push is rejected.
-Issue #7287 tracks both. Until it is resolved the report refreshes only when a
+As of 2026-11-11 nothing runs this script on a schedule. The workflow step that
+would run it daily is held back for a security review of the workflow change.
+The host workflow, `update-reviewer-stats.yml`, has also been disabled since
+2026-10-26, and the default-branch ruleset lets only the Admin role bypass its
+pull request rule, so a workflow push to the default branch is rejected. Issue
+#7287 tracks both. Until they are resolved the report refreshes only when a
 person runs `scripts/report_reviewer_intervention_clusters.py` and commits the
 result. The committed `report.json` is the 2026-11-11 run.
 
@@ -31,12 +31,12 @@ The population was corrected three times afterward; see Population correction. C
 the definition only in a reviewed pull request that states why, never to move a
 count.
 
-- **Agent pull request:** the body carries `Generated with [Claude Code]` and its author has OWNER, MEMBER, or COLLABORATOR standing, or its author is a bot account (`github_core.bot_config.is_bot`). Dependency bots (dependabot, renovate) are excluded. Agents here open pull requests under the owner's login, so the trailer is the usable marker. The standing check stops an outside contributor from marking a pull request as agent-made.
-- **Intervention:** the first comment of a review thread. The author is not a bot and has OWNER, MEMBER, or COLLABORATOR standing on the repository, so an outsider's own comment never counts. The pull request author is not excluded, because on a trailer pull request the owner is both nominal author and human reviewer. Later replies do not count.
+- **Agent pull request:** the body carries `Generated with [Claude Code]` and its author has OWNER, MEMBER, or COLLABORATOR standing, or its author is a GraphQL `Bot` actor. A `User` account whose name ends in `-bot` is not a bot actor. Dependency bots (dependabot, renovate) are excluded. Agents here open pull requests under the owner's login, so the trailer is the usable marker. The standing check stops an outside contributor from marking a pull request as agent-made.
+- **Intervention:** the first comment of a review thread. The author is not a bot (`github_core.bot_config.is_bot`, which also drops `-bot` suffix names) and has OWNER, MEMBER, or COLLABORATOR standing on the repository, so an outsider's own comment never counts. The pull request author is not excluded, because on a trailer pull request the owner is both nominal author and human reviewer. Later replies do not count.
 - **Window:** 90 days. A thread counts when its first comment was created in the trailing 90 days.
 - **Threshold:** 3.
 
-Three signals, all explicit. The job compares no free text.
+Three signals, all explicit. The script compares no free text.
 
 | Signal | Key | Counts |
 |---|---|---|
@@ -58,8 +58,8 @@ excluded comments by the pull request author. On 2026-11-11 that read 295
 pull requests of 1621 examined and kept 0 interventions. The filter had
 removed the owner's own pull requests and threads, so the zero measured the
 filter, not the repository. The population above replaces it. Threshold,
-window, signals, and area depth did not change, and no cluster count was
-read before the change.
+window, signals, and area depth did not change. The only count read before
+the change was the first run's zero, which triggered it.
 
 A second correction followed a security review. A thread now counts only when
 its first comment has OWNER, MEMBER, or COLLABORATOR standing. Without it, an
@@ -101,17 +101,16 @@ the comment.
 - Cluster keys come from comment text and file paths a contributor influences. A consumer treats them as data and escapes them.
 - A cluster whose fix is skill-shaped routes through a `skill-bootstrap` run. A cluster whose fix is a gate or a contract clause goes to the owner as an issue the owner files.
 
-## Prerequisites
+## Scheduling
 
-The job runs inside `update-reviewer-stats.yml`, so that workflow must be
-enabled. Its commit step pushes to the default branch, so the workflow token
-must be allowed to push there; a branch ruleset that requires pull requests
-rejects the push. The commit step rebases onto the default branch before it pushes, so a branch
-that moved during the run does not reject the push. Any failed push leaves the
-previous `report.json` in place and the step red; the next run replaces it.
+A workflow that runs this script needs three things. The workflow must be
+enabled. Its token must be allowed to push to the default branch, because a
+branch ruleset that requires pull requests rejects the push. It should rebase
+onto the default branch before the push, so a branch that moved during the run
+does not reject it. A failed push leaves the previous `report.json` in place.
 
 One run cost 421 GraphQL points on 2026-11-11 (33 pages, 1641 pull requests;
-858 before the thread page size dropped from 50 to 20). The job stops with exit 3
+858 before the thread page size dropped from 50 to 20). The script stops with exit 3
 when fewer than 100 points remain, so it does not empty a budget other jobs
 share.
 
@@ -125,7 +124,7 @@ page cap stops the run with exit 3 and writes nothing. A partial report is never
 committed.
 
 A pull request updated while the walk runs can jump ahead of the cursor. The
-next daily run reads it. A repeated pull request is skipped and counted.
+next run reads it. A repeated pull request is skipped and counted.
 
 ## Exit codes
 
