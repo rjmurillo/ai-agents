@@ -119,7 +119,7 @@ class TestExecMarker:
     def test_marker_suppresses_all_invocations(self) -> None:
         text = (
             "<!-- vendor-portability-exec: bootstrap must use the source tree -->\n"
-            "python3 .claude/skills/a/x.py\npython3 .claude/skills/b/y.py\n"
+            "python3 build/a/x.py\npython3 .claude/skills/b/y.py\n"
         )
         assert cep.has_portability_marker(text) is True
         assert cep.count_file_invocations(text) == 0
@@ -128,30 +128,30 @@ class TestExecMarker:
         # The sibling prose marker (no -exec suffix) must NOT exempt exec paths.
         text = (
             "<!-- vendor-portability: declares a prose .agents/ dependency -->\n"
-            "python3 .claude/skills/a/x.py\n"
+            "python3 build/a/x.py\n"
         )
         assert cep.has_portability_marker(text) is False
         assert cep.count_file_invocations(text) == 1
 
     def test_marker_case_insensitive_and_spacing_tolerant(self) -> None:
-        text = "<!--vendor-portability-exec:ok-->\npython3 .claude/skills/a/x.py\n"
+        text = "<!--vendor-portability-exec:ok-->\npython3 build/a/x.py\n"
         assert cep.has_portability_marker(text) is True
 
     def test_no_marker_counts_invocations(self) -> None:
-        text = "python3 .claude/skills/a/x.py\n"
+        text = "python3 build/a/x.py\n"
         assert cep.has_portability_marker(text) is False
         assert cep.count_file_invocations(text) == 1
 
     def test_marker_suppressed_count_tracks_hidden_invocations(self) -> None:
         text = (
             "<!-- vendor-portability-exec: declared -->\n"
-            "python3 .claude/skills/a/x.py\n"
+            "python3 build/a/x.py\n"
             "python3 build/scripts/generate_rules.py\n"
         )
         assert cep.count_marker_suppressed_invocations(text) == 2
 
     def test_marker_suppressed_count_is_zero_without_marker(self) -> None:
-        text = "python3 .claude/skills/a/x.py\n"
+        text = "python3 build/a/x.py\n"
         assert cep.count_marker_suppressed_invocations(text) == 0
 
 
@@ -257,7 +257,7 @@ class TestScan:
             tmp_path,
             (".claude", "skills"),
             "alpha/SKILL.md",
-            "<!-- vendor-portability-exec: declared -->\npython3 .claude/skills/a/x.py\n",
+            "<!-- vendor-portability-exec: declared -->\npython3 build/a/x.py\n",
         )
         assert cep.scan_skill_execs(tmp_path) == {}
 
@@ -311,7 +311,7 @@ class TestMainCli:
         assert rc == 2
 
     def test_update_baseline_writes_and_exits_zero(self, tmp_path: Path) -> None:
-        self._make_skill(tmp_path, "python3 .claude/skills/a/x.py\n")
+        self._make_skill(tmp_path, "python3 build/a/x.py\n")
         # Every shipped root must hold a readable file or the scan-coverage guard
         # refuses the write, because one starved root is a partial checkout.
         second = tmp_path / "src" / "copilot-cli" / "skills" / "a"
@@ -327,7 +327,7 @@ class TestMainCli:
         assert data["files"] == {".claude/skills/a/SKILL.md": 1}
 
     def test_drift_returns_exit_1(self, tmp_path: Path) -> None:
-        self._make_skill(tmp_path, "python3 .claude/skills/a/x.py\npython3 .claude/skills/a/y.py\n")
+        self._make_skill(tmp_path, "python3 build/a/x.py\npython3 build/a/y.py\n")
         baseline = tmp_path / "baseline.json"
         baseline.write_text(
             json.dumps({"files": {".claude/skills/a/SKILL.md": 1}}), encoding="utf-8"
@@ -373,7 +373,7 @@ class TestMainCli:
 
     def test_dangling_scan_oserror_returns_exit_2(self, tmp_path: Path) -> None:
         # I/O failure must exit 2 (fail-closed), not 0 (false green).
-        self._make_skill(tmp_path, "python3 .claude/skills/a/x.py\n")
+        self._make_skill(tmp_path, "python3 build/a/x.py\n")
         baseline = tmp_path / "baseline.json"
         baseline.write_text(
             json.dumps({"files": {".claude/skills/a/SKILL.md": 1}}), encoding="utf-8"

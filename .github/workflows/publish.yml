@@ -2,10 +2,11 @@
 #
 # Publishes @rjmurillo/ai-agents to npm with OIDC provenance, behind the ADR-113
 # promotion gate. The only live route is a manual run (workflow_dispatch) on the
-# default branch, with a dry-run switch and an optional release tag. The candidate
-# is the run commit, the head of the default branch, so no job checks out a ref
-# that an input chose. A real publish runs the gate in enforcing mode, so it
-# publishes only when the gate promotes. A dry run runs the gate advisory.
+# default branch, with a dry-run switch and a release tag (required for a real
+# publish). The candidate is the run commit, the head of the default branch, so no
+# job checks out a ref that an input chose. A real publish runs the gate in
+# enforcing mode, so it publishes only when the gate promotes. A dry run runs the
+# gate advisory.
 #
 # A push of a v* tag still triggers this workflow, and the first job refuses it:
 # a tag push runs the tagged commit's own copy of this file, so nothing on that
@@ -38,7 +39,7 @@ on:
           - 'true'
           - 'false'
       release-tag:
-        description: 'Existing release tag, such as v1.2.3, to check and attach the manifest to (empty to skip)'
+        description: 'Release tag, such as v1.2.3, checked against package.json. Required when dry-run is false'
         required: false
         default: ''
         type: string
@@ -125,6 +126,14 @@ jobs:
         with:
           node-version: 'lts/*'
 
+      # The build script is `bun build`, and the package keeps only bun.lock, so
+      # Bun builds the tarball here the same way cli-smoke.yml does (issue 7217).
+      - name: Setup Bun
+        # yamllint disable-line rule:line-length
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6  # v2.2.0
+        with:
+          bun-version: 1.4.4
+
       - name: Verify package metadata
         run: python3 scripts/ci/verify_npm_package_metadata.py --package-dir "$PACKAGE_DIR"
 
@@ -137,11 +146,17 @@ jobs:
 
       - name: Install dependencies
         working-directory: ${{ env.PACKAGE_DIR }}
-        run: npm ci
+        run: bun install --frozen-lockfile
 
-      - name: Build
+      # bundle/assets/ is gitignored. Without this step the tarball ships no kit
+      # and every `ai-agents init` fails with ENOENT.
+      - name: Build bundle
         working-directory: ${{ env.PACKAGE_DIR }}
-        run: npm run build --if-present
+        run: bun run scripts/build-bundle.ts
+
+      - name: Build dist
+        working-directory: ${{ env.PACKAGE_DIR }}
+        run: bun run build
 
       - name: Measure pack size
         run: python3 scripts/ci/measure_npm_pack_size.py --package-dir "$PACKAGE_DIR"
@@ -149,6 +164,9 @@ jobs:
       - name: Pack the tarball once
         working-directory: ${{ env.PACKAGE_DIR }}
         run: npm pack --pack-destination "$RUNNER_TEMP/pack"
+
+      - name: Verify the tarball contents
+        run: python3 scripts/ci/verify_npm_tarball_contents.py --dir "$RUNNER_TEMP/pack"
 
       - name: Hash the tarball
         id: digest
