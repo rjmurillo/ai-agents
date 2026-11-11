@@ -11,8 +11,8 @@ TEMPLATES = Path(__file__).resolve().parents[2] / ".github" / "ISSUE_TEMPLATE"
 @pytest.mark.parametrize(
     ("filename", "required_fields"),
     [
-        ("bug_report.yml", {"component", "environment", "reproduction", "expected", "actual"}),
-        ("feature_request.yml", {"problem", "component", "proposal", "alternatives", "acceptance"}),
+        ("bug-report.yml", {"component", "environment", "reproduction", "expected", "actual"}),
+        ("feature-request.yml", {"problem", "component", "proposal", "alternatives", "acceptance"}),
     ],
 )
 def test_issue_forms_require_actionable_information(filename, required_fields):
@@ -34,7 +34,7 @@ def test_issue_forms_require_actionable_information(filename, required_fields):
 
 
 def test_bug_form_routes_vulnerabilities_to_private_reporting():
-    form = yaml.safe_load((TEMPLATES / "bug_report.yml").read_text(encoding="utf-8"))
+    form = yaml.safe_load((TEMPLATES / "bug-report.yml").read_text(encoding="utf-8"))
     guidance = "\n".join(
         field["attributes"]["value"] for field in form["body"] if field["type"] == "markdown"
     )
