@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -221,3 +222,82 @@ def test_main_reports_a_message_containing_author_as_external_not_auth(workspace
         raise RuntimeError("GraphQL request failed: could not resolve field author")
 
     assert rep.main([], graphql=boom) == 3
+
+
+@pytest.mark.parametrize(
+    "error",
+    [subprocess.TimeoutExpired(cmd="gh", timeout=30), FileNotFoundError("gh not found")],
+)
+def test_main_exits_3_when_the_gh_call_times_out_or_cannot_run(
+    workspace: Path, error: Exception
+) -> None:
+    def boom(query: str, variables: dict | None = None) -> dict:
+        raise error
+
+    assert rep.main([], graphql=boom) == 3
+    assert not (workspace / ".project-toolkit/metrics/reviewer-intervention-clusters").exists()
+
+
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        ("GraphQL request failed: HTTP 403 API rate limit exceeded", 3),
+        ("GraphQL request failed: HTTP 403 secondary rate limit", 3),
+        ("GraphQL request failed: Resource not accessible by integration", 4),
+        ("GraphQL request failed: Bad credentials", 4),
+    ],
+)
+def test_main_separates_rate_limits_from_permission_denial(
+    workspace: Path, message: str, expected: int
+) -> None:
+    def boom(query: str, variables: dict | None = None) -> dict:
+        raise RuntimeError(message)
+
+    assert rep.main([], graphql=boom) == expected
+
+
+@pytest.mark.parametrize(
+    "entries",
+    [{"1:0": "text"}, {"1:0": {"reason": "no category"}}, {"1:0": {"disposition": "  "}}],
+)
+def test_main_exits_2_on_a_malformed_registry_entry_and_writes_nothing(
+    workspace: Path, entries: dict
+) -> None:
+    (workspace / DISP).write_text(json.dumps(entries), encoding="utf-8")
+    called = []
+
+    def never(query: str, variables: dict | None = None) -> dict:
+        called.append(query)
+        return {}
+
+    code = rep.main(["--dispositions-file", DISP], graphql=never)
+
+    assert code == 2
+    assert called == []
+
+
+def test_main_warns_when_the_dispositions_file_is_absent(
+    workspace: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level("WARNING")
+
+    code = rep.main([], graphql=FakeGraphQL({None: make_page([])}))
+
+    assert code == 0
+    assert "absent" in caplog.text
+
+
+def test_main_report_carries_the_filter_funnel(workspace: Path) -> None:
+    code = rep.main([], graphql=three_repeat_pages())
+
+    written = json.loads(
+        (
+            workspace / ".project-toolkit/metrics/reviewer-intervention-clusters/report.json"
+        ).read_text(encoding="utf-8")
+    )
+    examined = written["examined"]
+    assert code == 0
+    assert examined["threads_seen"] == 3
+    assert examined["threads_excluded_bot_or_unknown"] == 0
+    assert examined["threads_excluded_no_standing"] == 0
+    assert examined["duplicate_pull_requests_skipped"] == 0

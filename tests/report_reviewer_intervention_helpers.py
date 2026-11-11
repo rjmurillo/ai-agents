@@ -55,12 +55,14 @@ def make_pr(
     *,
     author: dict | None = BOT,
     body: str = "",
+    association: str = "OWNER",
     updated_age: float = 1,
 ):
     return {
         "number": number,
         "updatedAt": stamp(updated_age),
         "body": body,
+        "authorAssociation": association,
         "author": author,
         "reviewThreads": {
             "pageInfo": {"hasNextPage": False, "endCursor": None},

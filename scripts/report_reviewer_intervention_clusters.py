@@ -10,27 +10,24 @@ The cluster definition lives in the ``review_clusters`` module docstring and
 in ``.project-toolkit/metrics/reviewer-intervention-clusters/README.md``.
 
 Population
-    Agent-authored pull request: the body carries ``AGENT_TRAILER``, or the
-    author is a bot account per ``github_core.bot_config.is_bot``. Dependency
-    bots (``DEPENDENCY_BOTS``) are automation, not coding agents, and are
-    excluded. In this repository agents open pull requests under the owner's
-    login, so the trailer is the usable marker; the author login is not.
-    Human intervention: the first comment of a review thread whose author is
-    not a bot and whose ``authorAssociation`` is in ``REVIEWER_ASSOCIATIONS``.
-    The pull request author is not excluded: on a trailer pull
-    request the owner is both the nominal author and the human reviewer. An
-    agent posting a thread under the same login cannot be told apart from the
-    owner; the README states that limit.
+    Defined in the ``review_clusters`` module so every consumer counts alike:
+    ``AGENT_TRAILER``, ``DEPENDENCY_BOTS``, ``REVIEWER_ASSOCIATIONS``,
+    ``is_agent_pull_request`` and ``classify_thread_opener``. This script
+    resolves bot status with ``github_core.bot_config.is_bot`` and passes it in.
 
-Reads are lossless (``lossless-queue-reads``): every page is fetched until
-the API reports no next page. A missing cursor or a page cap fails the run
-with exit 3 and names what was not read. A partial result is never written.
+Reads are lossless (``lossless-queue-reads``): pull requests arrive newest-update
+first and the walk ends at the first one older than the 90-day window; every
+page inside that bound is fetched until the API reports no next page. A
+missing cursor or a page cap fails the run with exit 3 and names what was not
+read. A partial result is never written.
 
 Exit codes (AGENTS.md contract):
     0  Report written. Zero clusters is a success and says so.
-    2  Configuration error: bad arguments, unreadable dispositions file,
-       unresolvable repository, output path outside the repository.
-    3  External error: the API failed or pagination could not complete.
+    2  Configuration error: bad arguments, unreadable or malformed
+       dispositions file, unresolvable repository, a path outside its
+       allowed directory.
+    3  External error: the API failed or timed out, pagination could not
+       complete, or the API returned malformed data.
     4  Authentication error.
 """
 
@@ -40,10 +37,10 @@ import argparse
 import json
 import logging
 import os
-import re
+import subprocess
 import sys
 from collections.abc import Callable
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -52,13 +49,19 @@ workspace = os.environ.get(
     os.path.abspath(os.path.join(os.path.dirname(__file__), "..")),
 )
 sys.path.insert(0, workspace)
+# Deliberate coupling: the shared cluster module ships inside the skill-bootstrap skill so a
+# shipped skill can import it. This upstream-only script reaches it by path.
 sys.path.insert(
     0, str(Path(workspace) / "src" / "claude" / "skills" / "skill-bootstrap" / "scripts")
 )
 
 import review_clusters  # noqa: E402
 
-from scripts.github_core.api import gh_graphql, resolve_repo_params  # noqa: E402
+from scripts.github_core.api import (  # noqa: E402
+    gh_graphql,
+    is_auth_failure_text,
+    resolve_repo_params,
+)
 from scripts.github_core.bot_config import is_bot  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -70,19 +73,9 @@ EXIT_AUTH = 4
 
 DEFAULT_REPORT = ".project-toolkit/metrics/reviewer-intervention-clusters/report.json"
 DEFAULT_DISPOSITIONS = ".project-toolkit/pr-checks/suppressed-finding-dispositions.json"
-AGENT_TRAILER = "Generated with [Claude Code]"
-# Only a commenter with write-level standing is a reviewer. Without this, an outside
-# contributor could mint a cluster by putting the trailer in their own PR body.
-REVIEWER_ASSOCIATIONS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
-# GraphQL reports a bot login without its "[bot]" suffix, so list both forms.
-DEPENDENCY_BOTS = frozenset({"dependabot", "dependabot[bot]", "renovate", "renovate[bot]"})
 MAX_PR_PAGES = 200
 MAX_THREAD_PAGES = 50
-
-# "auth" alone would match "author" in an unrelated message.
-_AUTH_FAILURE = re.compile(
-    r"\b(401|403|unauthorized|bad credentials|authentication|not logged in)\b"
-)
+PROGRESS_EVERY_PAGES = 10
 
 GraphQL = Callable[[str, dict[str, Any] | None], dict[str, Any]]
 
@@ -101,6 +94,7 @@ _THREAD_FIELDS = f"""
 
 _PRS_QUERY = f"""
 query($owner: String!, $repo: String!, $cursor: String) {{
+  rateLimit {{ cost remaining }}
   repository(owner: $owner, name: $repo) {{
     pullRequests(first: 50, orderBy: {{field: UPDATED_AT, direction: DESC}}, after: $cursor) {{
       pageInfo {{ hasNextPage endCursor }}
@@ -108,6 +102,7 @@ query($owner: String!, $repo: String!, $cursor: String) {{
         number
         updatedAt
         body
+        authorAssociation
         author {{ {_ACTOR} }}
         reviewThreads(first: 50) {{
           pageInfo {{ hasNextPage endCursor }}
@@ -153,7 +148,9 @@ def _nodes(connection: dict[str, Any], what: str) -> list[dict[str, Any]]:
     nodes = connection.get("nodes")
     if not isinstance(nodes, list):
         raise FetchError(f"missing nodes for {what}")
-    return [_obj(n, what) for n in nodes if n is not None]
+    if any(n is None for n in nodes):
+        raise FetchError(f"null node in {what}; the read is incomplete")
+    return [_obj(n, what) for n in nodes]
 
 
 def _remaining_threads(
@@ -182,16 +179,27 @@ def _remaining_threads(
 
 
 def fetch_pull_requests(
-    graphql: GraphQL, owner: str, repo: str, since: datetime
+    graphql: GraphQL,
+    owner: str,
+    repo: str,
+    since: datetime,
+    stats: dict[str, int] | None = None,
 ) -> tuple[list[dict[str, Any]], int]:
     """Return ``(pull_requests, examined)`` for PRs updated at or after ``since``.
 
-    Each returned PR carries ``number``, ``author``, ``body`` and a complete ``threads``
-    list. Pull requests arrive ordered by ``updatedAt`` descending, so the
-    first one older than ``since`` ends the walk: a comment in the window
-    implies its PR was updated in the window.
+    Each returned PR carries ``number``, ``author``, ``author_association``,
+    ``body`` and a complete ``threads`` list. Pull requests arrive ordered by
+    ``updatedAt`` descending, so the first one older than ``since`` ends the
+    walk: a comment in the window implies its PR was updated in the window. A
+    pull request updated during the walk can jump ahead of the cursor and wait
+    for the next run. A repeated number is skipped and counted. ``stats``, when
+    given, receives ``pages``, ``duplicate_pull_requests_skipped`` and the
+    GraphQL ``graphql_cost`` in points.
     """
     result: list[dict[str, Any]] = []
+    seen: set[int] = set()
+    counters = stats if stats is not None else {}
+    counters.update({"pages": 0, "duplicate_pull_requests_skipped": 0, "graphql_cost": 0})
     examined = 0
     cursor: str | None = None
     for _ in range(MAX_PR_PAGES):
@@ -199,6 +207,12 @@ def fetch_pull_requests(
         if cursor:
             variables["cursor"] = cursor
         data = _obj(graphql(_PRS_QUERY, variables), "pull request page")
+        counters["pages"] += 1
+        limit = data.get("rateLimit")
+        if isinstance(limit, dict) and isinstance(limit.get("cost"), int):
+            counters["graphql_cost"] += limit["cost"]
+        if counters["pages"] % PROGRESS_EVERY_PAGES == 0:
+            logger.info("read %d pages, %d pull requests", counters["pages"], examined)
         conn = _obj(_obj(data.get("repository"), "repository").get("pullRequests"), "pullRequests")
         reached_boundary = False
         for pr in _nodes(conn, "pull requests"):
@@ -206,10 +220,14 @@ def fetch_pull_requests(
             if updated < since:
                 reached_boundary = True
                 break
-            examined += 1
             number = pr.get("number")
             if not isinstance(number, int):
                 raise FetchError("pull request without a numeric `number`")
+            if number in seen:
+                counters["duplicate_pull_requests_skipped"] += 1
+                continue
+            seen.add(number)
+            examined += 1
             threads_conn = _obj(pr.get("reviewThreads"), f"PR #{number} reviewThreads")
             threads = _nodes(threads_conn, f"PR #{number} threads")
             more = _next_cursor(threads_conn, f"PR #{number} threads")
@@ -219,6 +237,7 @@ def fetch_pull_requests(
                 {
                     "number": number,
                     "author": pr.get("author"),
+                    "author_association": pr.get("authorAssociation"),
                     "body": pr["body"] if isinstance(pr.get("body"), str) else "",
                     "threads": threads,
                 }
@@ -241,11 +260,15 @@ def _actor(raw: object) -> tuple[str, str | None]:
     return (login if isinstance(login, str) else ""), (kind if isinstance(kind, str) else None)
 
 
-def is_agent_pull_request(author: str, author_kind: str | None, body: str) -> bool:
-    """Return True when the pull request is agent-authored under the stated population."""
-    if author in DEPENDENCY_BOTS:
-        return False
-    return AGENT_TRAILER in body or (bool(author) and is_bot(author, author_kind))
+FUNNEL_KEYS = (
+    "agent_pull_requests",
+    "trailer_pull_requests",
+    "threads_seen",
+    "threads_without_comments",
+    "threads_excluded_bot_or_unknown",
+    "threads_excluded_no_standing",
+    "interventions_by_pr_author",
+)
 
 
 def extract_interventions(
@@ -253,30 +276,42 @@ def extract_interventions(
 ) -> tuple[list[dict[str, Any]], dict[str, int]]:
     """Keep human-opened threads on agent pull requests.
 
-    Returns ``(interventions, counts)``. ``counts`` holds ``agent_pull_requests``
-    and ``trailer_pull_requests`` (agent pull requests marked by the trailer).
+    Returns ``(interventions, counts)``. ``counts`` has one entry per name in
+    ``FUNNEL_KEYS``, so a drop at any filter is visible in the report.
     """
     interventions: list[dict[str, Any]] = []
-    counts = {"agent_pull_requests": 0, "trailer_pull_requests": 0}
+    counts = dict.fromkeys(FUNNEL_KEYS, 0)
     for pr in pull_requests:
         author, author_kind = _actor(pr["author"])
         body = pr.get("body") or ""
-        if not is_agent_pull_request(author, author_kind, body):
+        author_is_bot = bool(author) and is_bot(author, author_kind)
+        if not review_clusters.is_agent_pull_request(
+            author, author_is_bot, pr.get("author_association"), body
+        ):
             continue
         counts["agent_pull_requests"] += 1
-        if AGENT_TRAILER in body:
+        if review_clusters.AGENT_TRAILER in body:
             counts["trailer_pull_requests"] += 1
         for thread in pr["threads"]:
+            counts["threads_seen"] += 1
             comments = _obj(thread.get("comments"), "thread comments")
             first = _nodes(comments, f"thread {thread.get('id')} comments")
             if not first:
+                counts["threads_without_comments"] += 1
                 continue
             comment = first[0]
             login, kind = _actor(comment.get("author"))
-            if not login or is_bot(login, kind):
+            verdict = review_clusters.classify_thread_opener(
+                login, bool(login) and is_bot(login, kind), comment.get("authorAssociation")
+            )
+            if verdict == review_clusters.OPENER_BOT_OR_UNKNOWN:
+                counts["threads_excluded_bot_or_unknown"] += 1
                 continue
-            if comment.get("authorAssociation") not in REVIEWER_ASSOCIATIONS:
+            if verdict == review_clusters.OPENER_NO_STANDING:
+                counts["threads_excluded_no_standing"] += 1
                 continue
+            if login == author:
+                counts["interventions_by_pr_author"] += 1
             thread_id = thread.get("id")
             if not isinstance(thread_id, str) or not thread_id:
                 raise FetchError(f"thread on PR #{pr['number']} has no id")
@@ -295,6 +330,7 @@ def extract_interventions(
 def load_dispositions(path: Path) -> dict[str, Any]:
     """Read the disposition registry. A missing file is an empty registry."""
     if not path.exists():
+        logger.warning("dispositions file %s is absent; treating it as an empty registry", path)
         return {}
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -302,6 +338,7 @@ def load_dispositions(path: Path) -> dict[str, Any]:
         raise ValueError(f"cannot read dispositions file {path}: {exc}") from exc
     if not isinstance(data, dict):
         raise ValueError(f"dispositions file {path} must hold a JSON object")
+    review_clusters.validate_dispositions(data)
     return data
 
 
@@ -313,11 +350,26 @@ def build_report(
     now: datetime,
 ) -> dict[str, Any]:
     """Fetch, filter and cluster. Raises FetchError or ValueError, never partial."""
-    since = now - timedelta(days=review_clusters.WINDOW_DAYS)
-    pull_requests, examined_prs = fetch_pull_requests(graphql, owner, repo, since)
+    since = review_clusters.window_start(now)
+    fetch_stats: dict[str, int] = {}
+    pull_requests, examined_prs = fetch_pull_requests(graphql, owner, repo, since, fetch_stats)
     interventions, counts = extract_interventions(pull_requests)
-    clustered = review_clusters.cluster_interventions(interventions, dispositions, now=now)
-    clustered["examined"].update({"pull_requests": examined_prs, **counts})
+    clustered = review_clusters.cluster_interventions(
+        interventions, dispositions, now=now, window_days=review_clusters.WINDOW_DAYS
+    )
+    clustered["examined"].update(
+        {
+            "pull_requests": examined_prs,
+            "duplicate_pull_requests_skipped": fetch_stats["duplicate_pull_requests_skipped"],
+            **counts,
+        }
+    )
+    logger.info(
+        "read %d pages for %d pull requests; GraphQL cost %d points",
+        fetch_stats["pages"],
+        examined_prs,
+        fetch_stats["graphql_cost"],
+    )
     return {
         "as_of": now.date().isoformat(),
         "repository": f"{owner}/{repo}",
@@ -396,12 +448,14 @@ def main(argv: list[str] | None = None, *, graphql: GraphQL | None = None) -> in
             datetime.now(timezone.utc),
         )
     except (FetchError, ValueError) as exc:
-        logger.error("report not written, read incomplete or input malformed: %s", exc)
+        logger.error("report not written, read incomplete or API data malformed: %s", exc)
+        return EXIT_EXTERNAL
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        logger.error("report not written, the gh call timed out or could not run: %s", exc)
         return EXIT_EXTERNAL
     except RuntimeError as exc:
-        text = str(exc).lower()
         logger.error("report not written, GitHub request failed: %s", exc)
-        return EXIT_AUTH if _AUTH_FAILURE.search(text) else EXIT_EXTERNAL
+        return EXIT_AUTH if is_auth_failure_text(str(exc)) else EXIT_EXTERNAL
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(render_report(report), encoding="utf-8")
     examined = report["examined"]

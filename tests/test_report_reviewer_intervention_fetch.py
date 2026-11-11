@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from typing import Any
 
 import pytest
 
@@ -151,7 +152,7 @@ def test_fetch_carries_the_pr_body_for_the_trailer_check() -> None:
 
     prs, _ = rep.fetch_pull_requests(gql, "o", "r", NOW - timedelta(days=90))
 
-    assert rep.AGENT_TRAILER in prs[0]["body"]
+    assert "Generated with [Claude Code]" in prs[0]["body"]
 
 
 def test_build_report_counts_trailer_prs_authored_under_the_owner_login() -> None:
@@ -193,3 +194,111 @@ def test_build_report_with_two_prs_reports_an_explicit_zero() -> None:
     assert report["cluster_count"] == 0
     assert report["clusters"] == []
     assert report["examined"]["interventions"] == 2
+
+
+def test_fetch_skips_and_counts_a_pull_request_that_repeats_across_pages() -> None:
+    gql = FakeGraphQL(
+        {
+            None: make_page([make_pr(1, []), make_pr(2, [])], "c1"),
+            "c1": make_page([make_pr(2, []), make_pr(3, [])]),
+        }
+    )
+    stats: dict[str, int] = {}
+
+    prs, examined = rep.fetch_pull_requests(gql, "o", "r", NOW - timedelta(days=90), stats)
+
+    assert [p["number"] for p in prs] == [1, 2, 3]
+    assert examined == 3
+    assert stats["duplicate_pull_requests_skipped"] == 1
+    assert stats["pages"] == 2
+
+
+def test_fetch_sums_the_graphql_cost_across_pages() -> None:
+    first = make_page([make_pr(1, [])], "c1")
+    first["rateLimit"] = {"cost": 26, "remaining": 4900}
+    second = make_page([make_pr(2, [])])
+    second["rateLimit"] = {"cost": 25, "remaining": 4875}
+    stats: dict[str, int] = {}
+
+    rep.fetch_pull_requests(
+        FakeGraphQL({None: first, "c1": second}), "o", "r", NOW - timedelta(days=90), stats
+    )
+
+    assert stats["graphql_cost"] == 51
+
+
+def test_fetch_tolerates_a_response_with_no_rate_limit_block() -> None:
+    stats: dict[str, int] = {}
+
+    rep.fetch_pull_requests(
+        FakeGraphQL({None: make_page([make_pr(1, [])])}), "o", "r", NOW - timedelta(days=90), stats
+    )
+
+    assert stats["graphql_cost"] == 0
+
+
+def test_fetch_logs_progress_every_n_pages(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr(rep, "PROGRESS_EVERY_PAGES", 1)
+    caplog.set_level("INFO")
+    gql = FakeGraphQL({None: make_page([make_pr(1, [])], "c1"), "c1": make_page([])})
+
+    rep.fetch_pull_requests(gql, "o", "r", NOW - timedelta(days=90))
+
+    assert "read 1 pages" in caplog.text
+    assert "read 2 pages" in caplog.text
+
+
+def test_fetch_fails_loud_on_a_null_node_instead_of_dropping_it() -> None:
+    page = make_page([make_pr(1, [])])
+    page["repository"]["pullRequests"]["nodes"].append(None)
+
+    with pytest.raises(rep.FetchError, match="null node"):
+        rep.fetch_pull_requests(FakeGraphQL({None: page}), "o", "r", NOW - timedelta(days=90))
+
+
+def test_fetch_fails_loud_on_a_null_thread_node() -> None:
+    pr = make_pr(1, [make_thread("A")])
+    pr["reviewThreads"]["nodes"].append(None)
+
+    with pytest.raises(rep.FetchError, match="PR #1 threads"):
+        rep.fetch_pull_requests(
+            FakeGraphQL({None: make_page([pr])}), "o", "r", NOW - timedelta(days=90)
+        )
+
+
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (lambda page: page.__setitem__("repository", None), "repository is not an object"),
+        (
+            lambda page: page["repository"]["pullRequests"].pop("nodes"),
+            "missing nodes for pull requests",
+        ),
+        (
+            lambda page: page["repository"]["pullRequests"]["nodes"][0].__setitem__("number", "x"),
+            "numeric `number`",
+        ),
+        (
+            lambda page: page["repository"]["pullRequests"]["nodes"][0].__setitem__(
+                "reviewThreads", None
+            ),
+            "reviewThreads is not an object",
+        ),
+    ],
+)
+def test_fetch_fails_loud_on_a_malformed_response_shape(mutate, message: str) -> None:
+    page = make_page([make_pr(1, [])])
+    mutate(page)
+
+    with pytest.raises(rep.FetchError, match=message):
+        rep.fetch_pull_requests(FakeGraphQL({None: page}), "o", "r", NOW - timedelta(days=90))
+
+
+def test_fetch_fails_loud_when_the_response_is_not_an_object() -> None:
+    def not_an_object(query: str, variables: dict[str, Any] | None = None) -> Any:
+        return []
+
+    with pytest.raises(rep.FetchError, match="not an object"):
+        rep.fetch_pull_requests(not_an_object, "o", "r", NOW - timedelta(days=90))
