@@ -194,6 +194,8 @@ Write the file to the destination directory determined in Phase G2:
 
 ## Mandatory Exit Gates
 
+**Delegation on each host.** "Delegate to the `X` agent" means the host's subagent tool: Claude Code `Task` with `subagent_type="X"`; Copilot CLI `task` with `agent_type="project-toolkit:X"`; Codex `spawn_agent` with `agent_type="X"`, plus `fork_turns="none"` when the agent reviews or judges work (the default hands it your whole history); Muse Code `subagent_spawn` with `role="X"` and an `objective`, plus `worktree_isolation: true` for an agent that writes files. If the host has no subagent tool, or no `X` agent is installed, run the step yourself in this session.
+
 Run these five gates in order against the saved draft before handing it to
 `adr-review`. They are a measured pilot, not a permanent policy: use one fixed
 ADR cohort before and after the pilot, then retain them only when avoided writer
@@ -221,11 +223,8 @@ invent a correction when evidence is unavailable or a claim remains uncertain.
    item and with Consequences. Record contradictions or the `VERIFIED` result.
 4. **Refuting seat.** Run one seat, not the panel:
    delegate to the `analyst` agent with the prompt "Refute only the claims ledger
-   against the repository tree. Return factual findings and evidence." (Claude Code:
-   `Task` with `subagent_type="analyst"`, `model="haiku"`; Copilot CLI: `task`
-   with `agent_type="project-toolkit:analyst"`; Codex: `spawn_agent` with
-   `agent_type="analyst"`; Muse Code: `subagent_spawn` with `role="analyst"`; no
-   subagent tool: run the seat yourself).
+   against the repository tree. Return factual findings and evidence." (Claude
+   Code: `model="haiku"`).
    The outcome is `VERIFIED` only when no factual findings remain. Do not invoke
    `adr-review` while this seat reports a factual finding; record unavailable
    evidence as `UNAVAILABLE`, never as a fabricated correction.

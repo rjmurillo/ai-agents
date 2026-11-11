@@ -57,12 +57,10 @@ routes through the table below instead of defaulting to a bare answer, for
 example "why is CI failing", "investigate the flaky test", or "redo the login
 fix properly".
 
-These phrases are grounded in this repo's own Copilot and Claude session
-history. The dominant real openers are continue, proceed, investigate, fix
-the X, do it, and handle it, not ceremonial delegation phrases. Continue and
-proceed are deliberately excluded as hard triggers: they mean resume the
-in-flight work, so they route to whatever is already running rather than
-re-classifying from scratch.
+The phrases come from this repo's session history: continue, proceed,
+investigate, fix the X, do it, handle it. Continue and proceed are not hard
+triggers: they resume the in-flight work, so they route to whatever is already
+running instead of re-classifying.
 
 ## Precedence
 
