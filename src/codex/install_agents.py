@@ -94,27 +94,51 @@ def sha256_hex(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+_SAFE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+_SHA256_HEX = re.compile(r"[0-9a-f]{64}")
+
+
 def _safe_name(name: object) -> bool:
-    """True for a plain ``*.toml`` base name: no separator, no dot segment."""
+    """True for a plain ``*.toml`` base name made only of ``[A-Za-z0-9._-]``.
+
+    The ownership file is attacker-controllable input (a committed
+    ``.codex/agents/.project-toolkit-agents.json``), so a name that could carry a
+    path separator, a quote, a newline or any other character is rejected.
+    """
     return (
         isinstance(name, str)
         and name.endswith(AGENT_SUFFIX)
-        and name == Path(name).name
-        and not name.startswith(".")
-        and "\\" not in name
+        and _SAFE_NAME.fullmatch(name) is not None
     )
+
+
+def _valid_hash(value: object) -> bool:
+    """True for a lowercase SHA-256 hex digest. Disk markers such as ``symlink`` never match."""
+    return isinstance(value, str) and _SHA256_HEX.fullmatch(value) is not None
+
+
+def _valid_namespaced(file_name: object, source: object) -> bool:
+    """True when ``file_name`` is exactly ``<valid prefix>-<source>`` for a safe ``source``."""
+    if not (_safe_name(file_name) and _safe_name(source)):
+        return False
+    assert isinstance(file_name, str) and isinstance(source, str)
+    if not file_name.endswith(f"-{source}"):
+        return False
+    return PREFIX_PATTERN.fullmatch(file_name[: -len(source) - 1]) is not None
 
 
 def read_ownership(target: Path) -> Ownership:
     path = target / OWNERSHIP_FILE
+    if path.is_symlink():
+        raise InstallError(f"ownership file is a symlink: {path}")
     if not path.is_file():
         return Ownership()
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
         files, sources = data["files"], data.get("namespaced", {})
         ok = isinstance(files, dict) and isinstance(sources, dict)
-        ok = ok and all(_safe_name(k) and isinstance(v, str) for k, v in files.items())
-        ok = ok and all(_safe_name(k) and _safe_name(v) for k, v in sources.items())
+        ok = ok and all(_safe_name(k) and _valid_hash(v) for k, v in files.items())
+        ok = ok and all(_valid_namespaced(k, v) for k, v in sources.items())
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
         raise InstallError(f"unreadable ownership file {path}: {exc}") from exc
     if not ok:
@@ -132,18 +156,29 @@ def load_shipped(agents_dir: Path) -> dict[str, bytes]:
 
 
 def namespaced_bytes(data: bytes, prefix: str, file_name: str) -> bytes:
-    """Return ``data`` with the ``name`` line prefixed; verify the result parses."""
+    """Return ``data`` with the ``name`` line set to ``<prefix>-<stem>``.
+
+    The new name is built only from the validated ``prefix`` and the shipped
+    file's stem, never from text in the file or in the ownership record. The
+    result is parsed with ``tomllib`` (when available) and its ``name`` checked.
+    """
+    if PREFIX_PATTERN.fullmatch(prefix) is None:
+        raise InstallError(f"invalid namespace prefix: {prefix!r}")
+    if not _safe_name(file_name):
+        raise InstallError(f"unsafe agent file name: {file_name!r}")
     text = data.decode("utf-8")
     match = _NAME_LINE.match(text)
     if match is None:
         raise InstallError(f'{file_name}: first line is not `name = "..."`')
-    new_name = f"{prefix}-{match.group(1)}"
+    new_name = f"{prefix}-{file_name[: -len(AGENT_SUFFIX)]}"
     rewritten = f'name = "{new_name}"\n' + text[match.end() :]
     if tomllib is not None:
         try:
-            tomllib.loads(rewritten)
+            parsed = tomllib.loads(rewritten)
         except tomllib.TOMLDecodeError as exc:
             raise InstallError(f"{file_name}: namespaced rewrite is invalid TOML: {exc}") from exc
+        if parsed.get("name") != new_name:
+            raise InstallError(f"{file_name}: namespaced name did not parse as {new_name!r}")
     return rewritten.encode("utf-8")
 
 
@@ -325,11 +360,23 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _refuse_symlinked_path(root: Path, *parts: str) -> None:
+    """Fail when any component below ``root`` is a symlink (CWE-59)."""
+    current = root
+    for part in parts:
+        current = current / part
+        if current.is_symlink():
+            raise InstallError(f"refusing to write through a symlink: {current}")
+
+
 def resolve_target(args: argparse.Namespace) -> tuple[Path, Path | None]:
-    """Return ``(agents dir, project dir or None)``."""
+    """Return ``(agents dir, project dir or None)``; refuse a symlinked path below the root."""
     if args.user:
-        return codex_home() / "agents", None
+        home = codex_home()
+        _refuse_symlinked_path(home, "agents")
+        return home / "agents", None
     project = Path(args.project or Path.cwd()).absolute()
+    _refuse_symlinked_path(project, ".codex", "agents")
     return project / ".codex" / "agents", project
 
 
@@ -373,7 +420,7 @@ def run(args: argparse.Namespace, agents_dir: Path) -> int:
 def main(argv: list[str] | None = None, agents_dir: Path | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    if args.namespace is not None and not PREFIX_PATTERN.match(args.namespace):
+    if args.namespace is not None and not PREFIX_PATTERN.fullmatch(args.namespace):
         parser.error(f"--namespace must match {PREFIX_PATTERN.pattern}")
     if args.namespace is not None and args.uninstall:
         parser.error("--namespace has no meaning with --uninstall")
