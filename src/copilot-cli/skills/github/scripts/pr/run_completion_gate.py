@@ -1619,6 +1619,7 @@ _PLUGIN_ROOT_FORMS: dict[str, tuple[str, ...]] = {
 
 def _expand_plugin_root(token: str, *, probe: bool = False) -> str:
     """Resolve the documented plugin-root indirection, or return as-is.
+
     Mirrors the shell's ``${VAR:-default}``: the first variable the form
     names that is set and non-empty wins, otherwise the literal default.
     Only the exact forms in :data:`_PLUGIN_ROOT_FORMS` are expanded.
@@ -1648,8 +1649,15 @@ def _expand_plugin_root(token: str, *, probe: bool = False) -> str:
 
 
 def _plugin_root_holds(root: str, remainder: str) -> bool:
-    """True when ``root`` contains the file ``remainder`` names, inside ``root``."""
-    relative = remainder.lstrip("/")
+    """True when ``root`` contains the file ``remainder`` names, inside ``root``.
+
+    ``remainder`` is the token text after the plugin-root form. It must start
+    with ``/``, so ``${...}evil/x.py`` (no separator) is never probed as
+    ``<root>/evil/x.py``.
+    """
+    if not remainder.startswith("/"):
+        return False
+    relative = remainder[1:]
     if not relative or ".." in Path(relative).parts:
         return False
     return (Path(root) / relative).is_file()
