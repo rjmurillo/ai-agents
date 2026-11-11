@@ -114,3 +114,15 @@ def test_steps_act_cannot_run_are_guarded_the_way_pytest_yml_guards_them() -> No
     assert len(guarded) == 3
     for step in guarded:
         assert "env.ACT != 'true'" in step["if"]
+
+
+def test_no_env_block_defines_act() -> None:
+    """The ACT guards assume only gh act sets ACT, never this workflow."""
+    doc = yaml.safe_load(
+        (_REPO / ".github" / "workflows" / "update-reviewer-stats.yml").read_text(encoding="utf-8")
+    )
+    blocks = [doc.get("env") or {}]
+    for job in doc["jobs"].values():
+        blocks.append(job.get("env") or {})
+        blocks.extend(step.get("env") or {} for step in job["steps"])
+    assert not [b for b in blocks if "ACT" in b]

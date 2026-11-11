@@ -35,8 +35,10 @@ Rules:
     destination, a source outside the directory, an oversized file, a non-UTF-8
     file, and a file with control, format, separator, combining or blank-lookalike
     characters (bidi overrides, zero-width marks) are refused. A named path with no
-    usable file fails the run. A human still reads and merges the pull request; no
-    CI check covers it.
+    usable file fails the run. The character check covers the whole file, so one
+    such character already in a tracked file fails every run with exit 1 until
+    someone removes it. A human still reads and merges the pull request; no CI
+    check covers it.
   - Every git and gh call has a timeout. A timeout counts as that call failing.
   - Output carries one `outcome=noop|skipped|published` line, and a skip also
     prints a `::notice::` annotation so the run page shows a stalled update.

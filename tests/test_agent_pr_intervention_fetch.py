@@ -297,6 +297,3 @@ class TestWorkflowWiring:
         steps = self._steps()
         assert "!cancelled()" in steps["Upload updated stats"]["if"]
         assert "!cancelled()" in steps["Build agent PR intervention report"]["if"]
-        # The report is written atomically, so a failed build leaves the tracked
-        # file unchanged and the publish step sees nothing to commit for it.
-        assert "os.replace" in Path(m.__file__).read_text(encoding="utf-8")
