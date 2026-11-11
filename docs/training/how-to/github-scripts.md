@@ -12,7 +12,7 @@ Raw `gh` prints text meant for people. The scripts print one JSON envelope and a
 
 - **Structured output.** Every script returns `Success`, `Data`, `Error`, and `Metadata`. You read `.Data` on success and `.Error` on failure. See the Output Format section of the skill file.
 - **Exit codes.** `0` is success, `1` is a logic error, `2` is a config error, `3` is an external failure, and `4` is an auth error. ADR-035 sets these. A script may add its own code, such as `100` for "not mergeable".
-- **Secret redaction.** Error text from GitHub passes through `sanitize_failure_detail` in `github_core/api.py`. It replaces token shapes with `[REDACTED]` before they reach an envelope or log. The `redact_secrets.py` script does the same for free text you plan to publish.
+- **Secret redaction.** The shared library has a redactor, `sanitize_failure_detail` in `github_core/api.py`. It replaces token shapes with `[REDACTED]`. `merge_pr.py`, `reopen_pr.py`, `update_pr_branch.py`, and `rerun_failed_jobs.py` use it on GitHub error text before it reaches an envelope. The `redact_secrets.py` script redacts free text you plan to publish.
 - **Guard rails.** Merge, branch update, and PR body edits take a head SHA or hash. A script refuses to act when the state moved after you looked.
 
 ## Before you start
@@ -20,7 +20,7 @@ Raw `gh` prints text meant for people. The scripts print one JSON envelope and a
 You need:
 
 - A checkout of this repository. Run every command from its root.
-- `python3`, `jq`, and `gh` installed. Run `gh auth status` and confirm you are signed in.
+- `python3`, `jq`, and `gh` installed, and `gh` signed in. The transport check below reports `AuthStatus`.
 
 Set the scripts folder once per shell. The `PR` number is an example. Use your own.
 
@@ -165,8 +165,8 @@ python3 "$SCRIPTS_DIR/pr/get_pull_requests.py" --state open --label dependencies
 
 Three things to know:
 
-- Both scripts return at most `--limit` rows. The default is 30 and the range is 1 to 1000. A full page does not mean you saw everything. Raise `--limit` when the count matters.
-- `--search` replaces the other filters. `--label`, `--author`, and `--milestone` are ignored when you pass it.
+- Both scripts return at most `--limit` rows. The default is 30 and the range is 1 to 1000. A full page does not mean you saw every row. A limit is a fetch size, not a completeness bound. For a work queue, where each row is an obligation, follow the `lossless-queue-reads` rule.
+- `--search` replaces the other filters. `list_issues.py` ignores `--label`, `--author`, `--assignee`, and `--milestone` when you pass it. `get_pull_requests.py` ignores `--label`, `--author`, `--base`, and `--head`.
 - `--state closed` on `get_pull_requests.py` includes merged PRs. Read `state` on each row. Use `--state merged` for merged PRs only.
 
 ### Recipe 5: merge a PR pinned to its head SHA
@@ -284,9 +284,9 @@ Read the exit code first, then `.Error.Message`.
 | Exit | Meaning | What to do |
 |------|---------|------------|
 | 1 | Logic error, such as a moved head or a merged PR | Read `.Error.Message`. Fix the input or re-read the PR state. |
-| 2 | Bad arguments or config, such as a missing `--blocked-by` | Fix the flag. No GitHub call was made. |
+| 2 | Bad arguments or config, or "not found" for scripts that look up a PR, issue, or milestone | Read `.Error.Message`. Fix the flag or the number. |
 | 3 | GitHub or network failure | Retry once. If it repeats, run the transport check. |
-| 4 | Not signed in | Run `gh auth status` and sign in. |
+| 4 | Not signed in | Sign `gh` in, then run the transport check again. |
 | 100 | Script-specific refusal: not mergeable (`merge_pr.py`) or rerun refused (`rerun_failed_jobs.py`) | Do not retry the same call. Diagnose with `why_pr_blocked.py`, or use the fallback the script prints. |
 
 An unreachable API is an unknown, not a verdict. Do not report a PR as blocked because a call failed.
