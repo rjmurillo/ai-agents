@@ -423,7 +423,9 @@ def test_prs_json_empty_list_is_valid(capsys, repo, tmp_path):
 AS_OF = "2026-11-10T12:00:00Z"
 
 
-def review_thread(tid: str, body: str = "plain", path: str | None = "scripts/ci/x.py") -> dict:
+def review_thread(
+    tid: str, body: str = "plain", path: str | None = "scripts/ci/x.py"
+) -> dict[str, Any]:
     return {
         "thread_id": tid,
         "created_at": "2026-11-09T00:00:00Z",
@@ -433,7 +435,7 @@ def review_thread(tid: str, body: str = "plain", path: str | None = "scripts/ci/
     }
 
 
-def review_export(count: int = 3) -> list[dict]:
+def review_export(count: int = 3) -> list[dict[str, Any]]:
     return [
         {
             "number": n,
@@ -444,7 +446,9 @@ def review_export(count: int = 3) -> list[dict]:
     ]
 
 
-def test_repeated_review_failures_reach_candidates(capsys, repo, tmp_path):
+def test_repeated_review_failures_reach_candidates(
+    capsys: pytest.CaptureFixture[str], repo: Path, tmp_path: Path
+) -> None:
     code, payload = cand(
         capsys, repo, "--prs-json", prs_file(tmp_path, review_export(3)), "--as-of", AS_OF
     )
@@ -459,7 +463,9 @@ def test_repeated_review_failures_reach_candidates(capsys, repo, tmp_path):
     assert payload["review_failures"]["examined"]["human_threads"] == 3
 
 
-def test_two_repeats_are_an_explicit_zero_with_counts(capsys, repo, tmp_path):
+def test_two_repeats_are_an_explicit_zero_with_counts(
+    capsys: pytest.CaptureFixture[str], repo: Path, tmp_path: Path
+) -> None:
     _, payload = cand(
         capsys, repo, "--prs-json", prs_file(tmp_path, review_export(2)), "--as-of", AS_OF
     )
@@ -468,7 +474,9 @@ def test_two_repeats_are_an_explicit_zero_with_counts(capsys, repo, tmp_path):
     assert payload["review_failures"]["examined"]["interventions"] == 2
 
 
-def test_missed_items_reach_candidates(capsys, repo, tmp_path):
+def test_missed_items_reach_candidates(
+    capsys: pytest.CaptureFixture[str], repo: Path, tmp_path: Path
+) -> None:
     export = [
         {"number": 10, "review_rounds": 1, "files": ["src/a/b.py"]},
         {"number": 11, "review_rounds": 1, "body": "Fix. This was introduced by #10."},
@@ -483,7 +491,9 @@ def test_missed_items_reach_candidates(capsys, repo, tmp_path):
     assert payload["missed_items"]["examined"]["fix_links_resolved"] == 1
 
 
-def test_a_legacy_export_reports_both_signals_as_explicit_zero(capsys, repo, tmp_path):
+def test_a_legacy_export_reports_both_signals_as_explicit_zero(
+    capsys: pytest.CaptureFixture[str], repo: Path, tmp_path: Path
+) -> None:
     export = [{"number": 1, "review_rounds": 2}, {"number": 2, "reviews": 3}]
 
     code, payload = cand(capsys, repo, "--prs-json", prs_file(tmp_path, export))
@@ -497,14 +507,18 @@ def test_a_legacy_export_reports_both_signals_as_explicit_zero(capsys, repo, tmp
     assert payload["review_rounds"][0]["number"] == 2
 
 
-def test_review_signal_keys_are_absent_without_prs_json(capsys, repo):
+def test_review_signal_keys_are_absent_without_prs_json(
+    capsys: pytest.CaptureFixture[str], repo: Path
+) -> None:
     _, payload = cand(capsys, repo)
 
     assert "review_failures" not in payload
     assert "missed_items" not in payload
 
 
-def test_a_malformed_review_field_exits_2(capsys, repo, tmp_path):
+def test_a_malformed_review_field_exits_2(
+    capsys: pytest.CaptureFixture[str], repo: Path, tmp_path: Path
+) -> None:
     export = [{"number": 1, "review_rounds": 1, "review_threads": "nope"}]
 
     code, payload = cand(capsys, repo, "--prs-json", prs_file(tmp_path, export))
@@ -513,7 +527,9 @@ def test_a_malformed_review_field_exits_2(capsys, repo, tmp_path):
     assert "invalid review input" in payload["message"]
 
 
-def test_a_bad_as_of_exits_2(capsys, repo, tmp_path):
+def test_a_bad_as_of_exits_2(
+    capsys: pytest.CaptureFixture[str], repo: Path, tmp_path: Path
+) -> None:
     code, payload = cand(
         capsys, repo, "--prs-json", prs_file(tmp_path, review_export(3)), "--as-of", "soon"
     )
@@ -522,7 +538,9 @@ def test_a_bad_as_of_exits_2(capsys, repo, tmp_path):
     assert "invalid review input" in payload["message"]
 
 
-def test_dispositions_json_adds_the_disposition_signal(capsys, repo, tmp_path):
+def test_dispositions_json_adds_the_disposition_signal(
+    capsys: pytest.CaptureFixture[str], repo: Path, tmp_path: Path
+) -> None:
     registry = tmp_path / "disp.json"
     entries = {f"{n}:0": {"disposition": "not-applicable", "reason": "r"} for n in range(3)}
     registry.write_text(json.dumps(entries), encoding="utf-8")
@@ -545,7 +563,9 @@ def test_dispositions_json_adds_the_disposition_signal(capsys, repo, tmp_path):
 
 
 @pytest.mark.parametrize("content", ["not json", "[1]"])
-def test_a_bad_dispositions_file_exits_2(capsys, repo, tmp_path, content):
+def test_a_bad_dispositions_file_exits_2(
+    capsys: pytest.CaptureFixture[str], repo: Path, tmp_path: Path, content: str
+) -> None:
     registry = tmp_path / "disp.json"
     registry.write_text(content, encoding="utf-8")
 
@@ -562,7 +582,9 @@ def test_a_bad_dispositions_file_exits_2(capsys, repo, tmp_path, content):
     assert "--dispositions-json" in payload["message"]
 
 
-def test_a_missing_dispositions_file_exits_2(capsys, repo, tmp_path):
+def test_a_missing_dispositions_file_exits_2(
+    capsys: pytest.CaptureFixture[str], repo: Path, tmp_path: Path
+) -> None:
     code, payload = cand(
         capsys,
         repo,
