@@ -109,10 +109,8 @@ query($threadId: ID!) {
 _HELP_EPILOG = """\
 examples:
   %(prog)s --thread-id PRRT_kwDOQoWRls5m3L76 --pull-request 123 --body "Fixed in abc1234"
-  %(prog)s --thread-id PRRT_kwDOQoWRls5m3L76 --pull-request 123 --body-file reply.md \\
-      --resolve --expected-head-sha 0123456789abcdef
-  %(prog)s --thread-id PRRT_kwDOQoWRls5m3L76 --pull-request 123 --body "Fixed in abc1234" \\
-      --resolve --expected-head-sha 0123456789abcdef --dry-run
+  %(prog)s --thread-id PRRT_kwDOQoWRls5m3L76 --pull-request 123 --body-file reply.md --resolve --expected-head-sha 0123456789abcdef
+  %(prog)s --thread-id PRRT_kwDOQoWRls5m3L76 --pull-request 123 --body "Fixed in abc1234" --dry-run
 
 --dry-run reads the thread, runs the same pull request and identity guards as a
 real run, and posts nothing. The result carries dryRun true and action
