@@ -12,7 +12,7 @@ being re-derived by a model on each run.
 Two axis families stay in separate output fields, because they load
 differently and conflating them misloads a caller-pinned local axis.
 **Canonical axes** are discovered from ``references/*.md`` and dispatched with
-``Task(subagent_type="{stem}")`` using ``references/{stem}.md`` as the system
+the ``{stem}`` agent (Claude Code: ``Task``) using ``references/{stem}.md`` as the system
 prompt.  **Local-only skill axes** (see ``LOCAL_AXES``) are sibling skills
 invoked with ``Skill(skill="{name}")``; none has a ``references/{name}.md``
 file, so a local axis in the canonical list resolves to a path that does not

@@ -32,6 +32,18 @@ Fleet audit of open-PR closing claims: extracts closing keywords from PR bodies,
 
 Parameters: `--state open`, `--artifact`, `--resume-from`, `--output-format {json,human,auto}`
 
+### `close_issue.py`
+
+Close with an optional comment. `--verify-claims` aborts with exit 1 on a cited commit or PR the remote disproves, and separately with exit 3 or 4 on one it could not check.
+
+Parameters: `--issue`, `--reason`, `--comment`, `--verify-claims`, `--dry-run`
+
+### `get_pr_checks.py`
+
+CI check status with polling. Falls back to REST on a GraphQL rate limit and reports the source in `DataSource`. REST `--required-only` with no ruleset exits 3.
+
+Parameters: `--pull-request`, `--wait`, `--timeout-seconds` (keep at or below 570 with `--wait`; it warns above), `--missing-grace-seconds`, `--required-only`, `--output-format {json,human,auto}`
+
 ### `manage_squash_merge_message.py`
 
 Read or update the `squash_merge_commit_message` repository setting with an expected-current-value guard; reports a real before/after re-read. Needs a token with administration read: GitHub omits merge settings for anyone else, and the script exits 3 rather than assuming a value.
@@ -71,13 +83,16 @@ adds the marker. Read the action to learn whether a change would happen.
 | `edit_issue_body.py` | `would_update` | reads the issue first; a missing or hidden issue exits 3, as the edit would |
 | `set_issue_labels.py` | `would_set_labels` | reads the issue and label existence (a missing issue exits 3); lists `wouldCreate`, `wouldApply`, `wouldRemove` (including the stale `priority:*` label a new priority replaces) |
 | `set_issue_assignee.py` | `would_assign` | reads the issue first; a missing issue exits 3 |
-| `close_pr.py` | `would_close` | |
+| `close_pr.py` | `would_close` | reports `wouldComment` and posts no comment; a real run exits 3 and leaves the PR open when the closing comment fails |
 | `new_pr.py` | text line `Dry run: would create PR` | runs the pre-creation validations; writes no audit log; exits 2 with `--prepare-body-file` |
-| `new_pr_review_comment.py` | `would_post` | reads the PR head commit |
-| `post_pr_comment_reply.py` | `would_post` | reads the PR or comment first (exit 2 if missing, or if the comment is on another PR); names the endpoint and body length |
+| `new_pr_review_comment.py` | `would_post` | reads the PR head commit and every review comment; `would_skip` (reason `duplicate`) when the same author already posted the same body at the path, line, and side |
+| `post_pr_comment_reply.py` | `would_post` | reads the PR or comment first (exit 2 if missing, or if the comment is on another PR); names the endpoint and body length; `would_skip` (reason `duplicate`) when the same author already posted the same body in the thread or PR conversation |
+| `add_pr_review_thread_reply.py` | `would_post` | reads the thread and applies the `--pull-request` and `--expected-*` guards as a real run does; `would_skip` when a real run skips (not found, resolved, another PR), exit 1 when the PR identity moved; with `--resolve` also reports `resolve_action: would_resolve`; posts, resolves, and disarms auto-merge nothing |
+| `resolve_pr_review_thread.py` | `would_resolve`, `would_skip` | reads the thread state as a real run does (`would_skip` for not found, already resolved, wrong PR); `--pull-request` pages every thread, exits 3 if a page cannot be read, and lists a per-thread `would_resolve` or `would_skip` |
 | `set_pr_auto_merge.py` | `WouldEnable`, `WouldDisable`, `NoChange` | enabling on a closed or merged PR exits 3, as a real run does |
 | `unresolve_pr_review_thread.py` | `would_unresolve` | `--thread-id` reads the thread and exits 1 when it is not found; `--all` lists the thread ids, reading every page and failing if a page cannot be read |
 | `update_pr_branch.py` | `would_update` | |
+| `set_pr_ready.py` | `would_mark_ready`, `would_convert_to_draft`, `none` | reads state, draft flag, and head; a closed or merged PR exits 1, a head that differs from `--expected-head-sha` exits 1, as a real run does |
 | `invoke_pr_comment_processing.py` | `[dry-run]` lines | classifies every comment; posts no reaction or reply; does not check that a comment id exists |
 | `check_pr_round_cap.py` | the usual verdict plus `dryRun` | records no round: no state marker, no escalation note, and `--worktree` fetches no git objects (a missing head reports as unverified) |
 | `merge_pr.py` | `would_merge` | stops after the pre-merge refusals and before any merge call; the audit record says `dry run; no merge call`. Branch protection and stack readiness are evaluated by GitHub at merge time, so a dry run is not a merge-ready verdict |

@@ -327,17 +327,53 @@ def mine_todos(
     return counts, len(in_scope)
 
 
-def load_review_rounds(path: str, top: int) -> tuple[list[Payload], int]:
-    """Read `--prs-json` and return the top pull requests by review rounds."""
+def read_prs_json(path: str) -> list[Any]:
+    """Read `--prs-json` and return its list of export items."""
     try:
         data = json.loads(Path(path).read_text(encoding="utf-8", errors="replace"))
     except (OSError, ValueError) as exc:
         raise ConfigError(f"cannot read --prs-json {path}: {exc}") from exc
     if not isinstance(data, list):
         raise ConfigError(f"--prs-json {path} must hold a JSON list")
+    return data
+
+
+def rank_review_rounds(data: list[Any], path: str, top: int) -> tuple[list[Payload], int]:
+    """Return the top pull requests by review rounds, and how many items were read."""
     rows = [_review_row(item, index, path) for index, item in enumerate(data)]
     rows.sort(key=lambda r: (-r["review_rounds"], r["number"]))
     return rows[:top], len(rows)
+
+
+def load_review_rounds(path: str, top: int) -> tuple[list[Payload], int]:
+    """Read `--prs-json` and return the top pull requests by review rounds."""
+    return rank_review_rounds(read_prs_json(path), path, top)
+
+
+def _review_signals(args: argparse.Namespace, data: list[Any]) -> tuple[Payload, Payload]:
+    """Compute repeated review failures and missed items from the export's review fields."""
+    # Keep the optional miner out of runs that give no export.
+    from bootstrap_review import mine_review_signals
+    from review_clusters import parse_timestamp
+
+    try:
+        as_of = parse_timestamp(args.as_of) if getattr(args, "as_of", None) else None
+        dispositions = _read_dispositions(getattr(args, "dispositions_json", None))
+        return mine_review_signals(data, as_of=as_of, dispositions=dispositions)
+    except ValueError as exc:
+        raise ConfigError(f"invalid review input: {exc}") from exc
+
+
+def _read_dispositions(path: str | None) -> dict[str, Any] | None:
+    if path is None:
+        return None
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8", errors="replace"))
+    except (OSError, ValueError) as exc:
+        raise ConfigError(f"cannot read --dispositions-json {path}: {exc}") from exc
+    if not isinstance(data, dict):
+        raise ConfigError(f"--dispositions-json {path} must hold a JSON object")
+    return data
 
 
 def _is_count(value: object) -> bool:
@@ -367,8 +403,9 @@ def candidates(args: argparse.Namespace) -> Outcome:
     top = _positive(args.top, "--top")
     exclude = args.exclude or []
     sha = resolve_rev(root, args.rev)
+    export = read_prs_json(args.prs_json) if args.prs_json else None
     prs: tuple[list[Payload], int] | None = (
-        load_review_rounds(args.prs_json, top) if args.prs_json else None
+        rank_review_rounds(export, args.prs_json, top) if export is not None else None
     )
 
     reverts, commits, unparsed = mine_reverts(root, sha, max_commits)
@@ -397,9 +434,10 @@ def candidates(args: argparse.Namespace) -> Outcome:
             "files_grepped": grepped,
         },
     }
-    if prs is not None:
+    if prs is not None and export is not None:
         payload["review_rounds"] = prs[0]
         payload["examined"]["prs"] = prs[1]
+        payload["review_failures"], payload["missed_items"] = _review_signals(args, export)
     _add_friction_inputs(args, root, payload)
     return Outcome(0, payload, out, root)
 
@@ -789,6 +827,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_cand.add_argument("--top", type=int, default=10)
     p_cand.add_argument("--exclude", action="append", metavar="PREFIX")
     p_cand.add_argument("--prs-json", metavar="FILE")
+    p_cand.add_argument(
+        "--dispositions-json",
+        metavar="FILE",
+        help="suppressed-finding dispositions; adds the disposition signal to review_failures",
+    )
+    p_cand.add_argument(
+        "--as-of",
+        metavar="ISO_DATE",
+        help="end of the review window for review_failures (default: now)",
+    )
     p_cand.add_argument("--sessions-json", metavar="FILE", help="offline skill-doctor inventory")
     p_cand.add_argument(
         "--hosted-json",

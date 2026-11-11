@@ -113,6 +113,7 @@ from checks_plugin import (
 )
 from checks_portability import (
     validate_hook_template_drift,
+    validate_host_neutral_dispatch,
     validate_rule_lossless_fixtures,
     validate_rule_template_drift,
     validate_skill_contract_tests,
