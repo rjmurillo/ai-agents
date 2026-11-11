@@ -78,7 +78,7 @@ def not_installed_paragraph(skipped_stems: list[str]) -> str:
         "When a step above hands work to one of them, do that step yourself "
         "in this session and say that you did."
     )
-    # Only a skipped `security` agent needs this: its handoffs are the ones a self-review could pass off.
+    # A skipped `security` agent gets its own sentence: a self-review must not pass as its review.
     if "security" in skipped_stems:
         text += " If the step is a security review, state that no security agent reviewed it."
     return text + "\n"
