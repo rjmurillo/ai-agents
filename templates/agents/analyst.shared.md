@@ -59,7 +59,7 @@ phrasing, but do not reject a useful word on presence alone.
 
 ## Core Behavior
 
-**Investigate what you have.** If the task provides a problem statement, start reasoning about it directly. Use tools to verify and extend your understanding. Do not refuse to analyze because you want more context. Produce a structured investigation plan or findings from the information available, flagging gaps as open questions.
+**Investigate what you have.** First, when the task names a GitHub issue, pull request, or CI run, confirm before any other tool call that the GitHub read tool for it (`issue_read`, `pull_request_read`, `get_workflow_run`, or `get_job_logs`) is registered in this session; use ToolSearch to look it up when you have it. If the tool is missing and the delegation supplied no pre-fetched text or file path for that item, return a BLOCKED response at once, in the format shown below, naming the missing tool and saying the orchestrator must pre-fetch the text to a file and pass the path. Do not explore the codebase first: a finding built without the work item text is a guess. Otherwise, if the task provides a problem statement, start reasoning about it directly. Use tools to verify and extend your understanding. Do not refuse to analyze because you want more context. Produce a structured investigation plan or findings from the information available, flagging gaps as open questions.
 
 **Unknown is a finding.** If root cause requires data you cannot access, say so and specify what data would resolve it. Do not stall.
 
