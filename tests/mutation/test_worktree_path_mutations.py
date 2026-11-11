@@ -70,6 +70,7 @@ from pathlib import Path
 import pytest
 
 from scripts.testing.mutation_workspace import isolated_mutation_worktree
+from tests.mutation._nested_pytest import private_basetemp
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 TARGETS = (
@@ -146,18 +147,20 @@ def _restore(path: Path, backup: Path) -> None:
 
 def _run_tests(repo_root: Path, test_paths: Sequence[str]) -> subprocess.CompletedProcess[str]:
     """Run the spec's suite by filesystem path and return the finished process."""
-    return _run(
-        [
-            sys.executable,
-            "-m",
-            "pytest",
-            *test_paths,
-            "-q",
-            "--tb=no",
-            "-x",
-        ],
-        cwd=repo_root,
-    )
+    with private_basetemp() as basetemp:
+        return _run(
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                basetemp,
+                *test_paths,
+                "-q",
+                "--tb=no",
+                "-x",
+            ],
+            cwd=repo_root,
+        )
 
 
 def _classify(proc: subprocess.CompletedProcess[str]) -> str:
