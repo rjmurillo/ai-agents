@@ -90,8 +90,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: uv run --frozen python scripts/update_reviewer_signal_stats.py --agent-intervention
 
+      # The ACT guards on the upload, download and publish steps follow pytest.yml:
+      # gh act 0.2.89 cannot serve the v4 artifact protocol, and publishing needs a
+      # real push. Under act the jobs run up to those steps.
       - name: Upload updated stats
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.ACT != 'true' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: reviewer-stats
@@ -137,6 +140,7 @@ jobs:
           persist-credentials: false
 
       - name: Download updated stats
+        if: ${{ env.ACT != 'true' }}
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: reviewer-stats
@@ -145,6 +149,7 @@ jobs:
           path: ${{ runner.temp }}/reviewer-stats
 
       - name: Open pull request with updated stats
+        if: ${{ env.ACT != 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

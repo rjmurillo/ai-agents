@@ -72,7 +72,7 @@ def test_the_upload_and_the_publish_job_run_even_when_the_stats_step_fails() -> 
     jobs = _workflow_jobs()
     steps = {s.get("name"): s for s in jobs["update-stats"]["steps"]}
     assert steps["Build agent PR intervention report"]["if"] == "${{ !cancelled() }}"
-    assert steps["Upload updated stats"]["if"] == "${{ !cancelled() }}"
+    assert "!cancelled()" in steps["Upload updated stats"]["if"]
     condition = jobs["publish-stats"]["if"]
     assert "needs.update-stats.result == 'success'" in condition
     assert "needs.update-stats.result == 'failure'" in condition
@@ -102,3 +102,15 @@ def test_concurrency_and_timeouts_are_set() -> None:
     assert doc["jobs"]["update-stats"]["timeout-minutes"] == 30
     assert doc["jobs"]["publish-stats"]["timeout-minutes"] == 15
     assert doc["name"] == "Update Reviewer Signal Stats"
+
+
+def test_steps_act_cannot_run_are_guarded_the_way_pytest_yml_guards_them() -> None:
+    jobs = _workflow_jobs()
+    guarded = [
+        *(s for s in jobs["update-stats"]["steps"] if "upload-artifact" in s.get("uses", "")),
+        *(s for s in jobs["publish-stats"]["steps"] if "download-artifact" in s.get("uses", "")),
+        *(s for s in jobs["publish-stats"]["steps"] if "open_bot_pr.py" in s.get("run", "")),
+    ]
+    assert len(guarded) == 3
+    for step in guarded:
+        assert "env.ACT != 'true'" in step["if"]

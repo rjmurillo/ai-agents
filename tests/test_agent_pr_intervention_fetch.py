@@ -252,36 +252,51 @@ WORKFLOW = (
 
 
 class TestWorkflowWiring:
-    @staticmethod
-    def _steps() -> dict[str, dict[str, Any]]:
-        doc = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
-        return {s["name"]: s for s in doc["jobs"]["update-stats"]["steps"]}
+    """The report is built in the read-only job and published by the one publish step.
 
-    def test_intervention_report_runs_after_the_existing_stats_commit(self) -> None:
+    Issue #7287 moved the commit steps into a second job that opens a pull request.
+    """
+
+    @staticmethod
+    def _doc() -> dict[str, Any]:
+        return yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+
+    @classmethod
+    def _steps(cls) -> dict[str, dict[str, Any]]:
+        return {s["name"]: s for s in cls._doc()["jobs"]["update-stats"]["steps"]}
+
+    @classmethod
+    def _publish_run(cls) -> str:
+        steps = cls._doc()["jobs"]["publish-stats"]["steps"]
+        return "\n".join(s.get("run", "") for s in steps)
+
+    def test_intervention_report_is_built_after_the_stats_and_before_the_upload(self) -> None:
         names = list(self._steps())
-        assert names.index("Commit updated stats") < names.index(
+        assert names.index("Run statistics aggregation") < names.index(
             "Build agent PR intervention report"
         )
         assert names.index("Build agent PR intervention report") < names.index(
-            "Commit agent PR intervention report"
+            "Upload updated stats"
         )
 
-    def test_each_report_is_committed_by_its_own_step(self) -> None:
+    def test_both_reports_are_uploaded_and_published_through_the_one_publish_step(self) -> None:
         steps = self._steps()
-        assert m.REPORT_PATH in steps["Commit agent PR intervention report"]["run"]
-        assert m.REPORT_PATH not in steps["Commit updated stats"]["run"]
         assert "--agent-intervention" in steps["Build agent PR intervention report"]["run"]
+        assert m.REPORT_PATH in steps["Upload updated stats"]["with"]["path"]
+        assert f"--path {m.REPORT_PATH}" in self._publish_run()
+        assert "--path .serena/memories/pr-review/pr-comment-responder-skills.md" in (
+            self._publish_run()
+        )
 
     def test_report_does_not_depend_on_the_stats_steps_succeeding(self) -> None:
         build = self._steps()["Build agent PR intervention report"]
         assert "!cancelled()" in build["if"]
         assert build["timeout-minutes"] > 0
 
-    def test_report_commit_requires_a_successful_build(self) -> None:
+    def test_the_upload_carries_whatever_was_built_even_when_the_stats_step_failed(self) -> None:
         steps = self._steps()
-        build, commit = (
-            steps["Build agent PR intervention report"],
-            steps["Commit agent PR intervention report"],
-        )
-        assert f"steps.{build['id']}.outcome == 'success'" in commit["if"]
-        assert commit["timeout-minutes"] > 0
+        assert "!cancelled()" in steps["Upload updated stats"]["if"]
+        assert "!cancelled()" in steps["Build agent PR intervention report"]["if"]
+        # The report is written atomically, so a failed build leaves the tracked
+        # file unchanged and the publish step sees nothing to commit for it.
+        assert "os.replace" in Path(m.__file__).read_text(encoding="utf-8")
