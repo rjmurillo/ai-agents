@@ -1,6 +1,6 @@
 # Skill Authoring Guide
 
-This guide covers how to create Claude Code skills with correct YAML frontmatter, model selection, and file structure.
+This guide covers how to create Claude Code skills with correct YAML frontmatter, model selection, and file structure. To choose between the skill-building tools (`skillforge`, `skillify`, `skillopt`, `skill-bootstrap`, `skill-doctor`), read [Pick a skill tool, then capture a workflow and tune it](training/build-and-improve-skills.md).
 
 Based on the analysis in `.project-toolkit/analysis/claude-code-skill-frontmatter-2026.md`.
 
