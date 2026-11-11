@@ -26,6 +26,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any, TextIO
 
 workspace = os.environ.get(
@@ -645,7 +646,10 @@ def _build_parser() -> argparse.ArgumentParser:
 def _run_agent_intervention_report(owner: str, repo: str) -> int:
     """Write the agent PR intervention report. Returns an exit code (ADR-035)."""
     root = get_repo_root()
-    report_path = os.path.join(str(root) if root is not None else ".", INTERVENTION_REPORT_PATH)
+    if root is None or not Path.cwd().resolve().is_relative_to(Path(root).resolve()):
+        logger.error("Current directory is not inside the resolved repository root: %s", root)
+        return 1
+    report_path = os.path.join(str(root), INTERVENTION_REPORT_PATH)
     try:
         metrics = run_agent_intervention_report(owner, repo, report_path)
     except RuntimeError:

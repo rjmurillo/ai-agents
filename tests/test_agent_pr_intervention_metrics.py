@@ -9,9 +9,11 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
+import yaml
 
 from scripts import agent_pr_intervention_metrics as m
 from scripts import update_reviewer_signal_stats as stats_script
+from scripts.github_core.api import RateLimitStatus
 
 NOW = datetime(2026, 11, 10, 12, 0, tzinfo=UTC)
 TRAILER = "Body.\n\n\U0001f916 Generated with [Claude Code](https://claude.com/claude-code)"
@@ -199,7 +201,7 @@ class TestRender:
         metrics = m.build_metrics(prs, NOW - timedelta(days=30), NOW)
         text = m.render_report(metrics, NOW)
         assert "| merged | 3 | 3 | 100% | 0 | n/a |" in text
-        assert "[#3](https://github.com/o/r/pull/3): PR 3" in text
+        assert "[#3](https://github.com/o/r/pull/3): `PR 3`" in text
         assert "## Definitions" in text
         assert "2026-10-11 to 2026-11-10" in text
         assert not any(ch in text for ch in (chr(0x2014), chr(0x2013)))
@@ -215,8 +217,17 @@ class TestRender:
         metrics = m.build_metrics([], NOW - timedelta(days=30), NOW)
         assert "- none" in m.render_report(metrics, NOW)
 
-    def test_title_brackets_are_escaped(self) -> None:
-        assert m._escape_title("fix [a]\nb") == "fix \\[a\\] b"
+    def test_title_is_an_inert_code_span(self) -> None:
+        hostile = "\\[x\\](https://evil.example) <img src=x> `tick`\nnext"
+        rendered = m._inert_title(hostile)
+        assert rendered.startswith("`") and rendered.endswith("`")
+        assert rendered.count("`") == 2
+        assert "\n" not in rendered
+
+    def test_long_title_is_capped(self) -> None:
+        rendered = m._inert_title("a" * 500)
+        assert len(rendered) == m.TITLE_MAX_CHARS + 2
+        assert rendered.endswith("...`")
 
 
 class TestWriteReport:
@@ -344,7 +355,7 @@ class TestRunReport:
 
 class TestCli:
     def _patched(self, report: Any) -> Any:
-        healthy = SimpleNamespace(status=stats_script.RateLimitStatus.VERIFIED_HEALTHY)
+        healthy = SimpleNamespace(status=RateLimitStatus.VERIFIED_HEALTHY)
         return (
             patch.object(stats_script, "check_workflow_rate_limit", return_value=healthy),
             patch.object(
@@ -360,6 +371,18 @@ class TestCli:
         with a, b, c:
             assert stats_script.main(["--agent-intervention"]) == 2
 
+    def test_unresolved_repo_root_returns_1_and_writes_nothing(self) -> None:
+        a, b, c = self._patched(lambda *_: pytest.fail("report must not run"))
+        with a, b, c, patch.object(stats_script, "get_repo_root", return_value=None):
+            assert stats_script.main(["--agent-intervention"]) == 1
+
+    def test_cwd_outside_repo_root_returns_1(self, tmp_path: Path) -> None:
+        a, b, c = self._patched(lambda *_: pytest.fail("report must not run"))
+        elsewhere = tmp_path / "elsewhere"
+        elsewhere.mkdir()
+        with a, b, c, patch.object(stats_script, "get_repo_root", return_value=elsewhere):
+            assert stats_script.main(["--agent-intervention"]) == 1
+
     def test_success_returns_0_and_skips_reviewer_stats(self) -> None:
         metrics = m.build_metrics([], NOW - timedelta(days=30), NOW)
         a, b, c = self._patched(lambda *_: metrics)
@@ -370,3 +393,35 @@ class TestCli:
 
 def _raise(*_: Any) -> None:
     raise RuntimeError("boom")
+
+
+# ---------------------------------------------------------------------------
+# Workflow wiring: parsed structure, not substrings
+# ---------------------------------------------------------------------------
+
+WORKFLOW = (
+    Path(__file__).resolve().parents[1] / ".github" / "workflows" / "update-reviewer-stats.yml"
+)
+
+
+class TestWorkflowWiring:
+    @staticmethod
+    def _steps() -> dict[str, str]:
+        doc = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+        steps = doc["jobs"]["update-stats"]["steps"]
+        return {s["name"]: s.get("run", "") for s in steps}
+
+    def test_intervention_report_runs_after_the_existing_stats_commit(self) -> None:
+        names = list(self._steps())
+        assert names.index("Commit updated stats") < names.index(
+            "Build agent PR intervention report"
+        )
+        assert names.index("Build agent PR intervention report") < names.index(
+            "Commit agent PR intervention report"
+        )
+
+    def test_each_report_is_committed_by_its_own_step(self) -> None:
+        steps = self._steps()
+        assert m.REPORT_PATH in steps["Commit agent PR intervention report"]
+        assert m.REPORT_PATH not in steps["Commit updated stats"]
+        assert "--agent-intervention" in steps["Build agent PR intervention report"]

@@ -38,6 +38,7 @@ from scripts.github_core.bot_config import canonicalize_login, get_bot_authors, 
 
 INTERVENTION_WINDOW_DAYS = 30
 ZERO_TOUCH_SAMPLE_SIZE = 10
+TITLE_MAX_CHARS = 100
 MAX_PR_PAGES = 100
 MAX_NESTED_PAGES = 50
 REPORT_PATH = ".project-toolkit/metrics/agent-pr-intervention.md"
@@ -254,8 +255,18 @@ def _fmt_median(value: float | None) -> str:
     return "n/a" if value is None else f"{value:g}"
 
 
-def _escape_title(title: str) -> str:
-    return " ".join(title.split()).replace("[", "\\[").replace("]", "\\]")
+def _inert_title(title: str) -> str:
+    """Render a PR title as an inline code span so it cannot become live Markdown.
+
+    Titles are attacker-influenced text written into a committed file. Inside a
+    code span, links, HTML and emphasis are not interpreted. Backticks cannot
+    appear in the title, because one would close the span, and the length is
+    capped.
+    """
+    flat = " ".join(title.split()).replace("`", "'")
+    if len(flat) > TITLE_MAX_CHARS:
+        flat = flat[: TITLE_MAX_CHARS - 3] + "..."
+    return f"`{flat}`"
 
 
 DEFINITIONS = """\
@@ -321,7 +332,7 @@ def render_report(metrics: InterventionMetrics, generated_at: datetime) -> str:
         "spread across the window, newest first.",
         "",
     ]
-    lines += [f"- [#{p['number']}]({p['url']}): {_escape_title(p['title'])}" for p in sample]
+    lines += [f"- [#{p['number']}]({p['url']}): {_inert_title(p['title'])}" for p in sample]
     if not sample:
         lines.append("- none")
     lines += ["", DEFINITIONS]
