@@ -5,11 +5,16 @@ A repeated human correction is evidence that no artifact carries the lesson.
 This module counts repeats from explicit signals only. It never compares
 free text, so every count is reproducible from the inputs.
 
-Cluster definition (fixed before the first run; do not tune after seeing results)
-----------------------------------------------------------------------------------
+Cluster definition
+------------------
+The signals, threshold, window, and area depth were fixed before the first
+run; do not tune them after seeing results. The population was corrected three
+times afterward (see History).
+
 Population (shared by every consumer so counts agree)
     Agent pull request: its body carries ``AGENT_TRAILER`` and its author has
-    OWNER, MEMBER, or COLLABORATOR standing, or its author is a bot account.
+    OWNER, MEMBER, or COLLABORATOR standing, or its author is a GraphQL ``Bot``
+    actor. A ``User`` account whose name ends in ``-bot`` is not a bot actor.
     Dependency bots (``DEPENDENCY_BOTS``) are never agent pull requests.
     Agents here open pull requests under the owner's login, so the trailer is
     the usable marker; the author login alone is not. The standing check
@@ -21,14 +26,18 @@ Population (shared by every consumer so counts agree)
     in a thread is not a new intervention. Callers resolve bot status
     themselves and pass it in, so this module needs no host library.
     Known limit: an agent that opens a thread under the owner's login cannot
-    be told from the owner.
+    be told from the owner. On 2026-11-11 every counted thread (755 of 755)
+    was opened under the pull request author's login, so no cluster is shown
+    to rest on a correction by a different human.
     History: the signals, threshold, window, and area depth were fixed before
     the first run. The population was corrected three times afterward, each
     time for measurement validity and not to move a count: the first run read
     0 interventions because the filter matched author logins and dropped the
     pull request author's own threads; a security review then added the
     commenter standing check, and a second review added the pull request
-    author standing check.
+    author standing check and the GraphQL ``Bot`` typing. The count was 36
+    clusters from 755 interventions before and after the second and third
+    corrections.
 
 Signals (all explicit)
     rule         A rule citation in the comment body: ``ADR-NNN``, or a

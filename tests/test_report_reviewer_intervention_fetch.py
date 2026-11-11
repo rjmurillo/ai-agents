@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from datetime import timedelta
 from typing import Any
 
@@ -10,6 +11,7 @@ import pytest
 from scripts import report_reviewer_intervention_clusters as rep
 from scripts import reviewer_intervention_fetch as fetch
 from tests.report_reviewer_intervention_helpers import (
+    BOT,
     HUMAN,
     NOW,
     TRAILER_BODY,
@@ -376,3 +378,119 @@ def test_fetch_stops_when_a_thread_follow_up_finds_the_budget_low() -> None:
             "r",
             NOW - timedelta(days=90),
         )
+
+
+def test_fetch_returns_normalized_pr_and_thread_records() -> None:
+    thread = make_thread("T1", body="ADR-042", path="a/b.py", association="MEMBER")
+    page = make_page([make_pr(5, [thread], author=BOT, body=TRAILER_BODY, association="OWNER")])
+
+    prs, _ = fetch.fetch_pull_requests(
+        FakeGraphQL({None: page}), "o", "r", NOW - timedelta(days=90)
+    )
+
+    assert prs[0]["author_login"] == BOT["login"]
+    assert prs[0]["author_kind"] == "Bot"
+    assert prs[0]["author_association"] == "OWNER"
+    assert prs[0]["threads"] == [
+        {
+            "id": "T1",
+            "opener": {
+                "login": HUMAN["login"],
+                "kind": "User",
+                "association": "MEMBER",
+                "created_at": thread["comments"]["nodes"][0]["createdAt"],
+                "body": "ADR-042",
+                "path": "a/b.py",
+            },
+        }
+    ]
+
+
+def test_fetch_normalizes_a_missing_author_to_an_empty_login() -> None:
+    page = make_page([make_pr(5, [make_thread("T1", author=None)], author=None)])
+
+    prs, _ = fetch.fetch_pull_requests(
+        FakeGraphQL({None: page}), "o", "r", NOW - timedelta(days=90)
+    )
+
+    assert prs[0]["author_login"] == ""
+    assert prs[0]["author_kind"] is None
+    assert prs[0]["threads"][0]["opener"]["login"] == ""
+
+
+def test_fetch_normalizes_a_thread_without_comments_to_no_opener() -> None:
+    empty = {"id": "E1", "comments": {"nodes": []}}
+    page = make_page([make_pr(5, [empty])])
+
+    prs, _ = fetch.fetch_pull_requests(
+        FakeGraphQL({None: page}), "o", "r", NOW - timedelta(days=90)
+    )
+
+    assert prs[0]["threads"] == [{"id": "E1", "opener": None}]
+
+
+def test_fetch_raises_on_a_thread_without_an_id() -> None:
+    thread = make_thread("x")
+    del thread["id"]
+
+    with pytest.raises(fetch.FetchError, match="has no id"):
+        fetch.fetch_pull_requests(
+            FakeGraphQL({None: make_page([make_pr(5, [thread])])}),
+            "o",
+            "r",
+            NOW - timedelta(days=90),
+        )
+
+
+def test_fetch_raises_on_a_malformed_thread_comments_object() -> None:
+    bad = {"id": "t", "comments": None}
+
+    with pytest.raises(fetch.FetchError, match="not an object"):
+        fetch.fetch_pull_requests(
+            FakeGraphQL({None: make_page([make_pr(5, [bad])])}),
+            "o",
+            "r",
+            NOW - timedelta(days=90),
+        )
+
+
+class _FlakyOnce:
+    """Raise TimeoutExpired on the first call, then serve the page."""
+
+    def __init__(self, page: dict[str, Any]) -> None:
+        self.page = page
+        self.calls = 0
+
+    def __call__(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
+        self.calls += 1
+        if self.calls == 1:
+            raise subprocess.TimeoutExpired(cmd="gh", timeout=30)
+        return self.page
+
+
+def test_fetch_retries_a_page_once_after_a_gh_timeout(caplog: pytest.LogCaptureFixture) -> None:
+    flaky = _FlakyOnce(make_page([make_pr(1, [])]))
+
+    prs, _ = fetch.fetch_pull_requests(flaky, "o", "r", NOW - timedelta(days=90))
+
+    assert [p["number"] for p in prs] == [1]
+    assert flaky.calls == 2
+    assert "timed out; retrying once" in caplog.text
+
+
+def test_fetch_gives_up_when_the_retry_also_times_out() -> None:
+    def always(query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
+        raise subprocess.TimeoutExpired(cmd="gh", timeout=30)
+
+    with pytest.raises(subprocess.TimeoutExpired):
+        fetch.fetch_pull_requests(always, "o", "r", NOW - timedelta(days=90))
+
+
+def test_fetch_warns_when_a_response_has_no_rate_limit_block(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    fetch.fetch_pull_requests(
+        FakeGraphQL({None: make_page([make_pr(1, [])])}), "o", "r", NOW - timedelta(days=90)
+    )
+
+    assert "no rateLimit block" in caplog.text

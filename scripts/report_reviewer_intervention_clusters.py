@@ -27,7 +27,8 @@ Exit codes (AGENTS.md contract):
        dispositions file, unresolvable repository, a path outside its
        allowed directory.
     3  External error: the API failed or timed out, pagination could not
-       complete, or the API returned malformed data.
+       complete, or the API returned malformed data, or the report file could not be
+       written.
     4  Authentication error.
 """
 
@@ -65,8 +66,6 @@ from scripts.github_core.bot_config import is_bot  # noqa: E402
 from scripts.reviewer_intervention_fetch import (  # noqa: E402
     FetchError,
     GraphQL,
-    as_nodes,
-    as_object,
     fetch_pull_requests,
 )
 
@@ -79,14 +78,6 @@ EXIT_AUTH = 4
 
 DEFAULT_REPORT = ".project-toolkit/metrics/reviewer-intervention-clusters/report.json"
 DEFAULT_DISPOSITIONS = ".project-toolkit/pr-checks/suppressed-finding-dispositions.json"
-
-
-def _actor(raw: object) -> tuple[str, str | None]:
-    if not isinstance(raw, dict):
-        return "", None
-    login = raw.get("login")
-    kind = raw.get("__typename")
-    return (login if isinstance(login, str) else ""), (kind if isinstance(kind, str) else None)
 
 
 FUNNEL_KEYS = (
@@ -105,17 +96,19 @@ def extract_interventions(
 ) -> tuple[list[dict[str, Any]], dict[str, int]]:
     """Keep human-opened threads on agent pull requests.
 
-    Returns ``(interventions, counts)``. ``counts`` has one entry per name in
-    ``FUNNEL_KEYS``, so a drop at any filter is visible in the report.
+    ``pull_requests`` are the normalized records ``fetch_pull_requests``
+    returns. Returns ``(interventions, counts)``; ``counts`` has one entry per
+    name in ``FUNNEL_KEYS``, so a drop at any filter is visible in the report.
     """
     interventions: list[dict[str, Any]] = []
     counts = dict.fromkeys(FUNNEL_KEYS, 0)
     for pr in pull_requests:
-        author, author_kind = _actor(pr["author"])
+        author = pr["author_login"]
         body = pr.get("body") or ""
-        author_is_bot = bool(author) and is_bot(author, author_kind)
+        # Only a GraphQL Bot actor is a bot here. A "-bot" suffix on a User account is a
+        # name anyone can register, so it earns no agent status without standing.
         if not review_clusters.is_agent_pull_request(
-            author, author_is_bot, pr.get("author_association"), body
+            author, pr["author_kind"] == "Bot", pr.get("author_association"), body
         ):
             continue
         counts["agent_pull_requests"] += 1
@@ -123,15 +116,13 @@ def extract_interventions(
             counts["trailer_pull_requests"] += 1
         for thread in pr["threads"]:
             counts["threads_seen"] += 1
-            comments = as_object(thread.get("comments"), "thread comments")
-            first = as_nodes(comments, f"thread {thread.get('id')} comments")
-            if not first:
+            opener = thread["opener"]
+            if opener is None:
                 counts["threads_without_comments"] += 1
                 continue
-            comment = first[0]
-            login, kind = _actor(comment.get("author"))
+            login = opener["login"]
             verdict = review_clusters.classify_thread_opener(
-                login, bool(login) and is_bot(login, kind), comment.get("authorAssociation")
+                login, bool(login) and is_bot(login, opener["kind"]), opener["association"]
             )
             if verdict == review_clusters.OPENER_BOT_OR_UNKNOWN:
                 counts["threads_excluded_bot_or_unknown"] += 1
@@ -139,18 +130,17 @@ def extract_interventions(
             if verdict == review_clusters.OPENER_NO_STANDING:
                 counts["threads_excluded_no_standing"] += 1
                 continue
+            if verdict != review_clusters.OPENER_KEPT:
+                raise ValueError(f"unknown opener verdict {verdict!r} on PR #{pr['number']}")
             if login == author:
                 counts["interventions_by_pr_author"] += 1
-            thread_id = thread.get("id")
-            if not isinstance(thread_id, str) or not thread_id:
-                raise FetchError(f"thread on PR #{pr['number']} has no id")
             interventions.append(
                 {
                     "pr": pr["number"],
-                    "thread_id": thread_id,
-                    "created_at": comment.get("createdAt"),
-                    "body": comment.get("body") if isinstance(comment.get("body"), str) else "",
-                    "path": comment.get("path"),
+                    "thread_id": thread["id"],
+                    "created_at": opener["created_at"],
+                    "body": opener["body"],
+                    "path": opener["path"],
                 }
             )
     return interventions, counts
@@ -285,8 +275,12 @@ def main(argv: list[str] | None = None, *, graphql: GraphQL | None = None) -> in
     except RuntimeError as exc:
         logger.error("report not written, GitHub request failed: %s", exc)
         return EXIT_AUTH if is_auth_failure_text(str(exc)) else EXIT_EXTERNAL
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(render_report(report), encoding="utf-8")
+    try:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(render_report(report), encoding="utf-8")
+    except OSError as exc:
+        logger.error("report not written, the file could not be saved: %s", exc)
+        return EXIT_EXTERNAL
     examined = report["examined"]
     logger.info(
         "%d clusters in %d interventions (%d in window) across %d agent PRs "

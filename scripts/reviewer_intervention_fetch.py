@@ -11,6 +11,7 @@ returns a partial set as if it were complete.
 from __future__ import annotations
 
 import logging
+import subprocess
 from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Any
@@ -114,10 +115,59 @@ def as_nodes(connection: dict[str, Any], what: str) -> list[dict[str, Any]]:
     return [as_object(n, what) for n in nodes]
 
 
+def normalize_thread(thread: dict[str, Any], pr_number: int) -> dict[str, Any]:
+    """Return ``{"id", "opener"}`` for a raw review thread.
+
+    ``opener`` is None for a thread with no comments, else the first comment as
+    ``login``, ``kind``, ``association``, ``created_at``, ``body`` and ``path``.
+    Callers never read GraphQL field names.
+    """
+    thread_id = thread.get("id")
+    if not isinstance(thread_id, str) or not thread_id:
+        raise FetchError(f"thread on PR #{pr_number} has no id")
+    comments = as_object(thread.get("comments"), f"thread {thread_id} comments")
+    first = as_nodes(comments, f"thread {thread_id} comments")
+    if not first:
+        return {"id": thread_id, "opener": None}
+    comment = first[0]
+    login, kind = actor(comment.get("author"))
+    body = comment.get("body")
+    return {
+        "id": thread_id,
+        "opener": {
+            "login": login,
+            "kind": kind,
+            "association": comment.get("authorAssociation"),
+            "created_at": comment.get("createdAt"),
+            "body": body if isinstance(body, str) else "",
+            "path": comment.get("path"),
+        },
+    }
+
+
+def actor(raw: object) -> tuple[str, str | None]:
+    """Return ``(login, GraphQL type)`` for an author node, ``("", None)`` when absent."""
+    if not isinstance(raw, dict):
+        return "", None
+    login = raw.get("login")
+    kind = raw.get("__typename")
+    return (login if isinstance(login, str) else ""), (kind if isinstance(kind, str) else None)
+
+
+def _call(graphql: GraphQL, query: str, variables: dict[str, Any]) -> dict[str, Any]:
+    """Run one query; retry once when the gh call itself times out (the read is idempotent)."""
+    try:
+        return graphql(query, variables)
+    except subprocess.TimeoutExpired:
+        logger.warning("gh call timed out; retrying once")
+        return graphql(query, variables)
+
+
 def _account_cost(data: dict[str, Any], counters: dict[str, int], examined: int) -> None:
     """Add this response's GraphQL cost and stop before the shared budget is emptied."""
     limit = data.get("rateLimit")
     if not isinstance(limit, dict) or not isinstance(limit.get("cost"), int):
+        logger.warning("response has no rateLimit block; the shared-budget stop is off for it")
         return
     counters["graphql_cost"] += limit["cost"]
     remaining = limit.get("remaining")
@@ -140,7 +190,8 @@ def _remaining_threads(
     threads: list[dict[str, Any]] = []
     for _ in range(MAX_THREAD_PAGES):
         data = as_object(
-            graphql(
+            _call(
+                graphql,
                 _THREADS_QUERY,
                 {"owner": owner, "repo": repo, "number": number, "cursor": cursor},
             ),
@@ -171,8 +222,9 @@ def fetch_pull_requests(
 ) -> tuple[list[dict[str, Any]], int]:
     """Return ``(pull_requests, examined)`` for PRs updated at or after ``since``.
 
-    Each returned PR carries ``number``, ``author``, ``author_association``,
-    ``body`` and a complete ``threads`` list. Pull requests arrive ordered by
+    Each returned PR carries ``number``, ``author_login``, ``author_kind``,
+    ``author_association``, ``body`` and a complete list of normalized
+    ``threads`` (see ``normalize_thread``). Pull requests arrive ordered by
     ``updatedAt`` descending, so the first one older than ``since`` ends the
     walk: a comment in the window implies its PR was updated in the window. A
     pull request updated during the walk can jump ahead of the cursor and wait
@@ -190,7 +242,7 @@ def fetch_pull_requests(
         variables: dict[str, Any] = {"owner": owner, "repo": repo}
         if cursor:
             variables["cursor"] = cursor
-        data = as_object(graphql(_PRS_QUERY, variables), "pull request page")
+        data = as_object(_call(graphql, _PRS_QUERY, variables), "pull request page")
         counters["pages"] += 1
         _account_cost(data, counters, examined)
         if counters["pages"] % PROGRESS_EVERY_PAGES == 0:
@@ -219,13 +271,15 @@ def fetch_pull_requests(
                 threads.extend(
                     _remaining_threads(graphql, owner, repo, number, more, counters, examined)
                 )
+            author_login, author_kind = actor(pr.get("author"))
             result.append(
                 {
                     "number": number,
-                    "author": pr.get("author"),
+                    "author_login": author_login,
+                    "author_kind": author_kind,
                     "author_association": pr.get("authorAssociation"),
                     "body": pr["body"] if isinstance(pr.get("body"), str) else "",
-                    "threads": threads,
+                    "threads": [normalize_thread(t, number) for t in threads],
                 }
             )
         if reached_boundary:

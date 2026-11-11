@@ -1,6 +1,7 @@
 # Reviewer intervention clusters
 
-A daily job counts repeated human corrections on agent pull requests. A repeat
+A job, scheduled daily when its workflow is enabled, counts repeated human
+corrections on agent pull requests. A repeat
 means a lesson was not carried forward. The job reports; it never edits a rule,
 contract, or prompt, and it files no issue (issue #7153).
 
@@ -12,7 +13,16 @@ contract, or prompt, and it files no issue (issue #7153).
 | `src/claude/skills/skill-bootstrap/scripts/review_clusters.py` | Cluster definition, population rules, and counting. Stdlib only. It lives in a shipped skill so the skill-bootstrap consumer (#7155) imports it and counts the same way. |
 | `scripts/reviewer_intervention_fetch.py` | Lossless GraphQL reads of pull requests and review threads. |
 | `scripts/report_reviewer_intervention_clusters.py` | Filters to the population, clusters, writes `report.json`. |
-| `.github/workflows/update-reviewer-stats.yml` | Runs the job daily at 06:00 UTC, step `Cluster repeated review interventions`. |
+| `.github/workflows/update-reviewer-stats.yml` | Holds the step `Cluster repeated review interventions`, scheduled daily at 06:00 UTC when the workflow is enabled. See Status. |
+
+## Status
+
+As of 2026-11-11 the schedule is not running. `update-reviewer-stats.yml` has
+been disabled since 2026-10-26, and the default-branch ruleset lets only the
+Admin role bypass its pull request rule, so the commit step's push is rejected.
+Issue #7287 tracks both. Until it is resolved the report refreshes only when a
+person runs `scripts/report_reviewer_intervention_clusters.py` and commits the
+result. The committed `report.json` is the 2026-11-11 run.
 
 ## Cluster definition
 
@@ -61,12 +71,17 @@ only when the pull request author also has OWNER, MEMBER, or COLLABORATOR
 standing. Before it, a maintainer's thread on an outsider's forged-trailer pull
 request counted. No cluster count was read to decide it, and the population
 rules moved into the shared module so the skill-bootstrap consumer counts the
-same way.
+same way. The same change counts only a GraphQL `Bot` actor as a bot author, so a
+`User` account whose name ends in `-bot` earns no agent status. The count was 36
+clusters from 755 interventions before and after.
 
 Known limit: an agent that opens a thread under the owner's login cannot be
 told from the owner. Such a thread counts as an intervention.
-`interventions_by_pr_author` in `examined` bounds how many threads that
-affects.
+`interventions_by_pr_author` in `examined` counts the threads opened under the
+pull request author's login. On 2026-11-11 that was 755 of 755, so the bound is
+the whole population: no cluster is shown to rest on a correction by a different
+human, and the report counts owner-login threads on agent pull requests without
+proving a human wrote each one.
 
 ## Reading a result
 
@@ -82,8 +97,9 @@ affects.
 The job runs inside `update-reviewer-stats.yml`, so that workflow must be
 enabled. Its commit step pushes to the default branch, so the workflow token
 must be allowed to push there; a branch ruleset that requires pull requests
-rejects the push. A failed push leaves the previous `report.json` in place and
-the step red.
+rejects the push. A push rejected because the branch moved during the run also
+fails. Any failed push leaves the previous `report.json` in place and the step
+red; the next run replaces it.
 
 One run cost 421 GraphQL points on 2026-11-11 (33 pages, 1641 pull requests;
 858 before the thread page size dropped from 50 to 20). The job stops with exit 3

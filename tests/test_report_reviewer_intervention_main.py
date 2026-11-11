@@ -301,3 +301,14 @@ def test_main_report_carries_the_filter_funnel(workspace: Path) -> None:
     assert examined["threads_excluded_bot_or_unknown"] == 0
     assert examined["threads_excluded_no_standing"] == 0
     assert examined["duplicate_pull_requests_skipped"] == 0
+
+
+def test_main_exits_3_when_the_report_file_cannot_be_written(
+    workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def refuse(self: Path, *args: Any, **kwargs: Any) -> int:
+        raise OSError("read-only file system")
+
+    monkeypatch.setattr(Path, "write_text", refuse)
+
+    assert rep.main([], graphql=three_repeat_pages()) == 3
