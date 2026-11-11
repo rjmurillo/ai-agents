@@ -180,6 +180,24 @@ def pr_body(paths: list[str], issue: str | None) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _message_flags(messages: list[str]) -> list[str]:
+    """Map each message paragraph to its own `-m` flag, in order."""
+    return [flag for message in messages for flag in ("-m", message)]
+
+
+def push_in_place(args: argparse.Namespace) -> int:
+    """Stage, commit, and push on the checked-out branch."""
+    for command in (
+        ["add", "--", *args.path],
+        ["commit", *_message_flags(args.message)],
+        ["push"],
+    ):
+        if _run(command) != 0:
+            return EXIT_GIT_FAILED
+    print("Changes committed and pushed")
+    return EXIT_SUCCESS
+
+
 def publish_branch(args: argparse.Namespace) -> int:
     """Commit on a bot branch, push it, and open a pull request."""
     existing = open_pr_url(args.branch)
@@ -192,13 +210,10 @@ def publish_branch(args: argparse.Namespace) -> int:
         if _run(["push", "origin", "--delete", args.branch]) != 0:
             return EXIT_GIT_FAILED
 
-    messages: list[str] = []
-    for message in args.message:
-        messages.extend(["-m", message])
     for command in (
         ["checkout", "-B", args.branch],
         ["add", "--", *args.path],
-        ["commit", *messages],
+        ["commit", *_message_flags(args.message)],
         ["push", "--set-upstream", "origin", args.branch],
     ):
         if _run(command) != 0:
@@ -271,17 +286,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"No changes to commit (examined {len(args.path)} path(s))")
             return EXIT_SUCCESS
 
-        if args.branch:
-            return publish_branch(args)
-
-        messages: list[str] = []
-        for message in args.message:
-            messages.extend(["-m", message])
-
-        staged = ["add", "--", *args.path]
-        for command in (staged, ["commit", *messages], ["push"]):
-            if _run(command) != 0:
-                return EXIT_GIT_FAILED
+        return publish_branch(args) if args.branch else push_in_place(args)
     except FileNotFoundError as exc:
         print(f"ERROR: git not available (or gh, with --branch): {exc}", file=sys.stderr)
         return EXIT_USAGE
@@ -291,9 +296,6 @@ def main(argv: list[str] | None = None) -> int:
     except RuntimeError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return EXIT_GIT_FAILED
-
-    print("Changes committed and pushed")
-    return EXIT_SUCCESS
 
 
 if __name__ == "__main__":

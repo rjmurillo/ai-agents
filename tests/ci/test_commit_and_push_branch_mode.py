@@ -60,7 +60,7 @@ class _World:
 
     def __init__(self) -> None:
         self.dirty = True
-        self.open_prs: list[dict[str, str]] = []
+        self.open_prs: list[dict[str, str | bool]] = []
         self.pr_list_rc = 0
         self.pr_list_out: str | None = None
         self.remote_branch = False
