@@ -497,8 +497,9 @@ jobs:
           python -I trusted-base/scripts/validation/assert_smoke_ran.py
           plugin-load-report.xml
           --smoke-substr test_plugin_load_smoke
-          --expected-count 1
+          --expected-count 2
           --require-pass test_codex_plugin_loads_expected_skills
+          --require-pass test_codex_agents_install_and_load
 
   # Hook discovery needs no credential and no model call: `claude plugin details`
   # reads the plugin tree only, with an empty HOME. No environment, no secret.

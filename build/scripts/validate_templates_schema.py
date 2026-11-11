@@ -68,6 +68,8 @@ AGENTS_KEYS = {
     "frontmatterKeep",
     "deriveReadonly",
     "bodyReplace",
+    "skipToolRestricted",
+    "outputFormat",
 }
 SKILLS_KEYS = {
     "sourceDir",

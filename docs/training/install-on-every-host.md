@@ -13,7 +13,7 @@ We ran the commands on 2026-11-11 with main at `d34536c95c`. Counts come from th
 | Claude Code | 2.1.319 | 105 | 29 | Marketplace | Yes |
 | GitHub Copilot CLI | 1.0.108 | 104 | 29 | Marketplace | Yes |
 | VS Code and Visual Studio | Not run | None | 29 | Copy files into your repo | No |
-| Codex | 0.167.0 | 105 | None | Marketplace | Yes |
+| Codex | 0.167.0 | 105 | 25, from a script | Marketplace, then `install_agents.py` | Yes |
 | Cursor | Agent CLI 2026.10.14-0f9edde | 105 | 28 | Local plugin directory | Partly |
 | Grok Build | 1.0.77 | 105 | 29 | Marketplace | Yes |
 | Pi | 1.5.0 | 105 | None | `pi install` from git | Yes |
@@ -132,6 +132,22 @@ Uninstall: delete the `.agent.md` files you copied from `.github/agents/`. Delet
    ```
 
    Codex reads `.agents/plugins/marketplace.json` from the repository. It points at the `src/codex` tree ([ADR-115](../../.project-toolkit/architecture/ADR-115-native-plugin-support-per-host.md) Decision 7). No sign-in is needed.
+
+2. Install the agents. A Codex plugin cannot ship agents, so the plugin carries a script that copies them. Run it from the installed plugin folder:
+
+   ```bash
+   python3 "${CODEX_HOME:-$HOME/.codex}"/plugins/cache/ai-agents/project-toolkit/*/install_agents.py
+   ```
+
+   With no flag it installs into `.codex/agents/` of the current directory. Use `--project DIR` for another project, or `--user` for `$CODEX_HOME/agents` (`~/.codex/agents` when `CODEX_HOME` is unset). The two flags exclude each other. The script ships 25 agents. It leaves out `analyst`, `code-reviewer`, `comment-analyzer`, and `security`, because Codex agent files cannot limit tools (sandbox_mode, approval_policy, and mcp_servers do not override the parent). Each installed agent says so, and tells the model to do that step itself.
+
+   Things to know:
+
+   - Trust. Codex loads project agents only for trusted projects (measured on codex 0.167.0, 2026-11-11). The script warns when the project is not listed with `trust_level = "trusted"` in `config.toml`. It still installs. A `--user` install needs no trust.
+   - Ownership. The script records a SHA-256 for each file it writes in `.project-toolkit-agents.json` next to the agents. It upgrades or removes a file only while the file still matches that record.
+   - Conflicts. If a file with the same name exists and the script did not write it, the script prints the conflict, writes nothing, and exits 1. Pass `--namespace PREFIX` (lowercase letters, digits, hyphens) to install that agent as `PREFIX-<name>` instead. The agents' handoffs still name the unprefixed agent, so they reach your own agent, and the script warns about each one.
+   - `--dry-run` prints the plan and writes nothing. `--uninstall` removes the files that still match their record and leaves edited files with a warning.
+   - Spawn reviewers with `fork_turns="none"`, so a reviewer does not inherit the parent's context.
 
 Update:
 
@@ -465,7 +481,7 @@ The second command prints the number of toolkit skills that Codex puts in its pr
 105
 ```
 
-The `VERSION` is always `1.0.0`. The tree has no version field (ADR-092), so Codex reports a default. Codex gets no agents and no rules. It loads agents only from `.codex/agents/`, and no plugin path carries rules.
+The `VERSION` is always `1.0.0`. The tree has no version field (ADR-092), so Codex reports a default. Codex gets no rules, and the plugin itself carries no agents. It loads agents only from `.codex/agents/` or `$CODEX_HOME/agents/`, which step 2 fills, and no plugin path carries rules.
 
 Not run: a Codex model turn that uses a skill.
 

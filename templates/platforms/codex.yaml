@@ -16,3 +16,23 @@ artifacts:
     frontmatterDrop:
       - model
       - model-rationale
+  agents:
+    # ADR-115 Decision 7 (amended): Codex custom agents are TOML files, one per
+    # agent, installed by src/codex/install_agents.py into .codex/agents/. The
+    # frontmatterKeep key makes this a build/scripts/agent_tree_copy.py
+    # platform; build/generate_agents.py skips it.
+    sourceDir: "src/claude/agents"
+    outputDir: "src/codex/agents"
+    excludeFilenames: ["AGENTS.md", "CLAUDE.md"]
+    outputFormat: "codex-toml"
+    # name and description only. model is dropped (ADR-111): a bare alias such
+    # as `haiku` is not a Codex model id.
+    frontmatterKeep:
+      - name
+      - description
+    # A Codex agent file cannot restrict tools: sandbox_mode, approval_policy
+    # and mcp_servers do not override the parent
+    # (https://learn.chatgpt.com/docs/agent-configuration/subagents). An agent
+    # whose Claude file declares `tools` is not shipped, and each shipped body
+    # says which agents are missing so a handoff to one is done in-session.
+    skipToolRestricted: true

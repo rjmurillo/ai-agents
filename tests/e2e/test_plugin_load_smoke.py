@@ -100,6 +100,7 @@ from pathlib import Path
 from typing import NoReturn, Protocol, TypeVar
 
 import pytest
+import tomllib
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -2756,6 +2757,10 @@ _CODEX_COMMAND_COUNT = 4
 _CODEX_SCRIPT_TIMEOUT_SECONDS = 30
 _CODEX_SCRIPT_COUNT = 2
 _CODEX_INSTALLED_SCRIPT = Path("skills") / "github" / "scripts" / "pr" / "get_pr_checks.py"
+_CODEX_AGENTS_COMMAND_COUNT = 5
+# Three runs of the installed install_agents.py: --user, --project, and the bad-input control.
+_CODEX_AGENTS_SCRIPT_COUNT = 3
+_CODEX_AGENTS_OWNERSHIP = ".project-toolkit-agents.json"
 _CODEX_PLUGIN_DIR = REPO_ROOT / "src" / "codex"
 _CODEX_MANIFEST_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
 # artifacts.skills.frontmatterDrop in templates/platforms/codex.yaml.
@@ -2994,6 +2999,140 @@ def test_codex_plugin_loads_expected_skills(tmp_path: Path) -> None:
     assert control.returncode != 0 and "Plugin lib directory not found" in control.stderr, (
         f"negative control (no lib/) rc={control.returncode}: {redact(control.stderr[-400:])!r}"
     )
+
+
+_CODEX_ROLE_LINE = re.compile(r"(?m)^([A-Za-z0-9_.-]+): \{\s*$")
+
+
+def _codex_agent_roles(prompt_stdout: str) -> set[str]:
+    """Agent names the ``spawn_agent`` tool lists as roles in ``codex debug prompt-input``.
+
+    Reads the ``agent_type`` property description, where each role is one
+    ``<name>: {`` line. Codex omits that property when no custom agent exists, so
+    a missing property is the empty set. A missing ``spawn_agent`` tool fails
+    loudly: a Codex change must not turn the negative controls into vacuous passes.
+    """
+    start = prompt_stdout.find("[")
+    tools: list[dict[str, object]] = []
+
+    def walk(node: object) -> None:
+        if isinstance(node, dict):
+            if node.get("name") == "spawn_agent" and isinstance(node.get("parameters"), dict):
+                tools.append(node)
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk(json.loads(prompt_stdout[start:]) if start != -1 else [])
+    assert tools, "prompt-input lists no spawn_agent tool; the Codex tool schema changed"
+    properties = tools[0]["parameters"].get("properties", {})  # type: ignore[union-attr]
+    agent_type = properties.get("agent_type", {})
+    return set(_CODEX_ROLE_LINE.findall(str(agent_type.get("description", ""))))
+
+
+def _run_agent_installer(
+    installer: Path, args: list[str], *, env: dict[str, str], cwd: Path
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, "-I", str(installer), *args],
+        cwd=cwd,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=_CODEX_SCRIPT_TIMEOUT_SECONDS,
+        check=False,
+        env=env,
+    )
+
+
+def _shipped_codex_agent_names() -> set[str]:
+    names = {
+        tomllib.loads(path.read_text(encoding="utf-8"))["name"]
+        for path in (_CODEX_PLUGIN_DIR / "agents").glob("*.toml")
+    }
+    assert names, "src/codex/agents ships no agent"
+    return names
+
+
+@pytest.mark.smoke
+@requires_codex
+@_cli_budget(
+    *([_CODEX_COMMAND_TIMEOUT_SECONDS] * _CODEX_AGENTS_COMMAND_COUNT),
+    *([_CODEX_SCRIPT_TIMEOUT_SECONDS] * _CODEX_AGENTS_SCRIPT_COUNT),
+)
+def test_codex_agents_install_and_load(tmp_path: Path) -> None:
+    """The cached plugin's install_agents.py makes codex list every shipped agent.
+
+    Install the plugin into a scratch ``CODEX_HOME``, then run ``install_agents.py``
+    from the installed cache copy, once with ``--user`` and once with ``--project``
+    into a scratch git repo that a second ``CODEX_HOME`` trusts. In each home,
+    ``codex debug prompt-input`` must list every shipped agent as a ``spawn_agent``
+    role. Controls: no shipped agent is listed before the install; a malformed
+    agent file (no ``developer_instructions``) is not listed; the ownership JSON
+    is not listed; a bad ``--namespace`` exits 2. No model call, no credential.
+    """
+    shipped = _shipped_codex_agent_names()
+    home, work = tmp_path / "home", tmp_path / "cwd"
+    user_home, project_home = tmp_path / "codex-user", tmp_path / "codex-project"
+    project = tmp_path / "project"
+    for directory in (home, work, user_home, project_home, project):
+        directory.mkdir()
+    env = _codex_env(user_home, home)
+    try:
+        _run_codex(["plugin", "marketplace", "add", str(REPO_ROOT)], env=env, cwd=work)
+        added = _run_codex(["plugin", "add", _CODEX_PLUGIN_ID, "--json"], env=env, cwd=work)
+        installer = Path(json.loads(added.stdout)["installedPath"]) / "install_agents.py"
+        assert installer.is_file(), f"installed plugin cache has no install_agents.py: {installer}"
+        before = _codex_agent_roles(
+            _run_codex(["debug", "prompt-input", "hi"], env=env, cwd=work).stdout
+        )
+        user = _run_agent_installer(installer, ["--user"], env=env, cwd=work)
+        after_user = _codex_agent_roles(
+            _run_codex(["debug", "prompt-input", "hi"], env=env, cwd=work).stdout
+        )
+    except subprocess.TimeoutExpired as exc:
+        pytest.fail(f"codex command exceeded {_CODEX_COMMAND_TIMEOUT_SECONDS}s: {exc.cmd}")
+
+    assert not (shipped & before), f"agents listed before any install: {sorted(shipped & before)}"
+    assert user.returncode == 0, (
+        f"--user install rc={user.returncode}: {redact(user.stderr[-600:])}"
+    )
+    missing = shipped - after_user
+    assert not missing, f"--user install: codex lists no role for {sorted(missing)}"
+
+    project_env = _codex_env(project_home, home)
+    subprocess.run(["git", "init", "-q", str(project)], check=True, env=project_env, timeout=30)
+    (project_home / "config.toml").write_text(
+        f'[projects."{str(project).replace(chr(92), chr(92) * 2)}"]\ntrust_level = "trusted"\n',
+        encoding="utf-8",
+    )
+    try:
+        placed = _run_agent_installer(
+            installer, ["--project", str(project)], env=project_env, cwd=project
+        )
+        agents_dir = project / ".codex" / "agents"
+        (agents_dir / "broken-agent.toml").write_text(
+            'name = "broken-agent"\ndescription = "no instructions"\n', encoding="utf-8"
+        )
+        bad = _run_agent_installer(installer, ["--namespace", "Bad"], env=project_env, cwd=project)
+        listed = _codex_agent_roles(
+            _run_codex(["debug", "prompt-input", "hi"], env=project_env, cwd=project).stdout
+        )
+    except subprocess.TimeoutExpired as exc:
+        pytest.fail(f"codex command exceeded its timeout: {exc.cmd}")
+
+    assert placed.returncode == 0, (
+        f"--project install rc={placed.returncode}: {redact(placed.stderr[-600:])}"
+    )
+    assert (agents_dir / _CODEX_AGENTS_OWNERSHIP).is_file()
+    assert not (shipped - listed), f"--project install: no role for {sorted(shipped - listed)}"
+    assert "broken-agent" not in listed, "a malformed agent file registered as a role"
+    assert not {r for r in listed if "project-toolkit-agents" in r}, (
+        f"ownership JSON listed: {listed}"
+    )
+    assert bad.returncode == 2, f"bad --namespace rc={bad.returncode}"
 
 
 def test_codex_env_unsets_the_plugin_root_variables(
@@ -3404,6 +3543,7 @@ def _first_call_timeout(test: Callable[..., object]) -> int:
     """
     local_only = {
         test_codex_plugin_loads_expected_skills.__name__: _CODEX_COMMAND_TIMEOUT_SECONDS,
+        test_codex_agents_install_and_load.__name__: _CODEX_COMMAND_TIMEOUT_SECONDS,
         test_grok_plugin_installs_and_runs_a_skill_script.__name__: _GROK_COMMAND_TIMEOUT_SECONDS,
         test_copilot_plugin_loads_expected_skills.__name__: _SKILL_LIST_TIMEOUT_SECONDS,
     }
