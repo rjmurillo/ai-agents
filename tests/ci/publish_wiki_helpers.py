@@ -5,6 +5,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+import pytest
+
 REPO_URL = "https://github.com/acme/widgets"
 BLOB = f"{REPO_URL}/blob/main"
 TREE = f"{REPO_URL}/tree/main"
@@ -47,3 +49,11 @@ def git(args: list[str], cwd: Path) -> str:
         check=True,
     )
     return done.stdout
+
+
+def symlink_or_skip(link: Path, target: Path) -> None:
+    """Create ``link`` -> ``target``, or skip when the platform lacks symlink privilege."""
+    try:
+        link.symlink_to(target, target_is_directory=target.is_dir())
+    except (OSError, NotImplementedError) as exc:
+        pytest.skip(f"cannot create symbolic links here: {exc}")

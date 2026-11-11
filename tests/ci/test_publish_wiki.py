@@ -24,7 +24,15 @@ from pathlib import Path
 import pytest
 
 from scripts.ci import publish_wiki as pw
-from tests.ci.publish_wiki_helpers import BLOB, REPO_URL, TREE, git, make_repo, write
+from tests.ci.publish_wiki_helpers import (
+    BLOB,
+    REPO_URL,
+    TREE,
+    git,
+    make_repo,
+    symlink_or_skip,
+    write,
+)
 
 
 @pytest.fixture
@@ -389,11 +397,14 @@ def seed_wiki_change(wiki: Path, tmp_path: Path, change: str) -> None:
     git(["clone", "-q", str(wiki), str(work)], tmp_path)
     if change == "home-symlink":
         (work / "Home.md").unlink()
-        (work / "Home.md").symlink_to(tmp_path / "victim.txt")
+        symlink_or_skip(work / "Home.md", tmp_path / "victim.txt")
     if change == "gitignore":
         write(work, ".gitignore", "*.md\n")
         write(work, "Home.md", "hand made\n")
     git(["add", "-A", "-f"], work)
+    if change == "home-symlink":
+        stored = git(["ls-files", "-s", "Home.md"], work)
+        assert stored.startswith("120000"), "git did not store Home.md as a symlink"
     git(["commit", "-qm", change], work)
     git(["push", "-q", "origin", "HEAD:main"], work)
 
@@ -421,7 +432,7 @@ def test_redact_masks_the_base64_credential_too() -> None:
 
 
 def test_symlinked_source_page_exits_1(repo: Path, wiki: Path, tmp_path: Path) -> None:
-    (repo / "docs/training/leak.md").symlink_to(tmp_path / "victim.txt")
+    symlink_or_skip(repo / "docs/training/leak.md", tmp_path / "victim.txt")
     before = commit_count(wiki)
     assert run_main(repo, wiki) == 1
     assert commit_count(wiki) == before

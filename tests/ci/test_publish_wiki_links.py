@@ -21,7 +21,14 @@ from scripts.ci._wiki_links import (
     strip_target,
     unmask_code,
 )
-from tests.ci.publish_wiki_helpers import BLOB, README, REPO_URL, make_repo, write
+from tests.ci.publish_wiki_helpers import (
+    BLOB,
+    README,
+    REPO_URL,
+    make_repo,
+    symlink_or_skip,
+    write,
+)
 
 PAGES = {"README.md": "Home", "first-page.md": "first-page", "second-page.md": "second-page"}
 
@@ -124,8 +131,19 @@ def test_clear_entry_removes_a_symlink_but_not_its_target(tmp_path: Path) -> Non
     target.mkdir()
     (target / "f.txt").write_text("x", encoding="utf-8")
     link = tmp_path / "link.md"
-    link.symlink_to(target, target_is_directory=True)
+    symlink_or_skip(link, target)
     pw.clear_entry(link)
     assert not link.exists() and not link.is_symlink()
     assert (target / "f.txt").exists()
     shutil.rmtree(target)
+
+
+def test_symlink_helper_skips_when_the_platform_cannot_create_links(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def refuse(self: Path, target: Path, target_is_directory: bool = False) -> None:
+        raise OSError("A required privilege is not held by the client")
+
+    monkeypatch.setattr(Path, "symlink_to", refuse)
+    with pytest.raises(pytest.skip.Exception, match="cannot create symbolic links"):
+        symlink_or_skip(tmp_path / "link", tmp_path)

@@ -12,7 +12,14 @@ from pathlib import Path
 import pytest
 
 from scripts.ci import publish_wiki as pw
-from tests.ci.publish_wiki_helpers import BLOB, README, REPO_URL, make_repo, write
+from tests.ci.publish_wiki_helpers import (
+    BLOB,
+    README,
+    REPO_URL,
+    make_repo,
+    symlink_or_skip,
+    write,
+)
 
 
 @pytest.fixture
@@ -118,13 +125,13 @@ def test_real_training_tree_plans_cleanly() -> None:
 def test_symlinked_page_is_rejected(repo: Path, tmp_path: Path) -> None:
     secret = tmp_path / "secret.txt"
     secret.write_text("token\n", encoding="utf-8")
-    (repo / "docs/training/leak.md").symlink_to(secret)
+    symlink_or_skip(repo / "docs/training/leak.md", secret)
     with pytest.raises(pw.SourceError, match="symbolic links are not allowed"):
         plan_for(repo)
 
 
 def test_symlinked_directory_is_rejected(repo: Path, tmp_path: Path) -> None:
-    (repo / "docs/training/dir").symlink_to(tmp_path)
+    symlink_or_skip(repo / "docs/training/dir", tmp_path)
     with pytest.raises(pw.SourceError, match="symbolic links are not allowed"):
         plan_for(repo)
 
@@ -135,7 +142,7 @@ def test_link_through_a_symlink_that_leaves_the_repo_is_rejected(
     outside = tmp_path / "outside"
     outside.mkdir()
     (outside / "data.txt").write_text("x\n", encoding="utf-8")
-    (repo / "docs/assets/out").symlink_to(outside)
+    symlink_or_skip(repo / "docs/assets/out", outside)
     write(repo, "docs/training/first-page.md", "# F\n\n[x](../assets/out/data.txt)\n")
     with pytest.raises(pw.SourceError, match="resolves outside the repository"):
         plan_for(repo)
