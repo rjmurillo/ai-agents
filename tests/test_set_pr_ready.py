@@ -227,6 +227,26 @@ class TestExitCodeContract:
         assert rc == 2
         assert envelope(capsys)["Error"]["Type"] == "NotFound"
 
+    @pytest.mark.parametrize(
+        "stderr",
+        [
+            "Post https://api.github.com/graphql: dial tcp: Could not resolve host: api.github.com",
+            "Could not resolve to a Repository with the name 'o/r'",
+        ],
+    )
+    def test_exit_3_when_read_fails_with_a_non_pr_resolution_fault(self, capsys, stderr):
+        """A transport or wrong-repo fault must not be reclassified as PR not found."""
+        fake = FakeGh(views=[completed(stderr=stderr, rc=1)])
+        rc = run_main(["--pull-request", "7"], fake)
+        assert rc == 3
+        assert envelope(capsys)["Error"]["Type"] == "ApiError"
+
+    def test_exit_3_when_mutation_fails_with_a_host_resolution_fault(self, capsys):
+        fake = FakeGh(ready=completed(stderr="Could not resolve host: api.github.com", rc=1))
+        rc = run_main(["--pull-request", "7"], fake)
+        assert rc == 3
+        assert envelope(capsys)["Error"]["Type"] == "ApiError"
+
     def test_exit_3_on_mutation_failure(self, capsys):
         fake = FakeGh(ready=completed(stderr="HTTP 502 bad gateway", rc=1))
         rc = run_main(["--pull-request", "7"], fake)
