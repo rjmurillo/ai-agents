@@ -23,6 +23,11 @@ Stanza keys (all under ``artifacts.agents``):
                       read-only tools, and do not ship an agent whose ``tools``
                       is restricted (including empty) but not all read-only
 ``excludeFilenames``  source file names to skip
+``bodyReplace``       map of agent file name to ``{from: to}`` literal edits to its body
+                      (issue #7226). Cursor ships no ``security`` agent, so a
+                      line that hands work to one is reworded for Cursor. Each
+                      ``from`` must occur exactly once in its file, and each
+                      ``file`` must exist, so a stale entry fails the build.
 
 ``readonly`` is derived, never guessed: an agent without a ``tools`` list gets
 no ``readonly`` key (it is unrestricted in Claude too). Cursor documents no
@@ -59,6 +64,7 @@ from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
 from yaml_loader import ConfigError, load_platform_config, validate_relative_path  # noqa: E402
 
 KEEP_KEY = "frontmatterKeep"
+REPLACE_KEY = "bodyReplace"
 _READONLY_KEY = "readonly"
 _SOURCE_SUFFIX = ".md"
 _DEFAULT_EXCLUDES = ("AGENTS.md", "CLAUDE.md")
@@ -168,13 +174,21 @@ def has_inexpressible_restriction(frontmatter: dict[str, object]) -> bool:
 
 
 def render_agent(
-    text: str, keep: list[str], *, derive_readonly_flag: bool, source: str
+    text: str,
+    keep: list[str],
+    *,
+    derive_readonly_flag: bool,
+    source: str,
+    body_edits: list[tuple[str, str]] | None = None,
 ) -> str | None:
     """Return ``text`` with its frontmatter reduced to the ``keep`` keys.
 
     Returns ``None`` when ``derive_readonly_flag`` is set and the agent carries a
     tool restriction ``readonly`` cannot express (ADR-115 Decision 3). The caller
     must not ship such an agent.
+
+    ``body_edits`` are literal ``(from, to)`` edits applied to the body only, so
+    text that also appears in the frontmatter can never be rewritten by mistake.
     """
     parsed = read_yaml_frontmatter(text)
     if parsed is None:
@@ -196,7 +210,38 @@ def render_agent(
     dumped = yaml.safe_dump(
         kept, sort_keys=False, allow_unicode=True, default_flow_style=False, width=10**9
     )
-    return f"---\n{dumped}---\n{parsed['body']}"
+    body = parsed["body"]
+    if body_edits:
+        body = apply_body_replacements(body, body_edits, source)
+    return f"---\n{dumped}---\n{body}"
+
+
+def _body_replacements(stanza: dict[str, object]) -> dict[str, list[tuple[str, str]]]:
+    """Return ``{file name: [(from, to), ...]}`` from the ``bodyReplace`` mapping."""
+    raw = stanza.get(REPLACE_KEY, {})
+    problem = f"`artifacts.agents.{REPLACE_KEY}` must map agent file names to {{from: to}} maps"
+    if not isinstance(raw, dict):
+        raise AgentCopyError(problem)
+    edits: dict[str, list[tuple[str, str]]] = {}
+    for file, pairs in raw.items():
+        if not isinstance(file, str) or not isinstance(pairs, dict) or not pairs:
+            raise AgentCopyError(problem)
+        if not all(isinstance(k, str) and k and isinstance(v, str) for k, v in pairs.items()):
+            raise AgentCopyError(problem)
+        edits[file] = list(pairs.items())
+    return edits
+
+
+def apply_body_replacements(text: str, edits: list[tuple[str, str]], source: str) -> str:
+    """Apply literal edits; each ``from`` must occur exactly once in ``text``."""
+    for old, new in edits:
+        found = text.count(old)
+        if found != 1:
+            raise AgentCopyError(
+                f"{source}: bodyReplace text occurs {found} times, expected 1: {old!r}"
+            )
+        text = text.replace(old, new)
+    return text
 
 
 def _read_stanza(config_path: Path) -> dict[str, object] | None:
@@ -250,6 +295,15 @@ def generate_agent_copies(
     if not source_dir.is_dir():
         raise AgentCopyError(f"sourceDir not found: {source_dir}")
     excludes = _excludes(stanza)
+    replacements = _body_replacements(stanza)
+    missing = sorted(set(replacements) - {p.name for p in source_dir.glob(f"*{_SOURCE_SUFFIX}")})
+    if missing:
+        raise AgentCopyError(f"bodyReplace names agents not in {source_dir}: {missing}")
+    excluded = sorted(set(replacements) & excludes)
+    if excluded:
+        raise AgentCopyError(
+            f"bodyReplace names agents that are excluded from the copy: {excluded}"
+        )
     result = AgentCopyResult()
     expected: set[str] = set()
     for src in sorted(source_dir.glob(f"*{_SOURCE_SUFFIX}")):
@@ -261,8 +315,14 @@ def generate_agent_copies(
             keep,
             derive_readonly_flag=stanza.get("deriveReadonly") is True,
             source=src.as_posix(),
+            body_edits=replacements.get(src.name),
         )
         if rendered is None:
+            if src.name in replacements:
+                raise AgentCopyError(
+                    f"bodyReplace names {src.name}, which is skipped because its tools list "
+                    "restricts it beyond what readonly can express"
+                )
             result.skipped.append(src.name)
             print(
                 f"  SKIPPED: {src.name} (tools list restricts it beyond what readonly can express)"

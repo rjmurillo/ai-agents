@@ -59,6 +59,19 @@ Usage examples in Copilot Chat:
 @analyst Review this code for issues
 ```
 
+### Other hosts
+
+Six more hosts have an install route. The [install training page](training/install-on-every-host.md) has a section for each, with a check that shows the toolkit loaded, plus update, stale-install, and uninstall steps:
+
+- [Codex](training/install-on-every-host.md#install-on-codex)
+- [Cursor](training/install-on-every-host.md#install-on-cursor)
+- [Grok Build](training/install-on-every-host.md#install-on-grok-build)
+- [Pi](training/install-on-every-host.md#install-on-pi)
+- [Hermes](training/install-on-every-host.md#install-on-hermes)
+- [Muse](training/install-on-every-host.md#install-on-muse) (experimental)
+
+The same page compares all nine hosts, including Claude Code, Copilot CLI, and VS Code.
+
 ## Component-Level Installation
 
 If you want a partial install instead of the full toolkit, use the marketplace commands below.

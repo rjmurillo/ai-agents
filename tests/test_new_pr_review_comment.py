@@ -69,12 +69,14 @@ def _created(comment_id: int = 99) -> subprocess.CompletedProcess[str]:
 
 @pytest.fixture
 def repo_ready():
+    """Repo ready with no earlier comment (idempotency tests run the real check)."""
     with (
         patch("new_pr_review_comment.assert_gh_authenticated") as auth,
         patch(
             "new_pr_review_comment.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
         ),
+        patch("new_pr_review_comment._find_duplicate", return_value=None),
     ):
         yield auth
 

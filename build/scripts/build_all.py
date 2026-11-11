@@ -104,6 +104,8 @@ import generate_rules  # noqa: E402
 import generate_skills  # noqa: E402
 import hook_templates  # noqa: E402
 import lib_mirror  # noqa: E402
+import orphan_outputs  # noqa: E402
+import orphan_prune  # noqa: E402
 import rule_templates  # noqa: E402
 import skill_templates  # noqa: E402
 
@@ -323,6 +325,31 @@ def _copy_agent_trees(repo_root: Path, result: GeneratorResult, *, check: bool) 
             result.exit_code = 2
 
 
+def _build_orphans(repo_root: Path, *, check: bool) -> GeneratorResult:
+    """Report, and in write mode prune, rendered skills and agents with no template (#7224).
+
+    Runs before every generator so a pruned source directory is not copied back
+    into a mirror. ``check`` only reports; any orphan is exit 2, the same code a
+    stale generated tree gets. See :mod:`orphan_outputs` for the owner rules.
+    """
+    result = GeneratorResult(artifact="orphans", platform="*")
+    try:
+        found = orphan_outputs.scan(repo_root)
+    except orphan_outputs.OrphanScanError as exc:
+        print(f"Error: orphan scan: {exc}", file=sys.stderr)
+        result.exit_code = 2
+        return result
+    orphan_prune.report_scan(repo_root, found, check=check)
+    result.inputs = found.examined
+    pruned = None
+    if not check and found.orphans:
+        pruned = orphan_prune.prune(repo_root, found.orphans)
+        orphan_prune.report_prune(repo_root, pruned)
+        result.outputs = len(pruned.pruned)
+    result.exit_code = orphan_prune.exit_code(found, pruned)
+    return result
+
+
 def _build_agent_catalog(repo_root: Path, _config_path: Path, _platform: str) -> GeneratorResult:
     """Regenerate docs/agent-catalog.md from templates/agents/*.shared.md."""
     templates_dir = repo_root / "templates" / "agents"
@@ -518,7 +545,9 @@ def _build_hooks(
     """Compile hook templates, then generate Copilot CLI hook config (REQ-003-007, M5-T6).
 
     ADR-109 B4: ``templates/hooks/`` compiles to ``src/claude/hooks/`` and
-    ``src/claude/hooks/hooks.json`` first (``hook_templates.compile_all``), the
+    ``src/claude/hooks/hooks.json`` first (``hook_templates.compile_all``), except
+    the ``hooks`` binplace row's ``repo_only`` entries, which render straight to
+    ``.claude/hooks/`` and never enter the plugin tree (amendment 2026-11-11), the
     same two-step shape :func:`_build_rules` runs for its own class. The
     compile also renders ``.claude/settings.json`` directly (no plugin-tree
     hop; ADR-109 section 3). The compile is repo-global, not
@@ -533,7 +562,8 @@ def _build_hooks(
     ``scriptSource``/``settingsSource`` since ADR-109 B4), which the
     compile above just wrote, so one run renders template, plugin tree,
     and the Copilot mirror together; the binplace step that follows every
-    generator copies ``src/claude/hooks`` to ``.claude/hooks``,
+    generator copies ``src/claude/hooks`` to ``.claude/hooks`` (skipping the
+    repo-only entries),
     ``src/claude/hooks/hooks.json`` linked at ``.claude/hooks/hooks.json``, and
     ``src/copilot-cli/hooks`` to ``.github/hooks``.
 
@@ -2366,7 +2396,10 @@ def _run_generators(
     # Generators that iterate all platforms or write repo-level artifacts run once.
     # Call by name instead of through GENERATORS so tests can monkeypatch these
     # seams without updating the tuple's captured function objects.
+    # Orphans go first: pruning a deleted template's output must precede every
+    # mirror step, or the mirror copies it back (#7224).
     for result in (
+        _build_orphans(repo_root, check=check),
         _build_agents(repo_root, configs[0], "*", check=check),
         _build_agent_catalog(repo_root, configs[0], "*"),
         _build_adr_index(repo_root, configs[0], "*"),
