@@ -28,13 +28,15 @@ Rules:
     commits. This guards against accidents, not a hostile ref: whoever dispatches
     a ref also controls that ref's copy of this script.
   - `--artifact-dir` names a directory a download step filled. For each `--path`,
-    a regular file at `<dir>/<path>` (or `<dir>/<basename>`, the layout of a
-    one-file upload) is copied to `<path>`. Nothing else in the directory is read,
-    so a forged artifact cannot replace this script or any other file. A symlink
-    source is skipped. A symlink destination, a source outside the directory, an
-    oversized file, a non-UTF-8 file, and a file with control or format characters
-    (bidi overrides, zero-width marks) are refused. No usable file at all fails the
-    run. A human still reads and merges the pull request; no CI check covers it.
+    a regular file at `<dir>/<path>` (or `<dir>/<basename>`, the layout an upload
+    takes when only one file's directory is the artifact root) is copied to
+    `<path>`. Nothing else in the directory is read, so a forged artifact cannot
+    replace this script or any other file. A symlink source is skipped. A symlink
+    destination, a source outside the directory, an oversized file, a non-UTF-8
+    file, and a file with control, format, separator, combining or blank-lookalike
+    characters (bidi overrides, zero-width marks) are refused. A named path with no
+    usable file fails the run. A human still reads and merges the pull request; no
+    CI check covers it.
   - Every git and gh call has a timeout. A timeout counts as that call failing.
   - Output carries one `outcome=noop|skipped|published` line, and a skip also
     prints a `::notice::` annotation so the run page shows a stalled update.
@@ -43,7 +45,8 @@ Authentication is the caller's job (`gh auth setup-git` and `GH_TOKEN`).
 
 EXIT CODES (ADR-035):
   0  - Success: published, nothing to commit, or a pull request already tracks the branch
-  1  - Error: a git command failed
+  1  - Error: a git command failed, or a precondition failed (the artifact held no
+       usable file, or an entry was refused)
   2  - Error: usage/configuration (git or gh binary missing, or HEAD not on origin/<base>)
   3  - Error: external service failure (`gh` could not list or create the pull request)
 
@@ -126,8 +129,11 @@ def _is_pr_row(row: object) -> bool:
     return isinstance(row, dict) and "url" in row and isinstance(row.get("isCrossRepository"), bool)
 
 
-def open_pr_url(branch: str, base: str) -> str | None:
-    """Return the URL of the open same-repository pull request from `branch` into `base`.
+def open_pr_url(branch: str) -> str | None:
+    """Return the URL of the open same-repository pull request from `branch`, into any base.
+
+    The base is not filtered: a human pull request from this branch into another
+    base must block the stale-branch delete, because deleting the head closes it.
 
     `gh pr list --head` matches the head ref name only, so a fork pull request
     that reuses the branch name would match too and stop the job for good.
@@ -142,8 +148,6 @@ def open_pr_url(branch: str, base: str) -> str | None:
             "list",
             "--head",
             branch,
-            "--base",
-            base,
             "--state",
             "open",
             "--limit",
@@ -213,15 +217,21 @@ def pr_body(paths: list[str], issue: str) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _is_hidden_char(char: str) -> bool:
-    """Return True for a control character (tab and newlines excepted) or a format character.
+_HIDDEN_CATEGORIES = frozenset({"Cc", "Cf", "Zl", "Zp", "Mn", "Me", "Co", "Cs", "Cn"})
+# Letters and symbols that render blank: Hangul fillers and the empty braille cell.
+_BLANK_LOOKALIKES = frozenset("\u115f\u1160\u3164\uffa0\u2800")
 
-    Format characters (category Cf) cover bidi overrides and zero-width marks,
-    which can hide text from a reviewer reading the diff.
+
+def _is_hidden_char(char: str) -> bool:
+    """Return True for a character that can hide text from a reviewer reading the diff.
+
+    Tab and newlines are fine. Control, format (bidi overrides, zero-width marks),
+    line and paragraph separators, combining and variation marks, private-use and
+    unassigned code points are refused, as are the blank lookalikes above.
     """
     if char in "\n\r\t":
         return False
-    return unicodedata.category(char) in {"Cc", "Cf"}
+    return char in _BLANK_LOOKALIKES or unicodedata.category(char) in _HIDDEN_CATEGORIES
 
 
 def _copy_artifact_file(source: Path, root: Path, destination: Path) -> bool:
@@ -304,7 +314,7 @@ def publish(args: argparse.Namespace, changed: list[str]) -> int:
             file=sys.stderr,
         )
         return EXIT_USAGE
-    existing = open_pr_url(args.branch, args.base)
+    existing = open_pr_url(args.branch)
     if existing:
         notice = f"Open pull request still tracks {args.branch}: {existing}"
         print(f"::notice title=Stats update skipped::{notice}")
@@ -433,10 +443,12 @@ def main(argv: list[str] | None = None) -> int:
                 return EXIT_GIT_FAILED
 
         if args.artifact_dir:
-            if not import_artifact(args.artifact_dir, args.path):
+            imported = import_artifact(args.artifact_dir, args.path)
+            missing = [path for path in args.path if path not in imported]
+            if missing:
                 raise RuntimeError(
-                    "the artifact held none of the named paths; its layout changed "
-                    "or it was replaced, so nothing can be published"
+                    f"the artifact is missing named paths: {', '.join(missing)}; its layout "
+                    "changed or it was replaced, so nothing can be published"
                 )
         changed = [path for path in args.path if dirty(path)]
         if not changed:

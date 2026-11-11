@@ -237,7 +237,7 @@ def test_main_fails_loud_when_the_artifact_holds_none_of_the_named_paths(
 
     monkeypatch.setattr(subprocess, "run", fake_run)
     assert main(_args("stats.md", artifact_dir=str(root))) == 1
-    assert "held none of the named paths" in capsys.readouterr().err
+    assert "missing named paths" in capsys.readouterr().err
     assert not [c for c in calls if c[0] == "gh"]
     assert not [c for c in calls if c[:2] == ["git", "push"]]
 
@@ -290,3 +290,40 @@ def test_a_non_numeric_issue_is_a_usage_error(issue: str) -> None:
     with pytest.raises(SystemExit) as exit_info:
         main(args)
     assert exit_info.value.code == 2
+
+
+def test_main_fails_loud_when_only_some_named_paths_are_in_the_artifact(
+    tmp_path: Path,
+    checkout: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _artifact(tmp_path, {"a.md": "present"})
+    calls: list[list[str]] = []
+
+    def fake_run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append(list(argv))
+        return subprocess.CompletedProcess(argv, 0, " M x\n")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    assert main(_args("a.md", "b.md", artifact_dir=str(root))) == 1
+    assert "missing named paths: b.md" in capsys.readouterr().err
+    assert not [c for c in calls if c[0] == "gh"]
+    assert not [c for c in calls if c[:2] == ["git", "push"]]
+
+
+@pytest.mark.parametrize(
+    "char", ["\ufe0f", "\u2028", "\u2029", "\u3164", "\u2800", "\u0301", "\ue000"]
+)
+def test_more_invisible_characters_are_refused(tmp_path: Path, checkout: Path, char: str) -> None:
+    root = _artifact(tmp_path, {_STATS: f"text{char}more"})
+    with pytest.raises(RuntimeError, match="control or format"):
+        import_artifact(str(root), [_STATS])
+    assert not (checkout / _STATS).exists()
+
+
+def test_plain_ascii_and_the_arrow_the_stats_file_uses_are_accepted(
+    tmp_path: Path, checkout: Path
+) -> None:
+    root = _artifact(tmp_path, {_STATS: "| a | b |\n| x \u2192 y |\n"})
+    assert import_artifact(str(root), [_STATS]) == [_STATS]

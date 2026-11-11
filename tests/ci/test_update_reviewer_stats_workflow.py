@@ -92,3 +92,13 @@ def test_the_publish_step_sets_the_token_and_git_credential_helper() -> None:
     (publish,) = [s for s in steps if "open_bot_pr.py" in s.get("run", "")]
     assert publish["env"]["GH_TOKEN"] == "${{ github.token }}"
     assert "gh auth setup-git" in publish["run"]
+
+
+def test_concurrency_and_timeouts_are_set() -> None:
+    doc = yaml.safe_load(
+        (_REPO / ".github" / "workflows" / "update-reviewer-stats.yml").read_text(encoding="utf-8")
+    )
+    assert doc["concurrency"] == {"group": "update-reviewer-stats", "cancel-in-progress": True}
+    assert doc["jobs"]["update-stats"]["timeout-minutes"] == 30
+    assert doc["jobs"]["publish-stats"]["timeout-minutes"] == 15
+    assert doc["name"] == "Update Reviewer Signal Stats"

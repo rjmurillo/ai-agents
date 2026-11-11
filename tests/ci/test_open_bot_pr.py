@@ -448,12 +448,15 @@ def test_branch_outside_the_automation_namespace_is_a_usage_error(
     assert world.argvs() == []
 
 
-def test_open_pr_lookup_is_scoped_to_head_and_base(make_world: Callable[..., _World]) -> None:
+def test_open_pr_lookup_is_scoped_to_the_head_and_not_the_base(
+    make_world: Callable[..., _World],
+) -> None:
+    """A human pull request into another base must still block the branch delete."""
     world = make_world()
     main(_ARGS)
     (lookup,) = world.issued("gh", "pr", "list")
     assert lookup[lookup.index("--head") + 1] == _BRANCH
-    assert lookup[lookup.index("--base") + 1] == "main"
+    assert "--base" not in lookup
 
 
 def test_only_changed_paths_are_staged_and_named_in_the_body(

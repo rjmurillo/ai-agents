@@ -134,7 +134,9 @@ def test_only_the_changed_file_lands_when_the_artifact_holds_one(
 ) -> None:
     origin, _ = repo
     monkeypatch.setattr(subprocess, "run", _FakeGh())
-    assert main(_argv(_artifact(tmp_path, "v2", (_STATS,)))) == 0
+    artifact = _artifact(tmp_path, "v2")
+    (artifact / _REPORT).write_text("v1\n", encoding="utf-8")  # unchanged from the seed
+    assert main(_argv(artifact)) == 0
     changed = _git(origin, "diff", "--name-only", "main", f"refs/heads/{_BRANCH}")
     assert changed == _STATS
 
