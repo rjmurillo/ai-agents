@@ -149,8 +149,10 @@ Uninstall: delete the `.agent.md` files you copied from `.github/agents/`. Delet
    - Trust. Codex loads project agents only for trusted projects (measured on codex 0.167.0, 2026-11-11). The script warns when the project is not listed with `trust_level = "trusted"` in `config.toml`. It still installs. A `--user` install needs no trust.
    - Ownership. The script records a SHA-256 for each file it writes in `.project-toolkit-agents.json` next to the agents. It upgrades or removes a file only while the file still matches that record. If you edit an installed agent, a later run treats that file as yours and refuses (exit 1, nothing written) until you resolve it: restore the file, delete it, or rerun with `--namespace PREFIX` so the shipped agent installs beside yours as `PREFIX-<name>`.
    - Conflicts. If a file with the same name exists and the script did not write it, the script prints the conflict, writes nothing, and exits 1. Pass `--namespace PREFIX` (lowercase letters, digits, hyphens) to install that agent as `PREFIX-<name>` instead. The agents' handoffs still name the unprefixed agent, so they reach your own agent, and the script warns about each one.
-   - `--dry-run` prints the plan and writes nothing. `--uninstall` removes the files that still match their record and leaves edited files with a warning.
-   - Spawn reviewers with `fork_turns="none"`, so a reviewer does not inherit the parent's context.
+   - Cloned repositories. A repository can commit its own `.codex/agents/.project-toolkit-agents.json`, and `--uninstall` deletes the files that file lists. Before you run `--uninstall` (or any install) in a repository you did not create, read that file and run with `--dry-run` first. The script rejects unsafe names and symlinks, but it cannot know which listed files you meant to keep.
+
+- `--dry-run` prints the plan and writes nothing. `--uninstall` removes the files that still match their record and leaves edited files with a warning.
+  - Spawn reviewers with `fork_turns="none"`, so a reviewer does not inherit the parent's context.
 
 Update:
 

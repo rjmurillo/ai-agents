@@ -56,8 +56,10 @@ no model pin. ``model`` is not in the keep list, so Cursor's default
 from __future__ import annotations
 
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TypeVar
 
 import yaml
 
@@ -86,6 +88,7 @@ from generate_agents_common import read_yaml_frontmatter  # noqa: E402
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
 from yaml_loader import ConfigError, load_platform_config, validate_relative_path  # noqa: E402
 
+T = TypeVar("T")
 KEEP_KEY = "frontmatterKeep"
 REPLACE_KEY = "bodyReplace"
 _READONLY_KEY = "readonly"
@@ -124,42 +127,53 @@ def parse_agent(text: str, source: str) -> tuple[dict[str, object], str]:
     return loaded, parsed["body"]
 
 
+@dataclass(frozen=True)
+class RenderSpec:
+    """How one platform renders every agent: the keys to keep and the output form."""
+
+    keep: list[str]
+    derive_readonly: bool = False
+    output_format: str = FORMAT_MARKDOWN
+    appendix: str = ""
+
+
+def _as_copy_error(call: Callable[[], T]) -> T:
+    """Run ``call``, turning a :class:`CodexOutputError` into an :class:`AgentCopyError`."""
+    try:
+        return call()
+    except CodexOutputError as exc:
+        raise AgentCopyError(str(exc)) from exc
+
+
 def render_parsed(
     loaded: dict[str, object],
     body: str,
-    keep: list[str],
-    *,
-    derive_readonly_flag: bool,
     source: str,
+    spec: RenderSpec,
     body_edits: list[tuple[str, str]] | None = None,
-    appendix: str = "",
-    output_format: str = FORMAT_MARKDOWN,
 ) -> str | None:
     """Render one parsed agent; ``None`` when ``deriveReadonly`` says it must not ship.
 
     A ``None`` return means the agent carries a tool restriction ``readonly``
     cannot express (ADR-115 Decision 3). ``body_edits`` are literal
     ``(from, to)`` edits applied to the body only, so text that also appears in
-    the frontmatter can never be rewritten by mistake. ``appendix`` is added
-    after the edits. ``output_format`` ``codex-toml`` returns a TOML document.
+    the frontmatter can never be rewritten by mistake. ``spec.appendix`` is
+    added after the edits; ``codex-toml`` returns a TOML document.
     """
     try:
-        if derive_readonly_flag and has_inexpressible_restriction(loaded):
+        if spec.derive_readonly and has_inexpressible_restriction(loaded):
             return None
     except AgentCopyError as exc:
         raise AgentCopyError(f"{source}: {exc}") from exc
-    kept = {key: loaded[key] for key in keep if key in loaded}
-    if derive_readonly_flag and derive_readonly(loaded):
+    kept = {key: loaded[key] for key in spec.keep if key in loaded}
+    if spec.derive_readonly and derive_readonly(loaded):
         kept[_READONLY_KEY] = True
     if body_edits:
         body = apply_body_replacements(body, body_edits, source)
-    if appendix:
-        body = body.rstrip("\n") + appendix
-    if output_format == FORMAT_CODEX_TOML:
-        try:
-            toml_text: str = render_codex_toml(kept, body, source)
-        except CodexOutputError as exc:
-            raise AgentCopyError(str(exc)) from exc
+    if spec.appendix:
+        body = body.rstrip("\n") + spec.appendix
+    if spec.output_format == FORMAT_CODEX_TOML:
+        toml_text: str = _as_copy_error(lambda: render_codex_toml(kept, body, source))
         return toml_text
     dumped = yaml.safe_dump(
         kept, sort_keys=False, allow_unicode=True, default_flow_style=False, width=10**9
@@ -177,14 +191,8 @@ def render_agent(
 ) -> str | None:
     """Parse ``text`` and render it with :func:`render_parsed`."""
     loaded, body = parse_agent(text, source)
-    return render_parsed(
-        loaded,
-        body,
-        keep,
-        derive_readonly_flag=derive_readonly_flag,
-        source=source,
-        body_edits=body_edits,
-    )
+    spec = RenderSpec(keep, derive_readonly_flag)
+    return render_parsed(loaded, body, source, spec, body_edits)
 
 
 def _body_replacements(
@@ -275,10 +283,7 @@ def generate_agent_copies(
     if stanza is None:
         return None
     keep = _keep_list(stanza)
-    try:
-        options = read_output_options(stanza)
-    except CodexOutputError as exc:
-        raise AgentCopyError(str(exc)) from exc
+    options = _as_copy_error(lambda: read_output_options(stanza))
     source_dir, output_dir = _resolve_dirs(repo_root, stanza)
     if not source_dir.is_dir():
         raise AgentCopyError(f"sourceDir not found: {source_dir}")
@@ -288,28 +293,29 @@ def generate_agent_copies(
     if not sources:
         raise AgentCopyError(f"no agent files found under {source_dir}")
     parsed = {src: parse_agent(src.read_text(encoding="utf-8"), src.as_posix()) for src in sources}
-    try:
-        check_names_match_stems((src.stem, fm.get("name")) for src, (fm, _) in parsed.items())
-    except CodexOutputError as exc:
-        raise AgentCopyError(str(exc)) from exc
-    appendix = _not_installed_appendix(parsed, options.skip_restricted)
+    _as_copy_error(
+        lambda: check_names_match_stems(
+            (src.stem, fm.get("name")) for src, (fm, _) in parsed.items()
+        )
+    )
+    restricted = (
+        {src for src, (fm, _) in parsed.items() if declared_tools_of(fm, src) is not None}
+        if options.skip_restricted
+        else set()
+    )
+    spec = RenderSpec(
+        keep,
+        stanza.get("deriveReadonly") is True,
+        options.fmt,
+        not_installed_paragraph(sorted(src.stem for src in restricted)) if restricted else "",
+    )
     result = AgentCopyResult(inputs=len(sources))
     expected: set[str] = set()
     for src, (loaded, body) in parsed.items():
-        skip_restricted = options.skip_restricted and declared_tools_of(loaded, src) is not None
         rendered = (
             None
-            if skip_restricted
-            else render_parsed(
-                loaded,
-                body,
-                keep,
-                derive_readonly_flag=stanza.get("deriveReadonly") is True,
-                source=src.as_posix(),
-                body_edits=replacements.get(src.name),
-                appendix=appendix,
-                output_format=options.fmt,
-            )
+            if src in restricted
+            else render_parsed(loaded, body, src.as_posix(), spec, replacements.get(src.name))
         )
         if rendered is None:
             if src.name in replacements:
@@ -340,18 +346,6 @@ def declared_tools_of(loaded: dict[str, object], src: Path) -> list[object] | No
         return tools
     except AgentCopyError as exc:
         raise AgentCopyError(f"{src.as_posix()}: {exc}") from exc
-
-
-def _not_installed_appendix(
-    parsed: dict[Path, tuple[dict[str, object], str]], skip_restricted: bool
-) -> str:
-    """The paragraph naming skipped agents, or ``""`` when none are skipped."""
-    if not skip_restricted:
-        return ""
-    stems = sorted(
-        src.stem for src, (fm, _) in parsed.items() if declared_tools_of(fm, src) is not None
-    )
-    return not_installed_paragraph(stems) if stems else ""
 
 
 def _emit(

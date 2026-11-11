@@ -21,8 +21,6 @@ import agent_toml  # noqa: E402
 import agent_tree_copy as atc  # noqa: E402
 import validate_templates_schema as vts  # noqa: E402
 
-CLAUDE_AGENTS = REPO_ROOT / "src" / "claude" / "agents"
-CODEX_AGENTS = REPO_ROOT / "src" / "codex" / "agents"
 KEYS = ["name", "description", "developer_instructions"]
 
 
@@ -284,14 +282,8 @@ def test_markdown_default_is_unchanged_by_the_new_keys() -> None:
 
 def test_appendix_is_added_to_a_markdown_body() -> None:
     loaded, body = atc.parse_agent(_agent("a", body="\nBody\n"), "a.md")
-    out = atc.render_parsed(
-        loaded,
-        body,
-        ["name"],
-        derive_readonly_flag=False,
-        source="a.md",
-        appendix=agent_toml.not_installed_paragraph(["z"]),
-    )
+    spec = atc.RenderSpec(["name"], appendix=agent_toml.not_installed_paragraph(["z"]))
+    out = atc.render_parsed(loaded, body, "a.md", spec)
     assert out is not None and out.endswith("say that you did.\n") and "`z`" in out
 
 
