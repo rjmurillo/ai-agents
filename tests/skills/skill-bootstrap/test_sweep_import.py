@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import json
 import shutil
+from typing import Any
 
 import bootstrap_sweep
 import pytest
 from sweep_helpers import dump, make_finding
 
-BAD_FINDINGS = {
+BAD_FINDINGS: dict[str, dict[str, Any]] = {
     "evidence_outside_batch": {"evidence": ["not-in-batch"]},
     "evidence_empty": {"evidence": []},
     "evidence_duplicate": {"evidence": ["chat-1", "chat-1"]},
@@ -342,6 +343,8 @@ def test_accepted_path_outside_run_dir_exits_2(sweep, tmp_path):
         "import",
         "--index",
         str(sweep.index_path),
+        "--repo",
+        str(sweep.repo),
         "--rows",
         str(rows),
         "--accepted",
@@ -363,6 +366,8 @@ def test_import_with_run_dir_inside_repo_exits_2_and_writes_nothing(sweep, repo)
         "import",
         "--index",
         str(moved / "index.json"),
+        "--repo",
+        str(repo),
         "--rows",
         str(rows),
         "--accepted",
@@ -384,6 +389,8 @@ def test_tampered_index_exits_2(sweep):
         "import",
         "--index",
         str(sweep.index_path),
+        "--repo",
+        str(sweep.repo),
         "--rows",
         "x.json",
         "--accepted",

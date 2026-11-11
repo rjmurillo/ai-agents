@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import shutil
+from typing import Any
 
 import pytest
 from sweep_helpers import (
@@ -152,7 +153,7 @@ def test_agreement_never_crosses_judges(sweep):
 
 def test_single_reader_findings_never_reach_knowledge_gaps(sweep):
     sweep.ready()
-    other = {(j, r): [] for j in JUDGES for r in (1, 2)}
+    other: dict[tuple[str, int], list[Any]] = {(j, r): [] for j in JUDGES for r in (1, 2)}
 
     payload = sweep_of(sweep, [finding()], overrides=other)
 
@@ -224,12 +225,50 @@ def test_tracked_path_absent_from_evidence_text_does_not_corroborate(sweep):
     assert incident["repo_paths"] == ["README.md"]
 
 
-def test_tracked_directory_counts_as_tracked(sweep):
+def test_tracked_directory_does_not_corroborate_or_count_as_tracked(sweep):
     prepare(sweep, texts={"chat-1": "look in .claude/skills"})
 
     payload = sweep_of(sweep, [plain(repo_paths=[".claude/skills"])])
 
-    assert incident_map(payload)["slow-onboarding"]["corroboration"] == ["repo_path"]
+    incident = incident_map(payload)["slow-onboarding"]
+    assert incident["corroborated"] is False
+    assert incident["repo_paths"] == []
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("see README.md for it", True),
+        ("see README.md.", True),
+        ("(README.md)", True),
+        ("`README.md`, then", True),
+        ("MyREADME.md", False),
+        ("docs/README.md", False),
+        ("README.md.bak", False),
+        ("README.mdx", False),
+        ("README.md/more", False),
+        ("a-README.md", False),
+    ],
+)
+def test_path_match_needs_boundaries(text, expected):
+    import bootstrap_sweep
+
+    assert bootstrap_sweep.names_path(text, "README.md") is expected
+
+
+def test_name_inside_a_longer_word_does_not_corroborate(sweep, repo):
+    from bootstrap_helpers import run_git, write
+
+    write(repo, "Makefile", "all:\n")
+    run_git(repo, "add", "Makefile")
+    run_git(repo, "commit", "-q", "-m", "chore: add makefile")
+    prepare(sweep, texts={"chat-1": "see MyMakefile and transcripts"})
+
+    payload = sweep_of(sweep, [plain(repo_paths=["Makefile", "scripts"])])
+
+    incident = incident_map(payload)["slow-onboarding"]
+    assert incident["corroborated"] is False
+    assert incident["repo_paths"] == ["Makefile"]
 
 
 def test_evidence_changed_after_indexing_exits_2_when_text_is_needed(sweep):

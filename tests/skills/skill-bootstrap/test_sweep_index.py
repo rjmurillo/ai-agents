@@ -6,11 +6,12 @@ from __future__ import annotations
 import json
 import re
 import shutil
+from pathlib import Path
 
 import bootstrap_sweep
 import pytest
 from bootstrap_helpers import symlink_or_skip
-from sweep_helpers import cov, default_coverage, dump, make_item
+from sweep_helpers import SENSITIVE_SAMPLES, cov, default_coverage, dump, make_item
 
 
 def planned(sweep, inventory=None, *extra):
@@ -310,15 +311,12 @@ def test_path_escapes_are_violations(sweep, path):
 
 def test_symlink_inside_evidence_resolving_outside_is_violation(sweep, tmp_path):
     planned(sweep)
+    sweep.evidence([make_item("chat-1")])
     outside = tmp_path / "secret.md"
     outside.write_text("outside content")
-    evidence = sweep.run_dir / "evidence"
-    evidence.mkdir()
-    symlink_or_skip(evidence / "chat-1.md", outside)
-    sweep.evidence([make_item("chat-1")], texts={})
-    # evidence() rewrote the file through the link; restore the escape for the check
-    (evidence / "chat-1.md").unlink()
-    (evidence / "chat-1.md").symlink_to(outside)
+    link = sweep.run_dir / "evidence" / "chat-1.md"
+    link.unlink()
+    symlink_or_skip(link, outside)
 
     code, payload = sweep.index()
 
@@ -328,16 +326,35 @@ def test_symlink_inside_evidence_resolving_outside_is_violation(sweep, tmp_path)
 
 def test_evidence_directory_symlinked_outside_is_violation(sweep, tmp_path):
     planned(sweep)
+    sweep.evidence([make_item("chat-1")])
     real = tmp_path / "real-evidence"
-    real.mkdir()
-    (real / "chat-1.md").write_text("ok")
+    shutil.move(sweep.run_dir / "evidence", real)
     symlink_or_skip(sweep.run_dir / "evidence", real)
-    sweep.evidence([make_item("chat-1")], texts={})
 
     code, payload = sweep.index()
 
     assert code == 1
     assert any("outside the evidence directory" in v for v in payload["violations"])
+
+
+def test_fixture_helper_refuses_to_write_through_a_symlink(sweep, tmp_path):
+    planned(sweep)
+    real = tmp_path / "elsewhere"
+    real.mkdir()
+    symlink_or_skip(sweep.run_dir / "evidence", real)
+
+    with pytest.raises(RuntimeError, match="symlink"):
+        sweep.evidence([make_item("chat-1")])
+
+    assert list(real.iterdir()) == []
+
+
+def test_fixture_helper_skips_paths_that_escape_the_evidence_directory(sweep, tmp_path):
+    planned(sweep)
+    sweep.evidence([make_item("chat-1", path="../escape.md"), make_item("chat-2", path="/abs.md")])
+
+    assert not (tmp_path / "escape.md").exists()
+    assert not Path("/abs.md").exists()
 
 
 def test_directory_in_place_of_file_is_missing(sweep):
@@ -370,24 +387,6 @@ def test_non_utf8_is_violation(sweep):
 
 
 # ------------------------------------------------------------------ sensitive patterns
-
-
-def build(*parts):
-    return "".join(parts)
-
-
-SENSITIVE_SAMPLES = {
-    "email": "reach me at " + build("jane.doe", "@", "example.com"),
-    "github_token": build("gh", "p_", "A1" * 12),
-    "github_pat": build("github", "_pat_", "11ABC"),
-    "slack_token": build("xo", "xb-", "123-456"),
-    "aws_key": build("AK", "IA", "ABCDEFGHIJKLMNOP"),
-    "private_key": build("-----BEGIN RSA ", "PRIVATE KEY-----"),
-    "api_key": build("sk", "-", "a1" * 12),
-    "phone_e164": "call " + build("+", "14155550123"),
-    "phone_us": "call " + build("(415)", " 555", "-0123"),
-    "user_mention": build("<@", "U01ABCDEF", ">"),
-}
 
 
 @pytest.mark.parametrize("name", sorted(SENSITIVE_SAMPLES))
@@ -583,7 +582,7 @@ def test_index_with_run_dir_inside_repo_exits_2_and_writes_nothing(sweep, repo):
     shutil.copytree(sweep.run_dir, moved)
     (moved / "index.json").unlink()
 
-    code, payload = sweep.cli("index", "--plan", str(moved / "plan.json"))
+    code, payload = sweep.cli("index", "--plan", str(moved / "plan.json"), "--repo", str(repo))
 
     assert code == 2
     assert "inside the repository" in payload["message"]

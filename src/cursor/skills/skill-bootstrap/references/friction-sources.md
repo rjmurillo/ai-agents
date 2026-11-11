@@ -132,7 +132,7 @@ refusal, rate limit; give the reason). A class in `connected_without_read`
 is `unavailable`. Then validate and batch:
 
 ```bash
-$S index --plan "<run dir>/plan.json"
+$S index --plan "<run dir>/plan.json" --repo .
 ```
 
 Exit 1 lists every violation: path, size, encoding, window, missing
@@ -140,7 +140,9 @@ coverage, private item without consent, or a sensitive pattern (reported by
 class, never by match). Fix the files, never the check. On success,
 `index.json` holds `metric_thresholds`: the 90th-percentile value of each
 numeric metric that at least five items report. The thresholds come from
-this repository's own items, never from an outside benchmark.
+this repository's own items, never from an outside benchmark. Below ten
+items the threshold is the maximum value, so no item can exceed it: gather
+at least ten items per metric before reading the outlier lists.
 
 ## 3. Judge
 
@@ -158,7 +160,7 @@ receives each item's `metrics` and the `metric_thresholds`).
 Each run returns a rows file, imported one at a time:
 
 ```bash
-$S import --index "<run dir>/index.json" --rows "<rows.json>" --accepted "<run dir>/accepted.json"
+$S import --index "<run dir>/index.json" --rows "<rows.json>" --accepted "<run dir>/accepted.json" --repo .
 ```
 
 A rejected file leaves `accepted.json` byte-identical; fix the rows and

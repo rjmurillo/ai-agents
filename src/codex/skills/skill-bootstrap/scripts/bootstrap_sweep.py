@@ -14,6 +14,7 @@ import hashlib
 import json
 import os
 import re
+import stat
 import subprocess
 import sys
 import tempfile
@@ -123,6 +124,9 @@ HOTSPOT_CAP = 20
 TOP_INCIDENTS = 5
 MAX_EVIDENCE_BYTES = 64 * 1024
 MAX_LOCATOR = 500
+MAX_COVERAGE_TEXT = 500
+MAX_ITEMS = 5000
+MAX_FINDINGS = 500
 MAX_DESCRIPTION = 1000
 EVIDENCE_DIR = "evidence"
 GIT_TIMEOUT_S = 30
@@ -130,22 +134,34 @@ GIT_TIMEOUT_S = 30
 SKILL_DIR = Path(__file__).resolve().parent.parent
 
 DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+SAFE_CELL_RE = re.compile(r"[^A-Za-z0-9 ._:/@#()+-]")
 KEBAB_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 ITEM_ID_RE = re.compile(r"^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$")
 FINDING_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 JUDGE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 CAMEL_RE = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
-EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+")
+EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63})+")
 
-# Sensitive shapes rejected at index time; only the class name is ever reported.
+# Sensitive shapes rejected in evidence and free-text fields; only the class name is reported.
 SENSITIVE = {
     "email": EMAIL_RE,
     "github_token": re.compile(r"gh[pousr]_[A-Za-z0-9]{20,}"),
     "github_pat": re.compile(r"github_pat_"),
-    "slack_token": re.compile(r"xox[abprs]-"),
+    "slack_token": re.compile(r"xox[abeprs]-"),
+    "slack_app_token": re.compile(r"xapp-"),
+    "slack_webhook": re.compile(r"hooks\.slack\.com/services/"),
     "aws_key": re.compile(r"AKIA[0-9A-Z]{16}"),
+    "aws_session_key": re.compile(r"ASIA[0-9A-Z]{16}"),
     "private_key": re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
     "api_key": re.compile(r"sk-[A-Za-z0-9]{20,}"),
+    "api_key_vendor": re.compile(r"sk-(?:ant|proj)-[A-Za-z0-9_-]{20,}"),
+    "stripe_key": re.compile(r"sk_live_[A-Za-z0-9]{16,}"),
+    "jwt": re.compile(r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\."),
+    "google_api_key": re.compile(r"AIza[0-9A-Za-z_-]{35}"),
+    "npm_token": re.compile(r"npm_[A-Za-z0-9]{36}"),
+    "bearer_token": re.compile(r"(?i)bearer\s+[A-Za-z0-9._-]{20,}"),
+    "password_assignment": re.compile(r"(?i)(?:password|passwd|pwd)\s*[=:]\s*\S+"),
+    "url_secret_param": re.compile(r"(?i)[?&](?:sig|token|access_token|key|code)="),
     "phone_e164": re.compile(r"\+[1-9]\d{7,14}"),
     "phone_us": re.compile(r"\(?\d{3}\)?[ .-]\d{3}[ .-]\d{4}"),
     "user_mention": re.compile(r"<@[UW][A-Z0-9]{6,}>"),
@@ -210,8 +226,12 @@ WRITE_VERBS = frozenset(
     "schedule share copy move archive unarchive react respond retain clear invalidate resolve "
     "unresolve enable disable trigger fire fork push edit set refresh sync upload insert "
     "append rename request run execute cancel invite assign close reopen approve dismiss "
-    "submit lock pin unpin star".split()
+    "submit lock pin unpin star replace remove forward reply publish deploy revoke grant "
+    "destroy purge reset restart stop kill terminate subscribe unsubscribe import save put "
+    "patch drop discard".split()
 )
+# Nouns that double as write verbs: they count as verbs only in leading position.
+NOUN_VERBS = frozenset("request run label comment review issue commit".split())
 READ_VERBS = frozenset(
     "get list search read query fetch recall view find lookup describe download export".split()
 )
@@ -272,27 +292,32 @@ def _need(condition: bool, message: str) -> None:
 
 
 def _obj(value: Any, what: str) -> Payload:
-    _need(isinstance(value, dict), f"{what} must be an object")
+    if not isinstance(value, dict):
+        raise ConfigError(f"{what} must be an object")
     return value
 
 
 def _lst(value: Any, what: str) -> list[Any]:
-    _need(isinstance(value, list), f"{what} must be a list")
+    if not isinstance(value, list):
+        raise ConfigError(f"{what} must be a list")
     return value
 
 
 def _str(value: Any, what: str) -> str:
-    _need(isinstance(value, str) and bool(value.strip()), f"{what} must be nonempty text")
+    if not isinstance(value, str) or not value.strip():
+        raise ConfigError(f"{what} must be nonempty text")
     return value
 
 
 def _int(value: Any, what: str, minimum: int = 0) -> int:
-    _need(type(value) is int and value >= minimum, f"{what} must be an integer >= {minimum}")
+    if type(value) is not int or value < minimum:
+        raise ConfigError(f"{what} must be an integer >= {minimum}")
     return value
 
 
 def _enum(value: Any, allowed: tuple[str, ...], what: str) -> str:
-    _need(isinstance(value, str) and value in allowed, f"{what} must be one of {list(allowed)}")
+    if not isinstance(value, str) or value not in allowed:
+        raise ConfigError(f"{what} must be one of {list(allowed)}")
     return value
 
 
@@ -307,7 +332,8 @@ def _opt_text(obj: Payload, key: str, what: str) -> str | None:
     if key not in obj:
         return None
     value = obj[key]
-    _need(isinstance(value, str) and len(value) <= MAX_DESCRIPTION, f"{what}.{key} must be text")
+    if not isinstance(value, str) or len(value) > MAX_DESCRIPTION:
+        raise ConfigError(f"{what}.{key} must be text")
     return value
 
 
@@ -375,8 +401,8 @@ def repo_toplevel(repo: Path) -> Path:
     return Path(proc.stdout.strip()).resolve()
 
 
-def tracked_paths(root: Path) -> tuple[set[str], set[str]]:
-    """Return tracked files and their parent directories (`git ls-files`)."""
+def tracked_paths(root: Path) -> set[str]:
+    """Return the tracked file paths (`git ls-files`); directories never count as tracked."""
     try:
         proc = subprocess.run(
             ["git", "-C", str(root), "ls-files", "-z"],
@@ -389,15 +415,26 @@ def tracked_paths(root: Path) -> tuple[set[str], set[str]]:
     except (OSError, subprocess.SubprocessError) as exc:
         raise ConfigError(f"git ls-files failed: {exc}") from exc
     _need(proc.returncode == 0, "git ls-files failed")
-    files = {name for name in proc.stdout.split("\0") if name}
-    dirs = {parent.as_posix() for name in files for parent in PurePosixPath(name).parents}
-    return files, dirs - {"."}
+    return {name for name in proc.stdout.split("\0") if name}
+
+
+def _same_file(left: Path, right: Path) -> bool:
+    try:
+        return os.path.samefile(left, right)
+    except OSError:
+        return False
 
 
 def ensure_outside(root: Path, path: Path, label: str) -> Path:
+    """Refuse a path that resolves into the repository, or whose existing ancestor IS the repo.
+
+    The samefile walk catches case-insensitive and aliased spellings the resolve check misses.
+    """
     target = path.resolve()
+    inside = target == root or root in target.parents
+    aliased = any(_same_file(ancestor, root) for ancestor in (target, *target.parents))
     _need(
-        target != root and root not in target.parents,
+        not inside and not aliased,
         f"{label} {target} is inside the repository {root}; use a path outside it",
     )
     return target
@@ -449,13 +486,34 @@ def resolve_classes(
     return [OTHER], "default"
 
 
-def tool_access(tool: Payload) -> tuple[str, str | None]:
-    """Fail closed: any write verb excludes; unknown verbs need a declared read plus a description."""
-    words = set(_tokens(CAMEL_RE.sub(" ", tool["name"])))
-    if words & WRITE_VERBS:
+def _name_tokens(name: str) -> list[str]:
+    return _tokens(CAMEL_RE.sub(" ", name))
+
+
+def _strip_prefix(words: list[str], server: str) -> list[str]:
+    """Drop `mcp` and server-name tokens a tool name carries as a namespace prefix."""
+    prefix = {"mcp", *_tokens(server), *_name_tokens(server)}
+    start = 0
+    while start < len(words) - 1 and words[start] in prefix:
+        start += 1
+    return words[start:]
+
+
+def tool_access(tool: Payload, server: str = "") -> tuple[str, str | None]:
+    """Fail closed. A leading write verb, a trailing write verb, or any non-noun write verb wins.
+
+    Read needs a leading (or trailing) read verb. `request`, `run`, `label`, `comment`, `review`,
+    `issue`, `commit` are write verbs only in leading position, so `get_pull_request` stays read.
+    """
+    words = _strip_prefix(_name_tokens(tool["name"]), server)
+    first, last = (words[0], words[-1]) if words else ("", "")
+    hard_write = [w for w in words if w in WRITE_VERBS and w not in NOUN_VERBS]
+    if first in WRITE_VERBS or hard_write:
         return "write", None
-    if words & READ_VERBS:
+    if first in READ_VERBS or last in READ_VERBS:
         return "read", "verb"
+    if last in WRITE_VERBS:
+        return "write", None
     if tool["access"] == "read" and tool["description"].strip():
         return "read", "declared"
     return "unknown", None
@@ -548,7 +606,21 @@ def _unique_names(entries: list[Payload], what: str) -> None:
     _need(len(names) == len(set(names)), f"duplicate {what} names")
 
 
+def scan_inventory(value: Any, path: str = "inventory") -> None:
+    """Reject sensitive shapes anywhere in the inventory; names the field, never the match."""
+    if isinstance(value, str):
+        classes = sensitive_classes(value)
+        _need(not classes, f"{path} holds sensitive pattern {classes[0] if classes else ''}")
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            scan_inventory(item, f"{path}.{key}")
+    elif isinstance(value, list):
+        for position, item in enumerate(value):
+            scan_inventory(item, f"{path}[{position}]")
+
+
 def parse_inventory(data: Payload) -> Payload:
+    scan_inventory(data)
     _keys(data, {"schema_version", "servers", "skills"}, {"discovery"}, "tool inventory")
     _need(data["schema_version"] == SCHEMA_VERSION, "unsupported inventory schema_version")
     servers = [_parse_server(s, i) for i, s in enumerate(_lst(data["servers"], "servers"))]
@@ -583,7 +655,7 @@ def _empty_classes() -> dict[str, Payload]:
 def _place_server(server: Payload, classes: list[str], plan: Payload) -> None:
     reads: list[Payload] = []
     for tool in sorted(server["tools"], key=lambda t: t["name"]):
-        verdict, source = tool_access(tool)
+        verdict, source = tool_access(tool, server["name"])
         if verdict == "read":
             reads.append({"server": server["name"], "tool": tool["name"], "access_source": source})
         else:
@@ -879,12 +951,19 @@ def load_index(path: Path, plan: Payload) -> Payload:
     return index
 
 
-def load_context(index_path: str, repo: str | None = None) -> Context:
+def verify_repo(plan: Payload, repo: str, run_dir: Path) -> Path:
+    """`--repo` must be the plan's repository, and the run directory must sit outside it."""
+    root = repo_toplevel(Path(repo))
+    _need(root == Path(plan["repo"]).resolve(), "--repo differs from the repository in the plan")
+    ensure_outside(root, run_dir, "run directory")
+    return root
+
+
+def load_context(index_path: str, repo: str) -> Context:
     path = Path(index_path).resolve()
     run_dir = path.parent
     plan = load_plan(run_dir / "plan.json")
-    root = repo_toplevel(Path(repo)) if repo else Path(plan["repo"]).resolve()
-    ensure_outside(root, run_dir, "run directory")
+    root = verify_repo(plan, repo, run_dir)
     return Context(run_dir, root, plan, load_index(path, plan))
 
 
@@ -913,17 +992,30 @@ def locate_file(run_dir: Path, rel: str) -> Path:
     return target
 
 
-def read_evidence(run_dir: Path, rel: str) -> tuple[bytes, str]:
-    """Return the raw bytes and decoded text of one evidence file, or raise EvidenceError."""
-    target = locate_file(run_dir, rel)
+def _read_regular_file(target: Path) -> bytes:
+    """Open without following a final symlink, require a regular file, read at most MAX + 1."""
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0)
     try:
-        if target.stat().st_size > MAX_EVIDENCE_BYTES:
-            raise EvidenceError("file is over 64 KiB")
-        raw = target.read_bytes()
+        descriptor = os.open(target, flags)
     except OSError as exc:
         raise EvidenceError("file is unreadable") from exc
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise EvidenceError("not a regular file")
+        with os.fdopen(descriptor, "rb", closefd=False) as stream:
+            raw = stream.read(MAX_EVIDENCE_BYTES + 1)
+    except OSError as exc:
+        raise EvidenceError("file is unreadable") from exc
+    finally:
+        os.close(descriptor)
     if len(raw) > MAX_EVIDENCE_BYTES:
         raise EvidenceError("file is over 64 KiB")
+    return raw
+
+
+def read_evidence(run_dir: Path, rel: str) -> tuple[bytes, str]:
+    """Return the raw bytes and decoded text of one evidence file, or raise EvidenceError."""
+    raw = _read_regular_file(locate_file(run_dir, rel))
     try:
         return raw, raw.decode("utf-8")
     except UnicodeDecodeError as exc:
@@ -990,7 +1082,9 @@ def parse_manifest(data: Payload, plan: Payload) -> Payload:
     _need(data["schema_version"] == SCHEMA_VERSION, "unsupported manifest schema_version")
     _need(data["plan_id"] == plan["plan_id"], "manifest plan_id differs from the plan")
     coverage = [_parse_coverage_row(r, i) for i, r in enumerate(_lst(data["coverage"], "coverage"))]
-    items = [_parse_item(item, i) for i, item in enumerate(_lst(data["items"], "items"))]
+    raw_items = _lst(data["items"], "items")
+    _need(len(raw_items) <= MAX_ITEMS, f"manifest holds more than {MAX_ITEMS} items")
+    items = [_parse_item(item, i) for i, item in enumerate(raw_items)]
     ids = [item["id"] for item in items]
     _need(len(ids) == len(set(ids)), "duplicate evidence item ids")
     return {"coverage": coverage, "items": items}
@@ -1022,6 +1116,13 @@ def _row_violations(row: Payload) -> list[str]:
         found.append(f"coverage: class {cls} state {row['state']} needs a reason")
     if row["state"] == "partial" and not row.get("unread", "").strip():
         found.append(f"coverage: class {cls} is partial and needs unread")
+    for key in ("reason", "unread"):
+        text = row.get(key, "")
+        if len(text) > MAX_COVERAGE_TEXT:
+            found.append(f"coverage: class {cls} {key} exceeds {MAX_COVERAGE_TEXT} characters")
+        problem = _sensitive_problem(text, f"coverage: class {cls} {key}")
+        if problem:
+            found.append(problem)
     return found
 
 
@@ -1064,10 +1165,13 @@ def item_violations(
         found.append(f"class {cls} is not connected in the plan")
     elif item["server"] not in entry["servers"] + entry["skills"]:
         found.append(f"server is not a server or skill under class {cls}")
+    state = coverage.get(cls, {}).get("state")
+    if state is not None and state not in ("read", "partial"):
+        found.append(f"class {cls} coverage state is {state}; items need read or partial")
     for key in ("locator", "thread"):
-        problem = locator_problem(item[key])
+        problem = locator_problem(item[key]) or _sensitive_problem(item[key], key)
         if problem:
-            found.append(f"{key} {problem}")
+            found.append(problem if problem.startswith(key) else f"{key} {problem}")
     when = date.fromisoformat(item["date"])
     if not window[0] <= when <= window[1]:
         found.append("date is outside the plan window")
@@ -1098,7 +1202,7 @@ def cmd_index(args: argparse.Namespace) -> tuple[int, Payload]:
     plan_path = Path(args.plan).resolve()
     run_dir = plan_path.parent
     plan = load_plan(plan_path)
-    ensure_outside(Path(plan["repo"]).resolve(), run_dir, "run directory")
+    verify_repo(plan, args.repo, run_dir)
     _need(args.batch_size >= 1, "--batch-size must be >= 1")
     manifest = parse_manifest(load_json(run_dir / "evidence.json"), plan)
     violations, indexed, total = validate_manifest(manifest, plan, run_dir)
@@ -1142,7 +1246,7 @@ FINDING_REQUIRED = {
     "people",
     "suggestion",
 }
-FINDING_OPTIONAL = {"repo_paths", "gap"}
+FINDING_OPTIONAL = {"repo_paths", "gap", "batch_id"}
 
 
 def _text_problem(value: Any, limit: int, name: str) -> str | None:
@@ -1152,9 +1256,12 @@ def _text_problem(value: Any, limit: int, name: str) -> str | None:
         return f"{name} exceeds {limit} characters"
     if any(ord(char) < 32 for char in value):
         return f"{name} must be one line"
-    if EMAIL_RE.search(value):
-        return f"{name} holds an email address"
-    return None
+    return _sensitive_problem(value, name)
+
+
+def _sensitive_problem(value: str, name: str) -> str | None:
+    classes = sensitive_classes(value)
+    return f"{name} holds sensitive pattern {classes[0]}" if classes else None
 
 
 def _in_enum(value: Any, allowed: tuple[str, ...], name: str) -> list[str]:
@@ -1331,7 +1438,8 @@ def parse_rows_doc(data: Payload, index: Payload) -> Payload:
     _need(isinstance(data["judge"], str), "judge must be text")
     _need(type(data["run"]) is int, "run must be an integer")
     _need(isinstance(data["batch_id"], str), "batch_id must be text")
-    _lst(data["findings"], "findings")
+    findings = _lst(data["findings"], "findings")
+    _need(len(findings) <= MAX_FINDINGS, f"rows file holds more than {MAX_FINDINGS} findings")
     return data
 
 
@@ -1354,12 +1462,21 @@ def rows_doc_errors(doc: Payload, plan: Payload, index: Payload) -> list[str]:
         errors.extend(
             f"findings[{number}]: {e}" for e in validate_finding(finding, batches[doc["batch_id"]])
         )
+        if (
+            isinstance(finding, dict)
+            and finding.get("batch_id", doc["batch_id"]) != doc["batch_id"]
+        ):
+            errors.append(f"findings[{number}]: batch_id differs from the rows file batch_id")
         fid = finding.get("finding_id") if isinstance(finding, dict) else None
         if isinstance(fid, str) and fid in seen:
             errors.append(f"findings[{number}]: duplicate finding_id")
         if isinstance(fid, str):
             seen.add(fid)
     return errors
+
+
+def _without_batch_id(finding: Payload) -> Payload:
+    return {key: value for key, value in finding.items() if key != "batch_id"}
 
 
 def merge_import(accepted: Payload, doc: Payload) -> Payload:
@@ -1375,7 +1492,7 @@ def merge_import(accepted: Payload, doc: Payload) -> Payload:
 
 
 def cmd_import(args: argparse.Namespace) -> tuple[int, Payload]:
-    ctx = load_context(args.index)
+    ctx = load_context(args.index, args.repo)
     verify_judges(ctx.plan)
     target = ensure_inside(ctx.run_dir, Path(args.accepted), "--accepted")
     doc = parse_rows_doc(load_json(Path(args.rows)), ctx.index)
@@ -1383,6 +1500,7 @@ def cmd_import(args: argparse.Namespace) -> tuple[int, Payload]:
     examined = {"findings": len(doc["findings"])}
     if errors:
         return 1, {"errors": errors, "examined": examined}
+    doc = {**doc, "findings": [_without_batch_id(f) for f in doc["findings"]]}
     accepted = load_accepted(target, ctx.index, must_exist=False)
     key = (doc["judge"], doc["run"], doc["batch_id"])
     replaced = sum(1 for row in accepted["rows"] if triple(row) == key)
@@ -1445,7 +1563,8 @@ def split_agreed(rows: list[Payload]) -> tuple[list[Payload], list[Payload]]:
     groups: dict[tuple[str, str], list[Payload]] = {}
     for row in rows:
         groups.setdefault((row["judge"], row["batch_id"]), []).append(row)
-    agreed, single = [], []
+    agreed: list[Payload] = []
+    single: list[Payload] = []
     for row in rows:
         peers = [o for o in groups[(row["judge"], row["batch_id"])] if o["run"] != row["run"]]
         matched = any(
@@ -1478,9 +1597,17 @@ class EvidenceTexts:
         return self._cache[item_id]
 
 
-def is_tracked(path: str, tracked: tuple[set[str], set[str]]) -> bool:
-    name = PurePosixPath(path).as_posix()
-    return name in tracked[0] or name in tracked[1]
+def is_tracked(path: str, tracked: set[str]) -> bool:
+    return PurePosixPath(path).as_posix() in tracked
+
+
+def names_path(text: str, path: str) -> bool:
+    """True when `text` holds `path` on a path boundary, so `scripts` never matches `transcripts`.
+
+    A sentence-final period after the path is allowed; `.bak` or `/more` continuations are not.
+    """
+    pattern = r"(?<![A-Za-z0-9_./-])" + re.escape(path) + r"(?![A-Za-z0-9_/-]|\.[A-Za-z0-9_])"
+    return re.search(pattern, text) is not None
 
 
 def primary_type(types: Counter[str]) -> str:
@@ -1499,7 +1626,7 @@ def corroboration(
         reasons.append("classes")
     if len(threads) >= 2:
         reasons.append("threads")
-    if any(path in texts.text(item) for path in paths for item in evidence):
+    if any(names_path(texts.text(item), path) for path in paths for item in evidence):
         reasons.append("repo_path")
     return reasons
 
@@ -1508,7 +1635,7 @@ def build_incident(
     key: str,
     group: list[Payload],
     items: dict[str, Payload],
-    tracked: tuple[set[str], set[str]],
+    tracked: set[str],
     texts: EvidenceTexts,
 ) -> Payload:
     evidence = sorted({e for row in group for e in row["evidence"]})
@@ -1687,7 +1814,9 @@ def build_friction_map(
     return rows
 
 
-def build_sweep(ctx: Context, accepted: Payload, aliases: dict[str, str], tracked: Any) -> Payload:
+def build_sweep(
+    ctx: Context, accepted: Payload, aliases: dict[str, str], tracked: set[str]
+) -> Payload:
     rows = [{**r, "incident": aliases.get(r["incident"], r["incident"])} for r in accepted["rows"]]
     agreed, single = split_agreed(rows)
     items = {item["id"]: item for item in ctx.index["items"]}
@@ -1730,7 +1859,8 @@ def build_sweep(ctx: Context, accepted: Payload, aliases: dict[str, str], tracke
 
 
 def _cell(text: str) -> str:
-    return text.replace("|", "\\|").replace("\n", " ")
+    """Keep free strings (system names) to a safe alphabet so a name cannot inject Markdown."""
+    return SAFE_CELL_RE.sub("_", text)
 
 
 def _map_table(sweep: Payload) -> list[str]:
@@ -1793,11 +1923,26 @@ def render_friction_map(sweep: Payload) -> str:
 CONVENTION_PATTERNS = frozenset({"inconsistent-linking", "work-item-drift"})
 
 
+def check_out(root: Path, value: str | None) -> Path | None:
+    """`--out` must be a .json file outside the repo, and may replace only a prior sweep."""
+    if not value:
+        return None
+    out = ensure_outside(root, Path(value), "--out")
+    _need(out.suffix == ".json", f"--out {out} must end in .json")
+    _need(not out.is_dir(), f"--out {out} is a directory")
+    if out.exists():
+        prior = load_json(out)
+        _need(
+            prior.get("schema_version") == SCHEMA_VERSION and "index_id" in prior,
+            f"--out {out} exists and is not a prior sweep; it is never overwritten",
+        )
+    return out
+
+
 def cmd_tally(args: argparse.Namespace) -> tuple[int, Payload]:
     ctx = load_context(args.index, args.repo)
     verify_judges(ctx.plan)
-    out = ensure_outside(ctx.root, Path(args.out), "--out") if args.out else None
-    _need(out is None or not out.is_dir(), f"--out {out} is a directory")
+    out = check_out(ctx.root, args.out)
     target = ensure_inside(ctx.run_dir, Path(args.accepted), "--accepted")
     accepted = load_accepted(target, ctx.index, must_exist=True)
     check_accepted_rows(ctx, accepted)
@@ -1817,8 +1962,9 @@ def cmd_tally(args: argparse.Namespace) -> tuple[int, Payload]:
 HELP_EPILOG = """\
 examples:
   %(prog)s plan --tools tools.json --repo . --run-dir ~/sweeps/run1
-  %(prog)s index --plan ~/sweeps/run1/plan.json
-  %(prog)s import --index ~/sweeps/run1/index.json --rows rows.json --accepted ~/sweeps/run1/accepted.json
+  %(prog)s index --plan ~/sweeps/run1/plan.json --repo .
+  %(prog)s import --index ~/sweeps/run1/index.json --repo . --rows rows.json \
+      --accepted ~/sweeps/run1/accepted.json
   %(prog)s tally --index ~/sweeps/run1/index.json --accepted ~/sweeps/run1/accepted.json --repo .
 
 exit codes:
@@ -1848,9 +1994,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_plan.add_argument("--judge-runs", type=int, default=DEFAULT_JUDGE_RUNS)
     p_index = sub.add_parser("index", allow_abbrev=False, help="validate evidence, make batches")
     p_index.add_argument("--plan", required=True, metavar="FILE")
+    p_index.add_argument("--repo", required=True)
     p_index.add_argument("--batch-size", type=int, default=DEFAULT_BATCH_SIZE)
     p_import = sub.add_parser("import", allow_abbrev=False, help="accept one judge run's rows")
     p_import.add_argument("--index", required=True, metavar="FILE")
+    p_import.add_argument("--repo", required=True)
     p_import.add_argument("--rows", required=True, metavar="FILE")
     p_import.add_argument("--accepted", required=True, metavar="FILE")
     p_tally = sub.add_parser("tally", allow_abbrev=False, help="merge findings into a sweep")

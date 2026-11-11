@@ -559,6 +559,7 @@ def test_script_runs_under_python3_as_a_program(sweep, tmp_path):
         ],
         capture_output=True,
         encoding="utf-8",
+        errors="replace",
         check=False,
     )
 

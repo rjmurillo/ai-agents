@@ -90,6 +90,19 @@ def _writable_evidence_path(rel: str) -> bool:
     return clean and len(parts) > 1
 
 
+def safe_write_target(run_dir: Path, rel: str) -> Path:
+    """Return the file to write, refusing symlinks and anything resolving outside `run_dir`."""
+    target = run_dir / rel
+    for part in (target, *target.parents):
+        if part == run_dir:
+            break
+        if part.is_symlink():
+            raise RuntimeError(f"refusing to write through symlink {part}")
+    if not target.resolve().is_relative_to(run_dir.resolve()):
+        raise RuntimeError(f"refusing to write outside the run directory: {target}")
+    return target
+
+
 class Run:
     """One sweep run directory outside the fixture repo, driven through main()."""
 
@@ -120,7 +133,8 @@ class Run:
         )
 
     def load_plan(self) -> dict[str, Any]:
-        return json.loads(self.plan_path.read_text(encoding="utf-8"))
+        plan: dict[str, Any] = json.loads(self.plan_path.read_text(encoding="utf-8"))
+        return plan
 
     def evidence(
         self,
@@ -134,7 +148,7 @@ class Run:
             body = (texts or {}).get(item["id"], f"Notes for {item['id']}, nothing sensitive.")
             if not _writable_evidence_path(item["path"]):
                 continue
-            target = self.run_dir / item["path"]
+            target = safe_write_target(self.run_dir, item["path"])
             target.parent.mkdir(parents=True, exist_ok=True)
             if isinstance(body, bytes):
                 target.write_bytes(body)
@@ -150,14 +164,17 @@ class Run:
         dump(self.run_dir / "evidence.json", data)
 
     def index(self, *extra: str) -> Result:
-        return self.cli("index", "--plan", str(self.plan_path), *extra)
+        return self.cli("index", "--plan", str(self.plan_path), "--repo", str(self.repo), *extra)
+
+    def load_index(self) -> dict[str, Any]:
+        index: dict[str, Any] = json.loads(self.index_path.read_text(encoding="utf-8"))
+        return index
 
     def batches(self) -> list[str]:
-        index = json.loads(self.index_path.read_text(encoding="utf-8"))
-        return [b["batch_id"] for b in index["batches"]]
+        return [str(b["batch_id"]) for b in self.load_index()["batches"]]
 
     def index_id(self) -> str:
-        return json.loads(self.index_path.read_text(encoding="utf-8"))["index_id"]
+        return str(self.load_index()["index_id"])
 
     def rows_file(
         self, judge: str, run: int, batch: str, findings: list[Any], /, **overrides: Any
@@ -181,6 +198,8 @@ class Run:
             "import",
             "--index",
             str(self.index_path),
+            "--repo",
+            str(self.repo),
             "--rows",
             str(rows),
             "--accepted",
@@ -235,3 +254,33 @@ def make_skill_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         (judges / f"{name}.md").write_text(f"# {name} rubric\n", encoding="utf-8")
     monkeypatch.setattr(bootstrap_sweep, "SKILL_DIR", skill)
     return skill
+
+
+def build(*parts: str) -> str:
+    """Join fragments so secret-shaped fixtures never sit in the source as one literal."""
+    return "".join(parts)
+
+
+SENSITIVE_SAMPLES = {
+    "email": "reach me at " + build("jane.doe", "@", "example.com"),
+    "github_token": build("gh", "p_", "A1" * 12),
+    "github_pat": build("github", "_pat_", "11ABC"),
+    "slack_token": build("xo", "xb-", "123-456"),
+    "aws_key": build("AK", "IA", "ABCDEFGHIJKLMNOP"),
+    "private_key": build("-----BEGIN RSA ", "PRIVATE KEY-----"),
+    "api_key": build("sk", "-", "a1" * 12),
+    "phone_e164": "call " + build("+", "14155550123"),
+    "phone_us": "call " + build("(415)", " 555", "-0123"),
+    "user_mention": build("<@", "U01ABCDEF", ">"),
+    "slack_app_token": build("xa", "pp-1-ABC"),
+    "slack_webhook": build("https://hooks.slack", ".com/services/T000/B000"),
+    "aws_session_key": build("AS", "IA", "ABCDEFGHIJKLMNOP"),
+    "api_key_vendor": build("sk", "-ant-", "a1" * 12),
+    "stripe_key": build("sk_", "live_", "a1" * 10),
+    "jwt": build("ey", "Jabcdefghij", ".", "abcdefghij", ".sig"),
+    "google_api_key": build("AI", "za", "A" * 35),
+    "npm_token": build("npm", "_", "a1" * 18),
+    "bearer_token": build("Bearer ", "abcdefghij" * 2),
+    "password_assignment": build("pass", "word: hunter2"),
+    "url_secret_param": build("https://x.example/p?", "tok", "en=abc"),
+}

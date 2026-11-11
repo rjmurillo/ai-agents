@@ -45,7 +45,11 @@ def test_every_script_on_disk_is_bundled_and_documented() -> None:
     on_disk = {f"scripts/{p.name}" for p in (_skill_dir(".claude") / "scripts").glob("*.py")}
     text = _skill_md()
 
-    helpers = {"scripts/bootstrap_friction.py", "scripts/bootstrap_sweep.py"}
+    helpers = {
+        "scripts/bootstrap_friction.py",
+        "scripts/bootstrap_sweep.py",
+        "scripts/bootstrap_sweep_import.py",
+    }
     assert on_disk == set(BUNDLED_SCRIPTS) | helpers
     assert "`bootstrap_friction.py`" in text
     assert "`bootstrap_sweep.py`" in text

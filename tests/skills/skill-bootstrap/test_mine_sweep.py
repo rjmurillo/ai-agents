@@ -9,10 +9,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
-import bootstrap_friction
 import bootstrap_sweep
+import bootstrap_sweep_import
 import pytest
-from sweep_helpers import dump, make_finding
+from sweep_helpers import Run, dump, make_finding
 
 SCRIPT = (
     Path(__file__).resolve().parents[3]
@@ -53,7 +53,7 @@ def finding(**overrides):
 
 
 @pytest.fixture
-def sweep_json(sweep) -> Path:
+def sweep_json(sweep: Run) -> Path:
     sweep.ready()
     rows = [
         finding(
@@ -204,7 +204,8 @@ def test_sweep_json_records_one_seed_input(sweep, sweep_json, repo, capsys):
 
 
 def load(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text())
+    data: dict[str, Any] = json.loads(path.read_text())
+    return data
 
 
 def edit(sweep_json: Path, tmp_path: Path, mutate) -> Path:
@@ -268,13 +269,13 @@ def test_non_json_number_exits_2(repo, capsys, tmp_path):
 
 
 def test_friction_enums_mirror_bootstrap_sweep():
-    assert set(bootstrap_friction.SWEEP_TYPES) == set(bootstrap_sweep.TYPE_ORDER)
-    assert bootstrap_friction.SWEEP_PATTERNS == bootstrap_sweep.PATTERNS
-    assert bootstrap_friction.SWEEP_CLASSES == bootstrap_sweep.CLASSES
-    assert bootstrap_friction.SWEEP_ACTIONS == bootstrap_sweep.ACTIONS
+    assert set(bootstrap_sweep_import.SWEEP_TYPES) == set(bootstrap_sweep.TYPE_ORDER)
+    assert bootstrap_sweep_import.SWEEP_PATTERNS == bootstrap_sweep.PATTERNS
+    assert bootstrap_sweep_import.SWEEP_CLASSES == bootstrap_sweep.CLASSES
+    assert bootstrap_sweep_import.SWEEP_ACTIONS == bootstrap_sweep.ACTIONS
 
 
 def test_incident_key_set_mirrors_what_tally_emits(sweep, sweep_json):
     incident = load(sweep_json)["incidents"][0]
 
-    assert set(incident) == bootstrap_friction.SWEEP_INCIDENT_KEYS
+    assert set(incident) == bootstrap_sweep_import.SWEEP_INCIDENT_KEYS
