@@ -338,7 +338,8 @@ def generate_agent_copies(
 def declared_tools_of(loaded: dict[str, object], src: Path) -> list[object] | None:
     """:func:`declared_tools` with the source path added to its error."""
     try:
-        return declared_tools(loaded)
+        tools: list[object] | None = declared_tools(loaded)
+        return tools
     except AgentCopyError as exc:
         raise AgentCopyError(f"{src.as_posix()}: {exc}") from exc
 

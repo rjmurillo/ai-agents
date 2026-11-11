@@ -19,7 +19,7 @@ unrecorded target file whose bytes equal the shipped bytes is adopted, so a
 crash between the two steps heals on the next run.
 
 Exit codes: 0 success, 1 conflict or refusal (nothing written), 2 usage or
-configuration error.
+configuration error, 3 file system error (a read or write failed).
 
 Stdlib only. ``tomllib`` (Python 3.11+) is used when present to verify a
 namespaced rewrite and to read the Codex trust list.
@@ -48,7 +48,7 @@ OWNERSHIP_FILE = ".project-toolkit-agents.json"
 AGENT_SUFFIX = ".toml"
 PREFIX_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 _NAME_LINE = re.compile(r'^name = "([^"\n]*)"\n')
-EXIT_OK, EXIT_REFUSED, EXIT_USAGE = 0, 1, 2
+EXIT_OK, EXIT_REFUSED, EXIT_USAGE, EXIT_IO = 0, 1, 2, 3
 
 
 class InstallError(Exception):
@@ -119,9 +119,10 @@ def _valid_hash(value: object) -> bool:
 
 def _valid_namespaced(file_name: object, source: object) -> bool:
     """True when ``file_name`` is exactly ``<valid prefix>-<source>`` for a safe ``source``."""
+    if not (isinstance(file_name, str) and isinstance(source, str)):
+        return False
     if not (_safe_name(file_name) and _safe_name(source)):
         return False
-    assert isinstance(file_name, str) and isinstance(source, str)
     if not file_name.endswith(f"-{source}"):
         return False
     return PREFIX_PATTERN.fullmatch(file_name[: -len(source) - 1]) is not None
@@ -232,35 +233,43 @@ def _plan_namespaced(
         plan.conflicts.append(f"{ns_name} (namespaced name of {name}) exists and is not owned")
 
 
+def _keep_edited(plan: Plan, name: str, owned: Ownership) -> None:
+    """Leave a recorded file the user edited, and keep its record."""
+    plan.warnings.append(f"{name} was edited after install; leaving it and its record")
+    plan.record.files[name] = owned.files[name]
+    if name in owned.sources:
+        plan.record.sources[name] = owned.sources[name]
+
+
+def _plain_agent_is_ours(plan: Plan, source: str) -> bool:
+    """True when this run keeps ``source`` installed under its own name (not namespaced)."""
+    return source in plan.record.files and source not in plan.record.sources
+
+
 def _plan_owned_leftovers(
     plan: Plan, target: Path, shipped: dict[str, bytes], owned: Ownership
 ) -> None:
-    """Handle recorded files the install loop did not decide: dropped or namespaced ones."""
+    """Handle recorded files the install loop did not decide: dropped or namespaced ones.
+
+    A namespaced copy follows its source: upgraded (or reinstalled if the user
+    deleted it) while the source still clashes, removed once the plain agent is
+    installed again so Codex does not list the agent twice. An edited file is
+    always kept.
+    """
     for name in sorted(set(owned.files) - set(plan.record.files)):
         source = owned.sources.get(name)
         current = _disk_hash(target / name)
-        if current is None:
-            if source in shipped:
-                # The user deleted a namespaced copy while its source still clashes:
-                # reinstall it, so two identical runs give the same answer.
-                prefix = name[: -len(source) - 1]
-                data = namespaced_bytes(shipped[source], prefix, source)
-                _decide(plan, target, name, data, owned, source)
-            continue
-        if current != owned.files[name]:
-            plan.warnings.append(f"{name} was edited after install; leaving it and its record")
-            plan.record.files[name] = owned.files[name]
-            if source:
-                plan.record.sources[name] = source
-            continue
-        if source in shipped:
+        if current is not None and current != owned.files[name]:
+            _keep_edited(plan, name, owned)
+        elif source in shipped and not _plain_agent_is_ours(plan, source):
             prefix = name[: -len(source) - 1]
             _decide(
                 plan, target, name, namespaced_bytes(shipped[source], prefix, source), owned, source
             )
-            continue
-        plan.removes.append(name)
-        plan.note("removed", name, " (no longer shipped)")
+        elif current is not None:
+            plan.removes.append(name)
+            reason = "no longer shipped" if source not in shipped else "plain agent is installed"
+            plan.note("removed", name, f" ({reason})")
 
 
 def build_install_plan(
@@ -429,6 +438,9 @@ def main(argv: list[str] | None = None, agents_dir: Path | None = None) -> int:
     except InstallError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return EXIT_USAGE
+    except OSError as exc:
+        print(f"Error: {exc.filename or 'file system'}: {exc.strerror or exc}", file=sys.stderr)
+        return EXIT_IO
 
 
 if __name__ == "__main__":
