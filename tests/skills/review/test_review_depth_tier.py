@@ -98,7 +98,7 @@ def test_small_change_is_standard_with_one_caller_floor():
     result = mod.compute(_file_diff("pkg/a.py", ["y = 2"], ["y = 1"]))
     assert result["tier"] == "standard"
     assert result["signals"] == {"lines": 2, "files": 1, "dirs": 1, "public_symbols": 0}
-    assert result["caller_trace_floor"] == {"per_symbol": 1, "min_modules": 1, "cap": 1}
+    assert result["caller_trace_floor"] == {"callers": 1, "files": 1}
     assert result["selected_by"] == []
 
 
@@ -111,10 +111,10 @@ def test_highest_signal_wins_and_names_every_signal_at_that_tier():
 
 def test_tier_floor_rises_monotonically():
     floors = [mod.CALLER_TRACE_FLOOR[t] for t in mod.TIERS]
-    caps = [f["cap"] for f in floors]
-    assert caps == sorted(caps)
-    assert caps[0] == 1, "standard must stay at today's one-caller floor"
-    assert [f["min_modules"] for f in floors] == sorted(f["min_modules"] for f in floors)
+    callers = [f["callers"] for f in floors]
+    assert callers == sorted(set(callers)), "each tier must read strictly more callers"
+    assert callers[0] == 1, "standard must stay at today's one-caller floor"
+    assert [f["files"] for f in floors] == sorted(f["files"] for f in floors)
 
 
 def test_removed_public_symbol_counts_like_an_added_one():
@@ -238,3 +238,68 @@ def test_contract_states_every_tier_and_threshold_from_the_script():
 def test_header_line_matches_the_contract_format():
     result = mod.compute(_files_diff(11))
     assert result["header"] == "REVIEW_DEPTH: elevated lines=11 files=11 dirs=1 public_symbols=0"
+
+
+def _quoted_diff(a_path: str, b_path: str, body: list[str]) -> str:
+    return (
+        f"diff --git {a_path} {b_path}\n--- {a_path}\n+++ {b_path}\n"
+        f"@@ -0,0 +1,{len(body)} @@\n" + "\n".join(f"+{line}" for line in body) + "\n"
+    )
+
+
+def test_quoted_non_ascii_path_counts_as_a_file():
+    diff = _quoted_diff('"a/caf\\303\\251.py"', '"b/caf\\303\\251.py"', ["x = 1"])
+    result = mod.compute(diff)
+    assert result["signals"]["files"] == 1
+    assert result["signals"]["lines"] == 1
+    assert result["tier"] == "standard"
+
+
+def test_quoted_path_is_unquoted_before_exclude_matching():
+    diff = _quoted_diff('"a/gen/caf\\303\\251.py"', '"b/gen/caf\\303\\251.py"', ["x = 1"] * 400)
+    assert _tier(diff) == "elevated"
+    assert mod.compute(diff, ("gen/caf\u00e9.py",))["signals"]["files"] == 0
+
+
+def test_mixed_quoted_and_plain_headers_both_count():
+    diff = _file_diff("pkg/plain.py", ["x = 1"]) + _quoted_diff(
+        '"a/pkg/q\\"uote.py"', '"b/pkg/q\\"uote.py"', ["y = 2"]
+    )
+    signals = mod.parse_diff(diff)
+    assert signals.files == 2
+    assert 'pkg/q"uote.py' in signals.paths
+
+
+def test_cli_accepts_a_diff_whose_every_path_is_quoted():
+    diff = _quoted_diff('"a/caf\\303\\251.py"', '"b/caf\\303\\251.py"', ["x = 1"])
+    proc = _run(diff)
+    assert proc.returncode == 0
+    assert json.loads(proc.stdout)["signals"]["files"] == 1
+
+
+@pytest.mark.parametrize("content", ["-- sql comment", "--i;", "---", "++i;", "++ x"])
+def test_hunk_body_lines_that_start_like_file_headers_are_counted(content):
+    removed = _file_diff("pkg/a.sql", [], [content])
+    added = _file_diff("pkg/a.sql", [content])
+    assert mod.compute(removed)["signals"]["lines"] == 1
+    assert mod.compute(added)["signals"]["lines"] == 1
+
+
+def test_file_headers_still_excluded_across_multiple_files():
+    diff = _file_diff("pkg/a.py", ["x = 1"]) + _file_diff("pkg/b.py", ["y = 2"], ["y = 1"])
+    assert mod.compute(diff)["signals"]["lines"] == 3
+
+
+def test_contract_floor_table_matches_the_script():
+    text = CONTRACT.read_text(encoding="utf-8")
+    for tier, floor in mod.CALLER_TRACE_FLOOR.items():
+        row = next((ln for ln in text.splitlines() if ln.startswith(f"| `{tier}` | ")), None)
+        assert row is not None, f"contract has no floor row for {tier}"
+        numbers = [int(n) for n in re.findall(r"\d+", row)]
+        assert numbers == [floor["callers"], floor["files"]], f"{tier} floor drifted: {row}"
+
+
+def test_contract_keeps_context_mode_first_line():
+    text = CONTRACT.read_text(encoding="utf-8")
+    assert "first line after the `CONTEXT_MODE:` header" in text
+    assert "ahead of the `CONTEXT_MODE:` header" not in text

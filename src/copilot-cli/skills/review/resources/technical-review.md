@@ -34,7 +34,8 @@ spread of the change. The tier is computed from the diff, never judged, and is
 separate from the analyst's Tier 1-5. The `review` skill pipes the same
 three-dot diff to the `review_depth_tier.py` script beside `select_axes.py`,
 with one `--exclude GLOB` per path excluded from scope accounting. It passes the
-script's `header` field ahead of the `CONTEXT_MODE:` header:
+script's `header` field as the first line after the `CONTEXT_MODE:` header and
+its blank line, so the `CONTEXT_MODE:` header still opens the input:
 
 ```text
 REVIEW_DEPTH: <tier> lines=<n> files=<n> dirs=<n> public_symbols=<n>
@@ -59,14 +60,16 @@ which is the protocol as it stood before tiers existed.
 | Tier | Callers to read per changed public symbol | Distinct caller files to cover |
 |---|---|---|
 | `standard` | 1 | 1 |
-| `elevated` | up to 3 | 2 when that many exist |
-| `high` | every caller, up to 10 | 3 when that many exist |
+| `elevated` | 3 | 2 |
+| `high` | 10 | 3 |
 
-A changed contract that is not a public symbol keeps the `standard` floor at
-every tier. When fewer callers exist than the floor asks for, read them all and
-cite the count found. A caller past the cap that you did not read is reported
-unverified, which maps to `WARN` under the verdict rules below. The tier never
-adds a blocking condition and never changes the verdict mapping.
+Read that many callers, or all of them when fewer exist, and cover that many
+distinct caller files when that many exist. Cite the count found. A caller past
+the count is out of scope: say how many you left unread, without a finding. A
+caller inside the count that you could not read is unverified, which maps to
+`WARN` under the verdict rules below. A changed contract that is not a public
+symbol keeps the `standard` floor at every tier. The tier never adds a blocking
+condition and never changes the verdict mapping.
 
 Record the tier, the four signal values, and the callers read per symbol in the
 scope statement. A tier you could not obtain or count is stated as unknown, and

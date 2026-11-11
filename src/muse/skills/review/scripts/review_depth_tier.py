@@ -51,16 +51,14 @@ THRESHOLDS: dict[str, tuple[int, int]] = {
     "public_symbols": (3, 10),
 }
 
-# Caller-trace floor per tier.  ``per_symbol`` is the number of callers to read
-# for each changed public contract (``None`` means every caller, up to
-# ``cap``).  ``min_modules`` is the number of distinct caller files to cover
-# when that many exist.  A caller beyond the floor or cap that is not read is
-# reported unverified, which the contract's verdict mapping already treats as
-# WARN.
-CALLER_TRACE_FLOOR: dict[str, dict[str, int | None]] = {
-    "standard": {"per_symbol": 1, "min_modules": 1, "cap": 1},
-    "elevated": {"per_symbol": 3, "min_modules": 2, "cap": 3},
-    "high": {"per_symbol": None, "min_modules": 3, "cap": 10},
+# Caller-trace floor per tier: callers to read per changed public symbol (or all
+# of them when fewer exist) and distinct caller files to cover when that many
+# exist.  Callers past the count are out of scope.  The count is the whole
+# requirement, so meeting it never leaves an unverified caller.
+CALLER_TRACE_FLOOR: dict[str, dict[str, int]] = {
+    "standard": {"callers": 1, "files": 1},
+    "elevated": {"callers": 3, "files": 2},
+    "high": {"callers": 10, "files": 3},
 }
 
 SOURCE_SUFFIXES = frozenset(
@@ -83,7 +81,12 @@ PUBLIC_SYMBOL_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"^\s*pub\s+(?:async\s+)?(?:fn|struct|enum|trait)\b"),
 )  # fmt: skip
 
-_DIFF_HEADER = re.compile(r"^diff --git a/(.*?) b/(.*)$")
+# Git quotes a path holding non-ASCII bytes, quotes, backslashes, or control
+# characters: ``diff --git "a/caf\303\251.py" "b/caf\303\251.py"``.  Either
+# side may be quoted on its own.
+_DIFF_HEADER = re.compile(r'^diff --git (?:"a/(?:.*?)"|a/(?:.*?)) (?:"b/(.*)"|b/(.*))$')
+_ESCAPE = re.compile(r"(?:\\[0-7]{3})+|\\.")
+_SIMPLE_ESCAPES = {"t": "\t", "n": "\n", '"': '"', "\\": "\\"}
 
 
 @dataclass
@@ -115,29 +118,51 @@ def _is_public_declaration(line: str) -> bool:
     return any(pattern.match(line) for pattern in PUBLIC_SYMBOL_PATTERNS)
 
 
+def _unescape(match: re.Match[str]) -> str:
+    text = match.group()
+    if len(text) > 2:  # a run of octal escapes is UTF-8 bytes
+        octets = (int(text[i + 1 : i + 4], 8) for i in range(0, len(text), 4))
+        return bytes(octets).decode("utf-8", errors="replace")
+    return _SIMPLE_ESCAPES.get(text[1], text[1])
+
+
+def _new_path(match: re.Match[str]) -> str:
+    """Return the post-image path from a header match, unquoting a quoted one."""
+    quoted, plain = match.group(1), match.group(2)
+    if plain is not None:
+        return plain
+    return _ESCAPE.sub(_unescape, quoted)
+
+
 def parse_diff(diff_text: str, excludes: Sequence[str] = ()) -> Signals:
     """Count the tier signals in a unified diff.
 
     A rename with no content hunks still counts as one changed file.  Binary
-    files count as a file but add no lines.
+    files count as a file but add no lines.  A quoted header path is unquoted
+    before it is matched against ``--exclude`` globs.
     """
     signals = Signals()
     current: str | None = None
     counting = False
+    in_hunk = False
     seen: list[str] = []
     for raw in diff_text.splitlines():
         header = _DIFF_HEADER.match(raw)
         if header:
-            current = header.group(2)
+            current = _new_path(header)
             counting = not _is_excluded(current, excludes)
+            in_hunk = False
             if counting and current not in seen:
                 seen.append(current)
             continue
         if not counting or current is None:
             continue
-        if raw.startswith(("+++", "---")):
+        if raw.startswith("@@"):
+            in_hunk = True
             continue
-        if raw.startswith(("+", "-")):
+        # Before the first hunk, ``---`` and ``+++`` are file headers.  Inside a
+        # hunk they are content: a removed YAML ``---`` or C ``--i;`` line.
+        if in_hunk and raw.startswith(("+", "-")):
             signals.lines += 1
             if _is_source(current) and _is_public_declaration(raw[1:]):
                 signals.public_symbols += 1
