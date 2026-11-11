@@ -20,6 +20,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 README = REPO_ROOT / "src" / "muse" / "README.md"
 SKILL_SCRIPT = Path("workspace/custom-skills/github/scripts/pr/get_pr_checks.py")
 LIB_MISSING_MESSAGE = "Plugin lib directory not found"
+_LIB_RESOLUTION_ENV = frozenset({"COPILOT_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT", "GITHUB_WORKSPACE"})
 
 pytestmark = pytest.mark.skipif(shutil.which("bash") is None, reason="bash is required")
 
@@ -31,11 +32,10 @@ def _install_section_blocks() -> list[str]:
 
 
 def _scratch_env(home: Path) -> dict[str, str]:
-    env = {
-        k: v
-        for k, v in os.environ.items()
-        if k not in {"COPILOT_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT"}
-    }
+    # GITHUB_WORKSPACE is always set in CI. The skill script then reads
+    # $GITHUB_WORKSPACE/.claude/lib and never looks at ~/workspace/lib, which
+    # would hide the install layout this test exists to check.
+    env = {k: v for k, v in os.environ.items() if k not in _LIB_RESOLUTION_ENV}
     env["HOME"] = str(home)
     return env
 
