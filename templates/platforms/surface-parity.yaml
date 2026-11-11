@@ -445,6 +445,27 @@ surfaces:
     generator: build/scripts/lib_mirror.py
     owner: build_all.py --check
     reason: Absolute imports are rewritten to relative imports.
+  - id: lib-paths-codex-plugin
+    path: src/codex/lib/paths.py
+    relation: mirrored
+    authority: src/claude/lib/paths.py
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Byte copy. The skill scripts import paths.py from lib/ and share the Claude artifact root (issue #7221).
+  - id: lib-paths-cursor-plugin
+    path: src/cursor/lib/paths.py
+    relation: mirrored
+    authority: src/claude/lib/paths.py
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Byte copy. The skill scripts import paths.py from lib/ and share the Claude artifact root (issue #7221).
+  - id: lib-paths-muse-plugin
+    path: src/muse/lib/paths.py
+    relation: mirrored
+    authority: src/claude/lib/paths.py
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Byte copy. The skill scripts import paths.py from lib/ and share the Claude artifact root (issue #7221).
   - id: lib-paths-claude-plugin
     path: src/claude/lib/paths.py
     relation: independent
