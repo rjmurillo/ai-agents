@@ -29,24 +29,25 @@ The latest main integration exposed three additional preflight failures.
 The operator authorized bounded integration repairs and one replacement reviewer.
 Both portability gates and whole-corpus duplication now pass focused rechecks.
 Neither baseline changed during these integration repairs.
-Quality cleanup is committed and passes focused checks.
-Full exact-tip acceptance has not run; the operator accepted the recorded advisories.
+D2 fixtures and D3 test extractions pass focused validation.
+The documentation scanner repairs pass their complete regression suite.
+The interrupted full documentation assessment provides no current acceptance.
 
 ## State Record
 
 - **Remote**: rjmurillo/ai-agents
 - **Branch**: fix/agent-readiness-signals
 - **Worktree**: ~/src/GitHub/rjmurillo/ai-agents4
-- **Source checkpoint**: 13de98e652618821620e0c6808dc21fc4f6b7ede (2026-11-10)
-- **Timestamp**: 2026-11-10T21:52:27-08:00
+- **Source checkpoint**: 90dc8551fe005c7520ed180d1f0d761135fe9ac7 (2026-11-11T07:55:21-08:00)
+- **Timestamp**: 2026-11-11T15:53:01Z
 - **Objective**: Ship repository-side readiness repairs without adding client telemetry.
 - **Non-goals**: Hosted infrastructure, package releases, and security configuration changes.
 - **Risk tier**: shared-repository
 - **Acceptance**: New checks detect violations and pass the complete repository corpus.
-- **Phase**: source cleanup committed; measured size advisories accepted
-- **Next action**: Run exact-tip acceptance and independent review.
-- **Validation run**: On 2026-11-10, working-tree cleanup passed 3114 tests and quality regression.
-- **Residual risks**: Remote CI timing and delivery cadence remain unverified.
+- **Phase**: Approved D3 repairs committed; final gates remain unverified.
+- **Next action**: Complete full documentation assessment and final-tip validation.
+- **Validation run**: On 2026-11-11, combined suites passed 542 tests with one optional Pi skip.
+- **Residual risks**: Full documentation, final review, and remote CI remain unverified.
 - **Escalation owner**: Repository owner.
 
 ## Decisions Made
@@ -172,7 +173,7 @@ The raw gate receipt is `.project-toolkit/scratch/readiness-duplication-before-0
 Exact fingerprints are in `.project-toolkit/scratch/readiness-upstream-stale-baseline-evidence.json`.
 The owner is `rjmurillo/ai-agents`.
 
-## Current Source Repair Evidence
+## Historical Source Repair Evidence
 
 Canonical helpers now share milestone output, instrument dispatch, and skill bootstrap logic.
 Other helpers share timeout parsing, comment messages, memory conversion, and scanner rule parsing.
@@ -211,7 +212,7 @@ One fresh reviewer stopped without a report after the interruption.
 The operator authorized one replacement, raising the reviewer cap to fifteen.
 Fourteen independent review slots remain unused.
 
-## Approved Integration Repairs
+## Historical Integration Repairs
 
 The decision is `.project-toolkit/scratch/readiness-integration-blockers-decision.json`.
 The operator selected bounded repairs and one replacement reviewer.
@@ -272,10 +273,10 @@ Current projections match their canonical helper.
 ## Stop Conditions
 
 Working-tree proof is not full acceptance.
-On 2026-11-10, cleanup passed 3114 tests, quality, Ruff, and five-module mypy.
-On 2026-11-10, all 28 instrument entries matched immutable source.
+On 2026-11-11, D3 preserved 313 test identities and 270 test definitions.
+On 2026-11-11, duplication passed across 3504 Python files after one authorized prune.
 The operator accepted only advisories in `.project-toolkit/scratch/readiness-size-warning-decision.json`.
-On 2026-11-10, one of fifteen review slots was consumed; fourteen remain.
+On 2026-11-11, two of sixteen review slots were consumed; fourteen remain.
 
 Do not push or create a review marker while preflight remains failed.
 Do not repair upstream tool code without a bounded scope decision.
