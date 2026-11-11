@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from scripts import report_reviewer_intervention_clusters as rep
+from scripts import reviewer_intervention_fetch as fetch
 from tests.report_reviewer_intervention_helpers import (
     HUMAN,
     NOW,
@@ -29,7 +30,7 @@ def test_fetch_follows_every_pr_page_until_no_next_page() -> None:
         }
     )
 
-    prs, examined = rep.fetch_pull_requests(gql, "o", "r", NOW - timedelta(days=90))
+    prs, examined = fetch.fetch_pull_requests(gql, "o", "r", NOW - timedelta(days=90))
 
     assert [p["number"] for p in prs] == [1, 2, 3]
     assert examined == 3
@@ -45,7 +46,7 @@ def test_fetch_stops_at_first_pr_older_than_the_window() -> None:
         }
     )
 
-    prs, examined = rep.fetch_pull_requests(gql, "o", "r", NOW - timedelta(days=90))
+    prs, examined = fetch.fetch_pull_requests(gql, "o", "r", NOW - timedelta(days=90))
 
     assert [p["number"] for p in prs] == [1]
     assert examined == 1
@@ -81,7 +82,7 @@ def test_fetch_pages_threads_of_a_pr_with_more_than_one_page() -> None:
         },
     )
 
-    prs, _ = rep.fetch_pull_requests(gql, "o", "r", NOW - timedelta(days=90))
+    prs, _ = fetch.fetch_pull_requests(gql, "o", "r", NOW - timedelta(days=90))
 
     assert [t["id"] for t in prs[0]["threads"]] == ["A", "B", "C"]
 
@@ -91,30 +92,30 @@ def test_fetch_fails_loud_when_a_pr_page_cursor_is_missing() -> None:
     page["repository"]["pullRequests"]["pageInfo"]["endCursor"] = None
     gql = FakeGraphQL({None: page})
 
-    with pytest.raises(rep.FetchError, match="missing pagination cursor"):
-        rep.fetch_pull_requests(gql, "o", "r", NOW - timedelta(days=90))
+    with pytest.raises(fetch.FetchError, match="missing pagination cursor"):
+        fetch.fetch_pull_requests(gql, "o", "r", NOW - timedelta(days=90))
 
 
 def test_fetch_fails_loud_when_page_info_is_absent() -> None:
     page = make_page([make_pr(1, [])])
     del page["repository"]["pullRequests"]["pageInfo"]
 
-    with pytest.raises(rep.FetchError, match="missing pagination info"):
-        rep.fetch_pull_requests(FakeGraphQL({None: page}), "o", "r", NOW - timedelta(days=90))
+    with pytest.raises(fetch.FetchError, match="missing pagination info"):
+        fetch.fetch_pull_requests(FakeGraphQL({None: page}), "o", "r", NOW - timedelta(days=90))
 
 
 def test_fetch_fails_loud_when_a_thread_cursor_is_missing() -> None:
     pr = make_pr(7, [make_thread("A")])
     pr["reviewThreads"]["pageInfo"] = {"hasNextPage": True, "endCursor": ""}
 
-    with pytest.raises(rep.FetchError, match="PR #7 threads"):
-        rep.fetch_pull_requests(
+    with pytest.raises(fetch.FetchError, match="PR #7 threads"):
+        fetch.fetch_pull_requests(
             FakeGraphQL({None: make_page([pr])}), "o", "r", NOW - timedelta(days=90)
         )
 
 
 def test_fetch_fails_loud_at_the_pr_page_cap(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(rep, "MAX_PR_PAGES", 2)
+    monkeypatch.setattr(fetch, "MAX_PR_PAGES", 2)
     gql = FakeGraphQL(
         {
             None: make_page([make_pr(1, [])], "c1"),
@@ -123,12 +124,12 @@ def test_fetch_fails_loud_at_the_pr_page_cap(monkeypatch: pytest.MonkeyPatch) ->
         }
     )
 
-    with pytest.raises(rep.FetchError, match="exceeded 2 pages"):
-        rep.fetch_pull_requests(gql, "o", "r", NOW - timedelta(days=90))
+    with pytest.raises(fetch.FetchError, match="exceeded 2 pages"):
+        fetch.fetch_pull_requests(gql, "o", "r", NOW - timedelta(days=90))
 
 
 def test_fetch_fails_loud_at_the_thread_page_cap(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(rep, "MAX_THREAD_PAGES", 1)
+    monkeypatch.setattr(fetch, "MAX_THREAD_PAGES", 1)
     pr = make_pr(7, [])
     pr["reviewThreads"]["pageInfo"] = {"hasNextPage": True, "endCursor": "t1"}
     more = {
@@ -143,14 +144,14 @@ def test_fetch_fails_loud_at_the_thread_page_cap(monkeypatch: pytest.MonkeyPatch
     }
     gql = FakeGraphQL({None: make_page([pr])}, {(7, "t1"): more})
 
-    with pytest.raises(rep.FetchError, match="later threads were not read"):
-        rep.fetch_pull_requests(gql, "o", "r", NOW - timedelta(days=90))
+    with pytest.raises(fetch.FetchError, match="later threads were not read"):
+        fetch.fetch_pull_requests(gql, "o", "r", NOW - timedelta(days=90))
 
 
 def test_fetch_carries_the_pr_body_for_the_trailer_check() -> None:
     gql = FakeGraphQL({None: make_page([make_pr(9, [], body=TRAILER_BODY)])})
 
-    prs, _ = rep.fetch_pull_requests(gql, "o", "r", NOW - timedelta(days=90))
+    prs, _ = fetch.fetch_pull_requests(gql, "o", "r", NOW - timedelta(days=90))
 
     assert "Generated with [Claude Code]" in prs[0]["body"]
 
@@ -205,7 +206,7 @@ def test_fetch_skips_and_counts_a_pull_request_that_repeats_across_pages() -> No
     )
     stats: dict[str, int] = {}
 
-    prs, examined = rep.fetch_pull_requests(gql, "o", "r", NOW - timedelta(days=90), stats)
+    prs, examined = fetch.fetch_pull_requests(gql, "o", "r", NOW - timedelta(days=90), stats)
 
     assert [p["number"] for p in prs] == [1, 2, 3]
     assert examined == 3
@@ -220,7 +221,7 @@ def test_fetch_sums_the_graphql_cost_across_pages() -> None:
     second["rateLimit"] = {"cost": 25, "remaining": 4875}
     stats: dict[str, int] = {}
 
-    rep.fetch_pull_requests(
+    fetch.fetch_pull_requests(
         FakeGraphQL({None: first, "c1": second}), "o", "r", NOW - timedelta(days=90), stats
     )
 
@@ -230,7 +231,7 @@ def test_fetch_sums_the_graphql_cost_across_pages() -> None:
 def test_fetch_tolerates_a_response_with_no_rate_limit_block() -> None:
     stats: dict[str, int] = {}
 
-    rep.fetch_pull_requests(
+    fetch.fetch_pull_requests(
         FakeGraphQL({None: make_page([make_pr(1, [])])}), "o", "r", NOW - timedelta(days=90), stats
     )
 
@@ -240,11 +241,11 @@ def test_fetch_tolerates_a_response_with_no_rate_limit_block() -> None:
 def test_fetch_logs_progress_every_n_pages(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    monkeypatch.setattr(rep, "PROGRESS_EVERY_PAGES", 1)
+    monkeypatch.setattr(fetch, "PROGRESS_EVERY_PAGES", 1)
     caplog.set_level("INFO")
     gql = FakeGraphQL({None: make_page([make_pr(1, [])], "c1"), "c1": make_page([])})
 
-    rep.fetch_pull_requests(gql, "o", "r", NOW - timedelta(days=90))
+    fetch.fetch_pull_requests(gql, "o", "r", NOW - timedelta(days=90))
 
     assert "read 1 pages" in caplog.text
     assert "read 2 pages" in caplog.text
@@ -254,16 +255,16 @@ def test_fetch_fails_loud_on_a_null_node_instead_of_dropping_it() -> None:
     page = make_page([make_pr(1, [])])
     page["repository"]["pullRequests"]["nodes"].append(None)
 
-    with pytest.raises(rep.FetchError, match="null node"):
-        rep.fetch_pull_requests(FakeGraphQL({None: page}), "o", "r", NOW - timedelta(days=90))
+    with pytest.raises(fetch.FetchError, match="null node"):
+        fetch.fetch_pull_requests(FakeGraphQL({None: page}), "o", "r", NOW - timedelta(days=90))
 
 
 def test_fetch_fails_loud_on_a_null_thread_node() -> None:
     pr = make_pr(1, [make_thread("A")])
     pr["reviewThreads"]["nodes"].append(None)
 
-    with pytest.raises(rep.FetchError, match="PR #1 threads"):
-        rep.fetch_pull_requests(
+    with pytest.raises(fetch.FetchError, match="PR #1 threads"):
+        fetch.fetch_pull_requests(
             FakeGraphQL({None: make_page([pr])}), "o", "r", NOW - timedelta(days=90)
         )
 
@@ -292,13 +293,86 @@ def test_fetch_fails_loud_on_a_malformed_response_shape(mutate, message: str) ->
     page = make_page([make_pr(1, [])])
     mutate(page)
 
-    with pytest.raises(rep.FetchError, match=message):
-        rep.fetch_pull_requests(FakeGraphQL({None: page}), "o", "r", NOW - timedelta(days=90))
+    with pytest.raises(fetch.FetchError, match=message):
+        fetch.fetch_pull_requests(FakeGraphQL({None: page}), "o", "r", NOW - timedelta(days=90))
 
 
 def test_fetch_fails_loud_when_the_response_is_not_an_object() -> None:
     def not_an_object(query: str, variables: dict[str, Any] | None = None) -> Any:
         return []
 
-    with pytest.raises(rep.FetchError, match="not an object"):
-        rep.fetch_pull_requests(not_an_object, "o", "r", NOW - timedelta(days=90))
+    with pytest.raises(fetch.FetchError, match="not an object"):
+        fetch.fetch_pull_requests(not_an_object, "o", "r", NOW - timedelta(days=90))
+
+
+def test_fetch_stops_before_it_empties_the_shared_graphql_budget() -> None:
+    page = make_page([make_pr(1, [])], "c1")
+    page["rateLimit"] = {"cost": 6, "remaining": fetch.MIN_REMAINING_POINTS - 1}
+    gql = FakeGraphQL({None: page, "c1": make_page([make_pr(2, [])])})
+
+    with pytest.raises(fetch.FetchError, match="budget low"):
+        fetch.fetch_pull_requests(gql, "o", "r", NOW - timedelta(days=90))
+
+    assert len(gql.calls) == 1
+
+
+def test_fetch_continues_while_the_graphql_budget_is_sufficient() -> None:
+    page = make_page([make_pr(1, [])])
+    page["rateLimit"] = {"cost": 6, "remaining": fetch.MIN_REMAINING_POINTS}
+
+    prs, _ = fetch.fetch_pull_requests(
+        FakeGraphQL({None: page}), "o", "r", NOW - timedelta(days=90)
+    )
+
+    assert [p["number"] for p in prs] == [1]
+
+
+def test_the_pr_query_asks_for_the_documented_thread_page_size() -> None:
+    assert f"reviewThreads(first: {fetch.PR_PAGE_THREADS})" in fetch._PRS_QUERY
+    assert fetch.PR_PAGE_THREADS < 50
+
+
+def test_fetch_counts_the_cost_of_thread_follow_up_queries() -> None:
+    pr = make_pr(7, [make_thread("A")])
+    pr["reviewThreads"]["pageInfo"] = {"hasNextPage": True, "endCursor": "t1"}
+    first = make_page([pr])
+    first["rateLimit"] = {"cost": 11, "remaining": 4000}
+    follow_up = {
+        "rateLimit": {"cost": 1, "remaining": 3999},
+        "repository": {
+            "pullRequest": {
+                "reviewThreads": {
+                    "pageInfo": {"hasNextPage": False, "endCursor": None},
+                    "nodes": [make_thread("B")],
+                }
+            }
+        },
+    }
+    stats: dict[str, int] = {}
+
+    fetch.fetch_pull_requests(
+        FakeGraphQL({None: first}, {(7, "t1"): follow_up}),
+        "o",
+        "r",
+        NOW - timedelta(days=90),
+        stats,
+    )
+
+    assert stats["graphql_cost"] == 12
+
+
+def test_fetch_stops_when_a_thread_follow_up_finds_the_budget_low() -> None:
+    pr = make_pr(7, [make_thread("A")])
+    pr["reviewThreads"]["pageInfo"] = {"hasNextPage": True, "endCursor": "t1"}
+    follow_up = {
+        "rateLimit": {"cost": 1, "remaining": fetch.MIN_REMAINING_POINTS - 1},
+        "repository": {"pullRequest": {"reviewThreads": {"pageInfo": {}, "nodes": []}}},
+    }
+
+    with pytest.raises(fetch.FetchError, match="budget low"):
+        fetch.fetch_pull_requests(
+            FakeGraphQL({None: make_page([pr])}, {(7, "t1"): follow_up}),
+            "o",
+            "r",
+            NOW - timedelta(days=90),
+        )

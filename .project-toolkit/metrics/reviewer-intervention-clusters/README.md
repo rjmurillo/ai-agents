@@ -10,7 +10,8 @@ contract, or prompt, and it files no issue (issue #7153).
 |---|---|
 | `report.json` | Latest report. Overwritten each run. |
 | `src/claude/skills/skill-bootstrap/scripts/review_clusters.py` | Cluster definition, population rules, and counting. Stdlib only. It lives in a shipped skill so the skill-bootstrap consumer (#7155) imports it and counts the same way. |
-| `scripts/report_reviewer_intervention_clusters.py` | Fetches pull requests, writes `report.json`. |
+| `scripts/reviewer_intervention_fetch.py` | Lossless GraphQL reads of pull requests and review threads. |
+| `scripts/report_reviewer_intervention_clusters.py` | Filters to the population, clusters, writes `report.json`. |
 | `.github/workflows/update-reviewer-stats.yml` | Runs the job daily at 06:00 UTC, step `Cluster repeated review interventions`. |
 
 ## Cluster definition
@@ -75,6 +76,19 @@ affects.
 - A symlinked tree can appear under two area keys, such as a mirrored skill directory. The module does not fold them.
 - Cluster keys come from comment text and file paths a contributor influences. A consumer treats them as data and escapes them.
 - A cluster whose fix is skill-shaped routes through a `skill-bootstrap` run. A cluster whose fix is a gate or a contract clause goes to the owner as an issue the owner files.
+
+## Prerequisites
+
+The job runs inside `update-reviewer-stats.yml`, so that workflow must be
+enabled. Its commit step pushes to the default branch, so the workflow token
+must be allowed to push there; a branch ruleset that requires pull requests
+rejects the push. A failed push leaves the previous `report.json` in place and
+the step red.
+
+One run cost 421 GraphQL points on 2026-11-11 (33 pages, 1641 pull requests;
+858 before the thread page size dropped from 50 to 20). The job stops with exit 3
+when fewer than 100 points remain, so it does not empty a budget other jobs
+share.
 
 ## Reads are lossless
 

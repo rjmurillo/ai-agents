@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from scripts import report_reviewer_intervention_clusters as rep
+from scripts import reviewer_intervention_fetch as fetch
 from tests.report_reviewer_intervention_helpers import (
     BOT,
     HUMAN,
@@ -159,12 +160,12 @@ def test_extract_raises_on_a_thread_without_an_id() -> None:
     thread = make_thread("x")
     del thread["id"]
 
-    with pytest.raises(rep.FetchError, match="has no id"):
+    with pytest.raises(fetch.FetchError, match="has no id"):
         rep.extract_interventions([_ex(12, BOT, [thread])])
 
 
 def test_extract_raises_on_a_malformed_thread_comments_object() -> None:
-    with pytest.raises(rep.FetchError, match="not an object"):
+    with pytest.raises(fetch.FetchError, match="not an object"):
         rep.extract_interventions([_ex(13, BOT, [{"id": "t", "comments": None}])])
 
 

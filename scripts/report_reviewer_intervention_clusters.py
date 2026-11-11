@@ -39,7 +39,6 @@ import logging
 import os
 import subprocess
 import sys
-from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -63,6 +62,13 @@ from scripts.github_core.api import (  # noqa: E402
     resolve_repo_params,
 )
 from scripts.github_core.bot_config import is_bot  # noqa: E402
+from scripts.reviewer_intervention_fetch import (  # noqa: E402
+    FetchError,
+    GraphQL,
+    as_nodes,
+    as_object,
+    fetch_pull_requests,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -73,183 +79,6 @@ EXIT_AUTH = 4
 
 DEFAULT_REPORT = ".project-toolkit/metrics/reviewer-intervention-clusters/report.json"
 DEFAULT_DISPOSITIONS = ".project-toolkit/pr-checks/suppressed-finding-dispositions.json"
-MAX_PR_PAGES = 200
-MAX_THREAD_PAGES = 50
-PROGRESS_EVERY_PAGES = 10
-
-GraphQL = Callable[[str, dict[str, Any] | None], dict[str, Any]]
-
-
-class FetchError(RuntimeError):
-    """Pagination or response shape prevented a complete read."""
-
-
-_ACTOR = "login __typename"
-_THREAD_FIELDS = f"""
-  id
-  comments(first: 1) {{
-    nodes {{ id body createdAt path authorAssociation author {{ {_ACTOR} }} }}
-  }}
-"""
-
-_PRS_QUERY = f"""
-query($owner: String!, $repo: String!, $cursor: String) {{
-  rateLimit {{ cost remaining }}
-  repository(owner: $owner, name: $repo) {{
-    pullRequests(first: 50, orderBy: {{field: UPDATED_AT, direction: DESC}}, after: $cursor) {{
-      pageInfo {{ hasNextPage endCursor }}
-      nodes {{
-        number
-        updatedAt
-        body
-        authorAssociation
-        author {{ {_ACTOR} }}
-        reviewThreads(first: 50) {{
-          pageInfo {{ hasNextPage endCursor }}
-          nodes {{ {_THREAD_FIELDS} }}
-        }}
-      }}
-    }}
-  }}
-}}"""
-
-_THREADS_QUERY = f"""
-query($owner: String!, $repo: String!, $number: Int!, $cursor: String) {{
-  repository(owner: $owner, name: $repo) {{
-    pullRequest(number: $number) {{
-      reviewThreads(first: 50, after: $cursor) {{
-        pageInfo {{ hasNextPage endCursor }}
-        nodes {{ {_THREAD_FIELDS} }}
-      }}
-    }}
-  }}
-}}"""
-
-
-def _obj(value: object, what: str) -> dict[str, Any]:
-    if not isinstance(value, dict):
-        raise FetchError(f"malformed GraphQL response: {what} is not an object")
-    return value
-
-
-def _next_cursor(connection: dict[str, Any], what: str) -> str | None:
-    info = connection.get("pageInfo")
-    if not isinstance(info, dict):
-        raise FetchError(f"missing pagination info for {what}")
-    if not info.get("hasNextPage"):
-        return None
-    cursor = info.get("endCursor")
-    if not isinstance(cursor, str) or not cursor:
-        raise FetchError(f"missing pagination cursor for {what}")
-    return cursor
-
-
-def _nodes(connection: dict[str, Any], what: str) -> list[dict[str, Any]]:
-    nodes = connection.get("nodes")
-    if not isinstance(nodes, list):
-        raise FetchError(f"missing nodes for {what}")
-    if any(n is None for n in nodes):
-        raise FetchError(f"null node in {what}; the read is incomplete")
-    return [_obj(n, what) for n in nodes]
-
-
-def _remaining_threads(
-    graphql: GraphQL, owner: str, repo: str, number: int, cursor: str
-) -> list[dict[str, Any]]:
-    threads: list[dict[str, Any]] = []
-    for _ in range(MAX_THREAD_PAGES):
-        data = _obj(
-            graphql(
-                _THREADS_QUERY,
-                {"owner": owner, "repo": repo, "number": number, "cursor": cursor},
-            ),
-            "threads page",
-        )
-        pr = _obj(_obj(data.get("repository"), "repository").get("pullRequest"), "pullRequest")
-        conn = _obj(pr.get("reviewThreads"), "reviewThreads")
-        threads.extend(_nodes(conn, f"PR #{number} threads"))
-        next_cursor = _next_cursor(conn, f"PR #{number} threads")
-        if next_cursor is None:
-            return threads
-        cursor = next_cursor
-    raise FetchError(
-        f"thread pagination exceeded {MAX_THREAD_PAGES} pages on PR #{number}; "
-        "later threads were not read"
-    )
-
-
-def fetch_pull_requests(
-    graphql: GraphQL,
-    owner: str,
-    repo: str,
-    since: datetime,
-    stats: dict[str, int] | None = None,
-) -> tuple[list[dict[str, Any]], int]:
-    """Return ``(pull_requests, examined)`` for PRs updated at or after ``since``.
-
-    Each returned PR carries ``number``, ``author``, ``author_association``,
-    ``body`` and a complete ``threads`` list. Pull requests arrive ordered by
-    ``updatedAt`` descending, so the first one older than ``since`` ends the
-    walk: a comment in the window implies its PR was updated in the window. A
-    pull request updated during the walk can jump ahead of the cursor and wait
-    for the next run. A repeated number is skipped and counted. ``stats``, when
-    given, receives ``pages``, ``duplicate_pull_requests_skipped`` and the
-    GraphQL ``graphql_cost`` in points.
-    """
-    result: list[dict[str, Any]] = []
-    seen: set[int] = set()
-    counters = stats if stats is not None else {}
-    counters.update({"pages": 0, "duplicate_pull_requests_skipped": 0, "graphql_cost": 0})
-    examined = 0
-    cursor: str | None = None
-    for _ in range(MAX_PR_PAGES):
-        variables: dict[str, Any] = {"owner": owner, "repo": repo}
-        if cursor:
-            variables["cursor"] = cursor
-        data = _obj(graphql(_PRS_QUERY, variables), "pull request page")
-        counters["pages"] += 1
-        limit = data.get("rateLimit")
-        if isinstance(limit, dict) and isinstance(limit.get("cost"), int):
-            counters["graphql_cost"] += limit["cost"]
-        if counters["pages"] % PROGRESS_EVERY_PAGES == 0:
-            logger.info("read %d pages, %d pull requests", counters["pages"], examined)
-        conn = _obj(_obj(data.get("repository"), "repository").get("pullRequests"), "pullRequests")
-        reached_boundary = False
-        for pr in _nodes(conn, "pull requests"):
-            updated = review_clusters.parse_timestamp(pr.get("updatedAt"))
-            if updated < since:
-                reached_boundary = True
-                break
-            number = pr.get("number")
-            if not isinstance(number, int):
-                raise FetchError("pull request without a numeric `number`")
-            if number in seen:
-                counters["duplicate_pull_requests_skipped"] += 1
-                continue
-            seen.add(number)
-            examined += 1
-            threads_conn = _obj(pr.get("reviewThreads"), f"PR #{number} reviewThreads")
-            threads = _nodes(threads_conn, f"PR #{number} threads")
-            more = _next_cursor(threads_conn, f"PR #{number} threads")
-            if more is not None:
-                threads.extend(_remaining_threads(graphql, owner, repo, number, more))
-            result.append(
-                {
-                    "number": number,
-                    "author": pr.get("author"),
-                    "author_association": pr.get("authorAssociation"),
-                    "body": pr["body"] if isinstance(pr.get("body"), str) else "",
-                    "threads": threads,
-                }
-            )
-        if reached_boundary:
-            return result, examined
-        cursor = _next_cursor(conn, "pull requests")
-        if cursor is None:
-            return result, examined
-    raise FetchError(
-        f"pull request pagination exceeded {MAX_PR_PAGES} pages; older pull requests were not read"
-    )
 
 
 def _actor(raw: object) -> tuple[str, str | None]:
@@ -294,8 +123,8 @@ def extract_interventions(
             counts["trailer_pull_requests"] += 1
         for thread in pr["threads"]:
             counts["threads_seen"] += 1
-            comments = _obj(thread.get("comments"), "thread comments")
-            first = _nodes(comments, f"thread {thread.get('id')} comments")
+            comments = as_object(thread.get("comments"), "thread comments")
+            first = as_nodes(comments, f"thread {thread.get('id')} comments")
             if not first:
                 counts["threads_without_comments"] += 1
                 continue
