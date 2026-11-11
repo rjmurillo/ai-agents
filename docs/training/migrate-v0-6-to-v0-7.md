@@ -1,4 +1,4 @@
-# Migrating from v0.6.0 to v0.7
+# Move a v0.6.0 install to v0.7
 
 ## Goal
 
@@ -211,7 +211,7 @@ Contributors also run these in a clone:
 
 ```bash
 test -d .claude/commands && echo exists || echo gone
-python3 -c "import json;print(sorted(json.load(open('.mcp.json'))['mcpServers']))"
+uv run --frozen python -c "import json;print(sorted(json.load(open('.mcp.json'))['mcpServers']))"
 git config --get core.hooksPath
 uv run --frozen lefthook check-install
 uv run --frozen python scripts/validation/check_agents_write_targets.py
@@ -226,7 +226,7 @@ gone
 
 `git config --get core.hooksPath` prints nothing. `lefthook check-install` exits 0 with no output. The write-target check ends with `agents-write-targets: 0 violation(s)`.
 
-## If it fails
+If a check fails, start here:
 
 - **`claude-agents` shows `failed to load`.** Run `claude plugin uninstall claude-agents@ai-agents`.
 - **`Version` still reads `0.6.0`.** Run `claude plugin marketplace update ai-agents`, then update again. Restart Claude Code.
