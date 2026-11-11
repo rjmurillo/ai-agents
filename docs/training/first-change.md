@@ -11,11 +11,11 @@ This is a teaching run. `/autoplan` would size this change as Trivial and skip `
 ## Before you start
 
 - A clean checkout of this repository with `main` up to date. If you have not set up yet, see [installation](../installation.md) and [getting started](../getting-started.md).
-- Claude Code with the `project-toolkit` plugin, or the checkout opened directly. The lifecycle commands are skills, so they run the same way in both.
+- Claude Code with the checkout open. The steps run repo scripts, so a plugin-only install is not enough.
 - `uv` and `git` on your path.
-- GitHub access for `/ship`. The skill opens the pull request for you.
+- GitHub access for `/ship`, which opens the pull request for you. (`/ship` also supports Azure DevOps. This page shows GitHub.)
 
-Two docs describe the same pipeline, and neither is repeated here:
+Other docs cover the same ground. We link them and do not repeat them:
 
 - [Getting started](../getting-started.md) lists 7 phases. It splits `/spec` into the Grill Me interview and the PRD-to-spec step.
 - [Lifecycle commands](../workflow-commands.md) lists the 6 commands. This tutorial follows the 6 commands.
@@ -41,6 +41,8 @@ grep -n "Run all 4 pre-flight" .claude/skills/ship/SKILL.md
 ```
 
 If the first command prints nothing, someone already fixed this. Pick another doc claim that disagrees with a skill, and use it in place of ours. Every step below stays the same.
+
+`docs/getting-started.md` repeats the same five-check list. In `/spec`, decide whether it is in scope. We keep it out and note it in the pull request.
 
 Cut a branch from current `main`:
 
@@ -133,9 +135,9 @@ docs(workflow-commands): match /ship pre-flight count to the skill
 
 The [test skill](../../.claude/skills/test/SKILL.md) has six gates: functional, non-functional, security, DevOps, developer experience, and observability. It first classifies the diff and prints `PR TYPE: [type]. Running gates: [list].`. A diff of only `*.md` files is type DOCS. DOCS runs Gate 5, the developer experience and documentation accuracy gate. The other gates are skipped on purpose.
 
-Each gate prints `VERDICT: PASS`, `WARN`, or `CRITICAL_FAIL`. The overall verdict is `CRITICAL_FAIL` if any gate fails or cannot run. A gate that could not run proved nothing.
+Each gate prints `VERDICT: PASS`, `WARN`, or `CRITICAL_FAIL`. Gate 5 can also print `ERROR`. The overall verdict is `CRITICAL_FAIL` if any gate fails or reports `ERROR`. A gate that could not run proved nothing.
 
-Run the Markdown check yourself too. It auto-fixes, so look at `git status` after:
+Run the Markdown check yourself too. It auto-fixes files, so run `git status --short` after it. If it lists a change, commit it before `/review`. `/ship` fails on a dirty tree.
 
 ```bash
 uv run python scripts/validation/pre_pr.py --markdown-lint-only docs/workflow-commands.md
@@ -149,6 +151,12 @@ exit 0
 
 The first `uv run` in a fresh checkout prints environment setup lines before this.
 
+Then run the full repo gate the pull request will face. It takes a few minutes. Fix every BLOCKING finding and commit the fix:
+
+```bash
+uv run python scripts/validation/pre_pr.py
+```
+
 ### 7. /review: get a bound verdict
 
 ```text
@@ -157,7 +165,7 @@ The first `uv run` in a fresh checkout prints environment setup lines before thi
 
 The [review skill](../../.claude/skills/review/SKILL.md) runs a Stage-1 spec-compliance gate first. If it returns `CRITICAL_FAIL`, the review stops there and the other axes are marked `SKIPPED`. Otherwise it picks Stage-2 axes by risk. The `analyst` axis always runs. It prints a table with one row per axis and a `FINAL VERDICT`. Findings carry a severity (Critical, Important, or Suggestion), a `file:line` location, and a one-sentence fix.
 
-On a PASS, the skill writes a marker: an empty commit on top of the code you reviewed. Its message holds the report and two trailers. This is the shape of a real marker from this repository's history:
+On a PASS, the skill writes a marker: an empty commit on top of the code you reviewed. Its message holds the report and two trailers. This is the shape of a marker written by an earlier `/review` run in this repository. That commit may not exist in your clone:
 
 ```text
 review: /review PASS marker
@@ -172,7 +180,7 @@ Reviewed-By: /review@spec-compliance,analyst on 38b0caa6b863a2de9d81328f0dcdfdc4
 Review-Artifact: sha256:3add82e37792ca2e07b1c1047dbdd21d326647540bb9777ac0fd93d314386f45
 ```
 
-Your SHAs and axis list will differ. Any new commit on top of the marker makes it stale. Check it:
+Your SHAs and axis list will differ. A new code commit on top of the marker makes it stale. A clean merge of `origin/main` on top does not. Check it:
 
 ```bash
 python3 .claude/skills/review/scripts/validate_review_marker.py --ref HEAD
@@ -217,26 +225,20 @@ NEXT: [monitoring, follow-up items]
 
 On a branch you own, you want `RESULT: SHIPPED` and a link. `VALIDATED` is what a contributor gets on someone else's branch. It means checks ran and nothing was created or merged.
 
-Before you leave, run the repo gate the pull request will face:
-
-```bash
-uv run python scripts/validation/pre_pr.py
-```
-
-Fix every BLOCKING finding. Then stop. [ADR-105](../../.project-toolkit/architecture/ADR-105-terminal-state-completion-contract.md) says a task is terminal when every requested deliverable meets its contract and no blocker remains. A shipped pull request is that point. Do not keep polishing.
+Then stop. [ADR-105](../../.project-toolkit/architecture/ADR-105-terminal-state-completion-contract.md) says a task is terminal when every requested deliverable meets its contract and no blocker remains. For this tutorial, we read `RESULT: SHIPPED` with a pull request link as that point. Put follow-up ideas in the `NEXT:` field. Do not keep polishing.
 
 ## When to skip a phase
 
 The rules come from the skills. We did not invent them.
 
-| Phase | Skip it when | Do not skip it when |
-|-------|--------------|---------------------|
-| `/spec` | The tier is Trivial or Standard: a bounded change on a known capability ([autoplan Phase 1](../../.claude/skills/autoplan/SKILL.md#phase-1-classify)). | The change adds a capability, adds a module, or has unclear requirements. |
-| `/plan` | Same as `/spec`. | The tier is Feature. With no `/spec` output, `/plan` sends you back to `/spec` ([plan skill](../../.claude/skills/plan/SKILL.md)). |
-| `/build` | Not for a code change. | Always there: its four exit gates are hard preconditions for done. |
-| `/test` | Do not skip the phase. Gates that do not apply skip themselves: a DOCS diff runs Gate 5 only. | The diff touches code. All six gates run. |
-| `/review` | Not before `/ship` on your own branch. | Always there: the `/ship` reviewed check needs the marker. |
-| `/ship` | Use `push-pr` instead only when you must open a pull request without the gates. | You want the pre-flight evidence. |
+| Phase | Can you drop it? | Why |
+|-------|------------------|-----|
+| `/spec` | Yes, for a Trivial or Standard change. | [autoplan Phase 1](../../.claude/skills/autoplan/SKILL.md#phase-1-classify) starts the Feature tier at `/spec`. Keep it for a new capability, a new module, or unclear requirements. |
+| `/plan` | Yes, for a Trivial or Standard change. | Only the Feature tier includes it. With no `/spec` output, `/plan` sends you back to `/spec` ([plan skill](../../.claude/skills/plan/SKILL.md)). |
+| `/build` | No, for a code change. | Its four exit gates are hard preconditions for done. |
+| `/test` | Not the phase. Some gates skip themselves. | A DOCS diff runs Gate 5 only. A code diff runs all six gates. |
+| `/review` | No, before `/ship` on your own branch. | The `/ship` reviewed check needs the marker. |
+| `/ship` | Only if you open the pull request with `push-pr`. | `push-pr` skips the pre-flight checks. Use it only when you do not want that evidence. |
 
 ## Check your result
 

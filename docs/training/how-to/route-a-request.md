@@ -42,9 +42,11 @@ When two tiers fit, the router starts one tier down. It moves up when evidence s
 
 ### 3. Predict, then ask the resolver
 
-The resolver handles step 3 of the order above. It reads the `description` of each local skill and prints one JSON line. It opens no network connection.
+The resolver script backs step 3 of the order above. It reads the `routing.intents` list in each front-door skill's `SKILL.md` and prints one JSON line. It also reports an explicit skill name and multi-domain marker phrases. It opens no network connection.
 
 Write down your guess for each request, then run it. Run these from the repository root.
+
+We call the resolver directly so you can see every kind. In a real run, the router checks its routing table first. A request such as "add a retry" also matches the table row for building a feature. The resolver runs only when no row matches.
 
 ```bash
 uv run python .claude/skills/autoplan/scripts/resolve_route.py --request "add retry to the webhook sender"
@@ -137,9 +139,9 @@ Now make up two requests of your own. Predict the `kind`, then run them. A wrong
 error: missing required module: yaml (PyYAML). Read skill descriptions directly instead of running this resolver.
 ```
 
-Run the script with `uv run python` from the repository root. If you cannot run Python, read each skill's `description` field and pick the closest match. The router uses the same fallback ([Phase 2c](../../../.claude/skills/autoplan/SKILL.md#phase-2c-resolver-ambiguity-from-a-home-repo-run)).
+Run the script with `uv run python` from the repository root. If you cannot run Python, read each skill's `description` field and pick the closest match. The router uses this fallback ([Phase 2c](../../../.claude/skills/autoplan/SKILL.md#phase-2c-resolver-ambiguity-from-a-home-repo-run)).
 
-A request you expected to match returns `none`. The resolver only reads skill `description` fields. A table row in `SKILL.md` can route a request that the resolver does not match. Read [Phase 2](../../../.claude/skills/autoplan/SKILL.md#phase-2-route) before you decide the router is wrong.
+A request you expected to match returns `none`. The resolver only matches front-door skills that list `intents`. A table row in `SKILL.md` can route a request that the resolver does not match. Read [Phase 2](../../../.claude/skills/autoplan/SKILL.md#phase-2-route) before you decide the router is wrong.
 
 ## Next
 
