@@ -55,7 +55,6 @@ no model pin. ``model`` is not in the keep list, so Cursor's default
 
 from __future__ import annotations
 
-import functools
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -66,13 +65,22 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPT_DIR))
 sys.path.insert(0, str(_SCRIPT_DIR.parent))
 
-from agent_capabilities import load_mcp_table, wildcard_grants  # noqa: E402
 from agent_toml import (  # noqa: E402
-    CODEX_KEEP,
-    CodexTomlError,
+    FORMAT_CODEX_TOML,
+    FORMAT_MARKDOWN,
+    CodexOutputError,
+    check_names_match_stems,
     not_installed_paragraph,
+    read_output_options,
     render_codex_toml,
 )
+from agent_tools import (  # noqa: E402
+    AgentCopyError,
+    declared_tools,
+    derive_readonly,
+    has_inexpressible_restriction,
+)
+from agent_tools import is_readonly_tool as is_readonly_tool  # noqa: E402  re-export
 from atomic_write import publish_bytes_preserving_mode  # noqa: E402
 from generate_agents_common import read_yaml_frontmatter  # noqa: E402
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
@@ -80,43 +88,9 @@ from yaml_loader import ConfigError, load_platform_config, validate_relative_pat
 
 KEEP_KEY = "frontmatterKeep"
 REPLACE_KEY = "bodyReplace"
-SKIP_RESTRICTED_KEY = "skipToolRestricted"
-FORMAT_KEY = "outputFormat"
-FORMAT_MARKDOWN = "markdown"
-FORMAT_CODEX_TOML = "codex-toml"
-_FORMATS = (FORMAT_MARKDOWN, FORMAT_CODEX_TOML)
-_TOML_SUFFIX = ".toml"
 _READONLY_KEY = "readonly"
 _SOURCE_SUFFIX = ".md"
 _DEFAULT_EXCLUDES = ("AGENTS.md", "CLAUDE.md")
-_READONLY_TOOLS = frozenset({"Read", "Glob", "Grep", "WebSearch", "WebFetch", "ToolSearch"})
-# An MCP tool name is `mcp__<server>__<words>`, the words joined by `_`. It is
-# read-only when a read verb leads the words (`get_file_contents`) or the last
-# word is `read` (`issue_read`), and no word names a mutation (`find_and_replace`,
-# `get_and_run`). `run` is a noun in `get_workflow_run`, so it is not a mutating
-# word; a compound name (`and`, `then`) is rejected instead. `query` is not a
-# read word: `mcp__db__query` can run a write. `resolve` and `ask` can lead a
-# state change (`resolve_review_thread`), so only the exact names in
-# _READ_NAMES earn readonly through them.
-# A server-level wildcard (`mcp__context7__*`, ADR-107) is read-only only when
-# `templates/agent-mcp-servers.yaml` lets that server be granted whole. A
-# wildcard for any other server (`mcp__github__*`, `mcp__serena__*`) can carry
-# write or shell tools, so it never earns `readonly: true`.
-# An unfamiliar name matches none of these and never earns `readonly: true`.
-_READ_WORDS = frozenset({"get", "list", "read", "find", "search", "initial"})
-_READ_NAMES = frozenset({"resolve_library_id"})
-_COMPOUND_WORDS = frozenset({"and", "or", "then"})
-_MUTATING_WORDS = frozenset(
-    {
-        "write", "edit", "create", "update", "delete", "add", "merge", "push", "replace",
-        "insert", "rename", "remove", "apply", "move", "fork",
-        "exec", "execute", "send", "post", "set", "close", "dispatch",
-    }
-)  # fmt: skip
-
-
-class AgentCopyError(Exception):
-    """A platform stanza or a source agent file is unusable."""
 
 
 @dataclass
@@ -135,65 +109,6 @@ def uses_agent_tree_copy(stanza: object) -> bool:
     return isinstance(stanza, dict) and KEEP_KEY in stanza
 
 
-@functools.cache
-def _readonly_wildcards() -> frozenset[str]:
-    """Return the ``<prefix>__*`` grants of the servers the MCP table marks safe whole."""
-    grants: frozenset[str] = wildcard_grants(load_mcp_table(_SCRIPT_DIR.parents[1]))
-    return grants
-
-
-def is_readonly_tool(tool: object) -> bool:
-    """True when ``tool`` names a tool that changes no state."""
-    if not isinstance(tool, str):
-        return False
-    if tool in _READONLY_TOOLS:
-        return True
-    parts = tool.split("__")
-    if len(parts) < 3 or parts[0] != "mcp":
-        return False
-    if parts[-1] == "*":
-        return tool in _readonly_wildcards()
-    words = parts[-1].split("_")
-    if any(word in _MUTATING_WORDS or word in _COMPOUND_WORDS for word in words):
-        return False
-    return parts[-1] in _READ_NAMES or words[0] in _READ_WORDS or words[-1] == "read"
-
-
-def declared_tools(frontmatter: dict[str, object]) -> list[object] | None:
-    """The agent's ``tools`` as a list, or ``None`` when it declares none.
-
-    Claude Code accepts a YAML list or a comma-separated string
-    (``tools: Read, Write``, see ``generate_agents_common.py``); both are
-    restrictions. Any other non-null type is an error, so the build fails
-    instead of shipping an unrestricted agent.
-    """
-    tools = frontmatter.get("tools")
-    if tools is None:
-        return None
-    if isinstance(tools, list):
-        return list(tools)
-    if isinstance(tools, str):
-        return [name for name in (part.strip() for part in tools.split(",")) if name]
-    raise AgentCopyError(
-        f"`tools` must be a list or a comma-separated string, got {type(tools).__name__}"
-    )
-
-
-def derive_readonly(frontmatter: dict[str, object]) -> bool:
-    """True when the agent declares tools and every one is read-only."""
-    tools = declared_tools(frontmatter)
-    return bool(tools) and all(is_readonly_tool(tool) for tool in tools or [])
-
-
-def has_inexpressible_restriction(frontmatter: dict[str, object]) -> bool:
-    """True when ``tools`` restricts the agent in a way ``readonly`` cannot express.
-
-    An empty list or empty string restricts the agent to nothing. Cursor has no
-    way to say that, so it fails closed like any other non-read-only list.
-    """
-    return declared_tools(frontmatter) is not None and not derive_readonly(frontmatter)
-
-
 def parse_agent(text: str, source: str) -> tuple[dict[str, object], str]:
     """Return ``(frontmatter mapping, body)`` for one agent file."""
     parsed = read_yaml_frontmatter(text)
@@ -208,33 +123,26 @@ def parse_agent(text: str, source: str) -> tuple[dict[str, object], str]:
     return loaded, parsed["body"]
 
 
-def render_agent(
-    text: str,
+def render_parsed(
+    loaded: dict[str, object],
+    body: str,
     keep: list[str],
     *,
     derive_readonly_flag: bool,
     source: str,
     body_edits: list[tuple[str, str]] | None = None,
-    skip_tool_restricted: bool = False,
     appendix: str = "",
     output_format: str = FORMAT_MARKDOWN,
 ) -> str | None:
-    """Return ``text`` with its frontmatter reduced to the ``keep`` keys.
+    """Render one parsed agent; ``None`` when ``deriveReadonly`` says it must not ship.
 
-    Returns ``None`` when the agent must not ship: ``derive_readonly_flag`` is
-    set and the agent carries a tool restriction ``readonly`` cannot express
-    (ADR-115 Decision 3), or ``skip_tool_restricted`` is set and the agent
-    declares ``tools`` at all (ADR-115 Decision 7).
-
-    ``body_edits`` are literal ``(from, to)`` edits applied to the body only, so
-    text that also appears in the frontmatter can never be rewritten by mistake.
-    ``appendix`` is added after the edits, to the end of the body.
-    ``output_format`` ``codex-toml`` returns a TOML document, not markdown.
+    A ``None`` return means the agent carries a tool restriction ``readonly``
+    cannot express (ADR-115 Decision 3). ``body_edits`` are literal
+    ``(from, to)`` edits applied to the body only, so text that also appears in
+    the frontmatter can never be rewritten by mistake. ``appendix`` is added
+    after the edits. ``output_format`` ``codex-toml`` returns a TOML document.
     """
-    loaded, body = parse_agent(text, source)
     try:
-        if skip_tool_restricted and declared_tools(loaded) is not None:
-            return None
         if derive_readonly_flag and has_inexpressible_restriction(loaded):
             return None
     except AgentCopyError as exc:
@@ -249,13 +157,33 @@ def render_agent(
     if output_format == FORMAT_CODEX_TOML:
         try:
             toml_text: str = render_codex_toml(kept, body, source)
-        except CodexTomlError as exc:
+        except CodexOutputError as exc:
             raise AgentCopyError(str(exc)) from exc
         return toml_text
     dumped = yaml.safe_dump(
         kept, sort_keys=False, allow_unicode=True, default_flow_style=False, width=10**9
     )
     return f"---\n{dumped}---\n{body}"
+
+
+def render_agent(
+    text: str,
+    keep: list[str],
+    *,
+    derive_readonly_flag: bool,
+    source: str,
+    body_edits: list[tuple[str, str]] | None = None,
+) -> str | None:
+    """Parse ``text`` and render it with :func:`render_parsed`."""
+    loaded, body = parse_agent(text, source)
+    return render_parsed(
+        loaded,
+        body,
+        keep,
+        derive_readonly_flag=derive_readonly_flag,
+        source=source,
+        body_edits=body_edits,
+    )
 
 
 def _body_replacements(stanza: dict[str, object]) -> dict[str, list[tuple[str, str]]]:
@@ -320,51 +248,13 @@ def _excludes(stanza: dict[str, object]) -> frozenset[str]:
     return frozenset(raw)
 
 
-def _output_format(stanza: dict[str, object], keep: list[str]) -> str:
-    """Return the validated ``outputFormat``; reject keys the format cannot honor."""
-    fmt = stanza.get(FORMAT_KEY, FORMAT_MARKDOWN)
-    if fmt not in _FORMATS:
-        raise AgentCopyError(f"`artifacts.agents.{FORMAT_KEY}` must be one of {list(_FORMATS)}")
-    if fmt == FORMAT_CODEX_TOML and keep != CODEX_KEEP:
-        raise AgentCopyError(
-            f"`artifacts.agents.{KEEP_KEY}` must be exactly {CODEX_KEEP} for {FORMAT_CODEX_TOML}"
-        )
-    return str(fmt)
-
-
-def _skip_restricted(stanza: dict[str, object]) -> bool:
-    """Return ``skipToolRestricted``; reject a non-boolean or a conflict with ``deriveReadonly``."""
-    value = stanza.get(SKIP_RESTRICTED_KEY, False)
-    if not isinstance(value, bool):
-        raise AgentCopyError(f"`artifacts.agents.{SKIP_RESTRICTED_KEY}` must be a boolean")
-    if value and stanza.get("deriveReadonly") is True:
-        raise AgentCopyError(
-            f"`artifacts.agents.{SKIP_RESTRICTED_KEY}` and `deriveReadonly: true` are exclusive"
-        )
-    return value
-
-
-def _tool_restricted_stems(sources: list[Path]) -> list[str]:
-    """Return the sorted stems of source agents whose frontmatter declares ``tools``."""
-    stems: list[str] = []
-    for src in sources:
-        loaded, _ = parse_agent(src.read_text(encoding="utf-8"), src.as_posix())
-        try:
-            restricted = declared_tools(loaded) is not None
-        except AgentCopyError as exc:
-            raise AgentCopyError(f"{src.as_posix()}: {exc}") from exc
-        if restricted:
-            stems.append(src.stem)
-    return sorted(stems)
-
-
-def _check_name_matches_stem(src: Path, text: str) -> str:
-    """Return the agent's frontmatter ``name``; fail when it differs from the file stem."""
-    loaded, _ = parse_agent(text, src.as_posix())
-    name = loaded.get("name")
-    if name != src.stem:
-        raise AgentCopyError(f"{src.as_posix()}: frontmatter name {name!r} differs from file stem")
-    return str(name)
+def _skip_line(name: str, skip_restricted: bool) -> str:
+    reason = (
+        "declares a tools list"
+        if skip_restricted
+        else "tools list restricts it beyond what readonly can express"
+    )
+    return f"  SKIPPED: {name} ({reason})"
 
 
 def generate_agent_copies(
@@ -380,9 +270,10 @@ def generate_agent_copies(
     if stanza is None:
         return None
     keep = _keep_list(stanza)
-    output_format = _output_format(stanza, keep)
-    skip_restricted = _skip_restricted(stanza)
-    suffix = _TOML_SUFFIX if output_format == FORMAT_CODEX_TOML else _SOURCE_SUFFIX
+    try:
+        options = read_output_options(stanza)
+    except CodexOutputError as exc:
+        raise AgentCopyError(str(exc)) from exc
     source_dir, output_dir = _resolve_dirs(repo_root, stanza)
     if not source_dir.is_dir():
         raise AgentCopyError(f"sourceDir not found: {source_dir}")
@@ -397,26 +288,31 @@ def generate_agent_copies(
             f"bodyReplace names agents that are excluded from the copy: {excluded}"
         )
     sources = [p for p in sorted(source_dir.glob(f"*{_SOURCE_SUFFIX}")) if p.name not in excludes]
-    appendix = ""
-    if skip_restricted:
-        restricted = _tool_restricted_stems(sources)
-        if restricted:
-            appendix = not_installed_paragraph(restricted)
-    result = AgentCopyResult()
+    if not sources:
+        raise AgentCopyError(f"no agent files found under {source_dir}")
+    parsed = {src: parse_agent(src.read_text(encoding="utf-8"), src.as_posix()) for src in sources}
+    try:
+        check_names_match_stems((src.stem, fm.get("name")) for src, (fm, _) in parsed.items())
+    except CodexOutputError as exc:
+        raise AgentCopyError(str(exc)) from exc
+    appendix = _not_installed_appendix(parsed, options.skip_restricted)
+    result = AgentCopyResult(inputs=len(sources))
     expected: set[str] = set()
-    names: dict[str, str] = {}
-    for src in sources:
-        result.inputs += 1
-        text = src.read_text(encoding="utf-8")
-        rendered = render_agent(
-            text,
-            keep,
-            derive_readonly_flag=stanza.get("deriveReadonly") is True,
-            source=src.as_posix(),
-            body_edits=replacements.get(src.name),
-            skip_tool_restricted=skip_restricted,
-            appendix=appendix,
-            output_format=output_format,
+    for src, (loaded, body) in parsed.items():
+        skip_restricted = options.skip_restricted and declared_tools_of(loaded, src) is not None
+        rendered = (
+            None
+            if skip_restricted
+            else render_parsed(
+                loaded,
+                body,
+                keep,
+                derive_readonly_flag=stanza.get("deriveReadonly") is True,
+                source=src.as_posix(),
+                body_edits=replacements.get(src.name),
+                appendix=appendix,
+                output_format=options.fmt,
+            )
         )
         if rendered is None:
             if src.name in replacements:
@@ -425,24 +321,38 @@ def generate_agent_copies(
                     "restricts it"
                 )
             result.skipped.append(src.name)
-            reason = (
-                "declares a tools list"
-                if skip_restricted
-                else "tools list restricts it beyond what readonly can express"
-            )
-            print(f"  SKIPPED: {src.name} ({reason})")
+            print(_skip_line(src.name, options.skip_restricted))
             continue
-        name = _check_name_matches_stem(src, text)
-        if name in names:
-            raise AgentCopyError(f"agents {names[name]} and {src.name} share the name {name!r}")
-        names[name] = src.name
-        out_name = f"{src.stem}{suffix}"
-        expected.add(out_name)
-        _emit(output_dir / out_name, rendered, result, check=check, what_if=what_if)
-    if not result.inputs:
-        raise AgentCopyError(f"no agent files found under {source_dir}")
-    _prune(output_dir, expected, suffix, result, check=check, what_if=what_if)
+        expected.add(f"{src.stem}{options.suffix}")
+        _emit(
+            output_dir / f"{src.stem}{options.suffix}",
+            rendered,
+            result,
+            check=check,
+            what_if=what_if,
+        )
+    _prune(output_dir, expected, options.suffix, result, check=check, what_if=what_if)
     return result
+
+
+def declared_tools_of(loaded: dict[str, object], src: Path) -> list[object] | None:
+    """:func:`declared_tools` with the source path added to its error."""
+    try:
+        return declared_tools(loaded)
+    except AgentCopyError as exc:
+        raise AgentCopyError(f"{src.as_posix()}: {exc}") from exc
+
+
+def _not_installed_appendix(
+    parsed: dict[Path, tuple[dict[str, object], str]], skip_restricted: bool
+) -> str:
+    """The paragraph naming skipped agents, or ``""`` when none are skipped."""
+    if not skip_restricted:
+        return ""
+    stems = sorted(
+        src.stem for src, (fm, _) in parsed.items() if declared_tools_of(fm, src) is not None
+    )
+    return not_installed_paragraph(stems) if stems else ""
 
 
 def _emit(
