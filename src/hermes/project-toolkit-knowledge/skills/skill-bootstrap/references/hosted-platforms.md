@@ -143,11 +143,11 @@ Each `review_threads` entry:
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `thread_id` | string | Unique within the pull request |
-| `created_at` | ISO 8601 text | When the first comment was written |
-| `human` | boolean | True only when a person, not a bot, opened the thread |
-| `body` | string or null | The first comment. Read for rule citations only |
-| `path` | string or null | The commented file, or null |
+| `thread_id` | string | Required. Unique within the pull request |
+| `created_at` | ISO 8601 text | Required when `human` is true. When the first comment was written |
+| `human` | boolean | Required. True only when a person, not a bot, opened the thread |
+| `body` | string or null | Optional. The first comment. Read for rule citations only |
+| `path` | string or null | Optional. The commented file, or null |
 
 Map the fields from the host:
 

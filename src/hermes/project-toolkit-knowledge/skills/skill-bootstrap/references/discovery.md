@@ -29,7 +29,7 @@ what a model would otherwise reconstruct by paging through history:
 | `churn` | A file changed in many recent commits | A hotspot: unstable contract, missing tool, or repeated correction |
 | `todo_hotspots` | Known unfinished work clusters here | A debt map; check whether a skill route crosses it |
 | `review_rounds` | A change needed many review rounds (needs `--prs-json`) | Reviewer corrections an agent would repeat |
-| `review_failures` | Human review threads repeat one rule, disposition category, or file area on 3 or more pull requests in 90 days (needs `--prs-json` entries with `review_threads`) | A defect in the guidance, not in the reviewer. Read the cluster's threads |
+| `review_failures` | Human review threads repeat one rule or file area on 3 or more pull requests in 90 days (needs `--prs-json` entries with `review_threads`), or 3 or more `--dispositions-json` entries share one disposition category | A defect in the guidance, not in the reviewer. Read the cluster's threads |
 | `missed_items` | A fix pull request names the change that introduced the defect, counted per file area of that change (needs `files` and a link in the export) | A defect that passed review once. The area is where |
 
 Pass `--exclude` for generated mirrors, or churn ranks copies of one
@@ -49,19 +49,23 @@ review threads to find repeats. Add the optional fields from the
 to the `--prs-json` entries. Optionally pass `--dispositions-json` for
 suppressed-finding dispositions and `--as-of <date>` to fix the window end.
 
-- **Repeated failures.** A cluster is one explicit marker, a cited rule
-  (`ADR-NNN` or a `rules/<name>.md` path), a disposition category, or a file
-  area (the first four path segments), seen on at least 3 distinct pull
-  requests inside the trailing 90 days. A repeat means no artifact carries the
-  lesson: treat it as a defect in the guidance, not in the reviewer.
+- **Repeated failures.** A cluster is one explicit marker seen often enough.
+  A cited rule (`ADR-NNN` or a `rules/<name>.md` path) or a file area needs 3
+  distinct pull requests inside the trailing 90 days. A file area is the
+  directory of the commented file, cut to its first four segments: `src/x.py`
+  gives `src`, and a file at the repository root gives `(repo root)`. A
+  disposition category needs 3 distinct `--dispositions-json` entries, counted
+  over the whole file, because the registry records no pull request and no
+  date. A repeat means no artifact carries the lesson: treat it as a defect in
+  the guidance, not in the reviewer.
 - **Missed items.** A fix pull request names the change that introduced the
   defect, with `introduced_by` or a phrase such as `introduced by #N` or
   `regression of #N` in its description or a commit message. Each fix counts
   once per file area of the introducing change. An introducer that is not in
   the export, or has no `files`, is counted as unresolved and gives no area.
-- **Gate.** One cluster at the threshold, or one missed item in an area, is
-  verified review friction. It satisfies the workflow mode gate, so Phase 3
-  can select `Create` or `--update` on that evidence.
+- **Gate.** One cluster at the threshold, or one missed item in an area,
+  satisfies the workflow mode gate once you have read the threads or the fix
+  behind it, so Phase 3 can select `Create` or `--update` on that evidence.
 - **What the script proves.** A cluster proves the same marker recurred. A
   missed item proves a person linked a fix to an earlier change. Neither
   proves a shared cause, that review should have caught the defect, or that

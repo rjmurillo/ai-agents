@@ -14,6 +14,11 @@ def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def flat(path: Path) -> str:
+    """The file with line wrapping collapsed, so a needle can span a wrapped line."""
+    return " ".join(read(path).split())
+
+
 def test_the_template_names_both_signals_the_gate_and_the_limit() -> None:
     text = read(TEMPLATE / "skill-bootstrap.SKILL.md.tmpl")
 
@@ -44,14 +49,14 @@ def test_the_render_matches_the_template_wording() -> None:
 
 
 def test_discovery_defines_the_signals_gate_and_what_the_script_proves() -> None:
-    text = read(SKILL / "references" / "discovery.md")
+    text = flat(SKILL / "references" / "discovery.md")
 
     for needle in (
         "`review_failures`",
         "`missed_items`",
-        f"{rc.THRESHOLD} distinct pull",
+        f"needs {rc.THRESHOLD} distinct pull requests",
         f"trailing {rc.WINDOW_DAYS} days",
-        "satisfies the workflow mode gate",
+        "satisfies the workflow mode gate once you have read",
         "What the script proves",
         "compares no free text",
         "Zero is a result",
@@ -60,10 +65,22 @@ def test_discovery_defines_the_signals_gate_and_what_the_script_proves() -> None
         assert needle in text, needle
 
 
-def test_discovery_states_the_area_depth_the_module_enforces() -> None:
-    text = read(SKILL / "references" / "discovery.md")
+def test_discovery_counts_a_disposition_over_the_whole_file_not_per_pull_request() -> None:
+    text = flat(SKILL / "references" / "discovery.md")
 
-    assert f"first {'four' if rc.AREA_DEPTH == 4 else rc.AREA_DEPTH} path segments" in text
+    assert (
+        f"A disposition category needs {rc.THRESHOLD} distinct `--dispositions-json` entries"
+        in text
+    )
+    assert "counted over the whole file" in text
+
+
+def test_discovery_describes_the_area_key_as_the_directory_not_the_file() -> None:
+    text = flat(SKILL / "references" / "discovery.md")
+
+    assert f"cut to its first {'four' if rc.AREA_DEPTH == 4 else rc.AREA_DEPTH} segments" in text
+    assert "`src/x.py` gives `src`" in text
+    assert "(repo root)" in text
 
 
 def test_the_export_shape_documents_every_field_the_miner_reads() -> None:
@@ -82,3 +99,5 @@ def test_the_export_shape_documents_every_field_the_miner_reads() -> None:
         "path",
     ):
         assert f"`{field}`" in section, field
+    assert "Required" in section
+    assert "Required when `human` is true" in section
