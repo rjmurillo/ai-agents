@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib
 import json
 import os
 import re
@@ -36,11 +37,12 @@ import sys
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import ModuleType
 
 try:
-    import tomllib
+    tomllib: ModuleType | None = importlib.import_module("tomllib")
 except ImportError:  # Python 3.10
-    tomllib = None  # type: ignore[assignment]
+    tomllib = None
 
 OWNERSHIP_FILE = ".project-toolkit-agents.json"
 AGENT_SUFFIX = ".toml"

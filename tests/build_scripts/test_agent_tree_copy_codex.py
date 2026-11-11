@@ -17,6 +17,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 sys.path.insert(0, str(REPO_ROOT / "build"))
 
+import agent_toml  # noqa: E402
 import agent_tree_copy as atc  # noqa: E402
 import validate_templates_schema as vts  # noqa: E402
 
@@ -72,7 +73,7 @@ _HOSTILE = (
 
 
 def _roundtrip(value: str) -> str:
-    return tomllib.loads(f"k = {atc.toml_basic_string(value)}\n")["k"]
+    return tomllib.loads(f"k = {agent_toml.toml_basic_string(value)}\n")["k"]
 
 
 def test_escaper_round_trips_hostile_text_exactly() -> None:
@@ -85,9 +86,9 @@ def test_escaper_round_trips_every_control_character(char: str) -> None:
 
 
 def test_escaper_keeps_non_ascii_raw_and_escapes_controls() -> None:
-    out = atc.toml_basic_string("😀é\x7f\t")
+    out = agent_toml.toml_basic_string("😀é\x7f\t")
     assert out == '"😀é\\u007F\\t"'
-    assert "\n" not in atc.toml_basic_string("a\nb")
+    assert "\n" not in agent_toml.toml_basic_string("a\nb")
 
 
 def test_json_dumps_is_not_a_valid_toml_escaper() -> None:
@@ -135,8 +136,8 @@ def test_no_paragraph_when_nothing_is_skipped(tmp_path: Path) -> None:
 
 
 def test_paragraph_text_comes_from_the_skip_list_argument() -> None:
-    assert "`b`, `x`" in atc.not_installed_paragraph(["x", "b"])
-    assert "`zz`" not in atc.not_installed_paragraph(["x", "b"])
+    assert "`b`, `x`" in agent_toml.not_installed_paragraph(["x", "b"])
+    assert "`zz`" not in agent_toml.not_installed_paragraph(["x", "b"])
 
 
 def test_stale_toml_of_a_newly_skipped_agent_is_pruned(tmp_path: Path) -> None:
@@ -275,7 +276,7 @@ def test_skip_in_markdown_format_appends_the_paragraph() -> None:
         derive_readonly_flag=False,
         source="a.md",
         skip_tool_restricted=True,
-        appendix=atc.not_installed_paragraph(["z"]),
+        appendix=agent_toml.not_installed_paragraph(["z"]),
     )
     assert out is not None and out.endswith("say that you did.\n") and "`z`" in out
 
@@ -347,7 +348,7 @@ def _expected_toml(stem: str, restricted: list[str]) -> str:
         derive_readonly_flag=False,
         source=stem,
         skip_tool_restricted=True,
-        appendix=atc.not_installed_paragraph(restricted),
+        appendix=agent_toml.not_installed_paragraph(restricted),
         output_format=atc.FORMAT_CODEX_TOML,
     )
     assert rendered is not None

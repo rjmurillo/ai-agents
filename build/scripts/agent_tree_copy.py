@@ -67,6 +67,12 @@ sys.path.insert(0, str(_SCRIPT_DIR))
 sys.path.insert(0, str(_SCRIPT_DIR.parent))
 
 from agent_capabilities import load_mcp_table, wildcard_grants  # noqa: E402
+from agent_toml import (  # noqa: E402
+    CODEX_KEEP,
+    CodexTomlError,
+    not_installed_paragraph,
+    render_codex_toml,
+)
 from atomic_write import publish_bytes_preserving_mode  # noqa: E402
 from generate_agents_common import read_yaml_frontmatter  # noqa: E402
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
@@ -79,17 +85,7 @@ FORMAT_KEY = "outputFormat"
 FORMAT_MARKDOWN = "markdown"
 FORMAT_CODEX_TOML = "codex-toml"
 _FORMATS = (FORMAT_MARKDOWN, FORMAT_CODEX_TOML)
-_CODEX_KEEP = ["name", "description"]
 _TOML_SUFFIX = ".toml"
-_TOML_ESCAPES = {
-    "\\": "\\\\",
-    '"': '\\"',
-    "\b": "\\b",
-    "\t": "\\t",
-    "\n": "\\n",
-    "\f": "\\f",
-    "\r": "\\r",
-}
 _READONLY_KEY = "readonly"
 _SOURCE_SUFFIX = ".md"
 _DEFAULT_EXCLUDES = ("AGENTS.md", "CLAUDE.md")
@@ -212,50 +208,6 @@ def parse_agent(text: str, source: str) -> tuple[dict[str, object], str]:
     return loaded, parsed["body"]
 
 
-def toml_basic_string(value: str) -> str:
-    """Return ``value`` as a single-line TOML 1.0 basic string, quotes included.
-
-    Escapes ``\\``, ``"`` and the control characters U+0000-U+001F and U+007F
-    (``\\b \\t \\n \\f \\r`` or ``\\uXXXX``). Every other character, including
-    non-BMP ones such as emoji, stays raw UTF-8. ``json.dumps`` is not a
-    substitute: it emits surrogate pairs (invalid TOML) and leaves U+007F raw.
-    """
-    out: list[str] = []
-    for char in value:
-        if char in _TOML_ESCAPES:
-            out.append(_TOML_ESCAPES[char])
-        elif ord(char) < 0x20 or ord(char) == 0x7F:
-            out.append(f"\\u{ord(char):04X}")
-        else:
-            out.append(char)
-    return '"' + "".join(out) + '"'
-
-
-def _render_codex_toml(kept: dict[str, object], body: str, source: str) -> str:
-    for key in _CODEX_KEEP:
-        if not isinstance(kept.get(key), str):
-            raise AgentCopyError(f"{source}: frontmatter `{key}` must be a string for codex-toml")
-    return (
-        f"name = {toml_basic_string(str(kept['name']))}\n"
-        f"description = {toml_basic_string(str(kept['description']))}\n"
-        f"developer_instructions = {toml_basic_string(body)}\n"
-    )
-
-
-def not_installed_paragraph(skipped_stems: list[str]) -> str:
-    """Return the paragraph appended to each body when agents were left out.
-
-    The list is the sorted skip list passed in, never a fixed set of names.
-    """
-    names = ", ".join(f"`{stem}`" for stem in sorted(skipped_stems))
-    return (
-        "\n\n## Agents not installed on this host\n\n"
-        f"These agents are not installed on this host: {names}. "
-        "When a step above hands work to one of them, do that step yourself "
-        "in this session and say that you did.\n"
-    )
-
-
 def render_agent(
     text: str,
     keep: list[str],
@@ -295,7 +247,11 @@ def render_agent(
     if appendix:
         body = body.rstrip("\n") + appendix
     if output_format == FORMAT_CODEX_TOML:
-        return _render_codex_toml(kept, body, source)
+        try:
+            toml_text: str = render_codex_toml(kept, body, source)
+        except CodexTomlError as exc:
+            raise AgentCopyError(str(exc)) from exc
+        return toml_text
     dumped = yaml.safe_dump(
         kept, sort_keys=False, allow_unicode=True, default_flow_style=False, width=10**9
     )
@@ -369,9 +325,9 @@ def _output_format(stanza: dict[str, object], keep: list[str]) -> str:
     fmt = stanza.get(FORMAT_KEY, FORMAT_MARKDOWN)
     if fmt not in _FORMATS:
         raise AgentCopyError(f"`artifacts.agents.{FORMAT_KEY}` must be one of {list(_FORMATS)}")
-    if fmt == FORMAT_CODEX_TOML and keep != _CODEX_KEEP:
+    if fmt == FORMAT_CODEX_TOML and keep != CODEX_KEEP:
         raise AgentCopyError(
-            f"`artifacts.agents.{KEEP_KEY}` must be exactly {_CODEX_KEEP} for {FORMAT_CODEX_TOML}"
+            f"`artifacts.agents.{KEEP_KEY}` must be exactly {CODEX_KEEP} for {FORMAT_CODEX_TOML}"
         )
     return str(fmt)
 

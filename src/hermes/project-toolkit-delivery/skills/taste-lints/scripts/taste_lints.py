@@ -128,8 +128,11 @@ _GENERATED_PATH_SEGMENTS: tuple[tuple[str, ...], ...] = (
     # ADR-115 Decision 7: src/codex/skills/ and src/codex/lib/ are the same
     # copies again, minus the dropped model keys in SKILL.md. The
     # hand-written src/codex/plugin.json stays classified authored.
+    # src/codex/agents/*.toml render from src/claude/agents (agent_tree_copy.py);
+    # src/codex/install_agents.py is authored.
     ("src", "codex", "skills"),
     ("src", "codex", "lib"),
+    ("src", "codex", "agents"),
     # The Muse tree renders the same skills and lib packages
     # (templates/platforms/muse.yaml), with SKILL.md frontmatter
     # reduced to name and description. The hand-written

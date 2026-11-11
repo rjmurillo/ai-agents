@@ -3013,12 +3013,13 @@ def _codex_agent_roles(prompt_stdout: str) -> set[str]:
     loudly: a Codex change must not turn the negative controls into vacuous passes.
     """
     start = prompt_stdout.find("[")
-    tools: list[dict[str, object]] = []
+    tool_params: list[dict[str, object]] = []
 
     def walk(node: object) -> None:
         if isinstance(node, dict):
-            if node.get("name") == "spawn_agent" and isinstance(node.get("parameters"), dict):
-                tools.append(node)
+            params = node.get("parameters")
+            if node.get("name") == "spawn_agent" and isinstance(params, dict):
+                tool_params.append(params)
             for value in node.values():
                 walk(value)
         elif isinstance(node, list):
@@ -3026,10 +3027,11 @@ def _codex_agent_roles(prompt_stdout: str) -> set[str]:
                 walk(value)
 
     walk(json.loads(prompt_stdout[start:]) if start != -1 else [])
-    assert tools, "prompt-input lists no spawn_agent tool; the Codex tool schema changed"
-    properties = tools[0]["parameters"].get("properties", {})  # type: ignore[union-attr]
-    agent_type = properties.get("agent_type", {})
-    return set(_CODEX_ROLE_LINE.findall(str(agent_type.get("description", ""))))
+    assert tool_params, "prompt-input lists no spawn_agent tool; the Codex tool schema changed"
+    properties = tool_params[0].get("properties")
+    agent_type = properties.get("agent_type") if isinstance(properties, dict) else None
+    description = agent_type.get("description") if isinstance(agent_type, dict) else None
+    return set(_CODEX_ROLE_LINE.findall(description if isinstance(description, str) else ""))
 
 
 def _run_agent_installer(
