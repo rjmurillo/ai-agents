@@ -37,7 +37,7 @@ After the marker lands, you may merge `origin/main` into the branch without a ne
 
 The reviewer for each axis needs the axis prompt and the diff, and nothing from the authoring session. A session that wrote the diff MUST NOT review it in its own context and then write the marker. Pick the first path the host supports.
 
-1. **The host's subagent tool.** This is SKILL.md Process as written: one child per axis. Claude Code: `Task` with `subagent_type`. Copilot CLI: `task` with `agent_type="project-toolkit:<role>"`. Codex: `spawn_agent` with `agent_type` and `fork_turns="none"`, because the default forks the parent's turns into the child. Muse Code: `subagent_spawn` with `role`. No agent for the role: use the host's general-purpose agent with the axis prompt.
+1. **The host's subagent tool.** This is SKILL.md Process as written: one child per axis. Claude Code: `Task` with `subagent_type`. Copilot CLI: `task` with `agent_type="project-toolkit:<role>"`. Codex: `spawn_agent` with `agent_type` and `fork_turns` set to `none`, because the default forks the parent's turns into the child. Muse Code: `subagent_spawn` with `role`. No agent for the role: use the host's general-purpose agent with the axis prompt.
 2. **A fresh `claude -p` process per axis**, when `claude` is on `PATH`:
 
    ```bash

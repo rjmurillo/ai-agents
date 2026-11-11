@@ -56,7 +56,7 @@ def test_first_path_names_every_host_spawn_tool() -> None:
 def test_codex_child_gets_no_parent_context() -> None:
     first = _paths(_section(_resource()))[0]
 
-    assert 'fork_turns="none"' in first
+    assert "`fork_turns` set to `none`" in first
 
 
 def test_in_session_path_never_writes_the_marker() -> None:

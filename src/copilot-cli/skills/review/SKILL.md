@@ -117,7 +117,7 @@ Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICA
 
 ## Running without a subagent tool
 
-Each axis needs a fresh context, never the authoring one. With no subagent tool, follow `resources/marker-and-no-task.md`: one `claude -p` process per axis where `claude` is on `PATH`, else each axis in this session in turn, which never writes the marker.
+Each axis needs a fresh context, never the authoring one. Follow `resources/marker-and-no-task.md`: the host's spawn tool, else one `claude -p` process per axis, else each axis in this session in turn, which never writes the marker.
 
 ## Vendored install (REQ-008-06)
 
