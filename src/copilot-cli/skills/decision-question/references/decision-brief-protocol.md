@@ -6,7 +6,7 @@ carry this content.
 
 ## The eight fields
 
-The rendered syntax follows the harness `AskUserQuestion` tool. Do not invent a
+The rendered syntax follows the host's structured ask tool (Claude Code: `AskUserQuestion`). Do not invent a
 new UI contract.
 
 1. **Stable decision ID.** `D1`, `D2`, and so on when more than one decision may

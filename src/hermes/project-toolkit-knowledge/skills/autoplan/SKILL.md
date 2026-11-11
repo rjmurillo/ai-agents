@@ -70,6 +70,8 @@ Apply in this order (REQ-039):
 
 ## Process
 
+**Delegation on each host.** "Delegate to the `X` agent" means the host's subagent tool: Claude Code `Task` with `subagent_type="X"`; Copilot CLI `task` with `agent_type="project-toolkit:X"`; Codex `spawn_agent` with `agent_type="X"`; Muse Code `subagent_spawn` with `role="X"`. If the host has no subagent tool, or no `X` agent is installed, run the step yourself in this session.
+
 ### Phase 0: Recon the target
 
 Before you classify, establish the target repository's stack. Do not assume the
@@ -160,7 +162,7 @@ evidence (failing tests, widening diff), not on speculation.
 | Correction received, lesson learned | Skill: reflect |
 | Document a decision | Skill: adr-generator |
 | New skill wanted | Skill: skillforge |
-| Multi-domain, cross-cutting, or requires multiple agents | Task(subagent_type="orchestrator") |
+| Multi-domain, cross-cutting, or requires multiple agents | Agent: orchestrator |
 
 The user naming a skill or command bypasses this table entirely. User
 Sovereignty wins over any row.
@@ -203,10 +205,10 @@ Read `kind` from the JSON result and act:
 | `kind` | Action |
 |--------|--------|
 | `explicit` | Invoke `route` directly; the request already named it. |
-| `orchestrator` | `Task(subagent_type="orchestrator")`; a multi-domain marker fired. |
+| `orchestrator` | Delegate to the `orchestrator` agent; a multi-domain marker fired. |
 | `specialist` | Invoke `route`, the one eligible skill whose intents matched. |
 | `ambiguous` | Ask the user to pick from `candidates` (Sovereignty; do not guess). |
-| `none` | No specialist matched. Fall through to the lifecycle chain by size tier, or `Task(subagent_type="orchestrator")` when nothing else fits. |
+| `none` | No specialist matched. Fall through to the lifecycle chain by size tier, or delegate to the `orchestrator` agent when nothing else fits. |
 
 A missing PyYAML module or a missing skills root exits 2 with a named
 reason on stderr; when that happens, read skill descriptions directly
@@ -325,7 +327,7 @@ A routed run is complete when every box checks:
   example, a change that touches the shared agent templates implies Standard or
   above because of mirror obligations).
 - **Escape hatches.** Route fails mid-run: fall back to
-  Task(subagent_type="orchestrator") with the failure context rather than
+  the `orchestrator` agent with the failure context rather than
   retrying the same route blind. Two consecutive routing misses on one
   request: stop, ask which route the user wanted, and log the miss with the
   reflect skill.

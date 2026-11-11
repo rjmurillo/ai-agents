@@ -4,6 +4,8 @@
 
 # Agent Prompt Templates
 
+**Delegation on each host.** "Delegate to the `X` agent" means the host's subagent tool: Claude Code `Task` with `subagent_type="X"`; Copilot CLI `task` with `agent_type="project-toolkit:X"`; Codex `spawn_agent` with `agent_type="X"`; Muse Code `subagent_spawn` with `role="X"`. If the host has no subagent tool, or no `X` agent is installed, run the step yourself in this session.
+
 Detailed prompt templates for each phase of ADR review.
 
 ## Table of Contents
@@ -62,8 +64,9 @@ Add this section to your output:
 
 ### Architect
 
-```python
-Task(subagent_type="architect", prompt="""
+Delegate to the `architect` agent with this prompt:
+
+````text
 ADR Review Request (Phase 1: Independent Review)
 
 **Role**: Technical authority on ADR structure and architectural coherence.
@@ -140,14 +143,13 @@ before you rate it, and record each in the Claims Checked table.
 | [claim] | [kind] | [source read] | [VERIFIED / REFUTED / UNVERIFIED] |
 
 **You are the tie-breaker on structural/governance questions.**
-""")
-
-```
+````
 
 ### Critic
 
-```python
-Task(subagent_type="critic", prompt="""
+Delegate to the `critic` agent with this prompt:
+
+````text
 ADR Review Request (Phase 1: Independent Review)
 
 **Role**: Stress-test the ADR for completeness, gaps, and alignment.
@@ -208,14 +210,13 @@ before you rate it, and record each in the Claims Checked table.
 | [claim] | [kind] | [source read] | [VERIFIED / REFUTED / UNVERIFIED] |
 
 **Focus on plan clarity, not execution details.**
-""")
-
-```
+````
 
 ### Independent-Thinker
 
-```python
-Task(subagent_type="independent-thinker", prompt="""
+Delegate to the `independent-thinker` agent with this prompt:
+
+````text
 ADR Review Request (Phase 1: Independent Review)
 
 **Role**: Challenge assumptions and prevent groupthink.
@@ -276,14 +277,13 @@ before you rate it, and record each in the Claims Checked table.
 | [claim] | [kind] | [source read] | [VERIFIED / REFUTED / UNVERIFIED] |
 
 **Be the devil's advocate. Verify, don't validate.**
-""")
-
-```
+````
 
 ### Security
 
-```python
-Task(subagent_type="security", prompt="""
+Delegate to the `security` agent with this prompt:
+
+````text
 ADR Review Request (Phase 1: Independent Review)
 
 **Role**: Analyze security implications and threat models.
@@ -346,14 +346,13 @@ before you rate it, and record each in the Claims Checked table.
 | [claim] | [kind] | [source read] | [VERIFIED / REFUTED / UNVERIFIED] |
 
 **Assume breach, design for defense.**
-""")
-
-```
+````
 
 ### Analyst
 
-```python
-Task(subagent_type="analyst", prompt="""
+Delegate to the `analyst` agent with this prompt:
+
+````text
 ADR Review Request (Phase 1: Independent Review)
 
 **Role**: Validate claims with evidence and assess feasibility.
@@ -414,14 +413,13 @@ before you rate it, and record each in the Claims Checked table.
 | [claim] | [kind] | [source read] | [VERIFIED / REFUTED / UNVERIFIED] |
 
 **Distinguish facts from hypotheses.**
-""")
-
-```
+````
 
 ### High-Level-Advisor
 
-```python
-Task(subagent_type="high-level-advisor", prompt="""
+Delegate to the `high-level-advisor` agent with this prompt:
+
+````text
 ADR Review Request (Phase 1: Independent Review)
 
 **Role**: Strategic assessment and priority validation.
@@ -482,9 +480,7 @@ before you rate it, and record each in the Claims Checked table.
 | [claim] | [kind] | [source read] | [VERIFIED / REFUTED / UNVERIFIED] |
 
 **You break ties between other agents. Deliver verdicts, not options.**
-""")
-
-```
+````
 
 ---
 
@@ -492,8 +488,9 @@ before you rate it, and record each in the Claims Checked table.
 
 ### Conflict Resolution
 
-```python
-Task(subagent_type="high-level-advisor", prompt="""
+Delegate to the `high-level-advisor` agent with this prompt:
+
+```text
 ADR Conflict Resolution Required
 
 ## ADR Under Review
@@ -542,7 +539,6 @@ If 2+ agents flagged scope concerns:
 | Issue | Priority | Owner | Status |
 |-------|----------|-------|--------|
 | [Issue] | P0/P1/P2 | [Agent] | [Open/Resolved] |
-""")
 ```
 
 ---
@@ -569,8 +565,9 @@ If 2+ agents flagged scope concerns:
 
 ### Convergence Template (All Agents)
 
-```python
-Task(subagent_type="{agent}", prompt="""
+Delegate to the `{agent}` agent with this prompt:
+
+````text
 ADR Convergence Check (Round {round_number})
 
 ## Updated ADR
@@ -629,9 +626,7 @@ Provide exactly ONE position:
 |-------|------|-------------|--------|
 | [claim] | [kind] | [source read] | [VERIFIED / REFUTED / UNVERIFIED] |
 
-""")
-
-```
+````
 
 ---
 
@@ -675,5 +670,3 @@ This ADR conflates {N} distinct decisions:
 3. Mark original ADR as "superseded by ADR-{NNN}-A and ADR-{NNN}-B"
 4. Update cross-references in dependent ADRs
 ```
-
-<!-- vendor-portability: declared. These prompts reference .project-toolkit/architecture/ADR-*.md as the corpus reviewers read. In a vendored install without that tree the reviewers read the ADR supplied in the PR diff instead; the prompt text does not require the path to exist. Issue #2050. -->

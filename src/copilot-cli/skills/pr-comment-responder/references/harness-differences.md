@@ -2,9 +2,11 @@
 
 Load this when a step names a command that your harness does not run as written. The workflow, gates, and status vocabulary are identical across Claude Code, Copilot CLI, and VS Code. Only the rows below differ. Each row was compared between the retired Claude body and the retired Copilot body of the `pr-comment-responder` agent.
 
+Codex delegates with `spawn_agent` and `agent_type="orchestrator"`. Muse Code delegates with `subagent_spawn` and `role="orchestrator"`. A host with no subagent tool runs the step itself.
+
 | Concern | Claude Code | Copilot CLI | VS Code |
 |---------|-------------|-------------|---------|
-| Delegate to a worker | `agent_type: "project-toolkit:orchestrator"` with prompt "..." | `/agent orchestrator` then the prompt text | `#runSubagent` with the matching `subagentType` |
+| Delegate to a worker | `Task` with `subagent_type="orchestrator"` and the prompt | `/agent orchestrator` then the prompt text | `#runSubagent` with the matching `subagentType` |
 | Worker names | `orchestrator`, `implementer`, `qa` | same | same |
 | Read a memory file | `Read` this checkout's `.serena/memories/<name>.md` | `mcp__serena__read_memory(memory_file_name="<name>")` | `mcp__serena__read_memory(memory_file_name="<name>")` |
 | Edit a memory file | follow Phase 9 in [coordinator-detail.md](coordinator-detail.md), which carries the linked-worktree guard for both harnesses | same | same |

@@ -70,7 +70,10 @@ Matching files:
   [HIGH] src/Controllers/AuthController.cs
 
 Run security agent before implementation:
-  Task(subagent_type="security", prompt="Review infrastructure changes")
+  Delegate to the security agent: "Review infrastructure changes"
+  (Claude Code: Task with subagent_type="security"; Copilot CLI: task with
+  agent_type="project-toolkit:security"; Codex: spawn_agent with
+  agent_type="security"; Muse Code: subagent_spawn with role="security")
 ```
 
 When no matches:

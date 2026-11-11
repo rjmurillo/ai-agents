@@ -68,7 +68,10 @@ with `python3`. Output is one JSON object.
    filtered out the recommended option: pick a remaining option or set
    `no_recommendation`, then rerun. `status: ask` lists the prompt `pages` and
    the `page` to present now.
-4. **Ask, then prune.** Present the decision with `AskUserQuestion`. Record the
+4. **Ask, then prune.** Present the decision with the host's structured ask
+   tool (Claude Code: `AskUserQuestion`; Muse Code, and Codex in Plan mode only:
+   `request_user_input`, at most 3 questions; no such tool: a plain chat
+   question). Record the
    answer under `answers` and rerun. When the user picks `_more`, add one to
    that decision's count under `paging` and rerun; the same decision returns
    its next page. Decisions that depend on an answer are pruned or filtered from
@@ -104,9 +107,9 @@ Each decision carries a stable ID (`D1`, `D2`), a one-sentence statement of what
 must be decided now, why it matters now, at least two materially distinct options
 (presented 2 to 4 per page; overflow becomes a split chain) with their consequences, a recommendation with its load-bearing reason (or an
 explicit statement that evidence supports none), and `Hold` only when deferring
-is legitimate and a reopen condition exists. Render with the harness
-`AskUserQuestion` tool (`voice.md` defines the term); do not invent a new UI
-contract.
+is legitimate and a reopen condition exists. Render with the host's structured
+ask tool (Claude Code: `AskUserQuestion`, which `voice.md` defines); do not
+invent a new UI contract.
 
 Field rules, option construction, split chains, Hold, and the completeness
 check: [decision-brief-protocol.md](references/decision-brief-protocol.md).

@@ -44,6 +44,8 @@ translation:
 
 ## Process
 
+**Delegation on each host.** "Delegate to the `X` agent" means the host's subagent tool: Claude Code `Task` with `subagent_type="X"`; Copilot CLI `task` with `agent_type="project-toolkit:X"`; Codex `spawn_agent` with `agent_type="X"`; Muse Code `subagent_spawn` with `role="X"`. If the host has no subagent tool, or no `X` agent is installed, run the step yourself in this session.
+
 ### Phase 0: Existing-PR check
 
 Before branching for an issue, run `check_existing_pr_for_issue.py --owner <O>
@@ -53,7 +55,7 @@ Only exit `0` clears.
 
 ### Phase 1: Assess complexity
 
-`Task(subagent_type="analyst")`: Read the engineering complexity tiers reference
+Delegate to the `analyst` agent: Read the engineering complexity tiers reference
 in the `analyze` skill, resolved through
 `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/analyze/references/engineering-complexity-tiers.md`,
 and the task description. Classify as Tier 1-5. Return tier, rationale, and
@@ -110,7 +112,7 @@ failing check first.
 
 ### Phase 3: Implement the slices
 
-`Task(subagent_type="implementer")`: You are a senior engineer. Discover the
+Delegate to the `implementer` agent: You are a senior engineer. Discover the
 project's tech stack, coding patterns, and test conventions by reading the
 codebase. Build in thin vertical slices. Test-first when the project has tests.
 Commit atomically.
