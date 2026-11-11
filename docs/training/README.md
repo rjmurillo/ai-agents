@@ -18,7 +18,7 @@ Each entry names the issue that writes the page and who the page is for. An entr
 
 - `review-and-pr-feedback.md` (#7206): the review and PR feedback loop with `/review`, `/pr-review`, and pr-autofix. For contributors.
 
-- `local-gates-and-hooks.md` (#7207): local gates with Lefthook, and what to do when a hook blocks. For contributors.
+- [Clear a blocked commit with Lefthook local gates](local-gates-and-hooks.md) (#7207): local gates with Lefthook, and what to do when a hook blocks. For contributors.
 
 - `build-and-improve-skills.md` (#7208): skillforge, skillify, skillopt, skill-bootstrap, and skill-doctor. For skill authors.
 
