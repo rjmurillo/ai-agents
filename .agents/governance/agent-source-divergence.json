@@ -94,7 +94,7 @@
     {"agent": "implementer", "pair": "claude-shared", "unit": "section:BLOCKING: Read Project Documentation First", "digest": "b833380c37705987b1119a7658faeab21fd7b7f53b0a49cb4cbc40fcddc6c1c6"},
     {"agent": "implementer", "pair": "claude-shared", "unit": "section:Code Quality Standards", "digest": "d52a1643bbac64790e522bf45e28b5ca89793301593722c2d86b5f78f6e43373"},
     {"agent": "implementer", "pair": "claude-shared", "unit": "section:Degraded Mode Protocol", "digest": "7102d2abbba62811b49cff11ae911a229044f7cf1201729c1ad070d8e278309a"},
-    {"agent": "implementer", "pair": "claude-shared", "unit": "section:Evidence Standards (Read Before Writing Any Claim)", "digest": "7779e441cfbf03f8e7536f585b11a6b1a1bd2e9a87563ff101476f22c6dd5621"},
+    {"agent": "implementer", "pair": "claude-shared", "unit": "section:Evidence Standards (Read Before Writing Any Claim)", "digest": "a40d0310b4e40977b7d3ff47993a51751752671492b1be3d83267b9120783266"},
     {"agent": "independent-thinker", "pair": "claude-shared", "unit": "capability:builtin", "digest": "27bbcb8f57f0184c147d28d24890c279c626a432ccbd56a4e60d75f14b3c8486"},
     {"agent": "independent-thinker", "pair": "claude-shared", "unit": "capability:declaration", "digest": "802038c1543a7b0c0eb57a652ed3d7d405eabc35226a67d2c1dd1a66562d9cf2"},
     {"agent": "independent-thinker", "pair": "claude-shared", "unit": "capability:mcp:cloudmcp-manager", "digest": "587bae728805519c3542d21766295396bd01087b6c47765ae3cadbf679813bbe"},
