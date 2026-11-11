@@ -26,6 +26,7 @@ on:
     paths:
       - 'docs/training/**'
       - 'scripts/ci/publish_wiki.py'
+      - 'scripts/ci/_wiki_links.py'
       - '.github/workflows/publish-wiki.yml'
   workflow_dispatch:
     inputs:

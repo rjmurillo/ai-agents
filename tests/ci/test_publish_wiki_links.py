@@ -14,7 +14,13 @@ from pathlib import Path
 import pytest
 
 from scripts.ci import publish_wiki as pw
-from scripts.ci._wiki_links import INLINE_LINK_RE, mask_code, readme_page_order, strip_target
+from scripts.ci._wiki_links import (
+    INLINE_LINK_RE,
+    mask_code,
+    readme_page_order,
+    strip_target,
+    unmask_code,
+)
 from tests.ci.publish_wiki_helpers import BLOB, README, REPO_URL, make_repo, write
 
 PAGES = {"README.md": "Home", "first-page.md": "first-page", "second-page.md": "second-page"}
@@ -49,10 +55,15 @@ def test_a_link_inside_a_code_span_stays_untouched_beside_a_real_one(repo: Path)
 
 
 def test_mask_code_round_trips() -> None:
-    masked, spans = mask_code("a `x` b ``y`` c")
+    line = "a `x` b ``y`` c"
+    masked, spans = mask_code(line)
     assert "`" not in masked
-    assert pw.safe(masked) == masked.replace("::", ":​:")
     assert spans == ["`x`", "``y``"]
+    assert unmask_code(masked, spans) == line
+
+
+def test_safe_leaves_ordinary_text_alone() -> None:
+    assert pw.safe("plain text: ok") == "plain text: ok"
 
 
 def test_index_entry_written_with_code_span_text_is_not_an_orphan(repo: Path) -> None:

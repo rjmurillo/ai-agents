@@ -49,6 +49,7 @@ def test_runs_on_main_pushes_that_touch_the_training_tree(doc: dict) -> None:
     assert push["branches"] == ["main"]
     assert "docs/training/**" in push["paths"]
     assert "scripts/ci/publish_wiki.py" in push["paths"]
+    assert "scripts/ci/_wiki_links.py" in push["paths"]
 
 
 def test_manual_run_defaults_to_dry_run(doc: dict) -> None:

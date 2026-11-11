@@ -23,6 +23,7 @@ Wiki pages the source no longer produces are deleted. A second run with no
 source change makes no commit.
 
 Usage: python3 scripts/ci/publish_wiki.py [--dry-run]   (https needs WIKI_TOKEN)
+The repository comes from --repo, GITHUB_REPOSITORY, or the origin remote.
 
 Environment: ``GITHUB_REPOSITORY`` (owner/name), ``GITHUB_SERVER_URL``,
 ``WIKI_TOKEN`` (push credential), ``WIKI_DRY_RUN=true`` (same as --dry-run),
@@ -257,16 +258,26 @@ class Config:
     sha: str
 
 
+ORIGIN_RE = re.compile(r"github\.com[:/]+([^/\s]+/[^/\s]+?)(?:\.git)?/?$")
+
+
+def origin_repo(repo_root: Path) -> str:
+    """owner/name from the ``origin`` remote of ``repo_root``, or an empty string."""
+    done = run_git(["config", "--get", "remote.origin.url"], repo_root, os.environ)
+    match = ORIGIN_RE.search(done.stdout.strip()) if done.returncode == 0 else None
+    return match.group(1) if match else ""
+
+
 def load_config(args: argparse.Namespace, environ: Mapping[str, str]) -> Config | str:
     """Return a Config, or a CONFIG error message."""
     repo_root = Path(args.repo_root).resolve()
     if not (repo_root / SOURCE_DIR).is_dir():
         return f"CONFIG: {SOURCE_DIR} not found under {repo_root}"
-    repo = args.repo or environ.get("GITHUB_REPOSITORY", "")
-    if not repo and not args.wiki_url:
-        return "CONFIG: set --repo or GITHUB_REPOSITORY"
     if shutil.which("git") is None:
         return "CONFIG: git is not on PATH"
+    repo = args.repo or environ.get("GITHUB_REPOSITORY", "") or origin_repo(repo_root)
+    if not repo:
+        return "CONFIG: set --repo or GITHUB_REPOSITORY, or add a github.com origin remote"
     server = environ.get("GITHUB_SERVER_URL", "https://github.com").rstrip("/")
     repo_url = f"{server}/{repo}"
     return Config(
@@ -334,7 +345,7 @@ def commit_and_push(
     message = f"docs(wiki): mirror {SOURCE_DIR} from {cfg.sha}"
     commit = run_git([*ident, "commit", "--quiet", "-m", message], wiki, env)
     if commit.returncode != 0:
-        print(f"EXTERNAL: git commit failed:\n{commit.stderr}", file=sys.stderr)
+        print(f"EXTERNAL: git commit failed:\n{safe(commit.stderr)}", file=sys.stderr)
         return EXIT_EXTERNAL
     push = run_git(["push", "--quiet", "origin", "HEAD"], wiki, env)
     if push.returncode == 0:

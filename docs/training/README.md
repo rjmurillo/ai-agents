@@ -84,7 +84,7 @@ A workflow, [`publish-wiki.yml`](../../.github/workflows/publish-wiki.yml), runs
 - Publishes every other page under its file name without `.md`.
 - Rewrites relative links to wiki links, and repo links to GitHub links.
 - Writes `_Sidebar.md` in the order of the links in this file.
-- Deletes wiki pages that no longer exist here.
+- Deletes every top-level Markdown page in the wiki that this folder does not produce.
 - Makes no commit when nothing changed.
 
 To plan a publish by hand, start the workflow with **Run workflow** and keep `dry_run` on. The run needs no credential and prints the planned diff. A run with `dry_run` off is skipped unless it starts from `main`.
@@ -92,4 +92,5 @@ To plan a publish by hand, start the workflow with **Run workflow** and keep `dr
 ### One-time setup for the wiki
 
 - The wiki Git repo does not exist until a person creates the first page in the GitHub UI (Wiki tab, Create the first page). Until then the workflow reports `SKIP` and publishes nothing.
+- Restrict the `wiki-publish` environment to the `main` branch (Settings, Environments, Deployment branches and tags). The workflow only publishes from `main`, and this setting is the second control that keeps the credential away from other branches.
 - The workflow pushes with the secret `WIKI_PUSH_TOKEN` when the `wiki-publish` environment has it, and with the workflow token otherwise. If the first publish reports `BLOCKED: auth`, add `WIKI_PUSH_TOKEN` as a secret of the `wiki-publish` environment: a personal access token that can write to the repository contents.

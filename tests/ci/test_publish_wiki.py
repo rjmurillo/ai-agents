@@ -435,3 +435,48 @@ def test_remote_error_text_cannot_inject_a_workflow_command(
     captured = capsys.readouterr()
     assert "::add-mask::" not in captured.out + captured.err
     assert "add-mask" in captured.out
+
+
+# --- repository discovery ----------------------------------------------------------
+
+
+def with_origin(repo: Path, url: str) -> None:
+    git(["init", "-q"], repo)
+    git(["remote", "add", "origin", url], repo)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://github.com/acme/widgets.git",
+        "https://github.com/acme/widgets",
+        "git@github.com:acme/widgets.git",
+        "ssh://git@github.com/acme/widgets.git",
+    ],
+)
+def test_repo_is_derived_from_the_origin_remote(repo: Path, url: str) -> None:
+    with_origin(repo, url)
+    assert pw.origin_repo(repo) == "acme/widgets"
+
+
+def test_documented_command_works_with_no_flags_and_no_env(
+    repo: Path, wiki: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """README step 4: ``publish_wiki.py --dry-run`` from a checkout with a github.com origin."""
+    with_origin(repo, "https://github.com/acme/widgets.git")
+    argv = ["--repo-root", str(repo), "--wiki-url", f"file://{wiki}", "--dry-run"]
+    assert pw.main(argv, environ={}) == 0
+    assert "DRY RUN:" in capsys.readouterr().out
+
+
+def test_origin_repo_is_empty_without_a_github_remote(repo: Path) -> None:
+    with_origin(repo, "https://example.com/acme/widgets.git")
+    assert pw.origin_repo(repo) == ""
+
+
+def test_no_repo_flag_env_or_origin_exits_2_even_with_a_wiki_url(
+    repo: Path, wiki: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    argv = ["--repo-root", str(repo), "--wiki-url", f"file://{wiki}", "--dry-run"]
+    assert pw.main(argv, environ={}) == 2
+    assert "add a github.com origin remote" in capsys.readouterr().err
