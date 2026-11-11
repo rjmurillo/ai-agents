@@ -75,10 +75,16 @@ def chain(tmp_path: Path, offline: None, capsys: pytest.CaptureFixture[str]) -> 
     return tmp_path
 
 
+def _canonical_json(path: Path) -> str:
+    """Same bytes as ``python3 -m json.tool --sort-keys --compact``, which the recipe diffs."""
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return json.dumps(data, sort_keys=True, separators=(",", ":")) + "\n"
+
+
 def _outputs(directory: Path) -> dict[str, str]:
     html = (directory / "report.html").read_text(encoding="utf-8")
     texts = {
-        name: (directory / name).read_text(encoding="utf-8")
+        name: _canonical_json(directory / name)
         for name in ("score_artifact.json", "report.json", "public.json")
     }
     texts["report.html"] = _normalize_html(html)
@@ -153,6 +159,7 @@ def test_recipe_commands_run_and_match_the_goldens(tmp_path: Path) -> None:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="strict",
         check=False,
     )
 

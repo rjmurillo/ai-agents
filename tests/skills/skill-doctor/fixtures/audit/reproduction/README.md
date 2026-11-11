@@ -33,12 +33,12 @@ Each command exits 0. The second prints `overall: 0.8579 from 6 sessions`.
 ## Check the result
 
 ```bash
-diff "$OUT/score_artifact.json" "$FIXTURES/expected/score_artifact.json"
-diff "$OUT/report.json" "$FIXTURES/expected/report.json"
-diff "$OUT/public.json" "$FIXTURES/expected/public.json"
+for f in score_artifact.json report.json public.json; do
+  python3 -m json.tool --sort-keys --compact "$OUT/$f" | diff - "$FIXTURES/expected/$f"
+done
 ```
 
-All three show no difference. `expected/report.html` is the rendered page with two parts normalized: the render timestamp and the embedded diff viewer bundle, which `test_vendored_bundle.py` covers on its own.
+The loop prints nothing: all three match. The copies in `expected/` are stored in that sorted, compact form. `expected/report.html` is the rendered page with two parts normalized: the render timestamp and the embedded diff viewer bundle, which `test_vendored_bundle.py` covers on its own.
 
 What to look for in the outputs:
 
