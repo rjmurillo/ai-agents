@@ -275,7 +275,7 @@ Do not modify the user's real skill files in this step.
 
 ### Step 5: Write report.json and render
 
-Write `$REPORT_DIR/report.json`. Store the curved `efficiency`, `code_quality`, `procedure_compliance`, and `verbosity` values, literal `skill_coverage`, and weighted `overall` in `scores`; do not store the raw rubric means there.
+Write `$REPORT_DIR/report.json` in this shape. `assemble_report.py` fills `scores` with the curved dimension values, literal `skill_coverage`, and weighted `overall`; the raw rubric means never go there.
 
 ```json
 {
@@ -291,7 +291,7 @@ Write `$REPORT_DIR/report.json`. Store the curved `efficiency`, `code_quality`, 
     "harness_coverage_complete": true,
     "notice": null,
     "per_harness": {
-      "<harness>": {"scoreable": 0, "skill_candidates": 0, "sampled": 0, "overall": 0.0}
+      "<harness>": {"scoreable": 0, "skill_candidates": 0, "sampled": 0}
     }
   },
   "scores": {

@@ -7,7 +7,8 @@ session. A supplied ``--artifact`` must equal that recomputation.
 Writes:
   - ``scores``: curved dimension scores and ``overall`` from the artifact
   - ``stats.sessions_analyzed``: the number of scored sessions
-  - ``sampling.per_harness.<harness>.overall``: each harness scored on its own records
+  - ``sampling.per_harness.<harness>.overall``: each harness scored on its own records;
+    a harness with no scored session loses any ``overall`` the draft carried
   - ``audit``: ``scores`` (the artifact), ``records`` (the scored sessions), and
     ``catalog`` from the audit manifest when one is given
 
@@ -69,6 +70,9 @@ def _catalog_of(manifest: Any) -> list[Any]:
 def _set_harness_overall(report: dict[str, Any], artifact: Mapping[str, Any]) -> None:
     sampling = report.setdefault("sampling", {})
     per_harness = sampling.setdefault("per_harness", {})
+    for harness, entry in per_harness.items():
+        if harness not in artifact["per_harness"] and isinstance(entry, dict):
+            entry.pop("overall", None)
     for harness, summary in artifact["per_harness"].items():
         per_harness.setdefault(harness, {})["overall"] = summary["overall"]
 

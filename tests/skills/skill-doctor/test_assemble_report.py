@@ -193,3 +193,15 @@ def test_missing_file_exits_2(tmp_path: Path) -> None:
 
 def test_missing_out_argument_exits_2() -> None:
     assert assemble_report.main([str(INPUTS / "draft.json"), "--scores", "x.json"]) == 2
+
+
+def test_unscored_harness_keeps_no_overall_from_the_draft(tmp_path: Path) -> None:
+    draft = copy.deepcopy(load("draft.json"))
+    draft["sampling"]["per_harness"]["claude"] = {"scoreable": 2, "sampled": 0, "overall": 0.0}
+
+    code, out = run(tmp_path, draft=draft)
+
+    per_harness = json.loads(out.read_text(encoding="utf-8"))["sampling"]["per_harness"]
+    assert code == 0
+    assert per_harness["claude"] == {"scoreable": 2, "sampled": 0}
+    assert "overall" in per_harness["codex"]
