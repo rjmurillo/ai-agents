@@ -92,3 +92,7 @@ Vote: Block, narrowly. Every round 1 finding is resolved.
 ## Outcome
 
 Outcome: Consensus in round 3, both reviewers Accept. The ADR stays `proposed`; acceptance is the owner's call. Implementation follows in separate pull requests: Codex agents, Muse agents (merges only after the owner-run Muse Code test in Decision 8), host-neutral dispatch (Decision 13), and the `/review` fallback.
+
+## Post-consensus frontmatter fix, 2026-11-11
+
+A Cursor Bugbot thread on PR #7307 noted that frontmatter `date` still read `2026-10-12`. ADR-073 defines that field as the last-updated date, so it now reads `2026-11-11`. No decision text changed, so no panel round ran.

@@ -1,7 +1,7 @@
 ---
 id: ADR-115
 status: proposed
-date: 2026-10-12
+date: 2026-11-11
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
