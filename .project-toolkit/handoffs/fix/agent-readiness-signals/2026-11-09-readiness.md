@@ -29,21 +29,25 @@ The latest main integration exposed three additional preflight failures.
 The operator authorized bounded integration repairs and one replacement reviewer.
 Both portability gates and whole-corpus duplication now pass focused rechecks.
 Neither baseline changed during these integration repairs.
+Quality cleanup now passes working-tree regression and focused checks.
+These source repairs are committed with normal hooks.
+The operator accepted the measured size advisories without changing gates.
+Full exact-tip acceptance has not run on these repairs.
 
 ## State Record
 
 - **Remote**: rjmurillo/ai-agents
 - **Branch**: fix/agent-readiness-signals
 - **Worktree**: ~/src/GitHub/rjmurillo/ai-agents4
-- **Head SHA**: 7429e985d10e7ee53a3ffa50dacb1bd67f988bae
-- **Timestamp**: 2026-11-10T08:20:13-08:00
+- **Source checkpoint**: 13de98e652618821620e0c6808dc21fc4f6b7ede (2026-11-10)
+- **Timestamp**: 2026-11-10T21:52:27-08:00
 - **Objective**: Ship repository-side readiness repairs without adding client telemetry.
 - **Non-goals**: Hosted infrastructure, package releases, and security configuration changes.
 - **Risk tier**: shared-repository
 - **Acceptance**: New checks detect violations and pass the complete repository corpus.
-- **Phase**: validated repair sources, preparing exact-tip acceptance
-- **Next action**: Run exact-tip preflight, full regression, and independent review.
-- **Validation run**: Integration regression returned 268 PASS; 378 original-source CLI comparisons matched.
+- **Phase**: source cleanup committed; measured size advisories accepted
+- **Next action**: Run exact-tip acceptance and independent review.
+- **Validation run**: On 2026-11-10, working-tree cleanup passed 3114 tests and quality regression.
 - **Residual risks**: Remote CI timing and delivery cadence remain unverified.
 - **Escalation owner**: Repository owner.
 
@@ -268,6 +272,29 @@ Obsolete intermediate bootstrap projections were preserved outside the shipping 
 Current projections match their canonical helper.
 
 ## Stop Conditions
+
+The latest cleanup evidence is working-tree evidence, not final acceptance.
+On 2026-11-10, the quality regression command returned zero.
+The new AST support helper also passed absolute quality assessment.
+On 2026-11-10, focused regression passed 3114 tests in 84.68 seconds.
+On 2026-11-10, normal Ruff checks passed; formatting passed across 118 source paths.
+On 2026-11-10, mypy passed for five changed support modules.
+On 2026-11-10, immutable-source comparison matched all 28 instrument entries.
+The table receipt is `.project-toolkit/scratch/readiness-quality-table-conformance.json`.
+New form names follow kebab-case without changing their contents.
+The filename-only test update retains every privacy and required-field assertion.
+On 2026-11-10, authority validation accepted 27 targets without defects.
+Neither baseline, quality configuration, dependencies, nor privacy settings changed.
+On 2026-11-10, taste examined 550 selected files: zero errors and 11 size warnings.
+On 2026-11-10, all three additional new paths passed taste without warnings.
+Every remaining warning concerns a branch-added file below the hard size limit.
+The operator replaced the zero-touched-warning target with zero errors and these accepted advisories.
+The decision record is `.project-toolkit/scratch/readiness-size-warning-decision.json`.
+The recorded answer accepts only these advisories, not baseline redesign or new allowances.
+No reviewer ran during this cleanup.
+On 2026-11-10, one review slot was consumed; fourteen remain within the approved fifteen.
+Full preflight, full regression, documentation checks, and orphan checks do not certify this cleanup.
+No review marker, successful push, PR creation, or merge occurred during this cleanup.
 
 Do not push or create a review marker while preflight remains failed.
 Do not repair upstream tool code without a bounded scope decision.
