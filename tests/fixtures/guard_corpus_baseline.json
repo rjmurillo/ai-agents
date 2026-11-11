@@ -77,10 +77,6 @@
       [
         "state_result = subprocess.run(",
         0
-      ],
-      [
-        "subprocess.run(",
-        0
       ]
     ],
     "github/scripts/pr/detect_copilot_followup_pr.py": [
