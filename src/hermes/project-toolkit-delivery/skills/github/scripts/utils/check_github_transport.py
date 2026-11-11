@@ -55,17 +55,15 @@ from skill_bootstrap import ensure_plugin_paths
 
 ensure_plugin_paths(__file__)
 
-from github_core.api import (
+from github_core import (
     GhAuthResult,
     GhAuthStatus,
+    add_output_format_arg,
     check_gh_auth,
     classify_gh_failure_text,
     describe_gh_auth_failure,
     get_repo_info,
     sanitize_failure_detail,
-)
-from github_core.output import (
-    add_output_format_arg,
     write_skill_error,
     write_skill_output,
 )

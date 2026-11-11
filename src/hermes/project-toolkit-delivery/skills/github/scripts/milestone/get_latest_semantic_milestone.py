@@ -25,18 +25,16 @@ from skill_bootstrap import ensure_plugin_paths
 
 ensure_plugin_paths(__file__, (".claude", "lib"))
 
-from github_core.actions_output import write_github_output as _write_github_output
-from github_core.actions_output import write_step_summary as _write_step_summary
-from github_core.api import (
+from github_core import (
+    add_output_format_arg,
     assert_gh_authenticated,
+    get_output_format,
     gh_api_paginated,
     resolve_repo_params,
-)
-from github_core.output import (
-    add_output_format_arg,
-    get_output_format,
+    write_github_output,
     write_skill_error,
     write_skill_output,
+    write_step_summary,
 )
 
 # Optional v prefix matches the repository tag and milestone convention
@@ -95,14 +93,14 @@ def main(argv: list[str] | None = None) -> int:
             script_name="get_latest_semantic_milestone.py",
             extra={"title": "", "number": 0, "found": False},
         )
-        _write_github_output(
+        write_github_output(
             {
                 "milestone_title": "",
                 "milestone_number": "0",
                 "found": "false",
             }
         )
-        _write_step_summary(
+        write_step_summary(
             f"## Milestone Detection Result\n\n"
             f"**Status**: No semantic version milestones found\n\n"
             f"No open milestones matching semantic versioning format (X.Y.Z) "
@@ -127,7 +125,7 @@ def main(argv: list[str] | None = None) -> int:
             script_name="get_latest_semantic_milestone.py",
             extra={"title": "", "number": 0, "found": False},
         )
-        _write_github_output(
+        write_github_output(
             {
                 "milestone_title": "",
                 "milestone_number": "0",
@@ -135,7 +133,7 @@ def main(argv: list[str] | None = None) -> int:
             }
         )
         available_list = "\n".join(f"- {m.get('title', '(untitled)')}" for m in milestones)
-        _write_step_summary(
+        write_step_summary(
             f"## Milestone Detection Result\n\n"
             f"**Status**: No semantic version milestones found\n\n"
             f"Found {len(milestones)} open milestone(s), but none match "
@@ -157,7 +155,7 @@ def main(argv: list[str] | None = None) -> int:
         script_name="get_latest_semantic_milestone.py",
     )
 
-    _write_github_output(
+    write_github_output(
         {
             "milestone_title": latest["title"],
             "milestone_number": str(latest["number"]),
@@ -166,7 +164,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     semver_list = "\n".join(f"- **{m['title']}** (ID: {m['number']})" for m in semantic)
-    _write_step_summary(
+    write_step_summary(
         f"## Milestone Detection Result\n\n"
         f"**Status**: Found semantic version milestone\n\n"
         f"**Milestone**: {latest['title']} (ID: {latest['number']})\n\n"
