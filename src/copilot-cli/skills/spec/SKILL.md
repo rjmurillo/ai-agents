@@ -127,7 +127,7 @@ Structured requirements document. Mirror the PRD schema produced in step 2; do n
 ## Writing Style, Completeness Scores, Confusion Protocol
 
 Read `references/writing-style-and-confusion-protocol.md` before the first
-`AskUserQuestion` of a run. It carries the jargon-glossing and outcome-framing
+question to the user in a run (Claude Code: `AskUserQuestion`). It carries the jargon-glossing and outcome-framing
 rules, the `Completeness: X/10` scoring rule, and the Confusion Protocol with
 its unattended-run fallback. They lived in the always-on voice rule until a later change moved them here; the body stays under the 200-line spec ceiling
 by keeping them in a reference, as Step 0.5 already does.

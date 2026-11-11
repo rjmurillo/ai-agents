@@ -161,7 +161,7 @@ class TestReviewTemplateRunsTheCorrectnessPass:
 
     def test_step_4c_dispatches_code_reviewer_with_the_contract(self) -> None:
         step = self._step_4c()
-        assert 'Task(subagent_type="code-reviewer")' in step
+        assert "Delegate to the `code-reviewer` agent" in step
         assert "resources/technical-review.md" in step
         assert "general-purpose" in step
 

@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -131,6 +132,11 @@ def test_a_missing_login_is_not_needed_for_a_dry_run(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     set_sources(monkeypatch, "_claude_cli", disk=lambda _env: None, probe=True)
+    # Without --workspace-root the default root is built under `tempfile.gettempdir()`,
+    # which can sit under `$HOME` and outside the pytest base temp. The conftest scan
+    # cutoff only covers roots inside the base temp, so a global `~/.claude/CLAUDE.md`
+    # would fail the run. Put the default root under `tmp_path`, which the cutoff covers.
+    monkeypatch.setattr(tempfile, "gettempdir", lambda: str(tmp_path))
 
     assert cli.main(["--dry-run", "--tasks", str(write_tasks(tmp_path))]) == cli.EXIT_OK
 

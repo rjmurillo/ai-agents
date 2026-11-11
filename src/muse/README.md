@@ -27,12 +27,39 @@ ships the same skill set as `src/codex` (ADR-115 Decision 2).
 
 ## Install into Muse
 
-Muse loads custom skills from `~/workspace/custom-skills/`. Copy
-each skill directory in, skipping any name already present:
+Muse loads custom skills from `~/workspace/custom-skills/`. Skill scripts
+resolve the shared packages from `lib/` one level above that directory, at
+`~/workspace/lib/`. Copy both from the repository root. Without `lib/`, any
+script that imports a shared package exits with `Plugin lib directory not
+found`.
+
+The skills and `lib/` are one release. Old scripts run against new packages
+(or the reverse) can fail on a missing module, so the install replaces both.
+Any skill directory or `lib/` already present is moved, not deleted, to
+`~/workspace/muse-install-backup-<timestamp>/`. That includes a skill of your
+own that uses the same name as a shipped skill, and a `lib/` with files the new
+release dropped:
 
 ```bash
+backup=~/workspace/muse-install-backup-"$(date +%Y%m%d%H%M%S)"
+mkdir -p ~/workspace/custom-skills
+if [ -e ~/workspace/lib ]; then
+  mkdir -p "$backup"
+  mv ~/workspace/lib "$backup"/lib
+fi
+cp -R src/muse/lib ~/workspace/lib
 for d in src/muse/skills/*/; do
   name="$(basename "$d")"
-  [ -e ~/workspace/custom-skills/"$name" ] || cp -R "$d" ~/workspace/custom-skills/"$name"
+  if [ -e ~/workspace/custom-skills/"$name" ]; then
+    mkdir -p "$backup"/custom-skills
+    mv ~/workspace/custom-skills/"$name" "$backup"/custom-skills/"$name"
+  fi
+  cp -R "$d" ~/workspace/custom-skills/"$name"
 done
+```
+
+Check the install by running one skill script:
+
+```bash
+python3 -I ~/workspace/custom-skills/github/scripts/pr/get_pr_checks.py --help
 ```

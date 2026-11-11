@@ -52,6 +52,8 @@ python detect_infrastructure.py --files .github/workflows/ci.yml src/auth/login.
 
 ## Output
 
+**Delegation on each host.** "Delegate to the `X` agent" means the host's subagent tool: Claude Code `Task` with `subagent_type="X"`; Copilot CLI `task` with `agent_type="project-toolkit:X"`; Codex `spawn_agent` with `agent_type="X"`, plus `fork_turns="none"` when the agent reviews or judges work (the default hands it your whole history); Muse Code `subagent_spawn` with `role="X"` and an `objective`, plus `worktree_isolation: true` for an agent that writes files. If the host has no subagent tool, or no `X` agent is installed, run the step yourself in this session.
+
 When security-critical files are detected:
 
 ```text
@@ -64,7 +66,10 @@ Matching files:
   [HIGH] src/Controllers/AuthController.cs
 
 Run security agent before implementation:
-  Task(subagent_type="security", prompt="Review infrastructure changes")
+  Delegate to the security agent: "Review infrastructure changes"
+  (Claude Code: Task with subagent_type="security"; Copilot CLI: task with
+  agent_type="project-toolkit:security"; Codex: spawn_agent with
+  agent_type="security"; Muse Code: subagent_spawn with role="security")
 ```
 
 When no matches:
@@ -107,7 +112,7 @@ Add a named validator job to `lefthook.yml`:
 
 ```bash
 # Security detection (non-blocking warning)
-python3 .claude/skills/security-detection/detect_infrastructure.py --use-git-staged
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/security-detection/detect_infrastructure.py" --use-git-staged
 ```
 
 ### CI Integration
@@ -127,7 +132,7 @@ do not have a staged diff.
     HEAD_SHA: ${{ github.sha }}
   run: >-
     git diff --no-renames --name-only -z "$BASE_SHA" "$HEAD_SHA"
-    | python .claude/skills/security-detection/detect_infrastructure.py
+    | python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/security-detection/detect_infrastructure.py"
     --files-from-stdin
 ```
 
