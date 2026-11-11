@@ -51,7 +51,6 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -63,6 +62,7 @@ EXIT_EXTERNAL = 3
 
 _LS_REMOTE_NO_MATCH = 2  # `git ls-remote --exit-code`: no matching ref
 _PR_LIST_LIMIT = 100
+_MAX_ARTIFACT_BYTES = 1024 * 1024
 _TIMEOUT_SECONDS = 120
 _TIMED_OUT = 124  # the `timeout(1)` convention
 
@@ -207,17 +207,29 @@ def pr_body(paths: list[str], issue: str) -> str:
 
 
 def _copy_artifact_file(source: Path, root: Path, destination: Path) -> bool:
-    """Copy `source` to `destination` when it is a regular file inside `root`."""
+    """Copy `source` to `destination` when it is a regular file inside `root`.
+
+    A symlink or non-regular source is skipped (returns False). An escaping
+    source, an oversized or non-UTF-8 file, a symlink destination, and a
+    destination outside the checkout raise before anything is written.
+    """
     if source.is_symlink() or not source.is_file():
         return False
     if not source.resolve().is_relative_to(root):
         raise RuntimeError(f"artifact entry escapes its directory: {source}")
+    data = source.read_bytes()
+    if len(data) > _MAX_ARTIFACT_BYTES:
+        raise RuntimeError(f"artifact file is over {_MAX_ARTIFACT_BYTES} bytes: {source}")
+    try:
+        data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise RuntimeError(f"artifact file is not UTF-8: {source}") from exc
     if destination.is_symlink():
         raise RuntimeError(f"refusing to write through a symlink: {destination}")
-    destination.parent.mkdir(parents=True, exist_ok=True)
     if not destination.parent.resolve().is_relative_to(Path.cwd().resolve()):
         raise RuntimeError(f"destination leaves the checkout: {destination}")
-    shutil.copyfile(source, destination)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_bytes(data)
     return True
 
 
@@ -227,8 +239,8 @@ def import_artifact(artifact_dir: str, paths: list[str]) -> list[str]:
     Only the named paths are read. The artifact may hold anything else; it is
     ignored. A path is taken from `<dir>/<path>` (two-file upload, rooted at the
     repository) or `<dir>/<basename>` (one-file upload, rooted at its directory).
-    Raises RuntimeError on a symlink destination, an escaping source, or an
-    I/O failure, so a bad artifact is never read as "no changes".
+    Raises RuntimeError on a symlink destination, an escaping source, an
+    oversized or non-UTF-8 file, or an I/O failure. A symlink source is skipped.
     """
     root = Path(artifact_dir).resolve()
     imported: list[str] = []
@@ -323,7 +335,12 @@ _BRANCH_PATTERN = re.compile(r"automation/[A-Za-z0-9][A-Za-z0-9._-]*(/[A-Za-z0-9
 
 def _bot_branch(value: str) -> str:
     """Accept only a name under `automation/`. It feeds `git push --delete`."""
-    if not _BRANCH_PATTERN.fullmatch(value) or ".." in value or value.endswith((".", ".lock")):
+    parts = value.split("/")
+    if (
+        not _BRANCH_PATTERN.fullmatch(value)
+        or ".." in value
+        or any(part.endswith((".", ".lock")) for part in parts)
+    ):
         raise argparse.ArgumentTypeError(f"{value!r} must be a valid automation/<name> ref")
     return value
 
@@ -382,7 +399,11 @@ def main(argv: list[str] | None = None) -> int:
                 return EXIT_GIT_FAILED
 
         if args.artifact_dir:
-            import_artifact(args.artifact_dir, args.path)
+            if not import_artifact(args.artifact_dir, args.path):
+                raise RuntimeError(
+                    "the artifact held none of the named paths; its layout changed "
+                    "or it was replaced, so nothing can be published"
+                )
         changed = [path for path in args.path if dirty(path)]
         if not changed:
             print(f"No changes to commit (examined {len(args.path)} path(s))")

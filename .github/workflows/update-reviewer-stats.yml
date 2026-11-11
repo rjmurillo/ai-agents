@@ -95,9 +95,10 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: reviewer-stats
-          # Two paths. A missing file is fine; no file at all fails the step. The
-          # publish step finds each file at its repository path or by basename, so
-          # it does not matter which root the action picks.
+          # Two paths, both tracked, so both are always present: this step fails
+          # only if the upload itself breaks. The publish step finds each file at
+          # its repository path or by basename, so it does not matter which root
+          # the action picks, and it fails loud if it finds neither.
           path: |
             .serena/memories/pr-review/pr-comment-responder-skills.md
             .project-toolkit/metrics/agent-pr-intervention.md
@@ -116,7 +117,7 @@ jobs:
     needs: update-stats
     # Run when the aggregation job failed too: the upload step ran regardless,
     # so whichever report was built still gets published.
-    if: ${{ !cancelled() && needs.update-stats.result != 'skipped' }}
+    if: ${{ needs.update-stats.result == 'success' || needs.update-stats.result == 'failure' }}
     runs-on: ubuntu-26.04-arm
     timeout-minutes: 15
     # The only job that holds write scopes: contents writes the bot branch and

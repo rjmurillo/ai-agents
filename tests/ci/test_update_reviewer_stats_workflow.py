@@ -73,8 +73,10 @@ def test_the_upload_and_the_publish_job_run_even_when_the_stats_step_fails() -> 
     steps = {s.get("name"): s for s in jobs["update-stats"]["steps"]}
     assert steps["Build agent PR intervention report"]["if"] == "${{ !cancelled() }}"
     assert steps["Upload updated stats"]["if"] == "${{ !cancelled() }}"
-    assert "!cancelled()" in jobs["publish-stats"]["if"]
-    assert "needs.update-stats.result != 'skipped'" in jobs["publish-stats"]["if"]
+    condition = jobs["publish-stats"]["if"]
+    assert "needs.update-stats.result == 'success'" in condition
+    assert "needs.update-stats.result == 'failure'" in condition
+    assert "cancelled" not in condition
 
 
 def test_neither_job_persists_checkout_credentials() -> None:

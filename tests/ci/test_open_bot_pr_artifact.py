@@ -152,7 +152,14 @@ def test_a_path_outside_the_checkout_is_a_usage_error(path: str) -> None:
 
 @pytest.mark.parametrize(
     "branch",
-    ["automation/a..b", "automation/x.lock", "automation//x", "automation/x.", "automation/a/.b"],
+    [
+        "automation/a..b",
+        "automation/x.lock",
+        "automation//x",
+        "automation/x.",
+        "automation/a/.b",
+        "automation/x.lock/y",
+    ],
 )
 def test_a_branch_name_git_would_reject_is_a_usage_error(branch: str) -> None:
     with pytest.raises(SystemExit) as exit_info:
@@ -176,3 +183,60 @@ def test_gh_pr_list_reads_stdout_only_so_a_stderr_warning_cannot_break_the_parse
     monkeypatch.setattr(subprocess, "run", fake_run)
     assert main(_args("a.md")) == 0
     assert seen["stderr"] == subprocess.PIPE
+
+
+def test_a_file_over_the_size_cap_is_refused(tmp_path: Path, checkout: Path) -> None:
+    root = _artifact(tmp_path, {_STATS: "x" * (1024 * 1024 + 1)})
+    with pytest.raises(RuntimeError, match="over"):
+        import_artifact(str(root), [_STATS])
+    assert not (checkout / _STATS).exists()
+
+
+def test_a_file_that_is_not_utf8_is_refused(tmp_path: Path, checkout: Path) -> None:
+    root = tmp_path / "artifact"
+    (root / ".serena/memories/pr-review").mkdir(parents=True)
+    (root / _STATS).write_bytes(b"\xff\xfe not utf-8 \x80")
+    with pytest.raises(RuntimeError, match="UTF-8"):
+        import_artifact(str(root), [_STATS])
+    assert not (checkout / _STATS).exists()
+
+
+def test_a_symlinked_destination_directory_is_refused_before_anything_is_created(
+    tmp_path: Path, checkout: Path
+) -> None:
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (checkout / ".serena").symlink_to(outside)
+    root = _artifact(tmp_path, {_STATS: "stats"})
+    with pytest.raises(RuntimeError, match="leaves the checkout"):
+        import_artifact(str(root), [_STATS])
+    assert list(outside.iterdir()) == []
+
+
+def test_an_io_failure_while_copying_is_reported_not_swallowed(
+    tmp_path: Path, checkout: Path
+) -> None:
+    (checkout / ".serena").write_text("a file where a directory belongs", encoding="utf-8")
+    root = _artifact(tmp_path, {_STATS: "stats"})
+    with pytest.raises(RuntimeError, match="artifact import failed"):
+        import_artifact(str(root), [_STATS])
+
+
+def test_main_fails_loud_when_the_artifact_holds_none_of_the_named_paths(
+    tmp_path: Path,
+    checkout: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _artifact(tmp_path, {"unrelated.txt": "nothing useful"})
+    calls: list[list[str]] = []
+
+    def fake_run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append(list(argv))
+        return subprocess.CompletedProcess(argv, 0, "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    assert main(_args("stats.md", artifact_dir=str(root))) == 1
+    assert "held none of the named paths" in capsys.readouterr().err
+    assert not [c for c in calls if c[0] == "gh"]
+    assert not [c for c in calls if c[:2] == ["git", "push"]]
