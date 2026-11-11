@@ -345,7 +345,8 @@ def commit_and_push(
     message = f"docs(wiki): mirror {SOURCE_DIR} from {cfg.sha}"
     commit = run_git([*ident, "commit", "--quiet", "-m", message], wiki, env)
     if commit.returncode != 0:
-        print(f"EXTERNAL: git commit failed:\n{safe(commit.stderr)}", file=sys.stderr)
+        detail = safe(redact(commit.stderr, cfg.token))
+        print(f"EXTERNAL: git commit failed:\n{detail}", file=sys.stderr)
         return EXIT_EXTERNAL
     push = run_git(["push", "--quiet", "origin", "HEAD"], wiki, env)
     if push.returncode == 0:

@@ -70,3 +70,18 @@ def symlink_or_skip(link: Path, target: Path) -> None:
         if not ON_WINDOWS:
             raise
         pytest.skip(f"cannot create symbolic links here: {exc}")
+
+
+def make_wiki(tmp_path: Path) -> Path:
+    """A bare wiki remote seeded with the hand-made Home page GitHub requires."""
+    bare = tmp_path / "wiki.git"
+    git(["init", "--bare", "-b", "main", str(bare)], tmp_path)
+    seed = tmp_path / "seed"
+    git(["clone", str(bare), str(seed)], tmp_path)
+    write(seed, "Home.md", "hand made\n")
+    write(seed, "Old-Page.md", "stale\n")
+    write(seed, "image.png", "binary-ish\n")
+    git(["add", "-A"], seed)
+    git(["commit", "-m", "seed"], seed)
+    git(["push", "origin", "HEAD:main"], seed)
+    return bare

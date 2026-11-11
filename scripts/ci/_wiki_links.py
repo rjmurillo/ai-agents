@@ -3,6 +3,9 @@
 Rewrites the links in a docs/training page for the wiki and reads the page order
 from README.md. Fenced blocks are never touched. Inline code spans are never
 rewritten, but link text may contain one, as in ``[`page.md`](page.md)``.
+Reference definitions follow the same rules as inline links: an angle bracket
+destination is unwrapped, and a definition that an image reference uses gets
+``?raw=true``.
 
 Raises ``SourceError`` for a link the wiki could not serve: a target that leaves
 the repository (lexically or through a symbolic link) or does not exist.
@@ -19,9 +22,12 @@ SOURCE_DIR = "docs/training"
 BRANCH = "main"
 SCHEME_RE = re.compile(r"^(?:[a-zA-Z][a-zA-Z0-9+.-]*:|//)")
 INLINE_LINK_RE = re.compile(r'(!?\[[^\]\n]*\]\()(<[^>\n]+>|[^)\s]+)((?:\s+"[^"\n]*")?\))')
-REF_LINK_RE = re.compile(r"^(\s{0,3}\[[^\]\n]+\]:\s+)(\S+)")
+REF_LINK_RE = re.compile(
+    r"^(?P<pre>\s{0,3}\[(?P<label>[^\]\n]+)\]:\s+)(?P<target>(?:<[^>\n]+>|\S+))"
+)
+IMAGE_REF_RE = re.compile(r"!\[(?P<alt>[^\]\n]*)\](?:\[(?P<label>[^\]\n]*)\])?(?!\()")
 CODE_SPAN_RE = re.compile(r"(`+[^`\n]*`+)")
-FENCE_RE = re.compile(r"^\s{0,3}(```|~~~)")
+FENCE_RE = re.compile(r"^ {0,3}(?P<mark>`{3,}|~{3,})(?P<info>.*)$")
 
 
 def safe(text: str) -> str:
@@ -34,15 +40,27 @@ class SourceError(Exception):
 
 
 def split_fenced(text: str) -> list[tuple[str, bool]]:
-    """Return (line, in_fence) pairs. Fence delimiter lines count as fenced."""
+    """Return (line, in_fence) pairs. Fence delimiter lines count as fenced.
+
+    A fence opens with three or more backticks or tildes. It closes only on the
+    same character, at least as many of them, and nothing after, so a four
+    backtick wrapper can hold a three backtick example. An unclosed fence runs
+    to the end of the text.
+    """
     out: list[tuple[str, bool]] = []
-    fenced = False
+    opened = ""
     for line in text.split("\n"):
-        if FENCE_RE.match(line):
-            out.append((line, True))
-            fenced = not fenced
-        else:
-            out.append((line, fenced))
+        found = FENCE_RE.match(line)
+        if not opened:
+            if found and not (found.group("mark")[0] == "`" and "`" in found.group("info")):
+                opened = found.group("mark")
+            out.append((line, bool(opened)))
+            continue
+        out.append((line, True))
+        if found and not found.group("info").strip():
+            mark = found.group("mark")
+            if mark[0] == opened[0] and len(mark) >= len(opened):
+                opened = ""
     return out
 
 
@@ -94,24 +112,47 @@ def rewrite_target(
     return url + hash_ + frag
 
 
+def label_key(label: str) -> str:
+    """Normalize a reference label the way Markdown matches it."""
+    return " ".join(label.split()).casefold()
+
+
+def image_labels(text: str) -> set[str]:
+    """Labels that an image reference uses: ``![alt][label]``, ``![label][]``, ``![label]``."""
+    found: set[str] = set()
+    for line, fenced in split_fenced(text):
+        if fenced:
+            continue
+        masked, _ = mask_code(line)
+        for match in IMAGE_REF_RE.finditer(masked):
+            found.add(label_key(match.group("label") or match.group("alt")))
+    return found
+
+
 def rewrite_links(
     text: str, *, repo_root: Path, repo_url: str, published: Mapping[str, str]
 ) -> str:
     """Rewrite links outside fenced blocks and inline code spans."""
+    images = image_labels(text)
 
     def one(target: str, image: bool) -> str:
         return rewrite_target(
             target, repo_root=repo_root, repo_url=repo_url, published=published, image=image
         )
 
+    def rewrite_dest(raw: str, image: bool) -> str:
+        """Rewrite a destination, keeping its angle brackets when it had them."""
+        angle = raw.startswith("<")
+        new = one(raw[1:-1] if angle else raw, image)
+        return f"<{new}>" if angle else new
+
     def inline(match: re.Match[str]) -> str:
         opener, raw, closer = match.groups()
-        angle = raw.startswith("<")
-        new = one(raw[1:-1] if angle else raw, opener.startswith("!"))
-        return opener + (f"<{new}>" if angle else new) + closer
+        return opener + rewrite_dest(raw, opener.startswith("!")) + closer
 
     def ref(match: re.Match[str]) -> str:
-        return match.group(1) + one(match.group(2), False)
+        image = label_key(match.group("label")) in images
+        return match.group("pre") + rewrite_dest(match.group("target"), image)
 
     lines = []
     for line, fenced in split_fenced(text):
@@ -132,7 +173,7 @@ def readme_page_order(readme: str) -> list[str]:
             continue
         masked, _ = mask_code(line)
         targets = [m.group(2).strip("<>") for m in INLINE_LINK_RE.finditer(masked)]
-        targets += [m.group(2) for m in REF_LINK_RE.finditer(masked)]
+        targets += [m.group("target").strip("<>") for m in REF_LINK_RE.finditer(masked)]
         for target in targets:
             if SCHEME_RE.match(target) or target.startswith("#"):
                 continue

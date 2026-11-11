@@ -180,3 +180,107 @@ def test_symlink_helper_really_creates_a_link(tmp_path: Path) -> None:
     symlink_or_skip(link, target)
     assert link.is_symlink()
     assert link.read_text(encoding="utf-8") == "x"
+
+
+# --- reference definitions ---------------------------------------------------------
+
+
+def test_angle_bracket_reference_definition_is_unwrapped_and_rewritten(repo: Path) -> None:
+    assert rewrite(repo, "[ref]: <first-page.md>") == "[ref]: <first-page>"
+
+
+def test_angle_bracket_reference_to_a_missing_file_names_the_path_not_the_brackets(
+    repo: Path,
+) -> None:
+    with pytest.raises(pw.SourceError, match=r"does not exist: gone\.md "):
+        rewrite(repo, "[ref]: <gone.md>")
+
+
+def test_angle_bracket_reference_may_hold_a_space(repo: Path) -> None:
+    write(repo, "docs/training/my file.txt", "x")
+    out = rewrite(repo, "[ref]: <my file.txt>")
+    assert out == f"[ref]: <{BLOB}/docs/training/my file.txt>"
+
+
+def test_index_entry_written_as_an_angle_bracket_reference_is_not_an_orphan(repo: Path) -> None:
+    write(
+        repo,
+        "docs/training/README.md",
+        '# T\n\n[a]: <first-page.md>\n\n[b]: <second-page.md> "two"\n',
+    )
+    assert [name for _t, name in pw.build_plan(repo / pw.SOURCE_DIR, repo, REPO_URL).order] == [
+        "first-page",
+        "second-page",
+    ]
+
+
+@pytest.mark.parametrize("usage", ["![alt][img]", "![img][]", "![img]", "![Img  ][IMG]"])
+def test_reference_definition_used_by_an_image_gets_raw_suffix(repo: Path, usage: str) -> None:
+    write(repo, "docs/training/shot.png", "x")
+    out = rewrite(repo, f"{usage}\n\n[img]: shot.png")
+    assert out.endswith(f"[img]: {BLOB}/docs/training/shot.png?raw=true")
+
+
+def test_reference_definition_used_only_by_a_text_link_gets_no_raw_suffix(repo: Path) -> None:
+    write(repo, "docs/training/shot.png", "x")
+    out = rewrite(repo, "[see the shot][img]\n\n[img]: shot.png")
+    assert out.endswith(f"[img]: {BLOB}/docs/training/shot.png")
+
+
+def test_inline_image_does_not_mark_a_same_named_reference_as_an_image(repo: Path) -> None:
+    write(repo, "docs/training/shot.png", "x")
+    out = rewrite(repo, "![img](shot.png) and [img]\n\n[img]: shot.png")
+    assert out.endswith(f"[img]: {BLOB}/docs/training/shot.png")
+
+
+def test_reference_definition_title_is_kept(repo: Path) -> None:
+    assert rewrite(repo, '[ref]: first-page.md "tip"') == '[ref]: first-page "tip"'
+
+
+# --- fences ------------------------------------------------------------------------
+
+
+def fenced_flags(text: str) -> list[bool]:
+    return [flag for _line, flag in pw.split_fenced(text)]
+
+
+def test_four_backtick_wrapper_holds_a_three_backtick_example() -> None:
+    text = "````md\n```bash\n[a](x.md)\n```\n[b](y.md)\n````\nafter"
+    assert fenced_flags(text) == [True, True, True, True, True, True, False]
+
+
+def test_links_after_a_nested_example_stay_inside_the_wrapper(repo: Path) -> None:
+    text = "````md\n```bash\n[a](gone.md)\n```\n[b](gone.md)\n````\n[c](first-page.md)"
+    out = rewrite(repo, text)
+    assert out.endswith("\n[c](first-page)")
+    assert out.count("gone.md") == 2
+
+
+def test_tilde_fence_is_closed_only_by_tildes() -> None:
+    assert fenced_flags("~~~\n```\n~~~\nafter") == [True, True, True, False]
+
+
+def test_backtick_fence_is_not_closed_by_tildes() -> None:
+    assert fenced_flags("```\n~~~\ntext\n```\nafter") == [True, True, True, True, False]
+
+
+def test_closing_fence_must_be_as_long_as_the_opening_one() -> None:
+    assert fenced_flags("````\n```\nstill in\n````\nafter") == [True, True, True, True, False]
+
+
+def test_closing_fence_may_not_carry_an_info_string() -> None:
+    assert fenced_flags("```\n```bash\nstill in\n```\nafter") == [True, True, True, True, False]
+
+
+def test_unclosed_fence_runs_to_the_end() -> None:
+    assert fenced_flags("```\na\nb") == [True, True, True]
+
+
+def test_backtick_fence_info_string_may_not_hold_a_backtick() -> None:
+    """``` a `b` ``` on one line is inline code, not a fence opener."""
+    assert fenced_flags("``` a `b` ```\nnext") == [False, False]
+
+
+def test_fence_may_be_indented_up_to_three_spaces_only() -> None:
+    assert fenced_flags("   ```\nin\n   ```\nafter") == [True, True, True, False]
+    assert fenced_flags("    ```\nnot a fence") == [False, False]

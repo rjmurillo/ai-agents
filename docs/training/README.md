@@ -78,7 +78,7 @@ These rules apply to every page. The publisher enforces the ones marked (enforce
 
 ## How the mirror works
 
-A workflow, [`publish-wiki.yml`](../../.github/workflows/publish-wiki.yml), runs on a push to `main` that changes `docs/training/**`. It calls [`scripts/ci/publish_wiki.py`](../../scripts/ci/publish_wiki.py). The script:
+A workflow, [`publish-wiki.yml`](../../.github/workflows/publish-wiki.yml), runs on a push to `main` that changes `docs/training/`, the two publisher scripts, or the workflow file. It calls [`scripts/ci/publish_wiki.py`](../../scripts/ci/publish_wiki.py). The script:
 
 - Turns this file into the wiki `Home` page, with a banner that says the wiki is a mirror.
 - Publishes every other page under its file name without `.md`.

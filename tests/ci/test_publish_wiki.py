@@ -30,6 +30,7 @@ from tests.ci.publish_wiki_helpers import (
     TREE,
     git,
     make_repo,
+    make_wiki,
     symlink_or_skip,
     write,
 )
@@ -42,18 +43,7 @@ def repo(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def wiki(tmp_path: Path) -> Path:
-    """A bare wiki remote seeded with the hand-made Home page GitHub requires."""
-    bare = tmp_path / "wiki.git"
-    git(["init", "--bare", "-b", "main", str(bare)], tmp_path)
-    seed = tmp_path / "seed"
-    git(["clone", str(bare), str(seed)], tmp_path)
-    write(seed, "Home.md", "hand made\n")
-    write(seed, "Old-Page.md", "stale\n")
-    write(seed, "image.png", "binary-ish\n")
-    git(["add", "-A"], seed)
-    git(["commit", "-m", "seed"], seed)
-    git(["push", "origin", "HEAD:main"], seed)
-    return bare
+    return make_wiki(tmp_path)
 
 
 def run_main(repo: Path, wiki: Path | str, *extra: str, env: dict[str, str] | None = None) -> int:
