@@ -87,7 +87,7 @@ If the agent should be distributed as part of a plugin, it is automatically incl
 
 ## Modifying Existing Agents
 
-Edit the shared template in `templates/agents/`, then run `uv run python build/scripts/build_all.py`. Do not edit generated files in `src/claude/agents/`, `.claude/agents/`, `src/vs-code-agents/`, or `src/copilot-cli/` directly. Every agent under `src/claude/agents/` is rendered from a template. For a worked example of the template-first flow, see [Change a rule and a skill through templates](training/contributing/template-first.md).
+Edit the shared template in `templates/agents/`, then run `uv run python build/scripts/build_all.py`. Do not edit generated files in `src/claude/agents/`, `.claude/agents/`, `src/vs-code-agents/`, or `src/copilot-cli/` directly. Every agent under `src/claude/agents/` is rendered from a template. For a worked example of the template-first flow, see [Change a rule and a skill through templates](training/template-first-authoring.md).
 
 ## Creating Skills
 

@@ -9,7 +9,7 @@ Root map: what to edit, what is generated, what to skip. `AGENTS.md` owns protoc
 
 ## Entry points
 
-- New to the template-first flow: [Change a rule and a skill through templates](training/contributing/template-first.md).
+- New to the template-first flow: [Change a rule and a skill through templates](training/template-first-authoring.md).
 - `AGENTS.md`, `CLAUDE.md` (root): protocol, gates, boundaries, Task-tool and `/autoplan` routing. Read first every session.
 - `.claude/rules/*.md`: read the ones whose `paths:` glob matches; edit `templates/rules/<name>.md`, never the rendered copy.
 

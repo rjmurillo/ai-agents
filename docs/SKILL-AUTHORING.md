@@ -6,7 +6,7 @@ Based on the analysis in `.project-toolkit/analysis/claude-code-skill-frontmatte
 
 ## Frontmatter Schema
 
-Every skill lives in a `SKILL.md` file inside a directory under `.claude/skills/`. The file starts with YAML frontmatter. In this repository you do not edit that `SKILL.md`. It is rendered from `templates/skills/<name>.SKILL.md.tmpl`, and `.claude/skills/<name>` is a symlink to `src/claude/skills/<name>/`. Edit the template, then run `uv run python build/scripts/build_all.py`. Scripts, references, and tests in the skill directory are hand-edited in `src/claude/skills/<name>/`. For a worked example, see [Change a rule and a skill through templates](training/contributing/template-first.md).
+Every skill lives in a `SKILL.md` file inside a directory under `.claude/skills/`. The file starts with YAML frontmatter. In this repository you do not edit that `SKILL.md`. It is rendered from `templates/skills/<name>.SKILL.md.tmpl`, and `.claude/skills/<name>` is a symlink to `src/claude/skills/<name>/`. Edit the template, then run `uv run python build/scripts/build_all.py`. Scripts, references, and tests in the skill directory are hand-edited in `src/claude/skills/<name>/`. For a worked example, see [Change a rule and a skill through templates](training/template-first-authoring.md).
 
 ### Required Fields
 
