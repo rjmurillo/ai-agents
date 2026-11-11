@@ -44,8 +44,11 @@ def _iv(
     }
 
 
-def _run(interventions: list[dict[str, Any]], dispositions: dict[str, Any] | None = None):
-    return rc.cluster_interventions(interventions, dispositions, now=NOW)
+def _run(
+    interventions: list[dict[str, Any]], dispositions: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    report: dict[str, Any] = rc.cluster_interventions(interventions, dispositions, now=NOW)
+    return report
 
 
 def _keys(report: dict[str, Any]) -> set[tuple[str, str]]:
@@ -55,8 +58,9 @@ def _keys(report: dict[str, Any]) -> set[tuple[str, str]]:
 def test_constants_match_the_written_definition() -> None:
     assert rc.THRESHOLD == 3
     assert rc.WINDOW_DAYS == 90
-    assert "THRESHOLD`` is 3" in rc.__doc__
-    assert "trailing ``WINDOW_DAYS`` days" in rc.__doc__
+    doc = rc.__doc__ or ""
+    assert "THRESHOLD`` is 3" in doc
+    assert "trailing ``WINDOW_DAYS`` days" in doc
 
 
 @pytest.mark.parametrize(

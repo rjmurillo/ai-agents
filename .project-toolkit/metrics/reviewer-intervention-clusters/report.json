@@ -1,0 +1,2329 @@
+{
+  "as_of": "2026-11-11",
+  "cluster_count": 36,
+  "clusters": [
+    {
+      "count": 52,
+      "evidence": [
+        {
+          "pr": 6273,
+          "threads": [
+            "PRRT_kwDOQoWRls6rNbLl",
+            "PRRT_kwDOQoWRls6rNbLt"
+          ]
+        },
+        {
+          "pr": 6278,
+          "threads": [
+            "PRRT_kwDOQoWRls6rOpol"
+          ]
+        },
+        {
+          "pr": 6329,
+          "threads": [
+            "PRRT_kwDOQoWRls6rZAw5"
+          ]
+        },
+        {
+          "pr": 6331,
+          "threads": [
+            "PRRT_kwDOQoWRls6rZq81",
+            "PRRT_kwDOQoWRls6rZq8w"
+          ]
+        },
+        {
+          "pr": 6333,
+          "threads": [
+            "PRRT_kwDOQoWRls6rZ-O1",
+            "PRRT_kwDOQoWRls6rZ-O2",
+            "PRRT_kwDOQoWRls6rZ-O6",
+            "PRRT_kwDOQoWRls6rZ-PC",
+            "PRRT_kwDOQoWRls6rZ-PG"
+          ]
+        },
+        {
+          "pr": 6337,
+          "threads": [
+            "PRRT_kwDOQoWRls6rarpx"
+          ]
+        },
+        {
+          "pr": 6341,
+          "threads": [
+            "PRRT_kwDOQoWRls6rbFm2"
+          ]
+        },
+        {
+          "pr": 6347,
+          "threads": [
+            "PRRT_kwDOQoWRls6rcynE"
+          ]
+        },
+        {
+          "pr": 6353,
+          "threads": [
+            "PRRT_kwDOQoWRls6rdbN_",
+            "PRRT_kwDOQoWRls6rdbOF"
+          ]
+        },
+        {
+          "pr": 6354,
+          "threads": [
+            "PRRT_kwDOQoWRls6rdtXZ",
+            "PRRT_kwDOQoWRls6rdtXe"
+          ]
+        },
+        {
+          "pr": 6360,
+          "threads": [
+            "PRRT_kwDOQoWRls6re9JV",
+            "PRRT_kwDOQoWRls6re9Jp"
+          ]
+        },
+        {
+          "pr": 6392,
+          "threads": [
+            "PRRT_kwDOQoWRls6rsoSO",
+            "PRRT_kwDOQoWRls6rsoSR",
+            "PRRT_kwDOQoWRls6rsoST"
+          ]
+        },
+        {
+          "pr": 6393,
+          "threads": [
+            "PRRT_kwDOQoWRls6rsyr-"
+          ]
+        },
+        {
+          "pr": 6397,
+          "threads": [
+            "PRRT_kwDOQoWRls6rs4Eh",
+            "PRRT_kwDOQoWRls6rs4Ek",
+            "PRRT_kwDOQoWRls6rs4En"
+          ]
+        },
+        {
+          "pr": 6417,
+          "threads": [
+            "PRRT_kwDOQoWRls6ruEz4",
+            "PRRT_kwDOQoWRls6ruEze",
+            "PRRT_kwDOQoWRls6ruEzh",
+            "PRRT_kwDOQoWRls6ruEzj",
+            "PRRT_kwDOQoWRls6ruEzm"
+          ]
+        },
+        {
+          "pr": 6419,
+          "threads": [
+            "PRRT_kwDOQoWRls6ruG82",
+            "PRRT_kwDOQoWRls6ruG88",
+            "PRRT_kwDOQoWRls6ruG8s",
+            "PRRT_kwDOQoWRls6ruG9K"
+          ]
+        },
+        {
+          "pr": 6420,
+          "threads": [
+            "PRRT_kwDOQoWRls6ruYpH"
+          ]
+        },
+        {
+          "pr": 6423,
+          "threads": [
+            "PRRT_kwDOQoWRls6ruwLM",
+            "PRRT_kwDOQoWRls6ruwLQ"
+          ]
+        },
+        {
+          "pr": 6450,
+          "threads": [
+            "PRRT_kwDOQoWRls6ry1G-",
+            "PRRT_kwDOQoWRls6ry1G3",
+            "PRRT_kwDOQoWRls6ry1Gq"
+          ]
+        },
+        {
+          "pr": 6453,
+          "threads": [
+            "PRRT_kwDOQoWRls6rzDps",
+            "PRRT_kwDOQoWRls6rzDpy"
+          ]
+        },
+        {
+          "pr": 6458,
+          "threads": [
+            "PRRT_kwDOQoWRls6rzj2O"
+          ]
+        },
+        {
+          "pr": 6461,
+          "threads": [
+            "PRRT_kwDOQoWRls6r0_wB",
+            "PRRT_kwDOQoWRls6r0_wD"
+          ]
+        },
+        {
+          "pr": 6464,
+          "threads": [
+            "PRRT_kwDOQoWRls6r1Rg2",
+            "PRRT_kwDOQoWRls6r1Rg4",
+            "PRRT_kwDOQoWRls6r1Rgy",
+            "PRRT_kwDOQoWRls6r1RhA",
+            "PRRT_kwDOQoWRls6r1RhD"
+          ]
+        },
+        {
+          "pr": 6476,
+          "threads": [
+            "PRRT_kwDOQoWRls6r2qKA",
+            "PRRT_kwDOQoWRls6r2qKG",
+            "PRRT_kwDOQoWRls6r2qKM",
+            "PRRT_kwDOQoWRls6r2qKS",
+            "PRRT_kwDOQoWRls6r2qKW",
+            "PRRT_kwDOQoWRls6r2qKY"
+          ]
+        },
+        {
+          "pr": 6588,
+          "threads": [
+            "PRRT_kwDOQoWRls6sKuMp",
+            "PRRT_kwDOQoWRls6sKuMs",
+            "PRRT_kwDOQoWRls6sKuMv",
+            "PRRT_kwDOQoWRls6sKuMy"
+          ]
+        },
+        {
+          "pr": 6589,
+          "threads": [
+            "PRRT_kwDOQoWRls6sK9p0",
+            "PRRT_kwDOQoWRls6sK9p4",
+            "PRRT_kwDOQoWRls6sK9p6",
+            "PRRT_kwDOQoWRls6sK9p8",
+            "PRRT_kwDOQoWRls6sK9p_"
+          ]
+        },
+        {
+          "pr": 6592,
+          "threads": [
+            "PRRT_kwDOQoWRls6sLNiN",
+            "PRRT_kwDOQoWRls6sLNiR",
+            "PRRT_kwDOQoWRls6sLNiS",
+            "PRRT_kwDOQoWRls6sLNiW",
+            "PRRT_kwDOQoWRls6sLNiY"
+          ]
+        },
+        {
+          "pr": 6595,
+          "threads": [
+            "PRRT_kwDOQoWRls6sLZ9L"
+          ]
+        },
+        {
+          "pr": 6597,
+          "threads": [
+            "PRRT_kwDOQoWRls6sLpPN"
+          ]
+        },
+        {
+          "pr": 6608,
+          "threads": [
+            "PRRT_kwDOQoWRls6sYqn6",
+            "PRRT_kwDOQoWRls6sYqoD"
+          ]
+        },
+        {
+          "pr": 6613,
+          "threads": [
+            "PRRT_kwDOQoWRls6scRKQ",
+            "PRRT_kwDOQoWRls6scRKV",
+            "PRRT_kwDOQoWRls6scRKk",
+            "PRRT_kwDOQoWRls6scRKn",
+            "PRRT_kwDOQoWRls6scRKt"
+          ]
+        },
+        {
+          "pr": 6619,
+          "threads": [
+            "PRRT_kwDOQoWRls6sfnYR",
+            "PRRT_kwDOQoWRls6sfnYb",
+            "PRRT_kwDOQoWRls6sfnYf",
+            "PRRT_kwDOQoWRls6sfnYr"
+          ]
+        },
+        {
+          "pr": 6620,
+          "threads": [
+            "PRRT_kwDOQoWRls6sfn13",
+            "PRRT_kwDOQoWRls6sfn2C",
+            "PRRT_kwDOQoWRls6sfn2J",
+            "PRRT_kwDOQoWRls6sfn2S"
+          ]
+        },
+        {
+          "pr": 6642,
+          "threads": [
+            "PRRT_kwDOQoWRls6ti3H8"
+          ]
+        },
+        {
+          "pr": 6645,
+          "threads": [
+            "PRRT_kwDOQoWRls6tjv6k"
+          ]
+        },
+        {
+          "pr": 6678,
+          "threads": [
+            "PRRT_kwDOQoWRls6tnZqx"
+          ]
+        },
+        {
+          "pr": 6908,
+          "threads": [
+            "PRRT_kwDOQoWRls6v3R-s"
+          ]
+        },
+        {
+          "pr": 6911,
+          "threads": [
+            "PRRT_kwDOQoWRls6v5cuU"
+          ]
+        },
+        {
+          "pr": 7000,
+          "threads": [
+            "PRRT_kwDOQoWRls6yOKCT",
+            "PRRT_kwDOQoWRls6yOKCV"
+          ]
+        },
+        {
+          "pr": 7001,
+          "threads": [
+            "PRRT_kwDOQoWRls6yOKKF",
+            "PRRT_kwDOQoWRls6yOKKL"
+          ]
+        },
+        {
+          "pr": 7012,
+          "threads": [
+            "PRRT_kwDOQoWRls6ySp9r"
+          ]
+        },
+        {
+          "pr": 7013,
+          "threads": [
+            "PRRT_kwDOQoWRls6ySsuL",
+            "PRRT_kwDOQoWRls6ySsuV"
+          ]
+        },
+        {
+          "pr": 7081,
+          "threads": [
+            "PRRT_kwDOQoWRls6zokhO"
+          ]
+        },
+        {
+          "pr": 7092,
+          "threads": [
+            "PRRT_kwDOQoWRls6z0-dG"
+          ]
+        },
+        {
+          "pr": 7124,
+          "threads": [
+            "PRRT_kwDOQoWRls60jLed"
+          ]
+        },
+        {
+          "pr": 7145,
+          "threads": [
+            "PRRT_kwDOQoWRls60y-KA",
+            "PRRT_kwDOQoWRls60y-KC"
+          ]
+        },
+        {
+          "pr": 7169,
+          "threads": [
+            "PRRT_kwDOQoWRls61hX_O"
+          ]
+        },
+        {
+          "pr": 7181,
+          "threads": [
+            "PRRT_kwDOQoWRls61igTB"
+          ]
+        },
+        {
+          "pr": 7191,
+          "threads": [
+            "PRRT_kwDOQoWRls61jsda",
+            "PRRT_kwDOQoWRls61jsdb"
+          ]
+        },
+        {
+          "pr": 7233,
+          "threads": [
+            "PRRT_kwDOQoWRls61xU7B",
+            "PRRT_kwDOQoWRls61xVbz"
+          ]
+        },
+        {
+          "pr": 7251,
+          "threads": [
+            "PRRT_kwDOQoWRls61-nNP"
+          ]
+        },
+        {
+          "pr": 7255,
+          "threads": [
+            "PRRT_kwDOQoWRls62ALZK"
+          ]
+        }
+      ],
+      "key": "templates/skills",
+      "signal": "area",
+      "unit": "pull_request"
+    },
+    {
+      "count": 33,
+      "evidence": [
+        {
+          "pr": 6288,
+          "threads": [
+            "PRRT_kwDOQoWRls6rTqAX",
+            "PRRT_kwDOQoWRls6rTqAb",
+            "PRRT_kwDOQoWRls6rTqAd",
+            "PRRT_kwDOQoWRls6rTqAh"
+          ]
+        },
+        {
+          "pr": 6359,
+          "threads": [
+            "PRRT_kwDOQoWRls6re4YL"
+          ]
+        },
+        {
+          "pr": 6362,
+          "threads": [
+            "PRRT_kwDOQoWRls6rfTLN",
+            "PRRT_kwDOQoWRls6rfTLX"
+          ]
+        },
+        {
+          "pr": 6364,
+          "threads": [
+            "PRRT_kwDOQoWRls6rfeMH"
+          ]
+        },
+        {
+          "pr": 6368,
+          "threads": [
+            "PRRT_kwDOQoWRls6rfpx6"
+          ]
+        },
+        {
+          "pr": 6374,
+          "threads": [
+            "PRRT_kwDOQoWRls6rg9I1",
+            "PRRT_kwDOQoWRls6rg9Ix"
+          ]
+        },
+        {
+          "pr": 6428,
+          "threads": [
+            "PRRT_kwDOQoWRls6rvw8z"
+          ]
+        },
+        {
+          "pr": 6457,
+          "threads": [
+            "PRRT_kwDOQoWRls6rzYE-",
+            "PRRT_kwDOQoWRls6rzYFG",
+            "PRRT_kwDOQoWRls6rzYFT"
+          ]
+        },
+        {
+          "pr": 6461,
+          "threads": [
+            "PRRT_kwDOQoWRls6r0_vo",
+            "PRRT_kwDOQoWRls6r0_vp"
+          ]
+        },
+        {
+          "pr": 6462,
+          "threads": [
+            "PRRT_kwDOQoWRls6r1I8p"
+          ]
+        },
+        {
+          "pr": 6463,
+          "threads": [
+            "PRRT_kwDOQoWRls6r1O6G"
+          ]
+        },
+        {
+          "pr": 6484,
+          "threads": [
+            "PRRT_kwDOQoWRls6r9uO4",
+            "PRRT_kwDOQoWRls6r9uO8",
+            "PRRT_kwDOQoWRls6r9uOn",
+            "PRRT_kwDOQoWRls6r9uOs",
+            "PRRT_kwDOQoWRls6r9uOu"
+          ]
+        },
+        {
+          "pr": 6485,
+          "threads": [
+            "PRRT_kwDOQoWRls6r9df9",
+            "PRRT_kwDOQoWRls6r9dfz",
+            "PRRT_kwDOQoWRls6r9dgC",
+            "PRRT_kwDOQoWRls6r9dgP",
+            "PRRT_kwDOQoWRls6r9dgV"
+          ]
+        },
+        {
+          "pr": 6492,
+          "threads": [
+            "PRRT_kwDOQoWRls6r96Iq",
+            "PRRT_kwDOQoWRls6r96Iu"
+          ]
+        },
+        {
+          "pr": 6494,
+          "threads": [
+            "PRRT_kwDOQoWRls6r-DsQ",
+            "PRRT_kwDOQoWRls6r-DsY",
+            "PRRT_kwDOQoWRls6r-Dsh",
+            "PRRT_kwDOQoWRls6r-Dsn",
+            "PRRT_kwDOQoWRls6r-Dst"
+          ]
+        },
+        {
+          "pr": 6584,
+          "threads": [
+            "PRRT_kwDOQoWRls6sKZMM"
+          ]
+        },
+        {
+          "pr": 6586,
+          "threads": [
+            "PRRT_kwDOQoWRls6sKfaU",
+            "PRRT_kwDOQoWRls6sKfaY",
+            "PRRT_kwDOQoWRls6sKfad",
+            "PRRT_kwDOQoWRls6sKfam"
+          ]
+        },
+        {
+          "pr": 6587,
+          "threads": [
+            "PRRT_kwDOQoWRls6sKjhl",
+            "PRRT_kwDOQoWRls6sKjhq"
+          ]
+        },
+        {
+          "pr": 6591,
+          "threads": [
+            "PRRT_kwDOQoWRls6sLDIE"
+          ]
+        },
+        {
+          "pr": 6623,
+          "threads": [
+            "PRRT_kwDOQoWRls6siIvm",
+            "PRRT_kwDOQoWRls6siIvy"
+          ]
+        },
+        {
+          "pr": 6693,
+          "threads": [
+            "PRRT_kwDOQoWRls6tn81b"
+          ]
+        },
+        {
+          "pr": 6694,
+          "threads": [
+            "PRRT_kwDOQoWRls6tn-YF"
+          ]
+        },
+        {
+          "pr": 6695,
+          "threads": [
+            "PRRT_kwDOQoWRls6toAdK"
+          ]
+        },
+        {
+          "pr": 6870,
+          "threads": [
+            "PRRT_kwDOQoWRls6voCbO"
+          ]
+        },
+        {
+          "pr": 6873,
+          "threads": [
+            "PRRT_kwDOQoWRls6voHSW"
+          ]
+        },
+        {
+          "pr": 6875,
+          "threads": [
+            "PRRT_kwDOQoWRls6voXiy"
+          ]
+        },
+        {
+          "pr": 6886,
+          "threads": [
+            "PRRT_kwDOQoWRls6vwyz8"
+          ]
+        },
+        {
+          "pr": 6897,
+          "threads": [
+            "PRRT_kwDOQoWRls6v1QzL"
+          ]
+        },
+        {
+          "pr": 6899,
+          "threads": [
+            "PRRT_kwDOQoWRls6v1t6u"
+          ]
+        },
+        {
+          "pr": 7009,
+          "threads": [
+            "PRRT_kwDOQoWRls6ySUe9"
+          ]
+        },
+        {
+          "pr": 7117,
+          "threads": [
+            "PRRT_kwDOQoWRls60jANj"
+          ]
+        },
+        {
+          "pr": 7138,
+          "threads": [
+            "PRRT_kwDOQoWRls60yiCy"
+          ]
+        },
+        {
+          "pr": 7168,
+          "threads": [
+            "PRRT_kwDOQoWRls61hWBU"
+          ]
+        }
+      ],
+      "key": "scripts/validation",
+      "signal": "area",
+      "unit": "pull_request"
+    },
+    {
+      "count": 16,
+      "evidence": [
+        {
+          "pr": 6278,
+          "threads": [
+            "PRRT_kwDOQoWRls6rOpoj"
+          ]
+        },
+        {
+          "pr": 6332,
+          "threads": [
+            "PRRT_kwDOQoWRls6rZ7sI"
+          ]
+        },
+        {
+          "pr": 6370,
+          "threads": [
+            "PRRT_kwDOQoWRls6rf7OZ",
+            "PRRT_kwDOQoWRls6rf7Od"
+          ]
+        },
+        {
+          "pr": 6373,
+          "threads": [
+            "PRRT_kwDOQoWRls6rgrdu",
+            "PRRT_kwDOQoWRls6rgrdz"
+          ]
+        },
+        {
+          "pr": 6375,
+          "threads": [
+            "PRRT_kwDOQoWRls6rhDUU",
+            "PRRT_kwDOQoWRls6rhDUd",
+            "PRRT_kwDOQoWRls6rhDUf"
+          ]
+        },
+        {
+          "pr": 6376,
+          "threads": [
+            "PRRT_kwDOQoWRls6rhK5A",
+            "PRRT_kwDOQoWRls6rhK5H",
+            "PRRT_kwDOQoWRls6rhK5N",
+            "PRRT_kwDOQoWRls6rhK5U"
+          ]
+        },
+        {
+          "pr": 6390,
+          "threads": [
+            "PRRT_kwDOQoWRls6rsobu",
+            "PRRT_kwDOQoWRls6rsobv"
+          ]
+        },
+        {
+          "pr": 6420,
+          "threads": [
+            "PRRT_kwDOQoWRls6ruYpE"
+          ]
+        },
+        {
+          "pr": 6461,
+          "threads": [
+            "PRRT_kwDOQoWRls6r0_wJ"
+          ]
+        },
+        {
+          "pr": 6462,
+          "threads": [
+            "PRRT_kwDOQoWRls6r1I8j"
+          ]
+        },
+        {
+          "pr": 6482,
+          "threads": [
+            "PRRT_kwDOQoWRls6r8pfL",
+            "PRRT_kwDOQoWRls6r8pfQ",
+            "PRRT_kwDOQoWRls6r8pfU"
+          ]
+        },
+        {
+          "pr": 6591,
+          "threads": [
+            "PRRT_kwDOQoWRls6sLDH-"
+          ]
+        },
+        {
+          "pr": 6668,
+          "threads": [
+            "PRRT_kwDOQoWRls6tnMOB"
+          ]
+        },
+        {
+          "pr": 6687,
+          "threads": [
+            "PRRT_kwDOQoWRls6tnqvr"
+          ]
+        },
+        {
+          "pr": 7134,
+          "threads": [
+            "PRRT_kwDOQoWRls60xUun"
+          ]
+        },
+        {
+          "pr": 7242,
+          "threads": [
+            "PRRT_kwDOQoWRls61yUV0"
+          ]
+        }
+      ],
+      "key": "templates/rules",
+      "signal": "area",
+      "unit": "pull_request"
+    },
+    {
+      "count": 14,
+      "evidence": [
+        {
+          "pr": 6264,
+          "threads": [
+            "PRRT_kwDOQoWRls6rJ9fT",
+            "PRRT_kwDOQoWRls6rJqIY",
+            "PRRT_kwDOQoWRls6rJqIb"
+          ]
+        },
+        {
+          "pr": 6271,
+          "threads": [
+            "PRRT_kwDOQoWRls6rK0K7",
+            "PRRT_kwDOQoWRls6rKv69",
+            "PRRT_kwDOQoWRls6rKv7C",
+            "PRRT_kwDOQoWRls6rKvsl",
+            "PRRT_kwDOQoWRls6rKvst",
+            "PRRT_kwDOQoWRls6rKvsu"
+          ]
+        },
+        {
+          "pr": 6428,
+          "threads": [
+            "PRRT_kwDOQoWRls6rvw8s",
+            "PRRT_kwDOQoWRls6rvw8u"
+          ]
+        },
+        {
+          "pr": 6441,
+          "threads": [
+            "PRRT_kwDOQoWRls6rw6dl",
+            "PRRT_kwDOQoWRls6rw6dn"
+          ]
+        },
+        {
+          "pr": 6592,
+          "threads": [
+            "PRRT_kwDOQoWRls6sLNib"
+          ]
+        },
+        {
+          "pr": 6623,
+          "threads": [
+            "PRRT_kwDOQoWRls6siIvs"
+          ]
+        },
+        {
+          "pr": 6696,
+          "threads": [
+            "PRRT_kwDOQoWRls6toCZC"
+          ]
+        },
+        {
+          "pr": 6915,
+          "threads": [
+            "PRRT_kwDOQoWRls6v6j-p",
+            "PRRT_kwDOQoWRls6v6j-r",
+            "PRRT_kwDOQoWRls6v6j9l",
+            "PRRT_kwDOQoWRls6v6j9u"
+          ]
+        },
+        {
+          "pr": 7080,
+          "threads": [
+            "PRRT_kwDOQoWRls6zoQUo"
+          ]
+        },
+        {
+          "pr": 7092,
+          "threads": [
+            "PRRT_kwDOQoWRls6z0-XU"
+          ]
+        },
+        {
+          "pr": 7129,
+          "threads": [
+            "PRRT_kwDOQoWRls60mLJX"
+          ]
+        },
+        {
+          "pr": 7168,
+          "threads": [
+            "PRRT_kwDOQoWRls61hWA-",
+            "PRRT_kwDOQoWRls61hWA5"
+          ]
+        },
+        {
+          "pr": 7169,
+          "threads": [
+            "PRRT_kwDOQoWRls61hWoc"
+          ]
+        },
+        {
+          "pr": 7170,
+          "threads": [
+            "PRRT_kwDOQoWRls61hZQM"
+          ]
+        }
+      ],
+      "key": "(repo root)",
+      "signal": "area",
+      "unit": "pull_request"
+    },
+    {
+      "count": 12,
+      "evidence": [
+        {
+          "pr": 6278,
+          "threads": [
+            "PRRT_kwDOQoWRls6rOpoJ",
+            "PRRT_kwDOQoWRls6rOpoN",
+            "PRRT_kwDOQoWRls6rOpoP",
+            "PRRT_kwDOQoWRls6rOpoS",
+            "PRRT_kwDOQoWRls6rOpoU",
+            "PRRT_kwDOQoWRls6rOpoY",
+            "PRRT_kwDOQoWRls6rOpob",
+            "PRRT_kwDOQoWRls6rOpoe",
+            "PRRT_kwDOQoWRls6rOpoh"
+          ]
+        },
+        {
+          "pr": 6328,
+          "threads": [
+            "PRRT_kwDOQoWRls6rY8vj",
+            "PRRT_kwDOQoWRls6rY8vl",
+            "PRRT_kwDOQoWRls6rY8vn"
+          ]
+        },
+        {
+          "pr": 6340,
+          "threads": [
+            "PRRT_kwDOQoWRls6ra4Of"
+          ]
+        },
+        {
+          "pr": 6355,
+          "threads": [
+            "PRRT_kwDOQoWRls6reL0B",
+            "PRRT_kwDOQoWRls6reLz9"
+          ]
+        },
+        {
+          "pr": 6358,
+          "threads": [
+            "PRRT_kwDOQoWRls6red8e",
+            "PRRT_kwDOQoWRls6red8i"
+          ]
+        },
+        {
+          "pr": 6359,
+          "threads": [
+            "PRRT_kwDOQoWRls6re4YB"
+          ]
+        },
+        {
+          "pr": 6361,
+          "threads": [
+            "PRRT_kwDOQoWRls6rfF7S"
+          ]
+        },
+        {
+          "pr": 6368,
+          "threads": [
+            "PRRT_kwDOQoWRls6rfpx2",
+            "PRRT_kwDOQoWRls6rfpxz"
+          ]
+        },
+        {
+          "pr": 6463,
+          "threads": [
+            "PRRT_kwDOQoWRls6r1O6A"
+          ]
+        },
+        {
+          "pr": 6484,
+          "threads": [
+            "PRRT_kwDOQoWRls6r9uPD"
+          ]
+        },
+        {
+          "pr": 6492,
+          "threads": [
+            "PRRT_kwDOQoWRls6r96I4"
+          ]
+        },
+        {
+          "pr": 6494,
+          "threads": [
+            "PRRT_kwDOQoWRls6r-DsI"
+          ]
+        }
+      ],
+      "key": ".agents/governance",
+      "signal": "area",
+      "unit": "pull_request"
+    },
+    {
+      "count": 12,
+      "evidence": [
+        {
+          "pr": 6339,
+          "threads": [
+            "PRRT_kwDOQoWRls6razZ5",
+            "PRRT_kwDOQoWRls6razZi",
+            "PRRT_kwDOQoWRls6razZx"
+          ]
+        },
+        {
+          "pr": 6343,
+          "threads": [
+            "PRRT_kwDOQoWRls6rbTA7"
+          ]
+        },
+        {
+          "pr": 6380,
+          "threads": [
+            "PRRT_kwDOQoWRls6rsXI5",
+            "PRRT_kwDOQoWRls6rsXI9"
+          ]
+        },
+        {
+          "pr": 6486,
+          "threads": [
+            "PRRT_kwDOQoWRls6r-Ie-",
+            "PRRT_kwDOQoWRls6r-Ie0",
+            "PRRT_kwDOQoWRls6r-Ien",
+            "PRRT_kwDOQoWRls6r-Iev",
+            "PRRT_kwDOQoWRls6r-IfH",
+            "PRRT_kwDOQoWRls6r-IfR"
+          ]
+        },
+        {
+          "pr": 6585,
+          "threads": [
+            "PRRT_kwDOQoWRls6sKdhb"
+          ]
+        },
+        {
+          "pr": 6598,
+          "threads": [
+            "PRRT_kwDOQoWRls6sL3QH",
+            "PRRT_kwDOQoWRls6sL3QW",
+            "PRRT_kwDOQoWRls6sL3Qb"
+          ]
+        },
+        {
+          "pr": 6642,
+          "threads": [
+            "PRRT_kwDOQoWRls6tjjn-",
+            "PRRT_kwDOQoWRls6tjjoC"
+          ]
+        },
+        {
+          "pr": 6690,
+          "threads": [
+            "PRRT_kwDOQoWRls6tnwQx",
+            "PRRT_kwDOQoWRls6toZ3p"
+          ]
+        },
+        {
+          "pr": 6692,
+          "threads": [
+            "PRRT_kwDOQoWRls6tn4nX",
+            "PRRT_kwDOQoWRls6tn4na"
+          ]
+        },
+        {
+          "pr": 6812,
+          "threads": [
+            "PRRT_kwDOQoWRls6uyKKA"
+          ]
+        },
+        {
+          "pr": 6944,
+          "threads": [
+            "PRRT_kwDOQoWRls6wGoxz"
+          ]
+        },
+        {
+          "pr": 7260,
+          "threads": [
+            "PRRT_kwDOQoWRls62Cq6T"
+          ]
+        }
+      ],
+      "key": "scripts/eval",
+      "signal": "area",
+      "unit": "pull_request"
+    },
+    {
+      "count": 12,
+      "evidence": [
+        {
+          "pr": 6297,
+          "threads": [
+            "PRRT_kwDOQoWRls6rXzGx",
+            "PRRT_kwDOQoWRls6rXzIn",
+            "PRRT_kwDOQoWRls6rXzJh",
+            "PRRT_kwDOQoWRls6rXzLA"
+          ]
+        },
+        {
+          "pr": 6393,
+          "threads": [
+            "PRRT_kwDOQoWRls6rsyr1",
+            "PRRT_kwDOQoWRls6rsyr6",
+            "PRRT_kwDOQoWRls6rsyru",
+            "PRRT_kwDOQoWRls6rsyrw",
+            "PRRT_kwDOQoWRls6rsysB"
+          ]
+        },
+        {
+          "pr": 6908,
+          "threads": [
+            "PRRT_kwDOQoWRls6v3R-0"
+          ]
+        },
+        {
+          "pr": 6912,
+          "threads": [
+            "PRRT_kwDOQoWRls6v5qET",
+            "PRRT_kwDOQoWRls6v5qEW"
+          ]
+        },
+        {
+          "pr": 6923,
+          "threads": [
+            "PRRT_kwDOQoWRls6v6qMs"
+          ]
+        },
+        {
+          "pr": 7010,
+          "threads": [
+            "PRRT_kwDOQoWRls6ySZtr"
+          ]
+        },
+        {
+          "pr": 7017,
+          "threads": [
+            "PRRT_kwDOQoWRls6yTirB",
+            "PRRT_kwDOQoWRls6yTirJ"
+          ]
+        },
+        {
+          "pr": 7093,
+          "threads": [
+            "PRRT_kwDOQoWRls6z1nl6",
+            "PRRT_kwDOQoWRls6z1nly"
+          ]
+        },
+        {
+          "pr": 7145,
+          "threads": [
+            "PRRT_kwDOQoWRls60y-J_"
+          ]
+        },
+        {
+          "pr": 7171,
+          "threads": [
+            "PRRT_kwDOQoWRls61hrzG"
+          ]
+        },
+        {
+          "pr": 7177,
+          "threads": [
+            "PRRT_kwDOQoWRls61iL7q",
+            "PRRT_kwDOQoWRls61iL7w"
+          ]
+        },
+        {
+          "pr": 7257,
+          "threads": [
+            "PRRT_kwDOQoWRls62CeNJ"
+          ]
+        }
+      ],
+      "key": "src/claude/skills/github",
+      "signal": "area",
+      "unit": "pull_request"
+    },
+    {
+      "count": 10,
+      "evidence": [
+        {
+          "pr": 6329,
+          "threads": [
+            "PRRT_kwDOQoWRls6rZAxC"
+          ]
+        },
+        {
+          "pr": 6332,
+          "threads": [
+            "PRRT_kwDOQoWRls6rZ7sO"
+          ]
+        },
+        {
+          "pr": 6351,
+          "threads": [
+            "PRRT_kwDOQoWRls6rdQO4"
+          ]
+        },
+        {
+          "pr": 6388,
+          "threads": [
+            "PRRT_kwDOQoWRls6rsjow"
+          ]
+        },
+        {
+          "pr": 6449,
+          "threads": [
+            "PRRT_kwDOQoWRls6ryzm2"
+          ]
+        },
+        {
+          "pr": 6451,
+          "threads": [
+            "PRRT_kwDOQoWRls6rzB9c",
+            "PRRT_kwDOQoWRls6rzB9h",
+            "PRRT_kwDOQoWRls6rzB9l",
+            "PRRT_kwDOQoWRls6rzB9q"
+          ]
+        },
+        {
+          "pr": 6460,
+          "threads": [
+            "PRRT_kwDOQoWRls6r0tz8"
+          ]
+        },
+        {
+          "pr": 6611,
+          "threads": [
+            "PRRT_kwDOQoWRls6scMqS"
+          ]
+        },
+        {
+          "pr": 6903,
+          "threads": [
+            "PRRT_kwDOQoWRls6v2WEZ"
+          ]
+        },
+        {
+          "pr": 7019,
+          "threads": [
+            "PRRT_kwDOQoWRls6yT4oS"
+          ]
+        }
+      ],
+      "key": ".serena/memories",
+      "signal": "area",
+      "unit": "pull_request"
+    },
+    {
+      "count": 9,
+      "evidence": [
+        {
+          "pr": 6274,
+          "threads": [
+            "PRRT_kwDOQoWRls6rNdqu",
+            "PRRT_kwDOQoWRls6rNdqy"
+          ]
+        },
+        {
+          "pr": 6437,
+          "threads": [
+            "PRRT_kwDOQoWRls6rwbq2",
+            "PRRT_kwDOQoWRls6rwbq7",
+            "PRRT_kwDOQoWRls6rwbqU",
+            "PRRT_kwDOQoWRls6rwbqX",
+            "PRRT_kwDOQoWRls6rwbqd",
+            "PRRT_kwDOQoWRls6rwbqh",
+            "PRRT_kwDOQoWRls6rwbqm",
+            "PRRT_kwDOQoWRls6rwbqs",
+            "PRRT_kwDOQoWRls6rwbqw"
+          ]
+        },
+        {
+          "pr": 6445,
+          "threads": [
+            "PRRT_kwDOQoWRls6ryj1-",
+            "PRRT_kwDOQoWRls6ryj1M",
+            "PRRT_kwDOQoWRls6ryj1g"
+          ]
+        },
+        {
+          "pr": 6585,
+          "threads": [
+            "PRRT_kwDOQoWRls6sKdhW",
+            "PRRT_kwDOQoWRls6sKdhX"
+          ]
+        },
+        {
+          "pr": 6700,
+          "threads": [
+            "PRRT_kwDOQoWRls6toSgE"
+          ]
+        },
+        {
+          "pr": 7093,
+          "threads": [
+            "PRRT_kwDOQoWRls6z1nll"
+          ]
+        },
+        {
+          "pr": 7098,
+          "threads": [
+            "PRRT_kwDOQoWRls60KPoo"
+          ]
+        },
+        {
+          "pr": 7116,
+          "threads": [
+            "PRRT_kwDOQoWRls60ixcb",
+            "PRRT_kwDOQoWRls60ixfy"
+          ]
+        },
+        {
+          "pr": 7136,
+          "threads": [
+            "PRRT_kwDOQoWRls60yesc"
+          ]
+        }
+      ],
+      "key": ".project-toolkit/architecture",
+      "signal": "area",
+      "unit": "pull_request"
+    },
+    {
+      "count": 9,
+      "evidence": [
+        {
+          "pr": 6264,
+          "threads": [
+            "PRRT_kwDOQoWRls6rJqIT",
+            "PRRT_kwDOQoWRls6rJqIc"
+          ]
+        },
+        {
+          "pr": 6265,
+          "threads": [
+            "PRRT_kwDOQoWRls6rJtm1",
+            "PRRT_kwDOQoWRls6rJtmj",
+            "PRRT_kwDOQoWRls6rJtmk",
+            "PRRT_kwDOQoWRls6rJtml",
+            "PRRT_kwDOQoWRls6rJtmn",
+            "PRRT_kwDOQoWRls6rJtmo",
+            "PRRT_kwDOQoWRls6rJtmr",
+            "PRRT_kwDOQoWRls6rJtmy"
+          ]
+        },
+        {
+          "pr": 6266,
+          "threads": [
+            "PRRT_kwDOQoWRls6rJxpY",
+            "PRRT_kwDOQoWRls6rJxpZ",
+            "PRRT_kwDOQoWRls6rJxpb",
+            "PRRT_kwDOQoWRls6rJxpc",
+            "PRRT_kwDOQoWRls6rJxpe",
+            "PRRT_kwDOQoWRls6rJxpg"
+          ]
+        },
+        {
+          "pr": 6271,
+          "threads": [
+            "PRRT_kwDOQoWRls6rK0K-",
+            "PRRT_kwDOQoWRls6rKv6-",
+            "PRRT_kwDOQoWRls6rKv7A",
+            "PRRT_kwDOQoWRls6rKvsj",
+            "PRRT_kwDOQoWRls6rKvso",
+            "PRRT_kwDOQoWRls6rKvsq",
+            "PRRT_kwDOQoWRls6rKvsr"
+          ]
+        },
+        {
+          "pr": 6403,
+          "threads": [
+            "PRRT_kwDOQoWRls6rtckY",
+            "PRRT_kwDOQoWRls6rtcke"
+          ]
+        },
+        {
+          "pr": 6598,
+          "threads": [
+            "PRRT_kwDOQoWRls6sL3Qi"
+          ]
+        },
+        {
+          "pr": 7092,
+          "threads": [
+            "PRRT_kwDOQoWRls6z0-XM"
+          ]
+        },
+        {
+          "pr": 7233,
+          "threads": [
+            "PRRT_kwDOQoWRls61xVbu"
+          ]
+        },
+        {
+          "pr": 7235,
+          "threads": [
+            "PRRT_kwDOQoWRls61xixq"
+          ]
+        }
+      ],
+      "key": "docs",
+      "signal": "area",
+      "unit": "pull_request"
+    },
+    {
+      "count": 8,
+      "evidence": [
+        {
+          "pr": 6287,
+          "threads": [
+            "PRRT_kwDOQoWRls6rThfO"
+          ]
+        },
+        {
+          "pr": 6395,
+          "threads": [
+            "PRRT_kwDOQoWRls6rs251",
+            "PRRT_kwDOQoWRls6rs252",
+            "PRRT_kwDOQoWRls6rs25y"
+          ]
+        },
+        {
+          "pr": 6454,
+          "threads": [
+            "PRRT_kwDOQoWRls6rzESq",
+            "PRRT_kwDOQoWRls6rzESu"
+          ]
+        },
+        {
+          "pr": 6458,
+          "threads": [
+            "PRRT_kwDOQoWRls6rzj-7",
+            "PRRT_kwDOQoWRls6rzkAh",
+            "PRRT_kwDOQoWRls6rzkIe"
+          ]
+        },
+        {
+          "pr": 6595,
+          "threads": [
+            "PRRT_kwDOQoWRls6sLZ87"
+          ]
+        },
+        {
+          "pr": 6674,
+          "threads": [
+            "PRRT_kwDOQoWRls6tnQXJ"
+          ]
+        },
+        {
+          "pr": 6694,
+          "threads": [
+            "PRRT_kwDOQoWRls6tn-YE"
+          ]
+        },
+        {
+          "pr": 6701,
+          "threads": [
+            "PRRT_kwDOQoWRls6toUKc"
+          ]
+        }
+      ],
+      "key": ".claude/skills/github/scripts",
+      "signal": "area",
+      "unit": "pull_request"
+    },
+    {
+      "count": 8,
+      "evidence": [
+        {
+          "pr": 6368,
+          "threads": [
+            "PRRT_kwDOQoWRls6rfpyF",
+            "PRRT_kwDOQoWRls6rfpyI"
+          ]
+        },
+        {
+          "pr": 6370,
+          "threads": [
+            "PRRT_kwDOQoWRls6rf7Or"
+          ]
+        },
+        {
+          "pr": 6375,
+          "threads": [
+            "PRRT_kwDOQoWRls6rhDUo"
+          ]
+        },
+        {
+          "pr": 6462,
+          "threads": [
+            "PRRT_kwDOQoWRls6r1I8w"
+          ]
+        },
+        {
+          "pr": 6485,
+          "threads": [
+            "PRRT_kwDOQoWRls6r9dgZ"
+          ]
+        },
+        {
+          "pr": 6492,
+          "threads": [
+            "PRRT_kwDOQoWRls6r96Iy"
+          ]
+        },
+        {
+          "pr": 6494,
+          "threads": [
+            "PRRT_kwDOQoWRls6r-Dsy"
+          ]
+        },
+        {
+          "pr": 6866,
+          "threads": [
+            "PRRT_kwDOQoWRls6vn3bl"
+          ]
+        }
+      ],
+      "key": "tests/validation",
+      "signal": "area",
+      "unit": "pull_request"
+    },
+    {
+      "count": 7,
+      "evidence": [
+        {
+          "pr": 6373,
+          "threads": [
+            "PRRT_kwDOQoWRls6rgrd4",
+            "PRRT_kwDOQoWRls6rgrd8"
+          ]
+        },
+        {
+          "pr": 6428,
+          "threads": [
+            "PRRT_kwDOQoWRls6rvw83"
+          ]
+        },
+        {
+          "pr": 6454,
+          "threads": [
+            "PRRT_kwDOQoWRls6rzESx"
+          ]
+        },
+        {
+          "pr": 6587,
+          "threads": [
+            "PRRT_kwDOQoWRls6sKjhr",
+            "PRRT_kwDOQoWRls6sKjhs"
+          ]
+        },
+        {
+          "pr": 6835,
+          "threads": [
+            "PRRT_kwDOQoWRls6u25Im"
+          ]
+        },
+        {
+          "pr": 6852,
+          "threads": [
+            "PRRT_kwDOQoWRls6vfaPh"
+          ]
+        },
+        {
+          "pr": 6905,
+          "threads": [
+            "PRRT_kwDOQoWRls6v3EdZ"
+          ]
+        }
+      ],
+      "key": "tests",
+      "signal": "area",
+      "unit": "pull_request"
+    },
+    {
+      "count": 6,
+      "evidence": [
+        {
+          "pr": 6270,
+          "threads": [
+            "PRRT_kwDOQoWRls6rKtvR"
+          ]
+        },
+        {
+          "pr": 6357,
+          "threads": [
+            "PRRT_kwDOQoWRls6reaAi"
+          ]
+        },
+        {
+          "pr": 6488,
+          "threads": [
+            "PRRT_kwDOQoWRls6r968r"
+          ]
+        },
+        {
+          "pr": 6598,
+          "threads": [
+            "PRRT_kwDOQoWRls6sL3QQ"
+          ]
+        },
+        {
+          "pr": 7097,
+          "threads": [
+            "PRRT_kwDOQoWRls60KJJK",
+            "PRRT_kwDOQoWRls60KJJR",
+            "PRRT_kwDOQoWRls60KJJa"
+          ]
+        },
+        {
+          "pr": 7170,
+          "threads": [
+            "PRRT_kwDOQoWRls61hZQQ"
+          ]
+        }
+      ],
+      "key": ".github/workflows",
+      "signal": "area",
+      "unit": "pull_request"
+    },
+    {
+      "count": 6,
+      "evidence": [
+        {
+          "pr": 6351,
+          "threads": [
+            "PRRT_kwDOQoWRls6rdQPJ"
+          ]
+        },
+        {
+          "pr": 6388,
+          "threads": [
+            "PRRT_kwDOQoWRls6rsjon",
+            "PRRT_kwDOQoWRls6rsjop",
+            "PRRT_kwDOQoWRls6rsjos"
+          ]
+        },
+        {
+          "pr": 6460,
+          "threads": [
+            "PRRT_kwDOQoWRls6r0t0F",
+            "PRRT_kwDOQoWRls6r0t0M",
+            "PRRT_kwDOQoWRls6r0tz-"
+          ]
+        },
+        {
+          "pr": 6614,
+          "threads": [
+            "PRRT_kwDOQoWRls6scWX4",
+            "PRRT_kwDOQoWRls6scWYA",
+            "PRRT_kwDOQoWRls6scWYF",
+            "PRRT_kwDOQoWRls6scWYJ",
+            "PRRT_kwDOQoWRls6scWYM"
+          ]
+        },
+        {
+          "pr": 6623,
+          "threads": [
+            "PRRT_kwDOQoWRls6siIvN",
+            "PRRT_kwDOQoWRls6siIvg"
+          ]
+        },
+        {
+          "pr": 7140,
+          "threads": [
+            "PRRT_kwDOQoWRls60yn2N"
+          ]
+        }
+      ],
+      "key": ".serena/memories/ci",
+      "signal": "area",
+      "unit": "pull_request"
+    },
+    {
+      "count": 6,
+      "evidence": [
+        {
+          "pr": 6273,
+          "threads": [
+            "PRRT_kwDOQoWRls6rNbLp"
+          ]
+        },
+        {
+          "pr": 6340,
+          "threads": [
+            "PRRT_kwDOQoWRls6ra4Om"
+          ]
+        },
+        {
+          "pr": 6457,
+          "threads": [
+            "PRRT_kwDOQoWRls6rzYFc"
+          ]
+        },
+        {
+          "pr": 6698,
+          "threads": [
+            "PRRT_kwDOQoWRls6toI-_"
+          ]
+        },
+        {
+          "pr": 6700,
+          "threads": [
+            "PRRT_kwDOQoWRls6toSgI",
+            "PRRT_kwDOQoWRls6toZ4G"
+          ]
+        },
+        {
+          "pr": 7242,
+          "threads": [
+            "PRRT_kwDOQoWRls61yeqh"
+          ]
+        }
+      ],
+      "key": "build/scripts",
+      "signal": "area",
+      "unit": "pull_request"
+    },
+    {
+      "count": 6,
+      "evidence": [
+        {
+          "pr": 6441,
+          "threads": [
+            "PRRT_kwDOQoWRls6rw6d2",
+            "PRRT_kwDOQoWRls6rw6d3",
+            "PRRT_kwDOQoWRls6rw6dd",
+            "PRRT_kwDOQoWRls6rw6dh",
+            "PRRT_kwDOQoWRls6rw6dr"
+          ]
+        },
+        {
+          "pr": 6900,
+          "threads": [
+            "PRRT_kwDOQoWRls6v1uRb"
+          ]
+        },
+        {
+          "pr": 6901,
+          "threads": [
+            "PRRT_kwDOQoWRls6v10_q"
+          ]
+        },
+        {
+          "pr": 7124,
+          "threads": [
+            "PRRT_kwDOQoWRls60jLji"
+          ]
+        },
+        {
+          "pr": 7125,
+          "threads": [
+            "PRRT_kwDOQoWRls60jZX2"
+          ]
+        },
+        {
+          "pr": 7232,
+          "threads": [
+            "PRRT_kwDOQoWRls61wxB0"
+          ]
+        }
+      ],
+      "key": "templates/agents/partials",
+      "signal": "area",
+      "unit": "pull_request"
+    },
+    {
+      "count": 5,
+      "evidence": [
+        {
+          "pr": 6273,
+          "threads": [
+            "PRRT_kwDOQoWRls6rNbLi",
+            "PRRT_kwDOQoWRls6rNbLk"
+          ]
+        },
+        {
+          "pr": 6673,
+          "threads": [
+            "PRRT_kwDOQoWRls6tnOLH"
+          ]
+        },
+        {
+          "pr": 6675,
+          "threads": [
+            "PRRT_kwDOQoWRls6tnVAx"
+          ]
+        },
+        {
+          "pr": 6676,
+          "threads": [
+            "PRRT_kwDOQoWRls6tnW32"
+          ]
+        },
+        {
+          "pr": 6688,
+          "threads": [
+            "PRRT_kwDOQoWRls6tnrlg"
+          ]
+        }
+      ],
+      "key": ".claude/skills/skillforge/references",
+      "signal": "area",
+      "unit": "pull_request"
+    },
+    {
+      "count": 5,
+      "evidence": [
+        {
+          "pr": 6276,
+          "threads": [
+            "PRRT_kwDOQoWRls6rNshI",
+            "PRRT_kwDOQoWRls6rNshM",
+            "PRRT_kwDOQoWRls6rNshW",
+            "PRRT_kwDOQoWRls6rNshb",
+            "PRRT_kwDOQoWRls6rNshf",
+            "PRRT_kwDOQoWRls6rNshj"
+          ]
+        },
+        {
+          "pr": 6334,
+          "threads": [
+            "PRRT_kwDOQoWRls6raCp4",
+            "PRRT_kwDOQoWRls6raCp7",
+            "PRRT_kwDOQoWRls6raCps",
+            "PRRT_kwDOQoWRls6raCpz",
+            "PRRT_kwDOQoWRls6raCqA",
+            "PRRT_kwDOQoWRls6raCqD"
+          ]
+        },
+        {
+          "pr": 6411,
+          "threads": [
+            "PRRT_kwDOQoWRls6rtqnH",
+            "PRRT_kwDOQoWRls6rtqnI",
+            "PRRT_kwDOQoWRls6rtqnL",
+            "PRRT_kwDOQoWRls6rtqnN"
+          ]
+        },
+        {
+          "pr": 6445,
+          "threads": [
+            "PRRT_kwDOQoWRls6ryj1p",
+            "PRRT_kwDOQoWRls6ryj1x"
+          ]
+        },
+        {
+          "pr": 6446,
+          "threads": [
+            "PRRT_kwDOQoWRls6rygbV",
+            "PRRT_kwDOQoWRls6rygbW",
+            "PRRT_kwDOQoWRls6rygbX",
+            "PRRT_kwDOQoWRls6rygbZ",
+            "PRRT_kwDOQoWRls6rygbc",
+            "PRRT_kwDOQoWRls6rygbi",
+            "PRRT_kwDOQoWRls6rygbl",
+            "PRRT_kwDOQoWRls6rygbo"
+          ]
+        }
+      ],
+      "key": ".project-toolkit/retrospective",
+      "signal": "area",
+      "unit": "pull_request"
+    },
+    {
+      "count": 5,
+      "evidence": [
+        {
+          "pr": 6464,
+          "threads": [
+            "PRRT_kwDOQoWRls6r1RhI"
+          ]
+        },
+        {
+          "pr": 6591,
+          "threads": [
+            "PRRT_kwDOQoWRls6sLDH4",
+            "PRRT_kwDOQoWRls6sLDH7",
+            "PRRT_kwDOQoWRls6sLDHx"
+          ]
+        },
+        {
+          "pr": 6999,
+          "threads": [
+            "PRRT_kwDOQoWRls6yOJFZ"
+          ]
+        },
+        {
+          "pr": 7232,
+          "threads": [
+            "PRRT_kwDOQoWRls61wxBo"
+          ]
+        },
+        {
+          "pr": 7262,
+          "threads": [
+            "PRRT_kwDOQoWRls62C3Yj"
+          ]
+        }
+      ],
+      "key": "templates/agents",
+      "signal": "area",
+      "unit": "pull_request"
+    },
+    {
+      "count": 4,
+      "evidence": [
+        {
+          "pr": 6274,
+          "threads": [
+            "PRRT_kwDOQoWRls6rNdq3"
+          ]
+        },
+        {
+          "pr": 6437,
+          "threads": [
+            "PRRT_kwDOQoWRls6rwbq-",
+            "PRRT_kwDOQoWRls6rwbrB",
+            "PRRT_kwDOQoWRls6rwbrG"
+          ]
+        },
+        {
+          "pr": 6445,
+          "threads": [
+            "PRRT_kwDOQoWRls6ryj12"
+          ]
+        },
+        {
+          "pr": 6585,
+          "threads": [
+            "PRRT_kwDOQoWRls6sKdhY"
+          ]
+        }
+      ],
+      "key": ".project-toolkit/critique",
+      "signal": "area",
+      "unit": "pull_request"
+    },
+    {
+      "count": 4,
+      "evidence": [
+        {
+          "pr": 6858,
+          "threads": [
+            "PRRT_kwDOQoWRls6vjXW2",
+            "PRRT_kwDOQoWRls6vjXXJ",
+            "PRRT_kwDOQoWRls6vjXXR"
+          ]
+        },
+        {
+          "pr": 6886,
+          "threads": [
+            "PRRT_kwDOQoWRls6vwy0I"
+          ]
+        },
+        {
+          "pr": 6893,
+          "threads": [
+            "PRRT_kwDOQoWRls6v0YM1",
+            "PRRT_kwDOQoWRls6v0YM4"
+          ]
+        },
+        {
+          "pr": 6894,
+          "threads": [
+            "PRRT_kwDOQoWRls6v0xGR"
+          ]
+        }
+      ],
+      "key": ".project-toolkit/devops",
+      "signal": "area",
+      "unit": "pull_request"
+    },
+    {
+      "count": 4,
+      "evidence": [
+        {
+          "pr": 6409,
+          "threads": [
+            "PRRT_kwDOQoWRls6rtliK"
+          ]
+        },
+        {
+          "pr": 6611,
+          "threads": [
+            "PRRT_kwDOQoWRls6scMp-",
+            "PRRT_kwDOQoWRls6scMp0",
+            "PRRT_kwDOQoWRls6scMpV",
+            "PRRT_kwDOQoWRls6scMpm",
+            "PRRT_kwDOQoWRls6scMqF"
+          ]
+        },
+        {
+          "pr": 6922,
+          "threads": [
+            "PRRT_kwDOQoWRls6v6pe0"
+          ]
+        },
+        {
+          "pr": 6932,
+          "threads": [
+            "PRRT_kwDOQoWRls6v7nY8"
+          ]
+        }
+      ],
+      "key": ".serena/memories/pr-review",
+      "signal": "area",
+      "unit": "pull_request"
+    },
+    {
+      "count": 3,
+      "evidence": [
+        {
+          "pr": 6689,
+          "threads": [
+            "PRRT_kwDOQoWRls6tnusY"
+          ]
+        },
+        {
+          "pr": 6906,
+          "threads": [
+            "PRRT_kwDOQoWRls6v3Ga0"
+          ]
+        },
+        {
+          "pr": 7182,
+          "threads": [
+            "PRRT_kwDOQoWRls61i1Ah"
+          ]
+        }
+      ],
+      "key": ".project-toolkit/analysis",
+      "signal": "area",
+      "unit": "pull_request"
+    },
+    {
+      "count": 3,
+      "evidence": [
+        {
+          "pr": 6905,
+          "threads": [
+            "PRRT_kwDOQoWRls6v3EdT"
+          ]
+        },
+        {
+          "pr": 7123,
+          "threads": [
+            "PRRT_kwDOQoWRls60i-G1"
+          ]
+        },
+        {
+          "pr": 7216,
+          "threads": [
+            "PRRT_kwDOQoWRls61wXwv",
+            "PRRT_kwDOQoWRls61wXxE",
+            "PRRT_kwDOQoWRls61wXxL"
+          ]
+        }
+      ],
+      "key": ".project-toolkit/metrics",
+      "signal": "area",
+      "unit": "pull_request"
+    },
+    {
+      "count": 3,
+      "evidence": [
+        {
+          "pr": 6997,
+          "threads": [
+            "PRRT_kwDOQoWRls6yOGSS"
+          ]
+        },
+        {
+          "pr": 7098,
+          "threads": [
+            "PRRT_kwDOQoWRls60KPow"
+          ]
+        },
+        {
+          "pr": 7255,
+          "threads": [
+            "PRRT_kwDOQoWRls62ALZP"
+          ]
+        }
+      ],
+      "key": ".project-toolkit/specs/requirements",
+      "signal": "area",
+      "unit": "pull_request"
+    },
+    {
+      "count": 3,
+      "evidence": [
+        {
+          "pr": 6365,
+          "threads": [
+            "PRRT_kwDOQoWRls6rff7F",
+            "PRRT_kwDOQoWRls6rff7I"
+          ]
+        },
+        {
+          "pr": 6447,
+          "threads": [
+            "PRRT_kwDOQoWRls6ryp1-",
+            "PRRT_kwDOQoWRls6ryp12",
+            "PRRT_kwDOQoWRls6ryp1u",
+            "PRRT_kwDOQoWRls6ryp1x",
+            "PRRT_kwDOQoWRls6ryp2G"
+          ]
+        },
+        {
+          "pr": 6460,
+          "threads": [
+            "PRRT_kwDOQoWRls6r0tz0",
+            "PRRT_kwDOQoWRls6r0tz4",
+            "PRRT_kwDOQoWRls6r0tzl",
+            "PRRT_kwDOQoWRls6r0tzo",
+            "PRRT_kwDOQoWRls6r0tzu"
+          ]
+        }
+      ],
+      "key": ".serena/memories/orchestration",
+      "signal": "area",
+      "unit": "pull_request"
+    },
+    {
+      "count": 3,
+      "evidence": [
+        {
+          "pr": 6383,
+          "threads": [
+            "PRRT_kwDOQoWRls6rsZpP",
+            "PRRT_kwDOQoWRls6rsZpT",
+            "PRRT_kwDOQoWRls6rsZpX"
+          ]
+        },
+        {
+          "pr": 6488,
+          "threads": [
+            "PRRT_kwDOQoWRls6r968L",
+            "PRRT_kwDOQoWRls6r968a",
+            "PRRT_kwDOQoWRls6r968e",
+            "PRRT_kwDOQoWRls6r968n"
+          ]
+        },
+        {
+          "pr": 6704,
+          "threads": [
+            "PRRT_kwDOQoWRls6todE2"
+          ]
+        }
+      ],
+      "key": "scripts/ci",
+      "signal": "area",
+      "unit": "pull_request"
+    },
+    {
+      "count": 3,
+      "evidence": [
+        {
+          "pr": 6382,
+          "threads": [
+            "PRRT_kwDOQoWRls6rsXn5",
+            "PRRT_kwDOQoWRls6rsXn_",
+            "PRRT_kwDOQoWRls6rsXnz",
+            "PRRT_kwDOQoWRls6rsXoF"
+          ]
+        },
+        {
+          "pr": 7178,
+          "threads": [
+            "PRRT_kwDOQoWRls61iPP1"
+          ]
+        },
+        {
+          "pr": 7197,
+          "threads": [
+            "PRRT_kwDOQoWRls61kM66"
+          ]
+        }
+      ],
+      "key": "src/claude/skills/adr-review",
+      "signal": "area",
+      "unit": "pull_request"
+    },
+    {
+      "count": 3,
+      "evidence": [
+        {
+          "pr": 6907,
+          "threads": [
+            "PRRT_kwDOQoWRls6v3Hhk",
+            "PRRT_kwDOQoWRls6v3N0k",
+            "PRRT_kwDOQoWRls6v3N0m"
+          ]
+        },
+        {
+          "pr": 7143,
+          "threads": [
+            "PRRT_kwDOQoWRls60zAu1"
+          ]
+        },
+        {
+          "pr": 7180,
+          "threads": [
+            "PRRT_kwDOQoWRls61iT_Y"
+          ]
+        }
+      ],
+      "key": "src/claude/skills/skillopt",
+      "signal": "area",
+      "unit": "pull_request"
+    },
+    {
+      "count": 3,
+      "evidence": [
+        {
+          "pr": 6273,
+          "threads": [
+            "PRRT_kwDOQoWRls6rNbLg"
+          ]
+        },
+        {
+          "pr": 6340,
+          "threads": [
+            "PRRT_kwDOQoWRls6ra4Ou"
+          ]
+        },
+        {
+          "pr": 7242,
+          "threads": [
+            "PRRT_kwDOQoWRls61yeqr"
+          ]
+        }
+      ],
+      "key": "templates/platforms",
+      "signal": "area",
+      "unit": "pull_request"
+    },
+    {
+      "count": 3,
+      "evidence": [
+        {
+          "pr": 6360,
+          "threads": [
+            "PRRT_kwDOQoWRls6re9Jj"
+          ]
+        },
+        {
+          "pr": 6439,
+          "threads": [
+            "PRRT_kwDOQoWRls6rwiwm",
+            "PRRT_kwDOQoWRls6rwiwr",
+            "PRRT_kwDOQoWRls6rwiwx"
+          ]
+        },
+        {
+          "pr": 6475,
+          "threads": [
+            "PRRT_kwDOQoWRls6r2nin"
+          ]
+        }
+      ],
+      "key": "templates/skills/partials",
+      "signal": "area",
+      "unit": "pull_request"
+    },
+    {
+      "count": 3,
+      "evidence": [
+        {
+          "pr": 6272,
+          "threads": [
+            "PRRT_kwDOQoWRls6rNaFZ",
+            "PRRT_kwDOQoWRls6rNaFc",
+            "PRRT_kwDOQoWRls6rNaFd"
+          ]
+        },
+        {
+          "pr": 6335,
+          "threads": [
+            "PRRT_kwDOQoWRls6raBrX",
+            "PRRT_kwDOQoWRls6raBrc"
+          ]
+        },
+        {
+          "pr": 6467,
+          "threads": [
+            "PRRT_kwDOQoWRls6r1gI_",
+            "PRRT_kwDOQoWRls6r1gIw",
+            "PRRT_kwDOQoWRls6r1gJK",
+            "PRRT_kwDOQoWRls6r1gJQ",
+            "PRRT_kwDOQoWRls6r1gJX",
+            "PRRT_kwDOQoWRls6r1gJb"
+          ]
+        }
+      ],
+      "key": "tests/e2e",
+      "signal": "area",
+      "unit": "pull_request"
+    },
+    {
+      "count": 3,
+      "evidence": [
+        {
+          "pr": 6339,
+          "threads": [
+            "PRRT_kwDOQoWRls6razZx"
+          ]
+        },
+        {
+          "pr": 7145,
+          "threads": [
+            "PRRT_kwDOQoWRls60y-KA"
+          ]
+        },
+        {
+          "pr": 7174,
+          "threads": [
+            "PRRT_kwDOQoWRls61iD4g"
+          ]
+        }
+      ],
+      "key": "ADR-035",
+      "signal": "rule",
+      "unit": "pull_request"
+    },
+    {
+      "count": 3,
+      "evidence": [
+        {
+          "pr": 6351,
+          "threads": [
+            "PRRT_kwDOQoWRls6rdQPJ"
+          ]
+        },
+        {
+          "pr": 6362,
+          "threads": [
+            "PRRT_kwDOQoWRls6rfTLN"
+          ]
+        },
+        {
+          "pr": 6445,
+          "threads": [
+            "PRRT_kwDOQoWRls6ryj1-"
+          ]
+        }
+      ],
+      "key": "rules/universal",
+      "signal": "rule",
+      "unit": "pull_request"
+    },
+    {
+      "count": 3,
+      "evidence": [
+        {
+          "pr": 6445,
+          "threads": [
+            "PRRT_kwDOQoWRls6ryj1g"
+          ]
+        },
+        {
+          "pr": 7134,
+          "threads": [
+            "PRRT_kwDOQoWRls60xUun"
+          ]
+        },
+        {
+          "pr": 7141,
+          "threads": [
+            "PRRT_kwDOQoWRls60yn4o"
+          ]
+        }
+      ],
+      "key": "rules/voice",
+      "signal": "rule",
+      "unit": "pull_request"
+    }
+  ],
+  "examined": {
+    "agent_pull_requests": 1024,
+    "dispositions": 0,
+    "interventions": 751,
+    "interventions_in_window": 751,
+    "pull_requests": 1628,
+    "trailer_pull_requests": 1011
+  },
+  "repository": "rjmurillo/ai-agents",
+  "threshold": 3,
+  "window_days": 90
+}

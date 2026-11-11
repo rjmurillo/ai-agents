@@ -41,7 +41,7 @@ entries over the whole file. An empty registry gives zero disposition clusters.
 ## Population correction
 
 The first run used the author login alone to find agent pull requests and
-excluded comments by the pull request author. On 2026-11-10 that read 295
+excluded comments by the pull request author. On 2026-11-11 that read 295
 pull requests of 1621 examined and kept 0 interventions. The filter had
 removed the owner's own pull requests and threads, so the zero measured the
 filter, not the repository. The population above replaces it. Threshold,
