@@ -22,13 +22,11 @@ from skill_bootstrap import ensure_plugin_paths
 
 ensure_plugin_paths(__file__, (".claude", "lib"))
 
-from github_core.api import (
-    assert_gh_authenticated,
-    resolve_repo_params,
-)
-from github_core.output import (
+from github_core import (
     add_output_format_arg,
+    assert_gh_authenticated,
     get_output_format,
+    resolve_repo_params,
     write_skill_error,
     write_skill_output,
 )

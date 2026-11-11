@@ -27,16 +27,15 @@ from skill_bootstrap import ensure_plugin_paths
 
 ensure_plugin_paths(__file__, (".claude", "lib"))
 
-from github_core.api import error_and_exit, resolve_repo_params
-from github_core.output import (
+from github_core import (
     add_output_format_arg,
-    get_output_format,
-    write_skill_output,
-)
-from github_core.validation import (
     assert_valid_body_file,
+    error_and_exit,
     escaped_newline_body_error,
+    get_output_format,
     read_body_file_text,
+    resolve_repo_params,
+    write_skill_output,
 )
 
 _HELP_EPILOG = """\
