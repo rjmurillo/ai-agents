@@ -89,6 +89,7 @@ def run_main(argv: list[str], fake: Any, *, auth: Any = None) -> int:
         try:
             return script.main([*argv, "--output-format", "json"])
         except SystemExit as exc:
+            assert isinstance(exc.code, int), exc.code
             return exc.code
 
 
