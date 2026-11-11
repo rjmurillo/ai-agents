@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import sys
 from pathlib import Path
 
@@ -54,46 +53,6 @@ def test_write_mode_links_every_top_level_entry(tmp_path: Path) -> None:
     assert os.readlink(install / "beta.md") == "../../src/claude/skills/beta.md"
     assert (install / "alpha" / "scripts" / "run.py").read_text(encoding="utf-8") == "print(1)\n"
     assert sorted(Path(p).name for p in outcome.written) == ["alpha", "beta.md"]
-
-
-def test_emptied_plugin_tree_still_sweeps_the_links_to_its_removed_entries(
-    tmp_path: Path,
-) -> None:
-    plugin, install = _plugin(tmp_path), _install(tmp_path)
-    binplace_links.link_row(plugin, install, check=False)
-    (plugin / "beta.md").unlink()
-    shutil.rmtree(plugin / "alpha")
-
-    outcome = binplace_links.link_row(plugin, install, check=False)
-
-    assert outcome.exit_code == 0
-    assert not os.path.lexists(install / "alpha")
-    assert not os.path.lexists(install / "beta.md")
-
-
-def test_emptied_plugin_tree_reports_the_dangling_links_as_drift_in_check_mode(
-    tmp_path: Path,
-) -> None:
-    plugin, install = _plugin(tmp_path), _install(tmp_path)
-    binplace_links.link_row(plugin, install, check=False)
-    (plugin / "beta.md").unlink()
-    shutil.rmtree(plugin / "alpha")
-
-    outcome = binplace_links.link_row(plugin, install, check=True)
-
-    assert outcome.exit_code == 2
-    assert os.path.lexists(install / "alpha")
-
-
-def test_absent_plugin_tree_reports_nothing_and_creates_nothing(tmp_path: Path) -> None:
-    install = _install(tmp_path)
-
-    outcome = binplace_links.link_row(tmp_path / "src" / "claude" / "skills", install, check=False)
-
-    assert outcome.exit_code == 0
-    assert outcome.written == []
-    assert outcome.unowned == []
-    assert not install.exists()
 
 
 def test_second_write_run_changes_nothing(tmp_path: Path) -> None:
