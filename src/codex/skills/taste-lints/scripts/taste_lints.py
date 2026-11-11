@@ -137,8 +137,10 @@ _GENERATED_PATH_SEGMENTS: tuple[tuple[str, ...], ...] = (
     # (templates/platforms/muse.yaml), with SKILL.md frontmatter
     # reduced to name and description. The hand-written
     # src/muse/README.md stays classified authored.
+    # src/muse/agents/*.md render from src/claude/agents (agent_tree_copy.py).
     ("src", "muse", "skills"),
     ("src", "muse", "lib"),
+    ("src", "muse", "agents"),
 )
 # src/claude/skills/<name>/SKILL.md, rendered from templates/skills/. None
 # matches any skill name.

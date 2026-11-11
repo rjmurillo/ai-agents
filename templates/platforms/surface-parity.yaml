@@ -64,6 +64,14 @@ surfaces:
     include: ["*.toml"]
     owner: build_all.py --check
     reason: One TOML file per agent with name, description, and developer_instructions (the body). Agents whose Claude file declares tools are not shipped, and each body names them. install_agents.py copies the files into .codex/agents.
+  - id: agents-muse
+    path: src/muse/agents
+    relation: translated
+    authority: src/claude/agents
+    generator: build/scripts/agent_tree_copy.py
+    include: ["*.md"]
+    owner: build_all.py --check
+    reason: Frontmatter keeps only name and description, because Muse Code cannot spawn an agent with an unrecognized key. Agents whose Claude file declares tools are not shipped, and each body names them. The body is otherwise copied unchanged.
   - id: vscode-copilot-instructions
     path: src/vs-code-agents
     relation: independent

@@ -28,10 +28,24 @@ _LIB_RESOLUTION_ENV = frozenset({"COPILOT_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT", "G
 pytestmark = pytest.mark.skipif(shutil.which("bash") is None, reason="bash is required")
 
 
-def _install_section_blocks() -> list[str]:
+def _section_blocks(heading: str) -> list[str]:
+    """Return the bash blocks of the README section that starts at ``heading``.
+
+    The section ends at the next ``## `` heading, so blocks of a later section
+    are never replayed as part of this one.
+    """
     text = README.read_text(encoding="utf-8")
-    section = text.split("## Install into Muse", 1)[1]
+    section = text.split(heading, 1)[1].split("\n## ", 1)[0]
     return re.findall(r"```bash\n(.*?)```", section, flags=re.DOTALL)
+
+
+def _install_section_blocks() -> list[str]:
+    return _section_blocks("## Install into Muse")
+
+
+def _agents_install_block() -> str:
+    (block,) = _section_blocks("## Install agents into Muse Code")
+    return block
 
 
 def _scratch_env(home: Path) -> dict[str, str]:
@@ -43,11 +57,15 @@ def _scratch_env(home: Path) -> dict[str, str]:
     return env
 
 
-def _bash(script: str, home: Path) -> subprocess.CompletedProcess[str]:
+def _bash(script: str, home: Path, *, xdg: Path | None = None) -> subprocess.CompletedProcess[str]:
+    env = _scratch_env(home)
+    env.pop("XDG_CONFIG_HOME", None)
+    if xdg is not None:
+        env["XDG_CONFIG_HOME"] = str(xdg)
     return subprocess.run(
         ["bash", "-euo", "pipefail", "-c", script],
         cwd=REPO_ROOT,
-        env=_scratch_env(home),
+        env=env,
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -132,3 +150,69 @@ def test_rerun_replaces_skills_and_lib_and_moves_old_copies_to_backup(tmp_path: 
     ) == "mine"
     assert (backup / "lib" / "dropped_upstream.py").is_file()
     assert _bash(_install_section_blocks()[1], tmp_path).returncode == 0
+
+
+# Agents section (issue #7226, ADR-115 Decision 8 amendment) ---------------------
+
+AGENTS_SRC = REPO_ROOT / "src" / "muse" / "agents"
+AGENTS_BACKUP_GLOB = "agents-backup-*"
+
+
+def _shipped_agent_names() -> list[str]:
+    return sorted(p.name for p in AGENTS_SRC.glob("*.md"))
+
+
+def test_agents_section_has_exactly_one_bash_block() -> None:
+    assert "agents_dir=" in _agents_install_block()
+
+
+def test_skills_blocks_do_not_include_the_agents_block() -> None:
+    assert all("agents_dir=" not in block for block in _install_section_blocks())
+
+
+def test_agents_install_lands_every_shipped_agent(tmp_path: Path) -> None:
+    names = _shipped_agent_names()
+    assert names, "no shipped agents under src/muse/agents"
+
+    result = _bash(_agents_install_block(), tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    installed = tmp_path / ".config" / "muse" / "agents"
+    assert sorted(p.name for p in installed.glob("*.md")) == names
+    for name in names:
+        assert (installed / name).read_bytes() == (AGENTS_SRC / name).read_bytes()
+
+
+def test_agents_install_honors_xdg_config_home(tmp_path: Path) -> None:
+    xdg = tmp_path / "xdg"
+
+    (tmp_path / "home").mkdir()
+    result = _bash(_agents_install_block(), tmp_path / "home", xdg=xdg)
+
+    assert result.returncode == 0, result.stderr
+    assert sorted(p.name for p in (xdg / "muse" / "agents").glob("*.md")) == _shipped_agent_names()
+    assert not (tmp_path / "home" / ".config").exists()
+
+
+def test_agents_fresh_install_makes_no_backup(tmp_path: Path) -> None:
+    assert _bash(_agents_install_block(), tmp_path).returncode == 0
+
+    assert list((tmp_path / ".config" / "muse").glob(AGENTS_BACKUP_GLOB)) == []
+
+
+def test_agents_reinstall_moves_a_same_named_file_to_backup(tmp_path: Path) -> None:
+    block = _agents_install_block()
+    assert _bash(block, tmp_path).returncode == 0
+    muse = tmp_path / ".config" / "muse"
+    mine = muse / "agents" / "architect.md"
+    mine.write_text("my own architect\n", encoding="utf-8")
+    unrelated = muse / "agents" / "my-agent.md"
+    unrelated.write_text("keep me\n", encoding="utf-8")
+
+    rerun = _bash(block, tmp_path)
+
+    assert rerun.returncode == 0, rerun.stderr
+    (backup,) = muse.glob(AGENTS_BACKUP_GLOB)
+    assert (backup / "architect.md").read_text(encoding="utf-8") == "my own architect\n"
+    assert mine.read_bytes() == (AGENTS_SRC / "architect.md").read_bytes()
+    assert unrelated.read_text(encoding="utf-8") == "keep me\n"
