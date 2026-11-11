@@ -71,7 +71,7 @@ adds the marker. Read the action to learn whether a change would happen.
 | `edit_issue_body.py` | `would_update` | reads the issue first; a missing or hidden issue exits 3, as the edit would |
 | `set_issue_labels.py` | `would_set_labels` | reads the issue and label existence (a missing issue exits 3); lists `wouldCreate`, `wouldApply`, `wouldRemove` (including the stale `priority:*` label a new priority replaces) |
 | `set_issue_assignee.py` | `would_assign` | reads the issue first; a missing issue exits 3 |
-| `close_pr.py` | `would_close` | a failed closing comment exits 3 and the PR stays open |
+| `close_pr.py` | `would_close` | reports `wouldComment` and posts no comment; a real run exits 3 and leaves the PR open when the closing comment fails |
 | `new_pr.py` | text line `Dry run: would create PR` | runs the pre-creation validations; writes no audit log; exits 2 with `--prepare-body-file` |
 | `new_pr_review_comment.py` | `would_post` | reads the PR head commit and every review comment; `would_skip` (reason `duplicate`) when the same author already posted the same body at the path, line, and side |
 | `post_pr_comment_reply.py` | `would_post` | reads the PR or comment first (exit 2 if missing, or if the comment is on another PR); names the endpoint and body length; `would_skip` (reason `duplicate`) when the same author already posted the same body in the thread or PR conversation |
