@@ -21,7 +21,14 @@ An absolute import resolves when its top-level name is one of:
 * a runtime dependency in ``pyproject.toml`` ``[project].dependencies``;
 * a module or package (a directory, so namespace packages count) in the
   tree's ``lib/``;
-* a module or package next to the importing file.
+* a module or package next to the importing file;
+* a module or package in a directory the file puts on ``sys.path`` itself,
+  but only through the explicit bootstrap idiom
+  ``sys.path.insert(0, os.path.dirname(...(os.path.abspath(__file__))))``
+  (or ``sys.path.append`` of the same chain) written at module top level
+  before the import. Each ``dirname`` walks one level up from the file, so
+  the wrong depth, a variable or literal argument, an insert after the
+  import, or an insert inside a function stays unresolved.
 
 A relative import resolves when the named module exists beside the file (or
 in the parent for deeper levels). ``from . import name`` is not checked.
@@ -163,23 +170,91 @@ def _is_type_checking(test: ast.expr) -> bool:
     return isinstance(test, ast.Attribute) and test.attr == "TYPE_CHECKING"
 
 
-def _unguarded_imports(node: ast.AST) -> Iterator[ast.Import | ast.ImportFrom]:
-    """Yield imports under ``node`` that no ``try`` or ``TYPE_CHECKING`` guard covers."""
-    for child in ast.iter_child_nodes(node):
-        yield from _visit(child)
+def _unguarded_imports(
+    node: ast.AST,
+) -> Iterator[tuple[ast.Import | ast.ImportFrom, bool]]:
+    """Yield ``(import, deferred)`` pairs no ``try`` or ``TYPE_CHECKING`` guard covers.
+
+    ``deferred`` is True for imports inside a function or lambda body, which
+    run at call time, after every top-level statement has executed.
+    """
+    yield from _visit(node, False)
 
 
-def _visit(node: ast.AST) -> Iterator[ast.Import | ast.ImportFrom]:
+def _visit(node: ast.AST, deferred: bool) -> Iterator[tuple[ast.Import | ast.ImportFrom, bool]]:
     if isinstance(node, (ast.Import, ast.ImportFrom)):
-        yield node
+        yield node, deferred
+    elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+        for child in ast.iter_child_nodes(node):
+            yield from _visit(child, True)
     elif isinstance(node, ast.Try) and _optional_import_guard(node):
         for part in (*node.orelse, *node.finalbody):
-            yield from _visit(part)
+            yield from _visit(part, deferred)
     elif isinstance(node, ast.If) and _is_type_checking(node.test):
         for part in node.orelse:
-            yield from _visit(part)
+            yield from _visit(part, deferred)
     else:
-        yield from _unguarded_imports(node)
+        for child in ast.iter_child_nodes(node):
+            yield from _visit(child, deferred)
+
+
+def _is_os_path(call: ast.Call, names: frozenset[str]) -> bool:
+    func = call.func
+    return (
+        isinstance(func, ast.Attribute)
+        and func.attr in names
+        and isinstance(func.value, ast.Attribute)
+        and func.value.attr == "path"
+        and isinstance(func.value.value, ast.Name)
+        and func.value.value.id == "os"
+    )
+
+
+def _dirname_depth(node: ast.AST) -> int | None:
+    """N for ``os.path.dirname`` applied N times to ``os.path.abspath(__file__)``."""
+    depth = 0
+    current = node
+    while isinstance(current, ast.Call) and len(current.args) == 1:
+        if _is_os_path(current, frozenset({"abspath"})):
+            arg = current.args[0]
+            return depth if isinstance(arg, ast.Name) and arg.id == "__file__" else None
+        if not _is_os_path(current, frozenset({"dirname"})):
+            return None
+        depth += 1
+        current = current.args[0]
+    return None
+
+
+def _sys_path_inserts(path: Path, parsed: ast.Module) -> list[tuple[int, Path]]:
+    """Return ``(statement index, directory)`` for modeled top-level path inserts.
+
+    Only the explicit idiom ``sys.path.insert(0, os.path.dirname(...`` chain
+    over ``os.path.abspath(__file__)`` (or ``sys.path.append`` of it) is
+    modeled. Anything else keeps its imports unresolved.
+    """
+    inserts: list[tuple[int, Path]] = []
+    for index, stmt in enumerate(parsed.body):
+        call = stmt.value if isinstance(stmt, ast.Expr) else None
+        if not isinstance(call, ast.Call) or not call.args:
+            continue
+        func = call.func
+        if not (
+            isinstance(func, ast.Attribute)
+            and func.attr in {"insert", "append"}
+            and isinstance(func.value, ast.Attribute)
+            and func.value.attr == "path"
+            and isinstance(func.value.value, ast.Name)
+            and func.value.value.id == "sys"
+        ):
+            continue
+        depth = _dirname_depth(call.args[-1])
+        if depth is None:
+            continue
+        directory = path.parent
+        for _ in range(depth - 1):
+            directory = directory.parent
+        inserts.append((index, directory))
+    return inserts
 
 
 def _relative_target(path: Path, node: ast.ImportFrom) -> str | None:
@@ -202,30 +277,40 @@ def _module_findings(
         return []
     rel = path.relative_to(repo_root).as_posix()
     tree_rel = tree.relative_to(repo_root).as_posix()
+    inserts = _sys_path_inserts(path, parsed)
     findings: list[Finding] = []
-    for node in _unguarded_imports(parsed):
-        missing: list[str] = []
-        if isinstance(node, ast.Import):
-            tops = [alias.name.split(".")[0] for alias in node.names]
-            missing = [t for t in tops if not _resolves(t, tree, path, allowed)]
-        elif node.level == 0 and node.module:
-            top = node.module.split(".")[0]
-            missing = [] if _resolves(top, tree, path, allowed) else [top]
-        elif node.level > 0:
-            target = _relative_target(path, node)
-            missing = [target] if target else []
-        for name in missing:
-            detail = f"module '{name}' is not stdlib, declared, or shipped in {tree_rel}"
-            findings.append(Finding(FINDING_KIND, tree_rel, f"{rel}:{node.lineno}", detail))
+    for index, stmt in enumerate(parsed.body):
+        for node, deferred in _unguarded_imports(stmt):
+            extra_dirs = tuple(d for i, d in inserts if deferred or i < index)
+            missing: list[str] = []
+            if isinstance(node, ast.Import):
+                tops = [alias.name.split(".")[0] for alias in node.names]
+                missing = [t for t in tops if not _resolves(t, tree, path, allowed, extra_dirs)]
+            elif node.level == 0 and node.module:
+                top = node.module.split(".")[0]
+                missing = [] if _resolves(top, tree, path, allowed, extra_dirs) else [top]
+            elif node.level > 0:
+                target = _relative_target(path, node)
+                missing = [target] if target else []
+            for name in missing:
+                detail = f"module '{name}' is not stdlib, declared, or shipped in {tree_rel}"
+                findings.append(Finding(FINDING_KIND, tree_rel, f"{rel}:{node.lineno}", detail))
     return findings
 
 
-def _resolves(name: str, tree: Path, path: Path, allowed: frozenset[str]) -> bool:
+def _resolves(
+    name: str,
+    tree: Path,
+    path: Path,
+    allowed: frozenset[str],
+    extra_dirs: tuple[Path, ...],
+) -> bool:
     return (
         name in sys.stdlib_module_names
         or name in allowed
         or _exists_as_module(tree / "lib", name)
         or _exists_as_module(path.parent, name)
+        or any(_exists_as_module(directory, name) for directory in extra_dirs)
     )
 
 
