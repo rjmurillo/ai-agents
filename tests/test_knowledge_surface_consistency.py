@@ -10,23 +10,15 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 _AGENTS_MD = REPO_ROOT / "AGENTS.md"
 _CLAUDE_AGENTS_RULE = REPO_ROOT / ".claude" / "rules" / "claude-agents.md"
 _TEMPLATES_RULE = REPO_ROOT / ".claude" / "rules" / "templates.md"
-_CLAUDE_AGENTS_MIRRORS = (
-    REPO_ROOT / ".github" / "instructions" / "claude-agents.instructions.md",
-    REPO_ROOT / "src" / "copilot-cli" / "instructions" / "claude-agents.instructions.md",
-)
-_TEMPLATES_MIRRORS = (
-    REPO_ROOT / ".github" / "instructions" / "templates.instructions.md",
-    REPO_ROOT / "src" / "copilot-cli" / "instructions" / "templates.instructions.md",
-)
+_CLAUDE_AGENTS_MIRRORS = (REPO_ROOT / ".github" / "instructions" / "claude-agents.instructions.md",)
+_TEMPLATES_MIRRORS = (REPO_ROOT / ".github" / "instructions" / "templates.instructions.md",)
 _PLUGIN_VERSION_RULE_SURFACES = (
     REPO_ROOT / ".claude" / "rules" / "plugin-version-bump.md",
     REPO_ROOT / ".github" / "instructions" / "plugin-version-bump.instructions.md",
-    REPO_ROOT / "src" / "copilot-cli" / "instructions" / "plugin-version-bump.instructions.md",
 )
 _KNOWLEDGE_PERSISTENCE_SURFACES = (
     REPO_ROOT / ".claude" / "rules" / "knowledge-persistence.md",
     REPO_ROOT / ".github" / "instructions" / "knowledge-persistence.instructions.md",
-    REPO_ROOT / "src" / "copilot-cli" / "instructions" / "knowledge-persistence.instructions.md",
 )
 # ai-agents-architecture-contract is distribution: repo-local: no Copilot mirror.
 _ARCHITECTURE_SKILL_SURFACES = (
