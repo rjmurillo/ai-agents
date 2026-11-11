@@ -14,9 +14,10 @@ directory, merges an ai-agents block into CLAUDE.md (or
 AGENTS.md if missing, and writes a version pin at `.claude/.ai-agents-version.json`.
 Use `--dry-run` to see every write first.
 
-Run `npx @rjmurillo/ai-agents --help` for all options. The
+Run `npx @rjmurillo/ai-agents --help` for every flag, including `--target` and
+`--force`. The
 [installation guide](https://github.com/rjmurillo/ai-agents/blob/main/docs/installation.md)
-covers `--target`, `--pack`, and `--force`.
+covers optional skill packs (`--pack`).
 
 Requires Node 20 or later.
 
