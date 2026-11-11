@@ -148,11 +148,6 @@ context and the code being analyzed are different work items. Stop and return
 the mismatch as an error. Do not substitute local checkout content for the
 requested PR.
 
-When the PR read tool is not registered and the delegation supplied the PR text as a
-file, take the repository, head ref, and head SHA from the identity the
-orchestrator supplied with it. State that API reconciliation was not possible,
-and list a missing identity under Open Questions.
-
 | Identity | API field | Local source (when present) | Mismatch action |
 |----------|-----------|--------------|-----------------|
 | Repository | `owner/repo` from URL | visible codebase path | Stop, report both values |
@@ -162,7 +157,7 @@ and list a missing identity under Open Questions.
 
 Local identity columns apply only when the analysis uses local checkout
 content (file reads against the working tree). For remote-only PR analysis
-using GitHub API tools, API identity fields alone are sufficient.
+using GitHub API tools, API identity fields alone are sufficient. When the PR read tool is not registered and the PR text came from a pre-fetched file, take the repository, head ref, and head SHA from the identity the orchestrator supplied with it, state that API reconciliation was not possible, and list a missing identity under Open Questions.
 
 ### Untrusted-content boundary
 
