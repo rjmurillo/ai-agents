@@ -35,7 +35,9 @@ the step itself when the host has no subagent tool. Narrowest correct scope:
 * The file carries the marker itself, or
 * it sits under ``skills/<name>/`` and that skill's ``SKILL.md`` carries it. A
   script that prints a hint, or a reference file the model loads from
-  ``SKILL.md``, is covered by the skill body that loaded it.
+  ``SKILL.md``, is covered by the skill body that loaded it, or
+* the line itself names Codex ``spawn_agent`` and Muse Code ``subagent_spawn``,
+  so it already is the per-host text the paragraph would add.
 
 A file under ``src/claude`` is not scanned: Claude Code registers ``Task``. The
 Codex and Muse trees are generated from the same sources, so a miss there is a
@@ -59,6 +61,7 @@ BARE_ASK = re.compile(r"AskUserQuestion")
 SUBAGENT_TYPE = "subagent_type"
 DELEGATION_MARKER = "**Delegation on each host.**"
 MISSING_DELEGATION = "subagent_type without the host-delegation paragraph"
+INLINE_HOST_TOOLS: tuple[str, ...] = ("spawn_agent", "subagent_spawn")
 
 
 def _body_lines(path: Path, text: str) -> Iterator[tuple[int, str]]:
@@ -121,7 +124,8 @@ def scan_file(path: Path, *, covered: bool = False) -> list[tuple[int, str]]:
     found: list[tuple[int, str]] = []
     for number, line in _body_lines(path, text):
         tool = line_violation(line)
-        if tool is None and SUBAGENT_TYPE in line and not has_marker:
+        names_hosts = all(name in line for name in INLINE_HOST_TOOLS)
+        if tool is None and SUBAGENT_TYPE in line and not has_marker and not names_hosts:
             tool = MISSING_DELEGATION
         if tool is not None:
             found.append((number, tool))
