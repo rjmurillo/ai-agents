@@ -1,4 +1,4 @@
-"""The pwsh probe skips a launcher that cannot start and nothing else (issue #7231)."""
+"""The pwsh probe skips a launcher that cannot start and nothing else (issue #7215)."""
 
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ def test_launcher_that_cannot_start_skips_with_its_own_message(path_with: Path) 
 
     assert reason is not None
     assert "snap-confine is packaged without necessary permissions" in reason
-    assert "issue #7231" in reason
+    assert "issue #7215" in reason
 
 
 def test_launcher_that_starts_runs_the_test(path_with: Path) -> None:
