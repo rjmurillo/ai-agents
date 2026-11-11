@@ -99,6 +99,8 @@ def _imported_module_names(source: str) -> set[str]:
         elif isinstance(node, ast.ImportFrom):
             if node.level == 0 and node.module:
                 names.add(node.module.split(".")[0])
+            elif node.level > 0 and node.module:
+                names.add(node.module.split(".")[0])
             elif node.level > 0:
                 names.update(alias.name for alias in node.names)
         elif isinstance(node, ast.Call) and _is_import_module_call(node):
@@ -227,6 +229,19 @@ def test_positive_control_imported_helper_is_reachable(hooks_copy: Path) -> None
     shim = hooks_copy / "Stop" / "invoke_reflect_nudge.py"
     shim.write_text(
         shim.read_text("utf-8") + "\ntry:\n    import _new_helper\nexcept ImportError:\n    pass\n",
+        "utf-8",
+    )
+
+    assert not unreachable_files(hooks_copy)
+
+
+def test_relative_from_import_resolves_the_module_not_the_symbol(hooks_copy: Path) -> None:
+    """``from ._x import y`` reaches ``_x.py``, not a file named after ``y``."""
+    (hooks_copy / "Stop" / "_rel_helper.py").write_text("value = 1\n", "utf-8")
+    shim = hooks_copy / "Stop" / "invoke_reflect_nudge.py"
+    shim.write_text(
+        shim.read_text("utf-8")
+        + "\ntry:\n    from ._rel_helper import value\nexcept ImportError:\n    pass\n",
         "utf-8",
     )
 
