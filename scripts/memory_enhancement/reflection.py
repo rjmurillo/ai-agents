@@ -7,6 +7,8 @@ and confidence decay. Used by the session_end hook.
 
 from __future__ import annotations
 
+import shutil
+import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -15,6 +17,12 @@ from .serena_integration import load_memories
 
 _SKILL_CONFIDENCE_THRESHOLD = 0.8
 _SKILL_MIN_LINKS = 2
+
+# Seconds allowed for the git status lookup. SessionEnd is not a latency path,
+# so this only trips on a hung git.
+_GIT_STATUS_TIMEOUT_SECONDS = 5
+
+_SESSION_FACT_SKIP_NAMES = frozenset({"README.md", "CLAUDE.md"})
 
 
 def generate_skill_candidates(memories_dir: Path, repo_root: Path) -> list[dict[str, str]]:
@@ -54,30 +62,83 @@ def generate_skill_candidates(memories_dir: Path, repo_root: Path) -> list[dict[
     return candidates
 
 
-def extract_session_facts(memories_dir: Path) -> list[str]:
-    """Find memories updated during the current session (modified today).
+def _changed_paths(memories_dir: Path) -> list[str] | None:
+    """Paths under ``memories_dir`` that differ from HEAD or are untracked.
+
+    Deleted paths are skipped: a removed memory is not an updated one.
+
+    Returns None when git cannot answer: git missing, not a repository, a
+    non-zero exit, or a timeout. Parses ``git status --porcelain -z`` so odd
+    file names survive; a rename entry carries the old path as an extra field,
+    which is skipped.
+    """
+    git = shutil.which("git")
+    if git is None:
+        return None
+    try:
+        result = subprocess.run(
+            [
+                git,
+                "-C",
+                str(memories_dir),
+                "status",
+                "--porcelain",
+                "-z",
+                "--untracked-files=all",
+                "--",
+                ".",
+            ],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=_GIT_STATUS_TIMEOUT_SECONDS,
+            check=True,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    paths: list[str] = []
+    fields = iter(result.stdout.split("\0"))
+    for field in fields:
+        if len(field) < 4:
+            continue
+        status, path = field[:2], field[3:]
+        if "R" in status or "C" in status:
+            next(fields, None)  # old path of a rename or copy
+        if "D" in status:
+            continue  # a removed memory is not an updated one
+        paths.append(path)
+    return paths
+
+
+def extract_session_facts(memories_dir: Path) -> list[str] | None:
+    """Find memories changed during the current session, according to git.
+
+    A memory counts as changed when its file differs from ``HEAD`` or is
+    untracked (``git status --porcelain``). File mtime is not used: a fresh
+    checkout stamps every file with the same time, which once reported all
+    1068 memories as updated (Issue #7227).
 
     Args:
         memories_dir: Path to .serena/memories/.
 
     Returns:
-        List of memory IDs modified today.
+        Sorted memory IDs with changes, an empty list when the directory is
+        missing or clean, or None when git cannot answer (the figure is
+        unknown, not zero).
     """
     if not memories_dir.is_dir():
         return []
 
-    skip_names = {"README.md", "CLAUDE.md"}
-    today = datetime.now(UTC).date()
-    updated: list[str] = []
+    paths = _changed_paths(memories_dir)
+    if paths is None:
+        return None
 
-    for md_file in memories_dir.rglob("*.md"):
-        if md_file.name in skip_names:
+    updated: set[str] = set()
+    for raw in paths:
+        path = Path(raw)
+        if path.suffix != ".md" or path.name in _SESSION_FACT_SKIP_NAMES:
             continue
-        stat = md_file.stat()
-        mod_date = datetime.fromtimestamp(stat.st_mtime, tz=UTC).date()
-        if mod_date == today:
-            updated.append(md_file.stem)
-
+        updated.add(path.stem)
     return sorted(updated)
 
 
