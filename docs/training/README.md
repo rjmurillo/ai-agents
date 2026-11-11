@@ -16,7 +16,7 @@ Each entry names the issue that writes the page and who the page is for. An entr
 
 - [Take one change from /spec to /ship, and route requests with /autoplan](lifecycle-and-autoplan.md) (#7205): the spec to ship lifecycle and `/autoplan` routing. For contributors.
 
-- `review-and-pr-feedback.md` (#7206): the review and PR feedback loop with `/review`, `/pr-review`, and pr-autofix. For contributors.
+- [Review a branch with /review and answer a review thread](review-and-pr-feedback.md) (#7206): the review and PR feedback loop with `/review`, `/pr-review`, and pr-autofix. For contributors.
 
 - [Clear a blocked commit with Lefthook local gates](local-gates-and-hooks.md) (#7207): local gates with Lefthook, and what to do when a hook blocks. For contributors.
 

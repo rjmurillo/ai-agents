@@ -1,4 +1,4 @@
-# Review a branch and answer feedback
+# Review a branch with /review and answer a review thread
 
 ## Goal
 
@@ -49,7 +49,7 @@ does not exist.
 changed paths and the effects in the diff. This command shows the pick:
 
 ```bash
-python3 .claude/skills/review/scripts/select_axes.py --changed-path docs/practice/notes.md \
+uv run python .claude/skills/review/scripts/select_axes.py --changed-path docs/practice/notes.md \
   | jq -c '{canonical_selected, local_selected, matched_categories, fail_closed}'
 ```
 
@@ -110,7 +110,7 @@ branch. It is the review marker. Its `Reviewed-By` trailer names the exact commi
 it reviewed. Check it:
 
 ```bash
-python3 .claude/skills/review/scripts/validate_review_marker.py
+uv run python .claude/skills/review/scripts/validate_review_marker.py
 ```
 
 You see a line like this. The SHA and the axis list are yours:
@@ -125,7 +125,7 @@ Now change the code. Any new commit voids the marker:
 printf '\nOne more line.\n' >> docs/practice/notes.md
 git add docs/practice/notes.md
 git commit -m "docs(practice): add a line"
-python3 .claude/skills/review/scripts/validate_review_marker.py
+uv run python .claude/skills/review/scripts/validate_review_marker.py
 ```
 
 You see a failure, and the command exits 1:
@@ -143,7 +143,7 @@ marker keeps it valid. Any other new code needs a new `/review`.
 Switch to your PR's branch. List its open threads:
 
 ```bash
-python3 .claude/skills/github/scripts/pr/get_unresolved_review_threads.py --pull-request <PR> --output-format json
+uv run python .claude/skills/github/scripts/pr/get_unresolved_review_threads.py --pull-request <PR> --output-format json
 ```
 
 Each entry in `threads` has an `id` that starts with `PRRT_`. A PR with no open
@@ -167,12 +167,20 @@ resolve in one call. The script refuses to resolve if the PR head moved since yo
 read it:
 
 ```bash
-python3 .claude/skills/github/scripts/pr/add_pr_review_thread_reply.py \
+uv run python .claude/skills/github/scripts/pr/add_pr_review_thread_reply.py \
   --thread-id <PRRT_id> --pull-request <PR> --expected-head-sha <40-hex head SHA> \
   --body "Fixed in <commit SHA>: <one line on what changed>." --resolve
 ```
 
 A reply alone does not resolve a thread. The `--resolve` flag does.
+
+### 8. Clean up
+
+```bash
+cd ~
+git -C <your clone> worktree remove ~/worktrees/ai-agents/practice-review-tutorial
+git -C <your clone> branch -D practice/review-tutorial
+```
 
 ## Check your result
 
@@ -180,7 +188,7 @@ Bots can open new threads 30 to 120 seconds after a push. A single zero reading
 can be wrong. This command waits for three zero readings, 180 seconds apart:
 
 ```bash
-python3 .claude/skills/github/scripts/pr/wait_for_unresolved_zero.py --pull-request <PR>
+uv run python .claude/skills/github/scripts/pr/wait_for_unresolved_zero.py --pull-request <PR>
 ```
 
 It exits 0 when the count stays at zero. It exits 1 if it runs out of time
@@ -191,7 +199,7 @@ You are done when:
 - Step 6 printed `[PASS]` before you added the extra line.
 - The wait command exits 0 for your PR.
 
-## If it fails
+Failure signs and what to do:
 
 | What you see | What it means | What to do |
 |---|---|---|
@@ -199,20 +207,23 @@ You are done when:
 | `UNKNOWN` verdict in step 4 | An axis could not run or its output could not be read. | Read the row for the axis. Fix the cause and re-run `/review`. |
 | `[FAIL]` from the marker check | The marker is missing or stale. | Re-run `/review` on the final code. |
 | Reply script refuses to resolve | The PR head moved after you read it. | Read the PR again, then pass the new head SHA. |
-| HTTP 403 from every GitHub script | The session blocks `gh` for a reason unrelated to your PR. | Treat it as unknown, not as a verdict. See [pr-review](how-to-pr-review.md). |
-
-## Clean up
-
-```bash
-cd ~
-git -C <your clone> worktree remove ~/worktrees/ai-agents/practice-review-tutorial
-git -C <your clone> branch -D practice/review-tutorial
-```
+| HTTP 403 from every GitHub script | The session blocks `gh` for a reason unrelated to your PR. | Treat it as unknown, not as a verdict. See the [pr-review skill](../../.claude/skills/pr-review/SKILL.md). |
 
 ## Next
 
-- [Run /review](how-to-review.md)
-- [Respond to review threads](how-to-respond-to-review-threads.md)
-- [Run /pr-review for a verdict](how-to-pr-review.md)
-- [Let pr-autofix drive a PR](how-to-pr-autofix.md)
-- [Get a maintainer decision](how-to-maintainer-review.md)
+Four more skills finish the loop. Read each skill file before you use it.
+
+- `/pr-review` answers the review comments on a PR and runs the completion gate. Exit 3 with `verdict: unknown` means the session was refused, not the PR. See [ADR-120](../../.project-toolkit/architecture/ADR-120-completion-gate-unknown-verdict.md).
+- `pr-comment-responder` works every thread on one PR and records a terminal status for each.
+- `pr-autofix` triages open PRs by tier. It stops with `ESCALATE` after 5 rounds or 4 hours.
+- `maintainer-review` writes a decision for a maintainer. It never writes PR content into memory.
+
+Then read [Clear a blocked commit with Lefthook local gates](local-gates-and-hooks.md).
+
+Reference sources:
+
+- [review skill](../../.claude/skills/review/SKILL.md), with [axis selection](../../.claude/skills/review/resources/axis-selection.md), [marker format](../../.claude/skills/review/resources/marker-and-no-task.md), and the [CodeQL pre-step](../../.claude/skills/review/resources/codeql-prestep.md)
+- [pr-review skill](../../.claude/skills/pr-review/SKILL.md) and [ADR-059](../../.project-toolkit/architecture/ADR-059-pr-review-completion-gate-dispatcher.md)
+- [pr-comment-responder skill](../../.claude/skills/pr-comment-responder/SKILL.md)
+- [pr-autofix skill](../../.claude/skills/pr-autofix/SKILL.md), [merge guards](../merge-guards.md), and [ADR-112](../../.project-toolkit/architecture/ADR-112-risk-tiered-action-boundaries.md)
+- [maintainer-review skill](../../.claude/skills/maintainer-review/SKILL.md)
