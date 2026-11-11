@@ -62,13 +62,13 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Plugin-root resolution: matches sibling scripts (test_pr_merged.py,
 # test_pr_merge_ready.py). When the script runs inside a deployed Claude
-# plugin, CLAUDE_PLUGIN_ROOT points at the plugin's installed path; when
-# it runs inside the repo (the case under test), we walk up to .claude/lib.
+# plugin, COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT names its installed path.
+# Repository callers retain their existing workspace fallback.
 # ---------------------------------------------------------------------------
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from skill_bootstrap import ensure_plugin_paths
 
-ensure_plugin_paths(__file__, os.environ.get("GITHUB_WORKSPACE"))
+ensure_plugin_paths(__file__, (".claude", "lib"))
 
 from github_core.api import (
     RepoInfo,  # re-exported so tests can reach it via _mod.RepoInfo

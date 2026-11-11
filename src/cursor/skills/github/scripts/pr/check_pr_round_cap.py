@@ -72,7 +72,7 @@ logger = logging.getLogger(__name__)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from skill_bootstrap import ensure_plugin_paths
 
-ensure_plugin_paths(__file__, os.environ.get("GITHUB_WORKSPACE"))
+ensure_plugin_paths(__file__, (".claude", "lib"))
 
 from github_core.api import (
     RepoInfo,  # re-exported so tests can reach it via _mod.RepoInfo

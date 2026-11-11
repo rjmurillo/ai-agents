@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Literal
 
 Discovery = Literal["relative", "ancestors", "manifest"]
+WorkspaceFallback = tuple[str, str]
 
 
 def _relative_lib_dir(script_file: str) -> str:
@@ -43,14 +44,18 @@ _DISCOVERERS = {
 
 
 def ensure_plugin_paths(
-    script_file: str, workspace: str | None = None, *, discovery: Discovery = "relative"
+    script_file: str,
+    workspace: WorkspaceFallback | None = None,
+    *,
+    discovery: Discovery = "relative",
 ) -> None:
-    """Keep workspace fallback opt-in for skill scripts that already used it."""
+    """Apply caller-selected workspace path components only when opted in."""
     _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+    _workspace_root = os.environ.get("GITHUB_WORKSPACE") if workspace else None
     if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
         _lib_dir = os.path.join(_plugin_root, "lib")
-    elif workspace:
-        _lib_dir = os.path.join(workspace, ".claude", "lib")
+    elif workspace and _workspace_root:
+        _lib_dir = os.path.join(_workspace_root, *workspace)
     else:
         _lib_dir = _DISCOVERERS[discovery](script_file)
     if not os.path.isdir(_lib_dir):

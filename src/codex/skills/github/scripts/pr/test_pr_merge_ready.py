@@ -65,7 +65,7 @@ _UTC = timezone.utc
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from skill_bootstrap import ensure_plugin_paths
 
-ensure_plugin_paths(__file__, os.environ.get("GITHUB_WORKSPACE"))
+ensure_plugin_paths(__file__, (".claude", "lib"))
 
 from github_core.api import (
     assert_gh_authenticated,

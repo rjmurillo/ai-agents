@@ -160,7 +160,8 @@ def test_shared_plugin_roots_keep_precedence_over_workspace(
     if selection.startswith("invalid"):
         expected = workspace / ".claude"
 
-    mod.ensure_plugin_paths(str(tmp_path / "script.py"), str(workspace))
+    monkeypatch.setenv("GITHUB_WORKSPACE", str(workspace))
+    mod.ensure_plugin_paths(str(tmp_path / "script.py"), (".claude", "lib"))
 
     assert sys.path[0] == str(expected / "lib")
 
@@ -245,9 +246,13 @@ def test_shared_fallback_and_registration_preserve_paths(
         monkeypatch.delenv(variable, raising=False)
     selected = str(chosen / "lib")
     (chosen / "lib").mkdir(parents=True)
-    mod.ensure_plugin_paths(str(script), workspace)
+    if workspace is None:
+        monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)
+    else:
+        monkeypatch.setenv("GITHUB_WORKSPACE", workspace)
+    mod.ensure_plugin_paths(str(script), (".claude", "lib"))
     before = list(sys.path)
-    mod.ensure_plugin_paths(str(script), workspace)
+    mod.ensure_plugin_paths(str(script), (".claude", "lib"))
 
     assert selected == str(chosen / "lib")
     assert sys.path == before

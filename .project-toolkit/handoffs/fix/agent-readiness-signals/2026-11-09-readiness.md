@@ -25,21 +25,25 @@ Its published digest matches, and the unchanged Copilot launcher test passes.
 On 2026-11-10, the combined repair suite passed all 3413 tests.
 The previous push failed because required security review proof was absent.
 No successful push or PR creation has been observed.
+The latest main integration exposed three additional preflight failures.
+The operator authorized bounded integration repairs and one replacement reviewer.
+Both portability gates and whole-corpus duplication now pass focused rechecks.
+Neither baseline changed during these integration repairs.
 
 ## State Record
 
 - **Remote**: rjmurillo/ai-agents
 - **Branch**: fix/agent-readiness-signals
 - **Worktree**: ~/src/GitHub/rjmurillo/ai-agents4
-- **Head SHA**: 8ecb15770807a636ea9e0712f1ee7dcee7aefc0b
-- **Timestamp**: 2026-11-10T08:18:13-08:00
+- **Head SHA**: 7429e985d10e7ee53a3ffa50dacb1bd67f988bae
+- **Timestamp**: 2026-11-10T08:20:13-08:00
 - **Objective**: Ship repository-side readiness repairs without adding client telemetry.
 - **Non-goals**: Hosted infrastructure, package releases, and security configuration changes.
 - **Risk tier**: shared-repository
 - **Acceptance**: New checks detect violations and pass the complete repository corpus.
 - **Phase**: validated repair sources, preparing exact-tip acceptance
 - **Next action**: Run exact-tip preflight, full regression, and independent review.
-- **Validation run**: Focused regression returned 3413 PASS; subsequent typed-consumer checks returned 543 PASS.
+- **Validation run**: Integration regression returned 268 PASS; 378 original-source CLI comparisons matched.
 - **Residual risks**: Remote CI timing and delivery cadence remain unverified.
 - **Escalation owner**: Repository owner.
 
@@ -201,7 +205,31 @@ On 2026-11-10, output-contract regrouping preserved all 152 collected test ident
 On 2026-11-10, taste found zero errors and 28 inherited file-size warnings.
 No warning landed on a touched line.
 Full regression and final review lack current acceptance proof.
-No fresh independent review process has been consumed.
+One fresh reviewer stopped without a report after the interruption.
+The operator authorized one replacement, raising the reviewer cap to fifteen.
+Fourteen independent review slots remain unused.
+
+## Approved Integration Repairs
+
+The decision is `.project-toolkit/scratch/readiness-integration-blockers-decision.json`.
+The operator selected bounded repairs and one replacement reviewer.
+The latest main merge introduced duplication between two reference-split test modules.
+Their identical heading parser now lives in one shared test helper.
+All original assertions remain, with six additional parser cases.
+Workspace fallback components remain explicit in their original GitHub callers.
+The shared bootstrap no longer introduces an upstream-only path reference.
+The portability baseline remains byte-identical, with 164 existing references.
+The duplicate baseline remains byte-identical, with 328 existing fingerprints.
+On 2026-11-10, duplication passed across 3488 Python files.
+On 2026-11-10, plugin-root validation passed across 12581 files.
+On 2026-11-10, integration regression passed all 268 cases.
+On 2026-11-10, all 378 original-source CLI comparisons matched exactly.
+Those comparisons cover 63 entrypoints across six installation states.
+They compare exits, stdout, and stderr against immutable original sources.
+On 2026-11-10, three integration helper modules passed mypy.
+On 2026-11-10, Ruff and formatting passed across 531 changed Python paths.
+The authority record validates 24 targets without defects.
+Full preflight and independent review do not yet certify these repairs.
 
 ## Approved Bootstrap Family and Pruning
 

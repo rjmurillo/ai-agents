@@ -27,7 +27,7 @@ from skill_bootstrap import ensure_plugin_paths
 _script_dir = os.path.dirname(__file__)
 if _script_dir not in sys.path:
     sys.path.insert(0, _script_dir)
-ensure_plugin_paths(__file__, os.environ.get("GITHUB_WORKSPACE"))
+ensure_plugin_paths(__file__, (".claude", "lib"))
 
 from auto_merge_guard import (
     guard_auto_merge_before_final_thread_resolution,

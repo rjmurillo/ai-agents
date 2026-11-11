@@ -29,7 +29,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from skill_bootstrap import ensure_plugin_paths
 
-ensure_plugin_paths(__file__, os.environ.get("GITHUB_WORKSPACE"))
+ensure_plugin_paths(__file__, (".claude", "lib"))
 
 from github_core.actions_output import write_github_output as _write_github_output
 from github_core.actions_output import write_step_summary as _write_step_summary
