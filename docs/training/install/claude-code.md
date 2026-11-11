@@ -78,10 +78,10 @@ claude plugin update project-toolkit@ai-agents
 When you are current, the update prints:
 
 ```text
-✔ project-toolkit is already at the latest version (8a8af7bc9d45).
+✔ project-toolkit is already at the latest version (df19438d94c6).
 ```
 
-We did not run an update that moved to a newer commit.
+Main moved from `8a8af7bc9d` to `df19438d94` (test files only) between our install and this update run, so the two SHAs on this page differ. Yours will differ too. We did not run an update that moved to a newer commit.
 
 ## Uninstall
 

@@ -76,7 +76,13 @@ Not verified: whether running `codex plugin add project-toolkit@ai-agents` again
 codex plugin remove project-toolkit@ai-agents
 ```
 
-This prints ``Removed plugin `project-toolkit` from marketplace `ai-agents`.`` The list then shows `not installed`. Not run: `codex plugin marketplace remove ai-agents`, which drops the marketplace source.
+This prints ``Removed plugin `project-toolkit` from marketplace `ai-agents`.`` The list then shows `not installed`. To drop the marketplace source too:
+
+```bash
+codex plugin marketplace remove ai-agents
+```
+
+It prints ``Removed marketplace `ai-agents`.``
 
 ## If it fails
 
