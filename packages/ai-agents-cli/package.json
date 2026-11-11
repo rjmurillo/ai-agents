@@ -24,6 +24,11 @@
   ],
   "author": "Richard Murillo",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rjmurillo/ai-agents.git",
+    "directory": "packages/ai-agents-cli"
+  },
   "publishConfig": {
     "access": "public",
     "provenance": true

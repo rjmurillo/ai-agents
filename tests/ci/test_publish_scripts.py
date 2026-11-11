@@ -29,6 +29,7 @@ _VALID_PKG = {
     "name": "@rjmurillo/ai-agents",
     "version": "1.0.0",
     "publishConfig": {"access": "public", "provenance": True},
+    "repository": {"type": "git", "url": "git+https://github.com/rjmurillo/ai-agents.git"},
     "bin": {"ai-agents": "dist/index.js"},
     "files": ["dist/"],
 }
@@ -43,6 +44,22 @@ class TestVerifyNpmPackageMetadata:
         _write_pkg(tmp_path / "package.json", _VALID_PKG)
         rc = vnpm.main(["--package-dir", str(tmp_path)])
         assert rc == vnpm.EXIT_OK
+
+    @pytest.mark.parametrize(
+        "repository",
+        [None, "", {}, {"url": ""}, {"url": "git+https://github.com/other/repo.git"}, 7],
+    )
+    def test_missing_or_foreign_repository_fails(self, tmp_path: Path, repository: object) -> None:
+        pkg = {k: v for k, v in _VALID_PKG.items() if k != "repository"}
+        if repository is not None:
+            pkg["repository"] = repository
+        _write_pkg(tmp_path / "package.json", pkg)
+        assert vnpm.main(["--package-dir", str(tmp_path)]) == vnpm.EXIT_INVALID
+
+    def test_repository_given_as_a_url_string_passes(self, tmp_path: Path) -> None:
+        pkg = {**_VALID_PKG, "repository": "https://github.com/rjmurillo/ai-agents"}
+        _write_pkg(tmp_path / "package.json", pkg)
+        assert vnpm.main(["--package-dir", str(tmp_path)]) == vnpm.EXIT_OK
 
     def test_wrong_name_fails(self, tmp_path: Path) -> None:
         pkg = {**_VALID_PKG, "name": "@other/pkg"}

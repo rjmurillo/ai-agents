@@ -34,6 +34,12 @@ def check_package_metadata(pkg: dict[str, Any]) -> list[str]:
         errors.append("publishConfig.access must be public")
     if not publish_config.get("provenance"):
         errors.append("publishConfig.provenance must be true")
+    repository = pkg.get("repository")
+    url = repository.get("url") if isinstance(repository, dict) else repository
+    # npm provenance (E422) refuses a package whose repository.url does not match
+    # the repository that built it (issue #7217).
+    if not isinstance(url, str) or "github.com/rjmurillo/ai-agents" not in url:
+        errors.append("repository.url must name github.com/rjmurillo/ai-agents")
     if not pkg.get("bin"):
         errors.append("bin entry required")
     if not pkg.get("files"):

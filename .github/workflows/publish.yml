@@ -4,8 +4,9 @@
 # promotion gate. The only live route is a manual run (workflow_dispatch) on the
 # default branch, with a dry-run switch and a release tag (required for a real
 # publish). The candidate is the run commit, the head of the default branch, so no
-# job checks out a ref that an input chose. A real publish runs the gate in enforcing mode, so it
-# publishes only when the gate promotes. A dry run runs the gate advisory.
+# job checks out a ref that an input chose. A real publish runs the gate in
+# enforcing mode, so it publishes only when the gate promotes. A dry run runs the
+# gate advisory.
 #
 # A push of a v* tag still triggers this workflow, and the first job refuses it:
 # a tag push runs the tagged commit's own copy of this file, so nothing on that
