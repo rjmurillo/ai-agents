@@ -87,22 +87,22 @@ If the agent should be distributed as part of a plugin, it is automatically incl
 
 ## Modifying Existing Agents
 
-Edit the shared template in `templates/agents/`, then regenerate. Do not edit generated files in `src/vs-code-agents/` or `src/copilot-cli/` directly.
-
-For Claude Code agents in `src/claude/`, you can edit directly since some are not template-generated.
+Edit the shared template in `templates/agents/`, then run `uv run python build/scripts/build_all.py`. Do not edit generated files in `src/claude/agents/`, `.claude/agents/`, `src/vs-code-agents/`, or `src/copilot-cli/` directly. Every agent under `src/claude/agents/` is rendered from a template. For a worked example of the template-first flow, see [Change a rule and a skill through templates](training/contributing/template-first.md).
 
 ## Creating Skills
 
-Skills are reusable workflow components stored in `.claude/skills/`. Each skill is a directory containing a `SKILL.md` file.
+Skills are reusable workflow components. Each skill is a directory containing a `SKILL.md` file. In this repository the shipped skills live in `src/claude/skills/<name>/`, and `.claude/skills/<name>` is a symlink to that directory.
 
 ### Skill structure
 
 ```text
-.claude/skills/my-skill/
-├── SKILL.md          # Skill definition with frontmatter
-└── scripts/          # Optional supporting scripts
+src/claude/skills/my-skill/
+├── SKILL.md          # Rendered from templates/skills/my-skill.SKILL.md.tmpl; do not hand-edit
+└── scripts/          # Optional supporting scripts, hand-edited here
     └── helper.py
 ```
+
+Edit `templates/skills/my-skill.SKILL.md.tmpl` and run `uv run python build/scripts/build_all.py` to render `SKILL.md` for every host.
 
 ### SKILL.md format
 
