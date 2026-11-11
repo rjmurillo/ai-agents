@@ -98,3 +98,5 @@ gh api graphql -f query='{ rateLimit { remaining resetAt } }'
 Probe on 2026-11-11, seconds apart: this query returned `remaining` 4777, while `GET /rate_limit` showed the `graphql` bucket at 4946. The gap of 169 fits the lag described above. The query itself costs one GraphQL point.
 
 Source: sweep artifact `checks_7259.txt` in the local session directory `issue-sweep-2026-11-10` (not committed).
+
+See also [decision-parallelism-on-one-github-token-is-self-defeating](../decision-parallelism-on-one-github-token-is-self-defeating.md) for why a sweep should cap concurrent PR drivers by this budget.
