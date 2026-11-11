@@ -62,12 +62,24 @@ rows:
     # repo-only rule (scope internal end to end) stays a real file here.
     link: true
   - class: hooks
-    # ADR-109 B4: the 14 executables and dispatch_groups.json (15 of the
-    # 16 hooks-class files; hooks.json is the hooks-json row below, which
-    # links it).
+    # ADR-109 B4: the shipped hooks-class files (invoke_dispatch_claude.py,
+    # dispatch_groups.json, Stop/); hooks.json is the hooks-json row below,
+    # which links it. `repo_only` (ADR-109 amendment 2026-11-11, issue #7231)
+    # names the top-level templates/hooks/ entries that stay in this
+    # repository: hook_templates.py renders them straight to .claude/hooks/
+    # with no src/claude/hooks hop, and this row's copy skips them. The list
+    # is directory-level: splitting one directory entry into file entries
+    # must precede shipping a single file from it.
     source: templates/hooks
     plugin_tree: src/claude/hooks
     install_tree: .claude/hooks
+    repo_only:
+      - PreCompact
+      - PreToolUse
+      - SessionEnd
+      - SessionStart
+      - UserPromptSubmit
+      - session-start.sh
   - class: hooks-github
     # No independent source: the Copilot plugin tree is rendered from the
     # same templates/hooks/ tree as the `hooks` row above, one hop further

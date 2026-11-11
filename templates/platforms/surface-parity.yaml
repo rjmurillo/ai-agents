@@ -145,6 +145,14 @@ surfaces:
     authority: src/claude/hooks
     generator: build/scripts/binplace_manifest.py
     owner: build_all.py --check
+  - id: hooks-claude-repo-only
+    path: .claude/hooks
+    relation: generated
+    authority: templates/hooks
+    generator: build/scripts/hook_templates.py
+    include: ["PreCompact/invoke_compact_checkpoint.py", "PreToolUse/_bootstrap.py", "SessionEnd/invoke_memory_reflection.py", "SessionStart/invoke_checkout_freshness_check.py", "SessionStart/invoke_context_loader.py", "SessionStart/invoke_plugin_hook_drift_check.py", "SessionStart/plugin_hook_drift_model.py", "SessionStart/plugin_hook_drift_record.py", "SessionStart/plugin_hook_drift_report.py", "SessionStart/plugin_hook_drift_safety.py", "SessionStart/plugin_hook_drift_state.py", "UserPromptSubmit/invoke_memory_recall.py", "session-start.sh"]
+    owner: build_all.py --check
+    reason: Repo-only hooks render straight to .claude/hooks and ship in no plugin tree (ADR-109 amendment 2026-11-11).
   - id: hooks-claude-docs
     path: .claude/hooks
     relation: independent
