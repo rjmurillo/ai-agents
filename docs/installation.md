@@ -59,6 +59,19 @@ Usage examples in Copilot Chat:
 @analyst Review this code for issues
 ```
 
+### Other hosts
+
+Six more hosts have an install route. Each page below ends with a check that shows the toolkit loaded, and lists update, stale-install, and uninstall steps.
+
+- [Codex](training/install/codex.md)
+- [Cursor](training/install/cursor.md)
+- [Grok Build](training/install/grok-build.md)
+- [Pi](training/install/pi.md)
+- [Hermes](training/install/hermes.md)
+- [Muse](training/install/muse.md) (experimental)
+
+The [install picker](training/install/README.md) compares all nine hosts, including Claude Code, Copilot CLI, and VS Code.
+
 ## Component-Level Installation
 
 If you want a partial install instead of the full toolkit, use the marketplace commands below.
