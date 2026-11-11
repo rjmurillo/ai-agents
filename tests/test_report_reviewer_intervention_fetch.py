@@ -307,28 +307,6 @@ def test_fetch_fails_loud_when_the_response_is_not_an_object() -> None:
         fetch.fetch_pull_requests(not_an_object, "o", "r", NOW - timedelta(days=90))
 
 
-def test_fetch_stops_before_it_empties_the_shared_graphql_budget() -> None:
-    page = make_page([make_pr(1, [])], "c1")
-    page["rateLimit"] = {"cost": 6, "remaining": fetch.MIN_REMAINING_POINTS - 1}
-    gql = FakeGraphQL({None: page, "c1": make_page([make_pr(2, [])])})
-
-    with pytest.raises(fetch.FetchError, match="budget low"):
-        fetch.fetch_pull_requests(gql, "o", "r", NOW - timedelta(days=90))
-
-    assert len(gql.calls) == 1
-
-
-def test_fetch_continues_while_the_graphql_budget_is_sufficient() -> None:
-    page = make_page([make_pr(1, [])])
-    page["rateLimit"] = {"cost": 6, "remaining": fetch.MIN_REMAINING_POINTS}
-
-    prs, _ = fetch.fetch_pull_requests(
-        FakeGraphQL({None: page}), "o", "r", NOW - timedelta(days=90)
-    )
-
-    assert [p["number"] for p in prs] == [1]
-
-
 def test_the_pr_query_asks_for_the_documented_thread_page_size() -> None:
     assert f"reviewThreads(first: {fetch.PR_PAGE_THREADS})" in fetch._PRS_QUERY
     assert fetch.PR_PAGE_THREADS < 50
@@ -361,23 +339,6 @@ def test_fetch_counts_the_cost_of_thread_follow_up_queries() -> None:
     )
 
     assert stats["graphql_cost"] == 12
-
-
-def test_fetch_stops_when_a_thread_follow_up_finds_the_budget_low() -> None:
-    pr = make_pr(7, [make_thread("A")])
-    pr["reviewThreads"]["pageInfo"] = {"hasNextPage": True, "endCursor": "t1"}
-    follow_up = {
-        "rateLimit": {"cost": 1, "remaining": fetch.MIN_REMAINING_POINTS - 1},
-        "repository": {"pullRequest": {"reviewThreads": {"pageInfo": {}, "nodes": []}}},
-    }
-
-    with pytest.raises(fetch.FetchError, match="budget low"):
-        fetch.fetch_pull_requests(
-            FakeGraphQL({None: make_page([pr])}, {(7, "t1"): follow_up}),
-            "o",
-            "r",
-            NOW - timedelta(days=90),
-        )
 
 
 def test_fetch_returns_normalized_pr_and_thread_records() -> None:

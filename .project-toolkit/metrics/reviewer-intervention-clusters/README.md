@@ -110,9 +110,9 @@ onto the default branch before the push, so a branch that moved during the run
 does not reject it. A failed push leaves the previous `report.json` in place.
 
 One run cost 421 GraphQL points on 2026-11-11 (33 pages, 1641 pull requests;
-858 before the thread page size dropped from 50 to 20). The script stops with exit 3
-when fewer than 100 points remain, so it does not empty a budget other jobs
-share.
+858 before the thread page size dropped from 50 to 20). The script refuses a further
+request and exits 3 when fewer than 100 points remain, so it does not empty a
+budget other jobs share. A read that already finished is kept.
 
 ## Reads are lossless
 

@@ -166,15 +166,26 @@ def _call(graphql: GraphQL, query: str, variables: dict[str, Any]) -> dict[str, 
         return graphql(query, variables)
 
 
-def _account_cost(data: dict[str, Any], counters: dict[str, int], examined: int) -> None:
-    """Add this response's GraphQL cost and stop before the shared budget is emptied."""
+def _account_cost(data: dict[str, Any], counters: dict[str, int]) -> None:
+    """Add this response's GraphQL cost and remember how many points remain."""
     limit = data.get("rateLimit")
     if not isinstance(limit, dict) or not isinstance(limit.get("cost"), int):
         logger.warning("response has no rateLimit block; the shared-budget stop is off for it")
         return
     counters["graphql_cost"] += limit["cost"]
     remaining = limit.get("remaining")
-    if isinstance(remaining, int) and remaining < MIN_REMAINING_POINTS:
+    if isinstance(remaining, int):
+        counters["remaining_points"] = remaining
+
+
+def _require_budget(counters: dict[str, int], examined: int) -> None:
+    """Refuse one more request when the shared budget is nearly empty.
+
+    Call it only when another request is needed. A page that completes the read
+    is kept even when its own cost took the budget under the floor.
+    """
+    remaining = counters.get("remaining_points")
+    if remaining is not None and remaining < MIN_REMAINING_POINTS:
         raise FetchError(
             f"GraphQL budget low ({remaining} points left); stopped after "
             f"{examined} pull requests so the shared budget is not emptied"
@@ -200,7 +211,7 @@ def _remaining_threads(
             ),
             "threads page",
         )
-        _account_cost(data, counters, examined)
+        _account_cost(data, counters)
         pr = as_object(
             as_object(data.get("repository"), "repository").get("pullRequest"), "pullRequest"
         )
@@ -209,6 +220,7 @@ def _remaining_threads(
         next_cursor = _next_cursor(conn, f"PR #{number} threads")
         if next_cursor is None:
             return threads
+        _require_budget(counters, examined)
         cursor = next_cursor
     raise FetchError(
         f"thread pagination exceeded {MAX_THREAD_PAGES} pages on PR #{number}; "
@@ -247,7 +259,7 @@ def fetch_pull_requests(
             variables["cursor"] = cursor
         data = as_object(_call(graphql, _PRS_QUERY, variables), "pull request page")
         counters["pages"] += 1
-        _account_cost(data, counters, examined)
+        _account_cost(data, counters)
         if counters["pages"] % PROGRESS_EVERY_PAGES == 0:
             logger.info("read %d pages, %d pull requests", counters["pages"], examined)
         conn = as_object(
@@ -271,6 +283,7 @@ def fetch_pull_requests(
             threads = as_nodes(threads_conn, f"PR #{number} threads")
             more = _next_cursor(threads_conn, f"PR #{number} threads")
             if more is not None:
+                _require_budget(counters, examined)
                 threads.extend(
                     _remaining_threads(graphql, owner, repo, number, more, counters, examined)
                 )
@@ -290,6 +303,7 @@ def fetch_pull_requests(
         cursor = _next_cursor(conn, "pull requests")
         if cursor is None:
             return result, examined
+        _require_budget(counters, examined)
     raise FetchError(
         f"pull request pagination exceeded {MAX_PR_PAGES} pages; older pull requests were not read"
     )
