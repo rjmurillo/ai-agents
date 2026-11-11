@@ -33,7 +33,10 @@ DOC_REFERENCE = (
 
 
 def access(name: str, server: str = "") -> str:
-    return bootstrap_sweep.tool_access({"name": name, "description": "", "access": None}, server)[0]
+    verdict: str = bootstrap_sweep.tool_access(
+        {"name": name, "description": "", "access": None}, server
+    )[0]
+    return verdict
 
 
 # ------------------------------------------------------------------ C2 tool classification
