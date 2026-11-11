@@ -18,7 +18,7 @@ We ran the commands on 2026-11-11 with main at `d34536c95c`. Counts come from th
 | Grok Build | 1.0.77 | 105 | 29 | Marketplace | Yes |
 | Pi | 1.5.0 | 105 | None | `pi install` from git | Yes |
 | Hermes | Agent v0.23.0 | 91, in two packs | None | `hermes plugins install` per pack | Yes |
-| Muse | Not run | 105 | 25, copied by hand; load not verified | Copy skill folders, then agents | No |
+| Muse (personal agent, Muse Code) | Not run | 105 | 25 for Muse Code, copied by hand; load not verified | Copy skill folders; Muse Code also gets agents | No |
 
 "Yes" means the install, check, update, and uninstall commands on this page all ran. A model turn that needs your sign-in is the exception. We mark those "Not run".
 
@@ -698,7 +698,7 @@ usage: get_pr_checks.py [-h] [--owner OWNER] [--repo REPO]
                         [--timeout-seconds TIMEOUT_SECONDS]
 ```
 
-Muse gets skills and agents. The skill frontmatter keeps only `name` and `description`, the two fields Muse custom skills use. The agents are in `src/muse/agents`. Copy them into `${XDG_CONFIG_HOME:-$HOME/.config}/muse/agents/` with the steps in [src/muse/README.md](../../src/muse/README.md#install-agents-into-muse-code). Whether Muse Code loads them is not verified: the test needs a Muse login (`tests/e2e/test_muse_agents_load.py`).
+One `src/muse` tree serves two Muse targets. The personal agent gets skills and `lib/` only. Muse Code gets skills, `lib/`, and agents. The skill frontmatter keeps only `name` and `description`. Install steps for each target are in [src/muse/README.md](../../src/muse/README.md): `Install into the Muse personal agent` and `Install into Muse Code` (skills and `lib/` under `${XDG_CONFIG_HOME:-$HOME/.config}/muse/`, agents in `muse/agents/`). Whether Muse Code loads the agents is not verified: the test needs a Muse login (`tests/e2e/test_muse_agents_load.py`). `muse skills validate` accepts all `src/muse/skills` dirs without a login (same file).
 
 Not run: asking Muse to list or use a skill.
 

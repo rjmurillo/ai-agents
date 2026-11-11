@@ -2,18 +2,18 @@ schemaVersion: "1.0"
 provider: "muse"
 artifacts:
   skills:
-    # The target is the Muse Code CLI (https://dev.meta.ai/docs/muse-code).
-    # It reads skills as plain directories holding a SKILL.md whose
-    # frontmatter it consumes is name and description only, so this tree
-    # renders the shipped Claude skills
-    # with a keep-list instead of a drop-list (frontmatterKeep precedent:
-    # templates/platforms/cursor.yaml, ADR-115 Decision 2). Meta documents
-    # no plugin manifest and there is no install cap, so the tree is flat: skills/
-    # plus the shared lib/ the skill scripts resolve against, mirroring
-    # the src/claude layout. The Hermes pack exclusions do not apply
-    # here: every one is a Hermes plugin_guard verdict (ADR-115
-    # Decision 6), and Muse has no equivalent guard, so this tree ships
-    # the same skill set as src/codex (ADR-115 Decision 2).
+    # One src/muse tree serves two targets: Meta's personal agent and the
+    # Muse Code CLI (https://dev.meta.ai/docs/muse-code). Both read skills as
+    # plain directories holding a SKILL.md whose frontmatter they consume is
+    # name and description only, so this tree renders the shipped Claude
+    # skills with a keep-list instead of a drop-list (frontmatterKeep
+    # precedent: templates/platforms/cursor.yaml, ADR-115 Decision 2). Meta
+    # documents no plugin manifest and there is no install cap, so the tree is
+    # flat: skills/ plus the shared lib/ the skill scripts resolve against,
+    # mirroring the src/claude layout. The Hermes pack exclusions do not apply
+    # here: every one is a Hermes plugin_guard verdict (ADR-115 Decision 6),
+    # and Muse has no equivalent guard, so this tree ships the same skill set
+    # as src/codex (ADR-115 Decision 2).
     sourceDir: "src/claude/skills"
     outputDir: "src/muse/skills"
     mode: "directory-copy"
@@ -22,7 +22,8 @@ artifacts:
       - name
       - description
   agents:
-    # ADR-115 Decision 8 (amended): Muse Code agents are Markdown files with
+    # ADR-115 Decision 8 (amended): agents are for Muse Code only; the
+    # personal agent has no documented agent format. Muse Code agents are Markdown files with
     # frontmatter name, description and optional model, effort, tools and
     # disallowedTools (https://dev.meta.ai/docs/muse-code/agents). Muse Code
     # starts with an invalid agent but the lead cannot spawn it, and an

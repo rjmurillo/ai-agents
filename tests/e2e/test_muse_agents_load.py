@@ -47,8 +47,30 @@ def shipped_agent_names() -> list[str]:
     return sorted(p.stem for p in MUSE_AGENTS.glob("*.md"))
 
 
-def build_prompt(names: list[str]) -> str:
-    """Return the prompt: spawn each named agent once with a one-word objective."""
+SKILL_SCRIPT_REL = "skills/github/scripts/pr/get_pr_checks.py"
+SKILL_USAGE = "usage: get_pr_checks.py"
+LIB_MISSING = "Plugin lib directory not found"
+
+
+def build_script_prompt(script: str) -> str:
+    """Return the instruction to run one script-backed skill and quote its output."""
+    return (
+        f"Then run `python3 -I {script} --help` in a shell and quote its first output line exactly."
+    )
+
+
+def skill_script_found_lib(output: str) -> bool:
+    """True when the run shows the script's usage line and no missing-lib message."""
+    return SKILL_USAGE in output and LIB_MISSING not in output
+
+
+def build_prompt(names: list[str], script: str) -> str:
+    """Return the prompt: spawn each named agent once, then run one skill script."""
+    return build_agents_prompt(names) + "\n" + build_script_prompt(script)
+
+
+def build_agents_prompt(names: list[str]) -> str:
+    """Return the spawn instruction: each named agent once with a one-word objective."""
     listing = "\n".join(f"- {name}" for name in names)
     return (
         "For each agent role below, spawn that exact agent once. Give it this "
@@ -152,11 +174,30 @@ def check_prerequisites() -> str:
     return muse
 
 
+def user_muse_root() -> Path:
+    """Return the real Muse user root, ``$XDG_CONFIG_HOME/muse`` or ``~/.config/muse``."""
+    base = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
+    return Path(base) / "muse"
+
+
+def require_user_skill_install() -> str:
+    """Return the installed ``get_pr_checks.py`` path; fail when skills or lib are not installed."""
+    root = user_muse_root()
+    script = root / SKILL_SCRIPT_REL
+    if not script.is_file():
+        pytest.fail(
+            f"{NOT_VERIFIED} no installed skills under {root}/skills; run the install first"
+        )
+    if not (root / "lib" / "github_core").is_dir():
+        pytest.fail(f"{NOT_VERIFIED} no installed lib under {root}/lib; run the install first")
+    return str(script)
+
+
 # Helper tests (always run, no CLI) -------------------------------------------
 
 
 def test_prompt_names_every_agent_once() -> None:
-    prompt = build_prompt(["a-one", "b-two"])
+    prompt = build_prompt(["a-one", "b-two"], "/x/s.py")
     assert prompt.count("- a-one") == 1 and prompt.count("- b-two") == 1
 
 
@@ -183,6 +224,25 @@ def test_spawned_agents_ignores_events_that_are_not_spawns() -> None:
 def test_spawned_agents_needs_the_whole_name() -> None:
     events = [{"type": "subagent_spawn", "agent": "architect-extra"}]
     assert spawned_agents(events, ["architect"]) == set()
+
+
+def test_skill_script_check_needs_usage_and_no_missing_lib() -> None:
+    assert skill_script_found_lib("usage: get_pr_checks.py [-h]")
+    assert not skill_script_found_lib("Plugin lib directory not found: /x")
+    assert not skill_script_found_lib("usage: get_pr_checks.py ... Plugin lib directory not found")
+    assert not skill_script_found_lib("nothing relevant")
+
+
+def test_prompt_asks_for_the_skill_script() -> None:
+    assert "/x/get_pr_checks.py --help" in build_prompt(["a"], "/x/get_pr_checks.py")
+
+
+def test_missing_user_skill_install_fails_clearly(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    with pytest.raises(pytest.fail.Exception, match=r"MUSE_NOT_VERIFIED: no installed skills"):
+        require_user_skill_install()
 
 
 def test_install_agents_adds_the_control_and_every_shipped_agent(tmp_path: Path) -> None:
@@ -225,6 +285,7 @@ def test_lead_spawns_every_shipped_agent_and_not_the_control(tmp_path: Path) -> 
     if not _RUN:
         pytest.skip(f"{NOT_VERIFIED} set RUN_CLI_E2E=1 with muse on PATH and a Muse login")
     muse = check_prerequisites()
+    script = require_user_skill_install()
     xdg = tmp_path / "xdg"
     names = install_agents(xdg / "muse" / "agents")
     workspace = tmp_path / "work"
@@ -233,7 +294,7 @@ def test_lead_spawns_every_shipped_agent_and_not_the_control(tmp_path: Path) -> 
     env["XDG_CONFIG_HOME"] = str(xdg)
     result = subprocess.run(
         [muse, "exec", "--json", "--trust-workspace", "--workspace", str(workspace),
-         build_prompt([*names, CONTROL_NAME])],
+         build_prompt([*names, CONTROL_NAME], script)],
         cwd=workspace,
         env=env,
         capture_output=True,
@@ -251,5 +312,64 @@ def test_lead_spawns_every_shipped_agent_and_not_the_control(tmp_path: Path) -> 
     assert events, f"{NOT_VERIFIED} no JSONL events on stdout: {result.stdout[-500:]}"
     spawned = spawned_agents(events, [*names, CONTROL_NAME])
     missing = sorted(set(names) - spawned)
+    assert skill_script_found_lib(result.stdout), (
+        f"the lead did not show {SKILL_USAGE!r} from {script}, or lib/ was missing. "
+        "Install the skills and lib with README 'Install into Muse Code' first. "
+        f"stdout tail: {result.stdout[-800:]}"
+    )
     assert not missing, f"agents not spawned: {missing}. stdout tail: {result.stdout[-800:]}"
     assert CONTROL_NAME not in spawned, "the control agent with an unknown key was spawned"
+
+
+SKILLS_DIR = REPO_ROOT / "src" / "muse" / "skills"
+
+
+def _run_validate(muse: str, skill_dir: Path, cwd: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [muse, "skills", "validate", str(skill_dir), "--json"],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=_USAGE_TIMEOUT_SECONDS,
+        check=False,
+    )
+
+
+def _validate_skill(muse: str, skill_dir: Path, cwd: Path) -> str:
+    """Return a failure message for ``skill_dir``, or an empty string when it is compatible."""
+    result = _run_validate(muse, skill_dir, cwd)
+    try:
+        report = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        tail = result.stdout[-200:]
+        return f"{skill_dir.name}: unparseable output (exit {result.returncode}): {tail}"
+    if not isinstance(report, dict):
+        return f"{skill_dir.name}: output is not a JSON object"
+    compat = report.get("compatibility")
+    result_word = compat.get("result") if isinstance(compat, dict) else None
+    if result.returncode != 0 or report.get("valid") is not True or result_word != "compatible":
+        return f"{skill_dir.name}: valid={report.get('valid')!r} result={result_word!r}"
+    return ""
+
+
+@pytest.mark.smoke
+@pytest.mark.muse
+def test_muse_code_validates_every_shipped_skill_as_compatible(tmp_path: Path) -> None:
+    """`muse skills validate` needs no login: every src/muse/skills dir must pass."""
+    if not _RUN:
+        pytest.skip(f"{NOT_VERIFIED} set RUN_CLI_E2E=1 with muse on PATH")
+    muse = shutil.which("muse")
+    if muse is None:
+        pytest.fail(f"{NOT_VERIFIED} RUN_CLI_E2E=1 but `muse` is not on PATH (Muse Code CLI)")
+    dirs = sorted(p for p in SKILLS_DIR.iterdir() if p.is_dir())
+    assert dirs, "no skill directories under src/muse/skills"
+    failures = [msg for d in dirs if (msg := _validate_skill(muse, d, tmp_path))]
+    assert failures == []
+    rejected = tmp_path / "no-description"
+    rejected.mkdir()
+    (rejected / "SKILL.md").write_text("---\nname: no-description\n---\nBody.\n", "utf-8")
+    result = _run_validate(muse, rejected, tmp_path)
+    assert result.returncode != 0, "a SKILL.md without a description was accepted"
+    assert "description" in result.stdout + result.stderr
