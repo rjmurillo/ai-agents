@@ -2,8 +2,10 @@
 
 The README copies skills into ``~/workspace/custom-skills/``. Skill scripts
 resolve shared packages from ``lib/`` one level above that directory, so the
-install must also place ``lib/`` at ``~/workspace/lib/``. The test runs the
-documented bash blocks verbatim, then runs one lib-importing skill script.
+install must also place ``lib/`` at ``~/workspace/lib/``. Skills and ``lib/``
+are one release, so a re-run replaces both and moves the old copies to a backup
+directory. The test runs the documented bash blocks verbatim, then runs one
+lib-importing skill script.
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 README = REPO_ROOT / "src" / "muse" / "README.md"
 SKILL_SCRIPT = Path("workspace/custom-skills/github/scripts/pr/get_pr_checks.py")
 LIB_MISSING_MESSAGE = "Plugin lib directory not found"
+BACKUP_GLOB = "muse-install-backup-*"
 _LIB_RESOLUTION_ENV = frozenset({"COPILOT_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT", "GITHUB_WORKSPACE"})
 
 pytestmark = pytest.mark.skipif(shutil.which("bash") is None, reason="bash is required")
@@ -47,6 +50,8 @@ def _bash(script: str, home: Path) -> subprocess.CompletedProcess[str]:
         env=_scratch_env(home),
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=300,
         check=False,
     )
@@ -58,6 +63,8 @@ def _run_skill_script(home: Path) -> subprocess.CompletedProcess[str]:
         env=_scratch_env(home),
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=60,
         check=False,
     )
@@ -83,36 +90,45 @@ def test_documented_install_lets_a_lib_importing_skill_script_run(tmp_path: Path
     assert "usage: get_pr_checks.py" in verified.stdout
 
 
-def test_skills_only_install_fails_with_missing_lib_message(tmp_path: Path) -> None:
+def test_skill_script_fails_with_missing_lib_message_when_lib_is_absent(tmp_path: Path) -> None:
     install, _ = _install_section_blocks()
-    skills_only = "\n".join(
-        line.replace(" ~/workspace/lib", "")
-        for line in install.splitlines()
-        if "src/muse/lib" not in line
-    )
-    assert "workspace/lib" not in skills_only
-    assert "custom-skills" in skills_only
-
-    installed = _bash(skills_only, tmp_path)
-    assert installed.returncode == 0, installed.stderr
+    assert _bash(install, tmp_path).returncode == 0
+    (tmp_path / "workspace" / "lib").rename(tmp_path / "lib-moved-away")
 
     result = _run_skill_script(tmp_path)
+
     assert result.returncode != 0
     assert LIB_MISSING_MESSAGE in result.stderr
 
 
-def test_rerunning_install_keeps_existing_skills_and_refreshes_lib(tmp_path: Path) -> None:
+def test_fresh_install_creates_no_backup(tmp_path: Path) -> None:
+    install, _ = _install_section_blocks()
+
+    assert _bash(install, tmp_path).returncode == 0
+
+    assert list((tmp_path / "workspace").glob(BACKUP_GLOB)) == []
+
+
+def test_rerun_replaces_skills_and_lib_and_moves_old_copies_to_backup(tmp_path: Path) -> None:
     install, _ = _install_section_blocks()
     assert _bash(install, tmp_path).returncode == 0
-    marker = tmp_path / "workspace" / "custom-skills" / "github" / "local-edit.txt"
-    marker.write_text("keep", encoding="utf-8")
-    stale = tmp_path / "workspace" / "lib" / "paths.py"
-    stale.write_text("# stale\n", encoding="utf-8")
+    workspace = tmp_path / "workspace"
+    local_edit = workspace / "custom-skills" / "github" / "local-edit.txt"
+    local_edit.write_text("mine", encoding="utf-8")
+    stale_module = workspace / "lib" / "dropped_upstream.py"
+    stale_module.write_text("# removed in the new release\n", encoding="utf-8")
+    (workspace / "lib" / "paths.py").write_text("# stale\n", encoding="utf-8")
 
     rerun = _bash(install, tmp_path)
 
     assert rerun.returncode == 0, rerun.stderr
-    assert marker.read_text(encoding="utf-8") == "keep"
-    assert stale.read_text(encoding="utf-8") == (
-        REPO_ROOT / "src" / "muse" / "lib" / "paths.py"
-    ).read_text(encoding="utf-8")
+    assert not local_edit.exists()
+    assert not stale_module.exists()
+    released_paths = REPO_ROOT / "src" / "muse" / "lib" / "paths.py"
+    assert (workspace / "lib" / "paths.py").read_bytes() == released_paths.read_bytes()
+    (backup,) = workspace.glob(BACKUP_GLOB)
+    assert (backup / "custom-skills" / "github" / "local-edit.txt").read_text(
+        encoding="utf-8"
+    ) == "mine"
+    assert (backup / "lib" / "dropped_upstream.py").is_file()
+    assert _bash(_install_section_blocks()[1], tmp_path).returncode == 0
