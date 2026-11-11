@@ -141,45 +141,36 @@ def _iter_template_candidates(repo_root: Path) -> Iterator[tuple[str, Path]]:
         yield path.relative_to(root).as_posix(), path
 
 
-def _manifest_error(repo_root: Path) -> str | None:
-    """Return why the binplace manifest cannot be loaded, or ``None``.
+def _load_repo_only(repo_root: Path) -> tuple[frozenset[str], str | None]:
+    """Load the binplace manifest once; return the ``hooks`` ``repo_only`` names and any error.
 
-    :func:`_target_for` reads the ``hooks`` row's ``repo_only`` list from it.
     A malformed manifest must stop the compile (exit 2) rather than render
-    every repo-only hook into the plugin tree.
+    every repo-only hook into the plugin tree, so the error is returned to
+    :func:`compile_all`. Callers that tolerate a bad manifest get an empty set.
     """
     try:
-        binplace_manifest.load(repo_root)
-    except binplace_manifest.BinplaceConfigError as exc:
-        return str(exc)
-    return None
-
-
-def _repo_only_names(repo_root: Path) -> frozenset[str]:
-    """Return the ``hooks`` row's ``repo_only`` names, empty on a bad or absent manifest."""
-    try:
         rows = binplace_manifest.load(repo_root)
-    except binplace_manifest.BinplaceConfigError:
-        return frozenset()
+    except binplace_manifest.BinplaceConfigError as exc:
+        return frozenset(), str(exc)
     for row in rows:
         if row.class_name == "hooks":
             names: frozenset[str] = row.repo_only
-            return names
-    return frozenset()
+            return names, None
+    return frozenset(), None
 
 
-def _target_for(repo_root: Path, name: str) -> Path:
+def _target_for(repo_root: Path, name: str, repo_only: frozenset[str]) -> Path:
     """Return the one render target for a discovered hooks-class ``name``.
 
-    A name whose first path part is in the ``hooks`` binplace row's
-    ``repo_only`` list renders straight to ``.claude/hooks/<name>`` with no
-    plugin-tree hop (ADR-109 amendment 2026-11-11). Every other name,
-    ``hooks.json`` included, renders under ``src/claude/hooks/`` at the same
-    relative path it holds under ``templates/hooks/`` (module docstring,
-    item 2).
+    A name whose first path part is in ``repo_only`` (the ``hooks`` binplace
+    row's list, loaded once by the caller) renders straight to
+    ``.claude/hooks/<name>`` with no plugin-tree hop (ADR-109 amendment
+    2026-11-11). Every other name, ``hooks.json`` included, renders under
+    ``src/claude/hooks/`` at the same relative path it holds under
+    ``templates/hooks/`` (module docstring, item 2).
     """
     first_part = name.split("/", 1)[0]
-    if first_part in _repo_only_names(repo_root):
+    if first_part in repo_only:
         return repo_root / ".claude" / "hooks" / name
     return repo_root / "src" / "claude" / "hooks" / name
 
@@ -234,17 +225,21 @@ def _target_validation_error(repo_root: Path, name: str, target: Path) -> str | 
     return None
 
 
-def _name_validation_error(repo_root: Path, name: str, tmpl_path: Path) -> str | None:
+def _name_validation_error(
+    repo_root: Path, name: str, tmpl_path: Path, repo_only: frozenset[str]
+) -> str | None:
     """Return why ``name`` is not a valid hooks-class template, or ``None``."""
     source_error = _source_validation_error(repo_root, name, tmpl_path)
     if source_error is not None:
         return source_error
-    target = _target_for(repo_root, name)
+    target = _target_for(repo_root, name, repo_only)
     return _target_validation_error(repo_root, name, target)
 
 
-def discover(repo_root: Path) -> dict[str, Path]:
+def discover(repo_root: Path, repo_only: frozenset[str] | None = None) -> dict[str, Path]:
     """Return ``{name: templates/hooks/<name>}`` for every VALID template.
+
+    ``repo_only`` is the ``hooks`` row's list; ``None`` loads it from the manifest.
 
     An absent ``templates/hooks/`` directory yields an empty mapping
     (mirrors ``rule_templates.discover``, ``agent_templates.discover``).
@@ -252,10 +247,12 @@ def discover(repo_root: Path) -> dict[str, Path]:
     root_error = _root_validation_error(repo_root)
     if root_error is not None:
         return {}
+    if repo_only is None:
+        repo_only = _load_repo_only(repo_root)[0]
     return {
         name: tmpl_path
         for name, tmpl_path in _iter_template_candidates(repo_root)
-        if _name_validation_error(repo_root, name, tmpl_path) is None
+        if _name_validation_error(repo_root, name, tmpl_path, repo_only) is None
     }
 
 
@@ -275,14 +272,16 @@ def _root_validation_error(repo_root: Path) -> str | None:
     return _resolved_containment_error(repo_root, "templates/hooks", root)
 
 
-def discover_errors(repo_root: Path) -> list[str]:
+def discover_errors(repo_root: Path, repo_only: frozenset[str] | None = None) -> list[str]:
     """Return one message per discovered name :func:`discover` excluded."""
     root_error = _root_validation_error(repo_root)
     if root_error is not None:
         return [root_error]
+    if repo_only is None:
+        repo_only = _load_repo_only(repo_root)[0]
     errors: list[str] = []
     for name, tmpl_path in _iter_template_candidates(repo_root):
-        error = _name_validation_error(repo_root, name, tmpl_path)
+        error = _name_validation_error(repo_root, name, tmpl_path, repo_only)
         if error is not None:
             errors.append(error)
     return errors
@@ -295,7 +294,8 @@ def owned_targets(repo_root: Path) -> set[Path]:
     Used by ``build/scripts/build_all.py``'s OWNED_PREFIXES-based staleness
     check and by the binplace manifest's allowlist derivation.
     """
-    targets = {_target_for(repo_root, name) for name in discover(repo_root)}
+    repo_only = _load_repo_only(repo_root)[0]
+    targets = {_target_for(repo_root, name, repo_only) for name in discover(repo_root, repo_only)}
     settings_tmpl = _templates_root(repo_root) / _SETTINGS_TEMPLATE_NAME
     if _settings_source_error(repo_root, settings_tmpl) is None and settings_tmpl.is_file():
         targets.add(repo_root / ".claude" / "settings.json")
@@ -445,22 +445,23 @@ def compile_all(repo_root: Path, *, validate: bool, what_if: bool = False) -> Co
     """
     result = CompileResult()
 
-    root_error = _root_validation_error(repo_root) or _manifest_error(repo_root)
+    repo_only, manifest_error = _load_repo_only(repo_root)
+    root_error = _root_validation_error(repo_root) or manifest_error
     if root_error is not None:
         print(f"Error: {root_error}", file=sys.stderr)
         result.exit_code = max(result.exit_code, 2)
         return result
 
-    for error in discover_errors(repo_root):
+    for error in discover_errors(repo_root, repo_only):
         print(f"Error: {error}", file=sys.stderr)
         result.exit_code = max(result.exit_code, 2)
 
-    for name, tmpl_path in sorted(discover(repo_root).items()):
+    for name, tmpl_path in sorted(discover(repo_root, repo_only).items()):
         _compile_one(
             repo_root,
             name,
             tmpl_path,
-            _target_for(repo_root, name),
+            _target_for(repo_root, name, repo_only),
             validate=validate,
             what_if=what_if,
             result=result,

@@ -124,6 +124,9 @@ def test_loader_rejects_empty_or_non_list(tmp_path: Path, value: str) -> None:
         binplace_manifest.load(root)
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="symlink creation needs Developer Mode on Windows"
+)
 def test_loader_rejects_symlinked_entry(tmp_path: Path) -> None:
     root = _repo(tmp_path, _list("linked"))
     outside = tmp_path / "outside"
