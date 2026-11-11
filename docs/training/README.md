@@ -30,7 +30,7 @@ Each entry names the issue that writes the page and who the page is for. An entr
 
 - `maintainer-operations.md` (#7212): agent workflow approval, the promotion gate, ruleset drift, and releases. For maintainers.
 
-- `measure-agent-quality.md` (#7213): evals and benchmarks. For maintainers and skill authors.
+- [Measure agent quality with evals and benchmarks](measure-agent-quality.md) (#7213): evals and benchmarks. For maintainers and skill authors.
 
 - `github-skill-scripts.md` (#7214): how-to for the github skill scripts. For contributors.
 
