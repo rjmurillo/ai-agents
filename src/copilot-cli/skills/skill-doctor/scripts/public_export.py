@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
@@ -132,7 +133,9 @@ def _keys(node: Any) -> Iterator[str]:
 def _number(value: Any) -> float | None:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
-    return float(value)
+    number = float(value)
+    # NaN and Infinity are not JSON; a shared summary must parse anywhere.
+    return number if math.isfinite(number) else None
 
 
 def _count(value: Any) -> int:
