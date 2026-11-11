@@ -3,7 +3,8 @@
 Split from validate_templates_schema.py for the taste-lint file-size ceiling.
 
 ``artifacts.rules.outputFormat``, ``artifacts.skills.frontmatterKeep``,
-``artifacts.agents.frontmatterKeep``, and ``artifacts.agents.deriveReadonly``.
+``artifacts.agents.frontmatterKeep``, ``artifacts.agents.deriveReadonly``, and
+``artifacts.agents.bodyReplace``.
 Each function returns error strings; an empty list is valid.
 """
 
@@ -56,6 +57,23 @@ def validate_frontmatter_keep(name: str, stanza: dict[str, object]) -> list[str]
     return errors
 
 
+def _validate_body_replace(name: str, stanza: dict[str, object]) -> list[str]:
+    """Check `bodyReplace` (issue #7226): a map of file name to `{from: to}` strings."""
+    if "bodyReplace" not in stanza:
+        return []
+    files = stanza["bodyReplace"]
+    where = f"`artifacts.{name}.bodyReplace`"
+    if not isinstance(files, dict):
+        return [f"{where}: must map agent file names to {{from: to}} maps"]
+    errors: list[str] = []
+    for file, pairs in files.items():
+        if not isinstance(pairs, dict) or not pairs:
+            errors.append(f"{where}.{file}: must be a non-empty {{from: to}} map")
+        elif not all(isinstance(k, str) and k and isinstance(v, str) for k, v in pairs.items()):
+            errors.append(f"{where}.{file}: from must be a non-empty string and to a string")
+    return errors
+
+
 def validate_agents_tree_copy(name: str, stanza: dict[str, object]) -> list[str]:
     """Check the agent tree-copy keys (ADR-115 Decision 2).
 
@@ -66,9 +84,11 @@ def validate_agents_tree_copy(name: str, stanza: dict[str, object]) -> list[str]
     errors: list[str] = []
     if "deriveReadonly" in stanza and not isinstance(stanza["deriveReadonly"], bool):
         errors.append(f"`artifacts.{name}.deriveReadonly`: must be a boolean")
+    errors.extend(_validate_body_replace(name, stanza))
     if "frontmatterKeep" not in stanza:
-        if "deriveReadonly" in stanza:
-            errors.append(f"`artifacts.{name}.deriveReadonly`: requires `frontmatterKeep`")
+        for key in ("deriveReadonly", "bodyReplace"):
+            if key in stanza:
+                errors.append(f"`artifacts.{name}.{key}`: requires `frontmatterKeep`")
         return errors
     errors.extend(validate_frontmatter_keep(name, stanza))
     for required in ("sourceDir", "outputDir"):

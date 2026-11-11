@@ -27,6 +27,28 @@ artifacts:
     # shipped at all (ADR-115 Decision 3), because Cursor would run it with
     # every tool. An agent with no tools list ships without readonly.
     deriveReadonly: true
+    # Cursor ships no `security` agent (its tools list is not read-only, ADR-115
+    # Decision 3), so each line below that hands work to one is reworded to say
+    # what a Cursor user can do: report the finding to the user and flag it.
+    # Issue #7226. A `from` that no longer occurs exactly once fails the build.
+    bodyReplace:
+      code-reviewer.md:
+        "- Hand security findings to the security agent.": "- Report security findings to the user and flag them for security review."
+        "then hand off to the security agent for sign-off.": "then report it to the user and flag it for security review."
+      code-simplifier.md:
+        "Stop and hand off to security agent.": "Stop, report it to the user, and flag it for security review."
+      debug.md:
+        "| **security** | Security vulnerability found | Security assessment |\n": ""
+      devops.md:
+        "| **security** | Security review needed | Compliance check |\n": ""
+      implementer.md:
+        "and let security agent review before proceeding.": "and let the user review before proceeding."
+        "Route to security agent for PIV before merge.": "Flag to the user for security PIV before merge."
+        "needs security agent review first.": "needs user review first."
+      orchestrator.md:
+        "| **security** | Threat modeling, vulnerability review | Pure performance work |\n": ""
+      pr-test-analyzer.md:
+        "hand off to security agent for explicit sign-off": "report it to the user and flag it for security review"
   skills:
     sourceDir: "src/claude/skills"
     outputDir: "src/cursor/skills"
