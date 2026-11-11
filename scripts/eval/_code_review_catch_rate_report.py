@@ -86,7 +86,12 @@ def _pct(cell: dict[str, Any]) -> str:
 
 
 def _resumed_note(meta: dict[str, Any]) -> str:
-    """Say so when the counts omit work reused from a checkpoint."""
+    """Say so when the header describes a rescore or omits work reused from a checkpoint."""
+    if meta.get("rescored"):
+        return (
+            "(rescored from stored responses with no model call; model, provider, "
+            "and date come from the rescore invocation, not the original run) "
+        )
     resumed = meta.get("resumed_rows") or 0
     if not resumed:
         return ""
@@ -146,4 +151,7 @@ def dump_results(result: dict[str, Any]) -> str:
 
 
 def render_from_results(path: Path) -> str:
-    return render_report(json.loads(path.read_text(encoding="utf-8")))
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict) or not {"meta", "aggregate", "entries"} <= data.keys():
+        raise ValueError(f"{path} is not a results file (needs meta, aggregate, entries)")
+    return render_report(data)

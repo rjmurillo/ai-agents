@@ -146,6 +146,9 @@ def load_checkpoint(path: Path | None) -> list[dict[str, Any]]:
             if index == len(lines) - 1:
                 break  # a killed run can leave a half-written last line; its job reruns
             raise
+    for row in rows:
+        if not isinstance(row, dict) or "entry" not in row or "trial" not in row:
+            raise ValueError(f"checkpoint {path} holds a line that is not a result row")
     return [
         r for r in rows if not r.get("error") and len(r.get("raw", "")) == r.get("raw_chars", -1)
     ]
@@ -249,7 +252,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--validate-corpus", action="store_true", help="load, build prompts, run leak checks"
     )
     parser.add_argument("--dry-run", action="store_true")
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.trials < 1:
+        parser.error("--trials must be at least 1")
+    return args
 
 
 def _split(raw: str) -> tuple[str, ...]:
@@ -339,7 +345,9 @@ def rescore(args: argparse.Namespace) -> int:
         return 2
     wanted = _split(args.entries)
     rows = [r for r in rows if not wanted or r["entry"] in wanted]
-    meta = build_meta(args, REPO_ROOT / args.corpus, len(corpus.entries), None)
+    meta = build_meta(args, REPO_ROOT / args.corpus, len({r["entry"] for r in rows}), None)
+    meta["trials"] = max((int(r["trial"]) for r in rows), default=-1) + 1
+    meta["rescored"] = True
     print(write_outputs(args, rows, meta, corpus))
     return 0
 

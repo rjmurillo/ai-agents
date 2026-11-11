@@ -118,6 +118,11 @@ class TestCorpusParsing:
                 else {**_payload(), "entries": None}
             )
 
+    @pytest.mark.parametrize("payload", [[], None, "text", 3])
+    def test_a_corpus_that_is_not_a_json_object_is_refused(self, payload):
+        with pytest.raises(core.CorpusError, match="JSON object"):
+            core.parse_corpus(payload)
+
     def test_unreadable_corpus_file_is_refused(self, tmp_path):
         with pytest.raises(core.CorpusError, match="cannot read"):
             core.load_corpus(tmp_path / "absent.json")

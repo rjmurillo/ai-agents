@@ -346,6 +346,13 @@ class TestFailureModes:
 
         assert json.loads(capsys.readouterr().out)["planned_calls"] == 8
 
+    @pytest.mark.parametrize("text", ["[]", "null", '"text"', "{}", '{"meta": {}}'])
+    def test_report_from_json_that_is_not_a_results_file_exits_2(self, tmp_path, text):
+        bad = tmp_path / "shape.json"
+        bad.write_text(text, encoding="utf-8")
+
+        assert cli.main(["--report-from", str(bad)]) == 2
+
     def test_report_from_a_missing_or_corrupt_file_exits_2(self, tmp_path):
         bad = tmp_path / "bad.json"
         bad.write_bytes(b"\xff\xfe not json")
@@ -473,6 +480,49 @@ class TestCheckpoint:
 
         caught = json.loads(out.read_text(encoding="utf-8"))["aggregate"]["caught_top5"]
         assert code == 0 and (caught["hits"], caught["n"]) == (2, 4)
+
+    @pytest.mark.parametrize("line", ["[]", "3", "null", '{"entry": "CR01"}'])
+    def test_a_checkpoint_line_that_is_not_a_result_row_exits_2(self, tmp_path, repo, line):
+        corpus = _write_corpus(tmp_path, repo)
+        checkpoint = tmp_path / "rows.jsonl"
+        checkpoint.write_text(line + "\n" + line + "\n", encoding="utf-8")
+
+        code = cli.main(
+            _argv(corpus, "--checkpoint", str(checkpoint)), caller=_stub(), git=_git(repo["root"])
+        )
+
+        assert code == 2
+
+    @pytest.mark.parametrize("trials", ["0", "-1"])
+    def test_trials_below_one_is_a_usage_error(self, tmp_path, repo, trials):
+        corpus = _write_corpus(tmp_path, repo)
+
+        with pytest.raises(SystemExit) as exit_info:
+            cli.main(_argv(corpus, "--trials", trials, "--dry-run"), git=_git(repo["root"]))
+
+        assert exit_info.value.code == 2
+
+    def test_rescore_header_describes_the_selected_rows(self, tmp_path, repo):
+        corpus = _write_corpus(tmp_path, repo)
+        checkpoint = tmp_path / "rows.jsonl"
+        out = tmp_path / "rescored.json"
+        report_path = tmp_path / "rescored.md"
+        cli.main(
+            _argv(corpus, "--checkpoint", str(checkpoint), "--trials", "2"),
+            caller=_stub(),
+            git=_git(repo["root"]),
+        )
+
+        code = cli.main(
+            _argv(corpus, "--rescore", "--checkpoint", str(checkpoint), "--entries", "CR01,CR02")
+            + ["--output", str(out), "--report", str(report_path)]
+        )
+
+        result = json.loads(out.read_text(encoding="utf-8"))
+        assert code == 0
+        assert (result["meta"]["entries"], result["meta"]["trials"]) == (2, 2)
+        assert result["aggregate"]["caught_top5"]["n"] == 4
+        assert "rescored from stored responses" in report_path.read_text(encoding="utf-8")
 
     def test_rescore_without_a_checkpoint_exits_2(self, tmp_path, repo):
         assert cli.main(_argv(_write_corpus(tmp_path, repo), "--rescore")) == 2

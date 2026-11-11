@@ -119,6 +119,8 @@ def parse_entry(raw: dict[str, Any]) -> Entry:
 
 
 def parse_corpus(payload: dict[str, Any]) -> Corpus:
+    if not isinstance(payload, dict):
+        raise CorpusError("corpus must be a JSON object")
     if payload.get("schema_version") != SCHEMA_VERSION:
         raise CorpusError(f"schema_version must be {SCHEMA_VERSION}")
     selection = payload.get("selection")
