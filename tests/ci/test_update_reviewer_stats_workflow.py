@@ -56,13 +56,16 @@ def test_artifact_hands_both_report_files_from_the_first_job_to_the_second() -> 
     ]
     assert up["with"]["name"] == down["with"]["name"]
     assert up["with"]["path"].split() == files
-    # Two paths make the repository root the artifact root, so it extracts there.
-    assert down["with"]["path"] == "."
+    # The privileged job never extracts over its checkout.
+    assert down["with"]["path"] == "${{ runner.temp }}/reviewer-stats"
+    assert up["with"]["path"].split()[0] != down["with"]["path"]
     assert up["with"]["if-no-files-found"] == "error"
     assert up["with"]["include-hidden-files"] is True
     (publish,) = [s for s in jobs["publish-stats"]["steps"] if "open_bot_pr.py" in s.get("run", "")]
     for file in files:
         assert f"--path {file}" in publish["run"]
+    assert '--artifact-dir "$RUNNER_TEMP/reviewer-stats"' in publish["run"]
+    assert "python3 -I scripts/ci/open_bot_pr.py" in publish["run"]
 
 
 def test_the_upload_and_the_publish_job_run_even_when_the_stats_step_fails() -> None:

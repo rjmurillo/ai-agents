@@ -4,9 +4,8 @@
 Scheduled workflows cannot push to a protected default branch unless their
 identity is on the ruleset bypass list (issue #7287). This script commits the
 given paths on a fixed bot branch, pushes that branch, and opens a pull
-request against the base branch. `commit_and_push.py` pushes in place and so
-suits only unprotected branches. This script has its own git helpers because
-every call here needs a timeout.
+request against the base branch. It replaces the earlier `commit_and_push.py`,
+which pushed in place and so failed on any protected branch.
 
 Rules:
   - A clean tree is a no-op. The examined path count is printed. Only the
@@ -18,11 +17,19 @@ Rules:
     recreated from the current checkout. The caller regenerates the content on
     every run, so the delete loses only a commit someone added to the branch by
     hand. Do not commit there. Nothing is force-pushed.
-  - A pull request opened with `GITHUB_TOKEN` starts no `pull_request` runs, so
-    a human must close and reopen it before required checks report.
+  - A pull request opened with `GITHUB_TOKEN` starts no `pull_request` runs. A
+    human pushes a commit to the branch (an empty one will do) to start the
+    required checks. Do not close the pull request: a scheduled run that finds
+    no open pull request deletes the branch, and a closed pull request on a
+    deleted branch cannot be reopened.
   - The branch must start with `automation/` so a caller cannot name the base or
     a human branch. The checkout must be an ancestor of `origin/<base>`, so a
     `workflow_dispatch` from a feature ref cannot publish that ref's commits.
+  - `--artifact-dir` names a directory a download step filled. For each `--path`,
+    a regular file at `<dir>/<path>` (or `<dir>/<basename>`, the layout of a
+    one-file upload) is copied to `<path>`. Nothing else in the directory is read,
+    so a forged artifact cannot replace this script or any other file. A symlink
+    source, a symlink destination, and a source outside the directory are refused.
   - Every git and gh call has a timeout. A timeout counts as that call failing.
   - Output carries one `outcome=noop|skipped|published` line, and a skip also
     prints a `::notice::` annotation so the run page shows a stalled update.
@@ -44,8 +51,10 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 EXIT_SUCCESS = 0
 EXIT_GIT_FAILED = 1
@@ -62,11 +71,15 @@ class GhError(RuntimeError):
     """A `gh` call failed. The message names the operation. Maps to EXIT_EXTERNAL."""
 
 
-def _exec(tool: str, args: list[str]) -> subprocess.CompletedProcess[str]:
-    """Run `tool args`, capturing combined output as UTF-8 text, with a timeout.
+def _exec(
+    tool: str, args: list[str], *, split_stderr: bool = False
+) -> subprocess.CompletedProcess[str]:
+    """Run `tool args`, capturing UTF-8 text, with a timeout.
 
-    A timeout returns exit code 124 instead of raising, so it takes the same
-    failure path as any other non-zero exit.
+    Output is combined by default. With `split_stderr`, stdout holds only the
+    tool's stdout, so a warning on stderr cannot corrupt a JSON parse. A timeout
+    returns exit code 124 instead of raising, so it takes the same failure path
+    as any other non-zero exit.
     """
     argv = [tool, *args]
     try:
@@ -74,7 +87,7 @@ def _exec(tool: str, args: list[str]) -> subprocess.CompletedProcess[str]:
             argv,
             check=False,
             stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
+            stderr=subprocess.PIPE if split_stderr else subprocess.STDOUT,
             text=True,
             encoding="utf-8",
             errors="replace",
@@ -93,9 +106,9 @@ def _run(args: list[str]) -> int:
     return result.returncode
 
 
-def dirty(paths: list[str]) -> bool:
-    """Return True when `git status --porcelain` reports changes under paths."""
-    result = _exec("git", ["status", "--porcelain", "--", *paths])
+def dirty(path: str) -> bool:
+    """Return True when `git status --porcelain` reports changes under `path`."""
+    result = _exec("git", ["status", "--porcelain", "--", path])
     if result.returncode != 0:
         raise RuntimeError(f"git status failed: {result.stdout}")
     return bool(result.stdout.strip())
@@ -131,9 +144,10 @@ def open_pr_url(branch: str, base: str) -> str | None:
             "--json",
             "url,isCrossRepository",
         ],
+        split_stderr=True,
     )
     if result.returncode != 0:
-        raise GhError(f"gh pr list failed: {result.stdout}")
+        raise GhError(f"gh pr list failed: {result.stdout}{result.stderr or ''}")
     try:
         rows = json.loads(result.stdout)
     except json.JSONDecodeError as exc:
@@ -190,6 +204,44 @@ def pr_body(paths: list[str], issue: str) -> str:
         f"Refs #{issue}",
     ]
     return "\n".join(lines) + "\n"
+
+
+def _copy_artifact_file(source: Path, root: Path, destination: Path) -> bool:
+    """Copy `source` to `destination` when it is a regular file inside `root`."""
+    if source.is_symlink() or not source.is_file():
+        return False
+    if not source.resolve().is_relative_to(root):
+        raise RuntimeError(f"artifact entry escapes its directory: {source}")
+    if destination.is_symlink():
+        raise RuntimeError(f"refusing to write through a symlink: {destination}")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if not destination.parent.resolve().is_relative_to(Path.cwd().resolve()):
+        raise RuntimeError(f"destination leaves the checkout: {destination}")
+    shutil.copyfile(source, destination)
+    return True
+
+
+def import_artifact(artifact_dir: str, paths: list[str]) -> list[str]:
+    """Copy each allowlisted `paths` entry from `artifact_dir` into the checkout.
+
+    Only the named paths are read. The artifact may hold anything else; it is
+    ignored. A path is taken from `<dir>/<path>` (two-file upload, rooted at the
+    repository) or `<dir>/<basename>` (one-file upload, rooted at its directory).
+    Raises RuntimeError on a symlink destination, an escaping source, or an
+    I/O failure, so a bad artifact is never read as "no changes".
+    """
+    root = Path(artifact_dir).resolve()
+    imported: list[str] = []
+    try:
+        for path in paths:
+            for source in (root / path, root / Path(path).name):
+                if _copy_artifact_file(source, root, Path(path)):
+                    imported.append(path)
+                    break
+    except OSError as exc:
+        raise RuntimeError(f"artifact import failed: {exc}") from exc
+    print(f"Imported {len(imported)} of {len(paths)} path(s) from the artifact")
+    return imported
 
 
 def _message_flags(messages: list[str]) -> list[str]:
@@ -266,13 +318,21 @@ def publish(args: argparse.Namespace, changed: list[str]) -> int:
     return EXIT_SUCCESS
 
 
-_BRANCH_PATTERN = re.compile(r"automation/[A-Za-z0-9][A-Za-z0-9._/-]*")
+_BRANCH_PATTERN = re.compile(r"automation/[A-Za-z0-9][A-Za-z0-9._-]*(/[A-Za-z0-9][A-Za-z0-9._-]*)*")
 
 
 def _bot_branch(value: str) -> str:
     """Accept only a name under `automation/`. It feeds `git push --delete`."""
-    if not _BRANCH_PATTERN.fullmatch(value):
-        raise argparse.ArgumentTypeError(f"{value!r} must match automation/<name>")
+    if not _BRANCH_PATTERN.fullmatch(value) or ".." in value or value.endswith((".", ".lock")):
+        raise argparse.ArgumentTypeError(f"{value!r} must be a valid automation/<name> ref")
+    return value
+
+
+def _repo_path(value: str) -> str:
+    """Accept only a relative path that stays inside the checkout."""
+    path = Path(value)
+    if not value or path.is_absolute() or ".." in path.parts:
+        raise argparse.ArgumentTypeError(f"{value!r} must be a relative path inside the checkout")
     return value
 
 
@@ -283,6 +343,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--path",
         action="append",
         required=True,
+        type=_repo_path,
         help="Path to stage and watch for changes. Repeatable.",
     )
     parser.add_argument(
@@ -300,6 +361,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Bot branch to publish on (automation/<name>).",
     )
     parser.add_argument("--base", default="main", help="Pull request base branch.")
+    parser.add_argument(
+        "--artifact-dir",
+        help="Directory a download step filled; each --path is copied from it first.",
+    )
     parser.add_argument("--pr-title", help="Pull request title. Defaults to the first --message.")
     parser.add_argument(
         "--issue", required=True, help="Issue number for the `Refs #N` lines in the body."
@@ -316,7 +381,9 @@ def main(argv: list[str] | None = None) -> int:
             if _run(["config", key, value]) != 0:
                 return EXIT_GIT_FAILED
 
-        changed = [path for path in args.path if dirty([path])]
+        if args.artifact_dir:
+            import_artifact(args.artifact_dir, args.path)
+        changed = [path for path in args.path if dirty(path)]
         if not changed:
             print(f"No changes to commit (examined {len(args.path)} path(s))")
             print("outcome=noop")

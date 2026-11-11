@@ -17,10 +17,11 @@
 #
 # Two jobs keep the write token away from the steps that run repository code
 # and resolved dependencies. A new output file goes in the artifact path list
-# of the first job and in a --path flag of the publish step. The artifact keeps
-# repository-relative paths, so no download change is needed.
+# of the first job and in a --path flag of the publish step. The publish step
+# copies only those named paths out of the downloaded artifact (--artifact-dir),
+# so a forged artifact cannot replace the script that runs with the write token.
 # scripts/ci/open_bot_pr.py documents the publish rules, the stale-branch
-# delete, and why a human must close and reopen the pull request.
+# delete, and how a human starts the required checks on the pull request.
 #
 # Related: Issue #234 (Automated daily reviewer signal quality statistics)
 
@@ -40,9 +41,10 @@ on:
 permissions:
   contents: read
 
-# One publish at a time: a second run that saw a stale branch would delete the
-# branch the first run just pushed, and GitHub closes the pull request. A
-# cancelled publish is safe: the next run deletes the orphan branch and retries.
+# A newer run supersedes an older one, so two publishes never overlap: a second
+# run that saw a stale branch would delete the branch the first run just pushed,
+# and GitHub closes the pull request. A cancelled publish is safe: the next run
+# deletes the orphan branch and retries.
 concurrency:
   group: update-reviewer-stats
   cancel-in-progress: true
@@ -53,7 +55,9 @@ jobs:
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-26.04-arm
     environment: agent-claude
-    timeout-minutes: 15
+    # The intervention report step alone may take 15 minutes; the stats step,
+    # checkout and upload need headroom on top (observed 2.5 to 9.3 minutes).
+    timeout-minutes: 30
     permissions:
       contents: read
       pull-requests: read
@@ -91,9 +95,9 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: reviewer-stats
-          # Two paths: the artifact root is their common ancestor, the repository
-          # root, so the download restores each file where it belongs. A missing
-          # file is fine; no file at all fails the step.
+          # Two paths. A missing file is fine; no file at all fails the step. The
+          # publish step finds each file at its repository path or by basename, so
+          # it does not matter which root the action picks.
           path: |
             .serena/memories/pr-review/pr-comment-responder-skills.md
             .project-toolkit/metrics/agent-pr-intervention.md
@@ -135,15 +139,17 @@ jobs:
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: reviewer-stats
-          # The artifact root is the repository root; see the upload step.
-          path: .
+          # A scratch directory, never the checkout: the publish step copies only
+          # the named files out of it.
+          path: ${{ runner.temp }}/reviewer-stats
 
       - name: Open pull request with updated stats
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh auth setup-git
-          python3 scripts/ci/open_bot_pr.py \
+          python3 -I scripts/ci/open_bot_pr.py \
+            --artifact-dir "$RUNNER_TEMP/reviewer-stats" \
             --branch automation/reviewer-stats \
             --issue 234 \
             --path .serena/memories/pr-review/pr-comment-responder-skills.md \
