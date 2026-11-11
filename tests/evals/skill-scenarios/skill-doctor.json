@@ -37,6 +37,55 @@
       ],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "Held-out optimization uses skillopt rather than a local session diagnosis."
+    },
+    {
+      "id": "S4",
+      "desc": "Static triage with no candidates is not a no-change verdict",
+      "input": "Skill-doctor scored the sessions, found workflow waste, and drafted no suggestions. No skillopt run happened. Summarize the outcome for the user in three short bullets. Do not execute tools.",
+      "expected_signals": [
+        "static triage",
+        "unevaluated",
+        "skillopt"
+      ],
+      "expected_gate": "skill-doctor-static-only-provenance",
+      "rationale": "An empty static suggestion list does not show that a change would fail to help. Only a scored skillopt evaluation supports a no-change verdict."
+    },
+    {
+      "id": "S5",
+      "desc": "Supported finding becomes an unevaluated candidate with handoffs",
+      "input": "A failed session shows the agent retried a deploy four times because the deploy skill never checks for the staging token. Describe the skill-doctor suggestion you would record. Do not execute tools. Answer in four short bullets.",
+      "expected_signals": [
+        "unevaluated",
+        "skillopt",
+        "skillforge",
+        "acceptance"
+      ],
+      "expected_gate": "skill-doctor-unevaluated-candidate-handoff",
+      "rationale": "Diagnosis surfaces the candidate without a change bar, keeps it unevaluated, and hands evaluation to skillopt and routing to skillforge without starting either."
+    },
+    {
+      "id": "S6",
+      "desc": "Report numbers come from assemble_report.py, not a hand copy",
+      "input": "Skill-doctor has scored every sampled session into scores.json and written score_artifact.json. Explain how the scores reach report.json. Do not execute tools. Answer in three short bullets.",
+      "expected_signals": [
+        "assemble_report.py",
+        "scores.json",
+        "draft"
+      ],
+      "expected_gate": "skill-doctor-assembled-scores",
+      "rationale": "Step 5 writes the report without numbers and lets assemble_report.py recompute and fill them, so no reported score is copied by hand."
+    },
+    {
+      "id": "S7",
+      "desc": "No manifest flag when collection skipped the audit manifest",
+      "input": "Skill-doctor collected sessions without --audit-manifest and scored them. Give the exact assemble command for report.json. Do not execute tools. Answer with the command and one sentence.",
+      "expected_signals": [
+        "assemble_report.py",
+        "--scores",
+        "--out"
+      ],
+      "expected_gate": "skill-doctor-assemble-without-manifest",
+      "rationale": "The catalog comes only from an audit manifest the collector wrote; without one, the assemble command leaves out --manifest rather than inventing a catalog."
     }
   ]
 }

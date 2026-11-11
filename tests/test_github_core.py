@@ -6,6 +6,7 @@ import json
 from unittest.mock import patch
 
 from scripts.github_core import get_unresolved_review_threads
+from scripts.github_core.api import _retry_after_delay
 from tests.github_core_body_guards_cases import (
     TestCapturedTextDecoding,
     TestEscapedNewlineBodyError,
@@ -35,7 +36,9 @@ from tests.github_core_configuration_cases import (
     TestCheckWorkflowRateLimit,
     TestGetPriorityEmoji,
     TestGetReactionEmoji,
+    TestIsGhAuthenticated,
     TestParseSimpleYaml,
+    TestResolveRepoParams,
     TestYamlFallback,
 )
 from tests.github_core_graphql_cases import (
@@ -47,14 +50,11 @@ from tests.github_core_graphql_cases import (
 from tests.github_core_repository_cases import (
     TestAssertGhAuthenticated,
     TestGetRepoInfo,
-    TestIsGhAuthenticated,
-    TestResolveRepoParams,
     TestResolveRepoRoot,
 )
 from tests.github_core_rest_api_cases import (
     TestGetAllPRsWithComments,
     TestGhApiPaginated,
-    TestRetryAfterDelay,
 )
 from tests.github_core_review_threads_1_cases import _ReviewThreadCases1
 from tests.github_core_review_threads_2_cases import _ReviewThreadCases2
@@ -177,6 +177,32 @@ class TestGetUnresolvedReviewThreads(_ReviewThreadCases1, _ReviewThreadCases2):
         assert "cursor=CURSOR_FROM_PAGE_1" in joined, (
             f"Cursor from page 1 not propagated to page 2 query; argv was: {joined}"
         )
+
+
+class TestRetryAfterDelay:
+    def test_retry_after_header_overrides_backoff(self):
+        """Retry-After: N in error text returns N, not the backoff."""
+        delay = _retry_after_delay("gh: rate limited (HTTP 429)\nRetry-After: 42", 2.0)
+        assert delay == 42.0
+
+    def test_retry_after_case_insensitive(self):
+        """Header matching is case-insensitive."""
+        delay = _retry_after_delay("retry-after: 10", 5.0)
+        assert delay == 10.0
+
+    def test_no_retry_after_uses_jitter(self):
+        """Without Retry-After, the returned delay is in [0, backoff]."""
+        backoff = 4.0
+        delays = [_retry_after_delay("server error (HTTP 503)", backoff) for _ in range(20)]
+        assert all(0.0 <= d <= backoff for d in delays), delays
+        # Jitter must not always return the same value (probability of 20 identical
+        # draws from uniform(0, 4) is negligible).
+        assert len(set(delays)) > 1, "jitter produced identical values - check random source"
+
+    def test_no_retry_after_empty_text(self):
+        """Empty error text returns a value in [0, backoff]."""
+        delay = _retry_after_delay("", 2.0)
+        assert 0.0 <= delay <= 2.0
 
 
 __all__ = [

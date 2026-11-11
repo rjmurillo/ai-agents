@@ -15,7 +15,6 @@ from scripts.github_core import (
     RepoInfo,
     assert_gh_authenticated,
     get_repo_info,
-    is_gh_authenticated,
     resolve_repo_params,
     resolve_repo_root,
 )
@@ -87,61 +86,75 @@ class TestGetRepoInfo:
             info = get_repo_info()
         assert isinstance(info, RepoInfo)
 
+    @pytest.mark.parametrize(
+        "stdout",
+        [
+            "https://github.com/owner/repo/\n",
+            "https://github.com/owner/repo.git/\n",
+            "ssh://git@github.com/owner/repo.git\n",
+            "ssh://git@github.com:22/owner/repo\n",
+            "ssh://git@github.com:2222/owner/repo.git/\n",
+            "git@github.com:owner/repo.git\n",
+            "github.com/owner/repo\n",
+        ],
+    )
+    def test_parses_trailing_slash_and_ssh_url_forms(self, stdout, monkeypatch):
+        monkeypatch.delenv("GH_HOST", raising=False)
+        with patch("subprocess.run", return_value=_completed(stdout=stdout)):
+            assert get_repo_info() == RepoInfo(owner="owner", repo="repo")
 
-class TestResolveRepoParams:
-    def test_uses_provided_params(self):
-        result = resolve_repo_params("myowner", "myrepo")
-        assert result == RepoInfo(owner="myowner", repo="myrepo")
+    @pytest.mark.parametrize(
+        "stdout",
+        [
+            "https://github.com/owner\n",
+            "https://github.com/owner/repo/extra\n",
+            "ssh://git@github.com:22/owner\n",
+            "\n",
+        ],
+    )
+    def test_returns_none_for_malformed_path(self, stdout, monkeypatch):
+        monkeypatch.delenv("GH_HOST", raising=False)
+        with patch("subprocess.run", return_value=_completed(stdout=stdout)):
+            assert get_repo_info() is None
 
-    def test_infers_from_git_remote(self):
-        with patch(
-            "scripts.github_core.api.get_repo_info",
-            return_value=RepoInfo(owner="inferred", repo="repo"),
-        ):
-            result = resolve_repo_params()
-        assert result == RepoInfo(owner="inferred", repo="repo")
+    @pytest.mark.parametrize(
+        "stdout",
+        [
+            "https://ghe.example.com/owner/repo.git\n",
+            "ssh://git@ghe.example.com:2222/owner/repo.git\n",
+            "git@GHE.example.com:owner/repo\n",
+        ],
+    )
+    def test_gh_host_enterprise_remote_matches(self, stdout, monkeypatch):
+        monkeypatch.setenv("GH_HOST", "ghe.example.com")
+        with patch("subprocess.run", return_value=_completed(stdout=stdout)):
+            assert get_repo_info() == RepoInfo(owner="owner", repo="repo")
 
-    def test_exits_when_cannot_infer(self):
-        with patch("scripts.github_core.api.get_repo_info", return_value=None):
+    def test_enterprise_remote_ignored_without_gh_host(self, monkeypatch):
+        monkeypatch.delenv("GH_HOST", raising=False)
+        stdout = "https://ghe.example.com/owner/repo.git\n"
+        with patch("subprocess.run", return_value=_completed(stdout=stdout)):
+            assert get_repo_info() is None
+
+    def test_gh_host_does_not_match_other_hosts(self, monkeypatch):
+        monkeypatch.setenv("GH_HOST", "ghe.example.com")
+        stdout = "https://other.example.com/owner/repo.git\n"
+        with patch("subprocess.run", return_value=_completed(stdout=stdout)):
+            assert get_repo_info() is None
+
+    def test_gh_host_keeps_github_com_working(self, monkeypatch):
+        monkeypatch.setenv("GH_HOST", "ghe.example.com")
+        stdout = "https://github.com/owner/repo.git\n"
+        with patch("subprocess.run", return_value=_completed(stdout=stdout)):
+            assert get_repo_info() == RepoInfo(owner="owner", repo="repo")
+
+    def test_resolve_fails_loud_when_remote_unmatched(self, monkeypatch):
+        monkeypatch.delenv("GH_HOST", raising=False)
+        stdout = "https://ghe.example.com/owner/repo.git\n"
+        with patch("subprocess.run", return_value=_completed(stdout=stdout)):
             with pytest.raises(SystemExit) as exc:
                 resolve_repo_params()
-            assert exc.value.code == 2
-
-    def test_exits_on_invalid_owner(self):
-        with pytest.raises(SystemExit) as exc:
-            resolve_repo_params("-bad", "repo")
         assert exc.value.code == 2
-
-    def test_exits_on_invalid_repo(self):
-        with pytest.raises(SystemExit) as exc:
-            resolve_repo_params("owner", "bad/repo/name!")
-        assert exc.value.code == 2
-
-    def test_returns_repo_info_type(self):
-        result = resolve_repo_params("owner", "repo")
-        assert isinstance(result, RepoInfo)
-
-
-class TestIsGhAuthenticated:
-    def test_true_when_authenticated(self):
-        with patch("subprocess.run", return_value=_completed(rc=0)):
-            assert is_gh_authenticated() is True
-
-    def test_false_when_not_authenticated(self):
-        with patch("subprocess.run", return_value=_completed(rc=1)):
-            assert is_gh_authenticated() is False
-
-    def test_false_when_gh_not_installed(self):
-        with patch("subprocess.run", side_effect=FileNotFoundError):
-            assert is_gh_authenticated() is False
-
-    def test_false_when_timeout(self):
-        with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="gh", timeout=10)):
-            assert is_gh_authenticated() is False
-
-    def test_returns_bool(self):
-        with patch("subprocess.run", return_value=_completed(rc=0)):
-            assert isinstance(is_gh_authenticated(), bool)
 
 
 class TestAssertGhAuthenticated:

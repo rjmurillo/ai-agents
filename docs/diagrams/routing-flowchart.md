@@ -237,9 +237,9 @@ flowchart TB
 
 ## Related Documents
 
-- [Orchestrator Routing Algorithm](./orchestrator-routing-algorithm.md)
-- [Task Classification Guide](./task-classification-guide.md)
-- [Agent Interview Protocol](../.agents/governance/agent-interview-protocol.md)
+- [Orchestrator Routing Algorithm](../orchestrator-routing-algorithm.md)
+- [Task Classification Guide](../task-classification-guide.md)
+- [Agent Interview Protocol](../../.agents/governance/agent-interview-protocol.md)
 
 ---
 

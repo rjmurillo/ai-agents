@@ -207,6 +207,11 @@ class TestTheRepositoryClosure:
     def test_modules_behind_the_adr_119_links_join_the_closure(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        # The pre-push pytest policy exports CLAUDE_PLUGIN_ROOT=src/copilot-cli.
+        # Measured: that shrinks the closure from 62 to 43 files, so both counts
+        # below read 43 and the test failed on any push that selected it.
+        monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
         followed = vdc.verify(REPO_ROOT, REPO_ROOT, "HEAD").examined
         monkeypatch.setattr(vdc._REF_LINKS, "link_table", lambda *_: {})
 

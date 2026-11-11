@@ -2,8 +2,13 @@ import { cp, rm, mkdir, readdir, realpath, stat } from "node:fs/promises";
 import { join, resolve, dirname, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const EXCLUDED_DIRS = new Set(["hooks", "lib", "worktrees"]);
+// lib/ ships: skill scripts resolve their helpers from <root>/lib (ADR-047).
+const EXCLUDED_DIRS = new Set(["hooks", "worktrees"]);
 const EXCLUDED_FILES = new Set(["settings.json", "settings.local.json", "scheduled_tasks.lock"]);
+// Maintainer instructions for this repository. Claude Code loads .claude/CLAUDE.md
+// in every session, so shipping it would hand consumers another team's operator
+// rules. Root only: a skill's own CLAUDE.md is skill content and ships.
+const ROOT_EXCLUDED_FILES = new Set(["CLAUDE.md", "AGENTS.md"]);
 const EXCLUDED_SKILLS = new Set(["github"]);
 const EXCLUDED_PATTERNS = [/__pycache__/, /\.pyc$/, /\.lock$/, /\.local\.json$/, /\.skill_pattern_cache\.json$/];
 
@@ -15,8 +20,9 @@ const sourceDir = join(repoRoot, ".claude");
 const pluginRoot = join(repoRoot, "src", "claude");
 const assetsDir = join(packageRoot, "bundle", "assets");
 
-async function shouldExclude(relativePath: string, name: string): Promise<boolean> {
+function shouldExclude(name: string, depth: number): boolean {
   if (EXCLUDED_DIRS.has(name) || EXCLUDED_FILES.has(name)) return true;
+  if (depth === 0 && ROOT_EXCLUDED_FILES.has(name)) return true;
   for (const pattern of EXCLUDED_PATTERNS) {
     if (pattern.test(name)) return true;
   }
@@ -26,9 +32,14 @@ async function shouldExclude(relativePath: string, name: string): Promise<boolea
 // Context for one bundle run. `allowedRoot` bounds every followed link;
 // `ancestors` holds the realpaths of the directories on the current path, so a
 // link back to one of them is refused instead of recursing until ELOOP (CWE-835).
+//
+// `linkedOnly` ships symlinked files and drops real ones. In .claude/rules a link
+// into src/claude/rules is a shipped rule and a real file is a repository-only
+// rule (ADR-119), so the link structure decides, not a list of names (#7275).
 export interface CopyContext {
   allowedRoot: string;
   ancestors: string[];
+  linkedOnly?: boolean;
 }
 
 // .claude/agents/<name>.md and each shipped .claude/skills/<name> are relative
@@ -66,7 +77,7 @@ export async function copyTree(src: string, dest: string, depth: number, ctx: Co
   const entries = await readdir(src, { withFileTypes: true });
 
   for (const entry of entries) {
-    if (await shouldExclude(entry.name, entry.name)) continue;
+    if (shouldExclude(entry.name, depth)) continue;
 
     if (depth === 0 && entry.name === "skills" && (await isDirectoryEntry(join(src, entry.name), entry, ctx))) {
       const skillsSrc = join(src, "skills");
@@ -88,8 +99,10 @@ export async function copyTree(src: string, dest: string, depth: number, ctx: Co
     const destPath = join(dest, entry.name);
 
     if (await isDirectoryEntry(srcPath, entry, ctx)) {
-      count += await copyTree(srcPath, destPath, depth + 1, inner);
+      const childCtx = depth === 0 && entry.name === "rules" ? { ...inner, linkedOnly: true } : inner;
+      count += await copyTree(srcPath, destPath, depth + 1, childCtx);
     } else {
+      if (ctx.linkedOnly && !entry.isSymbolicLink()) continue;
       const dir = dirname(destPath);
       await mkdir(dir, { recursive: true });
       if (entry.isSymbolicLink()) await assertInsideRoot(srcPath, ctx);

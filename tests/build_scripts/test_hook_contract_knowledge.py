@@ -138,7 +138,6 @@ ROUTING_FILES = (
 
 GENERATED_INSTRUCTION_MIRRORS = (
     REPO_ROOT / ".github" / "instructions" / "generated-artifacts.instructions.md",
-    REPO_ROOT / "src" / "copilot-cli" / "instructions" / "generated-artifacts.instructions.md",
 )
 
 RUNTIME_ROUTING_FILES = (

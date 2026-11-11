@@ -102,6 +102,7 @@ Need GitHub data?
    ├─ Toggle auto-merge → set_pr_auto_merge.py
    ├─ Update PR branch with its base (server side) → update_pr_branch.py
    ├─ Rerun failed CI jobs on a PR or run → rerun_failed_jobs.py
+   ├─ Draft PR ready or back → set_pr_ready.py
    ├─ Close PR → close_pr.py
    └─ Merge PR → merge_pr.py
 ```
@@ -148,7 +149,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 |--------|---------|----------------|
 | `get_pull_requests.py` | List PRs with filters | `--state`, `--label`, `--author`, `--base`, `--head`, `--search`, `--limit` |
 | `get_pr_context.py` | PR metadata, diff, files | `--pull-request`, `--include-changed-files`, `--include-diff` |
-| `get_pr_checks.py` | CI check status, polling; REST on rate limit (`DataSource`; REST `--required-only` with no ruleset exits 3) | `--pull-request`, `--wait`, `--timeout-seconds` (keep at or below 570 with `--wait`; warns above), `--missing-grace-seconds`, `--required-only`, `--output-format {json,human,auto}` |
+| `get_pr_checks.py` | CI check status with polling (full text: `references/script-catalog.md`) | `--pull-request`, `--wait`, `--timeout-seconds`, `--missing-grace-seconds`, `--required-only`, `--output-format {json,human,auto}` |
 | `get_pr_check_logs.py` | Failing CI check logs; names each failed step (`FailedSteps`) | `--pull-request`, `--check-name` (repeatable, case-insensitive), `--max-lines`, `--context-lines` |
 | `triage_red_check.py` | CI triage step 1: is a failing PR check also red on main? Exit 0 green on main, 1 red on main, 3 cannot determine | `--check-name`, `--branch`, `--history-depth`, `--pull-request` |
 | `get_pr_review_comments.py` | Paginated review comments with stale detection | `--pull-request`, `--include-issue-comments`, `--detect-stale`, `--exclude-stale`, `--only-stale` |
@@ -169,13 +170,14 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `get_thread_by_id.py` | Get single thread by ID | `--thread-id` |
 | `get_thread_conversation_history.py` | Full thread comment history | `--thread-id`, `--include-minimized` |
 | `test_pr_merge_ready.py` | Check merge readiness | `--pull-request`, `--ignore-ci`, `--ignore-threads` |
-| `why_pr_blocked.py` | Decompose a `blocked` PR into missing, failing, or pending checks, unresolved threads, or conflicts; says so when none hold (the field can be stale) | `--pull-request`, `--base-branch`, `--output-format {json,human,auto}` |
+| `why_pr_blocked.py` | Explain a `blocked` PR, or say no cause holds (full text: `references/script-catalog.md`) | `--pull-request`, `--base-branch`, `--output-format {json,human,auto}` |
 | `set_pr_auto_merge.py` | Enable/disable auto-merge | `--pull-request`, `--enable`/`--disable`, `--merge-method`, `--dry-run` |
 | `invoke_pr_comment_processing.py` | Process AI triage | `--pr-number`, `--verdict`, `--findings-json`, `--dry-run` |
 | `new_pr.py` | Create PR, validated | `--title`, `--body`, `--body-file`, `--prepare-body-file`, `--preflight`, `--base`, `--head`, `--draft`, `--skip-validation`, `--audit-reason`, `--validation-base`, `--dry-run` |
 | `validate_pr_description.py` | Validate PR description | `--title`, `--body`, `--body-file`, `--fail-on-violation` |
 | `update_pr_branch.py` | Server-side "Update branch". Exit 0 requested, done, or current; exit 1 PR not open or head differs from `--expected-head-sha` (`head_moved`); exit 2 not found; exit 3 other API failure or `--wait` timeout; exit 4 auth. Unattended callers pass the SHA | `--pull-request`, `--expected-head-sha`, `--wait`, `--timeout-seconds`, `--dry-run` |
 | `rerun_failed_jobs.py` | Rerun failed Actions jobs. Exit 1 run in progress; exit 100 `cannot_be_retried` (no retry, prints fallbacks). Never use an empty commit | `--pull-request` or `--run-id`, `--job-id`, `--dry-run` |
+| `set_pr_ready.py` | Draft to ready, or back. Exit 0 done or no-op; 1 not open or `head_moved`; 2 not found; 3 API or unverified; 4 auth | `--pull-request`, `--expected-head-sha`, `--draft`, `--dry-run` |
 | `close_pr.py` | Close PR with comment | `--pull-request`, `--comment`, `--dry-run` |
 | `reopen_pr.py` | Reopen a closed PR (merged is exit 1) | `--pull-request`, `--comment`, `--dry-run` |
 | `merge_pr.py` | Merge pinned to the reviewed head, then read back and audited (ADR-112) | `--pull-request`, `--expected-head-sha`, `--strategy`, `--delete-branch`, `--auto`, `--dry-run` |
@@ -190,7 +192,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `list_issues.py` | List issues | `--milestone` |
 | `get_issue_comments.py` | Issue comments | `--issue`, `--limit` |
 | `new_issue.py` | Create issue; `--source` required, agent needs Step 0 | `--title`, `--body`, `--labels`, `--source`, `--blocked-by`, `--signal`, `--milestone`, `--dry-run` |
-| `close_issue.py` | Close with optional comment (`--verify-claims` aborts on a cited commit/PR the remote disproves, exit 1, and separately on one it could not check, exit 3 or 4) | `--issue`, `--reason`, `--comment`, `--verify-claims`, `--dry-run` |
+| `close_issue.py` | Close with optional comment (full text: `references/script-catalog.md`) | `--issue`, `--reason`, `--comment`, `--verify-claims`, `--dry-run` |
 | `reopen_issue.py` | Reopen with optional comment | `--issue`, `--comment`, `--dry-run` |
 | `set_issue_labels.py` | Labels | `--issue`, `--labels`, `--remove-labels`, `--priority`, `--dry-run` |
 | `set_issue_milestone.py` | Assign milestone | `--issue`, `--milestone`, `--dry-run` |
@@ -211,7 +213,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 
 | Script | Purpose | Key Parameters |
 |--------|---------|----------------|
-| `manage_squash_merge_message.py` | Read or update the `squash_merge_commit_message` setting behind an expected-value guard; needs an administration-read token, else exit 3 | `--set`, `--expected-current`, `--dry-run`, `--output-format {json,human,auto}` |
+| `manage_squash_merge_message.py` | Read or update `squash_merge_commit_message` behind an expected-value guard (full text: `references/script-catalog.md`) | `--set`, `--expected-current`, `--dry-run`, `--output-format {json,human,auto}` |
 
 ### Reactions (`scripts/reactions/`)
 

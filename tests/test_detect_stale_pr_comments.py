@@ -605,3 +605,69 @@ class TestIsOutdated:
         assert c["IsStale"] is False
         assert c["IsOutdated"] is False
         assert result["ActiveComments"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Tests: review thread pagination (issue #7222, lossless-queue-reads.md)
+# ---------------------------------------------------------------------------
+def _threads_page(ids, *, cursor=None, has_next=False):
+    return {
+        "repository": {
+            "pullRequest": {
+                "reviewThreads": {
+                    "pageInfo": {"hasNextPage": has_next, "endCursor": cursor},
+                    "nodes": [{"id": i} for i in ids],
+                },
+            },
+        },
+    }
+
+
+class TestFetchReviewThreadsPagination:
+    def test_zero_threads(self):
+        with patch("detect_stale_pr_comments.gh_graphql", return_value=_threads_page([])):
+            assert fetch_review_threads("o", "r", 1) == []
+
+    def test_exactly_one_full_page_makes_one_request(self):
+        page = _threads_page([f"t{i}" for i in range(100)])
+        with patch("detect_stale_pr_comments.gh_graphql", return_value=page) as gql:
+            assert len(fetch_review_threads("o", "r", 1)) == 100
+        assert gql.call_count == 1
+
+    def test_101_threads_across_two_pages(self):
+        first = _threads_page([f"t{i}" for i in range(100)], cursor="CUR1", has_next=True)
+        second = _threads_page(["t100"])
+        with patch("detect_stale_pr_comments.gh_graphql", side_effect=[first, second]) as gql:
+            result = fetch_review_threads("o", "r", 1)
+        assert len(result) == 101
+        assert gql.call_args_list[1].args[1]["cursor"] == "CUR1"
+
+    def test_failure_on_page_two_raises(self):
+        first = _threads_page(["t0"], cursor="CUR1", has_next=True)
+        with patch(
+            "detect_stale_pr_comments.gh_graphql",
+            side_effect=[first, RuntimeError("HTTP 502")],
+        ):
+            with pytest.raises(RuntimeError, match="HTTP 502"):
+                fetch_review_threads("o", "r", 1)
+
+    def test_missing_cursor_raises(self):
+        first = _threads_page(["t0"], cursor=None, has_next=True)
+        with patch("detect_stale_pr_comments.gh_graphql", return_value=first):
+            with pytest.raises(RuntimeError, match="endCursor empty"):
+                fetch_review_threads("o", "r", 1)
+
+    def test_pr_not_found_on_page_two_still_exits_3(self):
+        first = _threads_page(["t0"], cursor="CUR1", has_next=True)
+        gone = {"repository": {"pullRequest": None}}
+        with patch("detect_stale_pr_comments.gh_graphql", side_effect=[first, gone]):
+            with pytest.raises(SystemExit) as exc:
+                fetch_review_threads("o", "r", 1)
+        assert exc.value.code == 3
+
+    def test_detect_exits_3_when_read_is_incomplete(self):
+        first = _threads_page(["t0"], cursor=None, has_next=True)
+        with patch("detect_stale_pr_comments.gh_graphql", return_value=first):
+            with pytest.raises(SystemExit) as exc:
+                detect_stale_comments("o", "r", 1)
+        assert exc.value.code == 3

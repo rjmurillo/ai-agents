@@ -6,7 +6,7 @@ Based on the analysis in `.project-toolkit/analysis/claude-code-skill-frontmatte
 
 ## Frontmatter Schema
 
-Every skill lives in a `SKILL.md` file inside a directory under `.claude/skills/`. The file starts with YAML frontmatter.
+Every skill lives in a `SKILL.md` file inside a directory under `.claude/skills/`. The file starts with YAML frontmatter. In this repository you do not edit that `SKILL.md`. It is rendered from `templates/skills/<name>.SKILL.md.tmpl`, and `.claude/skills/<name>` is a symlink to `src/claude/skills/<name>/`. Edit the template, then run `uv run python build/scripts/build_all.py`. Scripts, references, and tests in the skill directory are hand-edited in `src/claude/skills/<name>/`. For a worked example, see [Change a rule and a skill through templates](training/template-first-authoring.md).
 
 ### Required Fields
 
@@ -187,8 +187,8 @@ For skills under 500 lines, a single `SKILL.md` is sufficient.
 For larger skills, use progressive disclosure:
 
 ```text
-.claude/skills/my-skill/
-  SKILL.md              # Essential info only (< 500 lines)
+src/claude/skills/my-skill/
+  SKILL.md              # Rendered from templates/skills/my-skill.SKILL.md.tmpl; essential info only (< 500 lines)
   references/
     workflow.md          # Detailed workflow diagrams
     examples.md          # Comprehensive examples
@@ -437,7 +437,7 @@ Before committing a new skill, verify:
 - [ ] Frontmatter ends with `---` before Markdown content
 - [ ] YAML uses spaces for indentation (not tabs)
 - [ ] SKILL.md under 500 lines (use progressive disclosure if larger)
-- [ ] Pre-commit validation passes (`.claude/skills/SkillForge/scripts/validate-skill.py <skill-dir>`, which Lefthook's `skillforge` job runs on staged `SKILL.md` files through `scripts/validation/git_hook_policy.py`)
+- [ ] Pre-commit validation passes (`.claude/skills/skillforge/scripts/validate-skill.py <skill-dir>`, which Lefthook's `skillforge` job runs on staged `SKILL.md` files through `scripts/validation/git_hook_policy.py`)
 - [ ] Model-pin check passes (`uv run python scripts/validation/check_model_pins.py`; `scripts/validation/pre_pr.py` runs it in warn mode)
 - [ ] `metadata.routing` declared with a valid role and invoker (`uv run python scripts/validation/check_skill_routing_roles.py --report`)
 

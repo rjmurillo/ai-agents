@@ -140,15 +140,16 @@ Wrapper script providing skill-specific functionality.
 |-----------|------|---------|-------------|
 | `--operation` | choice | `full` | Operation type: `full`, `quick`, `validate` |
 | `--languages` | list | (auto-detect) | Languages to scan: `python`, `actions` |
-| `--ci` | flag | `false` | Enable CI mode (exit 1 on findings) |
+| `--ci` | flag | `false` | Enable CI mode (exit 1 on findings, exit 2 if `.codeql/` is missing) |
+| `--format` | choice | `console` | `json` prints `{"status": "skipped", ...}` to stdout when `.codeql/` is missing |
 
 **Exit Codes (ADR-035):**
 
 | Code | Meaning | CI Behavior |
 |------|---------|-------------|
-| 0 | Success (no findings or findings ignored) | Pass |
+| 0 | Success (no findings or findings ignored), or `.codeql/` missing without `--ci` (skipped) | Pass |
 | 1 | Findings detected (CI mode only) | Fail |
-| 2 | Configuration invalid | Fail |
+| 2 | Configuration invalid, or `.codeql/` missing with `--ci` (no scan ran) | Fail |
 | 3 | Scan execution failed | Fail |
 
 ### Underlying Scripts

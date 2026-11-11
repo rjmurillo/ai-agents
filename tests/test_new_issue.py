@@ -191,6 +191,7 @@ def test_create_timeout_emits_json_envelope(mock_run, capsys):
         _completed(stdout="https://github.com/o/r\n"),  # remote
         _completed(rc=0),  # label create (ensure source label)
         subprocess.TimeoutExpired(cmd=["gh", "issue", "create"], timeout=30),  # create hangs
+        _completed(stdout="[]"),  # read-only lookup for an issue the create may have made
     ]
 
     rc = main(["--source", "human", "--title", "Test", "--output-format", "json"])
@@ -199,6 +200,7 @@ def test_create_timeout_emits_json_envelope(mock_run, capsys):
     assert output["Success"] is False
     assert output["Error"]["Type"] == "Timeout"
     assert "30s" in output["Error"]["Message"]
+    assert mock_run.call_args_list[-1].args[0][1:3] == ["issue", "list"]
 
 
 @patch("subprocess.run")

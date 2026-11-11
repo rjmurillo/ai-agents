@@ -20,6 +20,7 @@ sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 
 import binplace_manifest  # noqa: E402
 import build_all  # noqa: E402
+import lib_hand_files  # noqa: E402
 import lib_mirror  # noqa: E402
 
 _REAL_SURFACE_PARITY_EXIT = build_all._surface_parity_exit
@@ -37,6 +38,22 @@ def _stub_surface_parity_gate(monkeypatch: pytest.MonkeyPatch) -> None:
     the real gate and is the one guard on the --check wiring.
     """
     monkeypatch.setattr(build_all, "_surface_parity_exit", lambda *_a, **_k: 0)
+
+
+@pytest.fixture(autouse=True)
+def _stub_orphan_gate(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fixture repos here keep hand-written skills with no template (issue #7224).
+
+    The orphan gate flags a skill directory with no template and no declaration,
+    which is exactly what these minimal fixtures write. The gate has its own tests
+    in test_orphan_outputs.py, including `test_run_generators_runs_the_orphan_gate_first`,
+    the guard on the wiring into `_run_generators`.
+    """
+    monkeypatch.setattr(
+        build_all,
+        "_build_orphans",
+        lambda *_a, **_k: build_all.GeneratorResult(artifact="orphans", platform="*"),
+    )
 
 
 def _write_skill(skills_dir: Path, name: str) -> None:
@@ -90,7 +107,8 @@ def _write_minimal_lib_sources(repo_root: Path) -> None:
     otherwise fail `run()`/`_run_generators` for a reason unrelated to
     what the test actually exercises, so this stubs a minimal
     (`__init__.py`-only) directory for each of `lib_mirror.PACKAGES` in
-    addition to the two file-shaped sources. A test that specifically
+    addition to the two file-shaped sources and the hand-maintained
+    `src/claude/lib` files that `lib_hand_files.PLUGIN_LIB_FILES` copies. A test that specifically
     wants to exercise the missing-source path removes one stub itself
     after calling this.
     """
@@ -111,6 +129,13 @@ def _write_minimal_lib_sources(repo_root: Path) -> None:
     marker = validation / "validate_review_marker.py"
     if not marker.exists():
         marker.write_text('"""Test review-marker stub."""\n', encoding="utf-8")
+
+    claude_lib = repo_root / lib_hand_files.PLUGIN_LIB_SOURCE_DIR
+    claude_lib.mkdir(parents=True, exist_ok=True)
+    for name in lib_hand_files.PLUGIN_LIB_FILES:
+        hand_maintained = claude_lib / name
+        if not hand_maintained.exists():
+            hand_maintained.write_text('"""Test hand-maintained stub."""\n', encoding="utf-8")
 
 
 def _write_platform_with_skills(
@@ -611,7 +636,7 @@ def test_build_lib_check_mode_writes_nothing(tmp_path: Path) -> None:
     # Every destination is missing, so check mode fails on the drift (issue
     # #6098) and still writes nothing.
     assert result.exit_code == 2, result.notices
-    assert not (tmp_path / "src" / "claude" / "lib").exists()
+    assert not (tmp_path / "src" / "claude" / "lib" / "hook_utilities").exists()
     assert not (tmp_path / "src" / "copilot-cli" / "lib").exists()
 
 

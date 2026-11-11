@@ -57,6 +57,7 @@ class FakeGh:
             ("label", "create"): label_create or _make_proc(),
             ("issue", "create"): issue_create or _make_proc(stdout=ISSUE_URL),
             ("issue", "edit"): issue_edit or _make_proc(),
+            ("issue", "list"): _make_proc(stdout="[]"),
         }
         self.routes.update(extra_routes or {})
         self.calls: list[list[str]] = []

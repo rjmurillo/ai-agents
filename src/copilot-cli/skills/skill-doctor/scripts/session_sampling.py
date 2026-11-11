@@ -28,6 +28,22 @@ WITHIN_HARNESS_RULE = (
     "within each harness, and a quota the caps cannot fill is left unused."
 )
 
+SKILL_FIRST = "skill_first"
+TIMELINE_SUPPLEMENT = "timeline_supplement"
+
+TIMELINE_RULE = (
+    "Opt-in (--timeline-supplement N). After the quotas above, up to N more sessions that "
+    "used no detected skill and were not already sampled are added, across all harnesses. "
+    "Candidates are ordered oldest first (ties by session key) and N ranks are taken at "
+    "evenly spaced positions from the oldest to the newest candidate. The additions go "
+    "beyond --max-sessions."
+)
+
+NON_PROBABILITY_NOTE = (
+    "Not a probability sample. Selection is skill-first plus a rank-spaced supplement, so "
+    "grades describe the selected sessions only and do not estimate the whole population."
+)
+
 
 def sample_one_harness(sessions: Any, skills: Any, args: Any) -> set[str]:
     """Skill-first sample of one recency-ordered pool, up to ``args.max_sessions``."""
@@ -115,6 +131,7 @@ def sample_sessions(
                 1 for session in group if session["_key"] in picked and session["skills_used"]
             ),
         }
+    skill_first = set(sampled)
     sampling = {
         "rule": SAMPLING_RULE,
         "within_harness": WITHIN_HARNESS_RULE,
@@ -123,4 +140,85 @@ def sample_sessions(
         "omitted_harnesses": omitted,
         "notice": _omission_notice(args.max_sessions, ranked, omitted),
     }
+    requested = getattr(args, "timeline_supplement", 0) or 0
+    if requested > 0:
+        supplement = timeline_supplement(sessions, skill_first, requested)
+        sampled = skill_first | set(supplement)
+        _count_supplement(sessions, per_harness, supplement)
+        sampling.update(stratum_metadata(sessions, skill_first, supplement, requested))
     return sampled, per_harness, sampling
+
+
+def _count_supplement(
+    sessions: Any, per_harness: dict[str, dict[str, int]], supplement: list[str]
+) -> None:
+    added = set(supplement)
+    for harness, entry in per_harness.items():
+        extra = sum(1 for s in sessions if s["harness"] == harness and s["_key"] in added)
+        entry["supplemented"] = extra
+        entry["sampled"] += extra
+
+
+def evenly_spaced(items: list[Any], count: int) -> list[Any]:
+    """Pick ``count`` items at evenly spaced ranks, always including both ends when count > 1."""
+    if count <= 0 or not items:
+        return []
+    if count >= len(items):
+        return list(items)
+    if count == 1:
+        return [items[(len(items) - 1) // 2]]
+    last = len(items) - 1
+    return [items[index * last // (count - 1)] for index in range(count)]
+
+
+def timeline_supplement(sessions: Any, sampled: set[str], count: int) -> list[str]:
+    """Keys of up to ``count`` unsampled no-skill sessions spaced evenly over time."""
+    pool = sorted(
+        (s for s in sessions if not s["skills_used"] and s["_key"] not in sampled),
+        key=lambda s: (s.get("modified_at", ""), s["_key"]),
+    )
+    return [s["_key"] for s in evenly_spaced(pool, count)]
+
+
+def stratum_metadata(
+    sessions: Any, skill_first: set[str], supplement: list[str], requested: int
+) -> dict[str, Any]:
+    """Sampling-block additions recorded only when timeline supplementation is requested."""
+    pool = sum(1 for s in sessions if not s["skills_used"] and s["_key"] not in skill_first)
+    return {
+        "representative": False,
+        "non_probability_note": NON_PROBABILITY_NOTE,
+        "timeline_supplement": {
+            "requested": requested,
+            "added": len(supplement),
+            "rule": TIMELINE_RULE,
+        },
+        "strata": {
+            SKILL_FIRST: {
+                "candidates": len(sessions),
+                "selected": len(skill_first),
+                "rule": f"{SAMPLING_RULE} {WITHIN_HARNESS_RULE}",
+            },
+            TIMELINE_SUPPLEMENT: {
+                "candidates": pool,
+                "selected": len(supplement),
+                "rule": TIMELINE_RULE,
+            },
+        },
+        "stratum_members": {
+            SKILL_FIRST: sorted(skill_first),
+            TIMELINE_SUPPLEMENT: sorted(supplement),
+        },
+    }
+
+
+def apply_strata(sessions: Any, sampling: dict[str, Any]) -> None:
+    """Tag sampled sessions with their stratum. No-op unless the sampling block has strata."""
+    members = sampling.get("stratum_members")
+    if not members:
+        return
+    stratum_of = {key: name for name, keys in members.items() for key in keys}
+    for session in sessions:
+        stratum = stratum_of.get(session["_key"])
+        if stratum:
+            session["stratum"] = stratum

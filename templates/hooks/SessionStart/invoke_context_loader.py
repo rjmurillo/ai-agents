@@ -80,6 +80,13 @@ RETRO_STATE_MARKER = "<!-- RETRO-STATE: skeleton-pending-fill -->"
 # "Cap by date so stale skeletons do not nag forever").
 PENDING_RETRO_MAX_AGE_DAYS = 7
 
+# A retrospective older than this many days is not injected (Issue #7227).
+# Stale guidance presented as current misleads the agent more than silence.
+RETRO_MAX_AGE_DAYS = 30
+
+# Lines scanned for a ``Date:`` header when the filename carries no date.
+RETRO_HEADER_SCAN_LINES = 20
+
 
 def _read_file_truncated(path: Path, max_chars: int) -> str | None:
     """Read a file, truncating to max_chars if necessary.
@@ -150,8 +157,51 @@ def _has_symlink_component(root: Path, target: Path) -> bool:
     return False
 
 
-def _find_latest_retrospective(retro_dir: Path, root: Path) -> Path | None:
-    """Find the most recent retrospective file by modification time.
+_HEADER_DATE_RE = re.compile(
+    r"^\W*(?:\*\*)?Date(?:\*\*)?\s*:\s*(?:\*\*)?\s*(\d{4}-\d{2}-\d{2})",
+    re.IGNORECASE,
+)
+
+
+def _header_date(path: Path) -> date | None:
+    """Return the ``Date:`` value from the first lines of ``path``, if any.
+
+    Accepts ``Date: 2025-12-16``, ``**Date**: 2025-12-16``, and the bullet form
+    ``- **Date**: 2025-12-16``. A read error or an invalid calendar date counts
+    as undated.
+    """
+    try:
+        with path.open(encoding="utf-8", errors="replace") as handle:
+            for _ in range(RETRO_HEADER_SCAN_LINES):
+                line = handle.readline()
+                if not line:
+                    break
+                match = _HEADER_DATE_RE.match(line)
+                if match:
+                    return datetime.strptime(match.group(1), "%Y-%m-%d").date()
+    except (OSError, ValueError):
+        return None
+    return None
+
+
+def _retrospective_date(path: Path) -> date | None:
+    """Return the document's own date: filename prefix first, then header."""
+    return _filename_date(path.name) or _header_date(path)
+
+
+def _find_latest_retrospective(
+    retro_dir: Path,
+    root: Path,
+    max_age_days: int = RETRO_MAX_AGE_DAYS,
+    today: date | None = None,
+) -> Path | None:
+    """Find the newest retrospective by its own date, within ``max_age_days``.
+
+    A git checkout stamps every file with the same mtime, so mtime cannot
+    order retrospectives (Issue #7227). The date comes from a ``YYYY-MM-DD``
+    filename prefix, else a ``Date:`` header in the first lines. mtime only
+    breaks a tie between equal dates. Undated files are never injected, and
+    nothing is returned when the newest dated file is older than the cap.
 
     ``root`` is the trusted project directory; every component from ``root``
     down to ``retro_dir`` is rejected if it is a symlink (see
@@ -174,7 +224,7 @@ def _find_latest_retrospective(retro_dir: Path, root: Path) -> Path | None:
     except OSError:
         return None
 
-    candidates: list[tuple[float, Path]] = []
+    candidates: list[tuple[date, float, Path]] = []
     try:
         # Exclude the co-located INDEX.md: it lives alongside the retro files
         # but is a meta-index, not a retrospective. See
@@ -187,15 +237,23 @@ def _find_latest_retrospective(retro_dir: Path, root: Path) -> Path | None:
         if not _is_contained_retrospective(path, resolved_retro_dir):
             continue
         try:
-            candidates.append((path.stat().st_mtime, path))
+            mtime = path.stat().st_mtime
         except OSError:
             continue
+        doc_date = _retrospective_date(path)
+        if doc_date is None:
+            continue
+        candidates.append((doc_date, mtime, path))
 
     if not candidates:
         return None
 
-    candidates.sort(key=lambda entry: entry[0], reverse=True)
-    return candidates[0][1]
+    candidates.sort(key=lambda entry: (entry[0], entry[1], entry[2].name), reverse=True)
+    newest_date, _mtime, newest = candidates[0]
+    reference = today if today is not None else datetime.now(tz=UTC).date()
+    if newest_date < reference - timedelta(days=max_age_days):
+        return None
+    return newest
 
 
 def _count_pending_skeletons(

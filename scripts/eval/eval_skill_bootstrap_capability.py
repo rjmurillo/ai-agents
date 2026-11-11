@@ -60,6 +60,7 @@ DENY_WRITES = (
     f"Bash({_SCRIPT_DIR}/bootstrap_mine.py *--out*)",
     f"Bash({_SCRIPT_DIR}/bootstrap_eval.py *--out*)",
     f"Bash({_SCRIPT_DIR}/bootstrap_boundary.py *--out*)",
+    f"Bash({_SCRIPT_DIR}/bootstrap_sweep.py *--out*)",
 )
 _SKILL_SCRIPTS = (  # not a sandbox: print mode refuses unlisted tools; use a worktree
     "bootstrap_mine",
@@ -67,6 +68,7 @@ _SKILL_SCRIPTS = (  # not a sandbox: print mode refuses unlisted tools; use a wo
     "bootstrap_eval",
     "bootstrap_drift",
     "bootstrap_boundary",
+    "bootstrap_sweep",
 )
 READ_ONLY_TOOLS = (
     "Read",

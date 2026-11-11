@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import io
 import sys
+from datetime import UTC, date, datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -158,12 +159,11 @@ class TestFindLatestRetrospective:
     """Test _find_latest_retrospective helper."""
 
     def test_finds_most_recent(self, tmp_path: Path) -> None:
-        """Sort retros by mtime and pick the newest.
+        """Pick the retro with the newest document date, not the newest mtime.
 
-        Use ``os.utime`` instead of ``time.sleep`` to set mtimes
-        explicitly; coarse-grained file system timestamp resolution
-        (e.g. 1s on some FAT/NTFS variants) makes sleep-based ordering
-        flaky.
+        The file with the older date gets the later mtime, so mtime ordering
+        would pick the wrong file (Issue #7227). ``today`` is pinned so the
+        age cap does not depend on the wall clock.
         """
         import os
 
@@ -174,11 +174,13 @@ class TestFindLatestRetrospective:
         new = retro_dir / "2025-06-15-retro.md"
         new.write_text("new retro updated", encoding="utf-8")
 
-        # Set mtimes deterministically: old at t=1000s, new at t=2000s.
-        os.utime(old, (1000, 1000))
-        os.utime(new, (2000, 2000))
+        # Invert mtimes on purpose: the older document is the newer file.
+        os.utime(old, (2000, 2000))
+        os.utime(new, (1000, 1000))
 
-        result = invoke_context_loader._find_latest_retrospective(retro_dir, tmp_path)
+        result = invoke_context_loader._find_latest_retrospective(
+            retro_dir, tmp_path, today=date(2025, 6, 20)
+        )
         assert result is not None
         assert result.name == "2025-06-15-retro.md"
 
@@ -208,7 +210,8 @@ class TestMain:
         self, project_tree: Path, capsys: pytest.CaptureFixture
     ) -> None:
         # Add a retrospective
-        retro = project_tree / ".project-toolkit" / "retrospective" / "2025-06-15-retro.md"
+        today = datetime.now(tz=UTC).date().isoformat()
+        retro = project_tree / ".project-toolkit" / "retrospective" / f"{today}-retro.md"
         retro.write_text("# Retro\n\nLearnings here.", encoding="utf-8")
 
         with (

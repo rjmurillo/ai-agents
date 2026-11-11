@@ -1,8 +1,8 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { mkdtemp, rm, readFile, mkdir } from "node:fs/promises";
+import { mkdtemp, rm, readFile, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { writeVersionPin, computeManifestHash } from "../src/target/version-pin.js";
+import { writeVersionPin, computeManifestHash, hashContent, readRecordedHashes } from "../src/target/version-pin.js";
 
 let testDir: string;
 
@@ -71,5 +71,34 @@ describe("writeVersionPin", () => {
     } catch (err: any) {
       expect(err.code).toBe("ENOENT");
     }
+  });
+});
+
+describe("writeVersionPin file hashes", () => {
+  test("records the supplied per-file hashes", async () => {
+    await writeVersionPin(testDir, "0.1.0", ["a.md"], false, { "a.md": hashContent(Buffer.from("a")) });
+    const pin = JSON.parse(
+      await readFile(join(testDir, ".claude", ".ai-agents-version.json"), "utf-8"),
+    );
+    expect(pin.files).toEqual({ "a.md": hashContent(Buffer.from("a")) });
+  });
+
+  test("readRecordedHashes round-trips what writeVersionPin wrote", async () => {
+    const hashes = { "a.md": hashContent(Buffer.from("a")) };
+    await writeVersionPin(testDir, "0.1.0", ["a.md"], false, hashes);
+    expect(await readRecordedHashes(testDir)).toEqual(hashes);
+  });
+
+  test("readRecordedHashes returns no record when the pin is missing", async () => {
+    expect(await readRecordedHashes(testDir)).toEqual({});
+  });
+
+  test("readRecordedHashes ignores non-string hash values", async () => {
+    await mkdir(join(testDir, ".claude"), { recursive: true });
+    await writeFile(
+      join(testDir, ".claude", ".ai-agents-version.json"),
+      JSON.stringify({ files: { "a.md": 5, "b.md": "abc" } }),
+    );
+    expect(await readRecordedHashes(testDir)).toEqual({ "b.md": "abc" });
   });
 });

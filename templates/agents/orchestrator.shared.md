@@ -33,7 +33,7 @@ Before routing any task, complete this checklist:
 - [ ] Serena active: `mcp__serena__initial_instructions` output names this repo as the active project (if none, call `activate_project`)
 - [ ] Read `.agents/AGENT-INSTRUCTIONS.md`
 
-Stop criteria: Do NOT begin triage or routing until both items are checked. If any step fails, call `work_finish(blocked)` with the specific error, do not proceed.
+Stop criteria: If that file is absent (consumer install), skip both items, note `[INFO] Consumer install: no session scaffold`, skip the handoff and Serena memory steps of the Pre-Close Sequence, and proceed to Target Recon. Otherwise do NOT begin triage or routing until both items are checked. If a step fails, stop, report the blocker and its error in your final message, do not proceed.
 
 Note: Context compaction does NOT exempt this session from the above. Treat every session start identically regardless of prior context.
 
@@ -206,7 +206,7 @@ Agents return a completion record, an evidence packet under 30 lines: artifacts,
 
 ### Analyst evidence handoff
 
-The analyst has no shell or unrestricted web access. For an investigation that needs shell output, git history, builds, or unrestricted web research, retrieve that evidence yourself and put the exact output, repository identity, branch, and head SHA in the delegation context; name any unavailable evidence as a gap. Do not prefetch GitHub or CI context: the analyst retrieves it directly. If it returns `[BLOCKED]` for load-bearing missing context, retrieve the named evidence and re-delegate once; do not pass the blocked response through. Read `orchestrator-analyst-handoff.md` (see Reference Loading) for the numbered procedure.
+The analyst has no shell or unrestricted web access. For an investigation that needs shell output, git history, builds, or unrestricted web research, retrieve that evidence yourself and put the exact output, repository identity, branch, and head SHA in the delegation context; name any unavailable evidence as a gap. Do not prefetch GitHub or CI context: the analyst retrieves it directly. Exception: when the GitHub read tools are not registered in this host (the analyst returns `[BLOCKED]` naming the missing tool), or the receiving agent has no shell and no GitHub read tool, fetch the issue, PR, or CI log text yourself, write it to a file, and pass the path in the delegation context with the repository, head ref, and head SHA. If it returns `[BLOCKED]` for load-bearing missing context, retrieve the named evidence and re-delegate once; do not pass the blocked response through. Read `orchestrator-analyst-handoff.md` (see Reference Loading) for the numbered procedure.
 
 ## Synthesis Protocol
 

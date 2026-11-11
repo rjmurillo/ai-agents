@@ -36,16 +36,16 @@ Grade each product domain and architectural layer. Track gaps over time.
 
 ```python
 # Grade all auto-detected domains
-python3 .claude/skills/quality-grades/scripts/grade_domains.py
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/quality-grades/scripts/grade_domains.py"
 
 # Grade specific domains as JSON
-python3 .claude/skills/quality-grades/scripts/grade_domains.py --domains security memory --format json
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/quality-grades/scripts/grade_domains.py" --domains security memory --format json
 
 # Write report to file (enables trend tracking)
-python3 .claude/skills/quality-grades/scripts/grade_domains.py --output quality-grades.md
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/quality-grades/scripts/grade_domains.py" --output quality-grades.md
 
 # Show top 10 domains by gap count
-python3 .claude/skills/quality-grades/scripts/grade_domains.py --top-n 10
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/quality-grades/scripts/grade_domains.py" --top-n 10
 ```
 
 ---
@@ -125,7 +125,7 @@ Use `code-qualities-assessment` instead when:
 After execution, run the bundled validator and require exit 0:
 
 ```bash
-python3 .claude/skills/quality-grades/scripts/grade_domains.py --output quality-grades.md
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/quality-grades/scripts/grade_domains.py" --output quality-grades.md
 echo "exit=$?"   # must be 0; exit 2 means no domains detected (report is empty)
 ```
 

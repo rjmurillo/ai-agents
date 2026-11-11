@@ -82,32 +82,32 @@ Use **threat-modeling** instead when:
 ### Basic Scan (Staged Files)
 
 ```bash
-python .claude/skills/security-scan/scripts/scan_vulnerabilities.py --git-staged
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/security-scan/scripts/scan_vulnerabilities.py" --git-staged
 ```
 
 ### Scan Specific Files
 
 ```bash
-python .claude/skills/security-scan/scripts/scan_vulnerabilities.py path/to/file.py another/script.ps1
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/security-scan/scripts/scan_vulnerabilities.py" path/to/file.py another/script.ps1
 ```
 
 ### Scan Directory
 
 ```bash
-python .claude/skills/security-scan/scripts/scan_vulnerabilities.py --directory src/
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/security-scan/scripts/scan_vulnerabilities.py" --directory src/
 ```
 
 ### JSON Output (CI Integration)
 
 ```bash
-python .claude/skills/security-scan/scripts/scan_vulnerabilities.py --git-staged --format json
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/security-scan/scripts/scan_vulnerabilities.py" --git-staged --format json
 ```
 
 ### Specific CWE Focus
 
 ```bash
 # Command injection only (the only CWE this scanner detects)
-python .claude/skills/security-scan/scripts/scan_vulnerabilities.py --cwe 78 --git-staged
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/security-scan/scripts/scan_vulnerabilities.py" --cwe 78 --git-staged
 ```
 
 `--cwe 22` is accepted for backward compatibility but produces no findings. In console mode, the scanner emits a stderr warning pointing at CodeQL when invoked with `--cwe 22`. In JSON mode, `summary.delegated_cwes` carries that fact and stderr stays empty. To check for path traversal, rely on the CodeQL workflow at `.github/workflows/codeql-analysis.yml`.

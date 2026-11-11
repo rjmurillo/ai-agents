@@ -19,7 +19,7 @@ If no argument, review the current branch diff against the base branch. Detect t
 
 ## Convergence contract (REQ-008-04)
 
-`/review` evaluates the canonical review axes by change risk, not by blind fan-out. The canonical axis prompts are authored at `references/{role}.md` co-located with this skill, with the canonical path expressed as `.claude/skills/review/references/{role}.md` in the source repo (the single source of truth). `/review` auto-discovers the axis set from `references/*.md` at runtime for `--deep` review; risk mode needs a table entry, or the axis is `skipped` (axis-selection.md). Enrollment is not edit-free: the axis names and counts in this body document that directory rather than drive it, and a contract test reds on drift. The build copies the whole skill directory into vendored installs (see "Vendored install"), so `/review` needs no CI.
+`/review` evaluates the canonical review axes by change risk, not by blind fan-out. The canonical axis prompts are authored at `references/{role}.md` co-located with this skill, with the canonical path expressed as `.claude/skills/review/references/{role}.md` in the source repo (the single source of truth). `/review` auto-discovers the axis set from `references/*.md` at runtime for `--deep` review; risk mode needs a table entry, or the axis is `skipped` (axis-selection.md). Enrollment is not edit-free: the axis names and counts in this body document that directory, not drive it, and a contract test reds on drift. The build copies the whole skill directory into vendored installs (see "Vendored install"), so `/review` needs no CI.
 
 The canonical set is `spec-compliance` as the Stage-1 gate plus 11 Stage-2 canonical axes (`analyst`, `architect`, `qa`, `security`, `devops`, `roadmap`, `reliability`, `observability`, `agent-safety`, `decision-rigor`, `code-quality`). `spec-compliance` and `analyst` always run. Callers can pin more always-on axes; `select_axes.py` selects the rest from verified changed paths and diff effects (Process step 4), never by prompt prose. Only a Stage-1 `CRITICAL_FAIL` short-circuits the review; a Stage-1 `UNKNOWN` does not (Process step 2).
 
@@ -27,9 +27,9 @@ The canonical set is `spec-compliance` as the Stage-1 gate plus 11 Stage-2 canon
 
 **Self-audit round cap (hard stop).** `/review` runs each axis once per invocation; no internal fix-and-re-review loop. The cap binds the caller: any skill, command, or agent chaining "fix, re-invoke `/review`, repeat" with no human checkpoint MUST NOT exceed 3 rounds for that invocation, even across a diff, branch, or PR switch. The caller tracks its own count for the whole invocation; `/review` holds no shared state. Only a new invocation, or a human checkpoint, resets the count. Round 3: `PASS` ships; `WARN`, `CRITICAL_FAIL`, or `UNKNOWN` escalates to the operator with every open finding (axis, verdict, location, recommendation); no self-acknowledging a `WARN` to ship.
 
-Modeled on `.claude/skills/github/scripts/pr/check_pr_round_cap.py`. Quoted (lines 39-40, 188-189): "0 = round recorded, under both caps (ACT); 1 = a cap is exceeded (ESCALATE)"; `_DEFAULT_MAX_ROUNDS = 5`, `_DEFAULT_MAX_HOURS = 4.0`.
+Modeled on `.claude/skills/github/scripts/pr/check_pr_round_cap.py` (exit `0` = ACT, `1` = ESCALATE; defaults 5 rounds, 4.0 hours).
 
-**Stricter/looser/different than canonical**: stricter on round count (3 vs. default 5). Looser on time (canonical also caps elapsed hours; this has none) and persistence (canonical persists state across restarts via a PR-comment marker; this uses in-invocation tracking only). Different in kind: canonical only gates `ACT`/`ESCALATE`, never ships; round 3 here can ship `PASS`.
+**Stricter/looser/different than canonical**: stricter on rounds (3 vs. 5). Looser on time (no hours cap) and persistence (in-invocation tracking, no PR-comment marker). Different in kind: canonical only gates `ACT`/`ESCALATE`; round 3 here can ship `PASS`.
 
 ## Frozen finding contract (rounds after the first)
 
@@ -37,7 +37,7 @@ The caller supplies `ROUND: N` context. In round 2 or 3 only a defect the diff i
 
 ## Path resolution (harness-agnostic)
 
-This skill runs in two layouts: the source Claude Code project (where `.claude/` is the repo root) and a vendored plugin install (Copilot CLI and similar harnesses) where the consumer repo has no `.claude/` directory and the plugin lives outside the consumer's tree.
+This skill runs in two layouts: the source Claude Code project (where `.claude/` is the repo root) and a vendored plugin install (Copilot CLI and similar) where the consumer repo has no `.claude/` directory.
 
 - **Canonical axis prompts** (`{role}` is the stem of each `references/*.md` file, discovered, not hardcoded; the current set is listed in the convergence contract above): resolve the `references/` directory via the first candidate that exists, then glob `*.md` inside it for the axis set:
   1. `${CLAUDE_SKILL_DIR}/references/` (if `CLAUDE_SKILL_DIR` is set by the harness)
@@ -53,13 +53,14 @@ This skill runs in two layouts: the source Claude Code project (where `.claude/`
   1. `.claude/skills/{skill}/scripts/{script}` (Claude Code project layout)
   2. `skills/{skill}/scripts/{script}` (vendored install, plugin-root relative)
 
-The skill body MUST NOT hard-fail when the `.claude/` path is missing; it MUST attempt the vendored-install path for the verdict library and the chained-skill scripts before reporting an error. If neither candidate for a chained-skill script exists, mark that axis `UNKNOWN` (per UNKNOWN handling), do not abort the review.
+The skill body MUST NOT hard-fail when the `.claude/` path is missing; it MUST attempt the vendored-install path for the verdict library and the chained-skill scripts before erroring. If neither candidate for a chained-skill script exists, mark that axis `UNKNOWN` (per UNKNOWN handling); do not abort.
 
 ## Scripts
 
 | Script | Purpose | Exit codes |
 |--------|---------|------------|
 | `scripts/validate_review_marker.py` | Validates the SHA-bound `Reviewed-By: /review@...` marker `/ship` requires and the review report its `Review-Artifact` digest covers. `--digest REPORT_FILE` prints that digest. | `0` valid, `1` missing, stale, bad axis list, or no valid review report, `2` config error |
+| `review_depth_tier.py` (same directory) | Review depth tier from the diff on stdin, as JSON. | `0` emitted, `2` no diff header |
 | `select_axes.py` (same directory) | Selects the Stage-2 canonical axes and the local-only skill axes from verified changed paths and diff effects. Emits the selection, per-axis reasons, and skips as JSON. | `0` selection emitted, `2` config error (unknown pinned axis, or references directory missing or empty) |
 
 ## Process
@@ -84,7 +85,7 @@ Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICA
 
 4a. **Validate scope of each axis output against the PR diff.** After each axis (steps 2, 3, and every axis in step 4) returns its findings text, run `scripts/validate_findings_scope.py` (resolved via the "Path resolution" section) to find `location:` fields naming files outside the three-dot diff of step 1: `python3 <validate_findings_scope.py> --worktree <WORKTREE_PATH> --base-branch <BASE_BRANCH> --text <AXIS_TEXT> --emit-adjusted-text`. On exit 1 (out-of-scope locations found), replace the axis output with the script's stdout before extracting the verdict; the adjusted text marks each flagged location `[pre-existing - not in this PR diff]`. When every cited location is out of scope and the axis emitted a blocking verdict, the script downgrades that verdict to `WARN`, so an unrelated finding cannot block the reviewed PR. Do NOT suppress or skip the finding; preserve it with the label. On exit 0 (all in scope, or diff empty or unavailable), record stdout when present, otherwise the axis output unmodified.
 4b. **Keep the local-only skill axes in their own selected set.** The 4 local axes (`code-qualities-assessment`, `doc-accuracy`, `golden-principles`, `taste-lints`) are sibling skills invoked with `Skill(skill="{name}")`. None has a `references/{name}.md` file, so a local axis in the canonical set resolves to a prompt path that does not exist. `select_axes.py` reports them in `local_selected`, never in `canonical_selected`, including when `--pin` names one; keep the two lists separate for the rest of the run.
-4c. **Always-on correctness pass.** Load `resources/technical-review.md`, resolved like the axis prompts with `resources/` in place of `references/`. Invoke `Task(subagent_type="code-reviewer")`, falling back to `general-purpose`, with that contract as the response contract and the same CONTEXT_MODE-prefixed diff as input. Scope-check its output as in 4a, then `extract_verdict`; any failure is `UNKNOWN`.
+4c. **Always-on correctness pass.** Load `resources/technical-review.md`, resolved like the axis prompts with `resources/` in place of `references/`. Compute the depth tier: `git diff "origin/$BASE_BRANCH"...HEAD | python3 <review_depth_tier.py> [--exclude GLOB ...]`, `--exclude` per generated path. Invoke `Task(subagent_type="code-reviewer")`, falling back to `general-purpose`, with that contract as the response contract and the same CONTEXT_MODE-prefixed diff as input, with the tier `header` as the first line after the CONTEXT_MODE block. Scope-check its output as in 4a, then `extract_verdict`; any failure is `UNKNOWN`.
 4d. **CodeQL pre-step, only when `security` is selected. Run it before step 4 calls that axis.** Follow `resources/codeql-prestep.md` (ADR-041): attach `alerts` to the security input as untrusted candidates; print `status_line`. STALE, NOT ANALYZED, SKIPPED are never clean.
 
 5. **Run the selected chained skill axes** (local-only; CI does not run these). Run every axis in `local_selected` after the canonical ones; report the rest as skipped with its reason. Resolve each `<script>` per "Path resolution" (chained-skill scripts). Scope every axis to the PR diff with the base branch detected in step 1 (stored as `BASE_BRANCH`), quoted, so the gates evaluate only changed files, not the whole tree:

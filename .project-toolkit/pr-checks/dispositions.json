@@ -11,11 +11,11 @@
   },
   "Verify dispatch closure against base": {
     "disposition": "tracked-issue",
-    "reason": "PR #6797 edits src/claude/skills/github/scripts/pr/check_review_thread_resolution_shas.py on purpose to fix issue #6767. That script is in the completion gate's dispatch closure, so verify_dispatch_closure.py reports it as DIFFERS against base (run 40639938352). The job docstring says a legitimate verifier change reports exactly this way and that the job is a report, not a gate. The entry covers only PR #6797 and expires soon. PR #7067 adds one `# taste-lint: ignore` comment line to each of six dispatched scripts: add_pr_review_thread_reply.py, check_review_thread_resolution_shas.py, get_pr_checks.py, run_completion_gate.py, test_pr_merge_ready.py, and cluster_threads.py (run 41661800679, 2026-11-03). The diff is comment-only, and the owner approved those six files for the completion gate on 2026-11-03.",
-    "expires": "2026-11-11",
+    "reason": "PR #7240 edits three files in the completion gate's dispatch closure on purpose to fix issues #7222 and #7230: src/claude/lib/github_core/api.py, src/claude/skills/github/scripts/pr/resolve_pr_review_thread.py, and the new src/claude/lib/github_core/review_thread_pager.py. The change makes paginated reads fail on any page error and pages every review thread, so verify_dispatch_closure.py reports DIFFERS against base (run 42966396101, 2026-11-11). PR #7244 edits src/claude/skills/pr-review/pr-review-config.yaml so its script paths use the plugin-root form for issue #7226 (run 42968471375, 2026-11-11; 1 of 60 closure files differs). The job docstring says a legitimate verifier change reports exactly this way and that the job is a report, not a gate. The owner approved this waiver for these two PRs on 2026-11-11. Earlier entries for PR #6797 and PR #7067 expired on 2026-11-11.",
+    "expires": "2026-11-18",
     "pull_requests": [
-      6797,
-      7067
+      7240,
+      7244
     ]
   },
   "Renovate": {

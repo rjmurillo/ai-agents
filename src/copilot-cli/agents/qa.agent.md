@@ -99,7 +99,7 @@ Gap: [missing items, if any]
 Result: PASS | FAIL
 ```
 
-If you cannot independently verify what was promised (no issue, no task description, no delegation record), call `work_finish(blocked, "Cannot verify completeness without requirements")`.
+If you cannot independently verify what was promised (no issue, no task description, no delegation record), stop, report "Cannot verify completeness without requirements" in your final message, and do not proceed.
 
 **Success definition**: You can state exactly what was promised, what was delivered, and whether they match. If you cannot, you have NOT completed validation.
 

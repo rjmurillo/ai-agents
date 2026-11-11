@@ -43,7 +43,7 @@ SYNTHESIS (7)          Verdict: STAND (clean or flagged) | REVISE | ESCALATE
 ### decision-critic.py
 
 ```bash
-python3 .claude/skills/decision-critic/scripts/decision-critic.py \
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/decision-critic/scripts/decision-critic.py" \
   --step-number <1-7> \
   --total-steps 7 \
   --decision "<decision text>" \

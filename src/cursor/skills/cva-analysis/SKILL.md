@@ -272,7 +272,7 @@ Use Abstract Factory pattern with `IPaymentFactory` per method.
 1. **Run validation script**:
 
    ```bash
-   python3 .claude/skills/cva-analysis/scripts/validate-cva-matrix.py cva-matrix.md
+   python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/cva-analysis/scripts/validate-cva-matrix.py" cva-matrix.md
    ```
 
    - Checks: ≥2 rows, ≥2 columns, all cells filled, patterns suggested
@@ -427,7 +427,7 @@ Check CVA matrix completeness and suggest patterns.
 **Usage**:
 
 ```bash
-python3 .claude/skills/cva-analysis/scripts/validate-cva-matrix.py cva-matrix.md
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/cva-analysis/scripts/validate-cva-matrix.py" cva-matrix.md
 ```
 
 **Exit Codes**:

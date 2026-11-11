@@ -1,0 +1,204 @@
+{
+  "sessions": [
+    {
+      "harness": "copilot",
+      "scores": {
+        "code_quality": {
+          "evidence_ref": "CANARY-EVIDENCE-R1-code_quality",
+          "label": "approve",
+          "reason": "CANARY-REASON-R1-code_quality",
+          "score": 1.0
+        },
+        "efficiency": {
+          "evidence_ref": "CANARY-EVIDENCE-R1-efficiency",
+          "label": "highly_efficient",
+          "reason": "CANARY-REASON-R1-efficiency",
+          "score": 1.0
+        },
+        "procedure_compliance": {
+          "evidence_ref": "CANARY-EVIDENCE-R1-procedure_compliance",
+          "label": "fully_compliant",
+          "reason": "CANARY-REASON-R1-procedure_compliance",
+          "score": 1.0
+        },
+        "verbosity": {
+          "evidence_ref": "CANARY-EVIDENCE-R1-verbosity",
+          "label": "proportionate",
+          "reason": "CANARY-REASON-R1-verbosity",
+          "score": 1.0
+        }
+      },
+      "session_id": "copilot:CANARY-SESSION-R1",
+      "skills_detected": true,
+      "stratum": "skill_first"
+    },
+    {
+      "harness": "copilot",
+      "scores": {
+        "code_quality": {
+          "applicable": false,
+          "evidence_ref": "CANARY-EVIDENCE-R2-code_quality",
+          "label": "insufficient_evidence",
+          "reason": "CANARY-REASON-R2-code_quality",
+          "score": 0.5
+        },
+        "efficiency": {
+          "evidence_ref": "CANARY-EVIDENCE-R2-efficiency",
+          "label": "mostly_inefficient",
+          "reason": "CANARY-REASON-R2-efficiency",
+          "score": 0.4
+        },
+        "procedure_compliance": {
+          "evidence_ref": "CANARY-EVIDENCE-R2-procedure_compliance",
+          "label": "fully_compliant",
+          "reason": "CANARY-REASON-R2-procedure_compliance",
+          "score": 1.0
+        },
+        "verbosity": {
+          "evidence_ref": "CANARY-EVIDENCE-R2-verbosity",
+          "label": "verbose",
+          "reason": "CANARY-REASON-R2-verbosity",
+          "score": 0.2
+        }
+      },
+      "session_id": "copilot:CANARY-SESSION-R2",
+      "skills_detected": true,
+      "stratum": "skill_first"
+    },
+    {
+      "harness": "copilot",
+      "scores": {
+        "code_quality": {
+          "evidence_ref": "CANARY-EVIDENCE-R3-code_quality",
+          "label": "block",
+          "reason": "CANARY-REASON-R3-code_quality",
+          "score": 0.2
+        },
+        "efficiency": {
+          "evidence_ref": "CANARY-EVIDENCE-R3-efficiency",
+          "label": "mostly_efficient",
+          "reason": "CANARY-REASON-R3-efficiency",
+          "score": 0.8
+        },
+        "procedure_compliance": {
+          "evidence_ref": "CANARY-EVIDENCE-R3-procedure_compliance",
+          "label": "mostly_compliant",
+          "reason": "CANARY-REASON-R3-procedure_compliance",
+          "score": 0.8
+        },
+        "verbosity": {
+          "evidence_ref": "CANARY-EVIDENCE-R3-verbosity",
+          "label": "proportionate",
+          "reason": "CANARY-REASON-R3-verbosity",
+          "score": 1.0
+        }
+      },
+      "session_id": "copilot:CANARY-SESSION-R3",
+      "skills_detected": false,
+      "stratum": "timeline_supplement"
+    },
+    {
+      "harness": "codex",
+      "scores": {
+        "code_quality": {
+          "applicable": false,
+          "evidence_ref": "CANARY-EVIDENCE-R4-code_quality",
+          "label": "insufficient_evidence",
+          "reason": "CANARY-REASON-R4-code_quality",
+          "score": 0.5
+        },
+        "efficiency": {
+          "evidence_ref": "CANARY-EVIDENCE-R4-efficiency",
+          "label": "highly_efficient",
+          "reason": "CANARY-REASON-R4-efficiency",
+          "score": 1.0
+        },
+        "procedure_compliance": {
+          "evidence_ref": "CANARY-EVIDENCE-R4-procedure_compliance",
+          "label": "fully_compliant",
+          "reason": "CANARY-REASON-R4-procedure_compliance",
+          "score": 1.0
+        },
+        "verbosity": {
+          "evidence_ref": "CANARY-EVIDENCE-R4-verbosity",
+          "label": "proportionate",
+          "reason": "CANARY-REASON-R4-verbosity",
+          "score": 1.0
+        }
+      },
+      "session_id": "codex:CANARY-SESSION-R4",
+      "skills_detected": true,
+      "stratum": "skill_first"
+    },
+    {
+      "harness": "codex",
+      "scores": {
+        "code_quality": {
+          "evidence_ref": "CANARY-EVIDENCE-R5-code_quality",
+          "label": "approve",
+          "reason": "CANARY-REASON-R5-code_quality",
+          "score": 1.0
+        },
+        "efficiency": {
+          "evidence_ref": "CANARY-EVIDENCE-R5-efficiency",
+          "label": "mostly_efficient",
+          "reason": "CANARY-REASON-R5-efficiency",
+          "score": 0.8
+        },
+        "procedure_compliance": {
+          "evidence_ref": "CANARY-EVIDENCE-R5-procedure_compliance",
+          "label": "noncompliant",
+          "reason": "CANARY-REASON-R5-procedure_compliance",
+          "score": 0.2
+        },
+        "verbosity": {
+          "evidence_ref": "CANARY-EVIDENCE-R5-verbosity",
+          "label": "proportionate",
+          "reason": "CANARY-REASON-R5-verbosity",
+          "score": 1.0
+        }
+      },
+      "session_id": "codex:CANARY-SESSION-R5",
+      "skills_detected": false,
+      "stratum": "timeline_supplement"
+    },
+    {
+      "harness": "codex",
+      "scores": {
+        "code_quality": {
+          "applicable": false,
+          "evidence_ref": "CANARY-EVIDENCE-R6-code_quality",
+          "label": "insufficient_evidence",
+          "pre_cutoff": true,
+          "reason": "CANARY-REASON-R6-code_quality",
+          "score": 0.5
+        },
+        "efficiency": {
+          "evidence_ref": "CANARY-EVIDENCE-R6-efficiency",
+          "label": "highly_efficient",
+          "pre_cutoff": true,
+          "reason": "CANARY-REASON-R6-efficiency",
+          "score": 1.0
+        },
+        "procedure_compliance": {
+          "evidence_ref": "CANARY-EVIDENCE-R6-procedure_compliance",
+          "label": "fully_compliant",
+          "pre_cutoff": true,
+          "reason": "CANARY-REASON-R6-procedure_compliance",
+          "score": 1.0
+        },
+        "verbosity": {
+          "evidence_ref": "CANARY-EVIDENCE-R6-verbosity",
+          "label": "terse",
+          "pre_cutoff": false,
+          "reason": "CANARY-REASON-R6-verbosity",
+          "score": 0.1
+        }
+      },
+      "session_id": "codex:CANARY-SESSION-R6",
+      "skills_detected": true,
+      "stratum": "skill_first",
+      "terminated_by": "usage_limit_exceeded"
+    }
+  ]
+}

@@ -43,6 +43,7 @@ from pathlib import Path
 import pytest
 
 from scripts.testing.mutation_workspace import isolated_mutation_worktree
+from tests.mutation._nested_pytest import private_basetemp
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 _TARGET_REL = Path("scripts") / "validation" / "git_hook_policy.py"
@@ -93,31 +94,33 @@ def _run_tests_in(wt_path: Path) -> subprocess.CompletedProcess[str]:
 
         shutil.rmtree(pycache)
 
-    cmd = [
-        sys.executable,
-        "-m",
-        "pytest",
-        "--tb=short",
-        # First failure decides DEAD; the inverted control passes, so it still runs
-        # in full. Issue #5382, guarded by test_mutation_runs_stop_at_first_failure.py.
-        "-x",
-        "-q",
-        "--import-mode=importlib",
-        *_TESTS,
-    ]
-    return subprocess.run(
-        cmd,
-        cwd=str(wt_path),
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        env={
-            **__import__("os").environ,
-            "PYTHONDONTWRITEBYTECODE": "1",
-        },
-        timeout=_INNER_SUBPROCESS_TIMEOUT_SECONDS,
-    )
+    with private_basetemp() as basetemp:
+        cmd = [
+            sys.executable,
+            "-m",
+            "pytest",
+            basetemp,
+            "--tb=short",
+            # First failure decides DEAD; the inverted control passes, so it still runs
+            # in full. Issue #5382, guarded by test_mutation_runs_stop_at_first_failure.py.
+            "-x",
+            "-q",
+            "--import-mode=importlib",
+            *_TESTS,
+        ]
+        return subprocess.run(
+            cmd,
+            cwd=str(wt_path),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env={
+                **__import__("os").environ,
+                "PYTHONDONTWRITEBYTECODE": "1",
+            },
+            timeout=_INNER_SUBPROCESS_TIMEOUT_SECONDS,
+        )
 
 
 def _assert_suite_ran(result: subprocess.CompletedProcess[str], label: str) -> None:

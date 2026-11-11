@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import warnings
 from datetime import UTC, datetime
 from unittest.mock import patch
 
@@ -12,7 +13,6 @@ from scripts.github_core import get_all_prs_with_comments, gh_api_paginated
 from scripts.github_core.api import (
     REST_PAGE_PACE_SECONDS,
     REST_REFUSAL_BACKOFF_SECONDS,
-    _retry_after_delay,
 )
 from tests.github_core_test_helpers import _completed
 
@@ -81,9 +81,8 @@ class TestGhApiPaginated:
                 gh_api_paginated("repos/o/r/issues")
             assert exc.value.code == 3
 
-    def test_mid_pagination_failure_returns_partial(self):
+    def test_mid_pagination_failure_exits_3_not_partial(self, capsys):
         page1 = [{"id": i} for i in range(100)]
-
         call_count = 0
 
         def _side_effect(*args, **kwargs):
@@ -91,15 +90,19 @@ class TestGhApiPaginated:
             call_count += 1
             if call_count == 1:
                 return _completed(stdout=json.dumps(page1))
-            return _completed(rc=1, stderr="rate limited")
+            return _completed(rc=1, stderr="HTTP 502: bad gateway")
 
         with (
             patch("subprocess.run", side_effect=_side_effect),
             patch("scripts.github_core.api.time.sleep"),
+            pytest.raises(SystemExit) as exc,
         ):
-            with pytest.warns(UserWarning, match="Returning partial results"):
-                result = gh_api_paginated("repos/o/r/issues")
-        assert len(result) == 100
+            gh_api_paginated("repos/o/r/issues")
+
+        assert exc.value.code == 3
+        err = capsys.readouterr().err
+        assert "page 2" in err
+        assert "100 items read" in err
 
     def test_invalid_json_first_page_exits(self):
         with patch("subprocess.run", return_value=_completed(stdout="not json")):
@@ -107,9 +110,8 @@ class TestGhApiPaginated:
                 gh_api_paginated("repos/o/r/issues")
             assert exc.value.code == 3
 
-    def test_invalid_json_mid_pagination_returns_partial(self):
+    def test_invalid_json_mid_pagination_exits_3_not_partial(self, capsys):
         page1 = [{"id": i} for i in range(100)]
-
         call_count = 0
 
         def _side_effect(*args, **kwargs):
@@ -122,10 +124,12 @@ class TestGhApiPaginated:
         with (
             patch("subprocess.run", side_effect=_side_effect),
             patch("scripts.github_core.api.time.sleep"),
+            pytest.raises(SystemExit) as exc,
         ):
-            with pytest.warns(UserWarning, match="Invalid JSON"):
-                result = gh_api_paginated("repos/o/r/issues")
-        assert len(result) == 100
+            gh_api_paginated("repos/o/r/issues")
+
+        assert exc.value.code == 3
+        assert "Invalid JSON" in capsys.readouterr().err
 
     def test_endpoint_with_query_params_uses_ampersand(self):
         with patch("subprocess.run", return_value=_completed(stdout="[]")) as mock:
@@ -133,31 +137,20 @@ class TestGhApiPaginated:
         call_args = mock.call_args[0][0]
         assert "&per_page=" in call_args[2]
 
+    def test_exactly_one_full_page_then_empty_page_returns_all(self):
+        page1 = [{"id": i} for i in range(100)]
+        responses = iter([json.dumps(page1), "[]"])
 
-class TestRetryAfterDelay:
-    def test_retry_after_header_overrides_backoff(self):
-        """Retry-After: N in error text returns N, not the backoff."""
-        delay = _retry_after_delay("gh: rate limited (HTTP 429)\nRetry-After: 42", 2.0)
-        assert delay == 42.0
+        with (
+            patch(
+                "subprocess.run",
+                side_effect=lambda *a, **k: _completed(stdout=next(responses)),
+            ),
+            patch("scripts.github_core.api.time.sleep"),
+        ):
+            result = gh_api_paginated("repos/o/r/issues", page_size=100)
 
-    def test_retry_after_case_insensitive(self):
-        """Header matching is case-insensitive."""
-        delay = _retry_after_delay("retry-after: 10", 5.0)
-        assert delay == 10.0
-
-    def test_no_retry_after_uses_jitter(self):
-        """Without Retry-After, the returned delay is in [0, backoff]."""
-        backoff = 4.0
-        delays = [_retry_after_delay("server error (HTTP 503)", backoff) for _ in range(20)]
-        assert all(0.0 <= d <= backoff for d in delays), delays
-        # Jitter must not always return the same value (probability of 20 identical
-        # draws from uniform(0, 4) is negligible).
-        assert len(set(delays)) > 1, "jitter produced identical values - check random source"
-
-    def test_no_retry_after_empty_text(self):
-        """Empty error text returns a value in [0, backoff]."""
-        delay = _retry_after_delay("", 2.0)
-        assert 0.0 <= delay <= 2.0
+        assert result == page1
 
 
 class TestGetAllPRsWithComments:
@@ -257,3 +250,41 @@ class TestGetAllPRsWithComments:
         with patch("subprocess.run", return_value=_completed(stdout=json.dumps(graphql_response))):
             result = get_all_prs_with_comments("owner", "repo", datetime(2026, 1, 1, tzinfo=UTC))
         assert len(result) == 0
+
+    def _page(self, has_next: bool, cursor: str | None):
+        pr = self._make_pr(1, "2026-01-15T00:00:00Z")
+        return {
+            "data": {
+                "repository": {
+                    "pullRequests": {
+                        "pageInfo": {"hasNextPage": has_next, "endCursor": cursor},
+                        "nodes": [pr],
+                    }
+                }
+            }
+        }
+
+    def test_raises_when_page_cap_hit_with_pages_left(self):
+        always_more = _completed(stdout=json.dumps(self._page(True, "next")))
+
+        with patch("subprocess.run", return_value=always_more) as run:
+            with pytest.raises(RuntimeError, match="Pagination exceeded 2 pages"):
+                get_all_prs_with_comments(
+                    "owner", "repo", datetime(2026, 1, 1, tzinfo=UTC), max_pages=2
+                )
+
+        assert run.call_count == 2
+
+    def test_last_page_landing_on_cap_returns_without_warning(self):
+        pages = [
+            _completed(stdout=json.dumps(self._page(True, "c1"))),
+            _completed(stdout=json.dumps(self._page(False, None))),
+        ]
+
+        with patch("subprocess.run", side_effect=pages), warnings.catch_warnings():
+            warnings.simplefilter("error")
+            result = get_all_prs_with_comments(
+                "owner", "repo", datetime(2026, 1, 1, tzinfo=UTC), max_pages=2
+            )
+
+        assert len(result) == 2

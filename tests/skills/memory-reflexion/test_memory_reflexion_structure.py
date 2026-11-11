@@ -98,7 +98,7 @@ def test_points_at_canonical_episode_script() -> None:
 
     # Act / Assert: the sub-skill must route to the canonical script, not
     # reimplement extraction. The script stays in the memory skill tree.
-    assert ".claude/skills/memory/scripts/extract_session_episode.py" in body, (
+    assert "/skills/memory/scripts/extract_session_episode.py" in body, (
         "memory-reflexion must delegate to the canonical extract_session_episode.py"
     )
 

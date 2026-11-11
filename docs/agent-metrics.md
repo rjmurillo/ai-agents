@@ -293,6 +293,7 @@ See: `.github/workflows/agent-metrics.yml`
 - [Dashboard Template](../.project-toolkit/metrics/dashboard-template.md)
 - [Baseline Report](../.project-toolkit/metrics/baseline-report.md)
 - [Workflow Coalescing Metrics](../.project-toolkit/metrics/workflow-coalescing.md)
+- [Agent PR Intervention Metrics](../.project-toolkit/metrics/agent-pr-intervention.md)
 - [Orchestrator Routing Algorithm](./orchestrator-routing-algorithm.md)
 - [Agent Governance](./agent-governance.md)
 
@@ -332,6 +333,33 @@ Coalescing Effectiveness = (Cancelled Runs / (Cancelled Runs + Parallel Runs)) *
 - Report: `.project-toolkit/metrics/workflow-coalescing.md`
 - Workflow: `.github/workflows/workflow-coalescing-metrics.yml`
 - ADR: [ADR-026](../.project-toolkit/architecture/ADR-026-pr-automation-concurrency-and-safety.md)
+
+### Metric 10: Agent PR Intervention
+
+**Description**: How often a human had to step in on a PR an agent wrote, for PRs created in the trailing 30 days, split by merged, unmerged, and open.
+
+**Formula**:
+
+```text
+Zero-Intervention Rate = (Agent PRs with 0 interventions / Agent PRs in the row) * 100
+```
+
+**Definitions**:
+
+- Agent-authored PR: the author is a `repository` bot in `.github/bot-authors.yml`, or the repository owner opened it and the body carries the `Generated with [Claude Code]` trailer. Agent PRs here are opened under the owner's login, so the author alone misses almost all of them. The trailer is trusted only on the owner's PRs, because anyone can type it.
+- Intervention: a review thread whose first comment is by a non-bot, or a `CHANGES_REQUESTED` review by a non-bot. A bot is an actor GitHub types as a bot, or a login listed in `bot-authors.yml`.
+- Not an intervention: any bot activity, replies inside a bot-opened thread, an approval with no comment, and issue-level comments. A deleted account counts as human, so it can never hide an intervention.
+
+**Measurement Method**: GitHub PR events only, read in full by cursor. Session logs are not a source, because session log creation is discontinued. Iterations before the first intervention are therefore not measured.
+
+**Targets**: None. This is a baseline.
+
+**Related**:
+
+- Script: `scripts/agent_pr_intervention_metrics.py`, run as `scripts/update_reviewer_signal_stats.py --agent-intervention`
+- Report: `.project-toolkit/metrics/agent-pr-intervention.md`, with the full definitions and known limits
+- Workflow: `.github/workflows/update-reviewer-stats.yml`
+- Issue: #7154
 
 ---
 

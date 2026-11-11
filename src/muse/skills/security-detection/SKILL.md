@@ -107,7 +107,7 @@ Add a named validator job to `lefthook.yml`:
 
 ```bash
 # Security detection (non-blocking warning)
-python3 .claude/skills/security-detection/detect_infrastructure.py --use-git-staged
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/security-detection/detect_infrastructure.py" --use-git-staged
 ```
 
 ### CI Integration
@@ -127,7 +127,7 @@ do not have a staged diff.
     HEAD_SHA: ${{ github.sha }}
   run: >-
     git diff --no-renames --name-only -z "$BASE_SHA" "$HEAD_SHA"
-    | python .claude/skills/security-detection/detect_infrastructure.py
+    | python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/security-detection/detect_infrastructure.py"
     --files-from-stdin
 ```
 

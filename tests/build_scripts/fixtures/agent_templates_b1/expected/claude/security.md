@@ -186,7 +186,7 @@ Do NOT approve a PR that:
 - Bypasses existing hardened utilities without justification
 - Modifies workflow files without security review
 
-If you cannot verify whether a hardened alternative exists, call `work_finish(blocked, "Need codebase search for existing secure implementations")`.
+If you cannot verify whether a hardened alternative exists, stop, report in your final message that you need a codebase search for existing secure implementations, and do not proceed.
 
 **Success definition**: You can state whether this PR uses existing hardened utilities or introduces new code, and if new code is justified.
 

@@ -8,10 +8,16 @@ child runs in the same interpreter and virtual environment as this wrapper
 rather than whatever ``python3`` happens to be first on PATH.
 
 Exit codes follow ADR-035:
-    0 - Success (no findings or findings ignored)
+    0 - Success (no findings or findings ignored), or ``.codeql/`` is missing
+        outside ``--ci`` (the run is a skip, see below)
     1 - Findings detected (CI mode only)
-    2 - Configuration invalid
+    2 - Configuration invalid, or ``.codeql/`` is missing in ``--ci`` mode
     3 - Scan execution failed (CLI not found, script error)
+
+A missing ``.codeql/`` directory means no scan ran. Interactive use keeps exit 0
+and prints a ``[SKIP]`` line. ``--ci`` exits 2, so a scan that did not run never
+reads as a pass. ``--format json`` writes ``{"status": "skipped", ...}`` to stdout
+in both modes, so a caller that reads output sees the skip.
 
 Delegate contracts (see canonical source files for full signatures):
 
@@ -47,6 +53,7 @@ Stricter/looser/different than canonical:
 from __future__ import annotations
 
 import argparse
+import json
 import platform
 import subprocess
 import sys
@@ -150,7 +157,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--ci",
         action="store_true",
-        help="CI mode: exit with code 1 if findings are detected",
+        help=(
+            "CI mode: exit with code 1 if findings are detected, "
+            "and exit 2 if .codeql/ is missing (no scan ran)"
+        ),
+    )
+    parser.add_argument(
+        "--format",
+        choices=["console", "json"],
+        default="console",
+        help="json writes a status object to stdout when the scan is skipped",
     )
     return parser
 
@@ -284,6 +300,26 @@ def _run_scan(repo_root: Path, args: argparse.Namespace) -> int:
     return exit_code
 
 
+def _skip_missing_codeql(args: argparse.Namespace) -> int:
+    """Report that no scan ran because ``.codeql/`` is missing.
+
+    Returns 0 interactively and 2 under ``--ci``, because a scan that did not
+    run must not read as a pass in CI.
+    """
+    exit_code = 2 if args.ci else 0
+    print("[SKIP] .codeql/ not found. CodeQL scanning requires project setup.", file=sys.stderr)
+    if args.format == "json":
+        payload = {
+            "status": "skipped",
+            "reason": "codeql_directory_missing",
+            "operation": args.operation,
+            "ci": args.ci,
+            "exit_code": exit_code,
+        }
+        print(json.dumps(payload))
+    return exit_code
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
@@ -293,8 +329,7 @@ def main(argv: list[str] | None = None) -> int:
         return 3
 
     if not (repo_root / ".codeql").exists():
-        print("[SKIP] .codeql/ not found. CodeQL scanning requires project setup.", file=sys.stderr)
-        return 0
+        return _skip_missing_codeql(args)
 
     print("\n=== CodeQL Security Scan ===", file=sys.stderr)
     print(f"Operation: {args.operation}", file=sys.stderr)

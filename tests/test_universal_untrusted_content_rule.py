@@ -8,7 +8,7 @@ Acceptance criteria:
   AC-3  The addition displaces the duplicate Session continuity item, two
         rationale sentences, the References section, and a generic closing
         sentence, so universal.md stays within the F1 fixture ceiling. The
-        pinned relocation evidence block stays.
+        relocation evidence block later moved to knowledge-persistence.md.
   AC-4  Existing numbered references stay valid: MUST NOT 11 still names the
         linked-worktree memory rule.
   AC-5  No em dash or en dash in the added item.

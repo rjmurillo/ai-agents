@@ -38,15 +38,15 @@ Use this skill when the user says:
 
 ```bash
 # Extract an episode from a completed session log (Tier 2)
-python3 .claude/skills/memory/scripts/extract_session_episode.py "<session-log-path>"
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" "<session-log-path>"
 
 # Re-extract over an existing episode, merging rather than clobbering
-python3 .claude/skills/memory/scripts/extract_session_episode.py "<session-log-path>" --preserve
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" "<session-log-path>" --preserve
 ```
 
 The script is canonical and shared with the `memory` router; this sub-skill does
 not reimplement it. It lives at
-`.claude/skills/memory/scripts/extract_session_episode.py`.
+`${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py`.
 
 ## Quick Reference
 

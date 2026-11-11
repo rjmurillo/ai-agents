@@ -1,0 +1,426 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Reproduction fixture report</title>
+<style>
+:root {
+  --sans-font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono-font: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --page-bg: #f5f6f8; --surface: #ffffff; --panel: #eef0f4;
+  --fg: #15181e; --muted: #4b5260;
+  --line: #c3c9d4; --line-soft: #e1e5ec;
+  --accent: #2a4bd0; --accent-fg: #ffffff;
+  --notice-bg: #fff3cf; --notice-fg: #4d3a00;
+  --ok-bg: #dff3e5; --ok-fg: #0b4d27;
+  --bad-bg: #fbe3e3; --bad-fg: #7f1717;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page-bg: #101216; --surface: #171a20; --panel: #1f232b;
+    --fg: #eceef3; --muted: #b0b7c4;
+    --line: #3b4250; --line-soft: #272c35;
+    --accent: #9db2ff; --accent-fg: #0d1330;
+    --notice-bg: #3a3010; --notice-fg: #f4e3a1;
+    --ok-bg: #12341f; --ok-fg: #a5e5bd;
+    --bad-bg: #431a1a; --bad-fg: #f5b5b5;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--page-bg); color: var(--fg);
+  font: 1rem/1.6 var(--sans-font);
+}
+.page { max-width: 56rem; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+@media (min-width: 640px) { .page { padding: 2.5rem 1.5rem 5rem; } }
+::selection { background: var(--accent); color: var(--accent-fg); }
+a { color: var(--accent); text-underline-offset: 0.2em; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.skip { position: absolute; left: -999px; top: 0; background: var(--surface); padding: 0.5rem 0.75rem; }
+.skip:focus { left: 0.5rem; top: 0.5rem; z-index: 10; }
+h1 { font-size: 1.75rem; line-height: 1.2; font-weight: 650; letter-spacing: -0.01em; margin: 0;
+  text-wrap: balance; overflow-wrap: anywhere; }
+h2 { font-size: 1.25rem; line-height: 1.3; font-weight: 650; margin: 2.5rem 0 0.75rem; }
+h3 { font-size: 1.0625rem; line-height: 1.35; font-weight: 650; margin: 0; }
+h4 { font-size: 0.9375rem; font-weight: 650; margin: 0; }
+p { margin: 0.5rem 0; max-width: 70ch; }
+ul, ol { margin: 0.5rem 0; padding-left: 1.25rem; max-width: 70ch; }
+li { margin-bottom: 0.5rem; }
+code, pre { font-family: var(--mono-font); font-size: 0.875em; }
+code { background: var(--panel); border: 1px solid var(--line-soft); border-radius: 4px; padding: 0.05em 0.35em;
+  overflow-wrap: anywhere; }
+.muted { color: var(--muted); font-size: 0.875rem; }
+.page-head { display: grid; gap: 0.5rem; }
+.title-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem 1rem; }
+.title-row h1 { flex: 1 1 18rem; }
+.meta { display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; list-style: none; padding: 0; margin: 0;
+  color: var(--muted); font-size: 0.875rem; }
+.meta li { margin: 0; }
+button { font: inherit; cursor: pointer; }
+.button { font-size: 0.9375rem; font-weight: 600; color: var(--accent-fg); background: var(--accent);
+  border: 1px solid var(--accent); border-radius: 6px; padding: 0.5rem 1rem; min-height: 2.5rem; flex: none; }
+.button:hover { filter: brightness(1.08); }
+.button[disabled] { cursor: default; opacity: 0.65; }
+.button-quiet { font-size: 0.875rem; font-weight: 600; color: var(--fg); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 6px; padding: 0.375rem 0.75rem; min-height: 2.25rem; }
+.button-quiet:hover { border-color: var(--accent); }
+@media (pointer: coarse) { .button-quiet, .button { min-height: 2.75rem; } }
+.summary { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; margin-top: 1.5rem; }
+.summary > h2 { margin: 0; padding: 0.75rem 1.25rem; font-size: 1rem; border-bottom: 1px solid var(--line-soft); }
+.scorecard { display: flex; align-items: center; gap: 2rem; padding: 1.25rem; }
+.grade-col { text-align: center; flex: none; min-width: 8rem; }
+.grade { font-size: 4.5rem; font-weight: 700; line-height: 1; letter-spacing: -0.03em; color: var(--accent); }
+.grade-label { font-size: 0.875rem; color: var(--muted); margin-top: 0.5rem; }
+.bars { flex: 1; display: grid; gap: 0.75rem; min-width: 0; list-style: none; padding: 0; margin: 0; max-width: none; }
+.bars li { margin: 0; }
+.bar-head { display: flex; justify-content: space-between; gap: 1rem; font-size: 0.9375rem; margin-bottom: 0.25rem; }
+.bar-val { font-weight: 650; font-variant-numeric: tabular-nums; }
+.bar-track { height: 0.5rem; background: var(--line-soft); border-radius: 4px; overflow: hidden; }
+.bar-fill { height: 100%; background: var(--accent);
+  animation: skill-doctor-fill 700ms cubic-bezier(0.22, 1, 0.36, 1) var(--metric-delay) both;
+  transform-origin: left; }
+.eval-band { margin: 0 1.25rem 1rem; padding: 0.75rem 1rem; background: var(--notice-bg); color: var(--notice-fg);
+  border: 1px solid var(--line); border-radius: 6px; }
+.eval-band h3 { font-size: 0.875rem; }
+.eval-band p { margin: 0.25rem 0 0; max-width: 70ch; font-weight: 500; }
+.stats { display: flex; flex-wrap: wrap; list-style: none; margin: 0; padding: 0; max-width: none;
+  background: var(--panel); border-top: 1px solid var(--line-soft); border-radius: 0 0 8px 8px; }
+.stat { flex: 1 1 7rem; margin: 0; padding: 0.75rem 1.25rem; display: flex; flex-direction: column; }
+.stat .num { font-size: 1.5rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+.stat .lbl { color: var(--muted); font-size: 0.875rem; }
+@media (max-width: 599px) {
+  .scorecard { flex-direction: column; align-items: stretch; gap: 1.25rem; }
+  .grade { font-size: 3.5rem; }
+  h1 { font-size: 1.5rem; }
+}
+.findings li { max-width: 70ch; }
+.empty { color: var(--muted); border: 1px dashed var(--line); border-radius: 6px; padding: 0.75rem 1rem; }
+.candidate { background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  padding: 1rem 1.25rem; margin: 1rem 0; }
+.candidate-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; }
+.change { font-size: 1.0625rem; margin: 0.5rem 0 0.75rem; }
+.badge { display: inline-block; font-size: 0.8125rem; font-weight: 650; padding: 0.1rem 0.6rem;
+  border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); }
+.badge[data-status="accepted"] { background: var(--ok-bg); color: var(--ok-fg); }
+.badge[data-status="rejected"] { background: var(--bad-bg); color: var(--bad-fg); }
+.badge[data-status="inconclusive"] { background: var(--notice-bg); color: var(--notice-fg); }
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0.75rem; margin: 0.75rem 0; }
+.field { margin: 0; max-width: 70ch; }
+.field + .field { margin-top: 0.625rem; }
+.fields > .field + .field { margin-top: 0; }
+.field-label { font-size: 0.8125rem; font-weight: 650; color: var(--muted); margin: 0; }
+.field-value { margin: 0.125rem 0 0; }
+.kind { display: inline-block; margin-right: 0.25rem; font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--muted); }
+.group { border-top: 1px solid var(--line-soft); padding-top: 0.75rem; margin-top: 0.75rem; }
+.group-title { font-size: 0.9375rem; font-weight: 650; margin: 0 0 0.25rem; }
+.missing { background: var(--notice-bg); color: var(--notice-fg); border-radius: 6px; padding: 0.5rem 0.75rem; }
+.missing .field + .field { margin-top: 0.625rem; }
+.missing .field-label { color: inherit; }
+.handoff { border-top: 1px solid var(--line-soft); margin-top: 0.75rem; padding-top: 0.75rem; }
+.handoff-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.handoff-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.copy-status { font-size: 0.875rem; color: var(--muted); min-height: 1.25rem; }
+.prompt { white-space: pre-wrap; user-select: all; font-size: 0.8125rem; line-height: 1.6; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 6px; padding: 0.75rem 1rem; max-height: 20rem; overflow: auto; margin: 0.5rem 0 0; }
+.notice { background: var(--notice-bg); color: var(--notice-fg); border: 1px solid var(--line);
+  border-radius: 6px; padding: 0.5rem 0.75rem; }
+details.section { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; margin: 0.75rem 0; }
+details.section > summary { padding: 0.75rem 1rem; font-weight: 650; }
+details.section > .section-body { padding: 0 1rem 1rem; }
+details.section details.section { background: var(--page-bg); }
+summary { cursor: pointer; }
+summary:hover { color: var(--accent); }
+.handoff summary { font-weight: 600; font-size: 0.875rem; color: var(--muted); }
+.table-scroll { overflow-x: auto; max-width: 100%; margin: 0.5rem 0; border: 1px solid var(--line-soft); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; font-size: 0.875rem; font-variant-numeric: tabular-nums; }
+caption { text-align: left; padding: 0.5rem 0.75rem; color: var(--muted); font-size: 0.8125rem; }
+th, td { border-top: 1px solid var(--line-soft); padding: 0.375rem 0.75rem; text-align: left; vertical-align: top; }
+th { background: var(--panel); font-weight: 650; white-space: nowrap; }
+td code { font-size: 0.8125rem; }
+.diff-wrap { margin: 0.75rem 0 0.25rem; }
+.diff-view { display: grid; gap: 10px; max-width: 100%;
+  --diffs-font-family: var(--mono-font); --diffs-header-font-family: var(--mono-font); }
+.diff-view > * { min-width: 0; }
+.diff-fallback { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 0.75rem 1rem;
+  color: var(--fg); font-size: 0.8125rem; line-height: 1.7; overflow-x: auto; margin: 0; white-space: pre; }
+.diff-wrap[data-overflowing="true"][data-collapsed="true"] .diff-view {
+  max-height: 320px; overflow: hidden;
+  -webkit-mask-image: linear-gradient(#000 calc(100% - 72px), transparent);
+  mask-image: linear-gradient(#000 calc(100% - 72px), transparent);
+}
+.diff-toggle { margin-top: 0.5rem; }
+@keyframes skill-doctor-fill {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bar-fill { animation: none; }
+}
+@media print {
+  body { background: #fff; color: #000; }
+  .button, .button-quiet, .skip, .handoff-actions { display: none !important; }
+  details > summary { list-style: none; }
+  details::details-content { content-visibility: visible; display: block; }
+  .candidate, details.section, .summary { break-inside: avoid; }
+  .diff-wrap[data-overflowing="true"][data-collapsed="true"] .diff-view { max-height: none; -webkit-mask-image: none; mask-image: none; }
+  .prompt { max-height: none; }
+}
+</style></head><body>
+<a class="skip" href="#main">Skip to report</a>
+<div class="page">
+<header class="page-head"><div class="title-row"><h1>Reproduction fixture report</h1><button class="button" id="share-png" type="button" title="Save a 2400x1350 PNG share card">Share</button></div><ul class="meta"><li>Generated </li><li>Harness: copilot</li><li>Scope: 20 conversations found in the last 45 days</li></ul></header>
+<main id="main">
+<section class="summary" aria-labelledby="summary-h"><h2 id="summary-h">Summary</h2><div class="scorecard"><div class="grade-col"><div class="grade">B</div><div class="grade-label">Overall 86 / 100</div></div><ul class="bars" aria-label="Scores out of 100"><li><div class="bar-head"><span class="bar-name">Efficiency</span><span class="bar-val">92</span></div><div class="bar-track" aria-hidden="true"><div class="bar-fill" style="width:92%;--metric-delay:180ms"></div></div></li><li><div class="bar-head"><span class="bar-name">Code Quality</span><span class="bar-val">87</span></div><div class="bar-track" aria-hidden="true"><div class="bar-fill" style="width:87%;--metric-delay:290ms"></div></div></li><li><div class="bar-head"><span class="bar-name">Procedure Compliance</span><span class="bar-val">92</span></div><div class="bar-track" aria-hidden="true"><div class="bar-fill" style="width:92%;--metric-delay:400ms"></div></div></li><li><div class="bar-head"><span class="bar-name">Verbosity</span><span class="bar-val">86</span></div><div class="bar-track" aria-hidden="true"><div class="bar-fill" style="width:86%;--metric-delay:510ms"></div></div></li><li><div class="bar-head"><span class="bar-name">Skill Coverage</span><span class="bar-val">67</span></div><div class="bar-track" aria-hidden="true"><div class="bar-fill" style="width:67%;--metric-delay:620ms"></div></div></li></ul></div><div class="eval-band"><h3>Evaluation status</h3><p class="evaluation" id="evaluation-status">Diagnosis: static. Optimization: not run. Candidates: 1 unevaluated. Static triage only. No skillopt baseline or candidate evaluation ran, so candidate effectiveness remains unevaluated.</p></div><ul class="stats" aria-label="Report totals"><li class="stat"><span class="num">6</span><span class="lbl">conversations scored</span></li><li class="stat"><span class="num">2</span><span class="lbl">skills installed</span></li><li class="stat"><span class="num">1</span><span class="lbl">skills used</span></li></ul></section>
+<section aria-labelledby="findings-h"><h2 id="findings-h">Findings</h2><ol class="findings"><li>Efficiency below 0.5 in 1 of 6 conversations</li><li>Code quality applicable in 3 of 6 conversations</li><li>1 conversation ended at a provider cutoff</li></ol></section>
+<section aria-labelledby="candidates-h"><h2 id="candidates-h">Suggested skill changes</h2><p class="muted">Each candidate is a proposed change with the evidence behind it. Paste a handoff prompt into skillopt to measure the change, or into skillforge to draft the edit. Skill-doctor does not apply any edit.</p><article class="candidate" aria-labelledby="candidate-0"><div class="candidate-head"><h3 id="candidate-0"><code>alpha</code></h3><span class="badge" data-status="unevaluated">unevaluated</span></div><p class="change">CANARY-CHANGE-R tighten the discovery step</p><div class="fields"><div class="field"><p class="field-label">Target</p><p class="field-value">unresolved: alpha; variants /CANARY-PATH-R/clone-1/alpha/SKILL.md (sha256 aaaaaaaaaaaa), /CANARY-PATH-R/global/alpha/SKILL.md (sha256 bbbbbbbbbbbb); the user must select the edit target</p></div><div class="field"><p class="field-label">Owner</p><p class="field-value">skill</p></div></div><div class="group"><h4 class="group-title">What was observed</h4><div class="field"><p class="field-label">Observed (fact)</p><p class="field-value">CANARY-EVIDENCE-R-suggestion</p></div><div class="field"><p class="field-label">Reproduction</p><p class="field-value">CANARY-REPRO-R</p></div></div><div class="group"><h4 class="group-title">What is hypothesized, not yet tested</h4><div class="field"><p class="field-label">Hypothesis</p><p class="field-value">CANARY-MECH-R</p></div><div class="field"><p class="field-label">Expected improvement (unmeasured)</p><p class="field-value">Fewer exploratory reads before the first edit</p></div><div class="field"><p class="field-label">Risks and counterexamples</p><p class="field-value">CANARY-RISK-R</p></div></div><div class="group"><h4 class="group-title">How to check it</h4><div class="field"><p class="field-label">Acceptance checks</p><p class="field-value">efficiency label improves on the held-out case</p></div><div class="field missing"><p class="field-label">Missing evidence</p><ul><li>No transcript shows the skill firing</li><li>edit target unresolved</li></ul></div></div><div class="handoff"><div class="handoff-head"><h4>skillopt handoff prompt</h4><div class="handoff-actions"><button class="button-quiet copy-btn" type="button">Copy</button><button class="button-quiet select-btn" type="button">Select all</button><span class="copy-status" role="status" aria-live="polite"></span></div></div><p class="muted">Scores an existing skill against a baseline; tooling and new-skill candidates get a routing note instead. Nothing runs until you paste it.</p><details><summary>Show prompt text</summary><pre class="prompt" id="prompt-0-skillopt" tabindex="0">Use skillopt to evaluate this unevaluated candidate.
+Target: unresolved: alpha; variants /CANARY-PATH-R/clone-1/alpha/SKILL.md (sha256 aaaaaaaaaaaa), /CANARY-PATH-R/global/alpha/SKILL.md (sha256 bbbbbbbbbbbb); the user must select the edit target.
+Owner: skill.
+Ask the user to select one variant as the edit target before patching.
+Observed failure: CANARY-EVIDENCE-R-suggestion.
+Candidate mechanism: CANARY-MECH-R.
+Expected improvement: Fewer exploratory reads before the first edit.
+Reproduction: CANARY-REPRO-R.
+Acceptance checks: efficiency label improves on the held-out case.
+Known risks and counterexamples: CANARY-RISK-R.
+First establish a scored baseline and held-out acceptance cases.
+Compare the unchanged skill with the smallest candidate patch.
+Report per-task outcomes, cost, regressions, and uncertainty.
+Do not claim improvement without passing the evaluation gate.
+Do not apply changes to installed skills without authorization.</pre></details></div><div class="handoff"><div class="handoff-head"><h4>skillforge handoff prompt</h4><div class="handoff-actions"><button class="button-quiet copy-btn" type="button">Copy</button><button class="button-quiet select-btn" type="button">Select all</button><span class="copy-status" role="status" aria-live="polite"></span></div></div><p class="muted">Routes the gap: reuse a skill, hand it to skillopt, or justify a new one. Nothing runs until you paste it.</p><details><summary>Show prompt text</summary><pre class="prompt" id="prompt-0-skillforge" tabindex="0">Use skillforge to route this observed workflow gap.
+Goal: Fewer exploratory reads before the first edit.
+Evidence: CANARY-EVIDENCE-R-suggestion.
+Reproduction: CANARY-REPRO-R.
+Current target: unresolved: alpha; variants /CANARY-PATH-R/clone-1/alpha/SKILL.md (sha256 aaaaaaaaaaaa), /CANARY-PATH-R/global/alpha/SKILL.md (sha256 bbbbbbbbbbbb); the user must select the edit target.
+Owner: skill.
+Acceptance checks: efficiency label improves on the held-out case.
+Search existing skills and ownership before proposing a new skill.
+Compare reuse, an existing-skill skillopt handoff, and justified creation.
+Return scope, non-goals, acceptance checks, and unresolved ownership.
+Do not create or modify installed skills without authorization.</pre></details></div></article></section>
+<section aria-labelledby="evidence-h"><h2 id="evidence-h">Evidence</h2><details class="section" open><summary>Sampling</summary><div class="section-body"><p class="notice">Non-probability sample.</p><p class="muted">Selection is skill-first within each harness, so each row grades sessions that exercise skills first, not the whole harness.</p><div class="table-scroll" role="region" aria-label="Sampling by harness" tabindex="0"><table><caption>Sampling by harness</caption><thead><tr><th scope="col">Harness</th><th scope="col">Scoreable</th><th scope="col">Used a skill</th><th scope="col">Sampled</th><th scope="col">Overall</th></tr></thead><tbody><tr><td>codex</td><td>8</td><td>2</td><td>3</td><td>89</td></tr><tr><td>copilot</td><td>10</td><td>4</td><td>3</td><td>84</td></tr></tbody></table></div></div></details><details class="section" open><summary>Audit evidence</summary><div class="section-body"><div class="audit"><details class="section" open><summary>Score artifact</summary><div class="section-body"><p id="audit-scores-total" data-sessions="6">6 conversations scored. Overall 85.79 / 100; total weighted shortfall 14.2083 points.</p><div class="table-scroll" role="region" aria-label="Score by dimension" tabindex="0"><table><caption>Score by dimension</caption><thead><tr><th scope="col">Dimension</th><th scope="col">Score</th><th scope="col">Numerator</th><th scope="col">Applicable</th><th scope="col">Inapplicable</th><th scope="col">Basis</th><th scope="col">Weighted shortfall</th></tr></thead><tbody><tr><td>Efficiency</td><td>0.9167</td><td>5</td><td>6</td><td>0</td><td>measured</td><td>2.0833</td></tr><tr><td>Code Quality</td><td>0.8667</td><td>2.2</td><td>3</td><td>3</td><td>measured</td><td>3.3333</td></tr><tr><td>Procedure Compliance</td><td>0.9167</td><td>5</td><td>6</td><td>0</td><td>measured</td><td>1.6667</td></tr><tr><td>Verbosity</td><td>0.8583</td><td>4.3</td><td>6</td><td>0</td><td>measured</td><td>2.1250</td></tr><tr><td>Skill Coverage</td><td>0.6667</td><td>4</td><td>6</td><td>0</td><td>measured</td><td>5.0000</td></tr></tbody></table></div><p>Conversations with an applicable score below 0.5: 3 (termination-only exclusions: 1).</p></div></details><details class="section"><summary>Skill catalog</summary><div class="section-body"><p id="audit-catalog-counts" data-definitions="3" data-aliases="1" data-conflicts="1">3 definitions, 1 aliases, 1 conflicting-name groups.</p><p class="muted">A current content hash does not prove the content that ran in a past conversation.</p><div class="table-scroll" role="region" aria-label="Skill definitions found" tabindex="0"><table><caption>Skill definitions found</caption><thead><tr><th scope="col">Name</th><th scope="col">Content hash</th><th scope="col">Scope</th><th scope="col">Path</th><th scope="col">Aliases</th><th scope="col">Current edit target</th></tr></thead><tbody><tr><td>alpha</td><td><code>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</code></td><td>clone-1</td><td><code>/CANARY-PATH-R/clone-1/alpha/SKILL.md</code></td><td>/CANARY-PATH-R/clone-2/alpha/SKILL.md</td><td>yes</td></tr><tr><td>alpha</td><td><code>bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb</code></td><td>global</td><td><code>/CANARY-PATH-R/global/alpha/SKILL.md</code></td><td>-</td><td>no</td></tr><tr><td>beta</td><td><code>cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc</code></td><td>clone-1</td><td><code>/CANARY-PATH-R/clone-1/beta/SKILL.md</code></td><td>-</td><td>yes</td></tr></tbody></table></div><h4>Conflicting names</h4><div class="table-scroll" role="region" aria-label="Names with more than one content hash" tabindex="0"><table><caption>Names with more than one content hash</caption><thead><tr><th scope="col">Name</th><th scope="col">Distinct hashes</th></tr></thead><tbody><tr><td>alpha</td><td>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb</td></tr></tbody></table></div></div></details><details class="section"><summary>Per-conversation evidence</summary><div class="section-body"><p id="audit-record-count" data-records="6">6 records.</p><details class="section"><summary>copilot:CANARY-SESSION-R1 | copilot | skill_first</summary><div class="section-body"><div class="table-scroll" role="region" aria-label="Scorer results for this conversation" tabindex="0"><table><caption>Scorer results for this conversation</caption><thead><tr><th scope="col">Scorer</th><th scope="col">Label</th><th scope="col">Score</th><th scope="col">Applicability</th><th scope="col">Reason</th><th scope="col">Evidence</th></tr></thead><tbody><tr><td>efficiency</td><td>highly_efficient</td><td>1.0</td><td>applicable</td><td>CANARY-REASON-R1-efficiency</td><td>CANARY-EVIDENCE-R1-efficiency</td></tr><tr><td>code_quality</td><td>approve</td><td>1.0</td><td>applicable</td><td>CANARY-REASON-R1-code_quality</td><td>CANARY-EVIDENCE-R1-code_quality</td></tr><tr><td>procedure_compliance</td><td>fully_compliant</td><td>1.0</td><td>applicable</td><td>CANARY-REASON-R1-procedure_compliance</td><td>CANARY-EVIDENCE-R1-procedure_compliance</td></tr><tr><td>verbosity</td><td>proportionate</td><td>1.0</td><td>applicable</td><td>CANARY-REASON-R1-verbosity</td><td>CANARY-EVIDENCE-R1-verbosity</td></tr></tbody></table></div></div></details><details class="section"><summary>copilot:CANARY-SESSION-R2 | copilot | skill_first</summary><div class="section-body"><div class="table-scroll" role="region" aria-label="Scorer results for this conversation" tabindex="0"><table><caption>Scorer results for this conversation</caption><thead><tr><th scope="col">Scorer</th><th scope="col">Label</th><th scope="col">Score</th><th scope="col">Applicability</th><th scope="col">Reason</th><th scope="col">Evidence</th></tr></thead><tbody><tr><td>efficiency</td><td>mostly_inefficient</td><td>0.4</td><td>applicable</td><td>CANARY-REASON-R2-efficiency</td><td>CANARY-EVIDENCE-R2-efficiency</td></tr><tr><td>code_quality</td><td>insufficient_evidence</td><td>0.5</td><td>not applicable</td><td>CANARY-REASON-R2-code_quality</td><td>CANARY-EVIDENCE-R2-code_quality</td></tr><tr><td>procedure_compliance</td><td>fully_compliant</td><td>1.0</td><td>applicable</td><td>CANARY-REASON-R2-procedure_compliance</td><td>CANARY-EVIDENCE-R2-procedure_compliance</td></tr><tr><td>verbosity</td><td>verbose</td><td>0.2</td><td>applicable</td><td>CANARY-REASON-R2-verbosity</td><td>CANARY-EVIDENCE-R2-verbosity</td></tr></tbody></table></div></div></details><details class="section"><summary>copilot:CANARY-SESSION-R3 | copilot | timeline_supplement</summary><div class="section-body"><div class="table-scroll" role="region" aria-label="Scorer results for this conversation" tabindex="0"><table><caption>Scorer results for this conversation</caption><thead><tr><th scope="col">Scorer</th><th scope="col">Label</th><th scope="col">Score</th><th scope="col">Applicability</th><th scope="col">Reason</th><th scope="col">Evidence</th></tr></thead><tbody><tr><td>efficiency</td><td>mostly_efficient</td><td>0.8</td><td>applicable</td><td>CANARY-REASON-R3-efficiency</td><td>CANARY-EVIDENCE-R3-efficiency</td></tr><tr><td>code_quality</td><td>block</td><td>0.2</td><td>applicable</td><td>CANARY-REASON-R3-code_quality</td><td>CANARY-EVIDENCE-R3-code_quality</td></tr><tr><td>procedure_compliance</td><td>mostly_compliant</td><td>0.8</td><td>applicable</td><td>CANARY-REASON-R3-procedure_compliance</td><td>CANARY-EVIDENCE-R3-procedure_compliance</td></tr><tr><td>verbosity</td><td>proportionate</td><td>1.0</td><td>applicable</td><td>CANARY-REASON-R3-verbosity</td><td>CANARY-EVIDENCE-R3-verbosity</td></tr></tbody></table></div></div></details><details class="section"><summary>codex:CANARY-SESSION-R4 | codex | skill_first</summary><div class="section-body"><div class="table-scroll" role="region" aria-label="Scorer results for this conversation" tabindex="0"><table><caption>Scorer results for this conversation</caption><thead><tr><th scope="col">Scorer</th><th scope="col">Label</th><th scope="col">Score</th><th scope="col">Applicability</th><th scope="col">Reason</th><th scope="col">Evidence</th></tr></thead><tbody><tr><td>efficiency</td><td>highly_efficient</td><td>1.0</td><td>applicable</td><td>CANARY-REASON-R4-efficiency</td><td>CANARY-EVIDENCE-R4-efficiency</td></tr><tr><td>code_quality</td><td>insufficient_evidence</td><td>0.5</td><td>not applicable</td><td>CANARY-REASON-R4-code_quality</td><td>CANARY-EVIDENCE-R4-code_quality</td></tr><tr><td>procedure_compliance</td><td>fully_compliant</td><td>1.0</td><td>applicable</td><td>CANARY-REASON-R4-procedure_compliance</td><td>CANARY-EVIDENCE-R4-procedure_compliance</td></tr><tr><td>verbosity</td><td>proportionate</td><td>1.0</td><td>applicable</td><td>CANARY-REASON-R4-verbosity</td><td>CANARY-EVIDENCE-R4-verbosity</td></tr></tbody></table></div></div></details><details class="section"><summary>codex:CANARY-SESSION-R5 | codex | timeline_supplement</summary><div class="section-body"><div class="table-scroll" role="region" aria-label="Scorer results for this conversation" tabindex="0"><table><caption>Scorer results for this conversation</caption><thead><tr><th scope="col">Scorer</th><th scope="col">Label</th><th scope="col">Score</th><th scope="col">Applicability</th><th scope="col">Reason</th><th scope="col">Evidence</th></tr></thead><tbody><tr><td>efficiency</td><td>mostly_efficient</td><td>0.8</td><td>applicable</td><td>CANARY-REASON-R5-efficiency</td><td>CANARY-EVIDENCE-R5-efficiency</td></tr><tr><td>code_quality</td><td>approve</td><td>1.0</td><td>applicable</td><td>CANARY-REASON-R5-code_quality</td><td>CANARY-EVIDENCE-R5-code_quality</td></tr><tr><td>procedure_compliance</td><td>noncompliant</td><td>0.2</td><td>applicable</td><td>CANARY-REASON-R5-procedure_compliance</td><td>CANARY-EVIDENCE-R5-procedure_compliance</td></tr><tr><td>verbosity</td><td>proportionate</td><td>1.0</td><td>applicable</td><td>CANARY-REASON-R5-verbosity</td><td>CANARY-EVIDENCE-R5-verbosity</td></tr></tbody></table></div></div></details><details class="section"><summary>codex:CANARY-SESSION-R6 | codex | skill_first</summary><div class="section-body"><p>Terminated by: usage_limit_exceeded</p><div class="table-scroll" role="region" aria-label="Scorer results for this conversation" tabindex="0"><table><caption>Scorer results for this conversation</caption><thead><tr><th scope="col">Scorer</th><th scope="col">Label</th><th scope="col">Score</th><th scope="col">Applicability</th><th scope="col">Reason</th><th scope="col">Evidence</th></tr></thead><tbody><tr><td>efficiency</td><td>highly_efficient</td><td>1.0</td><td>applicable</td><td>CANARY-REASON-R6-efficiency</td><td>CANARY-EVIDENCE-R6-efficiency</td></tr><tr><td>code_quality</td><td>insufficient_evidence</td><td>0.5</td><td>not applicable</td><td>CANARY-REASON-R6-code_quality</td><td>CANARY-EVIDENCE-R6-code_quality</td></tr><tr><td>procedure_compliance</td><td>fully_compliant</td><td>1.0</td><td>applicable</td><td>CANARY-REASON-R6-procedure_compliance</td><td>CANARY-EVIDENCE-R6-procedure_compliance</td></tr><tr><td>verbosity</td><td>terse</td><td>0.1</td><td>applicable</td><td>CANARY-REASON-R6-verbosity</td><td>CANARY-EVIDENCE-R6-verbosity</td></tr></tbody></table></div></div></details></div></details></div></div></details></section>
+</main>
+</div>
+<script>/* @pierre/diffs bundle: covered by test_vendored_bundle.py */</script>
+<script>
+(function () {
+  var CARD = {"title": "Reproduction fixture report", "eyebrow": "skill-doctor", "handle": "CANARY-HANDLE-R", "harness": "copilot", "grade": "B", "grade_label": "Overall 86 / 100", "bars": [["Efficiency", 92], ["Code Quality", 87], ["Procedure Compliance", 92], ["Verbosity", 86], ["Skill Coverage", 67]], "meta": "20 conversations found \u00b7 last 45 days", "stats": [["6", "conversations scored"], ["2", "skills installed"], ["1", "skills used"]]};
+  var CLAMP = 320;
+
+  // --- collapsible diffs -------------------------------------------------
+  // scrollHeight is the full content height whether or not the view is
+  // currently clamped, so this measures the same either way. Only diffs that
+  // actually overflow get clamped, so short ones never pick up the fade.
+  function syncToggle(wrap, button) {
+    var view = wrap.querySelector('.diff-view');
+    if (!view) return;
+    var overflowing = view.scrollHeight > CLAMP + 24;
+    wrap.dataset.overflowing = overflowing ? 'true' : 'false';
+    button.hidden = !overflowing;
+  }
+
+  document.querySelectorAll('.diff-wrap').forEach(function (wrap) {
+    var button = wrap.querySelector('.diff-toggle');
+    var view = wrap.querySelector('.diff-view');
+    if (!button || !view) return;
+    button.addEventListener('click', function () {
+      var collapsed = wrap.dataset.collapsed === 'true';
+      wrap.dataset.collapsed = collapsed ? 'false' : 'true';
+      button.textContent = collapsed ? 'Show less' : 'Show more';
+      if (!collapsed) wrap.scrollIntoView({ block: 'nearest' });
+    });
+    syncToggle(wrap, button);
+    if (window.ResizeObserver) {
+      new ResizeObserver(function () { syncToggle(wrap, button); }).observe(view);
+    }
+  });
+
+  // --- handoff prompts: copy and select all -------------------------------
+  function selectNode(node) {
+    var details = node.closest('details');
+    if (details) details.open = true;
+    var range = document.createRange();
+    range.selectNodeContents(node);
+    var selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+
+  function flash(status, message) {
+    status.textContent = message;
+    setTimeout(function () { status.textContent = ''; }, 3000);
+  }
+
+  function copyPrompt(node, status) {
+    var text = node.textContent;
+    var legacy = function () {
+      selectNode(node);
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      flash(status, ok ? 'Copied.' : 'Could not copy. The text is selected; press Ctrl+C.');
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(
+        function () { flash(status, 'Copied.'); }, legacy);
+    } else {
+      legacy();
+    }
+  }
+
+  document.querySelectorAll('.handoff').forEach(function (box) {
+    var node = box.querySelector('.prompt');
+    var status = box.querySelector('.copy-status');
+    var copy = box.querySelector('.copy-btn');
+    var all = box.querySelector('.select-btn');
+    if (!node || !status) return;
+    if (copy) copy.addEventListener('click', function () { copyPrompt(node, status); });
+    if (all) all.addEventListener('click', function () {
+      selectNode(node);
+      flash(status, 'Selected. Press Ctrl+C to copy.');
+    });
+  });
+
+  // --- print: expand every collapsed section, then restore ----------------
+  var reopened = [];
+  var unclamped = [];
+  window.addEventListener('beforeprint', function () {
+    document.querySelectorAll('details:not([open])').forEach(function (d) {
+      d.open = true;
+      reopened.push(d);
+    });
+    document.querySelectorAll('.diff-wrap[data-collapsed="true"]').forEach(function (w) {
+      w.dataset.collapsed = 'false';
+      unclamped.push(w);
+    });
+  });
+  window.addEventListener('afterprint', function () {
+    reopened.forEach(function (d) { d.open = false; });
+    reopened = [];
+    unclamped.forEach(function (w) { w.dataset.collapsed = 'true'; });
+    unclamped = [];
+  });
+
+  // --- share image -------------------------------------------------------
+  var SANS = 'system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+  var FG = '#15181e', MUTED = '#4b5260', ACCENT = '#2a4bd0';
+  var LINE = '#c3c9d4', LINE_SOFT = '#e1e5ec', PANEL = '#eef0f4', BG = '#f5f6f8';
+  var W = 1200, H = 675;
+
+  function drawCard(scale) {
+    var canvas = document.createElement('canvas');
+    canvas.width = W * scale;
+    canvas.height = H * scale;
+    var c = canvas.getContext('2d');
+    c.scale(scale, scale);
+
+    function font(weight, size) { c.font = weight + ' ' + size + 'px ' + SANS; }
+    function text(str, x, y, align) {
+      c.textAlign = align || 'left';
+      c.textBaseline = 'middle';
+      c.fillText(str, x, y);
+      c.textAlign = 'left';
+    }
+    function fit(str, maxWidth) {
+      if (c.measureText(str).width <= maxWidth) return str;
+      while (str.length > 1 && c.measureText(str + '…').width > maxWidth) {
+        str = str.slice(0, -1);
+      }
+      return str + '…';
+    }
+
+    c.fillStyle = BG;
+    c.fillRect(0, 0, W, H);
+    var fx = 48, fy = 40, fw = 1104, fh = 595;
+    c.fillStyle = '#fff';
+    c.fillRect(fx, fy, fw, fh);
+    c.strokeStyle = LINE;
+    c.lineWidth = 1;
+    c.strokeRect(fx + 0.5, fy + 0.5, fw - 1, fh - 1);
+
+    // header: title, then handle, harness and scope
+    font('700', 36);
+    c.fillStyle = FG;
+    text(fit(CARD.title, fw - 72), fx + 36, fy + 50);
+    font('400', 16);
+    c.fillStyle = MUTED;
+    text(fit(CARD.handle + '  ·  ' + CARD.harness + '  ·  ' + CARD.meta, fw - 72),
+      fx + 36, fy + 88);
+
+    var bodyTop = fy + 112;
+    var mainMid = bodyTop + 150;
+    font('700', 170);
+    c.fillStyle = ACCENT;
+    text(CARD.grade, fx + 186, mainMid - 15, 'center');
+    font('400', 16);
+    c.fillStyle = MUTED;
+    text(CARD.grade_label, fx + 186, mainMid + 88, 'center');
+
+    var bx = fx + 392;
+    var bw = fx + fw - 36 - bx;
+    var rowH = 35, gap = CARD.bars.length > 3 ? 12 : 28;
+    var top = mainMid - (CARD.bars.length * rowH + (CARD.bars.length - 1) * gap) / 2;
+    CARD.bars.forEach(function (bar, index) {
+      var y = top + index * (rowH + gap);
+      font('500', 16);
+      c.fillStyle = FG;
+      text(bar[0], bx, y + 9);
+      font('700', 16);
+      text(String(bar[1]), bx + bw, y + 9, 'right');
+      c.fillStyle = LINE_SOFT;
+      c.fillRect(bx, y + 25, bw, 10);
+      c.fillStyle = ACCENT;
+      c.fillRect(bx, y + 25, bw * Math.max(0, Math.min(100, bar[1])) / 100, 10);
+    });
+
+    // stats band
+    var sy = fy + fh - 128;
+    c.fillStyle = PANEL;
+    c.fillRect(fx + 1, sy, fw - 2, 96);
+    var colW = (fw - 2) / CARD.stats.length;
+    CARD.stats.forEach(function (stat, index) {
+      var cx = fx + 1 + index * colW;
+      font('700', 36);
+      c.fillStyle = FG;
+      text(stat[0], cx + 36, sy + 36);
+      font('400', 15);
+      c.fillStyle = MUTED;
+      text(stat[1], cx + 36, sy + 72);
+    });
+
+    // neutral tool label
+    font('400', 13);
+    c.fillStyle = MUTED;
+    text(CARD.eyebrow, fx + 36, fy + fh - 16);
+
+    return canvas;
+  }
+
+  function slug(value) {
+    return (value || '').toLowerCase().replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'agent';
+  }
+
+  var button = document.getElementById('share-png');
+  button.addEventListener('click', function () {
+    var label = button.textContent;
+    button.disabled = true;
+    var ready = (document.fonts && document.fonts.ready) || Promise.resolve();
+    ready.then(function () {
+      drawCard(2).toBlob(function (blob) {
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = slug(CARD.handle) + '-skill-report.png';
+        a.click();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+        button.disabled = false;
+        button.textContent = 'Saved';
+        setTimeout(function () { button.textContent = label; }, 2000);
+      }, 'image/png');
+    });
+  });
+})();
+</script>
+</body></html>

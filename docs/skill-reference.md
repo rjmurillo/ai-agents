@@ -25,7 +25,7 @@ Agents invoke skills internally. You do not call skills directly.
 | [GitHub Operations](#github-operations) | PR management, issue operations, URL handling |
 | [Memory and Knowledge](#memory-and-knowledge) | Memory search, curation, exploration, enhancement |
 | [Security](#security) | Scanning, detection, threat modeling, CodeQL |
-| [Code Quality](#code-quality) | Style enforcement, taste lints, golden principles, code-qualities assessment, incoherence detection, codebase analysis |
+| [Code Quality](#code-quality) | Style enforcement, taste lints, golden principles, code-qualities assessment, codebase analysis |
 | [Architecture and Design](#architecture-and-design) | ADR review, CVA, decisions, architecture analysis |
 | [Planning and Strategy](#planning-and-strategy) | Planning, pre-mortem, buy-vs-build, Cynefin |
 | [Documentation](#documentation) | Doc accuracy verification, markdown fixes, context optimization |
@@ -99,12 +99,6 @@ Analyzes codebase architecture, security posture, or code quality. Produces stru
 
 Assesses code maintainability through 5 foundational qualities: cohesion, coupling, DRY, encapsulation, and testability.
 
-### incoherence
-
-> **Deprecated.** Use [doc-accuracy](#doc-accuracy) instead, which absorbed incoherence detection and is the canonical doc-vs-code audit entrypoint. Retained only for the legacy `.claude/skills/incoherence/scripts/incoherence.py` reconciliation workflow.
-
-Detects contradictions between documentation and code, ambiguous definitions, and inconsistent patterns across the codebase.
-
 ### taste-lints
 
 Custom lints with agent-readable remediation instructions. Enforces taste invariants (file size, naming conventions, structured logging, complexity) and surfaces errors that agents can act on directly.
@@ -159,7 +153,7 @@ Classifies problems into Cynefin Framework domains (Clear, Complicated, Complex,
 
 ### business-strategy (optional pack)
 
-Routes a founder or business problem to the right framework (customer discovery, positioning, pricing, sales, growth, persuasion), then loads it on demand. Ships as an **optional pack**: it is not installed by a default `ai-agents init`. Add it with `npx ai-agents init --pack business` (see [installation.md](installation.md#optional-skill-packs)).
+Routes a founder or business problem to the right framework (customer discovery, positioning, pricing, sales, growth, persuasion), then loads it on demand. Ships as an **optional pack**: it is not installed by a default `ai-agents init`. Add it with `npx @rjmurillo/ai-agents init --pack business` once the package is published to npm (see [installation.md](installation.md#optional-skill-packs)).
 
 ## Documentation
 

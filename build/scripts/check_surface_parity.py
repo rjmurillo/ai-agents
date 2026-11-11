@@ -45,6 +45,9 @@ Findings
 ``DIVERGENT-INVALID``   a ``divergent`` entry is identical or has no authority.
 ``STALE-<relation>``    ``build_all.py --check`` left this path changed.
 ``WROTE-INDEPENDENT``   a generator changed an independent surface.
+``UNRESOLVED-IMPORT``   a shipped script or lib module imports a module that
+                       is not stdlib, declared, or shipped in its own tree
+                       (issue #7221; see ``import_closure.py``).
 
 Discovery
 ---------
@@ -89,6 +92,7 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 import binplace_manifest  # noqa: E402
+import import_closure  # noqa: E402
 from surface_manifest import (  # noqa: E402
     MANIFEST_REL,
     Finding,
@@ -391,6 +395,7 @@ def run_checks(
         *check_inventory(repo_root, manifest, owned_prefixes),
         *check_classification(manifest, files),
         *check_hand_maintained(repo_root, manifest, files),
+        *import_closure.check_import_closure(repo_root),
     ]
 
 

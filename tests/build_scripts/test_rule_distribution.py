@@ -27,10 +27,18 @@ import rule_templates  # noqa: E402
 _PINNED_REPO_ONLY = frozenset(
     {
         "adr-records",
+        "canonical-source-mirror",
+        "ci-scripts",
+        "claude-agents",
+        "generated-artifacts",
         "governance",
+        "knowledge-persistence",
+        "plugin-self-containment",
+        "plugin-version-bump",
         "push-lock",
         "secret-redaction",
         "session-logs",
+        "templates",
         "tool-use-hook-bar",
     }
 )
@@ -46,6 +54,15 @@ def _rule(paths: str) -> str:
         (_rule('[".claude/**", ".agents/x/**"]'), True),
         (_rule('".project-toolkit/**, .serena/memories/**"'), True),
         (_rule('[".claude/**", "docs/**"]'), False),
+        (_rule('["templates/**", "build/scripts/**", "src/claude/**"]'), True),
+        (_rule('["scripts/**", ".github/workflows/**", "tests/**"]'), True),
+        (_rule('["tests/**", "**/tests/**"]'), False),
+        (_rule('["tests/**", "**/*.Tests.ps1"]'), False),
+        (_rule('[".claude/**", ".github/**", "tests/**"]'), False),
+        (_rule('["build/**", "docs/retros/**"]'), False),
+        (_rule('["src/claude/**", "**/.claude-plugin/plugin.json"]'), False),
+        (_rule('["src/codex/**", "src/hermes/**", "src/muse/**", "src/vs-code-agents/**"]'), True),
+        (_rule('["src/**/*.py"]'), False),
         (_rule('["**"]'), False),
         (_rule("[]"), False),
         ("# no frontmatter\n", False),
@@ -56,6 +73,15 @@ def _rule(paths: str) -> str:
         "list-all-internal",
         "comma-string-all-internal",
         "mixed-scope-ships",
+        "pipeline-layout-repo-only",
+        "ci-layout-repo-only",
+        "generic-and-wildcard-tests-ships",
+        "tests-and-pester-glob-ships",
+        "github-wildcard-ships",
+        "pipeline-and-docs-ships",
+        "pipeline-and-wildcard-manifest-ships",
+        "other-plugin-trees-repo-only",
+        "consumer-src-ships",
         "always-on-ships",
         "empty-list-ships",
         "no-frontmatter-ships",
@@ -86,6 +112,67 @@ def test_live_repo_only_set_matches_what_copilot_skips() -> None:
         for p in (_REPO_ROOT / "src" / "copilot-cli" / "instructions").glob("*.instructions.md")
     }
     assert templates - shipped == _PINNED_REPO_ONLY
+
+
+_ALWAYS_ON = frozenset({"builder-ethos", "lossless-queue-reads", "universal", "voice"})
+
+
+def _template_names() -> set[str]:
+    return {p.stem for p in (_REPO_ROOT / "templates" / "rules").glob("*.md")}
+
+
+def _consumer_trees() -> dict[str, tuple[Path, str]]:
+    """Tree label to (directory, per-rule file suffix) for each shipped tree."""
+    return {
+        "claude-plugin": (_REPO_ROOT / "src" / "claude" / "rules", ".md"),
+        "copilot-cli": (_REPO_ROOT / "src" / "copilot-cli" / "instructions", ".instructions.md"),
+        "cursor": (_REPO_ROOT / "src" / "cursor" / "rules", ".mdc"),
+    }
+
+
+def _names_in(tree: Path, suffix: str) -> set[str]:
+    return {p.name.removesuffix(suffix) for p in tree.glob(f"*{suffix}")}
+
+
+@pytest.mark.parametrize("tree", ["claude-plugin", "copilot-cli", "cursor"])
+def test_repo_only_rules_are_absent_from_every_consumer_tree(tree: str) -> None:
+    directory, suffix = _consumer_trees()[tree]
+    assert _names_in(directory, suffix) & _PINNED_REPO_ONLY == set()
+
+
+@pytest.mark.parametrize("tree", ["claude-plugin", "copilot-cli", "cursor"])
+def test_every_other_rule_still_ships_to_every_consumer_tree(tree: str) -> None:
+    directory, suffix = _consumer_trees()[tree]
+    assert _names_in(directory, suffix) == _template_names() - _PINNED_REPO_ONLY
+
+
+def test_repo_only_rules_stay_active_in_the_dogfood_trees() -> None:
+    for name in sorted(_PINNED_REPO_ONLY):
+        claude = _REPO_ROOT / ".claude" / "rules" / f"{name}.md"
+        github = _REPO_ROOT / ".github" / "instructions" / f"{name}.instructions.md"
+        for path in (claude, github):
+            assert path.is_file() and not path.is_symlink(), path
+
+
+def test_shipped_rules_stay_links_in_the_dogfood_trees() -> None:
+    for name in sorted(_template_names() - _PINNED_REPO_ONLY):
+        assert (_REPO_ROOT / ".claude" / "rules" / f"{name}.md").is_symlink(), name
+
+
+def test_always_on_rules_are_unchanged_and_ship() -> None:
+    assert not _ALWAYS_ON & _PINNED_REPO_ONLY
+    for directory, suffix in _consumer_trees().values():
+        assert _ALWAYS_ON <= _names_in(directory, suffix)
+
+
+@pytest.mark.parametrize(
+    "name", ["testing", "token-economy", "retros", "security", "python", "lsp-first"]
+)
+def test_rules_with_a_consumer_shaped_glob_keep_shipping(name: str) -> None:
+    """Generic ``tests/`` and ``scripts/`` globs never flip a rule by themselves."""
+    assert name not in _PINNED_REPO_ONLY
+    text = (_REPO_ROOT / "templates" / "rules" / f"{name}.md").read_text(encoding="utf-8")
+    assert rule_distribution.is_repo_only(text) is False
 
 
 def _repo(tmp_path: Path) -> Path:

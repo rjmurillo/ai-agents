@@ -45,6 +45,16 @@ def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
     return subprocess.CompletedProcess(args=[], returncode=rc, stdout=stdout, stderr=stderr)
 
 
+@pytest.fixture
+def no_prior_comment():
+    """Stub the duplicate check so tests of the post path see one gh call per step.
+
+    TestIdempotentPost exercises the real check with the I/O mocked.
+    """
+    with patch("post_pr_comment_reply._find_duplicate", return_value=None):
+        yield
+
+
 # ---------------------------------------------------------------------------
 # Tests: build_parser
 # ---------------------------------------------------------------------------
@@ -89,6 +99,7 @@ class TestBuildParser:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.usefixtures("no_prior_comment")
 class TestMain:
     def test_not_authenticated_exits_4(self):
         with patch(
@@ -262,6 +273,7 @@ class TestMain:
         assert rc == 0
 
 
+@pytest.mark.usefixtures("no_prior_comment")
 class TestNotFound:
     """A 404 from the replies endpoint exits 2 with a one-line message (D29)."""
 
@@ -328,6 +340,7 @@ class TestNotFound:
         assert code == 3
 
 
+@pytest.mark.usefixtures("no_prior_comment")
 class TestDryRun:
     @staticmethod
     def _comment_on(pr):

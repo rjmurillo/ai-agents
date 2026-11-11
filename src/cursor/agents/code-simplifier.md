@@ -109,6 +109,6 @@ Failure modes and handoff:
 - **[COMPLETE]**: refactors produced; hand off to qa agent for regression validation on touched files.
 - **[BLOCKED]**: code is too broken to simplify safely (step 2 of the Reasoning Protocol surfaces a bug, or callers cannot be located). Hand off to implementer agent with the diagnosed problem. Do not produce refactors against broken code.
 - **[NEEDS_DECOMPOSITION]**: more than 10 high-impact refactors apply. Return the top 10 and propose splitting the rest into a follow-up session.
-- **[SECURITY_FLAG]**: a refactor would alter authentication, authorization, secret handling, or input validation. Stop and hand off to security agent.
+- **[SECURITY_FLAG]**: a refactor would alter authentication, authorization, secret handling, or input validation. Stop, report it to the user, and flag it for security review.
 
 Recommended next step at the end of a [COMPLETE] response (only when an orchestrator delegated this task; when you report to the user directly, omit this item and end on the result): "Recommended next: qa agent to validate that touched files still pass their test suites."

@@ -37,6 +37,7 @@ EXPECTED_HOOK_TREE_FILES = frozenset(
         "SessionStart/invoke_context_loader.py",
         "SessionStart/invoke_plugin_hook_drift_check.py",
         "SessionStart/plugin_hook_drift_model.py",
+        "SessionStart/plugin_hook_drift_record.py",
         "SessionStart/plugin_hook_drift_report.py",
         "SessionStart/plugin_hook_drift_safety.py",
         "SessionStart/plugin_hook_drift_state.py",

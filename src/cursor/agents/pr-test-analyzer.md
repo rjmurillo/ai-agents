@@ -104,6 +104,6 @@ Failure modes and handoff:
 - **[COMPLETE]**: findings produced; recommendation matches the criticality threshold. Hand off to implementer agent to write the proposed tests, or to pr-review agent for final approval if APPROVED.
 - **[BLOCKED]**: PR introduces a new test framework that this agent cannot judge. Hand off to architect agent for the framework decision before scoring coverage.
 - **[NEEDS_DECOMPOSITION]**: more than 10 findings rated 5+. Return the top 10 by criticality and propose splitting the remaining into a follow-up audit issue.
-- **[SECURITY_FLAG]**: a coverage gap touches authentication, authorization, secret handling, or input validation. Stop and hand off to security agent for explicit sign-off, regardless of criticality score.
+- **[SECURITY_FLAG]**: a coverage gap touches authentication, authorization, secret handling, or input validation. Stop and report it to the user and flag it for security review, regardless of criticality score.
 
 Recommended next step at the end of every [COMPLETE] response: "Recommended next: implementer agent to write the proposed tests (if findings 7+), or pr-review agent for final diff check (if APPROVED)."

@@ -594,6 +594,7 @@ def generate_rules(
         return 1, result
 
     sources = sorted(source_dir.glob(f"*{source_suffix}"))
+    repo_only_names: set[str] = set()
     # ADR-119 decision 13: repo-only rules are not in the plugin tree; they
     # live as real files in this directory beside links to the shipped rules.
     repo_only_source = stanza.get("repoOnlySourceDir")
@@ -604,14 +605,13 @@ def generate_rules(
         shipped = {path.name for path in sources}
         extra_dir = repo_root / repo_only_source
         if extra_dir.is_dir():
-            sources = sorted(
-                sources
-                + [
-                    path
-                    for path in extra_dir.glob(f"*{source_suffix}")
-                    if not path.is_symlink() and path.is_file() and path.name not in shipped
-                ]
-            )
+            repo_only_sources = [
+                path
+                for path in extra_dir.glob(f"*{source_suffix}")
+                if not path.is_symlink() and path.is_file() and path.name not in shipped
+            ]
+            repo_only_names = {path.name for path in repo_only_sources}
+            sources = sorted(sources + repo_only_sources)
     if not sources:
         print(
             f"Error: no rule files found under {source_dir} (suffix={source_suffix})",
@@ -654,6 +654,12 @@ def generate_rules(
             except ValueError:
                 destination_key = output_dir.as_posix()
             keep_internal = destination_key in keep_internal_dirs
+            if src.name in repo_only_names and destination_key not in repo_only_dirs:
+                # A repo-only rule never reaches a shipped destination (issue
+                # #7225). Leaving it out of expected_outputs lets the pruner
+                # remove any copy an earlier run emitted there.
+                result.scope_skipped += 1
+                continue
             if destination_key in repo_only_dirs and shipped_names:
                 # The shipped copy arrives here as a binplace link; keep the
                 # name expected so the pruner leaves that link alone.

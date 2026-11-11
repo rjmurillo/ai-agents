@@ -8,6 +8,7 @@ sessions used which skills, and emits:
 
   <out>/inventory.json        - skills, per-session stats, sampling decisions
   <out>/transcripts/<id>.md   - condensed transcripts for sampled sessions
+  <out>/audit_manifest.json   - only with --audit-manifest: scope, catalog, provenance
 
 Everything runs locally; nothing is uploaded. Python 3.10+, stdlib only.
 Copyright (c) 2026 Denver Technologies, Inc. MIT license, see ../LICENSE.
@@ -25,6 +26,7 @@ from io import TextIOWrapper
 from pathlib import Path
 from typing import Any
 
+from audit_manifest import export_manifest
 from repository_scope import print_scope_roots, resolve_repository_scope
 from session_common import (
     CLAUDE_CODE_EDIT_TOOLS,
@@ -68,6 +70,7 @@ from session_databases import (
     warp_database_has_sessions,
 )
 from session_discovery import (
+    clear_cwd_resolution_cache,
     copilot_session_matches_repos,
     discover_hermes_databases,
     discover_skills,
@@ -98,7 +101,7 @@ from session_json import (
     parse_pi_session,
     parse_zcode_session,
 )
-from session_sampling import sample_sessions
+from session_sampling import apply_strata, sample_sessions
 
 __all__ = [
     "CLAUDE_CODE_EDIT_TOOLS",
@@ -446,6 +449,7 @@ def _print_summary(inventory: Any, args: Any, repos: Any, out: Path) -> None:
 
 def _run() -> None:
     args = parse_args()
+    clear_cwd_resolution_cache()
     if args.all_conversations and args.repo:
         print("error: --all-conversations cannot be combined with --repo", file=sys.stderr)
         sys.exit(2)
@@ -473,10 +477,13 @@ def _run() -> None:
         session["_key"] = f"{session['harness']}:{session['meta']['id']}"
     collection.sessions.sort(key=lambda session: session["modified_at"], reverse=True)
     sampled, per_harness, sampling = sample_sessions(collection.sessions, collection.skills, args)
+    apply_strata(collection.sessions, sampling)
     _write_transcripts(collection.sessions, sampled, out / "transcripts")
     inventory = _inventory(collection, homes, sampled, per_harness, sampling)
     (out / "inventory.json").write_text(json.dumps(inventory, indent=2), encoding="utf-8")
     _print_summary(inventory, args, collection.repos, out)
+    if args.audit_manifest:
+        export_manifest(inventory, args, out)
 
 
 def main() -> None:

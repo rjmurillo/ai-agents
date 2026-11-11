@@ -24,6 +24,7 @@ from pathlib import Path
 import pytest
 
 from scripts.testing.mutation_workspace import isolated_mutation_worktree
+from tests.mutation._nested_pytest import private_basetemp
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 TARGET_REL = Path(".claude") / "skills" / "review" / "scripts" / "validate_findings_scope.py"
@@ -40,15 +41,16 @@ def _run_tests(repo_root: Path) -> subprocess.CompletedProcess[str]:
     pycache = (repo_root / TARGET_REL).parent / "__pycache__"
     if pycache.exists():
         shutil.rmtree(pycache)
-    cmd = [sys.executable, "-m", "pytest", "--tb=no", "-q", *TESTS]
-    return subprocess.run(
-        cmd,
-        cwd=str(repo_root),
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
-    )
+    with private_basetemp() as basetemp:
+        cmd = [sys.executable, "-m", "pytest", basetemp, "--tb=no", "-q", *TESTS]
+        return subprocess.run(
+            cmd,
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+        )
 
 
 def _apply_mutant_and_assert_detected(

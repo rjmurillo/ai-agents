@@ -268,16 +268,38 @@ def discover_hermes_databases(explicit_path: Any = None) -> list[Path]:
     return [root / "state.db" for root in roots if (root / "state.db").is_file()]
 
 
+_UNRESOLVABLE = None
+_resolved_cwds: dict[str, Path | None] = {}
+
+
+def clear_cwd_resolution_cache() -> None:
+    """Forget resolved working directories; call at the start of each run.
+
+    The cache is per run: a symlink retargeted between runs must not leak.
+    """
+    _resolved_cwds.clear()
+
+
+def _resolve_native_cwd(cwd: str) -> Path | None:
+    """Resolve one native cwd string once per run; None for relative or unresolvable."""
+    if cwd in _resolved_cwds:
+        return _resolved_cwds[cwd]
+    try:
+        path = Path(cwd)
+        resolved = path.resolve() if path.is_absolute() else _UNRESOLVABLE
+    except (OSError, ValueError):
+        resolved = _UNRESOLVABLE
+    _resolved_cwds[cwd] = resolved
+    return resolved
+
+
 def session_cwd_within_repo(cwd: Any, repo: Path) -> bool:
     if not isinstance(cwd, str) or not cwd:
         return False
     if bool(PureWindowsPath(cwd).drive) != (os.name == "nt"):
         return False
-    try:
-        path = Path(cwd)
-        return path.is_absolute() and path.resolve().is_relative_to(repo)
-    except (OSError, ValueError):
-        return False
+    resolved = _resolve_native_cwd(cwd)
+    return resolved is not None and resolved.is_relative_to(repo)
 
 
 def session_matches_repo(cwd: Any, repo: Path) -> bool:
@@ -300,10 +322,12 @@ def copilot_session_matches_repos(meta: dict[str, Any], repos: Any) -> bool:
 
 def infer_session_repos(sessions: Any) -> list[Path]:
     repos = []
+    seen_cwds = set()
     for session in sessions:
         cwd = session["meta"].get("cwd")
-        if not cwd:
+        if not cwd or cwd in seen_cwds:
             continue
+        seen_cwds.add(cwd)
         path = Path(cwd).expanduser()
         if not path.is_dir():
             continue
@@ -343,6 +367,11 @@ def parse_collector_args(description: str | None) -> argparse.Namespace:
         "--no-worktrees",
         action="store_true",
         help="grade only the listed checkouts, not their registered worktrees",
+    )
+    parser.add_argument(
+        "--audit-manifest",
+        action="store_true",
+        help="also write audit_manifest.json: declared scope, catalog, and provenance",
     )
     parser.add_argument(
         "--all-conversations",
@@ -450,4 +479,12 @@ def _add_sampling_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--per-skill", type=int, default=3, help="max sampled sessions per skill")
     parser.add_argument(
         "--no-skill", type=int, default=4, help="max sampled sessions that used no skill"
+    )
+    parser.add_argument(
+        "--timeline-supplement",
+        type=int,
+        default=0,
+        metavar="N",
+        help="opt-in: add up to N no-skill sessions spaced evenly over the window, tagged "
+        "stratum timeline_supplement (default: 0, off; the sample is not representative)",
     )

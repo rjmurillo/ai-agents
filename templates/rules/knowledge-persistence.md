@@ -64,7 +64,7 @@ When a memory and a rule, skill, or agent describe the same behavior, the rule, 
 
 ### Placement check for memories
 
-The `memory-placement` pre-commit job and the PR validation workflow run the memory placement check (`check_memory_placement.py` under the validation-scripts tree; the directory prefix is omitted because this rule ships in the plugin instruction mirrors, where an upstream-only path would dangle). A memory fails when it is new and meets any of these tests, or when an edit makes it meet one after it met none: a heading named Constraints, Guardrails, Workflow, Procedure, Protocol, Responsibilities, Entry Criteria, Acceptance Criteria, or Handoff; a role contract (two or more headings from Role, Authority, Entry Criteria, Outputs, Handoff, Responsibilities); or five or more normative terms (MUST, MUST NOT, SHALL, must not, never, always, required) together with a numbered procedure of five or more steps. Three or more normative terms alone, or a five-step procedure alone, only warn. A rename is compared with the old path, so `git mv` alone passes. Other existing memories only warn. Fenced and indented code never count.
+The `memory-placement` pre-commit job and the PR validation workflow run the memory placement check (`scripts/validation/check_memory_placement.py`). A memory fails when it is new and meets any of these tests, or when an edit makes it meet one after it met none: a heading named Constraints, Guardrails, Workflow, Procedure, Protocol, Responsibilities, Entry Criteria, Acceptance Criteria, or Handoff; a role contract (two or more headings from Role, Authority, Entry Criteria, Outputs, Handoff, Responsibilities); or five or more normative terms (MUST, MUST NOT, SHALL, must not, never, always, required) together with a numbered procedure of five or more steps. Three or more normative terms alone, or a five-step procedure alone, only warn. A rename is compared with the old path, so `git mv` alone passes. Other existing memories only warn. Fenced and indented code never count.
 
 Suppress a false positive with an HTML comment anywhere in the file, exact form:
 
@@ -109,6 +109,10 @@ Before persisting anything, ask in order:
    - Role contract -> agent (the `<name>.claude.md.tmpl` trio under `templates/`)
    - Evidence or rationale -> memory (`.serena/memories/<topic>/<name>.md`)
    - Already fully represented elsewhere -> delete or merge
+
+## Provenance of the placement contract
+
+The always-on tier summary traces to these source-repository records. They are citations, not commands: `parallel-001-worktree-isolation.md`, `update_memory_index_tokens.py`, and commit `78e808238`, corrected in `9cd7097f1`.
 
 ## Past artifacts are not proof
 

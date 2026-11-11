@@ -11,7 +11,7 @@ from __future__ import annotations
 import os
 import sys
 import time
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from io import StringIO
 from pathlib import Path
 from typing import IO, Any
@@ -195,6 +195,9 @@ def test_unreadable_file_skipped_not_fatal() -> None:
         assert names == [f"{good_date}-auto-retro.md"]
 
 
+_TODAY = date(2026, 1, 15)
+
+
 # --- _find_latest_retrospective: symlink containment (CWE-22/CWE-59) ------
 
 
@@ -220,7 +223,7 @@ def test_find_latest_retrospective_skips_a_symlinked_leaf(tmp_path: Path) -> Non
     except OSError:
         pytest.skip("cannot create symlink on this platform")
 
-    latest = invoke_context_loader._find_latest_retrospective(retro_dir, tmp_path)
+    latest = invoke_context_loader._find_latest_retrospective(retro_dir, tmp_path, today=_TODAY)
 
     assert latest == real
 
@@ -232,7 +235,7 @@ def test_find_latest_retrospective_ignores_a_symlink_even_when_newer(tmp_path: P
     real = retro_dir / "2026-01-01-auto-retro.md"
     real.write_text("real retro\n", encoding="utf-8")
 
-    latest = invoke_context_loader._find_latest_retrospective(retro_dir, tmp_path)
+    latest = invoke_context_loader._find_latest_retrospective(retro_dir, tmp_path, today=_TODAY)
 
     assert latest == real
 
@@ -262,7 +265,7 @@ def test_find_latest_retrospective_rejects_a_symlinked_retro_dir(tmp_path: Path)
     except OSError:
         pytest.skip("cannot create symlink on this platform")
 
-    latest = invoke_context_loader._find_latest_retrospective(retro_dir, project_dir)
+    latest = invoke_context_loader._find_latest_retrospective(retro_dir, project_dir, today=_TODAY)
 
     assert latest is None
 

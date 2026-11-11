@@ -20,7 +20,7 @@ def _sampling_report(**sampling):
 def test_report_lists_per_harness_counts_and_scores():
     page = render_page(_sampling_report())
 
-    assert "<h2>Sampling</h2>" in page
+    assert "<summary>Sampling</summary>" in page
     assert "<td>claude</td><td>3</td><td>2</td><td>1</td><td>75</td>" in page
     assert "<td>copilot</td><td>1</td><td>0</td><td>0</td><td>-</td>" in page
     assert "skill-first within each harness" in page
@@ -34,5 +34,7 @@ def test_report_states_when_the_cap_prevented_full_harness_coverage():
 
 
 def test_report_without_sampling_block_has_no_sampling_section():
-    assert "<h2>Sampling</h2>" not in render_page({"scores": {"overall": 0.8}})
-    assert "<h2>Sampling</h2>" not in render_page({"scores": {"overall": 0.8}, "sampling": {}})
+    assert "<summary>Sampling</summary>" not in render_page({"scores": {"overall": 0.8}})
+    assert "<summary>Sampling</summary>" not in render_page(
+        {"scores": {"overall": 0.8}, "sampling": {}}
+    )

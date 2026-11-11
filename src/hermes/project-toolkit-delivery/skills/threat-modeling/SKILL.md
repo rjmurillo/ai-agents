@@ -183,7 +183,7 @@ For each element in your diagram, apply STRIDE:
 Use the generate script to create a structured matrix:
 
 ```bash
-python .claude/skills/threat-modeling/scripts/generate_threat_matrix.py \
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/threat-modeling/scripts/generate_threat_matrix.py" \
     --scope "Authentication Service" \
     --output .project-toolkit/security/threat-models/auth-threats.md
 ```
@@ -266,7 +266,7 @@ For each threat, document:
 ### 3.4 Generate Mitigation Roadmap
 
 ```bash
-python .claude/skills/threat-modeling/scripts/generate_mitigation_roadmap.py \
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/threat-modeling/scripts/generate_mitigation_roadmap.py" \
     --input .project-toolkit/security/threat-models/auth-threats.md \
     --output .project-toolkit/security/threat-models/auth-roadmap.md
 ```
@@ -282,7 +282,7 @@ python .claude/skills/threat-modeling/scripts/generate_mitigation_roadmap.py \
 Run the validation script:
 
 ```bash
-python .claude/skills/threat-modeling/scripts/validate_threat_model.py \
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/threat-modeling/scripts/validate_threat_model.py" \
     .project-toolkit/security/threat-models/auth-threats.md
 ```
 
@@ -456,7 +456,7 @@ See `universal.md` MUST NOT 11.
 ### Verification Command
 
 ```bash
-python .claude/skills/threat-modeling/scripts/validate_threat_model.py <model.md>
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/threat-modeling/scripts/validate_threat_model.py" <model.md>
 ```
 
 Exit code 0 indicates a valid, complete threat model.

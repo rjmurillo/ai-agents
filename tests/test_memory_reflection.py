@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
+from memory_enhancement import reflection
 from memory_enhancement.confidence import update_confidence_scores_with_memories
 from memory_enhancement.reflection import (
     apply_confidence_decay,
@@ -99,45 +102,163 @@ class TestGenerateSkillCandidates:
         assert isinstance(candidates, list)
 
 
+def _git(repo: Path, *args: str) -> None:
+    subprocess.run(
+        ["git", "-C", str(repo), *args],
+        check=True,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        env={
+            **os.environ,
+            "GIT_AUTHOR_NAME": "t",
+            "GIT_AUTHOR_EMAIL": "t@example.invalid",
+            "GIT_COMMITTER_NAME": "t",
+            "GIT_COMMITTER_EMAIL": "t@example.invalid",
+        },
+    )
+
+
+def _init_repo_with_memories(tmp_path: Path, names: list[str]) -> Path:
+    """Create a git repo whose committed HEAD holds the named memories."""
+    repo = tmp_path / "repo"
+    mem_dir = repo / ".serena" / "memories"
+    mem_dir.mkdir(parents=True)
+    repo_args = ("init", "-q", "-b", "main")
+    _git(repo, *repo_args)
+    for name in names:
+        _write_memory(mem_dir, name, f"# {name} (2026-01-01)\n\nContent\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "seed", "--no-gpg-sign")
+    return mem_dir
+
+
 class TestExtractSessionFacts:
-    """Tests for session fact extraction."""
+    """Session facts come from git status, never from file mtime (#7227)."""
+
+    @pytest.mark.unit
+    def test_clean_checkout_reports_nothing_even_when_mtimes_are_today(self, tmp_path):
+        mem_dir = _init_repo_with_memories(tmp_path, ["alpha", "beta"])
+        now = datetime.now(UTC).timestamp()
+        for md_file in mem_dir.glob("*.md"):
+            os.utime(md_file, (now, now))
+        assert extract_session_facts(mem_dir) == []
+
+    @pytest.mark.unit
+    def test_modified_tracked_file_is_reported(self, tmp_path):
+        mem_dir = _init_repo_with_memories(tmp_path, ["alpha", "beta"])
+        (mem_dir / "beta.md").write_text("# beta (2026-01-01)\n\nchanged\n", encoding="utf-8")
+        assert extract_session_facts(mem_dir) == ["beta"]
+
+    @pytest.mark.unit
+    def test_untracked_file_is_reported(self, tmp_path):
+        mem_dir = _init_repo_with_memories(tmp_path, ["alpha"])
+        _write_memory(mem_dir, "fresh", "# Fresh (2026-01-01)\n\nContent\n")
+        assert extract_session_facts(mem_dir) == ["fresh"]
+
+    @pytest.mark.unit
+    def test_untracked_file_in_new_subdirectory_is_reported(self, tmp_path):
+        mem_dir = _init_repo_with_memories(tmp_path, ["alpha"])
+        (mem_dir / "sub").mkdir()
+        _write_memory(mem_dir / "sub", "nested", "# Nested (2026-01-01)\n\nContent\n")
+        assert extract_session_facts(mem_dir) == ["nested"]
+
+    @pytest.mark.unit
+    def test_deleted_file_is_not_reported_as_updated(self, tmp_path):
+        mem_dir = _init_repo_with_memories(tmp_path, ["alpha", "beta"])
+        (mem_dir / "alpha.md").unlink()
+        assert extract_session_facts(mem_dir) == []
+
+    @pytest.mark.unit
+    def test_staged_deletion_is_not_reported_as_updated(self, tmp_path):
+        mem_dir = _init_repo_with_memories(tmp_path, ["alpha", "beta"])
+        _git(mem_dir.parent.parent, "rm", "-q", ".serena/memories/alpha.md")
+        assert extract_session_facts(mem_dir) == []
+
+    @pytest.mark.unit
+    def test_deletion_does_not_hide_a_sibling_update(self, tmp_path):
+        mem_dir = _init_repo_with_memories(tmp_path, ["alpha", "beta"])
+        (mem_dir / "alpha.md").unlink()
+        (mem_dir / "beta.md").write_text("# beta (2026-01-01)\n\nchanged\n", encoding="utf-8")
+        assert extract_session_facts(mem_dir) == ["beta"]
+
+    @pytest.mark.unit
+    def test_renamed_file_reports_the_new_name_once(self, tmp_path):
+        mem_dir = _init_repo_with_memories(tmp_path, ["alpha"])
+        _git(mem_dir.parent.parent, "mv", ".serena/memories/alpha.md", ".serena/memories/gamma.md")
+        assert extract_session_facts(mem_dir) == ["gamma"]
+
+    @pytest.mark.unit
+    def test_returns_sorted_ids(self, tmp_path):
+        mem_dir = _init_repo_with_memories(tmp_path, ["seed"])
+        _write_memory(mem_dir, "beta", "# Beta (2026-01-01)\n\nContent\n")
+        _write_memory(mem_dir, "alpha", "# Alpha (2026-01-01)\n\nContent\n")
+        assert extract_session_facts(mem_dir) == ["alpha", "beta"]
+
+    @pytest.mark.unit
+    def test_ignores_non_md_and_skip_names(self, tmp_path):
+        mem_dir = _init_repo_with_memories(tmp_path, ["alpha"])
+        (mem_dir / "data.json").write_text("{}", encoding="utf-8")
+        (mem_dir / "README.md").write_text("readme", encoding="utf-8")
+        (mem_dir / "CLAUDE.md").write_text("claude", encoding="utf-8")
+        assert extract_session_facts(mem_dir) == []
+
+    @pytest.mark.unit
+    def test_changes_outside_the_memory_directory_are_ignored(self, tmp_path):
+        mem_dir = _init_repo_with_memories(tmp_path, ["alpha"])
+        (mem_dir.parent.parent / "other.md").write_text("elsewhere", encoding="utf-8")
+        assert extract_session_facts(mem_dir) == []
 
     @pytest.mark.unit
     def test_empty_directory(self, tmp_path):
         mem_dir = tmp_path / "memories"
         mem_dir.mkdir()
-        facts = extract_session_facts(mem_dir)
-        assert facts == []
+        assert extract_session_facts(mem_dir) is None  # not a git repository
 
     @pytest.mark.unit
     def test_nonexistent_directory(self, tmp_path):
-        facts = extract_session_facts(tmp_path / "missing")
-        assert facts == []
+        assert extract_session_facts(tmp_path / "missing") == []
 
     @pytest.mark.unit
-    def test_finds_today_modified_files(self, tmp_path):
+    def test_directory_outside_a_git_repository_is_unknown_not_mtime_based(self, tmp_path):
         mem_dir = tmp_path / "memories"
         mem_dir.mkdir()
         _write_memory(mem_dir, "today", "# Today (2026-01-01)\n\nContent\n")
-        facts = extract_session_facts(mem_dir)
-        assert "today" in facts
+        assert extract_session_facts(mem_dir) is None
 
     @pytest.mark.unit
-    def test_returns_sorted_ids(self, tmp_path):
+    def test_git_missing_is_unknown(self, tmp_path, monkeypatch):
         mem_dir = tmp_path / "memories"
         mem_dir.mkdir()
-        _write_memory(mem_dir, "beta", "# Beta (2026-01-01)\n\nContent\n")
-        _write_memory(mem_dir, "alpha", "# Alpha (2026-01-01)\n\nContent\n")
-        facts = extract_session_facts(mem_dir)
-        assert facts == sorted(facts)
+        monkeypatch.setattr(reflection.shutil, "which", lambda _name: None)
+        assert extract_session_facts(mem_dir) is None
 
     @pytest.mark.unit
-    def test_ignores_non_md_files(self, tmp_path):
+    def test_git_timeout_is_unknown(self, tmp_path, monkeypatch):
         mem_dir = tmp_path / "memories"
         mem_dir.mkdir()
-        (mem_dir / "data.json").write_text("{}")
-        facts = extract_session_facts(mem_dir)
-        assert facts == []
+        monkeypatch.setattr(reflection.shutil, "which", lambda _name: "git")
+
+        def hang(*args, **kwargs):
+            raise subprocess.TimeoutExpired(args, kwargs.get("timeout", 0))
+
+        monkeypatch.setattr(reflection.subprocess, "run", hang)
+        assert extract_session_facts(mem_dir) is None
+
+    @pytest.mark.unit
+    def test_git_call_is_bounded_by_a_timeout(self, tmp_path, monkeypatch):
+        mem_dir = tmp_path / "memories"
+        mem_dir.mkdir()
+        seen: dict[str, object] = {}
+
+        def fake_run(*args, **kwargs):
+            seen.update(kwargs)
+            return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+
+        monkeypatch.setattr(reflection.shutil, "which", lambda _name: "git")
+        monkeypatch.setattr(reflection.subprocess, "run", fake_run)
+        assert extract_session_facts(mem_dir) == []
+        assert isinstance(seen["timeout"], (int, float))
 
 
 class TestApplyConfidenceDecay:

@@ -1,0 +1,30 @@
+{
+  "catalog": [
+    {
+      "aliases": [
+        "/CANARY-PATH-R/clone-2/alpha/SKILL.md"
+      ],
+      "current_edit_target": true,
+      "name": "alpha",
+      "path": "/CANARY-PATH-R/clone-1/alpha/SKILL.md",
+      "scope": "clone-1",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "aliases": [],
+      "current_edit_target": false,
+      "name": "alpha",
+      "path": "/CANARY-PATH-R/global/alpha/SKILL.md",
+      "scope": "global",
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    {
+      "aliases": [],
+      "current_edit_target": true,
+      "name": "beta",
+      "path": "/CANARY-PATH-R/clone-1/beta/SKILL.md",
+      "scope": "clone-1",
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    }
+  ]
+}

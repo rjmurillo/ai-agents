@@ -255,7 +255,10 @@ def test_check_installed_plugins_compares_claude_installs(tmp_path) -> None:
 
     outcome = drift.check_installed_plugins(project_dir, home)
 
-    assert outcome.notes == []
+    # No installed_plugins.json here, so the scan falls back to every copy and
+    # says so in one note.
+    assert len(outcome.notes) == 1
+    assert "installed_plugins.json not found" in outcome.notes[0]
     assert outcome.incomplete == []
     assert [report.install_path for report in outcome.reports] == [install]
     assert outcome.reports[0].surface == "Claude Code"

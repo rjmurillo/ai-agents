@@ -125,7 +125,7 @@ Good for: Data pipelines, ML inference, calculations.
 Calculate error budget for a given SLO target:
 
 ```bash
-python3 .claude/skills/slo-designer/scripts/calculate_error_budget.py \
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/slo-designer/scripts/calculate_error_budget.py" \
   --target 99.9 \
   --period monthly
 ```

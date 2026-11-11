@@ -83,6 +83,16 @@ class TestDecideRoute:
         with pytest.raises(RouteRefusedError):
             _decide(default_branch=branch, ref=f"refs/heads/{branch}")
 
+    def test_a_real_publish_without_a_release_tag_is_refused(self) -> None:
+        with pytest.raises(RouteRefusedError) as caught:
+            _decide(dry_run_input="false", release_tag_input="")
+        assert caught.value.code == EXIT_CONFIG
+        assert "release-tag" in str(caught.value)
+
+    def test_a_dry_run_without_a_release_tag_is_allowed(self) -> None:
+        decision = _decide(dry_run_input="true", release_tag_input="")
+        assert (decision.dry_run, decision.release_tag) == (True, "")
+
     @pytest.mark.parametrize("run_sha", ["abc", "A" * 40, "g" * 40, SHA + "0", "--all", ""])
     def test_a_malformed_run_commit_is_refused(self, run_sha: str) -> None:
         with pytest.raises(RouteRefusedError) as caught:
@@ -111,7 +121,7 @@ def _argv(**overrides: str) -> list[str]:
     values = {
         "--event": "workflow_dispatch", "--ref": "refs/heads/main", "--run-sha": SHA,
         "--default-branch": "main", "--dry-run-input": "false",
-        "--release-tag-input": "",
+        "--release-tag-input": "v1.2.3",
     }  # fmt: skip
     values.update(overrides)
     return ["route", *[token for pair in values.items() for token in pair]]
@@ -122,8 +132,17 @@ class TestRouteCli:
         sink = tmp_path / "out"
         assert main([*_argv(), "--github-output", str(sink)]) == EXIT_OK
         assert sink.read_text(encoding="utf-8").splitlines() == [
-            f"candidate_sha={SHA}", "release_tag=", "dry_run=false", "mode=enforcing",
+            f"candidate_sha={SHA}", "release_tag=v1.2.3", "dry_run=false", "mode=enforcing",
         ]  # fmt: skip
+
+    def test_a_real_publish_without_a_release_tag_exits_config_and_writes_nothing(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        sink = tmp_path / "out"
+        argv = _argv(**{"--release-tag-input": ""})
+        assert main([*argv, "--github-output", str(sink)]) == EXIT_CONFIG
+        assert not sink.exists()
+        assert "release-tag" in capsys.readouterr().err
 
     def test_a_missing_dry_run_value_means_dry_run(self, tmp_path: Path) -> None:
         sink = tmp_path / "out"

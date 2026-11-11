@@ -52,7 +52,7 @@ Use `quality-grades` instead when:
 
 ## Process
 
-1. Run `python3 .claude/skills/golden-principles/scripts/scan_principles.py` with target
+1. Run `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/golden-principles/scripts/scan_principles.py"` with target
 2. Review AGENT_REMEDIATION blocks in output
 3. Apply suggested fixes
 4. Re-run to confirm compliance
@@ -61,22 +61,22 @@ Use `quality-grades` instead when:
 
 ```bash
 # Scan entire repository
-python3 .claude/skills/golden-principles/scripts/scan_principles.py
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/golden-principles/scripts/scan_principles.py"
 
 # Scan specific directory
-python3 .claude/skills/golden-principles/scripts/scan_principles.py --directory .claude/skills/
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/golden-principles/scripts/scan_principles.py" --directory .claude/skills/
 
 # Scope to a pull request diff (only files changed vs the base branch)
-python3 .claude/skills/golden-principles/scripts/scan_principles.py --diff-scope "origin/$BASE_BRANCH"
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/golden-principles/scripts/scan_principles.py" --diff-scope "origin/$BASE_BRANCH"
 
 # Run specific rules only
-python3 .claude/skills/golden-principles/scripts/scan_principles.py --rules script-language,skill-frontmatter
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/golden-principles/scripts/scan_principles.py" --rules script-language,skill-frontmatter
 
 # JSON output for tooling
-python3 .claude/skills/golden-principles/scripts/scan_principles.py --format json
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/golden-principles/scripts/scan_principles.py" --format json
 
 # Write results to file
-python3 .claude/skills/golden-principles/scripts/scan_principles.py --output scan-results.json --format json
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/golden-principles/scripts/scan_principles.py" --output scan-results.json --format json
 ```
 
 ## Rules
@@ -120,7 +120,7 @@ Valid rules: `script-language`, `skill-frontmatter`, `agent-definition`, `yaml-l
 After execution, run the bundled validator and require exit 0:
 
 ```bash
-python3 .claude/skills/golden-principles/scripts/scan_principles.py <path>
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/golden-principles/scripts/scan_principles.py" <path>
 echo "exit=$?"   # 0 = clean, 10 = violations found, 1 = tool error
 ```
 

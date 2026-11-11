@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from unittest.mock import patch
 
 import pytest
@@ -10,10 +11,13 @@ import pytest
 from scripts.github_core import (
     RateLimitResult,
     RateLimitStatus,
+    RepoInfo,
     bot_config,
     check_workflow_rate_limit,
     get_priority_emoji,
     get_reaction_emoji,
+    is_gh_authenticated,
+    resolve_repo_params,
 )
 from tests.github_core_test_helpers import (
     _REPO_ROOT,
@@ -232,3 +236,59 @@ class TestParseSimpleYaml:
 
     def test_crlf_line_endings(self) -> None:
         assert bot_config._parse_simple_yaml("bots:\r\n  - foo\r\n") == {"bots": ["foo"]}
+
+
+class TestResolveRepoParams:
+    def test_uses_provided_params(self):
+        result = resolve_repo_params("myowner", "myrepo")
+        assert result == RepoInfo(owner="myowner", repo="myrepo")
+
+    def test_infers_from_git_remote(self):
+        with patch(
+            "scripts.github_core.api.get_repo_info",
+            return_value=RepoInfo(owner="inferred", repo="repo"),
+        ):
+            result = resolve_repo_params()
+        assert result == RepoInfo(owner="inferred", repo="repo")
+
+    def test_exits_when_cannot_infer(self):
+        with patch("scripts.github_core.api.get_repo_info", return_value=None):
+            with pytest.raises(SystemExit) as exc:
+                resolve_repo_params()
+            assert exc.value.code == 2
+
+    def test_exits_on_invalid_owner(self):
+        with pytest.raises(SystemExit) as exc:
+            resolve_repo_params("-bad", "repo")
+        assert exc.value.code == 2
+
+    def test_exits_on_invalid_repo(self):
+        with pytest.raises(SystemExit) as exc:
+            resolve_repo_params("owner", "bad/repo/name!")
+        assert exc.value.code == 2
+
+    def test_returns_repo_info_type(self):
+        result = resolve_repo_params("owner", "repo")
+        assert isinstance(result, RepoInfo)
+
+
+class TestIsGhAuthenticated:
+    def test_true_when_authenticated(self):
+        with patch("subprocess.run", return_value=_completed(rc=0)):
+            assert is_gh_authenticated() is True
+
+    def test_false_when_not_authenticated(self):
+        with patch("subprocess.run", return_value=_completed(rc=1)):
+            assert is_gh_authenticated() is False
+
+    def test_false_when_gh_not_installed(self):
+        with patch("subprocess.run", side_effect=FileNotFoundError):
+            assert is_gh_authenticated() is False
+
+    def test_false_when_timeout(self):
+        with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="gh", timeout=10)):
+            assert is_gh_authenticated() is False
+
+    def test_returns_bool(self):
+        with patch("subprocess.run", return_value=_completed(rc=0)):
+            assert isinstance(is_gh_authenticated(), bool)

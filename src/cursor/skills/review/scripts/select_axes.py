@@ -199,6 +199,18 @@ _GP_AGENTS_MARKER = (_TOOLKIT_ROOT_SEGMENT, "agents")
 _GP_WORKFLOWS_MARKER = (".github", "workflows")
 _DECISION_DIRECTORIES = frozenset({"architecture", "decisions"})
 _ROADMAP_DIRECTORIES = frozenset({"roadmap", "planning", "specs"})
+# Verbatim legal text: a license, notice, or copying file carries no behavior
+# and no claim a scanner can check. Matched as a whole lowercased basename, so
+# `LICENSE-extra.bin` and `licenses/MIT` stay unclassified (issue #7280).
+_LEGAL_NOTICE_FILENAMES = frozenset(
+    f"{stem}{suffix}"
+    for stem in ("license", "notice", "copying", "third-party-notices")
+    for suffix in ("", ".md", ".txt")
+)
+# Categories no axis claims on purpose. The always-on analyst and the Stage-1
+# spec-compliance gate still review them, so unreviewable_paths must not read
+# the empty axis lists as "reviewed by nobody".
+_AXIS_FREE_CATEGORIES = frozenset({"legal-notices"})
 
 
 def _norm(path: str) -> str:
@@ -365,6 +377,11 @@ def _is_decision_doc_path(path: str) -> bool:
 
 def _is_roadmap_doc_path(path: str) -> bool:
     return bool(_ROADMAP_DIRECTORIES & set(_segments(path)[:-1]))
+
+
+def _is_legal_notice_path(path: str) -> bool:
+    segments = _segments(path)
+    return bool(segments) and segments[-1] in _LEGAL_NOTICE_FILENAMES
 
 
 def _is_docs_path(path: str) -> bool:
@@ -577,6 +594,7 @@ _RISK_TABLE: tuple[tuple[str, Callable[[str], bool], tuple[str, ...], tuple[str,
     ("decision-records", _is_decision_doc_path, ("decision-rigor",), ()),
     ("roadmap-or-spec-docs", _is_roadmap_doc_path, ("roadmap",), ()),
     ("docs-and-instructions", _is_docs_path, (), ("doc-accuracy",)),
+    ("legal-notices", _is_legal_notice_path, (), ()),
     (
         "executable-code",
         _is_code_path,
@@ -671,10 +689,11 @@ def unreviewable_paths(paths: Sequence[str]) -> list[str]:
         covered = any(
             predicate(normalized)
             and (
-                bool(canonical_axes)
+                category in _AXIS_FREE_CATEGORIES
+                or bool(canonical_axes)
                 or any(_LOCAL_SCANNER_READS[axis](posix) for axis in local_axes)
             )
-            for _category, predicate, canonical_axes, local_axes in _RISK_TABLE
+            for category, predicate, canonical_axes, local_axes in _RISK_TABLE
         )
         if not covered:
             stranded.append(raw)

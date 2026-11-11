@@ -10,9 +10,7 @@ run shows the gap.
 
 from __future__ import annotations
 
-import os
 import subprocess
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -20,41 +18,19 @@ import pytest
 
 from scripts.validation import testmon_data_inputs as inputs
 from scripts.validation import testmon_scoped_sync as sync
+from tests.validation.testmon_repo_helpers import (
+    OTHER_TEST,
+    PLUGIN_FLAG,
+    Select,
+    git,
+    make_repo,
+    run_pytest,
+    write,
+)
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-PLUGIN_FLAG = f"-p{sync.__name__}"
 CORPUS = "tests/evals/profile-behavior-runtime-fixtures.json"
 READER = "tests/test_profile_behavior_fixtures.py"
 READER_TEXT = 'PATH = ROOT / "tests" / "evals" / "profile-behavior-runtime-fixtures.json"\n'
-
-
-def _git(root: Path, *args: str) -> None:
-    subprocess.run(
-        ["git", "-C", str(root), *args],
-        check=True,
-        capture_output=True,
-        env={**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_SYSTEM": os.devnull},
-    )
-
-
-def _write(root: Path, rel: str, text: str) -> None:
-    path = root / rel
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
-
-
-def _repo(root: Path, files: dict[str, str]) -> Path:
-    """Commit `files` on `main`, then move to a branch so `main` is the merge base."""
-    _git(root, "init", "-q", "-b", "main")
-    _git(root, "config", "user.email", "t@example.invalid")
-    _git(root, "config", "user.name", "t")
-    _git(root, "config", "commit.gpgsign", "false")
-    for rel, text in files.items():
-        _write(root, rel, text)
-    _git(root, "add", "-A")
-    _git(root, "commit", "-q", "-m", "base")
-    _git(root, "checkout", "-q", "-b", "feature")
-    return root
 
 
 # --- reader_modules ---------------------------------------------------------
@@ -100,31 +76,33 @@ def test_nothing_changed_means_no_readers() -> None:
 
 
 def test_an_edited_corpus_is_reported(tmp_path: Path) -> None:
-    root = _repo(tmp_path, {CORPUS: "{}\n", "tests/test_x.py": "pass\n"})
-    _write(root, CORPUS, '{"a": 1}\n')
+    root = make_repo(tmp_path, {CORPUS: "{}\n", "tests/test_x.py": "pass\n"})
+    write(root, CORPUS, '{"a": 1}\n')
     assert inputs.changed_data_inputs(root) == [CORPUS]
 
 
 def test_a_committed_edit_on_the_branch_is_reported(tmp_path: Path) -> None:
-    root = _repo(tmp_path, {CORPUS: "{}\n"})
-    _write(root, CORPUS, '{"a": 1}\n')
-    _git(root, "commit", "-q", "-am", "edit")
+    root = make_repo(tmp_path, {CORPUS: "{}\n"})
+    write(root, CORPUS, '{"a": 1}\n')
+    git(root, "commit", "-q", "-am", "edit")
     assert inputs.changed_data_inputs(root) == [CORPUS]
 
 
 def test_python_and_unrelated_paths_are_not_reported(tmp_path: Path) -> None:
-    root = _repo(tmp_path, {CORPUS: "{}\n", "tests/evals/test_t.py": "a = 1\n", "docs/a.md": "a\n"})
-    _write(root, "tests/evals/test_t.py", "a = 2\n")
-    _write(root, "docs/a.md", "b\n")
+    root = make_repo(
+        tmp_path, {CORPUS: "{}\n", "tests/evals/test_t.py": "a = 1\n", "docs/a.md": "a\n"}
+    )
+    write(root, "tests/evals/test_t.py", "a = 2\n")
+    write(root, "docs/a.md", "b\n")
     assert inputs.changed_data_inputs(root) == []
 
 
 def test_an_unchanged_tree_reports_nothing(tmp_path: Path) -> None:
-    assert inputs.changed_data_inputs(_repo(tmp_path, {CORPUS: "{}\n"})) == []
+    assert inputs.changed_data_inputs(make_repo(tmp_path, {CORPUS: "{}\n"})) == []
 
 
 def test_a_repository_without_a_base_ref_reports_unknown(tmp_path: Path) -> None:
-    _git(tmp_path, "init", "-q", "-b", "other")
+    git(tmp_path, "init", "-q", "-b", "other")
     assert inputs.changed_data_inputs(tmp_path) is None
 
 
@@ -147,9 +125,9 @@ def test_a_timeout_reports_unknown(tmp_path: Path, monkeypatch: pytest.MonkeyPat
 
 
 def test_all_data_inputs_lists_non_python_files_only(tmp_path: Path) -> None:
-    _write(tmp_path, CORPUS, "{}\n")
-    _write(tmp_path, "tests/evals/agents/a.md", "a\n")
-    _write(tmp_path, "tests/evals/test_t.py", "a = 1\n")
+    write(tmp_path, CORPUS, "{}\n")
+    write(tmp_path, "tests/evals/agents/a.md", "a\n")
+    write(tmp_path, "tests/evals/test_t.py", "a = 1\n")
     assert inputs.all_data_inputs(tmp_path) == ["tests/evals/agents/a.md", CORPUS]
 
 
@@ -160,18 +138,8 @@ def test_all_data_inputs_without_the_directory_is_empty(tmp_path: Path) -> None:
 # --- reselect ---------------------------------------------------------------
 
 
-class _Select:
-    deselected_files: Any
-    deselected_tests: Any
-
-    def __init__(self, files: list[str], tests: list[str]) -> None:
-        self.deselected_files = files
-        self.deselected_tests = tests
-        self.testmon_data = object()
-
-
 def _project(root: Path) -> Path:
-    return _repo(
+    return make_repo(
         root,
         {CORPUS: "{}\n", READER: READER_TEXT, "tests/test_other.py": "def test_x(): pass\n"},
     )
@@ -179,8 +147,8 @@ def _project(root: Path) -> Path:
 
 def test_reselect_runs_the_readers_of_an_edited_corpus(tmp_path: Path) -> None:
     root = _project(tmp_path)
-    _write(root, CORPUS, '{"a": 1}\n')
-    select = _Select(
+    write(root, CORPUS, '{"a": 1}\n')
+    select = Select(
         [READER, "tests/test_other.py"], [f"{READER}::test_a", "tests/test_other.py::t"]
     )
     assert inputs.reselect(select, root) == {READER}
@@ -190,25 +158,25 @@ def test_reselect_runs_the_readers_of_an_edited_corpus(tmp_path: Path) -> None:
 
 def test_reselect_leaves_the_selection_alone_when_no_corpus_changed(tmp_path: Path) -> None:
     root = _project(tmp_path)
-    select = _Select([READER], [f"{READER}::test_a"])
+    select = Select([READER], [f"{READER}::test_a"])
     assert inputs.reselect(select, root) == set()
     assert select.deselected_files == [READER]
     assert select.deselected_tests == [f"{READER}::test_a"]
 
 
 def test_reselect_with_an_unknown_diff_runs_every_reader(tmp_path: Path) -> None:
-    _write(tmp_path, CORPUS, "{}\n")
-    _write(tmp_path, READER, READER_TEXT)
-    _write(tmp_path, "tests/test_other.py", "def test_x(): pass\n")
-    select = _Select([READER, "tests/test_other.py"], [])
+    write(tmp_path, CORPUS, "{}\n")
+    write(tmp_path, READER, READER_TEXT)
+    write(tmp_path, "tests/test_other.py", "def test_x(): pass\n")
+    select = Select([READER, "tests/test_other.py"], [])
     assert inputs.reselect(select, tmp_path) == {READER}
     assert select.deselected_files == ["tests/test_other.py"]
 
 
 def test_reselect_with_a_changed_corpus_nobody_reads_changes_nothing(tmp_path: Path) -> None:
-    root = _repo(tmp_path, {"tests/evals/orphan.json": "{}\n", "tests/test_other.py": "pass\n"})
-    _write(root, "tests/evals/orphan.json", '{"a": 1}\n')
-    select = _Select(["tests/test_other.py"], [])
+    root = make_repo(tmp_path, {"tests/evals/orphan.json": "{}\n", "tests/test_other.py": "pass\n"})
+    write(root, "tests/evals/orphan.json", '{"a": 1}\n')
+    select = Select(["tests/test_other.py"], [])
     assert inputs.reselect(select, root) == set()
     assert select.deselected_files == ["tests/test_other.py"]
 
@@ -217,7 +185,7 @@ def test_reselect_with_a_changed_corpus_nobody_reads_changes_nothing(tmp_path: P
 
 
 class _Manager:
-    def __init__(self, select: _Select | None) -> None:
+    def __init__(self, select: Select | None) -> None:
         self._select = select
 
     def get_plugin(self, name: str) -> object | None:
@@ -225,7 +193,7 @@ class _Manager:
 
 
 class _Config:
-    def __init__(self, select: _Select | None, root: Path | None, workerinput: dict | None) -> None:
+    def __init__(self, select: Select | None, root: Path | None, workerinput: dict | None) -> None:
         self.pluginmanager = _Manager(select)
         if root is not None:
             self.rootpath = root
@@ -244,8 +212,8 @@ class _Node:
 
 def test_the_controller_sends_workers_a_selection_that_includes_the_readers(tmp_path: Path) -> None:
     root = _project(tmp_path)
-    _write(root, CORPUS, '{"a": 1}\n')
-    select = _Select([READER, "tests/test_other.py"], [])
+    write(root, CORPUS, '{"a": 1}\n')
+    select = Select([READER, "tests/test_other.py"], [])
     node = _Node()
     _broadcast(_Config(select, root, None)).pytest_configure_node(node)
     assert node.workerinput[sync.WORKERINPUT_KEY]["files"] == ["tests/test_other.py"]
@@ -262,7 +230,7 @@ def test_the_controller_reselects_once_for_many_workers(
         return set()
 
     monkeypatch.setattr(inputs, "reselect", record)
-    hook = _broadcast(_Config(_Select([READER], []), root, None))
+    hook = _broadcast(_Config(Select([READER], []), root, None))
     for _ in range(3):
         hook.pytest_configure_node(_Node())
     hook.pytest_sessionstart(object())
@@ -271,23 +239,23 @@ def test_the_controller_reselects_once_for_many_workers(
 
 def test_a_single_process_run_reselects_at_session_start(tmp_path: Path) -> None:
     root = _project(tmp_path)
-    _write(root, CORPUS, '{"a": 1}\n')
-    select = _Select([READER], [])
+    write(root, CORPUS, '{"a": 1}\n')
+    select = Select([READER], [])
     _broadcast(_Config(select, root, None)).pytest_sessionstart(object())
     assert select.deselected_files == []
 
 
 def test_a_worker_adopts_the_controller_and_does_not_reselect(tmp_path: Path) -> None:
     root = _project(tmp_path)
-    _write(root, CORPUS, '{"a": 1}\n')
-    select = _Select([], [])
+    write(root, CORPUS, '{"a": 1}\n')
+    select = Select([], [])
     payload = {sync.WORKERINPUT_KEY: {"files": [READER], "tests": []}}
     _broadcast(_Config(select, root, payload)).pytest_sessionstart(object())
     assert select.deselected_files == frozenset({READER})
 
 
 def test_without_a_root_path_the_hook_changes_nothing() -> None:
-    select = _Select([READER], [])
+    select = Select([READER], [])
     _broadcast(_Config(select, None, None)).pytest_sessionstart(object())
     assert select.deselected_files == [READER]
 
@@ -304,52 +272,24 @@ CORPUS = Path(__file__).parent / "evals" / "corpus.json"
 def test_corpus_says_ok():
     assert json.loads(CORPUS.read_text(encoding="utf-8"))["verdict"] == "ok"
 """
-_OTHER_TEST = "def test_other():\n    assert True\n"
-
-
-def _run(project: Path, *flags: str) -> tuple[int, str]:
-    env = {k: v for k, v in os.environ.items() if not k.startswith(("PYTEST_", "TESTMON_"))}
-    env.update(COVERAGE_CORE="ctrace", PYTHONPATH=str(REPO_ROOT))
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "pytest",
-            "--testmon",
-            "--testmon-forceselect",
-            *flags,
-            "-q",
-            "-o",
-            "addopts=",
-            "tests",
-        ],
-        cwd=project,
-        env=env,
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=180,
-        check=False,
-    )
-    return result.returncode, result.stdout + result.stderr
 
 
 def _replay(project: Path, *flags: str) -> tuple[int, str]:
     """Record a passing run, then edit the corpus so the reader fails; return the rerun."""
     pytest.importorskip("testmon")
-    _repo(
+    make_repo(
         project,
         {
             "tests/test_reader.py": _READER_TEST,
-            "tests/test_other.py": _OTHER_TEST,
+            "tests/test_other.py": OTHER_TEST,
             "tests/evals/corpus.json": '{"verdict": "ok"}\n',
             ".gitignore": ".testmondata*\n__pycache__/\n.pytest_cache/\n",
         },
     )
-    code, output = _run(project, *flags)
+    code, output = run_pytest(project, *flags)
     assert code == 0, output
-    _write(project, "tests/evals/corpus.json", '{"verdict": "broken"}\n')
-    return _run(project, *flags)
+    write(project, "tests/evals/corpus.json", '{"verdict": "broken"}\n')
+    return run_pytest(project, *flags)
 
 
 def test_control_without_the_plugin_testmon_skips_the_reader_of_an_edited_corpus(

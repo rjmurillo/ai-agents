@@ -38,7 +38,7 @@ check` validates it; Phase 4 passes each item to `skillforge`.
 
 | Field | Rule |
 |---|---|
-| `lens` | One of `change-control`, `debugging-playbook`, `failure-archaeology`, `architecture-contract`, `domain-reference`, `config-and-flags`, `build-and-env`, `run-and-operate`, `diagnostics-and-tooling`, `validation-and-qa`, `docs-and-writing`, `external-positioning`, `hardest-problem-campaign`, `proof-and-analysis-toolkit`, `research-frontier`, `research-methodology`, or `other:<name>` |
+| `lens` | One of `change-control`, `debugging-playbook`, `failure-archaeology`, `architecture-contract`, `domain-reference`, `config-and-flags`, `build-and-env`, `run-and-operate`, `diagnostics-and-tooling`, `validation-and-qa`, `docs-and-writing`, `external-positioning`, `hardest-problem-campaign`, `proof-and-analysis-toolkit`, `research-frontier`, `research-methodology`, `institutional-knowledge`, or `other:<name>` |
 | `evidence` | Non-empty list of source references: commit, PR thread, issue, file, decision record |
 | `computable` | Required boolean on every item. `true` when a program can answer the claim from repository state; a missing or non-boolean value is a violation |
 | `form` | `scaffold`, `instrument`, or `both`. `computable: true` forbids `scaffold` |
@@ -312,7 +312,9 @@ of a guess.
 | Provenance | Per skill: `reverify.json` check count; `bootstrap_drift.py` and `claims` exit codes |
 | Reused features | Existing skills and scripts each workflow composes |
 | Verified shortcuts | Each hint with its evidence label and source reference |
-| Source coverage | Repository, discourse, each session client, memory: read, partial, or `UNAVAILABLE` |
+| Source coverage | Repository, discourse, each session client, memory, and one row per sweep source class: read, partial, declined, not connected, or `UNAVAILABLE`, with items read and what was not read |
+| Friction map | The sweep's `friction-map.md` table by system, `pattern_counts`, incidents used and dropped, `single_reader` and `incomplete` counts; else `NOT RUN` with the reason |
+| Knowledge gaps | Each `knowledge_gaps` row: incident key, disposition, and the skill, document finding, or owner question it became |
 | Stages | skill-doctor, candidates, skillforge, context-optimizer, capability eval, skillopt, review: ran, reused, or skipped, with the reason |
 | Evaluation | Accepted results, human corrections, rejected attempts, recovery, unnecessary discovery; tokens, tool calls, context size, elapsed time where measured, else `UNMEASURED` |
 | Boundary | Output root, authorized names, `bootstrap_boundary.py verify` exit code |

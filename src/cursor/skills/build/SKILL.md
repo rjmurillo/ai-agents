@@ -299,6 +299,10 @@ Scope is the allowed paths in the work order's `NON-GOALS` field (`orchestrator-
 - Verify CLI flags and argparse patterns against live output before committing.
 - Use the real repo as the integration test bed. Run new scripts against an open or recent PR before declaring done. Synthetic fixtures can only validate the wrapper; real data validates the semantic.
 
+## References
+
+- [Design qualities and error handling](references/implementer-design-and-errors.md), [code impact analysis](references/implementer-impact-analysis.md), and [estimation](references/implementer-estimation.md) serve the `implementer` agent. This skill's slice workflow does not use them.
+
 ## Extension Points
 
 - **New exit gate.** Add it to the numbered list and to the Verification

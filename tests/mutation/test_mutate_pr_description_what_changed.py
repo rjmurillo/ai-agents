@@ -22,6 +22,7 @@ from pathlib import Path
 import pytest
 
 from scripts.testing.mutation_workspace import isolated_mutation_worktree
+from tests.mutation._nested_pytest import private_basetemp
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 TARGET_REL = Path("scripts") / "validation" / "pr_description.py"
@@ -46,25 +47,27 @@ def _run_tests(
     pycache = (repo_root / TARGET_REL).parent / "__pycache__"
     if pycache.exists():
         shutil.rmtree(pycache)
-    cmd = [
-        sys.executable,
-        "-m",
-        "pytest",
-        "--tb=no",
-        "-q",
-        "tests/test_validation_pr_description.py",
-        "-k",
-        PYTEST_K,
-        *(extra_args or []),
-    ]
-    return subprocess.run(
-        cmd,
-        cwd=str(repo_root),
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
-    )
+    with private_basetemp() as basetemp:
+        cmd = [
+            sys.executable,
+            "-m",
+            "pytest",
+            basetemp,
+            "--tb=no",
+            "-q",
+            "tests/test_validation_pr_description.py",
+            "-k",
+            PYTEST_K,
+            *(extra_args or []),
+        ]
+        return subprocess.run(
+            cmd,
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+        )
 
 
 @pytest.fixture()

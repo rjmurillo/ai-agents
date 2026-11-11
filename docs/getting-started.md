@@ -62,7 +62,7 @@ The fastest method uses the built-in plugin marketplace. Run the commands below 
 
 The Copilot CLI flow also works from a regular shell: `copilot plugin marketplace add rjmurillo/ai-agents` then `copilot plugin install project-toolkit@ai-agents`.
 
-This installs the full toolkit for your platform. Both bundles ship all 29 agents, plus skills generated from the same sources. The Claude Code bundle registers one advisory Stop hook (ADR-084 rule 2a). The Copilot CLI bundle registers no hooks. Neither registers tool-use hooks (ADR-097). See [Verify Installation](../README.md#verify-installation) to confirm the agents loaded. For selective installation (agents only, etc.), see [docs/installation.md](installation.md).
+This installs the full toolkit for your platform. Both bundles ship all 29 agents, plus skills generated from the same sources. The Copilot bundle omits the `merge-resolver` skill. The Claude Code bundle registers one advisory Stop hook (ADR-084 rule 2a). The Copilot CLI bundle registers no hooks. Neither registers tool-use hooks (ADR-097). See [Verify Installation](../README.md#verify-installation) to confirm the agents loaded. For selective installation (agents only, etc.), see [docs/installation.md](installation.md).
 
 ## Step 2: Understand the Workflow
 
@@ -196,8 +196,8 @@ Each agent produces structured output specific to its role:
 ## What Next
 
 - Understand the 7-phase pipeline in [Step 2: Understand the Workflow](#step-2-understand-the-workflow)
-- Browse the agents in the [Agent Catalog](agent-catalog.md) (23 in Claude bundle, 24 in Copilot bundle)
-- See the skills in the [Skill Reference](skill-reference.md) (69 in Claude bundle, 81 in Copilot bundle)
+- Browse the agents in the [Agent Catalog](agent-catalog.md)
+- See the skills in the [Skill Reference](skill-reference.md), which covers selected skills (the [skills directory](../src/claude/skills/) lists all of them)
 - Understand the system design in [Architecture](architecture.md)
 - Learn how to extend and customize in [Customization](customization.md)
 - Review the full [Installation Guide](installation.md) for advanced setup options

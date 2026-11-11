@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -46,6 +47,16 @@ class TestBuildParser:
     def test_ci_mode(self) -> None:
         args = build_parser().parse_args(["--ci"])
         assert args.ci is True
+
+    def test_format_defaults_to_console(self) -> None:
+        assert build_parser().parse_args([]).format == "console"
+
+    def test_format_json(self) -> None:
+        assert build_parser().parse_args(["--format", "json"]).format == "json"
+
+    def test_invalid_format(self) -> None:
+        with pytest.raises(SystemExit):
+            build_parser().parse_args(["--format", "xml"])
 
     def test_invalid_language(self) -> None:
         with pytest.raises(SystemExit):
@@ -131,6 +142,60 @@ class TestMain:
         exit_code = main(["--operation", "full"])
         assert exit_code == 0
         assert ".codeql/ not found" in capsys.readouterr().err
+
+    @patch("subprocess.run")
+    def test_codeql_dir_missing_default_keeps_stdout_empty(
+        self, mock_run: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        mock_run.return_value = MagicMock(returncode=0, stdout=str(tmp_path))
+        exit_code = main([])
+        assert exit_code == 0
+        assert capsys.readouterr().out == ""
+
+    @patch("subprocess.run")
+    def test_codeql_dir_missing_json_reports_skipped_with_exit_0(
+        self, mock_run: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        mock_run.return_value = MagicMock(returncode=0, stdout=str(tmp_path))
+        exit_code = main(["--operation", "validate", "--format", "json"])
+        payload = json.loads(capsys.readouterr().out)
+        assert exit_code == 0
+        assert payload["status"] == "skipped"
+        assert payload["reason"] == "codeql_directory_missing"
+        assert payload["operation"] == "validate"
+        assert payload["ci"] is False
+        assert payload["exit_code"] == 0
+
+    @patch("subprocess.run")
+    def test_codeql_dir_missing_in_ci_exits_2(
+        self, mock_run: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        mock_run.return_value = MagicMock(returncode=0, stdout=str(tmp_path))
+        exit_code = main(["--ci"])
+        assert exit_code == 2
+        assert ".codeql/ not found" in capsys.readouterr().err
+
+    @patch("subprocess.run")
+    def test_codeql_dir_missing_in_ci_json_reports_skipped_and_exit_2(
+        self, mock_run: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        mock_run.return_value = MagicMock(returncode=0, stdout=str(tmp_path))
+        exit_code = main(["--ci", "--format", "json"])
+        payload = json.loads(capsys.readouterr().out)
+        assert exit_code == 2
+        assert payload["status"] == "skipped"
+        assert payload["ci"] is True
+        assert payload["exit_code"] == 2
+
+    @patch("subprocess.run")
+    def test_codeql_dir_present_in_ci_is_not_skipped(
+        self, mock_run: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        (tmp_path / ".codeql").mkdir()
+        mock_run.return_value = MagicMock(returncode=0, stdout=str(tmp_path))
+        exit_code = main(["--ci", "--operation", "validate", "--format", "json"])
+        assert exit_code == 3  # config script missing: a real failure, not a skip
+        assert "skipped" not in capsys.readouterr().out
 
     @patch("subprocess.run")
     def test_validate_config_not_found(

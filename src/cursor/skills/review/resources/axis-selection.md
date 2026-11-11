@@ -90,6 +90,7 @@ contributes its axes.
 | `decision-records` | an `ADR-*` file, or a whole `architecture/` or `decisions/` path segment | `decision-rigor` | |
 | `roadmap-or-spec-docs` | a whole `roadmap/`, `planning/`, or `specs/` path segment | `roadmap` | |
 | `docs-and-instructions` | `*.md` | | `doc-accuracy` |
+| `legal-notices` | a whole basename of `LICENSE`, `NOTICE`, `COPYING`, or `THIRD-PARTY-NOTICES`, bare or with a `.md` or `.txt` suffix, at any depth | | |
 | `executable-code` | a source file in a supported language | `code-quality` | `code-qualities-assessment`, `taste-lints`, each only where its own scanner reads the file |
 | `toolkit-governance` | a file at least one golden-principle rule can fire on: `.sh` or `.bash` anywhere (GP-001), `SKILL.md` under `.claude/skills/` (GP-003), `.md` under `.claude/agents/` except `CLAUDE.md` (GP-004), or `.yml`/`.yaml` under `.github/workflows/` (GP-005, GP-006) | | `golden-principles` |
 
@@ -98,6 +99,15 @@ documentation claims against the code they describe. A docs-only change still
 runs far fewer axes than a code change: `spec-compliance`, the always-on
 `analyst`, and `doc-accuracy`, which is the "low-risk changes run fewer axes"
 case, 2 Stage-2 axes instead of 15.
+
+`legal-notices` claims no axis on purpose. A license or notice file is verbatim
+legal text with no behavior and no claim a scanner can check, so it classifies
+without failing the run closed (issue #7280). A legal-only change runs the
+always-on axes alone, except that a `.md` variant such as `LICENSE.md` also
+matches `docs-and-instructions` and adds `doc-accuracy`. Beside other files a
+legal file adds nothing to their selection.
+A path like `LICENSE-extra.bin` or `licenses/MIT` matches no whole basename
+above and still fails closed.
 
 ## Local axes are limited by their scanner
 
@@ -117,7 +127,8 @@ and its skip reason says so.
 
 Two consequences worth knowing. A `.rs` or `.rb` change selects no local axis
 at all, because neither scanner scores it; the canonical `code-quality`
-subagent still reviews it. A `.txt`, `.rst`, or `.mdx` change is not classified
+subagent still reviews it. A `.txt`, `.rst`, or `.mdx` change (other than a
+`legal-notices` file such as `LICENSE.txt`) is not classified
 at all, so the run fails closed onto every canonical axis rather than handing
 the file to a scanner that would not open it.
 

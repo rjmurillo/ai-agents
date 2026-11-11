@@ -42,7 +42,7 @@ The script in `.claude/skills/steering-matcher/scripts/get_applicable_steering.p
 
 ```bash
 # Match files against steering patterns
-python3 .claude/skills/steering-matcher/scripts/get_applicable_steering.py \
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/steering-matcher/scripts/get_applicable_steering.py" \
     --files "src/claude/analyst.md" ".project-toolkit/security/TM-001-auth-flow.md" \
     --steering-path ".agents/steering"
 
@@ -63,7 +63,7 @@ This skill integrates with the orchestrator workflow:
 ```bash
 # 1. Identify files from task
 # 2. Get applicable steering
-python3 .claude/skills/steering-matcher/scripts/get_applicable_steering.py \
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/steering-matcher/scripts/get_applicable_steering.py" \
     --files "src/claude/security.md" ".project-toolkit/security/SR-001-oauth-review.md"
 
 # 3. Inject into agent context
@@ -105,7 +105,7 @@ After execution:
 Matches file paths against steering glob patterns and returns applicable guidance.
 
 ```bash
-python3 .claude/skills/steering-matcher/scripts/get_applicable_steering.py --files <file1> [<file2> ...]
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/steering-matcher/scripts/get_applicable_steering.py" --files <file1> [<file2> ...]
 ```
 
 ## Related

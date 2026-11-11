@@ -279,3 +279,41 @@ def test_skill_documents_the_deterministic_rule_verbatim():
     assert SAMPLING_RULE in text
     assert WITHIN_HARNESS_RULE in text
     assert "the cap prevented full harness coverage" in text
+
+
+def _stable(inventory: dict[str, Any]) -> str:
+    return json.dumps({k: v for k, v in inventory.items() if k != "generated_at"}, sort_keys=True)
+
+
+def test_timeline_supplement_zero_leaves_the_inventory_unchanged(tmp_path):
+    root = "claude"
+    _two_harness_fixture(tmp_path)
+
+    default, _ = _run(tmp_path, root, "--max-sessions", "1")
+    explicit_off, _ = _run(tmp_path, root, "--max-sessions", "1", "--timeline-supplement", "0")
+
+    assert _stable(default) == _stable(explicit_off)
+    assert "strata" not in default["sampling"]
+    assert all("stratum" not in session for session in default["sessions"])
+
+
+def test_timeline_supplement_adds_a_tagged_no_skill_session_and_keeps_the_omission_notice(
+    tmp_path,
+):
+    _two_harness_fixture(tmp_path)
+
+    inventory, _ = _run(tmp_path, "claude", "--max-sessions", "1", "--timeline-supplement", "1")
+
+    assert _sampled(inventory) == ["claude:claude-session", "copilot:copilot-session"]
+    strata = {f"{s['harness']}:{s['meta']['id']}": s.get("stratum") for s in inventory["sessions"]}
+    assert strata == {
+        "claude:claude-session": "skill_first",
+        "copilot:copilot-session": "timeline_supplement",
+    }
+    sampling = inventory["sampling"]
+    assert sampling["representative"] is False
+    assert sampling["strata"]["timeline_supplement"]["candidates"] == 1
+    assert sampling["strata"]["timeline_supplement"]["selected"] == 1
+    assert sampling["omitted_harnesses"] == [{"harness": "copilot", "scoreable": 1}]
+    assert inventory["stats"]["sessions_sampled"] == 2
+    assert len(list((tmp_path / "report" / "transcripts").glob("*.md"))) == 2

@@ -75,7 +75,7 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/sc
 
 ```bash
 # Run comprehensive health check (recommended)
-python3 .claude/skills/memory/scripts/test_memory_health.py --format table
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/test_memory_health.py" --format table
 
 # Memory Router status (via MCP tools)
 # Use mcp__serena__list_memories()
@@ -85,7 +85,7 @@ python3 .claude/skills/memory/scripts/test_memory_health.py --format table
 
 ```bash
 # After completing a session
-python3 .claude/skills/memory/scripts/extract_session_episode.py \
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" \
     ".project-toolkit/sessions/2026-01-01-session-130.json"
 ```
 
@@ -177,7 +177,7 @@ SESSION_ID="2026-01-01-session-130"
 SESSION_LOG=".project-toolkit/sessions/${SESSION_ID}.md"
 
 # 1. Extract episode from session log
-python3 .claude/skills/memory/scripts/extract_session_episode.py \
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" \
     "$SESSION_LOG"
 
 ```
@@ -225,7 +225,7 @@ recent_episodes = get_episodes(since=since, max_results=5)
 
 ```bash
 # 1. Extract episode
-python3 .claude/skills/memory/scripts/extract_session_episode.py \
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" \
     ".project-toolkit/sessions/$(date +%Y-%m-%d)-session-*.md"
 
 # 2. Commit the episode
@@ -286,7 +286,7 @@ if [ ! -f "$EPISODE_PATH" ]; then
     # Extract from session log
     SESSION_LOG=".project-toolkit/sessions/2026-01-01-session-126.json"
     if [ -f "$SESSION_LOG" ]; then
-        python3 .claude/skills/memory/scripts/extract_session_episode.py \
+        python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" \
             "$SESSION_LOG"
     fi
 fi

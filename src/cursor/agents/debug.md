@@ -66,4 +66,3 @@ Agent-specific requirements:
 | **implementer** | Complex fix needed | Apply resolution |
 | **analyst** | Deeper investigation required | Research root cause |
 | **qa** | Fix verified | Regression testing |
-| **security** | Security vulnerability found | Security assessment |

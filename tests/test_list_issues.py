@@ -672,7 +672,11 @@ class TestMilestoneFilter:
     def test_milestone_empty_result_is_verified_then_succeeds(self, capsys):
         rc, mock_run = self._run(["--milestone", "v9.9.9"])
         assert rc == 0
-        assert json.loads(capsys.readouterr().out)["Data"] == {"issues": [], "count": 0}
+        assert json.loads(capsys.readouterr().out)["Data"] == {
+            "issues": [],
+            "count": 0,
+            "truncated": False,
+        }
         assert mock_run.call_args_list[1][0][0][:4] == ["gh", "api", "graphql", "-f"]
 
     def test_unknown_milestone_gh_failure_exits_3(self, capsys):
@@ -815,3 +819,102 @@ class TestRateLimitClassification:
         payload = json.loads(capsys.readouterr().out)
         assert payload["Success"] is False
         assert payload["Error"]["Type"] == "RateLimitError"
+
+
+# ---------------------------------------------------------------------------
+# Issue #7230: truncated flag
+# ---------------------------------------------------------------------------
+class TestTruncatedFlag:
+    """``count`` is rows returned. ``truncated`` says whether more exist."""
+
+    def _run(self, argv, issues):
+        with (
+            patch("list_issues.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
+            patch("subprocess.run", return_value=_completed(stdout=json.dumps(issues))) as mock_run,
+        ):
+            rc = main(argv)
+        return rc, mock_run
+
+    def test_asks_gh_for_one_extra_row(self):
+        _, mock_run = self._run(["--limit", "5"], [_issue(1, "a")])
+        cmd = mock_run.call_args_list[0][0][0]
+        assert cmd[cmd.index("--limit") + 1] == "6"
+
+    def test_more_rows_than_limit_sets_truncated_and_trims(self, capsys):
+        issues = [_issue(n, f"i{n}") for n in range(1, 4)]
+        rc, _ = self._run(["--limit", "2"], issues)
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert rc == 0
+        assert data["truncated"] is True
+        assert data["count"] == 2
+        assert [i["number"] for i in data["issues"]] == [1, 2]
+
+    def test_exactly_limit_rows_is_not_truncated(self, capsys):
+        issues = [_issue(n, f"i{n}") for n in range(1, 3)]
+        self._run(["--limit", "2"], issues)
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["truncated"] is False
+        assert data["count"] == 2
+
+    def test_fewer_rows_than_limit_is_not_truncated(self, capsys):
+        self._run(["--limit", "30"], [_issue(1, "only")])
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["truncated"] is False
+        assert data["count"] == 1
+
+    def test_default_limit_requests_31_and_reports_truncation(self, capsys):
+        issues = [_issue(n, f"i{n}") for n in range(1, 32)]
+        _, mock_run = self._run([], issues)
+        cmd = mock_run.call_args_list[0][0][0]
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert cmd[cmd.index("--limit") + 1] == "31"
+        assert data["count"] == 30
+        assert data["truncated"] is True
+
+    def test_search_at_max_limit_does_not_request_past_the_search_cap(self):
+        _, mock_run = self._run(["--limit", "1000", "--search", "is:issue"], [_issue(1, "a")])
+        cmd = mock_run.call_args_list[0][0][0]
+        assert cmd[cmd.index("--limit") + 1] == "1000"
+
+    def test_search_below_the_cap_still_asks_for_one_extra_row(self):
+        _, mock_run = self._run(["--limit", "999", "--search", "is:issue"], [_issue(1, "a")])
+        cmd = mock_run.call_args_list[0][0][0]
+        assert cmd[cmd.index("--limit") + 1] == "1000"
+
+    def test_without_search_max_limit_still_asks_for_one_extra_row(self):
+        _, mock_run = self._run(["--limit", "1000"], [_issue(1, "a")])
+        cmd = mock_run.call_args_list[0][0][0]
+        assert cmd[cmd.index("--limit") + 1] == "1001"
+
+    def test_search_that_fills_the_cap_reports_truncated(self, capsys):
+        issues = [_issue(n, f"i{n}") for n in range(1, 1001)]
+        self._run(["--limit", "1000", "--search", "is:issue"], issues)
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["count"] == 1000
+        assert data["truncated"] is True
+
+    def test_search_returning_the_cap_for_a_lower_limit_reports_truncated(self, capsys):
+        issues = [_issue(n, f"i{n}") for n in range(1, 1001)]
+        self._run(["--limit", "999", "--search", "is:issue"], issues)
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["count"] == 999
+        assert data["truncated"] is True
+
+    def test_search_under_the_cap_is_not_truncated(self, capsys):
+        issues = [_issue(n, f"i{n}") for n in range(1, 4)]
+        self._run(["--limit", "1000", "--search", "is:issue"], issues)
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["count"] == 3
+        assert data["truncated"] is False
+
+    def test_max_limit_without_search_is_judged_by_the_extra_row(self, capsys):
+        issues = [_issue(n, f"i{n}") for n in range(1, 1001)]
+        self._run(["--limit", "1000"], issues)
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["count"] == 1000
+        assert data["truncated"] is False
+
+    def test_human_summary_mentions_truncation(self, capsys):
+        issues = [_issue(n, f"i{n}") for n in range(1, 4)]
+        self._run(["--limit", "2", "--output-format", "human"], issues)
+        assert "truncated" in capsys.readouterr().out

@@ -92,6 +92,11 @@ def _read(path: str) -> tuple[Payload, Payload]:
     return data, {"input": path, "sha256": hashlib.sha256(raw).hexdigest()}
 
 
+def read_json(path: str) -> tuple[Payload, Payload]:
+    """Strictly load one JSON object; sibling scripts share the 5 MiB cap and key checks."""
+    return _read(path)
+
+
 def _local_scope(value: Any, root: Path) -> None:
     path = Path(_text(value))
     _require(path.is_absolute() and path.resolve() == root, "repo scope must match --repo")
@@ -442,7 +447,9 @@ def _hosted(path: str, root: Path) -> tuple[list[Payload], Payload, int]:
     )
 
 
-def import_seeds(root: Path, sessions: str | None, hosted: list[str]) -> Payload:
+def import_seeds(
+    root: Path, sessions: str | None, hosted: list[str], sweep: str | None = None
+) -> Payload:
     """Validate all supplied evidence before returning additive candidate fields.
 
     Zero rows participate in conflict detection but never become candidates.
@@ -462,6 +469,14 @@ def import_seeds(root: Path, sessions: str | None, hosted: list[str]) -> Payload
         inputs.append(source)
         counters["seed_hosted_items"] += len(found)
         counters["seed_records"] += examined
+    if sweep is not None:
+        # Keep the optional sweep importer out of runs that do not pass --sweep-json.
+        from bootstrap_sweep_import import read_sweep
+
+        found, source, examined = read_sweep(sweep)
+        rows.extend(found)
+        inputs.append(source)
+        counters["seed_sweep_incidents"] = examined
     candidates = [row for row in _merge(rows) if row["count"] > 0]
     counters["seed_candidates"] = len(candidates)
     return {"candidate_seeds": candidates, "seed_inputs": inputs, "examined": counters}

@@ -72,7 +72,7 @@ question rather than attempting retrieval.
 **Command routing (required)**: The orchestrator must run shell commands
 (git, gh, Python, tests, builds) needed for the investigation and supply
 the output. The analyst retrieves GitHub issue, PR, and CI context directly
-via its declared read-only tools. Do not suggest shell commands.
+via its declared read-only tools. Do not suggest shell commands. When those tools are not registered, read the text the orchestrator pre-fetched to a file.
 
 {{> analyst-revision-grounding}}
 

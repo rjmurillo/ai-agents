@@ -46,8 +46,10 @@ A script that writes a file, calls a mutating API, or deletes anything also:
 
 - **Takes `--dry-run`.** It runs every read and every validation, then reports
   what it would do and skips only the write. Name the planned action in the
-  result (`would_reopen`, `would_assign`) and set `dry_run: true`, so a caller
-  can tell a plan from a change.
+  result (`would_reopen`, `would_assign`) and set `dryRun: true`, so a caller
+  can tell a plan from a change. `dryRun` is the key the shipped GitHub scripts
+  use (`close_pr.py`, `merge_pr.py`, `post_pr_comment_reply.py`); a script that
+  already shipped `DryRun` or `dry_run` keeps its key, so a caller does not break.
 - **Keeps the same exit codes under `--dry-run`.** Invalid input, a missing
   target, or a refused precondition fails the same way. A dry run that passes
   where the real run fails is worse than none.
