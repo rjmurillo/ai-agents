@@ -36,7 +36,7 @@ differs from its source in `LibMirrorResult.drift`; `build_all.py --check`
 exits 2 on any (issue #6098).
 
 `.claude/lib/` also carries hand-maintained files this module never touches
-(`claude_hook_dispatch.py`, `paths.py`, `qa_report.py`, and siblings; two
+(`claude_hook_dispatch.py`, `qa_report.py`, and siblings; two
 `CLAUDE.md` sidecars under `hook_utilities/` and `github_core/`): they have
 no `scripts/` canonical source, sync_plugin_lib.py never copied them either
 (its directory sync only ever looked at `.py` files inside its three
@@ -57,6 +57,7 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 from atomic_write import publish_bytes_atomically, read_bytes_no_redirect  # noqa: E402
+from lib_hand_files import PLUGIN_LIB_COPIES  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Configuration (moved unchanged from scripts/sync_plugin_lib.py)
@@ -459,13 +460,15 @@ def compile_all(repo_root: Path, *, check: bool = False) -> LibMirrorResult:
             changes, had_errors = sync_file(repo_root, src_rel, dst_rel, check_only=check)
             _fold(result, src_rel, dst_rel, changes, had_errors, check=check)
 
-    for dst_rel in SKILLS_SIDECAR_PLUGIN_TREES:
-        changes, had_errors = sync_file(repo_root, SKILLS_SIDECAR_SOURCE, dst_rel, check_only=check)
-        _fold(result, SKILLS_SIDECAR_SOURCE, dst_rel, changes, had_errors, check=check)
+    sidecars = [(SKILLS_SIDECAR_SOURCE, dst_rel) for dst_rel in SKILLS_SIDECAR_PLUGIN_TREES]
+    for src_rel, dst_rel in (*PLUGIN_LIB_COPIES, *sidecars):
+        changes, had_errors = sync_file(repo_root, src_rel, dst_rel, check_only=check)
+        _fold(result, src_rel, dst_rel, changes, had_errors, check=check)
 
     result.inputs = (
         len(PACKAGES) * len(PLUGIN_ROOTS)
         + len(SYNC_FILE_NAMES) * len(PLUGIN_ROOTS)
+        + len(PLUGIN_LIB_COPIES)
         + len(SKILLS_SIDECAR_PLUGIN_TREES)
     )
     result.outputs = len([c for c in result.changes if not c.strip().startswith("[")])
