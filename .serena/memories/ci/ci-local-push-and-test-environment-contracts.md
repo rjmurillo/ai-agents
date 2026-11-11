@@ -72,8 +72,11 @@ PYTEST_NON_TMP_ROOT=/tmp/harness-check \
   itself and still finds `~/.claude/CLAUDE.md`, because an ancestor's
   `.claude/CLAUDE.md` can load as project memory.
 - `require_isolated_workspace_root` in `scripts/eval/_runtime_harness.py` is a
-  second guard with the same walk. Its message reads `inherits instruction files
-  a CLI loads from ancestor directories`.
+  second guard. It walks up from the workspace root, not the temp dir, and
+  checks a wider list (`ANCESTOR_INSTRUCTION_FILES`, which adds `AGENTS.md`,
+  `.claude/rules`, and the `.github` Copilot instruction files) with no
+  `~/.claude` skip. Its message reads `inherits instruction files a CLI loads
+  from ancestor directories`.
 - Before PR #7260 (issue #7173), 14 tests in
   `tests/eval/test_claude_skill_harness.py` failed with `sits under instruction
   files`. They now stub the guard through the `claude_env` fixture and pass
@@ -85,7 +88,9 @@ PYTEST_NON_TMP_ROOT=/tmp/harness-check \
   and the same file passes 10 of 10 with the root under `/tmp`. Issue #7289 tracks
   it. Only `tests/eval` was measured, so other trees are unmeasured.
 - A temp root with an ancestor that holds `CLAUDE.md`, `CLAUDE.local.md`, or a
-  `.claude` directory trips the same guards, not only a root under `$HOME`.
+  `.claude` entry trips the harness guard, not only a root under `$HOME`. The
+  workspace-root guard also refuses `AGENTS.md`, `.claude/rules`, and the
+  `.github` Copilot instruction files in any ancestor.
 - Issue #7172 records that PR #7092 called the original 14 failures a local
   runner artifact. With a root outside `$HOME`, all 32 tests in the file pass,
   so that diagnosis was wrong.
