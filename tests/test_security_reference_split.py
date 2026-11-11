@@ -19,6 +19,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.agent_reference_helpers import reference_loading_section
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 REFERENCE_DIR = REPO_ROOT / "src" / "claude" / "skills" / "security-scan" / "references"
 LOADING_HEADING = "## Reference Loading"
@@ -60,11 +62,7 @@ def _text(path: Path) -> str:
 
 
 def _loading_section(path: Path) -> str:
-    text = _text(path)
-    assert text.count(LOADING_HEADING) == 1, f"{path} must carry {LOADING_HEADING!r} once"
-    rest = text[text.index(LOADING_HEADING) + len(LOADING_HEADING) :]
-    boundary = rest.find(" ## ")
-    return rest if boundary == -1 else rest[:boundary]
+    return reference_loading_section(_text(path), path, LOADING_HEADING)
 
 
 @pytest.mark.parametrize("path", SECURITY_PATHS, ids=str)
