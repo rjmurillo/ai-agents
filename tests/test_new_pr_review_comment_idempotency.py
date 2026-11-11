@@ -138,12 +138,15 @@ class TestIdempotentPost:
 
         assert len(fake.posted) == 1
 
-    def test_outdated_comment_matches_on_original_line(self, repo_ready_real_check, capsys):
+    def test_outdated_comment_on_a_reused_line_does_not_block_a_new_finding(
+        self, repo_ready_real_check, capsys
+    ):
         fake = _FakeGh(pages=[[_review_comment(41, line=None, original_line=47)]])
 
-        _run(fake)
+        assert _run(fake) == 0
 
-        assert _envelope(capsys)["Data"]["action"] == "SKIP"
+        assert _envelope(capsys)["Data"]["comment_id"] == 500
+        assert len(fake.posted) == 1
 
     def test_duplicate_on_a_later_page_is_found(self, repo_ready_real_check, capsys):
         fake = _FakeGh(

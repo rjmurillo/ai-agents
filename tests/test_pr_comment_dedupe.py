@@ -131,9 +131,9 @@ class TestCommentsAtLine:
     def test_excludes_other_spots_and_replies(self, fields):
         assert dedupe.comments_at_line([self._c(**fields)], "a.py", 5, "RIGHT") == []
 
-    def test_outdated_comment_uses_original_line(self):
+    def test_outdated_comment_never_matches_its_original_line(self):
         outdated = self._c(line=None, original_line=5)
-        assert dedupe.comments_at_line([outdated], "a.py", 5, "RIGHT") == [outdated]
+        assert dedupe.comments_at_line([outdated], "a.py", 5, "RIGHT") == []
 
     def test_missing_side_is_treated_as_right(self):
         c = self._c()

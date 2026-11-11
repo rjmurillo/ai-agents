@@ -101,19 +101,18 @@ def thread_comments(
 def comments_at_line(
     review_comments: list[dict[str, Any]], path: str, line: int, side: str
 ) -> list[dict[str, Any]]:
-    """Return top-level review comments on ``path`` at ``line`` on ``side``.
+    """Return top-level review comments now anchored at ``path`` ``line`` on ``side``.
 
-    A comment whose line moved with a later push reports ``line`` as null and keeps
-    the line it was written on in ``original_line``.
+    A comment that a later push made outdated reports ``line`` as null. It is not
+    anchored anywhere in the current diff, so it never matches: its
+    ``original_line`` belongs to an older commit, and an identical finding about
+    the new code at that number must still post.
     """
-    matched = []
-    for comment in review_comments:
-        if comment.get("in_reply_to_id") or comment.get("path") != path:
-            continue
-        if (comment.get("side") or "RIGHT") != side:
-            continue
-        current = comment.get("line")
-        shown = current if current is not None else comment.get("original_line")
-        if shown == line:
-            matched.append(comment)
-    return matched
+    return [
+        comment
+        for comment in review_comments
+        if not comment.get("in_reply_to_id")
+        and comment.get("path") == path
+        and (comment.get("side") or "RIGHT") == side
+        and comment.get("line") == line
+    ]
