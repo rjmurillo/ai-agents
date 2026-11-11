@@ -99,19 +99,19 @@ PowerShell, see [Scripts](#scripts).
 
    | Mode | Gate for a skill | Use when |
    |---|---|---|
-   | `workflow` (default) | Verified friction: corrections, reverts, long review rounds | Agents lose time on known routes |
+   | `workflow` (default) | Verified friction: corrections, reverts, long review rounds, corroborated sweep incidents | People or agents lose time on known routes |
    | `knowledge` | A lens has verified content AND a frozen baseline case shows a model without the skill gets it wrong | Knowledge handoff: domain theory, architecture rationale, research method, with no friction record yet |
 
    Neither mode has a quota. A lens with no gate evidence gets no skill.
 5. Choose 1 to 3 accepted outcomes (workflow) or the lenses to cover (knowledge). Ask the user first. If the user has none, take them from the Phase 2 `candidates` ranking. For each, write the observations that prove it meets project standards. A green check or a merged change is an intermediate result, not proof.
-6. Respect explicit budgets. Ask at most five questions in total, and only for facts that evidence cannot supply.
+6. Respect explicit budgets. Ask at most five questions in total, and only for facts that evidence cannot supply. One may confirm sweep scope and consent for private channels and mailboxes.
 7. Record the boundary before any write. Put the snapshot in the system temp directory or a session scratch directory, and keep the same path for Phase 6:
 
    ```bash
    python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_boundary.py" snapshot --repo . --output-root <output-root> --out "<snapshot path>"
    ```
 
-**Authority.** Write only inside `<output-root>` and the paths the user authorized in step 3. The snapshot, plan, doctor artifacts, `bootstrap_mine.py --out` file, frozen eval cases file, eval cases, and eval results are the only writes outside the repository. Run no mutating git command, deployment, publication, tracker mutation, or platform-setting change. Evaluation grants no extra write authority. Modify an existing skill only when it is inside the boundary and passed with `--update`; otherwise compose it or report the proposed change.
+**Authority.** Write only inside `<output-root>` and the paths the user authorized in step 3. The snapshot, plan, doctor artifacts, sweep run directory (new, deleted at run end), `bootstrap_mine.py --out` file, frozen eval cases file, eval cases, and eval results are the only writes outside the repository. Run no mutating git command, deployment, publication, tracker mutation, message, or platform-setting change; call only read tools on connected servers. Evaluation grants no extra write authority. Modify an existing skill only when it is inside the boundary and passed with `--update`; otherwise compose it or report the proposed change.
 
 ### Phase 2: Mine candidates, then discover
 
@@ -134,8 +134,16 @@ PowerShell, see [Scripts](#scripts).
    Follow the [offline friction-input reference](references/discovery.md#offline-friction-input-reference).
    Imports are `candidate_unverified`, not verified friction. Do not import
    qualitative report grades or bypass verification, authoring or evaluation.
+   Judged sweep incidents enter only through `--sweep-json`, as keys and counts.
 
-3. Follow [references/discovery.md](references/discovery.md) from the mined cases: repository and discourse, the 16 discovery lenses, workflow gaps, and session and memory sources. When an outcome touches PRs, pipelines, trackers, or releases, also follow [references/hosted-platforms.md](references/hosted-platforms.md). Finish discovery before any authoring. In `knowledge` mode, freeze the baseline cases with `bootstrap_eval.py freeze` before the baseline run, so the hash covers them before any result exists. Cases carry skill names, so check each name with `bootstrap_boundary.py plan` before the freeze; see [Knowledge mode](references/discovery.md#knowledge-mode) for what a later rename costs.
+3. Sweep friction beyond the repository: inventory every connected server,
+   resource, prompt, and skill (no fixed list), gather sanitized evidence to
+   files, run each judge rubric twice in independent agents, and tally with
+   `bootstrap_sweep.py`. Cover human, agent, tool, and process friction;
+   institutional knowledge gaps first. Follow
+   [references/friction-sources.md](references/friction-sources.md).
+
+4. Follow [references/discovery.md](references/discovery.md) from the mined cases: repository and discourse, the 17 discovery lenses, workflow gaps, and session and memory sources. When an outcome touches PRs, pipelines, trackers, or releases, also follow [references/hosted-platforms.md](references/hosted-platforms.md). Finish discovery before any authoring. In `knowledge` mode, freeze the baseline cases with `bootstrap_eval.py freeze` before the baseline run, so the hash covers them before any result exists. Cases carry skill names, so check each name with `bootstrap_boundary.py plan` before the freeze; see [Knowledge mode](references/discovery.md#knowledge-mode) for what a later rename costs.
 
 ### Phase 3: Select skills and sort by tool form
 
@@ -220,10 +228,11 @@ Exit code 0 means success and exit code 1 means findings that need action, for e
 | `bootstrap_mine.py` | Bad arguments; not a repository; bad rev; unreadable `TARGET` or `--prs-json`; refused `--out`; an authored file over the 5 MiB read cap | Git missing, failed, or timed out; a working-tree read failed; `--out` write failed, including a write race |
 | `bootstrap_forms.py` | Bad arguments; unreadable or malformed plan | None |
 | `bootstrap_eval.py` | Bad arguments; unreadable or malformed cases, results, or frozen file; edited frozen file; refused `--out`, including a write race | Git missing, failed, or timed out; the regex grader child failed; `--out` write failed; any other I/O error |
+| `bootstrap_sweep.py` | Bad arguments; malformed or mismatched input; run directory in the repository or not empty; changed judge rubric; git missing or failed; any read or write failure (payload `error` is `io`) | None |
 | `bootstrap_drift.py` | Bad arguments; repo or skills root not a directory; unknown `--name` | None; an unreadable `reverify.json` is `malformed` (exit 1) |
 | `bootstrap_boundary.py` | See the detail below | Git missing, failed, or timed out; an unreadable working-tree file |
 
-The payload `error` names the cause: `config` for exit 2, `git` or `io` for exit 3.
+The payload `error` names the cause: `config` for exit 2, `git` or `io` for exit 3. `bootstrap_sweep.py` exits 2 for both, with `config` for git failures and `io` for read or write failures.
 
 | Script and subcommand | Phase | Computes |
 |---|---|---|
@@ -231,6 +240,7 @@ The payload `error` names the cause: `config` for exit 2, `git` or `io` for exit
 | `bootstrap_mine.py claims` | 4, 6, drift | Repository paths and line references in skill text that are missing, untracked, or out of range, each labeled `current` or `historical` |
 | `bootstrap_forms.py check` | 3, 4 | Plan violations: computable item without an instrument, script missing, scaffold without a reason |
 | `bootstrap_eval.py freeze`, `score` | 5 | Hash-frozen cases; pass rate per condition, capability delta, `gain`, `no_gap`, `flat`, `regression`, `incomplete` |
+| `bootstrap_sweep.py plan`, `index`, `import`, `tally` | 2 | Source classes and read tools; evidence checks and batches; judge rows; ranked incidents, knowledge gaps, friction map |
 | `bootstrap_drift.py check` | 6, drift | Each skill's `reverify.json` checks; `update_candidates`; `timed_out`; `--require` also fails a skill with no `reverify.json` or only skipped checks |
 | `bootstrap_boundary.py plan`, `snapshot`, `verify` | 1, 3, 6 | Names and conflicts; the write boundary |
 
@@ -272,6 +282,7 @@ Add a discovery lens in `references/discovery.md`, the plan-file lens table in `
 
 - [ ] Every selected skill names its mode gate evidence and the observations that prove its outcome.
 - [ ] `bootstrap_mine.py candidates` ran before discovery, or the report says why not.
+- [ ] `bootstrap_sweep.py tally` exited 0 with a coverage row per source class, or the report says why not; the run directory was deleted.
 - [ ] `bootstrap_forms.py check` exited 0 on the final plan with `--require-scripts`: no computable item is scaffold-only.
 - [ ] `bootstrap_mine.py claims` reports no `current` finding in authored skills.
 - [ ] `bootstrap_eval.py score` ran on frozen cases; the report gives each skill's capability delta, and no case is `regression` or `incomplete`, and no skill has every case `flat`.

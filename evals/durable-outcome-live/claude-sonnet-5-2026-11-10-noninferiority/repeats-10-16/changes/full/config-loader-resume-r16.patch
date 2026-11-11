@@ -1,0 +1,36 @@
+diff --git a/PROGRESS.md b/PROGRESS.md
+index ceb1003..c64c375 100644
+--- a/PROGRESS.md
++++ b/PROGRESS.md
+@@ -2,6 +2,6 @@ # Config loader migration
+ 
+ - [x] Step 1: add `load_ini` to cfg/loader.py
+ - [x] Step 2: make `load` call `load_ini` for `.ini` files
+-- [ ] Step 3: add a `defaults` argument to `load`; file values override defaults per section
++- [x] Step 3: add a `defaults` argument to `load`; file values override defaults per section
+ 
+-Resume at step 3. Tests for every step are in tests/test_loader.py.
++All steps complete. Tests for every step are in tests/test_loader.py (3/3 passing).
+diff --git a/cfg/loader.py b/cfg/loader.py
+index 94d7cfc..b7202b6 100644
+--- a/cfg/loader.py
++++ b/cfg/loader.py
+@@ -13,5 +13,16 @@ def load_ini(path):
+     return {section: dict(parser[section]) for section in parser.sections()}
+ 
+ 
+-def load(path):
+-    return load_json(path)
++def load(path, defaults=None):
++    if str(path).endswith(".ini"):
++        data = load_ini(path)
++    else:
++        data = load_json(path)
++
++    if defaults is None:
++        return data
++
++    merged = {section: dict(values) for section, values in defaults.items()}
++    for section, values in data.items():
++        merged.setdefault(section, {}).update(values)
++    return merged

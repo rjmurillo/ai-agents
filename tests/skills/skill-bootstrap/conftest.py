@@ -17,6 +17,9 @@ try:
     # after the paths are removed again.
     import bootstrap_boundary  # noqa: F401
     import bootstrap_helpers  # noqa: F401
+    import bootstrap_sweep  # noqa: F401
+    import bootstrap_sweep_import  # noqa: F401
+    import sweep_helpers
 finally:
     for _path in _IMPORT_PATHS:
         sys.path.remove(_path)
@@ -66,3 +69,20 @@ def repo(tmp_path: Path) -> Path:
 def snap_path(tmp_path: Path) -> Path:
     """A snapshot file location outside the fixture repository."""
     return tmp_path / "snaps" / "snapshot.json"
+
+
+@pytest.fixture
+def skill_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A skill directory with two judge rubrics; bootstrap_sweep reads judges from here."""
+    return sweep_helpers.make_skill_dir(tmp_path, monkeypatch)
+
+
+@pytest.fixture
+def sweep(
+    tmp_path: Path,
+    repo: Path,
+    skill_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> sweep_helpers.Run:
+    """A sweep Run whose run directory sits beside, not inside, the fixture repo."""
+    return sweep_helpers.make_run(tmp_path, repo, capsys)

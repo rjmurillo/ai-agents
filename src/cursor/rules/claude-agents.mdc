@@ -51,7 +51,7 @@ It compares two pairs, and `templates/` is in neither:
 1. `src/claude/agents/*.md` against `src/vs-code-agents/*.agent.md`
 2. `.claude/agents/*.md` against `.github/agents/*.agent.md`
 
-`templates/agents/*.shared.md` is read for FILENAMES only, to pick which agents take part in comparison 2 (`shared_template_names`, `detect_agent_drift.py:536-544`, `frozenset(p.name.removesuffix(".shared.md") for p in templates_path.glob("*.shared.md"))`). The template body is never a comparison input.
+`templates/agents/*.shared.md` is read for FILENAMES only, to pick which agents take part in comparison 2 (`shared_template_names` in `detect_agent_drift.py`, `frozenset(p.name.removesuffix(".shared.md") for p in templates_path.glob("*.shared.md"))`). The template body is never a comparison input.
 
 Within a pair it scores only the sections in the `SECTIONS_TO_COMPARE` allowlist in `detect_agent_drift.py`. Everything outside it is invisible, including a whole section present in one copy and absent from the other.
 
@@ -83,9 +83,9 @@ print(cov, 'of', tot, 'chars sit in allowlisted sections')
 PY
 ```
 
-8 of those 60 match zero sections and return a hardcoded 100.0 via `detect_agent_drift.py:302` (`overall = round(total_similarity / compared_count, 1) if compared_count > 0 else 100.0`). They are the two comparisons each for `analyst`, `explainer`, `silent-failure-hunter`, and `type-design-analyzer`: for those four agents the check cannot fail. Replacing the entire body of `src/vs-code-agents/silent-failure-hunter.agent.md` still yields RC=0 / 100.0 / OK.
+8 of those 60 match zero sections and return a hardcoded 100.0 via `compare_agent` (`overall = round(total_similarity / compared_count, 1) if compared_count > 0 else 100.0`). They are the two comparisons each for `analyst`, `explainer`, `silent-failure-hunter`, and `type-design-analyzer`: for those four agents the check cannot fail. Replacing the entire body of `src/vs-code-agents/silent-failure-hunter.agent.md` still yields RC=0 / 100.0 / OK.
 
-For the other agents it is a **similarity floor, not an equality check**. The score is the mean across the allowlisted sections present in **either** file, not both: `compare_agent` skips a section only when it is absent from both sides (`detect_agent_drift.py:280-281`), so a section one copy has and the other lacks is compared against the empty string and scores zero.
+For the other agents it is a **similarity floor, not an equality check**. The score is the mean across the allowlisted sections present in **either** file, not both: `compare_agent` skips a section only when it is absent from both sides (its both-absent `continue`), so a section one copy has and the other lacks is compared against the empty string and scores zero.
 
 How forgiving the floor is depends on how many sections the agent has and on how far those sections already sit below 100. Measured across both comparison pairs at `origin/main` (60 content comparisons, 30 agents x 2 pairs), zeroing the highest-scoring sections first:
 
@@ -103,7 +103,7 @@ So for **22 of the 26 agents that have any compared section, one wholly rewritte
 
 Do not compute this column from section counts alone. An earlier version of this rule did, assuming every section scores 100, and concluded `architect` needed three. It needs two, because its sections already average 92.5 rather than 100. The same idealized model produced "more than a fifth of an agent's allowlisted sections", generalized from `architect` alone, which was wrong for 25 of the 26. The real threshold depends on the actual per-section scores, so measure it.
 
-The per-section score is **Jaccard on word sets** (`calculate_similarity`, `detect_agent_drift.py:213-232`): the size of the token intersection over the size of the union. Two consequences follow, and mixing them up produces a badly wrong mental model. Measured by mutation inside `## Constraints` on `src/claude/agents/architect.md`:
+The per-section score is **Jaccard on word sets** (`calculate_similarity` in `detect_agent_drift.py`): the size of the token intersection over the size of the union. Two consequences follow, and mixing them up produces a badly wrong mental model. Measured by mutation inside `## Constraints` on `src/claude/agents/architect.md`:
 
 | Mutation | Section score | Overall | Result |
 |---|---|---|---|
@@ -123,7 +123,7 @@ Two further exceptions. `merge-resolver` has a 20.3 baseline floor (`KNOWN_BASEL
 
 That workflow is a **weekly and manual audit, not a PR merge gate**: its only triggers are `schedule` (Mondays 09:00 UTC) and `workflow_dispatch`, and it opens an issue when it finds drift. The PR-time workflow `agent-drift-detection.yml` runs `generate_agents.py --validate`, which regenerates and compares, and never invokes this detector.
 
-This is the tool working as documented (`detect_agent_drift.py:29-33` names the sections it focuses on), not a defect. The error to avoid is reading its silence as parity.
+This is the tool working as documented (`SECTIONS_TO_COMPARE` names the sections it focuses on), not a defect. The error to avoid is reading its silence as parity.
 
 ## References
 
