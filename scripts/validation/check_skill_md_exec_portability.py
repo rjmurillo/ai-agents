@@ -660,6 +660,40 @@ def _print_literal(literal: list[str], examined: int) -> None:
         print(f"  [LITERAL] {hit}")
 
 
+def _update_baseline(
+    args: argparse.Namespace,
+    root: Path,
+    baseline_path: Path,
+    scan: tuple[dict[str, int], dict[str, int], dict[str, int], list[str], int],
+) -> int:
+    """Rewrite the baseline, refusing while a literal plugin path exists."""
+    current, marker_current, scanned_by_root, literal, literal_examined = scan
+    # The literal check has no baseline, so a rewrite cannot absorb a hit.
+    if literal:
+        if args.output_format == "json":
+            _print_report("json", [], [], [], current, {}, literal, literal_examined)
+        else:
+            _print_literal(literal, literal_examined)
+        return 1
+    if refuse_unsafe_baseline_write(
+        root,
+        scanned_by_root,
+        baseline_path,
+        {"files": current, "marker_files": marker_current},
+        "skill files",
+        args.allow_baseline_shrink,
+    ):
+        return 2
+    if _refuse_marker_files_growth(
+        root,
+        baseline_path,
+        marker_current,
+        allow_marker_grow=args.allow_marker_grow,
+    ):
+        return 2
+    return _write_baseline(root, baseline_path, current, marker_current, args.allow_baseline_shrink)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     root = _resolve_root(args.repo_root)
@@ -685,32 +719,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     if args.update_baseline:
-        # The literal check has no baseline, so a rewrite cannot absorb a hit.
-        if literal:
-            if args.output_format == "json":
-                _print_report("json", [], [], [], current, {}, literal, literal_examined)
-            else:
-                _print_literal(literal, literal_examined)
-            return 1
-        if refuse_unsafe_baseline_write(
-            root,
-            scanned_by_root,
-            baseline_path,
-            {"files": current, "marker_files": marker_current},
-            "skill files",
-            args.allow_baseline_shrink,
-        ):
-            return 2
-        if _refuse_marker_files_growth(
-            root,
-            baseline_path,
-            marker_current,
-            allow_marker_grow=args.allow_marker_grow,
-        ):
-            return 2
-        return _write_baseline(
-            root, baseline_path, current, marker_current, args.allow_baseline_shrink
-        )
+        scan = (current, marker_current, scanned_by_root, literal, literal_examined)
+        return _update_baseline(args, root, baseline_path, scan)
 
     try:
         baseline = _load_baseline(baseline_path)
