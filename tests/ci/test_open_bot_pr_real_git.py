@@ -36,6 +36,7 @@ def _git(cwd: Path, *args: str) -> str:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
     )
     return result.stdout.strip()
 
@@ -49,7 +50,8 @@ class _FakeGh:
 
     def __call__(self, argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
         if argv[0] != "gh":
-            return _REAL_RUN(argv, **kwargs)
+            passthrough = {k: v for k, v in kwargs.items() if k != "errors"}
+            return _REAL_RUN(argv, errors="replace", **passthrough)
         if argv[1:3] == ["pr", "list"]:
             return subprocess.CompletedProcess(argv, 0, self.open_prs, "")
         if argv[1:3] == ["pr", "create"]:
