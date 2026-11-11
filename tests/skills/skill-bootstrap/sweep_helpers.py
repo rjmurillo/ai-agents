@@ -282,5 +282,5 @@ SENSITIVE_SAMPLES = {
     "npm_token": build("npm", "_", "a1" * 18),
     "bearer_token": build("Bearer ", "abcdefghij" * 2),
     "password_assignment": build("pass", "word: hunter2"),
-    "url_secret_param": build("https://x.example/p?", "tok", "en=abc"),
+    "url_secret_param": build("https://x.example/p?", "tok", "en=abcdefgh1"),
 }

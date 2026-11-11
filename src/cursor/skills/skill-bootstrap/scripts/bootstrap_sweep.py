@@ -124,6 +124,10 @@ HOTSPOT_CAP = 20
 TOP_INCIDENTS = 5
 MAX_EVIDENCE_BYTES = 64 * 1024
 MAX_LOCATOR = 500
+MAX_NAME = 500
+MAX_WINDOW_DAYS = 3650
+MIN_JUDGE_RUNS = 2
+MAX_JUDGE_RUNS = 5
 MAX_COVERAGE_TEXT = 500
 MAX_ITEMS = 5000
 MAX_FINDINGS = 500
@@ -140,32 +144,44 @@ ITEM_ID_RE = re.compile(r"^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$")
 FINDING_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 JUDGE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 CAMEL_RE = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
-EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63})+")
+EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63}){1,8}")
 
 # Sensitive shapes rejected in evidence and free-text fields; only the class name is reported.
 SENSITIVE = {
     "email": EMAIL_RE,
-    "github_token": re.compile(r"gh[pousr]_[A-Za-z0-9]{20,}"),
+    "github_token": re.compile(r"gh[pousr]_[A-Za-z0-9]{20,255}"),
     "github_pat": re.compile(r"github_pat_"),
     "slack_token": re.compile(r"xox[abeprs]-"),
     "slack_app_token": re.compile(r"xapp-"),
     "slack_webhook": re.compile(r"hooks\.slack\.com/services/"),
     "aws_key": re.compile(r"AKIA[0-9A-Z]{16}"),
     "aws_session_key": re.compile(r"ASIA[0-9A-Z]{16}"),
-    "private_key": re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
-    "api_key": re.compile(r"sk-[A-Za-z0-9]{20,}"),
-    "api_key_vendor": re.compile(r"sk-(?:ant|proj)-[A-Za-z0-9_-]{20,}"),
-    "stripe_key": re.compile(r"sk_live_[A-Za-z0-9]{16,}"),
-    "jwt": re.compile(r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\."),
+    "private_key": re.compile(r"-----BEGIN [A-Z ]{0,30}PRIVATE KEY-----"),
+    "api_key": re.compile(r"sk-[A-Za-z0-9]{20,255}"),
+    "api_key_vendor": re.compile(r"sk-(?:ant|proj)-[A-Za-z0-9_-]{20,255}"),
+    "stripe_key": re.compile(r"(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{16,255}"),
+    "jwt": re.compile(r"eyJ[A-Za-z0-9_-]{10,4096}\.[A-Za-z0-9_-]{10,4096}\."),
     "google_api_key": re.compile(r"AIza[0-9A-Za-z_-]{35}"),
     "npm_token": re.compile(r"npm_[A-Za-z0-9]{36}"),
-    "bearer_token": re.compile(r"(?i)bearer\s+[A-Za-z0-9._-]{20,}"),
-    "password_assignment": re.compile(r"(?i)(?:password|passwd|pwd)\s*[=:]\s*\S+"),
-    "url_secret_param": re.compile(r"(?i)[?&](?:sig|token|access_token|key|code)="),
-    "phone_e164": re.compile(r"\+[1-9]\d{7,14}"),
-    "phone_us": re.compile(r"\(?\d{3}\)?[ .-]\d{3}[ .-]\d{4}"),
-    "user_mention": re.compile(r"<@[UW][A-Z0-9]{6,}>"),
+    "bearer_token": re.compile(r"(?i)bearer\s{1,8}[A-Za-z0-9._-]{20,4096}"),
+    # A value of 6+ characters that is not followed by a lowercase word (which marks prose).
+    "password_assignment": re.compile(
+        r"(?i)(?:password|passwd|pwd)\s{0,8}[=:]\s{0,8}['\"]?[^\s'\"]{6,256}['\"]?(?:\Z|\n|\s(?![a-z]))"
+    ),
+    "url_secret_param": re.compile(
+        r"(?i)[?&](?:(?:sig|token|access_token|api_key|apikey)=[^&\s]{8,512}"
+        r"|(?:key|code)=[^&\s]{20,512})"
+    ),
+    "phone_e164": re.compile(r"(?<![\d+])\+[1-9]\d{9,14}(?!\d)"),
+    "phone_us": re.compile(r"(?<![\w.])\(?\d{3}\)?[ .-]\d{3}[ .-]\d{4}(?![\w.])"),
+    "user_mention": re.compile(r"<@[UW][A-Z0-9]{6,32}>"),
 }
+# Free-text descriptions can legitimately discuss passwords, keys, and contacts in prose, so
+# they are scanned for token-shaped secrets only.
+PROSE_SHAPED = frozenset(
+    {"email", "password_assignment", "url_secret_param", "phone_e164", "phone_us"}
+)
+MESSAGE_ID_RE = re.compile(r"^<[^<>\s@]{1,128}@[^<>\s@]{1,255}>$")
 
 # Keyword tables are a fallback hint on a server or skill name, never a source filter.
 KEYWORDS = {
@@ -228,10 +244,13 @@ WRITE_VERBS = frozenset(
     "append rename request run execute cancel invite assign close reopen approve dismiss "
     "submit lock pin unpin star replace remove forward reply publish deploy revoke grant "
     "destroy purge reset restart stop kill terminate subscribe unsubscribe import save put "
-    "patch drop discard".split()
+    "patch drop discard untrash restore modify mute unmute unlock unassign dispatch queue start "
+    "enqueue comment review issue commit".split()
 )
-# Nouns that double as write verbs: they count as verbs only in leading position.
+# Nouns that double as write verbs: they count as verbs only in leading position, or right
+# after `and` / `then` (`read_and_comment`).
 NOUN_VERBS = frozenset("request run label comment review issue commit".split())
+CONJUNCTIONS = frozenset({"and", "then"})
 READ_VERBS = frozenset(
     "get list search read query fetch recall view find lookup describe download export retrieve extract".split()
 )
@@ -491,25 +510,40 @@ def _name_tokens(name: str) -> list[str]:
 
 
 def _strip_prefix(words: list[str], server: str) -> list[str]:
-    """Drop `mcp` and server-name tokens a tool name carries as a namespace prefix."""
+    """Drop `mcp` and server-name tokens a tool name carries as a namespace prefix.
+
+    A verb is never stripped: server `github-push` with tool `push_files` stays a write.
+    """
     prefix = {"mcp", *_tokens(server), *_name_tokens(server)}
     start = 0
-    while start < len(words) - 1 and words[start] in prefix:
+    while (
+        start < len(words) - 1
+        and words[start] in prefix
+        and words[start] not in READ_VERBS
+        and words[start] not in WRITE_VERBS
+    ):
         start += 1
     return words[start:]
 
 
-def tool_access(tool: Payload, server: str = "") -> tuple[str, str | None]:
-    """Fail closed. A leading write verb, a trailing write verb, or any non-noun write verb wins.
+def _noun_verb_after_conjunction(words: list[str]) -> bool:
+    pairs = zip(words, words[1:], strict=False)
+    return any(left in CONJUNCTIONS and right in NOUN_VERBS for left, right in pairs)
 
-    Read needs a leading (or trailing) read verb. `request`, `run`, `label`, `comment`, `review`,
-    `issue`, `commit` are write verbs only in leading position, so `get_pull_request` stays read.
+
+def tool_access(tool: Payload, server: str = "") -> tuple[str, str | None]:
+    """Fail closed. Any non-noun write verb anywhere makes a tool a write, even after a read verb.
+
+    `request`, `run`, `label`, `comment`, `review`, `issue`, `commit` are write verbs only when
+    leading or right after `and`/`then`, so `get_pull_request` and `issue_read` stay reads.
     """
     words = _strip_prefix(_name_tokens(tool["name"]), server)
     first, last = (words[0], words[-1]) if words else ("", "")
     hard_write = [w for w in words if w in WRITE_VERBS and w not in NOUN_VERBS]
-    if first in WRITE_VERBS or hard_write:
+    if hard_write or _noun_verb_after_conjunction(words):
         return "write", None
+    if first in NOUN_VERBS:
+        return ("read", "verb") if len(words) > 1 and last in READ_VERBS else ("write", None)
     if first in READ_VERBS or last in READ_VERBS:
         return "read", "verb"
     if last in WRITE_VERBS:
@@ -606,17 +640,24 @@ def _unique_names(entries: list[Payload], what: str) -> None:
     _need(len(names) == len(set(names)), f"duplicate {what} names")
 
 
-def scan_inventory(value: Any, path: str = "inventory") -> None:
-    """Reject sensitive shapes anywhere in the inventory; names the field, never the match."""
+def scan_inventory(value: Any, path: str = "inventory", key: str = "") -> None:
+    """Reject over-long strings and sensitive shapes anywhere in the inventory.
+
+    Names and URIs get every pattern; descriptions get token-shaped patterns only. A message
+    names the field, the class, and the offset, never the match.
+    """
     if isinstance(value, str):
-        classes = sensitive_classes(value)
-        _need(not classes, f"{path} holds sensitive pattern {classes[0] if classes else ''}")
+        cap = MAX_DESCRIPTION if key == "description" else MAX_NAME
+        _need(len(value) <= cap, f"{path} exceeds {cap} characters")
+        skip = PROSE_SHAPED if key == "description" else frozenset()
+        problem = _sensitive_problem(value, path, cap, skip)
+        _need(problem is None, problem or "")
     elif isinstance(value, dict):
-        for key, item in value.items():
-            scan_inventory(item, f"{path}.{key}")
+        for name, item in value.items():
+            scan_inventory(item, f"{path}.{name}", str(name))
     elif isinstance(value, list):
         for position, item in enumerate(value):
-            scan_inventory(item, f"{path}[{position}]")
+            scan_inventory(item, f"{path}[{position}]", key)
 
 
 def parse_inventory(data: Payload) -> Payload:
@@ -776,8 +817,11 @@ def cmd_plan(args: argparse.Namespace) -> tuple[int, Payload]:
     root = repo_toplevel(Path(args.repo))
     run_dir = ensure_outside(root, Path(args.run_dir), "--run-dir")
     _check_fresh_run_dir(run_dir)
-    _need(args.window_days >= 1, "--window-days must be >= 1")
-    _need(args.judge_runs >= 2, "--judge-runs must be >= 2")
+    _need(1 <= args.window_days <= MAX_WINDOW_DAYS, f"--window-days must be 1..{MAX_WINDOW_DAYS}")
+    _need(
+        MIN_JUDGE_RUNS <= args.judge_runs <= MAX_JUDGE_RUNS,
+        f"--judge-runs must be {MIN_JUDGE_RUNS}..{MAX_JUDGE_RUNS}",
+    )
     inventory = parse_inventory(load_json(Path(args.tools)))
     overrides = parse_overrides(args.class_override or [], inventory)
     hotspots = hotspot_paths(load_json(Path(args.candidates))) if args.candidates else []
@@ -843,7 +887,8 @@ def _check_plan_shape(plan: Payload) -> None:
         _parse_day(window.get("start"), "window.start") <= _parse_day(window.get("end"), "end"),
         "bad window",
     )
-    _int(plan["judge_runs"], "plan.judge_runs", 2)
+    runs = _int(plan["judge_runs"], "plan.judge_runs", MIN_JUDGE_RUNS)
+    _need(runs <= MAX_JUDGE_RUNS, f"plan.judge_runs must be at most {MAX_JUDGE_RUNS}")
     classes = _obj(plan["classes"], "plan.classes")
     _need(set(classes) == set(CLASSES), "plan.classes must cover every source class")
     for cls in CLASSES:
@@ -919,13 +964,25 @@ INDEX_ITEM_KEYS = {
 }
 
 
+def _check_index_item(item: Payload) -> None:
+    """Type-check one index item so a hand-edited index fails with exit 2, not a traceback."""
+    for key in ("id", "server", "locator", "thread", "path", "sha256"):
+        _need(isinstance(item[key], str), f"index item {key} must be text")
+    _enum(item["class"], CLASSES, "index item class")
+    _enum(item["visibility"], VISIBILITY, "index item visibility")
+    _parse_day(item["date"], "index item date")
+    _int(item["bytes"], "index item bytes")
+    _need(isinstance(item.get("metrics", {}), dict), "index item metrics must be an object")
+
+
 def _check_index_shape(index: Payload, plan: Payload) -> None:
     _need(index["schema_version"] == SCHEMA_VERSION, "unsupported index schema_version")
     _need(index["plan_id"] == plan["plan_id"], "index plan_id differs from the plan")
     for item in _lst(index["items"], "index.items"):
         _keys(_obj(item, "index item"), INDEX_ITEM_KEYS, ITEM_OPTIONAL, "index item")
+        _check_index_item(item)
     for row in _lst(index["coverage"], "index.coverage"):
-        _obj(row, "index coverage row")
+        _parse_coverage_row(row, 0)
     for key, entry in _obj(index["metric_thresholds"], "index.metric_thresholds").items():
         _need(key in METRIC_NUMERIC, f"index.metric_thresholds has unknown key {key!r}")
         _keys(_obj(entry, "metric threshold"), {"threshold", "items"}, set(), "metric threshold")
@@ -994,7 +1051,9 @@ def locate_file(run_dir: Path, rel: str) -> Path:
 
 def _read_regular_file(target: Path) -> bytes:
     """Open without following a final symlink, require a regular file, read at most MAX + 1."""
-    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0)
+    flags = os.O_RDONLY
+    for name in ("O_NOFOLLOW", "O_NONBLOCK", "O_BINARY"):
+        flags |= getattr(os, name, 0)
     try:
         descriptor = os.open(target, flags)
     except OSError as exc:
@@ -1022,8 +1081,24 @@ def read_evidence(run_dir: Path, rel: str) -> tuple[bytes, str]:
         raise EvidenceError("file is not valid UTF-8") from exc
 
 
-def sensitive_classes(text: str) -> list[str]:
-    return [name for name, pattern in SENSITIVE.items() if pattern.search(text)]
+def sensitive_hits(
+    text: str, limit: int | None = None, skip: frozenset[str] = frozenset()
+) -> list[tuple[str, int]]:
+    """Return (class, character offset) per matching pattern; never the matched text.
+
+    The text is cut to its documented cap first, so scan cost stays bounded per field.
+    """
+    scanned = text if limit is None else text[:limit]
+    hits = []
+    for name, pattern in SENSITIVE.items():
+        found = None if name in skip else pattern.search(scanned)
+        if found:
+            hits.append((name, found.start()))
+    return hits
+
+
+def sensitive_classes(text: str, limit: int | None = None) -> list[str]:
+    return [name for name, _ in sensitive_hits(text, limit)]
 
 
 def check_evidence_file(run_dir: Path, rel: str) -> tuple[list[str], str | None, int]:
@@ -1031,7 +1106,9 @@ def check_evidence_file(run_dir: Path, rel: str) -> tuple[list[str], str | None,
         raw, text = read_evidence(run_dir, rel)
     except EvidenceError as exc:
         return [str(exc)], None, 0
-    problems = [f"sensitive pattern {name}" for name in sensitive_classes(text)]
+    problems = [
+        f"sensitive pattern {name} at offset {offset}" for name, offset in sensitive_hits(text)
+    ]
     return problems, hashlib.sha256(raw).hexdigest(), len(raw)
 
 
@@ -1120,7 +1197,7 @@ def _row_violations(row: Payload) -> list[str]:
         text = row.get(key, "")
         if len(text) > MAX_COVERAGE_TEXT:
             found.append(f"coverage: class {cls} {key} exceeds {MAX_COVERAGE_TEXT} characters")
-        problem = _sensitive_problem(text, f"coverage: class {cls} {key}")
+        problem = _sensitive_problem(text, f"coverage: class {cls} {key}", MAX_COVERAGE_TEXT)
         if problem:
             found.append(problem)
     return found
@@ -1169,7 +1246,14 @@ def item_violations(
     if state is not None and state not in ("read", "partial"):
         found.append(f"class {cls} coverage state is {state}; items need read or partial")
     for key in ("locator", "thread"):
-        problem = locator_problem(item[key]) or _sensitive_problem(item[key], key)
+        skip = (
+            frozenset({"email"})
+            if key == "thread" and MESSAGE_ID_RE.match(item[key])
+            else frozenset()
+        )
+        problem = locator_problem(item[key]) or _sensitive_problem(
+            item[key], key, MAX_LOCATOR, skip
+        )
         if problem:
             found.append(problem if problem.startswith(key) else f"{key} {problem}")
     when = date.fromisoformat(item["date"])
@@ -1256,12 +1340,16 @@ def _text_problem(value: Any, limit: int, name: str) -> str | None:
         return f"{name} exceeds {limit} characters"
     if any(ord(char) < 32 for char in value):
         return f"{name} must be one line"
-    return _sensitive_problem(value, name)
+    return _sensitive_problem(value, name, limit)
 
 
-def _sensitive_problem(value: str, name: str) -> str | None:
-    classes = sensitive_classes(value)
-    return f"{name} holds sensitive pattern {classes[0]}" if classes else None
+def _sensitive_problem(
+    value: str, name: str, limit: int | None = None, skip: frozenset[str] = frozenset()
+) -> str | None:
+    hits = sensitive_hits(value, limit, skip)
+    if not hits:
+        return None
+    return f"{name} holds sensitive pattern {hits[0][0]} at offset {hits[0][1]}"
 
 
 def _in_enum(value: Any, allowed: tuple[str, ...], name: str) -> list[str]:
@@ -1391,18 +1479,28 @@ def _strip_meta(row: Payload) -> Payload:
     return {key: value for key, value in row.items() if key not in ROW_META}
 
 
+def _check_meta(entry: Payload, what: str) -> None:
+    _need(isinstance(entry["judge"], str), f"{what} judge must be text")
+    _need(type(entry["run"]) is int, f"{what} run must be an integer")
+    _need(isinstance(entry["batch_id"], str), f"{what} batch_id must be text")
+
+
 def _check_accepted(accepted: Payload, index: Payload) -> None:
     _need(accepted["schema_version"] == SCHEMA_VERSION, "unsupported accepted schema_version")
     _need(accepted["index_id"] == index["index_id"], "accepted index_id differs from the index")
     seen = set()
     for entry in _lst(accepted["imported"], "accepted.imported"):
         _keys(_obj(entry, "imported entry"), {*ROW_META, "rows_sha256"}, set(), "imported entry")
+        _check_meta(entry, "imported entry")
+        _need(isinstance(entry["rows_sha256"], str), "imported entry rows_sha256 must be text")
         _need(triple(entry) not in seen, "duplicate imported entry")
         seen.add(triple(entry))
     grouped: dict[tuple[str, int, str], list[Payload]] = {}
     for row in _lst(accepted["rows"], "accepted.rows"):
         _obj(row, "accepted row")
         _need(all(key in row for key in ROW_META), "accepted row lacks judge, run, batch_id")
+        _check_meta(row, "accepted row")
+        _need(isinstance(row.get("finding_id"), str), "accepted row finding_id must be text")
         grouped.setdefault(triple(row), []).append(_strip_meta(row))
     _need(set(grouped) <= seen, "accepted rows without an imported entry")
     for entry in accepted["imported"]:
@@ -1604,10 +1702,12 @@ def is_tracked(path: str, tracked: set[str]) -> bool:
 def names_path(text: str, path: str) -> bool:
     """True when `text` holds `path` on a path boundary, so `scripts` never matches `transcripts`.
 
-    A sentence-final period after the path is allowed; `.bak` or `/more` continuations are not.
+    Accepted lead-ins: a path boundary, a `./` prefix, or a `/blob/<ref>/` or `/tree/<ref>/` URL
+    segment. A sentence-final period after the path is allowed; `.bak` or `/more` are not.
     """
-    pattern = r"(?<![A-Za-z0-9_./-])" + re.escape(path) + r"(?![A-Za-z0-9_/-]|\.[A-Za-z0-9_])"
-    return re.search(pattern, text) is not None
+    lead = r"(?:(?<![A-Za-z0-9_./-])(?:\./)?|/(?:blob|tree)/[^/\s]{1,200}/)"
+    tail = r"(?![A-Za-z0-9_/-]|\.[A-Za-z0-9_])"
+    return re.search(lead + re.escape(path) + tail, text) is not None
 
 
 def primary_type(types: Counter[str]) -> str:
@@ -1923,29 +2023,57 @@ def render_friction_map(sweep: Payload) -> str:
 CONVENTION_PATTERNS = frozenset({"inconsistent-linking", "work-item-drift"})
 
 
-def check_out(root: Path, value: str | None) -> Path | None:
-    """`--out` must be a .json file outside the repo, and may replace only a prior sweep."""
+def check_out(root: Path, value: str | None, run_dir: Path) -> Path | None:
+    """`--out` is a .json file outside the repo; it may replace only a prior sweep.
+
+    Inside the run directory only `sweep.json` itself is allowed, so `--out` can never replace
+    plan.json, evidence.json, index.json, accepted.json, or a rows file kept there.
+    """
     if not value:
         return None
     out = ensure_outside(root, Path(value), "--out")
     _need(out.suffix == ".json", f"--out {out} must end in .json")
     _need(not out.is_dir(), f"--out {out} is a directory")
+    inside_run = run_dir in out.parents or out == run_dir
+    _need(
+        not inside_run or out == run_dir.resolve() / "sweep.json",
+        f"--out {out} is inside the run directory; only sweep.json may be written there",
+    )
     if out.exists():
         prior = load_json(out)
-        _need(
-            prior.get("schema_version") == SCHEMA_VERSION and "index_id" in prior,
-            f"--out {out} exists and is not a prior sweep; it is never overwritten",
+        is_sweep = prior.get("schema_version") == SCHEMA_VERSION and all(
+            key in prior for key in ("index_id", "incidents", "coverage")
         )
+        _need(is_sweep, f"--out {out} exists and is not a prior sweep; it is never overwritten")
     return out
+
+
+def indexed_evidence_problems(ctx: Context) -> list[str]:
+    """Re-read every indexed evidence file; list items whose digest, size, or presence changed."""
+    problems = []
+    for item in ctx.index["items"]:
+        try:
+            raw, _ = read_evidence(ctx.run_dir, item["path"])
+        except EvidenceError as exc:
+            problems.append(f"{item['id']}: {exc}")
+            continue
+        if hashlib.sha256(raw).hexdigest() != item["sha256"]:
+            problems.append(f"{item['id']}: evidence changed since indexing")
+        elif len(raw) != item["bytes"]:
+            problems.append(f"{item['id']}: evidence size changed since indexing")
+    return problems
 
 
 def cmd_tally(args: argparse.Namespace) -> tuple[int, Payload]:
     ctx = load_context(args.index, args.repo)
     verify_judges(ctx.plan)
-    out = check_out(ctx.root, args.out)
+    out = check_out(ctx.root, args.out, ctx.run_dir)
     target = ensure_inside(ctx.run_dir, Path(args.accepted), "--accepted")
     accepted = load_accepted(target, ctx.index, must_exist=True)
     check_accepted_rows(ctx, accepted)
+    changed = indexed_evidence_problems(ctx)
+    if changed:
+        return 1, {"violations": changed, "examined": {"items": len(ctx.index["items"])}}
     aliases = load_aliases(args.aliases, ctx.index["index_id"], accepted["rows"])
     sweep = build_sweep(ctx, accepted, aliases, tracked_paths(ctx.root))
     text = dumps(sweep)

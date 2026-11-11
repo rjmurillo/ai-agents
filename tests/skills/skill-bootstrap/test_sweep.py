@@ -507,7 +507,9 @@ def test_malformed_inventory_exits_2(sweep, inventory):
 
 def test_duplicate_json_keys_exit_2(sweep, tmp_path):
     tools = tmp_path / "dup.json"
-    tools.write_text('{"schema_version": 1, "schema_version": 1, "servers": [], "skills": []}')
+    tools.write_text(
+        '{"schema_version": 1, "schema_version": 1, "servers": [], "skills": []}', encoding="utf-8"
+    )
     code, _ = sweep.cli(
         "plan", "--tools", str(tools), "--repo", str(sweep.repo), "--run-dir", str(sweep.run_dir)
     )
@@ -532,7 +534,7 @@ def test_missing_tools_file_exits_2(sweep, tmp_path):
 def test_plan_stdout_matches_plan_file_body(sweep):
     _, payload = sweep.plan()
 
-    written = json.loads(sweep.plan_path.read_text())
+    written = json.loads(sweep.plan_path.read_text(encoding="utf-8"))
     assert {k: payload[k] for k in written} == written
 
 

@@ -208,11 +208,11 @@ Exit code 0 means success and exit code 1 means findings that need action, for e
 | `bootstrap_mine.py` | Bad arguments; not a repository; bad rev; unreadable `TARGET` or `--prs-json`; refused `--out`; an authored file over the 5 MiB read cap | Git missing, failed, or timed out; a working-tree read failed; `--out` write failed, including a write race |
 | `bootstrap_forms.py` | Bad arguments; unreadable or malformed plan | None |
 | `bootstrap_eval.py` | Bad arguments; unreadable or malformed cases, results, or frozen file; edited frozen file; refused `--out`, including a write race | Git missing, failed, or timed out; the regex grader child failed; `--out` write failed; any other I/O error |
-| `bootstrap_sweep.py` | Bad arguments; malformed or mismatched input; run directory in the repository or not empty; changed judge rubric; git missing or failed | None |
+| `bootstrap_sweep.py` | Bad arguments; malformed or mismatched input; run directory in the repository or not empty; changed judge rubric; git missing or failed; any read or write failure (payload `error` is `io`) | None |
 | `bootstrap_drift.py` | Bad arguments; repo or skills root not a directory; unknown `--name` | None; an unreadable `reverify.json` is `malformed` (exit 1) |
 | `bootstrap_boundary.py` | See the detail below | Git missing, failed, or timed out; an unreadable working-tree file |
 
-The payload `error` names the cause: `config` for exit 2, `git` or `io` for exit 3.
+The payload `error` names the cause: `config` for exit 2, `git` or `io` for exit 3. `bootstrap_sweep.py` exits 2 for both, with `config` for git failures and `io` for read or write failures.
 
 | Script and subcommand | Phase | Computes |
 |---|---|---|

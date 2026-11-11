@@ -138,7 +138,7 @@ def test_no_text_from_summaries_targets_or_rationale_reaches_output(
     assert code == 0
     for marker in ("SUMMARY-TEXT-MARKER", "TARGET-TEXT-MARKER", "RATIONALE-TEXT-MARKER"):
         assert marker not in text
-    assert "SUMMARY-TEXT-MARKER" in sweep_json.read_text()
+    assert "SUMMARY-TEXT-MARKER" in sweep_json.read_text(encoding="utf-8")
 
 
 def test_seed_keys_are_only_the_allowed_set(sweep, sweep_json, repo, capsys):
@@ -204,7 +204,7 @@ def test_sweep_json_records_one_seed_input(sweep, sweep_json, repo, capsys):
 
 
 def load(path: Path) -> dict[str, Any]:
-    data: dict[str, Any] = json.loads(path.read_text())
+    data: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
     return data
 
 
@@ -249,7 +249,7 @@ def test_invalid_sweep_exits_2_and_adds_no_seeds(sweep, sweep_json, repo, capsys
 
 def test_duplicate_json_keys_exit_2(sweep_json, repo, capsys, tmp_path):
     bad = tmp_path / "dup.json"
-    bad.write_text('{"schema_version": 1, "schema_version": 1}')
+    bad.write_text('{"schema_version": 1, "schema_version": 1}', encoding="utf-8")
 
     assert candidates(capsys, repo, "--sweep-json", str(bad))[0] == 2
 
@@ -260,7 +260,7 @@ def test_missing_sweep_file_exits_2(repo, capsys, tmp_path):
 
 def test_non_json_number_exits_2(repo, capsys, tmp_path):
     bad = tmp_path / "nan.json"
-    bad.write_text('{"schema_version": NaN}')
+    bad.write_text('{"schema_version": NaN}', encoding="utf-8")
 
     assert candidates(capsys, repo, "--sweep-json", str(bad))[0] == 2
 

@@ -69,7 +69,7 @@ def finding(**overrides):
 
 
 def accepted_rows(sweep):
-    return json.loads(sweep.accepted.read_text())
+    return json.loads(sweep.accepted.read_text(encoding="utf-8"))
 
 
 # ------------------------------------------------------------------ AC9 success
@@ -381,7 +381,7 @@ def test_import_with_run_dir_inside_repo_exits_2_and_writes_nothing(sweep, repo)
 
 def test_tampered_index_exits_2(sweep):
     sweep.ready()
-    index = json.loads(sweep.index_path.read_text())
+    index = json.loads(sweep.index_path.read_text(encoding="utf-8"))
     index["items"][0]["bytes"] += 1
     dump(sweep.index_path, index)
 
@@ -435,7 +435,7 @@ def test_existing_accepted_with_edited_rows_exits_2(sweep):
 
 def test_judge_rubric_changed_since_plan_exits_2(sweep, skill_dir):
     sweep.ready()
-    (skill_dir / "judges" / "friction.md").write_text("edited rubric\n")
+    (skill_dir / "judges" / "friction.md").write_text("edited rubric\n", encoding="utf-8")
 
     code, payload = sweep.import_("friction", 1, sweep.batches()[0], [finding()])
 
@@ -456,6 +456,6 @@ def test_judge_rubric_missing_exits_2(sweep, skill_dir):
 
 def test_new_judge_file_after_plan_does_not_break_import(sweep, skill_dir):
     sweep.ready()
-    (skill_dir / "judges" / "late.md").write_text("late\n")
+    (skill_dir / "judges" / "late.md").write_text("late\n", encoding="utf-8")
 
     assert sweep.import_("friction", 1, sweep.batches()[0], [finding()])[0] == 0

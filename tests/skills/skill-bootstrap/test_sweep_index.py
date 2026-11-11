@@ -32,7 +32,7 @@ def violations_of(sweep, **evidence):
 def test_index_success_writes_digest_bound_index(sweep):
     sweep.ready()
 
-    index = json.loads(sweep.index_path.read_text())
+    index = json.loads(sweep.index_path.read_text(encoding="utf-8"))
     keys = ("schema_version", "plan_id", "items", "coverage", "metric_thresholds")
     body = {k: index[k] for k in keys}
     assert index["index_id"] == bootstrap_sweep.digest(body)
@@ -78,7 +78,7 @@ def test_items_ordered_by_class_date_id_and_chunked(sweep):
     code, payload = sweep.index("--batch-size", "2")
 
     assert code == 0
-    index = json.loads(sweep.index_path.read_text())
+    index = json.loads(sweep.index_path.read_text(encoding="utf-8"))
     assert [i["id"] for i in index["items"]] == ["b-1", "z-1", "a-2", "pr-1", "mem-1"]
     assert [b["items"] for b in index["batches"]] == [["b-1", "z-1"], ["a-2", "pr-1"], ["mem-1"]]
     assert [b["items"] for b in payload["batches"]] == [2, 2, 1]
@@ -87,7 +87,7 @@ def test_items_ordered_by_class_date_id_and_chunked(sweep):
 def test_batch_id_format_and_binding(sweep):
     sweep.ready()
 
-    index = json.loads(sweep.index_path.read_text())
+    index = json.loads(sweep.index_path.read_text(encoding="utf-8"))
     batch = index["batches"][0]
     assert re.fullmatch(r"b001-[0-9a-f]{12}", batch["batch_id"])
     assert batch["batch_id"] == bootstrap_sweep.batch_id(index["index_id"], 1, batch["items"])
@@ -155,7 +155,7 @@ def test_tampered_plan_exits_2(sweep):
 def test_replanning_after_evidence_invalidates_manifest(sweep, skill_dir):
     planned(sweep)
     sweep.evidence()
-    (skill_dir / "judges" / "extra.md").write_text("new rubric\n")
+    (skill_dir / "judges" / "extra.md").write_text("new rubric\n", encoding="utf-8")
     plan = sweep.load_plan()
     plan["judges"].append({"name": "extra", "sha256": "0" * 64})
     plan["plan_id"] = bootstrap_sweep.digest({k: v for k, v in plan.items() if k != "plan_id"})
@@ -313,7 +313,7 @@ def test_symlink_inside_evidence_resolving_outside_is_violation(sweep, tmp_path)
     planned(sweep)
     sweep.evidence([make_item("chat-1")])
     outside = tmp_path / "secret.md"
-    outside.write_text("outside content")
+    outside.write_text("outside content", encoding="utf-8")
     link = sweep.run_dir / "evidence" / "chat-1.md"
     link.unlink()
     symlink_or_skip(link, outside)
@@ -393,10 +393,10 @@ def test_non_utf8_is_violation(sweep):
 def test_sensitive_pattern_reported_by_class_never_by_match(sweep, name):
     sample = SENSITIVE_SAMPLES[name]
     found = violations_of(
-        sweep, items=[make_item("chat-1")], texts={"chat-1": f"note {sample} end"}
+        sweep, items=[make_item("chat-1")], texts={"chat-1": f"note {sample}\nend"}
     )
 
-    assert f"chat-1: sensitive pattern {name}" in found
+    assert any(re.fullmatch(rf"chat-1: sensitive pattern {name} at offset \d+", v) for v in found)
     assert not any(sample in v or sample.strip() in v for v in found)
     assert not any(sample in json.dumps(v) for v in found)
 
@@ -413,7 +413,8 @@ def test_multiple_patterns_in_one_file_each_listed(sweep):
     text = SENSITIVE_SAMPLES["email"] + " " + SENSITIVE_SAMPLES["aws_key"]
     found = violations_of(sweep, items=[make_item("chat-1")], texts={"chat-1": text})
 
-    assert {"chat-1: sensitive pattern email", "chat-1: sensitive pattern aws_key"} <= set(found)
+    for name in ("email", "aws_key"):
+        assert any(v.startswith(f"chat-1: sensitive pattern {name} at offset ") for v in found)
 
 
 # ------------------------------------------------------------------ locator and thread
@@ -610,7 +611,7 @@ def test_metrics_are_copied_into_index_items_and_batches(sweep):
 
     code, _ = sweep.index()
 
-    index = json.loads(sweep.index_path.read_text())
+    index = json.loads(sweep.index_path.read_text(encoding="utf-8"))
     assert code == 0
     by_id = {i["id"]: i for i in index["items"]}
     assert by_id["pr-1"]["metrics"] == {"review_rounds": 1, "linked_issue": True}
@@ -622,7 +623,7 @@ def test_metrics_are_copied_into_index_items_and_batches(sweep):
 def test_batch_without_metrics_has_no_metrics_key(sweep):
     sweep.ready()
 
-    batch = json.loads(sweep.index_path.read_text())["batches"][0]
+    batch = json.loads(sweep.index_path.read_text(encoding="utf-8"))["batches"][0]
     assert "metrics" not in batch
 
 
@@ -665,7 +666,7 @@ def test_threshold_is_nearest_rank_p90_for_keys_with_five_or_more_items(sweep):
 
     sweep.index()
 
-    thresholds = json.loads(sweep.index_path.read_text())["metric_thresholds"]
+    thresholds = json.loads(sweep.index_path.read_text(encoding="utf-8"))["metric_thresholds"]
     assert thresholds == {"review_rounds": {"threshold": 9, "items": 10}}
 
 
@@ -680,10 +681,10 @@ def test_keys_with_fewer_than_five_items_have_no_threshold(sweep):
 
     sweep.index()
 
-    assert json.loads(sweep.index_path.read_text())["metric_thresholds"] == {}
+    assert json.loads(sweep.index_path.read_text(encoding="utf-8"))["metric_thresholds"] == {}
 
 
 def test_no_metrics_means_empty_thresholds(sweep):
     sweep.ready()
 
-    assert json.loads(sweep.index_path.read_text())["metric_thresholds"] == {}
+    assert json.loads(sweep.index_path.read_text(encoding="utf-8"))["metric_thresholds"] == {}

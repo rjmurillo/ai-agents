@@ -34,7 +34,7 @@ The skill-bootstrap user who wants skills that close institutional knowledge gap
 
 ### Q4
 
-About 16 hours: one stdlib script (`bootstrap_sweep.py`, four subcommands), three judge rubrics, one reference, a `--sweep-json` import in `bootstrap_mine.py`, template and reference edits, tests.
+About 16 hours: one stdlib script (`bootstrap_sweep.py`, four subcommands), five judge rubrics, one reference, a `--sweep-json` import in `bootstrap_mine.py`, template and reference edits, tests.
 
 ### Q5
 

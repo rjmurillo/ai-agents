@@ -129,7 +129,7 @@ def test_inventory_strings_with_secrets_exit_2_without_echo(sweep, name):
     sample = SENSITIVE_SAMPLES[name]
     inventory = {
         "schema_version": 1,
-        "servers": [{"name": "Slack", "description": f"note {sample} end", "tools": []}],
+        "servers": [{"name": f"Slack {sample}", "tools": []}],
         "skills": [],
     }
 
@@ -209,12 +209,15 @@ def test_coverage_text_at_500_characters_passes(sweep):
 @pytest.mark.parametrize("name", sorted(SENSITIVE_SAMPLES))
 def test_every_sensitive_class_is_detected_in_evidence_text(sweep, name):
     planned(sweep)
-    sweep.evidence([make_item("chat-1")], texts={"chat-1": f"note {SENSITIVE_SAMPLES[name]} end"})
+    sweep.evidence([make_item("chat-1")], texts={"chat-1": f"note {SENSITIVE_SAMPLES[name]}\nend"})
 
     code, payload = sweep.index()
 
     assert code == 1
-    assert f"chat-1: sensitive pattern {name}" in payload["violations"]
+    assert any(
+        re.fullmatch(rf"chat-1: sensitive pattern {name} at offset \d+", v)
+        for v in payload["violations"]
+    )
 
 
 @pytest.mark.parametrize(
@@ -400,7 +403,7 @@ def test_markdown_cells_keep_only_a_safe_alphabet(sweep):
 
     code, _ = sweep.tally()
 
-    text = (sweep.run_dir / "friction-map.md").read_text()
+    text = (sweep.run_dir / "friction-map.md").read_text(encoding="utf-8")
     row = next(line for line in text.splitlines() if "Evil" in line)
     assert code == 0
     assert row.startswith("| Evil_name_x__l_(u) |")
@@ -474,23 +477,23 @@ def test_out_refuses_an_existing_file_that_is_not_a_prior_sweep(sweep, tmp_path)
     sweep.ready()
     sweep.import_all([make_finding()])
     target = tmp_path / "precious.json"
-    target.write_text('{"keep": "me"}')
+    target.write_text('{"keep": "me"}', encoding="utf-8")
 
     code, payload = sweep.tally("--out", str(target))
 
     assert code == 2
     assert "not a prior sweep" in payload["message"]
-    assert target.read_text() == '{"keep": "me"}'
+    assert target.read_text(encoding="utf-8") == '{"keep": "me"}'
 
 
 def test_out_refuses_an_existing_non_json_file(sweep, tmp_path):
     sweep.ready()
     sweep.import_all([make_finding()])
     target = tmp_path / "notes.json"
-    target.write_text("not json at all")
+    target.write_text("not json at all", encoding="utf-8")
 
     assert sweep.tally("--out", str(target))[0] == 2
-    assert target.read_text() == "not json at all"
+    assert target.read_text(encoding="utf-8") == "not json at all"
 
 
 def test_out_replaces_a_prior_sweep(sweep, tmp_path):
@@ -502,7 +505,7 @@ def test_out_replaces_a_prior_sweep(sweep, tmp_path):
     code, _ = sweep.tally("--out", str(target))
 
     assert code == 0
-    assert json.loads(target.read_text())["index_id"] == sweep.index_id()
+    assert json.loads(target.read_text(encoding="utf-8"))["index_id"] == sweep.index_id()
 
 
 def test_out_refuses_a_directory(sweep, tmp_path):
@@ -550,7 +553,7 @@ def test_directory_is_not_a_regular_file(tmp_path):
 @pytest.mark.skipif(not hasattr(os, "O_NOFOLLOW"), reason="platform lacks O_NOFOLLOW")
 def test_final_symlink_is_not_followed(tmp_path):
     target = tmp_path / "real.md"
-    target.write_text("x")
+    target.write_text("x", encoding="utf-8")
     link = tmp_path / "link.md"
     symlink_or_skip(link, target)
 
@@ -590,7 +593,7 @@ def test_documented_rows_example_imports_verbatim(sweep):
     )
 
     assert code == 0, payload
-    stored = json.loads(sweep.accepted.read_text())["rows"][0]
+    stored = json.loads(sweep.accepted.read_text(encoding="utf-8"))["rows"][0]
     assert "batch_id" in doc["findings"][0]
     assert stored["batch_id"] == sweep.batches()[0]
     assert stored["finding_id"] == "f1"
@@ -602,7 +605,7 @@ def test_per_finding_batch_id_is_dropped_before_merge(sweep):
 
     assert sweep.import_("friction", 1, batch, [make_finding(batch_id=batch)])[0] == 0
 
-    accepted = json.loads(sweep.accepted.read_text())
+    accepted = json.loads(sweep.accepted.read_text(encoding="utf-8"))
     plain = make_finding()
     assert accepted["imported"][0]["rows_sha256"] == bootstrap_sweep.rows_digest([plain])
     assert list(accepted["rows"][0]).count("batch_id") == 1

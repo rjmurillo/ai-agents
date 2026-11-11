@@ -271,15 +271,39 @@ def test_name_inside_a_longer_word_does_not_corroborate(sweep, repo):
     assert incident["repo_paths"] == ["Makefile"]
 
 
-def test_evidence_changed_after_indexing_exits_2_when_text_is_needed(sweep):
-    prepare(sweep, texts={"chat-1": "see README.md"})
-    import_runs(sweep, [plain(repo_paths=["README.md"])])
-    (sweep.run_dir / "evidence" / "chat-1.md").write_text("tampered README.md")
+def test_evidence_changed_after_indexing_exits_1_even_without_repo_paths(sweep):
+    prepare(sweep)
+    import_runs(sweep, [plain()])
+    (sweep.run_dir / "evidence" / "chat-1.md").write_text("tampered", encoding="utf-8")
 
     code, payload = sweep.tally()
 
-    assert code == 2
-    assert "changed since indexing" in payload["message"]
+    assert code == 1
+    assert payload["violations"] == ["chat-1: evidence changed since indexing"]
+    assert not (sweep.run_dir / "sweep.json").exists()
+    assert not (sweep.run_dir / "friction-map.md").exists()
+
+
+def test_deleted_evidence_after_indexing_exits_1_and_lists_every_item(sweep):
+    prepare(sweep)
+    import_runs(sweep, [plain()])
+    (sweep.run_dir / "evidence" / "chat-2.md").unlink()
+    (sweep.run_dir / "evidence" / "mem-1.md").write_text("different words", encoding="utf-8")
+
+    code, payload = sweep.tally()
+
+    assert code == 1
+    assert sorted(v.split(":")[0] for v in payload["violations"]) == ["chat-2", "mem-1"]
+    assert payload["examined"] == {"items": 4}
+    assert not (sweep.run_dir / "sweep.json").exists()
+
+
+def test_unchanged_evidence_passes_the_digest_check(sweep):
+    prepare(sweep)
+
+    payload = sweep_of(sweep, [plain()])
+
+    assert payload["examined"]["items"] == 4
 
 
 # ------------------------------------------------------------------ ranking (H) and types
@@ -539,7 +563,7 @@ def test_tally_without_accepted_file_exits_2(sweep):
 def test_tampered_accepted_rows_exit_2(sweep):
     sweep.ready()
     import_runs(sweep, [finding()])
-    accepted = json.loads(sweep.accepted.read_text())
+    accepted = json.loads(sweep.accepted.read_text(encoding="utf-8"))
     accepted["rows"][0]["people"] = 99
     dump(sweep.accepted, accepted)
 
@@ -549,7 +573,7 @@ def test_tampered_accepted_rows_exit_2(sweep):
 def test_accepted_row_citing_evidence_outside_its_batch_exits_2(sweep):
     sweep.ready("--batch-size", "2")
     import_runs(sweep, [finding()])
-    accepted = json.loads(sweep.accepted.read_text())
+    accepted = json.loads(sweep.accepted.read_text(encoding="utf-8"))
     accepted["rows"][0]["evidence"] = ["mem-1"]
     findings = [
         {k: v for k, v in r.items() if k not in ("judge", "run", "batch_id")}
@@ -690,7 +714,7 @@ def test_aliases_with_wrong_schema_exit_2(sweep):
 def test_judge_drift_exits_2(sweep, skill_dir):
     sweep.ready()
     import_runs(sweep, [finding()])
-    (skill_dir / "judges" / "friction.md").write_text("changed\n")
+    (skill_dir / "judges" / "friction.md").write_text("changed\n", encoding="utf-8")
 
     code, payload = sweep.tally()
 
@@ -718,8 +742,8 @@ def test_out_outside_repo_matches_stdout_and_sweep_json(sweep, tmp_path):
     code, payload = sweep.tally("--out", str(target))
 
     assert code == 0
-    assert json.loads(target.read_text()) == payload
-    assert json.loads((sweep.run_dir / "sweep.json").read_text()) == payload
+    assert json.loads(target.read_text(encoding="utf-8")) == payload
+    assert json.loads((sweep.run_dir / "sweep.json").read_text(encoding="utf-8")) == payload
 
 
 def test_tally_run_dir_inside_repo_exits_2(sweep, repo):
@@ -831,7 +855,7 @@ def test_friction_map_markdown_has_sections_and_no_free_text(sweep):
     ]
     sweep_of(sweep, findings)
 
-    text = (sweep.run_dir / "friction-map.md").read_text()
+    text = (sweep.run_dir / "friction-map.md").read_text(encoding="utf-8")
 
     assert text.startswith("# Friction map\n")
     header = ["System", "Classes", "Items", "Incidents"]
@@ -855,7 +879,7 @@ def test_friction_map_markdown_empty_sections_say_none(sweep):
     import_runs(sweep, [])
     sweep.tally()
 
-    text = (sweep.run_dir / "friction-map.md").read_text()
+    text = (sweep.run_dir / "friction-map.md").read_text(encoding="utf-8")
 
     assert text.count("- none") == 3
     assert text.endswith("\n")
@@ -867,7 +891,7 @@ def test_friction_map_markdown_counts_incomplete_and_single_reader(sweep):
     import_runs(sweep, [finding()], overrides=other, skip={("knowledge-gap", 2)})
     sweep.tally()
 
-    text = (sweep.run_dir / "friction-map.md").read_text()
+    text = (sweep.run_dir / "friction-map.md").read_text(encoding="utf-8")
 
     assert "1 judge runs not imported" in text
     assert "3 findings without a matching second run" in text
@@ -893,7 +917,7 @@ def test_outliers_use_the_index_threshold_and_strictly_greater(sweep):
     payload = outlier_sweep(sweep, metric_items())
 
     entry = payload["outliers"]["metrics"]["review_rounds"]
-    index = json.loads(sweep.index_path.read_text())
+    index = json.loads(sweep.index_path.read_text(encoding="utf-8"))
     assert entry["threshold"] == index["metric_thresholds"]["review_rounds"]["threshold"] == 9
     assert entry["items"] == [{"id": "pr-10", "server": "github", "value": 10}]
 
@@ -956,7 +980,7 @@ def test_outliers_section_has_one_line_per_key_sorted(sweep):
     items += [make_item(f"pr-y{n}", "code_review", metrics={"commits": n}) for n in range(1, 4)]
     outlier_sweep(sweep, items)
 
-    text = (sweep.run_dir / "friction-map.md").read_text()
+    text = (sweep.run_dir / "friction-map.md").read_text(encoding="utf-8")
 
     section = text.split("## Outliers")[1].split("## Incomplete")[0]
     assert [line for line in section.splitlines() if line] == [
@@ -969,6 +993,6 @@ def test_outliers_section_has_one_line_per_key_sorted(sweep):
 def test_no_metric_values_leak_into_seeds_or_ids_in_markdown(sweep):
     outlier_sweep(sweep, metric_items())
 
-    text = (sweep.run_dir / "friction-map.md").read_text()
+    text = (sweep.run_dir / "friction-map.md").read_text(encoding="utf-8")
 
     assert "pr-10" not in text
