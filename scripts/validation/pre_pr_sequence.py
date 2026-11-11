@@ -115,6 +115,7 @@ from checks_plugin import (
 from checks_portability import (
     validate_agent_template_drift,
     validate_hook_template_drift,
+    validate_host_neutral_dispatch,
     validate_plugin_root_interpreter,
     validate_projection_invariants,
     validate_rule_lossless_fixtures,
@@ -520,6 +521,8 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Skill Markdown Portability", _root_only(validate_skill_md_portability)),
     # The subset of those .md refs a reader would execute (issue #2838).
     _Gate("Skill Markdown Exec Portability", _root_only(validate_skill_md_exec_portability)),
+    # Codex and Muse skills name each host's tool, never a bare Task( (#7226).
+    _Gate("Host-Neutral Dispatch", _root_only(validate_host_neutral_dispatch)),
     # A SKILL.md resolver must not be able to select an out-of-repo copy.
     _Gate("Skill Resolver Anchoring", _root_only(validate_skill_resolver_anchoring)),
     # A plugin-root skill invocation must be bare `python3` with a

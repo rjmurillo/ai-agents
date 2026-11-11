@@ -2,9 +2,11 @@
 
 Load this when a step names a command that your harness does not run as written. The workflow, gates, and status vocabulary are identical across Claude Code, Copilot CLI, and VS Code. Only the rows below differ. Each row was compared between the retired Claude body and the retired Copilot body of the `pr-comment-responder` agent.
 
+**Delegation on each host.** "Delegate to the `X` agent" means the host's subagent tool: Claude Code `Task` with `subagent_type="X"`; Copilot CLI `task` with `agent_type="project-toolkit:X"`; Codex `spawn_agent` with `agent_type="X"`, plus `fork_turns="none"` when the agent reviews or judges work (the default hands it your whole history); Muse Code `subagent_spawn` with `role="X"` and an `objective`, plus `worktree_isolation: true` for an agent that writes files. If the host has no subagent tool, or no `X` agent is installed, run the step yourself in this session.
+
 | Concern | Claude Code | Copilot CLI | VS Code |
 |---------|-------------|-------------|---------|
-| Delegate to a worker | `agent_type: "project-toolkit:orchestrator"` with prompt "..." | `/agent orchestrator` then the prompt text | `#runSubagent` with the matching `subagentType` |
+| Delegate to a worker | `Task` with `subagent_type="orchestrator"` and the prompt | `/agent orchestrator` then the prompt text | `#runSubagent` with the matching `subagentType` |
 | Worker names | `orchestrator`, `implementer`, `qa` | same | same |
 | Read a memory file | `Read` this checkout's `.serena/memories/<name>.md` | `mcp__serena__read_memory(memory_file_name="<name>")` | `mcp__serena__read_memory(memory_file_name="<name>")` |
 | Edit a memory file | follow Phase 9 in [coordinator-detail.md](coordinator-detail.md), which carries the linked-worktree guard for both harnesses | same | same |

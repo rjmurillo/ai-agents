@@ -76,7 +76,7 @@ Do not auto-apply edits. Confirm each case with the author of the change before 
 
 ### Step 3: Propose spec patches (follow-up, not in this slice)
 
-Patch proposal via the `spec-generator` agent is tracked as a follow-up. When wired, `/sync` will hand the drift findings to `Task(subagent_type="spec-generator")` to draft REQ/DESIGN/TASK edits and write a sync-log record, in a directory alongside the spec tiers, carrying the commit range it covered. Until then, apply the triage from Step 2 by hand and record the rationale in the PR description.
+Patch proposal via the `spec-generator` agent is tracked as a follow-up. When wired, `/sync` will hand the drift findings to the `spec-generator` agent (Claude Code: `Task`; Copilot CLI: `task`; Codex: `spawn_agent`; Muse Code: `subagent_spawn`) to draft REQ/DESIGN/TASK edits and write a sync-log record, in a directory alongside the spec tiers, carrying the commit range it covered. Until then, apply the triage from Step 2 by hand and record the rationale in the PR description.
 
 ## Principles
 

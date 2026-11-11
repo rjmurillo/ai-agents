@@ -289,8 +289,8 @@ def _inject_bash_multi_tool_scalar(text: str) -> str:
 def _weaken_approval_to_subset(text: str) -> str:
     """Replace every-command approval with subset-only approval."""
     return re.sub(
-        r"Every\s+shell command requires explicit user approval via "
-        r"AskUserQuestion before\s+execution",
+        r"Every\s+shell command requires explicit user approval, asked as above, "
+        r"before\s+execution",
         "Any command that writes outside the temporary directory, "
         "changes shared state,\n"
         "or cannot be undone requires\n"

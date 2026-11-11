@@ -82,7 +82,7 @@ Set `pr` from fact (b): `pr=#<number>` when an open PR exists for this branch, `
 
 {{> clear-the-gate}}
 
-Task(subagent_type="devops"): You are a release engineer. Run all 4 pre-flight checks below, branching by the `host`, `mode`, and `pr` set in Mode Detection. Report pass/fail for each with specific evidence. Any failure blocks shipping.
+Delegate to `devops` (Claude Code Task, Copilot CLI task, Codex spawn_agent, Muse Code subagent_spawn, else inline): You are a release engineer. Run all 4 pre-flight checks below, branching by the `host`, `mode`, and `pr` set in Mode Detection. Report pass/fail for each with specific evidence. Any failure blocks shipping.
 
 1. **Pipeline health**
    - `host=github`, `pr=#<number>` (open PR exists): query CI status through the GitHub skill's check-status flow: `python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request <number> --wait --timeout-seconds 300`, where `SCRIPTS_DIR` is resolved per the GitHub skill pattern. Do NOT use the pipeline-validator skill here: it drives Azure DevOps only, and its first step runs `az repos pr list`. PASS requires BOTH exit code 0 AND `Data.AllPassing == true` in the structured output; a no-check PR exits 0 with `AllPassing: false`. Exit code 7 means checks are still pending when the wait budget ran out: re-run the same command (do not raise `--timeout-seconds` past 570) before reporting FAIL. All CI checks green? No suppressed failures?
