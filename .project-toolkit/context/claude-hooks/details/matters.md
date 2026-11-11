@@ -1,6 +1,6 @@
 ## Matters
 
-- Generated from `templates/hooks/`; edit the template, not this tree. Render map: `templates/AGENTS.md`. Shipped entries pass through `src/claude/hooks/`; the repo-only entries (`PreCompact`, `PreToolUse`, `SessionEnd`, `SessionStart`, `UserPromptSubmit`, `session-start.sh`, the `hooks` row's `repo_only` list) render straight here and ship in no plugin.
+- Generated from `templates/hooks/`; edit the template, not this tree. Render map: `templates/AGENTS.md`. The `hooks` row's `repo_only` entries render here directly.
 - Hand-maintained exceptions: `AGENTS.md`, five `CLAUDE.md`, `PostToolUse/README.md`.
 - Group dispatcher only on `SessionStart`; `UserPromptSubmit`, `Stop`, `SessionEnd`, `PreCompact` register directly.
 - `hooks.json` links to `src/claude/hooks/hooks.json`: one advisory Stop group. Live registrations here are `.claude/settings.json`.
