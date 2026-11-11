@@ -2,8 +2,9 @@
 
 Issue #7288. Without ``--basetemp`` a nested pytest uses
 ``$TMPDIR/pytest-of-<user>``, one directory shared by every nested run on the
-machine. Pytest's ``cleanup_dead_symlinks`` checks ``is_symlink()`` then
-``unlink()`` on ``pytest-current`` with nothing between them, so two nested runs
+machine. Pytest's ``cleanup_dead_symlinks`` checks ``is_symlink()``, then
+``resolve().exists()``, then calls ``unlink()`` on ``pytest-current`` with no
+lock and no ``missing_ok``, so two nested runs
 racing under xdist can fail with ``FileNotFoundError: .../pytest-current``.
 
 Three checks:

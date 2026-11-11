@@ -7,8 +7,9 @@ not: with no ``--basetemp`` it falls back to ``$TMPDIR/pytest-of-<user>``, one
 directory that every nested run on the machine shares.
 
 Pytest keeps a ``pytest-current`` symlink in that directory. At session end
-``cleanup_dead_symlinks`` (``_pytest/pathlib.py``) checks ``is_symlink()`` and
-then calls ``unlink()`` with nothing in between. A second nested run that
+``cleanup_dead_symlinks`` (``_pytest/pathlib.py``) checks ``is_symlink()``,
+then that the target is gone, then calls ``unlink()`` with no lock and no
+``missing_ok``. A second nested run that
 replaces or removes the link in that window turns the ``unlink`` into
 ``FileNotFoundError: .../pytest-current`` and the nested run exits 1, which the
 mutation test reads as a failed suite.
