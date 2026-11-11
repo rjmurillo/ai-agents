@@ -124,7 +124,7 @@ surfaces:
     generator: build/scripts/generate_rules.py
     include: ["adr-records.instructions.md", "canonical-source-mirror.instructions.md", "ci-scripts.instructions.md", "claude-agents.instructions.md", "generated-artifacts.instructions.md", "governance.instructions.md", "knowledge-persistence.instructions.md", "plugin-self-containment.instructions.md", "plugin-version-bump.instructions.md", "push-lock.instructions.md", "secret-redaction.instructions.md", "session-logs.instructions.md", "templates.instructions.md", "tool-use-hook-bar.instructions.md"]
     owner: build_all.py --check
-    reason: Repo-only rules (scope internal end to end) render here as real files; paths becomes applyTo.
+    reason: Repo-only rules (scope internal end to end, or every glob in this repo build and CI layout) render here as real files; paths becomes applyTo.
 
   # ---- Hooks and settings -------------------------------------------------
   - id: hooks-claude-plugin
