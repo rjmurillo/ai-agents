@@ -42,3 +42,7 @@
 - The directory-level list means a future shipped `SessionStart` hook needs the entry split first. The high-level-advisor asked that the PR body record this as known debt.
 - The shipped `dispatch_groups.json` keeps the three `sessionstart-*` groups. No registration names them and the dispatcher reads only the invoked group. The PR body states this.
 - `tests/skills/taste-lints/test_taste_lints.py:1296` and `tests/skills/code-qualities-assessment/test_assess.py:1941` keep synthetic path strings. They are classifier inputs and still pass. Left unchanged.
+
+## Post-consensus edit (anchor only, not panel-reviewed)
+
+- The sentence on deleting the 13 rendered copies now carries `ac4d8da38 (2026-11-11)`. The pre-PR `Measurement Anchoring` row flagged the bare count (`universal.md` MUST 9). The decision text is unchanged.

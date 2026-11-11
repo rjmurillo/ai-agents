@@ -240,7 +240,7 @@ The list is directory-level, because the `hooks` copy row compares only the firs
 
 `templates/platforms/surface-parity.yaml` gains a `hooks-claude-repo-only` surface. It names each repo-only file under `.claude/hooks/` as generated from `templates/hooks/`. Without it, the binplaced `hooks-claude-install` surface reports each file as an extra. The new surface uses an `include:` list, as the repo-only rules surface does, and `hooks-claude-install` keeps every other path under `.claude/hooks/`. A test checks that the `include:` list equals the files under the listed entries, with a negative control that adds a name to one side only. A stray file under a listed directory is then unclassified, and the surface parity check fails on it.
 
-The 13 rendered copies under `src/claude/hooks/` are deleted in the same change. The hook compiler never prunes a target, so nothing else removes them.
+The 13 rendered copies under `src/claude/hooks/` at ac4d8da38 (2026-11-11) are deleted in the same change. The hook compiler never prunes a target, so nothing else removes them.
 
 The same change updates every statement that all hooks-class files render to `src/claude/hooks/`: the `hooks` row comment in `binplace.yaml`, the `hook_templates.py` and `build_all.py` docstrings, the `Hook Template Drift` docstring in `checks_portability.py`, `build/AGENTS.md`, and DESIGN-025 B4.
 
