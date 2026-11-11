@@ -13,13 +13,8 @@
 # - Commits the result on the automation/reviewer-stats branch and opens a
 #   pull request, because the default branch is protected (issue #7287)
 #
-# A pull request opened with github.token starts no pull_request runs, so a
-# human closes and reopens it before required checks report. While that pull
-# request is open, later runs leave it alone.
-#
-# Every output file belongs in the single publish step below, as one more
-# --path. A second publish step would find the first step's open pull request
-# and skip.
+# scripts/ci/open_bot_pr.py documents the publish rules, the stale-branch
+# delete, and why a human must close and reopen the pull request.
 #
 # Related: Issue #234 (Automated daily reviewer signal quality statistics)
 
@@ -39,12 +34,20 @@ on:
 permissions:
   contents: read
 
+# One publish at a time: a second run that saw a stale branch would delete the
+# branch the first run just pushed, and GitHub closes the pull request. A
+# cancelled publish is safe: the next run deletes the orphan branch and retries.
+concurrency:
+  group: update-reviewer-stats
+  cancel-in-progress: true
+
 jobs:
   update-stats:
     name: Update Reviewer Stats
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-26.04-arm
     environment: agent-claude
+    timeout-minutes: 15
     # Least privilege per job: contents writes the bot branch, pull-requests
     # opens the pull request (issue #7287).
     permissions:
@@ -57,6 +60,8 @@ jobs:
         with:
           # Need full history for accurate PR analysis
           fetch-depth: 0
+          # The publish step authenticates through gh auth setup-git.
+          persist-credentials: false
 
       - name: Set up uv
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3

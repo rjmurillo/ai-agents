@@ -62,6 +62,8 @@ DEFAULT_WORKFLOWS: list[str] = [
     "CodeQL Analysis",
     # claude.yml; its group is job-level and keyed per request (ADR-114).
     "Claude Code Assistant",
+    # update-reviewer-stats.yml; a daily publish serialized by one group.
+    "Update Reviewer Signal Stats",
 ]
 
 # ---------------------------------------------------------------------------
