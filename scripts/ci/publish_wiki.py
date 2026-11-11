@@ -69,7 +69,7 @@ from scripts.ci._wiki_links import split_fenced as split_fenced  # noqa: E402  (
 EXIT_OK, EXIT_LOGIC, EXIT_CONFIG, EXIT_EXTERNAL, EXIT_AUTH = 0, 1, 2, 3, 4
 
 HOME = "Home"
-TOKEN_SECRET = "WIKI_PUSH_TOKEN"
+PUSH_SETTING_NAME = "WIKI_PUSH_TOKEN"
 NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*\.md$")
 
 
@@ -293,7 +293,7 @@ def load_config(args: argparse.Namespace, environ: Mapping[str, str]) -> Config 
 def blocked_auth(where: str, detail: str, environ: Mapping[str, str]) -> int:
     detail = safe(detail)
     summary(
-        f"BLOCKED: auth rejected {where} the wiki. Add the secret {TOKEN_SECRET} "
+        f"BLOCKED: auth rejected {where} the wiki. Add the secret {PUSH_SETTING_NAME} "
         f"to the wiki-publish environment (PAT, contents write).\n{detail}",
         environ,
     )
@@ -397,7 +397,7 @@ def run(args: argparse.Namespace, environ: Mapping[str, str]) -> int:
     )
     if not cfg.dry and cfg.token is None and cfg.wiki_url.startswith("https://"):
         summary(
-            f"SKIP: no credential. Add the secret {TOKEN_SECRET} to the wiki-publish "
+            f"SKIP: no credential. Add the secret {PUSH_SETTING_NAME} to the wiki-publish "
             "environment (PAT, contents write), or pass a token that can push to the "
             "wiki as WIKI_TOKEN. Nothing was published.",
             environ,

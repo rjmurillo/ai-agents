@@ -283,7 +283,7 @@ def test_no_credential_for_https_skips_and_names_the_secret(
     assert run_main(repo, "https://github.com/acme/widgets.wiki.git") == 0
     out = capsys.readouterr().out
     assert "SKIP: no credential" in out
-    assert pw.TOKEN_SECRET in out
+    assert pw.PUSH_SETTING_NAME in out
 
 
 def test_step_summary_file_receives_the_outcome(repo: Path, wiki: Path, tmp_path: Path) -> None:
@@ -361,7 +361,7 @@ def test_push_auth_rejection_exits_4_and_names_the_secret(
 ) -> None:
     _push_fails_with(monkeypatch, "remote: Permission denied\nfatal: 403")
     assert run_main(repo, wiki) == 4
-    assert pw.TOKEN_SECRET in capsys.readouterr().out
+    assert pw.PUSH_SETTING_NAME in capsys.readouterr().out
 
 
 def test_push_rejected_for_other_reason_exits_3(
