@@ -115,6 +115,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     "Skill Script Portability",
     "Skill Markdown Portability",
     "Skill Markdown Exec Portability",
+    "Host-Neutral Dispatch",
     "Skill Resolver Anchoring",
     "Plugin-Root Interpreter",
     "Projection Invariants (ADR-107)",

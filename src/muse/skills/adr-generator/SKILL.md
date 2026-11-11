@@ -208,7 +208,12 @@ invent a correction when evidence is unavailable or a claim remains uncertain.
 3. **Self-consistency.** Compare every Decision item with every other Decision
    item and with Consequences. Record contradictions or the `VERIFIED` result.
 4. **Refuting seat.** Run one seat, not the panel:
-   `Task(subagent_type="analyst", model="haiku", prompt="Refute only the claims ledger against the repository tree. Return factual findings and evidence.")`.
+   delegate to the `analyst` agent with the prompt "Refute only the claims ledger
+   against the repository tree. Return factual findings and evidence." (Claude Code:
+   `Task` with `subagent_type="analyst"`, `model="haiku"`; Copilot CLI: `task`
+   with `agent_type="project-toolkit:analyst"`; Codex: `spawn_agent` with
+   `agent_type="analyst"`; Muse Code: `subagent_spawn` with `role="analyst"`; no
+   subagent tool: run the seat yourself).
    The outcome is `VERIFIED` only when no factual findings remain. Do not invoke
    `adr-review` while this seat reports a factual finding; record unavailable
    evidence as `UNAVAILABLE`, never as a fabricated correction.
