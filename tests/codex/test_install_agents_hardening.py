@@ -191,3 +191,42 @@ def test_cli_module_exit_code_for_missing_home(monkeypatch, world):
     monkeypatch.delenv("CODEX_HOME", raising=False)
     monkeypatch.setattr(Path, "home", lambda: (_ for _ in ()).throw(RuntimeError("no home")))
     assert ia.main(["--user"], agents_dir=world.agents) == 2
+
+
+def test_uninstall_with_no_record_says_so(world, capsys):
+    assert run_installer(world, "--uninstall") == 0
+    out = capsys.readouterr().out
+    assert "nothing to remove" in out and "Applied" not in out
+
+
+def test_directory_sync_excuses_only_an_unsupported_file_system(tmp_path, monkeypatch):
+    import errno
+
+    for code in (errno.EINVAL, errno.ENOTSUP):
+        monkeypatch.setattr(
+            ia.os, "fsync", lambda fd, code=code: (_ for _ in ()).throw(OSError(code, "x"))
+        )
+        ia._sync_dir(tmp_path)  # excused
+    monkeypatch.setattr(
+        ia.os, "fsync", lambda fd: (_ for _ in ()).throw(OSError(errno.EIO, "disk"))
+    )
+    if hasattr(ia.os, "O_DIRECTORY"):
+        with pytest.raises(OSError):
+            ia._sync_dir(tmp_path)
+
+
+def test_io_failure_message_says_how_to_repair(world, monkeypatch, capsys):
+    def boom(path, data):
+        raise OSError(28, "No space left on device", "qa.toml")
+
+    monkeypatch.setattr(ia, "_atomic_write", boom)
+    assert run_installer(world) == 3
+    assert "Rerun to repair" in capsys.readouterr().err
+
+
+def test_summary_counts_a_namespaced_install_once(world, capsys):
+    target = target_dir(world)
+    target.mkdir(parents=True)
+    (target / "qa.toml").write_bytes(agent_bytes("qa", "theirs"))
+    assert run_installer(world, "--namespace", "tk") == 0
+    assert "Summary: installed 3," in capsys.readouterr().out

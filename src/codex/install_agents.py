@@ -18,6 +18,7 @@ configuration error, 3 file system error. Stdlib only; ``tomllib`` is optional.
 from __future__ import annotations
 
 import argparse
+import errno
 import hashlib
 import importlib
 import json
@@ -39,7 +40,7 @@ AGENT_SUFFIX = ".toml"
 PREFIX_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 _NAME_LINE = re.compile(r'^name = "([^"\n]*)"\n')
 EXIT_OK, EXIT_REFUSED, EXIT_USAGE, EXIT_IO = 0, 1, 2, 3
-_KINDS = ("installed", "updated", "adopted", "removed", "namespaced", "skipped")
+_KINDS = ("installed", "updated", "adopted", "removed", "skipped")
 
 
 class InstallError(Exception):
@@ -294,7 +295,6 @@ def build_install_plan(
         if namespace is None:
             plan.conflicts.append(_conflict_text(target, name, owned))
         else:
-            plan.counts["namespaced"] += 1
             _plan_namespaced(plan, target, name, data, owned, namespace)
     _plan_owned_leftovers(plan, target, shipped, owned)
     return plan
@@ -336,6 +336,9 @@ def _sync_dir(path: Path) -> None:
     fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
     try:
         os.fsync(fd)
+    except OSError as exc:
+        if exc.errno not in (errno.EINVAL, errno.ENOTSUP, errno.EBADF):
+            raise  # a real I/O error; only "this file system cannot sync a directory" is excused
     finally:
         os.close(fd)
 
@@ -410,6 +413,10 @@ def run(args: argparse.Namespace, agents_dir: Path) -> int:
         plan = build_uninstall_plan(target, owned)
     else:
         plan = build_install_plan(load_shipped(agents_dir), target, owned, args.namespace)
+    if args.uninstall and not owned.files:
+        print(f"No ownership file with recorded agents at {target}; nothing to remove.")
+        print("Check that --project or --user matches the install.")
+        return EXIT_OK
     if plan.conflicts:
         for conflict in plan.conflicts:
             print(f"CONFLICT: {conflict}", file=sys.stderr)
@@ -445,6 +452,10 @@ def main(argv: list[str] | None = None, agents_dir: Path | None = None) -> int:
         return EXIT_USAGE
     except OSError as exc:
         print(f"Error: {exc.filename or 'file system'}: {exc.strerror or exc}", file=sys.stderr)
+        print(
+            "Some agent files may be written. Rerun to repair; matching files are adopted.",
+            file=sys.stderr,
+        )
         return EXIT_IO
 
 
