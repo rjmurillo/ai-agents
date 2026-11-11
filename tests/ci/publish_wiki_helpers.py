@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -51,9 +52,21 @@ def git(args: list[str], cwd: Path) -> str:
     return done.stdout
 
 
+ON_WINDOWS = os.name == "nt"
+
+
 def symlink_or_skip(link: Path, target: Path) -> None:
-    """Create ``link`` -> ``target``, or skip when the platform lacks symlink privilege."""
+    """Create ``link`` -> ``target``, or skip when the platform lacks symlink privilege.
+
+    Windows without Developer Mode raises ``OSError``; a platform with no symlink
+    support raises ``NotImplementedError``. On POSIX any other ``OSError`` is a
+    broken fixture and must fail the test, not skip it.
+    """
     try:
         link.symlink_to(target, target_is_directory=target.is_dir())
-    except (OSError, NotImplementedError) as exc:
+    except NotImplementedError as exc:
+        pytest.skip(f"cannot create symbolic links here: {exc}")
+    except OSError as exc:
+        if not ON_WINDOWS:
+            raise
         pytest.skip(f"cannot create symbolic links here: {exc}")

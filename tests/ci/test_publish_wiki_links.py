@@ -21,6 +21,7 @@ from scripts.ci._wiki_links import (
     strip_target,
     unmask_code,
 )
+from tests.ci import publish_wiki_helpers as helpers
 from tests.ci.publish_wiki_helpers import (
     BLOB,
     README,
@@ -138,12 +139,44 @@ def test_clear_entry_removes_a_symlink_but_not_its_target(tmp_path: Path) -> Non
     shutil.rmtree(target)
 
 
-def test_symlink_helper_skips_when_the_platform_cannot_create_links(
+def refuse_with(error: Exception) -> object:
+    def refuse(self: Path, target: Path, target_is_directory: bool = False) -> None:
+        raise error
+
+    return refuse
+
+
+def test_symlink_helper_skips_when_symlinks_are_not_implemented(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def refuse(self: Path, target: Path, target_is_directory: bool = False) -> None:
-        raise OSError("A required privilege is not held by the client")
-
-    monkeypatch.setattr(Path, "symlink_to", refuse)
+    monkeypatch.setattr(Path, "symlink_to", refuse_with(NotImplementedError("no symlinks")))
     with pytest.raises(pytest.skip.Exception, match="cannot create symbolic links"):
         symlink_or_skip(tmp_path / "link", tmp_path)
+
+
+def test_symlink_helper_skips_an_oserror_only_on_windows(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(helpers, "ON_WINDOWS", True)
+    monkeypatch.setattr(Path, "symlink_to", refuse_with(OSError("privilege not held")))
+    with pytest.raises(pytest.skip.Exception, match="cannot create symbolic links"):
+        symlink_or_skip(tmp_path / "link", tmp_path)
+
+
+def test_symlink_helper_fails_on_posix_for_an_oserror(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A broken fixture must not turn a guard test into a skip."""
+    monkeypatch.setattr(helpers, "ON_WINDOWS", False)
+    monkeypatch.setattr(Path, "symlink_to", refuse_with(FileExistsError("exists")))
+    with pytest.raises(FileExistsError):
+        symlink_or_skip(tmp_path / "link", tmp_path)
+
+
+def test_symlink_helper_really_creates_a_link(tmp_path: Path) -> None:
+    target = tmp_path / "real.txt"
+    target.write_text("x", encoding="utf-8")
+    link = tmp_path / "link.txt"
+    symlink_or_skip(link, target)
+    assert link.is_symlink()
+    assert link.read_text(encoding="utf-8") == "x"
