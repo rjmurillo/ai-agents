@@ -288,6 +288,17 @@ class TestForeignPluginRootIsSkipped:
         token = f"{_FORM}/../../outside.py"
         assert gate._expand_plugin_root(token, probe=True) == f"{foreign}/../../outside.py"
 
+    def test_a_remainder_without_a_separator_is_never_probed(
+        self, repo: Path, foreign: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """``${...}evil/x.py`` must not probe ``<root>/evil/x.py``."""
+        write(foreign, "evil/x.py", "print('{}')")
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(foreign))
+        token = f"{_FORM}evil/x.py"
+        assert gate._expand_plugin_root(token, probe=True) == f"{foreign}evil/x.py"
+        assert gate._plugin_root_holds(str(foreign), "evil/x.py") is False
+        assert gate._plugin_root_holds(str(foreign), "/evil/x.py") is True
+
     def test_a_form_inside_a_larger_token_is_not_probed(
         self, repo: Path, foreign: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
