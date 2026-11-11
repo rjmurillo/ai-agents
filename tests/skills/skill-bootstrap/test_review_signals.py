@@ -28,11 +28,13 @@ def item(number: int, **fields: Any) -> dict[str, Any]:
 
 
 def failures(items: list[dict[str, Any]], **kwargs: Any) -> dict[str, Any]:
-    return br.mine_review_signals(items, as_of=AS_OF, **kwargs)[0]
+    result: dict[str, Any] = br.mine_review_signals(items, as_of=AS_OF, **kwargs)[0]
+    return result
 
 
 def missed(items: list[dict[str, Any]]) -> dict[str, Any]:
-    return br.mine_review_signals(items, as_of=AS_OF)[1]
+    result: dict[str, Any] = br.mine_review_signals(items, as_of=AS_OF)[1]
+    return result
 
 
 def keys(result: dict[str, Any]) -> set[tuple[str, str]]:

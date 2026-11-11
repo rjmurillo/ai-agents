@@ -55,6 +55,13 @@ def _count(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
 
+def _number(item: Mapping[str, Any], item_no: int) -> int:
+    number = item.get("number")
+    if not isinstance(number, int) or isinstance(number, bool) or number < 0:
+        raise ValueError(f"item {item_no} needs an integer `number`")
+    return number
+
+
 def _strings(value: object, where: str) -> list[str]:
     if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
         raise ValueError(f"{where} must be a list of strings")
@@ -128,9 +135,7 @@ def mine_review_signals(
     links_by_pr: dict[int, set[int]] = {}
     prs_with_threads = threads_total = human_threads = 0
     for item_no, item in enumerate(items):
-        number = item.get("number")
-        if not _count(number):
-            raise ValueError(f"item {item_no} needs an integer `number`")
+        number = _number(item, item_no)
         threads = item.get("review_threads")
         if threads is not None:
             if not isinstance(threads, list):
@@ -180,7 +185,7 @@ def _missed_items(
             for area in areas:
                 by_area[area]["fix"].add(fix_pr)
                 by_area[area]["introducer"].add(introducer)
-    rows = [
+    rows: list[Payload] = [
         {
             "area": area,
             "count": len(sets["fix"]),
