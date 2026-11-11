@@ -68,14 +68,11 @@ def test_every_shipped_surface_holds(manifest: sm.Manifest) -> None:
     assert [f.render() for f in found] == []
 
 
-# `mirrored` has no live surface since the security sidecar copies were retired.
-# The synthetic cases in test_check_surface_parity.py still exercise it, so the
-# vocabulary keeps it; the live manifest must use every other relation.
-UNUSED_RELATIONS = {"mirrored"}
-
-
+# `mirrored` went unused when the security sidecar copies were retired. The
+# lib/paths.py byte copies into the Codex, Cursor, and Muse trees (issue #7221)
+# use it again, so the live manifest must use every relation in the vocabulary.
 def test_manifest_distinguishes_every_live_relation(manifest: sm.Manifest) -> None:
-    assert {s.relation for s in manifest.surfaces} == sm.RELATIONS - UNUSED_RELATIONS
+    assert {s.relation for s in manifest.surfaces} == sm.RELATIONS
 
 
 def test_hand_maintained_surfaces_are_declared(manifest: sm.Manifest) -> None:

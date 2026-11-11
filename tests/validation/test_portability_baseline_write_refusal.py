@@ -50,7 +50,7 @@ SKILLS = ("alpha", "beta", "gamma")
 # every "the baseline did not change" assertion below vacuously true.
 SKILL_BODY = (
     "---\nname: {name}\n---\nSee scripts/validation/x.py for detail.\n\n"
-    "```bash\npython3 .claude/skills/x/scripts/y.py\n```\n"
+    "```bash\npython3 build/x/y.py\n```\n"
 )
 
 

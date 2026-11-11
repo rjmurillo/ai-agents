@@ -30,6 +30,7 @@ for _extra_path in (_TEST_DIR, _REPO_ROOT / "build" / "scripts"):
 
 import binplace_manifest  # noqa: E402
 import generate_skills  # noqa: E402
+import lib_hand_files  # noqa: E402
 import lib_mirror  # noqa: E402
 
 CANONICAL = lib_mirror.SKILLS_SIDECAR_SOURCE
@@ -59,6 +60,10 @@ def repo(tmp_path: Path) -> Path:
     for pkg in lib_mirror.PACKAGES:
         _write(tmp_path, f"scripts/{pkg}/__init__.py", "")
     _write(tmp_path, "scripts/hook_utilities/bootstrap.py", '"""Bootstrap."""\n')
+    for name in lib_hand_files.PLUGIN_LIB_FILES:
+        _write(
+            tmp_path, f"{lib_hand_files.PLUGIN_LIB_SOURCE_DIR}/{name}", '"""Hand-maintained."""\n'
+        )
     _write(tmp_path, CANONICAL, OLD)
     _write(tmp_path, "src/claude/skills/review/SKILL.md", "# review\n")
     _write(tmp_path, "src/claude/skills/review/scripts/other.py", "print('other')\n")
