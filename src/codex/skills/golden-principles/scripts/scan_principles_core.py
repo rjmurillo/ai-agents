@@ -18,7 +18,7 @@ from __future__ import annotations
 import os
 import re
 import subprocess
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 __all__ = [
@@ -106,6 +106,11 @@ class Violation:
     line: int
     message: str
     remediation: str
+
+    def to_dict(self) -> dict[str, str | int]:
+        """Serialize fields in their declared order."""
+        result: dict[str, str | int] = asdict(self)
+        return result
 
 
 @dataclass

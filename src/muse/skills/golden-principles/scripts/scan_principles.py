@@ -15,12 +15,9 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import sys
-from dataclasses import asdict
 from pathlib import Path
-from typing import cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
 
@@ -287,7 +284,7 @@ def run_scan(
     for filepath in files:
         if not is_safe_path(filepath):
             continue
-        if not os.path.isfile(filepath):
+        if not Path(filepath).is_file():
             continue
 
         result.files_scanned += 1
@@ -346,14 +343,15 @@ def format_json(result: ScanResult) -> str:
         "applicable_files": result.applicable_files,
         "error_count": result.error_count,
         "warning_count": result.warning_count,
-        "violations": [asdict(v) for v in result.violations],
+        "violations": [v.to_dict() for v in result.violations],
     }
     return json.dumps(data, indent=2)
 
 
 def parse_rules(rules_str: str) -> tuple[str, ...]:
     """Parse comma-separated rule names."""
-    return cast(tuple[str, ...], parse_scan_rules(rules_str, ALL_RULES, EXIT_ERROR))
+    rules: tuple[str, ...] = parse_scan_rules(rules_str, ALL_RULES, EXIT_ERROR)
+    return rules
 
 
 def _find_repo_root() -> str | None:
