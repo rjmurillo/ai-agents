@@ -50,6 +50,7 @@ EXIT_USAGE = 2
 EXIT_EXTERNAL = 3
 
 _BASE_DEFAULT = "main"
+_PR_LIST_LIMIT = 100
 EXIT_NOT_FOUND_LS_REMOTE = 2  # `git ls-remote --exit-code`: no matching ref
 
 
@@ -116,7 +117,18 @@ def open_pr_url(branch: str) -> str | None:
     read as "no pull request".
     """
     result = _gh(
-        ["pr", "list", "--head", branch, "--state", "open", "--json", "url,isCrossRepository"]
+        [
+            "pr",
+            "list",
+            "--head",
+            branch,
+            "--state",
+            "open",
+            "--limit",
+            str(_PR_LIST_LIMIT),
+            "--json",
+            "url,isCrossRepository",
+        ]
     )
     if result.returncode != 0:
         raise GhQueryError(result.stdout)
@@ -131,6 +143,8 @@ def open_pr_url(branch: str) -> str | None:
         for r in rows
     ):
         raise GhQueryError(f"unexpected gh output shape: {result.stdout!r}")
+    if len(rows) >= _PR_LIST_LIMIT:
+        raise GhQueryError(f"pull request list may be truncated at {_PR_LIST_LIMIT} rows")
     own = [r for r in rows if not r["isCrossRepository"]]
     return str(own[0]["url"]) if own else None
 

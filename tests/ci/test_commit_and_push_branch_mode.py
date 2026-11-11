@@ -138,6 +138,15 @@ def test_fork_pull_request_with_the_same_branch_name_does_not_block_publishing(
     assert world.issued("gh", "pr", "create")
 
 
+def test_full_pr_list_page_fails_closed_instead_of_reading_as_no_match(world: _World) -> None:
+    world.open_prs = [
+        {"url": f"https://github.com/o/r/pull/{n}", "isCrossRepository": True} for n in range(100)
+    ]
+    assert main(_ARGS) == 3
+    assert world.issued("git", "push") == []
+    assert world.issued("gh", "pr", "create") == []
+
+
 def test_publishes_branch_and_opens_pull_request(world: _World) -> None:
     assert main(_ARGS) == 0
     verbs = [tuple(c[:3]) for c in world.calls if c[1] in {"checkout", "add", "commit", "push"}]
