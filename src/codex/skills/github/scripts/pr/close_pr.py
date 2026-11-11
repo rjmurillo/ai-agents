@@ -3,12 +3,13 @@
 
 Closes a PR with optional comment explaining the reason.
 Supports idempotency: returns success if already closed.
+A failed closing comment stops the run with exit 3 before the close call.
 
 Exit codes follow ADR-035:
     0 - Success
     1 - Invalid parameters / logic error
     2 - Not found
-    3 - External error (API failure)
+    3 - External error (API failure, or the closing comment failed so the PR stays open)
     4 - Auth error
 """
 
@@ -52,7 +53,7 @@ examples:
 exit codes:
   0  success
   2  not found
-  3  external error (API failure)
+  3  external error (API failure, including a failed closing comment: the PR stays open)
   4  auth error
 """
 
@@ -157,13 +158,21 @@ def main(argv: list[str] | None = None) -> int:
         return reported
 
     if comment:
-        subprocess.run(
+        comment_result = subprocess.run(
             ["gh", "pr", "comment", str(pr), "--repo", repo_flag, "--body", comment],
             capture_output=True,
             text=True,
             timeout=30,
             check=False,
         )
+        if comment_result.returncode != 0:
+            error_and_exit(
+                f"Failed to post the closing comment on PR #{pr}: "
+                f"{comment_result.stderr or comment_result.stdout}. "
+                "The PR was NOT closed, so the explanation is never lost. "
+                "Retry the same command once the API error clears.",
+                3,
+            )
 
     close_result = subprocess.run(
         ["gh", "pr", "close", str(pr), "--repo", repo_flag],
