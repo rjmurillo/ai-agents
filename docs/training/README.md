@@ -28,7 +28,7 @@ Each entry names the issue that writes the page and who the page is for. An entr
 
 - [Change a rule and a skill through templates](template-first-authoring.md) (#7211): edit templates, then render generated files. For contributors.
 
-- `maintainer-operations.md` (#7212): agent workflow approval, the promotion gate, ruleset drift, and releases. For maintainers.
+- [Run the CI and release controls you own](maintainer-operations.md) (#7212): agent workflow approval, the promotion gate, ruleset drift, and releases. For maintainers.
 
 - [Measure agent quality with evals and benchmarks](measure-agent-quality.md) (#7213): evals and benchmarks. For maintainers and skill authors.
 
