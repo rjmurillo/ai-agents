@@ -137,7 +137,7 @@ Uninstall: delete the `.agent.md` files you copied from `.github/agents/`. Delet
 
    ```bash
    cache="${CODEX_HOME:-$HOME/.codex}/plugins/cache/ai-agents/project-toolkit"
-   python3 "$cache/$(ls "$cache" | sort -V | tail -n 1)/install_agents.py"
+   python3 -I "$cache/$(ls "$cache" | sort -V | tail -n 1)/install_agents.py"
    ```
 
    The cache folder is the plugin version. Codex 0.162.1 and 0.167.0 install a manifest with no version field as `1.0.0`, so the folder is normally `1.0.0`. The `sort -V | tail -n 1` part still picks the newest if another folder is there. The script is at `<cache>/<version>/install_agents.py`.
@@ -152,6 +152,8 @@ Uninstall: delete the `.agent.md` files you copied from `.github/agents/`. Delet
    - Cloned repositories. A repository can commit its own `.codex/agents/.project-toolkit-agents.json`, and `--uninstall` deletes the files that file lists. Before you run `--uninstall` (or any install) in a repository you did not create, read that file and run with `--dry-run` first. The script rejects unsafe names and symlinks, but it cannot know which listed files you meant to keep.
    - `--dry-run` prints the plan and writes nothing. `--uninstall` removes the files that still match their record and leaves edited files with a warning.
    - Spawn reviewers with `fork_turns="none"`, so a reviewer does not inherit the parent's context.
+   - Subagents. The Claude-only `disallowedTools: Agent` line is dropped, so a shipped agent can start a subagent on Codex. ADR-115 Decision 3 accepts this because a Codex subagent inherits the parent's permissions.
+   - Trust path. The warning checks the exact project path. If Codex trusts a parent folder, the warning can be a false alarm.
 
 Update:
 
@@ -159,11 +161,17 @@ Update:
 codex plugin marketplace upgrade ai-agents
 ```
 
+Then run the step 2 command again. The upgrade does not touch `.codex/agents/`, so installed agents stay at the old version until you do. The script upgrades only files that still match its record.
+
 Not verified: whether `codex plugin add project-toolkit@ai-agents` run again copies new files into the installed folder. Check the skill count after an upgrade.
 
 Uninstall:
 
 ```bash
+# First remove the agents, with the same --project or --user flag you installed with.
+# The script lives in the plugin folder that the next command deletes.
+cache="${CODEX_HOME:-$HOME/.codex}/plugins/cache/ai-agents/project-toolkit"
+python3 -I "$cache/$(ls "$cache" | sort -V | tail -n 1)/install_agents.py" --uninstall
 codex plugin remove project-toolkit@ai-agents
 codex plugin marketplace remove ai-agents
 ```

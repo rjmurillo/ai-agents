@@ -47,7 +47,10 @@ def test_deleted_namespaced_copy_is_reinstalled_and_reruns_agree(world):
     (target / "qa.toml").write_bytes(agent_bytes("qa", "theirs"))
     run_installer(world, "--namespace", "tk")
     (target / "tk-qa.toml").unlink()
-    assert run_installer(world) == 0
+    # A recorded entry alone does not excuse the clash: the copy must be on disk.
+    assert run_installer(world) == 1
+    assert not (target / "tk-qa.toml").exists()
+    assert run_installer(world, "--namespace", "tk") == 0
     assert tomllib.loads((target / "tk-qa.toml").read_text())["name"] == "tk-qa"
     assert "tk-qa.toml" in read_record(world)["files"]
     assert run_installer(world) == 0

@@ -33,7 +33,10 @@ BODY_EDITS = {
     "orchestrator": [
         ("| **analyst** | Research, root cause, feasibility | Already have enough context |\n", ""),
         ("| **security** | Threat modeling, vulnerability review | Pure performance work |\n", ""),
-        ("Task (for delegation)", "spawn_agent (for delegation)"),
+        (
+            "Task (for delegation)",
+            'spawn_agent (for delegation; pass fork_turns="none" when the child reviews work)',
+        ),
     ]
 }
 _FRONTMATTER = re.compile(r"\A---\n(.*?)\n---\n(.*)\Z", re.DOTALL)
@@ -118,8 +121,17 @@ def test_orchestrator_names_no_agent_that_is_not_installed() -> None:
     text = tomllib.loads((CODEX_AGENTS / "orchestrator.toml").read_text(encoding="utf-8"))
     table = text["developer_instructions"].split("Every row above")[0]
     assert "| **analyst** |" not in table and "| **security** |" not in table
+    rows = [line for line in table.splitlines() if line.startswith("| **")]
+    assert rows, "the routing table moved; update this test"
+    named = [
+        stem for stem in _restricted_in_sources() for line in rows if f"| **{stem}** |" in line
+    ]
+    assert named == [], f"table rows route to agents that are not installed: {named}"
     assert "Task (for delegation)" not in text["developer_instructions"]
-    assert "spawn_agent (for delegation)" in text["developer_instructions"]
+    assert (
+        'spawn_agent (for delegation; pass fork_turns="none" when the child reviews work)'
+        in text["developer_instructions"]
+    )
 
 
 def test_the_row_edits_are_load_bearing() -> None:

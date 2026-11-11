@@ -113,14 +113,16 @@ def read_ownership(target: Path) -> Ownership:
     path = target / OWNERSHIP_FILE
     if path.is_symlink():
         raise InstallError(f"ownership file is a symlink: {path}")
-    if not path.is_file():
+    if not path.exists():
         return Ownership()
+    if not path.is_file():
+        raise InstallError(f"ownership path is not a regular file: {path}")
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
         files, sources = data["files"], data.get("namespaced", {})
         ok = isinstance(files, dict) and isinstance(sources, dict)
         ok = ok and all(_safe_name(k) and _is_sha256(v) for k, v in files.items())
-        ok = ok and all(_valid_namespaced(k, v) for k, v in sources.items())
+        ok = ok and all(_valid_namespaced(k, v) and k in files for k, v in sources.items())
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
         raise InstallError(f"unreadable ownership file {path}: {exc}") from exc
     if not ok:
@@ -194,6 +196,14 @@ def _decide(
     return True
 
 
+def _warn_handoff(plan: Plan, name: str, prefix: str) -> None:
+    agent = name[: -len(AGENT_SUFFIX)]
+    plan.warnings.append(
+        f"other shipped agents hand work to `{agent}`; that name still reaches your own "
+        f"`{agent}` agent, not `{prefix}-{agent}`"
+    )
+
+
 def _plan_namespaced(
     plan: Plan, target: Path, name: str, data: bytes, owned: Ownership, prefix: str
 ) -> None:
@@ -201,13 +211,33 @@ def _plan_namespaced(
     ns_data = namespaced_bytes(data, prefix, name)
     if _decide(plan, target, ns_name, ns_data, owned, source=name):
         plan.lines[-1] += f"  (namespaced from {name} to avoid a conflict)"
-        agent = name[: -len(AGENT_SUFFIX)]
-        plan.warnings.append(
-            f"other shipped agents hand work to `{agent}`; that name still reaches your own "
-            f"`{agent}` agent, not `{prefix}-{agent}`"
-        )
+        _warn_handoff(plan, name, prefix)
     else:
         plan.conflicts.append(f"{ns_name} (namespaced name of {name}) exists and is not owned")
+
+
+def _prior_namespaced_copy(target: Path, name: str, owned: Ownership) -> str | None:
+    """Return the recorded ``--namespace`` copy of ``name`` that is still on disk, else ``None``.
+
+    A recorded entry alone proves nothing: the ownership file can be committed by
+    a repository author. The copy has to exist before it excuses a plain-name clash.
+    """
+    for ns_name, source in sorted(owned.sources.items()):
+        if source == name and _disk_hash(target / ns_name) is not None:
+            return ns_name
+    return None
+
+
+def _conflict_text(target: Path, name: str, owned: Ownership) -> str:
+    """Say why ``name`` blocks the install, so the remedy is clear."""
+    current = _disk_hash(target / name)
+    if current == "symlink":
+        return f"{name} is a symlink; remove it or use --namespace"
+    if current == "not-a-file":
+        return f"{name} is not a regular file; remove it or use --namespace"
+    if name in owned.files:
+        return f"{name} was edited after install; restore it, delete it, or use --namespace"
+    return f"{name} exists and is not owned by this installer"
 
 
 def _keep_edited(plan: Plan, name: str, owned: Ownership) -> None:
@@ -250,11 +280,20 @@ def build_install_plan(
         if _decide(plan, target, name, data, owned):
             plan.shipped_ours.add(name)
             continue
-        if name in owned.sources.values():
-            continue  # an earlier --namespace run owns this agent; the leftover pass upgrades it
+        prior = _prior_namespaced_copy(target, name, owned)
+        if (
+            prior is not None
+        ):  # an earlier --namespace run owns this agent; the leftover pass upgrades it
+            prefix = prior[: -len(name) - 1]
+            _warn_handoff(plan, name, prefix)
+            if namespace is not None and namespace != prefix:
+                plan.warnings.append(
+                    f"{name} stays installed as {prior}; --namespace {namespace} was not applied"
+                )
+            continue
         plan.counts["conflicts"] += 1
         if namespace is None:
-            plan.conflicts.append(f"{name} exists and is not owned by this installer")
+            plan.conflicts.append(_conflict_text(target, name, owned))
         else:
             _plan_namespaced(plan, target, name, data, owned, namespace)
     _plan_owned_leftovers(plan, target, shipped, owned)
@@ -283,10 +322,22 @@ def _atomic_write(path: Path, data: bytes) -> None:
             handle.write(data)
             handle.flush()
             os.fsync(handle.fileno())
+        os.chmod(tmp_name, 0o644)  # mkstemp creates 0600; agents are not secrets
         os.replace(tmp_name, path)
     except BaseException:
         Path(tmp_name).unlink(missing_ok=True)
         raise
+
+
+def _sync_dir(path: Path) -> None:
+    """Flush directory entries so the renames persist before the ownership file is written."""
+    if not hasattr(os, "O_DIRECTORY"):
+        return  # Windows has no directory fsync
+    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
 
 
 def apply_plan(plan: Plan, target: Path) -> None:
@@ -295,6 +346,8 @@ def apply_plan(plan: Plan, target: Path) -> None:
         _atomic_write(target / name, data)
     for name in plan.removes:
         (target / name).unlink(missing_ok=True)
+    if plan.writes or plan.removes:
+        _sync_dir(target)
     ownership = target / OWNERSHIP_FILE
     if plan.record.files:
         _atomic_write(ownership, plan.record.as_json().encode("utf-8"))
@@ -314,7 +367,7 @@ def trust_warning(project: Path) -> str | None:
         return "cannot check the trust list without Python 3.11+; confirm the project is trusted"
     try:
         projects = tomllib.loads(config.read_text(encoding="utf-8")).get("projects", {})
-    except (OSError, tomllib.TOMLDecodeError):
+    except (OSError, ValueError):  # ValueError covers bad UTF-8 and TOMLDecodeError
         return f"{config} is missing or unreadable, so {project} is not a trusted project"
     for candidate in {str(project), str(project.resolve())}:
         entry = projects.get(candidate) if isinstance(projects, dict) else None
@@ -337,6 +390,8 @@ def build_parser() -> argparse.ArgumentParser:
 def resolve_target(args: argparse.Namespace) -> tuple[Path, Path | None]:
     """Return ``(agents dir, project dir or None)``; refuse a symlink below the root (CWE-59)."""
     project = None if args.user else Path(args.project or Path.cwd()).absolute()
+    if project is not None and not project.is_dir():
+        raise InstallError(f"project directory does not exist: {project}")
     root, parts = (
         (codex_home(), ("agents",)) if project is None else (project, (".codex", "agents"))
     )
@@ -384,7 +439,8 @@ def main(argv: list[str] | None = None, agents_dir: Path | None = None) -> int:
         parser.error("--namespace cannot be used with --uninstall")
     try:
         return run(args, agents_dir or Path(__file__).resolve().parent / "agents")
-    except InstallError as exc:
+    except (InstallError, ValueError, RuntimeError) as exc:
+        # ValueError: undecodable shipped file; RuntimeError: no home directory to resolve.
         print(f"Error: {exc}", file=sys.stderr)
         return EXIT_USAGE
     except OSError as exc:

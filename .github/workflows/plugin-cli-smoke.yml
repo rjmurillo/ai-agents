@@ -47,6 +47,8 @@
 #   - Codex plugin-load smoke (REQ-047 AC11): `codex plugin add` installs
 #     project-toolkit@ai-agents into an isolated CODEX_HOME and
 #     `codex debug prompt-input` lists every expected skill.
+#   - Codex agent install smoke (ADR-115 Decision 7): `install_agents.py` runs from the
+#     installed plugin cache, and `codex debug prompt-input` lists every shipped agent.
 #
 # Security (.claude/rules/security.md, issue #2231 item 3):
 #   - pull_request runs for same-repo branches get secrets only through the

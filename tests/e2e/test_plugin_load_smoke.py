@@ -3087,6 +3087,10 @@ def test_codex_agents_install_and_load(tmp_path: Path) -> None:
         added = _run_codex(["plugin", "add", _CODEX_PLUGIN_ID, "--json"], env=env, cwd=work)
         installer = Path(json.loads(added.stdout)["installedPath"]) / "install_agents.py"
         assert installer.is_file(), f"installed plugin cache has no install_agents.py: {installer}"
+        documented = user_home / "plugins" / "cache" / "ai-agents" / "project-toolkit"
+        assert installer.resolve().is_relative_to(documented.resolve()), (
+            f"installer is not under the cache path the install guide documents: {installer}"
+        )
         before = _codex_agent_roles(
             _run_codex(["debug", "prompt-input", "hi"], env=env, cwd=work).stdout
         )
@@ -3131,10 +3135,13 @@ def test_codex_agents_install_and_load(tmp_path: Path) -> None:
     assert (agents_dir / _CODEX_AGENTS_OWNERSHIP).is_file()
     assert not (shipped - listed), f"--project install: no role for {sorted(shipped - listed)}"
     assert "broken-agent" not in listed, "a malformed agent file registered as a role"
-    assert not {r for r in listed if "project-toolkit-agents" in r}, (
-        f"ownership JSON listed: {listed}"
-    )
-    assert bad.returncode == 2, f"bad --namespace rc={bad.returncode}"
+    # Anything listed beyond the built-in roles and the shipped agents would be the ownership
+    # JSON, a temp file, or another stray file registering as an agent.
+    # Codex lists its built-in roles (default, explorer, worker) only once a custom agent exists.
+    builtin = after_user - shipped
+    stray = listed - builtin - shipped
+    assert not stray, f"roles beyond built-ins and shipped agents: {sorted(stray)}"
+    assert bad.returncode == 2, f"bad --namespace rc={bad.returncode}: {redact(bad.stderr[-600:])}"
 
 
 def test_codex_env_unsets_the_plugin_root_variables(

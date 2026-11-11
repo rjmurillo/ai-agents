@@ -63,6 +63,7 @@ PLUGIN_E2E_GLOBS: tuple[str, ...] = (
     ".claude/skills/**",
     "build/scripts/generate_skills.py",
     "build/scripts/agent_toml.py",
+    "build/scripts/agent_tools.py",
     "build/scripts/agent_tree_copy.py",
     "src/codex/install_agents.py",
     "templates/platforms/copilot-cli.yaml",
