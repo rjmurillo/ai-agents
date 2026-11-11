@@ -229,3 +229,30 @@ class TestVerifyNpmPublished:
         with patch("subprocess.run", return_value=mock_result):
             v = vp.get_published_version("@x/y", "1.0.0")
         assert v == "1.0.0"
+
+
+# ---------------------------------------------------------------------------
+# The real package (issue #7217): a synthetic package hid three defects.
+# ---------------------------------------------------------------------------
+
+_REAL_PACKAGE = Path(__file__).parent.parent.parent / "packages" / "ai-agents-cli"
+
+
+class TestRealCliPackage:
+    def test_the_metadata_verifier_passes_on_the_real_package(self) -> None:
+        assert vnpm.main(["--package-dir", str(_REAL_PACKAGE)]) == vnpm.EXIT_OK
+
+    def test_every_literal_files_entry_exists_or_is_built(self) -> None:
+        pkg = json.loads((_REAL_PACKAGE / "package.json").read_text(encoding="utf-8"))
+        built = {"dist/", "bundle/assets/"}
+        missing = [
+            entry
+            for entry in pkg["files"]
+            if entry not in built and not (_REAL_PACKAGE / entry).exists()
+        ]
+        assert missing == []
+
+    def test_the_cli_reports_the_version_package_json_declares(self) -> None:
+        pkg = json.loads((_REAL_PACKAGE / "package.json").read_text(encoding="utf-8"))
+        source = (_REAL_PACKAGE / "src" / "cli.ts").read_text(encoding="utf-8")
+        assert f'const VERSION = "{pkg["version"]}";' in source

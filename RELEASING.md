@@ -53,7 +53,9 @@ open finding is fixed it will block.
 1. Update the version in `packages/ai-agents-cli/package.json` and merge it to the default branch.
 2. Optional: create the release `vX.Y.Z` on that commit, so the gate can attach its manifest to it.
 3. Go to [Actions > npm Publish > Run workflow](https://github.com/rjmurillo/ai-agents/actions/workflows/publish.yml)
-   on the default branch. Set `dry-run: false` and optionally the `release-tag`.
+   on the default branch. Set `dry-run: false` and `release-tag` to `vX.Y.Z` for the
+   `package.json` version. A real publish without `release-tag` is refused. The version
+   also lives in `packages/ai-agents-cli/src/cli.ts` (`VERSION`); change both together.
 
 The workflow builds the tarball once, hashes it, runs the gate against that digest,
 and publishes the same file after checking the digest again.
@@ -172,6 +174,8 @@ linking back to this repository's publish workflow.
 | `E403 Forbidden` | 2FA not enabled or scope not linked | Enable 2FA, link scope to repo in npm UI |
 | OIDC provenance error | `id-token: write` missing | `publish.yml` contains `id-token: write` on publish job |
 | Tag/version mismatch | `release-tag` does not match the `package.json` version | Use the tag `vX.Y.Z` for the version on the candidate commit |
+| `a real publish needs release-tag` | `dry-run` is `false` and `release-tag` is empty | Set `release-tag` to `vX.Y.Z` |
+| `lacks package/bundle/assets/*` | The tarball holds no kit; the bundle build did not run | Check the `Build bundle` step ran before `Pack the tarball once` |
 | Publish blocked | The promotion gate found open findings | Read the gate job's manifest artifact, fix or accept the findings |
 | Tag push does nothing | The `v*` tag route is dormant until the tag ruleset exists | Run the workflow by dispatch from the default branch |
 | Pack size warning | Bundle exceeds 50MB | Review `files` allowlist in `package.json`, exclude unnecessary assets |

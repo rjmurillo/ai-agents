@@ -1,6 +1,6 @@
 {
   "name": "@rjmurillo/ai-agents",
-  "version": "0.1.0",
+  "version": "0.7.0",
   "description": "Vendor the ai-agents Claude kit into any repo",
   "type": "module",
   "bin": {
@@ -24,6 +24,10 @@
   ],
   "author": "Richard Murillo",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "engines": {
     "node": ">=20"
   },
