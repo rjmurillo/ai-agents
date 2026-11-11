@@ -141,9 +141,11 @@ def link_row(
     """Link every top-level plugin entry into ``install_tree``; report the rest."""
     outcome = LinkOutcome()
     entries = plugin_entries(plugin_tree, skip_names)
-    if not entries:
+    if not plugin_tree.is_dir():
         return outcome
-    if not check:
+    # An emptied plugin tree still sweeps: the links to its last removed entries
+    # dangle otherwise (#7224). An absent tree reports nothing.
+    if entries and not check:
         install_tree.mkdir(parents=True, exist_ok=True)
     resolved_plugin = plugin_tree.resolve()
     for entry in entries:
