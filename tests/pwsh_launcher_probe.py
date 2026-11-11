@@ -3,7 +3,7 @@
 A snap-packaged ``pwsh`` can sit on PATH and still refuse to run, printing
 ``snap-confine is packaged without necessary permissions``. ``shutil.which``
 reports it present, so a bare presence check lets the test run and fail on a
-machine fault, not on the code under test (issue #7231).
+machine fault, not on the code under test (issue #7215).
 
 ``require_working_pwsh`` runs the launcher once with a trivial command. It
 skips only when that probe cannot start. A launcher that starts and then fails
@@ -52,7 +52,7 @@ def pwsh_skip_reason() -> str | None:
             check=False,
         )
     except OSError as exc:
-        return f"pwsh is installed but cannot be launched: {exc} (issue #7231)"
+        return f"pwsh is installed but cannot be launched: {exc} (issue #7215)"
     except subprocess.TimeoutExpired:
         # A hang is not proof the launcher cannot start. Let the test decide.
         return None
@@ -64,7 +64,7 @@ def pwsh_skip_reason() -> str | None:
         return None
     detail = output.splitlines()
     first_line = detail[0] if detail else f"exit code {probe.returncode}"
-    return f"pwsh is installed but cannot start: {first_line} (issue #7231)"
+    return f"pwsh is installed but cannot start: {first_line} (issue #7215)"
 
 
 def require_working_pwsh() -> None:
