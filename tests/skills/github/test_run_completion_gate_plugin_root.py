@@ -299,6 +299,18 @@ class TestForeignPluginRootIsSkipped:
         assert gate._plugin_root_holds(str(foreign), "evil/x.py") is False
         assert gate._plugin_root_holds(str(foreign), "/evil/x.py") is True
 
+    def test_an_absolute_remainder_is_never_probed(
+        self, repo: Path, foreign: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """``${...}//abs/x.py`` must not probe ``/abs/x.py`` outside the root."""
+        outside = repo / "outside" / "x.py"
+        write(repo, "outside/x.py", "print('{}')")
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(foreign))
+        remainder = f"/{outside}"
+        assert gate._plugin_root_holds(str(foreign), remainder) is False
+        token = f"{_FORM}{remainder}"
+        assert gate._expand_plugin_root(token, probe=True) == f"{foreign}{remainder}"
+
     def test_a_form_inside_a_larger_token_is_not_probed(
         self, repo: Path, foreign: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

@@ -1626,8 +1626,10 @@ def _expand_plugin_root(token: str, *, probe: bool = False) -> str:
     Anything else keeps its ``$`` and is reported by
     :func:`_unverifiable_argv` instead of being quietly resolved to the
     wrong thing.
-    With ``probe=True`` a root that does not hold the named file is skipped
-    and the next candidate is tried, ending with the literal default. Another
+    With ``probe=True`` and a token that starts with the form, a root that
+    does not hold the named file is skipped and the next candidate is tried,
+    ending with the literal default. A form inside a larger token keeps
+    first-set semantics. Another
     plugin can export its own root (context-mode does inside ``ctx_execute``,
     issue #7281), and the shell form would resolve into that plugin. Probing
     is a resolution aid, not trust: a foreign root that does hold the file
@@ -1658,7 +1660,7 @@ def _plugin_root_holds(root: str, remainder: str) -> bool:
     if not remainder.startswith("/"):
         return False
     relative = remainder[1:]
-    if not relative or ".." in Path(relative).parts:
+    if not relative or Path(relative).is_absolute() or ".." in Path(relative).parts:
         return False
     return (Path(root) / relative).is_file()
 
