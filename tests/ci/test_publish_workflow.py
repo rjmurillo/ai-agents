@@ -210,7 +210,7 @@ def test_candidate_package_commands_run_only_in_the_candidate_directory(
     workflow: dict[str, Any],
 ) -> None:
     for step in _steps(workflow, "build"):
-        if re.search(r"\bnpm (ci|run|pack)\b", str(step.get("run", ""))):
+        if re.search(r"\b(npm (ci|run|pack)|bun (install|run))\b", str(step.get("run", ""))):
             assert step["working-directory"] == "${{ env.PACKAGE_DIR }}"
     assert workflow["env"]["PACKAGE_DIR"] == "packages/ai-agents-cli"
 
@@ -279,3 +279,53 @@ def test_the_tag_route_is_refused_by_the_first_job_and_nothing_downstream_runs_w
         needs = jobs[name]["needs"]
         assert "resolve" in (needs if isinstance(needs, list) else [needs])
     assert jobs["resolve"]["outputs"]["candidate_sha"] == "${{ steps.route.outputs.candidate_sha }}"
+
+
+def _index(workflow: dict[str, Any], name: str) -> int:
+    names = _names(workflow, "build")
+    assert name in names, f"build job has no step named {name!r}"
+    return names.index(name)
+
+
+def test_bun_is_set_up_before_any_bun_command_in_the_build_job(workflow: dict[str, Any]) -> None:
+    steps = _steps(workflow, "build")
+    setup = _index(workflow, "Setup Bun")
+    assert re.fullmatch(r"oven-sh/setup-bun@[0-9a-f]{40}", steps[setup]["uses"])
+    assert steps[setup]["with"]["bun-version"]
+    first_bun = next(i for i, s in enumerate(steps) if re.search(r"\bbun\b", str(s.get("run", ""))))
+    assert setup < first_bun
+
+
+def test_the_build_job_installs_with_the_bun_lockfile_not_npm_ci(workflow: dict[str, Any]) -> None:
+    package_dir = ROOT / "packages" / "ai-agents-cli"
+    assert (package_dir / "bun.lock").is_file()
+    assert not (package_dir / "package-lock.json").exists()
+    step = _steps(workflow, "build")[_index(workflow, "Install dependencies")]
+    assert step["run"].strip() == "bun install --frozen-lockfile"
+    assert not any("npm ci" in str(s.get("run", "")) for s in _steps(workflow, "build"))
+
+
+def test_the_bundle_is_built_before_dist_and_before_the_tarball_is_packed(
+    workflow: dict[str, Any],
+) -> None:
+    steps = _steps(workflow, "build")
+    install = _index(workflow, "Install dependencies")
+    bundle = _index(workflow, "Build bundle")
+    dist = _index(workflow, "Build dist")
+    pack = _index(workflow, "Pack the tarball once")
+    assert install < bundle < dist < pack
+    assert steps[bundle]["run"].strip() == "bun run scripts/build-bundle.ts"
+    assert steps[dist]["run"].strip() == "bun run build"
+    for index in (install, bundle, dist):
+        assert steps[index]["working-directory"] == "${{ env.PACKAGE_DIR }}"
+
+
+def test_the_packed_tarball_is_checked_for_the_bundle_before_it_is_hashed(
+    workflow: dict[str, Any],
+) -> None:
+    pack = _index(workflow, "Pack the tarball once")
+    verify = _index(workflow, "Verify the tarball contents")
+    assert pack < verify < _index(workflow, "Hash the tarball")
+    command = _normalized(_steps(workflow, "build")[verify]["run"])
+    assert command.startswith("python3 scripts/ci/verify_npm_tarball_contents.py")
+    assert '--dir "$RUNNER_TEMP/pack"' in command

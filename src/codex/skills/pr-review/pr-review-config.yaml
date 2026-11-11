@@ -4,11 +4,11 @@
 
 scripts:
   claude_code:
-    get_pr_context: "python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request {number}"
-    test_pr_merged: "python3 .claude/skills/github/scripts/pr/test_pr_merged.py --pull-request {number}"
-    get_review_threads: "python3 .claude/skills/github/scripts/pr/get_pr_review_threads.py --pull-request {number}"
-    get_unresolved_threads: "python3 .claude/skills/github/scripts/pr/get_unresolved_review_threads.py --pull-request {number}"
-    cluster_threads: "python3 .claude/skills/pr-comment-responder/scripts/cluster_threads.py --pull-request {number}"
+    get_pr_context: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/get_pr_context.py" --pull-request {number}'
+    test_pr_merged: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/test_pr_merged.py" --pull-request {number}'
+    get_review_threads: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/get_pr_review_threads.py" --pull-request {number}'
+    get_unresolved_threads: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/get_unresolved_review_threads.py" --pull-request {number}'
+    cluster_threads: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/pr-comment-responder/scripts/cluster_threads.py" --pull-request {number}'
     # Settling gate. The one-shot get_unresolved_threads snapshot can read
     # unresolved_count == 0 in the window between an agent resolving the last
     # thread and the next bot (Copilot, Devin) scan landing 30-120s later. That
@@ -17,15 +17,15 @@ scripts:
     # exits 0, so a momentarily-true zero between bot scans does not pass. Run it
     # before the completion gate when the PR has live bot reviewers. No copilot
     # (PowerShell) equivalent exists; this settling step is Claude-only.
-    wait_for_settled_zero: "python3 .claude/skills/github/scripts/pr/wait_for_unresolved_zero.py --pull-request {number}"
-    get_unaddressed_comments: "python3 .claude/skills/github/scripts/pr/get_unaddressed_comments.py --pull-request {number}"
-    get_pr_checks: "python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request {number}"
-    add_thread_reply: "python3 .claude/skills/github/scripts/pr/add_pr_review_thread_reply.py --pull-request {number} --thread-id {thread_id} --body {body}"
+    wait_for_settled_zero: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/wait_for_unresolved_zero.py" --pull-request {number}'
+    get_unaddressed_comments: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/get_unaddressed_comments.py" --pull-request {number}'
+    get_pr_checks: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/get_pr_checks.py" --pull-request {number}'
+    add_thread_reply: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/add_pr_review_thread_reply.py" --pull-request {number} --thread-id {thread_id} --body {body}'
     # {head_sha} is head_sha from get_pr_context, read before the reply. --resolve
     # exits 2 before any API call without an --expected-* flag, so a stale
     # session cannot disarm auto-merge on a PR whose head moved.
-    add_thread_reply_resolve: "python3 .claude/skills/github/scripts/pr/add_pr_review_thread_reply.py --pull-request {number} --thread-id {thread_id} --body {body} --resolve --expected-head-sha {head_sha}"
-    resolve_thread: "python3 .claude/skills/github/scripts/pr/resolve_pr_review_thread.py --expected-pull-request {number} --thread-id {thread_id}"
+    add_thread_reply_resolve: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/add_pr_review_thread_reply.py" --pull-request {number} --thread-id {thread_id} --body {body} --resolve --expected-head-sha {head_sha}'
+    resolve_thread: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/resolve_pr_review_thread.py" --expected-pull-request {number} --thread-id {thread_id}'
     check_transport: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/utils/check_github_transport.py" --output-format json'
   copilot:
     # Every command here is the cross-shell launcher from

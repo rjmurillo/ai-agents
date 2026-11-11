@@ -2,8 +2,12 @@
 """List actionable backlog items from GitHub without gh-notify.
 
 Queries PRs and issues that need attention using gh CLI. Falls back
-gracefully when the notifications API returns 403 (common with
-GitHub App tokens and fine-grained PATs).
+gracefully when the notifications API returns 403 or a missing-scope response
+(common with GitHub App tokens and fine-grained PATs). Any other notifications
+failure, such as a rate limit or a 5xx, exits 3 instead of reading as
+"unavailable". Notifications are paged to the end before the repository filter
+and ``--limit`` apply; ``notifications_matched`` and ``notifications_truncated``
+report what the limit cut.
 
 Sources checked (in order):
 1. GitHub notifications API (if accessible)
@@ -113,39 +117,96 @@ def _get_current_user() -> str:
     return result.stdout.strip()
 
 
-def _try_notifications(repo_flag: str, limit: int) -> list[dict] | None:
-    """Attempt to fetch notifications via the REST API.
+class NotificationsError(Exception):
+    """The notifications read failed for a reason other than "API unavailable"."""
 
-    Returns None if the API returns 403 or is otherwise inaccessible.
+    def __init__(self, message: str, exit_code: int) -> None:
+        super().__init__(message)
+        self.exit_code = exit_code
+
+
+_NOTIFICATIONS_TIMEOUT_SECONDS = 180
+_RATE_LIMIT_MARKERS = ("rate limit", "http 429", "abuse detection")
+_UNAVAILABLE_MARKERS = ("http 403", "resource not accessible", "missing scope", "required scope")
+
+
+def _classify_notifications_failure(stderr: str) -> str:
+    """Return "unavailable" for a 403 or missing scope, else "rate_limit", "auth", "error".
+
+    A rate limit also answers 403, so the rate-limit markers are checked first.
+    Only a 403 or a missing-scope response means the API is unavailable to this
+    token. Anything else is a failure the caller must report.
     """
-    result = subprocess.run(
-        [
-            "gh",
-            "api",
-            "notifications",
-            "--jq",
-            (
-                f'[.[] | select(.repository.full_name == "{repo_flag}") '
-                f"| {{reason: .reason, title: .subject.title, "
-                f"type: .subject.type, url: .subject.url, "
-                f"updated_at: .updated_at}}] | .[:" + str(limit) + "]"
-            ),
-        ],
-        capture_output=True,
-        text=True,
-        timeout=30,
-        check=False,
-    )
-    if result.returncode != 0:
-        stderr = result.stderr or ""
-        if "403" in stderr or "Resource not accessible" in stderr:
-            return None
-        return None
+    text = stderr.lower()
+    if any(marker in text for marker in _RATE_LIMIT_MARKERS):
+        return "rate_limit"
+    # gh prints: This API operation needs the "notifications" scope.
+    needs_scope = "needs the" in text and "scope" in text
+    if needs_scope or any(marker in text for marker in _UNAVAILABLE_MARKERS):
+        return "unavailable"
+    if "http 401" in text:
+        return "auth"
+    return "error"
 
+
+def _try_notifications(repo_flag: str) -> list[dict] | None:
+    """Read every notification page for the repository.
+
+    Pages to the end with ``gh api --paginate``, then filters to the repository.
+    The caller applies any limit afterward, so the matched count stays exact.
+
+    Returns None only when the API answers 403 or a missing scope (common with
+    GitHub App tokens and fine-grained PATs).
+
+    Raises:
+        NotificationsError: Rate limit, 5xx, auth failure, timeout, or output
+            that is not valid JSON. The result is never partial.
+    """
+    jq_filter = (
+        f'.[] | select(.repository.full_name == "{repo_flag}") '
+        "| {reason: .reason, title: .subject.title, "
+        "type: .subject.type, url: .subject.url, updated_at: .updated_at}"
+    )
     try:
-        return json.loads(result.stdout) if result.stdout.strip() else []
-    except json.JSONDecodeError:
-        return None
+        result = subprocess.run(
+            [
+                "gh",
+                "api",
+                # per_page rides in the URL: a -f field would turn this into a POST.
+                "notifications?per_page=100",
+                "--paginate",
+                "--jq",
+                jq_filter,
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=_NOTIFICATIONS_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise NotificationsError(
+            f"Notifications read timed out after {_NOTIFICATIONS_TIMEOUT_SECONDS}s", 3
+        ) from exc
+    if result.returncode != 0:
+        stderr = (result.stderr or "").strip()
+        kind = _classify_notifications_failure(stderr)
+        if kind == "unavailable":
+            return None
+        exit_code = 4 if kind == "auth" else 3
+        label = "rate limited" if kind == "rate_limit" else "failed"
+        raise NotificationsError(f"Notifications read {label}: {stderr}", exit_code)
+
+    items: list[dict] = []
+    for line in result.stdout.splitlines():
+        if not line.strip():
+            continue
+        try:
+            items.append(json.loads(line))
+        except json.JSONDecodeError as exc:
+            raise NotificationsError(f"Notifications read returned invalid JSON: {exc}", 3) from exc
+    return items
 
 
 def _get_review_requests(repo_flag: str, user: str, limit: int) -> list[dict]:
@@ -297,9 +358,23 @@ def main(argv: list[str] | None = None) -> int:
 
     user = _get_current_user()
 
-    # Try notifications API first
-    notifications = _try_notifications(repo_flag, args.limit)
-    notifications_available = notifications is not None
+    # Try notifications API first. Page to the end, then apply the limit.
+    try:
+        all_notifications = _try_notifications(repo_flag)
+    except NotificationsError as exc:
+        write_skill_error(
+            str(exc),
+            exc.exit_code,
+            error_type="ApiError" if exc.exit_code == 3 else "AuthError",
+            output_format=fmt,
+            script_name="get_actionable_items.py",
+            extra={"repo": repo_flag, "notifications_api_available": None},
+        )
+        return exc.exit_code
+    notifications_available = all_notifications is not None
+    matched_notifications = len(all_notifications) if all_notifications is not None else 0
+    notifications = (all_notifications or [])[: args.limit]
+    notifications_truncated = matched_notifications > len(notifications)
 
     # Always gather fallback data (useful even when notifications work)
     review_requests = _get_review_requests(repo_flag, user, args.limit)
@@ -310,12 +385,14 @@ def main(argv: list[str] | None = None) -> int:
         "user": user,
         "repo": repo_flag,
         "notifications_api_available": notifications_available,
-        "notifications": notifications if notifications_available else [],
+        "notifications": notifications,
+        "notifications_matched": matched_notifications,
+        "notifications_truncated": notifications_truncated,
         "review_requests": review_requests,
         "authored_prs": authored_prs,
         "assigned_issues": assigned_issues,
         "summary": {
-            "notifications": len(notifications) if notifications_available else 0,
+            "notifications": len(notifications),
             "review_requests": len(review_requests),
             "authored_prs": len(authored_prs),
             "assigned_issues": len(assigned_issues),
