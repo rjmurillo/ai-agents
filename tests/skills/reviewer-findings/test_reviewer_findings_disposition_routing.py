@@ -164,8 +164,11 @@ class TestPremiseDispositionRouting:
         phase3 = _workflow_phase_section(workflow, "3")
         check_pos = phase3.find("grep -n -F")
         # `\s*` tolerates ruff format wrapping the call onto one argument per line.
-        # Issue #7226: dispatch reads "Delegate to the `orchestrator` agent", host-neutral.
-        delegate_match = re.search(r"Delegate to the `orchestrator` agent", phase3)
+        # The Copilot mirror rewrites the call to `task(agent_type=` (issue #5657).
+        # Since issue #7226 the source names the agent host-neutrally.
+        delegate_match = re.search(
+            r"[Tt]ask\(\s*(?:subagent_type|agent_type)=|Delegate to the `[\w-]+` agent", phase3
+        )
         delegate_pos = delegate_match.start() if delegate_match else -1
         assert check_pos != -1, (
             f"{ROUTER_SKILL}/references/workflow.md in {plugin_root} Phase 3 "
@@ -173,7 +176,7 @@ class TestPremiseDispositionRouting:
         )
         assert delegate_pos != -1, (
             f"{ROUTER_SKILL}/references/workflow.md in {plugin_root} Phase 3 "
-            "no longer says: Delegate to the `orchestrator` agent"
+            f"no longer delegates to a named agent"
         )
         assert check_pos < delegate_pos, (
             f"{ROUTER_SKILL}/references/workflow.md in {plugin_root} Phase 3 "

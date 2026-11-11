@@ -143,7 +143,6 @@ before you rate it, and record each in the Claims Checked table.
 | [claim] | [kind] | [source read] | [VERIFIED / REFUTED / UNVERIFIED] |
 
 **You are the tie-breaker on structural/governance questions.**
-
 ````
 
 ### Critic
@@ -211,7 +210,6 @@ before you rate it, and record each in the Claims Checked table.
 | [claim] | [kind] | [source read] | [VERIFIED / REFUTED / UNVERIFIED] |
 
 **Focus on plan clarity, not execution details.**
-
 ````
 
 ### Independent-Thinker
@@ -279,7 +277,6 @@ before you rate it, and record each in the Claims Checked table.
 | [claim] | [kind] | [source read] | [VERIFIED / REFUTED / UNVERIFIED] |
 
 **Be the devil's advocate. Verify, don't validate.**
-
 ````
 
 ### Security
@@ -349,7 +346,6 @@ before you rate it, and record each in the Claims Checked table.
 | [claim] | [kind] | [source read] | [VERIFIED / REFUTED / UNVERIFIED] |
 
 **Assume breach, design for defense.**
-
 ````
 
 ### Analyst
@@ -417,7 +413,6 @@ before you rate it, and record each in the Claims Checked table.
 | [claim] | [kind] | [source read] | [VERIFIED / REFUTED / UNVERIFIED] |
 
 **Distinguish facts from hypotheses.**
-
 ````
 
 ### High-Level-Advisor
@@ -485,7 +480,6 @@ before you rate it, and record each in the Claims Checked table.
 | [claim] | [kind] | [source read] | [VERIFIED / REFUTED / UNVERIFIED] |
 
 **You break ties between other agents. Deliver verdicts, not options.**
-
 ````
 
 ---

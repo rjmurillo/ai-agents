@@ -4,7 +4,7 @@ Migrated from `.claude/rules/voice.md` (epic #5456, M4). Applies to autoplan's P
 
 ## Writing Style
 
-Applies to structured asks (Claude Code: `AskUserQuestion`), replies to user-facing questions, and findings (review output, analysis reports, retro write-ups, PR descriptions). `AskUserQuestion` format is structure; this section is prose quality.
+Applies to structured asks (Claude Code: `AskUserQuestion`), replies to user-facing questions, and findings (review output, analysis reports, retro write-ups, PR descriptions). Ask format is structure; this section is prose quality.
 
 Rules:
 

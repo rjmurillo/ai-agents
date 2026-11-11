@@ -273,15 +273,13 @@ def parse_claim_block(prompts_md: str) -> str:
 def parse_phase1_prompts(prompts_md: str) -> dict[str, str]:
     """Return the Phase 1 prompt body per role, with `{adr_content}` left in place."""
     phase1 = prompts_md.index("## Phase 1: Independent Review Prompts")
-    phase1_end = prompts_md.index("\n## Phase 2", phase1)
-    starts = [prompts_md.index(f"\n### {h}\n", phase1) for h in _ROLE_HEADINGS.values()]
-    ends = [*starts[1:], phase1_end]
     out: dict[str, str] = {}
-    for role, start, end in zip(_ROLE_HEADINGS, starts, ends, strict=True):
-        opener = prompts_md.index("````text\n", start, end) + len("````text\n")
-        # The body holds its own fenced blocks and "###" headings, so the closing
-        # fence is the last one before the next role heading.
-        out[role] = prompts_md[opener : prompts_md.rindex("\n````", opener, end)].rstrip("\n")
+    for role, heading in _ROLE_HEADINGS.items():
+        at = prompts_md.index(f"\n### {heading}\n", phase1)
+        # Each prompt sits in a four-backtick text fence, because the body nests
+        # three-backtick fences of its own.
+        opener = prompts_md.index("````text\n", at) + len("````text\n")
+        out[role] = prompts_md[opener : prompts_md.index("\n````\n", opener)]
     return out
 
 
