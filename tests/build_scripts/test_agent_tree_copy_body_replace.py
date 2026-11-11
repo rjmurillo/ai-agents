@@ -6,6 +6,7 @@ that hand work to one.
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -121,6 +122,61 @@ def test_bad_body_replace_is_an_error(tmp_path: Path, extra: str) -> None:
         atc.generate_agent_copies(tmp_path, _config(tmp_path, extra))
 
 
+def test_body_replace_never_touches_the_frontmatter(tmp_path: Path) -> None:
+    fm = "name: one\ndescription: Hand to security\n"
+    _source(tmp_path, "one", _agent(fm, "\nHand to security today.\n"))
+    extra = _replace_extra(("one.md", "Hand to security", "Tell the user"))
+    atc.generate_agent_copies(tmp_path, _config(tmp_path, extra))
+    out = (tmp_path / "out_agents" / "one.md").read_text(encoding="utf-8")
+    assert "description: Hand to security\n" in out
+    assert "Tell the user today." in out
+
+
+def test_text_found_only_in_the_frontmatter_fails_the_copy(tmp_path: Path) -> None:
+    fm = "name: one\ndescription: Hand to security\n"
+    _source(tmp_path, "one", _agent(fm, "\nNo handoff here.\n"))
+    extra = _replace_extra(("one.md", "Hand to security", "Tell the user"))
+    with pytest.raises(atc.AgentCopyError, match="occurs 0 times"):
+        atc.generate_agent_copies(tmp_path, _config(tmp_path, extra))
+
+
+def test_body_edit_leaves_the_frontmatter_unchanged() -> None:
+    src = _agent("name: one\ndescription: d\n", "\nHand off.\n")
+    out = atc.render_agent(
+        src,
+        ["name", "description"],
+        derive_readonly_flag=True,
+        source="x.md",
+        body_edits=[("Hand off.", "Tell the user.")],
+    )
+    assert out == "---\nname: one\ndescription: d\n---\n\nTell the user.\n"
+
+
+def test_replacement_for_an_excluded_agent_fails_the_copy(tmp_path: Path) -> None:
+    _source(tmp_path, "one", _agent("name: one\ndescription: d\n"))
+    _source(tmp_path, "CLAUDE", _agent("name: c\ndescription: d\n", "\nold\n"))
+    extra = _replace_extra(("CLAUDE.md", "old", "new"))
+    with pytest.raises(atc.AgentCopyError, match="excluded"):
+        atc.generate_agent_copies(tmp_path, _config(tmp_path, extra))
+
+
+def test_replacement_for_a_skipped_agent_fails_the_copy(tmp_path: Path) -> None:
+    _source(tmp_path, "one", _agent("name: one\ndescription: d\n"))
+    restricted = _agent("name: sec\ndescription: d\ntools:\n  - Read\n  - Write\n")
+    _source(tmp_path, "sec", restricted)
+    extra = _replace_extra(("sec.md", "not present anywhere", "x"))
+    with pytest.raises(atc.AgentCopyError, match="sec.md.*skipped"):
+        atc.generate_agent_copies(tmp_path, _config(tmp_path, extra))
+
+
+@pytest.mark.parametrize("key", ["1", "null"])
+def test_non_string_agent_file_name_is_an_error(tmp_path: Path, key: str) -> None:
+    _source(tmp_path, "one", _agent("name: one\ndescription: d\n"))
+    extra = f"    bodyReplace:\n      {key}: {{x: y}}\n"
+    with pytest.raises(atc.AgentCopyError, match="bodyReplace"):
+        atc.generate_agent_copies(tmp_path, _config(tmp_path, extra))
+
+
 def test_cursor_agents_do_not_hand_work_to_an_agent_cursor_does_not_ship() -> None:
     claude = {p.stem for p in (REPO_ROOT / "src" / "claude" / "agents").glob("*.md")}
     cursor_dir = REPO_ROOT / "src" / "cursor" / "agents"
@@ -132,3 +188,5 @@ def test_cursor_agents_do_not_hand_work_to_an_agent_cursor_does_not_ship() -> No
         for name in unshipped:
             assert f"{name} agent" not in text, f"{path.name} names the {name} agent"
             assert f"| **{name}** |" not in text, f"{path.name} lists the {name} agent"
+            bullet = re.search(rf"^\s*- {re.escape(name)}\b", text, re.MULTILINE)
+            assert bullet is None, f"{path.name} recommends the {name} agent as a next step"

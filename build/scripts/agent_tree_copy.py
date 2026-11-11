@@ -174,13 +174,21 @@ def has_inexpressible_restriction(frontmatter: dict[str, object]) -> bool:
 
 
 def render_agent(
-    text: str, keep: list[str], *, derive_readonly_flag: bool, source: str
+    text: str,
+    keep: list[str],
+    *,
+    derive_readonly_flag: bool,
+    source: str,
+    body_edits: list[tuple[str, str]] | None = None,
 ) -> str | None:
     """Return ``text`` with its frontmatter reduced to the ``keep`` keys.
 
     Returns ``None`` when ``derive_readonly_flag`` is set and the agent carries a
     tool restriction ``readonly`` cannot express (ADR-115 Decision 3). The caller
     must not ship such an agent.
+
+    ``body_edits`` are literal ``(from, to)`` edits applied to the body only, so
+    text that also appears in the frontmatter can never be rewritten by mistake.
     """
     parsed = read_yaml_frontmatter(text)
     if parsed is None:
@@ -202,7 +210,10 @@ def render_agent(
     dumped = yaml.safe_dump(
         kept, sort_keys=False, allow_unicode=True, default_flow_style=False, width=10**9
     )
-    return f"---\n{dumped}---\n{parsed['body']}"
+    body = parsed["body"]
+    if body_edits:
+        body = apply_body_replacements(body, body_edits, source)
+    return f"---\n{dumped}---\n{body}"
 
 
 def _body_replacements(stanza: dict[str, object]) -> dict[str, list[tuple[str, str]]]:
@@ -288,6 +299,11 @@ def generate_agent_copies(
     missing = sorted(set(replacements) - {p.name for p in source_dir.glob(f"*{_SOURCE_SUFFIX}")})
     if missing:
         raise AgentCopyError(f"bodyReplace names agents not in {source_dir}: {missing}")
+    excluded = sorted(set(replacements) & excludes)
+    if excluded:
+        raise AgentCopyError(
+            f"bodyReplace names agents that are excluded from the copy: {excluded}"
+        )
     result = AgentCopyResult()
     expected: set[str] = set()
     for src in sorted(source_dir.glob(f"*{_SOURCE_SUFFIX}")):
@@ -299,15 +315,19 @@ def generate_agent_copies(
             keep,
             derive_readonly_flag=stanza.get("deriveReadonly") is True,
             source=src.as_posix(),
+            body_edits=replacements.get(src.name),
         )
         if rendered is None:
+            if src.name in replacements:
+                raise AgentCopyError(
+                    f"bodyReplace names {src.name}, which is skipped because its tools list "
+                    "restricts it beyond what readonly can express"
+                )
             result.skipped.append(src.name)
             print(
                 f"  SKIPPED: {src.name} (tools list restricts it beyond what readonly can express)"
             )
             continue
-        if src.name in replacements:
-            rendered = apply_body_replacements(rendered, replacements[src.name], src.as_posix())
         expected.add(src.name)
         _emit(output_dir / src.name, rendered, result, check=check, what_if=what_if)
     if not result.inputs:

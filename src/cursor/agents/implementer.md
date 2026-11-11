@@ -879,7 +879,6 @@ You cannot delegate. Return to orchestrator with:
 5. **Recommended next step** (only when an orchestrator delegated this task; when you report to the user directly, omit this item and end on the result):
    - qa for validation
    - critic for pre-merge review
-   - security for sensitive changes
    - architect for design review if patterns emerged
 
 **Think**: What is the smallest change that meets acceptance criteria? **Act**: Test first when possible.

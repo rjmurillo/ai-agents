@@ -45,6 +45,7 @@ artifacts:
         "and let security agent review before proceeding.": "and let the user review before proceeding."
         "Route to security agent for PIV before merge.": "Flag to the user for security PIV before merge."
         "needs security agent review first.": "needs user review first."
+        "   - security for sensitive changes\n": ""
       orchestrator.md:
         "| **security** | Threat modeling, vulnerability review | Pure performance work |\n": ""
       pr-test-analyzer.md:

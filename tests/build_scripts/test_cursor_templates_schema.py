@@ -155,3 +155,10 @@ def test_body_replace_requires_frontmatter_keep() -> None:
 def test_body_replace_rejects_bad_shapes(value: object) -> None:
     errors = _errors("agents", _agents(frontmatterKeep=["name"], bodyReplace=value))
     assert any("bodyReplace" in e for e in errors)
+
+
+@pytest.mark.parametrize("name", [1, None, ""])
+def test_body_replace_rejects_a_file_name_that_is_not_a_non_empty_string(name: object) -> None:
+    stanza = _agents(frontmatterKeep=["name"], bodyReplace={name: {"x": "y"}})
+    errors = _errors("agents", stanza)
+    assert any("bodyReplace" in e and "file names" in e for e in errors)

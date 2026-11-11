@@ -67,7 +67,9 @@ def _validate_body_replace(name: str, stanza: dict[str, object]) -> list[str]:
         return [f"{where}: must map agent file names to {{from: to}} maps"]
     errors: list[str] = []
     for file, pairs in files.items():
-        if not isinstance(pairs, dict) or not pairs:
+        if not isinstance(file, str) or not file:
+            errors.append(f"{where}: agent file names must be non-empty strings, got {file!r}")
+        elif not isinstance(pairs, dict) or not pairs:
             errors.append(f"{where}.{file}: must be a non-empty {{from: to}} map")
         elif not all(isinstance(k, str) and k and isinstance(v, str) for k, v in pairs.items()):
             errors.append(f"{where}.{file}: from must be a non-empty string and to a string")
