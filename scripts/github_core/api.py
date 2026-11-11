@@ -1389,6 +1389,10 @@ def get_all_prs_with_comments(
 
     Returns:
         List of PR dicts that have review comments within the time range.
+
+    Raises:
+        RuntimeError: The repository or its pull requests cannot be read, or
+            ``max_pages`` pages were read and GitHub still reports a next page.
     """
     all_prs: list[dict] = []
     cursor: str | None = None
@@ -1416,8 +1420,13 @@ def get_all_prs_with_comments(
 
         logger.debug("Page %d processed, total PRs with comments: %d", page_count, len(all_prs))
 
-    if page_count >= max_pages:
-        warnings.warn(f"Reached maximum page limit ({max_pages})", stacklevel=2)
+    if has_next_page:
+        # A cap hit with pages left is a partial read. Returning it would
+        # report an incomplete PR set as complete (issue #7222).
+        raise RuntimeError(
+            f"Pagination exceeded {max_pages} pages for {owner}/{repo}; "
+            "more pull requests remain unread"
+        )
 
     return all_prs
 

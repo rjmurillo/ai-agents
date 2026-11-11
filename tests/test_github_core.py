@@ -6,6 +6,7 @@ import ast
 import json
 import os
 import subprocess
+import warnings
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
@@ -1195,6 +1196,44 @@ class TestGetAllPRsWithComments:
         with patch("subprocess.run", return_value=_completed(stdout=json.dumps(graphql_response))):
             result = get_all_prs_with_comments("owner", "repo", datetime(2026, 1, 1, tzinfo=UTC))
         assert len(result) == 0
+
+    def _page(self, has_next: bool, cursor: str | None):
+        pr = self._make_pr(1, "2026-01-15T00:00:00Z")
+        return {
+            "data": {
+                "repository": {
+                    "pullRequests": {
+                        "pageInfo": {"hasNextPage": has_next, "endCursor": cursor},
+                        "nodes": [pr],
+                    }
+                }
+            }
+        }
+
+    def test_raises_when_page_cap_hit_with_pages_left(self):
+        always_more = _completed(stdout=json.dumps(self._page(True, "next")))
+
+        with patch("subprocess.run", return_value=always_more) as run:
+            with pytest.raises(RuntimeError, match="Pagination exceeded 2 pages"):
+                get_all_prs_with_comments(
+                    "owner", "repo", datetime(2026, 1, 1, tzinfo=UTC), max_pages=2
+                )
+
+        assert run.call_count == 2
+
+    def test_last_page_landing_on_cap_returns_without_warning(self):
+        pages = [
+            _completed(stdout=json.dumps(self._page(True, "c1"))),
+            _completed(stdout=json.dumps(self._page(False, None))),
+        ]
+
+        with patch("subprocess.run", side_effect=pages), warnings.catch_warnings():
+            warnings.simplefilter("error")
+            result = get_all_prs_with_comments(
+                "owner", "repo", datetime(2026, 1, 1, tzinfo=UTC), max_pages=2
+            )
+
+        assert len(result) == 2
 
 
 # ---------------------------------------------------------------------------
