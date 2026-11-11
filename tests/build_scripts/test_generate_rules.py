@@ -1084,3 +1084,47 @@ def test_repo_only_non_string_entry_rejected(tmp_path: Path) -> None:
     cfg.write_text(cfg.read_text() + "    repoOnlyOutputDirs:\n      - 42\n", encoding="utf-8")
     rc, _ = generate_rules.generate_rules(cfg, tmp_path)
     assert rc == 2
+
+
+def test_repo_only_source_never_reaches_a_shipped_destination(tmp_path: Path) -> None:
+    """A repo-only source renders only to repoOnlyOutputDirs (issue #7225).
+
+    ``build/**`` is not an internal glob, so the per-glob filter alone would
+    emit the rule into the shipped directory. The skip must come from the rule
+    being a repo-only source, and it must prune a copy an earlier run left.
+    """
+    _write_rule(tmp_path / "rules_src", "shipped", frontmatter='paths: "docs/**"\n')
+    _write_rule(tmp_path / "repo_only_src", "pipeline", frontmatter='paths: "build/**"\n')
+    stale = tmp_path / "ship_out" / "pipeline.instructions.md"
+    stale.parent.mkdir(parents=True)
+    stale.write_text("stale copy from an earlier run\n")
+    cfg = tmp_path / "platform.yaml"
+    cfg.write_text(
+        """\
+schemaVersion: "1.0"
+provider: "test"
+artifacts:
+  rules:
+    sourceDir: "rules_src"
+    repoOnlySourceDir: "repo_only_src"
+    outputDirs:
+      - "ship_out"
+      - "dogfood_out"
+    repoOnlyOutputDirs:
+      - "dogfood_out"
+    keepInternalGlobsFor:
+      - "dogfood_out"
+    sourceSuffix: ".md"
+    outputSuffix: ".instructions.md"
+"""
+    )
+
+    rc, result = generate_rules.generate_rules(cfg, tmp_path)
+
+    assert rc == 0
+    assert not stale.exists()
+    assert sorted(p.name for p in (tmp_path / "ship_out").iterdir()) == ["shipped.instructions.md"]
+    # The shipped rule reaches the dogfood directory as a binplace link, not here.
+    dogfood = sorted(p.name for p in (tmp_path / "dogfood_out").iterdir())
+    assert dogfood == ["pipeline.instructions.md"]
+    assert result.scope_skipped == 1

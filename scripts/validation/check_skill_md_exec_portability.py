@@ -15,6 +15,15 @@ introduces a new invocation. Use ``--update-baseline`` to tighten after fixes.
 Scope: SKILL.md, references/**/*.md, scripts/README-*.md under .claude/skills/
 and src/copilot-cli/skills/. Missing roots are skipped.
 
+Literal plugin paths (issue #7226): a second check has no baseline. Any
+interpreter (python3, python, uv run python, pwsh, bash, sh, node) or ``./``
+followed by a literal ``.claude/skills``, ``.claude/hooks`` or ``.claude/lib``
+script fails the run. It scans every Markdown file in each skill, the agent
+trees, and the shipped rules. Prose that names a path with no interpreter is
+exempt. ``LITERAL_ALLOWANCES`` lists scripts that import a third-party module,
+so ``check_plugin_root_interpreter.py`` rejects their portable form. The
+``vendor-portability-exec`` marker also exempts a file.
+
 Exit codes (ADR-035): 0=clean, 1=drift, 2=config error.
 """
 
@@ -25,6 +34,7 @@ import json
 import os
 import re
 import sys
+from collections.abc import Iterable
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -166,6 +176,120 @@ def count_marker_suppressed_invocations(text: str) -> int:
         return 0
     text_without_markers = _MARKER_PATTERN.sub("", text)
     return count_exec_invocations(text_without_markers)
+
+
+# Interpreter or ``./`` followed by a literal plugin path. Shell line
+# continuations may separate the parts (issue #7226).
+_SEP = r"(?:[ \t]|\\\r?\n)+"
+LITERAL_PLUGIN_PATTERN = re.compile(
+    r"(?<![\w.])(?:(?:python3?|bash|sh|pwsh|node|uv[ \t]+run(?:[ \t]+--frozen)?[ \t]+python3?)"
+    + _SEP
+    + r"(?:-\S+"
+    + _SEP
+    + r")*|\./)[\"']?\.claude/"
+    r"(?P<rel>(?:skills|hooks|lib)/[A-Za-z0-9_./-]+?\.(?:py|sh|ps1))(?![\w.])"
+)
+
+# Scripts whose portable form is itself rejected: they import a third-party
+# module, which a vendored install's bare python3 cannot resolve (issue #5949).
+# Keyed by the path below ``.claude/``. A new entry needs the same reason.
+# ``unused_literal_allowances`` lists an entry no scanned file invokes, and a
+# test fails on it, so a converted or deleted invocation cannot leave a stale one.
+_NEEDS_THIRD_PARTY = "imports yaml; the portable python3 form fails check_plugin_root_interpreter"
+LITERAL_ALLOWANCES: dict[str, str] = {
+    "skills/adr-review/scripts/detect_adr_changes.py": _NEEDS_THIRD_PARTY,
+    "skills/slo-designer/scripts/generate_slo_document.py": _NEEDS_THIRD_PARTY,
+}
+
+# Agent, rule, and instruction trees that ship text beside the skills. A test
+# walks src/ and templates/ and fails when an on-disk tree is missing here.
+LITERAL_EXTRA_DIRS: tuple[tuple[str, ...], ...] = (
+    ("src", "claude", "agents"),
+    ("src", "claude", "rules"),
+    ("src", "copilot-cli", "agents"),
+    ("src", "copilot-cli", "instructions"),
+    ("src", "cursor", "agents"),
+    ("src", "cursor", "rules"),
+    ("src", "vs-code-agents"),
+    ("templates", "agents"),
+    ("templates", "rules"),
+)
+_LITERAL_SUFFIXES = frozenset({".md", ".mdc", ".tmpl", ".mustache"})
+
+
+def find_literal_plugin_paths(text: str) -> list[tuple[int, str]]:
+    """Return ``(line, rel)`` per literal plugin script invocation.
+
+    ``rel`` is the path below ``.claude/``. Empty when the file carries the
+    ``vendor-portability-exec`` marker or the script is in ``LITERAL_ALLOWANCES``.
+    """
+    if has_portability_marker(text):
+        return []
+    found: list[tuple[int, str]] = []
+    for match in LITERAL_PLUGIN_PATTERN.finditer(text):
+        rel = match.group("rel")
+        if rel not in LITERAL_ALLOWANCES:
+            found.append((text.count("\n", 0, match.start()) + 1, rel))
+    return found
+
+
+def _iter_literal_scan_files(repo_root: Path) -> list[Path]:
+    root_resolved = repo_root.resolve()
+    seen: set[Path] = set()
+    for parts in SCAN_ROOTS:
+        root = repo_root.joinpath(*parts)
+        if not root.is_dir():
+            continue
+        if refuse_symlinked_scan_root(repo_root, root):
+            raise OSError(f"Scan root {root} resolves outside the repository root")
+        for skill_root in _iter_skill_roots(repo_root, root):
+            seen.update(_iter_reference_markdown(root_resolved, skill_root))
+    for parts in LITERAL_EXTRA_DIRS:
+        directory = repo_root.joinpath(*parts)
+        if not directory.is_dir():
+            continue
+        for path in sorted(directory.rglob("*")):
+            _refuse_exec_escape(root_resolved, path, "Scan path")
+            if path.suffix in _LITERAL_SUFFIXES and path.is_file():
+                seen.add(path)
+    return sorted(seen)
+
+
+def _read_scan_text(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise OSError(f"Failed to read {path}: {exc}") from exc
+
+
+def scan_literal_plugin_paths(repo_root: Path) -> tuple[list[str], int]:
+    """Return ``(hits, examined)``: one ``file:line: path`` per hit, files read."""
+    hits: list[str] = []
+    files = _iter_literal_scan_files(repo_root)
+    for path in files:
+        text = _read_scan_text(path)
+        rel = path.relative_to(repo_root).as_posix()
+        hits.extend(f"{rel}:{line}: .claude/{lit}" for line, lit in find_literal_plugin_paths(text))
+    return hits, len(files)
+
+
+def unused_literal_allowances(
+    repo_root: Path, allowances: Iterable[str] | None = None
+) -> list[str]:
+    """Return allowance keys that no scanned, unmarked file invokes literally.
+
+    A key that matches nothing is a stale exemption: it would hide a later
+    literal invocation of the same script. Files with the
+    ``vendor-portability-exec`` marker do not count as a use.
+    """
+    keys = set(LITERAL_ALLOWANCES if allowances is None else allowances)
+    used: set[str] = set()
+    for path in _iter_literal_scan_files(repo_root):
+        text = _read_scan_text(path)
+        if has_portability_marker(text):
+            continue
+        used.update(match.group("rel") for match in LITERAL_PLUGIN_PATTERN.finditer(text))
+    return sorted(keys - used)
 
 
 def _refuse_exec_escape(root_resolved: Path, path: Path, label: str) -> None:
@@ -510,6 +634,8 @@ def _print_report(
     dangling: list[tuple[str, str]],
     current: dict[str, int],
     baseline: dict[str, int],
+    literal: list[str],
+    literal_examined: int,
 ) -> None:
     if output_format == "json":
         print(
@@ -520,6 +646,8 @@ def _print_report(
                     "current_total": sum(current.values()),
                     "baseline_total": sum(baseline.values()),
                     "dangling": dangling,
+                    "literal": literal,
+                    "literal_examined": literal_examined,
                 },
                 indent=2,
             )
@@ -550,6 +678,54 @@ def _print_report(
     )
 
 
+def _print_literal(literal: list[str], examined: int) -> None:
+    """Report literal plugin paths, which have no baseline (issue #7226)."""
+    print(f"Literal plugin paths: {len(literal)} in {examined} files examined.")
+    if not literal:
+        return
+    print(
+        "A vendored install has no '.claude/skills|hooks|lib' path. Use "
+        '"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/..." '
+        "with python3, or declare the file with '<!-- vendor-portability-exec: ... -->':"
+    )
+    for hit in literal:
+        print(f"  [LITERAL] {hit}")
+
+
+def _update_baseline(
+    args: argparse.Namespace,
+    root: Path,
+    baseline_path: Path,
+    scan: tuple[dict[str, int], dict[str, int], dict[str, int], list[str], int],
+) -> int:
+    """Rewrite the baseline, refusing while a literal plugin path exists."""
+    current, marker_current, scanned_by_root, literal, literal_examined = scan
+    # The literal check has no baseline, so a rewrite cannot absorb a hit.
+    if literal:
+        if args.output_format == "json":
+            _print_report("json", [], [], [], current, {}, literal, literal_examined)
+        else:
+            _print_literal(literal, literal_examined)
+        return 1
+    if refuse_unsafe_baseline_write(
+        root,
+        scanned_by_root,
+        baseline_path,
+        {"files": current, "marker_files": marker_current},
+        "skill files",
+        args.allow_baseline_shrink,
+    ):
+        return 2
+    if _refuse_marker_files_growth(
+        root,
+        baseline_path,
+        marker_current,
+        allow_marker_grow=args.allow_marker_grow,
+    ):
+        return 2
+    return _write_baseline(root, baseline_path, current, marker_current, args.allow_baseline_shrink)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     root = _resolve_root(args.repo_root)
@@ -569,30 +745,14 @@ def main(argv: list[str] | None = None) -> int:
     try:
         current, marker_current, scanned_by_root = scan_all(root)
         dangling = scan_dangling_skill_relative_scripts(root)
+        literal, literal_examined = scan_literal_plugin_paths(root)
     except OSError as exc:
         print(f"Could not scan skill files under {root}: {exc}", file=sys.stderr)
         return 2
 
     if args.update_baseline:
-        if refuse_unsafe_baseline_write(
-            root,
-            scanned_by_root,
-            baseline_path,
-            {"files": current, "marker_files": marker_current},
-            "skill files",
-            args.allow_baseline_shrink,
-        ):
-            return 2
-        if _refuse_marker_files_growth(
-            root,
-            baseline_path,
-            marker_current,
-            allow_marker_grow=args.allow_marker_grow,
-        ):
-            return 2
-        return _write_baseline(
-            root, baseline_path, current, marker_current, args.allow_baseline_shrink
-        )
+        scan = (current, marker_current, scanned_by_root, literal, literal_examined)
+        return _update_baseline(args, root, baseline_path, scan)
 
     try:
         baseline = _load_baseline(baseline_path)
@@ -605,9 +765,20 @@ def main(argv: list[str] | None = None) -> int:
     marker_regressions, marker_improvements = diff_marker_baseline(marker_current, marker_baseline)
     regressions.extend(marker_regressions)
     improvements.extend(marker_improvements)
-    _print_report(args.output_format, regressions, improvements, dangling, current, baseline)
+    _print_report(
+        args.output_format,
+        regressions,
+        improvements,
+        dangling,
+        current,
+        baseline,
+        literal,
+        literal_examined,
+    )
+    if args.output_format != "json":
+        _print_literal(literal, literal_examined)
 
-    return 1 if (regressions or dangling) else 0
+    return 1 if (regressions or dangling or literal) else 0
 
 
 if __name__ == "__main__":

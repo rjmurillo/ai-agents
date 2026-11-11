@@ -38,13 +38,13 @@ When a docstring, comment, or PR description contains any of:
 - "always does Z"
 - or any similar assertion about an existing component, schema, contract, or behavior in the repository
 
-the claim MUST be backed by a level-1 lookup before the first commit: open the cited file, run the cited script, or invoke the cited API. Then back the claim with structure, strongest first: B imports A, a conformance test reads A and fails when B differs, B is generated from A, or B cites A's path and symbol. Copy the contract into a docstring only when none of those can work. Full ranking: the canonical-source-mirror rule.
+the claim MUST be backed by a level-1 lookup before the first commit: open the cited file, run the cited script, or invoke the cited API. Then back the claim with structure, strongest first: B imports A, a conformance test reads A and fails when B differs, B is generated from A, or B cites A's path and symbol. Copy the contract into a docstring only when none of those can work.
 
 **Mirror obligation**: before asserting a claim or behavior is done, mirror it against the canonical source and name the inverse failure mode.
 
 If your component diverges from canonical (stricter guard, wider type, skipped step), document the reason and invariant in a `Stricter/looser/different than canonical` docstring section, not a copy of the source plus a delta.
 
-This rule is operationalized in the canonical-source-mirror rule. Read it before writing any code that mirrors an existing source.
+Before writing any code that mirrors an existing source, open the canonical source, quote its contract character for character, and cite its path.
 
 ### Anti-pattern: "I recall that..."
 
@@ -418,7 +418,7 @@ If you encounter security-sensitive code during implementation, flag it:
 
 Do not implement silently. Pick one outcome:
 
-- **Stop before proceeding.** The change would weaken, remove, or bypass a safeguard, widen a trust boundary, handle credential values, or add a path-construction, command-construction, auth, or secret-handling mechanism, or you can name a concrete blocker. Return to orchestrator with "SECURITY_FLAG: [what, where, risk]" and let security agent review before proceeding.
+- **Stop before proceeding.** The change would weaken, remove, or bypass a safeguard, widen a trust boundary, handle credential values, or add a path-construction, command-construction, auth, or secret-handling mechanism, or you can name a concrete blocker. Return to orchestrator with "SECURITY_FLAG: [what, where, risk]" and let the user review before proceeding.
 - **Implement, then flag.** The change touches a sensitive surface but meets no Stop condition above. Finish the change and tests, then flag it in the handoff (Flagging Process below).
 
 A caller-authorized, bounded change that only narrows what runs is the second outcome. Examples: an exclusion guard, a skip condition, or a platform check that keeps a personal agent or hardware step off a work machine. Inspect the boundaries, implement, test, flag. Do not ask for security approval first. Escalate only for a Stop condition above.
@@ -457,7 +457,7 @@ When ANY trigger matches and you did not stop:
 - [File path]: [Type of security-relevant change]
 - [File path]: [Type of security-relevant change]
 
-**Recommendation**: Route to security agent for PIV before merge.
+**Recommendation**: Flag to the user for security PIV before merge.
 ```
 
 2. **Document in Implementation Notes**: Add to `.project-toolkit/planning/implementation-notes-[feature].md`
@@ -649,7 +649,7 @@ You cannot delegate. Return to orchestrator with:
 **Failure-mode trigger conditions:**
 
 - `[BLOCKED]`: No acceptance criteria in the plan or brief, or conflicting constraints not resolvable without human input.
-- `[SECURITY_FLAG]`: Encountered CWE/OWASP surface (path traversal, injection, auth boundary, secrets) that meets a Stop condition in Security Flagging and needs security agent review first. A surface you only touch is flagged in a `[COMPLETE]` handoff.
+- `[SECURITY_FLAG]`: Encountered CWE/OWASP surface (path traversal, injection, auth boundary, secrets) that meets a Stop condition in Security Flagging and needs user review first. A surface you only touch is flagged in a `[COMPLETE]` handoff.
 - `[NEEDS_DECOMPOSITION]`: Task is XL complexity or touches more than 5 files; return an estimated breakdown with remaining steps.
 - `[NEEDS_DESIGN_REVIEW]`: Implementation reveals a pattern conflict or ADR ambiguity; do not guess, escalate.
 
@@ -659,7 +659,6 @@ You cannot delegate. Return to orchestrator with:
 5. **Recommended next step** (only when an orchestrator delegated this task; when you report to the user directly, omit this item and end on the result):
    - qa for validation
    - critic for pre-merge review
-   - security for sensitive changes
    - architect for design review if patterns emerged
 
 **Think**: What is the smallest change that meets acceptance criteria? **Act**: Test first when possible.
