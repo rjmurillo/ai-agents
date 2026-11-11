@@ -37,7 +37,8 @@ push. Neither target is enforced at run time. A job timeout is a cap on one
 job, not a promise of its speed. The ADR also notes the pre-commit target has
 no measurement behind it. Lefthook skips a job when no staged file matches its
 glob. On one workstation, an empty `git commit` that passed every gate took
-1.08 seconds, and a commit that staged one Markdown file took 7.9 seconds.
+1.08 seconds, a commit that staged one Markdown file took 7.9 seconds, and a
+push of that one-file branch took 395 seconds.
 
 Two rules of thumb from ADR-104:
 
