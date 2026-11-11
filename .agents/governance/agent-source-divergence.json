@@ -6,7 +6,7 @@
     {"agent": "analyst", "pair": "claude-shared", "unit": "capability:mcp:deepwiki", "digest": "e134e6f0dde032a2cfe4e4f54cffb8090491dd23f8de37ac9233f6563552e6ac"},
     {"agent": "analyst", "pair": "claude-shared", "unit": "section:Analysis Reasoning Protocol", "digest": "52a3538e1961a4bb78e674b3251fd0a4f09f3b5e10e70dbc05c8c485f2100a23"},
     {"agent": "analyst", "pair": "claude-shared", "unit": "section:Degraded Mode Protocol", "digest": "77363cfa0489283367b4b012b783ddcb8e0f2f6411cf0d95a1c45d0f577c835c"},
-    {"agent": "analyst", "pair": "claude-shared", "unit": "section:Tools", "digest": "6cc4530d7cf40d754b39993b858d56d560eedc1ff2e0955a0b6be7c61e949abd"},
+    {"agent": "analyst", "pair": "claude-shared", "unit": "section:Tools", "digest": "5f31fa15a7503064b394bd20670e71997bb9a3529b1bbcb1115843378dcb1ca0"},
     {"agent": "architect", "pair": "claude-shared", "unit": "capability:builtin", "digest": "da229b74eaacecf93708e2236822abb6ad9c359da8db2907aac29b0e841f40c3"},
     {"agent": "architect", "pair": "claude-shared", "unit": "capability:declaration", "digest": "802038c1543a7b0c0eb57a652ed3d7d405eabc35226a67d2c1dd1a66562d9cf2"},
     {"agent": "architect", "pair": "claude-shared", "unit": "capability:mcp:cloudmcp-manager", "digest": "587bae728805519c3542d21766295396bd01087b6c47765ae3cadbf679813bbe"},

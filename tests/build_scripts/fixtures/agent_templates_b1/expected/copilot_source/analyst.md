@@ -171,7 +171,7 @@ requested PR.
 
 Local identity columns apply only when the analysis uses local checkout
 content (file reads against the working tree). For remote-only PR analysis
-using GitHub API tools, API identity fields alone are sufficient. When the PR read tool is not registered and the PR text came from a pre-fetched file, take the repository, head ref, and head SHA from the identity the orchestrator supplied with it, state that API reconciliation was not possible, and list a missing identity under Open Questions.
+using GitHub API tools, API identity fields alone are sufficient. When the PR read tool is not registered and the PR text came from a pre-fetched file, take the repository, head ref, and head SHA from the identity the orchestrator supplied with it, state that API reconciliation was not possible, and list any of those three fields the orchestrator did not supply under Open Questions.
 
 ### Untrusted-content boundary
 
