@@ -20,6 +20,7 @@ import argparse
 import logging
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import time
@@ -638,7 +639,10 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--agent-intervention",
         action="store_true",
-        help="Write the agent PR intervention report (issue #7154) instead of reviewer stats",
+        help=(
+            "Write the agent PR intervention report (issue #7154) instead of reviewer stats. "
+            "Uses a fixed 30-day window and ignores --days-back."
+        ),
     )
     return parser
 
@@ -652,9 +656,19 @@ def _run_agent_intervention_report(owner: str, repo: str) -> int:
     report_path = os.path.join(str(root), INTERVENTION_REPORT_PATH)
     try:
         metrics = run_agent_intervention_report(owner, repo, report_path)
-    except RuntimeError:
+    except (RuntimeError, OSError, subprocess.SubprocessError, KeyError, TypeError):
+        # A GraphQL timeout, an unwritable report path, or a malformed API node all
+        # end the run with the external-error code instead of a bare traceback.
         logger.exception("Failed to build the agent PR intervention report")
         return 2
+    for status, cohort in metrics.cohorts.items():
+        logger.info(
+            "%s: %d PRs, %d zero-touch, %d interventions",
+            status,
+            cohort.prs,
+            cohort.zero_touch,
+            cohort.interventions,
+        )
     logger.info("Agent PRs in window: %d", metrics.total_prs)
     logger.info("Wrote %s", report_path)
     return 0

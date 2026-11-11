@@ -2,62 +2,22 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+import re
+from datetime import timedelta
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
-from unittest.mock import patch
-
-import pytest
-import yaml
 
 from scripts import agent_pr_intervention_metrics as m
-from scripts import update_reviewer_signal_stats as stats_script
-from scripts.github_core.api import RateLimitStatus
-
-NOW = datetime(2026, 11, 10, 12, 0, tzinfo=UTC)
-TRAILER = "Body.\n\n\U0001f916 Generated with [Claude Code](https://claude.com/claude-code)"
-
-
-def _actor(login: str, typename: str = "User", database_id: int | None = None) -> dict[str, Any]:
-    return {"login": login, "__typename": typename, "databaseId": database_id}
-
-
-BOT = _actor("coderabbitai", "Bot")
-HUMAN = _actor("alice")
-OWNER = _actor("rjmurillo")
-
-
-def _thread(first_author: dict[str, Any]) -> dict[str, Any]:
-    """A review thread as fetched: only the first comment's author is requested."""
-    return {"comments": {"nodes": [{"author": first_author}]}}
-
-
-def _pr(
-    number: int = 1,
-    *,
-    body: str = TRAILER,
-    author: dict[str, Any] | None = None,
-    state: str = "MERGED",
-    merged: bool = True,
-    days_old: float = 5,
-    threads: list[dict[str, Any]] | None = None,
-    reviews: list[dict[str, Any]] | None = None,
-) -> dict[str, Any]:
-    return {
-        "id": f"PR_{number}",
-        "number": number,
-        "title": f"PR {number}",
-        "url": f"https://github.com/o/r/pull/{number}",
-        "state": state,
-        "merged": merged,
-        "createdAt": (NOW - timedelta(days=days_old)).isoformat(),
-        "body": body,
-        "author": author or OWNER,
-        "reviews": {"nodes": reviews or [], "pageInfo": {"hasNextPage": False}},
-        "reviewThreads": {"nodes": threads or [], "pageInfo": {"hasNextPage": False}},
-    }
-
+from tests.agent_pr_intervention_helpers import (
+    BOT,
+    HUMAN,
+    NOW,
+    OWNER,
+    OWNER_NAME,
+    _actor,
+    _pr,
+    _thread,
+)
 
 # ---------------------------------------------------------------------------
 # Agent-author detection
@@ -65,27 +25,38 @@ def _pr(
 
 
 class TestIsAgentPr:
-    def test_body_trailer_marks_agent_pr_under_owner_login(self) -> None:
-        assert m.is_agent_pr(_pr(author=OWNER))
+    def test_trailer_on_owner_pr_marks_agent_pr(self) -> None:
+        assert m.is_agent_pr(_pr(author=OWNER), OWNER_NAME)
+
+    def test_owner_login_match_is_case_insensitive(self) -> None:
+        assert m.is_agent_pr(_pr(author=_actor("RJMurillo")), OWNER_NAME)
+
+    def test_trailer_on_a_stranger_pr_is_not_trusted(self) -> None:
+        # Anyone can type the trailer; only the owner's PRs may use it.
+        assert not m.is_agent_pr(_pr(author=_actor("mallory")), OWNER_NAME)
 
     def test_no_trailer_and_human_author_is_not_agent(self) -> None:
-        assert not m.is_agent_pr(_pr(body="Plain description.", author=HUMAN))
+        assert not m.is_agent_pr(_pr(body="Plain description.", author=HUMAN), OWNER_NAME)
+
+    def test_owner_pr_without_trailer_is_not_agent(self) -> None:
+        assert not m.is_agent_pr(_pr(body="Plain description.", author=OWNER), OWNER_NAME)
 
     def test_coding_agent_author_without_trailer_is_agent(self) -> None:
         coding_agent = _actor("copilot-swe-agent", "Bot", 198982749)
-        assert m.is_agent_pr(_pr(body="Plain.", author=coding_agent))
+        assert m.is_agent_pr(_pr(body="Plain.", author=coding_agent), OWNER_NAME)
 
     def test_repository_bot_user_account_is_agent(self) -> None:
-        assert m.is_agent_pr(_pr(body="Plain.", author=_actor("rjmurillo-bot")))
+        assert m.is_agent_pr(_pr(body="Plain.", author=_actor("rjmurillo-bot")), OWNER_NAME)
 
     def test_dependency_bot_is_not_agent(self) -> None:
-        assert not m.is_agent_pr(_pr(body="Bump x.", author=_actor("renovate", "Bot")))
+        pr = _pr(body="Bump x.", author=_actor("renovate", "Bot"))
+        assert not m.is_agent_pr(pr, OWNER_NAME)
 
     def test_null_body_and_null_author_is_not_agent(self) -> None:
         pr = _pr(body="")
         pr["body"] = None
         pr["author"] = None
-        assert not m.is_agent_pr(pr)
+        assert not m.is_agent_pr(pr, OWNER_NAME)
 
 
 # ---------------------------------------------------------------------------
@@ -121,9 +92,19 @@ class TestCountInterventions:
         review = {"state": "COMMENTED", "author": HUMAN}
         assert m.count_interventions(_pr(reviews=[review])) == 0
 
-    def test_bot_without_bot_typename_is_caught_by_login(self) -> None:
-        suffixed = _actor("some-tool[bot]")
-        assert m.count_interventions(_pr(threads=[_thread(suffixed)])) == 0
+    def test_user_typed_account_listed_in_bot_authors_is_a_bot(self) -> None:
+        listed = _actor("rjmurillo-bot")
+        assert m.count_interventions(_pr(threads=[_thread(listed)])) == 0
+
+    def test_login_suffix_alone_does_not_make_a_bot(self) -> None:
+        # Any person can pick a name ending in -bot, so it must count as human.
+        lookalike = _actor("alice-bot")
+        assert m.count_interventions(_pr(threads=[_thread(lookalike)])) == 1
+
+    def test_review_and_threads_each_count(self) -> None:
+        review = {"state": "CHANGES_REQUESTED", "author": HUMAN}
+        pr = _pr(threads=[_thread(HUMAN), _thread(HUMAN)], reviews=[review])
+        assert m.count_interventions(pr) == 3
 
     def test_deleted_account_thread_counts_as_human(self) -> None:
         thread = {"comments": {"nodes": [{"author": None}]}}
@@ -140,7 +121,7 @@ class TestCountInterventions:
 
 class TestBuildMetrics:
     def _build(self, prs: list[dict[str, Any]]) -> m.InterventionMetrics:
-        return m.build_metrics(prs, NOW - timedelta(days=30), NOW)
+        return m.build_metrics(prs, NOW - timedelta(days=30), NOW, OWNER_NAME)
 
     def test_splits_merged_unmerged_and_open(self) -> None:
         prs = [
@@ -198,9 +179,9 @@ class TestBuildMetrics:
 class TestRender:
     def test_report_has_table_sample_and_definitions(self) -> None:
         prs = [_pr(n) for n in range(1, 4)]
-        metrics = m.build_metrics(prs, NOW - timedelta(days=30), NOW)
+        metrics = m.build_metrics(prs, NOW - timedelta(days=30), NOW, OWNER_NAME)
         text = m.render_report(metrics, NOW)
-        assert "| merged | 3 | 3 | 100% | 0 | n/a |" in text
+        assert "| merged | 3 | 3 | 100.0% | 0 | n/a |" in text
         assert "[#3](https://github.com/o/r/pull/3): `PR 3`" in text
         assert "## Definitions" in text
         assert "2026-10-11 to 2026-11-10" in text
@@ -208,13 +189,16 @@ class TestRender:
 
     def test_sample_is_capped_and_spread(self) -> None:
         prs = [_pr(n) for n in range(1, 41)]
-        metrics = m.build_metrics(prs, NOW - timedelta(days=30), NOW)
+        metrics = m.build_metrics(prs, NOW - timedelta(days=30), NOW, OWNER_NAME)
         text = m.render_report(metrics, NOW)
         assert text.count("- [#") == m.ZERO_TOUCH_SAMPLE_SIZE
         assert "10 of 40 merged PRs" in text
+        sampled = [int(n) for n in re.findall(r"- \[#(\d+)\]", text)]
+        assert sampled == sorted(sampled, reverse=True)
+        assert sampled[0] == 40 and sampled[-1] <= 4  # spans the whole list
 
     def test_empty_sample_prints_none(self) -> None:
-        metrics = m.build_metrics([], NOW - timedelta(days=30), NOW)
+        metrics = m.build_metrics([], NOW - timedelta(days=30), NOW, OWNER_NAME)
         assert "- none" in m.render_report(metrics, NOW)
 
     def test_title_is_an_inert_code_span(self) -> None:
@@ -223,6 +207,11 @@ class TestRender:
         assert rendered.startswith("`") and rendered.endswith("`")
         assert rendered.count("`") == 2
         assert "\n" not in rendered
+
+    def test_title_drops_control_and_format_characters(self) -> None:
+        hostile = "a\u202eb\u200bc\x1b[31md\x00e"
+        rendered = m._inert_title(hostile)
+        assert rendered == "`abc[31mde`"
 
     def test_long_title_is_capped(self) -> None:
         rendered = m._inert_title("a" * 500)
@@ -236,192 +225,3 @@ class TestWriteReport:
         m.write_report(target, "hello")
         assert target.read_text(encoding="utf-8") == "hello"
         assert [p.name for p in target.parent.iterdir()] == ["report.md"]
-
-
-# ---------------------------------------------------------------------------
-# Lossless fetching
-# ---------------------------------------------------------------------------
-
-
-def _page(prs: list[dict[str, Any]], has_next: bool, cursor: str | None = "c1") -> dict[str, Any]:
-    return {
-        "repository": {
-            "pullRequests": {
-                "nodes": prs,
-                "pageInfo": {"hasNextPage": has_next, "endCursor": cursor},
-            }
-        }
-    }
-
-
-class TestFetch:
-    SINCE = NOW - timedelta(days=30)
-
-    def test_pages_until_no_next_page(self) -> None:
-        pages = [_page([_pr(2)], True, "c1"), _page([_pr(1)], False, None)]
-        with patch.object(m, "gh_graphql", side_effect=pages) as gql:
-            result = m.fetch_prs_created_since("o", "r", self.SINCE)
-        assert [p["number"] for p in result] == [2, 1]
-        assert gql.call_args_list[1].args[1]["cursor"] == "c1"
-
-    def test_stops_at_first_pr_older_than_window(self) -> None:
-        pages = [_page([_pr(2), _pr(1, days_old=40)], True), _page([_pr(0)], False)]
-        with patch.object(m, "gh_graphql", side_effect=pages) as gql:
-            result = m.fetch_prs_created_since("o", "r", self.SINCE)
-        assert [p["number"] for p in result] == [2]
-        assert gql.call_count == 1
-
-    def test_missing_cursor_raises(self) -> None:
-        with (
-            patch.object(m, "gh_graphql", return_value=_page([_pr(1)], True, None)),
-            pytest.raises(RuntimeError, match="no cursor"),
-        ):
-            m.fetch_prs_created_since("o", "r", self.SINCE)
-
-    def test_page_cap_raises_instead_of_warning(self) -> None:
-        with (
-            patch.object(m, "MAX_PR_PAGES", 2),
-            patch.object(m, "gh_graphql", side_effect=lambda *_: _page([_pr(1)], True)),
-            pytest.raises(RuntimeError, match="exceeded 2 pages"),
-        ):
-            m.fetch_prs_created_since("o", "r", self.SINCE)
-
-    def test_null_repository_raises(self) -> None:
-        with (
-            patch.object(m, "gh_graphql", return_value={"repository": None}),
-            pytest.raises(RuntimeError, match="Could not read"),
-        ):
-            m.fetch_prs_created_since("o", "r", self.SINCE)
-
-    def test_overflowing_thread_list_is_paged_to_completion(self) -> None:
-        pr = _pr(7)
-        pr["reviewThreads"] = {
-            "nodes": [_thread(BOT)],
-            "pageInfo": {"hasNextPage": True, "endCursor": "t1"},
-        }
-        follow_up = {
-            "node": {
-                "reviewThreads": {
-                    "nodes": [_thread(HUMAN)],
-                    "pageInfo": {"hasNextPage": False, "endCursor": None},
-                }
-            }
-        }
-        with patch.object(m, "gh_graphql", side_effect=[_page([pr], False), follow_up]) as gql:
-            result = m.fetch_prs_created_since("o", "r", self.SINCE)
-        assert m.count_interventions(result[0]) == 1
-        assert gql.call_args_list[1].args[1] == {"id": "PR_7", "cursor": "t1"}
-
-    def test_overflowing_list_without_cursor_raises(self) -> None:
-        pr = _pr(7)
-        pr["reviews"] = {"nodes": [], "pageInfo": {"hasNextPage": True, "endCursor": None}}
-        with (
-            patch.object(m, "gh_graphql", return_value=_page([pr], False)),
-            pytest.raises(RuntimeError, match="no cursor"),
-        ):
-            m.fetch_prs_created_since("o", "r", self.SINCE)
-
-    def test_nested_page_cap_raises(self) -> None:
-        pr = _pr(7)
-        pr["reviews"] = {"nodes": [], "pageInfo": {"hasNextPage": True, "endCursor": "r1"}}
-        endless = {
-            "node": {"reviews": {"nodes": [], "pageInfo": {"hasNextPage": True, "endCursor": "r2"}}}
-        }
-        with (
-            patch.object(m, "MAX_NESTED_PAGES", 2),
-            patch.object(
-                m, "gh_graphql", side_effect=[_page([pr], False), endless, endless, endless]
-            ),
-            pytest.raises(RuntimeError, match="exceeded 2 pages"),
-        ):
-            m.fetch_prs_created_since("o", "r", self.SINCE)
-
-
-class TestRunReport:
-    def test_writes_report_for_agent_prs_only(self, tmp_path: Path) -> None:
-        prs = [_pr(2), _pr(1, body="Plain.", author=HUMAN)]
-        target = tmp_path / "report.md"
-        with patch.object(m, "gh_graphql", return_value=_page(prs, False)):
-            metrics = m.run_report("o", "r", target, now=NOW)
-        assert metrics.total_prs == 1
-        assert "PR 2" in target.read_text(encoding="utf-8")
-        assert "PR 1" not in target.read_text(encoding="utf-8")
-
-
-# ---------------------------------------------------------------------------
-# CLI wiring: failures must exit nonzero
-# ---------------------------------------------------------------------------
-
-
-class TestCli:
-    def _patched(self, report: Any) -> Any:
-        healthy = SimpleNamespace(status=RateLimitStatus.VERIFIED_HEALTHY)
-        return (
-            patch.object(stats_script, "check_workflow_rate_limit", return_value=healthy),
-            patch.object(
-                stats_script,
-                "resolve_repo_params",
-                return_value=SimpleNamespace(owner="o", repo="r"),
-            ),
-            patch.object(stats_script, "run_agent_intervention_report", report),
-        )
-
-    def test_api_failure_returns_2(self) -> None:
-        a, b, c = self._patched(_raise)
-        with a, b, c:
-            assert stats_script.main(["--agent-intervention"]) == 2
-
-    def test_unresolved_repo_root_returns_1_and_writes_nothing(self) -> None:
-        a, b, c = self._patched(lambda *_: pytest.fail("report must not run"))
-        with a, b, c, patch.object(stats_script, "get_repo_root", return_value=None):
-            assert stats_script.main(["--agent-intervention"]) == 1
-
-    def test_cwd_outside_repo_root_returns_1(self, tmp_path: Path) -> None:
-        a, b, c = self._patched(lambda *_: pytest.fail("report must not run"))
-        elsewhere = tmp_path / "elsewhere"
-        elsewhere.mkdir()
-        with a, b, c, patch.object(stats_script, "get_repo_root", return_value=elsewhere):
-            assert stats_script.main(["--agent-intervention"]) == 1
-
-    def test_success_returns_0_and_skips_reviewer_stats(self) -> None:
-        metrics = m.build_metrics([], NOW - timedelta(days=30), NOW)
-        a, b, c = self._patched(lambda *_: metrics)
-        with a, b, c, patch.object(stats_script, "get_all_prs_with_comments") as reviewer_fetch:
-            assert stats_script.main(["--agent-intervention"]) == 0
-        reviewer_fetch.assert_not_called()
-
-
-def _raise(*_: Any) -> None:
-    raise RuntimeError("boom")
-
-
-# ---------------------------------------------------------------------------
-# Workflow wiring: parsed structure, not substrings
-# ---------------------------------------------------------------------------
-
-WORKFLOW = (
-    Path(__file__).resolve().parents[1] / ".github" / "workflows" / "update-reviewer-stats.yml"
-)
-
-
-class TestWorkflowWiring:
-    @staticmethod
-    def _steps() -> dict[str, str]:
-        doc = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
-        steps = doc["jobs"]["update-stats"]["steps"]
-        return {s["name"]: s.get("run", "") for s in steps}
-
-    def test_intervention_report_runs_after_the_existing_stats_commit(self) -> None:
-        names = list(self._steps())
-        assert names.index("Commit updated stats") < names.index(
-            "Build agent PR intervention report"
-        )
-        assert names.index("Build agent PR intervention report") < names.index(
-            "Commit agent PR intervention report"
-        )
-
-    def test_each_report_is_committed_by_its_own_step(self) -> None:
-        steps = self._steps()
-        assert m.REPORT_PATH in steps["Commit agent PR intervention report"]
-        assert m.REPORT_PATH not in steps["Commit updated stats"]
-        assert "--agent-intervention" in steps["Build agent PR intervention report"]

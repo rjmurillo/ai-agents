@@ -346,9 +346,9 @@ Zero-Intervention Rate = (Agent PRs with 0 interventions / Agent PRs in the row)
 
 **Definitions**:
 
-- Agent-authored PR: the body carries the `Generated with [Claude Code]` trailer, or the author is a `repository` bot in `.github/bot-authors.yml`. Agent PRs here are opened under the owner's login, so the author alone misses almost all of them.
-- Intervention: a review thread whose first comment is by a non-bot, or a `CHANGES_REQUESTED` review by a non-bot.
-- Not an intervention: any bot activity, replies inside a bot-opened thread, an approval with no comment, and issue-level comments.
+- Agent-authored PR: the author is a `repository` bot in `.github/bot-authors.yml`, or the repository owner opened it and the body carries the `Generated with [Claude Code]` trailer. Agent PRs here are opened under the owner's login, so the author alone misses almost all of them. The trailer is trusted only on the owner's PRs, because anyone can type it.
+- Intervention: a review thread whose first comment is by a non-bot, or a `CHANGES_REQUESTED` review by a non-bot. A bot is an actor GitHub types as a bot, or a login listed in `bot-authors.yml`.
+- Not an intervention: any bot activity, replies inside a bot-opened thread, an approval with no comment, and issue-level comments. A deleted account counts as human, so it can never hide an intervention.
 
 **Measurement Method**: GitHub PR events only, read in full by cursor. Session logs are not a source, because session log creation is discontinued. Iterations before the first intervention are therefore not measured.
 

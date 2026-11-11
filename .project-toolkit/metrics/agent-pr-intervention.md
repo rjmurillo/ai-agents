@@ -1,18 +1,18 @@
 # Agent PR Intervention Metrics
 
-Generated 2026-11-11 from GitHub PR events. Window: PRs created 2026-10-12 to 2026-11-11 (30 days). Agent-authored PRs in window: 591.
+Generated 2026-11-11 from GitHub PR events. Window: PRs created 2026-10-12 to 2026-11-11 (30 days). Agent-authored PRs in window: 608.
 
 | Outcome | PRs | Zero-touch | Zero-intervention rate | Interventions | Median per intervened PR |
 |---------|-----|------------|------------------------|---------------|--------------------------|
-| merged | 578 | 349 | 60% | 665 | 2 |
-| unmerged | 5 | 4 | 80% | 1 | 1 |
-| open | 8 | 5 | 62% | 5 | 1 |
+| merged | 579 | 350 | 60.4% | 665 | 2 |
+| unmerged | 5 | 4 | 80.0% | 1 | 1 |
+| open | 24 | 18 | 75.0% | 10 | 1 |
 
 ## Zero-touch merge sample
 
-10 of 349 merged PRs with zero interventions, spread across the window, newest first.
+10 of 350 merged PRs with zero interventions, picked at even steps through the PR-number order, newest first.
 
-- [#7256](https://github.com/rjmurillo/ai-agents/pull/7256): `fix(build): reword Cursor handoffs to the unshipped security agent`
+- [#7259](https://github.com/rjmurillo/ai-agents/pull/7259): `fix(tests): cite #7215 in the pwsh launcher probe, not #7231`
 - [#7073](https://github.com/rjmurillo/ai-agents/pull/7073): `feat(hooks): friction branch in the Stop retrospective nudge (REQ-048 TASK-003)`
 - [#6937](https://github.com/rjmurillo/ai-agents/pull/6937): `fix(tests): join api-doc-authoring test server threads before each test ends`
 - [#6850](https://github.com/rjmurillo/ai-agents/pull/6850): `docs(eval): record the S7 baseline versus full run for the reframing check`
@@ -25,11 +25,14 @@ Generated 2026-11-11 from GitHub PR events. Window: PRs created 2026-10-12 to 20
 
 ## Definitions
 
-- **Agent-authored PR.** The PR body carries the `Generated with [Claude Code]` trailer, or the
-  author canonicalizes to a `repository` bot in `.github/bot-authors.yml`. Agent PRs here are
-  opened under the owner's login, so the author alone misses almost all of them.
+- **Agent-authored PR.** The author is a `repository` bot in `.github/bot-authors.yml`, or the
+  repository owner opened it and the body carries the `Generated with [Claude Code]` trailer.
+  Agent PRs here are opened under the owner's login, so the author alone misses almost all of
+  them. The trailer is trusted only on the owner's PRs, because anyone can type it.
 - **Human intervention.** One of: a review thread whose first comment is by a non-bot, or a
-  `CHANGES_REQUESTED` review by a non-bot. Each counts once.
+  `CHANGES_REQUESTED` review by a non-bot. Each counts once, so one such review plus two
+  human-opened threads is three. A bot is an actor GitHub types as a bot, or a login listed in
+  `bot-authors.yml`. A login suffix such as `-bot` is not enough.
 - **Not an intervention.** Any bot comment or review. Replies inside a bot-opened thread, because
   the agent replies under the same login as the owner. An approval with no comment. A comment
   that is not a review thread (issue-level comments). An unattributable (deleted) account counts
@@ -39,7 +42,8 @@ Generated 2026-11-11 from GitHub PR events. Window: PRs created 2026-10-12 to 20
 - **Rows.** `merged`, `unmerged` (closed without merge), and `open` (still in flight).
 - **Window.** PRs created in the trailing 30 days.
 - **Data source.** GitHub PR events only. Session logs are not used. PRs that are not
-  agent-authored are read to classify them and are not stored or reported.
+  agent-authored are classified from the first page of the PR list and then dropped. Nothing
+  about them is paged further, stored, or reported.
 
 ## Known limits
 

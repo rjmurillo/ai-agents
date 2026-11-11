@@ -9,32 +9,25 @@ Called by ``scripts/update_reviewer_signal_stats.py --agent-intervention`` on
 the ``update-reviewer-stats.yml`` cadence. Kept in its own module so the
 reviewer-signal functions in that script stay untouched.
 
-Definitions (also rendered into the report):
-
-* Agent-authored PR: the body carries the Claude Code trailer, or the author
-  canonicalizes to a ``repository`` bot in ``.github/bot-authors.yml``. Agent
-  PRs here are opened under the owner's login, so the author login alone
-  misses almost all of them.
-* Human intervention: a review thread whose first comment is by a non-bot, or
-  a ``CHANGES_REQUESTED`` review by a non-bot. Replies inside a bot-opened
-  thread are not counted, because the agent replies under the same login as
-  the owner. An approval with no comment is not an intervention.
-* Zero-intervention rate: PRs with zero interventions over all PRs in the cohort.
+The definitions and known limits live in ``DEFINITIONS`` below and are
+rendered into the report.
 """
 
 from __future__ import annotations
 
+import functools
 import os
 import re
 import statistics
 import tempfile
+import unicodedata
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 from scripts.github_core.api import gh_graphql
-from scripts.github_core.bot_config import canonicalize_login, get_bot_authors, is_bot
+from scripts.github_core.bot_config import canonicalize_login, get_bot_authors
 
 INTERVENTION_WINDOW_DAYS = 30
 ZERO_TOUCH_SAMPLE_SIZE = 10
@@ -56,7 +49,16 @@ __typename
 ... on Bot { databaseId }
 ... on User { databaseId }"""
 
-_PRS_QUERY = """\
+_REVIEW_NODES = "nodes { state author { __ACTOR__ } }".replace("__ACTOR__", _ACTOR_FIELDS)
+_THREAD_NODES = "nodes { comments(first: 1) { nodes { author { __ACTOR__ } } } }".replace(
+    "__ACTOR__", _ACTOR_FIELDS
+)
+
+# Selection for each nested connection. The PR page and the overflow query both read it.
+_NESTED_SELECTIONS = {"reviews": _REVIEW_NODES, "reviewThreads": _THREAD_NODES}
+
+_PRS_QUERY = (
+    """\
 query($owner: String!, $repo: String!, $cursor: String) {
   repository(owner: $owner, name: $repo) {
     pullRequests(first: 50, orderBy: {field: CREATED_AT, direction: DESC}, after: $cursor) {
@@ -74,24 +76,19 @@ query($owner: String!, $repo: String!, $cursor: String) {
         author { __ACTOR__ }
         reviews(first: 100) {
           pageInfo { hasNextPage endCursor }
-          nodes { state author { __ACTOR__ } }
+          __REVIEW_NODES__
         }
         reviewThreads(first: 100) {
           pageInfo { hasNextPage endCursor }
-          nodes { comments(first: 1) { nodes { author { __ACTOR__ } } } }
+          __THREAD_NODES__
         }
       }
     }
   }
-}""".replace("__ACTOR__", _ACTOR_FIELDS)
-
-# Selection for each nested connection, used when a PR overflows the first page.
-_NESTED_SELECTIONS = {
-    "reviews": "nodes { state author { __ACTOR__ } }".replace("__ACTOR__", _ACTOR_FIELDS),
-    "reviewThreads": "nodes { comments(first: 1) { nodes { author { __ACTOR__ } } } }".replace(
-        "__ACTOR__", _ACTOR_FIELDS
-    ),
-}
+}""".replace("__REVIEW_NODES__", _REVIEW_NODES)
+    .replace("__THREAD_NODES__", _THREAD_NODES)
+    .replace("__ACTOR__", _ACTOR_FIELDS)
+)
 
 _NESTED_QUERY = """\
 query($id: ID!, $cursor: String) {
@@ -145,18 +142,38 @@ class InterventionMetrics:
 # ---------------------------------------------------------------------------
 
 
-def _repository_bots() -> set[str]:
+def _normalize_login(login: str) -> str:
+    return login.lower().removesuffix("[bot]")
+
+
+@functools.cache
+def _repository_bots() -> frozenset[str]:
     """Lowercased ``repository`` bot logins with any ``[bot]`` suffix removed."""
-    return {b.lower().removesuffix("[bot]") for b in get_bot_authors("repository")}
+    return frozenset(_normalize_login(b) for b in get_bot_authors("repository"))
 
 
-def is_agent_pr(pr: dict[str, Any]) -> bool:
-    """Return True when the PR body or author marks it as agent-authored."""
-    if AGENT_TRAILER_PATTERN.search(pr.get("body") or ""):
-        return True
+@functools.cache
+def _configured_bots() -> frozenset[str]:
+    """Every bot login in ``.github/bot-authors.yml``, normalized."""
+    return frozenset(_normalize_login(b) for b in get_bot_authors())
+
+
+def is_agent_pr(pr: dict[str, Any], owner: str) -> bool:
+    """Return True when the PR is agent-authored.
+
+    A repository bot author always counts. The Claude Code trailer counts only
+    on a PR opened by the repository owner, because anyone can type the
+    trailer into a body and their title would reach the committed report.
+    """
     author = pr.get("author") or {}
-    login = canonicalize_login(author.get("login") or "", author.get("databaseId"))
-    return login.lower().removesuffix("[bot]") in _repository_bots() if login else False
+    login = _normalize_login(
+        canonicalize_login(author.get("login") or "", author.get("databaseId"))
+    )
+    if not login:
+        return False
+    if login in _repository_bots():
+        return True
+    return login == owner.lower() and bool(AGENT_TRAILER_PATTERN.search(pr.get("body") or ""))
 
 
 def _is_human(actor: dict[str, Any] | None) -> bool:
@@ -164,13 +181,15 @@ def _is_human(actor: dict[str, Any] | None) -> bool:
 
     A null actor (deleted account) counts as human. A zero-touch claim has to
     be provable, so an unattributable event must not hide an intervention.
+    A ``User`` is a bot only when ``bot-authors.yml`` lists it. A login suffix
+    such as ``-bot`` is not evidence, since any person can pick that name.
     """
     if not actor:
         return True
-    login = actor.get("login") or ""
     if actor.get("__typename") == "Bot":
         return False
-    return not is_bot(canonicalize_login(login, actor.get("databaseId")))
+    login = _normalize_login(canonicalize_login(actor.get("login") or "", actor.get("databaseId")))
+    return login not in _configured_bots()
 
 
 def count_interventions(pr: dict[str, Any]) -> int:
@@ -214,7 +233,7 @@ def _evenly_spaced(items: list[dict[str, Any]], size: int) -> list[dict[str, Any
 
 
 def build_metrics(
-    prs: list[dict[str, Any]], window_start: datetime, window_end: datetime
+    prs: list[dict[str, Any]], window_start: datetime, window_end: datetime, owner: str
 ) -> InterventionMetrics:
     """Aggregate agent PRs created inside the window. Other PRs are discarded."""
     cohorts = {status: CohortStats() for status in STATUSES}
@@ -222,7 +241,7 @@ def build_metrics(
 
     for pr in prs:
         created = _parse_time(pr["createdAt"])
-        if not window_start <= created <= window_end or not is_agent_pr(pr):
+        if not window_start <= created <= window_end or not is_agent_pr(pr, owner):
             continue
         count = count_interventions(pr)
         status = pr_status(pr)
@@ -248,7 +267,7 @@ def build_metrics(
 
 
 def _fmt_rate(value: float | None) -> str:
-    return "n/a" if value is None else f"{value * 100:.0f}%"
+    return "n/a" if value is None else f"{value * 100:.1f}%"
 
 
 def _fmt_median(value: float | None) -> str:
@@ -260,10 +279,16 @@ def _inert_title(title: str) -> str:
 
     Titles are attacker-influenced text written into a committed file. Inside a
     code span, links, HTML and emphasis are not interpreted. Backticks cannot
-    appear in the title, because one would close the span, and the length is
-    capped.
+    appear in the title, because one would close the span, control and format
+    characters (bidi overrides, zero-width marks, escapes) are dropped, and
+    the length is capped.
     """
-    flat = " ".join(title.split()).replace("`", "'")
+    visible = "".join(
+        ch
+        for ch in title
+        if unicodedata.category(ch) not in ("Cc", "Cf", "Zl", "Zp") or ch.isspace()
+    )
+    flat = " ".join(visible.split()).replace("`", "'")
     if len(flat) > TITLE_MAX_CHARS:
         flat = flat[: TITLE_MAX_CHARS - 3] + "..."
     return f"`{flat}`"
@@ -272,11 +297,14 @@ def _inert_title(title: str) -> str:
 DEFINITIONS = """\
 ## Definitions
 
-- **Agent-authored PR.** The PR body carries the `Generated with [Claude Code]` trailer, or the
-  author canonicalizes to a `repository` bot in `.github/bot-authors.yml`. Agent PRs here are
-  opened under the owner's login, so the author alone misses almost all of them.
+- **Agent-authored PR.** The author is a `repository` bot in `.github/bot-authors.yml`, or the
+  repository owner opened it and the body carries the `Generated with [Claude Code]` trailer.
+  Agent PRs here are opened under the owner's login, so the author alone misses almost all of
+  them. The trailer is trusted only on the owner's PRs, because anyone can type it.
 - **Human intervention.** One of: a review thread whose first comment is by a non-bot, or a
-  `CHANGES_REQUESTED` review by a non-bot. Each counts once.
+  `CHANGES_REQUESTED` review by a non-bot. Each counts once, so one such review plus two
+  human-opened threads is three. A bot is an actor GitHub types as a bot, or a login listed in
+  `bot-authors.yml`. A login suffix such as `-bot` is not enough.
 - **Not an intervention.** Any bot comment or review. Replies inside a bot-opened thread, because
   the agent replies under the same login as the owner. An approval with no comment. A comment
   that is not a review thread (issue-level comments). An unattributable (deleted) account counts
@@ -286,7 +314,8 @@ DEFINITIONS = """\
 - **Rows.** `merged`, `unmerged` (closed without merge), and `open` (still in flight).
 - **Window.** PRs created in the trailing 30 days.
 - **Data source.** GitHub PR events only. Session logs are not used. PRs that are not
-  agent-authored are read to classify them and are not stored or reported.
+  agent-authored are classified from the first page of the PR list and then dropped. Nothing
+  about them is paged further, stored, or reported.
 
 ## Known limits
 
@@ -329,7 +358,7 @@ def render_report(metrics: InterventionMetrics, generated_at: datetime) -> str:
         "## Zero-touch merge sample",
         "",
         f"{len(sample)} of {len(metrics.zero_touch_merged)} merged PRs with zero interventions, "
-        "spread across the window, newest first.",
+        "picked at even steps through the PR-number order, newest first.",
         "",
     ]
     lines += [f"- [#{p['number']}]({p['url']}): {_inert_title(p['title'])}" for p in sample]
@@ -361,38 +390,42 @@ def write_report(path: str | os.PathLike[str], text: str) -> None:
 def _complete_connection(pr: dict[str, Any], connection: str) -> None:
     """Page one nested connection of a PR to the end, in place.
 
-    A truncated list can report a false zero-touch, so an incomplete read
-    raises instead of returning a partial PR.
+    A truncated list can report a false zero-touch, so any incomplete or
+    malformed read raises instead of returning a partial PR.
     """
-    data = pr.get(connection) or {}
+    number = pr["number"]
+    data = pr.get(connection)
+    if not isinstance(data, dict) or not isinstance(data.get("pageInfo"), dict):
+        raise RuntimeError(f"PR #{number}: {connection} has no pageInfo")
     nodes: list[dict[str, Any]] = list(data.get("nodes") or [])
-    page_info = data.get("pageInfo") or {}
+    page_info = data["pageInfo"]
     pages = 0
     while page_info.get("hasNextPage"):
         pages += 1
         if pages > MAX_NESTED_PAGES:
-            raise RuntimeError(
-                f"PR #{pr['number']}: {connection} exceeded {MAX_NESTED_PAGES} pages"
-            )
+            raise RuntimeError(f"PR #{number}: {connection} exceeded {MAX_NESTED_PAGES} pages")
         cursor = page_info.get("endCursor")
         if not cursor:
-            raise RuntimeError(f"PR #{pr['number']}: {connection} has a next page but no cursor")
+            raise RuntimeError(f"PR #{number}: {connection} has a next page but no cursor")
         query = _NESTED_QUERY.replace("__CONNECTION__", connection).replace(
             "__SELECTION__", _NESTED_SELECTIONS[connection]
         )
         response = gh_graphql(query, {"id": pr["id"], "cursor": cursor})
-        page = ((response.get("node") or {}).get(connection)) or {}
+        page = (response.get("node") or {}).get(connection)
+        if not isinstance(page, dict) or not isinstance(page.get("pageInfo"), dict):
+            raise RuntimeError(f"PR #{number}: {connection} follow-up page was unreadable")
         nodes.extend(page.get("nodes") or [])
-        page_info = page.get("pageInfo") or {}
+        page_info = page["pageInfo"]
     pr[connection] = {"nodes": nodes, "pageInfo": {"hasNextPage": False, "endCursor": None}}
 
 
 def fetch_prs_created_since(owner: str, repo: str, since: datetime) -> list[dict[str, Any]]:
-    """Return every PR created at or after ``since`` with complete nested lists.
+    """Return every agent PR created at or after ``since`` with complete nested lists.
 
     PRs are ordered by creation time, newest first, so the first PR older than
-    ``since`` ends the scan exactly. Raises RuntimeError on a missing cursor, a
-    page cap hit, or an unreadable response.
+    ``since`` ends the scan exactly. A PR that is not agent-authored is dropped
+    before any follow-up paging, and nothing about it is kept. Raises
+    RuntimeError on a missing cursor, a page cap hit, or an unreadable response.
     """
     collected: list[dict[str, Any]] = []
     cursor: str | None = None
@@ -408,6 +441,8 @@ def fetch_prs_created_since(owner: str, repo: str, since: datetime) -> list[dict
         for pr in connection["nodes"]:
             if _parse_time(pr["createdAt"]) < since:
                 return collected
+            if not is_agent_pr(pr, owner):
+                continue
             for name in _NESTED_SELECTIONS:
                 _complete_connection(pr, name)
             collected.append(pr)
@@ -431,6 +466,6 @@ def run_report(
     """Fetch, aggregate and write the report. Raises RuntimeError on API failure."""
     end = now or datetime.now(UTC)
     start = end - timedelta(days=INTERVENTION_WINDOW_DAYS)
-    metrics = build_metrics(fetch_prs_created_since(owner, repo, start), start, end)
+    metrics = build_metrics(fetch_prs_created_since(owner, repo, start), start, end, owner)
     write_report(report_path, render_report(metrics, end))
     return metrics
