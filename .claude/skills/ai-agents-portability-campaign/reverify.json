@@ -158,7 +158,7 @@
     {
       "id": "R31",
       "kind": "contains",
-      "path": "src/claude/rules/generated-artifacts.md",
+      "path": ".claude/rules/generated-artifacts.md",
       "text": "(in the ai-agents repository only)"
     },
     {
