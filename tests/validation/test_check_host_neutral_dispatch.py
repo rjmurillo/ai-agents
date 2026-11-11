@@ -73,9 +73,9 @@ def test_python_script_printing_bare_task_fails(tmp_path: Path) -> None:
     [
         "class RunnableTask(Protocol):",
         "_Task(name)",
-        'Claude Code: `Task` with `subagent_type="qa"`; Codex `spawn_agent`.',
+        "Claude Code: `Task` for the qa agent; Codex `spawn_agent`.",
         "Use the host's ask tool (Claude Code: `AskUserQuestion`) when it applies.",
-        "print('(Claude Code: Task(subagent_type=\"security\"); Codex: spawn_agent)')",
+        "print('(Claude Code: Task(\"security\"); Codex: spawn_agent)')",
     ],
 )
 def test_attributed_or_unrelated_lines_pass(tmp_path: Path, line: str) -> None:
@@ -113,6 +113,102 @@ def test_cli_exit_code_reaches_the_process(tmp_path: Path) -> None:
 
     assert proc.returncode == 1
     assert "src/codex/skills/demo/SKILL.md:3: bare Task(" in proc.stdout
+
+
+MARKER = "**Delegation on each host.** Codex `spawn_agent`; Muse Code `subagent_spawn`."
+PROSE_DISPATCH = "Use Task with the read-only `code-reviewer` subagent_type."
+PARTIAL = REPO_ROOT / "templates" / "skills" / "partials" / "host-delegation.mustache"
+
+
+def _skill_file(root: Path, tree: str, relative: str, body: str) -> Path:
+    path = root / "src" / tree / "skills" / "demo" / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(body, encoding="utf-8")
+    return path
+
+
+def test_prose_subagent_type_without_paragraph_fails(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _repo(tmp_path, codex_body=f"# Demo\n\n{PROSE_DISPATCH}\n")
+
+    assert gate.main(["--repo-root", str(root)]) == 1
+    out = capsys.readouterr().out
+    assert "src/codex/skills/demo/SKILL.md:3: subagent_type without the host-delegation" in out
+    assert "1 violation(s) in 2 files examined" in out
+
+
+def test_attributed_subagent_type_line_still_needs_the_paragraph(tmp_path: Path) -> None:
+    line = 'Claude Code: `Task` with `subagent_type="qa"`.'
+    root = _repo(tmp_path, muse_body=f"# Demo\n\n{line}\n")
+
+    assert gate.main(["--repo-root", str(root)]) == 1
+
+
+def test_prose_subagent_type_with_paragraph_passes(tmp_path: Path) -> None:
+    body = f"# Demo\n\n{MARKER}\n\n{PROSE_DISPATCH}\n"
+    root = _repo(tmp_path, codex_body=body, muse_body=body)
+
+    assert gate.main(["--repo-root", str(root)]) == 0
+
+
+def test_reference_file_is_covered_by_its_skill_body(tmp_path: Path) -> None:
+    root = _repo(tmp_path, codex_body=f"# Demo\n\n{MARKER}\n")
+    _skill_file(root, "codex", "references/detail.md", f"# Detail\n\n{PROSE_DISPATCH}\n")
+
+    assert gate.main(["--repo-root", str(root)]) == 0
+
+
+def test_reference_file_fails_when_skill_body_lacks_paragraph(tmp_path: Path) -> None:
+    root = _repo(tmp_path)
+    _skill_file(root, "codex", "scripts/hint.py", f"print('{PROSE_DISPATCH}')\n")
+
+    assert gate.main(["--repo-root", str(root)]) == 1
+
+
+def test_file_outside_a_skill_gets_no_skill_cover(tmp_path: Path) -> None:
+    root = _repo(tmp_path, codex_body=f"# Demo\n\n{MARKER}\n")
+    stray = root / "src" / "codex" / "README.md"
+    stray.write_text(f"{PROSE_DISPATCH}\n", encoding="utf-8")
+
+    assert gate.main(["--repo-root", str(root)]) == 1
+
+
+def test_frontmatter_subagent_type_is_skipped(tmp_path: Path) -> None:
+    body = "---\nname: demo\nsubagent_type: qa\n---\n# Demo\n"
+    root = _repo(tmp_path, codex_body=body)
+
+    assert gate.main(["--repo-root", str(root)]) == 0
+
+
+def test_shipped_delegation_paragraphs_match_the_partial() -> None:
+    paragraph = PARTIAL.read_text(encoding="utf-8").splitlines()[1]
+    carriers = [
+        path
+        for tree in gate.SHIPPED_TREES
+        for path in (REPO_ROOT / tree).rglob("*.md")
+        if gate.DELEGATION_MARKER in path.read_text(encoding="utf-8")
+    ]
+
+    assert carriers, "no shipped file carries the delegation paragraph"
+    stale = [
+        p.as_posix()
+        for p in carriers
+        if paragraph not in p.read_text(encoding="utf-8").splitlines()
+    ]
+    assert stale == []
+
+
+def test_partial_names_codex_isolation_and_muse_write_isolation() -> None:
+    text = PARTIAL.read_text(encoding="utf-8")
+
+    for needle in (
+        'fork_turns="none"',
+        "`objective`",
+        "worktree_isolation: true",
+        "run the step yourself",
+    ):
+        assert needle in text
 
 
 def test_shipped_trees_are_clean() -> None:

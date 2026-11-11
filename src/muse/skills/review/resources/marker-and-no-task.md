@@ -22,6 +22,8 @@ The report has one `<axis>: <VERDICT>` row per axis in the axis list. The verdic
 
 ## Write steps
 
+Write the marker only after a review on path 1 or 2 below. An in-session review (path 3) never writes one, whatever its verdict.
+
 A commit cannot name its own SHA in a trailer (the SHA hashes the trailer, so writing the SHA changes the SHA, with no fixed point). Record the reviewed tip, then write an empty marker commit on top of it.
 
 After the marker lands, you may merge `origin/main` into the branch without a new review. The validator and the security-review gate step over a merge commit when its second parent is on `origin/main` (change it with `--base-ref`) and its tree equals what `git merge-tree --write-tree` computes for its two parents. A merge that needed conflict edits, carries an extra edit, or pulls in another branch is new code: run `/review` again. Rebasing or amending rewrites the reviewed tip and always needs a new review.
@@ -35,11 +37,17 @@ After the marker lands, you may merge `origin/main` into the branch without a ne
 
 ## Running without a subagent tool
 
-A subagent with no such tool MUST NOT review its own diff and write the marker. Run each axis as its own `claude -p` process, so the reviewer has the axis prompt and nothing from the authoring session.
+The reviewer for each axis needs the axis prompt and the diff, and nothing from the authoring session. A session that wrote the diff MUST NOT review it in its own context and then write the marker. Pick the first path the host supports.
 
-```bash
-# <axis-prompt> is the resolved references/{role}.md, or resources/technical-review.md for the step 4c correctness pass; context.txt starts with the CONTEXT_MODE line, then the diff.
-claude -p --system-prompt-file "<axis-prompt>" --allowedTools "Read Grep Glob" < context.txt > "axis-{role}.out"
-```
+1. **The host's subagent tool.** This is SKILL.md Process as written: one child per axis. Claude Code: `Task` with `subagent_type`. Copilot CLI: `task` with `agent_type="project-toolkit:<role>"`. Codex: `spawn_agent` with `agent_type` and `fork_turns` set to `none`, because the default forks the parent's turns into the child. Muse Code: `subagent_spawn` with `role`. No agent for the role: use the host's general-purpose agent with the axis prompt.
+2. **A fresh `claude -p` process per axis**, when `claude` is on `PATH`:
 
-Follow SKILL.md Process with these substitutions. Step 3, the complexity classifier, runs as its own `claude -p` process with the analyst prompt. Run the Stage-1 `spec-compliance` axis first, then the step 4 selection, then step 4c, one process each. Run `validate_findings_scope.py` on each `axis-{role}.out` as in step 4a before extracting its verdict, so an out-of-scope finding downgrades as it does on the Task path. The step 5 local axes run their scripts as written. Extract each verdict as in SKILL.md Process step 6, and keep every `axis-{role}.out` file as the evidence behind the report. If `claude` is not on `PATH`, record `UNKNOWN` for every axis: no verdict is a non-PASS verdict, and a non-PASS verdict writes no marker.
+   ```bash
+   # <axis-prompt> is the resolved references/{role}.md, or resources/technical-review.md for the step 4c correctness pass; context.txt starts with the CONTEXT_MODE line, then the diff.
+   claude -p --system-prompt-file "<axis-prompt>" --allowedTools "Read Grep Glob" < context.txt > "axis-{role}.out"
+   ```
+
+   Follow SKILL.md Process with these substitutions. Step 3, the complexity classifier, runs as its own `claude -p` process with the analyst prompt. Run the Stage-1 `spec-compliance` axis first, then the step 4 selection, then step 4c, one process each.
+3. **Each axis in this session, in turn.** No subagent tool and no `claude`: the case on a Codex or Muse Code host without a spawn tool. Run the axes in SKILL.md Process order. For each one, read only its axis prompt and `context.txt`, write the axis output to `axis-{role}.out`, and finish it before the next starts. It is not independent of this session, so it NEVER writes the PASS marker: report the merged verdict with the label `in-session review, no marker`, and leave the marker to a later run on path 1 or 2.
+
+On paths 2 and 3, run `validate_findings_scope.py` on each `axis-{role}.out` as in step 4a before extracting its verdict, so an out-of-scope finding downgrades as it does on path 1. The step 5 local axes run their scripts as written. Extract each verdict as in SKILL.md Process step 6, and keep every `axis-{role}.out` file as the evidence behind the report. An axis that crashes or emits no verdict is `UNKNOWN`: no verdict is a non-PASS verdict, and a non-PASS verdict writes no marker.
