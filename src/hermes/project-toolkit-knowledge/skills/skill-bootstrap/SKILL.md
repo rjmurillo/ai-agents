@@ -112,7 +112,7 @@ PowerShell, see [Scripts](#scripts).
    skill-doctor repeated-tool/error counts, or repeat `--hosted-json <export.json>`
    for offline GitHub PR/issue and Azure DevOps PR/work-item observations.
    Follow the [offline friction-input reference](references/discovery.md#offline-friction-input-reference).
-   Review fields in `--prs-json` ([shape](references/hosted-platforms.md#review-export-for-mined-review-friction)) add `review_failures` (a rule, category, or file area repeated on 3 or more pull requests in 90 days) and `missed_items` (fixes naming their introducer). One cluster or missed item satisfies the workflow gate. The script proves a marker recurred, not a shared cause. [Method](references/discovery.md#review-friction-repeated-failures-and-missed-items); arXiv:2610.32313, CRBugBench.
+   Review fields in `--prs-json` add `review_failures` (a rule, category, or file area repeated on 3 or more pull requests in 90 days) and `missed_items` (fixes naming their introducer). One cluster or missed item satisfies the workflow gate. The script proves a marker recurred, not a shared cause. [Method](references/discovery.md#review-friction-repeated-failures-and-missed-items); arXiv:2610.32313, CRBugBench.
    Imports are `candidate_unverified`, not verified friction. Do not import
    qualitative report grades or bypass verification, authoring or evaluation.
    Judged sweep incidents enter only through `--sweep-json`, as keys and counts.
@@ -200,7 +200,7 @@ Exit code 1 lists `update_candidates` and gives `update_args` as a JSON list of 
 
 Each CLI uses only the Python standard library, prints JSON with an `examined` count, writes nothing inside the repository (`bootstrap_eval.py freeze` writes there only with `--allow-in-repo`; `bootstrap_mine.py --out` refuses an in-repo path with no override), and runs on Linux, macOS, and Windows.
 
-`bootstrap_friction.py` is the miner's imported offline-evidence validator, not a separate CLI. `review_clusters.py` is the shared review-cluster counting module, not a CLI.
+`bootstrap_friction.py` (offline-evidence validator), `bootstrap_review.py` (review signals), and `review_clusters.py` (their shared counting) are imported by the miner, not CLIs.
 
 Exit code 0 means success and exit code 1 means findings that need action, for every script. Exit codes 2 and 3 differ by script:
 
