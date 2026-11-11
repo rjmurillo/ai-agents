@@ -106,21 +106,33 @@ def _fail(command: str, result: subprocess.CompletedProcess[str]) -> None:
 
 
 def open_pr_url(branch: str) -> str | None:
-    """Return the URL of the open pull request whose head is `branch`, or None.
+    """Return the URL of the open same-repository pull request headed at `branch`, or None.
+
+    `gh pr list --head` matches the head ref name only, so a fork pull request
+    that reuses the branch name would match too and stop the job for good.
+    Rows with `isCrossRepository` true are ignored.
 
     Raises GhQueryError when `gh` cannot answer, so a lookup failure is never
     read as "no pull request".
     """
-    result = _gh(["pr", "list", "--head", branch, "--state", "open", "--json", "url"])
+    result = _gh(
+        ["pr", "list", "--head", branch, "--state", "open", "--json", "url,isCrossRepository"]
+    )
     if result.returncode != 0:
         raise GhQueryError(result.stdout)
     try:
         rows = json.loads(result.stdout)
     except json.JSONDecodeError as exc:
         raise GhQueryError(f"unparseable gh output: {result.stdout!r}") from exc
-    if not isinstance(rows, list) or any(not isinstance(r, dict) or "url" not in r for r in rows):
+    if not isinstance(rows, list) or any(
+        not isinstance(r, dict)
+        or "url" not in r
+        or not isinstance(r.get("isCrossRepository"), bool)
+        for r in rows
+    ):
         raise GhQueryError(f"unexpected gh output shape: {result.stdout!r}")
-    return str(rows[0]["url"]) if rows else None
+    own = [r for r in rows if not r["isCrossRepository"]]
+    return str(own[0]["url"]) if own else None
 
 
 def remote_branch_exists(branch: str) -> bool:

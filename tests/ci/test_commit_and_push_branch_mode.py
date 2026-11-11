@@ -122,12 +122,20 @@ def test_clean_tree_is_a_no_op_and_reports_the_examined_count(
 
 
 def test_open_pull_request_is_left_alone(world: _World, capsys: pytest.CaptureFixture[str]) -> None:
-    world.open_prs = [{"url": "https://github.com/o/r/pull/5"}]
+    world.open_prs = [{"url": "https://github.com/o/r/pull/5", "isCrossRepository": False}]
     assert main(_ARGS) == 0
     assert "pull/5" in capsys.readouterr().out
     assert world.issued("git", "checkout") == []
     assert world.issued("git", "push") == []
     assert world.issued("gh", "pr", "create") == []
+
+
+def test_fork_pull_request_with_the_same_branch_name_does_not_block_publishing(
+    world: _World,
+) -> None:
+    world.open_prs = [{"url": "https://github.com/o/r/pull/6", "isCrossRepository": True}]
+    assert main(_ARGS) == 0
+    assert world.issued("gh", "pr", "create")
 
 
 def test_publishes_branch_and_opens_pull_request(world: _World) -> None:
@@ -174,7 +182,9 @@ def test_pr_list_failure_exits_external_before_any_mutation(world: _World) -> No
     assert world.issued("git", "push") == []
 
 
-@pytest.mark.parametrize("payload", ["not json", '{"url": "x"}', '[{"number": 1}]'])
+@pytest.mark.parametrize(
+    "payload", ["not json", '{"url": "x"}', '[{"number": 1}]', '[{"url": "x"}]']
+)
 def test_unreadable_pr_list_output_is_not_read_as_no_pull_request(
     world: _World, payload: str
 ) -> None:
