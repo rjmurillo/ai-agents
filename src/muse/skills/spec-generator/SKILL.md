@@ -42,7 +42,7 @@ The frontmatter schema is bundled at `references/spec-schemas.md`; `.agents/gove
 3. After writing each spec file, run the validator and do not report completion until it exits 0:
 
    ```bash
-   python3 .claude/skills/spec-generator/scripts/validate_spec_frontmatter.py <file> [<file> ...]
+   python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/spec-generator/scripts/validate_spec_frontmatter.py" <file> [<file> ...]
    ```
 
 Common drift this gate stops: `priority: medium` (use `P1`), `category: tooling` (use `functional` or `constraint`), task `status: ready` (use `todo`), `complexity: S` for a 1.25h estimate (use `XS`). Design files MUST set both `status` and `priority`; they are required, not optional.

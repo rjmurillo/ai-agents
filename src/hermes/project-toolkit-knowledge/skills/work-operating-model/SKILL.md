@@ -72,7 +72,7 @@ The interview runs in three phases.
 ### Phase 3: Close and Validate
 
 4. **Close**: Write the JSON to `<workspace>/operating-model.json` (caller chooses workspace). Optionally also emit `USER.md`, `SOUL.md`, `HEARTBEAT.md` as human-readable views derived from the JSON. The JSON is canonical; the markdown files are projections.
-5. **Validate**: Run `python3 .claude/skills/work-operating-model/scripts/validate_operating_model.py <path-to-json>`. Exit 0 means the schema holds.
+5. **Validate**: Run `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/work-operating-model/scripts/validate_operating_model.py" <path-to-json>`. Exit 0 means the schema holds.
 
 ## Scripts
 
@@ -120,7 +120,7 @@ Before declaring an operating model complete:
 - [ ] All 5 layers either captured or explicitly skipped (recorded in `metadata.skipped_layers`).
 - [ ] Every item in every layer marked `documented` or `tacit`.
 - [ ] `metadata.interview_status` is `complete`.
-- [ ] `python3 .claude/skills/work-operating-model/scripts/validate_operating_model.py operating-model.json` exits 0.
+- [ ] `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/work-operating-model/scripts/validate_operating_model.py" operating-model.json` exits 0.
 - [ ] The team representative has read the final JSON (or its `USER.md` projection) and agreed.
 
 ## References
