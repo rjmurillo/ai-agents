@@ -7,8 +7,12 @@ comment ID. Required for proper thread management with branch protection rules.
 
 Optionally resolves the thread after posting the reply.
 
+With --dry-run, it reads the thread and applies the same guards, then reports
+the reply (and the resolve, with --resolve) it would make. It posts, resolves,
+and disarms auto-merge nothing.
+
 Exit codes follow ADR-035:
-    0 - Success
+    0 - Success (including a --dry-run preview)
     2 - Config/usage error (invalid parameters, file not found)
     3 - External error (API failure)
     4 - Auth error
@@ -102,9 +106,34 @@ query($threadId: ID!) {
 }"""
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --thread-id PRRT_kwDOQoWRls5m3L76 --pull-request 123 --body "Fixed in abc1234"
+  %(prog)s --thread-id PRRT_kwDOQoWRls5m3L76 --pull-request 123 --body-file reply.md \\
+      --resolve --expected-head-sha 0123456789abcdef
+  %(prog)s --thread-id PRRT_kwDOQoWRls5m3L76 --pull-request 123 --body "Fixed in abc1234" \\
+      --resolve --expected-head-sha 0123456789abcdef --dry-run
+
+--dry-run reads the thread, runs the same pull request and identity guards as a
+real run, and posts nothing. The result carries dryRun true and action
+would_post (or would_skip where a real run skips the thread). With --resolve it
+also reports resolve_action would_resolve. It does not call the auto-merge
+guard, which changes the pull request.
+
+exit codes:
+  0  success (replied, previewed with --dry-run, or skipped)
+  1  the pull request identity moved, or the resolve was not confirmed
+  2  config/usage error (invalid parameters, file not found)
+  3  external error (API failure)
+  4  auth error
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Add a reply to a PR review thread via GraphQL.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--thread-id",
@@ -135,6 +164,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--expected-base-sha",
         default="",
         help="Base SHA the readiness cycle captured. A moved base stops all mutation.",
+    )
+
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Read the thread, apply the guards, and report the reply and resolve; mutate nothing",
     )
 
     body_group = parser.add_mutually_exclusive_group(required=True)
@@ -309,14 +344,41 @@ def _initial_thread_gate(args: argparse.Namespace, fmt: str) -> int | None:
         return _stale_identity_error(reason, args, fmt)
     write_skill_output(
         {
-            "action": action,
+            "action": "would_skip" if args.dry_run else action,
             "reason": reason,
             "reply_posted": False,
             "thread_id": args.thread_id,
+            **({"dryRun": True} if args.dry_run else {}),
         },
         output_format=fmt,
-        human_summary=f"Skipped thread {args.thread_id}: {reason}",
+        human_summary=(
+            f"Dry run: would skip thread {args.thread_id}: {reason}"
+            if args.dry_run
+            else f"Skipped thread {args.thread_id}: {reason}"
+        ),
         status="INFO",
+        script_name="add_pr_review_thread_reply.py",
+    )
+    return 0
+
+
+def _write_dry_run(args: argparse.Namespace, body: str, fmt: str) -> int:
+    """Report the reply and resolve a real run would make. Nothing is mutated."""
+    output: dict[str, object] = {
+        "action": "would_post",
+        "dryRun": True,
+        "reply_posted": False,
+        "thread_id": args.thread_id,
+        "body_length": len(body),
+        "thread_resolved": False,
+        "resolve_action": "would_resolve" if args.resolve else "SKIP",
+        "resolve_reason": "thread_unresolved" if args.resolve else "not_requested",
+    }
+    outcome = "reply and resolve" if args.resolve else "reply"
+    write_skill_output(
+        output,
+        output_format=fmt,
+        human_summary=f"Dry run: would post {outcome} on thread {args.thread_id}; nothing changed",
         script_name="add_pr_review_thread_reply.py",
     )
     return 0
@@ -476,6 +538,8 @@ def main(argv: list[str] | None = None) -> int:
     gate_code = _initial_thread_gate(args, fmt)
     if gate_code is not None:
         return gate_code
+    if args.dry_run:
+        return _write_dry_run(args, body, fmt)
     comment, post_code = _post_reply(args.thread_id, body, fmt)
     if comment is None:
         return post_code

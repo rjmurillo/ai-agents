@@ -5,9 +5,11 @@ Marks review threads as resolved. Required for PRs with branch protection
 rules that require all conversations resolved before merging.
 
 Supports single thread resolution or bulk resolution of all unresolved threads.
+With --dry-run, it reads the same state and reports what would be resolved
+without resolving anything.
 
 Exit codes follow ADR-035:
-    0 - Success
+    0 - Success (including a --dry-run preview)
     1 - Operation failed or invalid parameters
     3 - API error
     4 - Auth error
@@ -60,6 +62,25 @@ mutation($threadId: ID!) {
         }
     }
 }"""
+
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --thread-id PRRT_kwDOQoWRls5m3L76 --expected-pull-request 123
+  %(prog)s --pull-request 123 --all
+  %(prog)s --thread-id PRRT_kwDOQoWRls5m3L76 --expected-pull-request 123 --dry-run
+
+--dry-run reads the thread (or every page of the PR's threads) as a real run
+does and resolves nothing. The result carries dryRun true and action
+would_resolve or would_skip. A thread that a real run would skip (not found,
+already resolved, wrong pull request) reports would_skip with the same reason.
+
+exit codes:
+  0  success (resolved, previewed with --dry-run, or skipped)
+  1  a resolve call failed or was not confirmed
+  2  invalid parameters
+  3  external error (API failure, including a thread page that cannot be read)
+  4  auth error
+"""
 
 _THREADS_QUERY = """\
 query($owner: String!, $name: String!, $prNumber: Int!, $cursor: String) {
@@ -165,6 +186,8 @@ def _thread_decision(
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Resolve PR review threads via GitHub GraphQL API.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument(
@@ -186,6 +209,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         help="Expected PR number for single-thread mode.",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Read the thread state and report what would be resolved; resolve nothing",
+    )
     add_output_format_arg(parser)
     return parser
 
@@ -204,6 +232,8 @@ def _resolve_single_thread(args: argparse.Namespace, fmt: str) -> int:
     if decision is None:
         return 3
     action, reason = decision
+    if args.dry_run:
+        return _write_single_preview(args.thread_id, action, reason, fmt)
     result = {
         "action": action,
         "reason": reason,
@@ -239,6 +269,32 @@ def _resolve_single_thread(args: argparse.Namespace, fmt: str) -> int:
     return 0
 
 
+def _preview_action(action: str) -> str:
+    return "would_resolve" if action == "ACT" else "would_skip"
+
+
+def _write_single_preview(thread_id: str, action: str, reason: str, fmt: str) -> int:
+    """Report the decision a real run would act on, and resolve nothing."""
+    would_resolve = action == "ACT"
+    write_skill_output(
+        {
+            "action": _preview_action(action),
+            "reason": reason,
+            "thread_id": thread_id,
+            "dryRun": True,
+        },
+        output_format=fmt,
+        human_summary=(
+            f"Dry run: would resolve thread {thread_id}"
+            if would_resolve
+            else f"Dry run: would skip thread {thread_id}: {reason}"
+        ),
+        status="PASS" if would_resolve else "INFO",
+        script_name="resolve_pr_review_thread.py",
+    )
+    return 0
+
+
 def _query_single_thread_decision(
     args: argparse.Namespace,
     fmt: str,
@@ -267,6 +323,7 @@ def _query_single_thread_decision(
 def _resolve_cached_thread(
     thread: dict[str, Any],
     expected_pull_request: int,
+    dry_run: bool = False,
 ) -> dict[str, object]:
     thread_id = thread.get("id", "")
     comments = thread.get("comments", {}).get("nodes", [])
@@ -287,6 +344,9 @@ def _resolve_cached_thread(
             }
         )
         return result
+    if dry_run:
+        result.update({"action": _preview_action(action), "reason": reason})
+        return result
     result.update({"action": action, "reason": reason})
     if action == "ACT":
         result["reason"] = (
@@ -298,11 +358,14 @@ def _resolve_cached_thread(
 def _batch_summary(
     unresolved: list[dict[str, Any]],
     pull_request: int,
+    dry_run: bool = False,
 ) -> tuple[dict[str, object], int]:
-    results = [_resolve_cached_thread(thread, pull_request) for thread in unresolved]
+    results = [_resolve_cached_thread(thread, pull_request, dry_run) for thread in unresolved]
     resolved = sum(result["reason"] == "thread_resolved" for result in results)
+    would_resolve = sum(result["action"] == "would_resolve" for result in results)
     skipped = sum(
-        result["action"] == "SKIP" and result["reason"] != "thread_state_query_failed"
+        result["action"] in ("SKIP", "would_skip")
+        and result["reason"] != "thread_state_query_failed"
         for result in results
     )
     external_failures = sum(result["reason"] == "thread_state_query_failed" for result in results)
@@ -318,6 +381,14 @@ def _batch_summary(
         "total_unresolved": len(unresolved),
         "results": results,
     }
+    if dry_run:
+        summary.update(
+            {
+                "action": "would_resolve" if would_resolve > 0 else "would_skip",
+                "wouldResolve": would_resolve,
+                "dryRun": True,
+            }
+        )
     return summary, 3 if external_failures > 0 else int(mutation_failures > 0)
 
 
@@ -327,10 +398,14 @@ def _write_batch_result(summary: dict[str, object], code: int, fmt: str) -> int:
     skipped = cast(int, summary["skipped"])
     failed = cast(int, summary["failed"])
     if code == 0:
+        human_summary = f"Resolved {resolved} thread(s); skipped {skipped}"
+        if summary.get("dryRun"):
+            would = cast(int, summary["wouldResolve"])
+            human_summary = f"Dry run: would resolve {would} thread(s); skip {skipped}"
         write_skill_output(
             summary,
             output_format=fmt,
-            human_summary=f"Resolved {resolved} thread(s); skipped {skipped}",
+            human_summary=human_summary,
             script_name="resolve_pr_review_thread.py",
         )
         return 0
@@ -364,8 +439,8 @@ def _resolve_all_threads(args: argparse.Namespace, fmt: str) -> int:
         )
         return 3
     if not unresolved:
-        summary = {
-            "action": "SKIP",
+        summary: dict[str, object] = {
+            "action": "would_skip" if args.dry_run else "SKIP",
             "reason": "no_unresolved_threads",
             "resolved": 0,
             "skipped": 0,
@@ -373,6 +448,8 @@ def _resolve_all_threads(args: argparse.Namespace, fmt: str) -> int:
             "total_unresolved": 0,
             "results": [],
         }
+        if args.dry_run:
+            summary["dryRun"] = True
         write_skill_output(
             summary,
             output_format=fmt,
@@ -381,7 +458,7 @@ def _resolve_all_threads(args: argparse.Namespace, fmt: str) -> int:
             script_name="resolve_pr_review_thread.py",
         )
         return 0
-    summary, code = _batch_summary(unresolved, args.pull_request)
+    summary, code = _batch_summary(unresolved, args.pull_request, args.dry_run)
     return _write_batch_result(summary, code, fmt)
 
 
