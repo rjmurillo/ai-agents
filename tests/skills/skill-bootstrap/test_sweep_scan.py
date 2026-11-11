@@ -20,7 +20,8 @@ from sweep_helpers import (
 
 def access(name: str, server: str = "") -> str:
     tool = {"name": name, "description": "", "access": None}
-    return bootstrap_sweep.tool_access(tool, server)[0]
+    verdict: str = bootstrap_sweep.tool_access(tool, server)[0]
+    return verdict
 
 
 # ------------------------------------------------------------------ classification
