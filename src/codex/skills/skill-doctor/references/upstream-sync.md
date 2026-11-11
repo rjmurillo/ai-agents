@@ -3,7 +3,7 @@
 This skill forks [Warp's common-skills](https://github.com/warpdotdev/common-skills).
 Denver Technologies, Inc. holds the upstream copyright.
 The [MIT license](../LICENSE) ships with this skill.
-Report assets retain Warp branding.
+The HTML report carries no vendor branding; attribution stays in this file, `LICENSE`, and the SKILL.md header.
 
 The reconciliation baseline is `8792394ff1b655e0af451b8fabb68ef0cfcbd208`, fetched 2026-11-09.
 That revision is a comparison base, not an upstream freshness claim.

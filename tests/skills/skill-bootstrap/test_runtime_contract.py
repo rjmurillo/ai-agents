@@ -15,8 +15,9 @@ import shutil
 import subprocess
 from pathlib import Path
 
-import pytest
 from bootstrap_helpers import write
+
+from tests.pwsh_launcher_probe import require_working_pwsh
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 PLUGIN_ROOT = REPO_ROOT / ".claude"
@@ -142,8 +143,8 @@ def _documented_powershell(snap: Path) -> str:
     return f"{root_line.group(0)}\n{filled}\nexit $LASTEXITCODE"
 
 
-@pytest.mark.skipif(shutil.which("pwsh") is None, reason="pwsh not installed")
 def test_documented_powershell_form_skips_an_empty_copilot_root(repo: Path, tmp_path: Path) -> None:
+    require_working_pwsh()
     snap = tmp_path / "scratch" / "snapshot.json"
     env = _host_env(PLUGIN_ROOT)
     env["COPILOT_PLUGIN_ROOT"] = ""

@@ -20,6 +20,7 @@ Exit Codes:
 from __future__ import annotations
 
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 from ..confidence import update_confidence_scores_with_memories
@@ -80,14 +81,14 @@ def _generate_reflection(memories_dir: Path, repo_root: Path) -> str:
 
 def _format_reflection(
     report: HealthReport,
-    session_facts: list[str] | None = None,
+    session_facts: Sequence[str] | None = (),
     decayed: list[str] | None = None,
 ) -> str:
     """Format the session reflection block for stderr.
 
     Args:
         report: HealthReport with health data and recommendations.
-        session_facts: Memory IDs updated this session.
+        session_facts: Memory IDs changed per git, or None when git cannot say.
         decayed: Memory IDs flagged for confidence decay.
 
     Returns:
@@ -110,8 +111,10 @@ def _format_reflection(
         verb = "exceeds" if decayed_count == 1 else "exceed"
         lines.append(f"- Decayed: {decayed_count} {verb} the age threshold")
 
-    if session_facts:
-        lines.append(f"- Updated this session: {len(session_facts)} memories")
+    if session_facts is None:
+        lines.append("- Uncommitted memory changes: unknown (git unavailable)")
+    elif session_facts:
+        lines.append(f"- Uncommitted memory changes: {len(session_facts)} memories")
 
     if recommendations:
         lines.append(f"- Recommendations: {'; '.join(recommendations)}")

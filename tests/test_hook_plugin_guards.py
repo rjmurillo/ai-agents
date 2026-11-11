@@ -34,8 +34,31 @@ def test_copilot_pretooluse_has_no_unregistered_matcher_shims() -> None:
     assert generated == registered
 
 
+def _remote_v(**remotes: str) -> str:
+    """Render ``git remote -v`` output for the given name=url pairs."""
+    lines: list[str] = []
+    for name, url in remotes.items():
+        lines.append(f"{name}\t{url} (fetch)")
+        lines.append(f"{name}\t{url} (push)")
+    return "\n".join(lines) + "\n"
+
+
+def _stub_remotes(monkeypatch: pytest.MonkeyPatch, **remotes: str) -> None:
+    monkeypatch.setattr(guards.shutil, "which", lambda _name: "git")
+    monkeypatch.setattr(
+        guards.subprocess,
+        "run",
+        lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout=_remote_v(**remotes), stderr=""),
+    )
+
+
 class TestIsProjectRepo:
-    """is_project_repo resolves identity from the env override or git remote (#2610)."""
+    """is_project_repo resolves identity from the env override or git remote (#2610, #7227)."""
+
+    @pytest.fixture(autouse=True)
+    def _fresh_cache(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("AI_AGENTS_PROJECT_REPO", raising=False)
+        guards._origin_repo_cache.clear()
 
     def test_env_override_true(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("AI_AGENTS_PROJECT_REPO", "1")
@@ -45,63 +68,165 @@ class TestIsProjectRepo:
         monkeypatch.setenv("AI_AGENTS_PROJECT_REPO", "0")
         assert is_project_repo() is False
 
-    def test_remote_ai_agents_is_project(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.delenv("AI_AGENTS_PROJECT_REPO", raising=False)
-        guards._origin_repo_cache.clear()
-        monkeypatch.setattr(guards, "_remote_repo_name", lambda _root: "ai-agents")
+    def test_env_override_true_wins_over_a_foreign_remote(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _stub_remotes(monkeypatch, origin="https://github.com/acme/ai-agents.git")
+        monkeypatch.setenv("AI_AGENTS_PROJECT_REPO", "1")
         assert is_project_repo() is True
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "https://github.com/rjmurillo/ai-agents.git",
+            "https://github.com/rjmurillo/ai-agents",
+            "git@github.com:rjmurillo/ai-agents.git",
+            "ssh://git@github.com/rjmurillo/ai-agents.git",
+            "https://github.com/RJMurillo/AI-Agents.git",
+        ],
+    )
+    def test_project_remote_is_project(self, url: str, monkeypatch: pytest.MonkeyPatch) -> None:
+        _stub_remotes(monkeypatch, origin=url)
+        assert is_project_repo() is True
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "https://github.com/acme/ai-agents.git",
+            "git@github.com:acme/ai-agents.git",
+            "ssh://git@github.com/acme/ai-agents.git",
+        ],
+    )
+    def test_same_name_other_owner_is_consumer(
+        self, url: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _stub_remotes(monkeypatch, origin=url)
+        assert is_project_repo() is False
 
     def test_remote_other_repo_is_consumer(self, monkeypatch: pytest.MonkeyPatch) -> None:
         # A consumer repo with its own .agents/ (e.g. a vendored install) must
         # not be mistaken for the project repo just because that dir exists.
-        monkeypatch.delenv("AI_AGENTS_PROJECT_REPO", raising=False)
-        guards._origin_repo_cache.clear()
-        monkeypatch.setattr(
-            guards, "_remote_repo_name", lambda _root: "Wcd.Infra.ConfigurationGeneration2"
+        _stub_remotes(
+            monkeypatch, origin="git@github.com:org/Wcd.Infra.ConfigurationGeneration2.git"
         )
         assert is_project_repo() is False
 
+    def test_fork_with_project_upstream_is_project(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        _stub_remotes(
+            monkeypatch,
+            origin="https://github.com/contributor/ai-agents.git",
+            upstream="https://github.com/rjmurillo/ai-agents.git",
+        )
+        assert is_project_repo() is True
+
+    def test_fork_with_foreign_upstream_is_consumer(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        _stub_remotes(
+            monkeypatch,
+            origin="https://github.com/contributor/ai-agents.git",
+            upstream="https://github.com/acme/ai-agents.git",
+        )
+        assert is_project_repo() is False
+
+    def test_upstream_alone_without_origin_is_not_project(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _stub_remotes(monkeypatch, upstream="https://github.com/rjmurillo/ai-agents.git")
+        assert is_project_repo() is False
+        assert guards._project_repo_identity() == "unknown"
+
     def test_no_remote_is_not_project(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.delenv("AI_AGENTS_PROJECT_REPO", raising=False)
-        guards._origin_repo_cache.clear()
-        monkeypatch.setattr(guards, "_remote_repo_name", lambda _root: None)
+        monkeypatch.setattr(guards, "_remote_urls", lambda _root: None)
         assert is_project_repo() is False
 
 
-class TestRemoteRepoName:
-    """_remote_repo_name parses the origin URL across HTTPS and SSH forms."""
+class TestRepoSlug:
+    """_repo_slug returns lowercase owner/name across HTTPS and SSH forms."""
 
     @pytest.mark.parametrize(
         "url,expected",
         [
-            ("https://github.com/rjmurillo/ai-agents.git", "ai-agents"),
-            ("https://github.com/rjmurillo/ai-agents", "ai-agents"),
-            ("git@github.com:rjmurillo/ai-agents.git", "ai-agents"),
+            ("https://github.com/rjmurillo/ai-agents.git", "rjmurillo/ai-agents"),
+            ("https://github.com/rjmurillo/ai-agents", "rjmurillo/ai-agents"),
+            ("https://github.com/rjmurillo/ai-agents/", "rjmurillo/ai-agents"),
+            ("git@github.com:rjmurillo/ai-agents.git", "rjmurillo/ai-agents"),
+            ("ssh://git@github.com:22/rjmurillo/ai-agents.git", "rjmurillo/ai-agents"),
+            ("https://token@github.com/Acme/AI-Agents.git", "acme/ai-agents"),
             (
                 "git@github.com:org/Wcd.Infra.ConfigurationGeneration2.git",
-                "Wcd.Infra.ConfigurationGeneration2",
+                "org/wcd.infra.configurationgeneration2",
             ),
+            ("/srv/git/ai-agents.git", "git/ai-agents"),
         ],
     )
-    def test_parses_remote_url(
-        self, url: str, expected: str, monkeypatch: pytest.MonkeyPatch
+    def test_parses_remote_url(self, url: str, expected: str) -> None:
+        assert guards._repo_slug(url) == expected
+
+    @pytest.mark.parametrize("url", ["", "ai-agents", "https://github.com", "host:ai-agents"])
+    def test_url_without_owner_yields_none(self, url: str) -> None:
+        assert guards._repo_slug(url) is None
+
+
+class TestRemoteUrls:
+    """_remote_urls reads fetch URLs from one bounded ``git remote -v`` call."""
+
+    def test_parses_fetch_lines_by_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        _stub_remotes(
+            monkeypatch,
+            origin="https://github.com/a/b.git",
+            upstream="git@github.com:rjmurillo/ai-agents.git",
+        )
+        assert guards._remote_urls("/repo") == {
+            "origin": "https://github.com/a/b.git",
+            "upstream": "git@github.com:rjmurillo/ai-agents.git",
+        }
+
+    def test_repository_with_no_remotes_returns_empty(
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(guards.shutil, "which", lambda _name: "git")
         monkeypatch.setattr(
             guards.subprocess,
             "run",
-            lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout=url + "\n", stderr=""),
+            lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout="", stderr=""),
         )
-        assert guards._remote_repo_name("/repo") == expected
+        assert guards._remote_urls("/repo") == {}
 
-    def test_no_origin_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_git_failure_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(guards.shutil, "which", lambda _name: "git")
 
-        def raise_no_origin(*a, **k):
-            raise subprocess.CalledProcessError(2, a, stderr="no origin")
+        def raise_not_a_repo(*a, **k):
+            raise subprocess.CalledProcessError(128, a, stderr="not a git repository")
 
-        monkeypatch.setattr(guards.subprocess, "run", raise_no_origin)
-        assert guards._remote_repo_name("/repo") is None
+        monkeypatch.setattr(guards.subprocess, "run", raise_not_a_repo)
+        assert guards._remote_urls("/repo") is None
+
+    def test_git_timeout_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(guards.shutil, "which", lambda _name: "git")
+
+        def hang(*a, **k):
+            raise subprocess.TimeoutExpired(a, 1)
+
+        monkeypatch.setattr(guards.subprocess, "run", hang)
+        assert guards._remote_urls("/repo") is None
+
+    def test_lookup_runs_one_subprocess(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        calls: list[object] = []
+        monkeypatch.setattr(guards.shutil, "which", lambda _name: "git")
+
+        def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+            calls.append(args)
+            return subprocess.CompletedProcess(
+                ["git", "remote", "-v"],
+                0,
+                stdout=_remote_v(origin="https://github.com/a/b.git"),
+                stderr="",
+            )
+
+        monkeypatch.setattr(guards.subprocess, "run", fake_run)
+        guards._origin_repo_cache.clear()
+        monkeypatch.delenv("AI_AGENTS_PROJECT_REPO", raising=False)
+        guards._project_remote_identity("/repo")
+        assert len(calls) == 1
 
     def test_origin_lookup_uses_utf8_and_check_true(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured_kwargs: dict[str, object] = {}
@@ -109,16 +234,18 @@ class TestRemoteRepoName:
         def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
             captured_kwargs.update(kwargs)
             return subprocess.CompletedProcess(
-                ["git", "-C", "/repo", "remote", "get-url", "origin"],
+                ["git", "-C", "/repo", "remote", "-v"],
                 0,
-                stdout="ai-agents\n",
+                stdout=_remote_v(origin="https://github.com/rjmurillo/ai-agents.git"),
                 stderr="",
             )
 
         monkeypatch.setattr(guards.shutil, "which", lambda _name: "git")
         monkeypatch.setattr(guards.subprocess, "run", fake_run)
 
-        assert guards._remote_repo_name("/repo") == "ai-agents"
+        assert guards._remote_urls("/repo") == {
+            "origin": "https://github.com/rjmurillo/ai-agents.git"
+        }
         assert captured_kwargs["encoding"] == "utf-8"
         assert captured_kwargs["errors"] == "replace"
         assert captured_kwargs["check"] is True
@@ -126,7 +253,7 @@ class TestRemoteRepoName:
     def test_origin_lookup_timeout_under_host_budget(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """The per-tool-call git lookup must finish inside the tightest host timeout.
 
-        ``skip_if_consumer_repo`` calls ``_remote_repo_name`` on every tool use,
+        ``skip_if_consumer_repo`` calls ``_remote_urls`` on every tool use,
         and project-only hooks invoke it. If this git subprocess timeout is
         >= a host hook's timeout, a slow or hung git lets the host SIGKILL the
         whole hook before the caller can fail open, which Copilot surfaces as a
@@ -152,16 +279,16 @@ class TestRemoteRepoName:
         def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
             captured_kwargs.update(kwargs)
             return subprocess.CompletedProcess(
-                ["git", "-C", "/repo", "remote", "get-url", "origin"],
+                ["git", "-C", "/repo", "remote", "-v"],
                 0,
-                stdout="ai-agents\n",
+                stdout=_remote_v(origin="https://github.com/rjmurillo/ai-agents.git"),
                 stderr="",
             )
 
         monkeypatch.setattr(guards.shutil, "which", lambda _name: "git")
         monkeypatch.setattr(guards.subprocess, "run", fake_run)
 
-        assert guards._remote_repo_name("/repo") == "ai-agents"
+        assert guards._remote_urls("/repo") is not None
         git_timeout = captured_kwargs.get("timeout")
         assert isinstance(git_timeout, (int, float)), "git lookup must pass a timeout"
         assert git_timeout < tightest_host_timeout, (
@@ -172,7 +299,7 @@ class TestRemoteRepoName:
 
     def test_git_missing_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(guards.shutil, "which", lambda _name: None)
-        assert guards._remote_repo_name("/repo") is None
+        assert guards._remote_urls("/repo") is None
 
 
 class TestSkipIfConsumerRepo:
@@ -195,7 +322,7 @@ class TestSkipIfConsumerRepo:
         monkeypatch.delenv("AI_AGENTS_PROJECT_REPO", raising=False)
         guards._origin_repo_cache.clear()
         monkeypatch.setattr(guards, "get_project_directory", lambda: "/repo")
-        monkeypatch.setattr(guards, "_remote_repo_name", lambda _root: None)
+        monkeypatch.setattr(guards, "_remote_urls", lambda _root: None)
 
         assert skip_if_consumer_repo("test-hook") is True
         captured = capsys.readouterr()
@@ -220,7 +347,7 @@ class TestUnknownIdentityCorroboration:
         monkeypatch.delenv("AI_AGENTS_PROJECT_REPO", raising=False)
         guards._origin_repo_cache.clear()
         monkeypatch.setattr(guards, "get_project_directory", lambda: str(project_dir))
-        monkeypatch.setattr(guards, "_remote_repo_name", lambda _root: None)
+        monkeypatch.setattr(guards, "_remote_urls", lambda _root: None)
 
     def test_pyproject_name_corroborates_project_repo(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path

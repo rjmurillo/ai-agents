@@ -18,7 +18,6 @@ def _write_report(directory: Path) -> Path:
                 "handle": "offline-smoke",
                 "title": "日本語 🧪 report",
                 "scores": {"overall": 0.9},
-                "cta_url": "javascript:alert('unsafe')",
                 "suggestions": [
                     {
                         "skill": "日本語",
@@ -43,7 +42,7 @@ def _check_diff_expansion(page: Any, expect: Any) -> None:
     expect(view.locator("[data-error-wrapper]")).to_have_count(0)
     wrap = page.locator(".diff-wrap")
     expect(wrap).to_have_attribute("data-overflowing", "true")
-    toggle = page.get_by_role("button", name="show more", exact=True)
+    toggle = page.get_by_role("button", name="Show more", exact=True)
     expect(toggle).to_be_visible()
     collapsed_height = view.evaluate("(node) => node.getBoundingClientRect().height")
     assert collapsed_height <= DIFF_CLAMP_PX
@@ -51,7 +50,7 @@ def _check_diff_expansion(page: Any, expect: Any) -> None:
     expect(wrap).to_have_attribute("data-collapsed", "false")
     expanded_height = view.evaluate("(node) => node.getBoundingClientRect().height")
     assert expanded_height > collapsed_height
-    page.get_by_role("button", name="show less", exact=True).click()
+    page.get_by_role("button", name="Show less", exact=True).click()
     expect(wrap).to_have_attribute("data-collapsed", "true")
     assert view.evaluate("(node) => node.getBoundingClientRect().height") == collapsed_height
     print(f"diff: Unicode rendered, expanded {collapsed_height}px -> {expanded_height}px")
@@ -77,9 +76,7 @@ def test_offline_report_diff_expands_and_share_downloads_png(tmp_path: Path) -> 
                     ),
                 )
                 page.goto(report_path.as_uri())
-                api.expect(page.get_by_role("link", name="Request access")).to_have_attribute(
-                    "href", "https://warp.dev/factories/request-access"
-                )
+                api.expect(page.get_by_role("link", name="Request access")).to_have_count(0)
                 _check_diff_expansion(page, api.expect)
                 with page.expect_download() as downloaded:
                     page.get_by_role("button", name="Share", exact=True).click()

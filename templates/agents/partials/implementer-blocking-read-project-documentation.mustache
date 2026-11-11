@@ -66,89 +66,7 @@ Read the plan from `.project-toolkit/planning/` or the caller's brief, validate 
 
 ## Software Hierarchy of Needs
 
-Bottom-up. Design emerges from qualities, not from pattern selection.
-
-1. **Qualities**: Cohesion, Coupling, DRY, Encapsulation, Testability
-2. **Principles**: Open-Closed, Encapsulate by Policy/Reveal by Need, Separation of Concerns, Separate Use from Creation
-3. **Practices**: Coding Standards, State Always Private, Programming by Intention, CVA, Encapsulate Constructors
-4. **Patterns**: Strategy, Bridge, Adapter, Facade, Proxy, Decorator, Chain of Responsibility, Singleton, Abstract Factory, Template Method, Flyweight (used intentionally, not reflexively)
-5. **Wisdom**: GoF, Fowler, Coplien
-
-### Level 1: Qualities (diagnostic layer)
-
-**Testability**: Hard to test indicates poor encapsulation, tight coupling, Law of Demeter violation, weak cohesion, or procedural code. Always ask "how would I test this?"
-
-**Cohesion**: Class has single responsibility. Method has single function. Use Programming by Intention:
-
-```csharp
-// C#
-public void ProcessOrder(Order order)
-{
-    if (!IsValid(order)) throw new ArgumentException(...);
-    var items = GetLineItems(order);
-    CalculateTotals(items);
-    ApplyDiscounts(items);
-    SaveOrder(order);
-}
-```
-
-**Coupling**: Four types exist:
-
-- Identity: coupled to fact another type exists
-- Representation: coupled to interface (method signatures)
-- Inheritance: subtypes coupled to superclass changes
-- Subclass: coupled to specific subclass
-
-Goal: intentional coupling (documented, necessary) vs accidental (unplanned side effects).
-
-**DRY**: Single authoritative representation for every piece of knowledge. Includes relationships and construction, not just code.
-
-**Encapsulation**: Encapsulate by policy, reveal by need. Hidden things cannot be coupled to. Easier to break encapsulation later than add it.
-
-### Error Handling Principles
-
-**Fail-fast**: Detect errors at boundaries, fail immediately with clear messages.
-
-**No silent failures**: Every error path must either throw, log, or return explicit failure.
-
-**Retry with backoff**: For transient failures only. Max 3 retries with exponential backoff.
-
-```csharp
-// C#
-public async Task<T> WithRetry<T>(Func<Task<T>> operation, int maxRetries = 3)
-{
-    for (int i = 0; i < maxRetries; i++)
-    {
-        try { return await operation(); }
-        catch (TransientException) when (i < maxRetries - 1)
-        {
-            await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, i)));
-        }
-    }
-    throw new MaxRetriesExceededException();
-}
-```
-
-```python
-# Python
-async def with_retry(operation: Callable, max_retries: int = 3) -> Any:
-    for i in range(max_retries):
-        try:
-            return await operation()
-        except TransientError:
-            if i < max_retries - 1:
-                await asyncio.sleep(2**i)
-    raise MaxRetriesExceededError()
-```
-
-**Error categories**:
-
-| Category | Action | Example |
-|----------|--------|---------|
-| Validation | Fail fast, no retry | Invalid input, missing required field |
-| Transient | Retry with backoff | Network timeout, rate limit |
-| Fatal | Log and propagate | Out of memory, config missing |
-| Business | Return result type | Insufficient funds, item unavailable |
+Design bottom-up: qualities (cohesion, coupling, DRY, encapsulation, testability) first, then principles, practices, and patterns used intentionally, not reflexively. Ask "how would I test this?" before writing; code that is hard to test has poor encapsulation, tight coupling, or weak cohesion. Give each method one function and name the steps by intention. Fail fast at boundaries with clear messages, and never fail silently: every error path throws, logs, or returns an explicit failure. Retry only transient failures, with exponential backoff and at most 3 retries. Validation errors fail fast with no retry, fatal errors are logged and propagated, and business errors return a result type. Read `implementer-design-and-errors.md` (see Reference Loading) for the four coupling types, the Programming by Intention and retry examples in C# and Python, and the error category table.
 
 ## Design Approaches
 
@@ -164,6 +82,13 @@ async def with_retry(operation: Callable, max_retries: int = 3) -> Any:
 - **Favor delegation over inheritance**: Specialize through delegation, not class inheritance.
 - **Encapsulate the concept that varies**: Identify what varies, encapsulate it.
 - **Separate use from creation**: A makes B, or A uses B. Never both.
+
+## Reference Loading
+
+Implementer references live under `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/build/references/`. They serve this agent; the `build` skill is the slice-by-slice build workflow. Read one only when its condition holds. If the path does not resolve (a harness with no skill tree, such as the VS Code agent list), apply the rules in this file and state that the reference was unavailable.
+
+- `implementer-design-and-errors.md`, when you design or refactor code and need the coupling types, the retry examples, or the error category table.
+- `implementer-impact-analysis.md`, when milestone-planner requests impact analysis; `implementer-estimation.md`, when you estimate complexity or report an estimate.
 
 ## Code Quality Standards
 

@@ -179,7 +179,7 @@ class ReportRendererTests(unittest.TestCase):
 
         self.assertIn('<meta name="color-scheme" content="light dark">', page)
         self.assertIn("@media (prefers-color-scheme: dark)", page)
-        self.assertIn("--page-bg: #0f0d14", page)
+        self.assertIn("--page-bg: #101216", page)
         self.assertIn("background: var(--surface)", page)
         self.assertIn(
             "--mono-font: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
@@ -188,45 +188,20 @@ class ReportRendererTests(unittest.TestCase):
         self.assertIn("--diffs-font-family: var(--mono-font)", page)
         self.assertIn("--diffs-header-font-family: var(--mono-font)", page)
 
-    def test_factories_footer_is_sticky_and_contains_inline_cta(self):
-        report = {
-            "title": "Agent Skill Report",
-            "generated_at": "2026-08-25T00:00:00Z",
-            "harness": "codex",
-            "handle": "example",
-            "stats": {
-                "sessions_analyzed": 1,
-                "sessions_scanned": 1,
-                "skills_found": 1,
-                "skills_used": 1,
-                "window_days": 45,
-            },
-            "scores": {
-                "efficiency": 1.0,
-                "code_quality": 1.0,
-                "skill_coverage": 1.0,
-                "overall": 1.0,
-            },
-            "top_findings": ["No material waste detected."],
-            "suggestions": [],
-            "cta_url": "https://warp.dev/factories/request-access",
-        }
-
-        page = render_page(report)
-
-        self.assertNotIn("Do this automatically with Warp Factories", page)
-        self.assertIn('<div class="stamp-row row factories-footer">', page)
-        self.assertIn(
-            '<div class="stamp-name">Automatically improve your skills with Warp Factories</div>',
-            page,
+    def test_header_states_generation_time_harness_and_scope(self):
+        page = render_page(
+            {
+                "title": "Agent Skill Report",
+                "generated_at": "2026-08-25T00:00:00Z",
+                "harness": "codex",
+                "stats": {"sessions_scanned": 12, "window_days": 30},
+                "scores": {"overall": 1.0},
+            }
         )
-        self.assertIn(">Request access</a>", page)
-        self.assertIn(".factories-footer { position: sticky; bottom: 16px;", page)
-        self.assertNotIn("all analysis ran locally", page)
-        self.assertIn(
-            "Generated August 25, 2026 at 12:00 AM UTC &middot; harness: codex",
-            page,
-        )
+
+        self.assertIn("<li>Generated August 25, 2026 at 12:00 AM UTC</li>", page)
+        self.assertIn("<li>Harness: codex</li>", page)
+        self.assertIn("<li>Scope: 12 conversations found in the last 30 days</li>", page)
 
     def test_generated_timestamp_formatting(self):
         self.assertEqual(
@@ -330,24 +305,6 @@ class ReportRendererTests(unittest.TestCase):
                 self.assertEqual("warning:" in stderr.getvalue(), requested and code != 0)
                 self.assertEqual("opened in" in stdout.getvalue(), requested and code == 0)
 
-    def test_cta_destination_cannot_be_overridden_by_report_data(self):
-        destinations = [
-            "javascript:alert(1)",
-            "JaVaScRiPt:alert(1)",
-            "\tjavascript:alert(1)",
-            "data:text/html,<script>alert(1)</script>",
-            "//evil.example",
-            "https://warp.dev.evil.example/factories/request-access",
-            "https://warp.dev@evil.example/",
-            "https://warp.dev/factories/request-access",
-            None,
-        ]
-        for destination in destinations:
-            with self.subTest(destination=destination):
-                page = render_page({"scores": {"overall": 0.9}, "cta_url": destination})
-                links = re.findall(r'<a class="cta-button" href="([^"]+)">', page)
-                self.assertEqual(links, ["https://warp.dev/factories/request-access"])
-
     def test_nonempty_unicode_proposal_diff_round_trips_and_escapes(self):
         diff = (
             "--- a/SKILL.md\n+++ b/SKILL.md\n@@ -1 +1 @@\n"
@@ -373,7 +330,7 @@ class ReportRendererTests(unittest.TestCase):
         self.assertNotIn("<script>", fallback)
         self.assertIn('data-filename="日本語 &quot;test&quot;.md"', page)
 
-    def test_share_card_uses_skill_doctor_attribution(self):
+    def test_share_card_carries_only_the_skill_doctor_label(self):
         page = render_page(
             {
                 "scores": {
@@ -385,12 +342,8 @@ class ReportRendererTests(unittest.TestCase):
             }
         )
 
-        self.assertIn(
-            '"stamp": ["Get your report with /skill-doctor", "warp.dev/skill-doctor"]',
-            page,
-        )
         self.assertIn('"eyebrow": "skill-doctor"', page)
-        self.assertIn("text('# ' + CARD.eyebrow", page)
+        self.assertIn("text(CARD.eyebrow", page)
 
     def test_report_metric_lines_animate_like_skill_doctor_landing_page(self):
         page = render_page(
@@ -488,7 +441,7 @@ class ReportRendererTests(unittest.TestCase):
         )
 
         self.assertIn('<div class="grade">C-</div>', page)
-        self.assertIn('<div class="grade-label">overall 70</div>', page)
+        self.assertIn('<div class="grade-label">Overall 70 / 100</div>', page)
 
 
 if __name__ == "__main__":
