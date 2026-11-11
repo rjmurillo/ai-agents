@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Guard GitHub auto-merge before resolving the final review thread."""
 
-from __future__ import annotations
-
 import os
 import sys
 from typing import Any

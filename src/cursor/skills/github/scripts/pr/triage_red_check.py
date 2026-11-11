@@ -79,20 +79,18 @@ from skill_bootstrap import ensure_plugin_paths
 
 ensure_plugin_paths(__file__)
 
-from github_core.api import (
+from github_core import (
+    add_output_format_arg,
     assert_gh_authenticated,
+    get_output_format,
     gh_graphql,
     resolve_repo_params,
+    write_skill_error,
+    write_skill_output,
 )
 from github_core.checks_rollup import (
     extract_workflow_run_number,
     partition_rows_by_run,
-)
-from github_core.output import (
-    add_output_format_arg,
-    get_output_format,
-    write_skill_error,
-    write_skill_output,
 )
 
 # ---------------------------------------------------------------------------

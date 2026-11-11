@@ -33,14 +33,12 @@ from skill_bootstrap import ensure_plugin_paths
 
 ensure_plugin_paths(__file__, (".claude", "lib"))
 
-from github_core.api import (
+from github_core import (
+    add_output_format_arg,
     check_gh_auth,
     describe_gh_auth_failure,
-    resolve_repo_params,
-)
-from github_core.output import (
-    add_output_format_arg,
     get_output_format,
+    resolve_repo_params,
     write_skill_error,
     write_skill_output,
 )
