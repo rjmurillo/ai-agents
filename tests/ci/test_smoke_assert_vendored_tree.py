@@ -118,7 +118,7 @@ class TestRun:
         for relative in PROBE_SCRIPTS:
             assert (claude / relative).with_suffix(".mark").read_text() == "--help"
 
-    def test_probe_drops_plugin_root_env_so_it_cannot_mask_a_missing_lib(
+    def test_probe_drops_lib_redirecting_env_so_it_cannot_mask_a_missing_lib(
         self, tmp_path: Path
     ) -> None:
         demo = tmp_path / "demo"
@@ -126,7 +126,7 @@ class TestRun:
             demo,
             script_body=(
                 "import os, sys\n"
-                "names = ('CLAUDE_PLUGIN_ROOT', 'COPILOT_PLUGIN_ROOT')\n"
+                "names = ('CLAUDE_PLUGIN_ROOT', 'COPILOT_PLUGIN_ROOT', 'GITHUB_WORKSPACE')\n"
                 "sys.exit(1 if any(k in os.environ for k in names) else 0)\n"
             ),
         )
@@ -135,6 +135,7 @@ class TestRun:
             "DEMO": str(demo),
             "CLAUDE_PLUGIN_ROOT": "/elsewhere",
             "COPILOT_PLUGIN_ROOT": "/else",
+            "GITHUB_WORKSPACE": "/source/checkout",
         }
         with patch.dict(os.environ, env):
             assert run() == 0

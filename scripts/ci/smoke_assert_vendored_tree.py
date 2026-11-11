@@ -30,8 +30,10 @@ PROBE_SCRIPTS: tuple[str, ...] = (
     "skills/merge-resolver/scripts/resolve_pr_conflicts.py",
 )
 
-# These point a script at a plugin install, which would mask a missing lib/.
-_PLUGIN_ROOT_VARS = ("CLAUDE_PLUGIN_ROOT", "COPILOT_PLUGIN_ROOT")
+# Each of these makes a script look for lib/ somewhere other than the installed
+# tree, which would mask a missing lib/. GITHUB_WORKSPACE matters on Actions:
+# it names the source checkout, whose .claude/lib is complete.
+_PLUGIN_ROOT_VARS = ("CLAUDE_PLUGIN_ROOT", "COPILOT_PLUGIN_ROOT", "GITHUB_WORKSPACE")
 _PROBE_TIMEOUT_SECONDS = 60
 
 
