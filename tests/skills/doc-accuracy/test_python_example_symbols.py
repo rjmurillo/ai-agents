@@ -127,5 +127,52 @@ def test_fallback_blanks_single_line_strings_and_comments() -> None:
 
 def test_other_languages_keep_agnostic_extraction() -> None:
     ids = mod._extract_identifiers('var s = "Hook ADR"; // UTC', "csharp")
-    assert {"Hook", "ADR", "UTC"} <= set(ids)
+    assert {"Hook", "ADR"} <= set(ids)
+    assert "UTC" not in ids
     assert mod._extract_identifiers('"""Hook"""') == ["Hook"]
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "class EmailValidator:\n    pass\nEmailValidator()",
+        "    class EmailValidator:\n        pass\n    EmailValidator()",
+        'class EmailValidator:\n    """Example-local type."""\n',
+        "def LocalFactory():\n    return 1\nLocalFactory()",
+        "async def LocalFactory():\n    return 1\n",
+    ],
+)
+def test_example_definitions_resolve_locally(code: str) -> None:
+    """D3: an example does not need its own declarations in repository source."""
+    assert _flagged(code) == set()
+
+
+@pytest.mark.parametrize(
+    ("code", "expected"),
+    [
+        ("class EmailValidator(MissingBase):\n    pass", {"MissingBase"}),
+        ("class Outer:\n    class Inner:\n        pass\nInner()", {"Inner"}),
+        (
+            "from missing_package import EmailValidator\nclass EmailValidator:\n    pass",
+            {"EmailValidator"},
+        ),
+        ("class EmailValidator:\n    pass\nMissingWidget()", {"MissingWidget"}),
+        ("class EmailValidator:\n", {"EmailValidator"}),
+    ],
+)
+def test_local_definitions_do_not_hide_missing_references(code: str, expected: set[str]) -> None:
+    assert _flagged(code) == expected
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "// CORRECT MissingWidget\nnew ExistingWidget();",
+        "/* CORRECT MissingWidget\nstill comment */ new ExistingWidget();",
+        'var url = "https://host"; // MissingWidget',
+        'var path = @"folder//file"; // MissingWidget',
+    ],
+)
+def test_csharp_comments_are_not_repository_symbols(code: str) -> None:
+    """D3: strip comments without treating comment markers inside strings as code."""
+    assert _flagged(code, "csharp") == set()

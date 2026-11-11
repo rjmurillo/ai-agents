@@ -19,6 +19,7 @@ Exit Codes:
 """
 
 import argparse
+import ast
 import builtins
 import io
 import json
@@ -28,6 +29,7 @@ import posixpath
 import re
 import subprocess
 import sys
+import textwrap
 import tokenize
 from dataclasses import dataclass
 from pathlib import Path
@@ -481,21 +483,51 @@ def _find_referenced_symbols(doc_content: str, symbol_names: set[str]) -> list[s
     return sorted(set(found))
 
 
+def _source_reference_index(
+    source_files: dict[str, str],
+    source_symbols: list[SourceSymbol],
+) -> dict[str, set[str]]:
+    """Index file names, qualified modules, and unambiguous public symbols."""
+    references: dict[str, set[str]] = {}
+    symbols: dict[str, set[str]] = {}
+    for src_path in source_files:
+        path = Path(src_path)
+        references.setdefault(src_path, set()).add(src_path)
+        references.setdefault(path.name, set()).add(src_path)
+        if path.suffix == ".py":
+            module = path.parent if path.stem == "__init__" else path.with_suffix("")
+            for start in range(len(module.parts) - 1):
+                name = ".".join(module.parts[start:])
+                references.setdefault(name, set()).add(src_path)
+    for symbol in source_symbols:
+        symbols.setdefault(symbol.name, set()).add(symbol.file)
+        path = Path(symbol.file)
+        module = path.parent.name if path.stem == "__init__" else path.stem
+        references.setdefault(f"{module}.{symbol.name}", set()).add(symbol.file)
+    for name, paths in symbols.items():
+        # Identical projections remain coupled. Distinct implementations need
+        # a qualified reference, rather than guessing from words like "main".
+        if len({source_files[path] for path in paths}) == 1:
+            references.setdefault(name, set()).update(paths)
+    return references
+
+
 def _map_doc_to_source(
     doc_path: str,
     doc_content: str,
-    source_files: dict[str, str],
+    source_references: dict[str, set[str]],
 ) -> list[str]:
-    """Map a documentation file to relevant source files."""
-    mapped: list[str] = []
-    doc_lower = doc_content.lower()
-
-    for src_path in source_files:
-        src_name = Path(src_path).stem.lower()
-        if src_name in doc_lower:
-            mapped.append(src_path)
-
-    return sorted(set(mapped))
+    """Map explicit references without matching prose against bare file stems."""
+    mapped: set[str] = set()
+    for reference in re.findall(r"\w+(?:[./\\-]\w+)*", doc_content):
+        reference = reference.replace("\\", "/")
+        paths = source_references.get(reference)
+        if not paths:
+            paths = source_references.get(reference.rsplit("/", 1)[-1])
+        if not paths and "/" not in reference:
+            paths = source_references.get(reference.rsplit(".", 1)[-1])
+        mapped.update(paths or ())
+    return sorted(mapped)
 
 
 def _count_code_blocks(content: str) -> int:
@@ -1079,6 +1111,8 @@ def run_assessment(
             for s in syms:
                 symbol_names.add(s.name)
 
+    source_references = _source_reference_index(source_files, source_symbols)
+
     # Build doc file inventory
     doc_inventory: list[DocFile] = []
     changed_lines: dict[str, list[list[int]]] = {}
@@ -1096,7 +1130,7 @@ def run_assessment(
             continue
 
         refs = _find_referenced_symbols(content, symbol_names)
-        mapped = _map_doc_to_source(rel_path, content, source_files)
+        mapped = _map_doc_to_source(rel_path, content, source_references)
         line_count = content.count("\n") + 1
         if changed_files is not None:
             # No parsed hunk, or a symlinked doc (git diffs only the link
@@ -1286,30 +1320,71 @@ def _python_stdlib_imported_names(code: str) -> set[str]:
     return names
 
 
+def _python_example_definitions(code: str) -> set[str]:
+    """Resolve top-level declarations without hiding imports or nested names."""
+    try:
+        tree = ast.parse(textwrap.dedent(code))
+    except SyntaxError:
+        return set()
+    definitions = {
+        node.name
+        for node in tree.body
+        if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    imports = {
+        name
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.Import, ast.ImportFrom))
+        for alias in node.names
+        for name in (alias.name, alias.asname)
+        if name
+    }
+    return definitions - imports
+
+
+_CSHARP_COMMENT_TOKENS = re.compile(
+    r"""@"(?:""|[^"])*"|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|//[^\r\n]*|/\*.*?\*/""",
+    re.DOTALL,
+)
+
+
+def _strip_csharp_comments(code: str) -> str:
+    """Blank comments while preserving string literals and their delimiters."""
+    return _CSHARP_COMMENT_TOKENS.sub(
+        lambda match: (
+            re.sub(r"[^\r\n]", " ", match[0]) if match[0].startswith(("//", "/*")) else match[0]
+        ),
+        code,
+    )
+
+
 def _extract_identifiers(code: str, lang: str = "") -> list[str]:
     """Extract potential identifiers from a code snippet.
 
     For Python (``lang == "python"``) only code tokens count: strings,
     docstrings and comments are blanked first, and names imported from
-    the standard library are dropped.
+    the standard library and declarations within the example are dropped.
 
     f-string expressions stay visible only on Python 3.12+, where the
     tokenizer splits f-strings. On 3.10 and 3.11 the whole f-string is one
     STRING token and is blanked, which can only miss a symbol, never add a
-    false finding. Other languages keep the
-    language-agnostic scan.
+    false finding. C# comments are blanked without changing string handling.
+    Other languages keep the language-agnostic scan.
     """
-    stdlib_names: set[str] = set()
+    ignored_names: set[str] = set()
     if lang == "python":
+        ignored_names = _python_example_definitions(code)
         code = _strip_python_non_code(code)
-        stdlib_names = _python_stdlib_imported_names(code)
+        ignored_names.update(_python_stdlib_imported_names(code))
+    elif lang == "csharp":
+        code = _strip_csharp_comments(code)
     # Match CamelCase and snake_case identifiers (3+ chars)
     identifiers = re.findall(r"\b([A-Z][a-zA-Z0-9]+)\b", code)
     # Also match method calls
     identifiers.extend(re.findall(r"\.([A-Za-z]\w+)\s*\(", code))
     # Named parameters (C# style)
     identifiers.extend(re.findall(r"(\w+)\s*:", code))
-    return sorted(set(identifiers) - stdlib_names)
+    return sorted(set(identifiers) - ignored_names)
 
 
 def _extract_quantitative_claims(line: str) -> list[str]:
@@ -1527,6 +1602,7 @@ def run_compilability_check(
 
         content = claim_dict["content"]
         lang = claim_dict.get("language", "")
+        checked_content = _strip_csharp_comments(content) if lang == "csharp" else content
 
         # Skip languages without source-symbol extractors (e.g. text/ASCII
         # diagrams, PowerShell, bash).  Only languages present in
@@ -1547,7 +1623,7 @@ def run_compilability_check(
                     # Check named parameters in the code example
                     named_params = re.findall(
                         rf"{re.escape(sym_name)}\s*\([^)]*?(\w+)\s*:",
-                        content,
+                        checked_content,
                     )
                     for param in named_params:
                         pattern = rf"\b{re.escape(param)}\b"

@@ -13,6 +13,8 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 TESTS_SKILLS_DIR = str(Path(__file__).resolve().parents[1])
 if TESTS_SKILLS_DIR not in sys.path:
     sys.path.insert(0, TESTS_SKILLS_DIR)
@@ -333,6 +335,78 @@ class TestSourceSymbol:
         d = sym.to_dict()
         assert d["name"] == "Foo"
         assert d["visibility"] == "public"
+
+
+class TestSourceCoupling:
+    @pytest.mark.parametrize(
+        ("content", "expected"),
+        [
+            ("The output is deterministic.", []),
+            ("class Local:\n    def __init__(self): pass\n", []),
+            ("Use `output.py`.", ["scripts/github_core/output.py"]),
+            ("Use `scripts/github_core/output.py`.", ["scripts/github_core/output.py"]),
+            ("Use `github_core.output`.", ["scripts/github_core/output.py"]),
+            ("Call `write_outputs()`.", ["scripts/github_core/output.py"]),
+            ("Call `client.write_outputs()`.", ["scripts/github_core/output.py"]),
+            ("Use `my_write_outputs_helper()`.", []),
+            ("See `output.py.old` and `missing_output.py`.", []),
+            ("See `github_core.output_backup`.", []),
+            ("See `scripts/github_core/__init__.py`.", ["scripts/github_core/__init__.py"]),
+            ("The main branch holds releases.", []),
+            ("Call `alpha.main()`.", ["alpha.py"]),
+        ],
+    )
+    def test_coupling_requires_a_source_reference(
+        self, tmp_path: Path, content: str, expected: list[str]
+    ) -> None:
+        """D3: prose substrings must not create source coupling."""
+        package = tmp_path / "scripts" / "github_core"
+        package.mkdir(parents=True)
+        (package / "output.py").write_text("def write_outputs():\n    return {}\n")
+        (package / "__init__.py").write_text("class GithubClient:\n    pass\n")
+        (tmp_path / "alpha.py").write_text("def main():\n    return 1\n")
+        (tmp_path / "beta.py").write_text("def main():\n    return 2\n")
+        (tmp_path / "README.md").write_text(content)
+
+        result = run_assessment(tmp_path)
+
+        assert len(result["documentation_files"]) == 1
+        assert len(result["source_symbols"]) == 4
+        assert result["documentation_files"][0]["mapped_source_files"] == expected
+
+    @pytest.mark.parametrize(
+        ("language", "content", "exit_code"),
+        [
+            ("python", "class EmailValidator:\n    pass\nEmailValidator()", 0),
+            ("python", "MissingWidget()", 10),
+            ("python", "from missing_package import MissingWidget", 10),
+            ("csharp", "// CORRECT MissingWidget\nnew ExistingWidget();", 0),
+            ("csharp", "new MissingWidget(); // CORRECT", 10),
+            ("csharp", "Configure(timeout: 1);", 0),
+            ("csharp", "Configure(timeout: 1); // Configure(wrong: 2);", 0),
+            ("csharp", "Configure(wrong: 1);", 10),
+            ("csharp", "Configure(wrong: 1); // Configure(timeout: 2);", 10),
+        ],
+    )
+    def test_cli_keeps_symbol_and_parameter_failures(
+        self, tmp_path: Path, language: str, content: str, exit_code: int
+    ) -> None:
+        """D3: false findings must clear without making real errors pass."""
+        (tmp_path / "widget.cs").write_text(
+            "public class ExistingWidget {\n    public void Configure(int timeout) { }\n}\n"
+        )
+        (tmp_path / "README.md").write_text(f"```{language}\n{content}\n```\n")
+        output = tmp_path / ".doc-accuracy"
+
+        assert main(["--target", str(tmp_path), "--output-dir", str(output)]) == exit_code
+        findings = json.loads((output / "compilability-findings.json").read_text())["findings"]
+        if exit_code:
+            assert len(findings) == 1
+            assert findings[0]["severity"] == (
+                "critical" if content.startswith("Configure(wrong:") else "high"
+            )
+        else:
+            assert findings == []
 
 
 class TestRunAssessment:
