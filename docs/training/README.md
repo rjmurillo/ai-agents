@@ -32,7 +32,7 @@ Each entry names the issue that writes the page and who the page is for. An entr
 
 - [Measure agent quality with evals and benchmarks](measure-agent-quality.md) (#7213): evals and benchmarks. For maintainers and skill authors.
 
-- `github-skill-scripts.md` (#7214): how-to for the github skill scripts. For contributors.
+- [Do GitHub work with the skill scripts, not raw gh](github-skill-scripts.md) (#7214): how-to for the github skill scripts. For contributors.
 
 ## Page layout
 
