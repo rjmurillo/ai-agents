@@ -4,7 +4,7 @@
 
 The `--expected-head-sha` flag compares the value to the PR's `headRefOid` by equality. A short prefix never matches, so the guard reports a head SHA mismatch and stops all mutation, even when the PR head did not move.
 
-- `add_pr_review_thread_reply.py` passes the value to `auto_merge_guard.identity_mismatches`, which compares `want != actual` (`auto_merge_guard.py` line 156). `--resolve` requires at least one of the three expected-identity flags.
+- `add_pr_review_thread_reply.py` passes the value to `auto_merge_guard.identity_mismatches`, which compares `want != actual` (`auto_merge_guard.py` line 160). `--resolve` requires at least one of the three expected-identity flags.
 - `merge_pr.py` rejects anything that is not 40 hex characters up front (`_SHA_PATTERN` at line 203, checked at line 1586).
 - `update_pr_branch.py` and `set_pr_ready.py` lower-case both sides and still compare whole strings.
 
