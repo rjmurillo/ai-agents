@@ -131,6 +131,6 @@ next run reads it. A repeated pull request is skipped and counted.
 | Code | Meaning |
 |---|---|
 | 0 | Report written. Zero clusters is a success. |
-| 2 | Bad arguments, an unreadable or malformed dispositions file, or a path outside its allowed directory. |
+| 2 | Bad arguments, an unreadable or malformed dispositions file, a path outside its allowed directory, `gh` missing or unable to run, or a report file that cannot be written. |
 | 3 | API failure or timeout, incomplete pagination, or malformed API data. No report is written. |
 | 4 | Authentication or permission failure. A rate-limit response is exit 3. |

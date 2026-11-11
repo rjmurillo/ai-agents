@@ -98,7 +98,10 @@ def _next_cursor(connection: dict[str, Any], what: str) -> str | None:
     info = connection.get("pageInfo")
     if not isinstance(info, dict):
         raise FetchError(f"missing pagination info for {what}")
-    if not info.get("hasNextPage"):
+    has_next = info.get("hasNextPage")
+    if not isinstance(has_next, bool):
+        raise FetchError(f"missing pagination flag for {what}")
+    if not has_next:
         return None
     cursor = info.get("endCursor")
     if not isinstance(cursor, str) or not cursor:

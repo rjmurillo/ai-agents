@@ -225,16 +225,20 @@ def test_main_reports_a_message_containing_author_as_external_not_auth(workspace
 
 
 @pytest.mark.parametrize(
-    "error",
-    [subprocess.TimeoutExpired(cmd="gh", timeout=30), FileNotFoundError("gh not found")],
+    ("error", "expected"),
+    [
+        (subprocess.TimeoutExpired(cmd="gh", timeout=30), 3),
+        (FileNotFoundError("gh not found"), 2),
+        (PermissionError("gh is not executable"), 2),
+    ],
 )
-def test_main_exits_3_when_the_gh_call_times_out_or_cannot_run(
-    workspace: Path, error: Exception
+def test_main_maps_a_timeout_to_external_and_a_missing_gh_to_config(
+    workspace: Path, error: Exception, expected: int
 ) -> None:
     def boom(query: str, variables: dict | None = None) -> dict:
         raise error
 
-    assert rep.main([], graphql=boom) == 3
+    assert rep.main([], graphql=boom) == expected
     assert not (workspace / ".project-toolkit/metrics/reviewer-intervention-clusters").exists()
 
 
@@ -303,7 +307,7 @@ def test_main_report_carries_the_filter_funnel(workspace: Path) -> None:
     assert examined["duplicate_pull_requests_skipped"] == 0
 
 
-def test_main_exits_3_when_the_report_file_cannot_be_written(
+def test_main_exits_2_when_the_report_file_cannot_be_written(
     workspace: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     def refuse(self: Path, *args: Any, **kwargs: Any) -> int:
@@ -311,4 +315,4 @@ def test_main_exits_3_when_the_report_file_cannot_be_written(
 
     monkeypatch.setattr(Path, "write_text", refuse)
 
-    assert rep.main([], graphql=three_repeat_pages()) == 3
+    assert rep.main([], graphql=three_repeat_pages()) == 2

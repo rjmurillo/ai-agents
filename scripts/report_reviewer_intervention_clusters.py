@@ -25,10 +25,10 @@ Exit codes (AGENTS.md contract):
     0  Report written. Zero clusters is a success and says so.
     2  Configuration error: bad arguments, unreadable or malformed
        dispositions file, unresolvable repository, a path outside its
-       allowed directory.
+       allowed directory, gh missing or unable to run, or the report file
+       could not be written (ADR-035: environment error).
     3  External error: the API failed or timed out, pagination could not
-       complete, or the API returned malformed data, or the report file could not be
-       written.
+       complete, or the API returned malformed data.
     4  Authentication error.
 """
 
@@ -269,9 +269,12 @@ def main(argv: list[str] | None = None, *, graphql: GraphQL | None = None) -> in
     except (FetchError, ValueError) as exc:
         logger.error("report not written, read incomplete or API data malformed: %s", exc)
         return EXIT_EXTERNAL
-    except (subprocess.TimeoutExpired, OSError) as exc:
-        logger.error("report not written, the gh call timed out or could not run: %s", exc)
+    except subprocess.TimeoutExpired as exc:
+        logger.error("report not written, the gh call timed out: %s", exc)
         return EXIT_EXTERNAL
+    except OSError as exc:
+        logger.error("report not written, gh is missing or cannot run: %s", exc)
+        return EXIT_CONFIG
     except RuntimeError as exc:
         logger.error("report not written, GitHub request failed: %s", exc)
         return EXIT_AUTH if is_auth_failure_text(str(exc)) else EXIT_EXTERNAL
@@ -280,7 +283,7 @@ def main(argv: list[str] | None = None, *, graphql: GraphQL | None = None) -> in
         output.write_text(render_report(report), encoding="utf-8")
     except OSError as exc:
         logger.error("report not written, the file could not be saved: %s", exc)
-        return EXIT_EXTERNAL
+        return EXIT_CONFIG
     examined = report["examined"]
     logger.info(
         "%d clusters in %d interventions (%d in window) across %d agent PRs "
