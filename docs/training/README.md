@@ -24,15 +24,15 @@ Each entry names the issue that writes the page and who the page is for. An entr
 
 - [Keep an agent inside its authority and read what it reports](safe-agent-actions.md) (#7209): decision briefs, destructive-change safety, and evidence provenance. For everyone who runs agents.
 
-- `memory-and-learning.md` (#7210): memory with Serena, the retrospective nudge, and reflect. For everyone who runs agents.
+- [Search project memory and turn sessions into lessons](memory-and-learning.md) (#7210): memory with Serena, the retrospective nudge, and reflect. For everyone who runs agents.
 
-- `template-first-authoring.md` (#7211): edit templates, then render generated files. For contributors.
+- [Change a rule and a skill through templates](template-first-authoring.md) (#7211): edit templates, then render generated files. For contributors.
 
 - `maintainer-operations.md` (#7212): agent workflow approval, the promotion gate, ruleset drift, and releases. For maintainers.
 
 - [Measure agent quality with evals and benchmarks](measure-agent-quality.md) (#7213): evals and benchmarks. For maintainers and skill authors.
 
-- `github-skill-scripts.md` (#7214): how-to for the github skill scripts. For contributors.
+- [Do GitHub work with the skill scripts, not raw gh](github-skill-scripts.md) (#7214): how-to for the github skill scripts. For contributors.
 
 ## Page layout
 
