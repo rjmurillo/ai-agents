@@ -14,7 +14,7 @@ Each entry names the issue that writes the page and who the page is for. An entr
 
 - [Install the toolkit on your host and check it loaded](install-on-every-host.md) (#7204): install and verify the toolkit on Claude Code, Copilot CLI, VS Code and Visual Studio, Codex, Cursor, Grok Build, Pi, Hermes, and Muse. For new users.
 
-- `lifecycle-and-autoplan.md` (#7205): the spec to ship lifecycle and `/autoplan` routing. For contributors.
+- [Take one change from /spec to /ship, and route requests with /autoplan](lifecycle-and-autoplan.md) (#7205): the spec to ship lifecycle and `/autoplan` routing. For contributors.
 
 - `review-and-pr-feedback.md` (#7206): the review and PR feedback loop with `/review`, `/pr-review`, and pr-autofix. For contributors.
 
