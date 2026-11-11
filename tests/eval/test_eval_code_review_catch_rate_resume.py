@@ -253,6 +253,20 @@ class TestCheckpoint:
         assert result["aggregate"]["caught_top5"]["n"] == 4
         assert "rescored from stored responses" in report_path.read_text(encoding="utf-8")
 
+    @pytest.mark.parametrize("entries", ["CR99", "CR01,CR99"])
+    def test_rescore_with_an_unknown_entry_id_exits_2(self, tmp_path, repo, entries):
+        corpus = _write_corpus(tmp_path, repo)
+        checkpoint = tmp_path / "rows.jsonl"
+        cli.main(
+            _argv(corpus, "--checkpoint", str(checkpoint)), caller=_stub(), git=_git(repo["root"])
+        )
+
+        code = cli.main(
+            _argv(corpus, "--rescore", "--checkpoint", str(checkpoint), "--entries", entries)
+        )
+
+        assert code == 2
+
     def test_rescore_without_a_checkpoint_exits_2(self, tmp_path, repo):
         assert cli.main(_argv(_write_corpus(tmp_path, repo), "--rescore")) == 2
 

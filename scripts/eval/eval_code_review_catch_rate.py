@@ -339,12 +339,12 @@ def rescore(args: argparse.Namespace) -> int:
         return 2
     try:
         corpus = core.load_corpus(REPO_ROOT / args.corpus)
+        wanted = tuple(e.id for e in select_entries(corpus, _split(args.entries)))
         rows = rescore_rows(load_checkpoint(Path(args.checkpoint)), corpus)
     except (core.CorpusError, OSError, ValueError, KeyError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
-    wanted = _split(args.entries)
-    rows = [r for r in rows if not wanted or r["entry"] in wanted]
+    rows = [r for r in rows if r["entry"] in wanted]
     meta = build_meta(args, REPO_ROOT / args.corpus, len({r["entry"] for r in rows}), None)
     meta["trials"] = max((int(r["trial"]) for r in rows), default=-1) + 1
     meta["rescored"] = True
