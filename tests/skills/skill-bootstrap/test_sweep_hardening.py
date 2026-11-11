@@ -60,6 +60,9 @@ def access(name: str, server: str = "") -> str:
         "get_job_logs",
         "list_issue_types",
         "search_public_and_private",
+        "twilio_retrieve",
+        "tavily_extract",
+        "retrieve_document",
     ],
 )
 def test_noun_like_words_do_not_make_a_read_tool_a_write(name):

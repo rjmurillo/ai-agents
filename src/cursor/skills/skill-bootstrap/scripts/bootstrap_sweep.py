@@ -233,7 +233,7 @@ WRITE_VERBS = frozenset(
 # Nouns that double as write verbs: they count as verbs only in leading position.
 NOUN_VERBS = frozenset("request run label comment review issue commit".split())
 READ_VERBS = frozenset(
-    "get list search read query fetch recall view find lookup describe download export".split()
+    "get list search read query fetch recall view find lookup describe download export retrieve extract".split()
 )
 
 SIGNALS = {
