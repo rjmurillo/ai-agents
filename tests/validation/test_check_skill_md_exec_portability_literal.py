@@ -154,8 +154,13 @@ class TestScanLiteralPluginPaths:
         [
             "src/claude/agents/helper.md",
             "src/copilot-cli/agents/helper.agent.md",
+            "src/copilot-cli/instructions/helper.instructions.md",
+            "src/cursor/agents/helper.md",
+            "src/cursor/rules/helper.mdc",
+            "src/vs-code-agents/helper.agent.md",
             "templates/agents/helper.claude.md.tmpl",
             "templates/agents/partials/helper.mustache",
+            "templates/rules/helper.md",
             "src/claude/rules/helper.md",
         ],
     )
@@ -164,6 +169,48 @@ class TestScanLiteralPluginPaths:
         _write(tmp_path, rel, "Run `python3 .claude/skills/demo/scripts/x.py`.\n")
         hits, _ = cep.scan_literal_plugin_paths(tmp_path)
         assert hits == [f"{rel}:1: .claude/skills/demo/scripts/x.py"]
+
+    def test_every_on_disk_instruction_tree_is_scanned(self) -> None:
+        """Converse guard: a hand-authored agent, rule, or instruction tree must be listed."""
+        root = Path(__file__).resolve().parents[2]
+        bases = [root / "templates", root / "src"]
+        bases.extend(sorted(path for path in (root / "src").iterdir() if path.is_dir()))
+        on_disk: set[tuple[str, ...]] = set()
+        for base in bases:
+            for child in sorted(base.iterdir()):
+                is_tree = child.name in {"agents", "rules", "instructions"}
+                if child.is_dir() and (is_tree or child.name.endswith("-agents")):
+                    on_disk.add(child.relative_to(root).parts)
+        assert on_disk, "discovery found no agent or rule trees; the walk is broken"
+        unlisted = sorted(on_disk - set(cep.LITERAL_EXTRA_DIRS))
+        assert unlisted == [], f"add to LITERAL_EXTRA_DIRS: {unlisted}"
+        missing = [parts for parts in cep.LITERAL_EXTRA_DIRS if not root.joinpath(*parts).is_dir()]
+        assert missing == [], f"LITERAL_EXTRA_DIRS names a tree that is gone: {missing}"
+
+    def test_every_allowance_is_still_invoked_in_the_repository(self) -> None:
+        """Converse guard: an allowance that matches nothing is a stale exemption."""
+        root = Path(__file__).resolve().parents[2]
+        assert cep.unused_literal_allowances(root) == []
+
+    def test_reports_an_allowance_that_no_file_invokes(self, tmp_path: Path) -> None:
+        _skill(tmp_path, "demo", "uv run python .claude/skills/used/scripts/a.py\n")
+        allowances = ["skills/used/scripts/a.py", "skills/gone/scripts/b.py"]
+        assert cep.unused_literal_allowances(tmp_path, allowances) == ["skills/gone/scripts/b.py"]
+
+    def test_a_marked_file_does_not_count_as_a_use(self, tmp_path: Path) -> None:
+        body = (
+            "<!-- vendor-portability-exec: dogfood example -->\n"
+            "uv run python .claude/skills/used/scripts/a.py\n"
+        )
+        _skill(tmp_path, "demo", body)
+        assert cep.unused_literal_allowances(tmp_path, ["skills/used/scripts/a.py"]) == [
+            "skills/used/scripts/a.py"
+        ]
+
+    def test_an_invocation_in_an_agent_tree_counts_as_a_use(self, tmp_path: Path) -> None:
+        _skill(tmp_path, "demo", "clean\n")
+        _write(tmp_path, "src/claude/agents/a.md", "python3 .claude/skills/s/scripts/a.py\n")
+        assert cep.unused_literal_allowances(tmp_path, ["skills/s/scripts/a.py"]) == []
 
     def test_ignores_a_non_markdown_file_in_an_agent_tree(self, tmp_path: Path) -> None:
         _skill(tmp_path, "demo", "clean\n")

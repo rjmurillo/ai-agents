@@ -34,6 +34,7 @@ import json
 import os
 import re
 import sys
+from collections.abc import Iterable
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -192,20 +193,28 @@ LITERAL_PLUGIN_PATTERN = re.compile(
 # Scripts whose portable form is itself rejected: they import a third-party
 # module, which a vendored install's bare python3 cannot resolve (issue #5949).
 # Keyed by the path below ``.claude/``. A new entry needs the same reason.
+# ``unused_literal_allowances`` lists an entry no scanned file invokes, and a
+# test fails on it, so a converted or deleted invocation cannot leave a stale one.
 _NEEDS_THIRD_PARTY = "imports yaml; the portable python3 form fails check_plugin_root_interpreter"
 LITERAL_ALLOWANCES: dict[str, str] = {
     "skills/adr-review/scripts/detect_adr_changes.py": _NEEDS_THIRD_PARTY,
     "skills/slo-designer/scripts/generate_slo_document.py": _NEEDS_THIRD_PARTY,
 }
 
-# Agent and rule trees that ship Markdown instructions beside the skills.
+# Agent, rule, and instruction trees that ship text beside the skills. A test
+# walks src/ and templates/ and fails when an on-disk tree is missing here.
 LITERAL_EXTRA_DIRS: tuple[tuple[str, ...], ...] = (
     ("src", "claude", "agents"),
-    ("src", "copilot-cli", "agents"),
-    ("templates", "agents"),
     ("src", "claude", "rules"),
+    ("src", "copilot-cli", "agents"),
+    ("src", "copilot-cli", "instructions"),
+    ("src", "cursor", "agents"),
+    ("src", "cursor", "rules"),
+    ("src", "vs-code-agents"),
+    ("templates", "agents"),
+    ("templates", "rules"),
 )
-_LITERAL_SUFFIXES = frozenset({".md", ".tmpl", ".mustache"})
+_LITERAL_SUFFIXES = frozenset({".md", ".mdc", ".tmpl", ".mustache"})
 
 
 def find_literal_plugin_paths(text: str) -> list[tuple[int, str]]:
@@ -246,18 +255,41 @@ def _iter_literal_scan_files(repo_root: Path) -> list[Path]:
     return sorted(seen)
 
 
+def _read_scan_text(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise OSError(f"Failed to read {path}: {exc}") from exc
+
+
 def scan_literal_plugin_paths(repo_root: Path) -> tuple[list[str], int]:
     """Return ``(hits, examined)``: one ``file:line: path`` per hit, files read."""
     hits: list[str] = []
     files = _iter_literal_scan_files(repo_root)
     for path in files:
-        try:
-            text = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError) as exc:
-            raise OSError(f"Failed to read {path}: {exc}") from exc
+        text = _read_scan_text(path)
         rel = path.relative_to(repo_root).as_posix()
         hits.extend(f"{rel}:{line}: .claude/{lit}" for line, lit in find_literal_plugin_paths(text))
     return hits, len(files)
+
+
+def unused_literal_allowances(
+    repo_root: Path, allowances: Iterable[str] | None = None
+) -> list[str]:
+    """Return allowance keys that no scanned, unmarked file invokes literally.
+
+    A key that matches nothing is a stale exemption: it would hide a later
+    literal invocation of the same script. Files with the
+    ``vendor-portability-exec`` marker do not count as a use.
+    """
+    keys = set(LITERAL_ALLOWANCES if allowances is None else allowances)
+    used: set[str] = set()
+    for path in _iter_literal_scan_files(repo_root):
+        text = _read_scan_text(path)
+        if has_portability_marker(text):
+            continue
+        used.update(match.group("rel") for match in LITERAL_PLUGIN_PATTERN.finditer(text))
+    return sorted(keys - used)
 
 
 def _refuse_exec_escape(root_resolved: Path, path: Path, label: str) -> None:
