@@ -16,16 +16,13 @@ What it builds from the source tree:
   because a wiki cannot resolve repo paths.
 * ``_Sidebar.md`` lists the pages in the order their links appear in README.md.
 
-It refuses a source tree it cannot mirror faithfully: sub-directories, file
-names that are not kebab-case, YAML front matter (a wiki shows it as text), a
-page README.md never links, and a link to a file that does not exist.
-
-Wiki pages that the source no longer produces are deleted. A second run with no
+It refuses a source tree it cannot mirror faithfully: sub-directories, symbolic
+links, names that are not kebab-case, YAML front matter, a page README.md never
+links, and a link to a missing file or one that resolves outside the repo.
+Wiki pages the source no longer produces are deleted. A second run with no
 source change makes no commit.
 
-Usage:
-    python3 scripts/ci/publish_wiki.py --dry-run
-    python3 scripts/ci/publish_wiki.py            # needs WIKI_TOKEN for https
+Usage: python3 scripts/ci/publish_wiki.py [--dry-run]   (https needs WIKI_TOKEN)
 
 Environment: ``GITHUB_REPOSITORY`` (owner/name), ``GITHUB_SERVER_URL``,
 ``WIKI_TOKEN`` (push credential), ``WIKI_DRY_RUN=true`` (same as --dry-run),
