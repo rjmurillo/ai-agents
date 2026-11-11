@@ -215,7 +215,7 @@ You are done when both of these hold on the committed branch, before you clean u
 | `uv run python build/scripts/build_all.py --check` | exit 0 |
 | `uv run python scripts/validation/check_rule_activation_coverage.py` | exit 0 and a line starting `OK:` |
 
-The `OK:` line counts uncovered artifacts that the baseline already allows. At commit `b959011e3` (2026-11-10) it read `OK: 14 uncovered rule(s) and 80 uncovered skill(s), all within the baseline.` Your counts change as main changes. Your new rule is not among them.
+The `OK:` line counts uncovered artifacts that the baseline already allows. At commit `d34536c95` (2026-11-11) it read `OK: 14 uncovered rule(s) and 80 uncovered skill(s), all within the baseline.` Your counts change as main changes. Your new rule is not among them.
 
 If a check fails, find the row:
 
@@ -225,7 +225,7 @@ If a check fails, find the row:
 | `--check` exits 2 with only `STALENESS DETECTED` | You rendered but did not commit. | Commit the template and the output together. |
 | `--check` exits 3 | Git could not answer, or an audit rule tripped. Regenerating does not help. | Read the message. Run the command inside a normal Git worktree. |
 | Activation check exits 1 | A rule or skill has no scenario. | Add `tests/evals/rule-scenarios/<name>.json` for a rule, or a file under `tests/evals/skill-scenarios/` for a skill. |
-| A real rule fails `Rule Lossless Fixtures` or an Instruction Bytes gate | A real rule adds bytes to a corpus with a fixed ceiling. | Follow MUST 6 in [templates.md](../../src/claude/rules/templates.md). This page's rule is not real, so you skip it. |
+| A real rule fails `Rule Lossless Fixtures` or an Instruction Bytes gate | A real rule adds bytes to a corpus with a fixed ceiling. | Follow MUST 6 in [templates.md](../../templates/rules/templates.md). This page's rule is not real, so you skip it. |
 
 `uv run python build/scripts/build_all.py --help` lists every exit code. For a real change, run `uv run python scripts/validation/pre_pr.py` before you push. It includes the staleness and template drift rows.
 
@@ -234,6 +234,7 @@ If a check fails, find the row:
 Read these for the full reasoning. This page does not copy them.
 
 - [templates/AGENTS.md](../../templates/AGENTS.md): the class-by-class render map. [build/AGENTS.md](../../build/AGENTS.md): generator order, what `--check` compares, and the pre-PR rows that call it.
+- A rule whose every `paths:` glob names this repository's own build or CI layout stays repo-only. It renders as a real file in `.claude/rules/` and `.github/instructions/` and ships to no consumer tree. `build/scripts/rule_distribution.py` decides. Your example rule globs `docs/training/**`, so it renders everywhere, as step 5 shows.
 - [ADR-109](../../.project-toolkit/architecture/ADR-109-template-first-plugin-distribution.md): `templates/` is the source for agents, rules, skills, hooks, and settings.
 - [ADR-108](../../.project-toolkit/architecture/ADR-108-template-owned-skill-files.md): `SKILL.md` is template-owned. Scripts and references stay hand-edited under `src/claude/skills/<name>/`.
 - [ADR-119](../../.project-toolkit/architecture/ADR-119-symlinked-dogfood-agents-and-skills.md): `.claude/agents`, `.claude/skills/<name>`, and shipped `.claude/rules` are symlinks. Hooks and `settings.json` are still copied.
