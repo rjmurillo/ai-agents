@@ -24,9 +24,13 @@ this task's PR body).
 Three render targets, not one, because ADR-109 section 2 and 3 name three
 different destinations for this one template tree:
 
-1. ``templates/hooks/<name>`` (15 of the 16 hooks-class files: 14
-   executables plus ``dispatch_groups.json``) renders to
-   ``src/claude/hooks/<name>``, the plugin tree's ``hooks/`` subdirectory.
+1. ``templates/hooks/<name>`` renders to ``src/claude/hooks/<name>``, the
+   plugin tree's ``hooks/`` subdirectory, for the shipped entries
+   (``invoke_dispatch_claude.py``, ``dispatch_groups.json``, ``Stop/``). An
+   entry whose first path part is in the ``hooks`` binplace row's
+   ``repo_only`` list (ADR-109 amendment 2026-11-11, issue #7231) renders
+   straight to ``.claude/hooks/<name>`` instead, with no plugin-tree hop, so
+   it never ships. File mode is copied and drift-checked either way.
 2. ``templates/hooks/hooks.json`` renders to ``src/claude/hooks/hooks.json``,
    the one path Claude Code auto-discovers for plugin hooks
    (``<plugin-root>/hooks/hooks.json``). The ADR-109 section 2 amendment of
@@ -48,8 +52,9 @@ Stricter/looser/different than canonical (``rule_templates.py``):
 - Different: no mustache grammar, no partials directory, no ``render()``
   delegation. ``check_grammar`` does not exist on this module (DESIGN-025:
   "hooks has no grammar step").
-- Different: two target shapes instead of one (``src/claude/hooks/<rel>``,
-  which includes ``hooks.json``, and ``.claude/settings.json``), so
+- Different: three target shapes instead of one (``src/claude/hooks/<rel>``,
+  which includes ``hooks.json``, ``.claude/hooks/<rel>`` for repo-only
+  entries, and ``.claude/settings.json``), so
   :func:`discover` returns ``dict[str, Path]`` keyed by a POSIX-style
   relative name under ``templates/hooks/`` (e.g. ``"PreToolUse/_bootstrap.py"``),
   and :func:`_target_for` maps a name to its one target path.
@@ -87,6 +92,7 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
+import binplace_manifest  # noqa: E402
 from atomic_write import publish_bytes_atomically, reject_symlinked_ancestors  # noqa: E402
 from binplace_manifest import is_bytecode_artifact  # noqa: E402
 from regen_guard import detect_reason  # noqa: E402
@@ -135,13 +141,45 @@ def _iter_template_candidates(repo_root: Path) -> Iterator[tuple[str, Path]]:
         yield path.relative_to(root).as_posix(), path
 
 
+def _manifest_error(repo_root: Path) -> str | None:
+    """Return why the binplace manifest cannot be loaded, or ``None``.
+
+    :func:`_target_for` reads the ``hooks`` row's ``repo_only`` list from it.
+    A malformed manifest must stop the compile (exit 2) rather than render
+    every repo-only hook into the plugin tree.
+    """
+    try:
+        binplace_manifest.load(repo_root)
+    except binplace_manifest.BinplaceConfigError as exc:
+        return str(exc)
+    return None
+
+
+def _repo_only_names(repo_root: Path) -> frozenset[str]:
+    """Return the ``hooks`` row's ``repo_only`` names, empty on a bad or absent manifest."""
+    try:
+        rows = binplace_manifest.load(repo_root)
+    except binplace_manifest.BinplaceConfigError:
+        return frozenset()
+    for row in rows:
+        if row.class_name == "hooks":
+            return row.repo_only
+    return frozenset()
+
+
 def _target_for(repo_root: Path, name: str) -> Path:
     """Return the one render target for a discovered hooks-class ``name``.
 
-    Every name, ``hooks.json`` included, renders under ``src/claude/hooks/``
-    at the same relative path it holds under ``templates/hooks/`` (module
-    docstring, item 2).
+    A name whose first path part is in the ``hooks`` binplace row's
+    ``repo_only`` list renders straight to ``.claude/hooks/<name>`` with no
+    plugin-tree hop (ADR-109 amendment 2026-11-11). Every other name,
+    ``hooks.json`` included, renders under ``src/claude/hooks/`` at the same
+    relative path it holds under ``templates/hooks/`` (module docstring,
+    item 2).
     """
+    first_part = name.split("/", 1)[0]
+    if first_part in _repo_only_names(repo_root):
+        return repo_root / ".claude" / "hooks" / name
     return repo_root / "src" / "claude" / "hooks" / name
 
 
@@ -406,7 +444,7 @@ def compile_all(repo_root: Path, *, validate: bool, what_if: bool = False) -> Co
     """
     result = CompileResult()
 
-    root_error = _root_validation_error(repo_root)
+    root_error = _root_validation_error(repo_root) or _manifest_error(repo_root)
     if root_error is not None:
         print(f"Error: {root_error}", file=sys.stderr)
         result.exit_code = max(result.exit_code, 2)
