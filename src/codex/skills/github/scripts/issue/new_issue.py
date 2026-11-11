@@ -40,10 +40,12 @@ import argparse
 import contextlib
 import importlib.util
 import io
+import json
 import os
 import re
 import subprocess
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
@@ -380,6 +382,111 @@ def _resolve_auth_and_repo(
     return resolved.owner, resolved.repo
 
 
+_CREATE_TIMEOUT_SECONDS = 30
+#: Tolerated clock skew between this host and GitHub, in seconds. An issue
+#: created this far before the create started still counts as a possible match.
+_CLOCK_SKEW_SECONDS = 5
+
+
+def _parse_timestamp(timestamp: object) -> datetime | None:
+    """Return an ISO 8601 UTC timestamp as an aware datetime, or None when unparseable."""
+    if not isinstance(timestamp, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def _find_just_created_issue(
+    owner: str, repo: str, title: str, started_at: datetime
+) -> dict[str, object] | None:
+    """Look up an issue the current user may have created with this exact title.
+
+    Read-only and run once after a ``gh issue create`` timeout. GitHub may have
+    created the issue before the client gave up, and a caller that retries then
+    files a duplicate. Only an issue created at or after ``started_at`` (less the
+    clock-skew allowance) can be the one this request made, so an older issue with
+    the same title is ignored. A title is not a unique identifier, so a match is a
+    possible result, never a proven one. This never retries the create. Any lookup
+    failure returns None, so the caller reports the timeout alone.
+    """
+    # The search text is a hint. The exact title match below decides.
+    search = '"' + title.replace('"', " ") + '" in:title'
+    try:
+        result = subprocess.run(
+            [
+                "gh",
+                "issue",
+                "list",
+                "--repo",
+                f"{owner}/{repo}",
+                "--author",
+                "@me",
+                "--state",
+                "all",
+                "--search",
+                search,
+                "--limit",
+                "20",
+                "--json",
+                "number,title,url,createdAt",
+            ],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=_CREATE_TIMEOUT_SECONDS,
+        )
+        if result.returncode != 0:
+            return None
+        rows = json.loads(result.stdout)
+    except (subprocess.TimeoutExpired, OSError, ValueError):
+        return None
+    if not isinstance(rows, list):
+        return None
+    earliest = started_at - timedelta(seconds=_CLOCK_SKEW_SECONDS)
+    matches: list[tuple[datetime, dict[str, object]]] = []
+    for row in rows:
+        if not isinstance(row, dict) or row.get("title") != title:
+            continue
+        created = _parse_timestamp(row.get("createdAt"))
+        if created is not None and created >= earliest:
+            matches.append((created, row))
+    if not matches:
+        return None
+    _, newest = max(matches, key=lambda pair: pair[0])
+    return {"number": newest.get("number"), "url": newest.get("url")}
+
+
+def _report_create_timeout(
+    owner: str, repo: str, title: str, fmt: str, started_at: datetime
+) -> int:
+    """Write the timeout envelope, naming an issue the timed-out create may have made."""
+    existing = _find_just_created_issue(owner, repo, title, started_at)
+    message = f"gh issue create timed out after {_CREATE_TIMEOUT_SECONDS}s"
+    extra: dict[str, object] | None = None
+    if existing is not None:
+        message += (
+            f". An issue with this exact title was created after the request started: "
+            f"#{existing['number']} {existing['url']}. It may be this request's issue. "
+            f"Check it before you retry the create."
+        )
+        extra = {"existing_issue": existing}
+    write_skill_error(
+        message,
+        3,
+        error_type="Timeout",
+        output_format=fmt,
+        script_name="new_issue.py",
+        extra=extra,
+    )
+    return 3
+
+
 def _create_issue(
     owner: str,
     repo: str,
@@ -415,6 +522,9 @@ def _create_issue(
     if body and body.strip():
         gh_args.extend(["--body", body])
 
+    # Taken immediately before the create so the timeout lookup can tell this
+    # request's issue from an older one with the same title.
+    started_at = datetime.now(timezone.utc)
     try:
         result = subprocess.run(
             gh_args,
@@ -422,17 +532,10 @@ def _create_issue(
             encoding="utf-8",
             errors="replace",
             check=False,
-            timeout=30,
+            timeout=_CREATE_TIMEOUT_SECONDS,
         )
     except subprocess.TimeoutExpired:
-        write_skill_error(
-            "gh issue create timed out after 30s",
-            3,
-            error_type="Timeout",
-            output_format=fmt,
-            script_name="new_issue.py",
-        )
-        return 3
+        return _report_create_timeout(owner, repo, title, fmt, started_at)
     except FileNotFoundError:
         write_skill_error(
             "GitHub CLI (gh) is not installed or not on PATH. Run 'gh auth login' first.",

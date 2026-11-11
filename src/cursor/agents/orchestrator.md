@@ -100,7 +100,6 @@ This matrix routes work to an agent by capability; it does not set models. An in
 | **quality-auditor** | Domain grading, gap analysis | Single-file review |
 | **retrospective** | Post-mortem, learning extraction | Real-time debugging |
 | **roadmap** | Strategic prioritization, outcome sequencing | Tactical execution |
-| **security** | Threat modeling, vulnerability review | Pure performance work |
 | **silent-failure-hunter** | Error suppression, unsafe fallbacks | Loud failures already surface |
 | **skillbook** | Capture learnings as reusable skills | One-off insights |
 | **task-decomposer** | Plan → atomic tasks | Plan still vague |
