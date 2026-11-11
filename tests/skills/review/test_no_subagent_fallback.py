@@ -93,6 +93,33 @@ def test_skill_points_at_the_resource_and_forbids_in_session_markers(tree: str) 
     assert "## Running without the Task tool" not in skill
 
 
+@pytest.mark.parametrize("tree", TREES)
+def test_codex_isolation_is_stated_on_the_always_loaded_spawn_path(tree: str) -> None:
+    """The resource loads only without a subagent tool, so Process must carry it."""
+    skill = (REPO_ROOT / tree / SKILL).read_text(encoding="utf-8")
+    process = skill[skill.index("\n## Process") : skill.index(SECTION)]
+
+    assert "`spawn_agent` sets `fork_turns` to `none`" in process
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_marker_skip_list_names_the_in_session_review(tree: str) -> None:
+    skill = (REPO_ROOT / tree / SKILL).read_text(encoding="utf-8")
+    block = skill[skill.index("## Write the SHA-bound PASS marker") :]
+    skip = block[block.index("Skip this on") : block.index("The marker is an empty commit")]
+
+    assert "an in-session review" in skip
+    for verdict in ("`CRITICAL_FAIL`", "`UNKNOWN`", "unacknowledged WARN"):
+        assert verdict in skip, verdict
+
+
+def test_write_steps_bar_the_marker_after_an_in_session_review() -> None:
+    resource = _resource()
+    write_steps = resource[resource.index("## Write steps") : resource.index(SECTION)]
+
+    assert "An in-session review (path 3) never writes one, whatever its verdict." in write_steps
+
+
 def test_section_parser_rejects_a_dropped_path() -> None:
     section = _section(_resource())
     without_third = section[: section.index("3. **")]

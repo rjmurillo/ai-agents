@@ -22,6 +22,8 @@ The report has one `<axis>: <VERDICT>` row per axis in the axis list. The verdic
 
 ## Write steps
 
+Write the marker only after a review on path 1 or 2 below. An in-session review (path 3) never writes one, whatever its verdict.
+
 A commit cannot name its own SHA in a trailer (the SHA hashes the trailer, so writing the SHA changes the SHA, with no fixed point). Record the reviewed tip, then write an empty marker commit on top of it.
 
 After the marker lands, you may merge `origin/main` into the branch without a new review. The validator and the security-review gate step over a merge commit when its second parent is on `origin/main` (change it with `--base-ref`) and its tree equals what `git merge-tree --write-tree` computes for its two parents. A merge that needed conflict edits, carries an extra edit, or pulls in another branch is new code: run `/review` again. Rebasing or amending rewrites the reviewed tip and always needs a new review.

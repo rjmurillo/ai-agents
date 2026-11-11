@@ -81,7 +81,7 @@ The skill body MUST NOT hard-fail when the `.claude/` path is missing; it MUST a
 
 ## Process
 
-Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICAL_FAIL`, or `UNKNOWN`) plus structured findings (severity, category, location, recommendation). The final merged verdict comes from `merge_verdicts` (resolve via the "Path resolution" section above).
+Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICAL_FAIL`, or `UNKNOWN`) plus structured findings (severity, category, location, recommendation). The final merged verdict comes from `merge_verdicts` (resolve via the "Path resolution" section above). Codex `spawn_agent` sets `fork_turns` to `none`, so a child never inherits the authoring turns.
 
 1. Read the diff with three-dot range syntax (`git diff "origin/$BASE_BRANCH"...HEAD`, where `BASE_BRANCH` is the detected base branch and the remote-tracking ref is used because the local base branch may not exist in fresh clones) so every evaluation step uses the same change set as the diff-scoped gates in step 5.
    - Build one `CONTEXT_MODE` value before invoking any canonical axis: use `full` only when the complete diff plus any linked REQ/DESIGN/TASK docs or PR-body acceptance criteria are present; use `summary` when only file names or diff stats are present; use `partial` when only a bounded slice is present. If context completeness is unknown, use `partial`.
@@ -163,7 +163,8 @@ Categorize a finding as **Critical** if its axis verdict is `CRITICAL_FAIL`, **I
 On a **PASS** final verdict (or a WARN where every WARN was acknowledged), write a
 SHA-bound marker so `/ship` can prove the shipped code was reviewed at its current
 state without re-running the review. Skip this on `CRITICAL_FAIL`, a Stage-1
-short-circuit, `UNKNOWN`, or an unacknowledged WARN: none may leave a marker.
+short-circuit, `UNKNOWN`, an in-session review, or an unacknowledged WARN: none
+may leave a marker.
 
 The marker is an empty commit on top of the reviewed tip. Its body holds a review
 report (the reviewed SHA plus one `<axis>: <VERDICT>` row per axis that ran), then
@@ -175,8 +176,7 @@ not run.
 
 The marker is valid only while its parent (the reviewed tip) is HEAD's parent or a clean `origin/main` merge sits above it. New code makes it stale.
 
-Re-running `/review` after the verdict is still PASS writes another marker commit;
-that is safe (idempotent in effect: the latest marker binds the current tip).
+A re-run after PASS writes another marker commit, which is safe.
 
 ## Principles
 
