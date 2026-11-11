@@ -10,7 +10,16 @@
 # - Aggregates PR review comments by reviewer
 # - Calculates actionability scores using heuristics
 # - Updates the Serena memory file (source of truth)
-# - Commits and pushes changes automatically
+# - Commits the result on the automation/reviewer-stats branch and opens a
+#   pull request, because the default branch is protected (issue #7287)
+#
+# A pull request opened with github.token starts no pull_request runs, so a
+# human closes and reopens it before required checks report. While that pull
+# request is open, later runs leave it alone.
+#
+# Every output file belongs in the single publish step below, as one more
+# --path. A second publish step would find the first step's open pull request
+# and skip.
 #
 # Related: Issue #234 (Automated daily reviewer signal quality statistics)
 
@@ -28,8 +37,7 @@ on:
         default: '28'
 
 permissions:
-  contents: write
-  pull-requests: read
+  contents: read
 
 jobs:
   update-stats:
@@ -37,6 +45,11 @@ jobs:
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-26.04-arm
     environment: agent-claude
+    # Least privilege per job: contents writes the bot branch, pull-requests
+    # opens the pull request (issue #7287).
+    permissions:
+      contents: write
+      pull-requests: write
 
     steps:
       - name: Checkout repository
@@ -56,12 +69,14 @@ jobs:
           days_back="${DAYS_BACK:-90}"
           uv run --frozen python scripts/update_reviewer_signal_stats.py --days-back "$days_back"
 
-      - name: Commit updated stats
+      - name: Open pull request with updated stats
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh auth setup-git
           python3 scripts/ci/commit_and_push.py \
+            --branch automation/reviewer-stats \
+            --issue 234 \
             --path .serena/memories/pr-review/pr-comment-responder-skills.md \
             --user-name "github-actions[bot]" \
             --user-email "41898282+github-actions[bot]@users.noreply.github.com" \
