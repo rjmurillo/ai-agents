@@ -97,9 +97,9 @@ proving a human wrote each one.
 The job runs inside `update-reviewer-stats.yml`, so that workflow must be
 enabled. Its commit step pushes to the default branch, so the workflow token
 must be allowed to push there; a branch ruleset that requires pull requests
-rejects the push. A push rejected because the branch moved during the run also
-fails. Any failed push leaves the previous `report.json` in place and the step
-red; the next run replaces it.
+rejects the push. The commit step rebases onto the default branch before it pushes, so a branch
+that moved during the run does not reject the push. Any failed push leaves the
+previous `report.json` in place and the step red; the next run replaces it.
 
 One run cost 421 GraphQL points on 2026-11-11 (33 pages, 1641 pull requests;
 858 before the thread page size dropped from 50 to 20). The job stops with exit 3
