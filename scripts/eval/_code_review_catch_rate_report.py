@@ -85,6 +85,14 @@ def _pct(cell: dict[str, Any]) -> str:
     return f"{cell['hits']}/{cell['n']} ({cell['rate']:.0%}, CI {low:.0%} to {high:.0%})"
 
 
+def _resumed_note(meta: dict[str, Any]) -> str:
+    """Say so when the counts omit work reused from a checkpoint."""
+    resumed = meta.get("resumed_rows") or 0
+    if not resumed:
+        return ""
+    return f"(this invocation only; {resumed} rows were reused from a checkpoint) "
+
+
 def render_report(result: dict[str, Any]) -> str:
     meta, agg = result["meta"], result["aggregate"]
     lines = [
@@ -93,6 +101,7 @@ def render_report(result: dict[str, Any]) -> str:
         f"Model `{meta['model']}` via `{meta['provider']}`, run {meta['date']}, "
         f"{meta['entries']} entries x {meta['trials']} trial(s). "
         f"Calls: {meta.get('calls')}. Output tokens: {meta.get('output_tokens')}. "
+        f"{_resumed_note(meta)}"
         f"Cost: {meta.get('cost', 'not recorded')}.",
         "",
         "| Measure | Result (95 percent Wilson interval) |",

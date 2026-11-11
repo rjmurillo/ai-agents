@@ -38,6 +38,7 @@ _FINDING = re.compile(
     re.IGNORECASE,
 )
 _LINE_SUFFIX = re.compile(r":(?:\d+(?:-\d+)?|\?|-)$")
+_HEX_RUN = re.compile(r"(?<![0-9a-zA-Z])[0-9a-f]{7,40}(?![0-9a-zA-Z])")
 _MIN_PATH_LEN = 3
 _LEAK_LINE_MIN = 40
 
@@ -140,16 +141,16 @@ def leaked_fix_content(
 ) -> list[str]:
     """Reasons the reviewer prompt carries content from the fixing commit.
 
-    Checks the fix SHA (full and 12-character prefix), the fix subject, and every
-    added line of the fix of at least `_LEAK_LINE_MIN` characters that
-    does not also occur in the introducing patch text. Text the reviewer legitimately
-    sees in the introducing diff (added, removed, context, or a fragment of a line)
-    is shared, not a leak.
+    Checks three things. The fix SHA, in full or as any hex run of 7 or more characters
+    that prefixes it (a `git log --oneline` short SHA). The fix subject. Every added
+    line of the fix of at least `_LEAK_LINE_MIN` characters that does not also occur in
+    the introducing patch text. Text the reviewer legitimately sees in the introducing
+    diff (added, removed, context, or a fragment of a line) is shared, not a leak.
     """
     reasons: list[str] = []
-    for token in (fix_sha, fix_sha[:12]):
-        if token and token in prompt:
-            reasons.append(f"fix sha {token}")
+    for run in sorted(set(_HEX_RUN.findall(prompt))):
+        if fix_sha and fix_sha.startswith(run):
+            reasons.append(f"fix sha {run}")
     if fix_subject and fix_subject in prompt:
         reasons.append("fix subject")
     for line in sorted(added_lines(fix_patch)):

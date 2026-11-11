@@ -170,8 +170,14 @@ def run_jobs(
     done: list[dict[str, Any]] | None = None,
     checkpoint: Path | None = None,
 ) -> list[dict[str, Any]]:
-    """Run jobs not already in `done`; append each finished row to `checkpoint`."""
-    finished = list(done or [])
+    """Run jobs not already in `done`; append each finished row to `checkpoint`.
+
+    Rows in `done` that match no requested job (another `--entries` subset, a larger
+    `--trials` from an earlier run) are left out, so the aggregate describes only the
+    run that was asked for.
+    """
+    wanted = {(j.entry, j.trial) for j in jobs}
+    finished = [r for r in (done or []) if job_key(r) in wanted]
     seen = {job_key(r) for r in finished}
     pending = [j for j in jobs if (j.entry, j.trial) not in seen]
     lock = threading.Lock()
@@ -287,8 +293,13 @@ def _cost_note(provider: str) -> str:
 
 
 def build_meta(
-    args: argparse.Namespace, corpus_path: Path, entry_count: int, usage: Usage | None
+    args: argparse.Namespace,
+    corpus_path: Path,
+    entry_count: int,
+    usage: Usage | None,
+    resumed_rows: int = 0,
 ) -> dict[str, Any]:
+    """`calls` and `output_tokens` count this invocation only; `resumed_rows` were reused."""
     provider = os.environ.get("EVAL_PROVIDER") or "anthropic"
     return {
         "model": args.model,
@@ -299,6 +310,7 @@ def build_meta(
         "corpus_sha256": hashlib.sha256(corpus_path.read_bytes()).hexdigest(),
         "calls": usage.calls if usage else None,
         "output_tokens": usage.output_tokens if usage else None,
+        "resumed_rows": resumed_rows,
         "cost": _cost_note(provider),
     }
 
@@ -354,7 +366,8 @@ def execute(
         print(f"ERROR: cannot read checkpoint {checkpoint}: {exc}", file=sys.stderr)
         return 2
     rows = run_jobs(jobs, caller, args.workers, done, checkpoint)
-    meta = build_meta(args, REPO_ROOT / args.corpus, len({j.entry for j in jobs}), usage)
+    resumed = len({job_key(r) for r in done} & {(j.entry, j.trial) for j in jobs})
+    meta = build_meta(args, REPO_ROOT / args.corpus, len({j.entry for j in jobs}), usage, resumed)
     print(write_outputs(args, rows, meta, corpus))
     return 3 if rows and all(r.get("error") for r in rows) else 0
 

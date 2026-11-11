@@ -376,6 +376,50 @@ class TestCheckpoint:
 
         assert code == 0
 
+    def test_rows_outside_the_requested_entries_stay_out_of_the_aggregate(self, tmp_path, repo):
+        corpus = _write_corpus(tmp_path, repo)
+        checkpoint = tmp_path / "rows.jsonl"
+        out = tmp_path / "subset.json"
+        cli.main(
+            _argv(corpus, "--checkpoint", str(checkpoint)), caller=_stub(), git=_git(repo["root"])
+        )
+
+        code = cli.main(
+            _argv(corpus, "--entries", "CR01", "--checkpoint", str(checkpoint))
+            + ["--output", str(out)],
+            caller=_stub(),
+            git=_git(repo["root"]),
+        )
+
+        result = json.loads(out.read_text(encoding="utf-8"))
+        assert code == 0
+        assert {r["entry"] for r in result["rows"]} == {"CR01"}
+        assert (
+            result["aggregate"]["caught_top5"]["hits"],
+            result["aggregate"]["caught_top5"]["n"],
+        ) == (1, 1)
+        assert result["meta"]["entries"] == 1
+
+    def test_a_resumed_run_says_its_counts_cover_this_invocation_only(self, tmp_path, repo):
+        corpus = _write_corpus(tmp_path, repo)
+        checkpoint = tmp_path / "rows.jsonl"
+        out = tmp_path / "resumed.json"
+        report_path = tmp_path / "resumed.md"
+        cli.main(
+            _argv(corpus, "--checkpoint", str(checkpoint)), caller=_stub(), git=_git(repo["root"])
+        )
+
+        cli.main(
+            _argv(corpus, "--checkpoint", str(checkpoint), "--output", str(out))
+            + ["--report", str(report_path)],
+            caller=_stub(),
+            git=_git(repo["root"]),
+        )
+
+        meta = json.loads(out.read_text(encoding="utf-8"))["meta"]
+        assert meta["resumed_rows"] == 4
+        assert "4 rows were reused from a checkpoint" in report_path.read_text(encoding="utf-8")
+
     def test_a_half_written_last_line_is_dropped_and_its_job_reruns(self, tmp_path, repo):
         corpus = _write_corpus(tmp_path, repo)
         checkpoint = tmp_path / "rows.jsonl"

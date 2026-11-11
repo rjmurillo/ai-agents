@@ -165,6 +165,23 @@ class TestLeakDetection:
         assert "fix subject" in reasons
         assert any("fix line" in r for r in reasons)
 
+    @pytest.mark.parametrize("run_length", [7, 8, 12, 40])
+    def test_any_sha_prefix_of_seven_or_more_characters_is_caught(self, run_length):
+        fix_sha = "abcdef0123456789abcdef0123456789abcdef01"
+        prompt = f"Reverts {fix_sha[:run_length]} later\n"
+
+        reasons = score.leaked_fix_content(prompt, fix_sha, "fix: unrelated", "", "")
+
+        assert reasons == [f"fix sha {fix_sha[:run_length]}"]
+
+    def test_short_or_unrelated_hex_runs_are_not_a_leak(self):
+        fix_sha = "abcdef0123456789abcdef0123456789abcdef01"
+        prompt = "abcdef is only 6 chars; deadbeef is another commit; abcdee1 is not a prefix\n"
+
+        reasons = score.leaked_fix_content(prompt, fix_sha, "fix: unrelated", "", "")
+
+        assert reasons == []
+
     def test_a_line_both_patches_add_is_shared_not_a_leak(self):
         shared = "    value = compute_the_shared_helper(argument_one, argument_two)"
         fix = f"+++ b/f.py\n+{shared}\n"
