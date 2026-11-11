@@ -11,6 +11,7 @@ route, or when the budget ends.
 - [Mined candidates](#mined-candidates)
 - [Offline friction-input reference](#offline-friction-input-reference)
 - [Repository and discourse](#repository-and-discourse)
+- [Cross-source friction sweep](friction-sources.md)
 - [Discovery lenses](#discovery-lenses)
 - [Knowledge mode](#knowledge-mode)
 - [Workflow gaps](#workflow-gaps)
@@ -252,12 +253,13 @@ on its own merits with the plan-file questions in `authoring-and-gates.md`.
 | Proof and analysis toolkit | Find worked analytical methods that establish the required result. | both |
 | Research frontier | Find useful unavailable outcomes and falsifiable experiments that could unlock them. | scaffold |
 | Research methodology | Find how hypotheses become accepted results, rejected ideas, or further experiments. | scaffold |
+| Institutional knowledge | Find answers people need that live only in chat, mail, meetings, memory, or a person, from the sweep's `knowledge_gaps`. | both: a script that checks the convention where one can, prose for the rest, a report finding for each gap the repository should document |
 
 ## Knowledge mode
 
 Use `knowledge` mode when the goal is handoff: the knowledge a capable
 newcomer, human or model, lacks, whether or not an agent was ever corrected
-for it. The 16 lenses above are the taxonomy.
+for it. The 17 lenses above are the taxonomy.
 
 1. For each lens, collect verified content from the repository: decision
    records, design docs, invariants enforced in code, settled incidents,
@@ -301,6 +303,9 @@ Investigate these when they affect a selected outcome:
   and execution ordering.
 - Skill routing and compositions that leave gaps between one feature's output
   and the next feature's input.
+- Friction outside the repository: run the
+  [cross-source friction sweep](friction-sources.md) over every connected
+  server and skill.
 
 Optional lenses, when evidence makes them useful: versioning, release
 branches, tags, promotion, publication, deployment, backports, performance,
@@ -403,6 +408,9 @@ Drift checks detect stale facts, not whether a skill helps agents.
 - Keep transcripts and source locators in their existing stores. A
   distributed skill cites the sanitized lesson, never a private transcript
   path.
+- The friction sweep is the one exception: it copies sanitized excerpts into
+  a run directory outside the repository that starts empty and is deleted
+  when the run ends. See [Authority and privacy](friction-sources.md#authority-and-privacy).
 
 ## Evidence rules
 

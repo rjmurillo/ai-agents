@@ -81,6 +81,7 @@ LENSES = frozenset(
         "proof-and-analysis-toolkit",
         "research-frontier",
         "research-methodology",
+        "institutional-knowledge",
     }
 )
 FORMS = ("scaffold", "instrument", "both")
