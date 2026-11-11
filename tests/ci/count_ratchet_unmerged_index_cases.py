@@ -1,0 +1,208 @@
+"""Count each conflicted path once across ratchet consumers."""
+
+from __future__ import annotations
+
+import shutil
+from pathlib import Path
+
+import pytest
+
+from scripts.ci import count_ratchet
+from tests.ci.count_ratchet_git_harness import commit_all as _commit_all
+from tests.ci.count_ratchet_git_harness import git as _git
+from tests.ci.count_ratchet_git_harness import init_repo as _init_repo
+
+needs_git = pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+
+
+def test_a_clean_enumeration_is_returned_unchanged():
+    """The no-op case. Outside a merge this fix must change nothing at all."""
+    entries = ["b.py", "a.py", "nested/c.py"]
+
+    unique, unmerged = count_ratchet.deduplicate_index_entries(entries)
+
+    assert unique == entries
+    assert unmerged == []
+
+
+def test_a_three_stage_conflict_collapses_to_one_path():
+    """The reported shape: content-versus-content, stages 1, 2 and 3."""
+    entries = ["a.py", "big.py", "big.py", "big.py", "z.py"]
+
+    unique, unmerged = count_ratchet.deduplicate_index_entries(entries)
+
+    assert unique == ["a.py", "big.py", "z.py"]
+    assert unmerged == ["big.py"]
+
+
+def test_a_two_stage_conflict_collapses_too():
+    """Add/add and delete/modify carry two stages, not three.
+
+    The inflation is therefore not a fixed multiple, which is why the fix
+    deduplicates instead of dividing the count by three.
+    """
+    unique, unmerged = count_ratchet.deduplicate_index_entries(["a.py", "a.py", "b.py"])
+
+    assert unique == ["a.py", "b.py"]
+    assert unmerged == ["a.py"]
+
+
+def test_an_empty_enumeration_reports_nothing():
+    """An empty index is not a conflict and must not read as one."""
+    assert count_ratchet.deduplicate_index_entries([]) == ([], [])
+
+
+def test_first_occurrence_wins_and_the_rest_of_the_order_survives():
+    """Order is load-bearing: ``run`` caps the printed violation list at 40.
+
+    A reordering here would silently change which violations a contributor
+    sees on a regression, so the surviving order must be the order git printed.
+    """
+    entries = ["z.py", "m.py", "z.py", "a.py", "m.py", "z.py"]
+
+    unique, unmerged = count_ratchet.deduplicate_index_entries(entries)
+
+    assert unique == ["z.py", "m.py", "a.py"]
+    assert unmerged == ["z.py", "m.py"]
+
+
+def test_each_conflicted_path_is_reported_once_however_many_stages_it_has():
+    """Three stages must not report the same path three times in the note."""
+    _, unmerged = count_ratchet.deduplicate_index_entries(["a.py"] * 3 + ["b.py"] * 3)
+
+    assert unmerged == ["a.py", "b.py"]
+
+
+def test_the_note_names_the_conflicted_path_and_the_working_tree_caveat():
+    """The count is right now; the reader still has to know the tree is mid-merge.
+
+    Conflict markers left on disk add lines, so a file can cross a size
+    threshold on their own, and the issue records the detour a bare number cost.
+    """
+    note = count_ratchet._unmerged_note(["tests/build_scripts/test_x.py"])
+
+    assert "1 path(s) unmerged in the index" in note
+    assert "tests/build_scripts/test_x.py" in note
+    assert "measures the working tree" in note
+    assert note.endswith("\n")
+
+
+def test_a_large_conflict_is_summarised_rather_than_listed():
+    """Two hundred paths above a 40-line violation cap buries the payload."""
+    paths = [f"f{index}.py" for index in range(9)]
+
+    note = count_ratchet._unmerged_note(paths)
+
+    assert "9 path(s) unmerged" in note
+    assert "f0.py" in note
+    assert "f4.py" in note
+    assert "f5.py" not in note
+    assert f"and {9 - count_ratchet.MAX_NAMED_UNMERGED} more" in note
+
+
+def _conflicted_repo(repo: Path, *, same_base: bool = True) -> None:
+    """A repository stopped mid-merge with ``a.txt`` unmerged.
+
+    ``same_base=False`` builds an add/add conflict, which git records with two
+    stages instead of three.
+    """
+    _init_repo(repo)
+    (repo / "keep.txt").write_text("keep\n", encoding="utf-8")
+    if same_base:
+        (repo / "a.txt").write_text("base\n", encoding="utf-8")
+    _commit_all(repo, "base")
+
+    _git(repo, "checkout", "-q", "-b", "feat")
+    (repo / "a.txt").write_text("feat\n", encoding="utf-8")
+    _commit_all(repo, "feat")
+
+    _git(repo, "checkout", "-q", "main")
+    (repo / "a.txt").write_text("main\n", encoding="utf-8")
+    _commit_all(repo, "main")
+
+    merged = _git(repo, "merge", "feat")
+    assert merged.returncode != 0, "the fixture must stop in a conflicted state"
+
+
+@needs_git
+def test_git_repeats_an_unmerged_path_once_per_stage(tmp_path):
+    """Pin the git behavior itself, so the fix is not aimed at a guess.
+
+    Without this, a git release that stopped repeating unmerged entries would
+    leave the deduplication passing its own tests while guarding nothing.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _conflicted_repo(repo)
+
+    listed = _git(repo, "ls-files", "-z").stdout.split("\0")
+
+    assert [path for path in listed if path].count("a.txt") == 3
+
+
+@needs_git
+def test_tracked_files_lists_a_conflicted_path_once(tmp_path, capsys):
+    """The fix at the seam every ratchet reads through."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _conflicted_repo(repo)
+
+    files = count_ratchet.tracked_files(repo, ("*",))
+
+    assert files is not None
+    assert files.count("a.txt") == 1
+    assert "keep.txt" in files
+    assert "unmerged in the index" in capsys.readouterr().err
+
+
+@needs_git
+def test_tracked_files_lists_a_two_stage_conflict_once(tmp_path, capsys):
+    """An add/add conflict has no stage 1 and must collapse the same way."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _conflicted_repo(repo, same_base=False)
+
+    files = count_ratchet.tracked_files(repo, ("*",))
+
+    assert files is not None
+    assert files.count("a.txt") == 1
+    assert "unmerged in the index" in capsys.readouterr().err
+
+
+@needs_git
+def test_a_clean_tree_lists_every_path_once_and_says_nothing(tmp_path, capsys):
+    """Negative control for the note: no merge, no message.
+
+    Without this the note could fire on every run and the assertions above
+    would still pass.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _init_repo(repo)
+    (repo / "a.txt").write_text("a\n", encoding="utf-8")
+    (repo / "b.txt").write_text("b\n", encoding="utf-8")
+    _commit_all(repo, "clean")
+
+    files = count_ratchet.tracked_files(repo, ("*",))
+
+    assert sorted(files or []) == ["a.txt", "b.txt"]
+    assert capsys.readouterr().err == ""
+
+
+@needs_git
+def test_a_resolved_merge_lists_every_path_once_and_says_nothing(tmp_path, capsys):
+    """Staging the resolution is what cleared the symptom in the report.
+
+    The count must already match before that ``git add``, and the note must
+    stop once the index is merged.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _conflicted_repo(repo)
+    (repo / "a.txt").write_text("resolved\n", encoding="utf-8")
+    _git(repo, "add", "a.txt")
+
+    files = count_ratchet.tracked_files(repo, ("*",))
+
+    assert sorted(files or []) == ["a.txt", "keep.txt"]
+    assert capsys.readouterr().err == ""

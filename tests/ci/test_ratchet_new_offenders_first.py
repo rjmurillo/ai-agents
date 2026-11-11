@@ -229,6 +229,10 @@ def test_taste_names_the_added_file_first_among_many_touched_existing_offenders(
     linter = repo / _LINTER_RELATIVE
     linter.parent.mkdir(parents=True)
     shutil.copy(Path(__file__).resolve().parents[2] / _LINTER_RELATIVE, linter)
+    shutil.copytree(
+        Path(__file__).resolve().parents[2] / ".claude/lib/ai_review_common",
+        repo / ".claude/lib/ai_review_common",
+    )
     marker = repo / "scripts" / "ci" / "taste_count_ratchet.py"
     marker.parent.mkdir(parents=True)
     marker.write_text("# bootstrap marker for base_derived_ratchet\n", encoding="utf-8")
