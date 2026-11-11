@@ -24,7 +24,7 @@ Each entry names the issue that writes the page and who the page is for. An entr
 
 - [Keep an agent inside its authority and read what it reports](safe-agent-actions.md) (#7209): decision briefs, destructive-change safety, and evidence provenance. For everyone who runs agents.
 
-- `memory-and-learning.md` (#7210): memory with Serena, the retrospective nudge, and reflect. For everyone who runs agents.
+- [Search project memory and turn sessions into lessons](memory-and-learning.md) (#7210): memory with Serena, the retrospective nudge, and reflect. For everyone who runs agents.
 
 - [Change a rule and a skill through templates](template-first-authoring.md) (#7211): edit templates, then render generated files. For contributors.
 
