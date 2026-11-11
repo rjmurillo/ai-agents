@@ -62,7 +62,6 @@ _GRANDFATHERED: frozenset[tuple[str, str]] = frozenset(
         ("post-pr-retrospective.yml", "retrospective"),
         ("pr-validation.yml", "validate-pr"),
         ("software-engineering-library-activation.yml", "activation-gate"),
-        ("update-reviewer-stats.yml", "update-stats"),
     }
 )
 
