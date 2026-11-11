@@ -44,20 +44,34 @@ def test_publish_job_runs_the_script_and_the_aggregation_job_does_not() -> None:
     assert not any("uv run" in r for r in runs["publish-stats"])
 
 
-def test_artifact_hands_the_stats_file_from_the_first_job_to_the_second() -> None:
+def test_artifact_hands_both_report_files_from_the_first_job_to_the_second() -> None:
     jobs = _workflow_jobs()
     (up,) = [s for s in jobs["update-stats"]["steps"] if "upload-artifact" in s.get("uses", "")]
     (down,) = [
         s for s in jobs["publish-stats"]["steps"] if "download-artifact" in s.get("uses", "")
     ]
-    stats = ".serena/memories/pr-review/pr-comment-responder-skills.md"
+    files = [
+        ".serena/memories/pr-review/pr-comment-responder-skills.md",
+        ".project-toolkit/metrics/agent-pr-intervention.md",
+    ]
     assert up["with"]["name"] == down["with"]["name"]
-    assert up["with"]["path"] == stats
-    assert down["with"]["path"] == str(Path(stats).parent)
+    assert up["with"]["path"].split() == files
+    # Two paths make the repository root the artifact root, so it extracts there.
+    assert down["with"]["path"] == "."
     assert up["with"]["if-no-files-found"] == "error"
     assert up["with"]["include-hidden-files"] is True
     (publish,) = [s for s in jobs["publish-stats"]["steps"] if "open_bot_pr.py" in s.get("run", "")]
-    assert f"--path {stats}" in publish["run"]
+    for file in files:
+        assert f"--path {file}" in publish["run"]
+
+
+def test_the_upload_and_the_publish_job_run_even_when_the_stats_step_fails() -> None:
+    jobs = _workflow_jobs()
+    steps = {s.get("name"): s for s in jobs["update-stats"]["steps"]}
+    assert steps["Build agent PR intervention report"]["if"] == "${{ !cancelled() }}"
+    assert steps["Upload updated stats"]["if"] == "${{ !cancelled() }}"
+    assert "!cancelled()" in jobs["publish-stats"]["if"]
+    assert "needs.update-stats.result != 'skipped'" in jobs["publish-stats"]["if"]
 
 
 def test_neither_job_persists_checkout_credentials() -> None:

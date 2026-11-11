@@ -9,7 +9,8 @@ suits only unprotected branches. This script has its own git helpers because
 every call here needs a timeout.
 
 Rules:
-  - A clean tree is a no-op. The examined path count is printed.
+  - A clean tree is a no-op. The examined path count is printed. Only the
+    paths with changes are staged and named in the pull request body.
   - An open same-repository pull request already tracking the branch is left
     alone and the run exits 0, so an unmerged pull request never gathers a
     second one. Fork pull requests that reuse the branch name are ignored.
@@ -208,7 +209,7 @@ def checkout_is_on_base(base: str) -> bool:
     raise RuntimeError(f"git merge-base failed: {result.stdout}")
 
 
-def publish(args: argparse.Namespace) -> int:
+def publish(args: argparse.Namespace, changed: list[str]) -> int:
     """Commit on the bot branch, push it, and open the pull request."""
     if not checkout_is_on_base(args.base):
         print(
@@ -231,14 +232,14 @@ def publish(args: argparse.Namespace) -> int:
 
     for command in (
         ["checkout", "-B", args.branch],
-        ["add", "--", *args.path],
+        ["add", "--", *changed],
         ["commit", *_message_flags(args.message)],
         ["push", "--set-upstream", "origin", args.branch],
     ):
         if _run(command) != 0:
             return EXIT_GIT_FAILED
 
-    print(f"Pushed {args.branch}; staged {len(args.path)} path(s)")
+    print(f"Pushed {args.branch}; staged {len(changed)} of {len(args.path)} path(s)")
     created = _exec(
         "gh",
         [
@@ -251,7 +252,7 @@ def publish(args: argparse.Namespace) -> int:
             "--title",
             args.pr_title or args.message[0],
             "--body",
-            pr_body(args.path, args.issue),
+            pr_body(changed, args.issue),
         ],
     )
     if created.returncode != 0:
@@ -315,12 +316,13 @@ def main(argv: list[str] | None = None) -> int:
             if _run(["config", key, value]) != 0:
                 return EXIT_GIT_FAILED
 
-        if not dirty(args.path):
+        changed = [path for path in args.path if dirty([path])]
+        if not changed:
             print(f"No changes to commit (examined {len(args.path)} path(s))")
             print("outcome=noop")
             return EXIT_SUCCESS
 
-        return publish(args)
+        return publish(args, changed)
     except FileNotFoundError as exc:
         print(f"ERROR: git or gh not available: {exc}", file=sys.stderr)
         return EXIT_USAGE

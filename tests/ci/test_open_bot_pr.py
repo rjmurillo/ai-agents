@@ -63,6 +63,7 @@ class _World:
         self,
         *,
         dirty: bool = True,
+        dirty_paths: set[str] | None = None,
         open_prs: list[dict[str, str | bool]] | None = None,
         pr_list_rc: int = 0,
         pr_list_out: str | None = None,
@@ -74,6 +75,7 @@ class _World:
         pr_create_out: str = "https://github.com/o/r/pull/9\n",
     ) -> None:
         self._dirty = dirty
+        self._dirty_paths = dirty_paths
         self._pr_list_rc = pr_list_rc
         self._pr_list_out = pr_list_out if pr_list_out is not None else json.dumps(open_prs or [])
         self._ls_remote_rc = (
@@ -98,6 +100,9 @@ class _World:
 
     def _git(self, argv: list[str], verb: str) -> subprocess.CompletedProcess[str]:
         if verb == "status":
+            if self._dirty_paths is not None:
+                asked = set(argv[argv.index("--") + 1 :])
+                return _done(argv, 0, " M x\n" if asked & self._dirty_paths else "")
             return _done(argv, 0, " M a.md\n" if self._dirty else "")
         if verb == "ls-remote":
             code = self._ls_remote_rc
@@ -449,3 +454,25 @@ def test_open_pr_lookup_is_scoped_to_head_and_base(make_world: Callable[..., _Wo
     (lookup,) = world.issued("gh", "pr", "list")
     assert lookup[lookup.index("--head") + 1] == _BRANCH
     assert lookup[lookup.index("--base") + 1] == "main"
+
+
+def test_only_changed_paths_are_staged_and_named_in_the_body(
+    make_world: Callable[..., _World],
+) -> None:
+    world = make_world(dirty_paths={"b.json"})
+    assert main(_ARGS) == 0
+    (add,) = world.issued("git", "add")
+    assert add == ["git", "add", "--", "b.json"]
+    (create,) = world.issued("gh", "pr", "create")
+    body = create[create.index("--body") + 1]
+    assert "- `b.json`" in body
+    assert "- `a.md`" not in body
+
+
+def test_no_changed_path_among_several_is_a_noop(
+    make_world: Callable[..., _World], capsys: pytest.CaptureFixture[str]
+) -> None:
+    world = make_world(dirty_paths=set())
+    assert main(_ARGS) == 0
+    assert "examined 2 path(s)" in capsys.readouterr().out
+    assert world.issued("gh") == []
