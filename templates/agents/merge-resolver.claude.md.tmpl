@@ -186,7 +186,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 For bulk auto-resolution of known safe patterns:
 
 ```bash
-python3 .claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py \
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/merge-resolver/scripts/resolve_pr_conflicts.py" \
     --pr-number <number> \
     --branch-name "<branch>" \
     --target-branch "main"

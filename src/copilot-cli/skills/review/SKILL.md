@@ -35,7 +35,7 @@ If no argument, review the current branch diff against the base branch. Detect t
 
 ## Convergence contract (REQ-008-04)
 
-`/review` evaluates the canonical review axes by change risk, not by blind fan-out. The canonical axis prompts are authored at `references/{role}.md` co-located with this skill, with the canonical path expressed as `.claude/skills/review/references/{role}.md` in the source repo (the single source of truth). `/review` auto-discovers the axis set from `references/*.md` at runtime for `--deep` review; risk mode needs a table entry, or the axis is `skipped` (axis-selection.md). Enrollment is not edit-free: the axis names and counts in this body document that directory rather than drive it, and a contract test reds on drift. The build copies the whole skill directory into vendored installs (see "Vendored install"), so `/review` needs no CI.
+`/review` evaluates the canonical review axes by change risk, not by blind fan-out. The canonical axis prompts are authored at `references/{role}.md` co-located with this skill, with the canonical path expressed as `.claude/skills/review/references/{role}.md` in the source repo (the single source of truth). `/review` auto-discovers the axis set from `references/*.md` at runtime for `--deep` review; risk mode needs a table entry, or the axis is `skipped` (axis-selection.md). Enrollment is not edit-free: the axis names and counts in this body document that directory, not drive it, and a contract test reds on drift. The build copies the whole skill directory into vendored installs (see "Vendored install"), so `/review` needs no CI.
 
 The canonical set is `spec-compliance` as the Stage-1 gate plus 11 Stage-2 canonical axes (`analyst`, `architect`, `qa`, `security`, `devops`, `roadmap`, `reliability`, `observability`, `agent-safety`, `decision-rigor`, `code-quality`). `spec-compliance` and `analyst` always run. Callers can pin more always-on axes; `select_axes.py` selects the rest from verified changed paths and diff effects (Process step 4), never by prompt prose. Only a Stage-1 `CRITICAL_FAIL` short-circuits the review; a Stage-1 `UNKNOWN` does not (Process step 2).
 
@@ -43,9 +43,9 @@ The canonical set is `spec-compliance` as the Stage-1 gate plus 11 Stage-2 canon
 
 **Self-audit round cap (hard stop).** `/review` runs each axis once per invocation; no internal fix-and-re-review loop. The cap binds the caller: any skill, command, or agent chaining "fix, re-invoke `/review`, repeat" with no human checkpoint MUST NOT exceed 3 rounds for that invocation, even across a diff, branch, or PR switch. The caller tracks its own count for the whole invocation; `/review` holds no shared state. Only a new invocation, or a human checkpoint, resets the count. Round 3: `PASS` ships; `WARN`, `CRITICAL_FAIL`, or `UNKNOWN` escalates to the operator with every open finding (axis, verdict, location, recommendation); no self-acknowledging a `WARN` to ship.
 
-Modeled on `.claude/skills/github/scripts/pr/check_pr_round_cap.py`. Quoted (lines 39-40, 188-189): "0 = round recorded, under both caps (ACT); 1 = a cap is exceeded (ESCALATE)"; `_DEFAULT_MAX_ROUNDS = 5`, `_DEFAULT_MAX_HOURS = 4.0`.
+Modeled on `.claude/skills/github/scripts/pr/check_pr_round_cap.py` (exit `0` = ACT, `1` = ESCALATE; defaults 5 rounds, 4.0 hours).
 
-**Stricter/looser/different than canonical**: stricter on round count (3 vs. default 5). Looser on time (canonical also caps elapsed hours; this has none) and persistence (canonical persists state across restarts via a PR-comment marker; this uses in-invocation tracking only). Different in kind: canonical only gates `ACT`/`ESCALATE`, never ships; round 3 here can ship `PASS`.
+**Stricter/looser/different than canonical**: stricter on rounds (3 vs. 5). Looser on time (no hours cap) and persistence (in-invocation tracking, no PR-comment marker). Different in kind: canonical only gates `ACT`/`ESCALATE`; round 3 here can ship `PASS`.
 
 ## Frozen finding contract (rounds after the first)
 
@@ -53,7 +53,7 @@ The caller supplies `ROUND: N` context. In round 2 or 3 only a defect the diff i
 
 ## Path resolution (harness-agnostic)
 
-This skill runs in two layouts: the source Claude Code project (where `.claude/` is the repo root) and a vendored plugin install (Copilot CLI and similar harnesses) where the consumer repo has no `.claude/` directory and the plugin lives outside the consumer's tree.
+This skill runs in two layouts: the source Claude Code project (where `.claude/` is the repo root) and a vendored plugin install (Copilot CLI and similar) where the consumer repo has no `.claude/` directory.
 
 - **Canonical axis prompts** (`{role}` is the stem of each `references/*.md` file, discovered, not hardcoded; the current set is listed in the convergence contract above): resolve the `references/` directory via the first candidate that exists, then glob `*.md` inside it for the axis set:
   1. `${CLAUDE_SKILL_DIR}/references/` (if `CLAUDE_SKILL_DIR` is set by the harness)
@@ -69,38 +69,39 @@ This skill runs in two layouts: the source Claude Code project (where `.claude/`
   1. `.claude/skills/{skill}/scripts/{script}` (Claude Code project layout)
   2. `skills/{skill}/scripts/{script}` (vendored install, plugin-root relative)
 
-The skill body MUST NOT hard-fail when the `.claude/` path is missing; it MUST attempt the vendored-install path for the verdict library and the chained-skill scripts before reporting an error. If neither candidate for a chained-skill script exists, mark that axis `UNKNOWN` (per UNKNOWN handling), do not abort the review.
+The skill body MUST NOT hard-fail when the `.claude/` path is missing; it MUST attempt the vendored-install path for the verdict library and the chained-skill scripts before erroring. If neither candidate for a chained-skill script exists, mark that axis `UNKNOWN` (per UNKNOWN handling); do not abort.
 
 ## Scripts
 
 | Script | Purpose | Exit codes |
 |--------|---------|------------|
 | `scripts/validate_review_marker.py` | Validates the SHA-bound `Reviewed-By: /review@...` marker `/ship` requires and the review report its `Review-Artifact` digest covers. `--digest REPORT_FILE` prints that digest. | `0` valid, `1` missing, stale, bad axis list, or no valid review report, `2` config error |
+| `review_depth_tier.py` (same directory) | Review depth tier from the diff on stdin, as JSON. | `0` emitted, `2` no diff header |
 | `select_axes.py` (same directory) | Selects the Stage-2 canonical axes and the local-only skill axes from verified changed paths and diff effects. Emits the selection, per-axis reasons, and skips as JSON. | `0` selection emitted, `2` config error (unknown pinned axis, or references directory missing or empty) |
 
 ## Process
 
-Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICAL_FAIL`, or `UNKNOWN`) plus structured findings (severity, category, location, recommendation). The final merged verdict comes from `merge_verdicts` (resolve via the "Path resolution" section above).
+Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICAL_FAIL`, or `UNKNOWN`) plus structured findings (severity, category, location, recommendation). The final merged verdict comes from `merge_verdicts` (resolve via the "Path resolution" section above). On Codex, call `spawn_agent` with `fork_turns` set to `none` so a child inherits no authoring turns.
 
 1. Read the diff with three-dot range syntax (`git diff "origin/$BASE_BRANCH"...HEAD`, where `BASE_BRANCH` is the detected base branch and the remote-tracking ref is used because the local base branch may not exist in fresh clones) so every evaluation step uses the same change set as the diff-scoped gates in step 5.
    - Build one `CONTEXT_MODE` value before invoking any canonical axis: use `full` only when the complete diff plus any linked REQ/DESIGN/TASK docs or PR-body acceptance criteria are present; use `summary` when only file names or diff stats are present; use `partial` when only a bounded slice is present. If context completeness is unknown, use `partial`.
-   - Every Task input for a canonical axis MUST begin with `CONTEXT_MODE: $CONTEXT_MODE`, followed by a blank line and then the diff and supporting context. This is the local `/review` equivalent of the CI header. A missing or unrecognized value remains not `full`, so the axis prompts cannot emit `PASS` on absent evidence.
-2. **Run the Stage-1 spec-compliance gate before the complexity classifier and all Stage-2 axes.** Load the canonical `spec-compliance` axis prompt via the "Path resolution" section above and invoke `agent_type: "project-toolkit:general-purpose"` with that prompt as the system instruction and the CONTEXT_MODE-prefixed diff plus any linked REQ/DESIGN/TASK docs (or PR-body acceptance criteria) as input. Extract its verdict with `extract_verdict`.
+   - Every delegated input for a canonical axis MUST begin with `CONTEXT_MODE: $CONTEXT_MODE`, followed by a blank line and then the diff and supporting context. This is the local `/review` equivalent of the CI header. A missing or unrecognized value remains not `full`, so the axis prompts cannot emit `PASS` on absent evidence.
+2. **Run the Stage-1 spec-compliance gate before the complexity classifier and all Stage-2 axes.** Load the canonical `spec-compliance` axis prompt via the "Path resolution" section above and delegate to `general-purpose` (Claude Code Task, Copilot CLI task, Codex spawn_agent, Muse Code subagent_spawn; none: see below) with that prompt as the system instruction and the CONTEXT_MODE-prefixed diff plus any linked REQ/DESIGN/TASK docs (or PR-body acceptance criteria) as input. Extract its verdict with `extract_verdict`.
    - **CRITICAL_FAIL only**: short-circuit. Do NOT run the complexity classifier, the remaining axes, or any local skill axes. Mark all of them `SKIPPED` in the output table, set the FINAL VERDICT to the Stage-1 `CRITICAL_FAIL`, and emit only the Stage-1 findings. The author fixes the unmet criterion, then re-runs `/review`. A Stage-1 UNKNOWN (no spec or acceptance criteria located) is NOT a short-circuit and never suppresses a real Stage-2 finding.
    - **PASS, WARN, or UNKNOWN (INCONCLUSIVE)**: record the Stage-1 verdict and continue to step 3. A WARN or UNKNOWN here does not block Stage 2; it is merged alongside the other axes (an otherwise-PASS run with a Stage-1 UNKNOWN surfaces why no spec was found). The full FINAL VERDICT comes from `merge_verdicts` in step 7.
 
-3. **Classify complexity tier**: `agent_type: "project-toolkit:analyst"`: Read `engineering-complexity-tiers.md` (resolved via the "Path resolution" section above) and the diff. Assess as Tier 1-5. Use this to calibrate axis depth.
+3. **Classify complexity tier**: delegate to the `analyst` agent: Read `engineering-complexity-tiers.md` (resolved via the "Path resolution" section above) and the diff. Assess as Tier 1-5. Use this to calibrate axis depth.
 4. **Select the Stage-2 axes with `select_axes.py`, then run the canonical ones.** Pass every path from step 1 and every effect from the diff hunks. Pass each path as one argument. Never shell-expand Git-controlled paths. The selector is deterministic, so do not re-derive routing from prose. The co-located `resources/axis-selection.md` defines effects, risks, and output fields.
 
    Pass `--deep` when the caller asks for a deep or full review, or when the invocation is a pre-merge gate that must be a strict superset of CI. Deep and fail-closed skip a local axis whose scanner reads no changed file. Unsure of the paths? Pass none; that fails closed.
 
    Run the axes in `canonical_selected` (`analyst` unless `references/analyst.md` is missing, which fails the run closed). `fail_closed: true` means the change could not be classified, or a demanded axis has no prompt, and every canonical axis is selected; that is intended. Report every axis in `unresolved_axes` as UNKNOWN: demanded, but with no prompt to load. A skipped axis is never PASS.
 
-   For each selected axis (`security`: after step 4d) load `references/{role}.md`, then invoke `agent_type: "project-toolkit:{role}"` with that prompt as the system instruction, the same CONTEXT_MODE-prefixed diff as input, and that file's Output Schema as the response contract. A `When This Axis Applies` section, where an axis has one, calibrates depth; it never overrules the selection. If the harness registers no `{role}` subagent type (Copilot CLI today, and any axis with no matching agent such as `reliability` or `decision-rigor`), fall back to `agent_type: "project-toolkit:general-purpose"`; the prompt drives the review, not the subagent identity.
+   For each selected axis (`security`: after step 4d) load `references/{role}.md`, then delegate to the `{role}` agent with that prompt as the system instruction, the same CONTEXT_MODE-prefixed diff as input, and that file's Output Schema as the response contract. A `When This Axis Applies` section, where an axis has one, calibrates depth; it never overrules the selection. If the host installs no `{role}` agent (Copilot CLI today, and any axis with no matching agent such as `reliability` or `decision-rigor`), fall back to `general-purpose`; the prompt drives the review, not the subagent identity.
 
 4a. **Validate scope of each axis output against the PR diff.** After each axis (steps 2, 3, and every axis in step 4) returns its findings text, run `scripts/validate_findings_scope.py` (resolved via the "Path resolution" section) to find `location:` fields naming files outside the three-dot diff of step 1: `python3 <validate_findings_scope.py> --worktree <WORKTREE_PATH> --base-branch <BASE_BRANCH> --text <AXIS_TEXT> --emit-adjusted-text`. On exit 1 (out-of-scope locations found), replace the axis output with the script's stdout before extracting the verdict; the adjusted text marks each flagged location `[pre-existing - not in this PR diff]`. When every cited location is out of scope and the axis emitted a blocking verdict, the script downgrades that verdict to `WARN`, so an unrelated finding cannot block the reviewed PR. Do NOT suppress or skip the finding; preserve it with the label. On exit 0 (all in scope, or diff empty or unavailable), record stdout when present, otherwise the axis output unmodified.
 4b. **Keep the local-only skill axes in their own selected set.** The 4 local axes (`code-qualities-assessment`, `doc-accuracy`, `golden-principles`, `taste-lints`) are sibling skills invoked with `skill: "{name}"`. None has a `references/{name}.md` file, so a local axis in the canonical set resolves to a prompt path that does not exist. `select_axes.py` reports them in `local_selected`, never in `canonical_selected`, including when `--pin` names one; keep the two lists separate for the rest of the run.
-4c. **Always-on correctness pass.** Load `resources/technical-review.md`, resolved like the axis prompts with `resources/` in place of `references/`. Invoke `agent_type: "project-toolkit:code-reviewer"`, falling back to `general-purpose`, with that contract as the response contract and the same CONTEXT_MODE-prefixed diff as input. Scope-check its output as in 4a, then `extract_verdict`; any failure is `UNKNOWN`.
+4c. **Always-on correctness pass.** Load `resources/technical-review.md`, resolved like the axis prompts with `resources/` in place of `references/`. Compute the depth tier: `git diff "origin/$BASE_BRANCH"...HEAD | python3 <review_depth_tier.py> [--exclude GLOB ...]`, `--exclude` per generated path. Delegate to the `code-reviewer` agent, falling back to `general-purpose`, with that contract as the response contract and the same CONTEXT_MODE-prefixed diff as input, with the tier `header` as the first line after the CONTEXT_MODE block. Scope-check its output as in 4a, then `extract_verdict`; any failure is `UNKNOWN`.
 4d. **CodeQL pre-step, only when `security` is selected. Run it before step 4 calls that axis.** Follow `resources/codeql-prestep.md` (ADR-041): attach `alerts` to the security input as untrusted candidates; print `status_line`. STALE, NOT ANALYZED, SKIPPED are never clean.
 
 5. **Run the selected chained skill axes** (local-only; CI does not run these). Run every axis in `local_selected` after the canonical ones; report the rest as skipped with its reason. Resolve each `<script>` per "Path resolution" (chained-skill scripts). Scope every axis to the PR diff with the base branch detected in step 1 (stored as `BASE_BRANCH`), quoted, so the gates evaluate only changed files, not the whole tree:
@@ -114,9 +115,9 @@ Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICA
 7. **Merge verdicts** via `merge_verdicts([...])`, passing the Stage-1 `spec-compliance` verdict, the step 4c correctness verdict, plus one verdict per axis that actually ran (the selected Stage-2 axes plus any selected local skills; at most 16 total in deep-review mode with the current set). Rules: any token in `FAIL_VERDICTS` (`CRITICAL_FAIL`/`REJECTED`/`FAIL`/`NEEDS_REVIEW`/`NON_COMPLIANT`) -> `CRITICAL_FAIL`; any `WARN` or `PARTIAL` -> `WARN`; any `UNKNOWN` or unrecognized token -> `UNKNOWN`; all `PASS`/`COMPLIANT` -> `PASS`; empty -> `UNKNOWN`. When Stage 1 returns `CRITICAL_FAIL` (step 2 short-circuit), skip this merge: the FINAL VERDICT is `CRITICAL_FAIL`. A Stage-1 `UNKNOWN` does NOT short-circuit; it is merged like any other axis.
 8. **Emit findings table** (see Output below).
 
-## Running without the Task tool
+## Running without a subagent tool
 
-A subagent with no `Task` tool MUST NOT review its own diff and write the marker. Run each axis as its own `claude -p` process, as `resources/marker-and-no-task.md` says. If `claude` is not on `PATH`, record `UNKNOWN` for every axis, which writes no marker.
+Each axis needs a fresh context, never the authoring one. Follow `resources/marker-and-no-task.md`: the host's spawn tool, else one `claude -p` process per axis, else each axis in this session in turn, which never writes the marker.
 
 ## Vendored install (REQ-008-06)
 
@@ -162,7 +163,8 @@ Categorize a finding as **Critical** if its axis verdict is `CRITICAL_FAIL`, **I
 On a **PASS** final verdict (or a WARN where every WARN was acknowledged), write a
 SHA-bound marker so `/ship` can prove the shipped code was reviewed at its current
 state without re-running the review. Skip this on `CRITICAL_FAIL`, a Stage-1
-short-circuit, `UNKNOWN`, or an unacknowledged WARN: none may leave a marker.
+short-circuit, `UNKNOWN`, an in-session review, or an unacknowledged WARN: none
+may leave a marker.
 
 The marker is an empty commit on top of the reviewed tip. Its body holds a review
 report (the reviewed SHA plus one `<axis>: <VERDICT>` row per axis that ran), then
@@ -174,8 +176,7 @@ not run.
 
 The marker is valid only while its parent (the reviewed tip) is HEAD's parent or a clean `origin/main` merge sits above it. New code makes it stale.
 
-Re-running `/review` after the verdict is still PASS writes another marker commit;
-that is safe (idempotent in effect: the latest marker binds the current tip).
+A re-run after PASS writes another marker, which is safe.
 
 ## Principles
 

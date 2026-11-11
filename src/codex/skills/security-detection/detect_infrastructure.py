@@ -846,7 +846,10 @@ def main() -> int:
 
     print("")
     print("Run security agent before implementation:")
-    print('  Task(subagent_type="security", prompt="Review infrastructure changes")')
+    print('  Delegate to the security agent: "Review infrastructure changes"')
+    print('  (Claude Code: Task with subagent_type="security"; Copilot CLI: task with')
+    print('  agent_type="project-toolkit:security"; Codex: spawn_agent with')
+    print('  agent_type="security"; Muse Code: subagent_spawn with role="security")')
     print("")
 
     return exit_code if exit_code == 0 else _report_blocked(result, exit_code)

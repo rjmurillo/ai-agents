@@ -79,7 +79,7 @@ PowerShell, see [Scripts](#scripts).
 
    | Mode | Gate for a skill | Use when |
    |---|---|---|
-   | `workflow` (default) | Verified friction: corrections, reverts, long review rounds, corroborated sweep incidents | People or agents lose time on known routes |
+   | `workflow` (default) | Verified friction: corrections, reverts, long review rounds, review failures, missed items, corroborated sweep incidents | People or agents lose time on known routes |
    | `knowledge` | A lens has verified content AND a frozen baseline case shows a model without the skill gets it wrong | Knowledge handoff: domain theory, architecture rationale, research method, with no friction record yet |
 
    Neither mode has a quota. A lens with no gate evidence gets no skill.
@@ -102,7 +102,7 @@ PowerShell, see [Scripts](#scripts).
    Pass its inventory through `--sessions-json`; treat proposed edits as
    candidates for Phase 3, not permission to apply them.
 
-2. Mine before you browse. The script lists reverts and ranks churn hotspots, TODO and FIXME hotspots, and (with `--prs-json` from the host API) review rounds. Exclude generated mirrors. When `reverts_truncated` is true, the scan stopped at `--max-commits` (default 3000); raise it to read older history:
+2. Mine before you browse. The script lists reverts and ranks churn hotspots, TODO and FIXME hotspots, and (with `--prs-json` from the host API) review rounds, review failures, and missed items. Exclude generated mirrors. When `reverts_truncated` is true, the scan stopped at `--max-commits` (default 3000); raise it to read older history:
 
    ```bash
    python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_mine.py" candidates --repo . --top 10 --exclude <generated-prefix>
@@ -112,6 +112,7 @@ PowerShell, see [Scripts](#scripts).
    skill-doctor repeated-tool/error counts, or repeat `--hosted-json <export.json>`
    for offline GitHub PR/issue and Azure DevOps PR/work-item observations.
    Follow the [offline friction-input reference](references/discovery.md#offline-friction-input-reference).
+   Review fields in `--prs-json` add `review_failures` (a rule or file area on 3 or more pull requests in 90 days, or a disposition category on 3 `--dispositions-json` entries) and `missed_items` (fixes naming their introducer). One cluster or missed item, once read, satisfies the workflow gate. The script proves a marker recurred, not a shared cause. [Method](references/discovery.md#review-friction-repeated-failures-and-missed-items); arXiv:2610.32313, CRBugBench.
    Imports are `candidate_unverified`, not verified friction. Do not import
    qualitative report grades or bypass verification, authoring or evaluation.
    Judged sweep incidents enter only through `--sweep-json`, as keys and counts.
@@ -199,7 +200,7 @@ Exit code 1 lists `update_candidates` and gives `update_args` as a JSON list of 
 
 Each CLI uses only the Python standard library, prints JSON with an `examined` count, writes nothing inside the repository (`bootstrap_eval.py freeze` writes there only with `--allow-in-repo`; `bootstrap_mine.py --out` refuses an in-repo path with no override), and runs on Linux, macOS, and Windows.
 
-`bootstrap_friction.py` is the miner's imported offline-evidence validator, not a separate CLI.
+`bootstrap_friction.py`, `bootstrap_review.py`, and `review_clusters.py` are modules the miner imports, not CLIs.
 
 Exit code 0 means success and exit code 1 means findings that need action, for every script. Exit codes 2 and 3 differ by script:
 

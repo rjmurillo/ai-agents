@@ -518,7 +518,6 @@ When infrastructure work is complete:
 | **implementer** | Pipeline ready for code | Ready to build |
 | **qa** | Test infrastructure needed | Test setup |
 | **architect** | Infrastructure decisions | Technical direction |
-| **security** | Security review needed | Compliance check |
 
 ## Execution Mindset
 

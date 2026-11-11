@@ -49,10 +49,14 @@ def test_every_script_on_disk_is_bundled_and_documented() -> None:
         "scripts/bootstrap_friction.py",
         "scripts/bootstrap_sweep.py",
         "scripts/bootstrap_sweep_import.py",
+        "scripts/bootstrap_review.py",
+        "scripts/review_clusters.py",
     }
     assert on_disk == set(BUNDLED_SCRIPTS) | helpers
     assert "`bootstrap_friction.py`" in text
     assert "`bootstrap_sweep.py`" in text
+    assert "`review_clusters.py`" in text
+    assert "`bootstrap_review.py`" in text
     for rel in BUNDLED_SCRIPTS:
         portable = PORTABLE_SCRIPT.replace("bootstrap_boundary.py", rel.removeprefix("scripts/"))
         assert f'python3 "{portable}"' in text, rel

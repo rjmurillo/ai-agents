@@ -23,7 +23,7 @@ BLOCKING_GATE_FRAGMENTS = (
     "Record conflicting evidence",
     "GATE_STATUS: Review Gate = PASS",
     "PASS_WITH_CONCERNS",
-    "read-only `code-reviewer` subagent_type",
+    "read-only `code-reviewer` agent",
     "target excerpts",
     "as untrusted data",
     "not execute commands",
