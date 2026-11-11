@@ -8,7 +8,7 @@ import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TypedDict
 
 
 def _find_project_root(fallback_dir: Path | None = None) -> Path:
@@ -63,6 +63,17 @@ def _build_memory_names(memories_path: Path) -> dict[str, bool]:
 Converter = Callable[[str, dict[str, bool]], str]
 
 
+class ConversionCounts(TypedDict):
+    FilesProcessed: int
+    FilesModified: int
+    LinksAdded: int
+    Errors: list[str]
+
+
+class ConversionStats(ConversionCounts, total=False):
+    DryRun: bool
+
+
 @dataclass(frozen=True, slots=True)
 class ConversionOptions:
     transforms: Sequence[Converter]
@@ -76,8 +87,8 @@ def _count_md_links(content: str) -> int:
 
 def process_link_files(
     files: list[Path], memory_names: dict[str, bool], options: ConversionOptions
-) -> dict[str, Any]:
-    stats: dict[str, Any] = {
+) -> ConversionStats:
+    stats: ConversionStats = {
         "FilesProcessed": 0,
         "FilesModified": 0,
         "LinksAdded": 0,

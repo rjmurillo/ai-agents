@@ -10,26 +10,26 @@ Exit codes follow ADR-035:
     2 - Configuration error (invalid path)
 """
 
-from __future__ import annotations
-
 import argparse
 import json
 import re
 import subprocess as subprocess
 import sys
 from pathlib import Path
-from typing import Any, cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from memory_link_processing import (
     ConversionOptions,
+    ConversionStats,
     _build_memory_names,
     _find_project_root,
     _validate_path_within_project,
     process_link_files,
 )
-from memory_link_processing import _count_md_links as _count_md_links
+from memory_link_processing import (
+    _count_md_links as _count_md_links,
+)
 
 
 def _convert_single_refs(content: str, memory_names: dict[str, bool]) -> str:
@@ -79,7 +79,7 @@ def process_files(
     files_to_process: list[Path] | None = None,
     output_json: bool = False,
     dry_run: bool = False,
-) -> dict[str, Any]:
+) -> ConversionStats:
     """Process index files and convert references to links.
 
     With ``dry_run`` no file is written; FilesModified counts the files that
@@ -101,14 +101,12 @@ def process_files(
     if not output_json:
         print(f"Found {len(index_files)} index files and {len(all_md_files)} memory files")
 
-    return cast(
-        dict[str, Any],
-        process_link_files(
-            index_files,
-            memory_names,
-            ConversionOptions((_convert_single_refs, _convert_comma_refs), output_json, dry_run),
-        ),
+    stats: ConversionStats = process_link_files(
+        index_files,
+        memory_names,
+        ConversionOptions((_convert_single_refs, _convert_comma_refs), output_json, dry_run),
     )
+    return stats
 
 
 _HELP_EPILOG = """\
