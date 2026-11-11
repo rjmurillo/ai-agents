@@ -1,5 +1,7 @@
 # Install the toolkit on your host and check it loaded
 
+<!-- # taste-lint: ignore file-size, nine hosts share one page because the training folder is flat and the index holds one entry per issue. -->
+
 ## Goal
 
 Install `project-toolkit` on your AI coding tool and finish with a check that shows it loaded. This page is for new users on any of nine hosts.
