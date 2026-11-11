@@ -1,0 +1,310 @@
+{
+  "combined_source": "pooled_records",
+  "dimensions": {
+    "code_quality": {
+      "denominator": 3,
+      "fallback_used": false,
+      "inapplicable": 3,
+      "numerator": 2.2,
+      "raw": 0.7333333333333334,
+      "score": 0.8666666666666667,
+      "weight": 0.25,
+      "weighted_shortfall": 3.3333333333333326
+    },
+    "efficiency": {
+      "denominator": 6,
+      "fallback_used": false,
+      "inapplicable": 0,
+      "numerator": 5.0,
+      "raw": 0.8333333333333334,
+      "score": 0.9166666666666667,
+      "weight": 0.25,
+      "weighted_shortfall": 2.0833333333333313
+    },
+    "procedure_compliance": {
+      "denominator": 6,
+      "fallback_used": false,
+      "inapplicable": 0,
+      "numerator": 5.0,
+      "raw": 0.8333333333333334,
+      "score": 0.9166666666666667,
+      "weight": 0.2,
+      "weighted_shortfall": 1.6666666666666652
+    },
+    "skill_coverage": {
+      "denominator": 6,
+      "fallback_used": false,
+      "inapplicable": 0,
+      "numerator": 4,
+      "raw": 0.6666666666666666,
+      "score": 0.6666666666666666,
+      "weight": 0.15,
+      "weighted_shortfall": 5.000000000000001
+    },
+    "verbosity": {
+      "denominator": 6,
+      "fallback_used": false,
+      "inapplicable": 0,
+      "numerator": 4.3,
+      "raw": 0.7166666666666667,
+      "score": 0.8583333333333334,
+      "weight": 0.15,
+      "weighted_shortfall": 2.124999999999999
+    }
+  },
+  "evidence_limits": [],
+  "failed_conversations": {
+    "count": 3,
+    "excluded_count": 1,
+    "excluded_session_ids": [
+      "codex:CANARY-SESSION-R6"
+    ],
+    "session_ids": [
+      "copilot:CANARY-SESSION-R2",
+      "copilot:CANARY-SESSION-R3",
+      "codex:CANARY-SESSION-R5"
+    ]
+  },
+  "fallback_used": false,
+  "limitations": [],
+  "overall": 0.8579166666666667,
+  "per_harness": {
+    "codex": {
+      "dimensions": {
+        "code_quality": {
+          "denominator": 1,
+          "fallback_used": false,
+          "inapplicable": 2,
+          "numerator": 1.0,
+          "raw": 1.0,
+          "score": 1.0,
+          "weight": 0.25,
+          "weighted_shortfall": 0.0
+        },
+        "efficiency": {
+          "denominator": 3,
+          "fallback_used": false,
+          "inapplicable": 0,
+          "numerator": 2.8,
+          "raw": 0.9333333333333332,
+          "score": 0.9666666666666666,
+          "weight": 0.25,
+          "weighted_shortfall": 0.8333333333333359
+        },
+        "procedure_compliance": {
+          "denominator": 3,
+          "fallback_used": false,
+          "inapplicable": 0,
+          "numerator": 2.2,
+          "raw": 0.7333333333333334,
+          "score": 0.8666666666666667,
+          "weight": 0.2,
+          "weighted_shortfall": 2.666666666666666
+        },
+        "skill_coverage": {
+          "denominator": 3,
+          "fallback_used": false,
+          "inapplicable": 0,
+          "numerator": 2,
+          "raw": 0.6666666666666666,
+          "score": 0.6666666666666666,
+          "weight": 0.15,
+          "weighted_shortfall": 5.000000000000001
+        },
+        "verbosity": {
+          "denominator": 3,
+          "fallback_used": false,
+          "inapplicable": 0,
+          "numerator": 2.1,
+          "raw": 0.7000000000000001,
+          "score": 0.8500000000000001,
+          "weight": 0.15,
+          "weighted_shortfall": 2.2499999999999987
+        }
+      },
+      "fallback_used": false,
+      "overall": 0.8925,
+      "sessions_scored": 3,
+      "total_shortfall": 10.750000000000004
+    },
+    "copilot": {
+      "dimensions": {
+        "code_quality": {
+          "denominator": 2,
+          "fallback_used": false,
+          "inapplicable": 1,
+          "numerator": 1.2,
+          "raw": 0.6,
+          "score": 0.8,
+          "weight": 0.25,
+          "weighted_shortfall": 4.999999999999999
+        },
+        "efficiency": {
+          "denominator": 3,
+          "fallback_used": false,
+          "inapplicable": 0,
+          "numerator": 2.2,
+          "raw": 0.7333333333333334,
+          "score": 0.8666666666666667,
+          "weight": 0.25,
+          "weighted_shortfall": 3.3333333333333326
+        },
+        "procedure_compliance": {
+          "denominator": 3,
+          "fallback_used": false,
+          "inapplicable": 0,
+          "numerator": 2.8,
+          "raw": 0.9333333333333332,
+          "score": 0.9666666666666666,
+          "weight": 0.2,
+          "weighted_shortfall": 0.6666666666666687
+        },
+        "skill_coverage": {
+          "denominator": 3,
+          "fallback_used": false,
+          "inapplicable": 0,
+          "numerator": 2,
+          "raw": 0.6666666666666666,
+          "score": 0.6666666666666666,
+          "weight": 0.15,
+          "weighted_shortfall": 5.000000000000001
+        },
+        "verbosity": {
+          "denominator": 3,
+          "fallback_used": false,
+          "inapplicable": 0,
+          "numerator": 2.2,
+          "raw": 0.7333333333333334,
+          "score": 0.8666666666666667,
+          "weight": 0.15,
+          "weighted_shortfall": 1.9999999999999996
+        }
+      },
+      "fallback_used": false,
+      "overall": 0.84,
+      "sessions_scored": 3,
+      "total_shortfall": 16.000000000000004
+    }
+  },
+  "schema_version": 1,
+  "sessions_scored": 6,
+  "strata": {
+    "skill_first": {
+      "dimensions": {
+        "code_quality": {
+          "denominator": 1,
+          "fallback_used": false,
+          "inapplicable": 3,
+          "numerator": 1.0,
+          "raw": 1.0,
+          "score": 1.0,
+          "weight": 0.25,
+          "weighted_shortfall": 0.0
+        },
+        "efficiency": {
+          "denominator": 4,
+          "fallback_used": false,
+          "inapplicable": 0,
+          "numerator": 3.4,
+          "raw": 0.85,
+          "score": 0.925,
+          "weight": 0.25,
+          "weighted_shortfall": 1.874999999999999
+        },
+        "procedure_compliance": {
+          "denominator": 4,
+          "fallback_used": false,
+          "inapplicable": 0,
+          "numerator": 4.0,
+          "raw": 1.0,
+          "score": 1.0,
+          "weight": 0.2,
+          "weighted_shortfall": 0.0
+        },
+        "skill_coverage": {
+          "denominator": 4,
+          "fallback_used": false,
+          "inapplicable": 0,
+          "numerator": 4,
+          "raw": 1.0,
+          "score": 1.0,
+          "weight": 0.15,
+          "weighted_shortfall": 0.0
+        },
+        "verbosity": {
+          "denominator": 4,
+          "fallback_used": false,
+          "inapplicable": 0,
+          "numerator": 2.3,
+          "raw": 0.575,
+          "score": 0.7875,
+          "weight": 0.15,
+          "weighted_shortfall": 3.1875000000000004
+        }
+      },
+      "fallback_used": false,
+      "overall": 0.949375,
+      "sessions_scored": 4,
+      "total_shortfall": 5.0625000000000036
+    },
+    "timeline_supplement": {
+      "dimensions": {
+        "code_quality": {
+          "denominator": 2,
+          "fallback_used": false,
+          "inapplicable": 0,
+          "numerator": 1.2,
+          "raw": 0.6,
+          "score": 0.8,
+          "weight": 0.25,
+          "weighted_shortfall": 4.999999999999999
+        },
+        "efficiency": {
+          "denominator": 2,
+          "fallback_used": false,
+          "inapplicable": 0,
+          "numerator": 1.6,
+          "raw": 0.8,
+          "score": 0.9,
+          "weight": 0.25,
+          "weighted_shortfall": 2.4999999999999996
+        },
+        "procedure_compliance": {
+          "denominator": 2,
+          "fallback_used": false,
+          "inapplicable": 0,
+          "numerator": 1.0,
+          "raw": 0.5,
+          "score": 0.75,
+          "weight": 0.2,
+          "weighted_shortfall": 5.0
+        },
+        "skill_coverage": {
+          "denominator": 2,
+          "fallback_used": false,
+          "inapplicable": 0,
+          "numerator": 0,
+          "raw": 0.0,
+          "score": 0.0,
+          "weight": 0.15,
+          "weighted_shortfall": 15.0
+        },
+        "verbosity": {
+          "denominator": 2,
+          "fallback_used": false,
+          "inapplicable": 0,
+          "numerator": 2.0,
+          "raw": 1.0,
+          "score": 1.0,
+          "weight": 0.15,
+          "weighted_shortfall": 0.0
+        }
+      },
+      "fallback_used": false,
+      "overall": 0.7250000000000001,
+      "sessions_scored": 2,
+      "total_shortfall": 27.499999999999993
+    }
+  },
+  "total_shortfall": 14.208333333333334
+}

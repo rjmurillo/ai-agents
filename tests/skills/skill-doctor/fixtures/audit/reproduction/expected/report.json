@@ -1,0 +1,622 @@
+{
+  "audit": {
+    "catalog": [
+      {
+        "aliases": [
+          "/CANARY-PATH-R/clone-2/alpha/SKILL.md"
+        ],
+        "current_edit_target": true,
+        "name": "alpha",
+        "path": "/CANARY-PATH-R/clone-1/alpha/SKILL.md",
+        "scope": "clone-1",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "aliases": [],
+        "current_edit_target": false,
+        "name": "alpha",
+        "path": "/CANARY-PATH-R/global/alpha/SKILL.md",
+        "scope": "global",
+        "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      {
+        "aliases": [],
+        "current_edit_target": true,
+        "name": "beta",
+        "path": "/CANARY-PATH-R/clone-1/beta/SKILL.md",
+        "scope": "clone-1",
+        "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      }
+    ],
+    "records": [
+      {
+        "harness": "copilot",
+        "scores": {
+          "code_quality": {
+            "evidence_ref": "CANARY-EVIDENCE-R1-code_quality",
+            "label": "approve",
+            "reason": "CANARY-REASON-R1-code_quality",
+            "score": 1.0
+          },
+          "efficiency": {
+            "evidence_ref": "CANARY-EVIDENCE-R1-efficiency",
+            "label": "highly_efficient",
+            "reason": "CANARY-REASON-R1-efficiency",
+            "score": 1.0
+          },
+          "procedure_compliance": {
+            "evidence_ref": "CANARY-EVIDENCE-R1-procedure_compliance",
+            "label": "fully_compliant",
+            "reason": "CANARY-REASON-R1-procedure_compliance",
+            "score": 1.0
+          },
+          "verbosity": {
+            "evidence_ref": "CANARY-EVIDENCE-R1-verbosity",
+            "label": "proportionate",
+            "reason": "CANARY-REASON-R1-verbosity",
+            "score": 1.0
+          }
+        },
+        "session_id": "copilot:CANARY-SESSION-R1",
+        "skills_detected": true,
+        "stratum": "skill_first"
+      },
+      {
+        "harness": "copilot",
+        "scores": {
+          "code_quality": {
+            "applicable": false,
+            "evidence_ref": "CANARY-EVIDENCE-R2-code_quality",
+            "label": "insufficient_evidence",
+            "reason": "CANARY-REASON-R2-code_quality",
+            "score": 0.5
+          },
+          "efficiency": {
+            "evidence_ref": "CANARY-EVIDENCE-R2-efficiency",
+            "label": "mostly_inefficient",
+            "reason": "CANARY-REASON-R2-efficiency",
+            "score": 0.4
+          },
+          "procedure_compliance": {
+            "evidence_ref": "CANARY-EVIDENCE-R2-procedure_compliance",
+            "label": "fully_compliant",
+            "reason": "CANARY-REASON-R2-procedure_compliance",
+            "score": 1.0
+          },
+          "verbosity": {
+            "evidence_ref": "CANARY-EVIDENCE-R2-verbosity",
+            "label": "verbose",
+            "reason": "CANARY-REASON-R2-verbosity",
+            "score": 0.2
+          }
+        },
+        "session_id": "copilot:CANARY-SESSION-R2",
+        "skills_detected": true,
+        "stratum": "skill_first"
+      },
+      {
+        "harness": "copilot",
+        "scores": {
+          "code_quality": {
+            "evidence_ref": "CANARY-EVIDENCE-R3-code_quality",
+            "label": "block",
+            "reason": "CANARY-REASON-R3-code_quality",
+            "score": 0.2
+          },
+          "efficiency": {
+            "evidence_ref": "CANARY-EVIDENCE-R3-efficiency",
+            "label": "mostly_efficient",
+            "reason": "CANARY-REASON-R3-efficiency",
+            "score": 0.8
+          },
+          "procedure_compliance": {
+            "evidence_ref": "CANARY-EVIDENCE-R3-procedure_compliance",
+            "label": "mostly_compliant",
+            "reason": "CANARY-REASON-R3-procedure_compliance",
+            "score": 0.8
+          },
+          "verbosity": {
+            "evidence_ref": "CANARY-EVIDENCE-R3-verbosity",
+            "label": "proportionate",
+            "reason": "CANARY-REASON-R3-verbosity",
+            "score": 1.0
+          }
+        },
+        "session_id": "copilot:CANARY-SESSION-R3",
+        "skills_detected": false,
+        "stratum": "timeline_supplement"
+      },
+      {
+        "harness": "codex",
+        "scores": {
+          "code_quality": {
+            "applicable": false,
+            "evidence_ref": "CANARY-EVIDENCE-R4-code_quality",
+            "label": "insufficient_evidence",
+            "reason": "CANARY-REASON-R4-code_quality",
+            "score": 0.5
+          },
+          "efficiency": {
+            "evidence_ref": "CANARY-EVIDENCE-R4-efficiency",
+            "label": "highly_efficient",
+            "reason": "CANARY-REASON-R4-efficiency",
+            "score": 1.0
+          },
+          "procedure_compliance": {
+            "evidence_ref": "CANARY-EVIDENCE-R4-procedure_compliance",
+            "label": "fully_compliant",
+            "reason": "CANARY-REASON-R4-procedure_compliance",
+            "score": 1.0
+          },
+          "verbosity": {
+            "evidence_ref": "CANARY-EVIDENCE-R4-verbosity",
+            "label": "proportionate",
+            "reason": "CANARY-REASON-R4-verbosity",
+            "score": 1.0
+          }
+        },
+        "session_id": "codex:CANARY-SESSION-R4",
+        "skills_detected": true,
+        "stratum": "skill_first"
+      },
+      {
+        "harness": "codex",
+        "scores": {
+          "code_quality": {
+            "evidence_ref": "CANARY-EVIDENCE-R5-code_quality",
+            "label": "approve",
+            "reason": "CANARY-REASON-R5-code_quality",
+            "score": 1.0
+          },
+          "efficiency": {
+            "evidence_ref": "CANARY-EVIDENCE-R5-efficiency",
+            "label": "mostly_efficient",
+            "reason": "CANARY-REASON-R5-efficiency",
+            "score": 0.8
+          },
+          "procedure_compliance": {
+            "evidence_ref": "CANARY-EVIDENCE-R5-procedure_compliance",
+            "label": "noncompliant",
+            "reason": "CANARY-REASON-R5-procedure_compliance",
+            "score": 0.2
+          },
+          "verbosity": {
+            "evidence_ref": "CANARY-EVIDENCE-R5-verbosity",
+            "label": "proportionate",
+            "reason": "CANARY-REASON-R5-verbosity",
+            "score": 1.0
+          }
+        },
+        "session_id": "codex:CANARY-SESSION-R5",
+        "skills_detected": false,
+        "stratum": "timeline_supplement"
+      },
+      {
+        "harness": "codex",
+        "scores": {
+          "code_quality": {
+            "applicable": false,
+            "evidence_ref": "CANARY-EVIDENCE-R6-code_quality",
+            "label": "insufficient_evidence",
+            "pre_cutoff": true,
+            "reason": "CANARY-REASON-R6-code_quality",
+            "score": 0.5
+          },
+          "efficiency": {
+            "evidence_ref": "CANARY-EVIDENCE-R6-efficiency",
+            "label": "highly_efficient",
+            "pre_cutoff": true,
+            "reason": "CANARY-REASON-R6-efficiency",
+            "score": 1.0
+          },
+          "procedure_compliance": {
+            "evidence_ref": "CANARY-EVIDENCE-R6-procedure_compliance",
+            "label": "fully_compliant",
+            "pre_cutoff": true,
+            "reason": "CANARY-REASON-R6-procedure_compliance",
+            "score": 1.0
+          },
+          "verbosity": {
+            "evidence_ref": "CANARY-EVIDENCE-R6-verbosity",
+            "label": "terse",
+            "pre_cutoff": false,
+            "reason": "CANARY-REASON-R6-verbosity",
+            "score": 0.1
+          }
+        },
+        "session_id": "codex:CANARY-SESSION-R6",
+        "skills_detected": true,
+        "stratum": "skill_first",
+        "terminated_by": "usage_limit_exceeded"
+      }
+    ],
+    "scores": {
+      "combined_source": "pooled_records",
+      "dimensions": {
+        "code_quality": {
+          "denominator": 3,
+          "fallback_used": false,
+          "inapplicable": 3,
+          "numerator": 2.2,
+          "raw": 0.7333333333333334,
+          "score": 0.8666666666666667,
+          "weight": 0.25,
+          "weighted_shortfall": 3.3333333333333326
+        },
+        "efficiency": {
+          "denominator": 6,
+          "fallback_used": false,
+          "inapplicable": 0,
+          "numerator": 5.0,
+          "raw": 0.8333333333333334,
+          "score": 0.9166666666666667,
+          "weight": 0.25,
+          "weighted_shortfall": 2.0833333333333313
+        },
+        "procedure_compliance": {
+          "denominator": 6,
+          "fallback_used": false,
+          "inapplicable": 0,
+          "numerator": 5.0,
+          "raw": 0.8333333333333334,
+          "score": 0.9166666666666667,
+          "weight": 0.2,
+          "weighted_shortfall": 1.6666666666666652
+        },
+        "skill_coverage": {
+          "denominator": 6,
+          "fallback_used": false,
+          "inapplicable": 0,
+          "numerator": 4,
+          "raw": 0.6666666666666666,
+          "score": 0.6666666666666666,
+          "weight": 0.15,
+          "weighted_shortfall": 5.000000000000001
+        },
+        "verbosity": {
+          "denominator": 6,
+          "fallback_used": false,
+          "inapplicable": 0,
+          "numerator": 4.3,
+          "raw": 0.7166666666666667,
+          "score": 0.8583333333333334,
+          "weight": 0.15,
+          "weighted_shortfall": 2.124999999999999
+        }
+      },
+      "evidence_limits": [],
+      "failed_conversations": {
+        "count": 3,
+        "excluded_count": 1,
+        "excluded_session_ids": [
+          "codex:CANARY-SESSION-R6"
+        ],
+        "session_ids": [
+          "copilot:CANARY-SESSION-R2",
+          "copilot:CANARY-SESSION-R3",
+          "codex:CANARY-SESSION-R5"
+        ]
+      },
+      "fallback_used": false,
+      "limitations": [],
+      "overall": 0.8579166666666667,
+      "per_harness": {
+        "codex": {
+          "dimensions": {
+            "code_quality": {
+              "denominator": 1,
+              "fallback_used": false,
+              "inapplicable": 2,
+              "numerator": 1.0,
+              "raw": 1.0,
+              "score": 1.0,
+              "weight": 0.25,
+              "weighted_shortfall": 0.0
+            },
+            "efficiency": {
+              "denominator": 3,
+              "fallback_used": false,
+              "inapplicable": 0,
+              "numerator": 2.8,
+              "raw": 0.9333333333333332,
+              "score": 0.9666666666666666,
+              "weight": 0.25,
+              "weighted_shortfall": 0.8333333333333359
+            },
+            "procedure_compliance": {
+              "denominator": 3,
+              "fallback_used": false,
+              "inapplicable": 0,
+              "numerator": 2.2,
+              "raw": 0.7333333333333334,
+              "score": 0.8666666666666667,
+              "weight": 0.2,
+              "weighted_shortfall": 2.666666666666666
+            },
+            "skill_coverage": {
+              "denominator": 3,
+              "fallback_used": false,
+              "inapplicable": 0,
+              "numerator": 2,
+              "raw": 0.6666666666666666,
+              "score": 0.6666666666666666,
+              "weight": 0.15,
+              "weighted_shortfall": 5.000000000000001
+            },
+            "verbosity": {
+              "denominator": 3,
+              "fallback_used": false,
+              "inapplicable": 0,
+              "numerator": 2.1,
+              "raw": 0.7000000000000001,
+              "score": 0.8500000000000001,
+              "weight": 0.15,
+              "weighted_shortfall": 2.2499999999999987
+            }
+          },
+          "fallback_used": false,
+          "overall": 0.8925,
+          "sessions_scored": 3,
+          "total_shortfall": 10.750000000000004
+        },
+        "copilot": {
+          "dimensions": {
+            "code_quality": {
+              "denominator": 2,
+              "fallback_used": false,
+              "inapplicable": 1,
+              "numerator": 1.2,
+              "raw": 0.6,
+              "score": 0.8,
+              "weight": 0.25,
+              "weighted_shortfall": 4.999999999999999
+            },
+            "efficiency": {
+              "denominator": 3,
+              "fallback_used": false,
+              "inapplicable": 0,
+              "numerator": 2.2,
+              "raw": 0.7333333333333334,
+              "score": 0.8666666666666667,
+              "weight": 0.25,
+              "weighted_shortfall": 3.3333333333333326
+            },
+            "procedure_compliance": {
+              "denominator": 3,
+              "fallback_used": false,
+              "inapplicable": 0,
+              "numerator": 2.8,
+              "raw": 0.9333333333333332,
+              "score": 0.9666666666666666,
+              "weight": 0.2,
+              "weighted_shortfall": 0.6666666666666687
+            },
+            "skill_coverage": {
+              "denominator": 3,
+              "fallback_used": false,
+              "inapplicable": 0,
+              "numerator": 2,
+              "raw": 0.6666666666666666,
+              "score": 0.6666666666666666,
+              "weight": 0.15,
+              "weighted_shortfall": 5.000000000000001
+            },
+            "verbosity": {
+              "denominator": 3,
+              "fallback_used": false,
+              "inapplicable": 0,
+              "numerator": 2.2,
+              "raw": 0.7333333333333334,
+              "score": 0.8666666666666667,
+              "weight": 0.15,
+              "weighted_shortfall": 1.9999999999999996
+            }
+          },
+          "fallback_used": false,
+          "overall": 0.84,
+          "sessions_scored": 3,
+          "total_shortfall": 16.000000000000004
+        }
+      },
+      "schema_version": 1,
+      "sessions_scored": 6,
+      "strata": {
+        "skill_first": {
+          "dimensions": {
+            "code_quality": {
+              "denominator": 1,
+              "fallback_used": false,
+              "inapplicable": 3,
+              "numerator": 1.0,
+              "raw": 1.0,
+              "score": 1.0,
+              "weight": 0.25,
+              "weighted_shortfall": 0.0
+            },
+            "efficiency": {
+              "denominator": 4,
+              "fallback_used": false,
+              "inapplicable": 0,
+              "numerator": 3.4,
+              "raw": 0.85,
+              "score": 0.925,
+              "weight": 0.25,
+              "weighted_shortfall": 1.874999999999999
+            },
+            "procedure_compliance": {
+              "denominator": 4,
+              "fallback_used": false,
+              "inapplicable": 0,
+              "numerator": 4.0,
+              "raw": 1.0,
+              "score": 1.0,
+              "weight": 0.2,
+              "weighted_shortfall": 0.0
+            },
+            "skill_coverage": {
+              "denominator": 4,
+              "fallback_used": false,
+              "inapplicable": 0,
+              "numerator": 4,
+              "raw": 1.0,
+              "score": 1.0,
+              "weight": 0.15,
+              "weighted_shortfall": 0.0
+            },
+            "verbosity": {
+              "denominator": 4,
+              "fallback_used": false,
+              "inapplicable": 0,
+              "numerator": 2.3,
+              "raw": 0.575,
+              "score": 0.7875,
+              "weight": 0.15,
+              "weighted_shortfall": 3.1875000000000004
+            }
+          },
+          "fallback_used": false,
+          "overall": 0.949375,
+          "sessions_scored": 4,
+          "total_shortfall": 5.0625000000000036
+        },
+        "timeline_supplement": {
+          "dimensions": {
+            "code_quality": {
+              "denominator": 2,
+              "fallback_used": false,
+              "inapplicable": 0,
+              "numerator": 1.2,
+              "raw": 0.6,
+              "score": 0.8,
+              "weight": 0.25,
+              "weighted_shortfall": 4.999999999999999
+            },
+            "efficiency": {
+              "denominator": 2,
+              "fallback_used": false,
+              "inapplicable": 0,
+              "numerator": 1.6,
+              "raw": 0.8,
+              "score": 0.9,
+              "weight": 0.25,
+              "weighted_shortfall": 2.4999999999999996
+            },
+            "procedure_compliance": {
+              "denominator": 2,
+              "fallback_used": false,
+              "inapplicable": 0,
+              "numerator": 1.0,
+              "raw": 0.5,
+              "score": 0.75,
+              "weight": 0.2,
+              "weighted_shortfall": 5.0
+            },
+            "skill_coverage": {
+              "denominator": 2,
+              "fallback_used": false,
+              "inapplicable": 0,
+              "numerator": 0,
+              "raw": 0.0,
+              "score": 0.0,
+              "weight": 0.15,
+              "weighted_shortfall": 15.0
+            },
+            "verbosity": {
+              "denominator": 2,
+              "fallback_used": false,
+              "inapplicable": 0,
+              "numerator": 2.0,
+              "raw": 1.0,
+              "score": 1.0,
+              "weight": 0.15,
+              "weighted_shortfall": 0.0
+            }
+          },
+          "fallback_used": false,
+          "overall": 0.7250000000000001,
+          "sessions_scored": 2,
+          "total_shortfall": 27.499999999999993
+        }
+      },
+      "total_shortfall": 14.208333333333334
+    }
+  },
+  "evaluation": {
+    "diagnosis": "static",
+    "optimization": "not_run"
+  },
+  "generated_at": "2026-11-11T00:00:00Z",
+  "handle": "CANARY-HANDLE-R",
+  "harness": "copilot",
+  "sampling": {
+    "harness_coverage_complete": true,
+    "notice": "Non-probability sample.",
+    "per_harness": {
+      "codex": {
+        "overall": 0.8925,
+        "sampled": 3,
+        "scoreable": 8,
+        "skill_candidates": 2
+      },
+      "copilot": {
+        "overall": 0.84,
+        "sampled": 3,
+        "scoreable": 10,
+        "skill_candidates": 4
+      }
+    }
+  },
+  "scores": {
+    "code_quality": 0.8666666666666667,
+    "efficiency": 0.9166666666666667,
+    "overall": 0.8579166666666667,
+    "procedure_compliance": 0.9166666666666667,
+    "skill_coverage": 0.6666666666666666,
+    "verbosity": 0.8583333333333334
+  },
+  "stats": {
+    "sessions_analyzed": 6,
+    "sessions_scanned": 20,
+    "skills_found": 2,
+    "skills_used": 1,
+    "window_days": 45
+  },
+  "suggestions": [
+    {
+      "acceptance_checks": [
+        "efficiency label improves on the held-out case"
+      ],
+      "change": "CANARY-CHANGE-R tighten the discovery step",
+      "evidence": "CANARY-EVIDENCE-R-suggestion",
+      "expected_improvement": "Fewer exploratory reads before the first edit",
+      "mechanism": "CANARY-MECH-R",
+      "missing_evidence": [
+        "No transcript shows the skill firing"
+      ],
+      "owner": "skill",
+      "reproduction": "CANARY-REPRO-R",
+      "risks": [
+        "CANARY-RISK-R"
+      ],
+      "skill": "alpha",
+      "status": "unevaluated",
+      "target": "",
+      "variants": [
+        {
+          "path": "/CANARY-PATH-R/clone-1/alpha/SKILL.md",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        {
+          "path": "/CANARY-PATH-R/global/alpha/SKILL.md",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        }
+      ]
+    }
+  ],
+  "title": "Reproduction fixture report",
+  "top_findings": [
+    "Efficiency below 0.5 in 1 of 6 conversations",
+    "Code quality applicable in 3 of 6 conversations",
+    "1 conversation ended at a provider cutoff"
+  ]
+}

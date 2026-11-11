@@ -344,3 +344,60 @@ def test_import_accepts_pre_cutoff_failure_even_when_terminated(tmp_path: Path, 
 
     stored = json.loads(path.read_text(encoding="utf-8"))["sessions"]
     assert audit_scores.failed_conversations(stored)["count"] == 1
+
+
+# ---------------------------------------------------- non-probability metadata
+
+
+def _without(key: str) -> Any:
+    def mutate(batch: Row) -> Row:
+        del batch[key]
+        return batch
+
+    return mutate
+
+
+def _with(key: str, value: Any) -> Any:
+    def mutate(batch: Row) -> Row:
+        batch[key] = value
+        return batch
+
+    return mutate
+
+
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (_without("representative"), "representative: false"),
+        (_with("representative", True), "representative: false"),
+        (_without("non_probability_note"), "non_probability_note"),
+        (_with("non_probability_note", "  "), "non_probability_note"),
+        (_without("selection_rule"), "selection_rule"),
+        (_with("selection_rule", ""), "selection_rule"),
+        (_without("candidate_count"), "candidate_count"),
+        (_with("candidate_count", -1), "candidate_count"),
+        (_with("candidate_count", True), "candidate_count"),
+        (_without("cap"), "cap"),
+        (_with("cap", "12"), "cap"),
+    ],
+)
+def test_batch_missing_sampling_metadata_is_rejected_and_accepted_file_unchanged(
+    accepted: Path, manifest: Row, mutate: Any, message: str
+) -> None:
+    target = mutate(copy.deepcopy(manifest["batches"][0]))
+    before = accepted.read_bytes()
+
+    with pytest.raises(ab.ImportRejectedError) as raised:
+        ab.import_scores(target, accepted, _rows(target))
+
+    assert message in "; ".join(raised.value.errors)
+    assert accepted.read_bytes() == before
+
+
+def test_batch_with_null_counts_is_accepted(tmp_path: Path, batch: Row) -> None:
+    target = {**batch, "candidate_count": None, "cap": None}
+    path = tmp_path / "accepted.json"
+
+    summary = ab.import_scores(target, path, _rows(target))
+
+    assert summary["accepted"] == len(target["session_ids"])

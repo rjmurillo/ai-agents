@@ -1,0 +1,39 @@
+{
+  "counts": {
+    "catalog": {
+      "aliases": 1,
+      "conflicts": 1,
+      "definitions": 3
+    },
+    "sessions_scored": 6,
+    "skills_found": 2,
+    "skills_used": 1
+  },
+  "evaluation_status": "Diagnosis: static. Optimization: not run. Candidates: 1 unevaluated. Static triage only. No skillopt baseline or candidate evaluation ran, so candidate effectiveness remains unevaluated.",
+  "grade": "B",
+  "overall": 0.8579166666666667,
+  "sampling_note": "Non-probability sample. Results are descriptive for the conversations scored and are not population estimates or evidence that skills caused outcomes.",
+  "scores": {
+    "code_quality": 0.8666666666666667,
+    "efficiency": 0.9166666666666667,
+    "procedure_compliance": 0.9166666666666667,
+    "skill_coverage": 0.6666666666666666,
+    "verbosity": 0.8583333333333334
+  },
+  "suggestion_status_counts": {
+    "accepted": 0,
+    "inconclusive": 0,
+    "rejected": 0,
+    "unevaluated": 1
+  },
+  "weighted_shortfall": {
+    "by_dimension": {
+      "code_quality": 3.3333333333333326,
+      "efficiency": 2.0833333333333313,
+      "procedure_compliance": 1.6666666666666652,
+      "skill_coverage": 5.000000000000001,
+      "verbosity": 2.124999999999999
+    },
+    "total": 14.208333333333334
+  }
+}

@@ -163,6 +163,27 @@ def write_assignment_dir(assignment: Mapping[str, Any], out: Path) -> list[Path]
     return written
 
 
+def _is_count(value: Any) -> bool:
+    return value is None or (isinstance(value, int) and not isinstance(value, bool) and value >= 0)
+
+
+def _sampling_metadata_errors(assignment: Mapping[str, Any]) -> list[str]:
+    """A batch must say how it was selected and that it is not a probability sample."""
+    errors = []
+    if assignment.get("representative") is not False:
+        errors.append("assignment must declare representative: false (non-probability sample)")
+    note = assignment.get("non_probability_note")
+    if not isinstance(note, str) or not note.strip():
+        errors.append("assignment is missing its non_probability_note")
+    rule = assignment.get("selection_rule")
+    if not isinstance(rule, str) or not rule.strip():
+        errors.append("assignment is missing its selection_rule")
+    for key in ("candidate_count", "cap"):
+        if key not in assignment or not _is_count(assignment[key]):
+            errors.append(f"assignment {key} must be present as a non-negative integer or null")
+    return errors
+
+
 def _check_assignment(assignment: Any) -> list[str]:
     required = ("batch_id", "source_digest", "stratum", "session_ids")
     if not isinstance(assignment, dict) or any(key not in assignment for key in required):
@@ -174,7 +195,7 @@ def _check_assignment(assignment: Any) -> list[str]:
     expected = _batch_id(assignment["source_digest"], assignment["stratum"], ids, number)
     if number < 1 or assignment["batch_id"] != expected:
         return ["assignment batch_id does not match its contents; the assignment was altered"]
-    return []
+    return _sampling_metadata_errors(assignment)
 
 
 def _number_from(batch_id: Any) -> int:
