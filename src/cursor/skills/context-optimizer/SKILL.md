@@ -158,13 +158,13 @@ Analyzes skill content and recommends Skill, Passive Context, or Hybrid placemen
 
 ```bash
 # Analyze a skill directory (from repo root)
-python3 .claude/skills/context-optimizer/scripts/analyze_skill_placement.py -p .claude/skills/github
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/context-optimizer/scripts/analyze_skill_placement.py" -p .claude/skills/github
 
 # Analyze a specific SKILL.md
-python3 .claude/skills/context-optimizer/scripts/analyze_skill_placement.py -p .claude/skills/github/SKILL.md
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/context-optimizer/scripts/analyze_skill_placement.py" -p .claude/skills/github/SKILL.md
 
 # Get detailed metrics
-python3 .claude/skills/context-optimizer/scripts/analyze_skill_placement.py -p .claude/skills/github -d
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/context-optimizer/scripts/analyze_skill_placement.py" -p .claude/skills/github -d
 ```
 
 **Output**:
