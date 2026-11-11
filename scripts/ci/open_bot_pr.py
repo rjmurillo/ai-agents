@@ -4,9 +4,9 @@
 Scheduled workflows cannot push to a protected default branch unless their
 identity is on the ruleset bypass list (issue #7287). This script commits the
 given paths on a fixed bot branch, pushes that branch, and opens a pull
-request against the base branch. It reuses the git helpers of
-`commit_and_push.py`, which pushes in place and so suits only unprotected
-branches.
+request against the base branch. `commit_and_push.py` pushes in place and so
+suits only unprotected branches. This script has its own git helpers because
+every call here needs a timeout.
 
 Rules:
   - A clean tree is a no-op. The examined path count is printed.
@@ -31,7 +31,7 @@ Authentication is the caller's job (`gh auth setup-git` and `GH_TOKEN`).
 EXIT CODES (ADR-035):
   0  - Success: published, nothing to commit, or a pull request already tracks the branch
   1  - Error: a git command failed
-  2  - Error: usage/configuration (git or gh binary missing)
+  2  - Error: usage/configuration (git or gh binary missing, or HEAD not on origin/<base>)
   3  - Error: external service failure (`gh` could not list or create the pull request)
 
 Keep the output files in one invocation: a second invocation would find the
@@ -183,8 +183,11 @@ def pr_body(paths: list[str], issue: str) -> str:
         "## Type of Change",
         "",
         "- [x] Infrastructure/CI change",
+        "",
+        "## Related Issues",
+        "",
+        f"Refs #{issue}",
     ]
-    lines += ["", "## Related Issues", "", f"Refs #{issue}"]
     return "\n".join(lines) + "\n"
 
 
@@ -256,7 +259,8 @@ def publish(args: argparse.Namespace) -> int:
             f"gh pr create failed: {created.stdout}\n"
             f"Branch {args.branch} is already pushed; the next run deletes and recreates it."
         )
-    url = created.stdout.strip()
+    # stderr is merged into stdout, so a gh warning can precede the URL.
+    url = (created.stdout.strip().splitlines() or [""])[-1]
     print(f"outcome=published branch={args.branch} pr={url}")
     return EXIT_SUCCESS
 
@@ -297,7 +301,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--base", default="main", help="Pull request base branch.")
     parser.add_argument("--pr-title", help="Pull request title. Defaults to the first --message.")
     parser.add_argument(
-        "--issue", help="Issue number for a `Refs #N` line in the pull request body."
+        "--issue", required=True, help="Issue number for the `Refs #N` lines in the body."
     )
     return parser
 

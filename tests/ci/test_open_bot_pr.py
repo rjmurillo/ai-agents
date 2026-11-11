@@ -71,6 +71,7 @@ class _World:
         failing: tuple[str, ...] | None = None,
         pr_create_rc: int = 0,
         merge_base_rc: int = 0,
+        pr_create_out: str = "https://github.com/o/r/pull/9\n",
     ) -> None:
         self._dirty = dirty
         self._pr_list_rc = pr_list_rc
@@ -81,6 +82,7 @@ class _World:
         self._failing = failing
         self._pr_create_rc = pr_create_rc
         self._merge_base_rc = merge_base_rc
+        self._pr_create_out = pr_create_out
         self._calls: list[list[str]] = []
 
     def __call__(self, argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
@@ -111,7 +113,7 @@ class _World:
             case ["pr", "list"]:
                 return _done(argv, self._pr_list_rc, self._pr_list_out)
             case ["pr", "create"]:
-                return _done(argv, self._pr_create_rc, "https://github.com/o/r/pull/9\n")
+                return _done(argv, self._pr_create_rc, self._pr_create_out)
         raise AssertionError(f"unexpected gh command: {argv}")
 
     def argvs(self) -> list[list[str]]:
@@ -299,22 +301,102 @@ def test_pull_request_body_passes_the_repo_validator(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-def _workflow_publish_step() -> tuple[dict, dict]:
+def _workflow_jobs() -> dict[str, dict]:
     import yaml
 
     doc = yaml.safe_load(
         (_REPO / ".github" / "workflows" / "update-reviewer-stats.yml").read_text(encoding="utf-8")
     )
-    job = doc["jobs"]["update-stats"]
-    (step,) = [s for s in job["steps"] if "open_bot_pr.py" in s.get("run", "")]
-    return job, step
+    return doc["jobs"]
 
 
-def test_workflow_publishes_through_branch_mode_with_the_scopes_it_needs() -> None:
-    job, step = _workflow_publish_step()
-    assert "--branch automation/reviewer-stats" in step["run"]
-    assert job["permissions"] == {"contents": "write", "pull-requests": "write"}
-    assert step["env"]["GH_TOKEN"] == "${{ github.token }}"
+def test_workflow_gives_write_scopes_only_to_the_publish_job() -> None:
+    jobs = _workflow_jobs()
+    assert jobs["update-stats"]["permissions"] == {"contents": "read", "pull-requests": "read"}
+    assert jobs["publish-stats"]["permissions"] == {
+        "contents": "write",
+        "pull-requests": "write",
+    }
+    assert jobs["publish-stats"]["needs"] == "update-stats"
+
+
+def test_publish_job_runs_the_script_and_the_aggregation_job_does_not() -> None:
+    jobs = _workflow_jobs()
+    runs = {
+        name: [s.get("run", "") for s in job["steps"] if "run" in s] for name, job in jobs.items()
+    }
+    assert any(
+        "open_bot_pr.py" in r and "--branch automation/reviewer-stats" in r
+        for r in runs["publish-stats"]
+    )
+    assert not any("open_bot_pr.py" in r for r in runs["update-stats"])
+    assert not any("uv run" in r for r in runs["publish-stats"])
+
+
+def test_artifact_hands_the_stats_file_from_the_first_job_to_the_second() -> None:
+    jobs = _workflow_jobs()
+    (up,) = [s for s in jobs["update-stats"]["steps"] if "upload-artifact" in s.get("uses", "")]
+    (down,) = [
+        s for s in jobs["publish-stats"]["steps"] if "download-artifact" in s.get("uses", "")
+    ]
+    stats = ".serena/memories/pr-review/pr-comment-responder-skills.md"
+    assert up["with"]["name"] == down["with"]["name"]
+    assert up["with"]["path"] == stats
+    assert down["with"]["path"] == str(Path(stats).parent)
+    assert up["with"]["if-no-files-found"] == "error"
+
+
+def test_neither_job_persists_checkout_credentials() -> None:
+    for job in _workflow_jobs().values():
+        (checkout,) = [s for s in job["steps"] if "actions/checkout" in s.get("uses", "")]
+        assert checkout["with"]["persist-credentials"] is False
+
+
+def test_the_publish_step_is_the_only_one_that_sees_the_write_token_for_git() -> None:
+    steps = _workflow_jobs()["publish-stats"]["steps"]
+    (publish,) = [s for s in steps if "open_bot_pr.py" in s.get("run", "")]
+    assert publish["env"]["GH_TOKEN"] == "${{ github.token }}"
+    assert "gh auth setup-git" in publish["run"]
+
+
+def test_issue_flag_is_required(make_world: Callable[..., _World]) -> None:
+    world = make_world()
+    args = [a for a in _ARGS if a not in {"--issue", "234"}]
+    with pytest.raises(SystemExit) as exit_info:
+        main(args)
+    assert exit_info.value.code == 2
+    assert world.argvs() == []
+
+
+def test_published_outcome_reports_the_last_line_as_the_url(
+    make_world: Callable[..., _World], capsys: pytest.CaptureFixture[str]
+) -> None:
+    make_world()
+    assert main(_ARGS) == 0
+    assert "pr=https://github.com/o/r/pull/9" in capsys.readouterr().out
+
+
+def test_a_gh_warning_before_the_url_does_not_become_the_reported_url(
+    make_world: Callable[..., _World], capsys: pytest.CaptureFixture[str]
+) -> None:
+    make_world(pr_create_out="warning: something\nhttps://github.com/o/r/pull/9\n")
+    assert main(_ARGS) == 0
+    out = capsys.readouterr().out
+    assert "pr=https://github.com/o/r/pull/9" in out
+    assert "warning" not in out
+
+
+def test_gh_only_timeout_exits_external(monkeypatch: pytest.MonkeyPatch) -> None:
+    inner = _World()
+
+    def gh_hangs(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        if argv[0] == "gh":
+            raise subprocess.TimeoutExpired(argv, 1)
+        return inner(argv, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", gh_hangs)
+    assert main(_ARGS) == 3
+    assert inner.issued("git", "push") == []
 
 
 def test_git_config_failure_exits_git_failed_before_any_other_call(
