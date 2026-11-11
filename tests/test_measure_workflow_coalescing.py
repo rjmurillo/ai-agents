@@ -616,10 +616,11 @@ class TestDefaultWorkflows:
             "Memory Health",
             "CodeQL Analysis",
             "Claude Code Assistant",
+            "Update Reviewer Signal Stats",
         ]
 
     def test_default_workflows_count(self):
-        assert len(DEFAULT_WORKFLOWS) == 6
+        assert len(DEFAULT_WORKFLOWS) == 7
 
     def test_each_default_matches_exactly_one_real_workflow(self):
         workflows_dir = _SCRIPTS_DIR.parent / "workflows"
@@ -673,7 +674,7 @@ class TestDefaultWorkflows:
         with patch.object(_mod, "test_prerequisites", side_effect=RuntimeError("stop")):
             rc = main(["--repository", "o/r"])
         assert rc == 1
-        assert "Examined 6 default workflow names, 0 unmatched" in capsys.readouterr().err
+        assert "Examined 7 default workflow names, 0 unmatched" in capsys.readouterr().err
 
     def test_explicit_workflows_skip_default_validation(self, capsys):
         with patch.object(_mod, "test_prerequisites", side_effect=RuntimeError("stop")):
