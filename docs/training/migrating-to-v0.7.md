@@ -92,7 +92,7 @@ If `Version` is an older SHA, `main` has moved since your update. Run the two up
 | `test` | `test` (unchanged) |
 | `validate-pr-description` | `validate-pr-description` (unchanged) |
 
-The four `forgetful/*` commands (`memory-explore`, `memory-list`, `memory-save`, `memory-search`) were retired, not renamed. See step 4.
+The four commands in the retired second-memory-backend folder were retired, not renamed. See step 4.
 
 To prove a skill is visible in your installed host, not only in the source tree, list the plugin parts:
 
@@ -127,13 +127,13 @@ What this means for you:
 
 ### 4. Switch memory to Serena only
 
-The Forgetful MCP server is gone ([ADR-106](../../.project-toolkit/architecture/ADR-106-serena-only-memory-architecture.md), PR #5575, issue #5574). `.mcp.json` listed `serena`, `deepwiki`, and `forgetful` at v0.6.0. It lists `serena` and `deepwiki` now.
+The second memory backend and its MCP server are gone ([ADR-106](../../.project-toolkit/architecture/ADR-106-serena-only-memory-architecture.md), PR #5575, issue #5574). ADR-106 names the backend. `.mcp.json` listed three servers at v0.6.0: `serena`, `deepwiki`, and the retired one. It lists `serena` and `deepwiki` now.
 
 Memory is plain markdown under `.serena/memories/`. A memory's identity is its file path. No second backend exists to fall back to.
 
-- The `forgetful/*` commands and the `using-forgetful-memory` skill are gone.
-- This change does not read or move data in a Forgetful server you ran yourself. If you want those notes, export them before you remove the server, and save what you keep as `.serena/memories/` files.
-- If your own `.mcp.json` or user settings still point at `forgetful`, remove that entry. Nothing in the plugin starts it.
+- The four commands for that backend and the skill that fronted it are gone.
+- This change does not read or move data in a server of that backend you ran yourself. If you want those notes, export them before you remove the server, and save what you keep as `.serena/memories/` files.
+- If your own `.mcp.json` or user settings still list the retired server, remove that entry. Nothing in the plugin starts it.
 
 The `memory` and `memory-search` skills still exist. They work from the Serena memory files.
 
