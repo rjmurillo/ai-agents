@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -29,6 +30,7 @@ _VALID_PKG = {
     "name": "@rjmurillo/ai-agents",
     "version": "1.0.0",
     "publishConfig": {"access": "public", "provenance": True},
+    "repository": {"type": "git", "url": "git+https://github.com/rjmurillo/ai-agents.git"},
     "bin": {"ai-agents": "dist/index.js"},
     "files": ["dist/"],
 }
@@ -43,6 +45,42 @@ class TestVerifyNpmPackageMetadata:
         _write_pkg(tmp_path / "package.json", _VALID_PKG)
         rc = vnpm.main(["--package-dir", str(tmp_path)])
         assert rc == vnpm.EXIT_OK
+
+    @pytest.mark.parametrize(
+        "repository",
+        [
+            None,
+            "",
+            {},
+            {"url": ""},
+            {"url": "git+https://github.com/other/repo.git"},
+            {"url": "git+https://github.com/rjmurillo/ai-agents-fork.git"},
+            {"url": "https://github.com/rjmurillo/ai-agents/tree/evil"},
+            {"url": "https://evil.example/github.com/rjmurillo/ai-agents"},
+            {"url": "http://github.com/rjmurillo/ai-agents"},
+            7,
+        ],
+    )
+    def test_missing_or_foreign_repository_fails(self, tmp_path: Path, repository: object) -> None:
+        pkg: dict[str, Any] = {k: v for k, v in _VALID_PKG.items() if k != "repository"}
+        if repository is not None:
+            pkg["repository"] = repository
+        _write_pkg(tmp_path / "package.json", pkg)
+        assert vnpm.main(["--package-dir", str(tmp_path)]) == vnpm.EXIT_INVALID
+
+    @pytest.mark.parametrize(
+        "repository",
+        [
+            "https://github.com/rjmurillo/ai-agents",
+            "git+https://github.com/rjmurillo/ai-agents.git",
+            "github:rjmurillo/ai-agents",
+            {"url": "git+https://github.com/rjmurillo/ai-agents.git", "directory": "x"},
+        ],
+    )
+    def test_the_repository_forms_npm_writes_pass(self, tmp_path: Path, repository: object) -> None:
+        pkg = {**_VALID_PKG, "repository": repository}
+        _write_pkg(tmp_path / "package.json", pkg)
+        assert vnpm.main(["--package-dir", str(tmp_path)]) == vnpm.EXIT_OK
 
     def test_wrong_name_fails(self, tmp_path: Path) -> None:
         pkg = {**_VALID_PKG, "name": "@other/pkg"}
@@ -229,3 +267,30 @@ class TestVerifyNpmPublished:
         with patch("subprocess.run", return_value=mock_result):
             v = vp.get_published_version("@x/y", "1.0.0")
         assert v == "1.0.0"
+
+
+# ---------------------------------------------------------------------------
+# The real package (issue #7217): a synthetic package hid three defects.
+# ---------------------------------------------------------------------------
+
+_REAL_PACKAGE = Path(__file__).parent.parent.parent / "packages" / "ai-agents-cli"
+
+
+class TestRealCliPackage:
+    def test_the_metadata_verifier_passes_on_the_real_package(self) -> None:
+        assert vnpm.main(["--package-dir", str(_REAL_PACKAGE)]) == vnpm.EXIT_OK
+
+    def test_every_literal_files_entry_exists_or_is_built(self) -> None:
+        pkg = json.loads((_REAL_PACKAGE / "package.json").read_text(encoding="utf-8"))
+        built = {"dist/", "bundle/assets/"}
+        missing = [
+            entry
+            for entry in pkg["files"]
+            if entry not in built and not (_REAL_PACKAGE / entry).exists()
+        ]
+        assert missing == []
+
+    def test_the_cli_reports_the_version_package_json_declares(self) -> None:
+        pkg = json.loads((_REAL_PACKAGE / "package.json").read_text(encoding="utf-8"))
+        source = (_REAL_PACKAGE / "src" / "cli.ts").read_text(encoding="utf-8")
+        assert f'const VERSION = "{pkg["version"]}";' in source
