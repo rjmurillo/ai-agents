@@ -6,7 +6,7 @@ Claude Code lifecycle hooks: generated output, run by the harness, mirrored in p
 
 ## Matters
 
-- Generated from `templates/hooks/`; edit the template, not this tree. Render map: `templates/AGENTS.md`.
+- Generated from `templates/hooks/`; edit the template, not this tree. Render map: `templates/AGENTS.md`. Shipped entries pass through `src/claude/hooks/`; the repo-only entries (`PreCompact`, `PreToolUse`, `SessionEnd`, `SessionStart`, `UserPromptSubmit`, `session-start.sh`, the `hooks` row's `repo_only` list) render straight here and ship in no plugin.
 - Hand-maintained exceptions: `AGENTS.md`, five `CLAUDE.md`, `PostToolUse/README.md`.
 - Group dispatcher only on `SessionStart`; `UserPromptSubmit`, `Stop`, `SessionEnd`, `PreCompact` register directly.
 - `hooks.json` links to `src/claude/hooks/hooks.json`: one advisory Stop group. Live registrations here are `.claude/settings.json`.
@@ -32,7 +32,7 @@ Claude Code lifecycle hooks: generated output, run by the harness, mirrored in p
 
 ## Constraints
 
-- A hand edit here is overwritten by the next build and fails the pre-PR row `Generated Artifact Staleness` (`build_all.py --check`); `Hook Template Drift` covers `src/claude/hooks/` and `.claude/settings.json` only.
+- A hand edit here is overwritten by the next build and fails the pre-PR row `Generated Artifact Staleness` (`build_all.py --check`); `Hook Template Drift` covers `src/claude/hooks/`, the repo-only files here, and `.claude/settings.json`.
 - New `PreToolUse`, `PostToolUse`, `PermissionRequest`, `PostToolUseFailure` registration: clear every MUST in `tool-use-hook-bar.md`.
 - `validate_group()` pins mode by event, never chosen: `PreToolUse` `gate`, stops at the first block; `UserPromptSubmit`/`Stop`/`SubagentStop` `gate_all`, runs all, exits first block else first non-zero; `PostToolUse`/`SessionStart`/`PreCompact` `observe`, runs all, exits 0, suppresses blocks. Any other event, `SessionEnd` included, exits 2 on every fire.
 - `invoke_dispatch_claude.py` exits 0 on a `.claude/lib` import failure, and in non-gate modes when the installed plugin runs inside this checkout (double-fire guard); bad manifest or dispatch exception exits 2, fail-closed.
