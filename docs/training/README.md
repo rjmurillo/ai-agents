@@ -22,7 +22,7 @@ Each entry names the issue that writes the page and who the page is for. An entr
 
 - `build-and-improve-skills.md` (#7208): skillforge, skillify, skillopt, skill-bootstrap, and skill-doctor. For skill authors.
 
-- `safe-agent-actions.md` (#7209): decision briefs, destructive-change safety, and evidence provenance. For everyone who runs agents.
+- [Keep an agent inside its authority and read what it reports](safe-agent-actions.md) (#7209): decision briefs, destructive-change safety, and evidence provenance. For everyone who runs agents.
 
 - `memory-and-learning.md` (#7210): memory with Serena, the retrospective nudge, and reflect. For everyone who runs agents.
 

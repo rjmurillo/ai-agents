@@ -1,8 +1,8 @@
-# Safe agent actions
+# Keep an agent inside its authority and read what it reports
 
 ## Goal
 
-You run agents that can write to your repository. This page shows how the toolkit keeps them inside their authority. It also shows how to read what they report.
+You run agents that can write to your repository. This page shows how the toolkit keeps them inside their authority. It also shows how to read what they report. It is for everyone who runs agents with write access.
 
 By the end you will have seen five things on your own machine:
 
@@ -19,8 +19,7 @@ The one result to check at the end: the destructive gate prints `PASS` for a thr
 You need:
 
 - A clean checkout of this repository, on `main`, with your shell at the repository root.
-- `python3` and `git` on your PATH.
-- `uv`, only if you run the optional test in step 1.
+- `uv` and `git` on your PATH. `uv run python` runs every script on this page.
 
 Read these two records first if you have five minutes. We link to them instead of copying them.
 
@@ -40,7 +39,7 @@ RWR="$REPO/scripts/run_with_receipt.py"
 
 ## Steps
 
-### Step 1: See which actions need a person
+**Step 1: See which actions need a person.**
 
 ADR-112 sorts every agent action into one of four tiers.
 
@@ -56,14 +55,14 @@ The agent cannot run a consequential command. The harness denies it. You run it 
 Check that two of the deny rules are in the rendered settings.
 
 ```bash
-python3 -c "import json; d = json.load(open('.claude/settings.json'))['permissions']['deny']; print('Bash(rm -rf *)' in d, 'Bash(git push -f *)' in d)"
+uv run python -c "import json; d = json.load(open('.claude/settings.json'))['permissions']['deny']; print('Bash(rm -rf *)' in d, 'Bash(git push -f *)' in d)"
 ```
 
 ```text
 True True
 ```
 
-### Step 2: Ask only when the choice is yours
+**Step 2: Ask only when the choice is yours.**
 
 An agent should not ask you about things it can decide. `decision-question` is the skill that sets the bar. It asks only when a real decision belongs to you, and it asks with a complete brief.
 
@@ -99,7 +98,7 @@ echo '{"context": {"material_decision": false}, "decisions": []}' > delegated.js
 Run the incomplete brief first.
 
 ```bash
-python3 "$DQ" --brief incomplete.json; echo "exit=$?"
+uv run python "$DQ" --brief incomplete.json; echo "exit=$?"
 ```
 
 ```text
@@ -124,8 +123,8 @@ exit=2
 The checker refuses to let the agent ask half a question. Now run the other two.
 
 ```bash
-python3 "$DQ" --brief complete.json > out.json; echo "exit=$?"; grep '"status"' out.json
-python3 "$DQ" --brief delegated.json > out.json; echo "exit=$?"; grep '"status"' out.json
+uv run python "$DQ" --brief complete.json > out.json; echo "exit=$?"; grep '"status"' out.json
+uv run python "$DQ" --brief delegated.json > out.json; echo "exit=$?"; grep '"status"' out.json
 ```
 
 ```text
@@ -139,7 +138,7 @@ exit=0
 
 The skill has more: split chains for five or more options, a `Hold` answer, and a pre-ask review for irreversible choices. Read [the skill](../../src/claude/skills/decision-question/SKILL.md) and [its protocol](../../src/claude/skills/decision-question/references/decision-brief-protocol.md) for those.
 
-### Step 3: Prove a delete before it runs
+**Step 3: Prove a delete before it runs.**
 
 `destructive-change-safety` makes an agent show the blast radius and the way back before it deletes anything. The gate decides. It fails closed.
 
@@ -173,7 +172,7 @@ git -c user.name=demo -c user.email=demo@example.com commit -q -m "demo: cleanup
 Scan for destructive sinks. Say which function you edited.
 
 ```bash
-python3 "$GATE" scan . --base . --changed remove_stale > scan.json; echo "exit=$?"; cat scan.json
+uv run python "$GATE" scan . --base . --changed remove_stale > scan.json; echo "exit=$?"; cat scan.json
 ```
 
 ```text
@@ -202,7 +201,7 @@ exit=0
 The scan found `os.remove` at `cleanup.py:7` and traced it from `main`. Next, count what the delete would touch, without touching it.
 
 ```bash
-python3 "$GATE" preview-files --root . --pattern 'tmp/*.tmp'
+uv run python "$GATE" preview-files --root . --pattern 'tmp/*.tmp'
 ```
 
 ```text
@@ -223,14 +222,14 @@ Your `root` line shows the real path of your demo folder. Everything else matche
 Run the check that covers the sink and record its real exit code. Then write the evidence file. The rollback is the commit you just made.
 
 ```bash
-python3 -m py_compile cleanup.py; echo "exit=$?"
+uv run python -m py_compile cleanup.py; echo "exit=$?"
 cat > evidence.json <<EOF
 {
   "sinks": [{"location": "cleanup.py:7", "trace": ["main", "remove_stale"]}],
   "preflight": {"command": "preview-files --root . --pattern tmp/*.tmp", "exit_code": 0, "measured": 3},
   "expected": 3,
   "rollback": {"kind": "version", "ref": "$(git rev-parse HEAD)"},
-  "checks": [{"command": "python3 -m py_compile cleanup.py", "exit_code": 0}]
+  "checks": [{"command": "uv run python -m py_compile cleanup.py", "exit_code": 0}]
 }
 EOF
 ```
@@ -242,7 +241,7 @@ exit=0
 Run the gate.
 
 ```bash
-python3 "$GATE" gate --evidence evidence.json --scan scan.json; echo "exit=$?"
+uv run python "$GATE" gate --evidence evidence.json --scan scan.json; echo "exit=$?"
 ```
 
 ```text
@@ -257,7 +256,7 @@ Now claim the delete will hit two files, not three, and run the gate again.
 
 ```bash
 sed 's/"expected": 3/"expected": 2/' evidence.json > evidence-wrong-count.json
-python3 "$GATE" gate --evidence evidence-wrong-count.json --scan scan.json; echo "exit=$?"
+uv run python "$GATE" gate --evidence evidence-wrong-count.json --scan scan.json; echo "exit=$?"
 ```
 
 ```text
@@ -272,7 +271,7 @@ exit=1
 
 The gate also blocks when the rollback is missing, the preflight did not run, or a check failed. A rollback of kind `irreversible` needs a human approval in the evidence. An agent never approves its own irreversible step, and the gate has no override. [The skill](../../src/claude/skills/destructive-change-safety/SKILL.md) lists every block reason and the `backup` and `snapshot` rollback kinds.
 
-### Step 4: Count independent proof, not files
+**Step 4: Count independent proof, not files.**
 
 An agent that writes code and then writes the test for it has made one loop of evidence. Both artifacts share one reading of the requirement. `evidence-provenance` counts loops, not files, and gives every named check one of four states: `VERIFIED`, `NOT RUN`, `UNAVAILABLE`, or `FAILED`.
 
@@ -305,7 +304,7 @@ cat > inflated.json <<'EOF'
   ]
 }
 EOF
-python3 "$CLS" inflated.json > out.json; echo "exit=$?"; python3 show.py out.json
+uv run python "$CLS" inflated.json > out.json; echo "exit=$?"; uv run python show.py out.json
 ```
 
 ```text
@@ -331,7 +330,7 @@ cat > corroborated.json <<'EOF'
   ]
 }
 EOF
-python3 "$CLS" corroborated.json > out.json; echo "exit=$?"; python3 show.py out.json
+uv run python "$CLS" corroborated.json > out.json; echo "exit=$?"; uv run python show.py out.json
 ```
 
 ```text
@@ -360,7 +359,7 @@ cat > states.json <<'EOF'
   ]
 }
 EOF
-python3 "$CLS" states.json > out.json; echo "exit=$?"; python3 show.py out.json
+uv run python "$CLS" states.json > out.json; echo "exit=$?"; uv run python show.py out.json
 ```
 
 ```text
@@ -370,7 +369,7 @@ SINGLE_LOOP 0 [] [{'rule': 'cheap-gate-not-run', 'subject': 'lint'}]
 
 Lint is cheap and available, and nobody ran it. The classifier warns. If the report leaned on that unrun check (`"used_as_support": true`), the classifier would exit `1` with `unverified-support`. A `NOT RUN` check cannot back a conclusion. A check named with no state, or with words like "should run" or "pending", is also a violation. Expensive or credentialed checks are never required. The duty is to report their state honestly. The skill carries the full model: [SKILL.md](../../src/claude/skills/evidence-provenance/SKILL.md) and [the lineage model](../../src/claude/skills/evidence-provenance/references/lineage-model.md).
 
-### Step 5: Keep long output out of the agent's context
+**Step 5: Keep long output out of the agent's context.**
 
 `run_with_receipt.py` is opt-in. Nothing wraps your commands for you, because no tool-use hook may intercept output. An agent calls the wrapper on purpose when a command will print thousands of lines.
 
@@ -378,7 +377,7 @@ Run it from the repository root. The cap here is low so you can see a receipt.
 
 ```bash
 cd "$REPO"
-python3 "$RWR" run --max-inline-bytes 1024 -- seq 1 2000 > "$WORK/receipt.txt"; echo "exit=$?"
+uv run python "$RWR" run --max-inline-bytes 1024 -- seq 1 2000 > "$WORK/receipt.txt"; echo "exit=$?"
 grep -E '^(command|exit_code|total_bytes|exposed_bytes|truncated)' "$WORK/receipt.txt"
 ```
 
@@ -395,7 +394,7 @@ The full output went to a file. The agent sees the receipt, a head, and a tail. 
 
 ```bash
 ART="$(sed -n 's/^artifact: //p' "$WORK/receipt.txt")"
-python3 "$RWR" read "$ART" --offset 0 --length 6
+uv run python "$RWR" read "$ART" --offset 0 --length 6
 ```
 
 ```text
@@ -411,7 +410,7 @@ The `[range ...]` line goes to stderr, so it shows in your terminal but not in a
 The wrapper returns the command's own exit code, so a failing test still looks failed.
 
 ```bash
-python3 "$RWR" run -- sh -c 'exit 7'; echo "exit=$?"
+uv run python "$RWR" run -- sh -c 'exit 7'; echo "exit=$?"
 ```
 
 ```text
@@ -420,7 +419,7 @@ exit=7
 
 The wrapper redacts secrets before anything reaches disk. Saved files land in `.project-toolkit/temp/tool-output`, which git ignores. The [script header](../../scripts/run_with_receipt.py) lists the options and the wrapper's own exit codes.
 
-### Step 6: Know when the agent stops
+**Step 6: Know when the agent stops.**
 
 ADR-105 says when work is done. The rule text is short:
 
@@ -428,16 +427,16 @@ ADR-105 says when work is done. The rule text is short:
 
 A second rule, the completion-tail audit, shapes the last message. After the agent reports a finished result, it removes any offer or question that only keeps the chat going. "Want me to...?" and "Let me know if..." do not belong there. A real blocking question still does.
 
-Confirm both rules are in your checkout.
+Confirm both rules are in your checkout. Each command counts the matching heading, so each prints `1`.
 
 ```bash
-grep '^### Terminal predicate' .claude/rules/builder-ethos.md
-grep '^## Completion-Tail Audit' .claude/rules/voice.md
+grep -c '^### Terminal predicate' .claude/rules/builder-ethos.md
+grep -c '^## Completion-Tail Audit' .claude/rules/voice.md
 ```
 
 ```text
-### Terminal predicate
-## Completion-Tail Audit
+1
+1
 ```
 
 When you see an agent stop on its result, that is the design. When you want more work, ask for it in a new request.
@@ -453,11 +452,11 @@ You finished if you saw all of these:
 | 3 | `PASS` with `exit=0`, then `BLOCK` with `exit=1` and the cardinality reason |
 | 4 | `inflated-confidence` with `exit=1`, then `CORROBORATED 1`, then a `cheap-gate-not-run` warning |
 | 5 | A receipt with `truncated: true`, a ranged read, and `exit=7` |
-| 6 | Two matching headings |
+| 6 | `1` and `1` |
 
 The two results that matter most are the `PASS` in step 3 and the `CORROBORATED` in step 4. Together they show a delete with a measured scope and a rollback, and a claim with one counted independent loop.
 
-## If a step fails
+**If a step fails.**
 
 - **A command says `No such file`.** You ran it outside the repository root, or `$REPO` is unset. Run `cd` to your checkout and set the variables again.
 - **`decision_question.py` exits 1.** The brief JSON is malformed, an answer is not one of the options, or an ID repeats.
@@ -468,16 +467,15 @@ The two results that matter most are the `PASS` in step 3 and the `CORROBORATED`
 
 Clean up by deleting the demo folder printed by `echo "$WORK"`.
 
-## Go deeper
+## Next
 
-Reference sources. We do not copy them here, so they stay the single owner of each rule.
+The next page in reading order is `memory-and-learning.md` (#7210). It has no page yet. The [training index](README.md) lists every unit.
 
-- Action tiers: [ADR-112](../../.project-toolkit/architecture/ADR-112-risk-tiered-action-boundaries.md), and the deny-rule test `tests/test_action_tier_deny_rules.py`.
+Reference sources for this page. We link to them so each rule keeps one owner.
+
+- Action tiers: [ADR-112](../../.project-toolkit/architecture/ADR-112-risk-tiered-action-boundaries.md), and the deny-rule test [`tests/test_action_tier_deny_rules.py`](../../tests/test_action_tier_deny_rules.py).
 - Why the guardrails exist: [Technical Guardrails](../technical-guardrails.md) explains the failure that led to enforcing protocol with automation instead of trust.
 - How agent limits are kept explicit: [Agent System Governance](../agent-governance.md), design principle 3.
 - Done means done: [ADR-105](../../.project-toolkit/architecture/ADR-105-terminal-state-completion-contract.md).
 - Skills: [decision-question](../../src/claude/skills/decision-question/SKILL.md), [destructive-change-safety](../../src/claude/skills/destructive-change-safety/SKILL.md), [evidence-provenance](../../src/claude/skills/evidence-provenance/SKILL.md).
-
-## Next
-
-Return to the [training index](README.md) for the next page.
+- Scripts: [`scripts/run_with_receipt.py`](../../scripts/run_with_receipt.py).
