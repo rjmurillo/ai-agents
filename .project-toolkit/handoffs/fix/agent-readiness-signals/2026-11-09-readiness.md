@@ -29,10 +29,8 @@ The latest main integration exposed three additional preflight failures.
 The operator authorized bounded integration repairs and one replacement reviewer.
 Both portability gates and whole-corpus duplication now pass focused rechecks.
 Neither baseline changed during these integration repairs.
-Quality cleanup now passes working-tree regression and focused checks.
-These source repairs are committed with normal hooks.
-The operator accepted the measured size advisories without changing gates.
-Full exact-tip acceptance has not run on these repairs.
+Quality cleanup is committed and passes focused checks.
+Full exact-tip acceptance has not run; the operator accepted the recorded advisories.
 
 ## State Record
 
@@ -273,28 +271,11 @@ Current projections match their canonical helper.
 
 ## Stop Conditions
 
-The latest cleanup evidence is working-tree evidence, not final acceptance.
-On 2026-11-10, the quality regression command returned zero.
-The new AST support helper also passed absolute quality assessment.
-On 2026-11-10, focused regression passed 3114 tests in 84.68 seconds.
-On 2026-11-10, normal Ruff checks passed; formatting passed across 118 source paths.
-On 2026-11-10, mypy passed for five changed support modules.
-On 2026-11-10, immutable-source comparison matched all 28 instrument entries.
-The table receipt is `.project-toolkit/scratch/readiness-quality-table-conformance.json`.
-New form names follow kebab-case without changing their contents.
-The filename-only test update retains every privacy and required-field assertion.
-On 2026-11-10, authority validation accepted 27 targets without defects.
-Neither baseline, quality configuration, dependencies, nor privacy settings changed.
-On 2026-11-10, taste examined 550 selected files: zero errors and 11 size warnings.
-On 2026-11-10, all three additional new paths passed taste without warnings.
-Every remaining warning concerns a branch-added file below the hard size limit.
-The operator replaced the zero-touched-warning target with zero errors and these accepted advisories.
-The decision record is `.project-toolkit/scratch/readiness-size-warning-decision.json`.
-The recorded answer accepts only these advisories, not baseline redesign or new allowances.
-No reviewer ran during this cleanup.
-On 2026-11-10, one review slot was consumed; fourteen remain within the approved fifteen.
-Full preflight, full regression, documentation checks, and orphan checks do not certify this cleanup.
-No review marker, successful push, PR creation, or merge occurred during this cleanup.
+Working-tree proof is not full acceptance.
+On 2026-11-10, cleanup passed 3114 tests, quality, Ruff, and five-module mypy.
+On 2026-11-10, all 28 instrument entries matched immutable source.
+The operator accepted only advisories in `.project-toolkit/scratch/readiness-size-warning-decision.json`.
+On 2026-11-10, one of fifteen review slots was consumed; fourteen remain.
 
 Do not push or create a review marker while preflight remains failed.
 Do not repair upstream tool code without a bounded scope decision.
