@@ -41,7 +41,7 @@ class TestRun:
         demo = tmp_path / "demo"
         claude = demo / ".claude"
         (claude / "lib").mkdir(parents=True)
-        (claude / "lib" / "paths.py").write_text("x = 1\n")
+        (claude / "lib" / "paths.py").write_text("x = 1\n", encoding="utf-8")
 
         with patch.dict(os.environ, {"DEMO": str(demo)}):
             assert run() == 0
@@ -53,7 +53,7 @@ class TestRun:
         demo = tmp_path / "demo"
         claude = demo / ".claude"
         claude.mkdir(parents=True)
-        (claude / name).write_text("maintainer")
+        (claude / name).write_text("maintainer", encoding="utf-8")
 
         with patch.dict(os.environ, {"DEMO": str(demo)}):
             assert run() == 1
@@ -63,7 +63,7 @@ class TestRun:
         demo = tmp_path / "demo"
         skill = demo / ".claude" / "skills" / "memory"
         skill.mkdir(parents=True)
-        (skill / "CLAUDE.md").write_text("skill-level")
+        (skill / "CLAUDE.md").write_text("skill-level", encoding="utf-8")
 
         with patch.dict(os.environ, {"DEMO": str(demo)}):
             assert run() == 0
@@ -72,7 +72,7 @@ class TestRun:
         # The CLI merges its block into <project>/CLAUDE.md; only .claude/CLAUDE.md is banned.
         demo = tmp_path / "demo"
         (demo / ".claude").mkdir(parents=True)
-        (demo / "CLAUDE.md").write_text("consumer")
+        (demo / "CLAUDE.md").write_text("consumer", encoding="utf-8")
 
         with patch.dict(os.environ, {"DEMO": str(demo)}):
             assert run() == 0
@@ -81,7 +81,7 @@ class TestRun:
         demo = tmp_path / "demo"
         claude = demo / ".claude"
         claude.mkdir(parents=True)
-        (claude / "settings.json").write_text("{}")
+        (claude / "settings.json").write_text("{}", encoding="utf-8")
 
         with patch.dict(os.environ, {"DEMO": str(demo)}):
             assert run() == 1

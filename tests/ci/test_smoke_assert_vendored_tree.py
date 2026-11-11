@@ -22,14 +22,14 @@ def _make_tree(demo: Path, *, script_body: str = OK_SCRIPT) -> Path:
     (claude / "agents").mkdir(parents=True)
     (claude / "skills").mkdir()
     (claude / "lib").mkdir()
-    (claude / "lib" / "paths.py").write_text("x = 1\n")
+    (claude / "lib" / "paths.py").write_text("x = 1\n", encoding="utf-8")
     for relative in PROBE_SCRIPTS:
         script = claude / relative
         script.parent.mkdir(parents=True, exist_ok=True)
-        script.write_text(script_body)
-    (demo / "CLAUDE.md").write_text("x")
-    (demo / "AGENTS.md").write_text("x")
-    (claude / ".ai-agents-version.json").write_text("{}")
+        script.write_text(script_body, encoding="utf-8")
+    (demo / "CLAUDE.md").write_text("x", encoding="utf-8")
+    (demo / "AGENTS.md").write_text("x", encoding="utf-8")
+    (claude / ".ai-agents-version.json").write_text("{}", encoding="utf-8")
     return claude
 
 
@@ -85,7 +85,7 @@ class TestRun:
         demo = tmp_path / "demo"
         claude = _make_tree(demo)
         broken = claude / PROBE_SCRIPTS[0]
-        broken.write_text("raise RuntimeError('lib directory not found')\n")
+        broken.write_text("raise RuntimeError('lib directory not found')\n", encoding="utf-8")
 
         with patch.dict(os.environ, {"DEMO": str(demo)}):
             assert run() == 1
@@ -111,12 +111,12 @@ class TestRun:
             "pathlib.Path(sys.argv[0]).with_suffix('.mark').write_text(' '.join(sys.argv[1:]))\n"
         )
         for relative in PROBE_SCRIPTS:
-            (claude / relative).write_text(body)
+            (claude / relative).write_text(body, encoding="utf-8")
 
         with patch.dict(os.environ, {"DEMO": str(demo)}):
             assert run() == 0
         for relative in PROBE_SCRIPTS:
-            assert (claude / relative).with_suffix(".mark").read_text() == "--help"
+            assert (claude / relative).with_suffix(".mark").read_text(encoding="utf-8") == "--help"
 
     def test_probe_drops_lib_redirecting_env_so_it_cannot_mask_a_missing_lib(
         self, tmp_path: Path
