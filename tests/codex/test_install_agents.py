@@ -165,6 +165,27 @@ def test_namespaced_file_survives_a_later_plain_run_and_upgrades(world):
     assert b"theirs" in (target / "qa.toml").read_bytes()
 
 
+def test_deleted_namespaced_copy_is_reinstalled_and_reruns_agree(world):
+    target = _target(world)
+    target.mkdir(parents=True)
+    (target / "qa.toml").write_bytes(_agent("qa", "theirs"))
+    _run(world, "--namespace", "tk")
+    (target / "tk-qa.toml").unlink()
+    assert _run(world) == 0
+    assert tomllib.loads((target / "tk-qa.toml").read_text())["name"] == "tk-qa"
+    assert "tk-qa.toml" in _record(world)["files"]
+    assert _run(world) == 0
+    assert b"theirs" in (target / "qa.toml").read_bytes()
+
+
+def test_directory_under_an_agent_name_is_a_conflict_and_nothing_is_written(world, capsys):
+    target = _target(world)
+    (target / "qa.toml").mkdir(parents=True)
+    assert _run(world) == 1
+    assert sorted(p.name for p in target.iterdir()) == ["qa.toml"]
+    assert "CONFLICT: qa.toml" in capsys.readouterr().err
+
+
 def test_namespaced_name_collision_refuses(world, capsys):
     target = _target(world)
     target.mkdir(parents=True)

@@ -151,7 +151,10 @@ def _disk_hash(path: Path) -> str | None:
     """Hash of the file at ``path``; ``None`` when absent. A symlink hashes as its own marker."""
     if path.is_symlink():
         return "symlink"
-    return sha256_hex(path.read_bytes()) if path.is_file() else None
+    if path.is_file():
+        return sha256_hex(path.read_bytes())
+    # A directory or other non-file under an agent name is never ours: a conflict.
+    return "not-a-file" if path.exists() else None
 
 
 def _decide(
@@ -202,6 +205,12 @@ def _plan_owned_leftovers(
         source = owned.sources.get(name)
         current = _disk_hash(target / name)
         if current is None:
+            if source in shipped:
+                # The user deleted a namespaced copy while its source still clashes:
+                # reinstall it, so two identical runs give the same answer.
+                prefix = name[: -len(source) - 1]
+                data = namespaced_bytes(shipped[source], prefix, source)
+                _decide(plan, target, name, data, owned, source)
             continue
         if current != owned.files[name]:
             plan.warnings.append(f"{name} was edited after install; leaving it and its record")
