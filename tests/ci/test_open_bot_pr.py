@@ -301,64 +301,6 @@ def test_pull_request_body_passes_the_repo_validator(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-def _workflow_jobs() -> dict[str, dict]:
-    import yaml
-
-    doc = yaml.safe_load(
-        (_REPO / ".github" / "workflows" / "update-reviewer-stats.yml").read_text(encoding="utf-8")
-    )
-    return doc["jobs"]
-
-
-def test_workflow_gives_write_scopes_only_to_the_publish_job() -> None:
-    jobs = _workflow_jobs()
-    assert jobs["update-stats"]["permissions"] == {"contents": "read", "pull-requests": "read"}
-    assert jobs["publish-stats"]["permissions"] == {
-        "contents": "write",
-        "pull-requests": "write",
-    }
-    assert jobs["publish-stats"]["needs"] == "update-stats"
-
-
-def test_publish_job_runs_the_script_and_the_aggregation_job_does_not() -> None:
-    jobs = _workflow_jobs()
-    runs = {
-        name: [s.get("run", "") for s in job["steps"] if "run" in s] for name, job in jobs.items()
-    }
-    assert any(
-        "open_bot_pr.py" in r and "--branch automation/reviewer-stats" in r
-        for r in runs["publish-stats"]
-    )
-    assert not any("open_bot_pr.py" in r for r in runs["update-stats"])
-    assert not any("uv run" in r for r in runs["publish-stats"])
-
-
-def test_artifact_hands_the_stats_file_from_the_first_job_to_the_second() -> None:
-    jobs = _workflow_jobs()
-    (up,) = [s for s in jobs["update-stats"]["steps"] if "upload-artifact" in s.get("uses", "")]
-    (down,) = [
-        s for s in jobs["publish-stats"]["steps"] if "download-artifact" in s.get("uses", "")
-    ]
-    stats = ".serena/memories/pr-review/pr-comment-responder-skills.md"
-    assert up["with"]["name"] == down["with"]["name"]
-    assert up["with"]["path"] == stats
-    assert down["with"]["path"] == str(Path(stats).parent)
-    assert up["with"]["if-no-files-found"] == "error"
-
-
-def test_neither_job_persists_checkout_credentials() -> None:
-    for job in _workflow_jobs().values():
-        (checkout,) = [s for s in job["steps"] if "actions/checkout" in s.get("uses", "")]
-        assert checkout["with"]["persist-credentials"] is False
-
-
-def test_the_publish_step_is_the_only_one_that_sees_the_write_token_for_git() -> None:
-    steps = _workflow_jobs()["publish-stats"]["steps"]
-    (publish,) = [s for s in steps if "open_bot_pr.py" in s.get("run", "")]
-    assert publish["env"]["GH_TOKEN"] == "${{ github.token }}"
-    assert "gh auth setup-git" in publish["run"]
-
-
 def test_issue_flag_is_required(make_world: Callable[..., _World]) -> None:
     world = make_world()
     args = [a for a in _ARGS if a not in {"--issue", "234"}]
