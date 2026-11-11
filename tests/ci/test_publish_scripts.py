@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -61,7 +62,7 @@ class TestVerifyNpmPackageMetadata:
         ],
     )
     def test_missing_or_foreign_repository_fails(self, tmp_path: Path, repository: object) -> None:
-        pkg = {k: v for k, v in _VALID_PKG.items() if k != "repository"}
+        pkg: dict[str, Any] = {k: v for k, v in _VALID_PKG.items() if k != "repository"}
         if repository is not None:
             pkg["repository"] = repository
         _write_pkg(tmp_path / "package.json", pkg)
