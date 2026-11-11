@@ -188,7 +188,7 @@ Three cases come up most:
   the measured reason: the stage, the job, the rerun output, and the commit it
   failed on. The runbook's Escalate section says where to file it.
 
-Never use `git commit --no-verify` or `git push --no-verify`. Do not set
+Never skip a hook with the `--no-verify` flag on a commit or a push. Do not set
 `LEFTHOOK=0` or edit `.git/hooks`. ADR-086 item 11 calls these local bypasses
 and repository policy forbids using them to skip a required check. CI runs the
 same checks and will block the pull request.
