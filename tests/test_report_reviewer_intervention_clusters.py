@@ -445,3 +445,51 @@ def test_main_maps_api_failures_to_external_or_auth(
 
     assert rep.main(["--output", "r.json"], graphql=boom) == expected
     assert not (workspace / "r.json").exists()
+
+
+def _report(cluster_count: int) -> dict[str, Any]:
+    clusters = [
+        {
+            "signal": "rule",
+            "key": f"ADR-{n:03d}",
+            "unit": "pull_request",
+            "count": 3,
+            "evidence": [{"pr": p, "threads": [f"T{p}"]} for p in (1, 2, 3)],
+        }
+        for n in range(cluster_count)
+    ]
+    return {
+        "as_of": "2026-11-11",
+        "cluster_count": cluster_count,
+        "clusters": clusters,
+        "examined": {"interventions": 3, "pull_requests": 9},
+        "repository": "o/r",
+        "threshold": 3,
+        "window_days": 90,
+    }
+
+
+@pytest.mark.parametrize("count", [0, 1, 40])
+def test_render_report_round_trips_as_valid_json(count: int) -> None:
+    report = _report(count)
+
+    text = rep.render_report(report)
+
+    assert json.loads(text) == report
+    assert text.endswith("}\n")
+
+
+def test_render_report_keeps_one_line_per_cluster() -> None:
+    text = rep.render_report(_report(40))
+
+    assert len(text.splitlines()) == 40 + 10
+
+
+def test_render_report_orders_keys_so_a_daily_diff_is_stable() -> None:
+    keys = [
+        line.split('"')[1]
+        for line in rep.render_report(_report(1)).splitlines()
+        if line.startswith('  "')
+    ]
+
+    assert keys == sorted(keys)

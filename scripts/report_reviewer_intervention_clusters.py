@@ -313,6 +313,23 @@ def build_report(
     }
 
 
+def render_report(report: dict[str, Any]) -> str:
+    """Serialize with one field per line and one cluster per line.
+
+    A daily diff stays readable and the file stays short; indent=2 would give
+    each cluster's evidence its own lines.
+    """
+    fields: dict[str, str] = {}
+    for key, value in report.items():
+        if key == "clusters":
+            rows = ",\n".join(f"    {json.dumps(c, sort_keys=True)}" for c in value)
+            fields[key] = f"[\n{rows}\n  ]" if rows else "[]"
+        else:
+            fields[key] = json.dumps(value, sort_keys=True)
+    body = ",\n".join(f"  {json.dumps(k)}: {fields[k]}" for k in sorted(fields))
+    return "{\n" + body + "\n}\n"
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--owner", default="")
@@ -360,7 +377,7 @@ def main(argv: list[str] | None = None, *, graphql: GraphQL | None = None) -> in
         logger.error("report not written, GitHub request failed: %s", exc)
         return EXIT_AUTH if "auth" in text or "401" in text else EXIT_EXTERNAL
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    output.write_text(render_report(report), encoding="utf-8")
     examined = report["examined"]
     logger.info(
         "%d clusters in %d interventions (%d in window) across %d agent PRs "
