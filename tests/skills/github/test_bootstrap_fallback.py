@@ -12,12 +12,11 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-import textwrap
 from pathlib import Path
 
 import pytest
 
-from tests.test_plugin_path_resolution import _skill_resolution_source
+from tests.plugin_bootstrap_helpers import skill_resolution_source as _skill_resolution_source
 
 # Absolute path to the skills scripts dir, independent of cwd.
 _SCRIPTS_DIR = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "github" / "scripts"
@@ -170,8 +169,7 @@ class TestBootstrapFallbackIsolating:
         # Use repr() for the path so Windows backslashes are safely escaped.
         old_bootstrap = tmp_path / "old_bootstrap_demo.py"
         old_bootstrap.write_text(
-            textwrap.dedent(
-                f"""\
+            f"""\
 import os, sys
 _plugin_root = {repr(str(fake_plugin))}  # blindly trust
 if _plugin_root:  # old behavior: no isdir check
@@ -182,7 +180,6 @@ if not os.path.isdir(_lib_dir):
     print(f"Plugin lib directory not found: {{_lib_dir}}", file=sys.stderr)
     sys.exit(2)
 """
-            )
         )
         result = subprocess.run(
             [sys.executable, str(old_bootstrap)],

@@ -202,7 +202,7 @@ def test_entrypoint_delegates_shared_bootstrap(entrypoint: str, tmp_path: Path) 
 def test_path_validation_reads_only_actual_shared_delegation(
     delegation: str, tmp_path: Path
 ) -> None:
-    from tests import test_plugin_path_resolution as contract
+    from tests import plugin_bootstrap_helpers as contract
 
     script = tmp_path / "scripts/pr/consumer.py"
     script.parent.mkdir(parents=True)
@@ -224,11 +224,11 @@ def test_path_validation_reads_only_actual_shared_delegation(
     helper = script.parent.parent / "skill_bootstrap.py"
     helper.write_text(helper_source, encoding="utf-8")
 
-    resolved = contract._skill_resolution_source(script)
+    resolved = contract.skill_resolution_source(script)
 
     assert (helper_source in resolved) == (delegation == "actual")
     helper.unlink()
-    assert contract._skill_resolution_source(script) == source
+    assert contract.skill_resolution_source(script) == source
 
 
 @pytest.mark.parametrize("workspace", [None, "workspace", ""])
