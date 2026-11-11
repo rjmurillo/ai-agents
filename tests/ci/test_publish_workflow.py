@@ -17,6 +17,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 PUBLISH = ROOT / ".github" / "workflows" / "publish.yml"
+CLI_SMOKE = ROOT / ".github" / "workflows" / "cli-smoke.yml"
 SHA_PIN = re.compile(r"^[^@\s]+@[0-9a-f]{40}$")
 
 
@@ -210,7 +211,7 @@ def test_candidate_package_commands_run_only_in_the_candidate_directory(
     workflow: dict[str, Any],
 ) -> None:
     for step in _steps(workflow, "build"):
-        if re.search(r"\bnpm (ci|run|pack)\b", str(step.get("run", ""))):
+        if re.search(r"\b(npm|bun) (ci|install|run|pack)\b", str(step.get("run", ""))):
             assert step["working-directory"] == "${{ env.PACKAGE_DIR }}"
     assert workflow["env"]["PACKAGE_DIR"] == "packages/ai-agents-cli"
 
@@ -279,3 +280,59 @@ def test_the_tag_route_is_refused_by_the_first_job_and_nothing_downstream_runs_w
         needs = jobs[name]["needs"]
         assert "resolve" in (needs if isinstance(needs, list) else [needs])
     assert jobs["resolve"]["outputs"]["candidate_sha"] == "${{ steps.route.outputs.candidate_sha }}"
+
+
+# The tarball the smoke matrix installs and the tarball the release publishes must be
+# built the same way (issue #7231). Before this, publish ran `npm ci` (the package has
+# only a bun.lock, so it fails) and `npm run build`, which never runs the bundle step,
+# so the published tarball would have shipped without bundle/assets/.
+_SHARED_BUILD_STEPS = ("Setup Bun", "Build bundle", "Build dist")
+
+
+def _step(workflow: dict[str, Any], job: str, name: str) -> dict[str, Any]:
+    matches = [s for s in _steps(workflow, job) if s.get("name") == name]
+    assert len(matches) == 1, f"{job}: expected exactly one step named {name!r}"
+    return matches[0]
+
+
+@pytest.fixture(scope="module")
+def smoke() -> dict[str, Any]:
+    document = yaml.safe_load(CLI_SMOKE.read_text(encoding="utf-8"))
+    assert isinstance(document, dict)
+    return document
+
+
+@pytest.mark.parametrize("name", _SHARED_BUILD_STEPS)
+def test_publish_builds_with_the_same_step_as_the_smoke_matrix(
+    workflow: dict[str, Any], smoke: dict[str, Any], name: str
+) -> None:
+    published = _step(workflow, "build", name)
+    smoked = _step(smoke, "smoke", name)
+    for key in ("uses", "with", "run"):
+        assert published.get(key) == smoked.get(key), f"{name}: {key} differs"
+
+
+def test_publish_builds_in_the_directory_the_smoke_matrix_builds_in(
+    workflow: dict[str, Any], smoke: dict[str, Any]
+) -> None:
+    smoke_dir = smoke["jobs"]["smoke"]["defaults"]["run"]["working-directory"]
+    assert workflow["env"]["PACKAGE_DIR"] == smoke_dir
+    for name in ("Build bundle", "Build dist"):
+        step = _step(workflow, "build", name)
+        assert step["working-directory"] == "${{ env.PACKAGE_DIR }}"
+
+
+def test_the_build_steps_run_before_the_tarball_is_packed(workflow: dict[str, Any]) -> None:
+    names = _names(workflow, "build")
+    packed = names.index("Pack the tarball once")
+    for name in _SHARED_BUILD_STEPS:
+        assert names.index(name) < packed
+    assert names.index("Setup Bun") < names.index("Build bundle") < names.index("Build dist")
+
+
+def test_publish_does_not_install_with_npm_ci_the_package_has_no_npm_lockfile(
+    workflow: dict[str, Any],
+) -> None:
+    assert not (ROOT / "packages" / "ai-agents-cli" / "package-lock.json").exists()
+    runs = [str(s.get("run", "")) for s in _steps(workflow, "build")]
+    assert not any("npm ci" in run for run in runs)

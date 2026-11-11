@@ -125,6 +125,15 @@ jobs:
         with:
           node-version: 'lts/*'
 
+      # Same bun pin and build commands as the cli-smoke matrix, so the tarball
+      # published is built the way the smoke jobs install it (issue #7231).
+      # tests/ci/test_publish_workflow.py compares the two workflows.
+      - name: Setup Bun
+        # yamllint disable-line rule:line-length
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6  # v2.2.0
+        with:
+          bun-version: 1.4.4
+
       - name: Verify package metadata
         run: python3 scripts/ci/verify_npm_package_metadata.py --package-dir "$PACKAGE_DIR"
 
@@ -135,13 +144,13 @@ jobs:
           python3 scripts/ci/resolve_publish_route.py tag-version
           --package-dir "$PACKAGE_DIR" --release-tag "$RELEASE_TAG"
 
-      - name: Install dependencies
+      - name: Build bundle
         working-directory: ${{ env.PACKAGE_DIR }}
-        run: npm ci
+        run: bun run scripts/build-bundle.ts
 
-      - name: Build
+      - name: Build dist
         working-directory: ${{ env.PACKAGE_DIR }}
-        run: npm run build --if-present
+        run: bun run build
 
       - name: Measure pack size
         run: python3 scripts/ci/measure_npm_pack_size.py --package-dir "$PACKAGE_DIR"
