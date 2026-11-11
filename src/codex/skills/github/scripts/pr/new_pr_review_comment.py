@@ -42,6 +42,9 @@ if not os.path.isdir(_lib_dir):
     sys.exit(2)  # Config error per ADR-035
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
+_script_dir = os.path.dirname(__file__)
+if _script_dir not in sys.path:
+    sys.path.insert(0, _script_dir)
 
 from github_core.api import (
     GhAuthStatus,
@@ -58,12 +61,24 @@ from github_core.output import (
     write_skill_output,
 )
 from github_core.validation import assert_valid_body_file, inline_body_error, read_body_file_text
+from pr_comment_dedupe import (
+    LOOKUP_TIMEOUT_SECONDS,
+    body_matches,
+    comments_at_line,
+    first_by_author,
+    flatten_pages,
+    paginated_args,
+)
 
 _SIDES = ("LEFT", "RIGHT")
 _HEAD_SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 _HTTP_STATUS_PATTERN = re.compile(r"\bHTTP\s+(\d{3})\b|\"status\"\s*:\s*\"(\d{3})\"")
 _API_TIMEOUT_SECONDS = 30
 _SCRIPT_NAME = "new_pr_review_comment.py"
+_NOTHING_POSTED = (
+    "Nothing was posted. Retry the same command: the post waits for a complete read "
+    "so a retry never duplicates."
+)
 _RATE_LIMITED = frozenset({GhAuthStatus.RATE_LIMITED, GhAuthStatus.SECONDARY_RATE_LIMITED})
 
 
@@ -91,11 +106,16 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --pull-request 123 --path src/app.py --line 42 --body "Guard against None here"
   %(prog)s --pull-request 123 --path src/app.py --line 42 --side LEFT --body-file note.md
+  %(prog)s --pull-request 123 --path src/app.py --line 42 --body "Guard against None" --dry-run
+
+A retry is safe: when the same author already posted an identical body on this
+path, line, and side, nothing is posted. The result reports action SKIP, reason
+duplicate, and the existing comment_id.
 
 exit codes:
-  0  success
-  2  config/usage error
-  3  external error (API failure, rate limit, timeout)
+  0  success (posted, previewed with --dry-run, or skipped as a duplicate)
+  2  config/usage error, or the pull request was not found
+  3  external error (API failure, rate limit, timeout, or a failed duplicate check)
   4  auth error (not authenticated, permission denied)
 """
 
@@ -182,7 +202,9 @@ def _fail(action: str, result: subprocess.CompletedProcess[str], notfound: str) 
     raise CommentApiError(f"Failed to {action}: {detail}", exit_code, error_type)
 
 
-def _run_gh_api(args: list[str], action: str) -> subprocess.CompletedProcess[str]:
+def _run_gh_api(
+    args: list[str], action: str, timeout: int = _API_TIMEOUT_SECONDS
+) -> subprocess.CompletedProcess[str]:
     try:
         return subprocess.run(
             ["gh", "api", *args],
@@ -190,12 +212,12 @@ def _run_gh_api(args: list[str], action: str) -> subprocess.CompletedProcess[str
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=_API_TIMEOUT_SECONDS,
+            timeout=timeout,
             check=False,
         )
     except subprocess.TimeoutExpired:
         raise CommentApiError(
-            f"Timed out after {_API_TIMEOUT_SECONDS}s trying to {action}", 3, "Timeout"
+            f"Timed out after {timeout}s trying to {action}", 3, "Timeout"
         ) from None
 
 
@@ -233,6 +255,85 @@ def _get_head_sha(owner: str, repo: str, pr: int) -> str:
             f"Unexpected head commit for {owner}/{repo}#{pr}: {sha[:80]!r}", 3, "ApiError"
         )
     return sha
+
+
+def _read_all_pages(endpoint: str, action: str, notfound: str) -> list[dict[str, Any]]:
+    """Read every page of ``endpoint`` or raise; a partial read never counts as "no duplicate"."""
+    try:
+        result = _run_gh_api(paginated_args(endpoint), action, LOOKUP_TIMEOUT_SECONDS)
+        if result.returncode != 0:
+            _fail(action, result, notfound)
+        try:
+            return flatten_pages(result.stdout)
+        except ValueError as exc:
+            raise CommentApiError(
+                f"Failed to {action}: unreadable response ({exc})", 3, "ApiError"
+            ) from None
+    except CommentApiError as failure:
+        raise CommentApiError(
+            f"{failure.message}. {_NOTHING_POSTED}", failure.exit_code, failure.error_type
+        ) from None
+
+
+def _authenticated_login() -> str:
+    action = "read the authenticated user to check for a duplicate"
+    try:
+        result = _run_gh_api(["user", "--jq", ".login"], action)
+        if result.returncode != 0:
+            _fail(action, result, "Authenticated user not found")
+    except CommentApiError as failure:
+        raise CommentApiError(
+            f"{failure.message}. {_NOTHING_POSTED}", failure.exit_code, failure.error_type
+        ) from None
+    login = (result.stdout or "").strip()
+    if not login:
+        raise CommentApiError(
+            f"Failed to {action}: gh returned an empty login. {_NOTHING_POSTED}", 3, "ApiError"
+        )
+    return login
+
+
+def _find_duplicate(
+    owner: str, repo: str, args: argparse.Namespace, body: str
+) -> dict[str, Any] | None:
+    """Return an earlier comment by the same author with an identical body at this spot.
+
+    The authenticated user is looked up only when some comment at the spot has the
+    same body, so the common first post costs one read.
+    """
+    pr = args.pull_request
+    comments = _read_all_pages(
+        f"repos/{owner}/{repo}/pulls/{pr}/comments",
+        f"read the review comments of {owner}/{repo}#{pr} to check for a duplicate",
+        f"Pull request {owner}/{repo}#{pr} not found",
+    )
+    same_body = body_matches(comments_at_line(comments, args.path, args.line, args.side), body)
+    if not same_body:
+        return None
+    return first_by_author(same_body, _authenticated_login())
+
+
+def _write_skip(args: argparse.Namespace, existing: dict[str, Any], fmt: str) -> int:
+    write_skill_output(
+        {
+            "action": "would_skip" if args.dry_run else "SKIP",
+            "reason": "duplicate",
+            **({"dryRun": True} if args.dry_run else {}),
+            "comment_id": existing.get("id"),
+            "html_url": existing.get("html_url"),
+            "pull_request": args.pull_request,
+            "path": args.path,
+            "line": args.line,
+            "side": args.side,
+        },
+        output_format=fmt,
+        human_summary=(
+            f"Skipped: you already posted this comment on #{args.pull_request} at "
+            f"{args.path}:{args.line} (comment {existing.get('id')}); nothing posted"
+        ),
+        script_name=_SCRIPT_NAME,
+    )
+    return 0
 
 
 def _post_comment(
@@ -306,6 +407,9 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         head_sha = _get_head_sha(owner, repo, args.pull_request)
+        existing = _find_duplicate(owner, repo, args, body)
+        if existing is not None:
+            return _write_skip(args, existing, fmt)
         if args.dry_run:
             return _write_dry_run(args, head_sha, fmt)
         response = _post_comment(owner, repo, args, body, head_sha)
