@@ -17,9 +17,11 @@
 # pull requests (especially from forks) cannot hold, so a live step would be
 # flaky or permanently red. Instead we assert the vendored bundle excludes the
 # trees whose presence causes unresolved .agents/-class path errors at runtime
-# (hooks/, lib/, settings.json; the github skill). This is the auth-free,
-# deterministic slice of REQ-4.4. Promote to a live first turn when a CI-safe
-# token path exists.
+# (hooks/, settings.json, the .claude/CLAUDE.md and .claude/AGENTS.md maintainer
+# files, the github skill). lib/ ships: skill scripts import from it, and the
+# vendored-tree assert runs --help on three of them from the installed tree.
+# This is the auth-free, deterministic slice of REQ-4.4. Promote to a live
+# first turn when a CI-safe token path exists.
 
 name: CLI Smoke Matrix
 

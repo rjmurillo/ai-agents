@@ -261,7 +261,7 @@ When a problem spans multiple domains:
 Structured classification with validation.
 
 ```bash
-python3 .claude/skills/cynefin-classifier/scripts/classify.py \
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/cynefin-classifier/scripts/classify.py" \
   --problem "Description of the problem" \
   --context "Additional context about constraints, environment"
 ```
@@ -376,7 +376,7 @@ Escalate to human or senior decision-maker when:
 After classification, run the bundled validator:
 
 ```bash
-python3 .claude/skills/cynefin-classifier/scripts/classify.py \
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/cynefin-classifier/scripts/classify.py" \
   --problem "Description of the problem" \
   --context "Additional context about constraints, environment"
 echo "exit=$?"   # 0 = classification complete, 1 = invalid arguments, 2 = Confusion domain (valid classification)

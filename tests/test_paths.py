@@ -148,6 +148,88 @@ def test_skill_resource_accepts_path_relpath(
     assert result == target.resolve()
 
 
+def _install_copy(tree: Path, marker: str | None) -> Path:
+    """Copy paths.py into ``tree/lib`` the way the lib mirror does and return it."""
+    lib = tree / "lib"
+    lib.mkdir(parents=True)
+    copy = lib / "paths.py"
+    copy.write_bytes(PATHS_MODULE.read_bytes())
+    if marker == "plugin.json":
+        (tree / "plugin.json").write_text("{}", encoding="utf-8")
+    elif marker is not None:
+        (tree / marker).mkdir()
+    return copy
+
+
+def _load_copy(copy: Path):
+    spec = importlib.util.spec_from_file_location("paths_copy_under_test", copy)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.mark.parametrize(
+    ("tree_name", "marker"),
+    [
+        ("codex", "plugin.json"),
+        ("cursor", ".cursor-plugin"),
+        ("muse", None),
+    ],
+)
+def test_skill_resource_resolves_in_mirrored_harness_tree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, tree_name: str, marker: str | None
+) -> None:
+    # Codex, Cursor and Muse trees carry a copy of paths.py but neither the
+    # Claude marker nor a .claude directory. Issue #7221 review thread.
+    tree = tmp_path / "opt" / tree_name
+    copy = _install_copy(tree, marker)
+    target = tree / "skills" / "review" / "SKILL.md"
+    target.parent.mkdir(parents=True)
+    target.write_text("skill", encoding="utf-8")
+    consumer = tmp_path / "work" / "customer"
+    consumer.mkdir(parents=True)
+    monkeypatch.chdir(consumer)
+
+    result = _load_copy(copy).resolve_skill_resource("review", "SKILL.md")
+
+    assert result == target.resolve()
+
+
+def test_skill_resource_mirrored_tree_env_beats_install_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    tree = tmp_path / "opt" / "cursor"
+    copy = _install_copy(tree, ".cursor-plugin")
+    own = tree / "skills" / "review" / "x.md"
+    own.parent.mkdir(parents=True)
+    own.write_text("own", encoding="utf-8")
+    env_root = tmp_path / "env"
+    env_target = env_root / "skills" / "review" / "x.md"
+    env_target.parent.mkdir(parents=True)
+    env_target.write_text("env", encoding="utf-8")
+    monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(env_root))
+    monkeypatch.chdir(tmp_path)
+
+    result = _load_copy(copy).resolve_skill_resource("review", "x.md")
+
+    assert result == env_target.resolve()
+
+
+def test_skill_resource_lib_without_skills_sibling_is_not_a_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A bare lib/paths.py with no skills/ beside it must not be taken as a root.
+    tree = tmp_path / "opt" / "bare"
+    copy = _install_copy(tree, None)
+    monkeypatch.chdir(tmp_path)
+
+    module = _load_copy(copy)
+
+    assert module._plugin_install_root() is None
+    assert module.resolve_skill_resource("review", "SKILL.md") is None
+
+
 # --- resolve_skill_resource: negative / edge -------------------------------
 
 

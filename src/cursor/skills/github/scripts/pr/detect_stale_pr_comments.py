@@ -45,17 +45,18 @@ from github_core.api import (
     resolve_repo_params,
 )
 from github_core.bot_config import is_bot
+from github_core.review_thread_pager import collect_all_review_threads
 
 # ---------------------------------------------------------------------------
 # GraphQL: fetch all review threads with path and line info
 # ---------------------------------------------------------------------------
 
 _REVIEW_THREADS_QUERY = """\
-query($owner: String!, $name: String!, $prNumber: Int!) {
+query($owner: String!, $name: String!, $prNumber: Int!, $cursor: String) {
     repository(owner: $owner, name: $name) {
         pullRequest(number: $prNumber) {
-            reviewThreads(first: 100) {
-                # Capped at 100; pagination not implemented (P2, rare edge case)
+            reviewThreads(first: 100, after: $cursor) {
+                pageInfo { hasNextPage endCursor }
                 nodes {
                     id
                     isOutdated
@@ -80,29 +81,28 @@ def fetch_review_threads(
     repo: str,
     pr_number: int,
 ) -> list[dict[str, Any]]:
-    """Fetch all review threads for a PR via GraphQL.
+    """Fetch all review threads for a PR via GraphQL, paging to the last page.
 
     Returns a list of thread dicts with id, path, line, and author.
-    Limited to first 100 threads (no cursor pagination).
 
     Raises:
-        RuntimeError: On GraphQL transport or response errors.
+        RuntimeError: On GraphQL transport or response errors, a missing
+            cursor, or more pages than the page cap. The read is never
+            returned partial.
+        SystemExit: Code 3 when the PR does not exist.
     """
-    data = gh_graphql(
-        _REVIEW_THREADS_QUERY,
-        {"owner": owner, "name": repo, "prNumber": pr_number},
-    )
-    repo_data = data.get("repository") or {}
-    pr_data = repo_data.get("pullRequest")
-    if pr_data is None:
-        print(
-            f"PR not found in {owner}/{repo}",
-            file=sys.stderr,
-        )
-        raise SystemExit(3)
-    threads = pr_data.get("reviewThreads") or {}
-    nodes: list[dict[str, Any]] = threads.get("nodes") or []
-    return nodes
+
+    def fetch_page(cursor: str | None) -> dict[str, Any]:
+        variables: dict[str, Any] = {"owner": owner, "name": repo, "prNumber": pr_number}
+        if cursor is not None:
+            variables["cursor"] = cursor
+        data: dict[str, Any] = gh_graphql(_REVIEW_THREADS_QUERY, variables)
+        if (data.get("repository") or {}).get("pullRequest") is None:
+            print(f"PR not found in {owner}/{repo}", file=sys.stderr)
+            raise SystemExit(3)
+        return data
+
+    return collect_all_review_threads(fetch_page, pr_number)
 
 
 def fetch_pr_files(owner: str, repo: str, pr_number: int) -> set[str]:
