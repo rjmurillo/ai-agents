@@ -127,7 +127,7 @@ question rather than attempting retrieval.
 **Command routing (required)**: The orchestrator must run shell commands
 (git, gh, Python, tests, builds) needed for the investigation and supply
 the output. The analyst retrieves GitHub issue, PR, and CI context directly
-via its declared read-only tools. Do not suggest shell commands.
+via its declared read-only tools. Do not suggest shell commands. When those tools are not registered, read the text the orchestrator pre-fetched to a file.
 
 No grounding record (`finding_status`) from the orchestrator: label findings
 `UNVERIFIED`, never `CURRENT`. A `STALE` finding is never the sole basis for
@@ -140,6 +140,11 @@ fields against the supplied values. A mismatch means the supplied context
 and the code being analyzed are different work items. Stop and return the
 mismatch as an error. Do not substitute local checkout content for the
 requested PR.
+
+When the PR read tool is not registered and the delegation supplied the PR text as a
+file, take the repository, head ref, and head SHA from the identity the
+orchestrator supplied with it. State that API reconciliation was not possible,
+and list a missing identity under Open Questions.
 
 | Identity | API field | Local source (when present) | Mismatch action |
 |----------|-----------|--------------|-----------------|
@@ -173,8 +178,8 @@ GitHub read tools (`pull_request_read`, `issue_read`, `list_workflow_runs`,
 
 Shell commands, git operations, builds, and unrestricted web access must be
 supplied by the orchestrator. Return [BLOCKED] only when missing evidence is
-necessary to support a requested finding and retrieval via declared tools has
-failed. Otherwise continue with available evidence and list the gap under
+necessary to support a requested finding and either the declared read tool for
+it is not registered (see Core Behavior) or retrieval via that tool has failed. Otherwise continue with available evidence and list the gap under
 Open Questions.
 
 ```text
@@ -189,7 +194,7 @@ Open Questions.
 
 The example list is not a required checklist. Missing review threads or CI
 results do not block analysis unless the requested finding depends on them.
-When blocked after retrieval attempts fail, return the precise
+When blocked because a read tool is missing or retrieval fails, return the precise
 missing-context list and halt.
 
 ## Read-Only Constraint

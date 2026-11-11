@@ -1,5 +1,10 @@
 requested PR.
 
+When the PR read tool is not registered and the delegation supplied the PR text as a
+file, take the repository, head ref, and head SHA from the identity the
+orchestrator supplied with it. State that API reconciliation was not possible,
+and list a missing identity under Open Questions.
+
 | Identity | API field | Local source (when present) | Mismatch action |
 |----------|-----------|--------------|-----------------|
 | Repository | `owner/repo` from URL | visible codebase path | Stop, report both values |

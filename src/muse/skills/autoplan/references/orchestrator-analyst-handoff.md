@@ -15,11 +15,12 @@ The analyst retrieves structured GitHub and CI data directly (PRs, issues,
 workflows, job logs) using its own read tools. Do not prefetch GitHub/CI
 context; delegate it.
 
-Exception: when the host has no GitHub read tools registered, or you delegate
-issue or PR analysis to an agent with no shell, fetch the issue or PR text
-yourself, write it to a file, and pass the path in the delegation context.
-The analyst returns `[BLOCKED]` at once, naming the missing tool, when it has
-neither the tool nor a supplied path.
+Exception: when the GitHub read tools are not registered in this host, or
+the receiving agent has no shell and no GitHub read tool, fetch the issue, PR,
+or CI log text yourself, write it to a file, and pass the path in the
+delegation context with the repository, head ref, and head SHA. The analyst
+returns `[BLOCKED]` at once, naming the missing tool, when it has neither the
+tool nor a supplied path.
 
 The analyst has no shell or unrestricted web access.
 If it returns `[BLOCKED]` for load-bearing missing context, retrieve the named
