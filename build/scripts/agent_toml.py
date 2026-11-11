@@ -76,7 +76,10 @@ def not_installed_paragraph(skipped_stems: list[str]) -> str:
         "\n\n## Agents not installed on this host\n\n"
         f"These agents are not installed on this host: {names}. "
         "When a step above hands work to one of them, do that step yourself "
-        "in this session and say that you did."
+        "in this session and say that you did. "
+        "A step you do yourself is a self-review, not an independent review, so report it as one. "
+        "When you are asked to review or challenge work, set aside the author's reasoning "
+        "and judge the artifact itself."
     )
     # A skipped `security` agent gets its own sentence: a self-review must not pass as its review.
     if "security" in skipped_stems:

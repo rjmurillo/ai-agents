@@ -137,7 +137,8 @@ def test_undecodable_shipped_agent_exits_2(world, capsys):
     (target / "critic.toml").write_bytes(agent_bytes("critic", "theirs"))
     (world.agents / "critic.toml").write_bytes(b"\xff\xfe")
     assert run_installer(world, "--namespace", "tk") == 2
-    assert capsys.readouterr().err.count("Error:") == 1
+    err = capsys.readouterr().err
+    assert err.count("Error:") == 1 and "critic.toml: not valid UTF-8" in err
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX modes")

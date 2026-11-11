@@ -256,11 +256,29 @@ def _iter_literal_scan_files(repo_root: Path) -> list[Path]:
     return sorted(seen)
 
 
+def _toml_strings(text: str) -> str:
+    """Join the string values of a TOML file with real newlines, or return ``text`` unchanged.
+
+    A generated Codex agent holds its whole body as one escaped line, so a command that
+    starts a source line follows a literal ``\\n`` and the pattern's lookbehind skips it.
+    """
+    try:
+        import tomllib
+    except ImportError:  # Python 3.10 has no tomllib; scan the raw text
+        return text
+    try:
+        data = tomllib.loads(text)
+    except tomllib.TOMLDecodeError:
+        return text
+    return "\n".join(value for value in data.values() if isinstance(value, str))
+
+
 def _read_scan_text(path: Path) -> str:
     try:
-        return path.read_text(encoding="utf-8")
+        text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
         raise OSError(f"Failed to read {path}: {exc}") from exc
+    return _toml_strings(text) if path.suffix == ".toml" else text
 
 
 def scan_literal_plugin_paths(repo_root: Path) -> tuple[list[str], int]:

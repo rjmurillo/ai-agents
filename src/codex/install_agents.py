@@ -101,13 +101,23 @@ def _is_sha256(value: object) -> bool:
     return isinstance(value, str) and _SHA256_HEX.fullmatch(value) is not None
 
 
+def namespaced_file_name(prefix: str, file_name: str) -> str:
+    """The file name a ``--namespace`` install gives ``file_name``: ``<prefix>-<file_name>``."""
+    return f"{prefix}-{file_name}"
+
+
+def namespace_prefix_of(ns_name: str, source: str) -> str:
+    """Inverse of :func:`namespaced_file_name`; ``ns_name`` must end in ``-<source>``."""
+    return ns_name[: -len(source) - 1]
+
+
 def _valid_namespaced(file_name: object, source: object) -> bool:
     """True when ``file_name`` is exactly ``<valid prefix>-<source>`` for a safe ``source``."""
     if not (isinstance(file_name, str) and isinstance(source, str)):
         return False
     if not (_safe_name(file_name) and _safe_name(source) and file_name.endswith(f"-{source}")):
         return False
-    return PREFIX_PATTERN.fullmatch(file_name[: -len(source) - 1]) is not None
+    return PREFIX_PATTERN.fullmatch(namespace_prefix_of(file_name, source)) is not None
 
 
 def read_ownership(target: Path) -> Ownership:
@@ -148,11 +158,14 @@ def namespaced_bytes(data: bytes, prefix: str, file_name: str) -> bytes:
         raise InstallError(f"invalid namespace prefix: {prefix!r}")
     if not _safe_name(file_name):
         raise InstallError(f"unsafe agent file name: {file_name!r}")
-    text = data.decode("utf-8")
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise InstallError(f"{file_name}: not valid UTF-8: {exc.reason}") from exc
     match = _NAME_LINE.match(text)
     if match is None:
         raise InstallError(f'{file_name}: first line is not `name = "..."`')
-    new_name = f"{prefix}-{file_name[: -len(AGENT_SUFFIX)]}"
+    new_name = namespaced_file_name(prefix, file_name[: -len(AGENT_SUFFIX)])
     rewritten = f'name = "{new_name}"\n' + text[match.end() :]
     if tomllib is not None:
         try:
@@ -208,7 +221,7 @@ def _warn_handoff(plan: Plan, name: str, prefix: str) -> None:
 def _plan_namespaced(
     plan: Plan, target: Path, name: str, data: bytes, owned: Ownership, prefix: str
 ) -> None:
-    ns_name = f"{prefix}-{name}"
+    ns_name = namespaced_file_name(prefix, name)
     ns_data = namespaced_bytes(data, prefix, name)
     if _decide(plan, target, ns_name, ns_data, owned, source=name):
         plan.lines[-1] += f"  (namespaced from {name} to avoid a conflict)"
@@ -263,7 +276,7 @@ def _plan_owned_leftovers(
         if current is not None and current != owned.files[name]:
             _keep_edited(plan, name, owned)
         elif source in shipped and source not in plan.shipped_ours:
-            prefix = name[: -len(source) - 1]
+            prefix = namespace_prefix_of(name, source)
             _decide(
                 plan, target, name, namespaced_bytes(shipped[source], prefix, source), owned, source
             )
@@ -285,7 +298,7 @@ def build_install_plan(
         if (
             prior is not None
         ):  # an earlier --namespace run owns this agent; the leftover pass upgrades it
-            prefix = prior[: -len(name) - 1]
+            prefix = namespace_prefix_of(prior, name)
             _warn_handoff(plan, name, prefix)
             if namespace is not None and namespace != prefix:
                 plan.warnings.append(

@@ -311,7 +311,7 @@ def test_appendix_is_added_to_a_markdown_body() -> None:
     loaded, body = atc.parse_agent(_agent("a", body="\nBody\n"), "a.md")
     spec = atc.RenderSpec(["name"], appendix=agent_toml.not_installed_paragraph(["z"]))
     out = atc.render_parsed(loaded, body, "a.md", spec)
-    assert out is not None and out.endswith("say that you did.\n") and "`z`" in out
+    assert out is not None and out.endswith("judge the artifact itself.\n") and "`z`" in out
 
 
 def test_paragraph_adds_the_security_sentence_only_when_security_is_skipped() -> None:
