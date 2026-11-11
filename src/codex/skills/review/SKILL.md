@@ -115,9 +115,9 @@ Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICA
 7. **Merge verdicts** via `merge_verdicts([...])`, passing the Stage-1 `spec-compliance` verdict, the step 4c correctness verdict, plus one verdict per axis that actually ran (the selected Stage-2 axes plus any selected local skills; at most 16 total in deep-review mode with the current set). Rules: any token in `FAIL_VERDICTS` (`CRITICAL_FAIL`/`REJECTED`/`FAIL`/`NEEDS_REVIEW`/`NON_COMPLIANT`) -> `CRITICAL_FAIL`; any `WARN` or `PARTIAL` -> `WARN`; any `UNKNOWN` or unrecognized token -> `UNKNOWN`; all `PASS`/`COMPLIANT` -> `PASS`; empty -> `UNKNOWN`. When Stage 1 returns `CRITICAL_FAIL` (step 2 short-circuit), skip this merge: the FINAL VERDICT is `CRITICAL_FAIL`. A Stage-1 `UNKNOWN` does NOT short-circuit; it is merged like any other axis.
 8. **Emit findings table** (see Output below).
 
-## Running without the Task tool
+## Running without a subagent tool
 
-A subagent with no `Task` tool MUST NOT review its own diff and write the marker. Run each axis as its own `claude -p` process, as `resources/marker-and-no-task.md` says. If `claude` is not on `PATH`, record `UNKNOWN` for every axis, which writes no marker.
+Each axis needs a fresh context, never the authoring one. With no subagent tool, follow `resources/marker-and-no-task.md`: one `claude -p` process per axis where `claude` is on `PATH`, else each axis in this session in turn, which never writes the marker.
 
 ## Vendored install (REQ-008-06)
 
