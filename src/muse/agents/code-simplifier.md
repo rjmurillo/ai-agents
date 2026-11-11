@@ -115,4 +115,4 @@ Recommended next step at the end of a [COMPLETE] response (only when an orchestr
 
 ## Agents not installed on this host
 
-These agents are not installed on this host: `analyst`, `code-reviewer`, `comment-analyzer`, `security`. When a step above hands work to one of them, do that step yourself in this session and say that you did.
+These agents are not installed on this host: `analyst`, `code-reviewer`, `comment-analyzer`, `security`. When a step above hands work to one of them, do that step yourself in this session and say that you did. If the step is a security review, state that no security agent reviewed it.

@@ -49,3 +49,11 @@ artifacts:
     # shipped, and each shipped body names the agents left out so a handoff
     # to one is done in-session.
     skipToolRestricted: true
+    # The orchestrator says every row in its routing table is installed, so the
+    # rows for agents this tree does not ship are removed, and its delegation
+    # tool is named for Muse Code (https://dev.meta.ai/docs/cookbook/subagent-fanout).
+    bodyReplace:
+      orchestrator.md:
+        "| **analyst** | Research, root cause, feasibility | Already have enough context |\n": ""
+        "| **security** | Threat modeling, vulnerability review | Pure performance work |\n": ""
+        "Task (for delegation)": "subagent_spawn (for delegation)"

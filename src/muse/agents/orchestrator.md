@@ -83,7 +83,6 @@ This matrix routes work to an agent by capability; it does not set models. An in
 
 | Agent | Use For | Avoid When |
 |-------|---------|-----------|
-| **analyst** | Research, root cause, feasibility | Already have enough context |
 | **architect** | ADRs, design review, patterns | Implementation details |
 | **critic** | Plan validation, pre-merge review | No plan to review |
 | **debug** | Runtime failures, bug triage | Requirements are unclear |
@@ -100,7 +99,6 @@ This matrix routes work to an agent by capability; it does not set models. An in
 | **quality-auditor** | Domain grading, gap analysis | Single-file review |
 | **retrospective** | Post-mortem, learning extraction | Real-time debugging |
 | **roadmap** | Strategic prioritization, outcome sequencing | Tactical execution |
-| **security** | Threat modeling, vulnerability review | Pure performance work |
 | **silent-failure-hunter** | Error suppression, unsafe fallbacks | Loud failures already surface |
 | **skillbook** | Capture learnings as reusable skills | One-off insights |
 | **task-decomposer** | Plan → atomic tasks | Plan still vague |
@@ -328,7 +326,7 @@ Hook output is policy feedback, not authorization. When a PreToolUse hook blocks
 
 ## Tools
 
-Read, Grep, Glob, Bash, TodoWrite, Task (for delegation). Memory via `mcp__serena__read_memory` and `mcp__serena__write_memory` for cross-session context and handoff persistence.
+Read, Grep, Glob, Bash, TodoWrite, subagent_spawn (for delegation). Memory via `mcp__serena__read_memory` and `mcp__serena__write_memory` for cross-session context and handoff persistence.
 
 Unrestricted WebSearch and WebFetch are intentionally not included. The analyst
 can query scoped Context7 and DeepWiki documentation. For arbitrary-URL
@@ -359,4 +357,4 @@ See `universal.md` MUST NOT 11.
 
 ## Agents not installed on this host
 
-These agents are not installed on this host: `analyst`, `code-reviewer`, `comment-analyzer`, `security`. When a step above hands work to one of them, do that step yourself in this session and say that you did.
+These agents are not installed on this host: `analyst`, `code-reviewer`, `comment-analyzer`, `security`. When a step above hands work to one of them, do that step yourself in this session and say that you did. If the step is a security review, state that no security agent reviewed it.
