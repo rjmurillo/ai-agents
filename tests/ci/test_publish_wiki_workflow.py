@@ -80,8 +80,10 @@ def test_dry_run_job_runs_only_on_a_dry_manual_dispatch(dry: dict) -> None:
     assert [s["run"] for s in runs(dry)] == ["python3 scripts/ci/publish_wiki.py --dry-run"]
 
 
-def test_publish_job_runs_on_push_or_a_non_dry_dispatch(publish: dict) -> None:
-    assert publish["if"] == "${{ github.event_name == 'push' || !inputs.dry_run }}"
+def test_publish_job_runs_on_push_or_a_non_dry_dispatch_from_main(publish: dict) -> None:
+    assert publish["if"] == (
+        "${{ github.event_name == 'push' || (!inputs.dry_run && github.ref == 'refs/heads/main') }}"
+    )
 
 
 def test_publish_job_names_the_environment_that_scopes_the_secret(publish: dict) -> None:

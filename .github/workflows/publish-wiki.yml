@@ -12,9 +12,10 @@ name: Publish Training Wiki
 #            environment wiki-publish, which holds the only credential
 #            WIKI_PUSH_TOKEN. ADR-101 keeps stored secrets out of repository
 #            scope (tests/ci/test_workflow_secret_environment_scope.py). The
-#            environment must allow only main, so a branch cannot reach the
-#            token. Without that secret the job falls back to the workflow
-#            token.
+#            job runs only for main (a dispatch from a branch with dry_run off
+#            is skipped), and the environment should also allow only main as a
+#            second control. Without the secret the job falls back to the
+#            workflow token.
 #
 # The script reports BLOCKED (exit 4) when the wiki refuses the credential, and
 # SKIP (exit 0) when the wiki repo does not exist yet or no credential is
@@ -58,7 +59,7 @@ jobs:
         run: python3 scripts/ci/publish_wiki.py --dry-run
   publish:
     name: Mirror docs/training to the wiki
-    if: ${{ github.event_name == 'push' || !inputs.dry_run }}
+    if: ${{ github.event_name == 'push' || (!inputs.dry_run && github.ref == 'refs/heads/main') }}
     environment: wiki-publish
     runs-on: ubuntu-26.04-arm
     timeout-minutes: 10

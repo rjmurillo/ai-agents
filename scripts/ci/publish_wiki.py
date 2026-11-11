@@ -42,7 +42,6 @@ from __future__ import annotations
 import argparse
 import base64
 import os
-import posixpath
 import re
 import shutil
 import subprocess
@@ -52,27 +51,25 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.ci._wiki_links import (  # noqa: E402
+    BRANCH,
+    readme_page_order,
+)
+from scripts.ci._wiki_links import SOURCE_DIR as SOURCE_DIR  # noqa: E402  (re-export)
+from scripts.ci._wiki_links import SourceError as SourceError  # noqa: E402  (re-export)
+from scripts.ci._wiki_links import rewrite_links as rewrite_links  # noqa: E402  (re-export)
+from scripts.ci._wiki_links import safe as safe  # noqa: E402  (re-export)
+from scripts.ci._wiki_links import split_fenced as split_fenced  # noqa: E402  (re-export)
+
 EXIT_OK, EXIT_LOGIC, EXIT_CONFIG, EXIT_EXTERNAL, EXIT_AUTH = 0, 1, 2, 3, 4
 
-SOURCE_DIR = "docs/training"
 HOME = "Home"
 TOKEN_SECRET = "WIKI_PUSH_TOKEN"
-BRANCH = "main"
 NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*\.md$")
-SCHEME_RE = re.compile(r"^(?:[a-zA-Z][a-zA-Z0-9+.-]*:|//)")
-INLINE_LINK_RE = re.compile(r'(!?\[[^\]\n]*\]\()(<[^>\n]+>|[^)\s]+)((?:\s+"[^"\n]*")?\))')
-REF_LINK_RE = re.compile(r"^(\s{0,3}\[[^\]\n]+\]:\s+)(\S+)")
-CODE_SPAN_RE = re.compile(r"(`+[^`\n]*`+)")
-FENCE_RE = re.compile(r"^\s{0,3}(```|~~~)")
-
-
-def safe(text: str) -> str:
-    """Neutralize text before it reaches a log line: no workflow commands, no line breaks."""
-    return text.replace("::", ":\u200b:").replace("\n", "\\n").replace("\r", "\\r")
-
-
-class SourceError(Exception):
-    """The source tree cannot be mirrored faithfully (exit 1)."""
 
 
 @dataclass(frozen=True)
@@ -81,97 +78,6 @@ class Plan:
 
     files: dict[str, str]
     order: list[tuple[str, str]]  # (title, page name) in README link order
-
-
-def split_fenced(text: str) -> list[tuple[str, bool]]:
-    """Return (line, in_fence) pairs. Fence delimiter lines count as fenced."""
-    out: list[tuple[str, bool]] = []
-    fenced = False
-    for line in text.split("\n"):
-        if FENCE_RE.match(line):
-            out.append((line, True))
-            fenced = not fenced
-        else:
-            out.append((line, fenced))
-    return out
-
-
-def rewrite_target(
-    target: str, *, repo_root: Path, repo_url: str, published: Mapping[str, str], image: bool
-) -> str:
-    """Rewrite one link target. ``published`` maps source file name to wiki page name."""
-    if target.startswith("#") or SCHEME_RE.match(target):
-        return target
-    path, hash_, frag = target.partition("#")
-    path, query_sep, query = path.partition("?")
-    resolved = posixpath.normpath(posixpath.join(SOURCE_DIR, path))
-    if resolved == ".." or resolved.startswith("../") or posixpath.isabs(resolved):
-        raise SourceError(f"link leaves the repository: {safe(target)}")
-    parent, base = posixpath.split(resolved)
-    if parent == SOURCE_DIR and base in published:
-        return published[base] + hash_ + frag
-    on_disk = repo_root / resolved
-    if not on_disk.exists():
-        raise SourceError(f"link target does not exist: {safe(target)} (resolved {safe(resolved)})")
-    if not on_disk.resolve().is_relative_to(repo_root.resolve()):
-        raise SourceError(f"link target resolves outside the repository: {safe(target)}")
-    kind = "tree" if on_disk.is_dir() else "blob"
-    url = f"{repo_url}/{kind}/{BRANCH}/{resolved}"
-    if image and kind == "blob":
-        url += "?raw=true"
-    elif query_sep:
-        url += "?" + query
-    return url + hash_ + frag
-
-
-def rewrite_links(
-    text: str, *, repo_root: Path, repo_url: str, published: Mapping[str, str]
-) -> str:
-    """Rewrite links outside fenced blocks and inline code spans."""
-
-    def one(target: str, image: bool) -> str:
-        return rewrite_target(
-            target, repo_root=repo_root, repo_url=repo_url, published=published, image=image
-        )
-
-    def inline(match: re.Match[str]) -> str:
-        opener, raw, closer = match.groups()
-        angle = raw.startswith("<")
-        new = one(raw[1:-1] if angle else raw, opener.startswith("!"))
-        return opener + (f"<{new}>" if angle else new) + closer
-
-    def ref(match: re.Match[str]) -> str:
-        return match.group(1) + one(match.group(2), False)
-
-    lines = []
-    for line, fenced in split_fenced(text):
-        if fenced:
-            lines.append(line)
-            continue
-        parts = CODE_SPAN_RE.split(line)
-        for i in range(0, len(parts), 2):
-            parts[i] = INLINE_LINK_RE.sub(inline, REF_LINK_RE.sub(ref, parts[i]))
-        lines.append("".join(parts))
-    return "\n".join(lines)
-
-
-def readme_page_order(readme: str) -> list[str]:
-    """Source file names README.md links to, first occurrence only, in order."""
-    seen: list[str] = []
-    for line, fenced in split_fenced(readme):
-        if fenced:
-            continue
-        for part in CODE_SPAN_RE.split(line)[::2]:
-            targets = [m.group(2).strip("<>") for m in INLINE_LINK_RE.finditer(part)]
-            targets += [m.group(2) for m in REF_LINK_RE.finditer(part)]
-            for target in targets:
-                if SCHEME_RE.match(target) or target.startswith("#"):
-                    continue
-                resolved = posixpath.normpath(posixpath.join(SOURCE_DIR, target.split("#")[0]))
-                parent, base = posixpath.split(resolved)
-                if parent == SOURCE_DIR and base not in seen:
-                    seen.append(base)
-    return seen
 
 
 def first_heading(text: str, fallback: str) -> str:
@@ -322,14 +228,22 @@ def summary(line: str, environ: Mapping[str, str]) -> None:
             fh.write(line + "\n")
 
 
+def clear_entry(path: Path) -> None:
+    """Remove a file, a symbolic link (never its target), or a directory."""
+    if path.is_dir() and not path.is_symlink():
+        shutil.rmtree(path)
+    else:
+        path.unlink()
+
+
 def apply_plan(plan: Plan, wiki: Path) -> None:
     """Make the wiki working tree hold exactly the planned Markdown pages."""
     for stale in sorted(p for p in wiki.glob("*.md") if p.name not in plan.files):
-        stale.unlink()
+        clear_entry(stale)
     for name, content in plan.files.items():
         target = wiki / name
-        if target.is_symlink():
-            target.unlink()  # never write through a link a wiki committer planted
+        if target.is_symlink() or target.is_dir():
+            clear_entry(target)  # never write through a link or into a directory
         target.write_text(content, encoding="utf-8", newline="\n")
 
 
@@ -366,6 +280,7 @@ def load_config(args: argparse.Namespace, environ: Mapping[str, str]) -> Config 
 
 
 def blocked_auth(where: str, detail: str, environ: Mapping[str, str]) -> int:
+    detail = safe(detail)
     summary(
         f"BLOCKED: auth rejected {where} the wiki. Add the secret {TOKEN_SECRET} "
         f"to the wiki-publish environment (PAT, contents write).\n{detail}",
@@ -386,7 +301,7 @@ def clone_wiki(
     if clone.returncode == 0:
         return None
     kind = classify_failure(clone.stderr)
-    detail = redact(clone.stderr.strip(), cfg.token)
+    detail = safe(redact(clone.stderr.strip(), cfg.token))
     if kind == "auth":
         return blocked_auth("cloning", detail, environ)
     if kind == "external":
@@ -424,7 +339,7 @@ def commit_and_push(
     push = run_git(["push", "--quiet", "origin", "HEAD"], wiki, env)
     if push.returncode == 0:
         return EXIT_OK
-    detail = redact(push.stderr.strip(), cfg.token)
+    detail = safe(redact(push.stderr.strip(), cfg.token))
     if classify_failure(push.stderr) == "auth":
         return blocked_auth("pushing to", detail, environ)
     print(f"EXTERNAL: git push failed:\n{detail}", file=sys.stderr)

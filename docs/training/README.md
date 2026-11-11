@@ -58,7 +58,7 @@ These rules apply to every page. The publisher enforces the ones marked (enforce
 - **Files starting with `_` are not published.** `_template.md` is the only one today.
 - **Links.** Use relative links. Link to a page as `other-page.md`, with an optional `#anchor`. Link to repo files, such as a skill, ADR, or script, with a relative path like `../../scripts/ci/publish_wiki.py`. The publisher turns repo links into absolute GitHub links. A link to a file that does not exist fails the publisher (enforced).
 - **Link, do not copy.** Reference text has one owner: the skill, ADR, or script. Link to it.
-- **Commands.** Run every command on `main` before you merge. Paste the output you got. Repo scripts run as `uv run python <script>`, never bare `python3`, so a clean checkout has the dependencies.
+- **Commands.** Run every command on `main` before you merge. Paste the output you got. A command a page asks the reader to run uses `uv run python <script>`, never bare `python3`, so a clean checkout has the dependencies. CI workflow steps are exempt when the script uses only the standard library.
 - **Voice.** Follow [`docs/release-notes-styleguide.md`](../release-notes-styleguide.md): "you" and "we", short sentences, about a grade 9 reading level, and no em or en dashes.
 - **Code fences.** Give every fenced block a language, such as `bash` or `text`.
 
@@ -87,7 +87,7 @@ A workflow, [`publish-wiki.yml`](../../.github/workflows/publish-wiki.yml), runs
 - Deletes wiki pages that no longer exist here.
 - Makes no commit when nothing changed.
 
-To run it by hand from a branch, start the workflow with **Run workflow** and keep `dry_run` on. The run prints the planned diff and pushes nothing.
+To plan a publish by hand, start the workflow with **Run workflow** and keep `dry_run` on. The run needs no credential and prints the planned diff. A run with `dry_run` off is skipped unless it starts from `main`.
 
 ### One-time setup for the wiki
 

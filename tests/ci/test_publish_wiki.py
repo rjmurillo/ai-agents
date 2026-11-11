@@ -425,3 +425,13 @@ def test_symlinked_source_page_exits_1(repo: Path, wiki: Path, tmp_path: Path) -
     before = commit_count(wiki)
     assert run_main(repo, wiki) == 1
     assert commit_count(wiki) == before
+
+
+def test_remote_error_text_cannot_inject_a_workflow_command(
+    repo: Path, wiki: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _push_fails_with(monkeypatch, "::add-mask::boom\nremote: Permission denied 403")
+    assert run_main(repo, wiki) == 4
+    captured = capsys.readouterr()
+    assert "::add-mask::" not in captured.out + captured.err
+    assert "add-mask" in captured.out
