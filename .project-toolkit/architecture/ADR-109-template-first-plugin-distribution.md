@@ -221,6 +221,39 @@ Rollback: revert B6, then B5 through B1 in reverse, then move this record to `re
 
 Change: PR #6260 (merge commit 44bc741e4) deleted the markdownlint safe config from `templates/hooks/PreToolUse/` and from every rendered copy. The hooks class in Context and in B4 now holds 14 `.py` and `.sh` scripts, `hooks.json`, and `dispatch_groups.json`. The script count grew from 13 to 14 in separate work after this decision, not through PR #6260. The decision text above is unchanged.
 
+## Amendment 2026-11-11: repo-only hooks render straight to `.claude/hooks/`
+
+Owner decision (rjmurillo, 2026-11-11, issue #7231 item 1): "Register the hooks that we want vendor installed. Skip hooks that are only for this repository."
+
+Context. On `main` at ac4d8da38 (2026-11-11), `src/claude/hooks/` held 18 files. The plugin `hooks.json` reached 5 of them: itself, `invoke_dispatch_claude.py`, `dispatch_groups.json`, and the two `Stop/` files. The other 13 files (118716 bytes) shipped to every consumer and ran for none. The issue #7231 classification comment checks each one. Four call `skip_if_consumer_repo()` before doing work. Two import `memory_enhancement` from the repo-root `scripts/` tree, which the plugin does not ship. The five `plugin_hook_drift_*` modules serve only the drift check. `PreToolUse/_bootstrap.py` is a build input that `build/scripts/generate_dispatcher.py` reads from `.claude/hooks/`. `session-start.sh` needs `scripts/bootstrap-vm.sh`.
+
+Decision. B4's first render target (section "B4" row, and `build/scripts/hook_templates.py` target 1) splits in two:
+
+1. A **shipped** hooks-class entry renders to `src/claude/hooks/<name>`, as before. The `hooks` binplace row then copies it to `.claude/hooks/<name>`.
+2. A **repo-only** hooks-class entry renders straight to `.claude/hooks/<name>`, with no plugin-tree hop. This is the path `settings.json` (section 3) and repo-only rules (ADR-119 decision 13) already use.
+
+Which entries are repo-only is data, not code. Skills mark this in frontmatter and rules derive it from their scope globs. Hook scripts carry no frontmatter, and two of them cannot be found by walking registrations: `session-start.sh` is shell, and `PreToolUse/_bootstrap.py` is read by path at build time. So one list in `templates/platforms/binplace.yaml`, on the `hooks` row, names the top-level entries under `templates/hooks/` that stay in this repository: `PreCompact`, `PreToolUse`, `SessionEnd`, `SessionStart`, `UserPromptSubmit`, and `session-start.sh`. Every file under a listed directory is repo-only. `hook_templates.py` reads the list to choose each target. `binplace_manifest.py` skips the listed names on the `hooks` row, the way it already skips repo-only rules and `hooks.json`. It also adds each repo-only file to the `.claude/` write allowlist, as it does for repo-only rules.
+
+The loader validates the field: `hooks` row only, one existing top-level name per entry, no path separators or dot names, no symlinked entry, no duplicates, and none of the four names that must ship or render on their own path. The loader tests own the exact rules.
+
+The list is directory-level, because the `hooks` copy row compares only the first path part. Shipping one file from a listed directory later means first splitting that directory entry into file entries.
+
+`templates/platforms/surface-parity.yaml` gains a `hooks-claude-repo-only` surface. It names each repo-only file under `.claude/hooks/` as generated from `templates/hooks/`. Without it, the binplaced `hooks-claude-install` surface reports each file as an extra. The new surface uses an `include:` list, as the repo-only rules surface does, and `hooks-claude-install` keeps every other path under `.claude/hooks/`. A test checks that the `include:` list equals the files under the listed entries, with a negative control that adds a name to one side only. A stray file under a listed directory is then unclassified, and the surface parity check fails on it.
+
+The 13 rendered copies under `src/claude/hooks/` are deleted in the same change. The hook compiler never prunes a target, so nothing else removes them.
+
+The same change updates every statement that all hooks-class files render to `src/claude/hooks/`: the `hooks` row comment in `binplace.yaml`, the `hook_templates.py` and `build_all.py` docstrings, the `Hook Template Drift` docstring in `checks_portability.py`, `build/AGENTS.md`, and DESIGN-025 B4.
+
+Gates. The repo-only files keep every B4 property: byte-copy render with the template's file mode (`hook_templates.py` already copies and drift-checks it, so `session-start.sh` stays executable), NO-REGEN handling, symlink and containment checks, and the `Hook Template Drift` byte comparison, now against `.claude/hooks/<name>`. A new test walks the plugin tree from `hooks.json` in two directions. First, every file under `src/claude/hooks/` must be the dispatcher, its manifest, a shim of a group that `hooks.json` registers, or a module such a file imports. Second, every shim of every registered group must exist under `src/claude/hooks/`. Imports are found by parsing each reachable file and resolving names against its own directory and the hooks root. Imports that resolve to the plugin `lib/` tree are out of scope. Negative controls plant an unregistered file and remove a registered shim, and expect each to fail.
+
+What does not change. `dispatch_groups.json` still renders once, byte for byte, to the plugin tree, and binplace copies it to `.claude/hooks/`. The plugin copy keeps the three `sessionstart-*` groups, whose shims no longer ship. No plugin registration names those groups, and the dispatcher reads only the group it is invoked with (`invoke_dispatch_claude.py` `_load_group`). Splitting the manifest would add a render step for no consumer gain. The plugin `hooks.json`, the Copilot plugin tree (`src/copilot-cli/hooks/hooks.json` holds `"hooks": {}`), and `.claude/settings.json` are unchanged.
+
+Consumer impact. A consumer gets 13 fewer files at the next plugin update. Nothing registered those files, so no hook stops running. An install that has not updated keeps the old files, which still never run.
+
+Registering a consumer hook stays a separate decision per hook. The classification found none to register. Three hooks are repo-only because of `skip_if_consumer_repo()`, not because of what they do: the context loader, the checkout freshness check, and the compact checkpoint. The fourth caller, the drift check, is repo-only for what it does. Shipping one of them means changing what consumers run, so it needs its own owner decision, and a per-call event still needs `tool-use-hook-bar.md` cleared.
+
+Rollback: revert the PR, run `uv run python build/scripts/build_all.py`, and confirm `build_all.py --check` exits 0 and `src/claude/hooks/` holds the 18 files again.
+
 ## Related Decisions
 
 - ADR-002 (agent model selection): unaffected by this record; agents' model-selection content is untouched, only their canonical location moves.
