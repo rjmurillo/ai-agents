@@ -92,3 +92,20 @@ def test_cli_exits_1_and_writes_nothing_for_free_text(
 
     assert code == 1
     assert not out.exists()
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
+def test_non_finite_numbers_are_left_out_of_the_export(bad: float) -> None:
+    data = report()
+    data["scores"]["efficiency"] = bad
+    data["scores"]["overall"] = bad
+    data["audit"]["scores"]["total_shortfall"] = bad
+
+    export = public_export.export_public(data)
+
+    text = json.dumps(export, allow_nan=False)
+    assert "efficiency" not in export["scores"]
+    assert export["overall"] is None
+    assert "total" not in export["weighted_shortfall"]
+    assert export["grade"] in public_export.KNOWN_GRADES
+    assert "NaN" not in text and "Infinity" not in text
