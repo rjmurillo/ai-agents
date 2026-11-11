@@ -221,6 +221,9 @@ def pr_body(paths: list[str], issue: str) -> str:
 _HIDDEN_CATEGORIES = frozenset({"Cc", "Cf", "Zl", "Zp", "Mn", "Me", "Co", "Cs"})
 # Letters and symbols that render blank: Hangul fillers and the empty braille cell.
 _BLANK_LOOKALIKES = frozenset("\u115f\u1160\u3164\uffa0\u2800")
+# Unassigned or invisible default-ignorable ranges that category checks miss: U+2065,
+# the U+FFF0 to U+FFF8 block, and the whole U+E0000 to U+E0FFF tag and variation block.
+_IGNORABLE_RANGES = ((0x2065, 0x2065), (0xFFF0, 0xFFF8), (0xE0000, 0xE0FFF))
 
 
 def _is_hidden_char(char: str) -> bool:
@@ -228,12 +231,15 @@ def _is_hidden_char(char: str) -> bool:
 
     Tab and newlines are fine. Control, format (bidi overrides, zero-width marks),
     line and paragraph separators, combining and variation marks, and private-use
-    and surrogate code points are refused, as are the blank lookalikes above. A
+    and surrogate code points, the ignorable ranges above, and the blank lookalikes
+    are refused. A
     lone carriage return is refused by the caller: a terminal redraws the line.
     """
     if char in "\n\r\t":
         return False
-    return char in _BLANK_LOOKALIKES or unicodedata.category(char) in _HIDDEN_CATEGORIES
+    if char in _BLANK_LOOKALIKES or unicodedata.category(char) in _HIDDEN_CATEGORIES:
+        return True
+    return any(low <= ord(char) <= high for low, high in _IGNORABLE_RANGES)
 
 
 def _copy_artifact_file(source: Path, root: Path, destination: Path) -> bool:
@@ -391,6 +397,8 @@ def _issue_number(value: str) -> str:
 def _repo_path(value: str) -> str:
     """Accept only a relative path that stays inside the checkout."""
     path = Path(value)
+    if any(ord(c) < 32 or ord(c) == 127 or c == "`" for c in value):
+        raise argparse.ArgumentTypeError(f"{value!r} must not hold control characters or backticks")
     if not value or path.is_absolute() or ".." in path.parts or _PROTECTED_PARTS & set(path.parts):
         raise argparse.ArgumentTypeError(
             f"{value!r} must be a relative path inside the checkout, outside .git and .github"

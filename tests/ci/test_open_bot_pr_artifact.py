@@ -353,3 +353,35 @@ def test_the_report_generator_never_emits_a_character_the_publisher_refuses() ->
     assert [c for c in rendered if _is_hidden_char(c)] == []
     assert "\r" not in rendered
     assert "tail" in rendered
+
+
+def test_the_generator_and_the_publisher_hold_equal_hidden_character_lists() -> None:
+    """The generator's lists mirror the publisher's; any drift fails here."""
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    try:
+        import open_bot_pr as publisher
+
+        from scripts import agent_pr_intervention_metrics as generator
+    finally:
+        sys.path.pop(0)
+    assert generator._UNSEEN_CATEGORIES == publisher._HIDDEN_CATEGORIES
+    assert generator._BLANK_LOOKALIKES == publisher._BLANK_LOOKALIKES
+    assert generator._IGNORABLE_RANGES == publisher._IGNORABLE_RANGES
+
+
+@pytest.mark.parametrize(
+    "char", ["\u2065", "\ufff0", "\ufff8", "\U000e0080", "\U000e01f0", "\U000e0fff"]
+)
+def test_unassigned_default_ignorable_code_points_are_refused(
+    tmp_path: Path, checkout: Path, char: str
+) -> None:
+    root = _artifact(tmp_path, {_STATS: f"text{char}more"})
+    with pytest.raises(RuntimeError, match="control or format"):
+        import_artifact(str(root), [_STATS])
+
+
+@pytest.mark.parametrize("path", ["a`b.md", "a\nb.md", "a\x00b.md", "a\x7fb.md", "a\tb.md"])
+def test_a_path_with_backticks_or_control_characters_is_a_usage_error(path: str) -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        main(_args(path))
+    assert exit_info.value.code == 2
