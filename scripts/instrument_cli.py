@@ -14,6 +14,11 @@ from typing import Any, Literal
 Row = dict[str, Any]
 
 
+def instrument_row(identifier: str, answers: str, command: str, source: str) -> Row:
+    """Keep instrument metadata fields consistent across tables."""
+    return {"id": identifier, "answers": answers, "argv": command.split(), "source": source}
+
+
 def drift_instrument(skill: str, skills_root: str) -> Row:
     return {
         "id": "drift-self-check",
@@ -137,20 +142,20 @@ class InstrumentDispatcher:
         instruments: Callable[[], list[Row]],
         exists: Callable[[Path, Row], bool],
     ) -> None:
-        self.help = help_text
-        self.instruments = instruments
-        self.exists = exists
+        self._help = help_text
+        self._instruments = instruments
+        self._exists = exists
 
     def build_parser(self) -> argparse.ArgumentParser:
-        style = self.help.style
-        description = self.help.description
+        style = self._help.style
+        description = self._help.description
         if style == "plain":
             description = description.splitlines()[0]
         elif style == "json":
             description = "List or run this skill's instruments."
         parser = argparse.ArgumentParser(
             description=description,
-            epilog=self.help.epilog,
+            epilog=self._help.epilog,
             formatter_class=argparse.RawDescriptionHelpFormatter,
         )
         if style == "examined":
@@ -174,12 +179,12 @@ class InstrumentDispatcher:
         return parser
 
     def cmd_list(self, repo: Path) -> int:
-        rows = [{**row, "exists": self.exists(repo, row)} for row in self.instruments()]
+        rows = [{**row, "exists": self._exists(repo, row)} for row in self._instruments()]
         missing = [row["id"] for row in rows if not row["exists"]]
         print(
             json.dumps(
                 {
-                    "skill": self.help.skill,
+                    "skill": self._help.skill,
                     "instruments": rows,
                     "examined": len(rows),
                     "missing": missing,
@@ -190,7 +195,7 @@ class InstrumentDispatcher:
         return 1 if missing else 0
 
     def _unknown(self, ident: str, rows: list[Row]) -> int:
-        if self.help.style == "plain":
+        if self._help.style == "plain":
             known = ", ".join(row["id"] for row in rows)
             print(f"error: unknown instrument '{ident}' (known: {known})", file=sys.stderr)
         else:
@@ -198,26 +203,26 @@ class InstrumentDispatcher:
                 "error": f"unknown instrument id: {ident}",
                 "known": [row["id"] for row in rows],
             }
-            if self.help.style == "examined":
+            if self._help.style == "examined":
                 error["examined"] = len(rows)
             print(json.dumps(error), file=sys.stderr)
         return 2
 
     def _start_failure(self, row: Row, exc: OSError, examined: int) -> int:
-        if self.help.style == "plain":
+        if self._help.style == "plain":
             print(f"error: cannot start {row['argv'][0]}: {exc}", file=sys.stderr)
         else:
             error: dict[str, Any] = {"error": f"failed to start: {exc}"}
-            if self.help.style == "examined":
+            if self._help.style == "examined":
                 error = {"error": f"cannot start {row['argv'][0]}: {exc}", "examined": examined}
             print(json.dumps(error), file=sys.stderr)
         return 3
 
     def cmd_run(self, repo: Path, ident: str, extra: list[str]) -> int:
-        rows = self.instruments()
-        if self.help.style == "examined":
+        rows = self._instruments()
+        if self._help.style == "examined":
             # This family checked its whole table before dispatch, including unknown IDs.
-            rows = [{**row, "exists": self.exists(repo, row)} for row in rows]
+            rows = [{**row, "exists": self._exists(repo, row)} for row in rows]
         row = next((row for row in rows if row["id"] == ident), None)
         if row is None:
             return self._unknown(ident, rows)
@@ -231,20 +236,20 @@ class InstrumentDispatcher:
         try:
             args = self.build_parser().parse_args(argv)
         except SystemExit as exc:
-            if self.help.style == "examined":
+            if self._help.style == "examined":
                 return 0 if exc.code in (0, None) else 2
             raise
         repo = Path(args.repo)
-        if self.help.style == "plain" and not repo.is_dir():
+        if self._help.style == "plain" and not repo.is_dir():
             print(f"error: --repo {args.repo} is not a directory", file=sys.stderr)
             return 2
-        if self.help.style == "json":
+        if self._help.style == "json":
             repo = repo.resolve()
-        command = args.command if self.help.style == "plain" else args.cmd
+        command = args.command if self._help.style == "plain" else args.cmd
         if command == "list":
             return self.cmd_list(repo)
-        extra = args.args if self.help.style == "json" else args.extra
-        if self.help.style == "examined":
+        extra = args.args if self._help.style == "json" else args.extra
+        if self._help.style == "examined":
             extra = [arg for arg in extra if arg != "--"]
         elif extra[:1] == ["--"]:
             extra = extra[1:]

@@ -12,73 +12,56 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 from scripts.instrument_cli import (
     InstrumentDispatcher,
     InstrumentHelp,
+    drift_instrument,
     instrument_epilog,
+    instrument_row,
     repo_paths_exist,
 )
 
 SKILL = "ai-agents-generation-and-release"
 SCRIPTS = f".claude/skills/{SKILL}/scripts"
 
+
+def _inventory_instrument(
+    command: str, answers: str, source: str = "Phase 1 Know the Seam"
+) -> dict[str, Any]:
+    return instrument_row(
+        command, answers, f"python3 {SCRIPTS}/generator_inventory.py --repo . {command}", source
+    )
+
+
 INSTRUMENTS: list[dict[str, Any]] = [
-    {
-        "id": "generators",
-        "answers": "Which generators does build_all.py run, in what order, and what are OWNED_PREFIXES?",
-        "argv": ["python3", f"{SCRIPTS}/generator_inventory.py", "--repo", ".", "generators"],
-        "source": "Phase 1 Know the Seam",
-    },
-    {
-        "id": "path",
-        "answers": "Which tree is canonical for a repo path, and what regenerates it? Pass the path after --.",
-        "argv": ["python3", f"{SCRIPTS}/generator_inventory.py", "--repo", ".", "path"],
-        "source": "Phase 1 Know the Seam",
-    },
-    {
-        "id": "skills",
-        "answers": "How many skill templates exist and which skills are repo-local?",
-        "argv": ["python3", f"{SCRIPTS}/generator_inventory.py", "--repo", ".", "skills"],
-        "source": "Phase 1 Know the Seam",
-    },
-    {
-        "id": "gates",
-        "answers": "Which lefthook job or workflow job runs each drift gate?",
-        "argv": ["python3", f"{SCRIPTS}/generator_inventory.py", "--repo", ".", "gates"],
-        "source": "Phase 3 Drift gates",
-    },
-    {
-        "id": "build-all-check",
-        "answers": "Is any generated tree stale against its canonical source?",
-        "argv": ["uv", "run", "python", "build/scripts/build_all.py", "--check"],
-        "source": "Phase 3 Drift gates",
-    },
-    {
-        "id": "version-field",
-        "answers": "Does any plugin manifest or marketplace entry carry a version field?",
-        "argv": ["python3", "build/scripts/validate_plugin_version_bump.py"],
-        "source": "Phase 4 Plugin manifests",
-    },
-    {
-        "id": "manifest-parity",
-        "answers": "Do the plugin manifest descriptions agree on component counts?",
-        "argv": ["python3", "build/scripts/check_plugin_manifest_parity.py"],
-        "source": "Phase 4 Plugin manifests",
-    },
-    {
-        "id": "drift-self-check",
-        "answers": "Has this skill drifted from its reverify.json checks?",
-        "argv": [
-            "python3",
-            ".claude/skills/skill-bootstrap/scripts/bootstrap_drift.py",
-            "check",
-            "--repo",
-            ".",
-            "--skills-root",
-            ".claude/skills",
-            "--name",
-            SKILL,
-            "--require",
-        ],
-        "source": "Provenance and Maintenance",
-    },
+    _inventory_instrument(command, question)
+    for command, question in {
+        "generators": "Which generators does build_all.py run, in what order, and what are OWNED_PREFIXES?",
+        "path": "Which tree is canonical for a repo path, and what regenerates it? Pass the path after --.",
+        "skills": "How many skill templates exist and which skills are repo-local?",
+    }.items()
+] + [
+    _inventory_instrument(
+        "gates",
+        "Which lefthook job or workflow job runs each drift gate?",
+        "Phase 3 Drift gates",
+    ),
+    instrument_row(
+        "build-all-check",
+        "Is any generated tree stale against its canonical source?",
+        "uv run python build/scripts/build_all.py --check",
+        "Phase 3 Drift gates",
+    ),
+    instrument_row(
+        "version-field",
+        "Does any plugin manifest or marketplace entry carry a version field?",
+        "python3 build/scripts/validate_plugin_version_bump.py",
+        "Phase 4 Plugin manifests",
+    ),
+    instrument_row(
+        "manifest-parity",
+        "Do the plugin manifest descriptions agree on component counts?",
+        "python3 build/scripts/check_plugin_manifest_parity.py",
+        "Phase 4 Plugin manifests",
+    ),
+    {**drift_instrument(SKILL, SCRIPTS.rsplit("/", 2)[0]), "source": "Provenance and Maintenance"},
 ]
 
 

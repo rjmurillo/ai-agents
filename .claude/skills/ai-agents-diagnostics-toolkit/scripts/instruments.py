@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 from scripts.instrument_cli import (
     InstrumentDispatcher,
     InstrumentHelp,
+    drift_instrument,
     instrument_epilog,
     python_script_exists,
 )
@@ -89,12 +90,7 @@ INSTRUMENTS: list[dict[str, Any]] = [
         f"python3 {SK}/{SKILL}/scripts/baseline_snapshot.py --repo .",
         "SKILL.md Baselines",
     ),
-    _row(
-        "drift-self-check",
-        "Has this skill drifted from its reverify.json checks?",
-        f"python3 {SK}/skill-bootstrap/scripts/bootstrap_drift.py check --repo . --skills-root {SK} --name {SKILL} --require",
-        "SKILL.md Provenance and Maintenance",
-    ),
+    drift_instrument(SKILL, SK),
 ]
 
 
