@@ -59,6 +59,11 @@ def test_added_write_verbs_exclude_the_tool(verb):
         "get_and_commit",
         "read_and_reply",
         "search_and_replace",
+        "run_query",
+        "run_search",
+        "run_get",
+        "request_get",
+        "request_list",
     ],
 )
 def test_mixed_and_leading_noun_verb_names_fail_closed(name):
@@ -81,6 +86,9 @@ def test_mixed_and_leading_noun_verb_names_fail_closed(name):
         "list_commits",
         "get_commit",
         "list_issue_types",
+        "commit_list",
+        "review_get",
+        "label_list",
     ],
 )
 def test_reads_stay_reads(name):

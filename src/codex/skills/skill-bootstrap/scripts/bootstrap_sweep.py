@@ -251,6 +251,8 @@ WRITE_VERBS = frozenset(
 # after `and` / `then` (`read_and_comment`).
 NOUN_VERBS = frozenset("request run label comment review issue commit".split())
 CONJUNCTIONS = frozenset({"and", "then"})
+# A leading `run` or `request` executes something (run_query, request_get), so it is never a read.
+EXECUTE_VERBS = frozenset({"run", "request"})
 READ_VERBS = frozenset(
     "get list search read query fetch recall view find lookup describe download export retrieve extract".split()
 )
@@ -536,11 +538,14 @@ def tool_access(tool: Payload, server: str = "") -> tuple[str, str | None]:
 
     `request`, `run`, `label`, `comment`, `review`, `issue`, `commit` are write verbs only when
     leading or right after `and`/`then`, so `get_pull_request` and `issue_read` stay reads.
+    A leading `run` or `request` is always a write, so `run_query` never counts as a read.
     """
     words = _strip_prefix(_name_tokens(tool["name"]), server)
     first, last = (words[0], words[-1]) if words else ("", "")
     hard_write = [w for w in words if w in WRITE_VERBS and w not in NOUN_VERBS]
     if hard_write or _noun_verb_after_conjunction(words):
+        return "write", None
+    if first in EXECUTE_VERBS:
         return "write", None
     if first in NOUN_VERBS:
         return ("read", "verb") if len(words) > 1 and last in READ_VERBS else ("write", None)
