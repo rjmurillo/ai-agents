@@ -17,8 +17,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 # ADR-047 keeps this bootstrap inline because imports need sys.path first.
+#
+# Another plugin can export its own plugin root (context-mode does inside
+# ctx_execute, issue #7277), so an env root counts only when it holds this
+# plugin's hook_utilities.path_safety module. Otherwise the lib beside this
+# script wins.
 _PLUGIN_ROOT = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
-if _PLUGIN_ROOT:
+_ROOT_MARKER = os.path.join("lib", "hook_utilities", "path_safety.py")
+if _PLUGIN_ROOT and os.path.isfile(os.path.join(_PLUGIN_ROOT, _ROOT_MARKER)):
     _LIB_DIR = Path(_PLUGIN_ROOT) / "lib"
 else:
     _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"

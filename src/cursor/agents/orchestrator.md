@@ -100,7 +100,6 @@ This matrix routes work to an agent by capability; it does not set models. An in
 | **quality-auditor** | Domain grading, gap analysis | Single-file review |
 | **retrospective** | Post-mortem, learning extraction | Real-time debugging |
 | **roadmap** | Strategic prioritization, outcome sequencing | Tactical execution |
-| **security** | Threat modeling, vulnerability review | Pure performance work |
 | **silent-failure-hunter** | Error suppression, unsafe fallbacks | Loud failures already surface |
 | **skillbook** | Capture learnings as reusable skills | One-off insights |
 | **task-decomposer** | Plan → atomic tasks | Plan still vague |
@@ -191,7 +190,7 @@ Agents return a completion record, an evidence packet under 30 lines: artifacts,
 
 ### Analyst evidence handoff
 
-The analyst has no shell or unrestricted web access. For an investigation that needs shell output, git history, builds, or unrestricted web research, retrieve that evidence yourself and put the exact output, repository identity, branch, and head SHA in the delegation context; name any unavailable evidence as a gap. Do not prefetch GitHub or CI context: the analyst retrieves it directly. If it returns `[BLOCKED]` for load-bearing missing context, retrieve the named evidence and re-delegate once; do not pass the blocked response through. Read `orchestrator-analyst-handoff.md` (see Reference Loading) for the numbered procedure.
+The analyst has no shell or unrestricted web access. For an investigation that needs shell output, git history, builds, or unrestricted web research, retrieve that evidence yourself and put the exact output, repository identity, branch, and head SHA in the delegation context; name any unavailable evidence as a gap. Do not prefetch GitHub or CI context: the analyst retrieves it directly. Exception: when the GitHub read tools are not registered in this host (the analyst returns `[BLOCKED]` naming the missing tool), or the receiving agent has no shell and no GitHub read tool, fetch the issue, PR, or CI log text yourself, write it to a file, and pass the path in the delegation context with the repository, head ref, and head SHA. If it returns `[BLOCKED]` for load-bearing missing context, retrieve the named evidence and re-delegate once; do not pass the blocked response through. Read `orchestrator-analyst-handoff.md` (see Reference Loading) for the numbered procedure.
 
 ## Synthesis Protocol
 
