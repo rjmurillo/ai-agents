@@ -15,7 +15,6 @@ _REPO = Path(__file__).resolve().parents[2]
 
 
 def _workflow_jobs() -> dict[str, dict]:
-
     doc = yaml.safe_load(
         (_REPO / ".github" / "workflows" / "update-reviewer-stats.yml").read_text(encoding="utf-8")
     )
@@ -56,6 +55,9 @@ def test_artifact_hands_the_stats_file_from_the_first_job_to_the_second() -> Non
     assert up["with"]["path"] == stats
     assert down["with"]["path"] == str(Path(stats).parent)
     assert up["with"]["if-no-files-found"] == "error"
+    assert up["with"]["include-hidden-files"] is True
+    (publish,) = [s for s in jobs["publish-stats"]["steps"] if "open_bot_pr.py" in s.get("run", "")]
+    assert f"--path {stats}" in publish["run"]
 
 
 def test_neither_job_persists_checkout_credentials() -> None:
@@ -64,7 +66,7 @@ def test_neither_job_persists_checkout_credentials() -> None:
         assert checkout["with"]["persist-credentials"] is False
 
 
-def test_the_publish_step_is_the_only_one_that_sees_the_write_token_for_git() -> None:
+def test_the_publish_step_sets_the_token_and_git_credential_helper() -> None:
     steps = _workflow_jobs()["publish-stats"]["steps"]
     (publish,) = [s for s in steps if "open_bot_pr.py" in s.get("run", "")]
     assert publish["env"]["GH_TOKEN"] == "${{ github.token }}"

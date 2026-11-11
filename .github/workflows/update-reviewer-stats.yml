@@ -59,7 +59,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98 # v6.0.1-3-g0c366fd (untagged, one commit before v6.0.2)
         with:
           # Need full history for accurate PR analysis
           fetch-depth: 0
@@ -81,11 +81,17 @@ jobs:
         with:
           name: reviewer-stats
           path: .serena/memories/pr-review/pr-comment-responder-skills.md
+          # upload-artifact v4 and later skip dot-prefixed paths by default; the
+          # file sits under .serena/ (pytest.yml does the same for .testmondata).
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 1
 
   publish-stats:
     name: Publish Reviewer Stats
+    # No environment: update-stats runs under agent-claude (one required
+    # reviewer), and needs: keeps this job behind that approval. A second
+    # environment here would ask for a second approval on every run.
     needs: update-stats
     runs-on: ubuntu-26.04-arm
     timeout-minutes: 15
@@ -98,7 +104,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98 # v6.0.1-3-g0c366fd (untagged, one commit before v6.0.2)
         with:
           # The publish script checks that HEAD is an ancestor of origin/main.
           fetch-depth: 0
