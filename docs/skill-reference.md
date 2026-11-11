@@ -193,6 +193,8 @@ Matches file paths against steering file glob patterns to determine which govern
 
 Intelligent skill router and creator. Analyzes input to recommend existing skills or creates new ones following project conventions.
 
+To choose between `skillforge`, `skillify`, `skillopt`, `skill-bootstrap`, and `skill-doctor`, read [Choose the right skill tool](training/skills/choose-a-skill.md). To write the skill file itself, read [SKILL-AUTHORING.md](SKILL-AUTHORING.md).
+
 ### reflect
 
 Critical learning capture. Extracts HIGH/MED/LOW confidence patterns from session work and stores them as reusable knowledge.
