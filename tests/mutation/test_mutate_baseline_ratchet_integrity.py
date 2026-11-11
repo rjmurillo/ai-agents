@@ -37,6 +37,7 @@ from pathlib import Path
 import pytest
 
 from scripts.testing.mutation_workspace import isolated_mutation_worktree
+from tests.mutation._nested_pytest import private_basetemp
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SCRIPTS_REL = Path("scripts") / "validation"
@@ -54,14 +55,26 @@ def _run_suite(repo_root: Path, *extra_paths: str) -> subprocess.CompletedProces
         if pycache.is_dir():
             shutil.rmtree(pycache)
     paths = [str(TEST_PATH), *extra_paths]
-    return subprocess.run(
-        ["uv", "run", "--frozen", "python", "-m", "pytest", *paths, "-q", "--tb=short"],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        cwd=str(repo_root),
-        env={**__import__("os").environ, "PYTHONDONTWRITEBYTECODE": "1"},
-    )
+    with private_basetemp() as basetemp:
+        return subprocess.run(
+            [
+                "uv",
+                "run",
+                "--frozen",
+                "python",
+                "-m",
+                "pytest",
+                basetemp,
+                *paths,
+                "-q",
+                "--tb=short",
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            cwd=str(repo_root),
+            env={**__import__("os").environ, "PYTHONDONTWRITEBYTECODE": "1"},
+        )
 
 
 def _classify(proc: subprocess.CompletedProcess[str]) -> str:
