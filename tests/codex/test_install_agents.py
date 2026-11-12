@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import shutil
 import subprocess
 import sys
@@ -137,6 +138,7 @@ def test_trust_warning_present_when_trust_level_is_not_trusted(world, capsys):
     assert "trusted projects" in capsys.readouterr().err
 
 
+@pytest.mark.skipif(os.name == "nt", reason="a backslash or a quote cannot be in a Windows name")
 def test_trust_key_with_backslash_and_quote_is_escaped_in_the_toml(world, capsys):
     """A Windows path holds backslashes. The helper must write a key the installer can read."""
     odd = world.project.parent / 'odd\\path"q'

@@ -212,6 +212,15 @@ def test_is_link_falls_back_to_the_reparse_attribute_before_python_3_12(
     assert ia._is_link(folder) is expected
 
 
+def test_is_link_refuses_a_path_it_cannot_read_before_python_3_12(tmp_path, monkeypatch):
+    def deny(self):
+        raise PermissionError("denied")
+
+    monkeypatch.delattr(ia.os.path, "isjunction", raising=False)
+    monkeypatch.setattr(Path, "lstat", deny)
+    assert ia._is_link(tmp_path) is True
+
+
 def test_is_link_is_false_for_a_missing_path_without_the_probe(tmp_path, monkeypatch):
     monkeypatch.delattr(ia.os.path, "isjunction", raising=False)
     assert ia._is_link(tmp_path / "missing") is False

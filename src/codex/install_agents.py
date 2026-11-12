@@ -437,8 +437,10 @@ def _is_link(path: Path) -> bool:
         return bool(isjunction(path))
     try:  # Python 3.10 and 3.11: only Windows sets st_file_attributes; 0x400 is a reparse point
         return bool(getattr(path.lstat(), "st_file_attributes", 0) & 0x400)
-    except OSError:
+    except FileNotFoundError:
         return False
+    except OSError:
+        return True  # an unreadable path is not proven safe, so refuse it
 
 
 def resolve_target(args: argparse.Namespace) -> tuple[Path, Path | None]:
