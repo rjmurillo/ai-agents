@@ -116,9 +116,7 @@ ledger, because each one restates a different set of claims.
    in `{analysis-dir}` as the audit record.
 
    ```bash
-   python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-external-claims/scripts/claim_ledger.py" \
-       --ledger "{analysis-dir}/{topic-slug}-analysis-claims.json" \
-       --artifact "{analysis-dir}/{topic-slug}-analysis.draft.md"
+   ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-external-claims/scripts/claim_ledger.py --ledger "{analysis-dir}/{topic-slug}-analysis-claims.json" --artifact "{analysis-dir}/{topic-slug}-analysis.draft.md"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
    ```
 
 ## Process
@@ -153,11 +151,7 @@ ledger, because each one restates a different set of claims.
    Publishing is external and irreversible, so confirm with the user before running this, and skip it rather than guess when no answer is available. Run the script with `--source human`:
 
    ```bash
-   python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/issue/new_issue.py" \
-       --title "[Enhancement] Apply {TOPIC} to {integration-area}" \
-       --body-file "{analysis-dir}/{topic-slug}-issue-body.md" \
-       --labels "enhancement,research-derived" \
-       --source human
+   ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/issue/new_issue.py --title "[Enhancement] Apply {TOPIC} to {integration-area}" --body-file "{analysis-dir}/{topic-slug}-issue-body.md" --labels "enhancement,research-derived" --source human; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
    ```
 
    Never pass `--source agent` from this skill. An owner's later approval of a
