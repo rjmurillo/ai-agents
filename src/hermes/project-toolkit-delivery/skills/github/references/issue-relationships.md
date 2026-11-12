@@ -62,7 +62,6 @@ Rules that settle the common doubts:
 Read what is linked today:
 
 ```bash
-# CLAUDE_PLUGIN_ROOT is set in a vendored install; falls back to .claude in-repo.
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/issue/get_issue_relationships.py --issue 5456; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
@@ -75,11 +74,25 @@ Add links. Several targets in one call share one relation:
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/issue/set_issue_relationship.py --issue 5390 --relation sub-issue --target 5384 other/repo#12; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
-Remove a link with `--remove`. Preview any change with `--dry-run`.
+Remove a link with `--remove`:
+
+```bash
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/issue/set_issue_relationship.py --issue 5456 --relation blocked-by --target 5394 --remove; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+```
+
+Preview any change with `--dry-run`:
+
+```bash
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/issue/set_issue_relationship.py --issue 5456 --relation blocked-by --target 5394 --dry-run; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+```
 
 Move a child to a new parent with `--replace-parent`. Without that flag the
 script refuses, because the move silently detaches the child from its old
-parent.
+parent:
+
+```bash
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/issue/set_issue_relationship.py --issue 5820 --relation parent --target 5817 --replace-parent; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+```
 
 The script reads current links first. A link that exists already is reported
 as `already_linked` and costs no mutation, so a rerun is safe.

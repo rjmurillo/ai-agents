@@ -5,7 +5,6 @@ operation. Decide it once per session with the preflight, then stop
 re-deciding it per call.
 
 ```bash
-# CLAUDE_PLUGIN_ROOT is set in a vendored install; falls back to .claude in-repo.
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/utils/check_github_transport.py; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 

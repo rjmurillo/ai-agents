@@ -13,8 +13,12 @@ body. Never shell-expand the paths.
 
 `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/test/scripts/doc_accuracy_trigger.py --diff-base "origin/<base-branch>" --changed-path <path> --effect <name>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`
 
-If `/build` handed over a doc-impact record (see "Build handoff"), add
-`--build-record <doc-impact-path>`. The record's `effects` join yours, and a
+If `/build` handed over a doc-impact record (see "Build handoff"), run the
+trigger with `--build-record <doc-impact-path>` written inside the locator:
+
+`( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/test/scripts/doc_accuracy_trigger.py --diff-base "origin/<base-branch>" --changed-path <path> --effect <name> --build-record <doc-impact-path>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`
+
+The record's `effects` join yours, and a
 record whose `decision` was `activate` keeps this decision at `activate`, so a
 signal raised at build time is never skipped here. The output echoes both in
 `effects` and `build_record`. Exit `2` also covers an unreadable or malformed
@@ -61,8 +65,9 @@ in step 3 covers only the changed ones. Run
 `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/doc-accuracy/scripts/doc_accuracy.py --target . --phases 1 --output-dir <dir>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`
 and take the documents in `<dir>/assessment.json` whose `mapped_source_files`
 include a changed path. `--diff-base` inventories only changed documents, so it
-cannot scan an unchanged one. Scan the coupled documents with a full run instead:
-the step 3 command with `--phases 1,2,3` and no `--diff-base`. A full run reports
+cannot scan an unchanged one. Scan the coupled documents with a full run instead, with `--phases 1,2,3` and no `--diff-base`:
+`( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/doc-accuracy/scripts/doc_accuracy.py --target . --phases 1,2,3 --format gate; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`
+A full run reports
 every line and downgrades none. Keep only findings whose claim file is a mapped
 coupled document. A blocking one (severity at or above the scan threshold) is a
 FAIL for step 5. Findings in other documents are outside this gate. When none map

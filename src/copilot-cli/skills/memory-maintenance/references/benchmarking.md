@@ -137,7 +137,7 @@ Programmatic output for analysis:
 |-----------|------|---------|-------------|
 | --queries | str[] | Default set | List of test queries to benchmark |
 | --iterations | int | 5 | Number of iterations per query for averaging |
-| --warmup-iterations | int | 2 | Number of warmup iterations before measurement |
+| --warmup | int | 2 | Number of warmup iterations before measurement |
 | --format | str | console | Output format: console, markdown, json |
 
 ### Default Query Set
@@ -291,7 +291,7 @@ find .serena/memories -name "*.md" -exec wc -c {} + | awk '{total += $1; count++
 **Solutions**:
 
 1. **Increase iterations**: Use `--iterations 10` or higher
-2. **Increase warmup**: Use `--warmup-iterations 5`
+2. **Increase warmup**: Use `--warmup 5`
 3. **Reduce background load**: Close applications, disable background tasks
 4. **Check CPU throttling**: Monitor CPU frequency during benchmarks
 

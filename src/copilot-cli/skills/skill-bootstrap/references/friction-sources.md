@@ -22,8 +22,9 @@ judging. The script never calls a server and never touches the network.
 - [Finding contract](#finding-contract)
 - [Authority and privacy](#authority-and-privacy)
 
-In the commands below, `$S ARGS` stands for the command below. Write ARGS inside it,
-before the closing `; fi`:
+In the commands below, a line that starts with `$S` stands for the locator below,
+with the rest of that line written in place of ARGS, inside the locator and before
+the closing `; fi`. Text after the closing `)` is a separate command:
 
 ```bash
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_sweep.py ARGS; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )

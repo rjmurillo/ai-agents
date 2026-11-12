@@ -192,7 +192,17 @@ for reviewer in ALL_REVIEWERS:
 
 Then run the Phase 1 Recording fence in [gates.md](gates.md). It writes `total_comments.txt` and `comment_ids.txt`, the two artifacts every gate reads. Skip it and the gates block.
 
-Label comments on code that no longer exists by adding `--detect-stale` to the same command. Do not add `--exclude-stale` here: Phase 1 Recording counts every comment, so a stale comment stays in the comment map and needs a terminal status recorded through Gate 3. The script labels a stale comment `FileDeleted` (the file is gone from HEAD), `LineOutOfRange` (the line number exceeds the current file length), or `CodeChanged` (the diff hunk no longer matches). Use `--detect-stale --only-stale` during PR cleanup to find stale threads to resolve, and to spot bots that reviewed an outdated commit.
+Label comments on code that no longer exists with `--detect-stale`. Write the flag inside the locator, before its closing `; fi`:
+
+```bash
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_review_comments.py --pull-request [number] --include-issue-comments --detect-stale; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+```
+
+Do not add `--exclude-stale` here: Phase 1 Recording counts every comment, so a stale comment stays in the comment map and needs a terminal status recorded through Gate 3. The script labels a stale comment `FileDeleted` (the file is gone from HEAD), `LineOutOfRange` (the line number exceeds the current file length), or `CodeChanged` (the diff hunk no longer matches). During PR cleanup, add `--only-stale` to find stale threads to resolve, and to spot bots that reviewed an outdated commit:
+
+```bash
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_review_comments.py --pull-request [number] --detect-stale --only-stale; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+```
 
 ### Step 1.4: Confirm the PR is still actionable
 

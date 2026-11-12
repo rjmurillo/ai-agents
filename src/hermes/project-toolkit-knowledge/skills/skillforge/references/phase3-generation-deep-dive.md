@@ -57,4 +57,4 @@
 | No placeholder text | Every section fully written |
 | Scripts (if present) | Shebang, docstring, argparse, exit codes, Result pattern |
 | Script docs | Scripts section in SKILL.md with usage examples |
-| Portable exec paths | Script invocations use `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/...`, never a bare `.claude/skills/...` path (issue #2838) |
+| Portable exec paths | Script invocations use the plugin-root locator, never a bare `.claude/skills/...` path (issue #2838) |

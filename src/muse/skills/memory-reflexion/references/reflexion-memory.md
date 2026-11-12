@@ -403,7 +403,7 @@ before the discontinuation, or cherry-picked from an older one):
 ## Session End (BLOCKING)
 
 - [ ] Update the per-issue handoff
-- [ ] Extract episode if a session log exists: `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/extract_session_episode.py `; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+- [ ] Extract episode if a session log exists: `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/extract_session_episode.py <session-log-path>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`
 - [ ] Update Serena memory
 - [ ] Commit all changes (including .project-toolkit/memory/episodes/)
 ```

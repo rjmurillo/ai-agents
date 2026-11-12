@@ -7,10 +7,10 @@ Reusable patterns for GitHub CLI operations.
 ## Script Path
 
 The GitHub scripts ship inside this skill's `scripts` tree, not at the
-repository root. Every example below opens by setting `SCRIPTS_DIR`;
-`CLAUDE_PLUGIN_ROOT` (or
-`COPILOT_PLUGIN_ROOT`) is set in a vendored install and falls back to `.claude`
-when running in-repo.
+repository root. Every example below runs its script through the plugin-root
+locator, a one-line subshell that finds the plugin root and hands the script
+path and its arguments to `lib/ptk_run.py`. Arguments go inside the locator,
+before its closing `; fi`.
 
 ---
 
