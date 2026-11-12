@@ -150,7 +150,7 @@ def test_fix_refuses_a_generated_tree_and_writes_nothing(
     assert _run_fix(repo, repo / TEMPLATE, repo / rel) == 2
     assert {p: (repo / p).read_bytes() for p in (rel, TEMPLATE)} == before
     err = capsys.readouterr().err
-    assert "generated" in err
+    assert ": generated, " in err
     assert "build_all.py" in err
 
 
@@ -163,7 +163,8 @@ def test_fix_refuses_a_generated_file_reached_through_a_symlink(
     link.symlink_to(repo / "src/claude/agents", target_is_directory=True)
     before = (repo / "src/claude/agents/a.md").read_bytes()
     assert _run_fix(repo, link / "a.md") == 2
-    assert "generated" in capsys.readouterr().err, "the link must be followed to the render"
+    err = capsys.readouterr().err
+    assert "build output prefix src/" in err, "the link must be followed to the render"
     assert (repo / "src/claude/agents/a.md").read_bytes() == before
 
 
@@ -252,7 +253,7 @@ def test_every_render_target_of_the_build_is_refused() -> None:
 def test_a_render_target_is_refused_by_the_command(capsys: pytest.CaptureFixture[str]) -> None:
     rel = "src/claude/skills/build/SKILL.md"
     assert fix.main(["--fix", str(REPO_ROOT / rel), "--repo-root", str(REPO_ROOT)]) == 2
-    assert "generated" in capsys.readouterr().err
+    assert ": generated, " in capsys.readouterr().err
 
 
 def test_every_tracked_template_and_support_file_is_accepted() -> None:
@@ -266,7 +267,7 @@ def test_every_tracked_template_and_support_file_is_accepted() -> None:
         text=True,
     ).stdout.split("\0")
     refused = []
-    for rel in filter(lambda item: item.endswith(fix.FIXABLE_SUFFIXES), listing):
+    for rel in filter(lambda item: item.endswith((".md", ".tmpl", ".mustache")), listing):
         if rel.endswith("/SKILL.md") and rel.count("/") == 4:
             continue
         try:
@@ -281,7 +282,7 @@ def test_every_skill_md_render_is_refused() -> None:
     skills = sorted((REPO_ROOT / "src/claude/skills").glob("*/SKILL.md"))
     assert skills, "no SKILL.md renders found"
     for path in skills:
-        with pytest.raises(fix.FixError, match="generated"):
+        with pytest.raises(fix.FixError, match=": generated, "):
             fix.check_target(REPO_ROOT, str(path), targets)
 
 
