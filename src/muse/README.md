@@ -137,8 +137,8 @@ skills, and the Codex copies differ from these (the frontmatter and `lib/`
 layout are rendered per host). Agents may use the project alternative
 `.agents/agents/`, which Muse Code loads only after the workspace is <!-- agents-write-target: historical -- Muse Code's documented read path, not a write target of this repo -->
 trusted. <!-- agents-write-target: historical -- Muse Code's documented read path, not a write target of this repo -->
-Muse Code 1.4.15 validated all 105 `src/codex/skills` copies as compatible
-with `muse skills validate`.
+On 2026-11-11, Muse Code 1.4.15 validated all 105 `src/muse/skills`
+directories as compatible with `muse skills validate`.
 
 **A Muse Code load of these agents is NOT VERIFIED until the owner's run,
 recorded in the pull request.** Muse Code starts when an agent is invalid, but
