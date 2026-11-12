@@ -9,7 +9,7 @@ It tries each candidate plugin root in order and runs the first root that holds
 (abridged; ADR-121 decision 3 prints the whole text.)
 
 The locator keys on the resolver, not on the target. A foreign plugin that
-exports its own ``CLAUDE_PLUGIN_ROOT`` holds no ``lib/ptk_run.py``, so the loop
+exports its own plugin-root variable holds no ``lib/ptk_run.py``, so the loop
 skips it and reaches a root of ours (ADR-121 decisions 3 to 5). The subshell
 keeps ``exit 2`` from ending a persistent shell. The text holds no ``|``, so it
 survives a Markdown table cell.
