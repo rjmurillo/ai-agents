@@ -72,9 +72,11 @@ def run_installer(world, *extra, project=True):
     return ia.main(argv, agents_dir=world.agents)
 
 
-def trust_project(world) -> None:
+def trust_project(world, level: str = "trusted") -> None:
+    # A Windows path holds backslashes, which a TOML basic string reads as escapes.
+    key = str(world.project).replace("\\", "\\\\").replace('"', '\\"')
     (world.home / "config.toml").write_text(
-        f'[projects."{world.project}"]\ntrust_level = "trusted"\n', encoding="utf-8"
+        f'[projects."{key}"]\ntrust_level = "{level}"\n', encoding="utf-8"
     )
 
 

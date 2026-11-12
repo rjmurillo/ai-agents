@@ -132,11 +132,21 @@ def test_trust_warning_absent_when_project_trusted(world, capsys):
 
 
 def test_trust_warning_present_when_trust_level_is_not_trusted(world, capsys):
-    (world.home / "config.toml").write_text(
-        f'[projects."{world.project}"]\ntrust_level = "untrusted"\n', encoding="utf-8"
-    )
+    trust_project(world, "untrusted")
     run_installer(world)
     assert "trusted projects" in capsys.readouterr().err
+
+
+def test_trust_key_with_backslash_and_quote_is_escaped_in_the_toml(world, capsys):
+    """A Windows path holds backslashes. The helper must write a key the installer can read."""
+    odd = world.project.parent / 'odd\\path"q'
+    odd.mkdir()
+    world.project = odd
+    trust_project(world)
+    assert run_installer(world) == 0
+    err = capsys.readouterr().err
+    assert "unreadable" not in err
+    assert "trusted" not in err
 
 
 def test_user_install_never_warns_about_trust(world, capsys):
