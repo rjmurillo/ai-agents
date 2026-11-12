@@ -2,15 +2,9 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
-
-from plugin_run_launcher import render_locator
-
-from scripts.validation.check_skill_md_drift import _extract_paths_from_text
+# Importing the drift module puts build/scripts on sys.path, so the recipe imports after it.
+from scripts.validation.check_skill_md_drift import _extract_paths_from_text  # isort: skip
+from plugin_run_launcher import render_locator  # isort: skip
 
 TARGET = "skills/memory/scripts/search_memory.py"
 
@@ -32,3 +26,8 @@ def test_text_around_a_locator_still_counts() -> None:
 def test_two_locators_on_one_line_are_both_blanked() -> None:
     line = f"{render_locator(TARGET)} and {render_locator('skills/memory/scripts/other.py')}"
     assert _extract_paths_from_text(line) == set()
+
+
+def test_an_upstream_path_in_a_locator_argument_is_still_a_reference() -> None:
+    text = render_locator(TARGET, "--config .agents/governance/foo.md")
+    assert _extract_paths_from_text(text) == {".agents/governance/foo.md"}

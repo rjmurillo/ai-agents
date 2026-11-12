@@ -75,11 +75,11 @@ Grade quality across product domains. Each domain gets assessed on six layers: a
 
 1. Run `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/quality-grades/scripts/grade_domains.py; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )` to auto-detect domains
 2. Review detected domains for completeness
-3. Add any missing domains via `--domains` flag
+3. Add any missing domains by running the step 1 command again with `--domains <names>` written inside the locator, before its closing `; fi`. Arguments placed after the closing `)` do not reach the script.
 
 ### Phase 2: Grading
 
-1. Run the grading script with `--format json --output` for persistence
+1. Run the grading command with `--format json --output <path>` written inside the locator, as in Phase 1, for persistence
 2. Review grades for accuracy
 3. Validate that gap descriptions are specific and actionable
 

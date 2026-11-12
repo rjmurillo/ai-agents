@@ -120,15 +120,17 @@ def _without_locators(text: str) -> str:
 
     A locator names its target as ``skills/NAME/...`` relative to a plugin root that is
     resolved at run time. The legacy form hid that target behind ``${...}``; the locator
-    shows it, so the path scan would call it an undeclared upstream path.
+    shows it, so the path scan would call it an undeclared upstream path. The locator's
+    arguments stay in the text, because an argument such as ``--config .agents/x.md``
+    is a real reference.
     """
     if "lib/ptk_run.py" not in text:
         return text
     lines = text.split("\n")
     for index, line in enumerate(lines):
-        spans = [(m.start, m.end) for m in plugin_run_launcher.find_locators(line)]
-        for start, end in reversed(spans):
-            line = f"{line[:start]} {line[end:]}"
+        matches = list(plugin_run_launcher.find_locators(line))
+        for match in reversed(matches):
+            line = f"{line[: match.start]} {match.args} {line[match.end :]}"
         lines[index] = line
     return "\n".join(lines)
 
