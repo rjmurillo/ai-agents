@@ -231,3 +231,52 @@ def test_the_multi_tree_mechanism_names_the_resolver() -> None:
     assert "ptk_run.py" in lib_hand_files.PLUGIN_LIB_FILES
     copies = {dst for _, dst in lib_hand_files.PLUGIN_LIB_COPIES if dst.endswith("ptk_run.py")}
     assert copies == {f"{root}/ptk_run.py" for root in lib_hand_files.PLUGIN_LIB_COPY_ROOTS}
+
+
+# --- find_locators: how the validator reads a target out of a line of a file ---
+
+
+def test_find_locators_reads_every_locator_in_a_line() -> None:
+    first = render_locator("skills/a/scripts/one.py", "--x 'y z'")
+    second = render_locator("skills/b/two.py")
+    line = f"Run `{first}` or `{second}` today."
+    found = list(plugin_run_launcher.find_locators(line))
+    assert [(m.script_rel, m.args, m.problem) for m in found] == [
+        ("skills/a/scripts/one.py", "--x 'y z'", None),
+        ("skills/b/two.py", "", None),
+    ]
+    assert [line[m.start : m.end] for m in found] == [first, second]
+
+
+def test_find_locators_agrees_with_split_locator_on_every_rendered_text() -> None:
+    for args in ("", "--flag", "a  b", "$(cmd)"):
+        text = render_locator(SCRIPT, args)
+        [match] = plugin_run_launcher.find_locators(text)
+        assert (match.script_rel, match.args) == split_locator(text)
+
+
+@pytest.mark.parametrize(
+    "line", ["", "plain text", 'python3 "${CLAUDE_PLUGIN_ROOT}/skills/x/y.py"']
+)
+def test_find_locators_ignores_text_that_is_not_a_locator(line: str) -> None:
+    assert list(plugin_run_launcher.find_locators(line)) == []
+
+
+@pytest.mark.parametrize(
+    ("script_rel", "problem"),
+    [("skills/../y.py", "not a plugin-root script path"), ("tools/y.py", "not a plugin-root")],
+)
+def test_find_locators_reports_a_bad_target_instead_of_raising(
+    script_rel: str, problem: str
+) -> None:
+    text = render_locator(SCRIPT).replace(SCRIPT, script_rel)
+    [match] = plugin_run_launcher.find_locators(f"x {text} y")
+    assert match.script_rel is None
+    assert match.problem is not None
+    assert problem in match.problem
+
+
+def test_find_locators_reports_a_head_with_no_tail() -> None:
+    cut = render_locator(SCRIPT).split("; fi;")[0]
+    [match] = plugin_run_launcher.find_locators(cut)
+    assert (match.script_rel, match.problem) == (None, "locator has no closing text")

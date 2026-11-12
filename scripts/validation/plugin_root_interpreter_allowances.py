@@ -82,6 +82,24 @@ SINGLE_ROOT_ALLOWANCES: dict[str, tuple[int, str]] = {
     ),
 }
 
+# Ratchet for the legacy plugin-root form in authored files (ADR-121 rollout step 3).
+# Keyed by authored group (`authored_group` in plugin_root_interpreter_ratchet.py).
+# Value is (invocations, assignments, reason): invocations are `python3 "${...}/skills/..."`
+# commands, assignments are lines such as `SCRIPTS_DIR=${...}`. The checker fails when a
+# group holds more, or fewer, than the count. Lower a count in the pull request that
+# migrates the sites; never raise one. A group with no entry has a baseline of (0, 0).
+LEGACY_SITE_BASELINE: dict[str, tuple[int, int, str]] = {
+    "templates/agents": (33, 1, "Migrates in rollout step 4, agents first."),
+    "templates/skills": (249, 24, "Migrates in rollout step 4, in batches the budget allows."),
+    "src/claude": (64, 50, "Skill support files. Rollout step 5 decides them by class."),
+    "src/claude yaml": (
+        17,
+        0,
+        "Class G: the completion gate dispatches these commands and runs no shell (ADR-121 "
+        "decision 1). They keep the legacy form.",
+    ),
+}
+
 _KEY_RE = re.compile(r"([A-Za-z0-9_.-]+):(?:\s|$)")
 # A block scalar header closes a key line (or a `- ` item): `|`, `>`, with an
 # optional chomping or indentation indicator and an optional trailing comment.
