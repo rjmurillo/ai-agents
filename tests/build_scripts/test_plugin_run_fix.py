@@ -23,6 +23,7 @@ import plugin_run_launcher  # noqa: E402
 
 from scripts.validation import check_plugin_root_interpreter as checker  # noqa: E402
 from scripts.validation import plugin_root_interpreter_allowances as allowances  # noqa: E402
+from scripts.validation import plugin_root_interpreter_sites as sites  # noqa: E402
 from tests.validation.test_check_plugin_root_interpreter import make_repo  # noqa: E402
 
 ROOT = "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
@@ -320,7 +321,7 @@ def test_inventory_counts_each_group_and_states_its_scope(
     assert fix.main(["--inventory", "--repo-root", str(repo)]) == 0
     out = capsys.readouterr().out
     assert "scope: tracked files under templates/ and src/claude/" in out
-    assert "git grep -nE '^\\s*[A-Za-z_]+=.*COPILOT_PLUGIN_ROOT:-" in out
+    assert "git grep -nE '^\\s*[A-Za-z_][A-Za-z0-9_]*=.*COPILOT_PLUGIN_ROOT:-" in out
     rows = _file_rows(out)
     assert rows[TEMPLATE] == ["2", "1", "3"]
     assert rows["templates/agents/a.claude.md.tmpl"] == ["1", "0", "1"]
@@ -376,6 +377,20 @@ def test_assignment_count_equals_the_adr_git_grep_count(tmp_path: Path, which: s
     rows = fix.collect_inventory(repo)
     assert sum(row.assignments for row in rows) == _grep_count(repo)
     assert _grep_count(repo) > 0
+
+
+def test_a_digit_in_an_assignment_name_counts_in_the_inventory_and_the_grep(
+    tmp_path: Path,
+) -> None:
+    """The printed `git grep` and the validator agree on `SCRIPTS_DIR2=`, a valid shell name."""
+    text = f'SCRIPTS_DIR2="{ROOT}/skills/memory/scripts"\n2BAD="{ROOT}/skills/x"\n'
+    repo = _repo(tmp_path, {"templates/skills/digits.SKILL.md.tmpl": text})
+    assert sum(row.assignments for row in fix.collect_inventory(repo)) == 1
+    assert _grep_count(repo) == 1
+
+
+def test_the_printed_grep_is_the_validators_assignment_pattern() -> None:
+    assert fix.ADR_ASSIGNMENT_GREP == sites.ASSIGNMENT_RE.pattern
 
 
 def test_inventory_of_this_checkout_matches_the_validators_baseline() -> None:

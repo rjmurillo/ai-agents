@@ -50,9 +50,10 @@ EXIT_OK, EXIT_LEFT_FOR_PERSON, EXIT_CONFIG, EXIT_EXTERNAL = 0, 1, 2, 3
 FIXABLE_SUFFIXES = (".md", ".tmpl", ".mustache")
 INVENTORY_SCOPE = ("templates", "src/claude")
 RENDER_GROUP = "render (not ratcheted)"
-# The pattern ADR-121 prints under "Assignment sites". Kept as text so the inventory can
-# name the exact command a reader re-runs.
-ADR_ASSIGNMENT_GREP = r"^\s*[A-Za-z_]+=.*COPILOT_PLUGIN_ROOT:-\$\{CLAUDE_PLUGIN_ROOT:-"
+# The assignment pattern, read from the validator's own regex so the printed `git grep`
+# command and the count cannot differ. ADR-121 printed an older, narrower spelling
+# (`[A-Za-z_]+=`) that skips a name with a digit.
+ADR_ASSIGNMENT_GREP = sites.ASSIGNMENT_RE.pattern
 _NESTED_MENTION = "COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-"
 
 
@@ -129,7 +130,7 @@ def format_inventory(rows: list[InventoryRow], sha: str) -> str:
         f"plugin-run-fix inventory at {sha}",
         "scope: tracked files under templates/ and src/claude/, read from the working tree.",
         'invocations: legacy `python3 "${...}/skills/...py"` commands (the validator\'s count).',
-        "assignments: lines matching the ADR-121 pattern, run as "
+        "assignments: lines matching the validator's assignment pattern, run as "
         f"git grep -nE '{ADR_ASSIGNMENT_GREP}' -- {' '.join(INVENTORY_SCOPE)}",
         "mentions: every occurrence of the nested form, the ADR-121 context count.",
         "",

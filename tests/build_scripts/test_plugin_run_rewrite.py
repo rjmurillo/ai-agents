@@ -180,6 +180,16 @@ _REFUSALS = [
         _fence(f'SCRIPTS_DIR="{ROOT}/skills/memory/scripts"'),
         "assignment from the nested form",
     ),
+    _shape(
+        "assignment with a digit in the name",
+        _fence(f'SCRIPTS_DIR2="{ROOT}/skills/memory/scripts"'),
+        "assignment from the nested form",
+    ),
+    _shape(
+        "assignment with a leading underscore and digits",
+        _fence(f'_dir_9="{ROOT}/skills/memory/scripts"'),
+        "assignment from the nested form",
+    ),
 ]
 
 

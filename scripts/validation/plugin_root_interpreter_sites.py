@@ -18,6 +18,7 @@ open.
 
 from __future__ import annotations
 
+import posixpath
 import re
 import sys
 from collections.abc import Iterator
@@ -65,10 +66,14 @@ _INVOCATION_HEAD = re.compile(INTERP_PHRASE + r"\$\{(?:" + "|".join(PLUGIN_ROOT_
 # The `skills/...py` tail once the plugin-root expansion is behind us.
 _PATH_TAIL = re.compile(r"/skills/[A-Za-z0-9_./-]*\.py")
 
-# An assignment from the nested form, such as `SCRIPTS_DIR=...`. The pattern is
-# the one ADR-121 prints for its inventory, so a count here and a `git grep -nE`
-# count agree. It matches one physical line.
-ASSIGNMENT_RE = re.compile(r"^\s*[A-Za-z_]+=.*COPILOT_PLUGIN_ROOT:-\$\{CLAUDE_PLUGIN_ROOT:-")
+# An assignment from the nested form, such as `SCRIPTS_DIR=...` or `SCRIPTS_DIR2=...`.
+# A shell name starts with a letter or underscore and may carry digits after that.
+# `build/scripts/plugin_run_fix.py` prints this pattern as the inventory's `git grep -nE`
+# command, so a count here and a count there agree. It matches one physical line.
+# ADR-121 printed the narrower `[A-Za-z_]+=` for its own inventory.
+ASSIGNMENT_RE = re.compile(
+    r"^\s*[A-Za-z_][A-Za-z0-9_]*=.*COPILOT_PLUGIN_ROOT:-\$\{CLAUDE_PLUGIN_ROOT:-"
+)
 
 LEGACY = "legacy"
 LOCATOR = "locator"
@@ -140,6 +145,19 @@ def find_legacy_invocations(line: str) -> Iterator[Invocation]:
         )
 
 
+def lookup_path(script_rel: str) -> str:
+    """Return the tracked-file lookup path for the script a locator names.
+
+    ``src/claude/lib/ptk_run.py`` joins the script path to the plugin root and tests
+    the file, so ``skills/x/./y.py`` and ``skills//x/y.py`` reach ``skills/x/y.py``.
+    The lookup collapses the same segments. The locator text is not changed. A
+    result that leaves ``skills/`` is not used: the original stays, and the lookup
+    reports it as dangling.
+    """
+    collapsed = posixpath.normpath(script_rel)
+    return collapsed if collapsed.startswith("skills/") else script_rel
+
+
 def find_locator_invocations(line: str) -> Iterator[Invocation]:
     """Yield every locator on one logical line, with its target read out of the text.
 
@@ -150,7 +168,7 @@ def find_locator_invocations(line: str) -> Iterator[Invocation]:
         yield Invocation(
             start=match.start,
             interp="python3",
-            tail=match.script_rel or "",
+            tail=lookup_path(match.script_rel) if match.script_rel else "",
             form=LOCATOR,
             problem=match.problem,
         )
