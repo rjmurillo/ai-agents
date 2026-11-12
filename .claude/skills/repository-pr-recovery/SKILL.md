@@ -64,7 +64,7 @@ For a failed check, copy its exact display name into `CHECK_NAME`.
 Set `BASE_BRANCH` from this PR's base branch.
 
 ```bash
-python3 "$GITHUB_SCRIPTS/pr/triage_red_check.py" --owner rjmurillo --repo ai-agents --pull-request "$PR_NUMBER" --branch "$BASE_BRANCH" --check-name "$CHECK_NAME" --output-format json
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/triage_red_check.py --owner rjmurillo --repo ai-agents --pull-request "$PR_NUMBER" --branch "$BASE_BRANCH" --check-name "$CHECK_NAME" --output-format json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Read `Data.Verdict`, evidence URL, run identity, and ambiguity fields together.

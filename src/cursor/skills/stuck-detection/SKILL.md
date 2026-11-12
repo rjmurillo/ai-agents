@@ -183,8 +183,8 @@ nudge or a system prompt.
 
 ## Process
 
-1. Run `python3 "$SCRIPTS_DIR/stuck_detection.py" check "<text>"`, with
-   `SCRIPTS_DIR` set as in Usage below
+1. Run `check "<text>"` through the locator shown in Usage below, with the
+   text inside the locator's argument list
 2. If the JSON result has `"stuck": true`, inject the `nudge` field into the
    orchestrator's next system prompt so the model self-corrects on its next
    turn. The `nudge` is internal control text wrapped in `<stuck-detection>`
@@ -291,7 +291,7 @@ match the input.
 
 After integrating, confirm the following before relying on the guard:
 
-- [ ] `python3 "$SCRIPTS_DIR/stuck_detection.py" status` returns valid JSON with the configured `history_length`
+- [ ] `status`, run through the Usage locator, returns valid JSON with the configured `history_length`
 - [ ] Three calls to `check` with the same long input return `"stuck": true` on the third call
 - [ ] A call to `reset` zeroes `history_length` on the next `status` check
 - [ ] The history file lives outside the repository working tree (XDG state dir or env-overridden path)
