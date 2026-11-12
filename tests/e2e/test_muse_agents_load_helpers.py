@@ -200,12 +200,17 @@ def test_child_replies_returns_the_evidence_refs_of_the_wait_result() -> None:
     assert child_replies([_spawn("c1", 1, "critic"), wait], NAMES) == {"critic": ["/x/s.jsonl"]}
 
 
-def _session_with(tmp_path: Path, body: str) -> str:
+def _session_with(tmp_path: Path, body: str, *, block: bool = True) -> str:
     """Write a session file that holds ``body`` as a doubly-encoded log line would."""
-    inner = json.dumps({"text": body})
-    outer = json.dumps({"record_json": inner})
+    head = {
+        "id": "agent_definition_prompt",
+        "lifecycle": "session_start",
+        "source": "agent_definition",
+    }
+    item = {**head, "text": body} if block else {"id": "other", "text": body}
+    inner = json.dumps({"blocks": [{"id": "x", "text": "preamble"}, item]}, separators=(",", ":"))
     path = tmp_path / "session.jsonl"
-    path.write_text(outer + "\n", encoding="utf-8")
+    path.write_text(json.dumps({"record_json": inner}, separators=(",", ":")) + "\n", "utf-8")
     return str(path)
 
 
@@ -216,6 +221,13 @@ def _shipped_body(name: str) -> str:
 def test_child_ran_definition_finds_the_shipped_body_in_a_nested_log_line(tmp_path: Path) -> None:
     ref = _session_with(tmp_path, "intro\n" + _shipped_body("critic") + "\ntail")
     assert child_ran_definition([ref], "critic")
+
+
+def test_child_ran_definition_ignores_a_body_quoted_outside_the_definition_block(
+    tmp_path: Path,
+) -> None:
+    quoted = _session_with(tmp_path, _shipped_body("critic"), block=False)
+    assert not child_ran_definition([quoted], "critic")
 
 
 def test_child_ran_definition_rejects_another_agents_body(tmp_path: Path) -> None:

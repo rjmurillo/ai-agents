@@ -62,6 +62,8 @@ _ENV_ALLOW = frozenset(
 _ENV_ALLOW_PREFIXES = ("LC_", "XDG_", "MUSE_")
 CODE_BASE = 1000
 CODE_STEP = 17
+_DEFINITION_BLOCK = re.compile(r'"id":"agent_definition_prompt"')
+_BLOCK_HEADER_ROOM = 400
 _REPLY_TOOLS = frozenset({"subagent_wait", "subagent_read_result"})
 
 
@@ -268,13 +270,14 @@ def _squash(text: str) -> str:
 
 
 def child_ran_definition(evidence_refs: Sequence[str], name: str) -> bool:
-    """True when a child session file holds the shipped body of agent ``name``.
+    """True when a child's ``agent_definition_prompt`` block holds the body of agent ``name``.
 
     Muse Code writes each child's session log to disk and names it in the wait
-    result's ``evidence_refs``. Its ``agent_definition_prompt`` block carries the
-    agent file's body, so a match shows the runtime started the child from the
-    shipped definition and not from a label the lead chose. A missing or
-    unreadable file is False.
+    result's ``evidence_refs``. Its ``agent_definition_prompt`` context block
+    carries the agent file's body, so a match there shows the runtime started the
+    child from the shipped definition and not from a label the lead chose. Text
+    that quotes the body elsewhere in the log does not count: only the window
+    right after the block's id is searched. A missing or unreadable file is False.
     """
     shipped = (MUSE_AGENTS / f"{name}.md").read_text("utf-8").split("---", 2)[-1]
     snippet = _squash(shipped)[:160]
@@ -282,10 +285,12 @@ def child_ran_definition(evidence_refs: Sequence[str], name: str) -> bool:
         return False
     for ref in evidence_refs:
         try:
-            if snippet in _squash(Path(ref).read_text("utf-8", errors="replace")):
-                return True
+            log = _squash(Path(ref).read_text("utf-8", errors="replace"))
         except OSError:
             continue
+        for block in _DEFINITION_BLOCK.finditer(log):
+            if snippet in log[block.end() : block.end() + len(snippet) + _BLOCK_HEADER_ROOM]:
+                return True
     return False
 
 
