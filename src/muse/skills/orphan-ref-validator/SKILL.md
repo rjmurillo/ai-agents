@@ -254,7 +254,7 @@ Target paths are resolved with `pathlib.Path.resolve()` and must lie under the r
 
 If `/build` exits with `VERDICT: CRITICAL_FAIL` from this skill, the recovery is:
 
-1. Re-run the Examples scan with the human formatter (`--output human`, written inside the locator) to get a grep-able list of `path:line` findings.
+1. Re-run the Examples scan (human formatter) for a grep-able list of `path:line` findings.
 
 2. Confirm the finding is real before repairing it. This scanner has produced
    large numbers of false positives: one PR measured 1790 repo-wide findings
@@ -292,9 +292,11 @@ This adds `.project-toolkit/architecture/`, `docs/`, and every `.claude/skills/*
 ## Examples
 
 ```bash
-# Scan only one file
-( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/orphan-ref-validator/scripts/scan.py --targets docs/skill-reference.md; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+# Default scan from repo root, human summary
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/orphan-ref-validator/scripts/scan.py --output human; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
+
+For one file, write `--targets PATH` inside the locator.
 
 ## Tests
 

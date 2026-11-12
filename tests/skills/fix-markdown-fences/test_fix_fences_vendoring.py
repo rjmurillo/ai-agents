@@ -26,10 +26,11 @@ if TESTS_SKILLS_DIR not in sys.path:
     sys.path.insert(0, TESTS_SKILLS_DIR)
 
 _BUILD_SCRIPTS = str(Path(__file__).resolve().parents[3] / "build" / "scripts")
-if _BUILD_SCRIPTS not in sys.path:
-    sys.path.insert(0, _BUILD_SCRIPTS)
-
-import plugin_run_launcher
+sys.path.insert(0, _BUILD_SCRIPTS)
+try:
+    import plugin_run_launcher
+finally:
+    sys.path.remove(_BUILD_SCRIPTS)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
