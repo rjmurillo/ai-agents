@@ -53,6 +53,10 @@ def test_union_has_no_duplicates() -> None:
         "tests/integration/test_e2e_install.py",
         "tests/e2e/copilot_hook_probe.py",
         "tests/e2e/smoke_skip_policy.py",
+        "build/scripts/agent_toml.py",
+        "build/scripts/agent_tools.py",
+        "build/scripts/agent_tree_copy.py",
+        "src/codex/install_agents.py",
         "pyproject.toml",
         "uv.lock",
     ],
@@ -70,6 +74,8 @@ def test_smoke_paths_trigger_a_run(changed: str) -> None:
         ".github/workflows/pytest.yml",
         ".github/workflows/claude.yml",
         "tests/test_something.py",
+        "build/scripts/agent_toml_other.py",
+        "build/scripts/agent_templates.py",
     ],
 )
 def test_non_smoke_paths_do_not_trigger_a_run(changed: str) -> None:

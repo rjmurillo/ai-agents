@@ -56,6 +56,14 @@ surfaces:
     generator: build/scripts/agent_tree_copy.py
     owner: build_all.py --check
     reason: Frontmatter keeps only name and description, plus readonly for agents whose tools are all read-only. The body is copied unchanged.
+  - id: agents-codex
+    path: src/codex/agents
+    relation: translated
+    authority: src/claude/agents
+    generator: build/scripts/agent_tree_copy.py
+    include: ["*.toml"]
+    owner: build_all.py --check
+    reason: One TOML file per agent with name, description, and developer_instructions (the body). Agents whose Claude file declares tools are not shipped, and each body names them. install_agents.py copies the files into .codex/agents.
   - id: vscode-copilot-instructions
     path: src/vs-code-agents
     relation: independent
@@ -577,8 +585,8 @@ surfaces:
   - id: src-codex-authored
     path: src/codex
     relation: independent
-    include: ["plugin.json"]
-    reason: Plugin manifest is authored in place (ADR-115 Decision 1).
+    include: ["plugin.json", "install_agents.py"]
+    reason: Plugin manifest and the agent installer are authored in place (ADR-115 Decisions 1 and 7).
   - id: src-muse-authored
     path: src/muse
     relation: independent
