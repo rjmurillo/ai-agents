@@ -89,32 +89,32 @@ Use **threat-modeling** instead when:
 ### Basic Scan (Staged Files)
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/security-scan/scripts/scan_vulnerabilities.py" --git-staged
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/security-scan/scripts/scan_vulnerabilities.py --git-staged; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ### Scan Specific Files
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/security-scan/scripts/scan_vulnerabilities.py" path/to/file.py another/script.ps1
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/security-scan/scripts/scan_vulnerabilities.py path/to/file.py another/script.ps1; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ### Scan Directory
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/security-scan/scripts/scan_vulnerabilities.py" --directory src/
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/security-scan/scripts/scan_vulnerabilities.py --directory src/; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ### JSON Output (CI Integration)
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/security-scan/scripts/scan_vulnerabilities.py" --git-staged --format json
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/security-scan/scripts/scan_vulnerabilities.py --git-staged --format json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ### Specific CWE Focus
 
 ```bash
 # Command injection only (the only CWE this scanner detects)
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/security-scan/scripts/scan_vulnerabilities.py" --cwe 78 --git-staged
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/security-scan/scripts/scan_vulnerabilities.py --cwe 78 --git-staged; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 `--cwe 22` is accepted for backward compatibility but produces no findings. In console mode, the scanner emits a stderr warning pointing at CodeQL when invoked with `--cwe 22`. In JSON mode, `summary.delegated_cwes` carries that fact and stderr stays empty. To check for path traversal, rely on the CodeQL workflow at `.github/workflows/codeql-analysis.yml`.

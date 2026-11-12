@@ -59,7 +59,7 @@ See also [build ownership](../../../build/AGENTS.md).
 Ask the manifest which layer owns a path:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/repository-consumer-proof/scripts/artifact_owner.py" --repo . <repo-relative-path>
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/repository-consumer-proof/scripts/artifact_owner.py --repo . <repo-relative-path>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 It reads [the binplace manifest](../../../templates/platforms/binplace.yaml) and prints each row that covers the path, the layer (source, plugin, installed), and whether the row links, copies, or only renders it.
@@ -155,11 +155,11 @@ If live runtime access is unavailable, report runtime impact as unmeasured.
 List or run the proofs this skill names:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/repository-consumer-proof/scripts/instruments.py" --repo . list
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/repository-consumer-proof/scripts/instruments.py" --repo . run <id>
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/repository-consumer-proof/scripts/instruments.py --repo . list; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/repository-consumer-proof/scripts/instruments.py --repo . run <id> -- <args>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
-Rows cover `build_all.py --check`, the dispatcher and hook suites, the runtime parity dry-run (pass `-- --model <id>` after `run runtime-parity-dry-run`), `artifact-owner`, and the drift self-check.
+Rows cover `build_all.py --check`, the dispatcher and hook suites, the runtime parity dry-run (`run runtime-parity-dry-run -- --model <id>`), `artifact-owner`, and the drift self-check.
 `list` proves the instrument files exist. It does not prove consumer behavior; only a `run` result does.
 
 ## Verification
@@ -180,7 +180,7 @@ Follow the [shared maintenance policy](../repository-pr-recovery/references/libr
 Last verified 2026-10-31 at commit `42e409325`. `reverify.json` holds the checks for the paths and strings this skill relies on. Check drift with:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_drift.py" check --repo . --skills-root .claude/skills --name repository-consumer-proof --require
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_drift.py check --repo . --skills-root .claude/skills --name repository-consumer-proof --require; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 The installed-dispatcher fixture fields live in `tests/test_run_completion_gate_install.py`; read the test, not a copy.

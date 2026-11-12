@@ -52,9 +52,7 @@ Use these scripts instead of raw `gh` commands for consistent error handling and
 the first GitHub call:
 
 ```bash
-# CLAUDE_PLUGIN_ROOT is set in a vendored install; falls back to .claude in-repo.
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/utils"
-python3 "$SCRIPTS_DIR/check_github_transport.py"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/utils/check_github_transport.py; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Non-POSIX hosts do not run the block above. The authoritative, per-harness
@@ -142,27 +140,20 @@ scripts under `scripts/pr/` with bare `python3`, not `uv run`.
 `uv run <script>` resolves the whole project environment first, which downloads
 `anthropic==0.116.0` (a core dependency in `pyproject.toml`) from PyPI and times
 out with no network. The read-only PR scripts never import the anthropic SDK.
-They import only `github_core`, which parses YAML with a vendored fallback when
-PyYAML is absent, so no third-party import is required.
+They import only `github_core`, which falls back to a vendored YAML parser, so
+no third-party import is required.
 
 ```bash
 # No PyPI round trip. Runs read-only PR status offline.
-# CLAUDE_PLUGIN_ROOT is set in a vendored install; falls back to .claude in-repo.
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr"
-python3 "$SCRIPTS_DIR/get_pull_requests.py" --state open
-python3 "$SCRIPTS_DIR/get_pr_context.py" --pr <N>
-python3 "$SCRIPTS_DIR/get_pr_checks.py" --pr <N>
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pull_requests.py --state open; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_context.py --pull-request <N>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_checks.py --pull-request <N>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
-Any `python3` works: `github_core` falls back to a vendored YAML parser when
-PyYAML is absent, confirmed by running these scripts with both
-PyYAML and the anthropic SDK blocked. The interpreter from
-`scripts/bootstrap-vm.sh` and a project `.venv/bin/python3` both ship PyYAML for
-the faster path. Do not use `uv run` for read-only triage offline; it forces the
-resolve that fetches anthropic.
-
-The regression guard `tests/test_pr_scripts_offline.py` asserts the read-only PR
-scripts and `github_core` import with the anthropic SDK blocked.
+Any `python3` works; checked with PyYAML and the anthropic SDK blocked.
+`scripts/bootstrap-vm.sh` and a project `.venv/bin/python3` ship PyYAML for the
+faster path. The guard `tests/test_pr_scripts_offline.py` asserts the read-only
+PR scripts and `github_core` import with the SDK blocked.
 
 ---
 
@@ -300,9 +291,7 @@ All scripts output structured JSON wrapped in a standard envelope per ADR-051.
 **Usage:**
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
-result=$(python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 50)
-echo "$result" | jq '.Data'
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_context.py --pull-request 50; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) | jq '.Data'
 ```
 
 Exit codes follow ADR-035: 0=success, 1=logic error, 2=config error, 3=external failure, 4=auth error.
@@ -318,21 +307,6 @@ Exit codes follow ADR-035: 0=success, 1=logic error, 2=config error, 3=external 
 3. Call the script with required parameters
 4. Parse the JSON output
 5. Reading an issue or PR: read the full discussion, open every linked item, recurse until no new links
-
-**Example Flow:**
-
-```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
-
-# Get PR context
-python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 123
-
-# Check CI status
-python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 123
-
-# Reply in a thread (new_pr_review_comment.py starts one)
-python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request 123 --comment-id 456 --body "CI failures detected"
-```
 
 ---
 

@@ -16,6 +16,13 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+_BUILD_SCRIPTS = REPO_ROOT / "build" / "scripts"
+sys.path.insert(0, str(_BUILD_SCRIPTS))
+try:
+    import plugin_run_launcher
+finally:
+    sys.path.remove(str(_BUILD_SCRIPTS))
+
 SKILL_REL = Path("skills") / "skillopt"
 SHIPPED_ROOTS = (".claude", "src/claude", "src/copilot-cli", "src/codex")
 BODY_ROOTS = (*SHIPPED_ROOTS, "src/cursor", "src/hermes/project-toolkit-knowledge")
@@ -137,12 +144,14 @@ def test_ceiling_guidance_forbids_regating_the_same_candidate(root: str) -> None
 
 
 def test_skill_md_invocations_use_plugin_root_python3() -> None:
-    text = _skill_md()
-    prefix = (
-        'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skillopt/scripts/'
-    )
-    assert prefix + 'skillopt.py" --help' in text
-    assert prefix + 'mine_sessions.py" --help' in text
+    targets = {
+        match.script_rel: match.args
+        for line in _skill_md().splitlines()
+        for match in plugin_run_launcher.find_locators(line)
+        if match.script_rel
+    }
+    assert targets["skills/skillopt/scripts/skillopt.py"] == "--help"
+    assert targets["skills/skillopt/scripts/mine_sessions.py"] == "--help"
 
 
 def test_documented_help_runs_from_unrelated_directory(tmp_path: Path) -> None:

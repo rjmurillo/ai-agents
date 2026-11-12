@@ -50,9 +50,7 @@ The script in `.claude/skills/steering-matcher/scripts/get_applicable_steering.p
 
 ```bash
 # Match files against steering patterns
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/steering-matcher/scripts/get_applicable_steering.py" \
-    --files "src/claude/analyst.md" ".project-toolkit/security/TM-001-auth-flow.md" \
-    --steering-path ".agents/steering"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/steering-matcher/scripts/get_applicable_steering.py --files "src/claude/analyst.md" ".project-toolkit/security/TM-001-auth-flow.md" --steering-path ".agents/steering"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Output: JSON array of objects with name, path, apply_to, priority
 ```
@@ -71,8 +69,7 @@ This skill integrates with the orchestrator workflow:
 ```bash
 # 1. Identify files from task
 # 2. Get applicable steering
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/steering-matcher/scripts/get_applicable_steering.py" \
-    --files "src/claude/security.md" ".project-toolkit/security/SR-001-oauth-review.md"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/steering-matcher/scripts/get_applicable_steering.py --files "src/claude/security.md" ".project-toolkit/security/SR-001-oauth-review.md"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # 3. Inject into agent context
 # Output: JSON with name, path, apply_to, priority sorted by priority descending
@@ -113,7 +110,7 @@ After execution:
 Matches file paths against steering glob patterns and returns applicable guidance.
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/steering-matcher/scripts/get_applicable_steering.py" --files <file1> [<file2> ...]
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/steering-matcher/scripts/get_applicable_steering.py --files <file1> [<file2> ...]; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ## Related
