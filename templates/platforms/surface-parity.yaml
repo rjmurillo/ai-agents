@@ -474,10 +474,35 @@ surfaces:
     generator: build/scripts/lib_mirror.py
     owner: build_all.py --check
     reason: Byte copy. The skill scripts import paths.py from lib/ and share the Claude artifact root (issue #7221).
+  - id: lib-ptk-run-codex-plugin
+    path: src/codex/lib/ptk_run.py
+    relation: mirrored
+    authority: src/claude/lib/ptk_run.py
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Byte copy. The shell locator of a shipped command runs lib/ptk_run.py from its own plugin tree (ADR-121).
+  - id: lib-ptk-run-cursor-plugin
+    path: src/cursor/lib/ptk_run.py
+    relation: mirrored
+    authority: src/claude/lib/ptk_run.py
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Byte copy. The shell locator of a shipped command runs lib/ptk_run.py from its own plugin tree (ADR-121).
+  - id: lib-ptk-run-muse-plugin
+    path: src/muse/lib/ptk_run.py
+    relation: mirrored
+    authority: src/claude/lib/ptk_run.py
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Byte copy. The shell locator of a shipped command runs lib/ptk_run.py from its own plugin tree (ADR-121).
   - id: lib-paths-claude-plugin
     path: src/claude/lib/paths.py
     relation: independent
     reason: Hand-maintained and canonical (ADR-119); the `lib` binplace row links .claude/lib/paths.py to it.
+  - id: lib-ptk-run-claude-plugin
+    path: src/claude/lib/ptk_run.py
+    relation: independent
+    reason: Hand-maintained and canonical, the ADR-121 resolver; the `lib` binplace row links .claude/lib/ptk_run.py to it.
   - id: lib-claude-plugin
     path: src/claude/lib
     relation: independent
@@ -509,7 +534,7 @@ surfaces:
     include: ["*.py"]
     divergent: [paths.py]
     owner: build/scripts/check_surface_parity.py
-    reason: Hand-maintained copies of the .claude/lib top-level modules. paths.py differs on purpose; its consumer-side root is .agents, not .project-toolkit.
+    reason: Hand-maintained copies of the .claude/lib top-level modules. paths.py differs on purpose; its consumer-side root is .agents, not .project-toolkit. ptk_run.py (ADR-121) is a byte copy.
 
   # ---- Hermes packs (ADR-115 Decision 6) ----------------------------------
   - id: skills-hermes-packs
