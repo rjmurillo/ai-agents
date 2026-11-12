@@ -114,7 +114,7 @@ Delegate to the `devops` agent: You are a build and release engineer. Focus on p
 5. **Artifact integrity** - Correct upload/download, retention policy, no sensitive data in artifacts.
 
 If `/build` handed over a provenance/authority record path, re-run it against the current changed paths before this gate's findings:
-`( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/validation-authority/scripts/validation_record.py --record <record-path> --changed-path <path>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )` (repeat `--changed-path` for every path in this PR). Exit `1` is `CRITICAL_FAIL`: a target lost its permitted change location or gained an unrecorded one. Exit `2` is also `CRITICAL_FAIL`: fix the record or the invocation and rerun. No record path handed over: skip this step.
+`( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/validation-authority/scripts/validation_record.py --record <record-path> --changed-path <path>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )` (one `--changed-path <path>` per path in this PR, all inside the locator). Exit `1` is `CRITICAL_FAIL`: a target lost its permitted change location or gained an unrecorded one. Exit `2` is also `CRITICAL_FAIL`: fix the record or the invocation and rerun. No record path handed over: skip this step.
 
 Output: `VERDICT: PASS|WARN|CRITICAL_FAIL` with findings array.
 
@@ -128,7 +128,7 @@ Then compose `dx-review`. This gate keeps no DX checklist of its own:
 
 1. **Decide.** Run the trigger with every changed path from Step 0, each as its
    own argument, plus each DX effect you verified in the diff body. Never
-   shell-expand the paths.
+   shell-expand the paths. Write every flag inside the locator.
    `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/test/scripts/dx_trigger.py --changed-path <path> --effect <name>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`
    Effects: `cli-surface`, `public-api`, `onboarding-flow`, `agent-behavior`,
    `user-task-docs`, `contributor-workflow`. Pass `contributor-workflow` when a

@@ -77,7 +77,7 @@ Skills exceeding 500 lines need progressive disclosure refactoring.
 
 ## Process
 
-1. Run `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/taste-lints/scripts/taste_lints.py; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )` with target files
+1. Run `taste_lints.py` with the target files, using a locator from the Scripts section. Put the files inside its argument list.
 2. Review AGENT_REMEDIATION blocks in output
 3. Apply suggested fixes
 4. Re-run to confirm compliance
@@ -101,7 +101,7 @@ Skills exceeding 500 lines need progressive disclosure refactoring.
 # Scan a directory
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/taste-lints/scripts/taste_lints.py --directory src/; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
-# Text output lists at most 100 violations (errors first when cut); --max-violations 0 lists all
+# Text output lists at most 100 violations (errors first when cut); --max-violations 0 in the locator lists all
 # JSON output (never cut)
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/taste-lints/scripts/taste_lints.py --format json --git-staged; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 

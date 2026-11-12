@@ -126,7 +126,7 @@ ledger, because each one restates a different set of claims.
 5. Run the validator on the ledger and the draft. On exit 1 or 2, fix the
    draft or the ledger and rerun; never write the final artifact on a failed
    run. On exit 0, Read the draft and Write its exact text to the final
-   location, then run the validator again with `--artifact` on the final file.
+   location, then run the same locator again with its `--artifact` value set to the final file.
    It must exit 0 again, which proves the copy is the checked text. The issue
    body is published straight from its checked file. Drafts and ledgers stay
    in `{analysis-dir}` as the audit record.

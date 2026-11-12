@@ -156,10 +156,10 @@ List or run the proofs this skill names:
 
 ```bash
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/repository-consumer-proof/scripts/instruments.py --repo . list; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
-( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/repository-consumer-proof/scripts/instruments.py --repo . run <id>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/repository-consumer-proof/scripts/instruments.py --repo . run <id> -- <args>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
-Rows cover `build_all.py --check`, the dispatcher and hook suites, the runtime parity dry-run (pass `-- --model <id>` after `run runtime-parity-dry-run`), `artifact-owner`, and the drift self-check.
+Rows cover `build_all.py --check`, the dispatcher and hook suites, the runtime parity dry-run (`run runtime-parity-dry-run -- --model <id>`), `artifact-owner`, and the drift self-check.
 `list` proves the instrument files exist. It does not prove consumer behavior; only a `run` result does.
 
 ## Verification

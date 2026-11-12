@@ -120,7 +120,7 @@ PyYAML is absent, so no third-party import is required.
 
 ```bash
 # No PyPI round trip. Runs read-only PR status offline.
-( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_checks.py --pr <N>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_checks.py --pull-request <N>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Any `python3` works. It was confirmed by running these scripts with both

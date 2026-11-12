@@ -83,7 +83,7 @@ upstream validator.
 4. Write the record to `<record-path>` (see "Validation Change Record" below
    for where that resolves) and run
    `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/validation-authority/scripts/validation_record.py --record <record-path> --changed-path <path>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`
-   for every changed path. Exit `0` clears Phase 3 to edit the permitted
+   for every changed path (one `--changed-path <path>` each, inside the locator). Exit `0` clears Phase 3 to edit the permitted
    locations; exit `1` names the blocking targets; exit `2` is a
    configuration error in the record or the invocation.
 

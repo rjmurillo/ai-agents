@@ -65,8 +65,8 @@ work from the text directly.
 | 3 | Template compliance | Summary non-empty, Changes has at least one item, Type of Change has at least one marked checkbox | The spec-coverage job reports FAIL on an unpopulated section |
 
 Prefer the repository's own validator when it ships one, because it is the same
-code the gate runs. Resolve the script root through a plugin-root variable so the
-invocation works in a plugin install and not only in the upstream checkout:
+code the gate runs. The locator below finds the script in a plugin install and in
+the upstream checkout:
 
 ```bash
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/validate_pr_description.py --title "[title]" --body-file "[path-to-body.md]"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )

@@ -78,7 +78,7 @@ The interview runs in three phases.
 |--------|---------|------------|
 | `scripts/validate_operating_model.py <path>` | Validate operating-model.json against schema v1.0.0 | 0 ok, 1 schema failure, 2 invalid usage |
 
-Pass `--skip-path-validation` to bypass CWE-22 path containment when reading fixtures from outside the repo (tests only).
+For tests only, write `--skip-path-validation` inside the locator's argument list to bypass CWE-22 path containment when reading fixtures from outside the repo.
 
 ## Resume Across Sessions
 

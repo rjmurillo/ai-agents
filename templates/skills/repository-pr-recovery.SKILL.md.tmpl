@@ -45,7 +45,7 @@ Reuse `github`, `reviewer-findings`, and `pr-comment-responder` only when their 
 
 Select GitHub transport through [github](../../../.claude/skills/github/SKILL.md).
 Set `PR_NUMBER` from the supplied PR, never a remembered result.
-For an available script transport, bind its installed root once:
+For an available script transport, run the producer:
 
 ```bash
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/why_pr_blocked.py --owner rjmurillo --repo ai-agents --pull-request "$PR_NUMBER" --output-format json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
@@ -80,7 +80,7 @@ Exit codes alone cannot distinguish the three non-evidence verdicts.
 
 `PR_ONLY` means no matching row within the examined history.
 It does not prove a workflow never runs on main.
-Widen history only when schedule or path filters justify it, with `--history-depth` (max 50 commits).
+Widen history only when schedule or path filters justify it: `run triage-red-check -- --history-depth N` in the instrument locator (max 50 commits).
 Cancelled evidence may contain same-name workflows; validate identity before rerunning.
 Different failure signatures can coexist even when both branches are red.
 Read logs through `get_pr_check_logs.py`, not raw `gh`.
