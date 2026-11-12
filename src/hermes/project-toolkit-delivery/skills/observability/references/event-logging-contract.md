@@ -150,8 +150,7 @@ adjudicate. It reads a described scenario, not source code, so it cannot
 infer intent.
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/observability/scripts"
-python3 "$SCRIPTS_DIR/check_event_logging.py" scenario.json
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/observability/scripts/check_event_logging.py scenario.json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ```json

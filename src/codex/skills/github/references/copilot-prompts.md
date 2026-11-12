@@ -19,19 +19,18 @@ GitHub Copilot is **amnesiac**. It has no memory of the codebase, PR context, or
 3. Post the generated prompt via issue comment or PR comment reply
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 
 # Step 1: Gather context
-pr=$(python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 50 --include-changed-files)
-threads=$(python3 "$SCRIPTS_DIR/pr/get_unresolved_review_threads.py" --pull-request 50)
+pr=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_context.py --pull-request 50 --include-changed-files; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) )
+threads=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_unresolved_review_threads.py --pull-request 50; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) )
 
 # Step 2: Use prompt-builder agent to generate the directive
 # Pass context to prompt-builder, which will create an actionable, specific prompt
 
 # Step 3: Post the generated prompt
-python3 "$SCRIPTS_DIR/issue/post_issue_comment.py" --issue 123 --body "$generatedPrompt"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/issue/post_issue_comment.py --issue 123 --body "$generatedPrompt"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 # OR for PR comment reply:
-python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request 50 --comment-id 123 --body "$generatedPrompt"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/post_pr_comment_reply.py --pull-request 50 --comment-id 123 --body "$generatedPrompt"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ---

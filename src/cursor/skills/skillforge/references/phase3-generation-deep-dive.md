@@ -39,10 +39,8 @@
    • Add a fast-fail check, and plan an independent postcondition check
    • Document exit codes
    • Test before finalizing
-   • In SKILL.md, invoke scripts through a plugin-root env var, never a bare
-     .claude/skills path:
-     SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/{skill-name}/scripts"
-     then python3 "$SCRIPTS_DIR/script.py" (see docs/SKILL-AUTHORING.md)
+   • In SKILL.md, invoke scripts through the plugin-root locator, never a bare
+     .claude/skills path (see ADR-121)
 ```
 
 ## Quality Checks During Generation
@@ -59,4 +57,4 @@
 | No placeholder text | Every section fully written |
 | Scripts (if present) | Shebang, docstring, argparse, exit codes, Result pattern |
 | Script docs | Scripts section in SKILL.md with usage examples |
-| Portable exec paths | Script invocations use `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/...`, never a bare `.claude/skills/...` path (issue #2838) |
+| Portable exec paths | Script invocations use the plugin-root locator, never a bare `.claude/skills/...` path (issue #2838) |
