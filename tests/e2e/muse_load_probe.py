@@ -37,7 +37,27 @@ PYTEST_MARGIN_SECONDS = 60
 DRAIN_TIMEOUT_SECONDS = 10
 RUN = os.environ.get("RUN_CLI_E2E") == "1"
 _ENV_ALLOW = frozenset(
-    {"PATH", "HOME", "LANG", "TERM", "TMPDIR", "TZ", "USER", "LOGNAME", "SHELL", "NO_COLOR"}
+    {
+        "PATH",
+        "HOME",
+        "LANG",
+        "TERM",
+        "TMPDIR",
+        "TZ",
+        "USER",
+        "LOGNAME",
+        "SHELL",
+        "NO_COLOR",
+        # Windows needs these to start a process and to find the profile that holds the login.
+        "USERPROFILE",
+        "SYSTEMROOT",
+        "APPDATA",
+        "LOCALAPPDATA",
+        "TEMP",
+        "TMP",
+        "PATHEXT",
+        "COMSPEC",
+    }
 )
 _ENV_ALLOW_PREFIXES = ("LC_", "XDG_", "MUSE_")
 CODE_BASE = 1000
@@ -70,6 +90,11 @@ def skill_script_found_lib(output: str) -> bool:
     return SKILL_USAGE in output and LIB_MISSING not in output
 
 
+def _posix(value: str | Path) -> str:
+    """Return ``value`` with forward slashes, so a Windows path matches Muse's output."""
+    return str(value).replace("\\", "/")
+
+
 def skill_loaded(events: Sequence[Mapping[str, object]], name: str, root: Path) -> bool:
     """True when a successful ``read_skill`` result loaded skill ``name`` from ``root``.
 
@@ -77,7 +102,7 @@ def skill_loaded(events: Sequence[Mapping[str, object]], name: str, root: Path) 
     179 skills in the owner's run, so another root could shadow the same name.
     """
     marker = f'name="{name}" status="ok"'
-    folder = str(root / "skills" / name)
+    folder = _posix(root / "skills" / name)
     for event in events:
         if event.get("payload_type") != "tool.result":
             continue
@@ -92,7 +117,7 @@ def skill_loaded(events: Sequence[Mapping[str, object]], name: str, root: Path) 
             and facts.get("outcome") == "success"
             and isinstance(text, str)
             and marker in text
-            and folder in text
+            and folder in _posix(text)
         ):
             return True
     return False
@@ -110,6 +135,8 @@ def run_installed_script(script: str) -> str:
         ["python3", "-I", script, "--help"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=USAGE_TIMEOUT_SECONDS,
         env=allowlisted_env(os.environ),
         check=False,

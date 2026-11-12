@@ -283,6 +283,20 @@ def test_skill_loaded_needs_a_successful_read_skill_result_from_the_user_root() 
     assert not skill_loaded([{"payload_type": "tool.result", "payload": "x"}, {}], "github", root)
 
 
+def test_skill_loaded_matches_a_windows_style_root_against_posix_output() -> None:
+    ok = (
+        '<read-skill-result name="github" status="ok"> '
+        "path: C:/Users/u/.config/muse/skills/github/SKILL.md"
+    )
+    assert skill_loaded([_read_skill(ok)], "github", Path("C:\\Users\\u\\.config\\muse"))
+
+
+def test_run_installed_script_survives_non_ascii_output(tmp_path: Path) -> None:
+    script = tmp_path / "s.py"
+    script.write_bytes(b"import sys\nsys.stdout.buffer.write(b'usage: caf\\xc3\\xa9 \\xff\\n')\n")
+    assert "usage: caf" in run_installed_script(str(script))
+
+
 def test_run_installed_script_returns_stdout_and_stderr(tmp_path: Path) -> None:
     script = tmp_path / "s.py"
     script.write_text(
@@ -352,6 +366,19 @@ def test_a_stale_same_name_agent_fails_clearly(
         pytest.fail.Exception, match=r"1 shipped agents are missing or differ.*critic"
     ):
         require_user_install()
+
+
+def test_env_allowlist_keeps_the_windows_profile_variables() -> None:
+    env = allowlisted_env(
+        {
+            "USERPROFILE": "u",
+            "SYSTEMROOT": "s",
+            "APPDATA": "a",
+            "LOCALAPPDATA": "l",
+            "GH_TOKEN": "t",
+        }
+    )
+    assert env == {"USERPROFILE": "u", "SYSTEMROOT": "s", "APPDATA": "a", "LOCALAPPDATA": "l"}
 
 
 def test_env_allowlist_keeps_only_what_muse_needs() -> None:
