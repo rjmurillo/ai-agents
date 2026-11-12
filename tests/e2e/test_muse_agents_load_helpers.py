@@ -21,13 +21,18 @@ if str(_E2E_DIR) not in sys.path:
 from muse_load_probe import (  # noqa: E402
     CONTROL_NAME,
     MUSE_AGENTS,
+    SKILL_NAME,
     allowlisted_env,
     build_prompt,
     check_prerequisites,
+    child_ran_definition,
+    child_replies,
     parse_events,
     require_user_install,
+    run_installed_script,
     run_muse,
     shipped_agent_names,
+    skill_loaded,
     skill_script_found_lib,
     spawn_code,
     spawned_agents,
@@ -43,7 +48,7 @@ def _stub(path: Path, body: str) -> Path:
 
 def test_prompt_numbers_every_agent_and_never_prints_a_code() -> None:
     names = ["a-one", "b-two"]
-    prompt = build_prompt(names, "/x/s.py")
+    prompt = build_prompt(names)
     assert "- 00: a-one" in prompt and "- 01: b-two" in prompt
     assert not any(spawn_code(i) in prompt for i in range(len(names)))
 
@@ -138,6 +143,76 @@ def test_spawned_agents_ignores_a_role_that_does_not_match_its_number() -> None:
     assert spawned_agents(events, NAMES) == set()
 
 
+def test_spawned_agents_accepts_a_path_without_the_number_prefix() -> None:
+    plain = _result(
+        "subagent_spawn",
+        {"status": "accepted", "subagent_id": "c1", "agent_path": "main/critic/3"},
+    )
+    assert spawned_agents([plain, _wait("c1", spawn_code(1))], NAMES) == {"critic"}
+
+
+def test_spawned_agents_ignores_an_unlisted_role_in_the_path() -> None:
+    other = _result(
+        "subagent_spawn",
+        {"status": "accepted", "subagent_id": "c1", "agent_path": "main/stranger/3"},
+    )
+    assert spawned_agents([other, _wait("c1", spawn_code(1))], NAMES) == set()
+
+
+def test_child_replies_returns_the_evidence_refs_of_the_wait_result() -> None:
+    wait = _result(
+        "subagent_wait",
+        {
+            "status": "ready",
+            "subagent_id": "c1",
+            "summary": spawn_code(1),
+            "evidence_refs": ["/x/s.jsonl", 3],
+        },
+    )
+    assert child_replies([_spawn("c1", 1, "critic"), wait], NAMES) == {"critic": ["/x/s.jsonl"]}
+
+
+def test_child_replies_accepts_the_lead_prefixed_label() -> None:
+    label = _result(
+        "subagent_spawn",
+        {"status": "accepted", "subagent_id": "c1", "agent_path": "main/lead-01-critic/2"},
+    )
+    assert child_replies([label, _wait("c1", spawn_code(1))], NAMES) == {"critic": []}
+
+
+def _session_with(tmp_path: Path, body: str) -> str:
+    """Write a session file that holds ``body`` as a doubly-encoded log line would."""
+    inner = json.dumps({"text": body})
+    outer = json.dumps({"record_json": inner})
+    path = tmp_path / "session.jsonl"
+    path.write_text(outer + "\n", encoding="utf-8")
+    return str(path)
+
+
+def _shipped_body(name: str) -> str:
+    return (MUSE_AGENTS / f"{name}.md").read_text("utf-8").split("---", 2)[-1]
+
+
+def test_child_ran_definition_finds_the_shipped_body_in_a_nested_log_line(tmp_path: Path) -> None:
+    ref = _session_with(tmp_path, "intro\n" + _shipped_body("critic") + "\ntail")
+    assert child_ran_definition([ref], "critic")
+
+
+def test_child_ran_definition_rejects_another_agents_body(tmp_path: Path) -> None:
+    ref = _session_with(tmp_path, _shipped_body("architect"))
+    assert not child_ran_definition([ref], "critic")
+
+
+def test_child_ran_definition_is_false_for_missing_files_and_no_refs(tmp_path: Path) -> None:
+    assert not child_ran_definition([str(tmp_path / "gone.jsonl")], "critic")
+    assert not child_ran_definition([], "critic")
+
+
+def test_child_ran_definition_accepts_every_shipped_agent(tmp_path: Path) -> None:
+    for name in shipped_agent_names():
+        assert child_ran_definition([_session_with(tmp_path, _shipped_body(name))], name), name
+
+
 def test_spawned_agents_ignores_a_malformed_path_and_unparseable_text() -> None:
     bad_path = _result(
         "subagent_spawn", {"status": "accepted", "subagent_id": "c1", "agent_path": "x"}
@@ -167,8 +242,43 @@ def test_skill_script_check_needs_usage_and_no_missing_lib() -> None:
     assert not skill_script_found_lib("nothing relevant")
 
 
-def test_prompt_asks_for_the_skill_script() -> None:
-    assert "/x/get_pr_checks.py --help" in build_prompt(["a"], "/x/get_pr_checks.py")
+def test_prompt_asks_for_the_skill_by_name_and_never_for_a_script() -> None:
+    prompt = build_prompt(["a"])
+    assert f"load the `{SKILL_NAME}` skill" in prompt
+    assert "python3" not in prompt
+
+
+def _read_skill(text: str, outcome: str = "success") -> dict[str, object]:
+    return _result_raw("read_skill", text, outcome)
+
+
+def _result_raw(tool: str, text: str, outcome: str = "success") -> dict[str, object]:
+    return {
+        "payload_type": "tool.result",
+        "payload": {"correlation_facts": {"outcome": outcome, "tool_name": tool}, "text": text},
+    }
+
+
+def test_skill_loaded_needs_a_successful_read_skill_result_for_that_name() -> None:
+    ok = '<read-skill-result name="github" status="ok">'
+    assert skill_loaded([_read_skill(ok)], "github")
+    assert not skill_loaded([_read_skill(ok, outcome="failure")], "github")
+    assert not skill_loaded(
+        [_read_skill('<read-skill-result name="memory" status="ok">')], "github"
+    )
+    assert not skill_loaded(
+        [_read_skill('<read-skill-result name="github" status="missing">')], "github"
+    )
+    assert not skill_loaded([_result_raw("bash", ok)], "github")
+    assert not skill_loaded([{"payload_type": "tool.result", "payload": "x"}, {}], "github")
+
+
+def test_run_installed_script_returns_stdout_and_stderr(tmp_path: Path) -> None:
+    script = tmp_path / "s.py"
+    script.write_text(
+        "import sys\nprint('usage: get_pr_checks.py')\nsys.stderr.write('e')\n", "utf-8"
+    )
+    assert run_installed_script(str(script)).startswith("usage: get_pr_checks.py")
 
 
 def test_control_agent_has_the_extra_key(tmp_path: Path) -> None:
@@ -232,11 +342,6 @@ def test_a_stale_same_name_agent_fails_clearly(
         pytest.fail.Exception, match=r"1 shipped agents are missing or differ.*critic"
     ):
         require_user_install()
-
-
-def test_the_script_path_is_quoted_in_the_prompt() -> None:
-    prompt = build_prompt(["a"], "/home/Jane Doe/.config/muse/skills/x.py")
-    assert "python3 -I '/home/Jane Doe/.config/muse/skills/x.py' --help" in prompt
 
 
 def test_env_allowlist_keeps_only_what_muse_needs() -> None:

@@ -19,7 +19,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import shlex
 import shutil
 import signal
 import subprocess
@@ -43,7 +42,7 @@ _ENV_ALLOW = frozenset(
 _ENV_ALLOW_PREFIXES = ("LC_", "XDG_", "MUSE_")
 CODE_BASE = 1000
 CODE_STEP = 17
-_AGENT_PATH = re.compile(r"main/(\d+) (.+)/\d+")
+_AGENT_PATH = re.compile(r"main/(?:lead-)?(?:(\d+)[ -])?(.+)/\d+")
 
 
 def cli_budget(*subprocess_timeouts: int) -> pytest.MarkDecorator:
@@ -55,25 +54,66 @@ def shipped_agent_names() -> list[str]:
     return sorted(p.stem for p in MUSE_AGENTS.glob("*.md"))
 
 
+SKILL_NAME = "github"
 SKILL_SCRIPT_REL = "skills/github/scripts/pr/get_pr_checks.py"
 SKILL_USAGE = "usage: get_pr_checks.py"
 LIB_MISSING = "Plugin lib directory not found"
 
 
-def build_script_prompt(script: str) -> str:
-    """Return the instruction to run one script-backed skill and quote its output."""
-    command = f"python3 -I {shlex.quote(script)} --help"
-    return f"Then run `{command}` in a shell and quote its first output line exactly."
+def build_skill_prompt() -> str:
+    """Return the instruction to load one installed skill with the skill tool."""
+    return f"Then load the `{SKILL_NAME}` skill with your skill tool and tell me its name."
 
 
 def skill_script_found_lib(output: str) -> bool:
-    """True when the run shows the script's usage line and no missing-lib message."""
+    """True when the output shows the script's usage line and no missing-lib message."""
     return SKILL_USAGE in output and LIB_MISSING not in output
 
 
-def build_prompt(names: list[str], script: str) -> str:
-    """Return the prompt: spawn each named agent once, then run one skill script."""
-    return build_agents_prompt(names) + "\n" + build_script_prompt(script)
+def skill_loaded(events: Sequence[Mapping[str, object]], name: str) -> bool:
+    """True when a successful ``read_skill`` result in ``events`` loaded skill ``name``."""
+    marker = f'name="{name}" status="ok"'
+    for event in events:
+        if event.get("payload_type") != "tool.result":
+            continue
+        payload = event.get("payload")
+        if not isinstance(payload, Mapping):
+            continue
+        facts = payload.get("correlation_facts")
+        text = payload.get("text")
+        if (
+            isinstance(facts, Mapping)
+            and facts.get("tool_name") == "read_skill"
+            and facts.get("outcome") == "success"
+            and isinstance(text, str)
+            and marker in text
+        ):
+            return True
+    return False
+
+
+def run_installed_script(script: str) -> str:
+    """Run the installed skill script with ``--help`` outside Muse; return its output.
+
+    Muse Code's default sandbox hides the user root from the model's shell
+    (``Permission denied``, observed on 1.4.15), so the model cannot run this
+    script. A normal shell shows that the skill folder and ``lib/`` arrive
+    together, which is what a script needs.
+    """
+    done = subprocess.run(
+        ["python3", "-I", script, "--help"],
+        capture_output=True,
+        text=True,
+        timeout=USAGE_TIMEOUT_SECONDS,
+        env=allowlisted_env(os.environ),
+        check=False,
+    )
+    return done.stdout + done.stderr
+
+
+def build_prompt(names: list[str]) -> str:
+    """Return the prompt: spawn each named agent once, then load one skill."""
+    return build_agents_prompt(names) + "\n" + build_skill_prompt()
 
 
 def spawn_code(index: int) -> str:
@@ -138,23 +178,21 @@ def _tool_result(event: Mapping[str, object]) -> tuple[str, dict[str, object]] |
     return str(facts.get("tool_name")), body
 
 
-def spawned_agents(events: Sequence[Mapping[str, object]], names: list[str]) -> set[str]:
-    """Return the names of ``names`` whose spawned child replied with its own code.
+def child_replies(events: Sequence[Mapping[str, object]], names: list[str]) -> dict[str, list[str]]:
+    """Return ``{name: evidence_refs}`` for each name whose spawned child replied with its code.
 
     A name at position ``i`` counts only when two runtime records agree:
 
     1. a ``subagent_spawn`` result with ``status: accepted`` whose ``agent_path``
-       is ``main/<i> <name>/<n>``, and
+       ends in the role name (``main/<name>/<n>``, ``main/<i> <name>/<n>``, or
+       another label the lead chose around it; see ``_AGENT_PATH``), and
     2. a ``subagent_wait`` result with ``status: ready`` for the same
        ``subagent_id`` whose ``summary`` holds ``spawn_code(i)``.
 
     The runtime writes both records. A lead cannot forge them by working out the
     formula and echoing a code: its text is not a ``tool.result`` for a wait on a
     child id. A rejected spawn, a roster, or a wait on another child does not
-    count. Limits: the role in ``agent_path`` comes from the spawn request, and
-    stdout does not show that the child ran the shipped file's body. A child
-    that was handed its code in the request could also echo it, but the prompt
-    never prints a code.
+    count. The value lists the child's ``evidence_refs`` (session files).
     """
     spawned: dict[str, int] = {}
     for event in events:
@@ -168,10 +206,13 @@ def spawned_agents(events: Sequence[Mapping[str, object]], names: list[str]) -> 
         match = _AGENT_PATH.fullmatch(path) if isinstance(path, str) else None
         if match is None:
             continue
-        index, role = int(match.group(1)), match.group(2)
-        if index < len(names) and names[index] == role:
+        number, role = match.group(1), match.group(2)
+        if role not in names:
+            continue
+        index = names.index(role)
+        if number is None or int(number) == index:
             spawned[child] = index
-    replied: set[str] = set()
+    replied: dict[str, list[str]] = {}
     for event in events:
         parsed = _tool_result(event)
         if parsed is None or parsed[0] != "subagent_wait":
@@ -182,8 +223,44 @@ def spawned_agents(events: Sequence[Mapping[str, object]], names: list[str]) -> 
             continue
         index = spawned.get(child) if isinstance(child, str) else None
         if index is not None and spawn_code(index) in summary:
-            replied.add(names[index])
+            refs = body.get("evidence_refs")
+            replied[names[index]] = (
+                [r for r in refs if isinstance(r, str)] if isinstance(refs, list) else []
+            )
     return replied
+
+
+def spawned_agents(events: Sequence[Mapping[str, object]], names: list[str]) -> set[str]:
+    """Return the names of ``names`` whose spawned child replied with its own code."""
+    return set(child_replies(events, names))
+
+
+def _squash(text: str) -> str:
+    """Collapse JSON escapes and whitespace so a body matches inside a nested log line."""
+    unescaped = re.sub(r'\\+"', '"', re.sub(r"\\+n", " ", text))
+    return re.sub(r"\s+", " ", unescaped).strip()
+
+
+def child_ran_definition(evidence_refs: Sequence[str], name: str) -> bool:
+    """True when a child session file holds the shipped body of agent ``name``.
+
+    Muse Code writes each child's session log to disk and names it in the wait
+    result's ``evidence_refs``. Its ``agent_definition_prompt`` block carries the
+    agent file's body, so a match shows the runtime started the child from the
+    shipped definition and not from a label the lead chose. A missing or
+    unreadable file is False.
+    """
+    shipped = (MUSE_AGENTS / f"{name}.md").read_text("utf-8").split("---", 2)[-1]
+    snippet = _squash(shipped)[:160]
+    if not snippet:
+        return False
+    for ref in evidence_refs:
+        try:
+            if snippet in _squash(Path(ref).read_text("utf-8", errors="replace")):
+                return True
+        except OSError:
+            continue
+    return False
 
 
 def write_control_agent(agents_dir: Path) -> Path:
