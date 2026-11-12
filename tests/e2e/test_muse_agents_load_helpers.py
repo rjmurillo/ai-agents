@@ -53,6 +53,11 @@ def test_prompt_numbers_every_agent_and_never_prints_a_code() -> None:
     assert not any(spawn_code(i) in prompt for i in range(len(names)))
 
 
+def test_prompt_makes_the_lead_wait_for_each_child() -> None:
+    """Run 4 spawned all 25 children, never waited, and left stdout with no replies."""
+    assert "call subagent_wait for that child" in build_prompt(["a-one"])
+
+
 def test_codes_are_distinct_and_never_prefix_each_other() -> None:
     codes = [spawn_code(i) for i in range(40)]
     assert len(set(codes)) == 40
@@ -136,6 +141,26 @@ def test_spawned_agents_ignores_a_wait_for_a_child_that_was_never_spawned() -> N
 def test_the_code_not_the_label_decides_which_role_a_child_answered_for() -> None:
     events = [_spawn("c1", 1, "critic"), _wait("c1", spawn_code(2))]
     assert spawned_agents(events, NAMES) == {"debug"}
+
+
+def test_child_replies_reads_a_reply_that_arrives_through_read_result() -> None:
+    """Probe: a wait timed out at 60s, then subagent_read_result returned the reply."""
+    timed_out = _wait("c1", "Wait timed out after 60000 ms", status="timeout")
+    read = _result(
+        "subagent_read_result",
+        {"status": "ready", "subagent_id": "c1", "summary": spawn_code(0)},
+    )
+    assert child_replies([_spawn("c1", 0, "architect"), timed_out, read], NAMES) == {
+        "architect": []
+    }
+
+
+def test_child_replies_ignores_a_read_result_that_is_not_ready() -> None:
+    read = _result(
+        "subagent_read_result",
+        {"status": "running", "subagent_id": "c1", "summary": spawn_code(0)},
+    )
+    assert child_replies([_spawn("c1", 0, "architect"), read], NAMES) == {}
 
 
 def test_child_replies_ignores_the_label_the_lead_chose() -> None:

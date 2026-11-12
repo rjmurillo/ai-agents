@@ -19,7 +19,7 @@ We ran the commands on 2026-11-11 with main at `d34536c95c`. Counts come from th
 | Pi | 1.5.0 | 105 | None | `pi install` from git | Yes |
 | Hermes | Agent v0.23.0 | 91, in two packs | None | `hermes plugins install` per pack | Yes |
 | Muse personal agent | Not run | 105 | None | Copy skill folders | No |
-| Muse Code | 1.4.15, at `fc91afcf2` | 105 | 25, copied by hand; load not verified | Copy skill and agent folders | Partly |
+| Muse Code | 1.4.15, at `fc91afcf2` | 105 | 25; a signed-in run spawned all 25 | Copy skill and agent folders | Partly |
 
 "Yes" means the install, check, update, and uninstall commands on this page all ran. A model turn that needs your sign-in is the exception. We mark those "Not run".
 
@@ -398,7 +398,7 @@ Do not copy these skills into the `skills` folder under `~/.agents`, or under a 
    done
    ```
 
-   On 2026-11-11 the tree shipped 25 agents. It leaves out `analyst`, `code-reviewer`, `comment-analyzer`, and `security`, because their Claude files declare a `tools` list and Muse Code tool names are not documented. Each shipped body names the agents left out. Muse Code cannot spawn an agent with an unrecognized frontmatter key, so only `name` and `description` ship. As of 2026-11-11, no run shows that Muse Code loads these agents. The load test is `tests/e2e/test_muse_agents_load.py`, and it needs a Muse login. Account-wide agents have unrestricted tools and apply to every workspace. The Claude deny on starting subagents does not carry over. 24 agent bodies instead carry a Subagents section that asks the model not to start subagents. That is a prompt instruction, not a block.
+   On 2026-11-11 the tree shipped 25 agents. It leaves out `analyst`, `code-reviewer`, `comment-analyzer`, and `security`, because their Claude files declare a `tools` list and Muse Code tool names are not documented. Each shipped body names the agents left out. Muse Code cannot spawn an agent with an unrecognized frontmatter key, so only `name` and `description` ship. On 2026-11-12, signed-in `muse exec` runs on 1.4.15 spawned all 25 from `~/.config/muse/agents/`, and each child's session log held its agent body. Muse Code refused a control agent with an extra frontmatter key as `agent_definition_invalid`. The load test is `tests/e2e/test_muse_agents_load.py`, and it needs a Muse login. Muse Code's default sandbox hides `~/.config/muse` from the model's shell, so the model cannot run a skill script from the user folder (`Permission denied`). It can read the skill with its skill tool. Account-wide agents have unrestricted tools and apply to every workspace. The Claude deny on starting subagents does not carry over. 24 agent bodies instead carry a Subagents section that asks the model not to start subagents. That is a prompt instruction, not a block.
 
 Update: pull the clone and run step 2 again. It moves the old copies aside.
 
@@ -766,7 +766,7 @@ usage: get_pr_checks.py [-h] [--owner OWNER] [--repo REPO]
                         [--timeout-seconds TIMEOUT_SECONDS]
 ```
 
-One `src/muse` tree serves two Muse targets. The personal agent gets skills and `lib/` only. Muse Code gets skills, `lib/`, and agents. The skill frontmatter keeps only `name` and `description`. The personal agent steps are in [src/muse/README.md](../../src/muse/README.md). The Muse Code steps are in [Install on Muse Code](#install-on-muse-code): skills and `lib/` under `${XDG_CONFIG_HOME:-$HOME/.config}/muse/`, agents in `muse/agents/`. As of 2026-11-11, no run shows that Muse Code loads the agents, because the load test needs a Muse login (`tests/e2e/test_muse_agents_load.py`). On 2026-11-11, Muse Code 1.4.15 `muse skills validate` accepted all 105 `src/muse/skills` directories with no login (`tests/e2e/test_muse_skills_validate.py`).
+One `src/muse` tree serves two Muse targets. The personal agent gets skills and `lib/` only. Muse Code gets skills, `lib/`, and agents. The skill frontmatter keeps only `name` and `description`. The personal agent steps are in [src/muse/README.md](../../src/muse/README.md). The Muse Code steps are in [Install on Muse Code](#install-on-muse-code): skills and `lib/` under `${XDG_CONFIG_HOME:-$HOME/.config}/muse/`, agents in `muse/agents/`. On 2026-11-12, signed-in `muse exec` runs on 1.4.15 spawned all 25 agents from `muse/agents/` (`tests/e2e/test_muse_agents_load.py` needs a Muse login). On 2026-11-11, Muse Code 1.4.15 `muse skills validate` accepted all 105 `src/muse/skills` directories with no login (`tests/e2e/test_muse_skills_validate.py`).
 
 Not run: asking Muse to list or use a skill.
 
@@ -802,11 +802,13 @@ Count the agent files the install copied:
 ls "${XDG_CONFIG_HOME:-$HOME/.config}/muse/agents/"*.md | wc -l
 ```
 
-It prints `25` in a scratch home with no other agents (2026-11-11). It counts files only. It does not show that Muse Code loads them.
+It prints `25` in a scratch home with no other agents (2026-11-11). It counts files only. The spawn evidence is in the install step above.
 
 We also ran one signed-in `muse exec` turn. It loaded the `github` skill and ran that script. That run used a copy in a scratch repository's project skill folder, not the user folder.
 
-Not run: a signed-in turn against the user folder, and update or uninstall in a real home.
+On 2026-11-12, a signed-in turn loaded the `github` skill from the user folder with the skill tool. The same turn could not run the script there: Muse Code's default sandbox answered `Permission denied` for anything under `~/.config/muse`. The script command above works from your own shell.
+
+Not run: update or uninstall in a real home.
 
 Muse Code trims its skill catalog to 32 KB. In a scratch home with these 105 skills and the 26 built-in and plugin skills, it loaded 131 skills. It shortened 104 descriptions and omitted no skill.
 

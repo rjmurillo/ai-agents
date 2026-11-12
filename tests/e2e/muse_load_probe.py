@@ -42,6 +42,7 @@ _ENV_ALLOW = frozenset(
 _ENV_ALLOW_PREFIXES = ("LC_", "XDG_", "MUSE_")
 CODE_BASE = 1000
 CODE_STEP = 17
+_REPLY_TOOLS = frozenset({"subagent_wait", "subagent_read_result"})
 
 
 def cli_budget(*subprocess_timeouts: int) -> pytest.MarkDecorator:
@@ -139,9 +140,10 @@ def build_agents_prompt(names: list[str]) -> str:
         "For each agent role below, spawn that exact agent once. Give it this "
         f"objective: reply with the single word code-N, where N is {CODE_BASE} plus "
         f"{CODE_STEP} times the number printed before its role. Do not compute N "
-        "yourself and do not repeat it. Spawn one at a time. If a role cannot be "
-        "spawned, say so and go on to the next. Do not use any other role and do "
-        "not edit files. When done, list which roles you spawned.\n"
+        "yourself and do not repeat it. Spawn one at a time: after each spawn, call "
+        "subagent_wait for that child and read its reply before the next spawn. If a "
+        "role cannot be spawned, say so and go on to the next. Do not use any other "
+        "role and do not edit files. When done, list which roles you spawned.\n"
         f"{listing}"
     )
 
@@ -189,7 +191,8 @@ def child_replies(events: Sequence[Mapping[str, object]], names: list[str]) -> d
     Name ``names[i]`` counts when two runtime records agree:
 
     1. a ``subagent_spawn`` result with ``status: accepted`` and a ``subagent_id``, and
-    2. a ``subagent_wait`` result with ``status: ready`` for that same
+    2. a ``subagent_wait`` or ``subagent_read_result`` result (a wait that times
+       out at 60s is followed by a read) with ``status: ready`` for that same
        ``subagent_id`` whose ``summary`` holds ``spawn_code(i)`` and no other code.
 
     The runtime writes both records. A lead cannot forge them by working out the
@@ -210,7 +213,7 @@ def child_replies(events: Sequence[Mapping[str, object]], names: list[str]) -> d
     replied: dict[str, list[str]] = {}
     for event in events:
         parsed = _tool_result(event)
-        if parsed is None or parsed[0] != "subagent_wait":
+        if parsed is None or parsed[0] not in _REPLY_TOOLS:
             continue
         body = parsed[1]
         child, summary = body.get("subagent_id"), body.get("summary")
