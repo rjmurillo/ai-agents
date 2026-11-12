@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -10,6 +11,10 @@ import pytest
 from scripts.validation import checks_mypy
 from scripts.validation.checks_mypy import _resolve_symlinked_sources
 from scripts.validation.evidence import EvidenceState
+
+pytestmark = pytest.mark.skipif(
+    os.name != "posix", reason="creating symlinks needs POSIX or a privileged Windows user"
+)
 
 
 @pytest.fixture

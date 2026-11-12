@@ -36,8 +36,8 @@ _MYPY_GATE = "validate_mypy_changed_files"
 def _resolve_symlinked_sources(repo_root: Path, paths: list[str]) -> list[str]:
     """Swap each tracked symlink for the in-repo file it points at (issue #7328).
 
-    ADR-119 decision 14 links ``.claude/lib/*.py`` into ``src/claude/lib``, so a
-    branch that adds or edits a shared lib module changes a symlink.
+    ADR-119 decision 14 links each ``.claude/lib`` entry that has a ``src/claude/lib``
+    counterpart to that file, so a branch that adds a shared lib module adds a symlink.
     ``run_mypy`` refuses any symlink and exits 2, which failed the gate on a
     change that was fine. The source file is type-checked in its own right.
 
