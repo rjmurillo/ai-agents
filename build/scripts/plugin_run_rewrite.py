@@ -2,6 +2,7 @@
 
 The legacy form is::
 
+    (plugin-root-interpreter: docstring example, illustrative only)
     python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/NAME/.../FILE.py" ARGS
 
 :func:`rewrite_text` replaces each such site with

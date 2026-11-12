@@ -4,6 +4,7 @@ A site is text that runs a plugin script. Two forms exist (ADR-121):
 
 * The **legacy form**: an interpreter token followed by an operand that starts
   with ``${COPILOT_PLUGIN_ROOT`` or ``${CLAUDE_PLUGIN_ROOT``, quoted or bare.
+  (plugin-root-interpreter: docstring example, illustrative only)
   ``python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/x/scripts/y.py"``
 * The **locator**: the shell text ``build/scripts/plugin_run_launcher.py`` renders.
   The script path sits in the text after the resolver path.
