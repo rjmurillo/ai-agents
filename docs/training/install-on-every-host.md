@@ -153,7 +153,7 @@ Uninstall: delete the `.agent.md` files you copied from `.github/agents/`. Delet
    - Cloned repositories. A repository can commit its own `.codex/agents/.project-toolkit-agents.json`, and `--uninstall` deletes the files that file lists. Before you run `--uninstall` (or any install) in a repository you did not create, read that file and run with `--dry-run` first. The script rejects unsafe names and symlinks, but it cannot know which listed files you meant to keep.
    - `--dry-run` prints the plan and writes nothing. `--uninstall` removes the files that still match their record and leaves edited files with a warning.
    - Spawn reviewers with `fork_turns="none"`, so a reviewer does not inherit the parent's context.
-   - Subagents. Codex cannot enforce the Claude-only `disallowedTools: Agent` line, so the build drops it. Instead, 24 of the 25 shipped bodies end with a `Subagents` section that tells the model not to start subagents. That is a prompt instruction, not a block. A Codex subagent inherits the parent's permissions, which is the bound ADR-115 Decision 3 relies on.
+   - Subagents. Codex cannot enforce the Claude-only `disallowedTools: Agent` line, so the build drops it. Instead, 24 of the 25 shipped bodies carry a `Subagents` section that tells the model not to start subagents. That is a prompt instruction, not a block. A Codex subagent inherits the parent's permissions, which is the bound ADR-115 Decision 3 relies on.
    - Trust path. The warning checks the exact project path. If Codex trusts a parent folder, the warning can be a false alarm.
 
 Update:
