@@ -27,10 +27,13 @@ a file. The context-mode plugin exports its own `CLAUDE_PLUGIN_ROOT` inside its
 with "No such file". PR #7318 fixed the same flaw in the completion gate, in
 Python, where a probe is possible. The shell form has no such fix.
 
-The form is authored in 489 places at 48b4ea4c2 (2026-11-11): 287 in
-`templates/skills` (74 files), 50 in `templates/agents` (33 files), 2 in
-`templates/rules`, and 150 in 43 files under `src/claude` (not `SKILL.md`, not
-`agents/`). Of those 150, 123 sit in Markdown, 19 in YAML, and 8 in `.py` files.
+The form is authored in 489 places at 48b4ea4c2 (2026-11-11).
+- 287 sit in `templates/skills` (74 files) at 48b4ea4c2.
+- 50 sit in `templates/agents` (33 files) at 48b4ea4c2.
+- 2 sit in `templates/rules` at 48b4ea4c2.
+- 150 sit in 43 files under `src/claude` at 48b4ea4c2, not counting `SKILL.md` or
+  `agents/`. Of those, 123 are Markdown, 19 are YAML, and 8 are `.py` files.
+
 The build copies the form into every other host tree.
 
 ### Evidence
@@ -219,6 +222,8 @@ calls it.
   260-character command exactly. The validator checks committed bytes, not what a
   model types. A bad copy fails loud.
 - **Version skew.** A root whose resolver exists but whose target does not exits 2.
+- **Review date.** Review this record by 2027-02-11, or when a Copilot CLI or
+  Codex probe returns.
 - **Riskiest assumption.** Hosts other than Claude Code may export no variable to
   a model-issued shell and may not rewrite the token. The locator then falls to
   `.claude`, which is today's behavior and fixes nothing for an installed consumer

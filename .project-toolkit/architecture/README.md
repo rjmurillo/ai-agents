@@ -197,6 +197,7 @@ Recorded, not yet binding. The last column is what each record says is holding i
 | [ADR-115](ADR-115-native-plugin-support-per-host.md) | Native Plugin Support for Cursor, Codex, Grok Build, Hermes, Devin, Pi, and Muse | 2026-11-11 | A generated plugin tree for each host whose native format differs. | review by 2027-04-12; ADR-115 refines ADR-072 Decision 2 and Decision 5 for seven more hosts. A reduced `adr-review` panel (architect and critic) reached consensus in round 3 on the first four hosts.... |
 | [ADR-116](ADR-116-unchecked-in-context-rule-violation-failure-mode.md) | Propose a Failure Mode for Unchecked In-Context Rule Violations | 2026-10-13 | Propose a class named Unchecked In-Context Rule Violation, numbered with the next free FM number at acceptance (FM #14 on 2026-10-13, because ADR-117 took FM #13), for... | review by 2027-04-13; The owner has not accepted the class, and `FAILURE-MODES.md` is unchanged until then. |
 | [ADR-119](ADR-119-symlinked-dogfood-agents-and-skills.md) | Symlink the Agent and Skill Dogfood Trees to the Plugin Tree | 2026-11-04 | A binplace manifest row may set `link: true` (`templates/platforms/binplace.yaml`). | review by 2027-04-17; This record amends ADR-109 and ADR-108; see Related Decisions. |
+| [ADR-121](ADR-121-one-resolver-for-plugin-root-commands.md) | One Resolver Launches Every Shipped Plugin-Root Shell Command | 2026-11-11 | Three classes of site. | review by 2027-02-11 |
 
 ## Retired
 

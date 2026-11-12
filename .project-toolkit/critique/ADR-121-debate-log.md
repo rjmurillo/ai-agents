@@ -75,6 +75,12 @@ Corrections folded in after the votes, none of which changes the design:
 - Step 5 gets an owner and a start condition (architect dissent).
 - Step 2 checks the smoke job's `continue-on-error` setting (advisor note).
 
+Pre-PR validation edits after the votes, none of which changes the design:
+
+- Counts on the "489 places" paragraph now carry the commit SHA on each line (the measurement anchoring check).
+- The review date 2027-02-11 is also stated in the Consequences prose (the lifecycle ratchet).
+- The ADR index README is regenerated.
+
 ### Agent Positions
 
 | Agent | Position | Notes |
