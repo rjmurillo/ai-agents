@@ -31,6 +31,9 @@ from muse_load_probe import (  # noqa: E402
 
 SKILLS_DIR = REPO_ROOT / "src" / "muse" / "skills"
 
+# One `muse skills validate` per skill directory, each capped at the usage timeout.
+pytestmark = cli_budget(len(list(SKILLS_DIR.iterdir())) * USAGE_TIMEOUT_SECONDS)
+
 
 def _run_validate(muse: str, skill_dir: Path, cwd: Path) -> tuple[int, str, str]:
     result = run_muse(
@@ -60,7 +63,6 @@ def _validate_skill(muse: str, skill_dir: Path, cwd: Path) -> str:
 
 @pytest.mark.smoke
 @pytest.mark.muse
-@cli_budget(105 * USAGE_TIMEOUT_SECONDS)  # type: ignore[untyped-decorator]
 def test_muse_code_validates_every_shipped_skill_as_compatible(tmp_path: Path) -> None:
     if not RUN:
         pytest.skip(f"{NOT_VERIFIED} set RUN_CLI_E2E=1 with muse on PATH")

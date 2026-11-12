@@ -61,10 +61,12 @@ from muse_load_probe import (  # noqa: E402
     spawned_agents,
 )
 
+# The one test here runs `muse usage`, then `muse exec`, so the budget covers both.
+pytestmark = cli_budget(USAGE_TIMEOUT_SECONDS, EXEC_TIMEOUT_SECONDS)
+
 
 @pytest.mark.smoke
 @pytest.mark.muse
-@cli_budget(EXEC_TIMEOUT_SECONDS, USAGE_TIMEOUT_SECONDS)  # type: ignore[untyped-decorator]
 def test_lead_spawns_every_shipped_agent_and_not_the_control(tmp_path: Path) -> None:
     if not RUN:
         pytest.skip(f"{NOT_VERIFIED} set RUN_CLI_E2E=1 with muse on PATH and a Muse login")
