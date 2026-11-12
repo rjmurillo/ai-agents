@@ -1,10 +1,10 @@
 # Install the toolkit on your host and check it loaded
 
-<!-- # taste-lint: ignore file-size, nine hosts share one page because the training folder is flat and the index holds one entry per issue. -->
+<!-- # taste-lint: ignore file-size, ten hosts share one page because the training folder is flat and the index holds one entry per issue. -->
 
 ## Goal
 
-Install `project-toolkit` on your AI coding tool and finish with a check that shows it loaded. This page is for new users on any of nine hosts.
+Install `project-toolkit` on your AI coding tool and finish with a check that shows it loaded. This page is for new users on any of ten hosts.
 
 We ran the commands on 2026-11-11 with main at `d34536c95c`. Counts come from the tree at that commit.
 
@@ -18,7 +18,8 @@ We ran the commands on 2026-11-11 with main at `d34536c95c`. Counts come from th
 | Grok Build | 1.0.77 | 105 | 29 | Marketplace | Yes |
 | Pi | 1.5.0 | 105 | None | `pi install` from git | Yes |
 | Hermes | Agent v0.23.0 | 91, in two packs | None | `hermes plugins install` per pack | Yes |
-| Muse | Not run | 105 | None | Copy skill folders | No |
+| Muse personal agent | Not run | 105 | None | Copy skill folders | No |
+| Muse Code | 1.4.15, at `fc91afcf2` | 105 | None | Copy skill folders | Partly |
 
 "Yes" means the install, check, update, and uninstall commands on this page all ran. A model turn that needs your sign-in is the exception. We mark those "Not run".
 
@@ -289,7 +290,12 @@ hermes plugins remove project-toolkit-knowledge
 
 ### Install on Muse
 
-Not run end to end. Muse is not installed on the machine. We ran the copy steps and one skill script in a scratch home folder. We did not check that Muse loads the skills. Muse support is experimental (ADR-115 Decision 8).
+Muse means two hosts, and both install the same `src/muse/` tree (ADR-115 Decision 8). Muse support is experimental.
+
+- The Muse personal agent reads `~/workspace/custom-skills/`. The steps below are for it.
+- Muse Code, the `muse` CLI, does not read that folder. Use [Install on Muse Code](#install-on-muse-code) instead.
+
+Muse personal agent: not run end to end. No CLI exists for it here. We ran the copy steps and one skill script in a scratch home folder. We did not check that the personal agent loads the skills.
 
 Muse has no plugin manifest in this repository. ADR-115 planned a generated `.muse-plugin/plugin.json`. The tree at `d34536c95c` has none. The install path is a file copy.
 
@@ -300,7 +306,7 @@ Muse has no plugin manifest in this repository. ADR-115 planned a generated `.mu
    cd ai-agents
    ```
 
-2. Copy each skill folder. The loop skips any name Muse already has. It is the loop from [src/muse/README.md](../../src/muse/README.md):
+2. Copy each skill folder. The loop skips any name Muse already has. Unlike the [src/muse/README.md](../../src/muse/README.md) block, it keeps any folder that exists:
 
    ```bash
    mkdir -p ~/workspace/custom-skills
@@ -316,11 +322,44 @@ Muse has no plugin manifest in this repository. ADR-115 planned a generated `.mu
    [ -e ~/workspace/lib ] || cp -R src/muse/lib ~/workspace/lib
    ```
 
-   The README loop does not include this step (tracked in [#7278](https://github.com/rjmurillo/ai-agents/issues/7278)). Without it, skill scripts fail.
+   Without it, skill scripts fail. The [src/muse/README.md](../../src/muse/README.md) block differs from steps 2 and 3: it copies `lib/` too, and it moves any skill folder or `lib/` already there to a backup folder instead of skipping it ([#7278](https://github.com/rjmurillo/ai-agents/issues/7278)).
 
 Update: the step 2 loop never replaces a folder that exists, so running it again does not refresh your copy. Delete the folders named in `src/muse/skills/` from `~/workspace/custom-skills/`, and delete `~/workspace/lib`. Pull the clone and repeat steps 2 and 3.
 
 Uninstall: delete the same folders and `~/workspace/lib`.
+
+### Install on Muse Code
+
+Muse Code 1.4.15 ran on 2026-11-11 with main at `fc91afcf2`. Muse Code loads user skills from `${XDG_CONFIG_HOME:-~/.config}/muse/skills/`. Skill scripts look for `lib/` one level up, at `${XDG_CONFIG_HOME:-~/.config}/muse/lib/`. Agents do not ship to Muse Code yet (ADR-115 Decision 8).
+
+Do not copy these skills into the `skills` folder under `~/.agents`, or under a repository's `.agents` folder. Codex reads those folders too, and its copies differ.
+
+1. Clone the toolkit, as in step 1 above.
+
+2. Copy the skills and `lib/`. The block moves any folder already there to a backup folder. It never deletes one:
+
+   ```bash
+   root="${XDG_CONFIG_HOME:-$HOME/.config}/muse"
+   backup="$root/install-backup-$(date +%Y%m%d%H%M%S)"
+   mkdir -p "$root/skills"
+   if [ -e "$root/lib" ]; then
+     mkdir -p "$backup"
+     mv "$root/lib" "$backup/lib"
+   fi
+   cp -R src/muse/lib "$root/lib"
+   for d in src/muse/skills/*/; do
+     name="$(basename "$d")"
+     if [ -e "$root/skills/$name" ]; then
+       mkdir -p "$backup/skills"
+       mv "$root/skills/$name" "$backup/skills/$name"
+     fi
+     cp -R "$d" "$root/skills/$name"
+   done
+   ```
+
+Update: pull the clone and run step 2 again. It moves the old copies aside.
+
+Uninstall: move the folders named in `src/muse/skills/` out of `~/.config/muse/skills/`. Move `~/.config/muse/lib` out too. Use `$XDG_CONFIG_HOME/muse` in place of `~/.config/muse` when that variable is set.
 
 ## Check your result
 
@@ -690,9 +729,39 @@ Stale check: the copy records no SHA. Write down your clone's SHA when you copy,
 
 If it fails:
 
-- `Plugin lib directory not found: <home>/workspace/lib`: you skipped step 3. We hit this after the README loop alone.
+- `Plugin lib directory not found: <home>/workspace/lib`: you skipped step 3.
 - A skill folder already existed: the loop kept your copy. See the update note above.
 - Muse does not list the skills: we could not test this. Check that `~/workspace/custom-skills/` is the folder your Muse build reads.
+
+### Check Muse Code
+
+Count the skills Muse Code loaded from its user folder:
+
+```bash
+muse skills list --source user --json | python3 -c "import json,sys; print(sum(s['path'].startswith('\$CONFIG_DIR/skills') for s in json.load(sys.stdin)['skills']))"
+```
+
+We got `105` in a scratch home with no other skills. Muse Code prints the path with a literal `$CONFIG_DIR` prefix.
+
+Run one skill script from the copy:
+
+```bash
+cd ~ && python3 -I "${XDG_CONFIG_HOME:-$HOME/.config}/muse/skills/github/scripts/pr/get_pr_checks.py" --help
+```
+
+It prints the same usage text as the personal-agent check above.
+
+We also ran one signed-in `muse exec` turn. It loaded the `github` skill and ran that script. That run used a copy in a scratch repository's project skill folder, not the user folder.
+
+Not run: a signed-in turn against the user folder, and update or uninstall in a real home.
+
+Muse Code trims its skill catalog to 32 KB. In a scratch home with these 105 skills and the 26 built-in and plugin skills, it loaded 131 skills. It shortened 104 descriptions and omitted no skill.
+
+If it fails:
+
+- The count is `0`, and the skills sit in `~/workspace/custom-skills/`: that is the personal-agent folder. Muse Code does not read it. Run the Muse Code step 2.
+- `Plugin lib directory not found`: `lib/` is missing from `${XDG_CONFIG_HOME:-~/.config}/muse/`. Run step 2 again.
+- `muse skills list` shows `skill-shadowed`: another root has a skill with the same name, and Muse Code loaded that one.
 
 ## Next
 

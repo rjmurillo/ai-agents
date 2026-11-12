@@ -102,3 +102,7 @@ Merge the ADR as `proposed`. The resolver pull request (rollout step 2) implemen
 **Status**: Consensus
 
 Unresolved P0 issues: none.
+
+## Later debate
+
+Two review threads on PR #7326 led to edits after this debate closed. They are in a second debate, `.project-toolkit/critique/ADR-121-debate-log-2.md`, because a closed log accepts no more rounds.
