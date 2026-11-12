@@ -257,6 +257,8 @@ def test_a_logged_in_account_with_allowance_passes(
 @pytest.mark.skipif(shutil.which("setsid") is None, reason="setsid is required")
 def test_run_muse_gives_up_on_a_descendant_that_left_the_group(tmp_path: Path) -> None:
     """A child in its own session keeps the pipes open; the drain must not hang."""
-    fake = _stub(tmp_path / "muse", "setsid sleep 30 &\nsleep 30")
+    fake = _stub(tmp_path / "muse", "echo partial-line\nsetsid sleep 30 &\nsleep 30")
+    saved = tmp_path / "partial.txt"
     with pytest.raises(pytest.fail.Exception, match=r"MUSE_NOT_VERIFIED: .*exceeded 1s"):
-        run_muse([str(fake)], cwd=tmp_path, env={"PATH": "/usr/bin:/bin"}, timeout=1)
+        run_muse([str(fake)], cwd=tmp_path, env={"PATH": "/usr/bin:/bin"}, timeout=1, save_to=saved)
+    assert "partial-line" in saved.read_text("utf-8")

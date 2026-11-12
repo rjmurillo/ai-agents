@@ -180,16 +180,18 @@ def run_muse(
     )
     try:
         stdout, stderr = proc.communicate(timeout=timeout)
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as first:
         if use_group:
             os.killpg(proc.pid, signal.SIGKILL)
         else:
             proc.kill()
         try:
             stdout, stderr = proc.communicate(timeout=DRAIN_TIMEOUT_SECONDS)
-        except subprocess.TimeoutExpired:
-            # A descendant that left the group still holds the pipes. Give up on them.
-            stdout, stderr = "", ""
+        except subprocess.TimeoutExpired as drain:
+            # A descendant that left the group still holds the pipes. Keep what was
+            # read so far, then give up on the pipes.
+            stdout = _text(drain.stdout) or _text(first.stdout)
+            stderr = _text(drain.stderr) or _text(first.stderr)
             for pipe in (proc.stdout, proc.stderr):
                 if pipe is not None:
                     pipe.close()
