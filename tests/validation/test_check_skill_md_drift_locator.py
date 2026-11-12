@@ -31,3 +31,10 @@ def test_two_locators_on_one_line_are_both_blanked() -> None:
 def test_an_upstream_path_in_a_locator_argument_is_still_a_reference() -> None:
     text = render_locator(TARGET, "--config .agents/governance/foo.md")
     assert _extract_paths_from_text(text) == {".agents/governance/foo.md"}
+
+
+def test_a_malformed_locator_is_kept_so_later_references_still_count() -> None:
+    broken = render_locator(TARGET).replace(TARGET, "skills/bad target.py")
+    assert ".agents/governance/foo.md" in _extract_paths_from_text(
+        f"{broken} then open .agents/governance/foo.md"
+    )

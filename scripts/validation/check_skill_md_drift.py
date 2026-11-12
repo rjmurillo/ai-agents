@@ -130,6 +130,8 @@ def _without_locators(text: str) -> str:
     for index, line in enumerate(lines):
         matches = list(plugin_run_launcher.find_locators(line))
         for match in reversed(matches):
+            if match.problem is not None:
+                continue
             line = f"{line[: match.start]} {match.args} {line[match.end :]}"
         lines[index] = line
     return "\n".join(lines)
