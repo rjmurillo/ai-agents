@@ -110,6 +110,11 @@ class BashCall:
     result: str | None
 
 
+def _posix_text(value: Path | str) -> str:
+    """Return ``value`` with forward slashes, so a Windows path and the CLI's text compare equal."""
+    return str(value).replace("\\", "/")
+
+
 @dataclass(frozen=True, slots=True)
 class Observation:
     """What one ``claude -p`` run did, read from its stream-json output."""
@@ -134,10 +139,10 @@ class Observation:
         directory. That rejects a stub the model ran directly and a command whose
         ``${CLAUDE_PLUGIN_ROOT}`` stayed literal.
         """
-        roots = {str(plugin), str(plugin.resolve())}
+        roots = {_posix_text(plugin), _posix_text(plugin.resolve())}
         return any(
             LOCATOR_MARKER in call.command
-            and any(root in call.command for root in roots)
+            and any(root in _posix_text(call.command) for root in roots)
             and _holds_marker_line(call.result)
             for call in self.calls
         )

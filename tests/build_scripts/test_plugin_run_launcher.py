@@ -207,7 +207,7 @@ def test_the_dogfood_lib_reaches_the_resolver_through_a_link_to_the_claude_copy(
         assert tracked.startswith("120000 "), f"git must track the link as mode 120000: {tracked!r}"
     if not linked.is_symlink():
         config = subprocess.run(
-            ["git", "-C", str(REPO_ROOT), "config", "--get", "core.symlinks"],
+            ["git", "-C", str(REPO_ROOT), "config", "--type=bool", "--get", "core.symlinks"],
             capture_output=True,
             text=True,
             encoding="utf-8",
