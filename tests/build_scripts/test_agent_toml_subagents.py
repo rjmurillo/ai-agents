@@ -46,6 +46,24 @@ def test_other_values_do_not_forbid_subagents(loaded) -> None:
     assert agent_toml.forbids_subagents(loaded) is False
 
 
+@pytest.mark.parametrize(
+    ("loaded", "expected"),
+    [
+        ({}, []),
+        ({"disallowedTools": None}, []),
+        ({"disallowedTools": "Agent"}, []),
+        ({"disallowedTools": " Agent "}, []),
+        ({"disallowedTools": ["Agent"]}, []),
+        ({"disallowedTools": "Write"}, ["Write"]),
+        ({"disallowedTools": "Agent, Bash"}, ["Bash"]),
+        ({"disallowedTools": ["Edit", "Agent", "Write"]}, ["Edit", "Write"]),
+        ({"disallowedTools": "Agents"}, ["Agents"]),
+    ],
+)
+def test_unenforceable_disallowed_lists_every_name_except_agent(loaded, expected) -> None:
+    assert agent_toml.unenforceable_disallowed(loaded) == expected
+
+
 def test_the_section_text_is_a_plain_instruction() -> None:
     assert agent_toml.NO_SUBAGENTS.startswith("\n\n## Subagents\n\n")
     assert "Do not start subagents" in agent_toml.NO_SUBAGENTS

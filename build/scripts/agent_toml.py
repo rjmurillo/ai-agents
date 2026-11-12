@@ -77,6 +77,18 @@ def forbids_subagents(loaded: dict[str, object]) -> bool:
     return "Agent" in [str(name).strip() for name in names]
 
 
+def unenforceable_disallowed(loaded: dict[str, object]) -> list[str]:
+    """Names in ``disallowedTools`` other than ``Agent``, which Codex cannot enforce.
+
+    ``Agent`` is handled by :data:`NO_SUBAGENTS`. Any other name would ship as an
+    unrestricted agent, so the build refuses it instead.
+    """
+    raw = loaded.get("disallowedTools")
+    names = raw if isinstance(raw, list) else str(raw or "").split(",")
+    stripped = [str(name).strip() for name in names]
+    return [name for name in stripped if name and name != "Agent"]
+
+
 def not_installed_paragraph(skipped_stems: list[str]) -> str:
     """Return the paragraph appended to each body when agents were left out.
 

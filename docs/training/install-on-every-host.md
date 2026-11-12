@@ -143,6 +143,8 @@ Uninstall: delete the `.agent.md` files you copied from `.github/agents/`. Delet
 
    The cache folder is the plugin version. Codex 0.162.1 and 0.167.0 install a manifest with no version field as `1.0.0`, so the folder is normally `1.0.0`. The `sort -V | tail -n 1` part still picks the newest if another folder is there. The script is at `<cache>/<version>/install_agents.py`.
 
+   On Windows the shell lines above do not run. In PowerShell, list the folders under `$env:USERPROFILE\.codex\plugins\cache\ai-agents\project-toolkit`, then run `python -I <that folder>\install_agents.py`. Not verified: the installer on a Windows host.
+
    With no flag it installs into `.codex/agents/` of the current directory. Use `--project DIR` for another project, or `--user` for `$CODEX_HOME/agents` (`~/.codex/agents` when `CODEX_HOME` is unset). The two flags exclude each other. The script ships 25 agents. It leaves out `analyst`, `code-reviewer`, `comment-analyzer`, and `security`, because Codex agent files cannot limit tools (sandbox_mode, approval_policy, and mcp_servers do not override the parent). Each installed agent says so, and tells the model to do that step itself.
 
    Things to know:

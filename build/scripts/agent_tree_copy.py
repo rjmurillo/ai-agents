@@ -77,6 +77,7 @@ from agent_toml import (  # noqa: E402
     not_installed_paragraph,
     read_output_options,
     render_codex_toml,
+    unenforceable_disallowed,
 )
 from agent_tools import (  # noqa: E402
     AgentCopyError,
@@ -172,8 +173,15 @@ def render_parsed(
         kept[_READONLY_KEY] = True
     if body_edits:
         body = apply_body_replacements(body, body_edits, source)
-    if spec.output_format == FORMAT_CODEX_TOML and forbids_subagents(loaded):
-        body = body.rstrip("\n") + NO_SUBAGENTS
+    if spec.output_format == FORMAT_CODEX_TOML:
+        unenforced = unenforceable_disallowed(loaded)
+        if unenforced:
+            raise AgentCopyError(
+                f"{source}: `disallowedTools` names {', '.join(unenforced)}, "
+                "which a Codex agent file cannot enforce; only `Agent` is supported"
+            )
+        if forbids_subagents(loaded):
+            body = body.rstrip("\n") + NO_SUBAGENTS
     if spec.appendix:
         body = body.rstrip("\n") + spec.appendix
     if spec.output_format == FORMAT_CODEX_TOML:

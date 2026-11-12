@@ -111,6 +111,33 @@ def test_tool_restricted_agent_is_skipped_and_others_ship(tmp_path: Path) -> Non
     assert result.skipped == ["empty.md", "listed.md", "locked.md"]
 
 
+@pytest.mark.parametrize(
+    "extra",
+    ["disallowedTools: Write\n", "disallowedTools: Agent, Bash\n", "disallowedTools: [Edit]\n"],
+)
+def test_a_disallowed_tool_other_than_agent_fails_the_build(tmp_path: Path, extra: str) -> None:
+    _source(tmp_path, "free", _agent("free", extra))
+    with pytest.raises(atc.AgentCopyError, match=r"free\.md.*disallowedTools.*only `Agent`"):
+        atc.generate_agent_copies(tmp_path, _config(tmp_path))
+    assert not _out(tmp_path).exists() or list(_out(tmp_path).iterdir()) == []
+
+
+@pytest.mark.parametrize("extra", ["disallowedTools: Agent\n", "disallowedTools: [Agent]\n"])
+def test_disallowing_agent_adds_the_subagents_section_before_the_paragraph(
+    tmp_path: Path, extra: str
+) -> None:
+    _source(tmp_path, "free", _agent("free", extra))
+    _source(tmp_path, "plain", _agent("plain"))
+    _source(tmp_path, "zeta", _agent("zeta", "tools: Read\n"))
+    _generate(tmp_path)
+    shipped = tomllib.loads((_out(tmp_path) / "free.toml").read_text(encoding="utf-8"))
+    text = shipped["developer_instructions"]
+    assert agent_toml.NO_SUBAGENTS in text
+    assert text.index(agent_toml.NO_SUBAGENTS) < text.index("## Agents not installed on this host")
+    plain = tomllib.loads((_out(tmp_path) / "plain.toml").read_text(encoding="utf-8"))
+    assert "## Subagents" not in plain["developer_instructions"]
+
+
 def test_paragraph_lists_the_derived_sorted_skip_list_in_every_body(tmp_path: Path) -> None:
     _source(tmp_path, "free", _agent("free"))
     _source(tmp_path, "other", _agent("other"))
