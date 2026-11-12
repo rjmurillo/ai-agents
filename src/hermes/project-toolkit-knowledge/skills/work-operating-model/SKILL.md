@@ -72,7 +72,7 @@ The interview runs in three phases.
 ### Phase 3: Close and Validate
 
 4. **Close**: Write the JSON to `<workspace>/operating-model.json` (caller chooses workspace). Optionally also emit `USER.md`, `SOUL.md`, `HEARTBEAT.md` as human-readable views derived from the JSON. The JSON is canonical; the markdown files are projections.
-5. **Validate**: Run `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/work-operating-model/scripts/validate_operating_model.py" <path-to-json>`. Exit 0 means the schema holds.
+5. **Validate**: Run `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/work-operating-model/scripts/validate_operating_model.py <path-to-json>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`. Exit 0 means the schema holds.
 
 ## Scripts
 
@@ -80,7 +80,7 @@ The interview runs in three phases.
 |--------|---------|------------|
 | `scripts/validate_operating_model.py <path>` | Validate operating-model.json against schema v1.0.0 | 0 ok, 1 schema failure, 2 invalid usage |
 
-Pass `--skip-path-validation` to bypass CWE-22 path containment when reading fixtures from outside the repo (tests only).
+For tests only, write `--skip-path-validation` inside the locator's argument list to bypass CWE-22 path containment when reading fixtures from outside the repo.
 
 ## Resume Across Sessions
 
@@ -120,7 +120,7 @@ Before declaring an operating model complete:
 - [ ] All 5 layers either captured or explicitly skipped (recorded in `metadata.skipped_layers`).
 - [ ] Every item in every layer marked `documented` or `tacit`.
 - [ ] `metadata.interview_status` is `complete`.
-- [ ] `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/work-operating-model/scripts/validate_operating_model.py" operating-model.json` exits 0.
+- [ ] `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/work-operating-model/scripts/validate_operating_model.py operating-model.json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )` exits 0.
 - [ ] The team representative has read the final JSON (or its `USER.md` projection) and agreed.
 
 ## References
