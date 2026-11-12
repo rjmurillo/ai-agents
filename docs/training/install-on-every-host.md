@@ -371,7 +371,7 @@ Do not copy these skills into the `skills` folder under `~/.agents`, or under a 
 
    ```bash
    root="${XDG_CONFIG_HOME:-$HOME/.config}/muse"
-   backup="$root/install-backup-$(date +%Y%m%d%H%M%S)"
+   backup="$root/install-backup-$(date +%Y%m%d%H%M%S)-$$"
    mkdir -p "$root/skills" "$root/agents"
    if [ ! -e "$root/lib" ] && [ ! -L "$root/lib" ] \
      || { mkdir -p "$backup" && mv "$root/lib" "$backup/lib"; }; then

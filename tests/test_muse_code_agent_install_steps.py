@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.ci.publish_wiki_helpers import symlink_or_skip
 from tests.test_muse_code_install_steps import (
     BACKUP_GLOB,
     REPO_ROOT,
@@ -61,7 +62,7 @@ def test_install_backs_up_a_dangling_symlink_instead_of_writing_through_it(tmp_p
     root = tmp_path / ".config" / "muse"
     (root / "agents").mkdir(parents=True)
     outside = tmp_path / "outside" / "target.md"
-    (root / "agents" / "critic.md").symlink_to(outside)
+    symlink_or_skip(root / "agents" / "critic.md", outside)
 
     installed = _install(tmp_path)
 
@@ -74,7 +75,7 @@ def test_install_backs_up_a_dangling_symlink_instead_of_writing_through_it(tmp_p
 def test_install_backs_up_a_dangling_lib_symlink(tmp_path: Path) -> None:
     root = tmp_path / ".config" / "muse"
     root.mkdir(parents=True)
-    (root / "lib").symlink_to(tmp_path / "outside-lib")
+    symlink_or_skip(root / "lib", tmp_path / "outside-lib")
 
     installed = _install(tmp_path)
 
@@ -87,7 +88,7 @@ def test_install_backs_up_a_dangling_lib_symlink(tmp_path: Path) -> None:
 def test_install_backs_up_a_dangling_skill_symlink(tmp_path: Path) -> None:
     root = tmp_path / ".config" / "muse"
     (root / "skills").mkdir(parents=True)
-    (root / "skills" / "github").symlink_to(tmp_path / "outside-skill")
+    symlink_or_skip(root / "skills" / "github", tmp_path / "outside-skill")
 
     installed = _install(tmp_path)
 
@@ -97,14 +98,12 @@ def test_install_backs_up_a_dangling_skill_symlink(tmp_path: Path) -> None:
     assert (backup / "skills" / "github").is_symlink()
 
 
-def _install_with_unwritable_backup(home: Path) -> subprocess.CompletedProcess[str]:
-    """Run the guide block with a backup path that is a file, so every backup move fails."""
+def _install_with_failing_mv(home: Path) -> subprocess.CompletedProcess[str]:
+    """Run the guide block with an ``mv`` that always fails, so every backup move fails."""
     stub = home / "stub"
     stub.mkdir()
-    (stub / "date").write_text("#!/bin/sh\necho FIXED\n", encoding="utf-8")
-    (stub / "date").chmod(0o755)
-    (home / ".config" / "muse").mkdir(parents=True, exist_ok=True)
-    (home / ".config" / "muse" / "install-backup-FIXED").write_text("a file", encoding="utf-8")
+    (stub / "mv").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+    (stub / "mv").chmod(0o755)
     env = _scratch_env(home)
     env["PATH"] = f"{stub}:{env['PATH']}"
     return subprocess.run(
@@ -129,7 +128,7 @@ def test_a_failed_backup_keeps_the_users_lib_skill_and_agent(tmp_path: Path) -> 
     (root / "agents").mkdir(parents=True)
     (root / "agents" / "critic.md").write_text("mine\n", encoding="utf-8")
 
-    result = _install_with_unwritable_backup(tmp_path)
+    result = _install_with_failing_mv(tmp_path)
 
     assert result.returncode == 0, result.stderr
     for kept in ("lib", "skills/github", "agents/critic.md"):

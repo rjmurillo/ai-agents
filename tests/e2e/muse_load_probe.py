@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import shutil
 import signal
 import subprocess
@@ -30,6 +31,7 @@ NOT_VERIFIED = "MUSE_NOT_VERIFIED:"
 USAGE_TIMEOUT_SECONDS = 30
 EXEC_TIMEOUT_SECONDS = 600
 PYTEST_MARGIN_SECONDS = 60
+DRAIN_TIMEOUT_SECONDS = 10
 RUN = os.environ.get("RUN_CLI_E2E") == "1"
 _ENV_ALLOW = frozenset(
     {"PATH", "HOME", "LANG", "TERM", "TMPDIR", "TZ", "USER", "LOGNAME", "SHELL", "NO_COLOR"}
@@ -55,9 +57,8 @@ LIB_MISSING = "Plugin lib directory not found"
 
 def build_script_prompt(script: str) -> str:
     """Return the instruction to run one script-backed skill and quote its output."""
-    return (
-        f"Then run `python3 -I {script} --help` in a shell and quote its first output line exactly."
-    )
+    command = f"python3 -I {shlex.quote(script)} --help"
+    return f"Then run `{command}` in a shell and quote its first output line exactly."
 
 
 def skill_script_found_lib(output: str) -> bool:
@@ -184,7 +185,14 @@ def run_muse(
             os.killpg(proc.pid, signal.SIGKILL)
         else:
             proc.kill()
-        stdout, stderr = proc.communicate()
+        try:
+            stdout, stderr = proc.communicate(timeout=DRAIN_TIMEOUT_SECONDS)
+        except subprocess.TimeoutExpired:
+            # A descendant that left the group still holds the pipes. Give up on them.
+            stdout, stderr = "", ""
+            for pipe in (proc.stdout, proc.stderr):
+                if pipe is not None:
+                    pipe.close()
         where = ""
         if save_to is not None:
             save_to.write_text(_text(stdout) + "\n--- stderr ---\n" + _text(stderr), "utf-8")
@@ -231,6 +239,13 @@ def user_muse_root() -> Path:
     return Path(base) / "muse"
 
 
+def _same_as_shipped(agents_dir: Path, name: str) -> bool:
+    installed = agents_dir / f"{name}.md"
+    return (
+        installed.is_file() and installed.read_bytes() == (MUSE_AGENTS / f"{name}.md").read_bytes()
+    )
+
+
 def require_user_install() -> str:
     """Return the installed ``get_pr_checks.py`` path; fail unless the guide install ran.
 
@@ -246,10 +261,10 @@ def require_user_install() -> str:
         )
     if not (root / "lib" / "github_core").is_dir():
         pytest.fail(f"{NOT_VERIFIED} no installed lib under {root}/lib; run the install first")
-    missing = [n for n in shipped_agent_names() if not (root / "agents" / f"{n}.md").is_file()]
-    if missing:
+    stale = [n for n in shipped_agent_names() if not _same_as_shipped(root / "agents", n)]
+    if stale:
         pytest.fail(
-            f"{NOT_VERIFIED} {len(missing)} shipped agents are missing under {root}/agents "
-            f"(first: {missing[0]}); run the install first"
+            f"{NOT_VERIFIED} {len(stale)} shipped agents are missing or differ from "
+            f"src/muse/agents under {root}/agents (first: {stale[0]}); run the install first"
         )
     return str(script)

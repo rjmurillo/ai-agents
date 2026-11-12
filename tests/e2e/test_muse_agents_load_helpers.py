@@ -19,6 +19,7 @@ if str(_E2E_DIR) not in sys.path:
 
 from muse_load_probe import (  # noqa: E402
     CONTROL_NAME,
+    MUSE_AGENTS,
     allowlisted_env,
     build_prompt,
     check_prerequisites,
@@ -117,7 +118,7 @@ def _install_user_root(root: Path, *, agents: bool = True, lib: bool = True) -> 
     if agents:
         (root / "agents").mkdir(parents=True)
         for name in shipped_agent_names():
-            (root / "agents" / f"{name}.md").write_text("x\n", encoding="utf-8")
+            shutil.copyfile(MUSE_AGENTS / f"{name}.md", root / "agents" / f"{name}.md")
 
 
 def test_a_complete_user_install_passes(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -147,8 +148,27 @@ def test_a_missing_shipped_agent_fails_clearly(
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     _install_user_root(tmp_path / "muse")
     (tmp_path / "muse" / "agents" / "critic.md").unlink()
-    with pytest.raises(pytest.fail.Exception, match=r"1 shipped agents are missing.*critic"):
+    with pytest.raises(
+        pytest.fail.Exception, match=r"1 shipped agents are missing or differ.*critic"
+    ):
         require_user_install()
+
+
+def test_a_stale_same_name_agent_fails_clearly(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    _install_user_root(tmp_path / "muse")
+    (tmp_path / "muse" / "agents" / "critic.md").write_text("an older critic\n", encoding="utf-8")
+    with pytest.raises(
+        pytest.fail.Exception, match=r"1 shipped agents are missing or differ.*critic"
+    ):
+        require_user_install()
+
+
+def test_the_script_path_is_quoted_in_the_prompt() -> None:
+    prompt = build_prompt(["a"], "/home/Jane Doe/.config/muse/skills/x.py")
+    assert "python3 -I '/home/Jane Doe/.config/muse/skills/x.py' --help" in prompt
 
 
 def test_env_allowlist_keeps_only_what_muse_needs() -> None:
@@ -232,3 +252,11 @@ def test_a_logged_in_account_with_allowance_passes(
     fake = _stub(tmp_path / "muse", "echo 'Plan: pro, 90 percent left'")
     monkeypatch.setattr(shutil, "which", lambda _name: str(fake))
     assert check_prerequisites() == str(fake)
+
+
+@pytest.mark.skipif(shutil.which("setsid") is None, reason="setsid is required")
+def test_run_muse_gives_up_on_a_descendant_that_left_the_group(tmp_path: Path) -> None:
+    """A child in its own session keeps the pipes open; the drain must not hang."""
+    fake = _stub(tmp_path / "muse", "setsid sleep 30 &\nsleep 30")
+    with pytest.raises(pytest.fail.Exception, match=r"MUSE_NOT_VERIFIED: .*exceeded 1s"):
+        run_muse([str(fake)], cwd=tmp_path, env={"PATH": "/usr/bin:/bin"}, timeout=1)

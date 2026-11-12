@@ -9,9 +9,11 @@ skills, ``lib/``, and every shipped agent under ``${XDG_CONFIG_HOME:-$HOME/.conf
 It puts one control agent with an extra frontmatter key into a scratch
 workspace's ``.agents/agents/``, runs ``muse exec --json --trust-workspace`` with
 a prompt that asks the lead to spawn each agent once, and asserts from the JSONL
-events that every shipped agent's child replied with its code and the control's
-did not. The test writes nothing to the user's Muse folder. It runs under the
-user's login with the web tools off.
+events that every shipped agent's reply code appears and the control's does not.
+A lead that works the formula out and echoes a code passes this check, so the
+owner confirms each code in the saved output before the merge gate. The test
+writes nothing to the user's Muse folder. It runs under the user's login with
+the web tools off.
 
 Run the guide's Muse Code install step first. The test fails with
 ``MUSE_NOT_VERIFIED`` when an agent file is missing from the user root.

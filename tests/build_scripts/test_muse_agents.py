@@ -58,7 +58,7 @@ def rendered(tmp_path_factory: pytest.TempPathFactory) -> dict[str, str]:
     """Run the real generator for the Muse stanza into a scratch root; return stem -> text."""
     root = tmp_path_factory.mktemp("muse-render")
     (root / "src" / "claude").mkdir(parents=True)
-    (root / "src" / "claude" / "agents").symlink_to(REPO_ROOT / "src" / "claude" / "agents")
+    shutil.copytree(REPO_ROOT / "src" / "claude" / "agents", root / "src" / "claude" / "agents")
     config = root / "muse.yaml"
     shutil.copyfile(MUSE_CONFIG, config)
     result = atc.generate_agent_copies(root, config)
