@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import stat
 from pathlib import Path
 
 import pytest
@@ -196,8 +197,9 @@ def test_a_directory_that_is_not_a_junction_is_allowed(world, monkeypatch):
     assert run_installer(world) == 0
 
 
-class _Attrs:
+class _Info:
     def __init__(self, attrs: int) -> None:
+        self.st_mode = stat.S_IFDIR
         self.st_file_attributes = attrs
 
 
@@ -208,22 +210,41 @@ def test_is_link_falls_back_to_the_reparse_attribute_before_python_3_12(
     folder = tmp_path / "d"
     folder.mkdir()
     monkeypatch.delattr(ia.os.path, "isjunction", raising=False)
-    monkeypatch.setattr(Path, "lstat", lambda self: _Attrs(attrs))
+    monkeypatch.setattr(Path, "lstat", lambda self: _Info(attrs))
     assert ia._is_link(folder) is expected
 
 
-def test_is_link_refuses_a_path_it_cannot_read_before_python_3_12(tmp_path, monkeypatch):
+@pytest.mark.parametrize("has_probe", [True, False])
+def test_is_link_refuses_a_path_it_cannot_read(tmp_path, monkeypatch, has_probe):
+    """Python 3.14 reports False when a read fails, so the check must read the path itself."""
+
     def deny(self):
         raise PermissionError("denied")
 
-    monkeypatch.delattr(ia.os.path, "isjunction", raising=False)
+    if has_probe:
+        monkeypatch.setattr(ia.os.path, "isjunction", lambda p: False, raising=False)
+    else:
+        monkeypatch.delattr(ia.os.path, "isjunction", raising=False)
     monkeypatch.setattr(Path, "lstat", deny)
     assert ia._is_link(tmp_path) is True
 
 
-def test_is_link_is_false_for_a_missing_path_without_the_probe(tmp_path, monkeypatch):
-    monkeypatch.delattr(ia.os.path, "isjunction", raising=False)
+@pytest.mark.parametrize("has_probe", [True, False])
+def test_is_link_is_false_for_a_missing_path(tmp_path, monkeypatch, has_probe):
+    if has_probe:
+        monkeypatch.setattr(ia.os.path, "isjunction", lambda p: True, raising=False)
+    else:
+        monkeypatch.delattr(ia.os.path, "isjunction", raising=False)
     assert ia._is_link(tmp_path / "missing") is False
+
+
+def test_is_link_is_true_for_a_symlink_and_false_for_a_plain_directory(tmp_path):
+    target = tmp_path / "t"
+    target.mkdir()
+    link = tmp_path / "l"
+    make_symlink(link, target)
+    assert ia._is_link(link) is True
+    assert ia._is_link(target) is False
 
 
 def test_a_symlinked_project_root_itself_is_allowed(world, tmp_path):

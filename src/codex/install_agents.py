@@ -25,6 +25,7 @@ import importlib
 import json
 import os
 import re
+import stat
 import sys
 import tempfile
 from dataclasses import dataclass, field
@@ -430,17 +431,18 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _is_link(path: Path) -> bool:
     """True for a symlink or a Windows junction. ``is_symlink`` alone misses a junction."""
-    if path.is_symlink():
-        return True
-    isjunction = getattr(os.path, "isjunction", None)  # Python 3.12+
-    if isjunction is not None:
-        return bool(isjunction(path))
-    try:  # Python 3.10 and 3.11: only Windows sets st_file_attributes; 0x400 is a reparse point
-        return bool(getattr(path.lstat(), "st_file_attributes", 0) & 0x400)
+    try:
+        info = path.lstat()
     except FileNotFoundError:
         return False
     except OSError:
         return True  # an unreadable path is not proven safe, so refuse it
+    if stat.S_ISLNK(info.st_mode):
+        return True
+    isjunction = getattr(os.path, "isjunction", None)  # Python 3.12+
+    if isjunction is not None:
+        return bool(isjunction(path))
+    return bool(getattr(info, "st_file_attributes", 0) & 0x400)  # reparse point, Python 3.10/3.11
 
 
 def resolve_target(args: argparse.Namespace) -> tuple[Path, Path | None]:
