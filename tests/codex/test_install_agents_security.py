@@ -176,6 +176,47 @@ def test_symlink_refusal_also_covers_dry_run_and_uninstall(world, tmp_path):
     assert run_installer(world, "--uninstall") == 2
 
 
+@pytest.mark.parametrize("component", [".codex", "agents"])
+def test_a_junction_below_the_project_root_is_refused(world, tmp_path, monkeypatch, component):
+    """Python reports a Windows junction through ``os.path.isjunction``, not ``is_symlink``."""
+    (world.project / ".codex").mkdir()
+    suspect = (
+        world.project / ".codex" if component == ".codex" else world.project / ".codex" / "agents"
+    )
+    suspect.mkdir(exist_ok=True)
+    monkeypatch.setattr(ia.os.path, "isjunction", lambda p: Path(p) == suspect, raising=False)
+    assert run_installer(world) == 2
+    assert not (world.project / ".codex" / "agents" / "qa.toml").exists()
+
+
+def test_a_directory_that_is_not_a_junction_is_allowed(world, monkeypatch):
+    """Negative control: a plain directory passes even when the junction probe exists."""
+    (world.project / ".codex").mkdir()
+    monkeypatch.setattr(ia.os.path, "isjunction", lambda p: False, raising=False)
+    assert run_installer(world) == 0
+
+
+class _Attrs:
+    def __init__(self, attrs: int) -> None:
+        self.st_file_attributes = attrs
+
+
+@pytest.mark.parametrize(("attrs", "expected"), [(0x400, True), (0x10, False), (0, False)])
+def test_is_link_falls_back_to_the_reparse_attribute_before_python_3_12(
+    tmp_path, monkeypatch, attrs, expected
+):
+    folder = tmp_path / "d"
+    folder.mkdir()
+    monkeypatch.delattr(ia.os.path, "isjunction", raising=False)
+    monkeypatch.setattr(Path, "lstat", lambda self: _Attrs(attrs))
+    assert ia._is_link(folder) is expected
+
+
+def test_is_link_is_false_for_a_missing_path_without_the_probe(tmp_path, monkeypatch):
+    monkeypatch.delattr(ia.os.path, "isjunction", raising=False)
+    assert ia._is_link(tmp_path / "missing") is False
+
+
 def test_a_symlinked_project_root_itself_is_allowed(world, tmp_path):
     """Negative control: only components below the root are checked."""
     link = tmp_path / "proj-link"

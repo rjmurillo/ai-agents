@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size, one file because it runs under `python -I` with no sibling imports.
 """Install the project-toolkit Codex agents into a Codex agents directory.
 
 Codex loads custom agents from ``.codex/agents/*.toml`` (project) or
@@ -427,8 +428,21 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _is_link(path: Path) -> bool:
+    """True for a symlink or a Windows junction. ``is_symlink`` alone misses a junction."""
+    if path.is_symlink():
+        return True
+    isjunction = getattr(os.path, "isjunction", None)  # Python 3.12+
+    if isjunction is not None:
+        return bool(isjunction(path))
+    try:  # Python 3.10 and 3.11: only Windows sets st_file_attributes; 0x400 is a reparse point
+        return bool(getattr(path.lstat(), "st_file_attributes", 0) & 0x400)
+    except OSError:
+        return False
+
+
 def resolve_target(args: argparse.Namespace) -> tuple[Path, Path | None]:
-    """Return ``(agents dir, project dir or None)``; refuse a symlink below the root (CWE-59)."""
+    """Return ``(agents dir, project dir or None)``; refuse a link below the root (CWE-59)."""
     project = None if args.user else Path(args.project or Path.cwd()).absolute()
     if project is not None and not project.is_dir():
         raise InstallError(f"project directory does not exist: {project}")
@@ -438,8 +452,8 @@ def resolve_target(args: argparse.Namespace) -> tuple[Path, Path | None]:
     current = root
     for part in parts:
         current = current / part
-        if current.is_symlink():
-            raise InstallError(f"refusing to write through a symlink: {current}")
+        if _is_link(current):
+            raise InstallError(f"refusing to write through a symlink or junction: {current}")
     return current, project
 
 
