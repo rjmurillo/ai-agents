@@ -28,11 +28,17 @@ CONTROL_NAME = "zz-extra-key-control"
 NOT_VERIFIED = "MUSE_NOT_VERIFIED:"
 USAGE_TIMEOUT_SECONDS = 30
 EXEC_TIMEOUT_SECONDS = 600
+PYTEST_MARGIN_SECONDS = 60
 RUN = os.environ.get("RUN_CLI_E2E") == "1"
 _ENV_ALLOW = frozenset(
     {"PATH", "HOME", "LANG", "TERM", "TMPDIR", "TZ", "USER", "LOGNAME", "SHELL", "NO_COLOR"}
 )
 _ENV_ALLOW_PREFIXES = ("LC_", "XDG_", "MUSE_")
+
+
+def cli_budget(*subprocess_timeouts: int) -> pytest.MarkDecorator:
+    """pytest-timeout marker that outlasts every subprocess timeout in a test."""
+    return pytest.mark.timeout(sum(subprocess_timeouts) + PYTEST_MARGIN_SECONDS)
 
 
 def shipped_agent_names() -> list[str]:

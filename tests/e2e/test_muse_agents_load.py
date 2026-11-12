@@ -52,6 +52,7 @@ from muse_load_probe import (  # noqa: E402
     allowlisted_env,
     build_prompt,
     check_prerequisites,
+    cli_budget,
     install_agents,
     parse_events,
     require_user_skill_install,
@@ -63,7 +64,7 @@ from muse_load_probe import (  # noqa: E402
 
 @pytest.mark.smoke
 @pytest.mark.muse
-@pytest.mark.timeout(EXEC_TIMEOUT_SECONDS + 2 * USAGE_TIMEOUT_SECONDS)
+@cli_budget(EXEC_TIMEOUT_SECONDS, USAGE_TIMEOUT_SECONDS)  # type: ignore[untyped-decorator]
 def test_lead_spawns_every_shipped_agent_and_not_the_control(tmp_path: Path) -> None:
     if not RUN:
         pytest.skip(f"{NOT_VERIFIED} set RUN_CLI_E2E=1 with muse on PATH and a Muse login")
