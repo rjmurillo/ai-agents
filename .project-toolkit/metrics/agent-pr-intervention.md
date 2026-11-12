@@ -1,27 +1,27 @@
 # Agent PR Intervention Metrics
 
-Generated 2026-11-11 from GitHub PR events. Window: PRs created 2026-10-12 to 2026-11-11 (30 days). Agent-authored PRs in window: 603.
+Generated 2026-11-12 from GitHub PR events. Window: PRs created 2026-10-13 to 2026-11-12 (30 days). Agent-authored PRs in window: 565.
 
 | Outcome | PRs | Zero-touch | Zero-intervention rate | Interventions | Median per intervened PR |
 |---------|-----|------------|------------------------|---------------|--------------------------|
-| merged | 573 | 345 | 60.2% | 661 | 2 |
-| unmerged | 6 | 5 | 83.3% | 1 | 1 |
-| open | 24 | 18 | 75.0% | 10 | 1 |
+| merged | 555 | 344 | 62.0% | 589 | 2 |
+| unmerged | 8 | 5 | 62.5% | 4 | 1 |
+| open | 2 | 1 | 50.0% | 1 | 1 |
 
 ## Zero-touch merge sample
 
-10 of 345 merged PRs with zero interventions, picked at even steps through the PR-number order, newest first.
+10 of 344 merged PRs with zero interventions, picked at even steps through the PR-number order, newest first.
 
-- [#7259](https://github.com/rjmurillo/ai-agents/pull/7259): `fix(tests): cite #7215 in the pwsh launcher probe, not #7231`
+- [#7324](https://github.com/rjmurillo/ai-agents/pull/7324): `docs(memory): record four first-principles findings from the issue sweep`
+- [#7243](https://github.com/rjmurillo/ai-agents/pull/7243): `fix(build): flag and prune rendered output when its template is deleted`
 - [#7090](https://github.com/rjmurillo/ai-agents/pull/7090): `fix(github): report refused sessions as unknown in the completion gate`
 - [#6946](https://github.com/rjmurillo/ai-agents/pull/6946): `feat(eval): explicit prompt caching for GPT-5.6+ eval requests`
 - [#6856](https://github.com/rjmurillo/ai-agents/pull/6856): `fix(validation): analyze each plugin-root script once per scan`
 - [#6779](https://github.com/rjmurillo/ai-agents/pull/6779): `fix(validation): stop a stray Provenance bullet sourcing the last table row (follow-up to #6695)`
 - [#6729](https://github.com/rjmurillo/ai-agents/pull/6729): `fix(testing): fall back to ~/worktrees when the checkout parent is unwritable`
-- [#6581](https://github.com/rjmurillo/ai-agents/pull/6581): `fix(github): add PR_ONLY and CANCELLED_ON_MAIN verdicts to triage_red_check`
+- [#6582](https://github.com/rjmurillo/ai-agents/pull/6582): `docs(memory): mark LSP escape hatch memories as retired`
 - [#6534](https://github.com/rjmurillo/ai-agents/pull/6534): `test(mutation): run every mutation harness in a blocking CI job`
-- [#6490](https://github.com/rjmurillo/ai-agents/pull/6490): `feat(cursor): ship a generated Cursor plugin tree and marketplace`
-- [#6372](https://github.com/rjmurillo/ai-agents/pull/6372): `fix(skillbook): read continuity first, update it after execution`
+- [#6491](https://github.com/rjmurillo/ai-agents/pull/6491): `fix(rules): resolve the remaining ADR-109 B2 rule content findings`
 
 ## Definitions
 
