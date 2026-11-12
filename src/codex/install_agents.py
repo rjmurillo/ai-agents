@@ -145,6 +145,13 @@ def load_shipped(agents_dir: Path) -> dict[str, bytes]:
     shipped = {p.name: p.read_bytes() for p in sorted(agents_dir.glob(f"*{AGENT_SUFFIX}"))}
     if not shipped:
         raise InstallError(f"no {AGENT_SUFFIX} agents under {agents_dir}")
+    for name, data in shipped.items():  # refuse to copy a file Codex could not parse
+        try:
+            text = data.decode("utf-8")
+            if tomllib is not None:
+                tomllib.loads(text)
+        except ValueError as exc:
+            raise InstallError(f"{name}: not a valid TOML agent file: {exc}") from exc
     return shipped
 
 
@@ -246,7 +253,7 @@ def _prior_namespaced_copy(target: Path, name: str, owned: Ownership) -> str | N
     a repository author. The copy has to exist before it excuses a plain-name clash.
     """
     for ns_name, source in sorted(owned.sources.items()):
-        if source == name and _disk_hash(target / ns_name) is not None:
+        if source == name and _disk_hash(target / ns_name) not in (None, "symlink", "not-a-file"):
             return ns_name
     return None
 
@@ -283,8 +290,7 @@ def _plan_owned_leftovers(
         source = owned.sources.get(name)
         current = _disk_hash(target / name)
         if current is None:
-            # The user deleted it. Do not bring it back; the record goes.
-            plan.lines.append(f"  dropped: {name} (recorded copy is already gone)")
+            plan.lines.append(f"  dropped: {name} (deleted by the user, not restored)")
             continue
         follows_source = source in shipped and source not in plan.shipped_ours
         wanted = (

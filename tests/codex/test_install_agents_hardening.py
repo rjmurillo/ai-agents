@@ -14,6 +14,7 @@ from tests.codex.conftest import (
     SCRIPT,
     agent_bytes,
     ia,
+    make_symlink,
     read_record,
     run_installer,
     target_dir,
@@ -94,10 +95,7 @@ def test_symlink_conflict_names_the_symlink(world, capsys):
     target.mkdir(parents=True)
     victim = world.project / "victim.txt"
     victim.write_text("keep", encoding="utf-8")
-    try:
-        (target / "qa.toml").symlink_to(victim)
-    except OSError:
-        pytest.skip("symlinks unavailable")
+    make_symlink(target / "qa.toml", victim)
     assert run_installer(world) == 1
     assert "qa.toml is a symlink" in capsys.readouterr().err
     assert victim.read_text(encoding="utf-8") == "keep"
@@ -132,15 +130,9 @@ def test_missing_project_directory_exits_2_and_creates_nothing(world, capsys):
     assert "project directory does not exist" in capsys.readouterr().err
 
 
-def test_undecodable_shipped_agent_exits_2(world, capsys):
-    (world.agents / "qa.toml").write_bytes(b"\xff\xfe")
-    assert run_installer(world, "--namespace", "tk") == 0  # no clash, so no rewrite
-    target = target_dir(world)
-    (target / "critic.toml").write_bytes(agent_bytes("critic", "theirs"))
-    (world.agents / "critic.toml").write_bytes(b"\xff\xfe")
-    assert run_installer(world, "--namespace", "tk") == 2
-    err = capsys.readouterr().err
-    assert err.count("Error:") == 1 and "critic.toml: not valid UTF-8" in err
+def test_namespaced_rewrite_names_a_file_that_is_not_utf8():
+    with pytest.raises(ia.InstallError, match="critic.toml: not valid UTF-8"):
+        ia.namespaced_bytes(b"\xff\xfe", "tk", "critic.toml")
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX modes")
@@ -288,3 +280,24 @@ def test_a_namespaced_name_that_is_a_shipped_agent_is_refused(world, capsys):
     assert run_installer(world, "--namespace", "a") == 1
     assert "also a shipped agent" in capsys.readouterr().err
     assert not (target / OWNERSHIP).exists()
+
+
+def test_a_symlink_does_not_stand_in_for_a_namespaced_copy(world, capsys):
+    target = _namespaced_world(world)
+    (target / "tk-qa.toml").unlink()
+    make_symlink(target / "tk-qa.toml", world.project / "nowhere.toml")
+    assert run_installer(world) == 1
+    assert "qa.toml" in capsys.readouterr().err
+
+
+def test_a_shipped_file_that_is_not_utf8_is_refused_before_any_write(world, capsys):
+    (world.agents / "qa.toml").write_bytes(b"\xff\xfe")
+    assert run_installer(world) == 2
+    assert not target_dir(world).exists()
+    assert "qa.toml: not a valid TOML agent file" in capsys.readouterr().err
+
+
+def test_a_shipped_file_that_is_not_toml_is_refused(world, capsys):
+    (world.agents / "qa.toml").write_text("name = = broken\n", encoding="utf-8")
+    assert run_installer(world) == 2
+    assert not target_dir(world).exists()
