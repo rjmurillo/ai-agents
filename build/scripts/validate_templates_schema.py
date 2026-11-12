@@ -21,6 +21,7 @@ import argparse
 import sys
 from pathlib import Path, PurePosixPath
 
+from agent_toml import output_option_errors
 from hermes_pack_config import HermesPackError, parse_stanza
 from schema_tree_keys import (
     validate_agents_tree_copy as _validate_agents_tree_copy,
@@ -68,6 +69,8 @@ AGENTS_KEYS = {
     "frontmatterKeep",
     "deriveReadonly",
     "bodyReplace",
+    "skipToolRestricted",
+    "outputFormat",
 }
 SKILLS_KEYS = {
     "sourceDir",
@@ -314,6 +317,8 @@ def _validate_artifact_stanza(name: str, stanza: object) -> list[str]:
         errors.extend(_validate_skills_mode(stanza))
     if name == "agents":
         errors.extend(_validate_agents_tree_copy(name, stanza))
+        if "frontmatterKeep" in stanza:
+            errors.extend(output_option_errors(name, stanza))
     if name == "rules":
         errors.extend(_validate_rules_output_format(name, stanza))
         errors.extend(_validate_rules_output_dirs(name, stanza))

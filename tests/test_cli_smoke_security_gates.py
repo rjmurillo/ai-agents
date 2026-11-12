@@ -104,9 +104,9 @@ def test_codex_and_install_isolation_gates_stay_strict(
 
     assert "--allow-skip-marker" not in codex_gate["run"]
     assert "--allow-skip-marker" not in install_gate["run"]
-    assert "--require-pass test_codex_plugin_loads_expected_skills" in " ".join(
-        codex_gate["run"].split()
-    )
+    gate_run = " ".join(codex_gate["run"].split())
+    assert "--require-pass test_codex_plugin_loads_expected_skills" in gate_run
+    assert "--require-pass test_codex_agents_install_and_load" in gate_run
 
 
 def test_the_marker_matches_the_one_the_tests_skip_with() -> None:

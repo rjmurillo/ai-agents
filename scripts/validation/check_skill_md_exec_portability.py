@@ -206,6 +206,7 @@ LITERAL_ALLOWANCES: dict[str, str] = {
 LITERAL_EXTRA_DIRS: tuple[tuple[str, ...], ...] = (
     ("src", "claude", "agents"),
     ("src", "claude", "rules"),
+    ("src", "codex", "agents"),
     ("src", "copilot-cli", "agents"),
     ("src", "copilot-cli", "instructions"),
     ("src", "cursor", "agents"),
@@ -214,7 +215,7 @@ LITERAL_EXTRA_DIRS: tuple[tuple[str, ...], ...] = (
     ("templates", "agents"),
     ("templates", "rules"),
 )
-_LITERAL_SUFFIXES = frozenset({".md", ".mdc", ".tmpl", ".mustache"})
+_LITERAL_SUFFIXES = frozenset({".md", ".mdc", ".tmpl", ".mustache", ".toml"})
 
 
 def find_literal_plugin_paths(text: str) -> list[tuple[int, str]]:
@@ -255,11 +256,29 @@ def _iter_literal_scan_files(repo_root: Path) -> list[Path]:
     return sorted(seen)
 
 
+def _toml_strings(text: str) -> str:
+    """Join the string values of a TOML file with real newlines, or return ``text`` unchanged.
+
+    A generated Codex agent holds its whole body as one escaped line, so a command that
+    starts a source line follows a literal ``\\n`` and the pattern's lookbehind skips it.
+    """
+    try:
+        import tomllib
+    except ImportError:  # Python 3.10 has no tomllib; scan the raw text
+        return text
+    try:
+        data = tomllib.loads(text)
+    except tomllib.TOMLDecodeError:
+        return text
+    return "\n".join(value for value in data.values() if isinstance(value, str))
+
+
 def _read_scan_text(path: Path) -> str:
     try:
-        return path.read_text(encoding="utf-8")
+        text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
         raise OSError(f"Failed to read {path}: {exc}") from exc
+    return _toml_strings(text) if path.suffix == ".toml" else text
 
 
 def scan_literal_plugin_paths(repo_root: Path) -> tuple[list[str], int]:
@@ -269,7 +288,12 @@ def scan_literal_plugin_paths(repo_root: Path) -> tuple[list[str], int]:
     for path in files:
         text = _read_scan_text(path)
         rel = path.relative_to(repo_root).as_posix()
-        hits.extend(f"{rel}:{line}: .claude/{lit}" for line, lit in find_literal_plugin_paths(text))
+        # A generated TOML agent is scanned as decoded text, so its line numbers do not
+        # exist in the file; point at line 1 instead.
+        hits.extend(
+            f"{rel}:{1 if path.suffix == '.toml' else line}: .claude/{lit}"
+            for line, lit in find_literal_plugin_paths(text)
+        )
     return hits, len(files)
 
 

@@ -23,6 +23,15 @@ Stanza keys (all under ``artifacts.agents``):
                       read-only tools, and do not ship an agent whose ``tools``
                       is restricted (including empty) but not all read-only
 ``excludeFilenames``  source file names to skip
+``skipToolRestricted`` when true, do not ship an agent whose frontmatter declares
+                      ``tools`` (list or comma string), and append a paragraph to
+                      every shipped body naming the agents left out (Codex agent
+                      files cannot restrict tools, ADR-115 Decision 7). Requires
+                      ``frontmatterKeep``; excludes ``deriveReadonly: true``.
+``outputFormat``      ``markdown`` (default) or ``codex-toml``. ``codex-toml`` writes
+                      ``<stem>.toml`` with the keys ``name``, ``description`` and
+                      ``developer_instructions`` (the body). ``frontmatterKeep`` must
+                      be exactly ``[name, description]`` for it.
 ``bodyReplace``       map of agent file name to ``{from: to}`` literal edits to its body
                       (issue #7226). Cursor ships no ``security`` agent, so a
                       line that hands work to one is reworded for Cursor. Each
@@ -46,10 +55,11 @@ no model pin. ``model`` is not in the keep list, so Cursor's default
 
 from __future__ import annotations
 
-import functools
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TypeVar
 
 import yaml
 
@@ -57,45 +67,37 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPT_DIR))
 sys.path.insert(0, str(_SCRIPT_DIR.parent))
 
-from agent_capabilities import load_mcp_table, wildcard_grants  # noqa: E402
+from agent_toml import (  # noqa: E402
+    FORMAT_CODEX_TOML,
+    FORMAT_MARKDOWN,
+    NO_SUBAGENTS,
+    CodexOutputError,
+    check_names_match_stems,
+    forbids_subagents,
+    not_installed_paragraph,
+    read_output_options,
+    render_codex_toml,
+    unenforceable_disallowed,
+)
+from agent_tools import (  # noqa: E402
+    AgentCopyError,
+    declared_tools,
+    derive_readonly,
+    has_inexpressible_restriction,
+)
+from agent_tools import is_readonly_tool as is_readonly_tool  # noqa: E402  re-export
 from atomic_write import publish_bytes_preserving_mode  # noqa: E402
 from generate_agents_common import read_yaml_frontmatter  # noqa: E402
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
 from yaml_loader import ConfigError, load_platform_config, validate_relative_path  # noqa: E402
 
+T = TypeVar("T")
 KEEP_KEY = "frontmatterKeep"
 REPLACE_KEY = "bodyReplace"
 _READONLY_KEY = "readonly"
+_READONLY_SKIP_REASON = "tools list restricts it beyond what readonly can express"
 _SOURCE_SUFFIX = ".md"
 _DEFAULT_EXCLUDES = ("AGENTS.md", "CLAUDE.md")
-_READONLY_TOOLS = frozenset({"Read", "Glob", "Grep", "WebSearch", "WebFetch", "ToolSearch"})
-# An MCP tool name is `mcp__<server>__<words>`, the words joined by `_`. It is
-# read-only when a read verb leads the words (`get_file_contents`) or the last
-# word is `read` (`issue_read`), and no word names a mutation (`find_and_replace`,
-# `get_and_run`). `run` is a noun in `get_workflow_run`, so it is not a mutating
-# word; a compound name (`and`, `then`) is rejected instead. `query` is not a
-# read word: `mcp__db__query` can run a write. `resolve` and `ask` can lead a
-# state change (`resolve_review_thread`), so only the exact names in
-# _READ_NAMES earn readonly through them.
-# A server-level wildcard (`mcp__context7__*`, ADR-107) is read-only only when
-# `templates/agent-mcp-servers.yaml` lets that server be granted whole. A
-# wildcard for any other server (`mcp__github__*`, `mcp__serena__*`) can carry
-# write or shell tools, so it never earns `readonly: true`.
-# An unfamiliar name matches none of these and never earns `readonly: true`.
-_READ_WORDS = frozenset({"get", "list", "read", "find", "search", "initial"})
-_READ_NAMES = frozenset({"resolve_library_id"})
-_COMPOUND_WORDS = frozenset({"and", "or", "then"})
-_MUTATING_WORDS = frozenset(
-    {
-        "write", "edit", "create", "update", "delete", "add", "merge", "push", "replace",
-        "insert", "rename", "remove", "apply", "move", "fork",
-        "exec", "execute", "send", "post", "set", "close", "dispatch",
-    }
-)  # fmt: skip
-
-
-class AgentCopyError(Exception):
-    """A platform stanza or a source agent file is unusable."""
 
 
 @dataclass
@@ -114,63 +116,81 @@ def uses_agent_tree_copy(stanza: object) -> bool:
     return isinstance(stanza, dict) and KEEP_KEY in stanza
 
 
-@functools.cache
-def _readonly_wildcards() -> frozenset[str]:
-    """Return the ``<prefix>__*`` grants of the servers the MCP table marks safe whole."""
-    grants: frozenset[str] = wildcard_grants(load_mcp_table(_SCRIPT_DIR.parents[1]))
-    return grants
+def parse_agent(text: str, source: str) -> tuple[dict[str, object], str]:
+    """Return ``(frontmatter mapping, body)`` for one agent file."""
+    parsed = read_yaml_frontmatter(text)
+    if parsed is None:
+        raise AgentCopyError(f"{source}: no frontmatter block")
+    try:
+        loaded = yaml.safe_load(parsed["frontmatter_raw"])
+    except yaml.YAMLError as exc:
+        raise AgentCopyError(f"{source}: unparseable frontmatter: {exc}") from exc
+    if not isinstance(loaded, dict):
+        raise AgentCopyError(f"{source}: frontmatter is not a mapping")
+    return loaded, parsed["body"]
 
 
-def is_readonly_tool(tool: object) -> bool:
-    """True when ``tool`` names a tool that changes no state."""
-    if not isinstance(tool, str):
-        return False
-    if tool in _READONLY_TOOLS:
-        return True
-    parts = tool.split("__")
-    if len(parts) < 3 or parts[0] != "mcp":
-        return False
-    if parts[-1] == "*":
-        return tool in _readonly_wildcards()
-    words = parts[-1].split("_")
-    if any(word in _MUTATING_WORDS or word in _COMPOUND_WORDS for word in words):
-        return False
-    return parts[-1] in _READ_NAMES or words[0] in _READ_WORDS or words[-1] == "read"
+@dataclass(frozen=True)
+class RenderSpec:
+    """How one platform renders every agent: the keys to keep and the output form."""
+
+    keep: list[str]
+    derive_readonly: bool = False
+    output_format: str = FORMAT_MARKDOWN
+    appendix: str = ""
 
 
-def declared_tools(frontmatter: dict[str, object]) -> list[object] | None:
-    """The agent's ``tools`` as a list, or ``None`` when it declares none.
+def _as_copy_error(call: Callable[[], T]) -> T:
+    """Run ``call``, turning a :class:`CodexOutputError` into an :class:`AgentCopyError`."""
+    try:
+        return call()
+    except CodexOutputError as exc:
+        raise AgentCopyError(str(exc)) from exc
 
-    Claude Code accepts a YAML list or a comma-separated string
-    (``tools: Read, Write``, see ``generate_agents_common.py``); both are
-    restrictions. Any other non-null type is an error, so the build fails
-    instead of shipping an unrestricted agent.
+
+def render_parsed(
+    loaded: dict[str, object],
+    body: str,
+    source: str,
+    spec: RenderSpec,
+    body_edits: list[tuple[str, str]] | None = None,
+) -> str | None:
+    """Render one parsed agent; ``None`` when ``deriveReadonly`` says it must not ship.
+
+    A ``None`` return means the agent carries a tool restriction ``readonly``
+    cannot express (ADR-115 Decision 3). ``body_edits`` are literal
+    ``(from, to)`` edits applied to the body only, so text that also appears in
+    the frontmatter can never be rewritten by mistake. ``spec.appendix`` is
+    added after the edits; ``codex-toml`` returns a TOML document.
     """
-    tools = frontmatter.get("tools")
-    if tools is None:
-        return None
-    if isinstance(tools, list):
-        return list(tools)
-    if isinstance(tools, str):
-        return [name for name in (part.strip() for part in tools.split(",")) if name]
-    raise AgentCopyError(
-        f"`tools` must be a list or a comma-separated string, got {type(tools).__name__}"
+    try:
+        if spec.derive_readonly and has_inexpressible_restriction(loaded):
+            return None
+    except AgentCopyError as exc:
+        raise AgentCopyError(f"{source}: {exc}") from exc
+    kept = {key: loaded[key] for key in spec.keep if key in loaded}
+    if spec.derive_readonly and derive_readonly(loaded):
+        kept[_READONLY_KEY] = True
+    if body_edits:
+        body = apply_body_replacements(body, body_edits, source)
+    if spec.output_format == FORMAT_CODEX_TOML:
+        unenforced = unenforceable_disallowed(loaded)
+        if unenforced:
+            raise AgentCopyError(
+                f"{source}: `disallowedTools` names {', '.join(unenforced)}, "
+                "which a Codex agent file cannot enforce; only `Agent` is supported"
+            )
+        if forbids_subagents(loaded):
+            body = body.rstrip("\n") + NO_SUBAGENTS
+    if spec.appendix:
+        body = body.rstrip("\n") + spec.appendix
+    if spec.output_format == FORMAT_CODEX_TOML:
+        toml_text: str = _as_copy_error(lambda: render_codex_toml(kept, body, source))
+        return toml_text
+    dumped = yaml.safe_dump(
+        kept, sort_keys=False, allow_unicode=True, default_flow_style=False, width=10**9
     )
-
-
-def derive_readonly(frontmatter: dict[str, object]) -> bool:
-    """True when the agent declares tools and every one is read-only."""
-    tools = declared_tools(frontmatter)
-    return bool(tools) and all(is_readonly_tool(tool) for tool in tools or [])
-
-
-def has_inexpressible_restriction(frontmatter: dict[str, object]) -> bool:
-    """True when ``tools`` restricts the agent in a way ``readonly`` cannot express.
-
-    An empty list or empty string restricts the agent to nothing. Cursor has no
-    way to say that, so it fails closed like any other non-read-only list.
-    """
-    return declared_tools(frontmatter) is not None and not derive_readonly(frontmatter)
+    return f"---\n{dumped}---\n{body}"
 
 
 def render_agent(
@@ -181,43 +201,19 @@ def render_agent(
     source: str,
     body_edits: list[tuple[str, str]] | None = None,
 ) -> str | None:
-    """Return ``text`` with its frontmatter reduced to the ``keep`` keys.
+    """Parse ``text`` and render it with :func:`render_parsed`."""
+    loaded, body = parse_agent(text, source)
+    spec = RenderSpec(keep, derive_readonly_flag)
+    return render_parsed(loaded, body, source, spec, body_edits)
 
-    Returns ``None`` when ``derive_readonly_flag`` is set and the agent carries a
-    tool restriction ``readonly`` cannot express (ADR-115 Decision 3). The caller
-    must not ship such an agent.
 
-    ``body_edits`` are literal ``(from, to)`` edits applied to the body only, so
-    text that also appears in the frontmatter can never be rewritten by mistake.
+def _body_replacements(
+    stanza: dict[str, object], source_dir: Path, excludes: frozenset[str]
+) -> dict[str, list[tuple[str, str]]]:
+    """Return ``{file name: [(from, to), ...]}`` from the ``bodyReplace`` mapping.
+
+    Fails when a named file is not in ``source_dir`` or is excluded from the copy.
     """
-    parsed = read_yaml_frontmatter(text)
-    if parsed is None:
-        raise AgentCopyError(f"{source}: no frontmatter block")
-    try:
-        loaded = yaml.safe_load(parsed["frontmatter_raw"])
-    except yaml.YAMLError as exc:
-        raise AgentCopyError(f"{source}: unparseable frontmatter: {exc}") from exc
-    if not isinstance(loaded, dict):
-        raise AgentCopyError(f"{source}: frontmatter is not a mapping")
-    try:
-        if derive_readonly_flag and has_inexpressible_restriction(loaded):
-            return None
-    except AgentCopyError as exc:
-        raise AgentCopyError(f"{source}: {exc}") from exc
-    kept = {key: loaded[key] for key in keep if key in loaded}
-    if derive_readonly_flag and derive_readonly(loaded):
-        kept[_READONLY_KEY] = True
-    dumped = yaml.safe_dump(
-        kept, sort_keys=False, allow_unicode=True, default_flow_style=False, width=10**9
-    )
-    body = parsed["body"]
-    if body_edits:
-        body = apply_body_replacements(body, body_edits, source)
-    return f"---\n{dumped}---\n{body}"
-
-
-def _body_replacements(stanza: dict[str, object]) -> dict[str, list[tuple[str, str]]]:
-    """Return ``{file name: [(from, to), ...]}`` from the ``bodyReplace`` mapping."""
     raw = stanza.get(REPLACE_KEY, {})
     problem = f"`artifacts.agents.{REPLACE_KEY}` must map agent file names to {{from: to}} maps"
     if not isinstance(raw, dict):
@@ -229,6 +225,14 @@ def _body_replacements(stanza: dict[str, object]) -> dict[str, list[tuple[str, s
         if not all(isinstance(k, str) and k and isinstance(v, str) for k, v in pairs.items()):
             raise AgentCopyError(problem)
         edits[file] = list(pairs.items())
+    missing = sorted(set(edits) - {p.name for p in source_dir.glob(f"*{_SOURCE_SUFFIX}")})
+    if missing:
+        raise AgentCopyError(f"bodyReplace names agents not in {source_dir}: {missing}")
+    excluded = sorted(set(edits) & excludes)
+    if excluded:
+        raise AgentCopyError(
+            f"bodyReplace names agents that are excluded from the copy: {excluded}"
+        )
     return edits
 
 
@@ -291,49 +295,74 @@ def generate_agent_copies(
     if stanza is None:
         return None
     keep = _keep_list(stanza)
+    options = _as_copy_error(lambda: read_output_options(stanza))
     source_dir, output_dir = _resolve_dirs(repo_root, stanza)
+    if output_dir.is_symlink():
+        # A redirected output folder would let the prune step delete files outside the repo.
+        raise AgentCopyError(
+            f"{output_dir}: output directory is a symlink; refusing to write or prune"
+        )
     if not source_dir.is_dir():
         raise AgentCopyError(f"sourceDir not found: {source_dir}")
     excludes = _excludes(stanza)
-    replacements = _body_replacements(stanza)
-    missing = sorted(set(replacements) - {p.name for p in source_dir.glob(f"*{_SOURCE_SUFFIX}")})
-    if missing:
-        raise AgentCopyError(f"bodyReplace names agents not in {source_dir}: {missing}")
-    excluded = sorted(set(replacements) & excludes)
-    if excluded:
-        raise AgentCopyError(
-            f"bodyReplace names agents that are excluded from the copy: {excluded}"
+    replacements = _body_replacements(stanza, source_dir, excludes)
+    sources = [p for p in sorted(source_dir.glob(f"*{_SOURCE_SUFFIX}")) if p.name not in excludes]
+    if not sources:
+        raise AgentCopyError(f"no agent files found under {source_dir}")
+    parsed = {src: parse_agent(src.read_text(encoding="utf-8"), src.as_posix()) for src in sources}
+    _as_copy_error(
+        lambda: check_names_match_stems(
+            (src.stem, fm.get("name")) for src, (fm, _) in parsed.items()
         )
-    result = AgentCopyResult()
+    )
+    restricted = (
+        {src for src, (fm, _) in parsed.items() if declared_tools_of(fm, src) is not None}
+        if options.skip_restricted
+        else set()
+    )
+    spec = RenderSpec(
+        keep,
+        stanza.get("deriveReadonly") is True,
+        options.fmt,
+        not_installed_paragraph(sorted(src.stem for src in restricted)) if restricted else "",
+    )
+    result = AgentCopyResult(inputs=len(sources))
     expected: set[str] = set()
-    for src in sorted(source_dir.glob(f"*{_SOURCE_SUFFIX}")):
-        if src.name in excludes:
-            continue
-        result.inputs += 1
-        rendered = render_agent(
-            src.read_text(encoding="utf-8"),
-            keep,
-            derive_readonly_flag=stanza.get("deriveReadonly") is True,
-            source=src.as_posix(),
-            body_edits=replacements.get(src.name),
+    for src, (loaded, body) in parsed.items():
+        rendered = (
+            None
+            if src in restricted
+            else render_parsed(loaded, body, src.as_posix(), spec, replacements.get(src.name))
         )
         if rendered is None:
             if src.name in replacements:
                 raise AgentCopyError(
                     f"bodyReplace names {src.name}, which is skipped because its tools list "
-                    "restricts it beyond what readonly can express"
+                    "restricts it"
                 )
             result.skipped.append(src.name)
-            print(
-                f"  SKIPPED: {src.name} (tools list restricts it beyond what readonly can express)"
-            )
+            why = "declares a tools list" if options.skip_restricted else _READONLY_SKIP_REASON
+            print(f"  SKIPPED: {src.name} ({why})")
             continue
-        expected.add(src.name)
-        _emit(output_dir / src.name, rendered, result, check=check, what_if=what_if)
-    if not result.inputs:
-        raise AgentCopyError(f"no agent files found under {source_dir}")
-    _prune(output_dir, expected, result, check=check, what_if=what_if)
+        expected.add(f"{src.stem}{options.suffix}")
+        _emit(
+            output_dir / f"{src.stem}{options.suffix}",
+            rendered,
+            result,
+            check=check,
+            what_if=what_if,
+        )
+    _prune(output_dir, expected, options.suffix, result, check=check, what_if=what_if)
     return result
+
+
+def declared_tools_of(loaded: dict[str, object], src: Path) -> list[object] | None:
+    """:func:`declared_tools` with the source path added to its error."""
+    try:
+        tools: list[object] | None = declared_tools(loaded)
+        return tools
+    except AgentCopyError as exc:
+        raise AgentCopyError(f"{src.as_posix()}: {exc}") from exc
 
 
 def _emit(
@@ -358,11 +387,17 @@ def _emit(
 
 
 def _prune(
-    output_dir: Path, expected: set[str], result: AgentCopyResult, *, check: bool, what_if: bool
+    output_dir: Path,
+    expected: set[str],
+    suffix: str,
+    result: AgentCopyResult,
+    *,
+    check: bool,
+    what_if: bool,
 ) -> None:
     if not output_dir.is_dir():
         return
-    for existing in sorted(output_dir.glob(f"*{_SOURCE_SUFFIX}")):
+    for existing in sorted(output_dir.glob(f"*{suffix}")):
         if existing.name in expected or regen_detect_reason(existing) is not None:
             continue
         if check:

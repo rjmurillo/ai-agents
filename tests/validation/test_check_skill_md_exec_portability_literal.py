@@ -162,6 +162,7 @@ class TestScanLiteralPluginPaths:
             "templates/agents/partials/helper.mustache",
             "templates/rules/helper.md",
             "src/claude/rules/helper.md",
+            "src/codex/agents/helper.toml",
         ],
     )
     def test_scans_agent_and_rule_files(self, tmp_path: Path, rel: str) -> None:
@@ -211,6 +212,22 @@ class TestScanLiteralPluginPaths:
         _skill(tmp_path, "demo", "clean\n")
         _write(tmp_path, "src/claude/agents/a.md", "python3 .claude/skills/s/scripts/a.py\n")
         assert cep.unused_literal_allowances(tmp_path, ["skills/s/scripts/a.py"]) == []
+
+    def test_scans_a_command_that_starts_a_line_in_a_generated_toml_agent(
+        self, tmp_path: Path
+    ) -> None:
+        """A generated agent is one escaped line; the command follows a literal backslash-n."""
+        _skill(tmp_path, "demo", "clean\n")
+        body = "Run this:\\npython3 .claude/skills/demo/scripts/x.py --flag\\n"
+        _write(tmp_path, "src/codex/agents/helper.toml", f'developer_instructions = "{body}"\n')
+        hits, _ = cep.scan_literal_plugin_paths(tmp_path)
+        assert [h.split(":")[:2] for h in hits] == [["src/codex/agents/helper.toml", "1"]]
+
+    def test_a_clean_generated_toml_agent_has_no_hits(self, tmp_path: Path) -> None:
+        """Negative control for the TOML decode."""
+        _skill(tmp_path, "demo", "clean\n")
+        _write(tmp_path, "src/codex/agents/helper.toml", 'developer_instructions = "Run it.\\n"\n')
+        assert cep.scan_literal_plugin_paths(tmp_path)[0] == []
 
     def test_ignores_a_non_markdown_file_in_an_agent_tree(self, tmp_path: Path) -> None:
         _skill(tmp_path, "demo", "clean\n")

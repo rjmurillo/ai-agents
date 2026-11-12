@@ -33,30 +33,6 @@ from scripts.validation.evidence import (  # noqa: E402
 _MYPY_GATE = "validate_mypy_changed_files"
 
 
-def _resolve_symlinked_sources(repo_root: Path, paths: list[str]) -> list[str]:
-    """Swap each tracked symlink for the in-repo file it points at (issue #7328).
-
-    ADR-119 decision 14 links each ``.claude/lib`` entry that has a ``src/claude/lib``
-    counterpart to that file, so a branch that adds a shared lib module adds a symlink.
-    ``run_mypy`` refuses any symlink and exits 2, which failed the gate on a
-    change that was fine. The source file is type-checked in its own right.
-
-    A link that does not end at a regular file inside the repository stays in the
-    list, so ``run_mypy`` still refuses it. Order is kept and duplicates are dropped.
-    """
-    root = repo_root.resolve()
-    resolved: list[str] = []
-    for path in paths:
-        candidate = repo_root / path
-        if candidate.is_symlink():
-            target = candidate.resolve()
-            if target.is_file() and target.is_relative_to(root):
-                path = target.relative_to(root).as_posix()
-        if path not in resolved:
-            resolved.append(path)
-    return resolved
-
-
 def validate_mypy_changed_files(repo_root: Path) -> CheckOutcome:
     """Run mypy over Python files changed on the branch (ratchet semantics).
 
@@ -103,10 +79,7 @@ def validate_mypy_changed_files(repo_root: Path) -> CheckOutcome:
             detail=f"git diff exited {exit_code}, so the changed-file set is unknown",
         )
 
-    py_files = _resolve_symlinked_sources(
-        repo_root,
-        [p for p in stdout.splitlines() if p.endswith(".py") and (repo_root / p).is_file()],
-    )
+    py_files = [p for p in stdout.splitlines() if p.endswith(".py") and (repo_root / p).is_file()]
     scope = f"Python files changed against {base_ref}"
     if not py_files:
         print("[PASS] Mypy (0 Python files changed on branch)")
