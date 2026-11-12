@@ -213,24 +213,25 @@ upstream and fails silently everywhere else.
 python3 .claude/skills/github/scripts/pr/test_pr_merge_ready.py --pull-request 1
 ```
 
-**Resolve the script root through a plugin-root env var with a source
-fallback**, then invoke via the variable. Re-declare the variable at the top of
-each fenced `bash` block that uses it, so every snippet is runnable on its own:
+**Run the script through the plugin-root locator** (ADR-121), a closed subshell.
+It probes `${CLAUDE_PLUGIN_ROOT}`, `${COPILOT_PLUGIN_ROOT}`, then `.claude` for
+`lib/ptk_run.py` and runs the target through the first root that holds it. Claude
+Code rewrites the bare `${CLAUDE_PLUGIN_ROOT}` token in a SKILL.md or agent body to
+an absolute path, so a foreign `CLAUDE_PLUGIN_ROOT` cannot displace it.
 
 ```bash
-# CORRECT: uses a harness plugin root when one is exported, otherwise source checkout.
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr"
-python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request 1
+# CORRECT: the locator runs the first plugin root that holds lib/ptk_run.py.
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/test_pr_merge_ready.py --pull-request 1; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
-This form is sufficient when the host exports `COPILOT_PLUGIN_ROOT` or
-`CLAUDE_PLUGIN_ROOT`, or when the command runs from the source checkout. If a
-skill must run in a Copilot CLI install where neither variable is exported,
-add a fallback that probes the installed plugin roots before the command runs.
-The `/pr-autofix` skill uses that pattern for its PR helper scripts.
-
-For skills that only target Claude Code, the shorter
-`SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/..."` form is acceptable.
+Write every argument inside the locator, before its closing `; fi`. Words after
+the closing `)` are a separate command. Render one with `render_locator` in
+`build/scripts/plugin_run_launcher.py`, or rewrite legacy text with
+`python3 build/scripts/plugin_run_fix.py --fix PATH`. A launcher failure prints a
+`ptk_run:` line on stderr and exits 2, so a script that gives exit 2 its own
+meaning needs that line to tell the two apart. Targets must be stdlib-only.
+Gate-dispatched YAML keeps the legacy `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}`
+form, because the gate resolves it in Python.
 
 This is enforced by `scripts/validation/check_skill_md_exec_portability.py` (CI
 job "Validate Vendor Portability"). The check grandfathers existing offenders in
