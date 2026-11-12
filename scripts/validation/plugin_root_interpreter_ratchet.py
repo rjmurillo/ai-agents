@@ -93,9 +93,9 @@ def ratchet_messages(
         if found.invocations > allowed_inv or found.assignments > allowed_asg:
             messages.append(
                 f"{shown}. Write a new Class S command as the locator from "
-                "build/scripts/plugin_run_launcher.py, or run build/scripts/plugin_run_fix.py "
-                "--fix on the file (ADR-121). The baseline only moves down; lower the "
-                "baseline when a batch migrates."
+                "build/scripts/plugin_run_launcher.py, or run "
+                "python3 build/scripts/plugin_run_fix.py --fix on the file (ADR-121). The "
+                "baseline only moves down; lower the baseline when a batch migrates."
             )
         elif found.invocations < allowed_inv or found.assignments < allowed_asg:
             messages.append(

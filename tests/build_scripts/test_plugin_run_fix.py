@@ -24,6 +24,7 @@ import plugin_run_launcher  # noqa: E402
 from scripts.validation import check_plugin_root_interpreter as checker  # noqa: E402
 from scripts.validation import plugin_root_interpreter_allowances as allowances  # noqa: E402
 from scripts.validation import plugin_root_interpreter_sites as sites  # noqa: E402
+from tests.build_scripts.orphan_test_helpers import symlink_or_skip  # noqa: E402
 from tests.validation.test_check_plugin_root_interpreter import make_repo  # noqa: E402
 
 ROOT = "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
@@ -124,7 +125,7 @@ def test_fix_follows_a_symlink_to_the_authored_file(tmp_path: Path) -> None:
     repo = _repo(tmp_path, {support: _doc(_legacy())})
     link = repo / ".claude" / "skills" / "demo"
     link.parent.mkdir(parents=True, exist_ok=True)
-    link.symlink_to(repo / "src/claude/skills/demo", target_is_directory=True)
+    symlink_or_skip(link, repo / "src/claude/skills/demo", target_is_directory=True)
     assert _run_fix(repo, link / "references" / "notes.md") == 0
     assert (repo / support).read_text(encoding="utf-8") == _doc(_locator())
 
@@ -161,7 +162,7 @@ def test_fix_refuses_a_generated_file_reached_through_a_symlink(
     repo = _repo(tmp_path, {"src/claude/agents/a.md": _doc(_legacy())})
     link = repo / ".claude" / "agents"
     link.parent.mkdir(parents=True, exist_ok=True)
-    link.symlink_to(repo / "src/claude/agents", target_is_directory=True)
+    symlink_or_skip(link, repo / "src/claude/agents", target_is_directory=True)
     before = (repo / "src/claude/agents/a.md").read_bytes()
     assert _run_fix(repo, link / "a.md") == 2
     err = capsys.readouterr().err
@@ -266,6 +267,8 @@ def test_every_tracked_template_and_support_file_is_accepted() -> None:
         check=True,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     ).stdout.split("\0")
     refused = []
     for rel in filter(lambda item: item.endswith((".md", ".tmpl", ".mustache")), listing):
@@ -342,6 +345,18 @@ def test_inventory_puts_a_render_apart_from_the_groups_the_baseline_counts(
     assert rows["src/claude/skills/demo/SKILL.md"] == fix.RENDER_GROUP
 
 
+def _git_status(repo: Path) -> str:
+    return subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    ).stdout
+
+
 def test_inventory_writes_nothing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     repo = _repo(tmp_path, INVENTORY_FILES)
 
@@ -350,14 +365,10 @@ def test_inventory_writes_nothing(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
 
     monkeypatch.setattr(fix, "publish_bytes_preserving_mode", forbidden)
     before = _snapshot(repo)
-    status = subprocess.run(
-        ["git", "status", "--porcelain"], cwd=repo, check=True, capture_output=True, text=True
-    ).stdout
+    status = _git_status(repo)
     assert fix.main(["--inventory", "--repo-root", str(repo)]) == 0
     assert _snapshot(repo) == before
-    after = subprocess.run(
-        ["git", "status", "--porcelain"], cwd=repo, check=True, capture_output=True, text=True
-    ).stdout
+    after = _git_status(repo)
     assert after == status
 
 
@@ -367,6 +378,8 @@ def _grep_count(repo: Path) -> int:
         cwd=repo,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     return len(done.stdout.splitlines())
 
@@ -434,6 +447,8 @@ def test_the_script_runs_as_a_program_from_another_directory(tmp_path: Path) -> 
         cwd=tmp_path,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     assert done.returncode == 0, done.stderr
@@ -447,7 +462,7 @@ def test_inventory_skips_a_symlink_and_a_binary_file(tmp_path: Path) -> None:
         b"\xff\xfe" + _legacy().encode()
     )
     link = repo / "templates/skills/linked.tmpl"
-    link.symlink_to(repo / TEMPLATE)
+    symlink_or_skip(link, repo / TEMPLATE)
     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
     paths = {row.path for row in fix.collect_inventory(repo)}
     assert TEMPLATE in paths

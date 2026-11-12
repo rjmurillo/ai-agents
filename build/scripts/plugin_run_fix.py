@@ -3,8 +3,10 @@
 
 Two modes, one of which is required::
 
-    plugin_run_fix.py --inventory
-    plugin_run_fix.py --fix PATH [PATH ...]
+    python3 build/scripts/plugin_run_fix.py --inventory
+    python3 build/scripts/plugin_run_fix.py --fix PATH [PATH ...]
+
+The file is not executable in git (mode 100644), so run it through ``python3``.
 
 ``--inventory`` is read-only. It prints, for each tracked file under ``templates/`` and
 ``src/claude/``, the count of legacy invocation sites, of assignment sites (lines
