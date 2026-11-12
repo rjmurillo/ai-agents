@@ -191,6 +191,21 @@ Each step is its own pull request. A step starts when the one before it merged.
    G sites stay on the legacy form.
 6. Remove legacy acceptance for migrated classes. The allowance reaches zero.
 
+Assignment sites need their own rule. At 48b4ea4c2, 97 lines in `templates` and
+`src/claude` assign a variable from the nested form, such as `SCRIPTS_DIR=...`,
+and later commands run `python3 "$SCRIPTS_DIR/..."`. The count comes from
+`git grep -nE '^\s*[A-Za-z_]+=.*COPILOT_PLUGIN_ROOT:-\$\{CLAUDE_PLUGIN_ROOT:-' 48b4ea4c2 -- templates src/claude`.
+It covers Markdown, YAML, and `.py` lines alike. Step 3 states the scope of the
+inventory it builds. A narrower pattern counts 84 to 92, so the inventory fixes
+the real number. The locator takes the target
+in one command, so it cannot replace the assignment line, and a foreign root still
+reaches `$SCRIPTS_DIR`. Step 3 inventories these sites by file. Step 4 rewrites
+each follow-on call to the locator and deletes the assignment, one skill at a
+time. `--fix` reports an assignment it cannot rewrite, and the legacy allowance
+keeps that file until a person rewrites it. A skill counts as migrated only when
+no line in it assigns from the nested form. Assignment sites in `references/`
+files wait for step 5.
+
 Probe results for Copilot CLI and Codex join the step 2 evidence when quota
 allows. A host with no result is not blocked, because the locator reaches
 `.claude` and fails loud when nothing is there, which is no worse than the legacy
@@ -245,8 +260,9 @@ calls it.
   - A target that fails validation exits 2.
 - The negative control runs the legacy form through the same harness. It fails.
 - `check_plugin_root_interpreter.py` matches only an interpreter followed by
-  `${..._ROOT`. The validator must read the target out of the locator, or rules 1,
-  2, and 5 stop covering migrated sites.
+  `${..._ROOT`. The validator must read the target out of the locator, or rules 1
+  and 2 stop covering migrated sites. Rule 5 is a per-module import-time scan, so
+  migrating a site does not change its coverage.
 - A host-inlined root is a path the host writes into the double quotes. The
   matrix adds a root that holds `$`, a backtick, and a double quote, and records
   which of them the form survives.
