@@ -81,8 +81,13 @@ def _source_agents() -> dict[str, dict[str, object]]:
     return sources
 
 
+def _restricted_stems() -> set[str]:
+    """Sources that declare a tools list, the generator's own test (``is not None``)."""
+    return {s for s, fm in _source_agents().items() if atc.declared_tools(fm) is not None}
+
+
 def test_generator_renders_every_source_without_a_tools_list(rendered: dict[str, str]) -> None:
-    expected = {s for s, fm in _source_agents().items() if atc.declared_tools(fm) is None}
+    expected = set(_source_agents()) - _restricted_stems()
     assert expected, "no Claude agent is free of a tools list"
     assert set(rendered) == expected
 
@@ -107,9 +112,7 @@ def test_tool_restricted_agents_are_not_shipped() -> None:
     for source in sorted((REPO_ROOT / "src" / "claude" / "agents").glob("*.md")):
         if source.name in ("AGENTS.md", "CLAUDE.md"):
             continue
-        frontmatter, _ = atc.parse_agent(source.read_text(encoding="utf-8"), source.name)
-        restricted = atc.declared_tools(frontmatter) is not None
-        assert (source.stem in shipped) is not restricted, source.name
+        assert (source.stem in shipped) is (source.stem not in _restricted_stems()), source.name
 
 
 def test_agents_with_an_agent_deny_carry_the_subagents_note() -> None:
@@ -122,7 +125,7 @@ def test_agents_with_an_agent_deny_carry_the_subagents_note() -> None:
 
 
 def test_not_installed_note_names_exactly_the_tool_restricted_agents() -> None:
-    restricted = {s for s, fm in _source_agents().items() if atc.declared_tools(fm)}
+    restricted = _restricted_stems()
     assert restricted, "no Claude agent declares a tools list"
     for stem, text in _committed().items():
         note = text.split("## Agents not installed on this host", 1)[1].split("\n\n")[1]
@@ -131,7 +134,7 @@ def test_not_installed_note_names_exactly_the_tool_restricted_agents() -> None:
 
 def test_orchestrator_has_no_routing_row_for_a_skipped_agent() -> None:
     body = _committed()["orchestrator"]
-    skipped = {s for s, fm in _source_agents().items() if atc.declared_tools(fm)}
+    skipped = _restricted_stems()
     rows = set(re.findall(r"^\| \*\*([a-z-]+)\*\* \|", body, flags=re.MULTILINE))
     assert rows, "the orchestrator routing table has no rows"
     assert not rows & skipped, sorted(rows & skipped)

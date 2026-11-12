@@ -361,7 +361,7 @@ Uninstall: delete the same folders and `~/workspace/lib`.
 
 ### Install on Muse Code
 
-Muse Code 1.4.15 ran on 2026-11-11 with main at `fc91afcf2`. Muse Code loads user skills from `${XDG_CONFIG_HOME:-~/.config}/muse/skills/`. Skill scripts look for `lib/` one level up, at `${XDG_CONFIG_HOME:-~/.config}/muse/lib/`. Muse Code loads agents from `${XDG_CONFIG_HOME:-~/.config}/muse/agents/` (ADR-115 Decision 8). The personal agent has no documented agent format and gets no agents.
+Muse Code 1.4.15 ran on 2026-11-11 with main at `fc91afcf2`. Muse Code loads user skills from `${XDG_CONFIG_HOME:-~/.config}/muse/skills/`. Skill scripts look for `lib/` one level up, at `${XDG_CONFIG_HOME:-~/.config}/muse/lib/`. Muse Code documents `~/.config/muse/agents/` for agents (ADR-115 Decision 8). This install uses `${XDG_CONFIG_HOME:-~/.config}/muse/agents/`, the same root as skills. No run shows that Muse Code reads the `XDG_CONFIG_HOME` form for agents. The personal agent has no documented agent format and gets no agents.
 
 Do not copy these skills into the `skills` folder under `~/.agents`, or under a repository's `.agents` folder. Codex reads those folders too, and its copies differ.
 
@@ -373,16 +373,17 @@ Do not copy these skills into the `skills` folder under `~/.agents`, or under a 
    root="${XDG_CONFIG_HOME:-$HOME/.config}/muse"
    backup="$root/install-backup-$(date +%Y%m%d%H%M%S)"
    mkdir -p "$root/skills" "$root/agents"
-   if [ -e "$root/lib" ] || [ -L "$root/lib" ]; then
-     mkdir -p "$backup"
-     mv "$root/lib" "$backup/lib"
+   if [ ! -e "$root/lib" ] && [ ! -L "$root/lib" ] \
+     || { mkdir -p "$backup" && mv "$root/lib" "$backup/lib"; }; then
+     cp -R src/muse/lib "$root/lib"
+   else
+     echo "backup failed, kept $root/lib" >&2
    fi
-   cp -R src/muse/lib "$root/lib"
    for d in src/muse/skills/*/; do
      name="$(basename "$d")"
      if [ -e "$root/skills/$name" ] || [ -L "$root/skills/$name" ]; then
-       mkdir -p "$backup/skills"
-       mv "$root/skills/$name" "$backup/skills/$name"
+       mkdir -p "$backup/skills" && mv "$root/skills/$name" "$backup/skills/$name" \
+         || { echo "backup failed, kept $root/skills/$name" >&2; continue; }
      fi
      cp -R "$d" "$root/skills/$name"
    done
@@ -397,7 +398,7 @@ Do not copy these skills into the `skills` folder under `~/.agents`, or under a 
    done
    ```
 
-   On 2026-11-11 the tree shipped 25 agents. It leaves out `analyst`, `code-reviewer`, `comment-analyzer`, and `security`, because their Claude files declare a `tools` list and Muse Code tool names are not documented. Each shipped body names the agents left out. Muse Code cannot spawn an agent with an unrecognized frontmatter key, so only `name` and `description` ship. As of 2026-11-11, no run shows that Muse Code loads these agents. The load test is `tests/e2e/test_muse_agents_load.py`, and it needs a Muse login. Account-wide agents have unrestricted tools and apply to every workspace.
+   On 2026-11-11 the tree shipped 25 agents. It leaves out `analyst`, `code-reviewer`, `comment-analyzer`, and `security`, because their Claude files declare a `tools` list and Muse Code tool names are not documented. Each shipped body names the agents left out. Muse Code cannot spawn an agent with an unrecognized frontmatter key, so only `name` and `description` ship. As of 2026-11-11, no run shows that Muse Code loads these agents. The load test is `tests/e2e/test_muse_agents_load.py`, and it needs a Muse login. Account-wide agents have unrestricted tools and apply to every workspace. The Claude deny on starting subagents does not carry over. 24 agent bodies instead carry a Subagents section that asks the model not to start subagents. That is a prompt instruction, not a block.
 
 Update: pull the clone and run step 2 again. It moves the old copies aside.
 

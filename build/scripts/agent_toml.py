@@ -1,4 +1,4 @@
-"""Codex output rules for ``agent_tree_copy.py`` (ADR-115 Decision 7).
+"""Codex and Muse Code agent output rules for ``agent_tree_copy.py`` (ADR-115 Decisions 7, 8).
 
 A Codex custom agent is one TOML file with ``name``, ``description`` and
 ``developer_instructions``. This module owns everything specific to that
@@ -66,8 +66,8 @@ def render_codex_toml(kept: dict[str, object], body: str, source: str) -> str:
     )
 
 
-# Mirrors the Claude restriction `disallowedTools: Agent`. Codex cannot enforce it, so
-# the build states it in the body. The model may ignore it; it is not a block.
+# Mirrors the Claude restriction `disallowedTools: Agent`. Codex and Muse Code cannot
+# enforce it, so the build states it in the body. The model may ignore it; it is not a block.
 NO_SUBAGENTS = "\n\n## Subagents\n\nDo not start subagents. Do the work in this session.\n"
 
 

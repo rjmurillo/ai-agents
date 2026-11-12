@@ -165,7 +165,9 @@ def render_parsed(
     A ``None`` return means the agent carries a tool restriction ``readonly``
     cannot express (ADR-115 Decision 3). ``body_edits`` are literal
     ``(from, to)`` edits applied to the body only, so text that also appears in
-    the frontmatter can never be rewritten by mistake. ``spec.appendix`` is
+    the frontmatter can never be rewritten by mistake. A ``codex-toml`` render, or a
+    markdown render with ``spec.no_subagents_note``, adds the ``Subagents`` section for
+    an ``Agent`` deny and refuses any other deny. ``spec.appendix`` is
     added after the edits; ``codex-toml`` returns a TOML document.
     """
     try:

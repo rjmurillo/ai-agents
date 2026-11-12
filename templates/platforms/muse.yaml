@@ -23,14 +23,14 @@ artifacts:
       - description
   agents:
     # ADR-115 Decision 8 (amended): agents are for Muse Code only; the
-    # personal agent has no documented agent format. Muse Code agents are Markdown files with
-    # frontmatter name, description and optional model, effort, tools and
-    # disallowedTools (https://dev.meta.ai/docs/muse-code/agents). Muse Code
-    # starts with an invalid agent but the lead cannot spawn it, and an
-    # unrecognized key makes the agent invalid, so only the two documented
-    # required keys ship. The frontmatterKeep key makes this a
-    # build/scripts/agent_tree_copy.py platform; build/generate_agents.py skips
-    # it.
+    # personal agent has no documented agent format. Muse Code agents are
+    # Markdown files with frontmatter name, description and optional model,
+    # effort, tools and disallowedTools
+    # (https://dev.meta.ai/docs/muse-code/agents). Muse Code starts with an
+    # invalid agent but the lead cannot spawn it, and an unrecognized key
+    # makes the agent invalid, so only the two documented required keys ship.
+    # The frontmatterKeep key makes this a build/scripts/agent_tree_copy.py
+    # platform; build/generate_agents.py skips it.
     sourceDir: "src/claude/agents"
     outputDir: "src/muse/agents"
     excludeFilenames: ["AGENTS.md", "CLAUDE.md"]
@@ -50,7 +50,7 @@ artifacts:
     # to one is done in-session.
     skipToolRestricted: true
     # Muse Code has no documented value for the Claude `disallowedTools: Agent`
-    # deny, and a value it rejects could leave all 24 agents unspawnable, so the
+    # deny, and a value it rejects could leave the agents unspawnable, so the
     # key stays dropped. Instead each of those bodies gets the short Subagents
     # section Codex ships (build/scripts/agent_toml.py NO_SUBAGENTS). It is a
     # prompt instruction, not a block.

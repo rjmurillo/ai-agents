@@ -8,11 +8,23 @@ write through a dangling symlink (ADR-115 Decision 8).
 
 from __future__ import annotations
 
+import shutil
+import subprocess
 from pathlib import Path
 
-from tests.test_muse_code_install_steps import BACKUP_GLOB, REPO_ROOT, _install
+import pytest
+
+from tests.test_muse_code_install_steps import (
+    BACKUP_GLOB,
+    REPO_ROOT,
+    _install,
+    _install_block,
+    _scratch_env,
+)
 
 AGENTS_SRC = REPO_ROOT / "src" / "muse" / "agents"
+
+pytestmark = pytest.mark.skipif(shutil.which("bash") is None, reason="bash is required")
 
 
 def _shipped_agent_names() -> list[str]:
@@ -83,3 +95,49 @@ def test_install_backs_up_a_dangling_skill_symlink(tmp_path: Path) -> None:
     assert not (tmp_path / "outside-skill").exists(), "the install wrote through a symlink"
     (backup,) = root.glob(BACKUP_GLOB)
     assert (backup / "skills" / "github").is_symlink()
+
+
+def _install_with_unwritable_backup(home: Path) -> subprocess.CompletedProcess[str]:
+    """Run the guide block with a backup path that is a file, so every backup move fails."""
+    stub = home / "stub"
+    stub.mkdir()
+    (stub / "date").write_text("#!/bin/sh\necho FIXED\n", encoding="utf-8")
+    (stub / "date").chmod(0o755)
+    (home / ".config" / "muse").mkdir(parents=True, exist_ok=True)
+    (home / ".config" / "muse" / "install-backup-FIXED").write_text("a file", encoding="utf-8")
+    env = _scratch_env(home)
+    env["PATH"] = f"{stub}:{env['PATH']}"
+    return subprocess.run(
+        ["bash", "-euo", "pipefail", "-c", _install_block()],
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=300,
+        check=False,
+    )
+
+
+def test_a_failed_backup_keeps_the_users_lib_skill_and_agent(tmp_path: Path) -> None:
+    root = tmp_path / ".config" / "muse"
+    (root / "lib").mkdir(parents=True)
+    (root / "lib" / "mine.py").write_text("mine\n", encoding="utf-8")
+    (root / "skills" / "github").mkdir(parents=True)
+    (root / "skills" / "github" / "mine.txt").write_text("mine\n", encoding="utf-8")
+    (root / "agents").mkdir(parents=True)
+    (root / "agents" / "critic.md").write_text("mine\n", encoding="utf-8")
+
+    result = _install_with_unwritable_backup(tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    for kept in ("lib", "skills/github", "agents/critic.md"):
+        assert f"backup failed, kept {root}/{kept}" in result.stderr, kept
+    assert (root / "lib" / "mine.py").is_file() and not (root / "lib" / "lib").exists()
+    assert (root / "skills" / "github" / "mine.txt").is_file()
+    assert not (root / "skills" / "github" / "github").exists(), (
+        "the copy nested inside the old one"
+    )
+    assert (root / "agents" / "critic.md").read_text(encoding="utf-8") == "mine\n"
+    assert (root / "agents" / "architect.md").is_file(), "other agents still install"
