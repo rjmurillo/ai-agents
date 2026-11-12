@@ -42,7 +42,6 @@ _ENV_ALLOW = frozenset(
 _ENV_ALLOW_PREFIXES = ("LC_", "XDG_", "MUSE_")
 CODE_BASE = 1000
 CODE_STEP = 17
-_AGENT_PATH = re.compile(r"main/(?:lead-)?(?:(\d+)[ -])?(.+)/\d+")
 
 
 def cli_budget(*subprocess_timeouts: int) -> pytest.MarkDecorator:
@@ -62,7 +61,7 @@ LIB_MISSING = "Plugin lib directory not found"
 
 def build_skill_prompt() -> str:
     """Return the instruction to load one installed skill with the skill tool."""
-    return f"Then load the `{SKILL_NAME}` skill with your skill tool and tell me its name."
+    return f"Then load the `{SKILL_NAME}` skill with your `read_skill` tool and tell me its name."
 
 
 def skill_script_found_lib(output: str) -> bool:
@@ -70,9 +69,14 @@ def skill_script_found_lib(output: str) -> bool:
     return SKILL_USAGE in output and LIB_MISSING not in output
 
 
-def skill_loaded(events: Sequence[Mapping[str, object]], name: str) -> bool:
-    """True when a successful ``read_skill`` result in ``events`` loaded skill ``name``."""
+def skill_loaded(events: Sequence[Mapping[str, object]], name: str, root: Path) -> bool:
+    """True when a successful ``read_skill`` result loaded skill ``name`` from ``root``.
+
+    The result text must name the skill's folder under ``root``: Muse Code loaded
+    179 skills in the owner's run, so another root could shadow the same name.
+    """
     marker = f'name="{name}" status="ok"'
+    folder = str(root / "skills" / name)
     for event in events:
         if event.get("payload_type") != "tool.result":
             continue
@@ -87,6 +91,7 @@ def skill_loaded(events: Sequence[Mapping[str, object]], name: str) -> bool:
             and facts.get("outcome") == "success"
             and isinstance(text, str)
             and marker in text
+            and folder in text
         ):
             return True
     return False
@@ -97,8 +102,8 @@ def run_installed_script(script: str) -> str:
 
     Muse Code's default sandbox hides the user root from the model's shell
     (``Permission denied``, observed on 1.4.15), so the model cannot run this
-    script. A normal shell shows that the skill folder and ``lib/`` arrive
-    together, which is what a script needs.
+    script. A normal shell shows only that the skill folder and ``lib/`` arrive
+    together, which is what a script needs. It does not show that Muse Code runs it.
     """
     done = subprocess.run(
         ["python3", "-I", script, "--help"],
@@ -181,37 +186,27 @@ def _tool_result(event: Mapping[str, object]) -> tuple[str, dict[str, object]] |
 def child_replies(events: Sequence[Mapping[str, object]], names: list[str]) -> dict[str, list[str]]:
     """Return ``{name: evidence_refs}`` for each name whose spawned child replied with its code.
 
-    A name at position ``i`` counts only when two runtime records agree:
+    Name ``names[i]`` counts when two runtime records agree:
 
-    1. a ``subagent_spawn`` result with ``status: accepted`` whose ``agent_path``
-       ends in the role name (``main/<name>/<n>``, ``main/<i> <name>/<n>``, or
-       another label the lead chose around it; see ``_AGENT_PATH``), and
-    2. a ``subagent_wait`` result with ``status: ready`` for the same
-       ``subagent_id`` whose ``summary`` holds ``spawn_code(i)``.
+    1. a ``subagent_spawn`` result with ``status: accepted`` and a ``subagent_id``, and
+    2. a ``subagent_wait`` result with ``status: ready`` for that same
+       ``subagent_id`` whose ``summary`` holds ``spawn_code(i)`` and no other code.
 
     The runtime writes both records. A lead cannot forge them by working out the
     formula and echoing a code: its text is not a ``tool.result`` for a wait on a
     child id. A rejected spawn, a roster, or a wait on another child does not
-    count. The value lists the child's ``evidence_refs`` (session files).
+    count. The ``agent_path`` label is ignored: the lead picks it, and three
+    spellings occurred. Identity comes from ``child_ran_definition``, which reads
+    the child's own session log (the value lists its ``evidence_refs``).
     """
-    spawned: dict[str, int] = {}
+    accepted: set[str] = set()
     for event in events:
         parsed = _tool_result(event)
         if parsed is None or parsed[0] != "subagent_spawn":
             continue
-        body = parsed[1]
-        child, path = body.get("subagent_id"), body.get("agent_path")
-        if body.get("status") != "accepted" or not isinstance(child, str):
-            continue
-        match = _AGENT_PATH.fullmatch(path) if isinstance(path, str) else None
-        if match is None:
-            continue
-        number, role = match.group(1), match.group(2)
-        if role not in names:
-            continue
-        index = names.index(role)
-        if number is None or int(number) == index:
-            spawned[child] = index
+        child = parsed[1].get("subagent_id")
+        if parsed[1].get("status") == "accepted" and isinstance(child, str):
+            accepted.add(child)
     replied: dict[str, list[str]] = {}
     for event in events:
         parsed = _tool_result(event)
@@ -219,14 +214,15 @@ def child_replies(events: Sequence[Mapping[str, object]], names: list[str]) -> d
             continue
         body = parsed[1]
         child, summary = body.get("subagent_id"), body.get("summary")
-        if body.get("status") != "ready" or not isinstance(summary, str):
+        if body.get("status") != "ready" or child not in accepted or not isinstance(summary, str):
             continue
-        index = spawned.get(child) if isinstance(child, str) else None
-        if index is not None and spawn_code(index) in summary:
-            refs = body.get("evidence_refs")
-            replied[names[index]] = (
-                [r for r in refs if isinstance(r, str)] if isinstance(refs, list) else []
-            )
+        hits = [i for i in range(len(names)) if spawn_code(i) in summary]
+        if len(hits) != 1:
+            continue
+        refs = body.get("evidence_refs")
+        replied[names[hits[0]]] = (
+            [r for r in refs if isinstance(r, str)] if isinstance(refs, list) else []
+        )
     return replied
 
 

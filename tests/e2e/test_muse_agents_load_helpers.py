@@ -133,30 +133,33 @@ def test_spawned_agents_ignores_a_wait_for_a_child_that_was_never_spawned() -> N
     assert spawned_agents([_wait("ghost", spawn_code(1))], NAMES) == set()
 
 
-def test_spawned_agents_ignores_another_childs_code() -> None:
+def test_the_code_not_the_label_decides_which_role_a_child_answered_for() -> None:
     events = [_spawn("c1", 1, "critic"), _wait("c1", spawn_code(2))]
-    assert spawned_agents(events, NAMES) == set()
+    assert spawned_agents(events, NAMES) == {"debug"}
 
 
-def test_spawned_agents_ignores_a_role_that_does_not_match_its_number() -> None:
-    events = [_spawn("c1", 1, "debug"), _wait("c1", spawn_code(1))]
-    assert spawned_agents(events, NAMES) == set()
+def test_child_replies_ignores_the_label_the_lead_chose() -> None:
+    for path in ("main/architect/1", "main/lead-01-critic/2", "main/anything at all/9", "x"):
+        spawn = _result(
+            "subagent_spawn", {"status": "accepted", "subagent_id": "c1", "agent_path": path}
+        )
+        assert child_replies([spawn, _wait("c1", spawn_code(1))], NAMES) == {"critic": []}
 
 
-def test_spawned_agents_accepts_a_path_without_the_number_prefix() -> None:
-    plain = _result(
-        "subagent_spawn",
-        {"status": "accepted", "subagent_id": "c1", "agent_path": "main/critic/3"},
+def test_child_replies_ignores_a_summary_with_two_codes() -> None:
+    both = f"{spawn_code(0)} and {spawn_code(1)}"
+    assert child_replies([_spawn("c1", 0, "architect"), _wait("c1", both)], NAMES) == {}
+
+
+def test_child_replies_ignores_unparseable_wait_text() -> None:
+    bad = {
+        "payload_type": "tool.result",
+        "payload": {"correlation_facts": {"tool_name": "subagent_wait"}, "text": "not json"},
+    }
+    assert (
+        child_replies([_spawn("c1", 1, "critic"), bad, {"payload_type": "tool.result"}], NAMES)
+        == {}
     )
-    assert spawned_agents([plain, _wait("c1", spawn_code(1))], NAMES) == {"critic"}
-
-
-def test_spawned_agents_ignores_an_unlisted_role_in_the_path() -> None:
-    other = _result(
-        "subagent_spawn",
-        {"status": "accepted", "subagent_id": "c1", "agent_path": "main/stranger/3"},
-    )
-    assert spawned_agents([other, _wait("c1", spawn_code(1))], NAMES) == set()
 
 
 def test_child_replies_returns_the_evidence_refs_of_the_wait_result() -> None:
@@ -170,14 +173,6 @@ def test_child_replies_returns_the_evidence_refs_of_the_wait_result() -> None:
         },
     )
     assert child_replies([_spawn("c1", 1, "critic"), wait], NAMES) == {"critic": ["/x/s.jsonl"]}
-
-
-def test_child_replies_accepts_the_lead_prefixed_label() -> None:
-    label = _result(
-        "subagent_spawn",
-        {"status": "accepted", "subagent_id": "c1", "agent_path": "main/lead-01-critic/2"},
-    )
-    assert child_replies([label, _wait("c1", spawn_code(1))], NAMES) == {"critic": []}
 
 
 def _session_with(tmp_path: Path, body: str) -> str:
@@ -213,17 +208,6 @@ def test_child_ran_definition_accepts_every_shipped_agent(tmp_path: Path) -> Non
         assert child_ran_definition([_session_with(tmp_path, _shipped_body(name))], name), name
 
 
-def test_spawned_agents_ignores_a_malformed_path_and_unparseable_text() -> None:
-    bad_path = _result(
-        "subagent_spawn", {"status": "accepted", "subagent_id": "c1", "agent_path": "x"}
-    )
-    bad_text = {
-        "payload_type": "tool.result",
-        "payload": {"correlation_facts": {"tool_name": "subagent_wait"}, "text": "not json"},
-    }
-    assert spawned_agents([bad_path, bad_text, {"payload_type": "tool.result"}], NAMES) == set()
-
-
 def test_spawned_agents_does_not_confuse_code_numbers() -> None:
     names = [f"a{i}" for i in range(12)]
     events = [_spawn("c10", 10, "a10"), _wait("c10", spawn_code(10))]
@@ -244,7 +228,7 @@ def test_skill_script_check_needs_usage_and_no_missing_lib() -> None:
 
 def test_prompt_asks_for_the_skill_by_name_and_never_for_a_script() -> None:
     prompt = build_prompt(["a"])
-    assert f"load the `{SKILL_NAME}` skill" in prompt
+    assert f"load the `{SKILL_NAME}` skill with your `read_skill` tool" in prompt
     assert "python3" not in prompt
 
 
@@ -259,18 +243,19 @@ def _result_raw(tool: str, text: str, outcome: str = "success") -> dict[str, obj
     }
 
 
-def test_skill_loaded_needs_a_successful_read_skill_result_for_that_name() -> None:
-    ok = '<read-skill-result name="github" status="ok">'
-    assert skill_loaded([_read_skill(ok)], "github")
-    assert not skill_loaded([_read_skill(ok, outcome="failure")], "github")
-    assert not skill_loaded(
-        [_read_skill('<read-skill-result name="memory" status="ok">')], "github"
-    )
-    assert not skill_loaded(
-        [_read_skill('<read-skill-result name="github" status="missing">')], "github"
-    )
-    assert not skill_loaded([_result_raw("bash", ok)], "github")
-    assert not skill_loaded([{"payload_type": "tool.result", "payload": "x"}, {}], "github")
+def test_skill_loaded_needs_a_successful_read_skill_result_from_the_user_root() -> None:
+    root = Path("/u/muse")
+    ok = '<read-skill-result name="github" status="ok"> path: /u/muse/skills/github/SKILL.md'
+    assert skill_loaded([_read_skill(ok)], "github", root)
+    assert not skill_loaded([_read_skill(ok, outcome="failure")], "github", root)
+    other = '<read-skill-result name="github" status="ok"> path: /elsewhere/skills/github/SKILL.md'
+    assert not skill_loaded([_read_skill(other)], "github", root)
+    memory = '<read-skill-result name="memory" status="ok"> path: /u/muse/skills/memory/SKILL.md'
+    assert not skill_loaded([_read_skill(memory)], "github", root)
+    missing = '<read-skill-result name="github" status="missing"> path: /u/muse/skills/github'
+    assert not skill_loaded([_read_skill(missing)], "github", root)
+    assert not skill_loaded([_result_raw("bash", ok)], "github", root)
+    assert not skill_loaded([{"payload_type": "tool.result", "payload": "x"}, {}], "github", root)
 
 
 def test_run_installed_script_returns_stdout_and_stderr(tmp_path: Path) -> None:

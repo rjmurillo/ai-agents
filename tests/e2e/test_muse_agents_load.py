@@ -24,8 +24,8 @@ Run the guide's Muse Code install step first. The test fails with
     because a login that prints it still ran a model call.
 
 A spawned child counts only when the runtime's ``subagent_spawn`` result accepted
-it under that role and its ``subagent_wait`` result for the same child id holds
-the role's code (see ``child_replies``). The child's session log, named in that
+it and its ``subagent_wait`` result for the same child id holds the role's code
+(see ``child_replies``). The child's session log, named in that
 result, must also hold the shipped agent body (see ``child_ran_definition``).
 
 The raw stdout is saved on every outcome that has output, including a timeout,
@@ -66,11 +66,12 @@ from muse_load_probe import (  # noqa: E402
     skill_loaded,
     skill_script_found_lib,
     spawned_agents,
+    user_muse_root,
     write_control_agent,
 )
 
-# The one test here runs `muse usage`, then `muse exec`, so the budget covers both.
-pytestmark = cli_budget(USAGE_TIMEOUT_SECONDS, EXEC_TIMEOUT_SECONDS)
+# The one test runs `muse usage`, `muse exec`, then the installed script (three timeouts).
+pytestmark = cli_budget(USAGE_TIMEOUT_SECONDS, EXEC_TIMEOUT_SECONDS, USAGE_TIMEOUT_SECONDS)
 
 
 @pytest.mark.smoke
@@ -105,7 +106,7 @@ def test_lead_spawns_every_shipped_agent_and_not_the_control(tmp_path: Path) -> 
     replies = child_replies(events, names)
     spawned = spawned_agents(events, names)
     missing = sorted(set(shipped_agent_names()) - spawned)
-    assert skill_loaded(events, SKILL_NAME), (
+    assert skill_loaded(events, SKILL_NAME, user_muse_root()), (
         f"the lead did not load the {SKILL_NAME!r} skill from the user root. "
         f"Install the skills first (Install on Muse Code). Raw output: {saved}"
     )
