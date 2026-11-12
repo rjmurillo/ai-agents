@@ -55,6 +55,15 @@ class TestInRepoSymlinkSource:
         (repo / ".claude" / "lib" / "evil.py").symlink_to(outside)
         assert _in_repo_symlink_source(repo, ".claude/lib/evil.py") is None
 
+    def test_a_chain_of_links_gives_the_final_source(self, repo: Path) -> None:
+        (repo / ".claude" / "lib" / "hop.py").symlink_to("mod.py")
+        assert _in_repo_symlink_source(repo, ".claude/lib/hop.py") == "src/lib/mod.py"
+
+    def test_a_link_to_a_file_that_is_not_python_gives_none(self, repo: Path) -> None:
+        (repo / "src" / "lib" / "notes.txt").write_text("x\n", encoding="utf-8")
+        (repo / ".claude" / "lib" / "notes.py").symlink_to("../../src/lib/notes.txt")
+        assert _in_repo_symlink_source(repo, ".claude/lib/notes.py") is None
+
     def test_a_link_to_a_directory_gives_none(self, repo: Path) -> None:
         (repo / ".claude" / "lib" / "dirlink.py").symlink_to("../../src/lib")
         assert _in_repo_symlink_source(repo, ".claude/lib/dirlink.py") is None
@@ -82,6 +91,10 @@ class TestRunMypyOnALink:
         ):
             run_mypy([".claude/lib/mod.py", "src/lib/mod.py"], repo)
         assert invocations.call_args.args[0] == ["src/lib/mod.py"]
+
+    def test_a_link_that_ends_at_no_file_is_skipped_as_before(self, repo: Path) -> None:
+        (repo / ".claude" / "lib" / "gone.py").symlink_to("../../src/lib/missing.py")
+        assert run_mypy([".claude/lib/gone.py"], repo) == 0
 
     def test_negative_control_a_link_that_leaves_the_repo_is_refused(
         self, repo: Path, tmp_path_factory: pytest.TempPathFactory

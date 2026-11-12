@@ -3732,12 +3732,15 @@ def _in_repo_symlink_source(repo_root: Path, path: str) -> str | None:
     ADR-119 decision 14 links each ``.claude/lib`` entry that has a
     ``src/claude/lib`` counterpart to that file (issue #7328). The source is
     type-checked in its own right, so the link can stand in for it. A link that
-    is broken, leaves the repository, or ends at anything but a regular file
-    gives ``None``, and the caller refuses it.
+    leaves the repository, or ends at anything but a regular Python file gives
+    ``None``, and the caller refuses it. A link that ends at no file never
+    reaches this function, because the caller skips a path that is not a file.
     """
     root = repo_root.resolve()
     target = (repo_root / path).resolve()
-    if not target.is_file() or not target.is_relative_to(root):
+    if target.suffix not in {".py", ".pyi"} or not target.is_file():
+        return None
+    if not target.is_relative_to(root):
         return None
     return _safe_relative_path(target.relative_to(root).as_posix())
 
