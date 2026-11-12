@@ -7,8 +7,12 @@ file into the Codex, Cursor and Muse lib trees. Those skill scripts are byte
 copies of the Claude ones and write under ``.project-toolkit/``, so the Claude
 content is the right one.
 
-Copilot is not a copy target. Its hand copy differs on purpose: the consumer
-side root is ``.agents`` (``surface-parity.yaml``, ``lib-copilot-modules``).
+``ptk_run.py`` is the ADR-121 resolver that the shell locator of a shipped
+command runs. It reads no repo state, so every tree gets the same bytes.
+
+Copilot is not a copy target. Its ``paths.py`` hand copy differs on purpose: the
+consumer side root is ``.agents`` (``surface-parity.yaml``, ``lib-copilot-modules``).
+Its ``ptk_run.py`` is a byte-identical hand copy that the same row pins.
 The Hermes packs get the Claude copy from ``lib_render.render_lib_files``,
 which reads :data:`PLUGIN_LIB_FILES` from here.
 """
@@ -16,7 +20,7 @@ which reads :data:`PLUGIN_LIB_FILES` from here.
 from __future__ import annotations
 
 PLUGIN_LIB_SOURCE_DIR = "src/claude/lib"
-PLUGIN_LIB_FILES: tuple[str, ...] = ("paths.py",)
+PLUGIN_LIB_FILES: tuple[str, ...] = ("paths.py", "ptk_run.py")
 PLUGIN_LIB_COPY_ROOTS: tuple[str, ...] = (
     "src/codex/lib",
     "src/cursor/lib",
