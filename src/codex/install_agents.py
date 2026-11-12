@@ -430,7 +430,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _is_link(path: Path) -> bool:
-    """True for a symlink or a Windows junction. ``is_symlink`` alone misses a junction."""
+    """True for a symlink, a junction, or a path that cannot be read; a missing path is False.
+
+    On Python 3.10 and 3.11 any Windows reparse point counts, a wider net than 3.12+ casts.
+    """
     try:
         info = path.lstat()
     except FileNotFoundError:
@@ -457,7 +460,9 @@ def resolve_target(args: argparse.Namespace) -> tuple[Path, Path | None]:
     for part in parts:
         current = current / part
         if _is_link(current):
-            raise InstallError(f"refusing to write through a symlink or junction: {current}")
+            raise InstallError(
+                f"refusing to write through a symlink, junction, or unreadable path: {current}"
+            )
     return current, project
 
 

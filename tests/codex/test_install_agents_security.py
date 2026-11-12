@@ -238,6 +238,19 @@ def test_is_link_is_false_for_a_missing_path(tmp_path, monkeypatch, has_probe):
     assert ia._is_link(tmp_path / "missing") is False
 
 
+def test_is_link_is_true_for_a_dangling_symlink(tmp_path):
+    link = tmp_path / "dangling"
+    make_symlink(link, tmp_path / "gone")
+    assert ia._is_link(link) is True
+
+
+def test_is_link_refuses_a_path_below_a_regular_file(tmp_path):
+    """ENOTDIR is not 'missing', so the path is refused."""
+    blocker = tmp_path / "file"
+    blocker.write_text("x", encoding="utf-8")
+    assert ia._is_link(blocker / "child") is True
+
+
 def test_is_link_is_true_for_a_symlink_and_false_for_a_plain_directory(tmp_path):
     target = tmp_path / "t"
     target.mkdir()
