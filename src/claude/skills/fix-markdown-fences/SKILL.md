@@ -59,8 +59,8 @@ Do not walk the file by hand. Fence tracking is a state machine, and
 `fix_fences.py` runs it.
 
 1. **Report.** Run the script over the target path. It prints defects as
-   `FILE:LINE: KIND: TEXT`, up to 200 lines, then says how many it left out (rerun
-   with `--max-lines 0` for all, or narrow the path). It exits 1 when it finds any.
+   `FILE:LINE: KIND: TEXT`, up to 200 lines, then says how many it left out (write
+   `--max-lines 0` inside the locator for all, or narrow the path). It exits 1 when it finds any.
 
 ```bash
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/fix-markdown-fences/scripts/fix_fences.py FILE_OR_DIR; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )

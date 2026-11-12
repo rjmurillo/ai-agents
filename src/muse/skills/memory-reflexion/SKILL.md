@@ -45,8 +45,8 @@ Use this skill when the user says:
 ```
 
 The script is canonical and shared with the `memory` router; this sub-skill does
-not reimplement it. It lives at
-`${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py`.
+not reimplement it. The locator above runs
+`skills/memory/scripts/extract_session_episode.py`.
 
 ## Quick Reference
 

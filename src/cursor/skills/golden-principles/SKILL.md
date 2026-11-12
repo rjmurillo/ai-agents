@@ -52,7 +52,7 @@ Use `quality-grades` instead when:
 
 ## Process
 
-1. Run `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/golden-principles/scripts/scan_principles.py; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )` with target
+1. Run the scan locator under Usage. Write the target path inside the locator, before its closing `; fi`
 2. Review AGENT_REMEDIATION blocks in output
 3. Apply suggested fixes
 4. Re-run to confirm compliance
