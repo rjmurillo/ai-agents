@@ -112,33 +112,31 @@ Agent event logs are stored at:
 
 ```bash
 # Show all events in a session log
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/observability/scripts/query_logs.py" .project-toolkit/logs/sess-001.jsonl
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/observability/scripts/query_logs.py .project-toolkit/logs/sess-001.jsonl; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Check an emission scenario against the event-logging contract
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/observability/scripts/check_event_logging.py" scenario.json
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/observability/scripts/check_event_logging.py scenario.json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Find errors only
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/observability/scripts/query_logs.py" .project-toolkit/logs/sess-001.jsonl --errors-only
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/observability/scripts/query_logs.py .project-toolkit/logs/sess-001.jsonl --errors-only; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Find tool calls slower than 500ms
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/observability/scripts/query_logs.py" .project-toolkit/logs/sess-001.jsonl --slow 500
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/observability/scripts/query_logs.py .project-toolkit/logs/sess-001.jsonl --slow 500; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Filter by agent
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/observability/scripts/query_logs.py" .project-toolkit/logs/sess-001.jsonl --agent implementer
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/observability/scripts/query_logs.py .project-toolkit/logs/sess-001.jsonl --agent implementer; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Session summary as JSON
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/observability/scripts/query_logs.py" .project-toolkit/logs/sess-001.jsonl --output summary-sessions
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/observability/scripts/query_logs.py .project-toolkit/logs/sess-001.jsonl --output summary-sessions; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Tool usage summary
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/observability/scripts/query_logs.py" .project-toolkit/logs/sess-001.jsonl --output summary-tools
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/observability/scripts/query_logs.py .project-toolkit/logs/sess-001.jsonl --output summary-tools; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Filter by time range
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/observability/scripts/query_logs.py" .project-toolkit/logs/sess-001.jsonl \
-    --since 2026-03-30T10:00:00Z --until 2026-03-30T11:00:00Z
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/observability/scripts/query_logs.py .project-toolkit/logs/sess-001.jsonl --since 2026-03-30T10:00:00Z --until 2026-03-30T11:00:00Z; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # JSON output for automation
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/observability/scripts/query_logs.py" .project-toolkit/logs/sess-001.jsonl \
-    --output json --event-type tool_call
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/observability/scripts/query_logs.py .project-toolkit/logs/sess-001.jsonl --output json --event-type tool_call; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ## Verification

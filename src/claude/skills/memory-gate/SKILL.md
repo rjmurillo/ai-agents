@@ -54,8 +54,7 @@ Before changing existing systems, you MUST:
 
 ```bash
 # Recover the "why" before you change the "what"
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts"
-python3 "$SCRIPTS_DIR/search_memory.py" "[topic]"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/search_memory.py "[topic]"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 **Why BLOCKING**: under 50% compliance with "check memory first" guidance when it
