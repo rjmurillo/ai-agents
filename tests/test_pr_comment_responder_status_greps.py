@@ -48,12 +48,18 @@ import re
 import shlex
 import shutil
 import subprocess
+import sys
 from collections.abc import Sequence
 from pathlib import Path
 
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+_BUILD_SCRIPTS = REPO_ROOT / "build" / "scripts"
+if str(_BUILD_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_BUILD_SCRIPTS))
+
+import plugin_run_launcher  # noqa: E402
 
 GREP = shutil.which("grep")
 BASH = shutil.which("bash")
@@ -62,11 +68,11 @@ BASH = shutil.which("bash")
 # only way to prove the fence produces the row, so the tool is required rather
 # than mocked away.
 JQ = shutil.which("jq")
-# Phase 8.3 fetches the fresh payload by invoking ``python3`` on the github
-# skill's script. The producer-failure cases have to observe that invocation's
-# exit status reach the shipped guard, so the fence's own command line runs
-# against a stand-in script rather than being replaced by a synthesized
-# assignment.
+# Phase 8.3 fetches the fresh payload through the ADR-121 locator, which runs the
+# github skill's script. The producer-failure cases have to observe that
+# invocation's exit status reach the shipped guard, so the fence's own command
+# line runs against a stand-in resolver rather than being replaced by a
+# synthesized assignment.
 PYTHON3 = shutil.which("python3")
 
 # The vocabulary table and every gate fence live in one file, the skill's
@@ -217,9 +223,13 @@ RECHECK_REMOVED_BLOCK = 'if [ -n "$REMOVED_IDS" ]; then'
 # Same defect class as the TOTAL_COMMENTS guard in commit e6726cd74, a
 # different variable and a different comparison site, so the numeric check
 # reuses that commit's ``case ... in ''|*[!0-9]*)`` idiom verbatim.
+RECHECK_SCRIPT_REL = "skills/github/scripts/pr/get_pr_review_comments.py"
 RECHECK_PRODUCER_LINE = (
-    'RECHECK_PAYLOAD=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py"'
-    " --pull-request [number] --include-issue-comments)"
+    "RECHECK_PAYLOAD=$( "
+    + plugin_run_launcher.render_locator(
+        RECHECK_SCRIPT_REL, "--pull-request [number] --include-issue-comments"
+    )
+    + " )"
 )
 RECHECK_STATUS_GUARD = (
     "RECHECK_STATUS=$?\n"
@@ -249,6 +259,9 @@ RECHECK_PRODUCER_STUB = (
     "import pathlib\n"
     "import sys\n"
     "\n"
+    "if sys.argv[1:2] != [{script_rel!r}]:\n"
+    '    sys.stderr.write("unexpected target: " + repr(sys.argv[1:2]) + "\\n")\n'
+    "    sys.exit(64)\n"
     'sys.stdout.write(pathlib.Path(__file__).with_name("payload.json").read_text(\n'
     '    encoding="utf-8"\n'
     "))\n"
@@ -752,26 +765,31 @@ def _recheck_fence(path: Path) -> str:
 
 
 def _install_recheck_producer(work_dir: Path, payload: str, *, exit_code: int = 0) -> Path:
-    """Install a stand-in for the fetch script Phase 8.3 runs, and return SCRIPTS_DIR.
+    """Install a stand-in resolver for the locator Phase 8.3 runs, and return its root.
 
-    The fence invokes ``python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py"``.
-    Only ``SCRIPTS_DIR`` is injected, so the shipped command line, its exit
-    status, and the guard that reads that status all run for real. ``exit_code``
-    is the producer-failure control: a nonzero exit with whatever the script
-    managed to print is exactly what a network error or a traceback leaves
-    behind.
+    The fence runs the ADR-121 locator for ``RECHECK_SCRIPT_REL``. The locator
+    tries ``$CLAUDE_PLUGIN_ROOT/lib/ptk_run.py`` first, so pointing that variable
+    at the returned root swaps in a resolver that prints the payload. The stand-in
+    exits 64 when the locator hands it any other script path, so the shipped
+    command line, its exit status, and the guard that reads that status all run
+    for real. ``exit_code`` is the producer-failure control: a nonzero exit with
+    whatever the script managed to print is exactly what a network error or a
+    traceback leaves behind.
     """
-    scripts_dir = work_dir / "stub-github-scripts"
-    target = scripts_dir / "pr" / "get_pr_review_comments.py"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    (target.parent / "payload.json").write_text(payload, encoding="utf-8")
-    target.write_text(RECHECK_PRODUCER_STUB.format(exit_code=exit_code), encoding="utf-8")
-    return scripts_dir
+    plugin_root = work_dir / "stub-plugin-root"
+    resolver = plugin_root / "lib" / "ptk_run.py"
+    resolver.parent.mkdir(parents=True, exist_ok=True)
+    (resolver.parent / "payload.json").write_text(payload, encoding="utf-8")
+    resolver.write_text(
+        RECHECK_PRODUCER_STUB.format(exit_code=exit_code, script_rel=RECHECK_SCRIPT_REL),
+        encoding="utf-8",
+    )
+    return plugin_root
 
 
 def _recheck_script(
     fence: str,
-    scripts_dir: Path,
+    plugin_root: Path,
     *,
     with_fetch_guards: bool = True,
     with_append: bool = True,
@@ -784,7 +802,7 @@ def _recheck_script(
 
     Sliced from the ``RECHECK_PAYLOAD=`` assignment, so the fetch the fence
     publishes is the command that runs and its exit status is the one the
-    shipped guard reads. ``SCRIPTS_DIR`` is injected to point the invocation at
+    shipped guard reads. ``CLAUDE_PLUGIN_ROOT`` is injected to point the locator at
     the stand-in ``_install_recheck_producer`` wrote; the ``sleep 45`` above it
     is left out. ``NEW_COMMENTS`` is derived by the fence's own
     ``jq '.TotalComments'``, so the fixture cannot hand the branch a total its
@@ -856,7 +874,7 @@ def _recheck_script(
         reconcile_start = body.index(RECHECK_RECONCILE_START)
         reconcile_end = body.index(RECHECK_BLOCK_OPEN)
         body = body[:reconcile_start] + ":\n\n" + body[reconcile_end:]
-    return f"SCRIPTS_DIR={shlex.quote(str(scripts_dir))}\n{body}\n"
+    return f"export CLAUDE_PLUGIN_ROOT={shlex.quote(str(plugin_root))}\n{body}\n"
 
 
 def _counting_fences(text: str) -> list[tuple[str, str]]:
@@ -1655,10 +1673,10 @@ def test_phase_eight_three_appends_the_new_comment_then_the_gate_clears(
     comment_map = _render_session_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
     before = comment_map.read_text(encoding="utf-8")
     assert APPENDED_HEADING not in before, "the pre-append map must not carry the new row"
-    scripts_dir = _install_recheck_producer(tmp_path, _recheck_payload(SECOND_PASS_COMMENTS))
+    plugin_root = _install_recheck_producer(tmp_path, _recheck_payload(SECOND_PASS_COMMENTS))
 
     refreshed = _run_derivation(
-        _recheck_script(_recheck_fence(path), scripts_dir),
+        _recheck_script(_recheck_fence(path), plugin_root),
         cwd=tmp_path,
     )
 
@@ -1714,12 +1732,12 @@ def test_the_shipped_stub_advances_the_count_and_never_appends(tmp_path: Path) -
     path = CANONICAL_CARRIER
     count_file = _record_api_count(tmp_path, API_COMMENT_COUNT)
     comment_map = _render_session_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
-    scripts_dir = _install_recheck_producer(tmp_path, _recheck_payload(SECOND_PASS_COMMENTS))
+    plugin_root = _install_recheck_producer(tmp_path, _recheck_payload(SECOND_PASS_COMMENTS))
 
     stub = _run_derivation(
         _recheck_script(
             _recheck_fence(path),
-            scripts_dir,
+            plugin_root,
             with_append=False,
             with_verify=False,
         ),
@@ -1756,12 +1774,12 @@ def test_the_refresh_is_refused_when_the_append_does_not_land(tmp_path: Path) ->
     path = CANONICAL_CARRIER
     count_file = _record_api_count(tmp_path, API_COMMENT_COUNT)
     _render_session_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
-    scripts_dir = _install_recheck_producer(tmp_path, _recheck_payload(SECOND_PASS_COMMENTS))
+    plugin_root = _install_recheck_producer(tmp_path, _recheck_payload(SECOND_PASS_COMMENTS))
 
     result = _run_derivation(
         _recheck_script(
             _recheck_fence(path),
-            scripts_dir,
+            plugin_root,
             with_append=False,
         ),
         cwd=tmp_path,
@@ -1794,12 +1812,12 @@ def test_without_the_refresh_a_second_pass_can_never_clear(tmp_path: Path) -> No
     path = CANONICAL_CARRIER
     _record_api_count(tmp_path, API_COMMENT_COUNT)
     comment_map = _render_session_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
-    scripts_dir = _install_recheck_producer(tmp_path, _recheck_payload(SECOND_PASS_COMMENTS))
+    plugin_root = _install_recheck_producer(tmp_path, _recheck_payload(SECOND_PASS_COMMENTS))
 
     stale = _run_derivation(
         _recheck_script(
             _recheck_fence(path),
-            scripts_dir,
+            plugin_root,
             with_refresh=False,
         ),
         cwd=tmp_path,
@@ -1835,9 +1853,9 @@ def test_phase_eight_three_blocks_a_delete_plus_an_add(path: Path, tmp_path: Pat
     before = comment_map.read_text(encoding="utf-8")
     payload = _recheck_payload(DELETE_PLUS_ADD_COMMENTS)
     assert json.loads(payload)["TotalComments"] == API_COMMENT_COUNT
-    scripts_dir = _install_recheck_producer(tmp_path, payload)
+    plugin_root = _install_recheck_producer(tmp_path, payload)
 
-    result = _run_derivation(_recheck_script(_recheck_fence(path), scripts_dir), cwd=tmp_path)
+    result = _run_derivation(_recheck_script(_recheck_fence(path), plugin_root), cwd=tmp_path)
 
     assert result.returncode == 1, (
         f"{_carrier_id(path)} Phase 8.3 read a delete-plus-add pair as no new "
@@ -1871,10 +1889,10 @@ def test_without_the_reconcile_a_delete_plus_an_add_reads_as_no_new_comments(
     count_file = _record_api_count(tmp_path, API_COMMENT_COUNT)
     comment_map = _render_session_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
     before = comment_map.read_text(encoding="utf-8")
-    scripts_dir = _install_recheck_producer(tmp_path, _recheck_payload(DELETE_PLUS_ADD_COMMENTS))
+    plugin_root = _install_recheck_producer(tmp_path, _recheck_payload(DELETE_PLUS_ADD_COMMENTS))
 
     result = _run_derivation(
-        _recheck_script(_recheck_fence(path), scripts_dir, with_reconcile=False),
+        _recheck_script(_recheck_fence(path), plugin_root, with_reconcile=False),
         cwd=tmp_path,
     )
 
@@ -1894,9 +1912,9 @@ def test_phase_eight_three_blocks_a_pure_deletion(tmp_path: Path) -> None:
     path = CANONICAL_CARRIER
     _record_api_count(tmp_path, API_COMMENT_COUNT)
     _render_session_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
-    scripts_dir = _install_recheck_producer(tmp_path, _recheck_payload(FIRST_PASS_COMMENTS[:2]))
+    plugin_root = _install_recheck_producer(tmp_path, _recheck_payload(FIRST_PASS_COMMENTS[:2]))
 
-    result = _run_derivation(_recheck_script(_recheck_fence(path), scripts_dir), cwd=tmp_path)
+    result = _run_derivation(_recheck_script(_recheck_fence(path), plugin_root), cwd=tmp_path)
 
     assert result.returncode == 1
     assert (
@@ -1912,9 +1930,9 @@ def test_phase_eight_three_blocks_when_the_map_is_missing(tmp_path: Path) -> Non
     """The map check now runs before the ID diff, on every pass."""
     path = CANONICAL_CARRIER
     _record_api_count(tmp_path, API_COMMENT_COUNT)
-    scripts_dir = _install_recheck_producer(tmp_path, _recheck_payload(FIRST_PASS_COMMENTS))
+    plugin_root = _install_recheck_producer(tmp_path, _recheck_payload(FIRST_PASS_COMMENTS))
 
-    result = _run_derivation(_recheck_script(_recheck_fence(path), scripts_dir), cwd=tmp_path)
+    result = _run_derivation(_recheck_script(_recheck_fence(path), plugin_root), cwd=tmp_path)
 
     assert result.returncode == 1
     assert "[BLOCKED] Comment map not found" in result.stdout
@@ -1933,10 +1951,10 @@ def test_without_the_ids_refresh_a_second_pass_can_never_clear(tmp_path: Path) -
     path = CANONICAL_CARRIER
     _record_api_count(tmp_path, API_COMMENT_COUNT)
     comment_map = _render_session_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
-    scripts_dir = _install_recheck_producer(tmp_path, _recheck_payload(SECOND_PASS_COMMENTS))
+    plugin_root = _install_recheck_producer(tmp_path, _recheck_payload(SECOND_PASS_COMMENTS))
 
     stale = _run_derivation(
-        _recheck_script(_recheck_fence(path), scripts_dir, with_ids_refresh=False),
+        _recheck_script(_recheck_fence(path), plugin_root, with_ids_refresh=False),
         cwd=tmp_path,
     )
     assert stale.returncode == 0
@@ -1997,9 +2015,9 @@ def test_a_broken_recheck_blocks_instead_of_reading_as_no_new_comments(
     """
     count_file = _record_api_count(tmp_path, API_COMMENT_COUNT)
     comment_map = _render_session_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
-    scripts_dir = _install_recheck_producer(tmp_path, payload, exit_code=exit_code)
+    plugin_root = _install_recheck_producer(tmp_path, payload, exit_code=exit_code)
 
-    result = _run_derivation(_recheck_script(_recheck_fence(path), scripts_dir), cwd=tmp_path)
+    result = _run_derivation(_recheck_script(_recheck_fence(path), plugin_root), cwd=tmp_path)
 
     assert result.returncode == 1, (
         f"{_carrier_id(path)} Phase 8.3 continued past a broken re-fetch: "
@@ -2044,12 +2062,12 @@ def test_without_the_fetch_guards_a_broken_recheck_reads_as_no_new_comments(
     path = CANONICAL_CARRIER
     _record_api_count(tmp_path, API_COMMENT_COUNT)
     comment_map = _render_session_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
-    scripts_dir = _install_recheck_producer(tmp_path, payload, exit_code=exit_code)
+    plugin_root = _install_recheck_producer(tmp_path, payload, exit_code=exit_code)
 
     result = _run_derivation(
         _recheck_script(
             _recheck_fence(path),
-            scripts_dir,
+            plugin_root,
             with_fetch_guards=False,
             with_reconcile=False,
         ),
@@ -2084,9 +2102,9 @@ def test_a_healthy_recheck_with_no_new_comments_still_clears(tmp_path: Path) -> 
     path = CANONICAL_CARRIER
     count_file = _record_api_count(tmp_path, API_COMMENT_COUNT)
     comment_map = _render_session_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
-    scripts_dir = _install_recheck_producer(tmp_path, _recheck_payload(FIRST_PASS_COMMENTS))
+    plugin_root = _install_recheck_producer(tmp_path, _recheck_payload(FIRST_PASS_COMMENTS))
 
-    result = _run_derivation(_recheck_script(_recheck_fence(path), scripts_dir), cwd=tmp_path)
+    result = _run_derivation(_recheck_script(_recheck_fence(path), plugin_root), cwd=tmp_path)
 
     assert result.returncode == 0, (
         f"Phase 8.3 blocked a healthy re-fetch reporting no new comments: "
