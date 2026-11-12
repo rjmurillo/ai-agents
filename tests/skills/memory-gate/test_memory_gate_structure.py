@@ -23,9 +23,16 @@ Tests follow Arrange/Act/Assert, one behavior per test.
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
 import pytest
+
+_BUILD_SCRIPTS = Path(__file__).resolve().parents[3] / "build" / "scripts"
+if str(_BUILD_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_BUILD_SCRIPTS))
+
+import plugin_run_launcher
 
 SKILL_DIR = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "memory-gate"
 SKILL_MD = SKILL_DIR / "SKILL.md"
@@ -38,6 +45,15 @@ _BACKTICK_TRIGGER = re.compile(r"`[^`]+`")
 
 def _read_skill() -> str:
     return SKILL_MD.read_text(encoding="utf-8")
+
+
+def _locator_targets(body: str) -> set[str]:
+    return {
+        match.script_rel
+        for line in body.splitlines()
+        for match in plugin_run_launcher.find_locators(line)
+        if match.script_rel
+    }
 
 
 def _frontmatter_block() -> str:
@@ -112,11 +128,21 @@ def test_uses_portable_script_root() -> None:
     # Arrange
     body = _read_skill()
 
-    # Act / Assert: executable invocations must resolve the plugin root through
-    # the harness env var so a vendored install works (check_skill_md_exec_portability).
-    assert "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}" in body, (
-        "memory-gate must invoke scripts through the portable plugin-root form"
+    # Act / Assert: executable invocations must run through the plugin-root
+    # locator (ADR-121) so a vendored install, or a foreign plugin that exports
+    # CLAUDE_PLUGIN_ROOT, cannot redirect the command.
+    assert "skills/memory/scripts/search_memory.py" in _locator_targets(body), (
+        "memory-gate must invoke search_memory.py through the plugin-root locator"
     )
+
+
+def test_does_not_use_legacy_plugin_root_form() -> None:
+    # Negative control: the nested first-set-wins form and a SCRIPTS_DIR
+    # assignment must not come back.
+    body = _read_skill()
+
+    assert "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}" not in body
+    assert "SCRIPTS_DIR" not in body
 
 
 def test_owns_agent_integration_reference() -> None:
