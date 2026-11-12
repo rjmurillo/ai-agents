@@ -3726,6 +3726,22 @@ def _is_verbatim_mirror_on_disk(repo_root: Path, rel_path: str) -> bool:
         return False
 
 
+def _in_repo_symlink_source(repo_root: Path, path: str) -> str | None:
+    """Return the repo-relative file a tracked symlink points at, or ``None``.
+
+    ADR-119 decision 14 links each ``.claude/lib`` entry that has a
+    ``src/claude/lib`` counterpart to that file (issue #7328). The source is
+    type-checked in its own right, so the link can stand in for it. A link that
+    is broken, leaves the repository, or ends at anything but a regular file
+    gives ``None``, and the caller refuses it.
+    """
+    root = repo_root.resolve()
+    target = (repo_root / path).resolve()
+    if not target.is_file() or not target.is_relative_to(root):
+        return None
+    return _safe_relative_path(target.relative_to(root).as_posix())
+
+
 def run_mypy(paths: Sequence[str], repo_root: Path) -> int:
     if not paths:
         print(
@@ -3743,9 +3759,13 @@ def run_mypy(paths: Sequence[str], repo_root: Path) -> int:
         if not full_path.is_file():
             continue
         if full_path.is_symlink():
-            print(f"ERROR: refusing to type-check symlink: {path}", file=sys.stderr)
-            return 2
-        checked_paths.append(path)
+            source = _in_repo_symlink_source(repo_root, path)
+            if source is None:
+                print(f"ERROR: refusing to type-check symlink: {path}", file=sys.stderr)
+                return 2
+            path = source
+        if path not in checked_paths:
+            checked_paths.append(path)
     checked_paths = [
         path for path in checked_paths if not _is_verbatim_mirror_on_disk(repo_root, path)
     ]
