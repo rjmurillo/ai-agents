@@ -113,6 +113,8 @@ def test_validate_target_accepts_shipped_script_paths(resolver: ModuleType, targ
         "skills/../x/y.py",
         "skills/x/../../../etc/y.py",
         "skills/x/scripts/../y.py",
+        "skills/.../y.py",
+        "skills/x/..../y.py",
         "other/x/y.py",
         "--help",
         "-m",
@@ -198,7 +200,7 @@ def test_main_reports_a_rejected_target_with_the_prefix_and_exit_2(
 ) -> None:
     assert resolver.main(["ptk_run.py", "skills/../y.py"]) == 2
     captured = capsys.readouterr()
-    assert captured.err.startswith("ptk_run: target has a '..' part")
+    assert captured.err.startswith("ptk_run: target has a part made only of dots")
     assert captured.out == ""
 
 
@@ -211,6 +213,23 @@ def test_main_reports_an_unlaunchable_interpreter_as_a_resolver_failure(
     monkeypatch.setattr(sys, "executable", str(tmp_path / "no-such-python"))
     assert resolver.main(["ptk_run.py", "skills/x/scripts/y.py"]) == 2
     assert capsys.readouterr().err.startswith("ptk_run: ")
+
+
+@pytest.mark.parametrize("empty", ["", None])
+def test_main_reports_an_empty_interpreter_path_as_a_resolver_failure(
+    resolver: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tree: Path,
+    empty: str | None,
+) -> None:
+    """`sys.executable` can be empty or None; that must exit 2 with the prefix, not a traceback."""
+    (tree / "skills" / "x" / "scripts").mkdir(parents=True, exist_ok=True)
+    (tree / "skills" / "x" / "scripts" / "y.py").write_text("print(1)\n", encoding="utf-8")
+    monkeypatch.setattr(resolver, "plugin_root", lambda: str(tree))
+    monkeypatch.setattr(sys, "executable", empty)
+    assert resolver.main(["ptk_run.py", "skills/x/scripts/y.py"]) == 2
+    assert capsys.readouterr().err.startswith("ptk_run: sys.executable is empty")
 
 
 class _ProcessReplacedError(Exception):

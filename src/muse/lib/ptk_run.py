@@ -40,6 +40,9 @@ USAGE = "usage: ptk_run.py skills/NAME/scripts/FILE.py [ARGS...]"
 # The class excludes NUL, backslash, quotes, `$`, and whitespace. A leading `/`
 # cannot match because the pattern starts with `skills/`.
 TARGET_RE = re.compile(r"skills/[A-Za-z0-9_./-]+\.py")
+# A part of two or more dots. ``..`` climbs a directory, and Windows can read a longer
+# run of dots as a parent reference too. A single ``.`` is harmless and stays allowed.
+DOTS_ONLY_RE = re.compile(r"\.{2,}")
 
 
 class ResolverError(Exception):
@@ -55,8 +58,8 @@ def validate_target(target: str) -> None:
     """Raise :class:`ResolverError` unless ``target`` is a plugin script path."""
     if not TARGET_RE.fullmatch(target):
         raise ResolverError(f"target is not skills/<path>.py: {target!r}")
-    if ".." in target.split("/"):
-        raise ResolverError(f"target has a '..' part: {target!r}")
+    if any(DOTS_ONLY_RE.fullmatch(part) for part in target.split("/")):
+        raise ResolverError(f"target has a part made only of dots: {target!r}")
 
 
 def resolve_target(root: str, target: str) -> str:
@@ -74,6 +77,8 @@ def resolve_target(root: str, target: str) -> str:
 
 def _launch(path: str, args: list[str]) -> int:
     """Run ``path`` with the current interpreter. Returns only off POSIX."""
+    if not sys.executable:
+        raise ResolverError("sys.executable is empty, so the interpreter cannot be reused")
     command = [sys.executable, path, *args]
     if IS_POSIX:
         os.execv(sys.executable, command)
