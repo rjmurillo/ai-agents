@@ -69,6 +69,8 @@ def _run_file(resolver_path: Path, *args: str, stub_exit: int = 0) -> subprocess
         [sys.executable, str(resolver_path), *args],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=60,
         env=env,
         check=False,
@@ -247,7 +249,12 @@ def test_posix_run_matches_a_direct_python_run_for_exit_code_and_sys_path0(
 ) -> None:
     script = tree / "skills" / "x" / "scripts" / "y.py"
     direct = subprocess.run(
-        [sys.executable, str(script), "a"], capture_output=True, text=True, check=False
+        [sys.executable, str(script), "a"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
     )
     via = _run_file(tree / "lib" / "ptk_run.py", "skills/x/scripts/y.py", "a", stub_exit=0)
     assert via.returncode == direct.returncode == 0
@@ -282,6 +289,11 @@ def test_resolver_imports_only_the_standard_library() -> None:
         "print(extra)\n"
     )
     result = subprocess.run(
-        [sys.executable, "-I", "-S", "-c", probe], capture_output=True, text=True, check=False
+        [sys.executable, "-I", "-S", "-c", probe],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
     )
     assert (result.returncode, result.stdout.strip()) == (0, "[]"), result.stderr

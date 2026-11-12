@@ -53,7 +53,7 @@ sys.exit(int(os.environ.get("STUB_EXIT", "0")))
 """
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class World:
     base: Path
     ours: Path
@@ -113,6 +113,8 @@ def _run(
         env={**base, **(extra_env or {}), **env},
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=60,
         check=False,
     )
