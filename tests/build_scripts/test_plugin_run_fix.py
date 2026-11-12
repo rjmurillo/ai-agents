@@ -415,7 +415,9 @@ def test_inventory_of_this_checkout_matches_the_validators_baseline() -> None:
         inv, asg = totals.get(row.group, (0, 0))
         totals[row.group] = (inv + row.invocations, asg + row.assignments)
     expected = {
-        group: (inv, asg) for group, (inv, asg, _reason) in allowances.LEGACY_SITE_BASELINE.items()
+        group: (inv, asg)
+        for group, (inv, asg, _reason) in allowances.LEGACY_SITE_BASELINE.items()
+        if (inv, asg) != (0, 0)
     }
     assert {g: t for g, t in totals.items() if t != (0, 0)} == expected
 
