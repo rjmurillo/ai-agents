@@ -96,7 +96,13 @@ def world(tmp_path: Path) -> World:
 
 
 def _run(
-    world: World, text: str, *, shell: str = "sh", cwd: Path | None = None, **env: str
+    world: World,
+    text: str,
+    *,
+    shell: str = "sh",
+    cwd: Path | None = None,
+    extra_env: dict[str, str] | None = None,
+    **env: str,
 ) -> subprocess.CompletedProcess[str]:
     """Run `text` as `<shell> -c`. `env` adds variables; the host's plugin roots are dropped."""
     base = {k: v for k, v in os.environ.items() if "PLUGIN_ROOT" not in k}
@@ -104,7 +110,7 @@ def _run(
     return subprocess.run(
         [shutil.which(shell) or shell, "-c", text],
         cwd=cwd or world.cwd,
-        env={**base, **env},
+        env={**base, **(extra_env or {}), **env},
         capture_output=True,
         text=True,
         timeout=60,
@@ -363,7 +369,7 @@ def _inlined(
     _resolver(root)
     _stub(root, "inlined")
     text = render_locator(SCRIPT).replace(TOKEN, str(root))
-    return _run(world, text, shell=shell, **env)
+    return _run(world, text, shell=shell, extra_env=env)
 
 
 @pytest.mark.parametrize("shell", SHELLS)
