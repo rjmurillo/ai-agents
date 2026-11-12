@@ -64,6 +64,16 @@ def render_codex_toml(kept: dict[str, object], body: str, source: str) -> str:
     )
 
 
+NO_SUBAGENTS = "\n\n## Subagents\n\nDo not start subagents. Do the work in this session.\n"
+
+
+def forbids_subagents(loaded: dict[str, object]) -> bool:
+    """True when the Claude source sets ``disallowedTools: Agent``, which Codex cannot enforce."""
+    raw = loaded.get("disallowedTools")
+    names = raw if isinstance(raw, list) else str(raw or "").split(",")
+    return "Agent" in [str(name).strip() for name in names]
+
+
 def not_installed_paragraph(skipped_stems: list[str]) -> str:
     """Return the paragraph appended to each body when agents were left out.
 
@@ -78,6 +88,7 @@ def not_installed_paragraph(skipped_stems: list[str]) -> str:
         "When a step above hands work to one of them, do that step yourself "
         "in this session and say that you did. "
         "A step you do yourself is a self-review, not an independent review, so report it as one. "
+        "It does not satisfy a review gate: name the gate as unreviewed in your completion report. "
         "When you are asked to review or challenge work, set aside the author's reasoning "
         "and judge the artifact itself."
     )

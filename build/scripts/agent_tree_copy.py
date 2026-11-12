@@ -70,8 +70,10 @@ sys.path.insert(0, str(_SCRIPT_DIR.parent))
 from agent_toml import (  # noqa: E402
     FORMAT_CODEX_TOML,
     FORMAT_MARKDOWN,
+    NO_SUBAGENTS,
     CodexOutputError,
     check_names_match_stems,
+    forbids_subagents,
     not_installed_paragraph,
     read_output_options,
     render_codex_toml,
@@ -170,6 +172,8 @@ def render_parsed(
         kept[_READONLY_KEY] = True
     if body_edits:
         body = apply_body_replacements(body, body_edits, source)
+    if spec.output_format == FORMAT_CODEX_TOML and forbids_subagents(loaded):
+        body = body.rstrip("\n") + NO_SUBAGENTS
     if spec.appendix:
         body = body.rstrip("\n") + spec.appendix
     if spec.output_format == FORMAT_CODEX_TOML:

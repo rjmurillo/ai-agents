@@ -26,6 +26,7 @@ PARAGRAPH = (
     "When a step above hands work to one of them, do that step yourself "
     "in this session and say that you did. "
     "A step you do yourself is a self-review, not an independent review, so report it as one. "
+    "It does not satisfy a review gate: name the gate as unreviewed in your completion report. "
     "When you are asked to review or challenge work, set aside the author's reasoning "
     "and judge the artifact itself. "
     "If the step is a security review or clears a security flag, do not mark it done: "
@@ -33,6 +34,7 @@ PARAGRAPH = (
 )
 # Edits templates/platforms/codex.yaml makes to orchestrator.md: the rows for agents
 # Codex does not install go, and the delegation tool is spawn_agent.
+NO_SUBAGENTS = "\n\n## Subagents\n\nDo not start subagents. Do the work in this session.\n"
 BODY_EDITS = {
     "orchestrator": [
         ("| **analyst** | Research, root cause, feasibility | Already have enough context |\n", ""),
@@ -81,7 +83,11 @@ def problems_with(stem: str, committed_text: str) -> list[str]:
         found.append(f"name is {parsed.get('name')!r}")
     if parsed.get("description") != front["description"]:
         found.append("description differs from the source")
-    if parsed.get("developer_instructions") != body.rstrip("\n") + PARAGRAPH:
+    no_subagents = "Agent" in [
+        t.strip() for t in str(front.get("disallowedTools") or "").split(",")
+    ]
+    expected = (body.rstrip("\n") + (NO_SUBAGENTS if no_subagents else "")).rstrip("\n") + PARAGRAPH
+    if parsed.get("developer_instructions") != expected:
         found.append("developer_instructions differs from source body plus paragraph")
     return found
 

@@ -1,4 +1,16 @@
-"""``install_agents.py``: namespaced copies after a crash, a delete, or a name clash."""
+"""``install_agents.py``: namespaced copies after a crash, a delete, or a name clash.
+
+State table for a recorded prefixed copy ``P-X.toml`` of shipped agent ``X``:
+
+| On disk                       | X still clashes | Result                                      |
+|-------------------------------|-----------------|---------------------------------------------|
+| matches the record            | yes             | upgraded to the new shipped bytes           |
+| matches the new shipped bytes | yes             | adopted (an interrupted upgrade)            |
+| differs from both             | yes             | kept with a warning (a user edit)           |
+| matches the record            | no              | removed; the plain agent installs           |
+| missing                       | any             | record dropped; the copy is not revived     |
+| symlink or non-file           | any             | no excuse for a clash; the run refuses      |
+"""
 
 from __future__ import annotations
 
