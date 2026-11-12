@@ -5,7 +5,8 @@ A Codex custom agent is one TOML file with ``name``, ``description`` and
 output: the stanza keys ``outputFormat`` and ``skipToolRestricted`` and their
 validation (one rule set, used by the build and by the schema validator), the
 TOML basic-string escaper, the file renderer, the name-to-stem check, and the
-paragraph appended to each body when agents are left out.
+paragraph appended to each body when agents are left out. A body whose source sets
+``disallowedTools: Agent`` also gets a short ``Subagents`` section (``NO_SUBAGENTS``).
 """
 
 from __future__ import annotations
@@ -64,6 +65,8 @@ def render_codex_toml(kept: dict[str, object], body: str, source: str) -> str:
     )
 
 
+# Mirrors the Claude restriction `disallowedTools: Agent`. Codex cannot enforce it, so
+# the build states it in the body. The model may ignore it; it is not a block.
 NO_SUBAGENTS = "\n\n## Subagents\n\nDo not start subagents. Do the work in this session.\n"
 
 

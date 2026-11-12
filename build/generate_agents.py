@@ -312,8 +312,7 @@ def generate_agents(
                 stanza = read_artifacts_stanza(config_file, "agents")
                 if stanza is not None:
                     config["__agents_stanza__"] = stanza
-                # ADR-115 Decision 7: a platform that ships no agents (Hermes and Muse
-                # today) declares an `artifacts` mapping with no `agents` stanza and
+                # ADR-115 Decision 7: a platform that ships no agents declares an `artifacts` mapping with no `agents` stanza and
                 # no legacy output. Skip only that shape; any other config with no
                 # agents output still reaches the allowlist check below and fails loud.
                 artifacts = config.get("artifacts")

@@ -153,7 +153,7 @@ Uninstall: delete the `.agent.md` files you copied from `.github/agents/`. Delet
    - Cloned repositories. A repository can commit its own `.codex/agents/.project-toolkit-agents.json`, and `--uninstall` deletes the files that file lists. Before you run `--uninstall` (or any install) in a repository you did not create, read that file and run with `--dry-run` first. The script rejects unsafe names and symlinks, but it cannot know which listed files you meant to keep.
    - `--dry-run` prints the plan and writes nothing. `--uninstall` removes the files that still match their record and leaves edited files with a warning.
    - Spawn reviewers with `fork_turns="none"`, so a reviewer does not inherit the parent's context.
-   - Subagents. The Claude-only `disallowedTools: Agent` line is dropped, so a shipped agent can start a subagent on Codex. ADR-115 Decision 3 accepts this because a Codex subagent inherits the parent's permissions.
+   - Subagents. Codex cannot enforce the Claude-only `disallowedTools: Agent` line, so the build drops it. Instead, 24 of the 25 shipped bodies end with a `Subagents` section that tells the model not to start subagents. That is a prompt instruction, not a block. A Codex subagent inherits the parent's permissions, which is the bound ADR-115 Decision 3 relies on.
    - Trust path. The warning checks the exact project path. If Codex trusts a parent folder, the warning can be a false alarm.
 
 Update:
@@ -169,7 +169,8 @@ Not verified: whether `codex plugin add project-toolkit@ai-agents` run again cop
 Uninstall:
 
 ```bash
-# First remove the agents, with the same --project or --user flag you installed with.
+# First remove the agents. Add --user, or --project DIR, to match how you installed.
+# Without a flag the script looks in the current directory's .codex/agents.
 # The script lives in the plugin folder that the next command deletes.
 cache="${CODEX_HOME:-$HOME/.codex}/plugins/cache/ai-agents/project-toolkit"
 python3 -I "$cache/$(ls "$cache" | sort -V | tail -n 1)/install_agents.py" --uninstall
