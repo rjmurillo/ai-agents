@@ -40,7 +40,7 @@
    • Document exit codes
    • Test before finalizing
    • In SKILL.md, invoke scripts through the plugin-root locator, never a bare
-     .claude/skills path (see docs/SKILL-AUTHORING.md)
+     .claude/skills path (see ADR-121)
 ```
 
 ## Quality Checks During Generation
