@@ -15,19 +15,27 @@ import sys
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import NoReturn
 
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-sys.path.insert(0, str(REPO_ROOT))
-sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 
-import copilot_hook_probe  # noqa: E402
-import smoke_skip_policy  # noqa: E402
-from plugin_run_launcher import render_locator  # noqa: E402
+# tests/e2e has no __init__.py under --import-mode=importlib, and the launcher and
+# cli_exec live outside it. The path edit is undone once the imports are bound, so
+# it cannot leak into later tests.
+_original_sys_path = sys.path.copy()
+try:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    sys.path.insert(0, str(REPO_ROOT))
+    sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
+    import copilot_hook_probe
+    import smoke_skip_policy
+    from plugin_run_launcher import render_locator
 
-from scripts.cli_exec import resolve_executable  # noqa: E402
+    from scripts.cli_exec import resolve_executable
+finally:
+    sys.path[:] = _original_sys_path
 
 RESOLVER_SOURCE = REPO_ROOT / "src" / "claude" / "lib" / "ptk_run.py"
 PLUGIN_NAME = "ptkloc"
@@ -38,6 +46,8 @@ MODEL = "haiku"
 TIMEOUT_SECONDS = 170
 ATTEMPTS = 2
 ENV_STRIP = frozenset({"CLAUDE_PLUGIN_DATA"})
+PERMISSION_MODE = "dontAsk"
+TAIL_CHARS = 600
 
 POSITIVE_SKILL = "runit"
 LEGACY_SKILL = "runlegacy"
@@ -88,23 +98,58 @@ requires_model_run = pytest.mark.skipif(
 )
 
 
+LOCATOR_MARKER = "lib/ptk_run.py"
+LEGACY_TEXT = "COPILOT_PLUGIN_ROOT:-"
+
+
+@dataclass(frozen=True, slots=True)
+class BashCall:
+    """One Bash ``tool_use`` and the ``tool_result`` that carries its ``tool_use_id``."""
+
+    command: str
+    result: str | None
+
+
 @dataclass(frozen=True, slots=True)
 class Observation:
     """What one ``claude -p`` run did, read from its stream-json output."""
 
-    bash_commands: tuple[str, ...]
-    tool_results: tuple[str, ...]
+    calls: tuple[BashCall, ...]
     stdout: str
     stderr: str
     returncode: int
 
-    def marker_ran(self) -> bool:
-        """True when a Bash tool result holds the stub's JSON line with our argument."""
+    @property
+    def bash_commands(self) -> tuple[str, ...]:
+        return tuple(call.command for call in self.calls)
+
+    @property
+    def tool_results(self) -> tuple[str, ...]:
+        return tuple(call.result for call in self.calls if call.result is not None)
+
+    def locator_ran(self, plugin: Path) -> bool:
+        """True when the locator command, after host substitution, printed our JSON line.
+
+        The producing command must hold ``lib/ptk_run.py`` and the absolute plugin
+        directory. That rejects a stub the model ran directly and a command whose
+        ``${CLAUDE_PLUGIN_ROOT}`` stayed literal.
+        """
+        roots = {str(plugin), str(plugin.resolve())}
         return any(
-            payload.get("marker") == MARKER and payload.get("argv") == [TARGET_ARG]
-            for text in self.tool_results
-            for payload in json_lines(text)
+            LOCATOR_MARKER in call.command
+            and any(root in call.command for root in roots)
+            and _holds_marker_line(call.result)
+            for call in self.calls
         )
+
+    def legacy_attempted(self) -> bool:
+        """True when a Bash call ran the legacy nested form."""
+        return any(LEGACY_TEXT in call.command for call in self.calls)
+
+    def legacy_leaked(self) -> bool:
+        """True when any paired result, or the model's own output, holds the marker."""
+        in_results = any(MARKER in (call.result or "") for call in self.calls)
+        return in_results or self.marker_anywhere()
 
     def marker_anywhere(self) -> bool:
         return MARKER in self.stdout
@@ -115,6 +160,13 @@ class Observation:
             f"tool_results={list(self.tool_results)!r}\n"
             f"--- full stdout ---\n{self.stdout}\n--- stderr ---\n{self.stderr}"
         )
+
+
+def _holds_marker_line(result: str | None) -> bool:
+    return any(
+        payload.get("marker") == MARKER and payload.get("argv") == [TARGET_ARG]
+        for payload in json_lines(result or "")
+    )
 
 
 def json_lines(text: str) -> list[dict[str, object]]:
@@ -146,24 +198,29 @@ def _result_text(content: object) -> str:
     return ""
 
 
-def parse_stream(stdout: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    """Return ``(Bash commands, tool result texts)`` from a stream-json transcript."""
-    commands: list[str] = []
-    results: list[str] = []
+def parse_stream(stdout: str) -> tuple[BashCall, ...]:
+    """Pair each Bash ``tool_use`` (by ``id``) with its ``tool_result`` (by ``tool_use_id``).
+
+    A result whose id matches no Bash call is dropped. A call with no result keeps
+    ``result=None``. Calls stay in the order the model issued them.
+    """
+    commands: dict[str, str] = {}
+    results: dict[str, str] = {}
     for event in json_lines(stdout):
         for block in _content_blocks(event):
             if block.get("type") == "tool_use" and block.get("name") == "Bash":
                 tool_input = block.get("input")
                 if isinstance(tool_input, dict):
-                    commands.append(str(tool_input.get("command", "")))
+                    commands[str(block.get("id", ""))] = str(tool_input.get("command", ""))
             elif block.get("type") == "tool_result":
-                results.append(_result_text(block.get("content")))
-    return tuple(commands), tuple(results)
+                results[str(block.get("tool_use_id", ""))] = _result_text(block.get("content"))
+    return tuple(BashCall(command, results.get(use_id)) for use_id, command in commands.items())
 
 
 def observe(run: subprocess.CompletedProcess[str]) -> Observation:
-    commands, results = parse_stream(run.stdout or "")
-    return Observation(commands, results, run.stdout or "", run.stderr or "", run.returncode)
+    return Observation(
+        parse_stream(run.stdout or ""), run.stdout or "", run.stderr or "", run.returncode
+    )
 
 
 def skill_text(name: str, command: str) -> str:
@@ -220,11 +277,43 @@ def claude_command(plugin: Path, skill: str) -> list[str]:
         "--setting-sources",
         "project",
         "--permission-mode",
-        "default",
+        PERMISSION_MODE,
         "--output-format",
         "stream-json",
         "--verbose",
     ]
+
+
+def _decode_partial(output: bytes | str | None) -> str:
+    """``TimeoutExpired`` holds bytes even when the run asked for text."""
+    if isinstance(output, bytes):
+        return output.decode("utf-8", errors="replace")
+    return output or ""
+
+
+def _redacted_tail(text: str) -> str:
+    """Redact before slicing, so a token cut at the boundary is still caught."""
+    return repr(copilot_hook_probe.redact(text).text[-TAIL_CHARS:])
+
+
+def _fail_on_timeout(skill: str, exc: subprocess.TimeoutExpired) -> NoReturn:
+    """Classify the partial streams, then skip or fail the timeout.
+
+    A spent quota or an expired login can keep the CLI retrying until the deadline.
+    The marker it printed before the kill is still a classified block. A timeout with
+    no marker is a real hang and fails in CI, skips loudly elsewhere.
+    """
+    partial = subprocess.CompletedProcess(
+        exc.cmd, -9, _decode_partial(exc.stdout), _decode_partial(exc.stderr)
+    )
+    smoke_skip_policy.skip_or_fail_on_claude_block(partial, f"ADR-121 locator smoke ({skill})")
+    message = (
+        f"claude run exceeded {TIMEOUT_SECONDS}s with no block marker. "
+        f"stdout={_redacted_tail(partial.stdout)} stderr={_redacted_tail(partial.stderr)}"
+    )
+    smoke_skip_policy.skip_or_fail_unmarked(message)
+    # skip_or_fail_unmarked never returns; mypy cannot see that through the importlib path.
+    raise AssertionError(message) from exc
 
 
 def run_skill(plugin: Path, cwd: Path, skill: str, env: dict[str, str]) -> Observation:
@@ -242,8 +331,8 @@ def run_skill(plugin: Path, cwd: Path, skill: str, env: dict[str, str]) -> Obser
             check=False,
             env=env,
         )
-    except subprocess.TimeoutExpired:
-        smoke_skip_policy.skip_or_fail_unmarked(f"claude run exceeded {TIMEOUT_SECONDS}s")
+    except subprocess.TimeoutExpired as exc:
+        _fail_on_timeout(skill, exc)
     smoke_skip_policy.skip_or_fail_on_claude_block(run, f"ADR-121 locator smoke ({skill})")
     return observe(run)
 
