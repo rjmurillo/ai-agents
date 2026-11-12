@@ -54,7 +54,9 @@ one JSON object.
    ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/decision-question/scripts/decision_question.py --brief <brief.json>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
    ```
 
-   `status: incomplete` (exit 2) lists the missing fields. Enrich the brief and
+   Exit 2 with a `ptk_run:` line on stderr and no JSON means the launcher found
+   no plugin root; fix the install, not the brief.
+   `status: incomplete` (exit 2, JSON on stdout) lists the missing fields. Enrich the brief and
    rerun. `status: revise_recommendation` (exit 2) means an earlier answer
    filtered out the recommended option: pick a remaining option or set
    `no_recommendation`, then rerun. `status: ask` lists the prompt `pages` and
