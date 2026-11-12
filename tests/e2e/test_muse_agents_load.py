@@ -9,9 +9,8 @@ skills, ``lib/``, and every shipped agent under ``${XDG_CONFIG_HOME:-$HOME/.conf
 It puts one control agent with an extra frontmatter key into a scratch
 workspace's ``.agents/agents/``, runs ``muse exec --json --trust-workspace`` with
 a prompt that asks the lead to spawn each agent once, and asserts from the JSONL
-events that every shipped agent's reply code appears and the control's does not.
-A lead that works the formula out and echoes a code passes this check, so the
-owner confirms each code in the saved output before the merge gate. The test
+events that every shipped agent's child replied with its code and the control's
+did not. The owner still reads the saved output before the merge gate. The test
 writes nothing to the user's Muse folder. It runs under the user's login with
 the web tools off.
 
@@ -20,14 +19,14 @@ Run the guide's Muse Code install step first. The test fails with
 
   - Without ``RUN_CLI_E2E=1`` it skips with a reason that starts with
     ``MUSE_NOT_VERIFIED:``.
-  - With ``RUN_CLI_E2E=1`` it fails, never skips, when ``muse`` is not on PATH,
-    ``muse usage`` exits non-zero, or ``muse usage`` reports no allowance.
+  - With ``RUN_CLI_E2E=1`` it fails, never skips, when ``muse`` is not on PATH or
+    ``muse usage`` exits non-zero. A ``no_allowance`` message does not fail it,
+    because a login that prints it still ran a model call.
 
-Not verified: the shape of the JSONL events. Nothing here has run with a login.
-``spawned_agents`` therefore looks for each child's reply code in any event
-(see its docstring). The owner's run, recorded in the pull request, shows whether
-the codes appear. The raw stdout is saved on every outcome that has output,
-including a timeout, and the failure message names the file.
+A spawned child counts only when the runtime's ``subagent_spawn`` result accepted
+it under that role and its ``subagent_wait`` result for the same child id holds
+the role's code (see ``spawned_agents``). The raw stdout is saved on every outcome
+that has output, including a timeout, and the failure message names the file.
 """
 
 from __future__ import annotations

@@ -5,16 +5,20 @@ that agent (https://dev.meta.ai/docs/muse-code/agents). The live test in
 ``test_muse_agents_load.py`` needs a Muse login. The always-on tests in
 ``test_muse_agents_load_helpers.py`` cover these helpers without the CLI.
 
-Not verified: the shape of the JSONL events. Nothing here has run with a login,
-so ``spawned_agents`` looks for each child's reply code in any event (see its
-docstring). The owner's run, recorded in the pull request, shows whether the
-codes appear.
+Event shape, read from a real Muse Code 1.4.15 run (``exec --json``): one JSON
+record per line with ``payload_type`` and ``payload``. A ``tool.result`` record
+whose ``payload.correlation_facts.tool_name`` is ``subagent_spawn`` carries the
+spawn outcome in ``payload.text`` (JSON: ``status``, ``subagent_id``,
+``agent_path`` such as ``main/00 architect/1``). The matching ``subagent_wait``
+record carries ``status: ready``, the same ``subagent_id``, and the child's reply
+as ``summary``.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import re
 import shlex
 import shutil
 import signal
@@ -29,7 +33,7 @@ MUSE_AGENTS = REPO_ROOT / "src" / "muse" / "agents"
 CONTROL_NAME = "zz-extra-key-control"
 NOT_VERIFIED = "MUSE_NOT_VERIFIED:"
 USAGE_TIMEOUT_SECONDS = 30
-EXEC_TIMEOUT_SECONDS = 600
+EXEC_TIMEOUT_SECONDS = 1500
 PYTEST_MARGIN_SECONDS = 60
 DRAIN_TIMEOUT_SECONDS = 10
 RUN = os.environ.get("RUN_CLI_E2E") == "1"
@@ -39,6 +43,7 @@ _ENV_ALLOW = frozenset(
 _ENV_ALLOW_PREFIXES = ("LC_", "XDG_", "MUSE_")
 CODE_BASE = 1000
 CODE_STEP = 17
+_AGENT_PATH = re.compile(r"main/(\d+) (.+)/\d+")
 
 
 def cli_budget(*subprocess_timeouts: int) -> pytest.MarkDecorator:
@@ -81,9 +86,8 @@ def build_agents_prompt(names: list[str]) -> str:
 
     The prompt prints the number before each role and the formula, never the
     code. A spawn request carries the formula, so the request cannot show the
-    code. A child that ran replies with the computed code. A lead that works the
-    formula out and writes it into a request or a reply could still fake it,
-    which only the owner's read of the saved stdout can rule out.
+    code. A child that ran replies with the computed code, and ``spawned_agents``
+    reads that reply from the runtime's wait result for the child.
     """
     listing = "\n".join(f"- {i:02d}: {name}" for i, name in enumerate(names))
     return (
@@ -98,30 +102,88 @@ def build_agents_prompt(names: list[str]) -> str:
 
 
 def parse_events(stdout: str) -> list[dict[str, object]]:
-    """Return the JSON objects among the lines of ``stdout``; non-JSON lines are ignored."""
+    """Return the Muse event records among the lines of ``stdout``.
+
+    A record is a JSON object with a string ``payload_type``. Other lines, and
+    JSON that is not a record (a skill script's own output), are ignored.
+    """
     events: list[dict[str, object]] = []
     for line in stdout.splitlines():
         try:
             loaded = json.loads(line)
         except json.JSONDecodeError:
             continue
-        if isinstance(loaded, dict):
+        if isinstance(loaded, dict) and isinstance(loaded.get("payload_type"), str):
             events.append(loaded)
     return events
 
 
-def spawned_agents(events: Sequence[Mapping[str, object]], names: list[str]) -> set[str]:
-    """Return the names of ``names`` whose child replied with its own code.
+def _tool_result(event: Mapping[str, object]) -> tuple[str, dict[str, object]] | None:
+    """Return ``(tool_name, body)`` for a ``tool.result`` record whose text is a JSON object."""
+    if event.get("payload_type") != "tool.result":
+        return None
+    payload = event.get("payload")
+    if not isinstance(payload, Mapping):
+        return None
+    facts = payload.get("correlation_facts")
+    text = payload.get("text")
+    if not isinstance(facts, Mapping) or not isinstance(text, str):
+        return None
+    try:
+        body = json.loads(text)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(body, dict):
+        return None
+    return str(facts.get("tool_name")), body
 
-    A name at position ``i`` counts as spawned when ``spawn_code(i)`` appears in
-    the serialized text of any event. Muse Code publishes no event schema for
-    ``exec --json``, so the rule does not read event types or fields. A spawn
-    request holds only the formula, and a roster or a refusal holds neither, so
-    none of them carries the code. Only a child that ran, or a lead that worked
-    the formula out against instructions, does.
+
+def spawned_agents(events: Sequence[Mapping[str, object]], names: list[str]) -> set[str]:
+    """Return the names of ``names`` whose spawned child replied with its own code.
+
+    A name at position ``i`` counts only when two runtime records agree:
+
+    1. a ``subagent_spawn`` result with ``status: accepted`` whose ``agent_path``
+       is ``main/<i> <name>/<n>``, and
+    2. a ``subagent_wait`` result with ``status: ready`` for the same
+       ``subagent_id`` whose ``summary`` holds ``spawn_code(i)``.
+
+    The runtime writes both records. A lead cannot forge them by working out the
+    formula and echoing a code: its text is not a ``tool.result`` for a wait on a
+    child id. A rejected spawn, a roster, or a wait on another child does not
+    count. Limits: the role in ``agent_path`` comes from the spawn request, and
+    stdout does not show that the child ran the shipped file's body. A child
+    that was handed its code in the request could also echo it, but the prompt
+    never prints a code.
     """
-    text = "\n".join(json.dumps(event) for event in events)
-    return {name for i, name in enumerate(names) if spawn_code(i) in text}
+    spawned: dict[str, int] = {}
+    for event in events:
+        parsed = _tool_result(event)
+        if parsed is None or parsed[0] != "subagent_spawn":
+            continue
+        body = parsed[1]
+        child, path = body.get("subagent_id"), body.get("agent_path")
+        if body.get("status") != "accepted" or not isinstance(child, str):
+            continue
+        match = _AGENT_PATH.fullmatch(path) if isinstance(path, str) else None
+        if match is None:
+            continue
+        index, role = int(match.group(1)), match.group(2)
+        if index < len(names) and names[index] == role:
+            spawned[child] = index
+    replied: set[str] = set()
+    for event in events:
+        parsed = _tool_result(event)
+        if parsed is None or parsed[0] != "subagent_wait":
+            continue
+        body = parsed[1]
+        child, summary = body.get("subagent_id"), body.get("summary")
+        if body.get("status") != "ready" or not isinstance(summary, str):
+            continue
+        index = spawned.get(child) if isinstance(child, str) else None
+        if index is not None and spawn_code(index) in summary:
+            replied.add(names[index])
+    return replied
 
 
 def write_control_agent(agents_dir: Path) -> Path:
@@ -207,7 +269,12 @@ def run_muse(
 
 
 def check_prerequisites() -> str:
-    """Return the path of ``muse``; fail with a clear message when it or a login is missing."""
+    """Return the path of ``muse``; fail with a clear message when it or a login is missing.
+
+    ``muse usage`` must exit 0. Its text is not read: a login that prints
+    ``no_allowance`` still ran a model call on Muse Code 1.4.15, so only the live
+    run shows whether a call can run.
+    """
     muse = shutil.which("muse")
     if muse is None:
         pytest.fail(
@@ -226,12 +293,9 @@ def check_prerequisites() -> str:
             f"{NOT_VERIFIED} Muse Code is not logged in (`muse usage` exit {usage.returncode}: "
             f"{detail}). Run `muse login`, then rerun this test."
         )
-    combined = (usage.stdout + usage.stderr).lower()
-    if "no_allowance" in combined or "no subscription allowance" in combined:
-        pytest.fail(
-            f"{NOT_VERIFIED} Muse Code is signed in but has no subscription allowance, "
-            f"so a model call cannot run (`muse usage`: {combined.strip()[-200:]})."
-        )
+    # `muse usage` printed `no_allowance` under a login where `muse exec` made a
+    # model call (Muse Code 1.4.15, run.usage calls=1). So an allowance message is
+    # not a failure. A run that cannot call a model fails on its own exit code.
     return muse
 
 

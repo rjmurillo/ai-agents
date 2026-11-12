@@ -7,6 +7,7 @@ the live test in ``test_muse_agents_load.py`` is not the only check on them.
 
 from __future__ import annotations
 
+import json
 import shutil
 import sys
 from pathlib import Path
@@ -53,42 +54,109 @@ def test_codes_are_distinct_and_never_prefix_each_other() -> None:
     assert not any(a != b and a in b for a in codes for b in codes)
 
 
-def test_parse_events_ignores_non_json_and_non_objects() -> None:
-    out = '{"type": "x"}\nnot json\n[1, 2]\n\n{"type": "y"}\n'
-    assert [e["type"] for e in parse_events(out)] == ["x", "y"]
+def _result(tool: str, body: dict[str, object]) -> dict[str, object]:
+    """A `tool.result` record shaped like the Muse Code 1.4.15 sample."""
+    return {
+        "payload_type": "tool.result",
+        "payload": {
+            "correlation_facts": {"outcome": "success", "tool_name": tool},
+            "kind": "tool_result",
+            "text": json.dumps(body),
+        },
+    }
 
 
-def test_spawned_agents_counts_an_agent_whose_child_replied_with_its_code() -> None:
-    events = [{"type": "result", "text": f"reply {spawn_code(1)}"}]
-    assert spawned_agents(events, ["architect", "critic"]) == {"critic"}
+def _spawn(child: str, index: int, role: str, status: str = "accepted") -> dict[str, object]:
+    path = f"main/{index:02d} {role}/{index + 1}"
+    return _result("subagent_spawn", {"status": status, "subagent_id": child, "agent_path": path})
 
 
-def test_spawned_agents_ignores_a_spawn_request_that_holds_only_the_formula() -> None:
-    objective = "reply with the single word code-N, where N is 1000 plus 17 times 03"
-    events = [{"type": "subagent_spawn", "role": "architect", "objective": objective}]
-    assert spawned_agents(events, ["architect"]) == set()
+def _wait(child: str, summary: str, status: str = "ready") -> dict[str, object]:
+    return _result("subagent_wait", {"status": status, "subagent_id": child, "summary": summary})
 
 
-def test_spawned_agents_ignores_a_request_followed_by_a_failed_result() -> None:
-    events = [
-        {"type": "subagent_spawn", "agent": "architect", "objective": "reply with code-N"},
-        {"type": "subagent_result", "resultStatus": "failed", "agentPath": "architect"},
-    ]
-    assert spawned_agents(events, ["architect"]) == set()
+NAMES = ["architect", "critic", "debug"]
 
 
-def test_spawned_agents_ignores_a_roster_event_that_lists_the_names() -> None:
-    events = [{"type": "init", "subagents": ["architect", "critic"]}]
-    assert spawned_agents(events, ["architect", "critic"]) == set()
+def test_parse_events_keeps_only_records_with_a_payload_type() -> None:
+    out = (
+        '{"payload_type": "x", "payload": {}}\nnot json\n[1, 2]\n\n'
+        '{"usage": "get_pr_checks.py"}\n{"payload_type": "y"}\n{"payload_type": 3}\n'
+    )
+    assert [e["payload_type"] for e in parse_events(out)] == ["x", "y"]
+
+
+def test_spawned_agents_counts_a_child_that_replied_with_its_code() -> None:
+    events = [_spawn("c1", 1, "critic"), _wait("c1", spawn_code(1))]
+    assert spawned_agents(events, NAMES) == {"critic"}
+
+
+def test_spawned_agents_matches_the_real_run_shape_for_every_role() -> None:
+    events = []
+    for i, name in enumerate(NAMES):
+        events += [_spawn(f"c{i}", i, name), _wait(f"c{i}", f"{spawn_code(i)}.")]
+    assert spawned_agents(events, NAMES) == set(NAMES)
+
+
+def test_spawned_agents_ignores_a_code_the_lead_wrote_into_plain_text() -> None:
+    lead_text = {"payload_type": "run.output.delta", "payload": {"text": spawn_code(1)}}
+    assert spawned_agents([lead_text], NAMES) == set()
+
+
+def test_spawned_agents_ignores_a_code_in_a_tool_result_of_another_tool() -> None:
+    events = [_spawn("c1", 1, "critic"), _result("bash", {"summary": spawn_code(1)})]
+    assert spawned_agents(events, NAMES) == set()
+
+
+def test_spawned_agents_ignores_a_rejected_spawn() -> None:
+    rejected = _result(
+        "subagent_spawn", {"status": "rejected", "cause": "agent_definition_invalid"}
+    )
+    assert spawned_agents([rejected, _wait("c1", spawn_code(1))], NAMES) == set()
+
+
+def test_spawned_agents_ignores_a_spawn_request_with_no_wait_result() -> None:
+    assert spawned_agents([_spawn("c1", 1, "critic")], NAMES) == set()
+
+
+def test_spawned_agents_ignores_a_wait_that_is_not_ready() -> None:
+    events = [_spawn("c1", 1, "critic"), _wait("c1", spawn_code(1), status="failed")]
+    assert spawned_agents(events, NAMES) == set()
+
+
+def test_spawned_agents_ignores_a_wait_for_a_child_that_was_never_spawned() -> None:
+    assert spawned_agents([_wait("ghost", spawn_code(1))], NAMES) == set()
+
+
+def test_spawned_agents_ignores_another_childs_code() -> None:
+    events = [_spawn("c1", 1, "critic"), _wait("c1", spawn_code(2))]
+    assert spawned_agents(events, NAMES) == set()
+
+
+def test_spawned_agents_ignores_a_role_that_does_not_match_its_number() -> None:
+    events = [_spawn("c1", 1, "debug"), _wait("c1", spawn_code(1))]
+    assert spawned_agents(events, NAMES) == set()
+
+
+def test_spawned_agents_ignores_a_malformed_path_and_unparseable_text() -> None:
+    bad_path = _result(
+        "subagent_spawn", {"status": "accepted", "subagent_id": "c1", "agent_path": "x"}
+    )
+    bad_text = {
+        "payload_type": "tool.result",
+        "payload": {"correlation_facts": {"tool_name": "subagent_wait"}, "text": "not json"},
+    }
+    assert spawned_agents([bad_path, bad_text, {"payload_type": "tool.result"}], NAMES) == set()
 
 
 def test_spawned_agents_does_not_confuse_code_numbers() -> None:
-    events = [{"text": spawn_code(10)}]
-    assert spawned_agents(events, [f"a{i}" for i in range(12)]) == {"a10"}
+    names = [f"a{i}" for i in range(12)]
+    events = [_spawn("c10", 10, "a10"), _wait("c10", spawn_code(10))]
+    assert spawned_agents(events, names) == {"a10"}
 
 
 def test_control_reply_is_counted_so_its_assertion_can_fail() -> None:
-    events = [{"text": spawn_code(1)}]
+    events = [_spawn("c1", 1, CONTROL_NAME), _wait("c1", spawn_code(1))]
     assert spawned_agents(events, ["architect", CONTROL_NAME]) == {CONTROL_NAME}
 
 
@@ -234,14 +302,22 @@ def test_not_logged_in_fails_with_a_clear_message(
         check_prerequisites()
 
 
-def test_no_allowance_account_fails_with_a_clear_message(
+def test_no_allowance_account_still_passes_the_prerequisite(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """`muse usage` exits 0 and prints no_allowance when signed in without an allowance."""
+    """`muse usage` exits 0 and prints no_allowance, yet that login ran a model call."""
     fake = _stub(tmp_path / "muse", "echo 'No subscription allowance (no_allowance)'")
     monkeypatch.setattr(shutil, "which", lambda _name: str(fake))
+    assert check_prerequisites() == str(fake)
+
+
+def test_a_failing_usage_call_that_mentions_no_allowance_is_still_not_logged_in(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    fake = _stub(tmp_path / "muse", "echo 'No subscription allowance (no_allowance)' >&2; exit 1")
+    monkeypatch.setattr(shutil, "which", lambda _name: str(fake))
     with pytest.raises(
-        pytest.fail.Exception, match=r"MUSE_NOT_VERIFIED: .*no subscription allowance"
+        pytest.fail.Exception, match=r"MUSE_NOT_VERIFIED: Muse Code is not logged in"
     ):
         check_prerequisites()
 
