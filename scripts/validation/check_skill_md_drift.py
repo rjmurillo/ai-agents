@@ -12,10 +12,17 @@ from __future__ import annotations
 import functools
 import json
 import re
+import sys
 from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 
 from scripts.validation.tracked_paths import path_exists_in_repo
+
+_BUILD_SCRIPTS = Path(__file__).resolve().parents[2] / "build" / "scripts"
+if str(_BUILD_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_BUILD_SCRIPTS))
+
+import plugin_run_launcher  # noqa: E402
 
 # Paths that legitimately do not exist in this repo because the skill WRITES
 # them into a consumer workspace rather than reading them here. Exemption is
@@ -108,6 +115,28 @@ _KNOWN_SUBDIRS = frozenset(
 )
 
 
+def _without_locators(text: str) -> str:
+    """Blank each ADR-121 locator so its script target is not read as a path reference.
+
+    A locator names its target as ``skills/NAME/...`` relative to a plugin root that is
+    resolved at run time. The legacy form hid that target behind ``${...}``; the locator
+    shows it, so the path scan would call it an undeclared upstream path. The locator's
+    arguments stay in the text, because an argument such as ``--config .agents/x.md``
+    is a real reference.
+    """
+    if "lib/ptk_run.py" not in text:
+        return text
+    lines = text.split("\n")
+    for index, line in enumerate(lines):
+        matches = list(plugin_run_launcher.find_locators(line))
+        for match in reversed(matches):
+            if match.problem is not None:
+                continue
+            line = f"{line[: match.start]} {match.args} {line[match.end :]}"
+        lines[index] = line
+    return "\n".join(lines)
+
+
 def _extract_paths_from_text(text: str, *, unsafe_collector: set[str] | None = None) -> set[str]:
     """Return the set of upstream path strings found in text.
 
@@ -116,7 +145,7 @@ def _extract_paths_from_text(text: str, *, unsafe_collector: set[str] | None = N
     caller cannot mutate the cached value and the collector contract is the
     same as before the cache (issue #6734). See that function for the rules.
     """
-    paths, unsafe = _extract_path_sets(text)
+    paths, unsafe = _extract_path_sets(_without_locators(text))
     if unsafe_collector is not None:
         unsafe_collector.update(unsafe)
     return set(paths)

@@ -28,7 +28,7 @@ You have direct access to:
 - **WebSearch/WebFetch**: Research best practices
 - **TodoWrite**: Track infrastructure tasks
 - **Memory Router** (ADR-037): Search across `.serena/memories/`
-  - `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "topic"`
+  - `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/search_memory.py "topic"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`
   - Keyword match on memory filenames; no semantic or graph search
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -199,7 +199,7 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 **Before pipeline work (retrieve context):**
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "devops patterns [pipeline/infrastructure]"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/search_memory.py "devops patterns [pipeline/infrastructure]"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 **After pipeline work (store learnings):**

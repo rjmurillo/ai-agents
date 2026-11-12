@@ -46,10 +46,10 @@ Quality-auditor-specific requirements:
 You have access to:
 
 - **Read/Search**: Scan repository structure and file contents
-- **Bash**: Run `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/quality-grades/scripts/grade_domains.py"`
+- **Bash**: Run `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/quality-grades/scripts/grade_domains.py; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`
 - **Write/Edit**: Generate quality reports
 - **Memory Router** (ADR-037): Search across `.serena/memories/`
-  - `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "topic"`
+  - `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/search_memory.py "topic"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`
   - Keyword match on memory filenames; no semantic or graph search
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `serena/write_memory`: Create new memory
@@ -75,13 +75,13 @@ Grade quality across product domains. Each domain gets assessed on six layers: a
 
 ### Phase 1: Discovery
 
-1. Run `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/quality-grades/scripts/grade_domains.py"` to auto-detect domains
+1. Run `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/quality-grades/scripts/grade_domains.py; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )` to auto-detect domains
 2. Review detected domains for completeness
-3. Add any missing domains via `--domains` flag
+3. If detection missed a domain, run the step 1 command again with `--domains <complete list>` written inside the locator, before its closing `; fi`. The flag replaces auto-detection, so list the detected domains and the missing ones. Arguments placed after the closing `)` do not reach the script.
 
 ### Phase 2: Grading
 
-1. Run the grading script with `--format json --output` for persistence
+1. Run the grading command with `--format json --output <path>` written inside the locator, as in Phase 1, for persistence. Pass the same `--domains <complete list>` if step 3 of Phase 1 set one.
 2. Review grades for accuracy
 3. Validate that gap descriptions are specific and actionable
 

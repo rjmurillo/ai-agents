@@ -67,7 +67,7 @@ Query these Serena memories when relevant:
 Access via Memory Router or direct file read:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "[memory-name]"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/search_memory.py "[memory-name]"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 # Or read directly:
 Read .serena/memories/[memory-name].md
 ```
@@ -79,7 +79,7 @@ You have direct access to:
 - **Read/Grep/Glob**: Analyze codebase for evidence
 - **WebSearch**: Research industry practices
 - **Memory Router** (ADR-037): Search across `.serena/memories/`
-  - `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "topic"`
+  - `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/search_memory.py "topic"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`
   - Keyword match on memory filenames; no semantic or graph search
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -157,7 +157,7 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 **Before strategic decisions (retrieve context):**
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "strategic decisions priorities [domain]"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/search_memory.py "strategic decisions priorities [domain]"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 **After decisions (store learnings):**
