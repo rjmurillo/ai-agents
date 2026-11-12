@@ -87,7 +87,7 @@ Worktrees share branches, remote refs, and `refs/stash` (`git-advanced-workflows
 
 #### Scripts
 
-Run `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-debugging-playbook/scripts/instruments.py --repo . list; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )` to see every linked checker and whether its file exists. Run one with `... instruments.py --repo . run <id>`. Rows: plugin version gate, dash scan, spec id uniqueness, Python 3.10 syntax gate, CI drift step, drift self-check.
+Run `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-debugging-playbook/scripts/instruments.py --repo . list; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )` to see every linked checker and whether its file exists. Run one by writing `run <id>` in place of `list` inside the locator. Rows: plugin version gate, dash scan, spec id uniqueness, Python 3.10 syntax gate, CI drift step, drift self-check.
 
 Two shared-checkout answers are computed, not eyeballed:
 

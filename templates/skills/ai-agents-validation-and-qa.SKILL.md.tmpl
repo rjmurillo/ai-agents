@@ -92,7 +92,7 @@ Stale doc warning: `.agents/governance/test-location-standards.md` still describ
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-validation-and-qa/scripts/test_layout.py --repo . skill-tests NAME; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
-`pester` counts `*.Tests.ps1` files and exits 1 only when this warning is dead prose (count is 0 and the governance doc no longer mentions Pester). `skill-tests` lists the files `uv run pytest tests/skills/NAME --collect-only -q` collects (add `--no-pytest` for a `test_*.py` walk) and exits 1 when none. Neither says whether the tests pass or cover the code.
+`pester` counts `*.Tests.ps1` files and exits 1 only when this warning is dead prose (count is 0 and the governance doc no longer mentions Pester). `skill-tests` lists the files `uv run pytest tests/skills/NAME --collect-only -q` collects (write `--no-pytest` after `NAME`, inside the locator, for a `test_*.py` walk) and exits 1 when none. Neither says whether the tests pass or cover the code.
 
 ### Phase 3: Write tests that count
 

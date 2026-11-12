@@ -42,7 +42,7 @@ Vocabulary, defined once: an "instrument" is a script whose output you read, not
 | Eval agent vs baseline | Does an agent beat the baseline on fixtures? | `uv run python ./scripts/eval/eval-agent-vs-baseline.py --agent <name> --fixtures <dir> --dry-run` |
 | Commit count | Advisory-only signal, not a cap | `git rev-list --count HEAD ^origin/main` |
 
-To list or run any row with an existence check, use `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-diagnostics-toolkit/scripts/instruments.py --repo . list; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`. It prints each row with `exists: true|false` and exits 1 on a missing file. `run <id> -- <args>` execs the row and passes its exit code through. It does not judge a reading; the guides do.
+To list or run any row with an existence check, use `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-diagnostics-toolkit/scripts/instruments.py --repo . list; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`. It prints each row with `exists: true|false` and exits 1 on a missing file. To run a row, write `run <id> -- <args>` in place of `list` inside the locator; it execs the row and passes its exit code through. It does not judge a reading; the guides do.
 
 ## Process
 

@@ -53,7 +53,7 @@ cannot answer "was R read correctly", because both artifacts inherit one reading
    ```
 
    An item whose `bound_to` names a different artifact or revision is always
-   rejected (`binding-mismatch`), not downgraded. Add `--promotion` when the
+   rejected (`binding-mismatch`), not downgraded. Write `--promotion` after `<record.json>`, inside the locator, when the
    evidence gates a deployment: every item then also needs a `bound_to` with
    artifact, revision, validator, command, and result, or it is rejected as
    `binding-missing`.

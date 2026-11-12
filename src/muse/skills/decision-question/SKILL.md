@@ -41,8 +41,8 @@ material unresolved user decision -> build the brief below
 
 ## Process
 
-All commands run `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/decision-question/scripts/decision_question.py`
-with `python3`. Output is one JSON object.
+Each command below is a locator that runs `decision_question.py`. Output is
+one JSON object.
 
 1. **Route.** Apply the gate. If no question is warranted, act and stop.
 2. **Draft the brief** for the earliest load-bearing decision (fields below).

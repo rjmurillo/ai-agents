@@ -162,7 +162,7 @@ Before relying on or amending this contract:
 
 ## Scripts
 
-Run any row with `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-architecture-contract/scripts/instruments.py --repo . run <id>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`. List the rows and check each exists with `... instruments.py --repo . list` (exit 1 when a row is missing). `generator-path` takes the path after `--`.
+Run any row with `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-architecture-contract/scripts/instruments.py --repo . run <id>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`. To list the rows and check each exists, write `list` in place of `run <id>` inside the locator (exit 1 when a row is missing). Pass `generator-path` its path after `--`, still inside the locator: `run generator-path -- <repo-path>`.
 
 | Id | Answers |
 |---|---|

@@ -307,8 +307,8 @@ passes the child exit code through):
 
 Rows: `adr-next-number`, `retro-index-coverage` (exits 1 at HEAD `42e409325`,
 2026-10-31, because INDEX.md covers 11 of 241 retros; read the JSON, not the
-exit code), `session-log-validate` (pass the log path after `--`), and
-`drift-self-check`. Drift check, with `reverify.json`:
+exit code), `session-log-validate` (write `run session-log-validate --
+<log-path>` inside the locator), and `drift-self-check`. Drift check, with `reverify.json`:
 
 `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_drift.py check --repo . --skills-root .claude/skills --name ai-agents-docs-of-record --require; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`
 

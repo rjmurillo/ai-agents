@@ -64,8 +64,9 @@ edits nothing; ratification is a separate, confirmed step.
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/curating-memories/scripts/supersession_sweep.py; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
-Add `--json` for machine-readable output, or `--root <dir>` to scan a
-directory other than `.serena/memories`. The JSON lists only the actionable
+Write flags inside the locator, before its closing `; fi`: `--json` for
+machine-readable output, or `--root <dir>` to scan a directory other than
+`.serena/memories`. The JSON lists only the actionable
 proposals; `--include-live` lists every file, and the counts always cover all.
 
 ### The four buckets

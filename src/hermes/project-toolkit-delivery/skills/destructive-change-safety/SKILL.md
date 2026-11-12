@@ -28,8 +28,8 @@ pay one scan and nothing more.
 
 ## Process
 
-All commands run `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/destructive-change-safety/scripts/destructive_gate.py`
-with `python3`. Output is one JSON object.
+Each command below is a locator that runs `destructive_gate.py`. Output is
+one JSON object.
 
 ### Phase 1: Identify and trace sinks
 
