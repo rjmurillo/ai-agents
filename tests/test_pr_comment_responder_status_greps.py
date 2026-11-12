@@ -56,10 +56,11 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 _BUILD_SCRIPTS = REPO_ROOT / "build" / "scripts"
-if str(_BUILD_SCRIPTS) not in sys.path:
-    sys.path.insert(0, str(_BUILD_SCRIPTS))
-
-import plugin_run_launcher  # noqa: E402
+sys.path.insert(0, str(_BUILD_SCRIPTS))
+try:
+    import plugin_run_launcher
+finally:
+    sys.path.remove(str(_BUILD_SCRIPTS))
 
 GREP = shutil.which("grep")
 BASH = shutil.which("bash")
