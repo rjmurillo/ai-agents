@@ -42,9 +42,7 @@ Add to `.git/hooks/pre-commit`:
 # Validate memory sizes before commit
 
 echo "Validating memory sizes..."
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/test_memory_size.py" .serena/memories \
-    --pattern "*.md" \
-    --fail-fast
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/test_memory_size.py .serena/memories --pattern "*.md" --fail-fast; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 if [ $? -ne 0 ]; then
     echo ""

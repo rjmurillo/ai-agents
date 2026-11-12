@@ -11,7 +11,7 @@ Run the trigger with every changed path from Step 0, each as its own argument,
 the diff base, and each documentation-impact effect you verified in the diff
 body. Never shell-expand the paths.
 
-`python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/test/scripts/doc_accuracy_trigger.py" --diff-base "origin/<base-branch>" --changed-path <path> --effect <name>`
+`( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/test/scripts/doc_accuracy_trigger.py --diff-base "origin/<base-branch>" --changed-path <path> --effect <name>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`
 
 If `/build` handed over a doc-impact record (see "Build handoff"), add
 `--build-record <doc-impact-path>`. The record's `effects` join yours, and a
@@ -39,7 +39,7 @@ On `"decision": "skip"`, do not invoke `doc-accuracy`. Record
 When `changed_documents` is not empty, invoke `skill: "doc-accuracy"` and
 run its incremental scan:
 
-`python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/doc-accuracy/scripts/doc_accuracy.py" --target . --diff-base "origin/<base-branch>" --format gate`
+`( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/doc-accuracy/scripts/doc_accuracy.py --target . --diff-base "origin/<base-branch>" --format gate; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`
 
 Normalize its output and exit code with
 `adapt_local_axis_verdict("doc-accuracy", output, exit_code)`, the same adapter
@@ -58,7 +58,7 @@ When `coupled_documents_needed` is true a cause other than a changed document
 is present (a verified effect, an agent artifact, a public API, an unreadable or
 unclassified path). Documents the diff never touched can be stale, and the scan
 in step 3 covers only the changed ones. Run
-`python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/doc-accuracy/scripts/doc_accuracy.py" --target . --phases 1 --output-dir <dir>`
+`( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/doc-accuracy/scripts/doc_accuracy.py --target . --phases 1 --output-dir <dir>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`
 and take the documents in `<dir>/assessment.json` whose `mapped_source_files`
 include a changed path. `--diff-base` inventories only changed documents, so it
 cannot scan an unchanged one. Scan the coupled documents with a full run instead:

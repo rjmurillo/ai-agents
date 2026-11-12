@@ -81,20 +81,14 @@ scripts, README, and other support files.
 # GitHub Actions
 - name: Check code quality
   run: |
-    python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/code-qualities-assessment/scripts/assess.py" \
-      --target src/ \
-      --changed-only \
-      --format json \
-      --output quality.json
+    ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/code-qualities-assessment/scripts/assess.py --target src/ --changed-only --format json --output quality.json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```text
 
 ### Pre-commit Hook
 
 ```python
 #!/bin/bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/code-qualities-assessment/scripts/assess.py" \
-  --target $(git diff --cached --name-only) \
-  --format markdown
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/code-qualities-assessment/scripts/assess.py --target $(git diff --cached --name-only) --format markdown; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```text
 
 ## Timelessness: 9/10

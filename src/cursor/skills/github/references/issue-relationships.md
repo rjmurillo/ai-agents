@@ -63,17 +63,16 @@ Read what is linked today:
 
 ```bash
 # CLAUDE_PLUGIN_ROOT is set in a vendored install; falls back to .claude in-repo.
-S="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/issue"
-python3 "$S/get_issue_relationships.py" --issue 5456
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/issue/get_issue_relationships.py --issue 5456; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Add links. Several targets in one call share one relation:
 
 ```bash
-python3 "$S/set_issue_relationship.py" --issue 5456 --relation blocked-by --target 5394 5395 5396
-python3 "$S/set_issue_relationship.py" --issue 5456 --relation relates-to --target 5404 5436
-python3 "$S/set_issue_relationship.py" --issue 5820 --relation parent --target 5817
-python3 "$S/set_issue_relationship.py" --issue 5390 --relation sub-issue --target 5384 other/repo#12
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/issue/set_issue_relationship.py --issue 5456 --relation blocked-by --target 5394 5395 5396; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/issue/set_issue_relationship.py --issue 5456 --relation relates-to --target 5404 5436; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/issue/set_issue_relationship.py --issue 5820 --relation parent --target 5817; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/issue/set_issue_relationship.py --issue 5390 --relation sub-issue --target 5384 other/repo#12; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Remove a link with `--remove`. Preview any change with `--dry-run`.
@@ -91,8 +90,8 @@ as `already_linked` and costs no mutation, so a rerun is safe.
 the links in the next step, from the body you just wrote:
 
 ```bash
-python3 "$S/set_issue_relationship.py" --issue <new> --relation parent --target <epic>
-python3 "$S/set_issue_relationship.py" --issue <new> --relation blocked-by --target <prereq>
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/issue/set_issue_relationship.py --issue <new> --relation parent --target <epic>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/issue/set_issue_relationship.py --issue <new> --relation blocked-by --target <prereq>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 When you file several children of one epic, link each child as it is created.

@@ -25,9 +25,8 @@ All scripts auto-infer from `git remote` when `--owner` and `--repo` are omitted
 Use `--marker` to prevent duplicate comments:
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 # First call: posts comment with <!-- AI-TRIAGE --> marker
-python3 "$SCRIPTS_DIR/issue/post_issue_comment.py" --issue 123 --body "..." --marker "AI-TRIAGE"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/issue/post_issue_comment.py --issue 123 --body "..." --marker "AI-TRIAGE"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Second call: skips the post and exits with code 0 (already exists)
 ```
@@ -55,26 +54,23 @@ prints, and pass that path.
 ## Thread Management Workflow
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 # 1. Get unresolved threads and the PR head SHA
-HEAD_SHA=$(python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 50 --output-format json | jq -r '.Data.head_sha')
-threads=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_threads.py" --pull-request 50 --unresolved-only)
+HEAD_SHA=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_context.py --pull-request 50 --output-format json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) | jq -r '.Data.head_sha')
+threads=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_review_threads.py --pull-request 50 --unresolved-only; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) )
 
 # 2. Reply to each thread using thread ID and resolve (recommended)
 echo "$threads" | jq -r '.threads[].thread_id' | while read -r tid; do
-    python3 "$SCRIPTS_DIR/pr/add_pr_review_thread_reply.py" \
-      --pull-request 50 --thread-id "$tid" --body "Fixed." --resolve \
-      --expected-head-sha "$HEAD_SHA"
+    ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/add_pr_review_thread_reply.py --pull-request 50 --thread-id "$tid" --body "Fixed." --resolve --expected-head-sha "$HEAD_SHA"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 done
 
 # 3. Or reply using comment ID (REST API) then batch resolve
 echo "$threads" | jq -r '.threads[].first_comment_id' | while read -r cid; do
-    python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request 50 --comment-id "$cid" --body "Fixed."
+    ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/post_pr_comment_reply.py --pull-request 50 --comment-id "$cid" --body "Fixed."; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 done
-python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --pull-request 50 --all
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/resolve_pr_review_thread.py --pull-request 50 --all; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # 4. Merge
-python3 "$SCRIPTS_DIR/pr/merge_pr.py" --pull-request 50 --strategy squash --delete-branch
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/merge_pr.py --pull-request 50 --strategy squash --delete-branch; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ---
@@ -82,13 +78,12 @@ python3 "$SCRIPTS_DIR/pr/merge_pr.py" --pull-request 50 --strategy squash --dele
 ## Merge Readiness Check
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 # Full merge readiness check
-ready=$(python3 "$SCRIPTS_DIR/pr/test_pr_merge_ready.py" --pull-request 50)
+ready=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/test_pr_merge_ready.py --pull-request 50; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) )
 
 can_merge=$(echo "$ready" | jq -r '.CanMerge')
 if [ "$can_merge" = "true" ]; then
-    python3 "$SCRIPTS_DIR/pr/merge_pr.py" --pull-request 50 --strategy squash --delete-branch
+    ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/merge_pr.py --pull-request 50 --strategy squash --delete-branch; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 else
     echo "Cannot merge. Reasons:"
     echo "$ready" | jq -r '.Reasons[]' | while read -r reason; do
@@ -114,14 +109,13 @@ fi
 ## Auto-Merge Workflow
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 # Check current readiness (threads must be resolved, but CI can be pending)
-ready=$(python3 "$SCRIPTS_DIR/pr/test_pr_merge_ready.py" --pull-request 50 --ignore-ci)
+ready=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/test_pr_merge_ready.py --pull-request 50 --ignore-ci; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) )
 
 can_merge=$(echo "$ready" | jq -r '.CanMerge')
 if [ "$can_merge" = "true" ]; then
     # Enable auto-merge - PR will merge when CI passes
-    python3 "$SCRIPTS_DIR/pr/set_pr_auto_merge.py" --pull-request 50 --enable --merge-method SQUASH
+    ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/set_pr_auto_merge.py --pull-request 50 --enable --merge-method SQUASH; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
     echo "Auto-merge enabled. PR will merge when all checks pass."
 else
     echo "Cannot enable auto-merge: $(echo "$ready" | jq -r '.Reasons | join("; ")')"
@@ -133,17 +127,16 @@ fi
 ## PR Enumeration Workflow
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 # Get all open PRs targeting main
-prs=$(python3 "$SCRIPTS_DIR/pr/get_pull_requests.py" --state open --base main)
+prs=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pull_requests.py --state open --base main; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) )
 
 # Check each PR for merge readiness
 echo "$prs" | jq -r '.Data.PullRequests[].number' | while read -r pr_num; do
-    ready=$(python3 "$SCRIPTS_DIR/pr/test_pr_merge_ready.py" --pull-request "$pr_num")
+    ready=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/test_pr_merge_ready.py --pull-request "$pr_num"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) )
     can_merge=$(echo "$ready" | jq -r '.CanMerge')
     if [ "$can_merge" = "true" ]; then
         echo "PR #$pr_num is ready to merge"
-        python3 "$SCRIPTS_DIR/pr/merge_pr.py" --pull-request "$pr_num" --strategy squash --delete-branch
+        ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/merge_pr.py --pull-request "$pr_num" --strategy squash --delete-branch; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
     fi
 done
 ```
@@ -155,8 +148,7 @@ done
 Always check if PR is merged before starting review work:
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
-python3 "$SCRIPTS_DIR/pr/test_pr_merged.py" --pull-request 50
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/test_pr_merged.py --pull-request 50; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 if [ $? -eq 1 ]; then
     echo "PR already merged, skipping review"
     exit 0
@@ -170,13 +162,12 @@ fi
 Use batch mode for 88% faster acknowledgment of multiple comments:
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 # Get all review comment IDs
-comments=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request 50)
+comments=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_review_comments.py --pull-request 50; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) )
 ids=$(echo "$comments" | jq -r '.Comments[].id')
 
 # Batch acknowledge (saves ~1.2s per comment vs. individual calls)
-result=$(python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-id $ids --reaction "eyes")
+result=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/reactions/add_comment_reaction.py --comment-id $ids --reaction "eyes"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) )
 
 # Check results
 succeeded=$(echo "$result" | jq '.Succeeded')
@@ -195,9 +186,8 @@ fi
 ## CI Check Verification
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 # Quick check - get current status
-checks=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 50)
+checks=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_checks.py --pull-request 50; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) )
 
 merge_ref_usable=$(echo "$checks" | jq -r '.Data.MergeRefUsable')
 all_passing=$(echo "$checks" | jq -r '.Data.AllPassing')
@@ -218,7 +208,7 @@ fi
 
 # Poll until all checks complete (or timeout). Keep --timeout-seconds at or below
 # 570: a 600 second tool call is killed with no result.
-checks=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 50 --wait --timeout-seconds 540)
+checks=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_checks.py --pull-request 50 --wait --timeout-seconds 540; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) )
 
 if [ $? -eq 7 ]; then
     echo "Timeout waiting for checks (exit 7 also means ChecksIncomplete: check it before re-running)"
@@ -227,7 +217,7 @@ fi
 
 all_passing=$(echo "$checks" | jq -r '.Data.AllPassing')
 if [ "$all_passing" = "true" ]; then
-    python3 "$SCRIPTS_DIR/pr/merge_pr.py" --pull-request 50 --strategy squash --delete-branch
+    ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/merge_pr.py --pull-request 50 --strategy squash --delete-branch; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 fi
 ```
 
@@ -236,18 +226,17 @@ fi
 ## Integration Pattern
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 # Chain operations with error handling
-pr=$(python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 50)
+pr=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_context.py --pull-request 50; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) )
 success=$(echo "$pr" | jq -r '.Success')
 if [ "$success" != "true" ]; then
     echo "Failed to get PR context" >&2
     exit 1
 fi
 
-checks=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 50 --wait)
+checks=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_checks.py --pull-request 50 --wait; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) )
 all_passing=$(echo "$checks" | jq -r '.Data.AllPassing')
 if [ "$all_passing" = "true" ]; then
-    python3 "$SCRIPTS_DIR/pr/merge_pr.py" --pull-request 50 --strategy squash
+    ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/merge_pr.py --pull-request 50 --strategy squash; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 fi
 ```

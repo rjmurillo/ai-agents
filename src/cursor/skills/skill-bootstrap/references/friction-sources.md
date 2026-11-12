@@ -22,8 +22,12 @@ judging. The script never calls a server and never touches the network.
 - [Finding contract](#finding-contract)
 - [Authority and privacy](#authority-and-privacy)
 
-In the commands below, `$S` stands for
-`python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_sweep.py"`.
+In the commands below, `$S ARGS` stands for the command below. Write ARGS inside it,
+before the closing `; fi`:
+
+```bash
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_sweep.py ARGS; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+```
 
 ## Run directory
 
@@ -189,7 +193,7 @@ Feed the sweep to the miner, then confirm each selected incident against
 current code and authoritative evidence before a skill repeats it:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_mine.py" candidates --repo . --sweep-json "<run dir>/sweep.json"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_mine.py candidates --repo . --sweep-json "<run dir>/sweep.json"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Seeds stay `candidate_unverified` and carry keys, counts, and enums only. A

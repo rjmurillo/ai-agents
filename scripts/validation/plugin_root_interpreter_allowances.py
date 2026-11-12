@@ -91,7 +91,7 @@ SINGLE_ROOT_ALLOWANCES: dict[str, tuple[int, str]] = {
 LEGACY_SITE_BASELINE: dict[str, tuple[int, int, str]] = {
     "templates/agents": (0, 0, "Migrated in rollout step 4 (agents first)."),
     "templates/skills": (73, 14, "Migrates in rollout step 4, in batches the budget allows."),
-    "src/claude": (64, 50, "Skill support files. Rollout step 5 decides them by class."),
+    "src/claude": (0, 0, "Migrated in rollout step 5 (hand-authored skill support files)."),
     "src/claude yaml": (
         17,
         0,

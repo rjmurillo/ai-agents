@@ -17,9 +17,8 @@ when running in-repo.
 ## Comment Triage (Most Common)
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 # Which comments need replies? (MOST COMMON USE CASE)
-result=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request 50 --only-unaddressed)
+result=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_review_comments.py --pull-request 50 --only-unaddressed; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) )
 total=$(echo "$result" | jq '.TotalComments')
 if [ "$total" -gt 0 ]; then
     echo "$total comments need attention"
@@ -27,10 +26,10 @@ if [ "$total" -gt 0 ]; then
 fi
 
 # Get unaddressed bot comments only (for AI agent workflows)
-python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request 50 --only-unaddressed --bot-only
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_review_comments.py --pull-request 50 --only-unaddressed --bot-only; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Get comments with full lifecycle state analysis
-result=$(python3 "$SCRIPTS_DIR/pr/get_unaddressed_comments.py" --pull-request 50)
+result=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_unaddressed_comments.py --pull-request 50; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) )
 echo "$result" | jq '.LifecycleStateCounts'   # {"NEW":2,"ACKNOWLEDGED":1,"IN_DISCUSSION":3,"RESOLVED":5}
 echo "$result" | jq '.DiscussionSubStateCounts'  # {"WONT_FIX":1,"FIX_DESCRIBED":1,"FIX_COMMITTED":0,"NEEDS_CLARIFICATION":1}
 echo "$result" | jq '.DomainCounts'              # {"security":1,"bug":2,"style":5,"general":3}
@@ -49,17 +48,17 @@ echo "$result" | jq '.AuthorSummary'             # [{"Author":"cursor[bot]","Cou
 #   NEEDS_CLARIFICATION: Reply asks questions -> wait for response
 
 # Get all comments including resolved (for audit/reporting)
-python3 "$SCRIPTS_DIR/pr/get_unaddressed_comments.py" --pull-request 50 --no-only-unaddressed
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_unaddressed_comments.py --pull-request 50 --no-only-unaddressed; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Get comment counts by author
-result=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request 50)
+result=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_review_comments.py --pull-request 50; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) )
 echo "$result" | jq '.AuthorSummary'
 
 # Get comment counts by domain (security, bug, style)
 echo "$result" | jq '.DomainCounts'
 
 # Group by domain for security-first processing
-python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request 50 --group-by-domain
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_review_comments.py --pull-request 50 --group-by-domain; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ---
@@ -67,41 +66,40 @@ python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request 50 --group-by
 ## PR Operations
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 # List open PRs (default)
-python3 "$SCRIPTS_DIR/pr/get_pull_requests.py"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pull_requests.py; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # List all PRs with custom limit
-python3 "$SCRIPTS_DIR/pr/get_pull_requests.py" --state all --limit 100
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pull_requests.py --state all --limit 100; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Filter PRs by label and state
-python3 "$SCRIPTS_DIR/pr/get_pull_requests.py" --label "bug,priority:P1" --state open
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pull_requests.py --label "bug,priority:P1" --state open; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Filter PRs by author and base branch
-python3 "$SCRIPTS_DIR/pr/get_pull_requests.py" --author rjmurillo --base main
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pull_requests.py --author rjmurillo --base main; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Search PRs by keyword or GitHub search syntax
-python3 "$SCRIPTS_DIR/pr/get_pull_requests.py" --search "fix auth is:open"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pull_requests.py --search "fix auth is:open"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Get PR with changed files
-python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 50 --include-changed-files
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_context.py --pull-request 50 --include-changed-files; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Check if PR is merged before starting work
-python3 "$SCRIPTS_DIR/pr/test_pr_merged.py" --pull-request 50
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/test_pr_merged.py --pull-request 50; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Get CI check status
-python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 50
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_checks.py --pull-request 50; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Wait for CI checks to complete (keep the budget at or below 570 seconds: the
 # 600 second tool call is killed with no result). Exit 7 means still waiting or incomplete: check
 # `ChecksIncomplete` before running it again.
-python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 50 --wait --timeout-seconds 540
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_checks.py --pull-request 50 --wait --timeout-seconds 540; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Get only required checks
-python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 50 --required-only
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_checks.py --pull-request 50 --required-only; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Detect Copilot follow-up PRs
-python3 "$SCRIPTS_DIR/pr/detect_copilot_followup_pr.py" --pr-number 50
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/detect_copilot_followup_pr.py --pr-number 50; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ---
@@ -109,23 +107,21 @@ python3 "$SCRIPTS_DIR/pr/detect_copilot_followup_pr.py" --pr-number 50
 ## Thread Operations
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 # Reply to review comment (thread-preserving)
-python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request 50 --comment-id 123456 --body "Fixed."
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/post_pr_comment_reply.py --pull-request 50 --comment-id 123456 --body "Fixed."; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Resolve all unresolved review threads
-python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --pull-request 50 --all
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/resolve_pr_review_thread.py --pull-request 50 --all; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Reply to review thread by thread ID (GraphQL)
-python3 "$SCRIPTS_DIR/pr/add_pr_review_thread_reply.py" --pull-request 50 --thread-id "PRRT_kwDOQoWRls5m3L76" --body "Fixed."
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/add_pr_review_thread_reply.py --pull-request 50 --thread-id "PRRT_kwDOQoWRls5m3L76" --body "Fixed."; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Reply to thread and resolve in one operation
-HEAD_SHA=$(python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 50 --output-format json | jq -r '.Data.head_sha')
-python3 "$SCRIPTS_DIR/pr/add_pr_review_thread_reply.py" --pull-request 50 --thread-id "PRRT_kwDOQoWRls5m3L76" --body "Fixed." --resolve \
-  --expected-head-sha "$HEAD_SHA"
+HEAD_SHA=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_context.py --pull-request 50 --output-format json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) | jq -r '.Data.head_sha')
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/add_pr_review_thread_reply.py --pull-request 50 --thread-id "PRRT_kwDOQoWRls5m3L76" --body "Fixed." --resolve --expected-head-sha "$HEAD_SHA"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Check if PR is ready to merge (threads resolved, CI passing)
-python3 "$SCRIPTS_DIR/pr/test_pr_merge_ready.py" --pull-request 50
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/test_pr_merge_ready.py --pull-request 50; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ---
@@ -133,12 +129,11 @@ python3 "$SCRIPTS_DIR/pr/test_pr_merge_ready.py" --pull-request 50
 ## Auto-Merge Operations
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 # Enable auto-merge with squash
-python3 "$SCRIPTS_DIR/pr/set_pr_auto_merge.py" --pull-request 50 --enable --merge-method SQUASH
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/set_pr_auto_merge.py --pull-request 50 --enable --merge-method SQUASH; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Disable auto-merge
-python3 "$SCRIPTS_DIR/pr/set_pr_auto_merge.py" --pull-request 50 --disable
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/set_pr_auto_merge.py --pull-request 50 --disable; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ---
@@ -146,35 +141,33 @@ python3 "$SCRIPTS_DIR/pr/set_pr_auto_merge.py" --pull-request 50 --disable
 ## Issue Operations
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 # Create new issue the user asked for
-python3 "$SCRIPTS_DIR/issue/new_issue.py" --title "Bug: Login fails" --body "Steps..." --labels "bug,P1" --source human
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/issue/new_issue.py --title "Bug: Login fails" --body "Steps..." --labels "bug,P1" --source human; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Create an issue an agent selected (Step 0 evidence required)
-python3 "$SCRIPTS_DIR/issue/new_issue.py" --title "Bug: Login fails" --body "Steps..." --source agent \
-    --blocked-by "Checkout team, blocked on login after deploy 412" --signal "auth 500s at 40/min since run 9981"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/issue/new_issue.py --title "Bug: Login fails" --body "Steps..." --source agent --blocked-by "Checkout team, blocked on login after deploy 412" --signal "auth 500s at 40/min since run 9981"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Create an issue and assign a milestone in one call
-python3 "$SCRIPTS_DIR/issue/new_issue.py" --title "Bug: Login fails" --body "Steps..." --source human --milestone v0.7.0
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/issue/new_issue.py --title "Bug: Login fails" --body "Steps..." --source human --milestone v0.7.0; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # List a milestone's issues (composes with --state/--label/--author/--assignee;
 # ignored when --search is set)
-python3 "$SCRIPTS_DIR/issue/list_issues.py" --milestone v0.7.0 --state all --label bug
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/issue/list_issues.py --milestone v0.7.0 --state all --label bug; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Create PR with validation
-python3 "$SCRIPTS_DIR/pr/new_pr.py" --title "feat: Add feature" --body "Description"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/new_pr.py --title "feat: Add feature" --body "Description"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Close PR with comment
-python3 "$SCRIPTS_DIR/pr/close_pr.py" --pull-request 50 --comment "Superseded by #51"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/close_pr.py --pull-request 50 --comment "Superseded by #51"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Reopen a closed PR (fires the reopened event)
-python3 "$SCRIPTS_DIR/pr/reopen_pr.py" --pull-request 50
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/reopen_pr.py --pull-request 50; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Merge PR with squash
-python3 "$SCRIPTS_DIR/pr/merge_pr.py" --pull-request 50 --strategy squash --delete-branch
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/merge_pr.py --pull-request 50 --strategy squash --delete-branch; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Post idempotent comment (prevents duplicates)
-python3 "$SCRIPTS_DIR/issue/post_issue_comment.py" --issue 123 --body "Analysis..." --marker "AI-TRIAGE"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/issue/post_issue_comment.py --issue 123 --body "Analysis..." --marker "AI-TRIAGE"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ---
@@ -182,14 +175,13 @@ python3 "$SCRIPTS_DIR/issue/post_issue_comment.py" --issue 123 --body "Analysis.
 ## Reaction Operations
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 # Add reaction to single comment
-python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-id 12345678 --reaction "eyes"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/reactions/add_comment_reaction.py --comment-id 12345678 --reaction "eyes"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Add reactions to multiple comments (batch - 88% faster)
-python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-id 123 456 789 --reaction "eyes"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/reactions/add_comment_reaction.py --comment-id 123 456 789 --reaction "eyes"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Acknowledge all comments on a PR (batch)
-ids=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request 42 | jq -r '.Comments[].id')
-python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-id $ids --reaction "eyes"
+ids=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_review_comments.py --pull-request 42; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) | jq -r '.Comments[].id')
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/reactions/add_comment_reaction.py --comment-id $ids --reaction "eyes"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```

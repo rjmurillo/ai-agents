@@ -77,8 +77,7 @@ gh pr view --json number,state,headRefName 2>/dev/null
 Use the GitHub skill to retrieve CI check status:
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
-python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request <PR_NUMBER>
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_checks.py --pull-request <PR_NUMBER>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 **Parse output to identify:**
@@ -100,8 +99,7 @@ python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request <PR_NUMBER>
 For failing GitHub Actions checks, retrieve logs:
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
-python3 "$SCRIPTS_DIR/pr/get_pr_check_logs.py" --pull-request <PR_NUMBER> --max-lines 200 --context-lines 40
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_check_logs.py --pull-request <PR_NUMBER> --max-lines 200 --context-lines 40; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 **Output structure:**
@@ -183,8 +181,7 @@ git push
 Wait for CI to re-run:
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
-python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request <PR_NUMBER>
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_checks.py --pull-request <PR_NUMBER>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 **Report final status to user.**
@@ -215,9 +212,8 @@ locally and pushed later can skip the grace window while its aggregate check is 
 ### Diagnose
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
-python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request <PR_NUMBER> --output-format json
-python3 "$SCRIPTS_DIR/pr/why_pr_blocked.py" --pull-request <PR_NUMBER> --output-format json
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_checks.py --pull-request <PR_NUMBER> --output-format json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/why_pr_blocked.py --pull-request <PR_NUMBER> --output-format json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Confirm `MissingRequiredChecks` is non-empty with `MissingRequiredQueued` false (from
@@ -228,8 +224,8 @@ workflow instead.
 
 ### Recover without a new commit
 
-1. Close the PR: `python3 "$SCRIPTS_DIR/pr/close_pr.py" --pull-request <PR_NUMBER> --comment "Close and reopen to re-fire pull_request workflows"`.
-2. Reopen it: `python3 "$SCRIPTS_DIR/pr/reopen_pr.py" --pull-request <PR_NUMBER>`.
+1. Close the PR: `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/close_pr.py --pull-request <PR_NUMBER> --comment "Close and reopen to re-fire pull_request workflows"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`.
+2. Reopen it: `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/reopen_pr.py --pull-request <PR_NUMBER>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`.
 3. Re-run `get_pr_checks.py` after a minute. `MissingRequiredChecks` should shrink to empty.
 
 Reopening fires the `reopened` pull_request event. Every active pull_request
