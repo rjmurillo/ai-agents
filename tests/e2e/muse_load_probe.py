@@ -29,7 +29,6 @@ NOT_VERIFIED = "MUSE_NOT_VERIFIED:"
 USAGE_TIMEOUT_SECONDS = 30
 EXEC_TIMEOUT_SECONDS = 600
 RUN = os.environ.get("RUN_CLI_E2E") == "1"
-_REFUSAL_WORDS = ("error", "unknown", "invalid", "not found", "unavailable", "refus")
 _ENV_ALLOW = frozenset(
     {"PATH", "HOME", "LANG", "TERM", "TMPDIR", "TZ", "USER", "LOGNAME", "SHELL", "NO_COLOR"}
 )
@@ -62,14 +61,25 @@ def build_prompt(names: list[str], script: str) -> str:
     return build_agents_prompt(names) + "\n" + build_script_prompt(script)
 
 
+def spawn_token(index: int) -> str:
+    """Return the reply token the child at ``index`` is asked to give."""
+    return f"ok-{index:02d}"
+
+
 def build_agents_prompt(names: list[str]) -> str:
-    """Return the spawn instruction: each named agent once with a one-word objective."""
-    listing = "\n".join(f"- {name}" for name in names)
+    """Return the spawn instruction: each named agent once, with its own reply token.
+
+    The prompt never prints a whole token. A child that ran replies ``ok-NN`` with
+    its own number, so the token in the output shows a child answered. A prompt
+    echo cannot produce it.
+    """
+    listing = "\n".join(f"- {i:02d}: {name}" for i, name in enumerate(names))
     return (
         "For each agent role below, spawn that exact agent once. Give it this "
-        "objective: reply with the single word ok. Spawn one at a time. If a role "
-        "cannot be spawned, say so and go on to the next. Do not use any other "
-        "role and do not edit files. When done, list which roles you spawned.\n"
+        "objective: reply with the single word ok-NN, where NN is the two-digit "
+        "number printed before its role. Spawn one at a time. If a role cannot be "
+        "spawned, say so and go on to the next. Do not use any other role and do "
+        "not edit files. When done, list which roles you spawned.\n"
         f"{listing}"
     )
 
@@ -88,25 +98,17 @@ def parse_events(stdout: str) -> list[dict[str, object]]:
 
 
 def spawned_agents(events: Sequence[Mapping[str, object]], names: list[str]) -> set[str]:
-    """Return the names of ``names`` that a spawn record shows as spawned.
+    """Return the names of ``names`` whose child replied with its own token.
 
-    A spawn record is an event whose serialized text mentions ``spawn`` or
-    ``subagent`` (case-insensitive) and the agent name as a whole JSON string
-    value. A record that also carries an error word (``error``, ``unknown``,
-    ``invalid``, ``not found``, ``unavailable``, ``refus``) is a refusal, not a
-    spawn. Looser than a schema because Muse Code publishes no event schema.
+    A name at position ``i`` counts as spawned when ``ok-NN`` for ``i`` appears in
+    the serialized text of any event. Muse Code publishes no event schema for
+    ``exec --json``, so the rule does not read event types or fields. A spawn
+    request, a roster, or a refusal never carries the token; only a child that ran
+    does. A lead that invents a reply could still fake it, which only the owner's
+    read of the saved stdout can rule out.
     """
-    spawned: set[str] = set()
-    for event in events:
-        text = json.dumps(event).lower()
-        if "spawn" not in text and "subagent" not in text:
-            continue
-        if any(word in text for word in _REFUSAL_WORDS):
-            continue
-        for name in names:
-            if f'"{name}"' in text:
-                spawned.add(name)
-    return spawned
+    text = "\n".join(json.dumps(event) for event in events)
+    return {name for i, name in enumerate(names) if spawn_token(i) in text}
 
 
 def write_control_agent(agents_dir: Path) -> Path:
@@ -191,6 +193,12 @@ def check_prerequisites() -> str:
         pytest.fail(
             f"{NOT_VERIFIED} Muse Code is not logged in (`muse usage` exit {usage.returncode}: "
             f"{detail}). Run `muse login`, then rerun this test."
+        )
+    combined = (usage.stdout + usage.stderr).lower()
+    if "no_allowance" in combined or "no subscription allowance" in combined:
+        pytest.fail(
+            f"{NOT_VERIFIED} Muse Code is signed in but has no subscription allowance, "
+            f"so a model call cannot run (`muse usage`: {combined.strip()[-200:]})."
         )
     return muse
 

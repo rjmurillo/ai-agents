@@ -9,11 +9,13 @@ generator's own render of its Claude source.
 
 from __future__ import annotations
 
+import re
 import shutil
 import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
@@ -21,6 +23,7 @@ sys.path.insert(0, str(REPO_ROOT / "build"))
 
 import agent_toml  # noqa: E402
 import agent_tree_copy as atc  # noqa: E402
+import schema_tree_keys  # noqa: E402
 
 MUSE_AGENTS = REPO_ROOT / "src" / "muse" / "agents"
 MUSE_CONFIG = REPO_ROOT / "templates" / "platforms" / "muse.yaml"
@@ -119,17 +122,25 @@ def test_agents_with_an_agent_deny_carry_the_subagents_note() -> None:
 
 
 def test_not_installed_note_names_exactly_the_tool_restricted_agents() -> None:
-    restricted = sorted(s for s, fm in _source_agents().items() if atc.declared_tools(fm))
+    restricted = {s for s, fm in _source_agents().items() if atc.declared_tools(fm)}
     assert restricted, "no Claude agent declares a tools list"
     for stem, text in _committed().items():
-        note = text.split("## Agents not installed on this host", 1)[1]
-        assert all(f"`{name}`" in note for name in restricted), stem
+        note = text.split("## Agents not installed on this host", 1)[1].split("\n\n")[1]
+        assert set(re.findall(r"`([a-z-]+)`", note.split(".")[0])) == restricted, stem
 
 
 def test_orchestrator_has_no_routing_row_for_a_skipped_agent() -> None:
     body = _committed()["orchestrator"]
-    for name in ("analyst", "security"):
-        assert f"| **{name}** |" not in body, name
+    skipped = {s for s, fm in _source_agents().items() if atc.declared_tools(fm)}
+    rows = set(re.findall(r"^\| \*\*([a-z-]+)\*\* \|", body, flags=re.MULTILINE))
+    assert rows, "the orchestrator routing table has no rows"
+    assert not rows & skipped, sorted(rows & skipped)
+
+
+def test_orchestrator_names_the_muse_delegation_tool() -> None:
+    body = _committed()["orchestrator"]
+    assert "subagent_spawn (for delegation)" in body
+    assert "Task (for delegation)" not in body
 
 
 def _spec(*, note: bool) -> atc.RenderSpec:
@@ -159,7 +170,19 @@ def test_schema_rejects_a_non_boolean_note() -> None:
 
 
 def test_muse_stanza_turns_the_note_on() -> None:
-    assert "noSubagentsNote: true" in MUSE_CONFIG.read_text(encoding="utf-8")
+    stanza = yaml.safe_load(MUSE_CONFIG.read_text(encoding="utf-8"))["artifacts"]["agents"]
+    assert stanza["noSubagentsNote"] is True
+
+
+def test_note_without_frontmatter_keep_is_rejected() -> None:
+    errors = schema_tree_keys.validate_agents_tree_copy("agents", {"noSubagentsNote": True})
+    assert any("noSubagentsNote" in e and "requires `frontmatterKeep`" in e for e in errors)
+
+
+def test_a_non_agent_deny_fails_the_build_when_the_note_is_on() -> None:
+    loaded = {"name": "demo", "description": "d", "disallowedTools": "Agent, Write"}
+    with pytest.raises(atc.AgentCopyError, match=r"Write.*Muse Code agent file cannot enforce"):
+        atc.render_parsed(loaded, "Body.\n", "demo.md", _spec(note=True))
 
 
 # Negative controls: the validator must reject each defect. -----------------------

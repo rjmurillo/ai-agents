@@ -2,7 +2,7 @@
 
 A Codex custom agent is one TOML file with ``name``, ``description`` and
 ``developer_instructions``. This module owns everything specific to that
-output: the stanza keys ``outputFormat`` and ``skipToolRestricted`` and their
+output: the stanza keys ``outputFormat``, ``skipToolRestricted`` and ``noSubagentsNote`` and their
 validation (one rule set, used by the build and by the schema validator), the
 TOML basic-string escaper, the file renderer, the name-to-stem check, and the
 paragraph appended to each body when agents are left out. A body whose source sets
@@ -72,14 +72,14 @@ NO_SUBAGENTS = "\n\n## Subagents\n\nDo not start subagents. Do the work in this 
 
 
 def forbids_subagents(loaded: dict[str, object]) -> bool:
-    """True when the Claude source sets ``disallowedTools: Agent``, which Codex cannot enforce."""
+    """True when the source sets ``disallowedTools: Agent``, which these hosts cannot enforce."""
     raw = loaded.get("disallowedTools")
     names = raw if isinstance(raw, list) else str(raw or "").split(",")
     return "Agent" in [str(name).strip() for name in names]
 
 
 def unenforceable_disallowed(loaded: dict[str, object]) -> list[str]:
-    """Names in ``disallowedTools`` other than ``Agent``, which Codex cannot enforce.
+    """Names in ``disallowedTools`` other than ``Agent``, which Codex and Muse Code cannot enforce.
 
     ``Agent`` is handled by :data:`NO_SUBAGENTS`. Any other name would ship as an
     unrestricted agent, so the build refuses it instead.
@@ -118,7 +118,7 @@ def not_installed_paragraph(skipped_stems: list[str]) -> str:
 
 
 def output_option_errors(name: str, stanza: dict[str, object]) -> list[str]:
-    """Return problems with ``skipToolRestricted`` and ``outputFormat`` on a stanza.
+    """Return problems with ``skipToolRestricted``, ``outputFormat`` and ``noSubagentsNote``.
 
     ``name`` is the artifact name used in the messages. The caller has already
     checked that ``frontmatterKeep`` is present.

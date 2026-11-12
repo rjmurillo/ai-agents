@@ -389,8 +389,9 @@ Do not copy these skills into the `skills` folder under `~/.agents`, or under a 
    for f in src/muse/agents/*.md; do
      name="$(basename "$f")"
      if [ -e "$root/agents/$name" ] || [ -L "$root/agents/$name" ]; then
-       mkdir -p "$backup/agents"
-       mv "$root/agents/$name" "$backup/agents/$name"
+       mkdir -p "$backup/agents" && mv "$root/agents/$name" "$backup/agents/$name" \
+         || { echo "backup failed, kept $root/agents/$name" >&2; continue; }
+       echo "moved $root/agents/$name to $backup/agents/$name"
      fi
      cp "$f" "$root/agents/$name"
    done
@@ -764,7 +765,7 @@ usage: get_pr_checks.py [-h] [--owner OWNER] [--repo REPO]
                         [--timeout-seconds TIMEOUT_SECONDS]
 ```
 
-One `src/muse` tree serves two Muse targets. The personal agent gets skills and `lib/` only. Muse Code gets skills, `lib/`, and agents. The skill frontmatter keeps only `name` and `description`. The personal agent steps are in [src/muse/README.md](../../src/muse/README.md). The Muse Code steps are in [Install on Muse Code](#install-on-muse-code): skills and `lib/` under `${XDG_CONFIG_HOME:-$HOME/.config}/muse/`, agents in `muse/agents/`. As of 2026-11-11, no run shows that Muse Code loads the agents, because the load test needs a Muse login (`tests/e2e/test_muse_agents_load.py`). On 2026-11-11, Muse Code 1.4.15 `muse skills validate` accepted all 105 `src/muse/skills` directories with no login (same file).
+One `src/muse` tree serves two Muse targets. The personal agent gets skills and `lib/` only. Muse Code gets skills, `lib/`, and agents. The skill frontmatter keeps only `name` and `description`. The personal agent steps are in [src/muse/README.md](../../src/muse/README.md). The Muse Code steps are in [Install on Muse Code](#install-on-muse-code): skills and `lib/` under `${XDG_CONFIG_HOME:-$HOME/.config}/muse/`, agents in `muse/agents/`. As of 2026-11-11, no run shows that Muse Code loads the agents, because the load test needs a Muse login (`tests/e2e/test_muse_agents_load.py`). On 2026-11-11, Muse Code 1.4.15 `muse skills validate` accepted all 105 `src/muse/skills` directories with no login (`tests/e2e/test_muse_skills_validate.py`).
 
 Not run: asking Muse to list or use a skill.
 
@@ -794,6 +795,14 @@ cd ~ && python3 -I "${XDG_CONFIG_HOME:-$HOME/.config}/muse/skills/github/scripts
 
 It prints the same usage text as the personal-agent check above.
 
+Count the agent files the install copied:
+
+```bash
+ls "${XDG_CONFIG_HOME:-$HOME/.config}/muse/agents/"*.md | wc -l
+```
+
+It prints `25` in a scratch home with no other agents (2026-11-11). It counts files only. It does not show that Muse Code loads them.
+
 We also ran one signed-in `muse exec` turn. It loaded the `github` skill and ran that script. That run used a copy in a scratch repository's project skill folder, not the user folder.
 
 Not run: a signed-in turn against the user folder, and update or uninstall in a real home.
@@ -805,6 +814,7 @@ If it fails:
 - The count is `0`, and the skills sit in `~/workspace/custom-skills/`: that is the personal-agent folder. Muse Code does not read it. Run the Muse Code step 2.
 - `Plugin lib directory not found`: `lib/` is missing from `${XDG_CONFIG_HOME:-~/.config}/muse/`. Run step 2 again.
 - `muse skills list` shows `skill-shadowed`: another root has a skill with the same name, and Muse Code loaded that one.
+- The agent count is `0`: step 2 did not copy the agents. Run step 2 from the repository root.
 
 ## Next
 

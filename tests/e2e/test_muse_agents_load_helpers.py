@@ -26,13 +26,16 @@ from muse_load_probe import (  # noqa: E402
     parse_events,
     require_user_skill_install,
     skill_script_found_lib,
+    spawn_token,
     spawned_agents,
 )
 
 
-def test_prompt_names_every_agent_once() -> None:
-    prompt = build_prompt(["a-one", "b-two"], "/x/s.py")
-    assert prompt.count("- a-one") == 1 and prompt.count("- b-two") == 1
+def test_prompt_numbers_every_agent_and_never_prints_a_whole_token() -> None:
+    names = ["a-one", "b-two"]
+    prompt = build_prompt(names, "/x/s.py")
+    assert "- 00: a-one" in prompt and "- 01: b-two" in prompt
+    assert not any(spawn_token(i) in prompt for i in range(len(names)))
 
 
 def test_parse_events_ignores_non_json_and_non_objects() -> None:
@@ -40,24 +43,37 @@ def test_parse_events_ignores_non_json_and_non_objects() -> None:
     assert [e["type"] for e in parse_events(out)] == ["x", "y"]
 
 
-def test_spawned_agents_counts_a_spawn_record() -> None:
+def test_spawned_agents_counts_an_agent_whose_child_replied_with_its_token() -> None:
+    events = [{"type": "result", "text": f"reply {spawn_token(1)}"}]
+    assert spawned_agents(events, ["architect", "critic"]) == {"critic"}
+
+
+def test_spawned_agents_ignores_a_spawn_request_with_no_reply() -> None:
     events = [{"type": "subagent_spawn", "agent": "architect"}]
-    assert spawned_agents(events, ["architect", "critic"]) == {"architect"}
-
-
-def test_spawned_agents_ignores_a_refused_spawn() -> None:
-    events = [{"type": "subagent_spawn", "agent": CONTROL_NAME, "error": "unknown agent"}]
-    assert spawned_agents(events, [CONTROL_NAME]) == set()
-
-
-def test_spawned_agents_ignores_events_that_are_not_spawns() -> None:
-    events = [{"type": "message", "text": "architect"}]
     assert spawned_agents(events, ["architect"]) == set()
 
 
-def test_spawned_agents_needs_the_whole_name() -> None:
-    events = [{"type": "subagent_spawn", "agent": "architect-extra"}]
+def test_spawned_agents_ignores_a_request_followed_by_a_failed_result() -> None:
+    events = [
+        {"type": "subagent_spawn", "agent": "architect"},
+        {"type": "subagent_result", "resultStatus": "failed", "agentPath": "architect"},
+    ]
     assert spawned_agents(events, ["architect"]) == set()
+
+
+def test_spawned_agents_ignores_a_roster_event_that_lists_the_names() -> None:
+    events = [{"type": "init", "subagents": ["architect", "critic"]}]
+    assert spawned_agents(events, ["architect", "critic"]) == set()
+
+
+def test_spawned_agents_does_not_confuse_token_numbers() -> None:
+    events = [{"text": spawn_token(10)}]
+    assert spawned_agents(events, [f"a{i}" for i in range(12)]) == {"a10"}
+
+
+def test_control_reply_is_counted_so_its_assertion_can_fail() -> None:
+    events = [{"text": spawn_token(1)}]
+    assert spawned_agents(events, ["architect", CONTROL_NAME]) == {CONTROL_NAME}
 
 
 def test_skill_script_check_needs_usage_and_no_missing_lib() -> None:
@@ -110,18 +126,6 @@ def test_env_allowlist_keeps_only_what_muse_needs() -> None:
     }
 
 
-def test_control_name_has_no_refusal_word() -> None:
-    """A refusal word in the control's name would hide its spawn record from the rule."""
-    events = [{"type": "subagent_spawn", "agent": CONTROL_NAME}]
-    assert spawned_agents(events, [CONTROL_NAME]) == {CONTROL_NAME}
-
-
-def test_control_agent_file_has_no_refusal_word(tmp_path: Path) -> None:
-    install_agents(tmp_path / "agents")
-    text = (tmp_path / "agents" / f"{CONTROL_NAME}.md").read_text("utf-8").lower()
-    assert not any(word in text for word in ("error", "unknown", "invalid", "refus"))
-
-
 def test_missing_muse_fails_with_a_clear_message(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(shutil, "which", lambda _name: None)
     with pytest.raises(pytest.fail.Exception, match=r"MUSE_NOT_VERIFIED: .*not on PATH"):
@@ -137,5 +141,19 @@ def test_not_logged_in_fails_with_a_clear_message(
     monkeypatch.setattr(shutil, "which", lambda _name: str(fake))
     with pytest.raises(
         pytest.fail.Exception, match=r"MUSE_NOT_VERIFIED: Muse Code is not logged in"
+    ):
+        check_prerequisites()
+
+
+def test_no_allowance_account_fails_with_a_clear_message(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """`muse usage` exits 0 and prints no_allowance when signed in without an allowance."""
+    fake = tmp_path / "muse"
+    fake.write_text("#!/bin/sh\necho 'No subscription allowance (no_allowance)'\nexit 0\n", "utf-8")
+    fake.chmod(0o755)
+    monkeypatch.setattr(shutil, "which", lambda _name: str(fake))
+    with pytest.raises(
+        pytest.fail.Exception, match=r"MUSE_NOT_VERIFIED: .*no subscription allowance"
     ):
         check_prerequisites()

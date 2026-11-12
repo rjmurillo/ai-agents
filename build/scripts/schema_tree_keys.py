@@ -82,7 +82,7 @@ def validate_agents_tree_copy(name: str, stanza: dict[str, object]) -> list[str]
     `frontmatterKeep` turns on the `src/claude/agents` copy
     (`agent_tree_copy.py`), which reads `sourceDir` and writes `outputDir`, so
     both are required with it. `deriveReadonly`, `bodyReplace`,
-    `skipToolRestricted` and `outputFormat` have no meaning without it.
+    `skipToolRestricted`, `outputFormat` and `noSubagentsNote` have no meaning without it.
     """
     errors: list[str] = []
     if "deriveReadonly" in stanza and not isinstance(stanza["deriveReadonly"], bool):

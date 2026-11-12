@@ -178,17 +178,17 @@ def render_parsed(
         kept[_READONLY_KEY] = True
     if body_edits:
         body = apply_body_replacements(body, body_edits, source)
-    if spec.output_format == FORMAT_CODEX_TOML:
+    is_codex = spec.output_format == FORMAT_CODEX_TOML
+    if is_codex or spec.no_subagents_note:
         unenforced = unenforceable_disallowed(loaded)
         if unenforced:
+            host = "Codex" if is_codex else "Muse Code"
             raise AgentCopyError(
                 f"{source}: `disallowedTools` names {', '.join(unenforced)}, "
-                "which a Codex agent file cannot enforce; only `Agent` is supported"
+                f"which a {host} agent file cannot enforce; only `Agent` is supported"
             )
         if forbids_subagents(loaded):
             body = body.rstrip("\n") + NO_SUBAGENTS
-    elif spec.no_subagents_note and forbids_subagents(loaded):
-        body = body.rstrip("\n") + NO_SUBAGENTS
     if spec.appendix:
         body = body.rstrip("\n") + spec.appendix
     if spec.output_format == FORMAT_CODEX_TOML:

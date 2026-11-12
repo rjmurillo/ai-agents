@@ -57,3 +57,29 @@ def test_install_backs_up_a_dangling_symlink_instead_of_writing_through_it(tmp_p
     assert not outside.exists(), "the install wrote through a symlink"
     (backup,) = root.glob(BACKUP_GLOB)
     assert (backup / "agents" / "critic.md").is_symlink()
+
+
+def test_install_backs_up_a_dangling_lib_symlink(tmp_path: Path) -> None:
+    root = tmp_path / ".config" / "muse"
+    root.mkdir(parents=True)
+    (root / "lib").symlink_to(tmp_path / "outside-lib")
+
+    installed = _install(tmp_path)
+
+    assert installed.returncode == 0, installed.stderr
+    assert not (tmp_path / "outside-lib").exists(), "the install wrote through a symlink"
+    (backup,) = root.glob(BACKUP_GLOB)
+    assert (backup / "lib").is_symlink()
+
+
+def test_install_backs_up_a_dangling_skill_symlink(tmp_path: Path) -> None:
+    root = tmp_path / ".config" / "muse"
+    (root / "skills").mkdir(parents=True)
+    (root / "skills" / "github").symlink_to(tmp_path / "outside-skill")
+
+    installed = _install(tmp_path)
+
+    assert installed.returncode == 0, installed.stderr
+    assert not (tmp_path / "outside-skill").exists(), "the install wrote through a symlink"
+    (backup,) = root.glob(BACKUP_GLOB)
+    assert (backup / "skills" / "github").is_symlink()

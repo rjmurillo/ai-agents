@@ -59,6 +59,7 @@ def _validate_skill(muse: str, skill_dir: Path, cwd: Path) -> str:
 
 @pytest.mark.smoke
 @pytest.mark.muse
+@pytest.mark.timeout(600)
 def test_muse_code_validates_every_shipped_skill_as_compatible(tmp_path: Path) -> None:
     if not RUN:
         pytest.skip(f"{NOT_VERIFIED} set RUN_CLI_E2E=1 with muse on PATH")

@@ -8,18 +8,24 @@ The live test (markers ``smoke`` and ``muse``) puts ``src/muse/agents`` plus a
 control agent with an extra frontmatter key into a scratch workspace's
 ``.agents/agents/``, runs ``muse exec --json --trust-workspace`` with a prompt
 that asks the lead to spawn each named agent once, and asserts from the JSONL
-events that every shipped agent was spawned and the control was not. The user's
-own Muse folder and login are not touched.
+events that every shipped agent's child replied with its token and the control's
+did not. The run writes nothing to the user's Muse folder. It does read the
+user's installed skills and ``lib/`` and runs under the user's login.
+
+Scope: this proves the project route (``.agents/agents/``). The install guide
+copies agents to ``${XDG_CONFIG_HOME:-$HOME/.config}/muse/agents/``. The owner
+checks that route by hand after the guide install, because a scratch
+``XDG_CONFIG_HOME`` would hide the login.
 
   - Without ``RUN_CLI_E2E=1`` it skips with a reason that starts with
     ``MUSE_NOT_VERIFIED:``.
-  - With ``RUN_CLI_E2E=1`` it fails, never skips, when ``muse`` is not on PATH or
-    ``muse usage`` exits non-zero.
+  - With ``RUN_CLI_E2E=1`` it fails, never skips, when ``muse`` is not on PATH,
+    ``muse usage`` exits non-zero, or ``muse usage`` reports no allowance.
 
-Not verified: the shape of the JSONL events. Nothing here has run with a login,
-so ``spawned_agents`` reads spawn records by a loose rule (see its docstring).
-The owner's run, recorded in the pull request, settles whether that rule fits
-Muse Code's real events. ``test_muse_agents_load_helpers.py`` covers the rule,
+Not verified: the shape of the JSONL events. Nothing here has run with a login.
+``spawned_agents`` therefore looks for each child's reply token in any event
+(see its docstring). The owner's run, recorded in the pull request, shows whether
+the tokens appear. ``test_muse_agents_load_helpers.py`` covers the rule,
 not the CLI. On failure the raw stdout is saved beside the test workspace so the
 owner can attach it.
 """
@@ -42,6 +48,7 @@ from muse_load_probe import (  # noqa: E402
     NOT_VERIFIED,
     RUN,
     SKILL_USAGE,
+    USAGE_TIMEOUT_SECONDS,
     allowlisted_env,
     build_prompt,
     check_prerequisites,
@@ -56,6 +63,7 @@ from muse_load_probe import (  # noqa: E402
 
 @pytest.mark.smoke
 @pytest.mark.muse
+@pytest.mark.timeout(EXEC_TIMEOUT_SECONDS + 2 * USAGE_TIMEOUT_SECONDS)
 def test_lead_spawns_every_shipped_agent_and_not_the_control(tmp_path: Path) -> None:
     if not RUN:
         pytest.skip(f"{NOT_VERIFIED} set RUN_CLI_E2E=1 with muse on PATH and a Muse login")
