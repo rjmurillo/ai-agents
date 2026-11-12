@@ -5,9 +5,9 @@ description: Analyze skill content for optimal placement (Skill vs Passive Conte
 license: MIT
 user-invocable: true
 allowed-tools:
-  - view
-  - bash
-  - glob
+  - Read
+  - Bash
+  - Glob
 metadata:
   routing:
     role: conditional-adjunct

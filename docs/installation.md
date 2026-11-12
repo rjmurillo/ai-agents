@@ -61,16 +61,17 @@ Usage examples in Copilot Chat:
 
 ### Other hosts
 
-Six more hosts have an install route. The [install training page](training/install-on-every-host.md) has a section for each, with a check that shows the toolkit loaded, plus update, stale-install, and uninstall steps:
+Seven more hosts have an install route. The [install training page](training/install-on-every-host.md) has a section for each, with a check that shows the toolkit loaded, plus update, stale-install, and uninstall steps:
 
 - [Codex](training/install-on-every-host.md#install-on-codex)
 - [Cursor](training/install-on-every-host.md#install-on-cursor)
 - [Grok Build](training/install-on-every-host.md#install-on-grok-build)
 - [Pi](training/install-on-every-host.md#install-on-pi)
 - [Hermes](training/install-on-every-host.md#install-on-hermes)
-- [Muse](training/install-on-every-host.md#install-on-muse) (experimental)
+- [Muse personal agent](training/install-on-every-host.md#install-on-muse) (experimental)
+- [Muse Code](training/install-on-every-host.md#install-on-muse-code) (experimental)
 
-The same page compares all nine hosts, including Claude Code, Copilot CLI, and VS Code.
+The same page compares all ten hosts, including Claude Code, Copilot CLI, and VS Code.
 
 ## Component-Level Installation
 
