@@ -144,6 +144,13 @@ def output_option_errors(name: str, stanza: dict[str, object]) -> list[str]:
             errors.append(
                 f"{where}{FORMAT_KEY}`: `codex-toml` cannot combine with `deriveReadonly: true`"
             )
+        # A Codex agent file cannot limit tools, so a source with a `tools` list must
+        # not ship. Without the skip, such an agent would ship unrestricted.
+        if skip is False:
+            errors.append(
+                f"{where}{FORMAT_KEY}`: `codex-toml` needs `{SKIP_KEY}: true`, "
+                "because a Codex agent file cannot restrict tools"
+            )
     return errors
 
 

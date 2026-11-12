@@ -400,6 +400,22 @@ def test_schema_rejects_codex_toml_with_derive_readonly(skip: bool) -> None:
     assert any("codex-toml" in e and "deriveReadonly" in e for e in _errors(stanza))
 
 
+@pytest.mark.parametrize("skip", [None, False])
+def test_schema_requires_skip_tool_restricted_for_codex_toml(skip: object) -> None:
+    extra = {} if skip is None else {"skipToolRestricted": skip}
+    stanza = _agents(frontmatterKeep=["name", "description"], outputFormat="codex-toml", **extra)
+    assert any("needs `skipToolRestricted: true`" in e for e in _errors(stanza))
+
+
+def test_build_refuses_codex_toml_without_skip_tool_restricted(tmp_path: Path) -> None:
+    _source(tmp_path, "locked", _agent("locked", "tools: Read\n"))
+    cfg = _config(tmp_path)
+    cfg.write_text(cfg.read_text(encoding="utf-8").replace("    skipToolRestricted: true\n", ""))
+    with pytest.raises(atc.AgentCopyError, match="skipToolRestricted: true"):
+        atc.generate_agent_copies(tmp_path, cfg)
+    assert not _out(tmp_path).exists() or list(_out(tmp_path).iterdir()) == []
+
+
 def test_schema_allows_markdown_with_derive_readonly() -> None:
     stanza = _agents(frontmatterKeep=["name"], outputFormat="markdown", deriveReadonly=True)
     assert _errors(stanza) == []
