@@ -5252,21 +5252,19 @@ def test_mypy_policy_rejects_empty_paths(tmp_path: Path) -> None:
     assert policy.run_mypy([], tmp_path) == 2
 
 
-def test_mypy_policy_rejects_unsafe_paths_and_symlinks(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_mypy_policy_rejects_unsafe_paths(tmp_path: Path) -> None:
     assert policy.run_mypy(["../outside.py"], tmp_path) == 2
 
-    source = tmp_path / "source.py"
-    _write_lf(source, "value: int = 1\n")
-    original_is_symlink = Path.is_symlink
-    monkeypatch.setattr(
-        Path,
-        "is_symlink",
-        lambda path: path == source or original_is_symlink(path),
-    )
-    assert policy.run_mypy(["source.py"], tmp_path) == 2
+
+@pytest.mark.skipif(os.name != "posix", reason="creating symlinks needs POSIX")
+def test_mypy_policy_refuses_a_symlink_that_leaves_the_repo(tmp_path: Path) -> None:
+    """A link to a file outside the repository stays refused (issue #7328 keeps this guard)."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    outside = tmp_path / "outside.py"
+    _write_lf(outside, "value: int = 1\n")
+    (repo / "link.py").symlink_to(outside)
+    assert policy.run_mypy(["link.py"], repo) == 2
 
 
 def _write_source(tmp_path: Path, name: str = "source.py") -> None:
