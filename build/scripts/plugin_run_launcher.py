@@ -15,8 +15,8 @@ keeps ``exit 2`` from ending a persistent shell. The text holds no ``|``, so it
 survives a Markdown table cell.
 
 :func:`render_locator` is the single definition of the text. :func:`split_locator`
-is its inverse. Rollout step 3 teaches the validator to read the target out of an
-existing site with :func:`split_locator`.
+is its inverse. :func:`find_locators` finds every locator in one line of a file,
+which is how the validator reads the target out of a site (ADR-121 rollout step 3).
 
 Authored sites hold the expanded text because skill templates reject ``{{var}}``
 and ``references/`` files are byte copies. Class G (gate-dispatched YAML) and
@@ -31,6 +31,8 @@ Same target pattern as ``copilot_launcher._SCRIPT_REL_RE`` and
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
+from dataclasses import dataclass
 
 RESOLVER_REL = "lib/ptk_run.py"
 ROOT_ENV_VARS: tuple[str, str] = ("CLAUDE_PLUGIN_ROOT", "COPILOT_PLUGIN_ROOT")
@@ -79,7 +81,46 @@ def split_locator(text: str) -> tuple[str, str] | None:
         return None
     if not (text.startswith(_HEAD) and text.endswith(_TAIL)):
         return None
-    middle = text[len(_HEAD) : len(text) - len(_TAIL)]
+    return _split_middle(text[len(_HEAD) : len(text) - len(_TAIL)])
+
+
+def _split_middle(middle: str) -> tuple[str, str]:
+    """Return ``(script_rel, args)`` from the text between the head and the tail."""
     script_rel, _, args = middle.partition(" ")
     _check_script_rel(script_rel)
     return script_rel, args
+
+
+@dataclass(frozen=True, slots=True)
+class LocatorMatch:
+    """One locator found in a line: its span, and its target or why it has none."""
+
+    start: int
+    end: int
+    script_rel: str | None
+    args: str
+    problem: str | None
+
+
+def find_locators(line: str) -> Iterator[LocatorMatch]:
+    """Yield each locator in ``line``, in order.
+
+    A head with no tail after it, or a locator whose script path fails the target
+    pattern, yields a match with ``problem`` set and no ``script_rel``. A
+    committed locator that no longer reads back is a defect to report, not text to
+    skip.
+    """
+    pos = 0
+    while (start := line.find(_HEAD, pos)) != -1:
+        tail_at = line.find(_TAIL, start + len(_HEAD))
+        if tail_at == -1:
+            yield LocatorMatch(start, len(line), None, "", "locator has no closing text")
+            return
+        end = tail_at + len(_TAIL)
+        try:
+            script_rel, args = _split_middle(line[start + len(_HEAD) : tail_at])
+        except LauncherError as exc:
+            yield LocatorMatch(start, end, None, "", str(exc))
+        else:
+            yield LocatorMatch(start, end, script_rel, args, None)
+        pos = end

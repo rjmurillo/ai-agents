@@ -123,7 +123,9 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from scripts.validation import plugin_root_interpreter_allowances as _allowances  # noqa: E402
+from scripts.validation import plugin_root_interpreter_ratchet as _ratchet  # noqa: E402
 from scripts.validation import plugin_root_interpreter_rules as _rules  # noqa: E402
+from scripts.validation import plugin_root_interpreter_sites as _sites  # noqa: E402
 from scripts.validation.check_doc_interpreter_portability import (  # noqa: E402
     HISTORICAL_ROOTS,
     ScanError,
@@ -151,10 +153,14 @@ FIXTURE_ROOTS: tuple[str, ...] = ("tests/",)
 DECLARATION = "plugin-root-interpreter:"
 
 # The plugin-root fallback chain used across the repository is
-# ``${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}``, so an operand
-# that resolves through it lands under ``.claude`` in this checkout.
+# ``${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}``, and the locator's last
+# candidate is ``.claude``, so a target that resolves through either lands under
+# ``.claude`` in this checkout.
 _PLUGIN_ROOT_FALLBACK = ".claude"
-_PLUGIN_ROOT_VARS = ("COPILOT_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT")
+_Invocation = _sites.Invocation
+_find_invocations = _sites.find_invocations
+_join_continuations = _sites.join_continuations
+_lineno_at = _sites.lineno_at
 
 # YAML is read only where it ships; CI YAML runs uv on purpose.
 _PLUGIN_ROOTS = (".claude/", "src/claude/", "src/copilot-cli/")
@@ -181,42 +187,12 @@ _TREE_PREFIX = re.compile(
 )
 _SCAN_PATTERNS = ("*.md", "*.py", "*.tmpl", "*.mustache", "*.yaml", "*.yml")
 
-# One interpreter token: `python`, `python3`, or a pinned `python3.11`-style
-# name. Matched identically inside and outside a `uv run` prefix so both
-# offending shapes (`uv run python`, bare `python3.11`) are recognized by one
-# sub-pattern.
-_INTERP_TOKEN = r"python3?(?:\.\d+)?"
-
-# The interpreter phrase, up to and including the opening `${` of a
-# plugin-root variable reference. Two alternatives:
-#   - `uv run [uv options/values] python[3]` (always a rule-1 violation); the
-#     option tokens exclude shell separators so `uv run pytest; python3 ...`
-#     stays one canonical invocation, not a `uv run` one
-#   - a bare interpreter token (canonical only when it is exactly `python3`)
-# Either is optionally followed by short options (`-u`, `-B`), then the
-# operand: an optional opening quote, then the literal `${COPILOT_PLUGIN_ROOT`
-# or `${CLAUDE_PLUGIN_ROOT`. `\b` stops the variable-name match before the
-# `:-` fallback separator so the balanced-brace scan below starts from a known
-# position.
-_INTERP_PHRASE = (
-    r"(?<![\w./-])"
-    r"(?P<interp>"
-    rf"uv[ \t]+run(?:[ \t]+[^\s;&|`]+)*?[ \t]+{_INTERP_TOKEN}"
-    r"|"
-    rf"{_INTERP_TOKEN}"
-    r")"
-    r"(?:[ \t]+-[\w-]+)*"
-    r"[ \t]+"
-    r'(?P<quote>["\'])?'
-)
-_INVOCATION_HEAD = re.compile(_INTERP_PHRASE + r"\$\{(?:" + "|".join(_PLUGIN_ROOT_VARS) + r")\b")
-
 # Rule 3 (YAML only): the same interpreter phrase on a bare fallback-root path.
 # The operand may spell the same path with `./`, `../`, `//`, or `/./` segments
 # (`./.claude/skills`, `.claude//skills`, `.claude/./skills`, `../.claude/skills`);
 # `_normalize_tail` collapses them so every spelling reaches the same offense (#6506).
 _BARE_INVOCATION = re.compile(
-    _INTERP_PHRASE
+    _sites.INTERP_PHRASE
     + r"(?:\.{1,2}/+)*\.claude/+(?:\./+)*"
     + r"(?P<tail>skills/+[A-Za-z0-9_./-]*\.py)(?![\w./-])"
 )
@@ -226,19 +202,6 @@ _REDUNDANT_SEPARATORS = re.compile(r"/(?:\.?/)+")
 def _normalize_tail(tail: str) -> str:
     """Collapse ``//`` and ``/./`` runs so equivalent spellings match one key."""
     return _REDUNDANT_SEPARATORS.sub("/", tail)
-
-
-# The `skills/...py` tail once the plugin-root expansion is behind us.
-_PATH_TAIL = re.compile(r"/skills/[A-Za-z0-9_./-]*\.py")
-
-
-@dataclass(frozen=True, slots=True)
-class _Invocation:
-    """One recognized plugin-root invocation on a single logical line."""
-
-    start: int
-    interp: str
-    tail: str  # e.g. "skills/foo/scripts/bar.py" (leading "/" stripped)
 
 
 @dataclass(frozen=True, slots=True)
@@ -251,61 +214,6 @@ class _Offense:
     message: str
 
 
-def _match_balanced_braces(line: str, start: int) -> int | None:
-    """Return the index just past the ``}`` that closes the brace before ``start``.
-
-    ``start`` is the position right after ``${VARNAME`` was matched, so one
-    brace is already open (``depth`` begins at 1). The fallback chain nests one
-    level deep (``${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}``);
-    this scans character by character rather than assuming a fixed nesting
-    depth, so it tolerates a bare ``${VAR}`` or a deeper chain equally.
-    Returns ``None`` when the line ends before the brace closes (malformed or
-    truncated input), which the caller treats as "not an invocation".
-    """
-    depth = 1
-    index = start
-    length = len(line)
-    while index < length:
-        char = line[index]
-        if char == "{":
-            depth += 1
-        elif char == "}":
-            depth -= 1
-            if depth == 0:
-                return index + 1
-        index += 1
-    return None
-
-
-def _find_invocations(line: str) -> Iterator[_Invocation]:
-    """Yield every recognized plugin-root invocation on one logical line."""
-    pos = 0
-    while True:
-        match = _INVOCATION_HEAD.search(line, pos)
-        if match is None:
-            return
-        pos = match.end()
-        brace_end = _match_balanced_braces(line, match.end())
-        if brace_end is None:
-            continue
-        quote = match.group("quote")
-        quote_closes_at_brace = quote is not None and line[brace_end : brace_end + 1] == quote
-        path_start = brace_end + 1 if quote_closes_at_brace else brace_end
-        tail_match = _PATH_TAIL.match(line, path_start)
-        if tail_match is None:
-            continue
-        tail_end = tail_match.end()
-        if quote is not None and not quote_closes_at_brace:
-            # Whole-operand quoting: the closing quote must follow the path.
-            if line[tail_end : tail_end + 1] != quote:
-                continue
-        yield _Invocation(
-            start=match.start(),
-            interp=match.group("interp"),
-            tail=tail_match.group(0).lstrip("/"),
-        )
-
-
 def _find_bare_invocations(line: str) -> Iterator[_Invocation]:
     """Yield every interpreter call on a bare ``.claude/skills/...py`` path."""
     for match in _BARE_INVOCATION.finditer(line):
@@ -314,43 +222,6 @@ def _find_bare_invocations(line: str) -> Iterator[_Invocation]:
             interp=match.group("interp"),
             tail=_normalize_tail(match.group("tail")),
         )
-
-
-def _join_continuations(text: str) -> tuple[list[str], list[list[int]]]:
-    """Collapse backslash-newline continuations; keep each char's source line.
-
-    Returns parallel lists: logical lines with continuations joined, and for
-    each logical line a same-length list mapping every character index back to
-    the 1-indexed original line it came from. A regex match against a logical
-    line can then be attributed to the real line the reader would open.
-    """
-    logical_lines: list[str] = []
-    line_no_maps: list[list[int]] = []
-    parts: list[str] = []
-    char_map: list[int] = []
-    for lineno, raw in enumerate(text.splitlines(), start=1):
-        if raw.endswith("\\"):
-            content = raw[:-1]
-            parts.append(content)
-            char_map.extend([lineno] * len(content))
-            continue
-        parts.append(raw)
-        char_map.extend([lineno] * len(raw))
-        logical_lines.append("".join(parts))
-        line_no_maps.append(char_map)
-        parts, char_map = [], []
-    if parts:  # trailing continuation with no following line to close it
-        logical_lines.append("".join(parts))
-        line_no_maps.append(char_map)
-    return logical_lines, line_no_maps
-
-
-def _lineno_at(char_map: list[int], index: int) -> int:
-    if not char_map:
-        return 1
-    if index < len(char_map):
-        return char_map[index]
-    return char_map[-1]
 
 
 def _is_declared(raw_lines: list[str], lineno: int) -> bool:
@@ -414,11 +285,46 @@ def _undeclared(
                 yield lineno, invocation
 
 
+def _locator_offense(
+    rel: str,
+    lineno: int,
+    invocation: _Invocation,
+    repo_root: Path,
+    tracked_py: set[str],
+    imports: _Imports,
+) -> _Offense | None:
+    """Return the offense for one locator site, or ``None`` when it is clean.
+
+    The locator's interpreter is fixed text, so rule 1 holds by construction.
+    Rule 2 applies to the script path read out of it. A locator in shipped YAML is
+    refused: the completion gate splits commands with ``shlex`` and runs no shell,
+    so the locator would stay literal (ADR-121 decision 1, Class G).
+    """
+    tail = invocation.tail
+    if _is_yaml(rel):
+        message = (
+            f"{rel}:{lineno}: shipped YAML runs through the completion gate, which splits "
+            "commands with shlex and runs no shell. Keep the legacy form here "
+            "(ADR-121 decision 1, Class G)"
+        )
+        return _Offense(lineno, "locator-yaml", tail, message)
+    if invocation.problem is not None:
+        message = f"{rel}:{lineno}: malformed locator, {invocation.problem} (ADR-121)"
+        return _Offense(lineno, "locator", tail, message)
+    dependency = _dependency_message(rel, lineno, tail, repo_root, tracked_py, imports)
+    return None if dependency is None else _Offense(lineno, "dependency", tail, dependency)
+
+
 def _plugin_root_offenses(
     text: str, rel: str, repo_root: Path, tracked_py: set[str], imports: _Imports = None
 ) -> list[_Offense]:
     offenses: list[_Offense] = []
     for lineno, invocation in _undeclared(text, _find_invocations):
+        if invocation.form == _sites.LOCATOR:
+            locator = _locator_offense(rel, lineno, invocation, repo_root, tracked_py, imports)
+            if locator is not None:
+                offenses.append(locator)
+            continue
         tail = invocation.tail
         if invocation.interp != "python3":
             message = _form_message(rel, lineno, invocation.interp)
@@ -558,8 +464,13 @@ def scan(
     repo_root: Path,
     used_allowances: set[_Key] | None = None,
     used_single_root: set[str] | None = None,
+    legacy_counts: dict[str, _sites.LegacyCounts] | None = None,
 ) -> list[str]:
-    """Return one message per offense across the tree; record allowances used."""
+    """Return one message per offense across the tree; record allowances used.
+
+    ``legacy_counts``, when given, receives the legacy-form site count of each
+    authored group (see ``plugin_root_interpreter_ratchet``).
+    """
     used = set() if used_allowances is None else used_allowances
     used_roots = set() if used_single_root is None else used_single_root
     tracked_py = tracked_py_with_links(repo_root)
@@ -573,6 +484,9 @@ def scan(
             text = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError) as exc:
             raise ScanError(f"could not read {rel}: {exc}") from exc
+        group = _ratchet.authored_group(rel)
+        if legacy_counts is not None and group is not None:
+            _ratchet.tally(legacy_counts, group, _sites.count_legacy_sites(text))
         if _is_yaml(rel):
             found = find_yaml_offenses(text, rel, repo_root, tracked_py, used)
         else:
@@ -581,6 +495,17 @@ def scan(
     all_offenses.extend(_scan_new_rules(repo_root, tracked_py, used_roots))
     all_offenses.sort(key=lambda item: (item[0], item[1]))
     return [message for _, _, message in all_offenses]
+
+
+def legacy_ratchet_messages(repo_root: Path, counts: dict[str, _sites.LegacyCounts]) -> list[str]:
+    """Return the legacy-site ratchet messages; none for a root other than this checkout.
+
+    ``LEGACY_SITE_BASELINE`` describes this checkout. A scan of another root, such as
+    a test fixture, has no baseline to compare with.
+    """
+    if repo_root != _REPO_ROOT:
+        return []
+    return _ratchet.ratchet_messages(counts, _allowances.LEGACY_SITE_BASELINE)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -614,11 +539,14 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         used_allowances: set[_Key] = set()
         used_single_root: set[str] = set()
-        offenses = scan(repo_root, used_allowances, used_single_root)
+        legacy_counts: dict[str, _sites.LegacyCounts] = {}
+        offenses = scan(repo_root, used_allowances, used_single_root, legacy_counts)
     except (OSError, ScanError, subprocess.CalledProcessError) as exc:
         print(f"check-plugin-root-interpreter: {exc}", file=sys.stderr)
         return 2
 
+    ratchet = legacy_ratchet_messages(repo_root, legacy_counts)
+    offenses = offenses + ratchet
     for message in offenses:
         print(message, file=sys.stderr)
     stale = sorted(set(_YAML_ALLOWANCES) - used_allowances)
