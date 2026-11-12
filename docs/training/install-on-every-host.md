@@ -373,14 +373,14 @@ Do not copy these skills into the `skills` folder under `~/.agents`, or under a 
    root="${XDG_CONFIG_HOME:-$HOME/.config}/muse"
    backup="$root/install-backup-$(date +%Y%m%d%H%M%S)"
    mkdir -p "$root/skills" "$root/agents"
-   if [ -e "$root/lib" ]; then
+   if [ -e "$root/lib" ] || [ -L "$root/lib" ]; then
      mkdir -p "$backup"
      mv "$root/lib" "$backup/lib"
    fi
    cp -R src/muse/lib "$root/lib"
    for d in src/muse/skills/*/; do
      name="$(basename "$d")"
-     if [ -e "$root/skills/$name" ]; then
+     if [ -e "$root/skills/$name" ] || [ -L "$root/skills/$name" ]; then
        mkdir -p "$backup/skills"
        mv "$root/skills/$name" "$backup/skills/$name"
      fi
@@ -388,7 +388,7 @@ Do not copy these skills into the `skills` folder under `~/.agents`, or under a 
    done
    for f in src/muse/agents/*.md; do
      name="$(basename "$f")"
-     if [ -e "$root/agents/$name" ]; then
+     if [ -e "$root/agents/$name" ] || [ -L "$root/agents/$name" ]; then
        mkdir -p "$backup/agents"
        mv "$root/agents/$name" "$backup/agents/$name"
      fi
@@ -396,7 +396,7 @@ Do not copy these skills into the `skills` folder under `~/.agents`, or under a 
    done
    ```
 
-   The tree ships 25 agents. It leaves out `analyst`, `code-reviewer`, `comment-analyzer`, and `security`, because their Claude files declare a `tools` list and Muse Code tool names are not documented. Each shipped body names the agents left out. Muse Code cannot spawn an agent with an unrecognized frontmatter key, so only `name` and `description` ship. Whether Muse Code loads these agents is not verified (`tests/e2e/test_muse_agents_load.py` needs a Muse login).
+   On 2026-11-11 the tree shipped 25 agents. It leaves out `analyst`, `code-reviewer`, `comment-analyzer`, and `security`, because their Claude files declare a `tools` list and Muse Code tool names are not documented. Each shipped body names the agents left out. Muse Code cannot spawn an agent with an unrecognized frontmatter key, so only `name` and `description` ship. As of 2026-11-11, no run shows that Muse Code loads these agents. The load test is `tests/e2e/test_muse_agents_load.py`, and it needs a Muse login. Account-wide agents have unrestricted tools and apply to every workspace.
 
 Update: pull the clone and run step 2 again. It moves the old copies aside.
 
@@ -764,7 +764,7 @@ usage: get_pr_checks.py [-h] [--owner OWNER] [--repo REPO]
                         [--timeout-seconds TIMEOUT_SECONDS]
 ```
 
-One `src/muse` tree serves two Muse targets. The personal agent gets skills and `lib/` only. Muse Code gets skills, `lib/`, and agents. The skill frontmatter keeps only `name` and `description`. Install steps for each target are in [src/muse/README.md](../../src/muse/README.md): `Install into the Muse personal agent` and `Install into Muse Code` (skills and `lib/` under `${XDG_CONFIG_HOME:-$HOME/.config}/muse/`, agents in `muse/agents/`). Whether Muse Code loads the agents is not verified: the test needs a Muse login (`tests/e2e/test_muse_agents_load.py`). `muse skills validate` accepts all `src/muse/skills` dirs without a login (same file).
+One `src/muse` tree serves two Muse targets. The personal agent gets skills and `lib/` only. Muse Code gets skills, `lib/`, and agents. The skill frontmatter keeps only `name` and `description`. The personal agent steps are in [src/muse/README.md](../../src/muse/README.md). The Muse Code steps are in [Install on Muse Code](#install-on-muse-code): skills and `lib/` under `${XDG_CONFIG_HOME:-$HOME/.config}/muse/`, agents in `muse/agents/`. As of 2026-11-11, no run shows that Muse Code loads the agents, because the load test needs a Muse login (`tests/e2e/test_muse_agents_load.py`). On 2026-11-11, Muse Code 1.4.15 `muse skills validate` accepted all 105 `src/muse/skills` directories with no login (same file).
 
 Not run: asking Muse to list or use a skill.
 

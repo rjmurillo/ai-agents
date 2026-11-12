@@ -24,13 +24,16 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MUSE_AGENTS = REPO_ROOT / "src" / "muse" / "agents"
-CONTROL_NAME = "zz-unknown-key-control"
+CONTROL_NAME = "zz-extra-key-control"
 NOT_VERIFIED = "MUSE_NOT_VERIFIED:"
 USAGE_TIMEOUT_SECONDS = 30
 EXEC_TIMEOUT_SECONDS = 600
 RUN = os.environ.get("RUN_CLI_E2E") == "1"
 _REFUSAL_WORDS = ("error", "unknown", "invalid", "not found", "unavailable", "refus")
-_SECRET_SUFFIXES = ("_TOKEN", "_API_KEY", "_SECRET", "_PASSWORD", "_PAT", "_CREDENTIALS")
+_ENV_ALLOW = frozenset(
+    {"PATH", "HOME", "LANG", "TERM", "TMPDIR", "TZ", "USER", "LOGNAME", "SHELL", "NO_COLOR"}
+)
+_ENV_ALLOW_PREFIXES = ("LC_", "XDG_", "MUSE_")
 
 
 def shipped_agent_names() -> list[str]:
@@ -109,7 +112,7 @@ def spawned_agents(events: Sequence[Mapping[str, object]], names: list[str]) -> 
 def write_control_agent(agents_dir: Path) -> Path:
     path = agents_dir / f"{CONTROL_NAME}.md"
     path.write_text(
-        f"---\nname: {CONTROL_NAME}\ndescription: Control agent with an unknown key\n"
+        f"---\nname: {CONTROL_NAME}\ndescription: Control agent with an extra frontmatter key\n"
         "readonly: true\n---\nReply ok.\n",
         encoding="utf-8",
     )
@@ -124,14 +127,42 @@ def install_agents(agents_dir: Path) -> list[str]:
     return shipped_agent_names()
 
 
-def scrub(env: dict[str, str]) -> dict[str, str]:
-    """Drop tokens and keys: the run uses ``--trust-workspace`` and the lead can run shell."""
-    return {
-        k: v
-        for k, v in env.items()
-        if not k.upper().endswith(_SECRET_SUFFIXES)
-        and k.upper() not in {"GH_TOKEN", "GITHUB_TOKEN"}
-    }
+def allowlisted_env(env: Mapping[str, str]) -> dict[str, str]:
+    """Return only the variables ``muse`` needs: the run uses ``--trust-workspace``.
+
+    The lead can run shell, so a denylist of secret-looking names is not enough.
+    Anything not named here (cloud keys, agent sockets, database URLs) is dropped.
+    """
+    return {k: v for k, v in env.items() if k in _ENV_ALLOW or k.startswith(_ENV_ALLOW_PREFIXES)}
+
+
+def run_muse(
+    args: Sequence[str], *, cwd: Path, env: Mapping[str, str], timeout: int
+) -> subprocess.CompletedProcess[str]:
+    """Run ``muse``; a timeout fails with the partial output, not a traceback."""
+    try:
+        return subprocess.run(
+            list(args),
+            cwd=cwd,
+            env=dict(env),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        tail = _text(exc.stdout)[-800:]
+        pytest.fail(
+            f"{NOT_VERIFIED} `muse {' '.join(args[1:3])}` exceeded {timeout}s. Tail: {tail}"
+        )
+
+
+def _text(value: str | bytes | None) -> str:
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value or ""
 
 
 def check_prerequisites() -> str:
@@ -151,7 +182,7 @@ def check_prerequisites() -> str:
             errors="replace",
             timeout=USAGE_TIMEOUT_SECONDS,
             check=False,
-            env=scrub(dict(os.environ)),
+            env=allowlisted_env(os.environ),
         )
     except subprocess.TimeoutExpired:
         pytest.fail(f"{NOT_VERIFIED} `muse usage` exceeded {USAGE_TIMEOUT_SECONDS}s")

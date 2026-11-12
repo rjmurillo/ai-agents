@@ -19,6 +19,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 sys.path.insert(0, str(REPO_ROOT / "build"))
 
+import agent_toml  # noqa: E402
 import agent_tree_copy as atc  # noqa: E402
 
 MUSE_AGENTS = REPO_ROOT / "src" / "muse" / "agents"
@@ -67,8 +68,20 @@ def _committed() -> dict[str, str]:
     return {p.stem: p.read_text(encoding="utf-8") for p in sorted(MUSE_AGENTS.glob("*.md"))}
 
 
-def test_generator_renders_agents(rendered: dict[str, str]) -> None:
-    assert len(rendered) >= 20, f"generator rendered only {len(rendered)} agents"
+def _source_agents() -> dict[str, dict[str, object]]:
+    sources = {}
+    for source in sorted((REPO_ROOT / "src" / "claude" / "agents").glob("*.md")):
+        if source.name in ("AGENTS.md", "CLAUDE.md"):
+            continue
+        frontmatter, _ = atc.parse_agent(source.read_text(encoding="utf-8"), source.name)
+        sources[source.stem] = frontmatter
+    return sources
+
+
+def test_generator_renders_every_source_without_a_tools_list(rendered: dict[str, str]) -> None:
+    expected = {s for s, fm in _source_agents().items() if atc.declared_tools(fm) is None}
+    assert expected, "no Claude agent is free of a tools list"
+    assert set(rendered) == expected
 
 
 def test_committed_set_equals_generated_set(rendered: dict[str, str]) -> None:
@@ -94,6 +107,59 @@ def test_tool_restricted_agents_are_not_shipped() -> None:
         frontmatter, _ = atc.parse_agent(source.read_text(encoding="utf-8"), source.name)
         restricted = atc.declared_tools(frontmatter) is not None
         assert (source.stem in shipped) is not restricted, source.name
+
+
+def test_agents_with_an_agent_deny_carry_the_subagents_note() -> None:
+    shipped = _committed()
+    sources = _source_agents()
+    denied = {s for s in shipped if agent_toml.forbids_subagents(sources[s])}
+    assert denied, "no shipped agent sets disallowedTools: Agent"
+    for stem, text in shipped.items():
+        assert (agent_toml.NO_SUBAGENTS in text) is (stem in denied), stem
+
+
+def test_not_installed_note_names_exactly_the_tool_restricted_agents() -> None:
+    restricted = sorted(s for s, fm in _source_agents().items() if atc.declared_tools(fm))
+    assert restricted, "no Claude agent declares a tools list"
+    for stem, text in _committed().items():
+        note = text.split("## Agents not installed on this host", 1)[1]
+        assert all(f"`{name}`" in note for name in restricted), stem
+
+
+def test_orchestrator_has_no_routing_row_for_a_skipped_agent() -> None:
+    body = _committed()["orchestrator"]
+    for name in ("analyst", "security"):
+        assert f"| **{name}** |" not in body, name
+
+
+def _spec(*, note: bool) -> atc.RenderSpec:
+    return atc.RenderSpec(["name", "description"], no_subagents_note=note)
+
+
+_DENIED = {"name": "demo", "description": "d", "disallowedTools": "Agent"}
+
+
+def test_note_is_added_only_when_the_stanza_asks_for_it() -> None:
+    with_note = atc.render_parsed(dict(_DENIED), "Body.\n", "demo.md", _spec(note=True))
+    without = atc.render_parsed(dict(_DENIED), "Body.\n", "demo.md", _spec(note=False))
+    assert with_note is not None and agent_toml.NO_SUBAGENTS in with_note
+    assert without is not None and agent_toml.NO_SUBAGENTS not in without
+
+
+def test_note_is_not_added_without_the_deny() -> None:
+    plain = {"name": "demo", "description": "d"}
+    text = atc.render_parsed(plain, "Body.\n", "demo.md", _spec(note=True))
+    assert text is not None and agent_toml.NO_SUBAGENTS not in text
+
+
+def test_schema_rejects_a_non_boolean_note() -> None:
+    errors = agent_toml.output_option_errors("agents", {"noSubagentsNote": "yes"})
+    assert any("noSubagentsNote" in e and "boolean" in e for e in errors)
+    assert not agent_toml.output_option_errors("agents", {"noSubagentsNote": True})
+
+
+def test_muse_stanza_turns_the_note_on() -> None:
+    assert "noSubagentsNote: true" in MUSE_CONFIG.read_text(encoding="utf-8")
 
 
 # Negative controls: the validator must reject each defect. -----------------------

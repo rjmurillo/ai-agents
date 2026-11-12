@@ -89,7 +89,13 @@ def validate_agents_tree_copy(name: str, stanza: dict[str, object]) -> list[str]
         errors.append(f"`artifacts.{name}.deriveReadonly`: must be a boolean")
     errors.extend(_validate_body_replace(name, stanza))
     if "frontmatterKeep" not in stanza:
-        for key in ("deriveReadonly", "bodyReplace", "skipToolRestricted", "outputFormat"):
+        for key in (
+            "deriveReadonly",
+            "bodyReplace",
+            "skipToolRestricted",
+            "outputFormat",
+            "noSubagentsNote",
+        ):
             if key in stanza:
                 errors.append(f"`artifacts.{name}.{key}`: requires `frontmatterKeep`")
         return errors

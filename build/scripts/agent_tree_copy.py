@@ -28,6 +28,10 @@ Stanza keys (all under ``artifacts.agents``):
                       every shipped body naming the agents left out (Codex agent
                       files cannot restrict tools, ADR-115 Decision 7). Requires
                       ``frontmatterKeep``; excludes ``deriveReadonly: true``.
+``noSubagentsNote``   when true, a ``markdown`` agent whose source sets
+                      ``disallowedTools: Agent`` gets the same short ``Subagents``
+                      section ``codex-toml`` always adds, because the host cannot
+                      enforce that deny (Muse Code, ADR-115 Decision 8).
 ``outputFormat``      ``markdown`` (default) or ``codex-toml``. ``codex-toml`` writes
                       ``<stem>.toml`` with the keys ``name``, ``description`` and
                       ``developer_instructions`` (the body). ``frontmatterKeep`` must
@@ -138,6 +142,7 @@ class RenderSpec:
     derive_readonly: bool = False
     output_format: str = FORMAT_MARKDOWN
     appendix: str = ""
+    no_subagents_note: bool = False
 
 
 def _as_copy_error(call: Callable[[], T]) -> T:
@@ -182,6 +187,8 @@ def render_parsed(
             )
         if forbids_subagents(loaded):
             body = body.rstrip("\n") + NO_SUBAGENTS
+    elif spec.no_subagents_note and forbids_subagents(loaded):
+        body = body.rstrip("\n") + NO_SUBAGENTS
     if spec.appendix:
         body = body.rstrip("\n") + spec.appendix
     if spec.output_format == FORMAT_CODEX_TOML:
@@ -325,6 +332,7 @@ def generate_agent_copies(
         stanza.get("deriveReadonly") is True,
         options.fmt,
         not_installed_paragraph(sorted(src.stem for src in restricted)) if restricted else "",
+        options.no_subagents_note,
     )
     result = AgentCopyResult(inputs=len(sources))
     expected: set[str] = set()

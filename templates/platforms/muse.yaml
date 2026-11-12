@@ -49,6 +49,12 @@ artifacts:
     # shipped, and each shipped body names the agents left out so a handoff
     # to one is done in-session.
     skipToolRestricted: true
+    # Muse Code has no documented value for the Claude `disallowedTools: Agent`
+    # deny, and a value it rejects could leave all 24 agents unspawnable, so the
+    # key stays dropped. Instead each of those bodies gets the short Subagents
+    # section Codex ships (build/scripts/agent_toml.py NO_SUBAGENTS). It is a
+    # prompt instruction, not a block.
+    noSubagentsNote: true
     # The orchestrator says every row in its routing table is installed, so the
     # rows for agents this tree does not ship are removed, and its delegation
     # tool is named for Muse Code (https://dev.meta.ai/docs/cookbook/subagent-fanout).

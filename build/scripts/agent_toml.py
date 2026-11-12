@@ -17,6 +17,7 @@ from dataclasses import dataclass
 CODEX_KEEP = ["name", "description"]
 FORMAT_KEY = "outputFormat"
 SKIP_KEY = "skipToolRestricted"
+NOTE_KEY = "noSubagentsNote"
 FORMAT_MARKDOWN = "markdown"
 FORMAT_CODEX_TOML = "codex-toml"
 FORMATS = (FORMAT_MARKDOWN, FORMAT_CODEX_TOML)
@@ -129,6 +130,8 @@ def output_option_errors(name: str, stanza: dict[str, object]) -> list[str]:
         errors.append(f"{where}{SKIP_KEY}`: must be a boolean")
     elif skip and stanza.get("deriveReadonly") is True:
         errors.append(f"{where}{SKIP_KEY}`: cannot combine with `deriveReadonly: true`")
+    if not isinstance(stanza.get(NOTE_KEY, False), bool):
+        errors.append(f"{where}{NOTE_KEY}`: must be a boolean")
     fmt = stanza.get(FORMAT_KEY, FORMAT_MARKDOWN)
     if fmt not in FORMATS:
         errors.append(f"{where}{FORMAT_KEY}`: must be `markdown` or `codex-toml`")
@@ -160,6 +163,7 @@ class OutputOptions:
 
     fmt: str
     skip_restricted: bool
+    no_subagents_note: bool = False
 
     @property
     def suffix(self) -> str:
@@ -172,7 +176,9 @@ def read_output_options(stanza: dict[str, object]) -> OutputOptions:
     if errors:
         raise CodexOutputError(errors[0])
     return OutputOptions(
-        str(stanza.get(FORMAT_KEY, FORMAT_MARKDOWN)), bool(stanza.get(SKIP_KEY, False))
+        str(stanza.get(FORMAT_KEY, FORMAT_MARKDOWN)),
+        bool(stanza.get(SKIP_KEY, False)),
+        stanza.get(NOTE_KEY) is True,
     )
 
 

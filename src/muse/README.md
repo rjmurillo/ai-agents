@@ -13,8 +13,8 @@ uv run python build/scripts/build_all.py
 
 | Target | Gets | Install section |
 |---|---|---|
-| Muse personal agent | skills and `lib/` | Install into the Muse personal agent |
-| Muse Code CLI | skills, `lib/`, and agents | Install into Muse Code |
+| Muse personal agent | skills and `lib/` | [Install into Muse](#install-into-muse) |
+| Muse Code CLI | skills, `lib/`, and agents | [Install on Muse Code](https://github.com/rjmurillo/ai-agents/blob/main/docs/training/install-on-every-host.md#install-on-muse-code) |
 
 ## Layout
 
@@ -25,18 +25,20 @@ uv run python build/scripts/build_all.py
   The frontmatter keeps only `name` and `description`, because Muse Code
   cannot spawn an agent with an unrecognized key. An agent whose Claude
   file declares a `tools` list is not shipped, and each shipped body names
-  the agents left out. `model` and `disallowedTools` are dropped.
+  the agents left out. `model` and `disallowedTools` are dropped, and a body
+  whose source denies `Agent` gets a short Subagents section that tells the
+  model not to start subagents. That is a prompt instruction, not a block.
 - `lib/`: the shared Python packages the skill scripts resolve
   against, rendered from `scripts/` by `lib_mirror.py`, mirroring the
   `src/claude` layout.
 
-Meta documents no plugin manifest for Muse Code, and there is no install
-size cap, so the tree is flat where Hermes needs packs. The Hermes pack exclusions do not
+Muse has no plugin manifest and no install size cap, so the tree is
+flat where Hermes needs packs. The Hermes pack exclusions do not
 apply here: every one is a Hermes `plugin_guard` verdict (ADR-115
 Decision 6), and Muse has no equivalent guard. This tree therefore
 ships the same skill set as `src/codex` (ADR-115 Decision 2).
 
-## Install into the Muse personal agent
+## Install into Muse
 
 Muse means two hosts. This section is for the Muse personal agent. Muse
 Code, the `muse` CLI, does not read `~/workspace/custom-skills/`. It reads
@@ -84,67 +86,3 @@ python3 -I ~/workspace/custom-skills/github/scripts/pr/get_pr_checks.py --help
 Meta publishes no page for the `~/workspace/custom-skills/` path. The owner
 supplied it (PRs #7041 and #7297). The personal agent has no documented agent
 format, so it gets skills and `lib/` only, and no agent files.
-
-## Install into Muse Code
-
-Muse Code (<https://dev.meta.ai/docs/muse-code>) reads account-wide skills
-from `$XDG_CONFIG_HOME/muse/skills` (and `~/.agents/skills`) per <!-- agents-write-target: historical -- Muse Code's documented read path, not a write target of this repo -->
-<https://dev.meta.ai/docs/muse-code/extending>, and agents from
-`$XDG_CONFIG_HOME/muse/agents/` (<https://dev.meta.ai/docs/muse-code/agents>).
-`XDG_CONFIG_HOME` defaults to `~/.config`. This install uses the Muse-only
-root `muse/` under it. Skill scripts resolve `lib/` one level above the skills
-root, so `lib/` goes to `muse/lib/`. Copy all three from the repository root.
-A skill directory, `lib/`, or agent file already present is moved, not
-deleted, to `muse-install-backup-<timestamp>/` under the same root:
-
-```bash
-muse_root="${XDG_CONFIG_HOME:-$HOME/.config}/muse"
-backup="$muse_root/muse-install-backup-$(date +%Y%m%d%H%M%S)"
-mkdir -p "$muse_root/skills" "$muse_root/agents"
-if [ -e "$muse_root/lib" ]; then
-  mkdir -p "$backup"
-  mv "$muse_root/lib" "$backup"/lib
-fi
-cp -R src/muse/lib "$muse_root/lib"
-for d in src/muse/skills/*/; do
-  name="$(basename "$d")"
-  if [ -e "$muse_root/skills/$name" ]; then
-    mkdir -p "$backup"/skills
-    mv "$muse_root/skills/$name" "$backup"/skills/"$name"
-  fi
-  cp -R "$d" "$muse_root/skills/$name"
-done
-for f in src/muse/agents/*.md; do
-  name="$(basename "$f")"
-  if [ -e "$muse_root/agents/$name" ]; then
-    mkdir -p "$backup"/agents
-    mv "$muse_root/agents/$name" "$backup"/agents/"$name"
-  fi
-  cp "$f" "$muse_root/agents/$name"
-done
-```
-
-Check the install by running one skill script:
-
-```bash
-python3 -I "${XDG_CONFIG_HOME:-$HOME/.config}/muse/skills/github/scripts/pr/get_pr_checks.py" --help
-```
-
-Do not copy these skills into `~/.agents/skills` or a repository's <!-- agents-write-target: historical -- Muse Code's documented read path, not a write target of this repo -->
-`.agents/skills/`. <!-- agents-write-target: historical -- Muse Code's documented read path, not a write target of this repo -->
-Both are Codex skill roots, so a copy there duplicates or replaces the Codex
-skills, and the Codex copies differ from these (the frontmatter and `lib/`
-layout are rendered per host). Agents may use the project alternative
-`.agents/agents/`, which Muse Code loads only after the workspace is <!-- agents-write-target: historical -- Muse Code's documented read path, not a write target of this repo -->
-trusted. <!-- agents-write-target: historical -- Muse Code's documented read path, not a write target of this repo -->
-On 2026-11-11, Muse Code 1.4.15 validated all 105 `src/muse/skills`
-directories as compatible with `muse skills validate`.
-
-**A Muse Code load of these agents is NOT VERIFIED until the owner's run,
-recorded in the pull request.** Muse Code starts when an agent is invalid, but
-the lead cannot spawn it. No run without a login shows whether an agent
-loads. The test is `tests/e2e/test_muse_agents_load.py`; it needs
-`RUN_CLI_E2E=1`, `muse` on `PATH`, a logged-in Muse Code, and the install
-above. It also asks the lead to run the `github` skill's `get_pr_checks.py
---help` from `muse/skills` and checks that the script found `lib/`. Skill
-compatibility needs no login: the same file runs `muse skills validate`.

@@ -150,6 +150,10 @@ Treat each of these as a hypothesis to confirm, not a default excuse. If the con
 
 Remember: Every silent failure you catch prevents hours of debugging frustration for users and developers. Be thorough, be skeptical, and never let an error slip through unnoticed.
 
+## Subagents
+
+Do not start subagents. Do the work in this session.
+
 ## Agents not installed on this host
 
 These agents are not installed on this host: `analyst`, `code-reviewer`, `comment-analyzer`, `security`. When a step above hands work to one of them, do that step yourself in this session and say that you did. A step you do yourself is a self-review, not an independent review, so report it as one. It does not satisfy a review gate: name the gate as unreviewed in your completion report. When you are asked to review or challenge work, set aside the author's reasoning and judge the artifact itself. If the step is a security review or clears a security flag, do not mark it done: state that no security agent reviewed it and leave the flag open for the user.

@@ -19,12 +19,12 @@ if str(_E2E_DIR) not in sys.path:
 
 from muse_load_probe import (  # noqa: E402
     CONTROL_NAME,
+    allowlisted_env,
     build_prompt,
     check_prerequisites,
     install_agents,
     parse_events,
     require_user_skill_install,
-    scrub,
     skill_script_found_lib,
     spawned_agents,
 )
@@ -86,9 +86,40 @@ def test_install_agents_adds_the_control_and_every_shipped_agent(tmp_path: Path)
     assert "readonly: true" in (tmp_path / "agents" / f"{CONTROL_NAME}.md").read_text("utf-8")
 
 
-def test_scrub_drops_secrets_and_keeps_home() -> None:
-    env = scrub({"HOME": "/h", "GH_TOKEN": "x", "OPENAI_API_KEY": "y", "PATH": "/p"})
-    assert env == {"HOME": "/h", "PATH": "/p"}
+def test_env_allowlist_keeps_only_what_muse_needs() -> None:
+    env = allowlisted_env(
+        {
+            "HOME": "/h",
+            "PATH": "/p",
+            "XDG_CONFIG_HOME": "/x",
+            "MUSE_LOG": "1",
+            "LC_ALL": "C",
+            "GH_TOKEN": "a",
+            "AWS_SECRET_ACCESS_KEY": "b",
+            "AWS_ACCESS_KEY_ID": "c",
+            "SSH_AUTH_SOCK": "d",
+            "DATABASE_URL": "e",
+        }
+    )
+    assert env == {
+        "HOME": "/h",
+        "PATH": "/p",
+        "XDG_CONFIG_HOME": "/x",
+        "MUSE_LOG": "1",
+        "LC_ALL": "C",
+    }
+
+
+def test_control_name_has_no_refusal_word() -> None:
+    """A refusal word in the control's name would hide its spawn record from the rule."""
+    events = [{"type": "subagent_spawn", "agent": CONTROL_NAME}]
+    assert spawned_agents(events, [CONTROL_NAME]) == {CONTROL_NAME}
+
+
+def test_control_agent_file_has_no_refusal_word(tmp_path: Path) -> None:
+    install_agents(tmp_path / "agents")
+    text = (tmp_path / "agents" / f"{CONTROL_NAME}.md").read_text("utf-8").lower()
+    assert not any(word in text for word in ("error", "unknown", "invalid", "refus"))
 
 
 def test_missing_muse_fails_with_a_clear_message(monkeypatch: pytest.MonkeyPatch) -> None:
