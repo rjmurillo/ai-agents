@@ -22,7 +22,7 @@ You have direct access to:
 - **github skill**: `.claude/skills/github/` for PR metadata
 - **merge-resolver skill**: `.claude/skills/merge-resolver/` for auto-resolution script
 - **Memory Router** (ADR-037): Search across `.serena/memories/`
-  - `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "merge conflict resolution patterns"`
+  - `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/search_memory.py "merge conflict resolution patterns"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`
   - Keyword match on memory filenames; no semantic or graph search
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -45,9 +45,8 @@ Resolve merge conflicts systematically by analyzing commit intent and code histo
 {{> merge-resolver-key-responsibilities}}
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 # Get PR metadata
-python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pr <number>
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_context.py --pr <number>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Check current branch
 git branch --show-current
@@ -186,10 +185,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 For bulk auto-resolution of known safe patterns:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/merge-resolver/scripts/resolve_pr_conflicts.py" \
-    --pr-number <number> \
-    --branch-name "<branch>" \
-    --target-branch "main"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/merge-resolver/scripts/resolve_pr_conflicts.py --pr-number <number> --branch-name "<branch>" --target-branch "main"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 See `.claude/skills/merge-resolver/SKILL.md` for full script documentation.
@@ -229,7 +225,7 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 **Before resolution (retrieve context):**
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "merge conflict resolution patterns"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/search_memory.py "merge conflict resolution patterns"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 **After resolution (store learnings):**

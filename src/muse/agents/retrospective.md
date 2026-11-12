@@ -43,7 +43,7 @@ You have direct access to:
 - **Read/Grep/Glob**: Analyze execution artifacts
 - **Bash**: `git log`, `gh pr view` for context
 - **Memory Router** (ADR-037): Search across `.serena/memories/`
-  - `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "topic"`
+  - `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/search_memory.py "topic"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`
   - Keyword match on memory filenames; no semantic or graph search
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -195,7 +195,7 @@ Evaluate the retrospective itself. Write the results into the artifact's closing
 
 Use Memory Router for search and Serena tools for persistence (ADR-037).
 
-- **Search before you create**: `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "{domain} {description} skill patterns"`
+- **Search before you create**: `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/search_memory.py "{domain} {description} skill patterns"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`
 - **Create a skill**: `mcp__serena__write_memory` with `memory_file_name: "skills/{domain}-{description}"` and content of statement, evidence, and details.
 - **Create a root cause pattern**: `mcp__serena__write_memory` with `memory_file_name: "retrospective/rootcause-{category}-{nnn}"`. The template is in `diagnosis-and-actions.md`.
 - **Add an observation**: `mcp__serena__edit_memory` on the existing memory.
