@@ -100,12 +100,13 @@ Detection:
   locator's interpreter is fixed text. Rule 2 applies to the extracted path exactly
   as it does to a legacy operand. Rule 4 holds because the locator names both
   variables. A locator that no longer reads back (a bad target, a missing end) is an
-  offense. A locator in shipped YAML is an offense no allowance covers: the
-  completion gate splits commands with ``shlex`` and runs no shell, so the locator
-  would stay literal there (ADR-121 decision 1, Class G).
+  offense. A locator in shipped YAML is an offense no allowance and no declaration
+  covers: the completion gate splits commands with ``shlex`` and runs no shell, so
+  the locator would stay literal there (ADR-121 decision 1, Class G).
 
   **Rule 6 (legacy ratchet).** Authored files (``templates/`` and the hand-kept files
-  under ``src/claude/``; ``plugin_root_interpreter_ratchet.authored_group``) hold a
+  under ``src/claude/``, including the hand-maintained ``src/claude/lib`` modules;
+  ``plugin_root_interpreter_ratchet.authored_group``) hold a
   counted number of legacy-form invocations and of assignments from the nested form.
   A group whose count differs from ``LEGACY_SITE_BASELINE`` fails, above or below, so
   a batch that migrates must lower the baseline in the same change. The baseline
@@ -297,17 +298,25 @@ def _dependency_message(
     )
 
 
-def _undeclared(
+def _matches(
     text: str, finder: Callable[[str], Iterator[_Invocation]]
-) -> Iterator[tuple[int, _Invocation]]:
-    """Yield (line, invocation) for each match no declaration suppresses."""
+) -> Iterator[tuple[int, _Invocation, bool]]:
+    """Yield (line, invocation, declared) per match; ``declared`` is whether a marker covers it."""
     raw_lines = text.splitlines()
     logical_lines, line_maps = _join_continuations(text)
     for logical, char_map in zip(logical_lines, line_maps, strict=True):
         for invocation in finder(logical):
             lineno = _lineno_at(char_map, invocation.start)
-            if not _is_declared(raw_lines, lineno):
-                yield lineno, invocation
+            yield lineno, invocation, _is_declared(raw_lines, lineno)
+
+
+def _undeclared(
+    text: str, finder: Callable[[str], Iterator[_Invocation]]
+) -> Iterator[tuple[int, _Invocation]]:
+    """Yield (line, invocation) for each match no declaration suppresses."""
+    for lineno, invocation, declared in _matches(text, finder):
+        if not declared:
+            yield lineno, invocation
 
 
 def _locator_offense(
@@ -344,11 +353,16 @@ def _plugin_root_offenses(
     text: str, rel: str, repo_root: Path, tracked_py: set[str], imports: _Imports = None
 ) -> list[_Offense]:
     offenses: list[_Offense] = []
-    for lineno, invocation in _undeclared(text, _find_invocations):
+    for lineno, invocation, declared in _matches(text, _find_invocations):
         if invocation.form == _sites.LOCATOR:
+            # The YAML prohibition comes first: no declaration can waive it (ADR-121).
+            if declared and not _is_yaml(rel):
+                continue
             locator = _locator_offense(rel, lineno, invocation, repo_root, tracked_py, imports)
             if locator is not None:
                 offenses.append(locator)
+            continue
+        if declared:
             continue
         tail = invocation.tail
         if invocation.interp != "python3":

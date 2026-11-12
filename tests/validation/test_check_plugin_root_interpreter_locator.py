@@ -19,6 +19,7 @@ from scripts.validation import plugin_root_interpreter_sites as sites
 from tests.validation.test_check_plugin_root_interpreter import REPO_ROOT, make_repo
 
 sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
+from lib_hand_files import PLUGIN_LIB_FILES
 from plugin_run_launcher import render_locator
 
 _LEGACY_ROOT = "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
@@ -122,6 +123,27 @@ def test_locator_in_a_scripts_map_is_refused(tmp_path: Path) -> None:
     assert "shlex" in offense
 
 
+@pytest.mark.parametrize("placement", ["same line", "line above"])
+def test_a_declared_locator_in_yaml_is_still_refused(tmp_path: Path, placement: str) -> None:
+    """The YAML prohibition runs before declaration suppression, so a marker cannot hide it."""
+    marker = "plugin-root-interpreter: example"
+    locator = render_locator(_BAR)
+    if placement == "same line":
+        yaml_text = f"scripts:\n  run: '{locator}'  # {marker}\n"
+    else:
+        yaml_text = f"scripts:\n  # {marker}\n  run: '{locator}'\n"
+    [offense] = _scan(tmp_path, {_CONFIG: yaml_text})
+    assert "Class G" in offense
+
+
+def test_a_declared_locator_in_markdown_is_still_suppressed(tmp_path: Path) -> None:
+    """Negative control: only the YAML refusal ignores a declaration."""
+    text = (
+        f"<!-- plugin-root-interpreter: example -->\n`{render_locator('skills/foo/missing.py')}`\n"
+    )
+    assert _scan(tmp_path, {"README.md": text}) == []
+
+
 def test_the_legacy_form_in_the_same_yaml_map_still_passes(tmp_path: Path) -> None:
     """Negative control: the refusal is about the locator, not about the file or the key."""
     yaml_text = f"scripts:\n  run: '{_legacy()} --x'\n"
@@ -195,6 +217,8 @@ def test_an_invocation_split_across_lines_counts_once() -> None:
         ("src/claude/skills/pr-review/scripts/x.py", "src/claude"),
         ("src/claude/skills/pr-review/pr-review-config.yaml", "src/claude yaml"),
         ("src/claude/AGENTS.md", "src/claude"),
+        ("src/claude/lib/paths.py", "src/claude"),
+        ("src/claude/lib/ptk_run.py", "src/claude"),
     ],
 )
 def test_authored_files_fall_in_a_group(rel: str, group: str) -> None:
@@ -208,7 +232,8 @@ def test_authored_files_fall_in_a_group(rel: str, group: str) -> None:
         "src/claude/agents/architect.md",
         "src/claude/rules/universal.md",
         "src/claude/hooks/hooks.json",
-        "src/claude/lib/ptk_run.py",
+        "src/claude/lib/bootstrap.py",
+        "src/claude/lib/hook_utilities/ptk_run.py",
         "src/copilot-cli/skills/pr-review/references/x.md",
         "src/codex/skills/pr-review/references/x.md",
         ".claude/agents/architect.md",
@@ -218,6 +243,23 @@ def test_authored_files_fall_in_a_group(rel: str, group: str) -> None:
 )
 def test_renders_and_other_trees_are_not_authored(rel: str) -> None:
     assert ratchet.authored_group(rel) is None
+
+
+def test_every_hand_maintained_lib_module_is_authored() -> None:
+    """Conformance: the ratchet reads the build's own list, so the two cannot drift."""
+    assert PLUGIN_LIB_FILES
+    for name in PLUGIN_LIB_FILES:
+        assert ratchet.authored_group(f"src/claude/lib/{name}") == "src/claude"
+
+
+def test_a_legacy_site_in_a_hand_maintained_lib_module_is_counted(tmp_path: Path) -> None:
+    """A site added to ptk_run.py or paths.py must reach the ratchet, not hide as a render."""
+    site = f'"""`{_legacy()}`"""\n'
+    files = {f"src/claude/lib/{name}": site for name in PLUGIN_LIB_FILES}
+    files["src/claude/lib/bootstrap.py"] = site
+    counts: dict[str, sites.LegacyCounts] = {}
+    checker.scan(make_repo(tmp_path, {**_STDLIB, **files}), legacy_counts=counts)
+    assert counts == {"src/claude": sites.LegacyCounts(invocations=len(PLUGIN_LIB_FILES))}
 
 
 def test_a_nested_skill_md_is_authored_support_text() -> None:
