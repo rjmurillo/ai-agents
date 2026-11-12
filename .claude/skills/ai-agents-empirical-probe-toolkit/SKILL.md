@@ -153,13 +153,13 @@ Pick the recipe from the selector table. Each recipe states when to use it, the 
 Run the flag check after editing Recipe 3. It parses `add_argument` calls in the eval scripts and does not execute them. Exit 1 names any flag this skill cites that the script does not declare. It does not check that a flag behaves as described.
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-empirical-probe-toolkit/scripts/cli_flags_check.py" --repo .
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-empirical-probe-toolkit/scripts/cli_flags_check.py --repo .; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 List every instrument, including the `cited-paths` check and the drift check, with:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-empirical-probe-toolkit/scripts/instruments.py" --repo . list
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-empirical-probe-toolkit/scripts/instruments.py --repo . list; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 The list covers file existence only. It does not confirm that a `file:line` cite still lands on the quoted text.
@@ -193,5 +193,5 @@ Before claiming a probe, calibration, or eval result:
 See [references/provenance.md](references/provenance.md) for sources and re-verification one-liners for every fact in this skill. `reverify.json` holds the machine-checked claims. Run the drift check:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_drift.py" check --repo . --skills-root .claude/skills --name ai-agents-empirical-probe-toolkit --require
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_drift.py check --repo . --skills-root .claude/skills --name ai-agents-empirical-probe-toolkit --require; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```

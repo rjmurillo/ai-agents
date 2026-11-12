@@ -283,7 +283,7 @@ volatile facts:
 | eval scripts and `--dry-run` | `scripts/eval/eval-prompt-change.py:633` (`Validate inputs, no API calls`); `scripts/eval/` listing | `ls scripts/eval/ && grep -n "dry-run" scripts/eval/eval-prompt-change.py` |
 | Contradiction log format | `.claude/skills/memory-gate/references/contradiction-log.md` | `grep -n "decision-" .claude/skills/memory-gate/references/contradiction-log.md` |
 | ADR-069 still proposed | `.project-toolkit/architecture/ADR-069-context-corpus-is-the-product.md:3` (`status: proposed`) | `head -5 .project-toolkit/architecture/ADR-069-context-corpus-is-the-product.md` |
-| Retro corpus size | `.project-toolkit/retrospective/` | `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-failure-archaeology/scripts/corpus_index.py" --repo .` (`retro_files`; exits 1 while INDEX.md covers 11 of 241 retros at 42e409325, so read the JSON, not the exit code) |
+| Retro corpus size | `.project-toolkit/retrospective/` | `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-failure-archaeology/scripts/corpus_index.py --repo .; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )` (`retro_files`; exits 1 while INDEX.md covers 11 of 241 retros at 42e409325, so read the JSON, not the exit code) |
 
 Uncertainty flag: the `EVENT=` telemetry consumer pipeline was never fully
 mapped before it was retired (noted in `ai-agents-research-frontier`). The
@@ -294,10 +294,10 @@ output; nothing in this repo produces or reads that telemetry today.
 
 ### Scripts
 
-Run `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-research-methodology/scripts/instruments.py" --repo . list` to see every linked instrument and whether its file exists. It lists the retro counter above, the `file:line` claim check (`bootstrap_mine.py claims`), `scripts/validation/check_citation_freshness.py`, and the drift check. It answers presence only; whether a cited line still says what this skill claims is for `reverify.json`.
+Run `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-research-methodology/scripts/instruments.py --repo . list; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )` to see every linked instrument and whether its file exists. It lists the retro counter above, the `file:line` claim check (`bootstrap_mine.py claims`), `scripts/validation/check_citation_freshness.py`, and the drift check. It answers presence only; whether a cited line still says what this skill claims is for `reverify.json`.
 
 Machine-checkable facts live in `reverify.json`. Run the drift check after any edit:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_drift.py" check --repo . --skills-root .claude/skills --name ai-agents-research-methodology --require
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_drift.py check --repo . --skills-root .claude/skills --name ai-agents-research-methodology --require; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```

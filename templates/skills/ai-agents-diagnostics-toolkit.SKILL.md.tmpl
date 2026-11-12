@@ -32,8 +32,8 @@ Vocabulary, defined once: an "instrument" is a script whose output you read, not
 |---|---|---|
 | Description budget | How much standing context do skill descriptions cost? | `uv run python ./scripts/skill_description_budget.py` |
 | Skill size | Which SKILL.md files exceed the 300-warn / 500-block line limits or the 24576-byte limit? | `uv run python ./scripts/validation/skill_size.py` |
-| Orphan refs | Do specs, evals, and manifests reference entities that no longer exist? | `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/orphan-ref-validator/scripts/scan.py"` |
-| Golden principles | Where does the repo violate the mechanical rules (GP-001, GP-003, GP-004, GP-005, GP-006)? | `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/golden-principles/scripts/scan_principles.py"` |
+| Orphan refs | Do specs, evals, and manifests reference entities that no longer exist? | `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/orphan-ref-validator/scripts/scan.py; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )` |
+| Golden principles | Where does the repo violate the mechanical rules (GP-001, GP-003, GP-004, GP-005, GP-006)? | `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/golden-principles/scripts/scan_principles.py; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )` |
 | Agent drift | Do generated agent files match their templates? | `uv run python build/generate_agents.py --validate` |
 | Mirror and lib drift | Do the generated mirror and lib trees match their canonical sources? | `uv run python build/scripts/build_all.py --check` |
 | Install parity | Does the install surface stay in parity across hosts (ADR-035)? | `uv run python scripts/validation/run_install_parity_ci.py` |
@@ -42,7 +42,7 @@ Vocabulary, defined once: an "instrument" is a script whose output you read, not
 | Eval agent vs baseline | Does an agent beat the baseline on fixtures? | `uv run python ./scripts/eval/eval-agent-vs-baseline.py --agent <name> --fixtures <dir> --dry-run` |
 | Commit count | Advisory-only signal, not a cap | `git rev-list --count HEAD ^origin/main` |
 
-To list or run any row with an existence check, use `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-diagnostics-toolkit/scripts/instruments.py" --repo . list`. It prints each row with `exists: true|false` and exits 1 on a missing file. `run <id> -- <args>` execs the row and passes its exit code through. It does not judge a reading; the guides do.
+To list or run any row with an existence check, use `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-diagnostics-toolkit/scripts/instruments.py --repo . list; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`. It prints each row with `exists: true|false` and exits 1 on a missing file. `run <id> -- <args>` execs the row and passes its exit code through. It does not judge a reading; the guides do.
 
 ## Process
 
@@ -79,7 +79,7 @@ Match the worry to the row in the Instrument Index. Two routing rules:
 Get the numbers with the snapshot script, then compare them with the guides in [`references/instrument-guides.md`](references/instrument-guides.md):
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-diagnostics-toolkit/scripts/baseline_snapshot.py" --repo .
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-diagnostics-toolkit/scripts/baseline_snapshot.py --repo .; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 It runs the description budget, skill size, orphan-ref, and golden-principles instruments and prints their headline counts as JSON with the HEAD SHA and date. It never runs `build_all.py --check`, so drift gates and eval results need their own commands. Exit 1 means an instrument's output was unreadable; exit 3 means git or an instrument failed to start.
@@ -130,7 +130,7 @@ Before citing any number from this toolkit in a PR, session log, or decision:
 Checks live in `reverify.json`. Run the drift command after any edit:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_drift.py" check --repo . --skills-root .claude/skills --name ai-agents-diagnostics-toolkit --require
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_drift.py check --repo . --skills-root .claude/skills --name ai-agents-diagnostics-toolkit --require; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Sources: `scripts/skill_description_budget.py` (docstring), `scripts/validation/skill_size.py` (limits), `src/claude/skills/orphan-ref-validator/scripts/scan.py` (`DEFAULT_TARGETS`, directives), `src/claude/skills/golden-principles/scripts/scan_principles.py` (rules, exit 10 while baseline is red), `build/scripts/build_all.py` (`write_audit`, the `EXIT CODES` docstring), `.github/workflows/pytest.yml` (REQ-009 coverage steps), `scripts/eval/eval-prompt-change.py --help`, `scripts/eval/_anthropic_api.py` (harness), `.claude/skills/skillforge/scripts/_constants.py` (`DESCRIPTION_MAX_LENGTH`, the 1024 cap).

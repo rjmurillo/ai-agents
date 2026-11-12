@@ -46,7 +46,7 @@ cannot answer "was R read correctly", because both artifacts inherit one reading
 3. **Classify.** Write the record as JSON and run:
 
    ```bash
-   python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/evidence-provenance/scripts/classify_lineage.py" <record.json>
+   ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/evidence-provenance/scripts/classify_lineage.py <record.json>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
    ```
 
    An item whose `bound_to` names a different artifact or revision is always

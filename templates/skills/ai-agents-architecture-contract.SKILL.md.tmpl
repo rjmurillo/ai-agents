@@ -162,7 +162,7 @@ Before relying on or amending this contract:
 
 ## Scripts
 
-Run any row with `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-architecture-contract/scripts/instruments.py" --repo . run <id>`. List the rows and check each exists with `... instruments.py --repo . list` (exit 1 when a row is missing). `generator-path` takes the path after `--`.
+Run any row with `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-architecture-contract/scripts/instruments.py --repo . run <id>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`. List the rows and check each exists with `... instruments.py --repo . list` (exit 1 when a row is missing). `generator-path` takes the path after `--`.
 
 | Id | Answers |
 |---|---|
@@ -181,7 +181,7 @@ Exit codes for `instruments.py` and `contract_probe.py`: 0 ok, 1 when something 
 Authored 2026-07-03, refreshed 2026-10-31 against 42e409325; facts re-verified against the working tree on 2026-10-31. `reverify.json` holds the machine-checkable claims; the drift command below runs them:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_drift.py" check --repo . --skills-root .claude/skills --name ai-agents-architecture-contract --require
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_drift.py check --repo . --skills-root .claude/skills --name ai-agents-architecture-contract --require; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 The per-claim source and re-verify command index is in `references/provenance.md`.

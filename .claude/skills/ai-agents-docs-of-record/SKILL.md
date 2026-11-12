@@ -95,7 +95,7 @@ slug `github-actions-runner-selection` (055 supersedes 024). Rule: when citing
 an ADR, verify the file content says what you claim, not just the number.
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-docs-of-record/scripts/instruments.py" --repo . run adr-next-number
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-docs-of-record/scripts/instruments.py --repo . run adr-next-number; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 This runs `scripts/validation/check_adr_uniqueness.py --print-next` and prints
@@ -271,8 +271,8 @@ number, retro index coverage, session-log validation, drift). Exit codes: 0 ok,
 target failed to start. A `run` passes the child exit code through unchanged.
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-docs-of-record/scripts/instruments.py" --repo . list
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-docs-of-record/scripts/instruments.py" --repo . run <id>
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-docs-of-record/scripts/instruments.py --repo . list; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-docs-of-record/scripts/instruments.py --repo . run <id>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ## Provenance and Maintenance
@@ -289,7 +289,7 @@ relying on them:
 | ADR-073 lifecycle fields (`implemented`) | `.project-toolkit/architecture/ADR-073-adr-lifecycle-frontmatter.md:1-9` | `head -10 .project-toolkit/architecture/ADR-073-adr-lifecycle-frontmatter.md` |
 | adr-review fires on ADR edits | `AGENTS.md` "ADR review" (line 12) | `grep -n "ADR review" AGENTS.md` |
 | Auto-retro skeleton + marker + /retro fill | `.claude/skills/retro/SKILL.md` (RETRO-STATE marker) | `grep -n "RETRO-STATE" .claude/skills/retro/SKILL.md` |
-| Retro corpus size vs INDEX.md coverage | `.project-toolkit/retrospective/` | `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-failure-archaeology/scripts/corpus_index.py" --repo .` |
+| Retro corpus size vs INDEX.md coverage | `.project-toolkit/retrospective/` | `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-failure-archaeology/scripts/corpus_index.py --repo .; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )` |
 | Memory naming + index-row hazard | `.claude/skills/memory/SKILL.md` "Serena Write Conventions" | `grep -n "Serena Write Conventions" .claude/skills/memory/SKILL.md` |
 | Memory/skill separate-PR rule | `.claude/rules/claude-agents.md` MUST NOT item 2 | `grep -n "same PR" .claude/rules/claude-agents.md` |
 | Handoff tiers (session log, per-issue, per-branch) | `.project-toolkit/sessions/handoffs/README.md` tier table; ADR-014 | `grep -n "Tier" .project-toolkit/sessions/handoffs/README.md` |
@@ -302,7 +302,7 @@ Instruments (`list` shows each row and whether its file exists; `run <id>`
 passes the child exit code through):
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-docs-of-record/scripts/instruments.py" --repo . list
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-docs-of-record/scripts/instruments.py --repo . list; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Rows: `adr-next-number`, `retro-index-coverage` (exits 1 at HEAD `42e409325`,
@@ -310,7 +310,7 @@ Rows: `adr-next-number`, `retro-index-coverage` (exits 1 at HEAD `42e409325`,
 exit code), `session-log-validate` (pass the log path after `--`), and
 `drift-self-check`. Drift check, with `reverify.json`:
 
-`python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_drift.py" check --repo . --skills-root .claude/skills --name ai-agents-docs-of-record --require`
+`( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_drift.py check --repo . --skills-root .claude/skills --name ai-agents-docs-of-record --require; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`
 
 Maintenance: when a validator, template path, or protocol phase changes, update
 the matching row here in the same PR. This file is itself a document of record;

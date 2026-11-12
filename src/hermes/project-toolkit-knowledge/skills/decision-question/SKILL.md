@@ -51,7 +51,7 @@ with `python3`. Output is one JSON object.
 3. **Check and plan.** Write the brief as JSON and run:
 
    ```bash
-   python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/decision-question/scripts/decision_question.py" --brief <brief.json>
+   ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/decision-question/scripts/decision_question.py --brief <brief.json>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
    ```
 
    `status: incomplete` (exit 2) lists the missing fields. Enrich the brief and
@@ -75,7 +75,7 @@ with `python3`. Output is one JSON object.
 ### decision_question.py
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/decision-question/scripts/decision_question.py" --brief <brief.json> [--max-options N]
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/decision-question/scripts/decision_question.py --brief <brief.json> [--max-options N]; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Reads one decision, or `{context, decisions, answers, paging}`. Routes, then validates

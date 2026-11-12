@@ -260,7 +260,7 @@ Use Abstract Factory pattern with `IPaymentFactory` per method.
 1. **Run validation script**:
 
    ```bash
-   python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/cva-analysis/scripts/validate-cva-matrix.py" cva-matrix.md
+   ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/cva-analysis/scripts/validate-cva-matrix.py cva-matrix.md; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
    ```
 
    - Checks: ≥2 rows, ≥2 columns, all cells filled, patterns suggested
@@ -415,7 +415,7 @@ Check CVA matrix completeness and suggest patterns.
 **Usage**:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/cva-analysis/scripts/validate-cva-matrix.py" cva-matrix.md
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/cva-analysis/scripts/validate-cva-matrix.py cva-matrix.md; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 **Exit Codes**:
