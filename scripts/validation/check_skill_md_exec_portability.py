@@ -211,6 +211,7 @@ LITERAL_EXTRA_DIRS: tuple[tuple[str, ...], ...] = (
     ("src", "copilot-cli", "instructions"),
     ("src", "cursor", "agents"),
     ("src", "cursor", "rules"),
+    ("src", "muse", "agents"),
     ("src", "vs-code-agents"),
     ("templates", "agents"),
     ("templates", "rules"),

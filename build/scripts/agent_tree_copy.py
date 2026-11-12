@@ -28,6 +28,10 @@ Stanza keys (all under ``artifacts.agents``):
                       every shipped body naming the agents left out (Codex agent
                       files cannot restrict tools, ADR-115 Decision 7). Requires
                       ``frontmatterKeep``; excludes ``deriveReadonly: true``.
+``noSubagentsNote``   when true, a ``markdown`` agent whose source sets
+                      ``disallowedTools: Agent`` gets the same short ``Subagents``
+                      section ``codex-toml`` always adds, because the host cannot
+                      enforce that deny (Muse Code, ADR-115 Decision 8).
 ``outputFormat``      ``markdown`` (default) or ``codex-toml``. ``codex-toml`` writes
                       ``<stem>.toml`` with the keys ``name``, ``description`` and
                       ``developer_instructions`` (the body). ``frontmatterKeep`` must
@@ -138,6 +142,7 @@ class RenderSpec:
     derive_readonly: bool = False
     output_format: str = FORMAT_MARKDOWN
     appendix: str = ""
+    no_subagents_note: bool = False
 
 
 def _as_copy_error(call: Callable[[], T]) -> T:
@@ -160,7 +165,9 @@ def render_parsed(
     A ``None`` return means the agent carries a tool restriction ``readonly``
     cannot express (ADR-115 Decision 3). ``body_edits`` are literal
     ``(from, to)`` edits applied to the body only, so text that also appears in
-    the frontmatter can never be rewritten by mistake. ``spec.appendix`` is
+    the frontmatter can never be rewritten by mistake. A ``codex-toml`` render, or a
+    markdown render with ``spec.no_subagents_note``, adds the ``Subagents`` section for
+    an ``Agent`` deny and refuses any other deny. ``spec.appendix`` is
     added after the edits; ``codex-toml`` returns a TOML document.
     """
     try:
@@ -173,12 +180,14 @@ def render_parsed(
         kept[_READONLY_KEY] = True
     if body_edits:
         body = apply_body_replacements(body, body_edits, source)
-    if spec.output_format == FORMAT_CODEX_TOML:
+    is_codex = spec.output_format == FORMAT_CODEX_TOML
+    if is_codex or spec.no_subagents_note:
         unenforced = unenforceable_disallowed(loaded)
         if unenforced:
+            host = "Codex" if is_codex else "Muse Code"
             raise AgentCopyError(
                 f"{source}: `disallowedTools` names {', '.join(unenforced)}, "
-                "which a Codex agent file cannot enforce; only `Agent` is supported"
+                f"which a {host} agent file cannot enforce; only `Agent` is supported"
             )
         if forbids_subagents(loaded):
             body = body.rstrip("\n") + NO_SUBAGENTS
@@ -325,6 +334,7 @@ def generate_agent_copies(
         stanza.get("deriveReadonly") is True,
         options.fmt,
         not_installed_paragraph(sorted(src.stem for src in restricted)) if restricted else "",
+        options.no_subagents_note,
     )
     result = AgentCopyResult(inputs=len(sources))
     expected: set[str] = set()

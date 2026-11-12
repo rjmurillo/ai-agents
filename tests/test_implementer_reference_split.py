@@ -32,6 +32,7 @@ IMPLEMENTER_PATHS = (
     Path("src/copilot-cli/agents/implementer.agent.md"),
     Path("src/vs-code-agents/implementer.agent.md"),
     Path("src/cursor/agents/implementer.md"),
+    Path("src/muse/agents/implementer.md"),
 )
 
 # reference -> (load condition phrase in Reference Loading, stub heading in the body)

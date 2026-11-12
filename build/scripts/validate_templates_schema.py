@@ -71,6 +71,7 @@ AGENTS_KEYS = {
     "bodyReplace",
     "skipToolRestricted",
     "outputFormat",
+    "noSubagentsNote",
 }
 SKILLS_KEYS = {
     "sourceDir",

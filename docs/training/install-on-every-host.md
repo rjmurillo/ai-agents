@@ -19,7 +19,7 @@ We ran the commands on 2026-11-11 with main at `d34536c95c`. Counts come from th
 | Pi | 1.5.0 | 105 | None | `pi install` from git | Yes |
 | Hermes | Agent v0.23.0 | 91, in two packs | None | `hermes plugins install` per pack | Yes |
 | Muse personal agent | Not run | 105 | None | Copy skill folders | No |
-| Muse Code | 1.4.15, at `fc91afcf2` | 105 | None | Copy skill folders | Partly |
+| Muse Code | 1.4.15, at `fc91afcf2` | 105 | 25; a signed-in run spawned all 25 | Copy skill and agent folders | Partly |
 
 "Yes" means the install, check, update, and uninstall commands on this page all ran. A model turn that needs your sign-in is the exception. We mark those "Not run".
 
@@ -361,36 +361,48 @@ Uninstall: delete the same folders and `~/workspace/lib`.
 
 ### Install on Muse Code
 
-Muse Code 1.4.15 ran on 2026-11-11 with main at `fc91afcf2`. Muse Code loads user skills from `${XDG_CONFIG_HOME:-~/.config}/muse/skills/`. Skill scripts look for `lib/` one level up, at `${XDG_CONFIG_HOME:-~/.config}/muse/lib/`. Agents do not ship to Muse Code yet (ADR-115 Decision 8).
+Muse Code 1.4.15 ran on 2026-11-11 with main at `fc91afcf2`. Muse Code loads user skills from `${XDG_CONFIG_HOME:-~/.config}/muse/skills/`. Skill scripts look for `lib/` one level up, at `${XDG_CONFIG_HOME:-~/.config}/muse/lib/`. Muse Code documents `~/.config/muse/agents/` for agents (ADR-115 Decision 8). This install uses `${XDG_CONFIG_HOME:-~/.config}/muse/agents/`, the same root as skills. No run shows that Muse Code reads the `XDG_CONFIG_HOME` form for agents. The personal agent has no documented agent format and gets no agents.
 
 Do not copy these skills into the `skills` folder under `~/.agents`, or under a repository's `.agents` folder. Codex reads those folders too, and its copies differ.
 
 1. Clone the toolkit, as in step 1 above.
 
-2. Copy the skills and `lib/`. The block moves any folder already there to a backup folder. It never deletes one:
+2. Copy the skills, `lib/`, and agents. The block moves any file or folder already there to a backup folder. It never deletes one:
 
    ```bash
    root="${XDG_CONFIG_HOME:-$HOME/.config}/muse"
-   backup="$root/install-backup-$(date +%Y%m%d%H%M%S)"
-   mkdir -p "$root/skills"
-   if [ -e "$root/lib" ]; then
-     mkdir -p "$backup"
-     mv "$root/lib" "$backup/lib"
+   backup="$root/install-backup-$(date +%Y%m%d%H%M%S)-$$"
+   mkdir -p "$root/skills" "$root/agents"
+   if [ ! -e "$root/lib" ] && [ ! -L "$root/lib" ] \
+     || { mkdir -p "$backup" && mv "$root/lib" "$backup/lib"; }; then
+     cp -R src/muse/lib "$root/lib"
+   else
+     echo "backup failed, kept $root/lib" >&2
    fi
-   cp -R src/muse/lib "$root/lib"
    for d in src/muse/skills/*/; do
      name="$(basename "$d")"
-     if [ -e "$root/skills/$name" ]; then
-       mkdir -p "$backup/skills"
-       mv "$root/skills/$name" "$backup/skills/$name"
+     if [ -e "$root/skills/$name" ] || [ -L "$root/skills/$name" ]; then
+       mkdir -p "$backup/skills" && mv "$root/skills/$name" "$backup/skills/$name" \
+         || { echo "backup failed, kept $root/skills/$name" >&2; continue; }
      fi
      cp -R "$d" "$root/skills/$name"
    done
+   for f in src/muse/agents/*.md; do
+     name="$(basename "$f")"
+     if [ -e "$root/agents/$name" ] || [ -L "$root/agents/$name" ]; then
+       mkdir -p "$backup/agents" && mv "$root/agents/$name" "$backup/agents/$name" \
+         || { echo "backup failed, kept $root/agents/$name" >&2; continue; }
+       echo "moved $root/agents/$name to $backup/agents/$name"
+     fi
+     cp "$f" "$root/agents/$name"
+   done
    ```
+
+   On 2026-11-11 the tree shipped 25 agents. It leaves out `analyst`, `code-reviewer`, `comment-analyzer`, and `security`, because their Claude files declare a `tools` list and Muse Code tool names are not documented. Each shipped body names the agents left out. Muse Code cannot spawn an agent with an unrecognized frontmatter key, so only `name` and `description` ship. On 2026-11-12, signed-in `muse exec` runs on 1.4.15 spawned all 25 from `~/.config/muse/agents/`, and each child's session log held its agent body. Muse Code refused a control agent with an extra frontmatter key as `agent_definition_invalid`. The load test is `tests/e2e/test_muse_agents_load.py`, and it needs a Muse login. Muse Code's default sandbox hides `~/.config/muse` from the model's shell, so the model cannot run a skill script from the user folder (`Permission denied`). It can read the skill with its skill tool. Account-wide agents have unrestricted tools and apply to every workspace. The Claude deny on starting subagents does not carry over. 24 agent bodies instead carry a Subagents section that asks the model not to start subagents. That is a prompt instruction, not a block.
 
 Update: pull the clone and run step 2 again. It moves the old copies aside.
 
-Uninstall: move the folders named in `src/muse/skills/` out of `~/.config/muse/skills/`. Move `~/.config/muse/lib` out too. Use `$XDG_CONFIG_HOME/muse` in place of `~/.config/muse` when that variable is set.
+Uninstall: move the folders named in `src/muse/skills/` out of `~/.config/muse/skills/`. Move the files named in `src/muse/agents/` out of `~/.config/muse/agents/`. Move `~/.config/muse/lib` out too. Use `$XDG_CONFIG_HOME/muse` in place of `~/.config/muse` when that variable is set.
 
 ## Check your result
 
@@ -754,7 +766,7 @@ usage: get_pr_checks.py [-h] [--owner OWNER] [--repo REPO]
                         [--timeout-seconds TIMEOUT_SECONDS]
 ```
 
-Muse gets skills only. The frontmatter keeps only `name` and `description`, the two fields Muse custom skills use.
+One `src/muse` tree serves two Muse targets. The personal agent gets skills and `lib/` only. Muse Code gets skills, `lib/`, and agents. The skill frontmatter keeps only `name` and `description`. The personal agent steps are in [src/muse/README.md](../../src/muse/README.md). The Muse Code steps are in [Install on Muse Code](#install-on-muse-code): skills and `lib/` under `${XDG_CONFIG_HOME:-$HOME/.config}/muse/`, agents in `muse/agents/`. On 2026-11-12, signed-in `muse exec` runs on 1.4.15 spawned all 25 agents from `muse/agents/` (`tests/e2e/test_muse_agents_load.py` needs a Muse login). On 2026-11-11, Muse Code 1.4.15 `muse skills validate` accepted all 105 `src/muse/skills` directories with no login (`tests/e2e/test_muse_skills_validate.py`).
 
 Not run: asking Muse to list or use a skill.
 
@@ -784,9 +796,19 @@ cd ~ && python3 -I "${XDG_CONFIG_HOME:-$HOME/.config}/muse/skills/github/scripts
 
 It prints the same usage text as the personal-agent check above.
 
+Count the agent files the install copied:
+
+```bash
+ls "${XDG_CONFIG_HOME:-$HOME/.config}/muse/agents/"*.md | wc -l
+```
+
+It prints `25` in a scratch home with no other agents (2026-11-11). It counts files only. The spawn evidence is in the install step above.
+
 We also ran one signed-in `muse exec` turn. It loaded the `github` skill and ran that script. That run used a copy in a scratch repository's project skill folder, not the user folder.
 
-Not run: a signed-in turn against the user folder, and update or uninstall in a real home.
+On 2026-11-12, a signed-in turn loaded the `github` skill from the user folder with the skill tool. The same turn could not run the script there: Muse Code's default sandbox answered `Permission denied` for anything under `~/.config/muse`. The script command above works from your own shell.
+
+Not run: update or uninstall in a real home.
 
 Muse Code trims its skill catalog to 32 KB. In a scratch home with these 105 skills and the 26 built-in and plugin skills, it loaded 131 skills. It shortened 104 descriptions and omitted no skill.
 
@@ -795,6 +817,7 @@ If it fails:
 - The count is `0`, and the skills sit in `~/workspace/custom-skills/`: that is the personal-agent folder. Muse Code does not read it. Run the Muse Code step 2.
 - `Plugin lib directory not found`: `lib/` is missing from `${XDG_CONFIG_HOME:-~/.config}/muse/`. Run step 2 again.
 - `muse skills list` shows `skill-shadowed`: another root has a skill with the same name, and Muse Code loaded that one.
+- The agent count is `0`: step 2 did not copy the agents. Run step 2 from the repository root.
 
 ## Next
 

@@ -163,6 +163,7 @@ class TestScanLiteralPluginPaths:
             "templates/rules/helper.md",
             "src/claude/rules/helper.md",
             "src/codex/agents/helper.toml",
+            "src/muse/agents/helper.md",
         ],
     )
     def test_scans_agent_and_rule_files(self, tmp_path: Path, rel: str) -> None:

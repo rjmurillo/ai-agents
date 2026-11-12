@@ -2,17 +2,18 @@ schemaVersion: "1.0"
 provider: "muse"
 artifacts:
   skills:
-    # Muse (Meta's personal agent) reads skills as plain directories
-    # holding a SKILL.md whose frontmatter it consumes is name and
-    # description only, so this tree renders the shipped Claude skills
-    # with a keep-list instead of a drop-list (frontmatterKeep precedent:
-    # templates/platforms/cursor.yaml, ADR-115 Decision 2). Muse has no
-    # plugin manifest and no install cap, so the tree is flat: skills/
-    # plus the shared lib/ the skill scripts resolve against, mirroring
-    # the src/claude layout. The Hermes pack exclusions do not apply
-    # here: every one is a Hermes plugin_guard verdict (ADR-115
-    # Decision 6), and Muse has no equivalent guard, so this tree ships
-    # the same skill set as src/codex (ADR-115 Decision 2).
+    # One src/muse tree serves two targets: Meta's personal agent and the
+    # Muse Code CLI (https://dev.meta.ai/docs/muse-code). Both read skills as
+    # plain directories holding a SKILL.md whose frontmatter they consume is
+    # name and description only, so this tree renders the shipped Claude
+    # skills with a keep-list instead of a drop-list (frontmatterKeep
+    # precedent: templates/platforms/cursor.yaml, ADR-115 Decision 2). Meta
+    # documents no plugin manifest and there is no install cap, so the tree is
+    # flat: skills/ plus the shared lib/ the skill scripts resolve against,
+    # mirroring the src/claude layout. The Hermes pack exclusions do not apply
+    # here: every one is a Hermes plugin_guard verdict (ADR-115 Decision 6),
+    # and Muse has no equivalent guard, so this tree ships the same skill set
+    # as src/codex (ADR-115 Decision 2).
     sourceDir: "src/claude/skills"
     outputDir: "src/muse/skills"
     mode: "directory-copy"
@@ -20,3 +21,45 @@ artifacts:
     frontmatterKeep:
       - name
       - description
+  agents:
+    # ADR-115 Decision 8 (amended): agents are for Muse Code only; the
+    # personal agent has no documented agent format. Muse Code agents are
+    # Markdown files with frontmatter name, description and optional model,
+    # effort, tools and disallowedTools
+    # (https://dev.meta.ai/docs/muse-code/agents). Muse Code starts with an
+    # invalid agent but the lead cannot spawn it, and an unrecognized key
+    # makes the agent invalid, so only the two documented required keys ship.
+    # The frontmatterKeep key makes this a build/scripts/agent_tree_copy.py
+    # platform; build/generate_agents.py skips it.
+    sourceDir: "src/claude/agents"
+    outputDir: "src/muse/agents"
+    excludeFilenames: ["AGENTS.md", "CLAUDE.md"]
+    outputFormat: "markdown"
+    # model is dropped (ADR-111): a bare alias such as `haiku` is not a Muse
+    # model id. disallowedTools is dropped as an accepted bounded exception
+    # (ADR-115 Decision 3 amendment): its values are Claude tool names, and
+    # dropping a deny list widens an agent only to the tools Muse Code grants
+    # by default.
+    frontmatterKeep:
+      - name
+      - description
+    # The tool names a Muse `tools` list accepts are not documented, so a
+    # Claude `tools` allow list cannot be translated, and dropping it would
+    # widen the agent. An agent whose Claude file declares `tools` is not
+    # shipped, and each shipped body names the agents left out so a handoff
+    # to one is done in-session.
+    skipToolRestricted: true
+    # Muse Code has no documented value for the Claude `disallowedTools: Agent`
+    # deny, and a value it rejects could leave the agents unspawnable, so the
+    # key stays dropped. Instead each of those bodies gets the short Subagents
+    # section Codex ships (build/scripts/agent_toml.py NO_SUBAGENTS). It is a
+    # prompt instruction, not a block.
+    noSubagentsNote: true
+    # The orchestrator says every row in its routing table is installed, so the
+    # rows for agents this tree does not ship are removed, and its delegation
+    # tool is named for Muse Code (https://dev.meta.ai/docs/cookbook/subagent-fanout).
+    bodyReplace:
+      orchestrator.md:
+        "| **analyst** | Research, root cause, feasibility | Already have enough context |\n": ""
+        "| **security** | Threat modeling, vulnerability review | Pure performance work |\n": ""
+        "Task (for delegation)": "subagent_spawn (for delegation)"
