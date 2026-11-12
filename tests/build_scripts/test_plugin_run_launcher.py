@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -194,8 +195,27 @@ def test_every_tree_that_ships_lib_ships_a_byte_identical_resolver() -> None:
 
 def test_the_dogfood_lib_reaches_the_resolver_through_a_link_to_the_claude_copy() -> None:
     linked = REPO_ROOT / ".claude" / "lib" / "ptk_run.py"
+    tracked = subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "ls-files", "-s", "--", ".claude/lib/ptk_run.py"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    ).stdout
+    if tracked:
+        assert tracked.startswith("120000 "), f"git must track the link as mode 120000: {tracked!r}"
     if not linked.is_symlink():
-        pytest.skip("git stored this path as a regular file (core.symlinks=false)")
+        config = subprocess.run(
+            ["git", "-C", str(REPO_ROOT), "config", "--get", "core.symlinks"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        ).stdout.strip()
+        assert config == "false", f"{linked} must be a symlink unless core.symlinks=false"
+        pytest.skip("core.symlinks=false: git wrote the link as a regular file")
     assert linked.read_bytes() == RESOLVER_SOURCE.read_bytes()
     assert linked.resolve() == RESOLVER_SOURCE.resolve()
 
