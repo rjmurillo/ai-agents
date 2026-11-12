@@ -3726,6 +3726,51 @@ def _is_verbatim_mirror_on_disk(repo_root: Path, rel_path: str) -> bool:
         return False
 
 
+def _in_repo_symlink_source(repo_root: Path, path: str) -> str | None:
+    """Return the repo-relative file a tracked symlink points at, or ``None``.
+
+    ADR-119 decision 14 links each ``.claude/lib`` entry that has a
+    ``src/claude/lib`` counterpart to that file (issue #7328). The source is
+    type-checked in its own right, so the link can stand in for it. A link that
+    leaves the repository, or ends at anything but a regular Python file gives
+    ``None``, and the caller refuses it. A link that ends at no file never
+    reaches this function, because the caller skips a path that is not a file.
+    """
+    root = repo_root.resolve()
+    target = (repo_root / path).resolve()
+    if target.suffix not in {".py", ".pyi"} or not target.is_file():
+        return None
+    if not target.is_relative_to(root):
+        return None
+    return _safe_relative_path(target.relative_to(root).as_posix())
+
+
+def _mypy_input_paths(paths: Sequence[str], repo_root: Path) -> list[str] | None:
+    """Return the files to type-check, or ``None`` after printing why one is refused.
+
+    A tracked symlink stands in for the in-repo file it points at (issue #7328).
+    The link and its source collapse to one entry.
+    """
+    checked: list[str] = []
+    for raw_path in paths:
+        path = _safe_relative_path(raw_path)
+        if path is None:
+            print(f"ERROR: unsafe mypy path: {raw_path}", file=sys.stderr)
+            return None
+        full_path = repo_root / path
+        if not full_path.is_file():
+            continue
+        if full_path.is_symlink():
+            source = _in_repo_symlink_source(repo_root, path)
+            if source is None:
+                print(f"ERROR: refusing to type-check symlink: {path}", file=sys.stderr)
+                return None
+            path = source
+        if path not in checked:
+            checked.append(path)
+    return checked
+
+
 def run_mypy(paths: Sequence[str], repo_root: Path) -> int:
     if not paths:
         print(
@@ -3733,19 +3778,9 @@ def run_mypy(paths: Sequence[str], repo_root: Path) -> int:
             file=sys.stderr,
         )
         return 2
-    checked_paths: list[str] = []
-    for raw_path in paths:
-        path = _safe_relative_path(raw_path)
-        if path is None:
-            print(f"ERROR: unsafe mypy path: {raw_path}", file=sys.stderr)
-            return 2
-        full_path = repo_root / path
-        if not full_path.is_file():
-            continue
-        if full_path.is_symlink():
-            print(f"ERROR: refusing to type-check symlink: {path}", file=sys.stderr)
-            return 2
-        checked_paths.append(path)
+    checked_paths = _mypy_input_paths(paths, repo_root)
+    if checked_paths is None:
+        return 2
     checked_paths = [
         path for path in checked_paths if not _is_verbatim_mirror_on_disk(repo_root, path)
     ]
