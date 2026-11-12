@@ -120,11 +120,18 @@ def output_option_errors(name: str, stanza: dict[str, object]) -> list[str]:
     fmt = stanza.get(FORMAT_KEY, FORMAT_MARKDOWN)
     if fmt not in FORMATS:
         errors.append(f"{where}{FORMAT_KEY}`: must be `markdown` or `codex-toml`")
-    elif fmt == FORMAT_CODEX_TOML and stanza.get("frontmatterKeep") != CODEX_KEEP:
-        errors.append(
-            f"{where}{FORMAT_KEY}`: `codex-toml` needs `frontmatterKeep` of exactly "
-            "[name, description]"
-        )
+    elif fmt == FORMAT_CODEX_TOML:
+        if stanza.get("frontmatterKeep") != CODEX_KEEP:
+            errors.append(
+                f"{where}{FORMAT_KEY}`: `codex-toml` needs `frontmatterKeep` of exactly "
+                "[name, description]"
+            )
+        # The renderer has no `readonly` field to write. A read-only source would ship
+        # with the parent's permissions, so the combination is refused up front.
+        if stanza.get("deriveReadonly") is True:
+            errors.append(
+                f"{where}{FORMAT_KEY}`: `codex-toml` cannot combine with `deriveReadonly: true`"
+            )
     return errors
 
 

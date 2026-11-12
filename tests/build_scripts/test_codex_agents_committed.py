@@ -67,6 +67,30 @@ def _committed() -> list[Path]:
     return sorted(CODEX_AGENTS.glob("*.toml"))
 
 
+def disallows_agent(front: dict[str, object]) -> bool:
+    """True when ``disallowedTools`` names ``Agent`` as a list or as a comma-separated string."""
+    raw = front.get("disallowedTools")
+    names = raw if isinstance(raw, list) else str(raw or "").split(",")
+    return "Agent" in [str(name).strip() for name in names]
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("Agent", True),
+        ("Read, Agent", True),
+        (["Agent"], True),
+        (["Read", " Agent "], True),
+        ("Task", False),
+        (["Task"], False),
+        ([], False),
+        (None, False),
+    ],
+)
+def test_disallows_agent_reads_both_input_forms(value: object, expected: bool) -> None:
+    assert disallows_agent({"disallowedTools": value}) is expected
+
+
 def problems_with(stem: str, committed_text: str) -> list[str]:
     """Differences between a committed file's text and what the source should produce."""
     front, body = _read_source(stem)
@@ -83,10 +107,9 @@ def problems_with(stem: str, committed_text: str) -> list[str]:
         found.append(f"name is {parsed.get('name')!r}")
     if parsed.get("description") != front["description"]:
         found.append("description differs from the source")
-    no_subagents = "Agent" in [
-        t.strip() for t in str(front.get("disallowedTools") or "").split(",")
-    ]
-    expected = (body.rstrip("\n") + (NO_SUBAGENTS if no_subagents else "")).rstrip("\n") + PARAGRAPH
+    expected = (body.rstrip("\n") + (NO_SUBAGENTS if disallows_agent(front) else "")).rstrip(
+        "\n"
+    ) + PARAGRAPH
     if parsed.get("developer_instructions") != expected:
         found.append("developer_instructions differs from source body plus paragraph")
     return found
