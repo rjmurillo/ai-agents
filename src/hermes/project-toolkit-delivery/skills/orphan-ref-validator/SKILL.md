@@ -34,20 +34,22 @@ The skill ships with vendored installs. Missing targets are errors by default. U
 
 ## Path conventions
 
-Commands below resolve the install root through `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}`, so they run unchanged from a repo checkout, a Claude plugin install, or the Copilot CLI mirror. The `/build` gate invokes this skill through whichever invocation form its platform provides; each platform mirror runs its own copy of `scan.py`.
+Commands below run through the plugin-root locator. It tries `CLAUDE_PLUGIN_ROOT`, then `COPILOT_PLUGIN_ROOT`, then `.claude`, and uses the first root that holds `lib/ptk_run.py`. They run unchanged from a repo checkout, a Claude plugin install, or the Copilot CLI mirror. The `/build` gate invokes this skill through whichever invocation form its platform provides; each platform mirror runs its own copy of `scan.py`.
 
 ## Inputs
 
+Run `scan.py` through the plugin-root locator shown under Examples. Write every option inside the locator, before its closing `; fi`:
+
 ```text
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py \
-    [--targets PATH ...] \
-    [--include-adrs] \
-    [--include-skill-descriptions] \
-    [--allow-missing-targets] \
-    [--allow-empty-scan] \
-    [--baseline FILE] \
-    [--repo-root PATH] \
-    [--output {json,human}] \
+scan.py
+    [--targets PATH ...]
+    [--include-adrs]
+    [--include-skill-descriptions]
+    [--allow-missing-targets]
+    [--allow-empty-scan]
+    [--baseline FILE]
+    [--repo-root PATH]
+    [--output {json,human}]
     [--log-level {DEBUG,INFO,WARNING,ERROR}]
 ```
 
@@ -171,9 +173,9 @@ Use file-scope on M1-deletion specs and proposed-entity catalogs whose every ref
 Success criteria for the skill:
 
 - [ ] In a repository checkout, `uv run pytest tests/skills/orphan-ref-validator/ -q` reports all tests passed. Plugin installs do not ship tests.
-- [ ] `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py --help` exits 0 with the documented argparse output.
-- [ ] `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py --targets missing.md` exits 2 with `VERDICT: ERROR`.
-- [ ] `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py` from the repo root exits 0 with `VERDICT: PASS` on default tracked text targets.
+- [ ] `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/orphan-ref-validator/scripts/scan.py --help; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )` exits 0 with the documented argparse output.
+- [ ] `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/orphan-ref-validator/scripts/scan.py --targets missing.md; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )` exits 2 with `VERDICT: ERROR`.
+- [ ] `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/orphan-ref-validator/scripts/scan.py; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )` from the repo root exits 0 with `VERDICT: PASS` on default tracked text targets.
 - [ ] The `build` skill Mandatory Exit Gates list orphan-ref-validator as gate 4.
 
 ## Scripts
@@ -183,7 +185,7 @@ Success criteria for the skill:
 | `scripts/scan.py` | Main entrypoint. Argparse CLI, target resolution, walking, detection, envelope rendering, exit codes. |
 | `scripts/__init__.py` | Marks `scripts/` as a Python package so tests can import `from scripts.scan import ...`. |
 
-Invoke directly with `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py [flags]`. Do not import the script from other modules; treat it as a CLI tool.
+Invoke it directly through the locator shown under Examples. Do not import the script from other modules; treat it as a CLI tool.
 
 ## Anti-Patterns
 
@@ -254,11 +256,7 @@ Target paths are resolved with `pathlib.Path.resolve()` and must lie under the r
 
 If `/build` exits with `VERDICT: CRITICAL_FAIL` from this skill, the recovery is:
 
-1. Re-run with the human formatter to get a grep-able list of `path:line` findings:
-
-   ```bash
-   python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py --output human
-   ```
+1. Re-run the Examples scan (human formatter) for a grep-able list of `path:line` findings.
 
 2. Confirm the finding is real before repairing it. This scanner has produced
    large numbers of false positives: one PR measured 1790 repo-wide findings
@@ -288,10 +286,7 @@ If `/build` exits with `VERDICT: CRITICAL_FAIL` from this skill, the recovery is
 To find latent drift in surfaces that are opt-in by default:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py \
-    --include-adrs \
-    --include-skill-descriptions \
-    --output human
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/orphan-ref-validator/scripts/scan.py --include-adrs --include-skill-descriptions --output human; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 This adds `.project-toolkit/architecture/`, `docs/`, and every `.claude/skills/*/SKILL.md` to the scan. The output is intentionally noisy on first run because preexisting drift surfaces; treat it as a triage list, not a `/build` gate.
@@ -299,16 +294,11 @@ This adds `.project-toolkit/architecture/`, `docs/`, and every `.claude/skills/*
 ## Examples
 
 ```bash
-# Default scan from repo root
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py
-
-# Scan only one file
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py \
-    --targets docs/skill-reference.md
-
-# Human summary
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py --output human
+# Default scan from repo root, human summary
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/orphan-ref-validator/scripts/scan.py --output human; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
+
+For one file, write `--targets PATH` inside the locator.
 
 ## Tests
 
@@ -335,8 +325,7 @@ debt. Two patterns avoid that:
 1. **Scope to the changed files** so the gate judges only what the PR touches:
 
    ```bash
-   python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py \
-       --targets $(git diff --name-only origin/main...HEAD)
+   ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/orphan-ref-validator/scripts/scan.py --targets $(git diff --name-only origin/main...HEAD); fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
    ```
 
    A PR that introduces no new orphan ref exits `0`; a PR that adds one exits `1`.
@@ -352,14 +341,10 @@ then fails only on findings introduced after that snapshot:
 
 ```bash
 # Save the current full scan as the baseline (JSON envelope form).
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py \
-    --include-adrs --include-skill-descriptions \
-    --output json > orphan-ref-baseline.json
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/orphan-ref-validator/scripts/scan.py --include-adrs --include-skill-descriptions --output json > orphan-ref-baseline.json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Later runs suppress the baselined findings; new ones still fail.
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py \
-    --include-adrs --include-skill-descriptions \
-    --baseline orphan-ref-baseline.json
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/orphan-ref-validator/scripts/scan.py --include-adrs --include-skill-descriptions --baseline orphan-ref-baseline.json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 The baseline file accepts three shapes: a saved JSON envelope (`Data.findings`,

@@ -24,9 +24,17 @@ Tests follow Arrange/Act/Assert, one behavior per test.
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
 import pytest
+
+_BUILD_SCRIPTS = Path(__file__).resolve().parents[3] / "build" / "scripts"
+sys.path.insert(0, str(_BUILD_SCRIPTS))
+try:
+    import plugin_run_launcher
+finally:
+    sys.path.remove(str(_BUILD_SCRIPTS))
 
 SKILL_DIR = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "memory-reflexion"
 SKILL_MD = SKILL_DIR / "SKILL.md"
@@ -35,6 +43,15 @@ REFLEXION_REFERENCE = SKILL_DIR / "references" / "reflexion-memory.md"
 _FRONTMATTER = re.compile(r"(?s)\A---\r?\n(.*?)\r?\n---\r?\n")
 _VENDOR_FORBIDDEN = re.compile(r"(?<!\w)(?:\.agents|\.serena|\.github)/", re.IGNORECASE)
 _BACKTICK_TRIGGER = re.compile(r"`[^`]+`")
+
+
+def _locator_targets(body: str) -> set[str]:
+    return {
+        match.script_rel
+        for line in body.splitlines()
+        for match in plugin_run_launcher.find_locators(line)
+        if match.script_rel
+    }
 
 
 def _read_skill() -> str:
@@ -98,7 +115,7 @@ def test_points_at_canonical_episode_script() -> None:
 
     # Act / Assert: the sub-skill must route to the canonical script, not
     # reimplement extraction. The script stays in the memory skill tree.
-    assert "/skills/memory/scripts/extract_session_episode.py" in body, (
+    assert "skills/memory/scripts/extract_session_episode.py" in _locator_targets(body), (
         "memory-reflexion must delegate to the canonical extract_session_episode.py"
     )
 

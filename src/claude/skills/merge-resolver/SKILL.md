@@ -28,12 +28,10 @@ Resolve merge conflicts by analyzing git history and commit intent.
 
 ```bash
 # Resolve conflicts for a specific PR
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/merge-resolver/scripts/resolve_pr_conflicts.py" \
-    --pr-number 123 --branch-name "fix/my-feature" --target-branch "main"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/merge-resolver/scripts/resolve_pr_conflicts.py --pr-number 123 --branch-name "fix/my-feature" --target-branch "main"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Dry-run mode (no side effects)
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/merge-resolver/scripts/resolve_pr_conflicts.py" \
-    --pr-number 123 --branch-name "fix/test" --dry-run
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/merge-resolver/scripts/resolve_pr_conflicts.py --pr-number 123 --branch-name "fix/test" --dry-run; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ## Triggers
@@ -84,7 +82,7 @@ If shell execution is unavailable, do NOT produce a step-by-step resolution plan
 
 | Step | Action | Verification |
 |------|--------|--------------|
-| 3.1 | Verify no remaining conflict markers and no unmerged files | `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/merge-resolver/scripts/verify_no_conflict_markers.py"` exits 0 |
+| 3.1 | Verify no remaining conflict markers and no unmerged files | `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/merge-resolver/scripts/verify_no_conflict_markers.py; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )` exits 0 |
 | 3.2 | Run session protocol validator | `validate_session_json.py` exits 0 |
 | 3.3 | Run markdown lint | `npx markdownlint-cli2` exits 0 |
 | 3.4 | Commit merge resolution | Commit SHA recorded |
@@ -177,9 +175,7 @@ auto-resolution and requires manual handling.
 Resolves PR merge conflicts with auto-resolution for known file patterns.
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/merge-resolver/scripts/resolve_pr_conflicts.py" \
-    --pr-number <number> --branch-name <name> [--target-branch <branch>] \
-    [--worktree-base-path <path>] [--dry-run]
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/merge-resolver/scripts/resolve_pr_conflicts.py --pr-number <number> --branch-name <name> [--target-branch <branch>] [--worktree-base-path <path>] [--dry-run]; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 **Exit codes:**
@@ -209,7 +205,7 @@ When running with `--dry-run`, exit code `0` indicates that conflicts were fully
 Verifies that resolution is complete: no still-unmerged (UU) files and no leftover conflict markers in any in-flight change. Replaces the broad `git grep -n '<<<<<<<' --` check, which false-fails on intentional fenced examples in committed docs and Serena memories.
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/merge-resolver/scripts/verify_no_conflict_markers.py" [--cwd PATH] [--json]
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/merge-resolver/scripts/verify_no_conflict_markers.py [--cwd PATH] [--json]; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Uses `git diff --cached --check MERGE_HEAD` when a merge is in progress (MERGE_HEAD present) to avoid false positives from whitespace already in the incoming branch. Falls back to `git diff HEAD --check` outside merge state. Both forms use `git diff --name-only --diff-filter=U` to catch still-unmerged files.
@@ -244,7 +240,7 @@ Uses `git diff --cached --check MERGE_HEAD` when a merge is in progress (MERGE_H
 | Criterion | Evidence |
 |-----------|----------|
 | All conflicts resolved | `python3 -c "import subprocess, sys; r=subprocess.run(['git','diff','--name-only','--diff-filter=U'],capture_output=True,text=True,encoding='utf-8',errors='replace'); u=[l for l in r.stdout.splitlines() if l.strip()]; sys.exit(1 if u else 0)"` exits 0 (`--diff-filter=U` catches every unmerged state -- UU, AA, DU -- not only UU) |
-| No merge markers remain | `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/merge-resolver/scripts/verify_no_conflict_markers.py"` exits 0 (during merge: checks staged vs MERGE_HEAD AND working tree vs index; outside merge: checks working tree+index vs HEAD; ignores intentional fenced examples in committed docs) |
+| No merge markers remain | `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/merge-resolver/scripts/verify_no_conflict_markers.py; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )` exits 0 (during merge: checks staged vs MERGE_HEAD AND working tree vs index; outside merge: checks working tree+index vs HEAD; ignores intentional fenced examples in committed docs) |
 | Any opted-in session log valid | `validate_session_json.py` exits 0 |
 | Markdown lint passes | `npx markdownlint-cli2` exits 0 |
 | Push successful | Remote ref updated |
@@ -278,10 +274,7 @@ Add entries in `references/strategies.md` for domain-specific conflicts.
     HEAD_REF: ${{ github.head_ref }}
     BASE_REF: ${{ github.base_ref }}
   run: |
-    python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/merge-resolver/scripts/resolve_pr_conflicts.py" \
-      --pr-number "$PR_NUMBER" \
-      --branch-name "$HEAD_REF" \
-      --target-branch "$BASE_REF"
+    ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/merge-resolver/scripts/resolve_pr_conflicts.py --pr-number "$PR_NUMBER" --branch-name "$HEAD_REF" --target-branch "$BASE_REF"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ## Related

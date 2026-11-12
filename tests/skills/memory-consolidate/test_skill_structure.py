@@ -3,9 +3,17 @@
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
 import yaml
+
+_BUILD_SCRIPTS = Path(__file__).resolve().parents[3] / "build" / "scripts"
+sys.path.insert(0, str(_BUILD_SCRIPTS))
+try:
+    import plugin_run_launcher
+finally:
+    sys.path.remove(str(_BUILD_SCRIPTS))
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SKILL_DIR = REPO_ROOT / ".claude" / "skills" / "memory-consolidate"
@@ -104,11 +112,22 @@ def test_consolidation_contract() -> None:
         "compare its content hash",
         "leave the git diff for review and do not auto-restore files",
         'starting_commit="$(git rev-parse head)"',
-        'memory_git_targets.py" cleanup',
         "never copy memory contents or the complete diff into output or logs",
     ):
         assert phrase in lower
     assert "against the current session date" not in lower
+
+
+def test_cleanup_runs_through_the_plugin_root_locator() -> None:
+    helper = "skills/memory-consolidate/scripts/memory_git_targets.py"
+    calls = {
+        (match.script_rel, match.args)
+        for line in BODY.splitlines()
+        for match in plugin_run_launcher.find_locators(line)
+    }
+    assert (helper, "path") in calls
+    assert (helper, "cleanup") in calls
+    assert "SCRIPTS_DIR" not in BODY
 
 
 def test_discovery_index_and_output_contract() -> None:

@@ -18,9 +18,17 @@ Tests follow Arrange/Act/Assert, one behavior per test.
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
 import pytest
+
+_BUILD_SCRIPTS = Path(__file__).resolve().parents[3] / "build" / "scripts"
+sys.path.insert(0, str(_BUILD_SCRIPTS))
+try:
+    import plugin_run_launcher
+finally:
+    sys.path.remove(str(_BUILD_SCRIPTS))
 
 SKILL_DIR = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "memory-search"
 SKILL_MD = SKILL_DIR / "SKILL.md"
@@ -32,6 +40,15 @@ _BACKTICK_TRIGGER = re.compile(r"`[^`]+`")
 
 def _read_skill() -> str:
     return SKILL_MD.read_text(encoding="utf-8")
+
+
+def _locator_targets(body: str) -> set[str]:
+    return {
+        match.script_rel
+        for line in body.splitlines()
+        for match in plugin_run_launcher.find_locators(line)
+        if match.script_rel
+    }
 
 
 def _frontmatter_block() -> str:
@@ -92,7 +109,7 @@ def test_points_at_canonical_search_script() -> None:
 
     # Act / Assert: the sub-skill must route to the canonical script, not
     # reimplement search. The script stays in the memory skill tree.
-    assert "/skills/memory/scripts/search_memory.py" in body, (
+    assert "skills/memory/scripts/search_memory.py" in _locator_targets(body), (
         "memory-search must delegate to the canonical search_memory.py"
     )
 

@@ -244,9 +244,7 @@ Generate the risk inventory using this structure:
 Validates risk inventory completeness and calculates aggregate statistics.
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/pre-mortem/scripts/pre-mortem.py" \
-  --inventory-path "$INVENTORY_PATH" \
-  --validate
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/pre-mortem/scripts/pre-mortem.py --inventory-path "$INVENTORY_PATH" --validate; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 **Exit Codes:**
@@ -270,9 +268,7 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/pre-morte
 After completing a pre-mortem, run the bundled validator and require exit 0:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/pre-mortem/scripts/pre-mortem.py" \
-  --inventory-path "$INVENTORY_PATH" \
-  --validate
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/pre-mortem/scripts/pre-mortem.py --inventory-path "$INVENTORY_PATH" --validate; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 echo "exit=$?"   # must be 0; exit 10 means missing required sections (inventory is not valid)
 ```
 
