@@ -88,11 +88,11 @@ Markers (`pyproject.toml [tool.pytest.ini_options].markers`): `unit`, `integrati
 Stale doc warning: `.agents/governance/test-location-standards.md` still describes a Pester/`*.Tests.ps1` layout. Zero `*.Tests.ps1` files exist (checked 2026-10-31; ADR-042 Python migration; run `pester-count` to re-measure). Trust the table above and pyproject.toml, not that file.
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-validation-and-qa/scripts/test_layout.py" --repo . pester
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-validation-and-qa/scripts/test_layout.py" --repo . skill-tests NAME
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-validation-and-qa/scripts/test_layout.py --repo . pester; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-validation-and-qa/scripts/test_layout.py --repo . skill-tests NAME; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
-`pester` counts `*.Tests.ps1` files and exits 1 only when this warning is dead prose (count is 0 and the governance doc no longer mentions Pester). `skill-tests` lists the files `uv run pytest tests/skills/NAME --collect-only -q` collects (add `--no-pytest` for a `test_*.py` walk) and exits 1 when none. Neither says whether the tests pass or cover the code.
+`pester` counts `*.Tests.ps1` files and exits 1 only when this warning is dead prose (count is 0 and the governance doc no longer mentions Pester). `skill-tests` lists the files `uv run pytest tests/skills/NAME --collect-only -q` collects (write `--no-pytest` after `NAME`, inside the locator, for a `test_*.py` walk) and exits 1 when none. Neither says whether the tests pass or cover the code.
 
 ### Phase 3: Write tests that count
 
@@ -198,8 +198,8 @@ Before claiming a change meets the evidence bar:
 `scripts/instruments.py` lists and runs every checker this skill relies on:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-validation-and-qa/scripts/instruments.py" --repo . list
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-validation-and-qa/scripts/instruments.py" --repo . run <id>
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-validation-and-qa/scripts/instruments.py --repo . list; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-validation-and-qa/scripts/instruments.py --repo . run <id>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Ids: `citation-freshness` (do `path:line` cites still hold), `investigation-allowlist` and `qa-skip-evidence` (Phase 5 paths and legal skip strings, read from source), `pester-count`, `skill-tests` (Phase 2), `drift-self-check`. A listing only proves the files exist. The prose keeps the reasons and the edges (mixed sessions, what a skip may hide).
@@ -209,7 +209,7 @@ Ids: `citation-freshness` (do `path:line` cites still hold), `investigation-allo
 Re-verified 2026-10-31 at `42e409325`: line cites, the Phase 4 workflow pins, the Pester count, and the two QA skip strings. Facts live in `reverify.json`; run the drift command after any edit to a cited file.
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_drift.py" check --repo . --skills-root .claude/skills --name ai-agents-validation-and-qa --require
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_drift.py check --repo . --skills-root .claude/skills --name ai-agents-validation-and-qa --require; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Sources: `.agents/governance/TESTING-RIGOR.md` (Status :5, origin :3-16, pragma :54, cost :97), `.agents/governance/TESTING-ANTI-PATTERNS.md` (:91, :165-172), `.agents/governance/FAILURE-MODES.md` (:29, :390), `.claude/rules/generated-artifacts.md` (:68-74), `.claude/rules/claude-agents.md` (:29), `pyproject.toml [tool.pytest.ini_options]`, root `conftest.py`, `tests/conftest.py`, `.github/workflows/pytest.yml` (:508-524), ADR-034, `scripts/validate_session_json.py` (`_QA_SKIP_CHECKERS`), and the 2026-05-10 and 2026-06-02 retros in `.project-toolkit/retrospective/`.

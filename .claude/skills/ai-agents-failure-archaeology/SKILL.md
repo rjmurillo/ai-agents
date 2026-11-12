@@ -163,16 +163,17 @@ Before you rely on or extend this chronicle:
 Corpus counts come from one script, not hand-typed numbers:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-failure-archaeology/scripts/corpus_index.py" --repo .
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-failure-archaeology/scripts/corpus_index.py --repo .; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 It prints retro file count, how many `INDEX.md` names, the missing paths, the
 failure-mode count and names from the `## Index` table, and the memory file
-count (`.serena/memories/*.md`, top level only). Add `--shas ddb76e0 01e76615a`
-to test whether short SHAs resolve. Exit 1 means `INDEX.md` omits retros, which
+count (`.serena/memories/*.md`, top level only). Write `--shas ddb76e0
+01e76615a` after `--repo .`, inside the locator, to test whether short SHAs
+resolve. Exit 1 means `INDEX.md` omits retros, which
 is the normal state. It does not read retro content or check line anchors. The
 `instruments.py` dispatcher lists this and the path, citation, and drift
-checks: `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-failure-archaeology/scripts/instruments.py" --repo . list`.
+checks: `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-failure-archaeology/scripts/instruments.py --repo . list; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`.
 
 ## Provenance and Maintenance
 
@@ -180,7 +181,7 @@ Compiled 2026-07-02, refreshed 2026-10-31 at `42e409325`. Checks live in
 `reverify.json`. Drift command:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_drift.py" check --repo . --skills-root .claude/skills --name ai-agents-failure-archaeology --require
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_drift.py check --repo . --skills-root .claude/skills --name ai-agents-failure-archaeology --require; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Facts the scripts do not cover:

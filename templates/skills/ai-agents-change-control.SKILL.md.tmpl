@@ -37,9 +37,9 @@ Every change belongs to at least one class. A mixed change inherits the union of
 Let the script do the lookup. Path globs, classes, and triggered gates live in its `CLASS_MAP` data:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-change-control/scripts/classify_change.py" --repo . --staged
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-change-control/scripts/classify_change.py" --repo . --base origin/main
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-change-control/scripts/classify_change.py" --repo . --map
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-change-control/scripts/classify_change.py --repo . --staged; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-change-control/scripts/classify_change.py --repo . --base origin/main; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-change-control/scripts/classify_change.py --repo . --map; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 It prints, per path, the classes and the gates, plus the union and any allowlist violation (exit 1). It does not read file contents, so a `.md` file that is really code-adjacent, or a workflow that hides logic, needs your judgment. Unmatched paths report `unclassified`.
@@ -61,7 +61,7 @@ What each class obliges beyond its gates:
 The OPERATIVE investigation-only allowlist is the enforcement module `scripts/modules/investigation_allowlist.py` (docstring: "Single source of truth for investigation artifact path patterns"; consumed by `validate_session_json.py`, the session skill, and `.github/scripts/validate_investigation_claims.py`). Do not copy its list into notes; ask the module:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-change-control/scripts/instruments.py" --repo . run investigation-allowlist
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-change-control/scripts/instruments.py --repo . run investigation-allowlist; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 It prints the pattern count, then the display form of each pattern. The module is code, so it wins over the ADR-034 text (`.project-toolkit/architecture/ADR-034-investigation-session-qa-exemption.md`) if they ever disagree. A later change reconciled them.
@@ -75,9 +75,9 @@ Special case, generated trees. `src/vs-code-agents/` and `src/copilot-cli/agents
 `classify_change.py` (Phase 1) lists the gates for each class. For any canonical-source edit, the drift gates are runnable through the dispatcher:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-change-control/scripts/instruments.py" --repo . list
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-change-control/scripts/instruments.py" --repo . run drift-agents
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-change-control/scripts/instruments.py" --repo . run drift-build-all
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-change-control/scripts/instruments.py --repo . list; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-change-control/scripts/instruments.py --repo . run drift-agents; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-change-control/scripts/instruments.py --repo . run drift-build-all; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 `drift-agents` runs `build/generate_agents.py --validate`; `drift-build-all` runs `build/scripts/build_all.py --check`. CI runs `generate_agents.py --validate` in `.github/workflows/agent-drift-detection.yml` (line 132) and `build_all.py --check` in `.github/workflows/validate-generated-agents.yml` (line 116), as of 2026-10-31 at 42e409325. `drift-detection.yml` is schedule-only and does not run them. A pass proves the trees match now; it does not tell you which side was right to edit.
@@ -134,7 +134,7 @@ Six of the table's incidents compress a multi-round failure and are told in full
 | `scripts/instruments.py` | Table of the linked checks (drift gates, version-field gate, dash check, citation freshness, allowlist). `list` exits 1 if an instrument file is missing; `run <id>` passes the child exit code through | What each linked check proves beyond its own scope |
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-change-control/scripts/instruments.py" --repo . list
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-change-control/scripts/instruments.py --repo . list; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ## Verification
@@ -155,7 +155,7 @@ Before you push, confirm:
 Authored 2026-07-03, facts re-verified against the working tree on 2026-10-31 (commit `42e409325`). `.claude/skills/ai-agents-change-control/reverify.json` holds the checkable claims. Check drift with:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_drift.py" check --repo . --skills-root .claude/skills --name ai-agents-change-control --require
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_drift.py check --repo . --skills-root .claude/skills --name ai-agents-change-control --require; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 A selected index of the drift-prone cited facts, each with its re-verify command, is in `references/provenance.md`. Update it when you edit this skill or any reference it points to.

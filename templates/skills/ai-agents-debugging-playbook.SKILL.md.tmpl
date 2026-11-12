@@ -87,13 +87,15 @@ Worktrees share branches, remote refs, and `refs/stash` (`git-advanced-workflows
 
 #### Scripts
 
-Run `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-debugging-playbook/scripts/instruments.py" --repo . list` to see every linked checker and whether its file exists. Run one with `... instruments.py --repo . run <id>`. Rows: plugin version gate, dash scan, spec id uniqueness, Python 3.10 syntax gate, CI drift step, drift self-check.
+Run `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-debugging-playbook/scripts/instruments.py --repo . list; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )` to see every linked checker and whether its file exists. Run one by writing `run <id>` in place of `list` inside the locator. Rows: plugin version gate, dash scan, spec id uniqueness, Python 3.10 syntax gate, CI drift step, drift self-check.
 
 Two shared-checkout answers are computed, not eyeballed:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-debugging-playbook/scripts/first_command.py" --repo . stash   # own or foreign per stash entry
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-debugging-playbook/scripts/first_command.py" --repo . lag     # left and right counts of origin/main...HEAD
+# own or foreign per stash entry
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-debugging-playbook/scripts/first_command.py --repo . stash; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+# left and right counts of origin/main...HEAD
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-debugging-playbook/scripts/first_command.py --repo . lag; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 `stash` calls an entry foreign when its WIP branch is checked out in no worktree. It cannot tell who made an entry on a branch that exists elsewhere, and it reads `refs/stash` as is. `lag` does not fetch: run `git fetch origin main` first, or the counts are stale. Exit 1 means a foreign stash or a non-zero left count.
@@ -150,5 +152,5 @@ Retired: the `EVENT=` stderr guard schema (`push_guard_base.py`, deleted under A
 Re-verify:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_drift.py" check --repo . --skills-root .claude/skills --name ai-agents-debugging-playbook --require
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_drift.py check --repo . --skills-root .claude/skills --name ai-agents-debugging-playbook --require; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
