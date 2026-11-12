@@ -13,10 +13,11 @@ if HERE not in sys.path:
 from detect_infrastructure_test_helpers import SKILL_PATH
 
 _BUILD_SCRIPTS = Path(__file__).resolve().parents[3] / "build" / "scripts"
-if str(_BUILD_SCRIPTS) not in sys.path:
-    sys.path.insert(0, str(_BUILD_SCRIPTS))
-
-import plugin_run_launcher
+sys.path.insert(0, str(_BUILD_SCRIPTS))
+try:
+    import plugin_run_launcher
+finally:
+    sys.path.remove(str(_BUILD_SCRIPTS))
 
 TARGET = "skills/security-detection/detect_infrastructure.py"
 

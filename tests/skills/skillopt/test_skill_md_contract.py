@@ -17,10 +17,11 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 _BUILD_SCRIPTS = REPO_ROOT / "build" / "scripts"
-if str(_BUILD_SCRIPTS) not in sys.path:
-    sys.path.insert(0, str(_BUILD_SCRIPTS))
-
-import plugin_run_launcher
+sys.path.insert(0, str(_BUILD_SCRIPTS))
+try:
+    import plugin_run_launcher
+finally:
+    sys.path.remove(str(_BUILD_SCRIPTS))
 
 SKILL_REL = Path("skills") / "skillopt"
 SHIPPED_ROOTS = (".claude", "src/claude", "src/copilot-cli", "src/codex")
