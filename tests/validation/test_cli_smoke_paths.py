@@ -54,6 +54,7 @@ def test_union_has_no_duplicates() -> None:
         "tests/e2e/copilot_hook_probe.py",
         "tests/e2e/smoke_skip_policy.py",
         "build/scripts/agent_toml.py",
+        "build/scripts/agent_tools.py",
         "build/scripts/agent_tree_copy.py",
         "src/codex/install_agents.py",
         "pyproject.toml",

@@ -25,15 +25,24 @@ PARAGRAPH = (
     "`analyst`, `code-reviewer`, `comment-analyzer`, `security`. "
     "When a step above hands work to one of them, do that step yourself "
     "in this session and say that you did. "
-    "If the step is a security review, state that no security agent reviewed it.\n"
+    "A step you do yourself is a self-review, not an independent review, so report it as one. "
+    "It does not satisfy a review gate: name the gate as unreviewed in your completion report. "
+    "When you are asked to review or challenge work, set aside the author's reasoning "
+    "and judge the artifact itself. "
+    "If the step is a security review or clears a security flag, do not mark it done: "
+    "state that no security agent reviewed it and leave the flag open for the user.\n"
 )
 # Edits templates/platforms/codex.yaml makes to orchestrator.md: the rows for agents
 # Codex does not install go, and the delegation tool is spawn_agent.
+NO_SUBAGENTS = "\n\n## Subagents\n\nDo not start subagents. Do the work in this session.\n"
 BODY_EDITS = {
     "orchestrator": [
         ("| **analyst** | Research, root cause, feasibility | Already have enough context |\n", ""),
         ("| **security** | Threat modeling, vulnerability review | Pure performance work |\n", ""),
-        ("Task (for delegation)", "spawn_agent (for delegation)"),
+        (
+            "Task (for delegation)",
+            'spawn_agent (for delegation; pass fork_turns="none" when the child reviews work)',
+        ),
     ]
 }
 _FRONTMATTER = re.compile(r"\A---\n(.*?)\n---\n(.*)\Z", re.DOTALL)
@@ -58,6 +67,30 @@ def _committed() -> list[Path]:
     return sorted(CODEX_AGENTS.glob("*.toml"))
 
 
+def disallows_agent(front: dict[str, object]) -> bool:
+    """True when ``disallowedTools`` names ``Agent`` as a list or as a comma-separated string."""
+    raw = front.get("disallowedTools")
+    names = raw if isinstance(raw, list) else str(raw or "").split(",")
+    return "Agent" in [str(name).strip() for name in names]
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("Agent", True),
+        ("Read, Agent", True),
+        (["Agent"], True),
+        (["Read", " Agent "], True),
+        ("Task", False),
+        (["Task"], False),
+        ([], False),
+        (None, False),
+    ],
+)
+def test_disallows_agent_reads_both_input_forms(value: object, expected: bool) -> None:
+    assert disallows_agent({"disallowedTools": value}) is expected
+
+
 def problems_with(stem: str, committed_text: str) -> list[str]:
     """Differences between a committed file's text and what the source should produce."""
     front, body = _read_source(stem)
@@ -74,7 +107,10 @@ def problems_with(stem: str, committed_text: str) -> list[str]:
         found.append(f"name is {parsed.get('name')!r}")
     if parsed.get("description") != front["description"]:
         found.append("description differs from the source")
-    if parsed.get("developer_instructions") != body.rstrip("\n") + PARAGRAPH:
+    expected = (body.rstrip("\n") + (NO_SUBAGENTS if disallows_agent(front) else "")).rstrip(
+        "\n"
+    ) + PARAGRAPH
+    if parsed.get("developer_instructions") != expected:
         found.append("developer_instructions differs from source body plus paragraph")
     return found
 
@@ -118,8 +154,17 @@ def test_orchestrator_names_no_agent_that_is_not_installed() -> None:
     text = tomllib.loads((CODEX_AGENTS / "orchestrator.toml").read_text(encoding="utf-8"))
     table = text["developer_instructions"].split("Every row above")[0]
     assert "| **analyst** |" not in table and "| **security** |" not in table
+    rows = [line for line in table.splitlines() if line.startswith("| **")]
+    assert rows, "the routing table moved; update this test"
+    named = [
+        stem for stem in _restricted_in_sources() for line in rows if f"| **{stem}** |" in line
+    ]
+    assert named == [], f"table rows route to agents that are not installed: {named}"
     assert "Task (for delegation)" not in text["developer_instructions"]
-    assert "spawn_agent (for delegation)" in text["developer_instructions"]
+    assert (
+        'spawn_agent (for delegation; pass fork_turns="none" when the child reviews work)'
+        in text["developer_instructions"]
+    )
 
 
 def test_the_row_edits_are_load_bearing() -> None:

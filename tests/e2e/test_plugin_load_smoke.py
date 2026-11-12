@@ -2757,7 +2757,7 @@ _CODEX_COMMAND_COUNT = 4
 _CODEX_SCRIPT_TIMEOUT_SECONDS = 30
 _CODEX_SCRIPT_COUNT = 2
 _CODEX_INSTALLED_SCRIPT = Path("skills") / "github" / "scripts" / "pr" / "get_pr_checks.py"
-_CODEX_AGENTS_COMMAND_COUNT = 5
+_CODEX_AGENTS_COMMAND_COUNT = 6
 # Three runs of the installed install_agents.py: --user, --project, and the bad-input control.
 _CODEX_AGENTS_SCRIPT_COUNT = 3
 _CODEX_AGENTS_OWNERSHIP = ".project-toolkit-agents.json"
@@ -3087,6 +3087,10 @@ def test_codex_agents_install_and_load(tmp_path: Path) -> None:
         added = _run_codex(["plugin", "add", _CODEX_PLUGIN_ID, "--json"], env=env, cwd=work)
         installer = Path(json.loads(added.stdout)["installedPath"]) / "install_agents.py"
         assert installer.is_file(), f"installed plugin cache has no install_agents.py: {installer}"
+        documented = user_home / "plugins" / "cache" / "ai-agents" / "project-toolkit"
+        assert installer.resolve().is_relative_to(documented.resolve()), (
+            f"installer is not under the cache path the install guide documents: {installer}"
+        )
         before = _codex_agent_roles(
             _run_codex(["debug", "prompt-input", "hi"], env=env, cwd=work).stdout
         )
@@ -3122,6 +3126,17 @@ def test_codex_agents_install_and_load(tmp_path: Path) -> None:
         listed = _codex_agent_roles(
             _run_codex(["debug", "prompt-input", "hi"], env=project_env, cwd=project).stdout
         )
+        # Baseline for the ownership-file control: the same listing with the file parked
+        # outside the agents folder. If the JSON registered as a role, `listed` would differ.
+        ownership_file = agents_dir / _CODEX_AGENTS_OWNERSHIP
+        parked = project / "ownership.parked"
+        ownership_file.rename(parked)
+        try:
+            without_ownership = _codex_agent_roles(
+                _run_codex(["debug", "prompt-input", "hi"], env=project_env, cwd=project).stdout
+            )
+        finally:
+            parked.rename(ownership_file)
     except subprocess.TimeoutExpired as exc:
         pytest.fail(f"codex command exceeded its timeout: {exc.cmd}")
 
@@ -3131,10 +3146,10 @@ def test_codex_agents_install_and_load(tmp_path: Path) -> None:
     assert (agents_dir / _CODEX_AGENTS_OWNERSHIP).is_file()
     assert not (shipped - listed), f"--project install: no role for {sorted(shipped - listed)}"
     assert "broken-agent" not in listed, "a malformed agent file registered as a role"
-    assert not {r for r in listed if "project-toolkit-agents" in r}, (
-        f"ownership JSON listed: {listed}"
+    assert listed == without_ownership, (
+        f"the ownership JSON changed the role list: {sorted(listed ^ without_ownership)}"
     )
-    assert bad.returncode == 2, f"bad --namespace rc={bad.returncode}"
+    assert bad.returncode == 2, f"bad --namespace rc={bad.returncode}: {redact(bad.stderr[-600:])}"
 
 
 def test_codex_env_unsets_the_plugin_root_variables(

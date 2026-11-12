@@ -84,3 +84,19 @@ a real wait, never a poll. Prefer REST over anything routed through GraphQL:
 `gh pr create`, `gh pr view`, `gh pr diff`, `gh pr list`, `gh pr checks`,
 `gh pr merge`, and `gh issue list --json` all use GraphQL, which carries a
 separate and usually more burned budget. Never pass `--paginate`.
+
+## Update 2026-11-11: read the GraphQL bucket through GraphQL
+
+The 2026-11-10 issue sweep ran about 30 delegate agents on one token. `get_pr_checks.py` retried and failed with `gh: API rate limit already exceeded for user ID NNNNN`, which is the GraphQL wording, while REST calls kept working. The sweep log recorded the same split.
+
+The REST `rate_limit` endpoint reports a `graphql` bucket, and it lags the enforcing limiter. Ask the GraphQL API for its own budget instead:
+
+```bash
+gh api graphql -f query='{ rateLimit { remaining resetAt } }'
+```
+
+Probe on 2026-11-11, seconds apart: this query returned `remaining` 4777, while `GET /rate_limit` showed the `graphql` bucket at 4946. The gap of 169 fits the lag described above. The query itself costs one GraphQL point.
+
+Source: sweep artifact `checks_7259.txt` in the local session directory `issue-sweep-2026-11-10` (not committed).
+
+See also [decision-parallelism-on-one-github-token-is-self-defeating](../decision-parallelism-on-one-github-token-is-self-defeating.md) for why a sweep should cap concurrent PR drivers by this budget.

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import stat
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,7 @@ from tests.codex.conftest import (
     OWNERSHIP,
     agent_bytes,
     ia,
+    make_symlink,
     run_installer,
     target_dir,
 )
@@ -63,7 +65,7 @@ def test_ownership_valid_hash_is_accepted(world):
 def test_uninstall_with_not_a_file_marker_cannot_unlink_a_directory(world):
     target = _plant_ownership(world, {"files": {"victim.toml": "not-a-file"}})
     (target / "victim.toml").mkdir()
-    (target / "victim.toml" / "keep.txt").write_text("x")
+    (target / "victim.toml" / "keep.txt").write_text("x", encoding="utf-8")
     assert run_installer(world, "--uninstall") == 2
     assert (target / "victim.toml" / "keep.txt").is_file()
 
@@ -71,8 +73,8 @@ def test_uninstall_with_not_a_file_marker_cannot_unlink_a_directory(world):
 def test_uninstall_with_symlink_marker_cannot_unlink_a_symlink(world, tmp_path):
     target = _plant_ownership(world, {"files": {"victim.toml": "symlink"}})
     outside = tmp_path / "outside.toml"
-    outside.write_text("x")
-    (target / "victim.toml").symlink_to(outside)
+    outside.write_text("x", encoding="utf-8")
+    make_symlink((target / "victim.toml"), outside)
     assert run_installer(world, "--uninstall") == 2
     assert (target / "victim.toml").is_symlink()
 
@@ -137,15 +139,15 @@ def test_ownership_file_symlink_is_refused(world, tmp_path):
     target = target_dir(world)
     target.mkdir(parents=True)
     outside = tmp_path / "evil.json"
-    outside.write_text(json.dumps({"files": {}}))
-    (target / OWNERSHIP).symlink_to(outside)
+    outside.write_text(json.dumps({"files": {}}), encoding="utf-8")
+    make_symlink((target / OWNERSHIP), outside)
     assert run_installer(world) == 2
 
 
 def test_project_dot_codex_symlink_is_refused_and_nothing_written(world, tmp_path):
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
-    (world.project / ".codex").symlink_to(elsewhere)
+    make_symlink((world.project / ".codex"), elsewhere)
     assert run_installer(world) == 2
     assert list(elsewhere.iterdir()) == []
 
@@ -154,7 +156,7 @@ def test_project_agents_symlink_is_refused_and_nothing_written(world, tmp_path):
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     (world.project / ".codex").mkdir()
-    (world.project / ".codex" / "agents").symlink_to(elsewhere)
+    make_symlink((world.project / ".codex" / "agents"), elsewhere)
     assert run_installer(world) == 2
     assert list(elsewhere.iterdir()) == []
 
@@ -162,7 +164,7 @@ def test_project_agents_symlink_is_refused_and_nothing_written(world, tmp_path):
 def test_user_agents_symlink_is_refused_and_nothing_written(world, tmp_path):
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
-    (world.home / "agents").symlink_to(elsewhere)
+    make_symlink((world.home / "agents"), elsewhere)
     assert run_installer(world, "--user", project=False) == 2
     assert list(elsewhere.iterdir()) == []
 
@@ -170,14 +172,97 @@ def test_user_agents_symlink_is_refused_and_nothing_written(world, tmp_path):
 def test_symlink_refusal_also_covers_dry_run_and_uninstall(world, tmp_path):
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
-    (world.project / ".codex").symlink_to(elsewhere)
+    make_symlink((world.project / ".codex"), elsewhere)
     assert run_installer(world, "--dry-run") == 2
     assert run_installer(world, "--uninstall") == 2
+
+
+@pytest.mark.parametrize("component", [".codex", "agents"])
+def test_a_junction_below_the_project_root_is_refused(world, tmp_path, monkeypatch, component):
+    """Python reports a Windows junction through ``os.path.isjunction``, not ``is_symlink``."""
+    (world.project / ".codex").mkdir()
+    suspect = (
+        world.project / ".codex" if component == ".codex" else world.project / ".codex" / "agents"
+    )
+    suspect.mkdir(exist_ok=True)
+    monkeypatch.setattr(ia.os.path, "isjunction", lambda p: Path(p) == suspect, raising=False)
+    assert run_installer(world) == 2
+    assert not (world.project / ".codex" / "agents" / "qa.toml").exists()
+
+
+def test_a_directory_that_is_not_a_junction_is_allowed(world, monkeypatch):
+    """Negative control: a plain directory passes even when the junction probe exists."""
+    (world.project / ".codex").mkdir()
+    monkeypatch.setattr(ia.os.path, "isjunction", lambda p: False, raising=False)
+    assert run_installer(world) == 0
+
+
+class _Info:
+    def __init__(self, attrs: int) -> None:
+        self.st_mode = stat.S_IFDIR
+        self.st_file_attributes = attrs
+
+
+@pytest.mark.parametrize(("attrs", "expected"), [(0x400, True), (0x10, False), (0, False)])
+def test_is_link_falls_back_to_the_reparse_attribute_before_python_3_12(
+    tmp_path, monkeypatch, attrs, expected
+):
+    folder = tmp_path / "d"
+    folder.mkdir()
+    monkeypatch.delattr(ia.os.path, "isjunction", raising=False)
+    monkeypatch.setattr(Path, "lstat", lambda self: _Info(attrs))
+    assert ia._is_link(folder) is expected
+
+
+@pytest.mark.parametrize("has_probe", [True, False])
+def test_is_link_refuses_a_path_it_cannot_read(tmp_path, monkeypatch, has_probe):
+    """Python 3.14 reports False when a read fails, so the check must read the path itself."""
+
+    def deny(self):
+        raise PermissionError("denied")
+
+    if has_probe:
+        monkeypatch.setattr(ia.os.path, "isjunction", lambda p: False, raising=False)
+    else:
+        monkeypatch.delattr(ia.os.path, "isjunction", raising=False)
+    monkeypatch.setattr(Path, "lstat", deny)
+    assert ia._is_link(tmp_path) is True
+
+
+@pytest.mark.parametrize("has_probe", [True, False])
+def test_is_link_is_false_for_a_missing_path(tmp_path, monkeypatch, has_probe):
+    if has_probe:
+        monkeypatch.setattr(ia.os.path, "isjunction", lambda p: True, raising=False)
+    else:
+        monkeypatch.delattr(ia.os.path, "isjunction", raising=False)
+    assert ia._is_link(tmp_path / "missing") is False
+
+
+def test_is_link_is_true_for_a_dangling_symlink(tmp_path):
+    link = tmp_path / "dangling"
+    make_symlink(link, tmp_path / "gone")
+    assert ia._is_link(link) is True
+
+
+def test_is_link_refuses_a_path_below_a_regular_file(tmp_path):
+    """ENOTDIR is not 'missing', so the path is refused."""
+    blocker = tmp_path / "file"
+    blocker.write_text("x", encoding="utf-8")
+    assert ia._is_link(blocker / "child") is True
+
+
+def test_is_link_is_true_for_a_symlink_and_false_for_a_plain_directory(tmp_path):
+    target = tmp_path / "t"
+    target.mkdir()
+    link = tmp_path / "l"
+    make_symlink(link, target)
+    assert ia._is_link(link) is True
+    assert ia._is_link(target) is False
 
 
 def test_a_symlinked_project_root_itself_is_allowed(world, tmp_path):
     """Negative control: only components below the root are checked."""
     link = tmp_path / "proj-link"
-    link.symlink_to(world.project)
+    make_symlink(link, world.project)
     assert ia.main(["--project", str(link)], agents_dir=world.agents) == 0
     assert (world.project / ".codex" / "agents" / "qa.toml").is_file()

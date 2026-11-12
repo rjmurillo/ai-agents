@@ -62,8 +62,8 @@ def test_generate_writes_three_outputs_per_agent(staging: Path) -> None:
         assert (staging / "src" / "vs-code-agents" / f"{agent}.agent.md").is_file()
 
 
-def test_codex_platform_ships_no_agents(staging: Path) -> None:
-    """ADR-115 Decision 7: a platform with no agents output is skipped, not an error."""
+def test_generate_agents_skips_the_codex_toml_stanza(staging: Path) -> None:
+    """ADR-115 Decision 7: generate_agents.py leaves the Codex TOML stanza to agent_tree_copy."""
     assert (staging / "templates" / "platforms" / "codex.yaml").is_file()
 
     rc = generate_agents.generate_agents(

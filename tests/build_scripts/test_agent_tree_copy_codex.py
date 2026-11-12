@@ -111,6 +111,33 @@ def test_tool_restricted_agent_is_skipped_and_others_ship(tmp_path: Path) -> Non
     assert result.skipped == ["empty.md", "listed.md", "locked.md"]
 
 
+@pytest.mark.parametrize(
+    "extra",
+    ["disallowedTools: Write\n", "disallowedTools: Agent, Bash\n", "disallowedTools: [Edit]\n"],
+)
+def test_a_disallowed_tool_other_than_agent_fails_the_build(tmp_path: Path, extra: str) -> None:
+    _source(tmp_path, "free", _agent("free", extra))
+    with pytest.raises(atc.AgentCopyError, match=r"free\.md.*disallowedTools.*only `Agent`"):
+        atc.generate_agent_copies(tmp_path, _config(tmp_path))
+    assert not _out(tmp_path).exists() or list(_out(tmp_path).iterdir()) == []
+
+
+@pytest.mark.parametrize("extra", ["disallowedTools: Agent\n", "disallowedTools: [Agent]\n"])
+def test_disallowing_agent_adds_the_subagents_section_before_the_paragraph(
+    tmp_path: Path, extra: str
+) -> None:
+    _source(tmp_path, "free", _agent("free", extra))
+    _source(tmp_path, "plain", _agent("plain"))
+    _source(tmp_path, "zeta", _agent("zeta", "tools: Read\n"))
+    _generate(tmp_path)
+    shipped = tomllib.loads((_out(tmp_path) / "free.toml").read_text(encoding="utf-8"))
+    text = shipped["developer_instructions"]
+    assert agent_toml.NO_SUBAGENTS in text
+    assert text.index(agent_toml.NO_SUBAGENTS) < text.index("## Agents not installed on this host")
+    plain = tomllib.loads((_out(tmp_path) / "plain.toml").read_text(encoding="utf-8"))
+    assert "## Subagents" not in plain["developer_instructions"]
+
+
 def test_paragraph_lists_the_derived_sorted_skip_list_in_every_body(tmp_path: Path) -> None:
     _source(tmp_path, "free", _agent("free"))
     _source(tmp_path, "other", _agent("other"))
@@ -118,7 +145,7 @@ def test_paragraph_lists_the_derived_sorted_skip_list_in_every_body(tmp_path: Pa
     _source(tmp_path, "alpha", _agent("alpha", "tools: Read\n"))
     _generate(tmp_path)
     for stem in ("free", "other"):
-        text = tomllib.loads((_out(tmp_path) / f"{stem}.toml").read_text())
+        text = tomllib.loads((_out(tmp_path) / f"{stem}.toml").read_text(encoding="utf-8"))
         body = text["developer_instructions"]
         assert "## Agents not installed on this host" in body
         assert "`alpha`, `zeta`" in body
@@ -128,7 +155,7 @@ def test_paragraph_lists_the_derived_sorted_skip_list_in_every_body(tmp_path: Pa
 def test_no_paragraph_when_nothing_is_skipped(tmp_path: Path) -> None:
     _source(tmp_path, "free", _agent("free"))
     _generate(tmp_path)
-    parsed = tomllib.loads((_out(tmp_path) / "free.toml").read_text())
+    parsed = tomllib.loads((_out(tmp_path) / "free.toml").read_text(encoding="utf-8"))
     assert "not installed" not in parsed["developer_instructions"]
     assert parsed["developer_instructions"] == "\n# Agent\n\nDoes things.\n"
 
@@ -153,7 +180,7 @@ def test_check_reports_a_stale_toml_and_deletes_nothing(tmp_path: Path) -> None:
     _source(tmp_path, "free", _agent("free"))
     _generate(tmp_path)
     stale = _out(tmp_path) / "ghost.toml"
-    stale.write_text("name = 'ghost'\n")
+    stale.write_text("name = 'ghost'\n", encoding="utf-8")
     result = _generate(tmp_path, check=True)
     assert result.drift == [stale.as_posix()]
     assert stale.exists()
@@ -166,10 +193,33 @@ def test_check_is_clean_after_a_write(tmp_path: Path) -> None:
     assert _generate(tmp_path, check=True).drift == []
 
 
+def test_a_symlinked_output_dir_is_refused_and_nothing_is_deleted(tmp_path: Path) -> None:
+    _source(tmp_path, "free", _agent("free"))
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    keep = elsewhere / "users-own.toml"
+    keep.write_text("name = 'mine'\n", encoding="utf-8")
+    try:
+        _out(tmp_path).symlink_to(elsewhere, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks unavailable on this host")
+    with pytest.raises(atc.AgentCopyError, match="symlink"):
+        _generate(tmp_path)
+    assert keep.exists()
+    assert not (elsewhere / "free.toml").exists()
+
+
+def test_a_plain_output_dir_is_still_written(tmp_path: Path) -> None:
+    """Negative control for the symlink refusal."""
+    _source(tmp_path, "free", _agent("free"))
+    _generate(tmp_path)
+    assert (_out(tmp_path) / "free.toml").exists()
+
+
 def test_markdown_md_files_in_a_toml_output_dir_are_not_pruned(tmp_path: Path) -> None:
     _source(tmp_path, "free", _agent("free"))
     _out(tmp_path).mkdir()
-    (_out(tmp_path) / "note.md").write_text("keep")
+    (_out(tmp_path) / "note.md").write_text("keep", encoding="utf-8")
     _generate(tmp_path)
     assert (_out(tmp_path) / "note.md").exists()
 
@@ -178,7 +228,7 @@ def test_body_replace_applies_before_toml_serialization(tmp_path: Path) -> None:
     _source(tmp_path, "free", _agent("free", body='\nHand to the "security" agent.\n'))
     extra = '    bodyReplace:\n      free.md:\n        "Hand to the": "Report to the"\n'
     atc.generate_agent_copies(tmp_path, _config(tmp_path, extra))
-    parsed = tomllib.loads((_out(tmp_path) / "free.toml").read_text())
+    parsed = tomllib.loads((_out(tmp_path) / "free.toml").read_text(encoding="utf-8"))
     assert parsed["developer_instructions"] == '\nReport to the "security" agent.\n'
 
 
@@ -193,7 +243,7 @@ def test_body_replace_naming_a_skipped_agent_fails(tmp_path: Path) -> None:
 def test_toml_has_exactly_three_keys_in_order(tmp_path: Path) -> None:
     _source(tmp_path, "free", _agent("free", "model: haiku\nmetadata: {a: 1}\n"))
     _generate(tmp_path)
-    assert list(tomllib.loads((_out(tmp_path) / "free.toml").read_text())) == KEYS
+    assert list(tomllib.loads((_out(tmp_path) / "free.toml").read_text(encoding="utf-8"))) == KEYS
 
 
 # name and stem ------------------------------------------------------------------
@@ -237,7 +287,7 @@ def test_check_names_match_stems_accepts_matching_names_and_rejects_others() -> 
 def test_markdown_format_also_checks_names(tmp_path: Path) -> None:
     _source(tmp_path, "file-stem", _agent("other"))
     cfg = _config(tmp_path)
-    cfg.write_text(cfg.read_text().replace("    outputFormat: codex-toml\n", ""))
+    cfg.write_text(cfg.read_text(encoding="utf-8").replace("    outputFormat: codex-toml\n", ""))
     with pytest.raises(atc.AgentCopyError, match="differs from file stem"):
         atc.generate_agent_copies(tmp_path, cfg)
 
@@ -255,7 +305,7 @@ def test_codex_toml_rejects_other_keep_lists(tmp_path: Path, keep: str) -> None:
 def test_unknown_output_format_fails(tmp_path: Path) -> None:
     _source(tmp_path, "free", _agent("free"))
     cfg = _config(tmp_path)
-    cfg.write_text(cfg.read_text().replace("codex-toml", "yaml"))
+    cfg.write_text(cfg.read_text(encoding="utf-8").replace("codex-toml", "yaml"))
     with pytest.raises(atc.AgentCopyError, match="outputFormat"):
         atc.generate_agent_copies(tmp_path, cfg)
 
@@ -266,10 +316,26 @@ def test_skip_with_derive_readonly_fails(tmp_path: Path) -> None:
         atc.generate_agent_copies(tmp_path, _config(tmp_path, "    deriveReadonly: true\n"))
 
 
+def test_codex_toml_with_derive_readonly_and_no_skip_fails(tmp_path: Path) -> None:
+    _source(tmp_path, "free", _agent("free"))
+    cfg = _config(tmp_path, "    deriveReadonly: true\n")
+    cfg.write_text(
+        cfg.read_text(encoding="utf-8").replace(
+            "skipToolRestricted: true", "skipToolRestricted: false"
+        )
+    )
+    with pytest.raises(atc.AgentCopyError, match="codex-toml.*deriveReadonly"):
+        atc.generate_agent_copies(tmp_path, cfg)
+
+
 def test_non_boolean_skip_fails(tmp_path: Path) -> None:
     _source(tmp_path, "free", _agent("free"))
     cfg = _config(tmp_path)
-    cfg.write_text(cfg.read_text().replace("skipToolRestricted: true", 'skipToolRestricted: "yes"'))
+    cfg.write_text(
+        cfg.read_text(encoding="utf-8").replace(
+            "skipToolRestricted: true", 'skipToolRestricted: "yes"'
+        )
+    )
     with pytest.raises(atc.AgentCopyError, match="boolean"):
         atc.generate_agent_copies(tmp_path, cfg)
 
@@ -284,7 +350,7 @@ def test_appendix_is_added_to_a_markdown_body() -> None:
     loaded, body = atc.parse_agent(_agent("a", body="\nBody\n"), "a.md")
     spec = atc.RenderSpec(["name"], appendix=agent_toml.not_installed_paragraph(["z"]))
     out = atc.render_parsed(loaded, body, "a.md", spec)
-    assert out is not None and out.endswith("say that you did.\n") and "`z`" in out
+    assert out is not None and out.endswith("judge the artifact itself.\n") and "`z`" in out
 
 
 def test_paragraph_adds_the_security_sentence_only_when_security_is_skipped() -> None:
@@ -321,6 +387,38 @@ def test_schema_rejects_the_new_keys_without_keep(key: str) -> None:
 def test_schema_rejects_skip_with_derive_readonly() -> None:
     stanza = _agents(frontmatterKeep=["name"], skipToolRestricted=True, deriveReadonly=True)
     assert any("deriveReadonly" in e for e in _errors(stanza))
+
+
+@pytest.mark.parametrize("skip", [True, False])
+def test_schema_rejects_codex_toml_with_derive_readonly(skip: bool) -> None:
+    stanza = _agents(
+        frontmatterKeep=["name", "description"],
+        outputFormat="codex-toml",
+        skipToolRestricted=skip,
+        deriveReadonly=True,
+    )
+    assert any("codex-toml" in e and "deriveReadonly" in e for e in _errors(stanza))
+
+
+@pytest.mark.parametrize("skip", [None, False])
+def test_schema_requires_skip_tool_restricted_for_codex_toml(skip: object) -> None:
+    extra = {} if skip is None else {"skipToolRestricted": skip}
+    stanza = _agents(frontmatterKeep=["name", "description"], outputFormat="codex-toml", **extra)
+    assert any("needs `skipToolRestricted: true`" in e for e in _errors(stanza))
+
+
+def test_build_refuses_codex_toml_without_skip_tool_restricted(tmp_path: Path) -> None:
+    _source(tmp_path, "locked", _agent("locked", "tools: Read\n"))
+    cfg = _config(tmp_path)
+    cfg.write_text(cfg.read_text(encoding="utf-8").replace("    skipToolRestricted: true\n", ""))
+    with pytest.raises(atc.AgentCopyError, match="skipToolRestricted: true"):
+        atc.generate_agent_copies(tmp_path, cfg)
+    assert not _out(tmp_path).exists() or list(_out(tmp_path).iterdir()) == []
+
+
+def test_schema_allows_markdown_with_derive_readonly() -> None:
+    stanza = _agents(frontmatterKeep=["name"], outputFormat="markdown", deriveReadonly=True)
+    assert _errors(stanza) == []
 
 
 def test_schema_allows_skip_with_derive_readonly_false() -> None:

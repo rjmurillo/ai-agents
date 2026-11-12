@@ -1223,7 +1223,8 @@ def _format_command(template: str, pr_number: int) -> list[str]:
     """Render a command template into the argv that is verified and run.
 
     Substitutes ``{pr}``, splits with shlex, and expands the documented
-    plugin-root form in each token (:func:`_expand_plugin_root`). Trust
+    plugin-root form in each token (:func:`_expand_plugin_root`, probing
+    for the root that holds the file). Trust
     verification and dispatch both call this, so the file verified is the
     file executed.
 
@@ -1236,7 +1237,7 @@ def _format_command(template: str, pr_number: int) -> list[str]:
     if not isinstance(pr_number, int) or isinstance(pr_number, bool):
         raise TypeError(f"pr_number must be int, got {type(pr_number).__name__}")
     rendered = template.replace("{pr}", str(pr_number))
-    return [_expand_plugin_root(token) for token in shlex.split(rendered)]
+    return [_expand_plugin_root(token, probe=True) for token in shlex.split(rendered)]
 
 
 def _parse_stdout_json(stdout: str) -> dict | None:
@@ -1616,7 +1617,7 @@ _PLUGIN_ROOT_FORMS: dict[str, tuple[str, ...]] = {
 }
 
 
-def _expand_plugin_root(token: str) -> str:
+def _expand_plugin_root(token: str, *, probe: bool = False) -> str:
     """Resolve the documented plugin-root indirection, or return as-is.
 
     Mirrors the shell's ``${VAR:-default}``: the first variable the form
@@ -1625,14 +1626,43 @@ def _expand_plugin_root(token: str) -> str:
     Anything else keeps its ``$`` and is reported by
     :func:`_unverifiable_argv` instead of being quietly resolved to the
     wrong thing.
+    With ``probe=True`` and a token that starts with the form, a root that
+    does not hold the named file is skipped and the next candidate is tried,
+    ending with the literal default. A form inside a larger token keeps
+    first-set semantics. Another
+    plugin can export its own root (context-mode does inside ``ctx_execute``,
+    issue #7281), and the shell form would resolve into that plugin. Probing
+    is a resolution aid, not trust: a foreign root that does hold the file
+    still wins here, and install trust (``_install_trusted_root``) is the
+    gate on what that file may be. When no candidate holds the file, the
+    first-set result is kept so the failure names the path it tried.
     """
     for form, variables in _PLUGIN_ROOT_FORMS.items():
         if form not in token:
             continue
-        values = (os.environ.get(name) for name in variables)
-        root = next((value for value in values if value), ".claude")
-        return token.replace(form, root)
+        values = [value for value in (os.environ.get(name) for name in variables) if value]
+        first_set = values[0] if values else ".claude"
+        if probe and token.startswith(form):
+            for candidate in (*values, ".claude"):
+                if _plugin_root_holds(candidate, token[len(form) :]):
+                    return token.replace(form, candidate)
+        return token.replace(form, first_set)
     return token
+
+
+def _plugin_root_holds(root: str, remainder: str) -> bool:
+    """True when ``root`` contains the file ``remainder`` names, inside ``root``.
+
+    ``remainder`` is the token text after the plugin-root form. It must start
+    with ``/``, so ``${...}evil/x.py`` (no separator) is never probed as
+    ``<root>/evil/x.py``.
+    """
+    if not remainder.startswith("/"):
+        return False
+    relative = remainder[1:]
+    if not relative or Path(relative).is_absolute() or ".." in Path(relative).parts:
+        return False
+    return (Path(root) / relative).is_file()
 
 
 def _unverifiable_argv(argv: list[str]) -> list[str]:
@@ -1742,6 +1772,9 @@ def _launcher_script_token(command: str) -> str | None:
 
     The token is the one a POSIX command for the same script would carry,
     so it is classified and compared exactly as that command's is.
+    It does not probe for the root that holds the file. The PowerShell
+    payload picks the first set variable with no existence check, so probing
+    here would classify one file while the launcher ran another.
     """
     script_rel = _launcher_script(command)
     if script_rel is None:

@@ -38,10 +38,11 @@ artifacts:
     skipToolRestricted: true
     # The orchestrator table names only agents this install registers, so the
     # two rows for agents Codex does not install (analyst, security) go, and the
-    # delegation tool is Codex's spawn_agent, not Claude's Task. A `from` that no
+    # delegation tool is Codex's spawn_agent, not Claude's Task, with fork_turns "none" for a
+    # reviewer child (ADR-115 Decision 13). A `from` that no
     # longer occurs exactly once fails the build.
     bodyReplace:
       orchestrator.md:
         "| **analyst** | Research, root cause, feasibility | Already have enough context |\n": ""
         "| **security** | Threat modeling, vulnerability review | Pure performance work |\n": ""
-        "Task (for delegation)": "spawn_agent (for delegation)"
+        'Task (for delegation)': 'spawn_agent (for delegation; pass fork_turns="none" when the child reviews work)'

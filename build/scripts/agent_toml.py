@@ -5,7 +5,8 @@ A Codex custom agent is one TOML file with ``name``, ``description`` and
 output: the stanza keys ``outputFormat`` and ``skipToolRestricted`` and their
 validation (one rule set, used by the build and by the schema validator), the
 TOML basic-string escaper, the file renderer, the name-to-stem check, and the
-paragraph appended to each body when agents are left out.
+paragraph appended to each body when agents are left out. A body whose source sets
+``disallowedTools: Agent`` also gets a short ``Subagents`` section (``NO_SUBAGENTS``).
 """
 
 from __future__ import annotations
@@ -64,6 +65,30 @@ def render_codex_toml(kept: dict[str, object], body: str, source: str) -> str:
     )
 
 
+# Mirrors the Claude restriction `disallowedTools: Agent`. Codex cannot enforce it, so
+# the build states it in the body. The model may ignore it; it is not a block.
+NO_SUBAGENTS = "\n\n## Subagents\n\nDo not start subagents. Do the work in this session.\n"
+
+
+def forbids_subagents(loaded: dict[str, object]) -> bool:
+    """True when the Claude source sets ``disallowedTools: Agent``, which Codex cannot enforce."""
+    raw = loaded.get("disallowedTools")
+    names = raw if isinstance(raw, list) else str(raw or "").split(",")
+    return "Agent" in [str(name).strip() for name in names]
+
+
+def unenforceable_disallowed(loaded: dict[str, object]) -> list[str]:
+    """Names in ``disallowedTools`` other than ``Agent``, which Codex cannot enforce.
+
+    ``Agent`` is handled by :data:`NO_SUBAGENTS`. Any other name would ship as an
+    unrestricted agent, so the build refuses it instead.
+    """
+    raw = loaded.get("disallowedTools")
+    names = raw if isinstance(raw, list) else str(raw or "").split(",")
+    stripped = [str(name).strip() for name in names]
+    return [name for name in stripped if name and name != "Agent"]
+
+
 def not_installed_paragraph(skipped_stems: list[str]) -> str:
     """Return the paragraph appended to each body when agents were left out.
 
@@ -76,11 +101,18 @@ def not_installed_paragraph(skipped_stems: list[str]) -> str:
         "\n\n## Agents not installed on this host\n\n"
         f"These agents are not installed on this host: {names}. "
         "When a step above hands work to one of them, do that step yourself "
-        "in this session and say that you did."
+        "in this session and say that you did. "
+        "A step you do yourself is a self-review, not an independent review, so report it as one. "
+        "It does not satisfy a review gate: name the gate as unreviewed in your completion report. "
+        "When you are asked to review or challenge work, set aside the author's reasoning "
+        "and judge the artifact itself."
     )
     # A skipped `security` agent gets its own sentence: a self-review must not pass as its review.
     if "security" in skipped_stems:
-        text += " If the step is a security review, state that no security agent reviewed it."
+        text += (
+            " If the step is a security review or clears a security flag, do not mark it done: "
+            "state that no security agent reviewed it and leave the flag open for the user."
+        )
     return text + "\n"
 
 
@@ -100,11 +132,25 @@ def output_option_errors(name: str, stanza: dict[str, object]) -> list[str]:
     fmt = stanza.get(FORMAT_KEY, FORMAT_MARKDOWN)
     if fmt not in FORMATS:
         errors.append(f"{where}{FORMAT_KEY}`: must be `markdown` or `codex-toml`")
-    elif fmt == FORMAT_CODEX_TOML and stanza.get("frontmatterKeep") != CODEX_KEEP:
-        errors.append(
-            f"{where}{FORMAT_KEY}`: `codex-toml` needs `frontmatterKeep` of exactly "
-            "[name, description]"
-        )
+    elif fmt == FORMAT_CODEX_TOML:
+        if stanza.get("frontmatterKeep") != CODEX_KEEP:
+            errors.append(
+                f"{where}{FORMAT_KEY}`: `codex-toml` needs `frontmatterKeep` of exactly "
+                "[name, description]"
+            )
+        # The renderer has no `readonly` field to write. A read-only source would ship
+        # with the parent's permissions, so the combination is refused up front.
+        if stanza.get("deriveReadonly") is True:
+            errors.append(
+                f"{where}{FORMAT_KEY}`: `codex-toml` cannot combine with `deriveReadonly: true`"
+            )
+        # A Codex agent file cannot limit tools, so a source with a `tools` list must
+        # not ship. Without the skip, such an agent would ship unrestricted.
+        if skip is False:
+            errors.append(
+                f"{where}{FORMAT_KEY}`: `codex-toml` needs `{SKIP_KEY}: true`, "
+                "because a Codex agent file cannot restrict tools"
+            )
     return errors
 
 

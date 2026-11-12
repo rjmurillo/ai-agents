@@ -11,11 +11,13 @@
   },
   "Verify dispatch closure against base": {
     "disposition": "tracked-issue",
-    "reason": "PR #7240 edits three files in the completion gate's dispatch closure on purpose to fix issues #7222 and #7230: src/claude/lib/github_core/api.py, src/claude/skills/github/scripts/pr/resolve_pr_review_thread.py, and the new src/claude/lib/github_core/review_thread_pager.py. The change makes paginated reads fail on any page error and pages every review thread, so verify_dispatch_closure.py reports DIFFERS against base (run 42966396101, 2026-11-11). PR #7244 edits src/claude/skills/pr-review/pr-review-config.yaml so its script paths use the plugin-root form for issue #7226 (run 42968471375, 2026-11-11; 1 of 60 closure files differs). The job docstring says a legitimate verifier change reports exactly this way and that the job is a report, not a gate. The owner approved this waiver for these two PRs on 2026-11-11. Earlier entries for PR #6797 and PR #7067 expired on 2026-11-11.",
+    "reason": "PR #7240 edits three files in the completion gate's dispatch closure on purpose to fix issues #7222 and #7230: src/claude/lib/github_core/api.py, src/claude/skills/github/scripts/pr/resolve_pr_review_thread.py, and the new src/claude/lib/github_core/review_thread_pager.py. The change makes paginated reads fail on any page error and pages every review thread, so verify_dispatch_closure.py reports DIFFERS against base (run 42966396101, 2026-11-11). PR #7244 edits src/claude/skills/pr-review/pr-review-config.yaml so its script paths use the plugin-root form for issue #7226 (run 42968471375, 2026-11-11; 1 of 60 closure files differs). The job docstring says a legitimate verifier change reports exactly this way and that the job is a report, not a gate. The owner approved this waiver for PR #7240 and PR #7244 on 2026-11-11. Earlier entries for PR #6797 and PR #7067 expired on 2026-11-11. PR #7313 adds --dry-run to add_pr_review_thread_reply.py and resolve_pr_review_thread.py; the owner approved this closure change on 2026-11-11. Its predecessor, PR #7306, reported DIFFERS on both files (run 43047892157; 2 of 62 closure files differ). PR #7318 edits src/claude/skills/github/scripts/pr/run_completion_gate.py so the gate skips a foreign plugin root that lacks the script, for issue #7281 (run 43108334631, 2026-11-11; 1 of 62 closure files differs). The owner approved this closure change on 2026-11-11.",
     "expires": "2026-11-18",
     "pull_requests": [
       7240,
-      7244
+      7244,
+      7313,
+      7318
     ]
   },
   "Renovate": {

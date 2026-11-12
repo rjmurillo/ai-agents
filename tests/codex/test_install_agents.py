@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import shutil
 import subprocess
 import sys
@@ -13,7 +14,9 @@ from tests.codex.conftest import (
     OWNERSHIP,
     SCRIPT,
     agent_bytes,
+    child_env,
     ia,
+    make_symlink,
     read_record,
     run_installer,
     target_dir,
@@ -130,11 +133,22 @@ def test_trust_warning_absent_when_project_trusted(world, capsys):
 
 
 def test_trust_warning_present_when_trust_level_is_not_trusted(world, capsys):
-    (world.home / "config.toml").write_text(
-        f'[projects."{world.project}"]\ntrust_level = "untrusted"\n', encoding="utf-8"
-    )
+    trust_project(world, "untrusted")
     run_installer(world)
     assert "trusted projects" in capsys.readouterr().err
+
+
+@pytest.mark.skipif(os.name == "nt", reason="a backslash or a quote cannot be in a Windows name")
+def test_trust_key_with_backslash_and_quote_is_escaped_in_the_toml(world, capsys):
+    """A Windows path holds backslashes. The helper must write a key the installer can read."""
+    odd = world.project.parent / 'odd\\path"q'
+    odd.mkdir()
+    world.project = odd
+    trust_project(world)
+    assert run_installer(world) == 0
+    err = capsys.readouterr().err
+    assert "unreadable" not in err
+    assert "trusted" not in err
 
 
 def test_user_install_never_warns_about_trust(world, capsys):
@@ -219,7 +233,7 @@ def test_uninstall_dry_run_removes_nothing(world):
 def test_malformed_ownership_exits_2(world, bad, capsys):
     target = target_dir(world)
     target.mkdir(parents=True)
-    (target / OWNERSHIP).write_text(bad)
+    (target / OWNERSHIP).write_text(bad, encoding="utf-8")
     assert run_installer(world) == 2
     assert "ownership file" in capsys.readouterr().err
 
@@ -229,7 +243,7 @@ def test_symlinked_target_is_a_conflict(world, tmp_path):
     target.mkdir(parents=True)
     outside = tmp_path / "outside.toml"
     outside.write_bytes(agent_bytes("qa"))
-    (target / "qa.toml").symlink_to(outside)
+    make_symlink((target / "qa.toml"), outside)
     assert run_installer(world) == 1
     assert outside.read_bytes() == agent_bytes("qa")
 
@@ -244,11 +258,15 @@ def test_script_runs_from_a_copy_next_to_its_agents(world, tmp_path):
     """Subprocess run from a copied plugin dir, as from the Codex plugin cache."""
     plugin = tmp_path / "plugin"
     shutil.copy(SCRIPT, plugin / "install_agents.py")
-    env = {"PATH": "/usr/bin:/bin", "CODEX_HOME": str(world.home), "HOME": str(tmp_path / "h")}
+    env = child_env(
+        CODEX_HOME=str(world.home), HOME=str(tmp_path / "h"), USERPROFILE=str(tmp_path / "h")
+    )
     done = subprocess.run(
         [sys.executable, str(plugin / "install_agents.py"), "--project", str(world.project)],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         env=env,
         check=False,
     )
@@ -265,6 +283,8 @@ def test_script_runs_from_a_copy_next_to_its_agents(world, tmp_path):
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         env=env,
         check=False,
     )
@@ -318,6 +338,11 @@ def test_a_clean_run_never_returns_3(world):
 
 def test_module_entry_point_exits_with_main_status(world, tmp_path):
     done = subprocess.run(
-        [sys.executable, str(SCRIPT), "--help"], capture_output=True, text=True, check=False
+        [sys.executable, str(SCRIPT), "--help"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
     )
     assert done.returncode == 0 and "--namespace" in done.stdout
