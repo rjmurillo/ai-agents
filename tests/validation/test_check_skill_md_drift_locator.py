@@ -34,7 +34,7 @@ def test_an_upstream_path_in_a_locator_argument_is_still_a_reference() -> None:
 
 
 def test_a_malformed_locator_is_kept_so_later_references_still_count() -> None:
-    broken = render_locator(TARGET).replace(TARGET, "skills/bad target.py")
-    assert ".agents/governance/foo.md" in _extract_paths_from_text(
-        f"{broken} then open .agents/governance/foo.md"
-    )
+    """An unclosed locator spans to the end of the line; the text after it must survive."""
+    unclosed = render_locator(TARGET)[:-12]
+    text = f"{unclosed} then open .agents/governance/foo.md"
+    assert ".agents/governance/foo.md" in _extract_paths_from_text(text)
