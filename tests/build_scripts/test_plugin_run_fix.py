@@ -11,6 +11,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -442,10 +443,10 @@ def test_fix_reports_a_file_it_cannot_read(
     repo = _repo(tmp_path, {support: _doc(_legacy())})
     real_read = Path.read_text
 
-    def deny(self: Path, *args: object, **kwargs: object) -> str:
+    def deny(self: Path, *args: Any, **kwargs: Any) -> str:
         if self.name == "notes.md":
             raise PermissionError(13, "denied")
-        return real_read(self, *args, **kwargs)  # type: ignore[arg-type]
+        return real_read(self, *args, **kwargs)
 
     monkeypatch.setattr(Path, "read_text", deny)
     assert _run_fix(repo, repo / support) == 2

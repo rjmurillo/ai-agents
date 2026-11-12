@@ -83,6 +83,7 @@ def _git(repo_root: Path, *args: str) -> str:
             capture_output=True,
             text=True,
             encoding="utf-8",
+            errors="replace",
         )
     except (OSError, subprocess.CalledProcessError) as exc:
         raise FixError(f"git {' '.join(args)} failed: {exc}", EXIT_EXTERNAL) from exc
