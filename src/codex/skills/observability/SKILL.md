@@ -106,7 +106,7 @@ Agent event logs are stored at:
 |-----------|---------|
 | 0 | Query completed and results output (query) or scenario compliant (check) |
 | 1 | File not found or invalid arguments (query) or scenario non-compliant (check) |
-| 2 | Invalid JSONL format (query) or malformed scenario (check) |
+| 2 | Invalid JSONL format (query), malformed scenario (check), or a launcher failure (a `ptk_run:` line on stderr and no output) |
 
 ## Quick Start
 
