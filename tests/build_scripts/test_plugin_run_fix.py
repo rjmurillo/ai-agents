@@ -154,13 +154,16 @@ def test_fix_refuses_a_generated_tree_and_writes_nothing(
     assert "build_all.py" in err
 
 
-def test_fix_refuses_a_generated_file_reached_through_a_symlink(tmp_path: Path) -> None:
+def test_fix_refuses_a_generated_file_reached_through_a_symlink(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     repo = _repo(tmp_path, {"src/claude/agents/a.md": _doc(_legacy())})
     link = repo / ".claude" / "agents"
     link.parent.mkdir(parents=True, exist_ok=True)
     link.symlink_to(repo / "src/claude/agents", target_is_directory=True)
     before = (repo / "src/claude/agents/a.md").read_bytes()
     assert _run_fix(repo, link / "a.md") == 2
+    assert "generated" in capsys.readouterr().err, "the link must be followed to the render"
     assert (repo / "src/claude/agents/a.md").read_bytes() == before
 
 

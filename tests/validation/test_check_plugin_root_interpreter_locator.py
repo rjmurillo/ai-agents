@@ -134,13 +134,30 @@ def test_the_locator_in_markdown_beside_that_yaml_passes(tmp_path: Path) -> None
     assert _scan(tmp_path, files) == []
 
 
-def test_a_yaml_allowance_cannot_cover_a_locator(tmp_path: Path) -> None:
+def test_a_yaml_allowance_cannot_cover_a_locator(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     yaml_text = f"scripts:\n  run: '{render_locator(_BAR)}'\n"
+    key = ("skills/demo/demo-config.yaml", "scripts.run", "locator-yaml", _BAR)
+    monkeypatch.setattr(checker, "_YAML_ALLOWANCES", {key: "test reason"})
     repo = make_repo(tmp_path, {**_STDLIB, _CONFIG: yaml_text})
     used: set[tuple[str, str, str, str]] = set()
     [offense] = checker.scan(repo, used)
     assert "Class G" in offense
-    assert used == set()
+    assert used == set(), "the allowance must not be marked as used"
+
+
+def test_an_allowance_does_cover_the_legacy_offense_it_names(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Negative control: the same table still absorbs the offenses it was written for."""
+    yaml_text = f"scripts:\n  run: 'python3 .claude/{_BAR}'\n"
+    key = ("skills/demo/demo-config.yaml", "scripts.run", "bare-path", _BAR)
+    monkeypatch.setattr(checker, "_YAML_ALLOWANCES", {key: "test reason"})
+    repo = make_repo(tmp_path, {**_STDLIB, _CONFIG: yaml_text})
+    used: set[tuple[str, str, str, str]] = set()
+    assert checker.scan(repo, used) == []
+    assert used == {key}
 
 
 # --- counting legacy sites ------------------------------------------------
@@ -161,8 +178,8 @@ def test_a_suppressed_legacy_site_still_counts() -> None:
     assert sites.count_legacy_sites(text).invocations == 1
 
 
-def test_a_continued_invocation_counts_once() -> None:
-    text = f'python3 "{_LEGACY_ROOT}/{_BAR}" \\\n    --pr 1 \\\n    --branch x\n'
+def test_an_invocation_split_across_lines_counts_once() -> None:
+    text = f'python3 \\\n    "{_LEGACY_ROOT}/{_BAR}" \\\n    --pr 1\n'
     assert sites.count_legacy_sites(text) == sites.LegacyCounts(invocations=1, assignments=0)
 
 

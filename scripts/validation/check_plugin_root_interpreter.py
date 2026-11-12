@@ -10,8 +10,12 @@ install:
     python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"\
         "/skills/<skill>/scripts/<name>.py"
 
-The repository has standardized on that one form for every such invocation.
-Two things have to hold for it to be portable:
+The repository standardized on that form (issue #5949). ADR-121 adds a second
+form for a new shell command that a model runs: the locator that
+``build/scripts/plugin_run_launcher.py`` renders. The validator accepts both. The
+locator is read as described under "Detection" below, and the legacy form is
+counted against a baseline that only moves down (rule 6). Two things have to hold
+for either form to be portable:
 
 1. **The interpreter is exactly ``python3``.** ``uv run python <script>``
    resolves the project's locked virtual environment, but a vendored plugin
@@ -29,10 +33,12 @@ Two things have to hold for it to be portable:
    install dependencies from even if it wanted to.
 
 This validator enforces both, plus a bare-path rule for shipped YAML (Rule 3,
-below). Markdown and code carry no baseline: every invocation there moved to
-the canonical form when this guard was added (issue #5949), so any offense is
+below). Markdown and code carry no offense baseline: every invocation there moved
+to an accepted form when this guard was added (issue #5949), so any offense is
 a regression. Shipped YAML has a short, named allowance list instead
-(``YAML_ALLOWANCES`` in ``plugin_root_interpreter_allowances.py``).
+(``YAML_ALLOWANCES`` in ``plugin_root_interpreter_allowances.py``). The one count
+that is allowed to differ from zero is the number of legacy-form sites in
+authored files (rule 6).
 
 Scope: tracked ``*.md``, ``*.py``, ``*.tmpl``, and ``*.mustache`` files, plus
 ``*.yaml`` and ``*.yml`` files under a plugin root (``.claude/``,
@@ -88,6 +94,23 @@ Detection:
   reported; an allowance that matches nothing is stale and fails the run, so it
   cannot hide a later offense under the same key (issue #6506).
 
+  **The locator (ADR-121).** ``plugin_root_interpreter_sites.py`` finds each
+  locator and reads its script path out of the text with
+  ``plugin_run_launcher.find_locators``. Rule 1 holds by construction, because the
+  locator's interpreter is fixed text. Rule 2 applies to the extracted path exactly
+  as it does to a legacy operand. Rule 4 holds because the locator names both
+  variables. A locator that no longer reads back (a bad target, a missing end) is an
+  offense. A locator in shipped YAML is an offense no allowance covers: the
+  completion gate splits commands with ``shlex`` and runs no shell, so the locator
+  would stay literal there (ADR-121 decision 1, Class G).
+
+  **Rule 6 (legacy ratchet).** Authored files (``templates/`` and the hand-kept files
+  under ``src/claude/``; ``plugin_root_interpreter_ratchet.authored_group``) hold a
+  counted number of legacy-form invocations and of assignments from the nested form.
+  A group whose count differs from ``LEGACY_SITE_BASELINE`` fails, above or below, so
+  a batch that migrates must lower the baseline in the same change. The baseline
+  describes this checkout, so a scan of another ``--repo-root`` does not apply it.
+
   A line carrying ``plugin-root-interpreter:`` plus a reason, on the offending
   line or the line directly above it, suppresses that one offense. Same
   line-scoped shape as ``check_doc_interpreter_portability.py``'s
@@ -102,7 +125,8 @@ Detection:
 
 Exit codes (ADR-035):
   0 - no offenses found and every allowance still matches
-  1 - one or more offenses found, or an allowance matches nothing
+  1 - one or more offenses found, an allowance matches nothing, or a legacy-site
+      count differs from its baseline
   2 - configuration error (git unavailable, an in-scope tracked file could not
       be read, or the scan examined zero files)
 """
@@ -166,6 +190,7 @@ _lineno_at = _sites.lineno_at
 _PLUGIN_ROOTS = (".claude/", "src/claude/", "src/copilot-cli/")
 _YAML_SUFFIXES = (".yaml", ".yml")
 _Key = tuple[str, str, str, str]
+_LOCATOR_YAML_RULE = "locator-yaml"  # no allowance can cover it (ADR-121 decision 1)
 _Imports = dict[str, frozenset[str]] | None  # script to its third-party imports, per scan (#6854)
 _MUST_2 = ".claude/rules/plugin-self-containment.md MUST 2"
 _MUST_4 = ".claude/rules/plugin-self-containment.md MUST 4"
@@ -307,7 +332,7 @@ def _locator_offense(
             "commands with shlex and runs no shell. Keep the legacy form here "
             "(ADR-121 decision 1, Class G)"
         )
-        return _Offense(lineno, "locator-yaml", tail, message)
+        return _Offense(lineno, _LOCATOR_YAML_RULE, tail, message)
     if invocation.problem is not None:
         message = f"{rel}:{lineno}: malformed locator, {invocation.problem} (ADR-121)"
         return _Offense(lineno, "locator", tail, message)
@@ -367,7 +392,7 @@ def find_yaml_offenses(
     owners, reported = _allowances.yaml_key_paths(text), []
     for offense in sorted(found, key=lambda o: o.lineno):
         key = (root_relative, owners[offense.lineno - 1], offense.rule, offense.tail)
-        if key in _YAML_ALLOWANCES:
+        if key in _YAML_ALLOWANCES and offense.rule != _LOCATOR_YAML_RULE:
             used_allowances.add(key)
         else:
             reported.append((offense.lineno, offense.message))
@@ -512,12 +537,13 @@ def build_parser() -> argparse.ArgumentParser:
     """Build the CLI parser."""
     parser = argparse.ArgumentParser(
         description=(
-            "Fail when a plugin-root skill invocation uses anything but bare "
-            "python3 or names a target with non-stdlib imports (rules 1 to 3), "
-            "when a file names the Claude plugin-root variable without the Copilot "
-            "one (rule 4), or when a shipped skill or lib module imports a "
-            "third-party package at module level with no fallback (rule 5) "
-            "(issue #5949)."
+            "Fail when a plugin-root skill invocation, in the legacy form or as the "
+            "ADR-121 locator, uses anything but bare python3 or names a target with "
+            "non-stdlib imports (rules 1 to 3), when a file names the Claude plugin-root "
+            "variable without the Copilot one (rule 4), when a shipped skill or lib "
+            "module imports a third-party package at module level with no fallback "
+            "(rule 5), or when the count of legacy-form sites in authored files differs "
+            "from its baseline (rule 6) (issue #5949, ADR-121)."
         )
     )
     parser.add_argument("--repo-root", type=Path, default=None, help="Repository root.")
