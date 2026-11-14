@@ -52,6 +52,17 @@ _ARGS = [
 ]
 
 
+_REAL_RUN = subprocess.run
+
+
+@pytest.fixture(autouse=True)
+def _forbid_unmocked_subprocess(monkeypatch: pytest.MonkeyPatch) -> None:
+    def guard(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise AssertionError(f"unmocked subprocess.run: {argv}")
+
+    monkeypatch.setattr(subprocess, "run", guard)
+
+
 def _done(argv: list[str], code: int, out: str = "") -> subprocess.CompletedProcess[str]:
     return subprocess.CompletedProcess(argv, code, out)
 
@@ -99,17 +110,21 @@ class _World:
         raise AssertionError(f"unexpected command: {argv}")
 
     def _git(self, argv: list[str], verb: str) -> subprocess.CompletedProcess[str]:
-        if verb == "status":
+        idx = 1
+        while idx < len(argv) and argv[idx] == "-c":
+            idx += 2
+        subverb = argv[idx] if idx < len(argv) else verb
+        if subverb == "status":
             if self._dirty_paths is not None:
                 asked = set(argv[argv.index("--") + 1 :])
                 return _done(argv, 0, " M x\n" if asked & self._dirty_paths else "")
             return _done(argv, 0, " M a.md\n" if self._dirty else "")
-        if verb == "ls-remote":
+        if subverb == "ls-remote":
             code = self._ls_remote_rc
             return _done(argv, code, "sha\trefs/heads/x\n" if code == 0 else "")
-        if verb == "merge-base":
+        if subverb == "merge-base":
             return _done(argv, self._merge_base_rc)
-        if verb in {"config", "checkout", "add", "commit", "push"}:
+        if subverb in {"checkout", "add", "commit", "push"}:
             return _done(argv, 0)
         raise AssertionError(f"unexpected git command: {argv}")
 
@@ -188,12 +203,27 @@ def test_full_pr_list_page_fails_closed_instead_of_reading_as_no_match(
 def test_publishes_branch_and_opens_pull_request(make_world: Callable[..., _World]) -> None:
     world = make_world()
     assert main(_ARGS) == 0
-    verbs = [tuple(c[:3]) for c in world.argvs() if c[1] in {"checkout", "add", "commit", "push"}]
+    assert world.issued("git", "config") == []
+    verbs = [tuple(c[:3]) for c in world.argvs() if c[1] in {"checkout", "add", "-c", "push"}]
     assert verbs == [
         ("git", "checkout", "-B"),
         ("git", "add", "--"),
-        ("git", "commit", "-m"),
+        ("git", "-c", "user.name=bot"),
         ("git", "push", "--set-upstream"),
+    ]
+    assert world.issued("git", "-c") == [
+        [
+            "git",
+            "-c",
+            "user.name=bot",
+            "-c",
+            "user.email=bot@example.com",
+            "commit",
+            "-m",
+            "chore(stats): update reviewer signal statistics",
+            "-m",
+            "body",
+        ]
     ]
     assert world.issued("git", "push", "origin", "--delete") == []
     (create,) = world.issued("gh", "pr", "create")
@@ -286,7 +316,7 @@ def test_missing_gh_binary_exits_usage(
 def test_pull_request_body_passes_the_repo_validator(tmp_path: Path) -> None:
     body = tmp_path / "body.md"
     body.write_text(pr_body(["a.md", "b.json"], "234"), encoding="utf-8")
-    result = subprocess.run(
+    result = _REAL_RUN(
         [
             sys.executable,
             "-I",
@@ -346,13 +376,14 @@ def test_gh_only_timeout_exits_external(monkeypatch: pytest.MonkeyPatch) -> None
     assert inner.issued("git", "push") == []
 
 
-def test_git_config_failure_exits_git_failed_before_any_other_call(
+def test_git_commit_failure_exits_git_failed_and_never_runs_git_config(
     make_world: Callable[..., _World],
 ) -> None:
-    world = make_world(failing=("git", "config"))
+    world = make_world(failing=("git", "-c"))
     assert main(_ARGS) == 1
-    assert world.issued("gh") == []
-    assert world.issued("git", "status") == []
+    assert world.issued("git", "config") == []
+    assert world.issued("git", "push", "--set-upstream") == []
+    assert world.issued("gh", "pr", "create") == []
 
 
 def test_git_status_failure_names_the_command(

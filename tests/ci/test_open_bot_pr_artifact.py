@@ -33,6 +33,14 @@ def _symlink_or_skip(link: Path, target: Path) -> None:
         pytest.skip("this platform cannot create symlinks")
 
 
+@pytest.fixture(autouse=True)
+def _forbid_unmocked_subprocess(monkeypatch: pytest.MonkeyPatch) -> None:
+    def guard(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise AssertionError(f"unmocked subprocess.run: {argv}")
+
+    monkeypatch.setattr(subprocess, "run", guard)
+
+
 @pytest.fixture
 def checkout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     work = tmp_path / "work"
