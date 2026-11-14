@@ -205,14 +205,16 @@ def test_pre_push_pre_pr_job_runs_compact() -> None:
     config = yaml.safe_load(
         (Path(__file__).resolve().parents[2] / "lefthook.yml").read_text(encoding="utf-8")
     )
-    jobs = [
-        job
-        for entry in config["pre-push"]["jobs"]
-        for job in (entry.get("group", {}).get("jobs") or [entry])
-    ]
-    command = next(job["run"] for job in jobs if job.get("name") == "pre-pr-validation")
-
-    assert re.search(r"pre_pr\.py --compact(\s|$)", command)
+    jobs = list(config["pre-push"]["jobs"])
+    while jobs:
+        job = jobs.pop()
+        if "group" in job:
+            jobs.extend(job["group"]["jobs"])
+        elif job.get("name") == "pre-pr-validation":
+            assert re.search(r"pre_pr\.py --compact(\s|$)", job["run"])
+            break
+    else:
+        pytest.fail("pre-pr-validation is missing from the pre-push hook")
 
 
 def test_held_output_is_released_when_a_gate_exits_the_process(
