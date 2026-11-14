@@ -1,6 +1,6 @@
 {
   "name": "ai-agents",
-  "image": "mcr.microsoft.com/devcontainers/python:3-3.14-trixie@sha256:66a39503cd5b53c94a57b9a235c6c9371ccf17bafd9c90369e566f638a05ac89",
+  "image": "mcr.microsoft.com/devcontainers/python:3-3.14-trixie@sha256:2e0589f0725c951ac8ae0d7169784a9694f5818ec5264ed5231f23c6bf0ab7be",
   // Each feature carries both an exact version and the sha256 digest from
   // devcontainer-lock.json. The digest in the reference is what enforces
   // integrity: the CLI verifies it on every client, including the documented
