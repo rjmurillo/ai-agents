@@ -199,6 +199,8 @@ class TestMain:
             call_count += 1
             if call_count == 1:
                 return _completed(stdout=state_json, rc=0)
+            if call_count == 2:
+                return _completed(stdout="[[]]", rc=0)
             return _completed(rc=0)
 
         with (
@@ -223,7 +225,10 @@ class TestMain:
                 ]
             )
         assert rc == 0
-        assert call_count == 3
+        assert call_count == 4
+        output = json.loads(capsys.readouterr().out)
+        assert output["commentPosted"] is True
+        assert output["commentSkipped"] is False
 
     def test_close_failure_exits_3(self):
         state_json = json.dumps({"state": "OPEN"})
@@ -264,6 +269,8 @@ class TestMain:
             call_count += 1
             if call_count == 1:
                 return _completed(stdout=state_json, rc=0)
+            if call_count == 2:
+                return _completed(stdout="[[]]", rc=0)
             return _completed(rc=0)
 
         with (
@@ -288,7 +295,7 @@ class TestMain:
                 ]
             )
         assert rc == 0
-        assert call_count == 3
+        assert call_count == 4
 
     def test_comment_file_not_found_exits_2(self):
         with (
@@ -321,7 +328,12 @@ class TestMain:
         body = scratch / "close.md"
         body.write_text("Closing from scratchpad.", encoding="utf-8")
         monkeypatch.setenv("TMPDIR", str(tmp_path))
-        results = [_completed(stdout=json.dumps({"state": "OPEN"})), _completed(), _completed()]
+        results = [
+            _completed(stdout=json.dumps({"state": "OPEN"})),
+            _completed(stdout="[[]]"),
+            _completed(),
+            _completed(),
+        ]
         with (
             patch("close_pr.assert_gh_authenticated"),
             patch("close_pr.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
@@ -329,7 +341,7 @@ class TestMain:
         ):
             rc = main(["--pull-request", "50", "--comment-file", str(body)])
         assert rc == 0
-        comment_call = mock_run.call_args_list[1].args[0]
+        comment_call = mock_run.call_args_list[2].args[0]
         assert "Closing from scratchpad." in comment_call
 
     def test_comment_file_outside_every_root_exits_2(
@@ -438,7 +450,10 @@ class TestDryRun:
     def test_open_pr_reports_would_close_and_makes_no_write_call(self, capsys):
         rc, run = _run_dry(
             ["--pull-request", "5", "--comment", "superseded", "--dry-run"],
-            [_completed(stdout=json.dumps({"state": "OPEN"}))],
+            [
+                _completed(stdout=json.dumps({"state": "OPEN"})),
+                _completed(stdout="[[]]"),
+            ],
         )
 
         data = json.loads(capsys.readouterr().out)
@@ -446,7 +461,28 @@ class TestDryRun:
         assert data["action"] == "would_close"
         assert data["dryRun"] is True
         assert data["wouldComment"] is True
-        assert run.call_count == 1
+        assert data["commentDuplicate"] is False
+        assert run.call_count == 2
+
+    def test_open_pr_dry_run_detects_duplicate_closing_comment(self, capsys):
+        existing_pages = json.dumps([[{"id": 901, "body": "superseded", "user": {"login": "bot"}}]])
+        rc, run = _run_dry(
+            ["--pull-request", "5", "--comment", "superseded", "--dry-run"],
+            [
+                _completed(stdout=json.dumps({"state": "OPEN"})),
+                _completed(stdout=existing_pages),
+                _completed(stdout="bot\n"),
+            ],
+        )
+
+        data = json.loads(capsys.readouterr().out)
+        assert rc == 0
+        assert data["action"] == "would_close"
+        assert data["dryRun"] is True
+        assert data["wouldComment"] is False
+        assert data["commentDuplicate"] is True
+        assert data["existingCommentId"] == 901
+        assert run.call_count == 3
 
     def test_closed_pr_reports_the_same_noop_action_with_the_marker(self, capsys):
         rc, run = _run_dry(
@@ -486,3 +522,87 @@ class TestDryRun:
 
         assert rc == 0
         assert "dryRun" not in json.loads(capsys.readouterr().out)
+
+
+class TestClosingCommentDedupe:
+    """Retry after a close failure must skip re-posting an identical closing comment."""
+
+    def test_skips_duplicate_comment_by_same_author_and_closes_pr(self, capsys):
+        existing_pages = json.dumps(
+            [[{"id": 777, "body": "Superseded by #6\n", "user": {"login": "BotUser"}}]]
+        )
+        replies = [
+            _completed(stdout=json.dumps({"state": "OPEN"})),
+            _completed(stdout=existing_pages),
+            _completed(stdout="botuser\n"),
+            _completed(rc=0),
+        ]
+        with (
+            patch("close_pr.assert_gh_authenticated"),
+            patch("close_pr.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
+            patch("subprocess.run", side_effect=replies) as run,
+        ):
+            rc = main(["--pull-request", "5", "--comment", "Superseded by #6\r\n"])
+
+        assert rc == 0
+        subcommands = [c.args[0][1:3] for c in run.call_args_list]
+        assert ["pr", "comment"] not in subcommands
+        assert subcommands[-1] == ["pr", "close"]
+        out = json.loads(capsys.readouterr().out)
+        assert out["action"] == "closed"
+        assert out["commentPosted"] is False
+        assert out["commentSkipped"] is True
+        assert out["existingCommentId"] == 777
+
+    def test_posts_comment_when_matching_body_belongs_to_another_author(self, capsys):
+        existing_pages = json.dumps(
+            [[{"id": 777, "body": "Superseded by #6", "user": {"login": "other-user"}}]]
+        )
+        replies = [
+            _completed(stdout=json.dumps({"state": "OPEN"})),
+            _completed(stdout=existing_pages),
+            _completed(stdout="botuser\n"),
+            _completed(rc=0),
+            _completed(rc=0),
+        ]
+        with (
+            patch("close_pr.assert_gh_authenticated"),
+            patch("close_pr.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
+            patch("subprocess.run", side_effect=replies) as run,
+        ):
+            rc = main(["--pull-request", "5", "--comment", "Superseded by #6"])
+
+        assert rc == 0
+        subcommands = [c.args[0][1:3] for c in run.call_args_list]
+        assert ["pr", "comment"] in subcommands
+        assert subcommands[-1] == ["pr", "close"]
+        out = json.loads(capsys.readouterr().out)
+        assert out["commentPosted"] is True
+        assert out["commentSkipped"] is False
+
+    @pytest.mark.parametrize(
+        "lookup_reply",
+        [
+            _completed(rc=1, stderr="HTTP 502 Bad Gateway"),
+            _completed(rc=0, stdout="not-json"),
+            _completed(rc=0, stdout='{"not": "pages"}'),
+        ],
+    )
+    def test_comment_lookup_failure_fails_closed_with_exit_3(self, lookup_reply, capsys):
+        replies = [
+            _completed(stdout=json.dumps({"state": "OPEN"})),
+            lookup_reply,
+        ]
+        with (
+            patch("close_pr.assert_gh_authenticated"),
+            patch("close_pr.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
+            patch("subprocess.run", side_effect=replies) as run,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "5", "--comment", "Superseded by #6"])
+
+        assert exc.value.code == 3
+        subcommands = [c.args[0][1:3] for c in run.call_args_list]
+        assert ["pr", "comment"] not in subcommands
+        assert ["pr", "close"] not in subcommands
+        assert "NOT closed" in capsys.readouterr().err

@@ -20,6 +20,7 @@ import json
 import os
 import subprocess
 import sys
+from typing import Any
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -36,14 +37,25 @@ if not os.path.isdir(_lib_dir):
     sys.exit(2)  # Config error per ADR-035
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
+_script_dir = os.path.dirname(__file__)
+if _script_dir not in sys.path:
+    sys.path.insert(0, _script_dir)
 
 from github_core.api import (
     assert_gh_authenticated,
     error_and_exit,
     resolve_repo_params,
+    sanitize_failure_detail,
 )
 from github_core.not_found import is_pr_not_found
 from github_core.validation import assert_valid_body_file, read_body_file_text
+from pr_comment_dedupe import (
+    LOOKUP_TIMEOUT_SECONDS,
+    body_matches,
+    first_by_author,
+    flatten_pages,
+    paginated_args,
+)
 
 _HELP_EPILOG = """\
 examples:
@@ -86,7 +98,69 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _report_noop_or_plan(args: argparse.Namespace, state: str, comment: str) -> int | None:
+def _lookup_failure(what: str, detail: str) -> str:
+    return (
+        f"Failed to {what} to check for a duplicate closing comment: {detail}. "
+        "The PR was NOT closed and nothing was posted. "
+        "Retry the same command once the API error clears."
+    )
+
+
+def _authenticated_login() -> str:
+    try:
+        result = subprocess.run(
+            ["gh", "api", "user", "--jq", ".login"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        error_and_exit(_lookup_failure("read the authenticated user", "timed out after 30s"), 3)
+    login = (result.stdout or "").strip()
+    if result.returncode != 0 or not login:
+        detail = sanitize_failure_detail(result.stderr or result.stdout, limit=400)
+        error_and_exit(_lookup_failure("read the authenticated user", detail or "empty login"), 3)
+    return login
+
+
+def _find_existing_closing_comment(
+    owner: str, repo: str, pr: int, comment: str
+) -> dict[str, Any] | None:
+    """Return an existing conversation comment by the same author with an identical body."""
+    endpoint = f"repos/{owner}/{repo}/issues/{pr}/comments"
+    what = f"read the comments of {owner}/{repo}#{pr}"
+    try:
+        result = subprocess.run(
+            ["gh", "api", *paginated_args(endpoint)],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=LOOKUP_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        error_and_exit(_lookup_failure(what, f"timed out after {LOOKUP_TIMEOUT_SECONDS}s"), 3)
+    if result.returncode != 0:
+        detail = sanitize_failure_detail(result.stderr or result.stdout, limit=400)
+        error_and_exit(_lookup_failure(what, detail or "no output from gh"), 3)
+    try:
+        comments = flatten_pages(result.stdout)
+    except ValueError as exc:
+        error_and_exit(_lookup_failure(what, f"unreadable response ({exc})"), 3)
+    same_body = body_matches(comments, comment)
+    if not same_body:
+        return None
+    return first_by_author(same_body, _authenticated_login())
+
+
+def _report_noop_or_plan(
+    args: argparse.Namespace,
+    state: str,
+    comment: str,
+    existing_comment: dict[str, Any] | None = None,
+) -> int | None:
     """Report an already closed or merged PR, or the --dry-run plan.
 
     Returns the exit code when nothing is left to do, or None when the PR must be closed.
@@ -109,9 +183,13 @@ def _report_noop_or_plan(args: argparse.Namespace, state: str, comment: str) -> 
             "state": state,
             "action": "would_close",
             "dryRun": True,
-            "wouldComment": bool(comment),
+            "wouldComment": bool(comment) and existing_comment is None,
             "message": "Dry run: PR not closed",
         }
+        if comment:
+            result["commentDuplicate"] = existing_comment is not None
+            if existing_comment is not None:
+                result["existingCommentId"] = existing_comment.get("id")
     else:
         return None
     print(json.dumps(result, indent=2))
@@ -152,12 +230,17 @@ def main(argv: list[str] | None = None) -> int:
         error_and_exit(f"Failed to get PR state: {output}", 3)
 
     state = json.loads(state_result.stdout).get("state", "")
+    existing_comment = (
+        _find_existing_closing_comment(owner, repo, pr, comment)
+        if comment and state not in ("CLOSED", "MERGED")
+        else None
+    )
 
-    reported = _report_noop_or_plan(args, state, comment)
+    reported = _report_noop_or_plan(args, state, comment, existing_comment)
     if reported is not None:
         return reported
 
-    if comment:
+    if comment and existing_comment is None:
         comment_result = subprocess.run(
             ["gh", "pr", "comment", str(pr), "--repo", repo_flag, "--body", comment],
             capture_output=True,
@@ -189,13 +272,18 @@ def main(argv: list[str] | None = None) -> int:
             3,
         )
 
-    result = {
+    result: dict[str, object] = {
         "success": True,
         "number": pr,
         "state": "CLOSED",
         "action": "closed",
         "message": "PR closed successfully",
     }
+    if comment:
+        result["commentPosted"] = existing_comment is None
+        result["commentSkipped"] = existing_comment is not None
+        if existing_comment is not None:
+            result["existingCommentId"] = existing_comment.get("id")
     print(json.dumps(result, indent=2))
     return 0
 
