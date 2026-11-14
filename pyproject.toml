@@ -51,19 +51,19 @@ override-dependencies = [
     # filelock 4.1.1 has six CVE-2026-1129xx findings fixed in 4.2.1.
     "filelock==4.2.1",
     "mcp==1.30.0",
-    # semgrep 1.181.0 pins opentelemetry-api<1.38. 1.45.1 fixes
-    # CVE-2026-114603. The whole family moves together because each package
-    # pins the exact api release.
-    "opentelemetry-api==1.45.1",
-    "opentelemetry-exporter-otlp-proto-common==1.45.1",
-    "opentelemetry-exporter-otlp-proto-http==1.45.1",
-    "opentelemetry-instrumentation==0.66b1",
-    "opentelemetry-instrumentation-requests==0.66b1",
-    "opentelemetry-instrumentation-threading==0.66b1",
-    "opentelemetry-proto==1.45.1",
-    "opentelemetry-sdk==1.45.1",
-    "opentelemetry-semantic-conventions==0.66b1",
-    "opentelemetry-util-http==0.66b1",
+    # 1.45.2 fixes CVE-2026-126360:
+    # https://github.com/open-telemetry/opentelemetry-python/security/advisories/GHSA-mf5v-w3w3-f6cg
+    # SDK 1.45.2 requires semantic-conventions 0.66b2 and API 1.45.2.
+    "opentelemetry-api==1.45.2",
+    "opentelemetry-exporter-otlp-proto-common==1.45.2",
+    "opentelemetry-exporter-otlp-proto-http==1.45.2",
+    "opentelemetry-instrumentation==0.66b2",
+    "opentelemetry-instrumentation-requests==0.66b2",
+    "opentelemetry-instrumentation-threading==0.66b2",
+    "opentelemetry-proto==1.45.2",
+    "opentelemetry-sdk==1.45.2",
+    "opentelemetry-semantic-conventions==0.66b2",
+    "opentelemetry-util-http==0.66b2",
     # semgrep 1.178.0 still pins pyjwt~=2.13.0. 2.15.0 fixes the 2.13.0 CVEs
     # pip-audit reports and GHSA-42vr-xj54-vc7v (issue #6028).
     "pyjwt[crypto]==2.15.0",
