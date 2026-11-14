@@ -22,9 +22,11 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 REFERENCE_DIR = REPO_ROOT / "src" / "claude" / "skills" / "security-scan" / "references"
 LOADING_HEADING = "## Reference Loading"
-PATH_FORM = (
+SHARED_PATH_FORM = (
     "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/security-scan/references/"
 )
+CLAUDE_PATH_FORM = "${CLAUDE_PLUGIN_ROOT}/skills/security-scan/references/"
+COPILOT_PATH_FORM = "${COPILOT_PLUGIN_ROOT}/skills/security-scan/references/"
 UNRESOLVED_RULE = "apply the rules in this file and state that the reference was unavailable"
 
 SECURITY_PATHS = (
@@ -35,6 +37,20 @@ SECURITY_PATHS = (
     Path("src/copilot-cli/agents/security.agent.md"),
     Path("src/vs-code-agents/security.agent.md"),
 )
+
+
+def _expected_path_form(path: Path) -> str:
+    if path.parts[0] in ("templates", "src") and path.name in (
+        "security.shared.md",
+        "security.agent.md",
+    ):
+        if "copilot-cli" in path.parts:
+            return COPILOT_PATH_FORM
+        return SHARED_PATH_FORM
+    if ".github" in path.parts:
+        return COPILOT_PATH_FORM
+    return CLAUDE_PATH_FORM
+
 
 # reference -> (load condition phrase in Reference Loading, text a stub keeps nearby)
 REFERENCES = {
@@ -70,8 +86,9 @@ def _loading_section(path: Path) -> str:
 @pytest.mark.parametrize("path", SECURITY_PATHS, ids=str)
 def test_reference_loading_names_every_reference_with_a_condition(path: Path) -> None:
     section = _loading_section(path)
+    expected_form = _expected_path_form(path)
 
-    assert PATH_FORM in section, f"{path} Reference Loading lacks the plugin-root path form"
+    assert expected_form in section, f"{path} Reference Loading lacks {expected_form!r}"
     for name, (condition, _) in REFERENCES.items():
         assert name in section, f"{path} Reference Loading does not list {name}"
         assert condition in section, f"{path} has no load condition {condition!r} for {name}"

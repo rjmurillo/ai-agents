@@ -241,6 +241,26 @@ def owned_targets(repo_root: Path) -> set[Path]:
     return {repo_root / "src" / "claude" / "agents" / f"{stem}.md" for stem in discover(repo_root)}
 
 
+_SPLIT_REFERENCE_SKILLS = (
+    "adr-review",
+    "decision-critic",
+    "build",
+    "autoplan",
+    "test",
+    "security-scan",
+)
+
+
+def _rewrite_claude_reference_roots(text: str) -> str:
+    """Render split-agent skill reference paths to bare ${CLAUDE_PLUGIN_ROOT} for Claude."""
+    for skill in _SPLIT_REFERENCE_SKILLS:
+        shared = (
+            f"${{COPILOT_PLUGIN_ROOT:-${{CLAUDE_PLUGIN_ROOT:-.claude}}}}/skills/{skill}/references/"
+        )
+        text = text.replace(shared, f"${{CLAUDE_PLUGIN_ROOT}}/skills/{skill}/references/")
+    return text
+
+
 def _try_render(
     tmpl_path: Path,
     partials_dir: Path,
@@ -262,6 +282,7 @@ def _try_render(
         rendered = str(render(tmpl_path, partials_dir))
         if table is not None:
             rendered = agent_capabilities.expand_frontmatter(rendered, table)
+            rendered = _rewrite_claude_reference_roots(rendered)
         return rendered
     except (
         TemplateGrammarError,
@@ -287,7 +308,7 @@ def render_claude(tmpl_path: Path, partials_dir: Path, table: dict[str, object])
     expanded: str = agent_capabilities.expand_frontmatter(
         str(render(tmpl_path, partials_dir)), table
     )
-    return expanded
+    return _rewrite_claude_reference_roots(expanded)
 
 
 def _report_discover_errors(repo_root: Path, result: CompileResult) -> None:

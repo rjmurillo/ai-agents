@@ -53,7 +53,7 @@ When you find a gap, write the finding with: file:line, the checklist item it fa
 
 ## Reference Loading
 
-Plan-critique references live under `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/decision-critic/references/`. They serve this agent; the `decision-critic` skill itself stress-tests one decision's reasoning. Read one only when its condition holds. If the path does not resolve (a harness with no skill tree, such as the VS Code agent list), apply the rules in this file and state that the reference was unavailable.
+Plan-critique references live under `${CLAUDE_PLUGIN_ROOT}/skills/decision-critic/references/`. They serve this agent; the `decision-critic` skill itself stress-tests one decision's reasoning. Read one only when its condition holds. If the path does not resolve (a harness with no skill tree, such as the VS Code agent list), apply the rules in this file and state that the reference was unavailable.
 
 - `plan-critique-personas.md`: the artifact is written prose and you are writing up persona findings or mapping them to axis scores.
 - `plan-critique-brandolini.md`: the plan or diff rests on many assertions with no evidence, or the author answers a finding with "prove me wrong" or "it is obvious".

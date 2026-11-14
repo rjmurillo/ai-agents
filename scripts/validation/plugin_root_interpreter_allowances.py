@@ -42,6 +42,11 @@ _HARNESS_FACT = (
     "States what Claude Code exports, as harness-reference evidence. It is a fact about "
     "one harness, not a command."
 )
+_SPLIT_AGENT_REF = (
+    "Build-rendered Claude host path for split-agent skill references; "
+    "authored templates keep the dual-variable fallback and Copilot CLI renders "
+    "COPILOT_PLUGIN_ROOT."
+)
 
 # Rule 4 (single-root): files that may name the Claude plugin-root variable
 # without the Copilot one. Keyed by full path, else by path with the plugin tree
@@ -49,6 +54,15 @@ _HARNESS_FACT = (
 # (number of standalone statements per copy, reason). The checker fails when a
 # file holds more, or fewer, than the count, and when a key matches no file.
 SINGLE_ROOT_ALLOWANCES: dict[str, tuple[int, str]] = {
+    "agents/architect.md": (1, _SPLIT_AGENT_REF),
+    "agents/critic.md": (1, _SPLIT_AGENT_REF),
+    "agents/implementer.md": (1, _SPLIT_AGENT_REF),
+    "agents/orchestrator.md": (1, _SPLIT_AGENT_REF),
+    "agents/qa.md": (1, _SPLIT_AGENT_REF),
+    "agents/security.md": (1, _SPLIT_AGENT_REF),
+    "agents/critic.toml": (1, _SPLIT_AGENT_REF),
+    "agents/implementer.toml": (1, _SPLIT_AGENT_REF),
+    "agents/orchestrator.toml": (1, _SPLIT_AGENT_REF),
     "src/claude/hooks/hooks.json": (1, _CLAUDE_HOOK),
     "hooks/invoke_dispatch_claude.py": (4, _CLAUDE_HOOK),
     "hooks/PreCompact/invoke_compact_checkpoint.py": (1, _CLAUDE_HOOK),

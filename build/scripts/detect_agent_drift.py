@@ -303,6 +303,16 @@ _HANDOFF_PATTERNS = (
     (re.compile(r"`/agent\s+(\w+)`"), r"`invoke \1`"),
 )
 
+_REFERENCE_ROOT_PATTERNS = (
+    (
+        re.compile(
+            r"\$\{(?:CLAUDE_PLUGIN_ROOT|COPILOT_PLUGIN_ROOT)\}"
+            r"(/skills/(?:adr-review|decision-critic|build|autoplan|test|security-scan)/references/)"
+        ),
+        r"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}\1",
+    ),
+)
+
 _CODE_BLOCK_LANG = re.compile(r"```(bash|powershell|text|markdown|python)")
 _MULTI_BLANK_LINES = re.compile(r"\n{3,}")
 _WORD_SPLIT = re.compile(r"\W+")
@@ -427,6 +437,9 @@ def normalize_content(content: str) -> str:
         result = pattern.sub(replacement, result)
 
     for pattern, replacement in _HANDOFF_PATTERNS:
+        result = pattern.sub(replacement, result)
+
+    for pattern, replacement in _REFERENCE_ROOT_PATTERNS:
         result = pattern.sub(replacement, result)
 
     result = _CODE_BLOCK_LANG.sub("```", result)

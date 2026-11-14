@@ -180,6 +180,25 @@ def _parse_yaml_value(raw: str) -> object:
 # Platforms that render from the Copilot template variant (ADR-109 B1).
 _COPILOT_FAMILY = frozenset({"copilot-cli", "github"})
 
+_SPLIT_REFERENCE_SKILLS = (
+    "adr-review",
+    "decision-critic",
+    "build",
+    "autoplan",
+    "test",
+    "security-scan",
+)
+
+
+def _rewrite_copilot_reference_roots(text: str) -> str:
+    """Render split-agent skill reference paths to bare ${COPILOT_PLUGIN_ROOT} for Copilot CLI."""
+    for skill in _SPLIT_REFERENCE_SKILLS:
+        shared = (
+            f"${{COPILOT_PLUGIN_ROOT:-${{CLAUDE_PLUGIN_ROOT:-.claude}}}}/skills/{skill}/references/"
+        )
+        text = text.replace(shared, f"${{COPILOT_PLUGIN_ROOT}}/skills/{skill}/references/")
+    return text
+
 
 def _platform_source(
     platform_name: str,
@@ -537,6 +556,8 @@ def generate_agents(
 
             transformed_body = convert_handoff_syntax(body, handoff_syntax)
             transformed_body = convert_memory_prefix(transformed_body, memory_prefix)
+            if platform_name in _COPILOT_FAMILY:
+                transformed_body = _rewrite_copilot_reference_roots(transformed_body)
 
             # Build output content with LF line endings (per .gitattributes eol=lf)
             fm_yaml = format_frontmatter_yaml(transformed_fm)
