@@ -89,6 +89,8 @@ from github_core.api import (
 )
 from github_core.checks_rollup import (
     extract_workflow_run_number,
+    fetch_ruleset_required_contexts,
+    find_missing_required,
     partition_rows_by_run,
 )
 from github_core.not_found import is_pr_not_found
@@ -1150,6 +1152,54 @@ def _exempt_advisory_checks(
     return exempted
 
 
+def _active_reported_names(contexts: list[dict], skipped_names: list[str]) -> set[str]:
+    """Return distinct check names in the rollup excluding SKIP/exempt names.
+
+    A check whose only rollup rows collapsed to SKIP (e.g., a CANCELLED run
+    from an earlier push or debounce supersession) has not reported an active
+    opinion for the current head commit and must still count as missing if
+    the branch ruleset requires it.
+    """
+    distinct_names: set[str] = set()
+    for ctx in contexts:
+        typename = ctx.get("__typename")
+        if typename == "CheckRun":
+            distinct_names.add(ctx.get("name") or "unknown")
+        elif typename == "StatusContext":
+            distinct_names.add(ctx.get("context") or "unknown")
+    return distinct_names - set(skipped_names)
+
+
+def _reconcile_missing_required_checks(
+    pr: dict,
+    owner: str,
+    repo: str,
+    contexts: list[dict],
+    skipped_names: list[str],
+    failed_required: list[str],
+    pending_required: list[str],
+    reasons: list[str],
+) -> bool:
+    """Reconcile branch ruleset required checks against active rollup checks.
+
+    Returns True when the ruleset lookup succeeded (or was skipped because
+    owner/repo/base_ref is absent), and False when the ruleset API failed so
+    the caller can fail closed on ``ci_passing``.
+    """
+    base_ref = _base_ref_name(pr)
+    if not (owner and repo and base_ref):
+        return True
+    ruleset_contexts = fetch_ruleset_required_contexts(owner, repo, base_ref)
+    if ruleset_contexts is None:
+        reasons.append(f"Failed to read required checks from branch ruleset for '{base_ref}'")
+        return False
+    reported_active = _active_reported_names(contexts, skipped_names)
+    for name in find_missing_required(ruleset_contexts, reported_active):
+        if name not in failed_required and name not in pending_required:
+            pending_required.append(name)
+    return True
+
+
 def _evaluate_ci_checks(
     pr: dict,
     ignore_ci: bool,
@@ -1199,6 +1249,7 @@ def _evaluate_ci_checks(
             pages_complete,
         )
 
+    contexts: list[dict] = []
     commits = pr.get("commits", {}).get("nodes", [])
     if commits:
         commit_obj = commits[0].get("commit", {}) or {}
@@ -1265,13 +1316,26 @@ def _evaluate_ci_checks(
                 skipped=skipped_names,
             )
 
-    ci_passing = _append_ci_reasons(
-        reasons,
+    ruleset_ok = _reconcile_missing_required_checks(
+        pr,
+        owner,
+        repo,
+        contexts,
+        skipped_names,
         failed_required,
         pending_required,
-        failed_non_required,
-        pending_non_required,
-        include_non_required,
+        reasons,
+    )
+    ci_passing = (
+        _append_ci_reasons(
+            reasons,
+            failed_required,
+            pending_required,
+            failed_non_required,
+            pending_non_required,
+            include_non_required,
+        )
+        and ruleset_ok
     )
     return (
         failed_required,
