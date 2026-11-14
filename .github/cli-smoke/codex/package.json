@@ -4,6 +4,6 @@
   "private": true,
   "description": "Pinned @openai/codex for plugin-cli-smoke.yml. Renovate bumps the version and the lockfile together.",
   "dependencies": {
-    "@openai/codex": "0.166.0"
+    "@openai/codex": "0.167.0"
   }
 }
