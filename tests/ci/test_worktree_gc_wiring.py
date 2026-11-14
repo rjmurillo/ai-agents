@@ -54,8 +54,12 @@ def test_the_advisory_guard_carries_no_yaml_comment_character() -> None:
 
 def test_worktree_gc_report_is_in_pre_push_group() -> None:
     data = yaml.safe_load(_LEFTHOOK.read_text(encoding="utf-8"))
-    pre_push = data["pre-push"]["jobs"]
-    group_jobs = [job for group in pre_push if "group" in group for job in group["group"]["jobs"]]
+    group_jobs = (
+        job
+        for entry in data["pre-push"]["jobs"]
+        if "group" in entry
+        for job in _iter_jobs(entry["group"])
+    )
     assert any(job.get("name") == "worktree-gc-report" for job in group_jobs)
 
 
