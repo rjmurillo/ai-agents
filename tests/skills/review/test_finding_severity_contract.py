@@ -13,6 +13,7 @@ does.
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from pathlib import Path
 
 import pytest
@@ -52,7 +53,7 @@ def _fallback(text: str) -> str:
     return match.group("label")
 
 
-def render(finding: dict[str, str | None], table: dict[str, str], fallback: str) -> str:
+def render(finding: Mapping[str, str | None], table: dict[str, str], fallback: str) -> str:
     """Label one finding from its own value only. Never reads the axis verdict."""
     value = finding.get("severity")
     if value is None:
@@ -170,7 +171,7 @@ class TestMixedSeverityFindings:
         "finding", [{}, {"severity": None}, {"severity": "urgent"}, {"severity": ""}]
     )
     def test_missing_or_unknown_value_is_unspecified_not_borrowed(
-        self, finding: dict[str, str | None], table: dict[str, str], fallback: str
+        self, finding: Mapping[str, str | None], table: dict[str, str], fallback: str
     ) -> None:
         assert render(finding, table, fallback) == UNSPECIFIED
 
