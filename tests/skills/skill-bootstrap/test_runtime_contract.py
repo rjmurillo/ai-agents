@@ -13,6 +13,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 from bootstrap_helpers import write
@@ -20,7 +21,12 @@ from bootstrap_helpers import write
 from tests.pwsh_launcher_probe import require_working_pwsh
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-from scripts.validation.plugin_root_interpreter_sites import plugin_run_launcher
+_BUILD_SCRIPTS = str(REPO_ROOT / "build" / "scripts")
+sys.path.insert(0, _BUILD_SCRIPTS)
+try:
+    import plugin_run_launcher
+finally:
+    sys.path.remove(_BUILD_SCRIPTS)
 
 find_locators = plugin_run_launcher.find_locators
 render_locator = plugin_run_launcher.render_locator
