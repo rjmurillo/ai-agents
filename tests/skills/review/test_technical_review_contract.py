@@ -205,6 +205,7 @@ _RENDERED_AGENTS = (
     PROJECT_ROOT / "src" / "claude" / "agents" / "code-reviewer.md",
     PROJECT_ROOT / "src" / "copilot-cli" / "agents" / "code-reviewer.agent.md",
     PROJECT_ROOT / "src" / "vs-code-agents" / "code-reviewer.agent.md",
+    PROJECT_ROOT / "src" / "cursor" / "agents" / "code-reviewer.md",
 )
 _ROOT_VARS = "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
 _CONTRACT_REL = "skills/review/resources/technical-review.md"
@@ -242,7 +243,7 @@ def _resolve(candidates: list[str], *, home: Path, cwd: Path, env: dict[str, str
 def _install(root: Path) -> Path:
     contract = root / _CONTRACT_REL
     contract.parent.mkdir(parents=True)
-    contract.write_text("# contract\n")
+    contract.write_text("# contract\n", encoding="utf-8")
     return contract
 
 
@@ -259,9 +260,13 @@ class TestAgentResolvesInstalledPluginContract:
 
     def test_installed_roots_match_the_ship_resolution_rule(self) -> None:
         ship = _read(_SHIP_RESOLUTION)
-        ship_roots = re.findall(r'"\$\{HOME:-\}/(\.[^"]*?project-toolkit)"?', ship)
-        ship_roots = [r.replace('"/*/', "/*/") for r in ship_roots]
-        assert ship_roots, "ship rule lost its installed-plugin roots"
+        # Ship quotes each root up to the glob: "${HOME:-}/<dir>"/*/project-toolkit.
+        ship_roots = [
+            quoted + rest
+            for quoted, rest in re.findall(r'"\$\{HOME:-\}/([^"]+)"([^\s;]*)', ship)
+            if (quoted + rest).endswith("/project-toolkit")
+        ]
+        assert len(ship_roots) == 3, ship_roots
         for root in ship_roots:
             assert any(f"~/{root}/" in c for c in self.CANDIDATES), root
 
@@ -320,6 +325,17 @@ class TestAgentResolvesInstalledPluginContract:
         assert "Without the contract, never emit PASS." in text
         assert "VERDICT: WARN" in text
 
-    @pytest.mark.parametrize("path", _RENDERED_AGENTS, ids=lambda p: p.parent.parent.name)
+    def test_every_rendered_copy_on_disk_is_checked(self) -> None:
+        """Converse guard: a new or renamed render must join _RENDERED_AGENTS."""
+        src = PROJECT_ROOT / "src"
+        on_disk = {
+            *src.rglob("code-reviewer.md"),
+            *src.rglob("code-reviewer.agent.md"),
+        }
+        assert on_disk == set(_RENDERED_AGENTS)
+
+    @pytest.mark.parametrize(
+        "path", _RENDERED_AGENTS, ids=lambda p: str(p.relative_to(PROJECT_ROOT))
+    )
     def test_rendered_copies_carry_the_same_candidates(self, path: Path) -> None:
         assert _candidates(_read(path)) == self.CANDIDATES
