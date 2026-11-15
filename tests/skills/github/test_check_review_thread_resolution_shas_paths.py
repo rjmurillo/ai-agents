@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
+    Path(__file__).resolve().parents[3] / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
 
 
@@ -55,6 +55,25 @@ def test_commit_url_with_trailing_path_is_checked() -> None:
 def test_pull_commits_url_is_checked() -> None:
     body = "See https://github.com/o/r/pull/7/commits/84f918a9 for the fix."
     assert _mod.extract_shas(body) == ["84f918a9"]
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "See https://github.com/o/r/blob/84f918a9/src/app.py#L4 for the fix.",
+        "See https://github.com/o/r/tree/84f918a9/src for the fix.",
+        "See https://github.com/o/r/tree/84f918a9 for the fix.",
+        "See https://github.com/o/r/compare/84f918a9...main for the fix.",
+        "See https://github.com/o/r/compare/84f918a9..main for the fix.",
+    ],
+)
+def test_ref_url_sha_is_checked(body: str) -> None:
+    assert _mod.extract_shas(body) == ["84f918a9"]
+
+
+def test_compare_url_checks_both_sides() -> None:
+    body = "See https://github.com/o/r/compare/84f918a9...abc1234 for the diff."
+    assert _mod.extract_shas(body) == ["84f918a9", "abc1234"]
 
 
 def test_markdown_link_to_commit_is_checked() -> None:

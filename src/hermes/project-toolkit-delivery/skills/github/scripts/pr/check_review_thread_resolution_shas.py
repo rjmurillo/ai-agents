@@ -274,13 +274,17 @@ def _is_run_id(match: re.Match[str], run_ids: set[int]) -> bool:
     return match.start(1) in run_ids or len(token) >= _MIN_BARE_RUN_ID_DIGITS
 
 
+_REF_URL_SEGMENTS = ("/commit/", "/commits/", "/blob/", "/tree/", "/compare/")
+
+
 def _is_path_fragment(visible: str, match: re.Match[str]) -> bool:
     # A hex run glued to path characters is a directory or file name suffix, as in
     # "evals/_archive/spike-20260503T165136Z-84f918a9/" (issue #7338), not a commit.
     # "_" needs no check: it is a word character, so \b already rejects it. A run
-    # after /commit/ or /commits/ is a commit URL, which stays checked.
+    # right after a ref URL segment (/commit/, /commits/, /blob/, /tree/,
+    # /compare/) names a commit, so it stays checked.
     start, end = match.span(1)
-    if visible[:start].lower().endswith(("/commit/", "/commits/")):
+    if visible[:start].lower().endswith(_REF_URL_SEGMENTS):
         return False
     return visible[start - 1 : start] in ("-", "/") or visible[end : end + 1] == "/"
 
