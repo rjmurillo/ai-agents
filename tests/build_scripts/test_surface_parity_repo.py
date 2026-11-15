@@ -53,19 +53,42 @@ def files() -> list[str]:
     return sm.list_files(REPO_ROOT)
 
 
-def run_all(manifest: sm.Manifest, files: list[str]) -> list[sm.Finding]:
-    """The checks of ``run_checks`` over a fixed file list, so cases skip the git call."""
-    return [
-        *csp.check_declarations(REPO_ROOT, manifest),
-        *csp.check_inventory(REPO_ROOT, manifest, build_all.OWNED_PREFIXES),
-        *csp.check_classification(manifest, files),
-        *csp.check_hand_maintained(REPO_ROOT, manifest, files),
-    ]
+@pytest.fixture(scope="module")
+def rooted_files(manifest: sm.Manifest, files: list[str]) -> list[str]:
+    """Files under a manifest root, the only ones ``check_classification`` reads.
+
+    Deleting a surface row leaves ``roots`` unchanged, so one filter serves every
+    weakened manifest.
+    """
+    return [f for f in files if any(sm.rel_to(f, root) is not None for root in manifest.roots)]
 
 
-def test_every_shipped_surface_holds(manifest: sm.Manifest) -> None:
-    found = csp.run_checks(REPO_ROOT, manifest, owned_prefixes=build_all.OWNED_PREFIXES)
-    assert [f.render() for f in found] == []
+def any_finding(manifest: sm.Manifest, files: list[str], rooted_files: list[str]) -> bool:
+    """True when any check of ``run_checks`` reports a finding, cheapest check first.
+
+    Each deletion case needs only one finding, and the classification scan costs
+    about 0.2s per call over the real tree. Stopping at the first non-empty check
+    keeps the parametrized cases inside the slow-test budget in pyproject.toml.
+    """
+    checks = (
+        lambda: csp.check_declarations(REPO_ROOT, manifest),
+        lambda: csp.check_inventory(REPO_ROOT, manifest, build_all.OWNED_PREFIXES),
+        lambda: csp.check_hand_maintained(REPO_ROOT, manifest, files),
+        lambda: csp.check_classification(manifest, rooted_files),
+    )
+    return any(check() for check in checks)
+
+
+def test_every_shipped_surface_holds(capsys: pytest.CaptureFixture[str]) -> None:
+    """``build_all.py --check`` runs the manifest gate, and the real tree passes it.
+
+    One call covers both claims: with no stale paths, the exit is 0 exactly when
+    ``run_checks`` finds nothing. The import-closure scan inside it costs several
+    seconds, so a second test of the same gate would double that cost.
+    """
+    rc = build_all._surface_parity_exit(REPO_ROOT, [])
+
+    assert rc == 0, capsys.readouterr().err
 
 
 # `mirrored` went unused when the security sidecar copies were retired. The
@@ -100,13 +123,13 @@ def non_independent_ids() -> list[str]:
     "surface_id", [i for i in non_independent_ids() if i not in ROW_DELETION_CANNOT_GO_RED]
 )
 def test_deleting_a_surface_row_fails_the_gate(
-    manifest: sm.Manifest, files: list[str], surface_id: str
+    manifest: sm.Manifest, files: list[str], rooted_files: list[str], surface_id: str
 ) -> None:
     """A weakened manifest must go red, not quiet."""
     weakened = dataclasses.replace(
         manifest, surfaces=tuple(s for s in manifest.surfaces if s.id != surface_id)
     )
-    assert run_all(weakened, files) != []
+    assert any_finding(weakened, files, rooted_files)
 
 
 def test_editing_a_hand_maintained_copy_fails_with_the_file_named(
@@ -126,10 +149,6 @@ def test_editing_a_hand_maintained_copy_fails_with_the_file_named(
 
 def test_manifest_is_not_a_platform_config() -> None:
     assert build_all._is_platform_config(REPO_ROOT / sm.MANIFEST_REL) is False
-
-
-def test_build_all_check_runs_the_manifest_gate() -> None:
-    assert build_all._surface_parity_exit(REPO_ROOT, []) == 0
 
 
 def codeowner_patterns() -> list[str]:
