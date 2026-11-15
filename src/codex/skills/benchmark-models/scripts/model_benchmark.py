@@ -76,6 +76,7 @@ DEFAULT_SKILL_ROOT_ENV = "MODEL_BENCHMARK_SKILL_ROOTS"
 PRICING = {
     # Claude (Anthropic)
     "claude-opus-4-8": {"input": 15.00, "output": 75.00, "as_of": "2026-06"},
+    "claude-opus-5-5": {"input": 4.00, "output": 20.00, "as_of": "2026-11"},
     "claude-opus-4-7": {"input": 15.00, "output": 75.00, "as_of": "2026-04"},
     "claude-sonnet-4-6": {"input": 3.00, "output": 15.00, "as_of": "2026-06"},
     "claude-haiku-4-5": {"input": 1.00, "output": 5.00, "as_of": "2026-06"},
@@ -200,7 +201,7 @@ class Adapter:
 class ClaudeAdapter(Adapter):
     name = "claude"
     family = "claude"
-    default_model = "claude-opus-4-8"
+    default_model = "claude-opus-5-5"
 
     def available(self) -> tuple[bool, str | None]:
         if not shutil.which("claude"):
