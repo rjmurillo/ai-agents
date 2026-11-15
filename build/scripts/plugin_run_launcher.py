@@ -42,12 +42,19 @@ FAILURE_MESSAGE = f"ptk_run: no plugin root holds {RESOLVER_REL}"
 # A script path under the plugin root. `..` parts are rejected separately.
 _SCRIPT_REL_RE = re.compile(r"skills/[A-Za-z0-9_./-]+\.py")
 
+# ADR-121 decision 12: the closed set of interpreters the locator may carry.
+# The `uv` form is for a skill whose template sets `distribution: repo-local`;
+# the validator enforces that, because a consumer install has no `uv`.
+DEFAULT_INTERPRETER = "python3"
+ISOLATED_INTERPRETER = "python3 -I"
+UV_INTERPRETER = "uv run --frozen python"
+INTERPRETERS: tuple[str, ...] = (DEFAULT_INTERPRETER, ISOLATED_INTERPRETER, UV_INTERPRETER)
+
 _CANDIDATES = " ".join([*(f'"${{{name}}}"' for name in ROOT_ENV_VARS), FALLBACK_ROOT])
-_HEAD = (
-    f"( for d in {_CANDIDATES}; do "
-    f'if [ -n "$d" ] && [ -f "$d/{RESOLVER_REL}" ]; then '
-    f'exec python3 "$d/{RESOLVER_REL}" '
-)
+_PREFIX = f'( for d in {_CANDIDATES}; do if [ -n "$d" ] && [ -f "$d/{RESOLVER_REL}" ]; then exec '
+_RESOLVER_ARG = f' "$d/{RESOLVER_REL}" '
+_HEADS: dict[str, str] = {interp: f"{_PREFIX}{interp}{_RESOLVER_ARG}" for interp in INTERPRETERS}
+_HEAD = _HEADS[DEFAULT_INTERPRETER]
 _TAIL = f'; fi; done; echo "{FAILURE_MESSAGE}" >&2; exit 2 )'
 
 
@@ -60,28 +67,47 @@ def _check_script_rel(script_rel: str) -> None:
         raise LauncherError(f"not a plugin-root script path: {script_rel!r}")
 
 
-def render_locator(script_rel: str, args: str = "") -> str:
+def render_locator(script_rel: str, args: str = "", interpreter: str = DEFAULT_INTERPRETER) -> str:
     """Return the locator that runs ``script_rel`` with ``args``.
 
     ``script_rel`` is relative to the plugin root and starts with ``skills/``.
     ``args`` is appended verbatim after the script path, in POSIX shell syntax.
+    ``interpreter`` is one of :data:`INTERPRETERS` (ADR-121 decision 12).
     """
     _check_script_rel(script_rel)
-    return f"{_HEAD}{script_rel} {args}{_TAIL}" if args else f"{_HEAD}{script_rel}{_TAIL}"
+    head = _head_for(interpreter)
+    return f"{head}{script_rel} {args}{_TAIL}" if args else f"{head}{script_rel}{_TAIL}"
+
+
+def _head_for(interpreter: str) -> str:
+    try:
+        return _HEADS[interpreter]
+    except KeyError:
+        raise LauncherError(f"interpreter is not one of {INTERPRETERS}: {interpreter!r}") from None
+
+
+def _head_at(text: str, pos: int) -> tuple[str, str] | None:
+    """Return ``(interpreter, head)`` when a locator head starts at ``pos``."""
+    for interpreter, head in _HEADS.items():
+        if text.startswith(head, pos):
+            return interpreter, head
+    return None
 
 
 def split_locator(text: str) -> tuple[str, str] | None:
     """Return ``(script_rel, args)`` when ``text`` is a locator, else ``None``.
 
-    The inverse of :func:`render_locator`. Text of another shape returns
-    ``None``. A locator whose script path fails the pattern raises
+    The inverse of :func:`render_locator` for every interpreter. Text of another
+    shape returns ``None``. A locator whose script path fails the pattern raises
     :class:`LauncherError`, the same as :func:`render_locator`.
     """
-    if len(text) < len(_HEAD) + len(_TAIL):
+    found = _head_at(text, 0)
+    if found is None or not text.endswith(_TAIL):
         return None
-    if not (text.startswith(_HEAD) and text.endswith(_TAIL)):
+    head = found[1]
+    if len(text) < len(head) + len(_TAIL):
         return None
-    return _split_middle(text[len(_HEAD) : len(text) - len(_TAIL)])
+    return _split_middle(text[len(head) : len(text) - len(_TAIL)])
 
 
 def _split_middle(middle: str) -> tuple[str, str]:
@@ -100,6 +126,7 @@ class LocatorMatch:
     script_rel: str | None
     args: str
     problem: str | None
+    interpreter: str = DEFAULT_INTERPRETER
 
 
 def find_locators(line: str) -> Iterator[LocatorMatch]:
@@ -111,16 +138,28 @@ def find_locators(line: str) -> Iterator[LocatorMatch]:
     skip.
     """
     pos = 0
-    while (start := line.find(_HEAD, pos)) != -1:
-        tail_at = line.find(_TAIL, start + len(_HEAD))
+    while (start := line.find(_PREFIX, pos)) != -1:
+        found = _head_at(line, start)
+        if found is None:
+            rest = line[start + len(_PREFIX) :].split('"', 1)[0].strip()
+            end = start + len(_PREFIX)
+            yield LocatorMatch(
+                start, end, None, "", f"interpreter is not one of {INTERPRETERS}: {rest!r}"
+            )
+            pos = end
+            continue
+        interpreter, head = found
+        tail_at = line.find(_TAIL, start + len(head))
         if tail_at == -1:
-            yield LocatorMatch(start, len(line), None, "", "locator has no closing text")
+            yield LocatorMatch(
+                start, len(line), None, "", "locator has no closing text", interpreter
+            )
             return
         end = tail_at + len(_TAIL)
         try:
-            script_rel, args = _split_middle(line[start + len(_HEAD) : tail_at])
+            script_rel, args = _split_middle(line[start + len(head) : tail_at])
         except LauncherError as exc:
-            yield LocatorMatch(start, end, None, "", str(exc))
+            yield LocatorMatch(start, end, None, "", str(exc), interpreter)
         else:
-            yield LocatorMatch(start, end, script_rel, args, None)
+            yield LocatorMatch(start, end, script_rel, args, None, interpreter)
         pos = end

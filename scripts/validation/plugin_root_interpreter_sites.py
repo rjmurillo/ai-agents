@@ -32,6 +32,8 @@ if str(_BUILD_SCRIPTS) not in sys.path:
 import plugin_run_launcher  # noqa: E402
 
 PLUGIN_ROOT_VARS = ("COPILOT_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT")
+# The locator form a repo-local skill may carry (ADR-121 decision 12).
+UV_INTERPRETER: str = plugin_run_launcher.UV_INTERPRETER
 
 # One interpreter token: `python`, `python3`, or a pinned `python3.11`-style
 # name. Matched identically inside and outside a `uv run` prefix so both
@@ -167,7 +169,7 @@ def find_locator_invocations(line: str) -> Iterator[Invocation]:
     for match in plugin_run_launcher.find_locators(line):
         yield Invocation(
             start=match.start,
-            interp="python3",
+            interp=match.interpreter,
             tail=lookup_path(match.script_rel) if match.script_rel else "",
             form=LOCATOR,
             problem=match.problem,

@@ -147,6 +147,7 @@ _REPO_ROOT = _SCRIPT_DIR.parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from scripts.validation import plugin_root_guarded_imports as _guarded  # noqa: E402
 from scripts.validation import plugin_root_interpreter_allowances as _allowances  # noqa: E402
 from scripts.validation import plugin_root_interpreter_ratchet as _ratchet  # noqa: E402
 from scripts.validation import plugin_root_interpreter_rules as _rules  # noqa: E402
@@ -193,6 +194,8 @@ _YAML_SUFFIXES = (".yaml", ".yml")
 _Key = tuple[str, str, str, str]
 _LOCATOR_YAML_RULE = "locator-yaml"  # no allowance can cover it (ADR-121 decision 1)
 _Imports = dict[str, frozenset[str]] | None  # script to its third-party imports, per scan (#6854)
+_UsedGuarded = set[_guarded.GuardedKey] | None  # guarded-import allowances a scan applied
+_UV_INTERPRETER = _sites.UV_INTERPRETER
 _MUST_2 = ".claude/rules/plugin-self-containment.md MUST 2"
 _MUST_4 = ".claude/rules/plugin-self-containment.md MUST 4"
 
@@ -277,9 +280,19 @@ def _form_message(rel: str, lineno: int, interp: str) -> str:
 
 
 def _dependency_message(
-    rel: str, lineno: int, tail: str, repo_root: Path, tracked_py: set[str], imports: _Imports
+    rel: str,
+    lineno: int,
+    tail: str,
+    repo_root: Path,
+    tracked_py: set[str],
+    imports: _Imports,
+    used_guarded: _UsedGuarded = None,
 ) -> str | None:
-    """Return rule-2's message for one canonical-form invocation, or ``None``."""
+    """Return rule-2's message for one canonical-form invocation, or ``None``.
+
+    A module that ``GUARDED_IMPORT_ALLOWANCES`` covers for this target passes while
+    its import stays guarded across the closure (ADR-121 decision 13).
+    """
     mapped = f"{_PLUGIN_ROOT_FALLBACK}/{tail}"
     if mapped not in tracked_py:
         return (
@@ -289,7 +302,13 @@ def _dependency_message(
     imports = {} if imports is None else imports
     if mapped not in imports:  # 976 invocations named 45 scripts on 2026-10-23
         imports[mapped] = frozenset(third_party_imports(mapped, repo_root, tracked_py))
-    external = sorted(imports[mapped])
+    external, used, problems = _guarded.allowed_modules(
+        mapped, sorted(imports[mapped]), repo_root, tracked_py, local_modules
+    )
+    if used_guarded is not None:
+        used_guarded |= used
+    if problems:
+        return f"{rel}:{lineno}: " + "; ".join(problems)
     if not external:
         return None
     return (
@@ -326,11 +345,14 @@ def _locator_offense(
     repo_root: Path,
     tracked_py: set[str],
     imports: _Imports,
+    used_guarded: _UsedGuarded = None,
 ) -> _Offense | None:
     """Return the offense for one locator site, or ``None`` when it is clean.
 
-    The locator's interpreter is fixed text, so rule 1 holds by construction.
-    Rule 2 applies to the script path read out of it. A locator in shipped YAML is
+    The locator's interpreter comes from a closed set (ADR-121 decision 12), so
+    rule 1 holds by construction, except that the `uv` form is allowed only in a
+    repo-local skill. Rule 2 applies to the script path read out of it; the `uv`
+    form skips the import scan, because `uv` resolves the lock. A locator in shipped YAML is
     refused: the completion gate splits commands with ``shlex`` and runs no shell,
     so the locator would stay literal (ADR-121 decision 1, Class G).
     """
@@ -345,12 +367,39 @@ def _locator_offense(
     if invocation.problem is not None:
         message = f"{rel}:{lineno}: malformed locator, {invocation.problem} (ADR-121)"
         return _Offense(lineno, "locator", tail, message)
-    dependency = _dependency_message(rel, lineno, tail, repo_root, tracked_py, imports)
+    if invocation.interp == _UV_INTERPRETER:
+        return _uv_locator_offense(rel, lineno, tail, repo_root, tracked_py)
+    dependency = _dependency_message(
+        rel, lineno, tail, repo_root, tracked_py, imports, used_guarded
+    )
     return None if dependency is None else _Offense(lineno, "dependency", tail, dependency)
 
 
+def _uv_locator_offense(
+    rel: str, lineno: int, tail: str, repo_root: Path, tracked_py: set[str]
+) -> _Offense | None:
+    """Return the offense for a `uv` locator: shipped skill, or a dangling target."""
+    if not _guarded.is_repo_local_site(repo_root, rel):
+        message = (
+            f"{rel}:{lineno}: the {_UV_INTERPRETER!r} locator needs a skill marked "
+            f"distribution: repo-local; a consumer install has no uv ({_MUST_4}, ADR-121 "
+            "decision 12)"
+        )
+        return _Offense(lineno, "form", tail, message)
+    mapped = f"{_PLUGIN_ROOT_FALLBACK}/{tail}"
+    if mapped in tracked_py:
+        return None
+    message = f"{rel}:{lineno}: {mapped} is not a tracked file (dangling plugin-root target)"
+    return _Offense(lineno, "dependency", tail, message)
+
+
 def _plugin_root_offenses(
-    text: str, rel: str, repo_root: Path, tracked_py: set[str], imports: _Imports = None
+    text: str,
+    rel: str,
+    repo_root: Path,
+    tracked_py: set[str],
+    imports: _Imports = None,
+    used_guarded: _UsedGuarded = None,
 ) -> list[_Offense]:
     offenses: list[_Offense] = []
     for lineno, invocation, declared in _matches(text, _find_invocations):
@@ -358,7 +407,9 @@ def _plugin_root_offenses(
             # The YAML prohibition comes first: no declaration can waive it (ADR-121).
             if declared and not _is_yaml(rel):
                 continue
-            locator = _locator_offense(rel, lineno, invocation, repo_root, tracked_py, imports)
+            locator = _locator_offense(
+                rel, lineno, invocation, repo_root, tracked_py, imports, used_guarded
+            )
             if locator is not None:
                 offenses.append(locator)
             continue
@@ -369,7 +420,9 @@ def _plugin_root_offenses(
             message = _form_message(rel, lineno, invocation.interp)
             offenses.append(_Offense(lineno, "form", tail, message))
             continue
-        dependency = _dependency_message(rel, lineno, tail, repo_root, tracked_py, imports)
+        dependency = _dependency_message(
+            rel, lineno, tail, repo_root, tracked_py, imports, used_guarded
+        )
         if dependency is not None:
             offenses.append(_Offense(lineno, "dependency", tail, dependency))
     return offenses
@@ -389,10 +442,18 @@ def _bare_path_offenses(text: str, rel: str) -> list[_Offense]:
 
 
 def find_offenses(
-    text: str, rel: str, repo_root: Path, tracked_py: set[str], imports: _Imports = None
+    text: str,
+    rel: str,
+    repo_root: Path,
+    tracked_py: set[str],
+    imports: _Imports = None,
+    used_guarded: _UsedGuarded = None,
 ) -> list[tuple[int, str]]:
-    """Return (line, message) per offense in one file; ``imports`` caches across files."""
-    found = _plugin_root_offenses(text, rel, repo_root, tracked_py, imports)
+    """Return (line, message) per offense in one file; ``imports`` caches across files.
+
+    ``used_guarded``, when given, receives each guarded-import allowance applied.
+    """
+    found = _plugin_root_offenses(text, rel, repo_root, tracked_py, imports, used_guarded)
     return [(o.lineno, o.message) for o in found]
 
 
@@ -504,11 +565,13 @@ def scan(
     used_allowances: set[_Key] | None = None,
     used_single_root: set[str] | None = None,
     legacy_counts: dict[str, _sites.LegacyCounts] | None = None,
+    used_guarded: _UsedGuarded = None,
 ) -> list[str]:
     """Return one message per offense across the tree; record allowances used.
 
     ``legacy_counts``, when given, receives the legacy-form site count of each
-    authored group (see ``plugin_root_interpreter_ratchet``).
+    authored group (see ``plugin_root_interpreter_ratchet``). ``used_guarded``,
+    when given, receives each guarded-import allowance a site applied.
     """
     used = set() if used_allowances is None else used_allowances
     used_roots = set() if used_single_root is None else used_single_root
@@ -529,7 +592,7 @@ def scan(
         if _is_yaml(rel):
             found = find_yaml_offenses(text, rel, repo_root, tracked_py, used)
         else:
-            found = find_offenses(text, rel, repo_root, tracked_py, imports)
+            found = find_offenses(text, rel, repo_root, tracked_py, imports, used_guarded)
         all_offenses.extend((rel, lineno, message) for lineno, message in found)
     all_offenses.extend(_scan_new_rules(repo_root, tracked_py, used_roots))
     all_offenses.sort(key=lambda item: (item[0], item[1]))
@@ -545,6 +608,19 @@ def legacy_ratchet_messages(repo_root: Path, counts: dict[str, _sites.LegacyCoun
     if repo_root != _REPO_ROOT:
         return []
     return _ratchet.ratchet_messages(counts, _allowances.LEGACY_SITE_BASELINE)
+
+
+def guarded_stale(
+    repo_root: Path, used_guarded: set[_guarded.GuardedKey]
+) -> set[_guarded.GuardedKey]:
+    """Return the guarded-import allowances no site applied; none for another root.
+
+    ``GUARDED_IMPORT_ALLOWANCES`` names this checkout's targets, so a scan of
+    another root, such as a test fixture, has nothing to compare with.
+    """
+    if repo_root != _REPO_ROOT:
+        return set()
+    return set(_guarded.GUARDED_IMPORT_ALLOWANCES) - used_guarded
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -580,7 +656,8 @@ def main(argv: list[str] | None = None) -> int:
         used_allowances: set[_Key] = set()
         used_single_root: set[str] = set()
         legacy_counts: dict[str, _sites.LegacyCounts] = {}
-        offenses = scan(repo_root, used_allowances, used_single_root, legacy_counts)
+        used_guarded: set[_guarded.GuardedKey] = set()
+        offenses = scan(repo_root, used_allowances, used_single_root, legacy_counts, used_guarded)
     except (OSError, ScanError, subprocess.CalledProcessError) as exc:
         print(f"check-plugin-root-interpreter: {exc}", file=sys.stderr)
         return 2
@@ -598,8 +675,14 @@ def main(argv: list[str] | None = None) -> int:
         message = "check-plugin-root-interpreter: single-root allowance matches no file: "
         print(message + key, file=sys.stderr)
 
-    if offenses or stale or stale_roots:
-        counts = f"{len(offenses)} offense(s), {len(stale) + len(stale_roots)} stale allowance(s)"
+    stale_guarded = sorted(guarded_stale(repo_root, used_guarded))
+    for target, module in stale_guarded:
+        message = "check-plugin-root-interpreter: guarded-import allowance matches no site: "
+        print(f"{message}{target} {module}", file=sys.stderr)
+
+    stale_total = len(stale) + len(stale_roots) + len(stale_guarded)
+    if offenses or stale_total:
+        counts = f"{len(offenses)} offense(s), {stale_total} stale allowance(s)"
         print(f"check-plugin-root-interpreter: FAIL ({counts})", file=sys.stderr)
         return 1
 
