@@ -12,11 +12,13 @@ does.
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Mapping
 from pathlib import Path
 
 import pytest
+from ai_review_common.verdict import adapt_local_axis_verdict, merge_verdicts
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 REVIEW = PROJECT_ROOT / ".claude" / "skills" / "review"
@@ -30,6 +32,10 @@ PROJECTIONS = [
     for harness in ("claude", "copilot-cli", "codex", "cursor", "muse")
 ]
 
+GOLDEN_SCANNER = (
+    PROJECT_ROOT / ".claude" / "skills" / "golden-principles" / "scripts" / "scan_principles.py"
+)
+TASTE_SCANNER = PROJECT_ROOT / ".claude" / "skills" / "taste-lints" / "scripts" / "taste_lints.py"
 UNSPECIFIED = "UNSPECIFIED"
 _ROW = re.compile(r"^\|\s*(?P<values>`[^|]+?)\s*\|\s*(?P<label>[A-Z]+)\s*\|\s*$", re.MULTILINE)
 _TOKEN = re.compile(r"`([^`]+)`")
@@ -101,7 +107,7 @@ class TestMappingTable:
         assert "`blocking`, `non-blocking`, or `polish`" in text
         assert {"blocking", "non-blocking", "polish"} <= set(table)
 
-    def test_critical_and_high_are_the_only_ones_above_suggestion(
+    def test_only_critical_and_high_axis_tokens_are_above_suggestion(
         self, table: dict[str, str]
     ) -> None:
         assert table["critical"] == "CRITICAL"
@@ -220,3 +226,94 @@ class TestSkillWiring:
     def test_resource_has_no_dashes(self, resource_text: str) -> None:
         assert chr(0x2014) not in resource_text
         assert chr(0x2013) not in resource_text
+
+
+class TestEveryProjectionIsListed:
+    """The converse of the loops above: a tree on disk must be in PROJECTIONS."""
+
+    def test_on_disk_review_trees_equal_the_projection_set(self) -> None:
+        on_disk = {path for path in (PROJECT_ROOT / "src").glob("*/skills/review") if path.is_dir()}
+        assert on_disk == set(PROJECTIONS), (
+            "src/*/skills/review trees and PROJECTIONS differ: "
+            f"unlisted {sorted(map(str, on_disk - set(PROJECTIONS)))}, "
+            f"missing {sorted(map(str, set(PROJECTIONS) - on_disk))}"
+        )
+
+
+def _scanner_json(error_count: int, warning_count: int, axis: str) -> str:
+    """A scanner payload that passes every guard in adapt_local_axis_verdict."""
+    payload: dict[str, object] = {
+        "files_scanned": 1,
+        "error_count": error_count,
+        "warning_count": warning_count,
+        "violations": [],
+    }
+    if axis == "golden-principles":
+        payload["applicable_files"] = 1
+    else:
+        payload["files_by_category"] = {"authored": 1, "test": 0, "generated": 0}
+    return json.dumps(payload)
+
+
+class TestScannerSeverityRows:
+    """Thread on local scanners: `error` and `warning` carry real per-item values."""
+
+    def test_scanners_emit_only_error_and_warning(self) -> None:
+        for scanner in (GOLDEN_SCANNER, TASTE_SCANNER):
+            values = set(re.findall(r'severity="([^"]+)"', scanner.read_text(encoding="utf-8")))
+            assert values == {"error", "warning"}, scanner
+
+    def test_scanner_values_have_rows(self, table: dict[str, str]) -> None:
+        assert table["error"] == "CRITICAL"
+        assert table["warning"] == "IMPORTANT"
+
+    def test_scanner_error_and_warning_render_distinct_labels(
+        self, table: dict[str, str], fallback: str
+    ) -> None:
+        findings = [{"severity": "error"}, {"severity": "warning"}]
+        assert [render(f, table, fallback) for f in findings] == ["CRITICAL", "IMPORTANT"]
+
+    @pytest.mark.parametrize("value", ["ERROR", "Warning", " error "])
+    def test_scanner_values_match_case_and_space_insensitively(
+        self, value: str, table: dict[str, str], fallback: str
+    ) -> None:
+        assert render({"severity": value}, table, fallback) in {"CRITICAL", "IMPORTANT"}
+
+    @pytest.mark.parametrize("value", ["info", "fatal", "warn"])
+    def test_other_scanner_values_stay_unspecified(
+        self, value: str, table: dict[str, str], fallback: str
+    ) -> None:
+        assert render({"severity": value}, table, fallback) == UNSPECIFIED
+
+    @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
+    def test_error_label_matches_its_effect_on_the_verdict(self, axis: str) -> None:
+        """CRITICAL only when the value can fail the merged review."""
+        local = adapt_local_axis_verdict(axis, _scanner_json(1, 0, axis), 10)
+        assert local == "FAIL"
+        assert merge_verdicts([local]) == "CRITICAL_FAIL"
+
+    @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
+    def test_warning_label_matches_its_effect_on_the_verdict(self, axis: str) -> None:
+        """IMPORTANT, not CRITICAL: a warning alone only reaches WARN."""
+        local = adapt_local_axis_verdict(axis, _scanner_json(0, 2, axis), 0)
+        assert local == "WARN"
+        assert merge_verdicts([local]) == "WARN"
+
+    @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
+    def test_a_warning_beside_an_error_does_not_change_the_error_label(
+        self, axis: str, table: dict[str, str], fallback: str
+    ) -> None:
+        assert adapt_local_axis_verdict(axis, _scanner_json(1, 3, axis), 10) == "FAIL"
+        findings = [{"severity": "error"}, {"severity": "warning"}]
+        assert [render(f, table, fallback) for f in findings] == ["CRITICAL", "IMPORTANT"]
+
+    def test_resource_documents_the_scanner_rule(self, resource_text: str) -> None:
+        assert "## Local scanner values" in resource_text
+        assert "`golden-principles` and `taste-lints`" in resource_text
+        assert "A local axis that reports only a count or a gate line" in resource_text
+
+    def test_rules_name_every_value_that_can_move_the_verdict(self, resource_text: str) -> None:
+        assert "`critical`, `blocking`, and scanner `error` can fail the axis." in resource_text
+        assert "`high`, `non-blocking`, and scanner `warning` can make it `WARN`." in resource_text
+        assert "Only `critical` and `high` move it" not in resource_text
+        assert "the axis's own value" not in resource_text
