@@ -239,3 +239,43 @@ class TestStartRepeat:
             runner=lambda *a, **k: pytest.fail("a launch happened"),
         )
         assert code == cli.EXIT_CONFIG
+
+
+class TestProvenanceOrder:
+    def test_runner_state_is_taken_before_the_first_launch(
+        self, repo: HistoryRepo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        loaded = corpus(repo)
+        task = loaded.tasks[0]
+        runner = FakeRunner(task)
+        seen: list[int] = []
+
+        def version_aware(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+            if "--version" in argv:
+                return subprocess.CompletedProcess(argv, 0, stdout="2.3.1\n", stderr="")
+            return runner(argv, **kwargs)
+
+        real_state = cli.batch.runner_state
+
+        def spy(root: Path) -> dict[str, object]:
+            seen.append(len(runner.calls))
+            return real_state(root)
+
+        monkeypatch.setattr(cli.batch, "runner_state", spy)
+        monkeypatch.setattr(cli, "REPO_ROOT", repo.root)
+        monkeypatch.setattr(hs, "role_text", lambda root, arm: "ROLE")
+        monkeypatch.setattr(
+            cli.ablation,
+            "resolve_control",
+            lambda name, root: ablation.ControlFiles(name=name, files={}, context_bytes=0),
+        )
+        tasks = tmp_path / "tasks.json"
+        tasks.write_text(json.dumps({"schema_version": 3, "tasks": [v3_task(repo)]}), "utf-8")
+        args = cli._parser().parse_args(
+            ["--tasks", str(tasks), "--repeats", "1", "--real-home", "--max-cells", "2"]
+        )
+        (tmp_path / "out").mkdir()
+        report, _code = cli._run_live(args, loaded, tmp_path / "w", tmp_path / "out", version_aware)
+        assert seen == [0]
+        assert len(runner.calls) >= 2
+        assert report["provenance"]["runner_commit"] == repo.fix_sha

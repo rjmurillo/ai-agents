@@ -350,6 +350,8 @@ def _run_live(
     roles = {arm: hs.role_text(REPO_ROOT, arm) for arm in hs.ARMS}
     controls = _controls(corpus, workspace_root)
     markers = history.withheld_markers(corpus.sources, REPO_ROOT)
+    # Before the first launch: this batch's own records and patches are untracked files later.
+    runner_state = batch.runner_state(REPO_ROOT)
     wrapped = batch.child_env_runner(runner, pass_env, sys.executable)
     version = probe_version(
         claude_run.CLAUDE_EXECUTABLE, "claude", workspace_root / "_probe", wrapped, args.timeout
@@ -419,7 +421,7 @@ def _run_live(
         "failures": failures,
         "decision": decision,
         "provenance": {
-            **batch.runner_state(REPO_ROOT),
+            **runner_state,
             "tasks_file_sha256": hashlib.sha256(args.tasks.read_bytes()).hexdigest(),
             "task_sha256": {
                 str(t.get("id")): batch.canonical_sha256(t)
