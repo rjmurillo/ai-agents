@@ -1,0 +1,197 @@
+"""Tests for scripts/eval/eval_third_party_gap_replay.py.
+
+The model and git seams are injected callables: no network, no repository.
+"""
+
+from __future__ import annotations
+
+import importlib.util
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+EVAL_DIR = Path(__file__).resolve().parents[2] / "scripts" / "eval"
+if str(EVAL_DIR) not in sys.path:
+    sys.path.insert(0, str(EVAL_DIR))
+
+
+def _load() -> Any:
+    spec = importlib.util.spec_from_file_location(
+        "eval_third_party_gap_replay", EVAL_DIR / "eval_third_party_gap_replay.py"
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+replay = _load()
+
+BASE, HEAD, FIX = "a" * 40, "b" * 40, "c" * 40
+PATCH = "+++ b/scripts/tool.py\n@@ -1,0 +1,2 @@\n+line one\n+line two\n"
+CAUGHT = "FINDING: scripts/tool.py:2 | edge-case | drops it\nVERDICT: WARN"
+
+
+def git(args: tuple[str, ...]) -> str | None:
+    if args[0] == "show" and ":" in args[1]:
+        return "---\nname: x\n---\nPROMPT"
+    if args[:2] == ("diff", "--name-only"):
+        return "scripts/tool.py\n"
+    if args[0] == "diff":
+        return PATCH
+    raise AssertionError(f"unexpected git call {args}")
+
+
+@pytest.fixture
+def corpus(tmp_path: Path) -> Path:
+    revs = [
+        {
+            "id": f"TG00{i}",
+            "pr": i,
+            "title": f"pr {i}",
+            "base": BASE,
+            "head": HEAD,
+            "split": "heldout",
+            "defects": [
+                {
+                    "thread": f"T000{i}",
+                    "bot": "devin",
+                    "path": "scripts/tool.py",
+                    "line": 2,
+                    "fix": FIX,
+                    "theme": "fail-open",
+                    "context": "diff-local",
+                }
+            ],
+        }
+        for i in (1, 2)
+    ]
+    path = tmp_path / "corpus.json"
+    path.write_text(
+        json.dumps({"schema_version": 1, "selection": {"rule": "r"}, "revisions": revs}),
+        encoding="utf-8",
+    )
+    return path
+
+
+def args(corpus: Path, *extra: str) -> list[str]:
+    return ["--corpus", str(corpus), "--prompt-ref", "main", *extra]
+
+
+def caller(text: str = CAUGHT) -> Any:
+    calls: list[str] = []
+
+    def call(system: str, user: str) -> tuple[str, dict[str, Any]]:
+        calls.append(user)
+        return text, {"output_tokens": 7, "finish_reason": "stop"}
+
+    call.calls = calls  # type: ignore[attr-defined]
+    return call
+
+
+class TestMain:
+    def test_caught_defects_are_counted(
+        self, corpus: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        code = replay.main(args(corpus), caller(), git)
+
+        result = json.loads(capsys.readouterr().out)["result"]
+        assert code == 0
+        assert result["all"]["all"]["caught"]["hits"] == 2
+        assert result["reviews"] == {
+            "n": 2,
+            "no_findings": 0,
+            "mean_findings": 1.0,
+            "cut_at_ceiling": 0,
+            "output_tokens": 14,
+        }
+
+    def test_every_call_failing_exits_3(self, corpus: Path) -> None:
+        def failing(system: str, user: str) -> tuple[str, dict[str, Any]]:
+            raise RuntimeError("boom")
+
+        assert replay.main(args(corpus), failing, git) == 3
+
+    def test_checkpoint_resume_skips_finished_and_reruns_errored_rows(
+        self, corpus: Path, tmp_path: Path
+    ) -> None:
+        checkpoint = tmp_path / "rows.jsonl"
+        checkpoint.write_text(
+            json.dumps({"revision": "TG001", "trial": 0, "raw": CAUGHT, "findings": 1})
+            + "\n"
+            + json.dumps({"revision": "TG002", "trial": 0, "error": "429"})
+            + "\n"
+            + '{"revision": "TG00',
+            encoding="utf-8",
+        )
+        fake = caller()
+
+        code = replay.main(args(corpus, "--checkpoint", str(checkpoint)), fake, git)
+
+        assert code == 0
+        assert len(fake.calls) == 1
+
+    def test_rescore_without_checkpoint_exits_2(self, corpus: Path) -> None:
+        assert replay.main(args(corpus, "--rescore"), caller(), git) == 2
+
+    def test_unknown_revision_exits_2(self, corpus: Path) -> None:
+        assert replay.main(args(corpus, "--revisions", "TG999"), caller(), git) == 2
+
+    def test_dry_run_counts_calls_without_calling(
+        self, corpus: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        fake = caller()
+
+        code = replay.main(args(corpus, "--dry-run", "--trials", "2"), fake, git)
+
+        assert code == 0
+        assert json.loads(capsys.readouterr().out)["planned_calls"] == 4
+        assert fake.calls == []
+
+
+class TestOutputTokens:
+    def test_reads_both_metadata_shapes(self) -> None:
+        assert replay.output_tokens({"output_tokens": 3}) == 3
+        assert replay.output_tokens({"usage": {"completion_tokens": 5}}) == 5
+        assert replay.output_tokens({}) == 0
+
+
+class TestRateLimitBackoff:
+    def test_retries_429_then_returns(self) -> None:
+        answers = iter([RuntimeError("HTTP 429: rate_limit"), "ok"])
+        waits: list[float] = []
+
+        def send() -> str:
+            item = next(answers)
+            if isinstance(item, Exception):
+                raise item
+            return item
+
+        assert replay.call_with_rate_limit_backoff(send, waits.append) == "ok"
+        assert waits == [replay.RATE_LIMIT_WAITS_SECONDS[0]]
+
+    def test_timeout_is_not_retried(self) -> None:
+        waits: list[float] = []
+        sent: list[int] = []
+
+        def send() -> str:
+            sent.append(1)
+            raise RuntimeError("request timed out")
+
+        with pytest.raises(RuntimeError, match="timed out"):
+            replay.call_with_rate_limit_backoff(send, waits.append)
+        assert (sent, waits) == ([1], [])
+
+    def test_persistent_429_raises_after_the_schedule(self) -> None:
+        waits: list[float] = []
+
+        def send() -> str:
+            raise RuntimeError("429")
+
+        with pytest.raises(RuntimeError, match="429"):
+            replay.call_with_rate_limit_backoff(send, waits.append)
+        assert waits == list(replay.RATE_LIMIT_WAITS_SECONDS)

@@ -45,6 +45,17 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _SCRIPT_DIR.parent.parent
+# checks_common imports ``scripts.cli_exec`` by absolute name, so the repository
+# root must be importable when this runs as a plain script, as in the sibling
+# added-lines gates (check_measurement_anchoring.py).
+for _entry in (_REPO_ROOT, _SCRIPT_DIR):
+    if str(_entry) not in sys.path:
+        sys.path.insert(0, str(_entry))
+
+import checks_common  # noqa: E402
+
 SUPPRESS = "# io-portability: ignore"
 _SUBPROCESS_CALLS = frozenset({"run", "Popen", "check_output", "check_call", "call"})
 _TEXT_FLAGS = ("text", "universal_newlines")
@@ -277,9 +288,9 @@ def added_lines(diff: str) -> dict[str, set[int]]:
     return out
 
 
-def _git(args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+def _git(repo_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        ["git", *args],
+        ["git", "-C", str(repo_root), *args],
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -289,25 +300,64 @@ def _git(args: Sequence[str]) -> subprocess.CompletedProcess[str]:
     )
 
 
-def scan_diff(base_ref: str) -> tuple[list[Violation], int]:
-    """Violations on lines added since the merge base with ``base_ref``, and files examined."""
-    merge_base = _git(["merge-base", base_ref, "HEAD"])
+def is_skipped_path(path: str) -> bool:
+    """Generated mirrors and fixture trees are not authored code under review."""
+    return path.startswith(MIRROR_PREFIXES) or "fixtures" in Path(path).parts
+
+
+def scan_diff(base_ref: str, repo_root: Path = Path(".")) -> tuple[list[Violation], int]:
+    """Violations on lines added since the merge base with ``base_ref``, and files examined.
+
+    The diff runs against the working tree, so an uncommitted edit is checked too.
+    """
+    merge_base = _git(repo_root, ["merge-base", base_ref, "HEAD"])
     if merge_base.returncode != 0:
         raise ValueError(f"cannot find merge base with {base_ref}: {merge_base.stderr.strip()}")
-    diff = _git(["diff", "-U0", "--diff-filter=AM", merge_base.stdout.strip(), "--", "*.py"])
+    diff = _git(
+        repo_root, ["diff", "-U0", "--diff-filter=AM", merge_base.stdout.strip(), "--", "*.py"]
+    )
     if diff.returncode != 0:
         raise ValueError(f"git diff failed: {diff.stderr.strip()}")
     found: list[Violation] = []
-    changed = added_lines(diff.stdout)
+    changed = {p: lines for p, lines in added_lines(diff.stdout).items() if not is_skipped_path(p)}
     for path, lines in sorted(changed.items()):
-        if path.startswith(MIRROR_PREFIXES):
-            continue
         try:
-            source = Path(path).read_text(encoding="utf-8")
+            source = (repo_root / path).read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError) as exc:
             raise ValueError(f"cannot read {path}: {exc}") from exc
         found.extend(v for v in scan_source(path, source) if any(v.spans(line) for line in lines))
     return found, len(changed)
+
+
+def validate_io_portability(repo_root: Path) -> bool:
+    """Pre-PR gate entry point: print findings, return True when added lines are clean.
+
+    Resolving no base ref prints ``[SKIP]`` and passes, the same contract as the
+    other added-lines gates: with no base there is no added range to judge.
+    """
+    base_ref = checks_common._resolve_default_base_ref(repo_root)
+    if base_ref is None:
+        print("[SKIP] io-portability: no base ref resolved; nothing to diff against")
+        return True
+    try:
+        found, examined = scan_diff(base_ref, repo_root)
+    except ValueError as exc:
+        print(f"[io-portability] {exc}", file=sys.stderr)
+        return False
+    for violation in found:
+        print(violation.render(), file=sys.stderr)
+    status = "FAIL" if found else "OK"
+    print(
+        f"[{status}] io-portability: {len(found)} violation(s) on added lines "
+        f"in {examined} changed Python file(s) vs {base_ref}"
+    )
+    if found:
+        print(
+            "  Fix: pass encoding='utf-8' (and errors='replace' for subprocess capture), "
+            "or create test symlinks through a helper that skips on OSError.",
+            file=sys.stderr,
+        )
+    return not found
 
 
 def scan_files(paths: Sequence[str]) -> tuple[list[Violation], int]:

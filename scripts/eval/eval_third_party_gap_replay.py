@@ -253,7 +253,14 @@ def run(
         return row
 
     wanted = {(j[0].id, j[1]) for j in jobs}
-    kept = [r for r in done if (r["revision"], int(r["trial"])) in wanted]
+    by_id = {j[0].id: j[0] for j in jobs}
+    # Score kept rows again from their stored answer, so a corpus edit between
+    # runs never mixes old scores with new defects.
+    kept = [
+        {**r, **core.score_revision(r["raw"], by_id[r["revision"]])}
+        for r in done
+        if (r["revision"], int(r["trial"])) in wanted
+    ]
     with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
         return kept + list(pool.map(work, pending))
 

@@ -56,6 +56,7 @@ from check_git_hook_health import validate_git_hook_health
 from check_host_marketplaces import validate_host_marketplaces
 from check_in_root_worktrees import validate_in_root_worktrees
 from check_index_line_endings import validate_index_line_endings
+from check_io_portability import validate_io_portability
 from check_measurement_anchoring import validate_measurement_anchoring
 from check_nested_tests import validate_no_nested_tests
 from check_promotion_exceptions import validate_promotion_exceptions
@@ -435,6 +436,12 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # one commit; unanchored, a later reader cannot tell "still true" from
     # "was true once" (issue #5771).
     _Gate("Measurement Anchoring (added lines)", _root_only(validate_measurement_anchoring)),
+    # Fails when a Python line ADDED since the base ref decodes text with the
+    # platform locale (subprocess text mode or read_text/write_text/open with no
+    # encoding) or creates a test symlink with no Windows skip. Cursor Bugbot
+    # raised 86 such findings on PRs #6110 to #7380 that no gate here caught
+    # (evals/third-party-review-gap/README.md).
+    _Gate("IO Portability (added lines)", _root_only(validate_io_portability)),
     # Fails when a live doc tells a contributor to run a script with third-party
     # imports under a bare `python3`, which dies with ModuleNotFoundError on a
     # clean checkout. Issue #3791.
