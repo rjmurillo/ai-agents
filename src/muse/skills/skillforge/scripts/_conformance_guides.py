@@ -95,7 +95,8 @@ GUIDE_RULES: tuple[Rule, ...] = (
         "scripts.exit-codes",
         "SHOULD",
         f"{SCRIPTS}#further-considerations",
-        "Distinct exit codes mark distinct failures, and --help documents them.",
+        "Each entry script documents its exit codes where --help or its header shows them.",
+        f.scripts_exit_codes_documented,
     ),
     Rule(
         "scripts.safe-defaults",

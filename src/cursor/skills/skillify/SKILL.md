@@ -130,7 +130,10 @@ verification failure, `2` no destination or invalid path. Harness tool names:
    outside the skill. Tag every step that acts on an external or public system `(external)`, and
    every step that asks the user for approval `(approval)`, earlier. Remove secrets, tokens, auth headers, internal hostnames,
    and account IDs from captured commands and examples. Use `pathlib` in any
-   script and no assumed shell.
+   script and no assumed shell. Write and test any script by the `skillforge`
+   skill's `references/script-design-rules.md`; without `skillforge`, use exit
+   codes 0 ok, 1 logic, 2 usage, 3 external, 4 auth, and put tests in the
+   repository's test tree.
 7. **Verify.** Run `skillify.py verify --skill <dir> --audit audit.json`
    (add `--mode patch` after a PATCH). It reads the trigger, `external_actions`,
    and `recovery_paths` from the audit. Patch mode fails

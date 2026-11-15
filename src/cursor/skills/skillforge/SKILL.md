@@ -359,6 +359,7 @@ Entry scripts: `init_skill.py`, `triage_skill_request.py`, `discover_skills.py`,
 | [Output Structure](references/output-structure.md) | You write frontmatter or lay out directories |
 | [Scripts and Validation](references/scripts-and-validation.md) | You pick a script, read a validator exit code, or use `--root` |
 | [Script Integration Framework](references/script-integration-framework.md) | You decide whether to add a script |
+| [Script Design Rules](references/script-design-rules.md) | You write, change, review, or test a bundled script |
 | [Script Patterns Catalog](references/script-patterns-catalog.md) | You write a script |
 | [Phase 4 Deep Dive](references/phase4-synthesis-deep-dive.md) | You run the Phase 4 panel |
 | [Synthesis Protocol](references/synthesis-protocol.md) | You run the multi-agent panel |

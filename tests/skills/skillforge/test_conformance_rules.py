@@ -113,6 +113,11 @@ FAILING: dict[str, dict[str, object]] = {
         "files": {"scripts/run.py": 'import sys\nif __name__ == "__main__":\n    sys.exit(0)\n'},
         "expect": "--help",
     },
+    "scripts.exit-codes": {
+        "body": "Run `run.py --help`.\n",
+        "files": {"scripts/run.py": 'import argparse\nif __name__ == "__main__":\n    pass\n'},
+        "expect": "run.py: no exit code documentation",
+    },
     "evals.file-shape": {
         "files": {"evals/evals.json": '{"skill_name": "other", "evals": []}'},
         "expect": "skill_name",
@@ -271,6 +276,14 @@ class TestScripts:
         )
         skill = make_skill(tmp_path, body="Run `go.sh`.\n", files={"scripts/go.sh": script})
         assert "go.sh:3" in _problems(skill, "scripts.no-interactive-prompts")
+
+    def test_exit_codes_in_the_docstring_pass(self, tmp_path: Path) -> None:
+        script = (
+            '"""Run it.\n\nExit codes: 0 ok, 1 logic, 2 usage."""\n'
+            'import argparse\nif __name__ == "__main__":\n    pass\n'
+        )
+        skill = make_skill(tmp_path, body="Run `run.py`.\n", files={"scripts/run.py": script})
+        assert _status(skill, "scripts.exit-codes") == "PASS"
 
     def test_shell_read_loop_is_not_a_prompt(self, tmp_path: Path) -> None:
         script = '#!/bin/sh\n# --help prints usage\nwhile read -r line; do echo "$line"; done\n'

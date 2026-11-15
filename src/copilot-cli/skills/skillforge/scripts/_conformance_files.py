@@ -132,6 +132,19 @@ def scripts_help(doc: SkillDoc) -> list[str]:
     return problems
 
 
+_EXIT_DOC_RE = re.compile(r"exit[ _-]?codes?\b", re.IGNORECASE)
+
+
+def scripts_exit_codes_documented(doc: SkillDoc) -> list[str]:
+    """Each entry script names its exit codes, where --help or its header shows them."""
+    problems = []
+    for path in entry_scripts(doc):
+        source = _read(path) or ""
+        if not _EXIT_DOC_RE.search(source):
+            problems.append(f"{path.name}: no exit code documentation found")
+    return problems
+
+
 def _code_blocks(markdown: str) -> list[str]:
     blocks: list[str] = []
     current: list[str] | None = None

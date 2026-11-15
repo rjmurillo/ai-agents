@@ -12,6 +12,8 @@ sessions used which skills, and emits:
 
 Everything runs locally; nothing is uploaded. Python 3.10+, stdlib only.
 Copyright (c) 2026 Denver Technologies, Inc. MIT license, see ../LICENSE.
+
+Exit codes: 0 ok; 1 a requested source is missing or none is found; 2 bad arguments.
 """
 
 from __future__ import annotations

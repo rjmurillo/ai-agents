@@ -120,11 +120,14 @@ They run via `python scripts/<name>.py` from the skill root.
 
 ## Guidelines
 
-- Each script should have a docstring, argparse CLI, and explicit exit codes
+- Each script should have a docstring with an `Exit codes:` block, an argparse
+  CLI, and a `main(argv)` that returns its exit code
 - Use the Result dataclass pattern (see script-template.py in SkillForge assets)
 - Exit codes follow the shared 0-4 contract: 0 success, 1 a check failed,
   2 usage or configuration error, 3 external failure, 4 authentication failure
 - Write state only behind a `--dry-run` preview, and keep reruns idempotent
+- Put tests in the repository's test tree, never in this skill directory;
+  SkillForge's `references/script-design-rules.md` has a test template
 """
 
 README_ASSETS = """\

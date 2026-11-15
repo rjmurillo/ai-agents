@@ -6,6 +6,9 @@ assignment, then replaces the accepted-scores file atomically. Any rejected batc
 leaves the last accepted file byte-for-byte unchanged.
 
 Python 3.10+, stdlib only.
+
+Exit codes: 0 success; 1 an import was rejected and nothing was written;
+2 bad arguments, or a file could not be read or written.
 """
 
 from __future__ import annotations
@@ -35,6 +38,9 @@ class ImportRejectedError(ValueError):
     def __init__(self, errors: Sequence[str]) -> None:
         super().__init__("; ".join(errors))
         self.errors = list(errors)
+
+
+_EXIT_CODES = "Exit codes:" + (__doc__ or "").split("Exit codes:", 1)[-1]
 
 
 def _digest(value: Any) -> str:
@@ -318,7 +324,10 @@ def unscored_ids(manifest: Mapping[str, Any], accepted_path: Path) -> list[str]:
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Build review assignments and import scores.")
+    parser = argparse.ArgumentParser(
+        description="Build review assignments and import scores.",
+        epilog=_EXIT_CODES,
+    )
     sub = parser.add_subparsers(dest="command", required=True)
     assign = sub.add_parser("assign", help="write assignment manifests from an inventory")
     assign.add_argument("inventory", type=Path)
