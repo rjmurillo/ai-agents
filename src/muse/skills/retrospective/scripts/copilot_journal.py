@@ -41,17 +41,23 @@ def _doctor_scripts_dir() -> Path:
     return Path(__file__).resolve().parents[2] / "skill-doctor" / "scripts"
 
 
-def _load_doctor() -> tuple[Any, Any, Any]:
-    """Import the skill-doctor modules lazily so a missing sibling degrades."""
+def _load_doctor() -> tuple[Any, Any, Any] | None:
+    """Import the skill-doctor modules lazily; None when the sibling is absent.
+
+    The guarded import lets this module load in a plugin root that ships no
+    skill-doctor, and the caller reports the journal as unavailable.
+    """
     scripts = _doctor_scripts_dir()
     if not scripts.is_dir():
-        raise ImportError(f"skill-doctor scripts not found at {scripts}")
+        return None
     if str(scripts) not in sys.path:
         sys.path.append(str(scripts))
-    import session_common
-    import session_discovery
-    import session_json
-
+    try:
+        import session_common
+        import session_discovery
+        import session_json
+    except ImportError:
+        return None
     return session_common, session_discovery, session_json
 
 
@@ -162,10 +168,10 @@ def extract_receipts(journal: Path, project_dir: Path) -> dict[str, Any]:
     The report always carries ``available`` and, when False, a ``reason``.
     """
     label = str(journal)
-    try:
-        common, discovery, parser = _load_doctor()
-    except ImportError as exc:
-        return _unavailable(label, f"skill-doctor parser unavailable: {exc}")
+    doctor = _load_doctor()
+    if doctor is None:
+        return _unavailable(label, "skill-doctor parser unavailable in this plugin root")
+    common, discovery, parser = doctor
     try:
         resolved = journal.expanduser().resolve(strict=True)
     except (OSError, RuntimeError) as exc:

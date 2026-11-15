@@ -374,7 +374,9 @@ def test_skipped_records_are_counted(repo: Path, journal_path: Path) -> None:
 
 
 def test_reuses_skill_doctor_event_filter() -> None:
-    _, _, parser = journal_mod._load_doctor()
+    doctor = journal_mod._load_doctor()
+    assert doctor is not None
+    parser = doctor[2]
     assert callable(parser._copilot_events)
 
 
