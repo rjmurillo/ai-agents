@@ -46,6 +46,8 @@ def _run(script: str, tmp_path: Path) -> tuple[int, Path]:
         env={"PATH": f"{bin_dir}:/usr/bin:/bin", "RUNNER_TEMP": str(runner_temp)},
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
         check=False,
     )
