@@ -20,7 +20,7 @@ else
       "$repo_root/.claude" \
       "${HOME:-}/.copilot/installed-plugins/_direct/project-toolkit" \
       "${HOME:-}/.copilot/installed-plugins"/*/project-toolkit \
-      "${HOME:-}/.claude/plugins/cache"/*/project-toolkit; do
+      "${HOME:-}/.claude/plugins/cache"/*/project-toolkit/*; do
       if [ -n "$root" ] && [ -d "$root/skills/review/scripts" ]; then
         printf '%s\n' "$root/skills/review/scripts"
         return 0

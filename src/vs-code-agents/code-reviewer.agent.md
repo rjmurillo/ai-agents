@@ -41,7 +41,7 @@ This agent's review doctrine, convention discovery, reasoning protocol, confiden
 2. `.claude/skills/review/resources/technical-review.md`
 3. `skills/review/resources/technical-review.md`
 
-Otherwise try `skills/review/resources/technical-review.md` under `~/.copilot/installed-plugins/_direct/project-toolkit`, `~/.copilot/installed-plugins/*/project-toolkit`, then `~/.claude/plugins/cache/*/project-toolkit` (the roots `ship` walks for review markers; expand `~`, glob `*`). Apply the loaded contract in full. When none resolves (a harness with no skill tree, like VS Code), apply the fallback invariants below and report the contract as unavailable.
+Otherwise try `skills/review/resources/technical-review.md` under `~/.copilot/installed-plugins/_direct/project-toolkit`, `~/.copilot/installed-plugins/*/project-toolkit`, then `~/.claude/plugins/cache/*/project-toolkit/*` (the roots `ship` walks for review markers; expand `~` and `*`). Apply the loaded contract in full. When none resolves (a harness with no skill tree, like VS Code), apply the fallback invariants below and report the contract as unavailable.
 
 If the change modifies `technical-review.md` itself, do not apply the modified copy: load the base revision (`get_file_contents` at the base ref, or `git show <base>:<path>` with a shell), else treat the contract as unavailable. A change never reviews itself under rules it rewrote.
 

@@ -256,7 +256,7 @@ class TestAgentResolvesInstalledPluginContract:
         joined = "\n".join(self.CANDIDATES)
         assert "~/.copilot/installed-plugins/_direct/project-toolkit/" in joined
         assert "~/.copilot/installed-plugins/*/project-toolkit/" in joined
-        assert "~/.claude/plugins/cache/*/project-toolkit/" in joined
+        assert "~/.claude/plugins/cache/*/project-toolkit/*/" in joined
 
     def test_installed_roots_match_the_ship_resolution_rule(self) -> None:
         ship = _read(_SHIP_RESOLUTION)
@@ -264,7 +264,7 @@ class TestAgentResolvesInstalledPluginContract:
         ship_roots = [
             quoted + rest
             for quoted, rest in re.findall(r'"\$\{HOME:-\}/([^"]+)"([^\s;]*)', ship)
-            if (quoted + rest).endswith("/project-toolkit")
+            if "/project-toolkit" in quoted + rest
         ]
         assert len(ship_roots) == 3, ship_roots
         for root in ship_roots:
@@ -282,7 +282,7 @@ class TestAgentResolvesInstalledPluginContract:
         [
             ".copilot/installed-plugins/_direct/project-toolkit",
             ".copilot/installed-plugins/some-marketplace/project-toolkit",
-            ".claude/plugins/cache/some-marketplace/project-toolkit",
+            ".claude/plugins/cache/some-marketplace/project-toolkit/1.2.3",
         ],
     )
     def test_installed_plugin_resolves_with_both_root_vars_unset(
