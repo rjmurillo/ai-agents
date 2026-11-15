@@ -264,17 +264,20 @@ safety, and packaging. Keep command examples portable when a plugin-root path is
 needed.
 
 ```bash
-# Validators enforce a path-traversal guard: the target skill directory must
-# live under your current directory. Run them from an ancestor of the skill.
-ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
-ROOT="$(cd "$ROOT" && pwd)"
-FORGE="$ROOT/skills/skillforge/scripts"
-cd "$HOME/.claude"
-python "$FORGE/quick_validate.py" skills/my-skill/     # required before packaging
-python "$FORGE/validate-skill.py" skills/my-skill/     # full structural validation
-python "$FORGE/check_docs_safety.py" skills/my-skill/  # unsafe hook command examples in docs
-python "$FORGE/skill_modularity_audit.py" skills/my-skill/ --ci  # size and progressive disclosure
-python "$FORGE/package_skill.py" skills/my-skill/ ./dist   # package for distribution
+# Validators enforce a path-traversal guard: the skill directory must sit under
+# the current directory, or under --root when it is given. package_skill.py
+# packages only a skill under ~/.claude/skills.
+SKILL="$HOME/.claude/skills/my-skill"
+# Required before packaging:
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillforge/scripts/quick_validate.py "$SKILL" --root "$HOME/.claude"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+# Full structural validation:
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillforge/scripts/validate-skill.py "$SKILL" --root "$HOME/.claude"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+# Unsafe hook command examples in docs:
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillforge/scripts/check_docs_safety.py "$SKILL"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+# Size and progressive disclosure:
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillforge/scripts/skill_modularity_audit.py "$SKILL" --ci; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+# Package for distribution:
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillforge/scripts/package_skill.py "$SKILL" ./dist; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Every validator takes the skill directory and answers `--help`. `skill_modularity_audit.py`
@@ -291,7 +294,7 @@ current directory, and an absolute path outside it is still rejected without
 against `DIR`, so pass an absolute path with `--root`:
 
 ```bash
-python "$FORGE/quick_validate.py" /other/repo/skills/my-skill --root /other/repo
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillforge/scripts/quick_validate.py /other/repo/skills/my-skill --root /other/repo; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 See [references/output-structure.md](references/output-structure.md) for allowed
@@ -327,11 +330,11 @@ After creation:
 - [ ] `SKILL.md` under 500 lines and 5,000 tokens, or the overage is stated
 - [ ] 3-5 trigger phrases defined
 - [ ] Timelessness score >=7
-- [ ] `python "$FORGE/quick_validate.py" skills/my-skill/` passes
-- [ ] `python "$FORGE/validate-skill.py" skills/my-skill/` passes
-- [ ] `python "$FORGE/check_docs_safety.py" skills/my-skill/` passes
-- [ ] `python "$FORGE/skill_modularity_audit.py" skills/my-skill/ --ci` exits `0` (`1` means oversized, `2` means it audited nothing)
-- [ ] No bare `.claude/skills/...` exec path in the generated `SKILL.md`; script invocations use the portable `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/...` form (see `docs/SKILL-AUTHORING.md`, "Portable Script Invocations")
+- [ ] `quick_validate.py skills/my-skill/` passes
+- [ ] `validate-skill.py skills/my-skill/` passes
+- [ ] `check_docs_safety.py skills/my-skill/` passes
+- [ ] `skill_modularity_audit.py skills/my-skill/ --ci` exits `0` (`1` means oversized, `2` means it audited nothing)
+- [ ] No bare `.claude/skills/...` exec path in the generated `SKILL.md`; script invocations use the ADR-121 plugin-root locator (see `docs/SKILL-AUTHORING.md`, "Portable Script Invocations")
 - [ ] Reference links resolve
 - [ ] Scripts fail fast, and a separate check confirms the outcome where it can be checked independently, when scripts are present
 - [ ] Every claim in the body is something the model could not already know. Generic engineering knowledge moved to `references/` or deleted

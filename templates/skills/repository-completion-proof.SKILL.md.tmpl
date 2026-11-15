@@ -50,10 +50,9 @@ Do not rely on variables surviving separate tool shells.
 From the repository root, the POSIX checkout form is:
 
 ```bash
-GITHUB_SCRIPTS="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 : "${PR_NUMBER:?Set the task PR number in this invocation}"
 : "${PR_REVIEW_CONFIG:?Set the selected absolute config path in this invocation}"
-uv run python "$GITHUB_SCRIPTS/pr/run_completion_gate.py" --config "$PR_REVIEW_CONFIG" --pull-request "$PR_NUMBER" --verify-config-only --json
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec uv run --frozen python "$d/lib/ptk_run.py" skills/github/scripts/pr/run_completion_gate.py --config "$PR_REVIEW_CONFIG" --pull-request "$PR_NUMBER" --verify-config-only --json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Keep the default trusted remote-tracking ref unless the selected base requires another.
@@ -107,10 +106,9 @@ Then execute the same dispatcher without verify-only:
 Bind the task PR and the same selected absolute config in this invocation.
 
 ```bash
-GITHUB_SCRIPTS="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 : "${PR_NUMBER:?Set the task PR number in this invocation}"
 : "${PR_REVIEW_CONFIG:?Set the selected absolute config path in this invocation}"
-uv run python "$GITHUB_SCRIPTS/pr/run_completion_gate.py" --config "$PR_REVIEW_CONFIG" --pull-request "$PR_NUMBER" --json
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec uv run --frozen python "$d/lib/ptk_run.py" skills/github/scripts/pr/run_completion_gate.py --config "$PR_REVIEW_CONFIG" --pull-request "$PR_NUMBER" --json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 This command dispatches configured verifiers; inspect their effects before execution.

@@ -169,8 +169,8 @@ Use `python3` or another bare name for the interpreter; an absolute path is
 refused. Run the incumbent and the candidate bundle with the same `eval.json`:
 
 ```bash
-python3 "$SKILLOPT_DIR/skillopt.py" run --eval eval.json --bundle incumbent/ --role incumbent --out-dir results/
-python3 "$SKILLOPT_DIR/skillopt.py" run --eval eval.json --bundle candidate/ --role candidate --out-dir results/
+python3 "${SKILLOPT_DIR:?}/skillopt.py" run --eval eval.json --bundle incumbent/ --role incumbent --out-dir results/
+python3 "${SKILLOPT_DIR:?}/skillopt.py" run --eval eval.json --bundle candidate/ --role candidate --out-dir results/
 ```
 
 `--role` is `incumbent`, `candidate`, or `null` and names the file
@@ -313,7 +313,7 @@ list of numbers. Measure all three arms the same way, on the same machine.
 Run with `$SKILLOPT_DIR` from SKILL.md, from any directory:
 
 ```bash
-python3 "$SKILLOPT_DIR/skillopt.py" pair-gate --eval eval.json --incumbent-results incumbent_results.json --candidate-results candidate_results.json
+python3 "${SKILLOPT_DIR:?}/skillopt.py" pair-gate --eval eval.json --incumbent-results incumbent_results.json --candidate-results candidate_results.json
 ```
 
 On Windows:
@@ -366,7 +366,7 @@ Use the efficiency gate only when the claim is a cheaper or faster candidate
 that has no new held-out pass, such as a skill already at the accuracy ceiling:
 
 ```bash
-python3 "$SKILLOPT_DIR/skillopt.py" efficiency-gate \
+python3 "${SKILLOPT_DIR:?}/skillopt.py" efficiency-gate \
   --eval eval.json \
   --incumbent-results incumbent_results.json \
   --candidate-results candidate_results.json \
@@ -425,7 +425,7 @@ with-skill against without-skill runs. The two share the `n`, `mean`, `stdev`
 spread, the `never_passes` signal, and the candidate-minus-baseline delta.
 
 ```bash
-python3 "$SKILLOPT_DIR/skillopt.py" report --eval eval.json --incumbent-results incumbent_results.json --candidate-results candidate_results.json [--split sel] [--null-results null_results.json] [--evidence evidence.json] [--measurements measurements.json]
+python3 "${SKILLOPT_DIR:?}/skillopt.py" report --eval eval.json --incumbent-results incumbent_results.json --candidate-results candidate_results.json [--split sel] [--null-results null_results.json] [--evidence evidence.json] [--measurements measurements.json]
 ```
 
 `--evidence` is one line per task and arm, written by the runner who graded it:

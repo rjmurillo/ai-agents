@@ -144,14 +144,15 @@ def test_ceiling_guidance_forbids_regating_the_same_candidate(root: str) -> None
 
 
 def test_skill_md_invocations_use_plugin_root_python3() -> None:
-    targets = {
-        match.script_rel: match.args
+    calls = {
+        (match.script_rel, match.args)
         for line in _skill_md().splitlines()
         for match in plugin_run_launcher.find_locators(line)
         if match.script_rel
     }
-    assert targets["skills/skillopt/scripts/skillopt.py"] == "--help"
-    assert targets["skills/skillopt/scripts/mine_sessions.py"] == "--help"
+    assert ("skills/skillopt/scripts/skillopt.py", "--help") in calls
+    assert ("skills/skillopt/scripts/mine_sessions.py", "--help") in calls
+    assert ("skills/skillopt/scripts/skillopt.py", "where") in calls
 
 
 def test_documented_help_runs_from_unrelated_directory(tmp_path: Path) -> None:

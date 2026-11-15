@@ -34,9 +34,21 @@ GuardedKey = tuple[str, str]  # (target under `.claude/`, third-party module)
 # ADR-121 decision 13. Keyed by the target as rule 2 maps it (`.claude/<tail>`) and
 # the module. The value names the sites the entry unblocks and the fallback, which
 # tests/validation/test_plugin_root_guarded_imports.py runs with the module blocked.
-# Entries arrive with the sites they unblock: an entry that no site applies is stale
-# and fails the run, so one cannot land before its site migrates.
-GUARDED_IMPORT_ALLOWANCES: dict[GuardedKey, str] = {}
+# An entry that no site applies is stale and fails the run.
+GUARDED_IMPORT_ALLOWANCES: dict[GuardedKey, str] = {
+    (".claude/skills/autoplan/scripts/resolve_route.py", "yaml"): (
+        "autoplan (2 sites). Without PyYAML, main() exits 2 and names the module."
+    ),
+    (".claude/skills/memory/scripts/count_memory_tokens.py", "tiktoken"): (
+        "memory-maintenance (1 site). Without tiktoken, main() exits 1 and names the module."
+    ),
+    (".claude/skills/skillforge/scripts/quick_validate.py", "yaml"): (
+        "skillforge (2 sites). Without PyYAML, frontmatter is parsed by a stdlib reader."
+    ),
+    (".claude/skills/skillforge/scripts/package_skill.py", "yaml"): (
+        "skillforge (1 site). It reaches yaml only through quick_validate.py."
+    ),
+}
 
 _SKILL_FROM_TEMPLATE = re.compile(r"^templates/skills/(?P<name>[^/]+)\.SKILL\.md\.tmpl$")
 _SKILL_FROM_TREE = re.compile(r"^(?:\.claude|src/[^/]+(?:/[^/]+)?)/skills/(?P<name>[^/]+)/")

@@ -99,26 +99,29 @@ directory and needs no clone of the source repository. Pure standard library.
 ```bash
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillopt/scripts/skillopt.py --help; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillopt/scripts/mine_sessions.py --help; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
-SKILLOPT_DIR="${SKILLOPT_DIR:-${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skillopt/scripts}"
+SKILLOPT_FOUND="$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillopt/scripts/skillopt.py where; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) )" && SKILLOPT_DIR="$SKILLOPT_FOUND"
+: "${SKILLOPT_DIR:?no plugin root holds skillopt.py; set SKILLOPT_DIR to the scripts folder beside this SKILL.md}"
 ```
 
-If neither `COPILOT_PLUGIN_ROOT` nor `CLAUDE_PLUGIN_ROOT` is set (for example
-Codex, or a plain checkout under PowerShell), use the directory that holds
-this SKILL.md. Set `SKILLOPT_DIR` to the `scripts` folder beside it:
+The `where` command prints the scripts folder of the same plugin root the other
+commands use. When no plugin root holds it (for example Codex, or a plain
+checkout under PowerShell), set `SKILLOPT_DIR` first to the `scripts` folder
+beside this SKILL.md, then run the block above; a found root still wins:
 
 ```bash
 SKILLOPT_DIR="<folder that holds this SKILL.md>/scripts"
-python3 "$SKILLOPT_DIR/skillopt.py" --help
+python3 "${SKILLOPT_DIR:?}/skillopt.py" --help
 ```
 
 On Windows PowerShell, no Bash required:
 
 ```powershell
-if (-not $SkillOptDir) {
-    $Root = if ($env:COPILOT_PLUGIN_ROOT) { $env:COPILOT_PLUGIN_ROOT } else { $env:CLAUDE_PLUGIN_ROOT }
-    if (-not $Root) { throw 'Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT, or set $SkillOptDir to the scripts folder beside this SKILL.md' }
-    $SkillOptDir = Join-Path $Root 'skills\skillopt\scripts'
-}
+$Found = @($env:CLAUDE_PLUGIN_ROOT, $env:COPILOT_PLUGIN_ROOT, '.claude') | Where-Object {
+    $_ -and (Test-Path -LiteralPath (Join-Path $_ 'lib/ptk_run.py') -PathType Leaf) -and
+    (Test-Path -LiteralPath (Join-Path $_ 'skills/skillopt/scripts/skillopt.py') -PathType Leaf)
+} | Select-Object -First 1
+if ($Found) { $SkillOptDir = Join-Path $Found 'skills/skillopt/scripts' }
+if (-not $SkillOptDir) { throw 'No plugin root holds lib/ptk_run.py and skillopt.py; set $SkillOptDir to the scripts folder beside this SKILL.md' }
 $SkillOpt = Join-Path $SkillOptDir 'skillopt.py'
 py -3 $SkillOpt --help
 ```

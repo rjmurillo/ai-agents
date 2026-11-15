@@ -27,6 +27,8 @@ from pathlib import Path
 
 import pytest
 
+from scripts.validation.plugin_root_interpreter_sites import plugin_run_launcher
+
 SKILL_DIR = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "memory-maintenance"
 SKILL_MD = SKILL_DIR / "SKILL.md"
 BENCHMARKING_REFERENCE = SKILL_DIR / "references" / "benchmarking.md"
@@ -127,11 +129,23 @@ def test_uses_portable_script_root() -> None:
     # Arrange
     body = _read_skill()
 
-    # Act / Assert: executable invocations must resolve the plugin root through
-    # the harness env var so a vendored install works (check_skill_md_exec_portability).
-    assert "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}" in body, (
-        "memory-maintenance must invoke scripts through the portable plugin-root form"
-    )
+    # Act
+    calls = {
+        match.script_rel
+        for line in body.splitlines()
+        for match in plugin_run_launcher.find_locators(line)
+    }
+
+    # Assert: every command runs through the ADR-121 locator, which skips a foreign
+    # plugin root, and the legacy first-set-wins form is gone (issue #7281).
+    assert "COPILOT_PLUGIN_ROOT:-" not in body
+    assert "$SCRIPTS_DIR" not in body
+    assert {
+        "skills/memory/scripts/test_memory_health.py",
+        "skills/memory/scripts/count_memory_tokens.py",
+        "skills/memory/scripts/test_memory_size.py",
+        "skills/memory/scripts/measure_memory_performance.py",
+    } <= calls
 
 
 def test_owns_benchmarking_reference() -> None:
