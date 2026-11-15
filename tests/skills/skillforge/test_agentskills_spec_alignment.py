@@ -310,3 +310,81 @@ class TestFallbackParser:
         validator = validate_skill_mod.SkillValidator(str(skill), root=str(tmp_path))
         validator._parse_frontmatter_fallback('# c: x\nname: "rel-notes"')
         assert validator.frontmatter == {"name": "rel-notes"}
+
+
+class TestFallbackTypes:
+    """Without PyYAML, the fallback keeps the YAML types a type check needs (PR #7375 review)."""
+
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [
+            ("compatibility: null", None),
+            ("compatibility: ~", None),
+            ("compatibility:", None),
+            ("compatibility: true", True),
+            ("compatibility: False", False),
+            ("compatibility: [git, docker]", ["git", "docker"]),
+            ("compatibility: {a: b}", {"a": "b"}),
+            ('compatibility: "null"', "null"),
+            ("compatibility: Requires git", "Requires git"),
+        ],
+    )
+    def test_quick_fallback_types(self, raw: str, expected: object) -> None:
+        assert quick._parse_frontmatter_fallback(raw)["compatibility"] == expected
+
+    def test_block_list_under_bare_key(self) -> None:
+        parsed = quick._parse_frontmatter_fallback("allowed-tools:\n  - Read\n  - Grep\nname: x")
+        assert parsed["allowed-tools"] == ["Read", "Grep"]
+        assert parsed["name"] == "x"
+
+    def test_nested_metadata_list_does_not_replace_the_mapping(self) -> None:
+        parsed = quick._parse_frontmatter_fallback("metadata:\n  domains:\n    - a\n  owner: me")
+        assert isinstance(parsed["metadata"], dict)
+        assert parsed["metadata"]["owner"] == "me"
+
+    def test_full_validator_fallback_types_match(self, tmp_path: Path) -> None:
+        skill = tmp_path / "rel-notes"
+        skill.mkdir()
+        (skill / "SKILL.md").write_text("---\n---\n", encoding="utf-8")
+        validator = validate_skill_mod.SkillValidator(str(skill), root=str(tmp_path))
+        validator._parse_frontmatter_fallback(
+            "compatibility: [git]\nallowed-tools:\n  - Read\nlicense: null"
+        )
+        assert validator.frontmatter == {
+            "compatibility": ["git"],
+            "allowed-tools": ["Read"],
+            "license": None,
+        }
+
+    @pytest.mark.parametrize("value", ["null", "true", "[git, docker]"])
+    def test_quick_validate_rejects_non_string_compatibility_without_yaml(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, value: str
+    ) -> None:
+        monkeypatch.setattr(quick, "HAS_YAML", False)
+        skill = _write(tmp_path, "rel-notes", f"compatibility: {value}\n")
+        ok, message = quick.validate_skill(skill, root=str(tmp_path))
+        assert not ok
+        assert "Compatibility must be a string" in message
+
+
+class TestFullValidatorDescription:
+    def test_null_description_is_a_type_error(self, tmp_path: Path) -> None:
+        skill = _write(tmp_path, "rel-notes", desc="null")
+        validator = _full(skill, tmp_path)
+        assert _has(validator.errors, "Description must be a string")
+
+    def test_folded_description_at_the_limit_passes_both_validators(self, tmp_path: Path) -> None:
+        body = "x" * 1024
+        skill = _write(tmp_path, "rel-notes", desc=f">\n  {body}")
+        ok, message = quick.validate_skill(skill, root=str(tmp_path))
+        assert ok, message
+        assert not _has(_full(skill, tmp_path).errors, "Description too long")
+
+
+class TestInitSkillNames:
+    def test_digit_first_name_matches_the_validators(self) -> None:
+        init_skill = _load("skillforge_init_skill_spec", "init_skill.py")
+        assert init_skill.validate_name("3d-print") == (True, "")
+        assert not init_skill.validate_name("bad-")[0]
+        assert not init_skill.validate_name("-lead")[0]
+        assert not init_skill.validate_name("a--b")[0]

@@ -248,7 +248,13 @@ def validate_name(name: str) -> tuple[bool, str]:
     """Validate skill name is kebab-case and within limits."""
     if not name:
         return False, "Skill name cannot be empty"
-    if not re.match(r"^[a-z][a-z0-9-]*$", name):
+    try:
+        from _constants import NAME_REGEX
+    except ImportError:
+        NAME_REGEX = r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"  # noqa: N806
+    if name.endswith("-") and re.match(r"^[a-z0-9][a-z0-9-]*$", name):
+        return False, f"Name '{name}' cannot end with hyphen or have consecutive hyphens"
+    if not re.match(NAME_REGEX, name):
         return False, f"Name '{name}' must be kebab-case (lowercase letters, digits, hyphens)"
     if name.endswith("-") or "--" in name:
         return False, f"Name '{name}' cannot end with hyphen or have consecutive hyphens"

@@ -342,7 +342,7 @@ After creation:
 
 ## Scripts
 
-The `scripts/` directory makes SkillForge agentic: it can scaffold, triage, validate, and package skills with fast-fail checks and independent postcondition checks. Scripts run on the Python 3 standard library; a few use PyYAML for frontmatter parsing when it is installed and fall back to a stdlib parser when it is not. Exit codes follow the shared 0-4 contract, documented in each script's `--help`: `0` success, `1` a check failed, `2` usage or configuration error, `3` external failure, `4` authentication failure.
+The `scripts/` directory makes SkillForge agentic: it can scaffold, triage, validate, and package skills with fast-fail checks and independent postcondition checks. Scripts run on the Python 3 standard library; a few use PyYAML for frontmatter parsing when it is installed and fall back to a stdlib parser when it is not. Exit `0` means success and `1` a failed check. Some scripts add `2` or `3` for a specific precondition failure (for example, `discover_skills.py` exits `3` when every skill source is missing). Each script's `--help` lists its codes.
 
 Read [references/scripts-and-validation.md](references/scripts-and-validation.md) for each script's purpose before you pick one.
 

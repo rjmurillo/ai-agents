@@ -26,7 +26,7 @@ Only a skillopt run with a scored baseline and a candidate evaluation can set `a
 
 Keep three kinds of statement apart:
 
-- **Observed fact**: the failed conversation, the scorer, and what happened. Goes in `evidence`.
+- **Observed fact**: the failed conversation (or, for a `Cut:` candidate, the passing conversation), the scorer, and what happened. Goes in `evidence`.
 - **Hypothesis**: why it happened and what change might help. Goes in `mechanism` and `expected_improvement`.
 - **Measured result**: only from skillopt. Goes in `status` and `evaluation`.
 
