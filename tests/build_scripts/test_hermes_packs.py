@@ -224,6 +224,19 @@ def test_index_says_so_when_nothing_is_excluded() -> None:
     assert "No skill is excluded." in hermes_packs.render_index(config).decode("utf-8")
 
 
+def test_index_lists_excluded_files_with_their_reasons() -> None:
+    config = make_config(excludedFiles={"alpha/scripts/run.py": "Needs a missing skill."})
+
+    text = hermes_packs.render_index(config).decode("utf-8")
+
+    assert "## Excluded files" in text
+    assert "- `alpha/scripts/run.py`: Needs a missing skill." in text
+
+
+def test_index_has_no_excluded_files_section_when_none_are_excluded() -> None:
+    assert "Excluded files" not in hermes_packs.render_index(make_config()).decode("utf-8")
+
+
 def test_index_has_no_dash_characters_or_generated_banner() -> None:
     text = hermes_packs.render_index(make_config()).decode("utf-8")
 
