@@ -33,7 +33,7 @@ GuardedKey = tuple[str, str]  # (target under `.claude/`, third-party module)
 
 # ADR-121 decision 13. Keyed by the target as rule 2 maps it (`.claude/<tail>`) and
 # the module. The value names the sites the entry unblocks and the fallback, which
-# tests/validation/test_plugin_root_guarded_imports.py runs with the module blocked.
+# tests/validation/test_plugin_root_guarded_fallbacks.py runs with the module blocked.
 # An entry that no site applies is stale and fails the run.
 GUARDED_IMPORT_ALLOWANCES: dict[GuardedKey, str] = {
     (".claude/skills/autoplan/scripts/resolve_route.py", "yaml"): (

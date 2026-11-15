@@ -7,6 +7,8 @@ import re
 import subprocess
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SKILL_MD = REPO_ROOT / ".claude" / "skills" / "skillforge" / "SKILL.md"
 
@@ -102,7 +104,10 @@ def test_launcher_uses_project_local_fallback_when_roots_unset(tmp_path: Path) -
     home = tmp_path / "home"
     project = tmp_path / "project"
     project.mkdir()
-    (project / ".claude").symlink_to(REPO_ROOT / ".claude", target_is_directory=True)
+    try:
+        (project / ".claude").symlink_to(REPO_ROOT / ".claude", target_is_directory=True)
+    except OSError as exc:  # Windows without Developer Mode refuses symlinks
+        pytest.skip(f"symlinks unavailable: {exc}")
     _seed_skill(home)
 
     result = _run_launcher(project, home)
