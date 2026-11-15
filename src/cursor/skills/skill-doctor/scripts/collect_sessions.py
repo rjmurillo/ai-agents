@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Collect local agent sessions and skills for scoring, including Copilot CLI.
 
-Scans Claude Code project history, Codex rollout files, Warp's local
-conversation databases, Pi agent session JSONL, Grok Build chat history,
-ZCode model-io rollouts, and/or Factory Droid sessions, discovers installed skills, detects which
-sessions used which skills, and emits:
+Scans Claude Code project history, Codex rollout files, Warp's local conversation databases,
+Pi agent session JSONL, Grok Build chat history, ZCode model-io rollouts, and/or Factory Droid
+sessions, discovers installed skills, detects which sessions used which skills, and emits:
 
   <out>/inventory.json        - skills, per-session stats, sampling decisions
   <out>/transcripts/<id>.md   - condensed transcripts for sampled sessions
@@ -12,6 +11,7 @@ sessions used which skills, and emits:
 
 Everything runs locally; nothing is uploaded. python3, stdlib only.
 Copyright (c) 2026 Denver Technologies, Inc. MIT license, see ../LICENSE.
+
 Exit codes: 0 ok; 1 --audit-manifest evidence contradicts the declared scope (no
 manifest written); 2 bad arguments, or a requested source is missing or none is found.
 """
