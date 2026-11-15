@@ -3,7 +3,6 @@ name: "skill-doctor"
 version: 1.0.0
 license: MIT
 description: "Score how installed skills performed in recent local agent sessions and draft evidence-backed skill edits. Use when you say `diagnose skill usage`, `grade my agent setup`, or `run skill-doctor`, or ask why a skill did not fire or keeps failing. Do NOT use for skill creation (use skill-bootstrap) or tuning (use skillopt)."
-compatibility: "Requires Python 3.10+ (standard library only) and local agent session history to read."
 user-invocable: true
 metadata:
   routing:

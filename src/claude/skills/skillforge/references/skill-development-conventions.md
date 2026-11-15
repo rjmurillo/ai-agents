@@ -12,7 +12,7 @@ Every `SKILL.md` is generated, nearly every other file hand-maintained.
 ## Entry points
 
 - New skill: `skillforge` creates and reviews it.
-- Frontmatter: `name` (`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`, no `--`, max 64, equals the directory name); `description` (5+ words, no `<` or `>`, 1024-char hard limit from the agentskills.io specification); optional `compatibility` (1-500 chars). Keys are allowlisted; an unlisted key hard-fails. `version` is unenforced at commit, required by `claude-agents.md` MUST-2.
+- Frontmatter: `name` (`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`, no `--`, max 64, equals the directory name); `description` (5+ words, no `<` or `>`, 1024-char hard limit from the agentskills.io specification); optional `compatibility` (1-500 chars, only for a need beyond python3 and the standard library; never a Python version). Keys are allowlisted; an unlisted key hard-fails. `version` is unenforced at commit, required by `claude-agents.md` MUST-2.
 - `## Triggers` H2: 1 to 5 backtick-wrapped phrases (unwrapped counts as zero), no shell metacharacters.
 - `## Process` or `### Phase N`, plus one of `## Verification`, `## Success Criteria`, `## Checklist`.
 

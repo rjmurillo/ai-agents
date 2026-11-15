@@ -3,7 +3,6 @@ name: skillopt
 version: 1.0.0
 description: Improve a skill, agent file, or prompt through bounded patches and a held-out, per-task acceptance gate. Use when you say `optimize this skill`, `make this skill better`, `compress these skills safely`, `tune this prompt against an eval`, or a skill keeps failing the same way. Do NOT use to create or route skills (use skillforge) or to decide skill placement or compress markdown without an eval (use context-optimizer).
 license: MIT
-compatibility: "Requires python3 (standard library only) and a harness that can run separate agent contexts for held-out scoring."
 user-invocable: true
 ---
 
@@ -167,15 +166,10 @@ One optimization step:
 3. **Reflect.** Failures become corrective rules; successes become behaviors
    to preserve. Write at most L_t patches to `patches.json`. Use only `train`
    evidence.
-   - Read the train failures with their execution traces and any train-split
-     reviewer notes, not only the final outputs. A trace shows why an
-     instruction was ignored.
-   - Keep the skill lean. When traces show wasted work from an instruction, or
-     the gate plateaus, propose `delete` patches that remove instructions, not
-     only additions.
-   - When train rollouts each write similar helper code, propose bundling it as
-     a script in the skill's scripts directory. That changes the bundle hash, so hash the final
-     candidate directory.
+   Read train traces and train-split reviewer notes, not only outputs. Propose
+   `delete` patches for instructions that cause wasted work or when the gate
+   plateaus. Helper code every rollout rewrites becomes a bundled script; hash
+   the final candidate directory.
 4. **Buffer check.** `skillopt.py buffer-check --buffer rejected.jsonl
    --patches patches.json`. Exit 0 prints `KNOWN-BAD`: discard and reflect
    again. Exit 1 prints `NOVEL`: proceed.
@@ -315,7 +309,6 @@ all, not even to flag. See Precondition 4.
 
 SkillOpt compares incumbent against candidate. It never measures skill against
 no skill. That baseline lives in `skill-bootstrap`'s `bootstrap_eval.py score`.
-Design reference: <https://agentskills.io/skill-creation/evaluating-skills>.
 
 ## Anti-Patterns
 

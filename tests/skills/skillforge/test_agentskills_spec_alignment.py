@@ -18,6 +18,19 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 _SCRIPT_DIR = _PROJECT_ROOT / ".claude" / "skills" / "skillforge" / "scripts"
 
 
+def _drop_script_modules(saved: set[str]) -> None:
+    """Drop only modules this test loaded from the skillforge script dir.
+
+    Third-party modules such as `yaml` stay cached. Evicting them would give
+    later importers a second module object and split class identity.
+    """
+    script_dir = _SCRIPT_DIR.resolve()
+    for added in set(sys.modules) - saved:
+        origin = getattr(sys.modules[added], "__file__", None)
+        if origin and Path(origin).resolve().parent == script_dir:
+            del sys.modules[added]
+
+
 def _load(name: str, filename: str):
     # Load with the script dir on sys.path, then restore sys.path and drop the
     # sibling helper modules so mirror-tree tests import their own copies.
@@ -31,8 +44,7 @@ def _load(name: str, filename: str):
         spec.loader.exec_module(module)
     finally:
         sys.path[:] = saved_path
-        for added in set(sys.modules) - saved_modules:
-            del sys.modules[added]
+        _drop_script_modules(saved_modules)
     return module
 
 
@@ -56,8 +68,7 @@ def _script_dir_on_path():
         yield
     finally:
         sys.path[:] = saved_path
-        for added in set(sys.modules) - saved_modules:
-            del sys.modules[added]
+        _drop_script_modules(saved_modules)
 
 
 def test_shared_constants_are_used() -> None:
@@ -95,7 +106,8 @@ def _has(messages: list[str], fragment: str) -> bool:
 
 class TestCompatibility:
     def test_valid_compatibility_accepted_by_both(self, tmp_path: Path) -> None:
-        skill = _write(tmp_path, "rel-notes", "compatibility: Requires git and Python 3.14+\n")
+        extra = "compatibility: Requires git and network access to api.github.com\n"
+        skill = _write(tmp_path, "rel-notes", extra)
         ok, message = quick.validate_skill(skill, root=str(tmp_path))
         assert ok, message
         validator = _full(skill, tmp_path)

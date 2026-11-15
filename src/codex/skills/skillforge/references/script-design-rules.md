@@ -82,12 +82,12 @@ A script that writes a file, calls a mutating API, or deletes anything also:
 
 ## One-off commands
 
-An existing package can run without a bundled script. Use `uvx`, `pipx run`,
-`npx`, `bunx`, `deno run`, or `go run`. Pin the version, as in
-`uvx ruff@0.8.0 check .`, so a run does not change under you. State the
-prerequisite (the runner and any network need) in `SKILL.md`, and in the
-`compatibility` frontmatter field when it is an environment-level need. When the
-command grows complex, move it into a bundled script and apply the rules above.
+agentskills.io lets a skill run an existing package through `uvx`, `npx`,
+`bunx`, `deno run`, or `go run` instead of a bundled script.
+*Deliberate deviation from upstream:* a shipped skill here does not. The
+consumer has python3 and the standard library, and no guaranteed runner,
+package index, or network. Write a bundled stdlib script instead, or name the
+external tool as an optional step the user runs.
 
 ## Listing the scripts
 
