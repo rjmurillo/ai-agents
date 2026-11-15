@@ -129,9 +129,12 @@ def run_installed_script(script: str) -> str:
     """Run the installed skill script with ``--help`` outside Muse; return its output.
 
     Muse Code's default sandbox hides the user root from the model's shell
-    (``Permission denied``, observed on 1.4.15), so the model cannot run this
-    script. A normal shell shows only that the skill folder and ``lib/`` arrive
-    together, which is what a script needs. It does not show that Muse Code runs it.
+    (``Permission denied``, observed on 1.4.15 and again on 1.4.20), so the
+    model cannot run this script. Muse Code 1.4.20 has no supported setting that
+    allows the read, and ``--disable-sandbox`` is the workaround (see "Known
+    limit" in docs/training/install-on-every-host.md, issue #7364). A normal
+    shell shows only that the skill folder and ``lib/`` arrive together, which
+    is what a script needs. It does not show that Muse Code runs it.
     """
     done = subprocess.run(
         ["python3", "-I", script, "--help"],

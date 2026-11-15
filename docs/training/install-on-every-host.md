@@ -806,7 +806,9 @@ It prints `25` in a scratch home with no other agents (2026-11-11). It counts fi
 
 We also ran one signed-in `muse exec` turn. It loaded the `github` skill and ran that script. That run used a copy in a scratch repository's project skill folder, not the user folder.
 
-On 2026-11-12, a signed-in turn loaded the `github` skill from the user folder with the skill tool. The same turn could not run the script there: Muse Code's default sandbox answered `Permission denied` for anything under `~/.config/muse`. The script command above works from your own shell.
+On 2026-11-12 (Muse Code 1.4.15), a signed-in turn loaded the `github` skill from the user folder with the skill tool. The same turn could not run the script there: Muse Code's default sandbox answered `Permission denied` for anything under `~/.config/muse`. The script command above works from your own shell.
+
+On 2026-11-15 (Muse Code 1.4.20), the limit was still there. A one-step `muse exec` turn ran the script under the default sandbox and printed `[Errno 13] Permission denied`. The same turn with `--disable-sandbox` printed `usage: get_pr_checks.py`. The default sandbox also denied `~/.config/muse/settings.json`, `lib/`, and `agents/`. It still allowed `~/.agents`, `~/.bashrc`, and `/etc/hostname`. Muse Code protects its own config folder from sandboxed shell commands.
 
 Not run: update or uninstall in a real home.
 
@@ -818,6 +820,23 @@ If it fails:
 - `Plugin lib directory not found`: `lib/` is missing from `${XDG_CONFIG_HOME:-~/.config}/muse/`. Run step 2 again.
 - `muse skills list` shows `skill-shadowed`: another root has a skill with the same name, and Muse Code loaded that one.
 - The agent count is `0`: step 2 did not copy the agents. Run step 2 from the repository root.
+- `[Errno 13] Permission denied` when the agent runs a skill script under `~/.config/muse`: this is Muse Code's default shell sandbox, not a bad install. See the next section.
+
+### Known limit: skill scripts under the default Muse Code sandbox
+
+Muse Code runs shell commands in a sandbox that denies reads under `~/.config/muse`. Every shipped skill script lives there, so the agent cannot run one. The shell returns `[Errno 13] Permission denied`. Skills still load through the skill tool. Only shell commands into the install fail.
+
+Muse Code 1.4.20 has no supported setting that allows a read path for the sandbox. Its [permissions page](https://dev.meta.ai/docs/muse-code/permissions) says Muse Code refuses a permission profile that adds extra file or home-directory paths. We tried a custom profile on 2026-11-15. The 1.4.20 launcher refused each absolute-path read rule with `read cannot be enforced (no live matcher for this rule)`.
+
+The workaround is to start the session with `--disable-sandbox`:
+
+```bash
+muse --disable-sandbox
+```
+
+That flag keeps approval prompts. It also lets the file tools write anywhere on the filesystem and forces full network egress, so use it only on a machine where that is acceptable. `--yolo` removes approval as well, so use it only inside an isolated environment. Neither flag changes the install.
+
+We did not change where the skills install. A folder outside `~/.config/muse` that the sandbox can read, such as `~/.agents`, might work. We did not test that.
 
 ## Next
 
