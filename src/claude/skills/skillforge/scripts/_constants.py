@@ -79,6 +79,8 @@ COMPATIBILITY_MAX_LENGTH = 500  # agentskills.io spec: compatibility is 1-500 ch
 # needs no tokenizer dependency.
 BODY_TOKEN_BUDGET = 5000
 CHARS_PER_TOKEN_ESTIMATE = 4
+# agentskills.io progressive disclosure: keep the main SKILL.md under 500 lines.
+BODY_MAX_LINES = 500
 
 # Skill name regex (unified across all validators), per the agentskills.io spec
 # - Lowercase letters, digits, and hyphens only

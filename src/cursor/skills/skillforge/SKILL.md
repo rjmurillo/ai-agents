@@ -272,9 +272,7 @@ See [references/evolution-scoring.md](references/evolution-scoring.md),
 
 ## Validation and Packaging
 
-Before distribution, validate structure, frontmatter, scripts, documentation
-safety, and packaging. Keep command examples portable when a plugin-root path is
-needed.
+Before distribution, run these checks:
 
 ```bash
 # Validators enforce a path-traversal guard: the skill directory must sit under
@@ -285,6 +283,8 @@ SKILL="$HOME/.claude/skills/my-skill"
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillforge/scripts/quick_validate.py "$SKILL" --root "$HOME/.claude"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 # Full structural validation:
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillforge/scripts/validate-skill.py "$SKILL" --root "$HOME/.claude"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+# agentskills.io conformance; add --profile project inside this repository:
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillforge/scripts/conformance.py "$SKILL" --root "$HOME/.claude"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 # Unsafe hook command examples in docs:
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillforge/scripts/check_docs_safety.py "$SKILL"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 # Size and progressive disclosure:
@@ -294,10 +294,6 @@ SKILL="$HOME/.claude/skills/my-skill"
 ```
 
 Read [references/scripts-and-validation.md](references/scripts-and-validation.md) before you act on a validator's exit code or validate a skill in another checkout with `--root DIR`.
-
-See [references/output-structure.md](references/output-structure.md) for allowed
-frontmatter fields, directory layout, script categories, hook configuration, and
-output requirements.
 
 ---
 
@@ -342,11 +338,7 @@ After creation:
 
 ## Scripts
 
-The `scripts/` directory makes SkillForge agentic: it can scaffold, triage, validate, and package skills with fast-fail checks and independent postcondition checks. Scripts run on the Python 3 standard library; a few use PyYAML for frontmatter parsing when it is installed and fall back to a stdlib parser when it is not. Exit codes follow the shared 0-4 contract, documented in each script's `--help`: `0` success, `1` a check failed, `2` usage or configuration error, `3` external failure, `4` authentication failure.
-
-Read [references/scripts-and-validation.md](references/scripts-and-validation.md) for each script's purpose before you pick one.
-
-See [references/script-integration-framework.md](references/script-integration-framework.md) for when to add scripts and [references/script-patterns-catalog.md](references/script-patterns-catalog.md) for the standard patterns.
+Entry scripts: `init_skill.py`, `triage_skill_request.py`, `discover_skills.py`, `quick_validate.py`, `validate-skill.py`, `conformance.py`, `check_docs_safety.py`, `skill_modularity_audit.py`, and `package_skill.py`. Each runs on the Python 3 standard library and documents its exit codes in `--help`: `0` success, `1` a check failed, `2` usage or configuration error, `3` external failure, `4` authentication failure.
 
 ---
 
