@@ -56,8 +56,32 @@ __all__ = [
     "_is_temperature_deprecated_sdk_error",
     "_normalize_and_raise",
     "_read_env_key",
+    "http_timeout_seconds",
     "weighted_input_cost_units",
 ]
+
+DEFAULT_HTTP_TIMEOUT_SECONDS = 120.0
+MAX_HTTP_TIMEOUT_SECONDS = 1800.0
+
+
+def http_timeout_seconds() -> float:
+    """Per-call timeout: 120s, or EVAL_HTTP_TIMEOUT_SECONDS within (0, 1800].
+
+    A value that is not a number or falls outside that range raises, so a typo
+    never turns into an unbounded wait or a silent fallback.
+    """
+    raw = os.environ.get("EVAL_HTTP_TIMEOUT_SECONDS", "").strip()
+    if not raw:
+        return DEFAULT_HTTP_TIMEOUT_SECONDS
+    try:
+        value = float(raw)
+    except ValueError:
+        raise RuntimeError(f"EVAL_HTTP_TIMEOUT_SECONDS must be a number, got {raw!r}") from None
+    if not 0 < value <= MAX_HTTP_TIMEOUT_SECONDS:
+        raise RuntimeError(
+            f"EVAL_HTTP_TIMEOUT_SECONDS must be in (0, {MAX_HTTP_TIMEOUT_SECONDS:g}], got {raw}"
+        )
+    return value
 
 
 def _read_env_key(names: list[str]) -> str:
@@ -327,8 +351,10 @@ class _OpenAICompatibleProvider:
             kwargs["base_url"] = self._base_url
         # release-it: explicit timeout on every outbound call. max_retries=0
         # because the adapter owns the retry policy; an SDK retry layer here
-        # would be nested retries. 120s matches the urllib path.
-        kwargs["timeout"] = 120.0
+        # would be nested retries. 120s matches the urllib path; a reasoning
+        # model behind a proxy can need longer, so EVAL_HTTP_TIMEOUT_SECONDS
+        # may raise it within a fixed ceiling.
+        kwargs["timeout"] = http_timeout_seconds()
         kwargs["max_retries"] = 0
         if self._default_headers:
             kwargs["default_headers"] = dict(self._default_headers)

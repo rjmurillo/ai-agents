@@ -28,6 +28,7 @@ import os
 import subprocess
 import sys
 import threading
+import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -45,9 +46,13 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CORPUS = "evals/third-party-review-gap/replay-corpus.json"
 AGENT_TEMPLATE = "templates/agents/code-reviewer.shared.md"
 CONTRACT_PATH = "src/claude/skills/review/resources/technical-review.md"
-MAX_TOKENS = 6000
+# Not a budget. The transport requires a value, so this is the model's output
+# ceiling: answers are never cut to save tokens, because a cut answer costs a
+# rerun. Each row records its output tokens and finish reason instead.
+MAX_TOKENS = 64000
 
-Caller = Callable[[str, str], str]
+# (system, user) -> (answer text, {"output_tokens": int, "finish_reason": str | None})
+Caller = Callable[[str, str], tuple[str, dict[str, Any]]]
 
 
 def git_run(args: tuple[str, ...]) -> str | None:
@@ -160,29 +165,65 @@ def aggregate(rows: list[dict[str, Any]], revisions: list[core.Revision]) -> dic
         "n": len(rows),
         "no_findings": sum(1 for row in rows if row["no_findings"]),
         "mean_findings": sum(findings) / len(findings) if findings else 0.0,
+        "cut_at_ceiling": sum(1 for row in rows if row.get("finish_reason") == "length"),
+        "output_tokens": sum(int(row.get("output_tokens") or 0) for row in rows),
     }
     return out
+
+
+def output_tokens(metadata: dict[str, object]) -> int:
+    """Output tokens from either transport's metadata shape, 0 when absent."""
+    direct = metadata.get("output_tokens")
+    if isinstance(direct, int):
+        return direct
+    usage = metadata.get("usage")
+    nested = usage.get("completion_tokens") if isinstance(usage, dict) else None
+    return nested if isinstance(nested, int) else 0
+
+
+RATE_LIMIT_WAITS_SECONDS = (60, 120, 300, 600, 900, 900, 900, 900)
+
+
+def call_with_rate_limit_backoff(
+    send: Callable[[], str], sleep: Callable[[float], None] = time.sleep
+) -> str:
+    """Retry only an HTTP 429, which the provider rejects before generating anything.
+
+    A 429 costs no output tokens, so waiting it out is cheap. A timeout or any
+    other failure may have been billed, so it is never retried here: it becomes
+    an error row that a later run with the same checkpoint reruns on purpose.
+    """
+    for wait in RATE_LIMIT_WAITS_SECONDS:
+        try:
+            return send()
+        except RuntimeError as exc:
+            if "429" not in str(exc):
+                raise
+            sleep(wait)
+    return send()
 
 
 def make_caller(model: str, usage: dict[str, int]) -> Caller:
     api_key = load_api_key_for_selected_provider()
     lock = threading.Lock()
 
-    def call(system: str, user: str) -> str:
+    def call(system: str, user: str) -> tuple[str, dict[str, Any]]:
         metadata: dict[str, object] = {}
-        text: str = call_api(
-            api_key,
-            [{"role": "user", "content": user}],
-            system=system,
-            model=model,
-            max_tokens=MAX_TOKENS,
-            metadata=metadata,
+        text: str = call_with_rate_limit_backoff(
+            lambda: call_api(
+                api_key,
+                [{"role": "user", "content": user}],
+                system=system,
+                model=model,
+                max_tokens=MAX_TOKENS,
+                metadata=metadata,
+            )
         )
-        tokens = metadata.get("output_tokens")
+        tokens = output_tokens(metadata)
         with lock:
             usage["calls"] += 1
-            usage["output_tokens"] += tokens if isinstance(tokens, int) else 0
-        return text
+            usage["output_tokens"] += tokens
+        return text, {"output_tokens": tokens, "finish_reason": metadata.get("finish_reason")}
 
     return call
 
@@ -202,8 +243,8 @@ def run(
         rev, trial, review = job
         row: dict[str, Any] = {"revision": rev.id, "trial": trial}
         try:
-            raw = caller(review.system, review.user)
-            row.update(raw=raw, **core.score_revision(raw, rev))
+            raw, call_meta = caller(review.system, review.user)
+            row.update(raw=raw, **call_meta, **core.score_revision(raw, rev))
         except RuntimeError as exc:
             row["error"] = str(exc)[:300]
         if checkpoint is not None:

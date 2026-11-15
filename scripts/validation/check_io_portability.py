@@ -8,8 +8,10 @@ Three rules, each an AST check with no guesswork about intent:
     ``universal_newlines=True``) that passes no ``encoding``. Python then decodes
     with the locale encoding, which is cp1252 on many Windows hosts.
 ``file-text-encoding``
-    ``Path.read_text()``, ``Path.write_text(data)``, ``Path.open()`` or builtin
-    ``open()`` in text mode with no ``encoding``. Same locale dependency.
+    ``Path.read_text()``, ``Path.write_text(data)`` or builtin ``open()`` in
+    text mode with no ``encoding``. Same locale dependency. An attribute
+    ``.open()`` is not checked: its receiver may be a zip member, an image, or a
+    browser, and the AST cannot tell which.
 ``unguarded-symlink``
     A test file calls ``symlink_to`` or ``os.symlink`` outside a ``try`` that
     catches ``OSError`` or ``NotImplementedError``, in a function with no
@@ -21,9 +23,11 @@ These are the three mechanical rules behind 80 of the 166 Cursor Bugbot
 "learned rule" findings on pull requests #6110 to #7380 (evals/third-party-review-gap).
 
 Scope: with ``--base-ref``, only lines added since the merge base with that ref
-are reported, so existing code does not block. With file arguments, every line
-in those files is reported. A call carrying ``**kwargs`` is skipped: its
-encoding cannot be read statically.
+are reported, so existing code does not block. Generated mirror trees
+(``MIRROR_PREFIXES``) are skipped in that mode: ``build_all.py`` copies them from
+``src/claude/`` and ``scripts/``, so a violation is reported once, at its
+source. With file arguments, every line in those files is reported. A call
+carrying ``**kwargs`` is skipped: its encoding cannot be read statically.
 
 Suppress one line with ``# io-portability: ignore <reason>``.
 
@@ -45,6 +49,20 @@ SUPPRESS = "# io-portability: ignore"
 _SUBPROCESS_CALLS = frozenset({"run", "Popen", "check_output", "check_call", "call"})
 _TEXT_FLAGS = ("text", "universal_newlines")
 _SYMLINK_CATCHES = frozenset({"OSError", "NotImplementedError", "Exception", "BaseException"})
+# Generated copies of src/claude/skills and the scripts/ lib packages, rendered by
+# build/scripts/build_all.py (see templates/AGENTS.md, "Skip"). Editing them is
+# overwritten, so a finding there belongs to the source file.
+MIRROR_PREFIXES: tuple[str, ...] = (
+    "src/copilot-cli/skills/",
+    "src/copilot-cli/lib/",
+    "src/codex/skills/",
+    "src/codex/lib/",
+    "src/cursor/skills/",
+    "src/cursor/lib/",
+    "src/muse/skills/",
+    "src/muse/lib/",
+    "src/hermes/",
+)
 _HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(?P<start>\d+)(?:,(?P<count>\d+))? @@")
 
 
@@ -129,17 +147,12 @@ def _mode_is_text(mode: ast.expr | None) -> bool:
 def _file_io_without_encoding(call: ast.Call) -> str | None:
     if _has_star_kwargs(call) or _kwarg(call, "encoding") is not None:
         return None
-    receiver, name = _callee(call)
+    _, name = _callee(call)
     is_attr = isinstance(call.func, ast.Attribute)
     if is_attr and name == "read_text" and not call.args:
         return "read_text() without encoding"
     if is_attr and name == "write_text" and len(call.args) < 2:
         return "write_text() without encoding"
-    if is_attr and name == "open" and receiver not in {"os", "io", "gzip", "tarfile", "zipfile"}:
-        if len(call.args) >= 3:
-            return None  # buffering or encoding passed positionally
-        mode = call.args[0] if call.args else _kwarg(call, "mode")
-        return "Path.open() in text mode without encoding" if _mode_is_text(mode) else None
     if not is_attr and name == "open" and call.args:
         if len(call.args) >= 4:
             return None
@@ -287,6 +300,8 @@ def scan_diff(base_ref: str) -> tuple[list[Violation], int]:
     found: list[Violation] = []
     changed = added_lines(diff.stdout)
     for path, lines in sorted(changed.items()):
+        if path.startswith(MIRROR_PREFIXES):
+            continue
         try:
             source = Path(path).read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError) as exc:
