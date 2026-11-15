@@ -85,7 +85,7 @@ flowchart TD
     K -->|No| J[Verify boundary and deliver]
 ```
 
-In the commands below, `<output-root>` is `.claude/skills` or `.github/skills`. Pass `--name` once per skill. On Windows
+In the commands below, `<output-root>` is `.claude/skills` or `.github/skills`. Pass `--name` once per skill. Add an optional flag inside a command, before its `; fi`; words after the closing `)` run as a separate command. On Windows
 PowerShell, see [references/scripts.md](references/scripts.md#windows-powershell).
 
 ### Phase 1: Scope, mode, outcomes, boundary
@@ -218,7 +218,7 @@ Exit code 1 lists `update_candidates` and gives `update_args` as a JSON list of 
 
 ## Scripts
 
-Each CLI uses only the Python standard library, prints JSON with an `examined` count, and writes nothing inside the repository. Exit code 0 means success and exit code 1 means findings that need action, for every script. `bootstrap_friction.py`, `bootstrap_review.py`, and `review_clusters.py` are modules the miner imports, not CLIs. [references/scripts.md](references/scripts.md) holds the exit 2 and 3 table per script, the subcommand table, the `bootstrap_boundary.py` detail, and the Windows PowerShell form.
+Each CLI uses only the Python standard library, prints JSON with an `examined` count, and writes nothing inside the repository unless you pass `bootstrap_eval.py freeze --allow-in-repo`. Exit code 0 means success and exit code 1 means findings that need action, for every script. `bootstrap_friction.py`, `bootstrap_review.py`, and `review_clusters.py` are modules the miner imports, not CLIs. [references/scripts.md](references/scripts.md) holds the exit 2 and 3 table per script, the subcommand table, the `bootstrap_boundary.py` detail, and the Windows PowerShell form.
 
 `bootstrap_drift.py` runs a `command` check only with `--allow-commands`, which executes repository code. Never pass it in a job that holds secrets or runs on untrusted pull request content.
 

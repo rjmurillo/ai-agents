@@ -35,7 +35,7 @@ The payload `error` names the cause: `config` for exit 2, `git` or `io` for exit
 
 ## Windows PowerShell
 
-On Windows PowerShell 7, set the plugin root once, then run the same subcommands with `python`. The first non-empty value wins, as in the bash form:
+On Windows PowerShell 7, set the plugin root once, then run the same subcommands with `python`. This form takes the first non-empty value of `COPILOT_PLUGIN_ROOT`, `CLAUDE_PLUGIN_ROOT`, and `.claude`, and does not use the locator check the bash form uses (ADR-121 decision 1 leaves PowerShell to a follow-up):
 
 ```powershell
 $root = @($env:COPILOT_PLUGIN_ROOT, $env:CLAUDE_PLUGIN_ROOT, '.claude') | Where-Object { $_ } | Select-Object -First 1
