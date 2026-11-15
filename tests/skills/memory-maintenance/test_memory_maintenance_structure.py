@@ -23,13 +23,18 @@ Tests follow Arrange/Act/Assert, one behavior per test.
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
 import pytest
 
-from scripts.validation.plugin_root_interpreter_sites import plugin_run_launcher
-
 SKILL_DIR = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "memory-maintenance"
+_BUILD_SCRIPTS = str(Path(__file__).resolve().parents[3] / "build" / "scripts")
+sys.path.insert(0, _BUILD_SCRIPTS)
+try:
+    import plugin_run_launcher
+finally:
+    sys.path.remove(_BUILD_SCRIPTS)
 SKILL_MD = SKILL_DIR / "SKILL.md"
 BENCHMARKING_REFERENCE = SKILL_DIR / "references" / "benchmarking.md"
 TROUBLESHOOTING_REFERENCE = SKILL_DIR / "references" / "troubleshooting.md"
