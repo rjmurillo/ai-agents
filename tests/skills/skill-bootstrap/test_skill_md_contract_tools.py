@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from test_skill_md_contract import PORTABLE_SCRIPT, _skill_dir, _skill_md
+from test_skill_md_contract import _skill_dir, _skill_md, locator_calls
 
 BUNDLED_SCRIPTS = (
     "scripts/bootstrap_boundary.py",
@@ -36,9 +36,7 @@ def test_capability_eval_runs_between_context_optimizer_and_skillopt() -> None:
     "script", ("bootstrap_mine.py", "bootstrap_forms.py", "bootstrap_drift.py", "bootstrap_eval.py")
 )
 def test_every_bundled_script_is_documented_with_the_portable_root(script: str) -> None:
-    portable = PORTABLE_SCRIPT.replace("bootstrap_boundary.py", script)
-
-    assert f'python3 "{portable}"' in _skill_md()
+    assert script in {name for name, _ in locator_calls(_skill_md())}
 
 
 def test_every_script_on_disk_is_bundled_and_documented() -> None:
@@ -57,9 +55,9 @@ def test_every_script_on_disk_is_bundled_and_documented() -> None:
     assert "`bootstrap_sweep.py`" in text
     assert "`review_clusters.py`" in text
     assert "`bootstrap_review.py`" in text
+    documented = {name for name, _ in locator_calls(text)}
     for rel in BUNDLED_SCRIPTS:
-        portable = PORTABLE_SCRIPT.replace("bootstrap_boundary.py", rel.removeprefix("scripts/"))
-        assert f'python3 "{portable}"' in text, rel
+        assert rel.removeprefix("scripts/") in documented, rel
 
 
 def test_skill_md_defines_both_tool_forms_and_both_modes() -> None:
