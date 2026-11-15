@@ -37,9 +37,8 @@ def strip_optional(line: str) -> str:
     """Return the locator on ``line`` with optional `[...]` argument groups removed."""
     [match] = list(find_locators(line))
     assert match.script_rel is not None, match.problem
-    return render_locator(
-        match.script_rel, OPTIONAL_RE.sub("", match.args).strip(), match.interpreter
-    )
+    args = OPTIONAL_RE.sub("", match.args).strip()
+    return str(render_locator(match.script_rel, args, match.interpreter))
 
 
 SKILL_NAME = "demo-change-control"
