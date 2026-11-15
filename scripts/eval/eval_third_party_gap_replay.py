@@ -99,10 +99,15 @@ def select(revisions: tuple[core.Revision, ...], split: str, ids: str) -> list[c
 
 
 def load_checkpoint(path: Path | None) -> list[dict[str, Any]]:
-    """Finished rows. Errored rows are dropped so their revision reruns."""
+    """Finished rows, one per (revision, trial). Errored rows are dropped so they rerun.
+
+    Two runs that overlapped on one checkpoint can each write the same job. The
+    first finished row is kept, so a duplicate never counts a defect twice.
+    """
     if path is None or not path.exists():
         return []
     rows: list[dict[str, Any]] = []
+    seen: set[tuple[str, int]] = set()
     lines = [ln for ln in path.read_text(encoding="utf-8").splitlines() if ln]
     for index, line in enumerate(lines):
         try:
@@ -113,7 +118,9 @@ def load_checkpoint(path: Path | None) -> list[dict[str, Any]]:
             raise
         if not isinstance(row, dict) or "revision" not in row or "trial" not in row:
             raise ValueError(f"checkpoint {path} holds a line that is not a result row")
-        if not row.get("error"):
+        key = (str(row["revision"]), int(row["trial"]))
+        if not row.get("error") and key not in seen:
+            seen.add(key)
             rows.append(row)
     return rows
 

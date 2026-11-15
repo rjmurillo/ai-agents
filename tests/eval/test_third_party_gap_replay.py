@@ -141,6 +141,23 @@ class TestMain:
         assert code == 0
         assert len(fake.calls) == 1
 
+    def test_duplicate_checkpoint_rows_count_once(
+        self, corpus: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        checkpoint = tmp_path / "rows.jsonl"
+        row = json.dumps({"revision": "TG001", "trial": 0, "raw": CAUGHT})
+        checkpoint.write_text(f"{row}\n{row}\n", encoding="utf-8")
+
+        code = replay.main(
+            args(corpus, "--checkpoint", str(checkpoint), "--rescore", "--revisions", "TG001"),
+            caller(),
+            git,
+        )
+
+        result = json.loads(capsys.readouterr().out)["result"]
+        assert code == 0
+        assert result["all"]["all"]["caught"]["n"] == 1
+
     def test_rescore_without_checkpoint_exits_2(self, corpus: Path) -> None:
         assert replay.main(args(corpus, "--rescore"), caller(), git) == 2
 
