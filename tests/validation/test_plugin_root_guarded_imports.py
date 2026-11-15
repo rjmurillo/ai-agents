@@ -15,6 +15,7 @@ import pytest
 
 from scripts.validation import check_plugin_root_interpreter as checker
 from scripts.validation import plugin_root_guarded_imports as guarded
+from scripts.validation import plugin_root_interpreter_allowances as allowances
 
 # The sites module puts build/scripts on sys.path for the validator itself, so the
 # recipe is reached through it and this test adds no path of its own.
@@ -240,3 +241,51 @@ def test_the_committed_allowance_list_names_tracked_targets() -> None:
     for target, module in guarded.GUARDED_IMPORT_ALLOWANCES:
         assert (REPO_ROOT / target).is_file(), target
         assert module not in sys.stdlib_module_names
+
+
+# --- the entrypoint: main() forwards allowance usage and reports a stale entry --------
+
+
+def _main_on(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, baseline: dict[str, tuple[int, int, str]]
+) -> int:
+    """Run main() with ``repo`` standing in for this checkout and only the yaml entry."""
+    monkeypatch.setattr(checker, "_REPO_ROOT", repo.resolve())
+    monkeypatch.setattr(checker, "_YAML_ALLOWANCES", {})
+    monkeypatch.setattr(checker, "_SINGLE_ROOT_ALLOWANCES", {})
+    monkeypatch.setattr(allowances, "LEGACY_SITE_BASELINE", baseline)
+    monkeypatch.setattr(guarded, "GUARDED_IMPORT_ALLOWANCES", {(MAPPED, "yaml"): "test entry"})
+    return checker.main(["--repo-root", str(repo)])
+
+
+def _yaml_only_repo(tmp_path: Path, target_source: str) -> Path:
+    legacy = f'python3 "${{COPILOT_PLUGIN_ROOT:-${{CLAUDE_PLUGIN_ROOT:-.claude}}}}/{TARGET}"'
+    config = f"scripts:\n  run: {legacy}\n"
+    files = {MAPPED: target_source, "src/claude/skills/demo/demo-config.yaml": config}
+    return make_repo(tmp_path, files)
+
+
+_YAML_BASELINE = {"src/claude yaml": (1, 0, "test")}
+
+
+def test_main_passes_when_only_shipped_yaml_applies_the_allowance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = _yaml_only_repo(tmp_path, GUARDED_YAML)
+    assert _main_on(repo, monkeypatch, _YAML_BASELINE) == 0
+
+
+def test_main_fails_when_the_yaml_target_loses_its_guard(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = _yaml_only_repo(tmp_path, UNGUARDED_YAML)
+    assert _main_on(repo, monkeypatch, _YAML_BASELINE) == 1
+    assert "imports it with no fallback" in capsys.readouterr().err
+
+
+def test_main_fails_when_no_site_applies_the_allowance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(tmp_path, {MAPPED: GUARDED_YAML, "README.md": "no sites\n"})
+    assert _main_on(repo, monkeypatch, {}) == 1
+    assert "guarded-import allowance matches no site" in capsys.readouterr().err
