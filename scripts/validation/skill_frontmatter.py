@@ -1,14 +1,28 @@
 #!/usr/bin/env python3
 # ruff: noqa: E402
-"""Validate Claude Code skill YAML frontmatter against schema requirements.
+"""Validate skill YAML frontmatter against the agentskills.io specification.
 
-Enforces frontmatter constraints for SKILL.md files:
-- YAML syntax (delimiters, indentation)
-- Required fields: name, description
-- Name format: lowercase alphanumeric + hyphens, max 64 chars (regex: ^[a-z0-9-]{1,64}$)
-- Description: non-empty, max 1024 chars, no XML tags
-- Model: valid model identifiers (aliases or dated snapshots)
-- Allowed-tools: valid Claude Code tool names (if present)
+Spec: https://agentskills.io/specification. Each check reads the parsed YAML
+value, not a flattened line view, so quoting and block scalars count as YAML
+counts them.
+
+- YAML syntax (delimiters, indentation, a mapping)
+- name: required string, 1-64 characters, lowercase letters, digits, and
+  hyphens, no leading, trailing, or consecutive hyphen, equal to the skill
+  directory name
+- description: required string, 1-1024 characters; no XML tags, which the
+  Claude platform rejects in skill metadata
+- compatibility: when present, a string of 1-500 characters
+- license: when present, a string
+- allowed-tools: a space-separated string per the spec; comma-separated strings
+  and YAML lists, the forms Claude Code and this repository's generators use,
+  are accepted too. Each tool is judged by its name before any `(...)` argument.
+- model: valid model identifiers (aliases or dated snapshots)
+
+Not checked here: top-level keys outside the spec and nested ``metadata``
+values. This repository's skills carry harness fields and capability mappings
+on purpose; skillforge's ``conformance.py --profile project`` reports those as
+declared deviations.
 
 Runs on staged .claude/skills/*/SKILL.md files during pre-commit.
 
@@ -110,6 +124,17 @@ VALID_TOOLS: frozenset[str] = frozenset(
         "serena",
     }
 )
+
+# MCP tool names: `mcp__<server>__<tool>` (Claude Code) and `<server>/<tool>`
+# (Copilot CLI). The server set varies by install, so any server passes except
+# a retired one, which no harness can grant (issue #5574).
+_MCP_TOOL_PATTERN: re.Pattern[str] = re.compile(r"^mcp__([A-Za-z0-9_-]+)__[A-Za-z0-9_-]+$")
+_COPILOT_MCP_TOOL_PATTERN: re.Pattern[str] = re.compile(r"^([A-Za-z0-9_-]+)/[A-Za-z0-9_-]+$")
+RETIRED_MCP_SERVERS: frozenset[str] = frozenset({"forgetful"})
+
+NAME_MAX_LENGTH = 64
+DESCRIPTION_MAX_LENGTH = 1024
+COMPATIBILITY_MAX_LENGTH = 500
 
 # XML tag detection pattern
 _XML_TAG_PATTERN: re.Pattern[str] = re.compile(r"<[^>]+>")
@@ -269,50 +294,76 @@ def parse_frontmatter(content: str) -> FrontmatterResult:
 # Field validators
 # ---------------------------------------------------------------------------
 
-_NAME_PATTERN: re.Pattern[str] = re.compile(r"^[a-z0-9-]{1,64}$")
+# agentskills.io name rule: lowercase letters and digits in hyphen-separated
+# runs, so no leading, trailing, or consecutive hyphen.
+_NAME_PATTERN: re.Pattern[str] = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 
 
-def validate_name(name: str | None) -> list[str]:
-    """Validate the 'name' field in frontmatter."""
+def _type_name(value: object) -> str:
+    return "null" if value is None else type(value).__name__
+
+
+def validate_name(name: object, directory: str | None = None) -> list[str]:
+    """Validate the 'name' field against the agentskills.io name rules."""
+    if name is None or (isinstance(name, str) and not name.strip()):
+        return ["Missing required field: 'name'"]
+    if not isinstance(name, str):
+        return [f"name must be a string, got {_type_name(name)}"]
     errors: list[str] = []
-
-    if not name or not name.strip():
-        errors.append("Missing required field: 'name'")
-        return errors
-
+    if len(name) > NAME_MAX_LENGTH:
+        errors.append(f"name exceeds {NAME_MAX_LENGTH} characters (found {len(name)})")
     if not _NAME_PATTERN.match(name):
-        reason_parts: list[str] = []
-
+        reasons = []
         if re.search(r"[A-Z]", name):
-            reason_parts.append("contains uppercase letters")
-        if re.search(r"[^a-z0-9-]", name):
-            reason_parts.append("contains invalid characters (only a-z, 0-9, hyphen allowed)")
-        if len(name) > 64:
-            reason_parts.append(f"exceeds 64 characters (found {len(name)})")
-        if len(name) == 0:
-            reason_parts.append("is empty")
-
-        reason = f" ({', '.join(reason_parts)})" if reason_parts else ""
-        errors.append(f"Invalid name format: '{name}'{reason} (must match ^[a-z0-9-]{{1,64}}$)")
-
+            reasons.append("contains uppercase letters")
+        if re.search(r"[^a-zA-Z0-9-]", name):
+            reasons.append("contains characters other than a-z, 0-9, and hyphen")
+        if name.startswith("-") or name.endswith("-"):
+            reasons.append("starts or ends with a hyphen")
+        if "--" in name:
+            reasons.append("contains consecutive hyphens")
+        detail = f" ({', '.join(reasons)})" if reasons else ""
+        errors.append(f"Invalid name format: '{name}'{detail}")
+    if directory is not None and name != directory:
+        errors.append(f"name '{name}' must match its directory name '{directory}'")
     return errors
 
 
-def validate_description(description: str | None) -> list[str]:
-    """Validate the 'description' field in frontmatter."""
+def validate_description(description: object) -> list[str]:
+    """Validate the 'description' field: a 1-1024 character string, no XML tags."""
+    if description is None or (isinstance(description, str) and not description.strip()):
+        return ["Missing required field: 'description'"]
+    if not isinstance(description, str):
+        return [f"description must be a string, got {_type_name(description)}"]
     errors: list[str] = []
-
-    if not description or not description.strip():
-        errors.append("Missing required field: 'description'")
-        return errors
-
-    if len(description) > 1024:
-        errors.append(f"Description exceeds 1024 characters (found {len(description)})")
-
+    if len(description) > DESCRIPTION_MAX_LENGTH:
+        errors.append(
+            f"Description exceeds {DESCRIPTION_MAX_LENGTH} characters (found {len(description)})"
+        )
     if _XML_TAG_PATTERN.search(description):
         errors.append("Description contains XML tags (not allowed)")
-
     return errors
+
+
+def validate_compatibility(compatibility: object) -> list[str]:
+    """Validate the optional 'compatibility' field: a 1-500 character string."""
+    if not isinstance(compatibility, str):
+        return [f"compatibility must be a string, got {_type_name(compatibility)}"]
+    if not compatibility.strip():
+        return ["compatibility is empty; omit the field instead"]
+    if len(compatibility) > COMPATIBILITY_MAX_LENGTH:
+        return [
+            f"compatibility exceeds {COMPATIBILITY_MAX_LENGTH} characters "
+            f"(found {len(compatibility)})"
+        ]
+    return []
+
+
+def validate_license(license_value: object) -> list[str]:
+    """Validate the optional 'license' field: a string."""
+    if isinstance(license_value, str) and license_value.strip():
+        return []
+    return [f"license must be a non-empty string, got {_type_name(license_value)}"]
 
 
 def validate_model(model: str | None) -> list[str]:
@@ -336,30 +387,58 @@ def validate_model(model: str | None) -> list[str]:
     return errors
 
 
-def validate_allowed_tools(allowed_tools: str | None) -> list[str]:
-    """Validate the 'allowed-tools' field in frontmatter (optional)."""
-    errors: list[str] = []
+def split_allowed_tools(value: str) -> list[str]:
+    """Split an allowed-tools string on whitespace and commas outside parentheses.
 
-    if not allowed_tools or not allowed_tools.strip():
-        return errors
-
-    tools = [t.strip() for t in allowed_tools.split(",") if t.strip()]
-
-    invalid_tools: list[str] = []
-    for tool in tools:
-        clean_tool = re.sub(r"^\s*-\s*", "", tool)
-
-        # Allow wildcards
-        if "*" in clean_tool:
+    The spec form is space-separated (`Bash(git:*) Read`); Claude Code also
+    accepts commas (`Read, Grep`). A space inside `Bash(git status:*)` belongs
+    to the argument, so it does not split.
+    """
+    tools: list[str] = []
+    current: list[str] = []
+    depth = 0
+    for char in value:
+        if char == "(":
+            depth += 1
+        elif char == ")" and depth:
+            depth -= 1
+        if depth == 0 and (char.isspace() or char == ","):
+            if current:
+                tools.append("".join(current))
+                current = []
             continue
+        current.append(char)
+    if current:
+        tools.append("".join(current))
+    return tools
 
-        if clean_tool not in VALID_TOOLS:
-            invalid_tools.append(clean_tool)
 
-    if invalid_tools:
-        errors.append(f"Unknown tools in allowed-tools: {', '.join(invalid_tools)}")
+def _tool_is_known(tool: str) -> bool:
+    if "*" in tool:
+        return True
+    base = tool.split("(", 1)[0]
+    if base in VALID_TOOLS:
+        return True
+    match = _MCP_TOOL_PATTERN.match(base) or _COPILOT_MCP_TOOL_PATTERN.match(base)
+    if match is None:
+        return False
+    return match.group(1) not in RETIRED_MCP_SERVERS
 
-    return errors
+
+def validate_allowed_tools(allowed_tools: object) -> list[str]:
+    """Validate the optional 'allowed-tools' field: a string or a list of tool names."""
+    if allowed_tools is None:
+        return []
+    if isinstance(allowed_tools, str):
+        tools = split_allowed_tools(allowed_tools)
+    elif isinstance(allowed_tools, list) and all(isinstance(t, str) for t in allowed_tools):
+        tools = [t.strip() for t in allowed_tools if t.strip()]
+    else:
+        return ["allowed-tools must be a space-separated string or a list of tool names"]
+    unknown = [tool for tool in tools if not _tool_is_known(tool)]
+    if unknown:
+        return [f"Unknown tools in allowed-tools: {', '.join(unknown)}"]
+    return []
 
 
 # ---------------------------------------------------------------------------
@@ -502,6 +581,24 @@ def _relative_display(file_path: Path) -> Path:
     return file_path
 
 
+def validate_typed_fields(typed: dict[object, object], directory: str) -> list[str]:
+    """Run the field checks on parsed YAML values."""
+    errors = validate_name(typed.get("name"), directory)
+    errors.extend(validate_description(typed.get("description")))
+    if "compatibility" in typed:
+        errors.extend(validate_compatibility(typed["compatibility"]))
+    if "license" in typed:
+        errors.extend(validate_license(typed["license"]))
+    if "allowed-tools" in typed:
+        errors.extend(validate_allowed_tools(typed["allowed-tools"]))
+    model = typed.get("model")
+    if model is not None:
+        errors.extend(
+            validate_model(model) if isinstance(model, str) else ["model must be a string"]
+        )
+    return errors
+
+
 def validate_skill_file(file_path: Path) -> FileValidationResult:
     """Validate a single SKILL.md file's frontmatter."""
     relative = _relative_display(file_path)
@@ -524,15 +621,8 @@ def validate_skill_file(file_path: Path) -> FileValidationResult:
     yaml_result = parse_frontmatter(content)
     all_errors: list[str] = list(yaml_result.errors)
 
-    if yaml_result.is_valid and yaml_result.frontmatter:
-        all_errors.extend(validate_name(yaml_result.frontmatter.get("name")))
-        all_errors.extend(validate_description(yaml_result.frontmatter.get("description")))
-
-        if "model" in yaml_result.frontmatter:
-            all_errors.extend(validate_model(yaml_result.frontmatter["model"]))
-
-        if "allowed-tools" in yaml_result.frontmatter:
-            all_errors.extend(validate_allowed_tools(yaml_result.frontmatter["allowed-tools"]))
+    if yaml_result.is_valid and yaml_result.typed:
+        all_errors.extend(validate_typed_fields(yaml_result.typed, file_path.parent.name))
 
     if not all_errors:
         print("    [PASS] Frontmatter is valid")
