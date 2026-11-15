@@ -59,7 +59,10 @@ verification failure, `2` no destination or invalid path. Harness tool names:
 
 1. **Audit the workflow.** Write the audit from session evidence: what was
    done, tools used, decisions and what triggered each, errors and fixes,
-   surprises, the trigger phrase the user used or would use. Count tool calls,
+   surprises, the trigger phrase the user used or would use. Also capture
+   each correction the user made (it becomes a gotcha), the input and output
+   formats the work used, and project context the user supplied that the
+   model lacked. Count tool calls,
    decision points, gotchas, and note whether any action touches an external
    or public system.
 2. **Gate.** Save the audit as JSON with `tool_call_count`, `reusable_class`,
@@ -85,7 +88,8 @@ verification failure, `2` no destination or invalid path. Harness tool names:
    host has one. `PATCH` names a skill: read it first. If its procedure does not
    cover the workflow, treat the result as `CREATE`. Otherwise show the user
    the target path and the planned change, and get confirmation before editing.
-   The planned change adds the trigger phrase to the target's description.
+   The planned change adds the trigger phrase to the target's description,
+   and the result must stay within 1024 characters.
    A generated SKILL.md is patched at its source template when the repo has
    one. `CREATE` continues; fewer than 3 distinct words also gives `CREATE`.
 5. **Decompose into actions.** For each action record: input, action and the
@@ -99,14 +103,21 @@ verification failure, `2` no destination or invalid path. Harness tool names:
    baseline before step 6. With no such claim, skip the gate.
 6. **Write.** Use the skeleton in [skill-skeleton.md](references/skill-skeleton.md).
    Read `../skillforge/references/skill-content-rules.md` first and apply its
-   content and description rules to the draft.
+   content and description rules to the draft. If `skillforge` is not
+   installed, report `skillforge rules: UNAVAILABLE` and apply the
+   specification limits directly: `description` at most 1024 characters,
+   saying what the skill does and when to use it; body under 500 lines;
+   file references relative and one level deep.
    Create `<root>/<name>/SKILL.md` with the harness file-write tool, or patch
    with the file-edit tool using a unique old string. Inline every convention
    the skill needs; do not depend on a personal instruction file or a path
    outside the skill. Tag every step that acts on an external or public system `(external)`, and
    every step that asks the user for approval `(approval)`, earlier. Remove secrets, tokens, auth headers, internal hostnames,
    and account IDs from captured commands and examples. Use `pathlib` in any
-   script and no assumed shell.
+   script and no assumed shell. Write and test any script by the `skillforge`
+   skill's `references/script-design-rules.md`; without `skillforge`, use exit
+   codes 0 ok, 1 logic, 2 usage, 3 external, 4 auth, and put tests in the
+   repository's test tree.
 7. **Verify.** Run `skillify.py verify --skill <dir> --audit audit.json`
    (add `--mode patch` after a PATCH). It reads the trigger, `external_actions`,
    and `recovery_paths` from the audit. Patch mode fails
