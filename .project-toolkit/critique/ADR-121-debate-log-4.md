@@ -2,9 +2,9 @@
 
 ## Summary
 
-- **Rounds**: 1 of 10 recorded so far
+- **Rounds**: 3 of 10
 - **Prior debate logs**: `.project-toolkit/critique/ADR-121-debate-log.md`, `-2.md`, and `-3.md`
-- **Outcome**: Round 1 closed with six votes of Accept with changes. The changes are applied. Round 2 is not yet recorded in this log.
+- **Outcome**: Consensus. Five seats Accept. The independent-thinker seat Disagrees and Commits on decision 13.
 - **Final Status**: proposed
 - **Panel**: the full panel of six seats: architect, critic, independent-thinker, security, analyst, and high-level-advisor. The amendment changes the launcher recipe, the resolver, and the validator, which other gates read.
 - **Model**: every seat ran on Sonnet. The Opus credentials were rate limited for about five hours on 2026-11-14.
@@ -51,9 +51,51 @@
 - **Bump `date` (architect).** Not taken. Debate log 3 set `date` to the decision date on purpose.
 - **Split step 9 (high-level-advisor).** The ADR keeps one step. The implementer may ship it as more than one pull request.
 
+## Round 2 Summary
+
+### Votes
+
+| Seat | Vote | Required changes |
+|---|---|---|
+| architect | Accept with changes | Add a pointer in decision 10 for the environment-listed root case. P2: full `skill_size.py` path, "the same assignment" for `package_skill.py`, the stderr order in decision 14, and the decision 8 message. |
+| critic | Accept | P2: give the fallthrough line its own contract, because decision 8 reads the `ptk_run:` prefix as failure. Assert real output in the `quick_validate.py` test. |
+| security | Accept | P2: print environment paths through `repr`. Say why `realpath` and the lexical test differ. |
+| analyst | Accept | P2: state the count unit as matches, anchor the 489 figure, and pin the preset path with a test. |
+| independent-thinker | Accept with changes | The decision 7 pointer still said `uv run python`. P2: test that stdout carries only the target's output, and state the reversed `SKILLOPT_DIR` precedence. |
+| high-level-advisor | Accept with changes | Put a SHA and date on the step 9 counts (`universal.md` MUST 9). P2: say prose mentions sit outside the 22-site scope, and note the `--frozen` behavior change. |
+
+### Key Issues Addressed
+
+- Decision 10 now says the amendment extends it to an environment-listed root that holds both files.
+- The decision 7 pointer names `uv run --frozen python`.
+- Step 9 carries b5e05e9c6 (2026-11-14) on each count. It says prose mentions run nothing and sit outside the scope, and that `--frozen` makes a stale lock fail.
+- The fallthrough line is now `ptk_run: note: ...`, advisory, with `repr` paths, and stdout stays the target's. Step 8 tests the stdout.
+- Decision 11 explains why `realpath` and the lexical test differ.
+- Decision 11 states that its failure text replaces decision 8's `target is not a file: <path>`, and a test pins it.
+- Decision 14 states the reversed precedence and pins the preset path with a test.
+- Measurements state the unit as matches. The Alternatives table anchors 489 to 48b4ea4c2 (2026-11-11).
+
+## Round 3 Summary
+
+Only the three seats that asked for changes in round 2 re-voted. The other three had accepted the text these edits refine.
+
+| Seat | Vote | Notes |
+|---|---|---|
+| architect | Accept | Confirmed the decision 10 pointer and all four P2 edits by line. |
+| independent-thinker | Disagree-and-Commit | Confirmed the decision 7 pointer and the P2 edits. Dissent below. |
+| high-level-advisor | Accept | Confirmed the anchors, the scope sentence, and the `--frozen` note. Strategic verdict: APPROVED. |
+
+### Dissent
+
+- **independent-thinker, decision 13.** A guard-aware rule 2 would replace the hand-kept allowance list, which needs an entry for every new guarded-import script. The seat accepts the list because the owner's option A names it. The ADR records the alternative.
+
+### Next Steps
+
+Merge the amendment as `proposed`. Step 8 implements decisions 11 to 13 with the tests the Rollout section lists. Step 9 migrates the 22 sites and closes issue #7281.
+
 ## Debate State
 
-**Round**: 1 of 10 (counted within this debate log)
-**Status**: Round 1 closed; changes applied to the ADR text.
+**Round**: 3 of 10 (counted within this debate log)
+**Status**: Consensus
 
-Unresolved P0 issues after round 1 changes: none known. Round 2 votes on the revised text are not yet recorded.
+Unresolved P0 issues: none.

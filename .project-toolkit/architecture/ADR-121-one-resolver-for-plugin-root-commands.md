@@ -142,7 +142,7 @@ Three facts follow.
    `subprocess.run` and exits with the child's code, because `os.execv` returns
    to the shell at once on Windows. The locator itself is POSIX shell. Markdown
    `bash` blocks are POSIX by existing decision. Amended on 2026-11-14 by
-   decision 12, which adds `python3 -I` and `uv run python` forms.
+   decision 12, which adds `python3 -I` and `uv run --frozen python` forms.
 8. **Failure is loud and uses exit 2.** Exit 2 is the config-error code from
    ADR-035. It covers: no root holds the resolver, the target is missing, the
    target fails validation, and the arguments are malformed. A target's own exit 2
@@ -162,7 +162,9 @@ Three facts follow.
     A hostile repo that ships `.claude/lib/ptk_run.py` is no worse than one that
     ships `.claude/skills/...`. The gate keeps its own authority:
     `_install_trusted_root` decides what a root may hold, and Class G never sees
-    the locator. The resolver and the gate share no state.
+    the locator. The resolver and the gate share no state. Extended on
+    2026-11-14 by decision 11: a root listed in the resolver's environment that
+    holds both the resolver and the target can also run.
 
 ## Rollout
 
@@ -269,13 +271,12 @@ settles five reviewer asks from PRs #7340 and #7341. Decisions 1, 2, 4, 6, and
 
 ### Measurements
 
-All counts are at b5e05e9c6 (2026-11-14). `skill_size.py` caps a whole
+All counts are at b5e05e9c6 (2026-11-14). `scripts/validation/skill_size.py` caps a whole
 `SKILL.md` file at 24,576 bytes (`SKILL_BYTE_LIMIT`, `len(raw)`).
 
-- 482 authored lines and fences hold the locator head (`_HEAD` in
-  `plugin_run_launcher.py`), 298 of them under `templates`. Count:
-  `git grep -F -o` of the head over `templates` and the hand-kept
-  `src/claude` files.
+- The locator head (`_HEAD` in `plugin_run_launcher.py`) has 482 matches in
+  authored files, 298 of them under `templates`. Count: `git grep -F -o` of
+  the head over `templates` and the hand-kept `src/claude` files.
 - `github/SKILL.md` is 24,557 bytes with 5 copies of the head.
 - `orphan-ref-validator/SKILL.md` is 24,535 bytes with 8 copies of the head.
   A ninth line names `ptk_run.py` in prose.
@@ -297,12 +298,20 @@ All counts are at b5e05e9c6 (2026-11-14). `skill_size.py` caps a whole
       root's or an earlier candidate's, so one tree is never probed twice. A
       candidate passes only when `os.path.isfile` is true for its
       `lib/ptk_run.py` and for the target, the same lexical test as decision 6.
+      The two rules differ on purpose: `realpath` only decides whether two
+      spellings name one tree, and the target test stays lexical for ADR-119
+      links.
     - The target is validated once, by decision 6, before any lookup.
     - The first candidate that passes runs, with decision 7 semantics. Before it
-      runs, the resolver writes one stderr line:
-      `ptk_run: <target> is not under <own root>; running it from <root>`.
+      runs, the resolver writes one advisory stderr line,
+      `ptk_run: note: <target> is not under <own root>; running it from <root>`,
+      with both paths printed through `repr` like the other `ptk_run:` lines.
+      The `note:` word marks it as advice; a resolver failure never carries it.
+      Stdout stays the target's own, which decision 14 relies on.
     - When none passes, the resolver exits 2 with
-      `ptk_run: target is not a file under any plugin root: <target>`.
+      `ptk_run: target is not a file under any plugin root: <target>`. This
+      replaces the `target is not a file: <path>` text under decision 8, and a
+      test pins it.
     - **Why Python and not the shell.** The shell form breaks two byte caps (see
       Measurements). `--fix` could rewrite the 482 sites, so the caps are the
       deciding cost. The shell form would keep decisions 3 to 5 exact; the
@@ -360,7 +369,7 @@ All counts are at b5e05e9c6 (2026-11-14). `skill_size.py` caps a whole
       | `autoplan/scripts/resolve_route.py` | `yaml` | `autoplan`, 2 assignments | exits 2, naming PyYAML |
       | `memory/scripts/count_memory_tokens.py` | `tiktoken` | `memory-maintenance`, 1 assignment | exits 1, naming tiktoken |
       | `skillforge/scripts/quick_validate.py` | `yaml` | `skillforge`, 1 assignment | parses with a stdlib reader |
-      | `skillforge/scripts/package_skill.py` | `yaml` | `skillforge`, 1 assignment | through `quick_validate.py` |
+      | `skillforge/scripts/package_skill.py` | `yaml` | `skillforge`, the same assignment | through `quick_validate.py` |
 
     - The validator keeps an entry only while every import of that module in
       the closure is guarded by the rule 5 test (`unguarded_third_party_imports`).
@@ -380,9 +389,12 @@ All counts are at b5e05e9c6 (2026-11-14). `skill_size.py` caps a whole
       that picks the root for the other commands picks this one, which is the
       #7341 ask. `where` is a target, so decision 6 applies unchanged.
     - The locator wins. A preset `SKILLOPT_DIR` is used only when the locator
-      fails, which covers Codex and plain checkouts. When both fail, the
+      fails, which covers Codex and plain checkouts. This reverses the old
+      order, where a preset always won, so a deliberate override is ignored
+      whenever a root of ours is found. A test pins the preset path. When both fail, the
       assignment aborts with `${SKILLOPT_DIR:?...}` and a message, so the
-      variable is never empty.
+      variable is never empty. The locator's own `ptk_run:` line still reaches
+      stderr first.
     - `references/` commands write `${SKILLOPT_DIR:?}`, so a skipped
       assignment fails loud and never runs `/skillopt.py`.
     - The PowerShell block is hand-written. It tries the same candidates in the
@@ -426,16 +438,20 @@ Each step is its own pull request, in order.
 7. This amendment, with debate log 4.
 8. Decisions 11 to 13 in the resolver, the recipe, and the validator. Tests
    cover fallthrough order, realpath dedupe, the stderr line, the own-root-wins
-   case, a foreign root with its own resolver, `-I` passthrough on both launch
-   paths, the `uv` form and its repo-local gate, each allowance entry with its
+   case, a foreign root with its own resolver, a stdout that carries only the
+   target's output, `-I` passthrough on both launch paths, the `uv` form and its repo-local gate, each allowance entry with its
    module blocked, and every committed locator target resolving under its own
    root with no fallthrough. No site moves.
 9. Migrate the 22 sites (15 invocations and 7 assignments under
    `templates/skills`), split `skill-bootstrap`, and add decision 14. The
-   `templates/skills` entry in `LEGACY_SITE_BASELINE` goes from (15, 7) to
-   (0, 0). The `src/claude yaml` count of 17 stays, because it is Class G. This
-   step closes issue #7281, whose 2026-11-12 status comment names these 22
-   sites as the open scope.
+   `templates/skills` entry in `LEGACY_SITE_BASELINE` goes from (15, 7) at
+   b5e05e9c6 (2026-11-14) to (0, 0). The `src/claude yaml` count of 17 at
+   b5e05e9c6 (2026-11-14) stays, because it is Class G. Prose mentions of the
+   nested form in `src/claude` and `templates/rules` run nothing and sit outside
+   that scope. The `repository-completion-proof` commands move from
+   `uv run python` to `uv run --frozen python`, so a stale lock now fails the
+   command instead of being rewritten. This step closes issue #7281, whose
+   2026-11-12 status comment names these 22 sites as the open scope.
 
 Rollback: revert step 9, then step 8. A step 8 revert is safe for every site,
 because decision 11 changes nothing when the target is under the resolver's own
@@ -448,7 +464,7 @@ root.
 | Document `env -u CLAUDE_PLUGIN_ROOT` | The owner rejected it. The failure stays and depends on every agent reading a note. |
 | Per-plugin variable name | Hosts export fixed names. The plugin cannot set its own. |
 | Render the bare token per host, no resolver | It fixes the 337 rewritable sites on Claude Code at no cost per site. It leaves `references/` and every other host on the first-set-wins form. The locator's first candidate is that same token, so the resolver contains this option and adds the probe for the rest. |
-| Inline `python3 -c` probe at each site | About 450 characters per site. It repeats validation 489 times. |
+| Inline `python3 -c` probe at each site | About 450 characters per site. It repeats validation 489 times (the 2026-11-11 count at 48b4ea4c2). |
 | Shell loop that probes the target | It repeats validation at every site and accepts a foreign file with the same name. |
 | Template token only | Skill templates reject `{{var}}`, and `references/` files are byte copies. |
 | Manifest name as the marker | `.claude/` has no manifest, and the Hermes packs use other names. |
