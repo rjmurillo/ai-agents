@@ -389,7 +389,10 @@ def test_assignment_count_equals_the_adr_git_grep_count(tmp_path: Path, which: s
     repo = _repo(tmp_path, INVENTORY_FILES) if which == "fixture" else REPO_ROOT
     rows = fix.collect_inventory(repo)
     assert sum(row.assignments for row in rows) == _grep_count(repo)
-    assert _grep_count(repo) > 0
+    if which == "fixture":
+        assert _grep_count(repo) > 0  # the comparison is not vacuous
+    else:
+        assert _grep_count(repo) == 0  # ADR-121 step 9 migrated every assignment (#7281)
 
 
 def test_a_digit_in_an_assignment_name_counts_in_the_inventory_and_the_grep(

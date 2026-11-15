@@ -31,19 +31,17 @@ Use this skill when the user says:
 ## Quick Start
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts"
-
 # System health across all tiers
-python3 "$SCRIPTS_DIR/test_memory_health.py" --format table
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/test_memory_health.py --format table; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Token cost of a memory before you retrieve it
-python3 "$SCRIPTS_DIR/count_memory_tokens.py" <memory-file>
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/count_memory_tokens.py <memory-file>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Atomicity size validation (pre-commit gate)
-python3 "$SCRIPTS_DIR/test_memory_size.py" <memory-dir> --pattern "*.md"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/test_memory_size.py <memory-dir> --pattern "*.md"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Performance benchmark (Serena lexical search, by phase)
-python3 "$SCRIPTS_DIR/measure_memory_performance.py" --format table
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/measure_memory_performance.py --format table; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 The canonical scripts live at
@@ -66,7 +64,7 @@ sub-skill delegates to them and does not reimplement any check.
 ## Health Check
 
 ```bash
-python3 "$SCRIPTS_DIR/test_memory_health.py" --format table
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/test_memory_health.py --format table; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 A healthy system reports `available: true` for each tier. Every tier is now
@@ -78,7 +76,7 @@ know which tiers are readable.
 ## Token Cost Visibility
 
 ```bash
-python3 "$SCRIPTS_DIR/count_memory_tokens.py" <memory-file>
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/count_memory_tokens.py <memory-file>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 # Output: memory-index.md: 2,450 tokens
 ```
 
@@ -90,7 +88,7 @@ the cache layout and flags.
 ## Size Validation
 
 ```bash
-python3 "$SCRIPTS_DIR/test_memory_size.py" <memory-dir> --pattern "*.md"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/test_memory_size.py <memory-dir> --pattern "*.md"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 # Exit 0 (pass) or 1 (fail) with decomposition recommendations
 ```
 
@@ -108,10 +106,10 @@ full threshold rationale.
 
 ```bash
 # Suggest cross-links to raise knowledge-graph density
-python3 "$SCRIPTS_DIR/improve_memory_graph_density.py" --dry-run
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/improve_memory_graph_density.py --dry-run; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Compute reference candidates above a similarity threshold
-python3 "$SCRIPTS_DIR/invoke_memory_cross_reference.py" --threshold 0.7
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/invoke_memory_cross_reference.py --threshold 0.7; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Density work is advisory: run it with `--dry-run` first, review the proposed
@@ -121,7 +119,7 @@ linking adds noise. Prefer a threshold that adds few, high-confidence links.
 ## Performance Benchmarking
 
 ```bash
-python3 "$SCRIPTS_DIR/measure_memory_performance.py" --format table
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/measure_memory_performance.py --format table; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 The benchmark measures Serena lexical search latency, split into its listing,

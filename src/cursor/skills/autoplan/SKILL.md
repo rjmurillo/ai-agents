@@ -193,17 +193,11 @@ coordinates specialists.
 
 When the request names no skill or command, matches no row above, and is not
 multi-domain (Precedence step 3), run the resolver before falling back to the
-orchestrator. Resolve the script from the plugin root, so it works from an
-installed plugin and from a repository checkout:
+orchestrator. The command finds the script in the plugin root, so it works
+from an installed plugin and from the root of a repository checkout:
 
 ```bash
-RESOLVER="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-$(git rev-parse --show-toplevel)/.claude}}/skills/autoplan/scripts/resolve_route.py"
-```
-
-Then run:
-
-```bash
-python3 "$RESOLVER" --request "<the user's request text>"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/autoplan/scripts/resolve_route.py --request "<the user's request text>"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Read `kind` from the JSON result and act:
@@ -288,13 +282,8 @@ Every /autoplan run ends with one summary block, not a narration stream:
 `resolve_route.py` is the deterministic long-tail resolver Phase 2b runs on
 a single-domain table miss (DESIGN-037). It reads local `SKILL.md`
 frontmatter and prints one JSON line to stdout; it opens no network
-connection and runs no subprocess. Resolve its path the same way Phase 2b
-does (`$RESOLVER` below), never as a bare relative invocation:
-
-```bash
-RESOLVER="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-$(git rev-parse --show-toplevel)/.claude}}/skills/autoplan/scripts/resolve_route.py"
-python3 "$RESOLVER" --request "audit our CLI for developer friction"
-```
+connection and runs no subprocess. Run it with the Phase 2b command, never
+as a bare relative invocation.
 
 Exit codes: `0` on any resolution, including `kind: "none"`. `2` for a
 missing skills root, a missing PyYAML module (named on stderr), or a bad

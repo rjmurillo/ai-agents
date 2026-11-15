@@ -232,6 +232,16 @@ def _cmd_score(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_where(_args: argparse.Namespace) -> int:
+    """Print the directory that holds this script, for SKILLOPT_DIR (ADR-121 decision 14).
+
+    The locator that runs this command picks the same plugin root as every other
+    skillopt command, so the printed directory is that root's, never a foreign one.
+    """
+    print(os.path.dirname(os.path.abspath(__file__)))
+    return 0
+
+
 def _cmd_hash(args: argparse.Namespace) -> int:
     if args.expect is not None and len(args.files) != 1:
         raise SkillOptError("--expect needs exactly one file")
@@ -452,6 +462,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=_cmd_hash)
 
     _add_buffer_parsers(sub)
+
+    p = sub.add_parser("where", help="print the directory that holds this script")
+    p.set_defaults(func=_cmd_where)
     return parser
 
 
