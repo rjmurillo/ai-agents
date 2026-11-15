@@ -102,11 +102,12 @@ Detection:
   offense outside a ``distribution: repo-local`` skill. Rule 2 applies to the
   extracted path as it does to a legacy operand, minus any module that
   ``GUARDED_IMPORT_ALLOWANCES`` covers for that target (decision 13); the ``uv``
-  form skips the import scan but still needs a tracked target. Rule 4 holds because the locator names both
-  variables. A locator that no longer reads back (a bad target, a missing end) is an
-  offense. A locator in shipped YAML is an offense no allowance and no declaration
-  covers: the completion gate splits commands with ``shlex`` and runs no shell, so
-  the locator would stay literal there (ADR-121 decision 1, Class G).
+  form skips the import scan but still needs a tracked target. Rule 4 holds
+  because the locator names both variables. A locator that no longer reads back
+  (a bad target, a missing end) is an offense. A locator in shipped YAML is an
+  offense no allowance and no declaration covers: the completion gate splits
+  commands with ``shlex`` and runs no shell, so the locator would stay literal
+  there (ADR-121 decision 1, Class G).
 
   **Rule 6 (legacy ratchet).** Authored files (``templates/`` and the hand-kept files
   under ``src/claude/``, including the hand-maintained ``src/claude/lib`` modules;
