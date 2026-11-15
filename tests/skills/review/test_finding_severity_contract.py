@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -21,6 +22,16 @@ import pytest
 from ai_review_common.verdict import adapt_local_axis_verdict, merge_verdicts
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
+_TESTS_SKILLS_DIR = str(Path(__file__).resolve().parents[1])
+if _TESTS_SKILLS_DIR not in sys.path:
+    sys.path.insert(0, _TESTS_SKILLS_DIR)
+
+from claude_skills_import import import_skill_script
+
+doc_accuracy = import_skill_script(
+    ".claude/skills/doc-accuracy/scripts/doc_accuracy.py",
+    module_name="severity_contract_doc_accuracy",
+)
 REVIEW = PROJECT_ROOT / ".claude" / "skills" / "review"
 SKILL = REVIEW / "SKILL.md"
 RESOURCE = REVIEW / "resources" / "finding-severity.md"
@@ -310,10 +321,88 @@ class TestScannerSeverityRows:
     def test_resource_documents_the_scanner_rule(self, resource_text: str) -> None:
         assert "## Local scanner values" in resource_text
         assert "`golden-principles` and `taste-lints`" in resource_text
-        assert "A local axis that reports only a count or a gate line" in resource_text
+        assert "A local axis with a section above takes its labels from that section" in (
+            resource_text
+        )
 
     def test_rules_name_every_value_that_can_move_the_verdict(self, resource_text: str) -> None:
-        assert "`critical`, `blocking`, and scanner `error` can fail the axis." in resource_text
+        assert (
+            "`critical`, `blocking`, scanner `error`, and a `doc-accuracy` finding at or above "
+            "the gate threshold can fail the axis." in resource_text
+        )
         assert "`high`, `non-blocking`, and scanner `warning` can make it `WARN`." in resource_text
         assert "Only `critical` and `high` move it" not in resource_text
         assert "the axis's own value" not in resource_text
+
+
+# Gate severities from least to most severe is the reverse of this order.
+_GATE_ORDER = ["critical", "high", "medium", "low"]
+
+
+def doc_accuracy_label(severity: str, threshold: str, table: dict[str, str]) -> str:
+    """Apply the resource's doc-accuracy rule: at or above the threshold is CRITICAL."""
+    if severity not in _GATE_ORDER:
+        return UNSPECIFIED
+    if _GATE_ORDER.index(severity) <= _GATE_ORDER.index(threshold):
+        return "CRITICAL"
+    return table[severity]
+
+
+def _gate(severity: str, threshold: str) -> dict[str, object]:
+    return doc_accuracy.check_gate({"findings": [{"severity": severity}]}, threshold)
+
+
+class TestDocAccuracyValues:
+    """Thread on gate findings: a label must match what the value does to the gate."""
+
+    @pytest.mark.parametrize("threshold", _GATE_ORDER)
+    @pytest.mark.parametrize("severity", [*_GATE_ORDER, "info"])
+    def test_critical_label_appears_exactly_when_the_finding_fails_the_gate(
+        self, severity: str, threshold: str, table: dict[str, str]
+    ) -> None:
+        fails = _gate(severity, threshold)["verdict"] == "FAIL"
+        label = doc_accuracy_label(severity, threshold, table)
+        assert (label == "CRITICAL") is fails, (severity, threshold, label)
+
+    def test_default_threshold_fails_on_critical_and_high_only(self) -> None:
+        failing = {s for s in [*_GATE_ORDER, "info"] if _gate(s, "high")["verdict"] == "FAIL"}
+        assert failing == {"critical", "high"}
+
+    def test_review_runs_the_gate_without_a_threshold_override(self) -> None:
+        text = SKILL.read_text(encoding="utf-8")
+        line = next(ln for ln in text.splitlines() if ln.startswith("- local axis 2:"))
+        assert "--format gate" in line
+        assert "--severity-threshold" not in line
+
+    def test_a_high_finding_fails_the_merged_review(self) -> None:
+        payload = json.dumps(
+            {
+                "gate_result": _gate("high", "high"),
+                "assessment": {"documentation_files": [{"path": "a.md"}], "changed_files": []},
+            }
+        )
+        local = adapt_local_axis_verdict("doc-accuracy", payload, 10)
+        assert local == "FAIL"
+        assert merge_verdicts([local]) == "CRITICAL_FAIL"
+
+    def test_a_medium_finding_passes_the_gate_and_stays_a_suggestion(
+        self, table: dict[str, str]
+    ) -> None:
+        gate = _gate("medium", "high")
+        assert gate["verdict"] == "PASS"
+        assert doc_accuracy_label("medium", "high", table) == "SUGGESTION"
+
+    def test_info_is_unspecified_and_never_blocks(self, table: dict[str, str]) -> None:
+        assert _gate("info", "low")["verdict"] == "PASS"
+        assert doc_accuracy_label("info", "high", table) == UNSPECIFIED
+
+    def test_resource_documents_the_doc_accuracy_rule(self, resource_text: str) -> None:
+        assert "## Doc-accuracy values" in resource_text
+        assert "A finding at or above `gate_result.threshold`" in resource_text
+        assert "`critical` and `high` render CRITICAL" in resource_text
+        assert "`medium` and `low` render SUGGESTION" in resource_text
+        assert "`info` marks a finding outside the diff" in resource_text
+
+    def test_local_axis_without_a_section_stays_unspecified(self, resource_text: str) -> None:
+        assert "`code-qualities-assessment`" in resource_text
+        assert "A local finding with a value the tables list takes that label" not in resource_text
