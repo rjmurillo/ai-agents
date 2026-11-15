@@ -103,7 +103,10 @@ def _names_file(text: str, name: str) -> bool:
         before = text[start - 1] if start else ""
         end = start + len(name)
         after = text[end] if end < len(text) else ""
-        if not (before.isalnum() or before in "_.-") and not (after.isalnum() or after in "_-"):
+        # An empty neighbor is a text boundary; `"" in "_.-"` is True, so test it first.
+        before_ok = not before or not (before.isalnum() or before in "_.-")
+        after_ok = not after or not (after.isalnum() or after in "_-")
+        if before_ok and after_ok:
             return True
         start = text.find(name, start + 1)
     return False

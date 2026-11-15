@@ -414,6 +414,8 @@ class TestReviewedEdgeCases:
     ("body", "status"),
     [
         ("Run `scripts/run.py`.\n", "PASS"),
+        ("run.py", "PASS"),
+        ("Use run.py", "PASS"),
         ("Run run.py.\n", "PASS"),
         ("Run `run.py-old`.\n", "WARN"),
         ("Run `run.pyc`.\n", "WARN"),
