@@ -9,6 +9,10 @@ Output (next to report.json):
 
 Python 3.10+, stdlib only. Uses system fonts so the page and the exported PNG
 render the same everywhere.
+
+Exit codes: 0 report.html was written; 1 report.json has no numeric
+scores.overall or makes an unsupported claim; 2 bad arguments, or report.json
+is unreadable or not JSON.
 """
 
 import argparse

@@ -107,8 +107,11 @@ requirement; link it instead of copying it. The tests requirement applies only
 to a script you add. Prose covers what no program can carry: the reason, the
 history, and where the script's answer stops being the whole answer. Reject a
 draft that asks the model to count, look up, compare, or list what a script
-could. Scripts follow the project's language and exit-code
-conventions, print the examined count, and stay read-only unless the skill's
+could. Write and test each script by the `skillforge` skill's
+`references/script-design-rules.md`: the shared exit codes (0 ok, 1 logic,
+2 usage or configuration, 3 external, 4 auth), `main(argv)` returning the
+code, and tests in the repository's test tree, never in the skill directory.
+Scripts also print the examined count and stay read-only unless the skill's
 outcome is a write.
 
 The rejected alternative is "add a script only for repeated deterministic
