@@ -88,8 +88,28 @@ def scripts_listed(doc: SkillDoc) -> list[str]:
     return [
         f"{path.name} (scripts directory) is not named in SKILL.md"
         for path in scripts
-        if not re.search(rf"(?<![\w.-]){re.escape(path.name)}(?![\w-])", body)
+        if not _names_file(body, path.name)
     ]
+
+
+def _names_file(text: str, name: str) -> bool:
+    """True when name appears as a whole file name, not inside a longer one.
+
+    `run.py` matches `scripts/run.py` and `run.py.` but not `overrun.py` or
+    `run.pyc`.
+    """
+    start = text.find(name)
+    while start != -1:
+        before = text[start - 1] if start else ""
+        end = start + len(name)
+        after = text[end] if end < len(text) else ""
+        # An empty neighbor is a text boundary; `"" in "_.-"` is True, so test it first.
+        before_ok = not before or not (before.isalnum() or before in "_.-")
+        after_ok = not after or not (after.isalnum() or after in "_-")
+        if before_ok and after_ok:
+            return True
+        start = text.find(name, start + 1)
+    return False
 
 
 def _read(path: Path) -> str | None:
