@@ -123,6 +123,11 @@ EXPLICIT_IMPROVE_PATTERNS = [
     r"\b(?:add|include)\s+(?:to|in)\s+(?:the\s+)?\w+\s+skill\b",
 ]
 
+# Captures the skill name an improve request names, hyphens included.
+IMPROVE_SKILL_NAME_PATTERN = re.compile(
+    rf"{IMPROVE_VERBS}\s+(?:{DETERMINERS}\s+)?({SKILL_NAME})\s+skill"
+)
+
 SKILL_QUESTION_PATTERNS = [
     r"\bdo\s+(?:i|we)\s+have\s+(?:a\s+)?skill\b",
     r"\bwhich\s+skill\b",
@@ -176,9 +181,7 @@ def _explicit_create(query_lower: str, signals: dict[str, Any]) -> tuple[str, di
 
 def _explicit_improve(query_lower: str, signals: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     """Build the EXPLICIT_IMPROVE result, naming the skill when the request does."""
-    skill_match = re.search(
-        rf"{IMPROVE_VERBS}\s+(?:{DETERMINERS}\s+)?({SKILL_NAME})\s+skill", query_lower
-    )
+    skill_match = IMPROVE_SKILL_NAME_PATTERN.search(query_lower)
     if skill_match and skill_match.group(1) not in _DETERMINER_WORDS:
         signals["mentioned_skill_name"] = skill_match.group(1)
     return InputCategory.EXPLICIT_IMPROVE, signals
