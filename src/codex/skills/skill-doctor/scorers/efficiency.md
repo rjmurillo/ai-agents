@@ -29,6 +29,7 @@ Assess:
 - **Routine-step overhead.** A roundabout way of doing something that's a standard, repeated part of this agent's job - more steps, more calls, or a broader operation than the step needs - when a more direct path was available. Weight this beyond its one-run cost: the same avoidable overhead recurs on every future conversation until a skill or rule fixes the pattern.
 - **Batching.** Independent reads, searches, or workstreams run serially across turns instead of together.
 - **Flailing.** Retrying a failing approach unchanged, or guessing when reading the code or docs would have settled it. An abandoned path only counts against the agent when the information to avoid it was already available.
+- **Skill-induced waste.** Steps a loaded skill caused: following an instruction that did not apply to this task, trying several approaches in turn because the skill listed options with no default, or rewriting helper logic the skill could have bundled as a script. Name the skill and the instruction in the reason.
 - **Verification timing.** Checks run once, early enough to catch a defect before declaring done, not deferred until after or re-run redundantly.
 
 ## Reason

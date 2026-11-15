@@ -66,6 +66,9 @@ A script that writes a file, calls a mutating API, or deletes anything also:
   4; the repository's python3 entry-point check governs entry points).
   A PEP 723 `# /// script` block with `uv run` would change that runtime
   contract, so a shipped script does not carry one.
+  *Deliberate deviation from upstream:* agentskills.io recommends PEP 723
+  inline dependencies for self-contained scripts. This repository bans them
+  for the runtime-contract reason above.
 - **Guard an optional third-party import.** Import it inside the function that
   needs it, catch `ImportError`, print the package name and the install command
   on stderr, and exit non-zero. Never let a bare traceback be the message.
@@ -73,6 +76,18 @@ A script that writes a file, calls a mutating API, or deletes anything also:
   `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/<name>/<script path>"`.
   Do not write a bare relative path; it resolves only when the working
   directory happens to match.
+  *Deliberate deviation from upstream:* agentskills.io writes script paths
+  relative to the skill root. This repository uses the plugin-root locator
+  because the agent's working directory is not the skill root.
+
+## One-off commands
+
+An existing package can run without a bundled script. Use `uvx`, `pipx run`,
+`npx`, `bunx`, `deno run`, or `go run`. Pin the version, as in
+`uvx ruff@0.8.0 check .`, so a run does not change under you. State the
+prerequisite (the runner and any network need) in `SKILL.md`, and in the
+`compatibility` frontmatter field when it is an environment-level need. When the
+command grows complex, move it into a bundled script and apply the rules above.
 
 ## Listing the scripts
 

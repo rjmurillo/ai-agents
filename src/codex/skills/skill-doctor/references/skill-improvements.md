@@ -7,10 +7,14 @@ Skill-doctor never starts either one, and never applies an edit.
 
 ## Method
 
-1. Cluster the findings from `failed_conversations` by root cause, across scorers and classifications.
+1. Cluster the findings from `failed_conversations` by root cause, across scorers and classifications. Passing conversations add `Cut:` candidates only: an instruction that did not apply, a skill that loaded and went unused, or steps a skill caused that the run still wasted.
 2. Verify each finding against the current repository and the agent's configuration. A finding that does not verify is not observed; record it under missing evidence instead of as a fact.
-3. For each verified finding, state the candidate mechanism: the behavioral rule, the owning surface, and the smallest change that expresses it. Prefer **replacing** existing guidance over **appending** another paragraph.
+3. For each verified finding, state the candidate mechanism: the behavioral rule, the owning surface, and the smallest change that expresses it. Prefer **replacing** existing guidance over **appending** another paragraph. Before you add an instruction, check whether removing or tightening an existing one fixes the finding: instructions that do not apply, and menus with no default, cause wasted steps.
+   A user correction in a failed conversation maps to a `## Gotchas` entry in the target `SKILL.md`: an environment-specific fact that defies a reasonable assumption.
 4. Rank candidates by frequency times severity. Ranking orders the list. It never removes a candidate from it.
+5. Before you write a proposed `SKILL.md`, check it against the agentskills.io specification (<https://agentskills.io/specification>). `name`: 1-64 lowercase letters, digits, and hyphens, no leading, trailing, or consecutive hyphens, equal to the directory name. `description`: 1-1024 characters, saying what the skill does and when to use it. Body: under 500 lines and about 5,000 tokens. File references: relative, one level deep from `SKILL.md`. A draft that breaks a limit gets fixed before it is written. For authoring rules beyond these limits, cite the `skillforge` skill's `references/skill-content-rules.md`.
+
+Sources: <https://agentskills.io/skill-creation/best-practices> (gotchas, refine with real execution).
 
 ## What every supported finding produces
 

@@ -1,8 +1,9 @@
 ---
 name: skillopt
 version: 1.0.0
-description: Improve a skill, agent file, or prompt through bounded patches and a held-out, per-task acceptance gate. Use when you say `optimize this skill`, `make this skill better`, `compress these skills safely`, `tune this prompt against an eval`, or a skill keeps failing the same way. Refuses unscored improvement claims. Do NOT use to create or route skills (use skillforge) or to decide skill placement or compress markdown without an eval (use context-optimizer).
+description: Improve a skill, agent file, or prompt through bounded patches and a held-out, per-task acceptance gate. Use when you say `optimize this skill`, `make this skill better`, `compress these skills safely`, `tune this prompt against an eval`, or a skill keeps failing the same way. Do NOT use to create or route skills (use skillforge) or to decide skill placement or compress markdown without an eval (use context-optimizer).
 license: MIT
+compatibility: "Requires python3 (standard library only) and a harness that can run separate agent contexts for held-out scoring."
 user-invocable: true
 ---
 
@@ -166,6 +167,15 @@ One optimization step:
 3. **Reflect.** Failures become corrective rules; successes become behaviors
    to preserve. Write at most L_t patches to `patches.json`. Use only `train`
    evidence.
+   - Read the train failures with their execution traces and any train-split
+     reviewer notes, not only the final outputs. A trace shows why an
+     instruction was ignored.
+   - Keep the skill lean. When traces show wasted work from an instruction, or
+     the gate plateaus, propose `delete` patches that remove instructions, not
+     only additions.
+   - When train rollouts each write similar helper code, propose bundling it as
+     a script in the skill's scripts directory. That changes the bundle hash, so hash the final
+     candidate directory.
 4. **Buffer check.** `skillopt.py buffer-check --buffer rejected.jsonl
    --patches patches.json`. Exit 0 prints `KNOWN-BAD`: discard and reflect
    again. Exit 1 prints `NOVEL`: proceed.
@@ -245,6 +255,7 @@ semantic regression, because `pair-gate` rejects any regression.
    pair report, hashes, `rejected.jsonl`, and one line of evidence per task.
    `skillopt.py report` lays out the evidence, benchmark spread, and case
    signals (`references/eval-set-format.md`, Run report). It explains, never gates.
+   Act on a signal with `references/eval-authoring.md`.
 
 ## Promotion
 
@@ -276,25 +287,12 @@ Contract: `references/slow-section-convention.md`.
 ## Finding targets from sessions
 
 `mine_sessions.py` ranks skills by usage and a weak correction signal from
-local transcripts, and pulls the prompts that triggered a skill:
-
-- `sources` lists each supported source and whether it is available.
-- `rank`, `tasks --skill X`, `collect --out PATH`, `merge`.
-- `--patterns patterns.json` reads a `session-patterns/1` handoff instead of
-  transcripts.
-
-Supported sources: Claude Code transcripts (`~/.claude/projects/**/*.jsonl`)
-and the GitHub Copilot CLI session store (`~/.copilot/session-store.db`),
-both resolved from the user's home directory on Linux, macOS, and Windows.
-Any other harness is unsupported; supply a `session-patterns/1` file
-instead. A missing source is skipped, never an error; `sources` shows which
-ones were found, and a run with no source at all prints a note to stderr. Session
-data stays local; keep extracted prompts out of git unless the user names
-another destination.
-
-A correction nominates a candidate. It is not a gold label. Confirm the
-defect in the target and in two distinct sessions before funding rollouts.
-Workflow: `references/cross-machine-mining.md`.
+local transcripts, and pulls the prompts that triggered a skill. Read
+`references/cross-machine-mining.md` for its subcommands, supported sources,
+and the `session-patterns/1` handoff before you run it. A correction nominates
+a candidate. It is not a gold label. Confirm the defect in the target and in
+two distinct sessions before funding rollouts. Session data stays local; keep
+extracted prompts out of git unless the user names another destination.
 
 ## Description changes
 
@@ -314,6 +312,10 @@ score to make the gate pass.
 
 A harness that cannot run a separate `sel` runner must not run skillopt at
 all, not even to flag. See Precondition 4.
+
+SkillOpt compares incumbent against candidate. It never measures skill against
+no skill. That baseline lives in `skill-bootstrap`'s `bootstrap_eval.py score`.
+Design reference: <https://agentskills.io/skill-creation/evaluating-skills>.
 
 ## Anti-Patterns
 
@@ -353,6 +355,8 @@ class-level guidance; do not add an incident-named reference.
 ## References
 
 - `references/eval-set-format.md`: eval manifest, patch, and results schemas.
+- `references/eval-authoring.md`: read when you draft tasks and verifiers, lay
+  out a step's artifacts, or act on a report signal.
 - `references/description-optimization.md`: trigger-rate eval for `description` edits.
 - `references/rollout-validity.md`: preflight, grading, and audit rules for rollouts.
 - `references/target-selection.md`: defect confirmation, split timing, anchors, cohorts.

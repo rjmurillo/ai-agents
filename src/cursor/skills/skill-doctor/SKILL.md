@@ -1,6 +1,6 @@
 ---
 name: "skill-doctor"
-description: "Use for `diagnose skill usage`, `grade my agent setup`, or `run skill-doctor`. Do NOT use for skill creation (use skill-bootstrap) or tuning (use skillopt)."
+description: "Score how installed skills performed in recent local agent sessions and draft evidence-backed skill edits. Use when you say `diagnose skill usage`, `grade my agent setup`, or `run skill-doctor`, or ask why a skill did not fire or keeps failing. Do NOT use for skill creation (use skill-bootstrap) or tuning (use skillopt)."
 metadata:
   routing:
     role: front-door
@@ -162,20 +162,7 @@ python (Join-Path $SKILL_ROOT 'scripts\collect_sessions.py') `
 
 Replace the scope arguments with the user's choices before execution.
 
-Useful flags:
-
-- `--harness VALUE` - which local session sources to scan; use the reference's collector IDs.
-- `--repo PATH` - include a project and its registered worktrees; repeatable.
-- `--no-worktrees` - grade only the listed paths.
-- `--all-conversations` - do not filter conversations by project.
-- `--include-global-skills` - also grade global skills.
-- `--days N` - lookback window (default 45).
-- `--max-sessions N` - cap on sampled sessions across all harnesses (default 12).
-- `--skills-dir PATH` - nonstandard skill locations.
-- `--include-subagents` - include child or sidechain sessions.
-- `--min-idle-minutes N` - skip sessions active within the last N minutes (default 15; 0 keeps every session).
-- `--timeline-supplement N` - add up to N no-skill sessions spaced across the window, tagged as their own stratum. The sample stays non-probability; the inventory says so.
-- `--audit-manifest` - also write `audit_manifest.json`: declared inputs and caps, source revision, upstream identity evidence, scope, and the content-aware skill catalog. It exits 1 and writes no manifest when the evidence contradicts the declared scope.
+Read `$SKILL_ROOT/references/collection.md` (Collector flags) before you change a collector default.
 
 Read `$REPORT_DIR/inventory.json`, including `collection_status` and `collection_issues`.
 State `scope_resolution` in the report: included roots with their session counts, rejected roots with reasons, and that clone discovery is unsupported.
@@ -194,23 +181,9 @@ Recommend creation only when a failed conversation demonstrates a capability gap
 
 #### Sampling disclosure
 
-The collector splits the `--max-sessions` cap across harnesses, so one harness cannot take the whole sample. The deterministic rule, also stored as `sampling.rule` in `inventory.json`:
+Read `$SKILL_ROOT/references/collection.md` (Sampling disclosure) before you write the sampling part of the report. It holds the deterministic per-harness rule, the `inventory.json` fields to report for each harness, the wording to use when the cap prevented full harness coverage, and the skill-bootstrap seed handoff.
 
-Harnesses with scoreable sessions are ranked by scoreable count (descending), then by harness name (ascending). The --max-sessions cap is dealt one slot at a time to that ranking, round-robin, and a harness never receives more slots than it has scoreable sessions. When the cap is lower than the number of harnesses, only the first harnesses in the ranking receive a slot. A harness with no scoreable session takes no slot.
-
-Inside each harness, sessions that used an installed skill are taken first, newest first, until each skill has --per-skill sessions. Remaining slots go to sessions that used no skill, newest first, up to --no-skill. This is skill-first selection: it favors sessions that exercise skills, so per-harness grades describe that slice, not the harness as a whole. The --per-skill and --no-skill caps apply within each harness, and a quota the caps cannot fill is left unused.
-
-Read `stats.per_harness` and `sampling` in `inventory.json`. Each harness entry holds `scoreable` (candidates), `skill_candidates`, `quota`, `sampled`, and `sampled_with_skills`. Report candidate and sampled counts for every harness separately.
-When `sampling.harness_coverage_complete` is false, state in the report that the cap prevented full harness coverage. Name each entry of `sampling.omitted_harnesses` with its `scoreable` count, and quote `sampling.notice`.
-Disclose that selection is skill-first within each harness. Harness balance alone does not make the sample representative.
-
-When the run covered exactly one repository (`conversation_scope` is `projects` and `repos` has one entry), you can pass the inventory to `skill-bootstrap` as an initial candidate seed. Bootstrap rejects all-conversations and multi-project inventories.
-In a bootstrap child run, return it to the caller instead of starting another run.
-Its discovery miner also accepts offline hosted PR, issue, and work-item observations.
-Use deterministic inventory counters, not the qualitative grades from Step 2.
-Read skill-bootstrap's friction-input reference for its import contract.
-Bootstrap owns verification, authoring, and evaluation; a seed grants none of those outcomes.
-Keep this handoff separate from the report's failed-conversation scoring.
+When the run covered exactly one repository, you can pass the inventory to `skill-bootstrap` as a candidate seed under that handoff contract. In a bootstrap child run, return it to the caller instead of starting another run.
 
 ### Step 2: Score each sampled transcript
 
@@ -250,16 +223,16 @@ For each harness in `stats.per_harness` that has scored sessions, also compute t
 These upstream weights reward skill adoption independently of accepted outcomes.
 Skill coverage does not prove that skills improved those outcomes.
 
-Then, define `failed_conversations` from each conversation's raw, uncurved scorer results. A conversation fails when at least one applicable efficiency, code-quality, procedure-compliance, or verbosity score is below `0.5`. An `insufficient_evidence` result does not make a conversation fail. A failure caused only by provider termination does not count: when a session's `stats.terminated_by` is set (for example `usage_limit_exceeded`, `server_overloaded`, or `usage_limit_reached`), the transcript ends at a provider cutoff, so a missing final report or terse ending there is not an agent defect. Leave such a conversation out of `failed_conversations` unless it also fails a score on evidence from before the cutoff, and state how many were left out in the findings. Use only `failed_conversations` as evidence for skill-improvement suggestions and draft skill edits.
+Then, define `failed_conversations` from each conversation's raw, uncurved scorer results. A conversation fails when at least one applicable efficiency, code-quality, procedure-compliance, or verbosity score is below `0.5`. An `insufficient_evidence` result does not make a conversation fail. A failure caused only by provider termination does not count: when a session's `stats.terminated_by` is set (for example `usage_limit_exceeded`, `server_overloaded`, or `usage_limit_reached`), the transcript ends at a provider cutoff, so a missing final report or terse ending there is not an agent defect. Leave such a conversation out of `failed_conversations` unless it also fails a score on evidence from before the cutoff, and state how many were left out in the findings. Use `failed_conversations` as the evidence for corrective suggestions and draft skill edits. A passing conversation can support only a cut: an instruction that did not apply, a skill that loaded unused, or steps a skill wasted. Start that candidate's `change` text with `Cut:` and cite the passing session. Source: <https://agentskills.io/skill-creation/best-practices> (read all traces, not only failures).
 
 Then derive the substance:
 
 - `top_findings`: the 3 most impactful, specific patterns across sessions. These lead the report and the spoken summary. Make each summary concrete and concise, following the STE-100 standard.
-- `suggestions`: one candidate per supported finding, ranked by frequency times severity. Each names a skill (existing or proposed-new) or a tooling owner and a specific change: a trigger-description fix so it fires when it should, a missing step or check, a command to encode, a new skill to create. Suggestions must trace back to observed waste or defects in `failed_conversations`, not generic best practices - cite the failed session, scorer, and moment that motivated each one. An installed skill that never triggered in a failed conversation is usually a description problem and worth a suggestion of its own. No static change bar suppresses a candidate; when evidence is too thin to name one, record what is missing.
+- `suggestions`: one candidate per supported finding, ranked by frequency times severity. Each names a skill (existing or proposed-new) or a tooling owner and a specific change: a trigger-description fix so it fires when it should, a missing step or check, a command to encode, a new skill to create. Suggestions must trace back to observed waste or defects in `failed_conversations` (or, for a `Cut:` candidate, in a cited passing conversation), not generic best practices - cite the failed session, scorer, and moment that motivated each one. An installed skill that never triggered in a failed conversation is usually a description problem and worth a suggestion of its own. No static change bar suppresses a candidate; when evidence is too thin to name one, record what is missing.
 
 ### Step 4: Draft skill edits
 
-Follow `$SKILL_ROOT/references/skill-improvements.md` to propose improvements to project skills based only on `failed_conversations`.
+Follow `$SKILL_ROOT/references/skill-improvements.md` to propose improvements to project skills based on `failed_conversations`, plus `Cut:` candidates from passing conversations.
 
 Every candidate keeps `status: "unevaluated"`. Static diagnosis cannot measure whether a change helps.
 Do not start skillopt or skillforge, and do not edit installed skill files. Drafts under `$REPORT_DIR/proposed/` are diagnosis output, not edits. The report supplies the handoff prompts; the user chooses the next action.
@@ -275,57 +248,9 @@ Do not modify the user's real skill files in this step.
 
 ### Step 5: Write report.json and render
 
-Write `$REPORT_DIR/report.json` in this shape. `assemble_report.py` fills `scores` with the curved dimension values, literal `skill_coverage`, and weighted `overall`; the raw rubric means never go there.
+Write `$REPORT_DIR/report.json` in the shape in `references/report-schema.md`. `assemble_report.py` fills `scores` with the curved dimension values, literal `skill_coverage`, and weighted `overall`; the raw rubric means never go there.
 
-```json
-{
-  "title": "Agent Skill Report",
-  "generated_at": "<ISO timestamp>",
-  "harness": "<harness from inventory.json>",
-  "handle": "<repo_name from inventory.json>",
-  "stats": {
-    "sessions_analyzed": 0, "sessions_scanned": 0,
-    "skills_found": 0, "skills_used": 0, "window_days": 45
-  },
-  "sampling": {
-    "harness_coverage_complete": true,
-    "notice": null,
-    "per_harness": {
-      "<harness>": {"scoreable": 0, "skill_candidates": 0, "sampled": 0}
-    }
-  },
-  "scores": {
-    "efficiency": 0.0,
-    "code_quality": 0.0,
-    "procedure_compliance": 0.0,
-    "verbosity": 0.0,
-    "skill_coverage": 0.0,
-    "overall": 0.0
-  },
-  "top_findings": ["", "", ""],
-  "suggestions": [
-    {
-      "skill": "",
-      "status": "unevaluated",
-      "owner": "skill | new-skill | tooling",
-      "owner_target": "<tooling owner, only when owner is tooling>",
-      "target": "<exact skill path, or empty when variants are unresolved>",
-      "variants": [{"path": "", "sha256": ""}],
-      "change": "<one-sentence summary of the edit>",
-      "evidence": "<observed fact: which session(s), scorer, and what happened>",
-      "mechanism": "<hypothesis: the behavioral change and why it may help>",
-      "expected_improvement": "<unmeasured expected behavior change>",
-      "reproduction": "<smallest useful reproduction>",
-      "acceptance_checks": ["<check skillopt can score>"],
-      "risks": ["<known risk or counterexample>"],
-      "missing_evidence": ["<what the transcripts do not show>"],
-      "proposed_path": "<path under proposed/, if an edit was drafted>",
-      "diff": "<unified diff, or full content for a new skill>"
-    }
-  ],
-  "evaluation": {"diagnosis": "static", "optimization": "not_run"}
-}
-```
+Read `$SKILL_ROOT/references/report-schema.md` for the full field list before you write the file.
 
 Copy `harness_coverage_complete`, `notice`, and each harness's `scoreable`, `skill_candidates`, and `sampled` from `inventory.json`.
 Write it without numbers, then run `assemble_report.py` per `$SKILL_ROOT/references/audit-workflow.md` to fill `scores`, `sessions_analyzed`, per-harness `overall`, and `audit`. That reference covers the shareable export too.
@@ -362,7 +287,7 @@ The report carries no vendor branding. The fork's MIT attribution remains in `LI
 
 - [ ] `inventory.json` reflects the chosen projects, sources, and skill scope.
 - [ ] The report states per-harness candidate and sampled counts, and says when the cap prevented full harness coverage.
-- [ ] Each proposed edit cites a failed conversation and its scorer evidence.
+- [ ] Each proposed edit cites a failed conversation and its scorer evidence; a `Cut:` candidate cites the passing conversation instead.
 - [ ] Every candidate is `unevaluated` and carries both handoff prompts; nothing started skillopt or skillforge.
 - [ ] The spoken summary repeats the renderer's `evaluation:` line.
 - [ ] `report.html` exists and displays scores and proposed edits.

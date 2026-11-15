@@ -118,8 +118,10 @@ def test_context_optimizer_stage_precedes_skillopt_in_process() -> None:
 
 
 def test_skill_md_documents_exit_codes_in_a_table_with_one_row_per_script() -> None:
-    assert "Exit code 0 means success and exit code 1 means findings" in _skill_md()
-    assert "references/scripts.md" in _skill_md()
+    skill_md = _skill_md()
+    assert "Exit code 0 means success and exit code 1 means findings" in skill_md
+    assert "references/scripts.md" in skill_md
+    # The per-script table lives in the reference SKILL.md points to.
     text = (_skill_dir(".claude") / "references" / "scripts.md").read_text(encoding="utf-8")
     header = "| Script | Exit 2: configuration | Exit 3: external |"
     assert header in text

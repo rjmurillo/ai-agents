@@ -18,6 +18,7 @@ guard). Pass --root DIR to opt in to a different trusted root, for example
 """
 
 import os
+import posixpath
 import re
 import sys
 from pathlib import Path
@@ -31,6 +32,68 @@ try:
 except ImportError:
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     from _path_guard import contained_realpath, is_within, parse_args, resolve_root
+
+
+# Markdown inline link or image target: [text](target) or [text](target "title").
+_LINK_TARGET_REGEX = re.compile(r"!?\[[^\]]*\]\(\s*<?([^)\s>]+)>?(?:\s+[\"'][^\"']*[\"'])?\s*\)")
+# Fenced code block delimiters (backtick or tilde fences).
+_FENCE_REGEX = re.compile(r"^\s*(```|~~~)")
+
+
+def _unquote_scalar(value: str) -> str:
+    """Strip matching YAML quotes from a plain one-line scalar.
+
+    The agentskills.io guidance asks authors to quote values that contain a
+    colon, so the fallback parser must read ``name: "x"`` as ``x``.
+    """
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+        inner = value[1:-1]
+        return inner.replace('\\"', '"') if value[0] == '"' else inner.replace("''", "'")
+    return value
+
+
+def split_allowed_tools(value: str) -> list[str]:
+    """Split an allowed-tools string on commas and whitespace outside parentheses.
+
+    The agentskills.io specification uses a space-separated string such as
+    ``Bash(git:*) Bash(jq:*) Read``. Comma-separated strings stay supported.
+    Whitespace inside parentheses is kept so ``Bash(git log:*)`` is one token.
+    """
+    tokens: list[str] = []
+    current: list[str] = []
+    depth = 0
+    for char in value:
+        if char == "(":
+            depth += 1
+        elif char == ")" and depth > 0:
+            depth -= 1
+        if depth == 0 and (char == "," or char.isspace()):
+            if current:
+                tokens.append("".join(current))
+                current = []
+            continue
+        current.append(char)
+    if current:
+        tokens.append("".join(current))
+    return tokens
+
+
+def _strip_fenced_code(content: str) -> str:
+    """Return content with fenced code block lines removed."""
+    kept: list[str] = []
+    fence: str | None = None
+    for line in content.split("\n"):
+        match = _FENCE_REGEX.match(line)
+        if match:
+            marker = match.group(1)
+            if fence is None:
+                fence = marker
+            elif fence == marker:
+                fence = None
+            continue
+        if fence is None:
+            kept.append(line)
+    return "\n".join(kept)
 
 
 class SkillValidator:
@@ -126,6 +189,9 @@ class SkillValidator:
         is_literal = False  # Track literal scalar (|)
 
         for line in lines:
+            # A YAML comment line is not a key.
+            if line.startswith("#"):
+                continue
             # Check for top-level key
             if ":" in line and not line.startswith(" ") and not line.startswith("\t"):
                 # Save previous key if exists
@@ -148,7 +214,7 @@ class SkillValidator:
                 else:
                     is_folded = False
                     is_literal = False
-                    self.frontmatter[current_key] = value
+                    self.frontmatter[current_key] = _unquote_scalar(value)
                     current_value_lines = []
 
             elif (is_folded or is_literal) and (line.startswith("  ") or line.startswith("\t")):
@@ -193,6 +259,7 @@ class SkillValidator:
         try:
             from _constants import (
                 ALLOWED_PROPERTIES,
+                COMPATIBILITY_MAX_LENGTH,
                 DESCRIPTION_MAX_LENGTH,
                 NAME_MAX_LENGTH,
                 NAME_REGEX,
@@ -207,6 +274,7 @@ class SkillValidator:
                 "description",
                 "license",
                 "allowed-tools",
+                "compatibility",
                 "metadata",
                 "model",
                 "context",
@@ -222,8 +290,9 @@ class SkillValidator:
             VALID_AGENT_TYPES = {"Explore", "Plan", "general-purpose"}  # noqa: N806
             NAME_MAX_LENGTH = 64  # noqa: N806
             DESCRIPTION_MAX_LENGTH = 1024  # noqa: N806
+            COMPATIBILITY_MAX_LENGTH = 500  # noqa: N806
             SEMVER_REGEX = r"^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$"  # noqa: N806
-            NAME_REGEX = r"^[a-z][a-z0-9-]*[a-z0-9]$|^[a-z]$"  # noqa: N806
+            NAME_REGEX = r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"  # noqa: N806
 
         # Check required fields
         for field in REQUIRED_PROPERTIES:
@@ -258,8 +327,8 @@ class SkillValidator:
             self.check(
                 "frontmatter.name.format",
                 re.match(NAME_REGEX, name) and "--" not in name,
-                "Skill name should be hyphen-case "
-                f"(start with letter, no consecutive hyphens): {name}",
+                "Skill name should be hyphen-case (lowercase letters, digits, hyphens; "
+                f"no leading, trailing, or consecutive hyphens): {name}",
             )
             self.check(
                 "frontmatter.name.length",
@@ -288,13 +357,18 @@ class SkillValidator:
                 "frontmatter.description.length",
                 len(desc) <= DESCRIPTION_MAX_LENGTH,
                 f"Description too long ({len(desc)} chars, max {DESCRIPTION_MAX_LENGTH})",
-                warning=True,
             )
             word_count = len(desc.split())
             self.check(
                 "frontmatter.description.word_count",
                 word_count >= 5,
                 f"Description too short ({word_count} words, minimum 5)",
+            )
+
+        # Validate compatibility (agentskills.io spec: optional string, 1-500 chars)
+        if "compatibility" in self.frontmatter:
+            self._validate_compatibility(
+                self.frontmatter["compatibility"], COMPATIBILITY_MAX_LENGTH
             )
 
         # Validate version format (top-level or in metadata)
@@ -359,6 +433,28 @@ class SkillValidator:
         # Validate hooks field
         self.validate_hooks()
 
+    def _validate_compatibility(self, value: Any, max_length: int) -> None:
+        """Validate the optional compatibility field."""
+        is_string = isinstance(value, str)
+        self.check(
+            "frontmatter.compatibility.type",
+            is_string,
+            f"compatibility must be a string (got {type(value).__name__})",
+        )
+        if not is_string:
+            return
+        text = value.strip()
+        self.check(
+            "frontmatter.compatibility.non_empty",
+            bool(text),
+            "compatibility must not be empty (1-500 chars)",
+        )
+        self.check(
+            "frontmatter.compatibility.length",
+            len(text) <= max_length,
+            f"compatibility too long ({len(text)} chars, max {max_length})",
+        )
+
     def validate_allowed_tools(self):
         """Validate allowed-tools field if present."""
         if "allowed-tools" not in self.frontmatter:
@@ -366,9 +462,9 @@ class SkillValidator:
 
         tools_value = self.frontmatter["allowed-tools"]
 
-        # Parse as list or comma-separated string
+        # Parse as space-separated string (spec), comma-separated string, or YAML list
         if isinstance(tools_value, str):
-            tools = [t.strip() for t in tools_value.split(",")]
+            tools = split_allowed_tools(tools_value)
         elif isinstance(tools_value, list):
             tools = [str(t) for t in tools_value]
         else:
@@ -399,7 +495,8 @@ class SkillValidator:
             }
 
         # Check for unknown tools (warning only - custom tools may exist)
-        unknown_tools = [t for t in tools if t not in KNOWN_TOOLS]
+        # A scoped entry such as Bash(git:*) is checked by its base tool name.
+        unknown_tools = [t for t in tools if t.split("(", 1)[0] not in KNOWN_TOOLS]
         if unknown_tools:
             self.check(
                 "frontmatter.allowed-tools.values",
@@ -624,6 +721,32 @@ class SkillValidator:
             warning=True,
         )
 
+        self.validate_body_token_budget()
+
+    def validate_body_token_budget(self):
+        """Warn when the SKILL.md body likely exceeds the 5,000-token budget.
+
+        agentskills.io specification, progressive disclosure: the full body
+        loads on activation, so keep it under about 5,000 tokens and move
+        detail to references/. Tokens are estimated as characters / 4.
+        """
+        try:
+            from _constants import BODY_TOKEN_BUDGET, CHARS_PER_TOKEN_ESTIMATE
+        except ImportError:
+            BODY_TOKEN_BUDGET = 5000  # noqa: N806
+            CHARS_PER_TOKEN_ESTIMATE = 4  # noqa: N806
+        match = re.match(r"---\r?\n.*?\r?\n---\r?\n?", self.content, re.DOTALL)
+        body = self.content[match.end() :] if match else self.content
+        estimate = len(body) // CHARS_PER_TOKEN_ESTIMATE
+        self.check(
+            "structure.body_token_budget",
+            estimate <= BODY_TOKEN_BUDGET,
+            f"SKILL.md body is about {estimate} tokens (characters / "
+            f"{CHARS_PER_TOKEN_ESTIMATE}); keep it under {BODY_TOKEN_BUDGET} and "
+            "move detail to references/",
+            warning=True,
+        )
+
     def _subdirectory_contained(self, dir_path: Path, label: str) -> bool:
         """Return False, recording one error, when a skill subdirectory escapes the root.
 
@@ -657,6 +780,39 @@ class SkillValidator:
                 "Complex skill (>200 lines) should have references/ directory",
                 warning=True,
             )
+
+    def validate_reference_depth(self):
+        """Warn on SKILL.md links nested deeper than one level or escaping the skill root.
+
+        agentskills.io specification: keep file references one level deep from
+        SKILL.md. Relative links only; http(s), mailto, anchors, absolute paths,
+        and links inside fenced code blocks are ignored.
+        """
+        body = _strip_fenced_code(self.content)
+        seen: set[str] = set()
+        for raw_target in _LINK_TARGET_REGEX.findall(body):
+            target = raw_target.split("#", 1)[0].split("?", 1)[0]
+            if not target or target in seen:
+                continue
+            if "://" in target or target.startswith(("/", "mailto:")):
+                continue
+            seen.add(target)
+            normalized = posixpath.normpath(target)
+            if normalized == ".." or normalized.startswith("../"):
+                self.check(
+                    f"references.escape.{target}",
+                    False,
+                    f"SKILL.md link escapes the skill root: {target}",
+                    warning=True,
+                )
+                continue
+            if len(normalized.split("/")) > 2:
+                self.check(
+                    f"references.depth.{target}",
+                    False,
+                    f"SKILL.md link nested more than one level deep: {target}",
+                    warning=True,
+                )
 
     def validate_scripts_directory(self):
         """Validate scripts directory if present."""
@@ -834,6 +990,7 @@ class SkillValidator:
         self.validate_anti_patterns()
         self.validate_structure()
         self.validate_references_directory()
+        self.validate_reference_depth()
         self.validate_scripts_directory()
 
         return len(self.errors) == 0, self._format_report()
@@ -875,7 +1032,10 @@ def main():
         print("\nExamples:")
         print("  python validate-skill.py skills/my-skill/")
         print("  python validate-skill.py /other/repo/skills/my-skill --root /other/repo")
-        print("\nExit codes: 0 all checks passed, 1 a check failed or no path given.")
+        print(
+            "\nExit codes: 0 all checks passed, 1 a check failed or the path escapes the root,"
+            " 2 usage error (bad or missing arguments, --root not a directory)."
+        )
         sys.exit(0)
 
     parsed = parse_args(sys.argv[1:])
@@ -885,12 +1045,12 @@ def main():
             file=sys.stderr,
         )
         print("Example: python validate-skill.py ~/.claude/skills/my-skill/", file=sys.stderr)
-        sys.exit(1)
+        sys.exit(2)
 
     skill_path, root = parsed
     if root is not None and not Path(root).is_dir():
         print(f"Error: --root is not a directory: {root}", file=sys.stderr)
-        sys.exit(1)
+        sys.exit(2)
     try:
         validator = SkillValidator(skill_path, root=root)
     except ValueError as exc:

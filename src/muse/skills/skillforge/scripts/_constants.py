@@ -21,7 +21,8 @@ REQUIRED_PROPERTIES = {
 # Optional fields
 OPTIONAL_PROPERTIES = {
     "license",  # Distribution license (MIT, Apache-2.0, etc.)
-    "allowed-tools",  # Tool restrictions (comma-separated or YAML list)
+    "allowed-tools",  # Tool restrictions: space-separated string (spec), comma-separated, or YAML list
+    "compatibility",  # Environment requirements (agentskills.io spec, 1-500 chars)
     "metadata",  # Custom fields (author, domains, etc.)
     "model",  # Optional model alias; omit to inherit, bare alias only, no versioned id
     "model-rationale",  # ADR-080: justification for a bare cost-tier alias pin
@@ -72,13 +73,19 @@ KNOWN_TOOLS = {
 # Field constraints
 NAME_MAX_LENGTH = 64
 DESCRIPTION_MAX_LENGTH = 1024
+COMPATIBILITY_MAX_LENGTH = 500  # agentskills.io spec: compatibility is 1-500 chars
+# agentskills.io progressive disclosure: keep the SKILL.md body under about 5,000
+# tokens. Estimated as characters / 4, a conservative rule of thumb that
+# needs no tokenizer dependency.
+BODY_TOKEN_BUDGET = 5000
+CHARS_PER_TOKEN_ESTIMATE = 4
 
-# Skill name regex (unified across all validators)
-# - Must start with lowercase letter
-# - Can contain lowercase letters, digits, and hyphens
+# Skill name regex (unified across all validators), per the agentskills.io spec
+# - Lowercase letters, digits, and hyphens only
+# - May start with a letter or a digit (for example "3d-print")
+# - Cannot start or end with a hyphen (the regex requires an alphanumeric at each end)
 # - Cannot have consecutive hyphens (checked separately)
-# - Cannot start or end with hyphen (enforced by regex requiring letter start)
-NAME_REGEX = r"^[a-z][a-z0-9-]*[a-z0-9]$|^[a-z]$"  # Single char or multi-char ending in alnum
+NAME_REGEX = r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
 
 # Semver regex (supports pre-release versions like 1.0.0-beta.1)
 SEMVER_REGEX = r"^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$"

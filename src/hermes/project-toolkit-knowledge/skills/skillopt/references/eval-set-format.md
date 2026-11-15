@@ -104,6 +104,9 @@ is an excerpt; `example-eval.json` is a full, runnable manifest.
 A manifest with no `sel` split, an empty one, a duplicate id, or a non-string
 id makes `score` and `pair-gate` exit 2. No held-out split, no gate.
 
+Writing tasks and verifiers that measure the skill: read
+`references/eval-authoring.md` before you draft `tasks`.
+
 ### Command tasks (`skillopt.py run`)
 
 A task with a `command` is a deterministic verifier that `run` executes
@@ -307,6 +310,9 @@ list of numbers. Measure all three arms the same way, on the same machine.
   value counts. `null_wide_tasks` names those tasks.
 - The measurement method is yours: count tokens, time the run, or read the
   cost from the harness. Use the identical method in all three arms.
+- Capture tip: a harness may report token count and duration only in the
+  subagent completion notice, and nowhere else. Write both into
+  `measurements.json` for that run as soon as the notice arrives.
 
 ## Scoring and gating
 
@@ -456,6 +462,12 @@ The output has a `tasks` list and a `benchmark` object.
   `--measurements` is given, the same spread for the measured metric. An
   absent measurement gives a null, never zero. With one observation `stdev` is
   null.
+
+`stdev` is spread across tasks, not run-to-run noise. The null control
+(`--null-results`) measures run noise.
+
+Actions per signal, optional human review, and blind comparison: read
+`references/eval-authoring.md` when a signal fires or a reviewer is available.
 
 The same split checks as `pair-gate` apply: an exposed or invalid task in the
 `sel` split exits 2. A `train` report can include exposed tasks.
