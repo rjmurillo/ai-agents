@@ -26,7 +26,7 @@ import os
 import subprocess
 import sys
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -94,23 +94,37 @@ class _Cell:
     """Accumulates one cell's launches, spend, and time."""
 
     def __init__(
-        self, model: str, timeout: float, runner: claude_run.Runner, workspace: Path
+        self,
+        model: str,
+        timeout: float,
+        runner: claude_run.Runner,
+        workspace: Path,
+        sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self.model, self.timeout, self.runner, self.workspace = model, timeout, runner, workspace
+        self.sleep = sleep
+        self.transient_retries = 0
         self.cost = 0.0
         self.wall = 0.0
         self.failures = 0
         self.launches: list[dict[str, Any]] = []
 
     def launch(self, role: str, prompt: str, markers: Sequence[str], **kwargs: object) -> str:
-        try:
-            events, reply, cost, wall, argv = claude_run.invoke_launch(
-                self.workspace, prompt, self.model, self.timeout, self.runner, **kwargs
-            )
-        except claude_run.HarnessFailureError as exc:
-            self.cost += exc.cost_usd
-            self.wall += exc.wall_seconds
-            raise
+        for attempt in range(hs.TRANSIENT_RETRIES + 1):
+            try:
+                events, reply, cost, wall, argv = claude_run.invoke_launch(
+                    self.workspace, prompt, self.model, self.timeout, self.runner, **kwargs
+                )
+                break
+            except claude_run.HarnessFailureError as exc:
+                self.cost += exc.cost_usd
+                self.wall += exc.wall_seconds
+                if not exc.transient or attempt == hs.TRANSIENT_RETRIES:
+                    # Carry the whole cell's spend so far, earlier launches included.
+                    exc.cost_usd, exc.wall_seconds = self.cost, self.wall
+                    raise
+                self.transient_retries += 1
+                self.sleep(hs.TRANSIENT_WAITS[attempt])
         self.cost += cost
         self.wall += wall
         self.failures += claude_run.tool_failures(events)
@@ -143,6 +157,7 @@ def run_cell(
     workspace_root: Path,
     runner: claude_run.Runner,
     markers: Sequence[str],
+    sleep: Callable[[float], None] = time.sleep,
 ) -> tuple[dict[str, object], dict[str, object], str, _Cell]:
     """Run one task x arm x repeat; return (entry, record, patch, cell).
 
@@ -150,7 +165,7 @@ def run_cell(
     """
     workspace = cell_dir(workspace_root, task.id, repeat)
     grade.seed_workspace(workspace, task, control.files)
-    cell = _Cell(model, timeout, runner, workspace)
+    cell = _Cell(model, timeout, runner, workspace, sleep)
     base = grade.run_acceptance(workspace, task)
     if base.returncode == 0:
         raise claude_run.HarnessFailureError(
@@ -240,6 +255,7 @@ def run_cell(
         "cost_usd": cell.cost,
         "wall_seconds": round(cell.wall, 2),
         "tool_failures": cell.failures,
+        "transient_retries": cell.transient_retries,
         "human_correction_minutes": None,
         "blocking_findings": None,
         "checks": {
@@ -355,7 +371,10 @@ def _run_live(
                         markers=markers[task.id],
                     )
                 except _HARNESS_ERRORS as exc:
-                    guard.add_failure(exc)
+                    if isinstance(exc, claude_run.HarnessFailureError) and exc.transient:
+                        guard.spent += exc.cost_usd  # the stream reported its cost: measured
+                    else:
+                        guard.add_failure(exc)
                     failures.append(
                         {"task_id": task.id, "arm": arm, "repeat": repeat, "reason": str(exc)}
                     )

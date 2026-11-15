@@ -40,10 +40,20 @@ class HarnessFailureError(RuntimeError):
     still paid for.
     """
 
-    def __init__(self, message: str, *, cost_usd: float = 0.0, wall_seconds: float = 0.0) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        cost_usd: float = 0.0,
+        wall_seconds: float = 0.0,
+        transient: bool = False,
+    ) -> None:
         super().__init__(message)
         self.cost_usd = cost_usd
         self.wall_seconds = wall_seconds
+        #: A provider rate limit or overload whose stream reported its cost (issue #7350).
+        #: The launch did no work, so a caller may retry it and count the cost as measured.
+        self.transient = transient
 
 
 # ---------------------------------------------------------------------------
@@ -106,6 +116,19 @@ def total_cost_usd(events: Sequence[Mapping[str, object]]) -> float | None:
             return None
         return float(value)
     return None
+
+
+_TRANSIENT_MARKERS = ("rate_limit_error", "overloaded_error")
+
+
+def is_transient_failure(stdout: str) -> bool:
+    """True when a failed launch's stream names a provider rate limit or overload and a cost."""
+    if not any(marker in stdout for marker in _TRANSIENT_MARKERS):
+        return False
+    try:
+        return total_cost_usd(parse_events(stdout)) is not None
+    except RuntimeOutputError:
+        return False
 
 
 def _reported_cost(stdout: str) -> float:
@@ -232,7 +255,10 @@ def _run_claude(
     spent = _reported_cost(result.stdout)
     if result.returncode != 0:
         raise HarnessFailureError(
-            f"claude exited {result.returncode}", cost_usd=spent, wall_seconds=wall_seconds
+            f"claude exited {result.returncode}",
+            cost_usd=spent,
+            wall_seconds=wall_seconds,
+            transient=is_transient_failure(result.stdout),
         )
     try:
         events = parse_events(result.stdout)

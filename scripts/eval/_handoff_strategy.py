@@ -43,6 +43,9 @@ ROLE_FILES = {
     ARM_HANDOFF: "src/claude/agents/independent-thinker.md",
 }
 FEEDBACK_CHARS = 3000
+#: A provider rate limit or overload is retried, not counted as a repair turn (protocol v2).
+TRANSIENT_RETRIES = 3
+TRANSIENT_WAITS = (60.0, 120.0, 240.0)
 
 _BRIEF_KEYS = frozenset({"symptom", "rejected_hypotheses", "non_goals"})
 _EXTRA_KEYS = frozenset({"visible_files", "withheld_edits", "brief", "stall"})
