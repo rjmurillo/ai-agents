@@ -52,6 +52,37 @@ def _unquote_scalar(value: str) -> str:
     return value
 
 
+_YAML_NULL = {"", "~", "null", "Null", "NULL"}
+_YAML_BOOL = {
+    "true": True,
+    "True": True,
+    "TRUE": True,
+    "false": False,
+    "False": False,
+    "FALSE": False,
+}
+
+
+def _typed_scalar(value: str) -> Any:
+    """Read an inline value with the YAML types a type check needs.
+
+    Without PyYAML, the fallback parser would read ``compatibility: null`` or
+    ``compatibility: [git, docker]`` as text and pass a string check. Return
+    None, a bool, or a list or dict for those unquoted forms, and a string
+    otherwise, so the type checks reject what PyYAML would.
+    """
+    if value in _YAML_NULL:
+        return None
+    if value in _YAML_BOOL:
+        return _YAML_BOOL[value]
+    if value.startswith("[") and value.endswith("]"):
+        return [_unquote_scalar(item.strip()) for item in value[1:-1].split(",") if item.strip()]
+    if value.startswith("{") and value.endswith("}"):
+        pairs = [item.split(":", 1) for item in value[1:-1].split(",") if ":" in item]
+        return {k.strip(): _unquote_scalar(v.strip()) for k, v in pairs}
+    return _unquote_scalar(value)
+
+
 def split_allowed_tools(value: str) -> list[str]:
     """Split an allowed-tools string on commas and whitespace outside parentheses.
 
@@ -214,12 +245,23 @@ class SkillValidator:
                 else:
                     is_folded = False
                     is_literal = False
-                    self.frontmatter[current_key] = _unquote_scalar(value)
+                    self.frontmatter[current_key] = _typed_scalar(value)
                     current_value_lines = []
 
             elif (is_folded or is_literal) and (line.startswith("  ") or line.startswith("\t")):
                 # Continuation of folded/literal scalar
                 current_value_lines.append(line.strip())
+
+            elif (
+                current_key
+                and line.lstrip().startswith("- ")
+                and isinstance(self.frontmatter.get(current_key), (list, type(None)))
+            ):
+                # A block sequence item under a bare key, such as an allowed-tools list
+                items = self.frontmatter.get(current_key)
+                if not isinstance(items, list):
+                    items = self.frontmatter[current_key] = []
+                items.append(_unquote_scalar(line.lstrip()[2:].strip()))
 
             elif line.startswith("  ") and current_key == "metadata":
                 # Basic nested parsing for metadata
@@ -347,7 +389,15 @@ class SkillValidator:
 
         # Validate description field (no angle brackets, length limit)
         if "description" in self.frontmatter:
-            desc = str(self.frontmatter["description"])
+            raw_desc = self.frontmatter["description"]
+            self.check(
+                "frontmatter.description.type",
+                isinstance(raw_desc, str),
+                f"Description must be a string (got {type(raw_desc).__name__})",
+            )
+            # Measure the stripped text, as quick_validate.py does, so a folded
+            # scalar's trailing newline does not count toward the limit.
+            desc = raw_desc.strip() if isinstance(raw_desc, str) else ""
             self.check(
                 "frontmatter.description.characters",
                 "<" not in desc and ">" not in desc,
