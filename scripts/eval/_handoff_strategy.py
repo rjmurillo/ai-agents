@@ -46,6 +46,10 @@ ROLE_FILES = {
 FEEDBACK_CHARS = 3000
 #: A provider rate limit or overload is retried, not counted as a repair turn (protocol v2).
 TRANSIENT_RETRIES = 3
+CITATION_NOTE = (
+    "citation-freshness: ignore -- file:line citations in this report are quoted from the "
+    "issue text and from agent replies about the pre-fix commit, not about HEAD"
+)
 TRANSIENT_WAITS = (60.0, 120.0, 240.0)
 
 _BRIEF_KEYS = frozenset({"symptom", "rejected_hypotheses", "non_goals"})

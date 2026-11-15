@@ -408,6 +408,7 @@ def _run_live(
     stall = {t.id for t in tasks if corpus.stall[t.id]}
     decision = hs.decide(entries, stall, {t.id for t in tasks} - stall, cells)
     report: dict[str, object] = {
+        "notes": hs.CITATION_NOTE,
         "mode": "live",
         "harness_version": version,
         "real_home": real_home_enabled(),

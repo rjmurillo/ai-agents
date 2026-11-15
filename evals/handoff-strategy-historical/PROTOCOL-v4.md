@@ -40,6 +40,18 @@ The combined result is the result of the experiment. The fill batch's own
 `report.json` carries a decision computed over its 4 cells alone, which is not the
 experiment's decision.
 
+## Two disclosures about the v3 batch and this one
+
+- The facts block's observed output is the reproduction's own output, run once
+  per cell. It carries the runner's timing line (for example `in 0.12s`), which
+  varies by cell. So "the same bytes to both arms" holds for everything but that
+  number. It is not a strategy signal, and the arms are interleaved so neither
+  gets systematically faster or slower runs.
+- The report now carries a non-graded leading `notes` key with the repository's
+  `citation-freshness: ignore` marker, because the report quotes file and line
+  citations from the issue text and from agent replies about the pre-fix commit.
+  The v3 `report.json` was re-serialized with that key and no other change.
+
 ## Unchanged
 
 Everything in `PROTOCOL.md`, `PROTOCOL-v2.md`, and `PROTOCOL-v3.md`: tasks, task

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -66,6 +67,10 @@ def v3_task(repo: HistoryRepo, **overrides: Any) -> dict[str, Any]:
 def corpus(repo: HistoryRepo, *tasks: dict[str, Any]) -> hs.HandoffCorpus:
     doc = {"schema_version": 3, "tasks": list(tasks) or [v3_task(repo)]}
     return hs.load_tasks(doc, repo.root, sys.executable)
+
+
+def _mask(call: list[str]) -> str:
+    return re.sub(r"\d+\.\d+s", "Ns", " ".join(call))
 
 
 class FakeRunner:
@@ -339,7 +344,8 @@ class TestRunCell:
         cli.batch.remove_cell(cli.cell_dir(tmp_path / "ws", "half-odd", 0))
         _, b = run(repo, tmp_path, monkeypatch, arm=hs.ARM_HANDOFF)
         # Producer argv is identical, prompt included: the traceback path names no arm.
-        assert a.calls[1] == b.calls[1]
+        # The reproduction's timing line varies per run, so compare with it masked.
+        assert _mask(a.calls[1]) == _mask(b.calls[1])
         assert hs.ARM_CONTINUE not in str(cli.cell_dir(tmp_path, "half-odd", 0))
         assert hs.ARM_HANDOFF not in str(cli.cell_dir(tmp_path, "half-odd", 0))
         inv_a, inv_b = a.calls[0], b.calls[0]
