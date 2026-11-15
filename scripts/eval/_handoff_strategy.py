@@ -16,6 +16,7 @@ holds only worker-visible material.
 from __future__ import annotations
 
 import hashlib
+import json
 import math
 import re
 from collections.abc import Mapping, Sequence
@@ -299,3 +300,44 @@ def decide(
             **summary,
         }
     return {**base, "outcome": "INCONCLUSIVE", "reasons": [f"gain {gain} (needs 2)"], **summary}
+
+
+def combine(
+    report_dirs: Sequence[Path], payload: Mapping[str, Any], repeats: int = 3
+) -> dict[str, Any]:
+    """Apply the frozen rule to the cells of several batches of one protocol.
+
+    A later batch fills cells an earlier batch lost to a provider failure. A cell
+    present twice is refused: a cell is scored once, never replaced by a rerun.
+    """
+    entries: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, int]] = set()
+    for report_dir in report_dirs:
+        report = json.loads((report_dir / "report.json").read_text(encoding="utf-8"))
+        for entry in report["entries"]:
+            key = (entry["task_id"], entry["arm"], entry["repeat"])
+            if key in seen:
+                raise ControlAblationConfigError(f"cell {key} appears in more than one batch")
+            seen.add(key)
+            entries.append(entry)
+    tasks = payload["tasks"]
+    stall = {t["id"] for t in tasks if t["stall"]}
+    control = {t["id"] for t in tasks if not t["stall"]}
+    expected = len(tasks) * len(ARMS) * repeats
+    return {
+        "batches": [str(d) for d in report_dirs],
+        "cells": len(entries),
+        "expected_cells": expected,
+        "decision": decide(entries, stall, control, expected),
+    }
+
+
+def combine_files(
+    report_dirs: Sequence[Path], tasks_file: Path, output_dir: Path | None
+) -> dict[str, Any]:
+    """`combine` over a task file, writing `decision.json` into `output_dir` when given."""
+    result = combine(report_dirs, json.loads(tasks_file.read_text(encoding="utf-8")))
+    if output_dir is not None:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        (output_dir / "decision.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+    return result

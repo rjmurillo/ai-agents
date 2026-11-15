@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 
 from tests.eval._control_ablation_history_support import HistoryRepo, make_history_repo
-from tests.eval.test_handoff_strategy import FakeRunner, corpus
+from tests.eval.test_handoff_strategy import FakeRunner, corpus, v3_task
 
 EVAL_DIR = Path(__file__).resolve().parents[2] / "scripts" / "eval"
 if str(EVAL_DIR) not in sys.path:
@@ -19,6 +19,7 @@ if str(EVAL_DIR) not in sys.path:
 
 import _control_ablation as ablation  # noqa: E402
 import _control_ablation_claude as claude_run  # noqa: E402
+import _control_ablation_tasks as ablation_tasks  # noqa: E402
 import _handoff_strategy as hs  # noqa: E402
 import eval_handoff_strategy as cli  # noqa: E402
 from _runtime_harness import REAL_HOME_ENV  # noqa: E402
@@ -150,3 +151,91 @@ class TestCellRetry:
             run(repo, tmp_path, monkeypatch, {"fail_calls": {1}, "stdout": auth}, sleeps)
         assert caught.value.transient is False
         assert sleeps == []
+
+
+def _entry(task: str, arm: str, repeat: int, accepted: bool = True) -> dict[str, Any]:
+    return {
+        "task_id": task,
+        "arm": arm,
+        "repeat": repeat,
+        "valid": True,
+        "accepted": accepted,
+        "regression": False,
+        "scope_violations": 0,
+        "wall_seconds": 10.0,
+    }
+
+
+def _batch(path: Path, entries: list[dict[str, Any]]) -> Path:
+    path.mkdir(parents=True)
+    (path / "report.json").write_text(json.dumps({"entries": entries}), encoding="utf-8")
+    return path
+
+
+TASKS = {"tasks": [{"id": "s", "stall": True}, {"id": "n", "stall": False}]}
+
+
+class TestCombine:
+    def test_a_second_batch_fills_the_cells_the_first_lost(self, tmp_path: Path) -> None:
+        cells = [(t, a, r) for t in ("s", "n") for r in range(3) for a in hs.ARMS]
+        first = _batch(tmp_path / "a", [_entry(*c) for c in cells[:8]])
+        second = _batch(tmp_path / "b", [_entry(*c) for c in cells[8:]])
+        result = hs.combine([first, second], TASKS)
+        assert result["cells"] == result["expected_cells"] == 12
+        assert result["decision"]["outcome"] == "INCONCLUSIVE"
+        assert "stalled task" in result["decision"]["reasons"][0]
+
+    def test_a_cell_missing_from_every_batch_is_inconclusive(self, tmp_path: Path) -> None:
+        cells = [(t, a, r) for t in ("s", "n") for r in range(3) for a in hs.ARMS]
+        only = _batch(tmp_path / "a", [_entry(*c) for c in cells[:11]])
+        result = hs.combine([only], TASKS)
+        assert result["decision"]["reasons"] == ["missing or invalid cells"]
+
+    def test_a_cell_in_two_batches_is_refused(self, tmp_path: Path) -> None:
+        one = _batch(tmp_path / "a", [_entry("s", hs.ARM_CONTINUE, 0)])
+        two = _batch(tmp_path / "b", [_entry("s", hs.ARM_CONTINUE, 0)])
+        with pytest.raises(ablation_tasks.ControlAblationConfigError, match="more than one"):
+            hs.combine([one, two], TASKS)
+
+    def test_the_cli_writes_the_decision_and_exits_zero(self, tmp_path: Path) -> None:
+        one = _batch(tmp_path / "a", [_entry("s", hs.ARM_CONTINUE, 0)])
+        tasks = tmp_path / "tasks.json"
+        tasks.write_text(json.dumps(TASKS), encoding="utf-8")
+        out = tmp_path / "out"
+        code = cli.main(["--combine", str(one), "--tasks", str(tasks), "--output-dir", str(out)])
+        assert code == cli.EXIT_OK
+        assert json.loads((out / "decision.json").read_text("utf-8"))["cells"] == 1
+
+    def test_the_cli_exits_2_when_a_report_is_missing(self, tmp_path: Path) -> None:
+        tasks = tmp_path / "tasks.json"
+        tasks.write_text(json.dumps(TASKS), encoding="utf-8")
+        code = cli.main(["--combine", str(tmp_path / "nowhere"), "--tasks", str(tasks)])
+        assert code == cli.EXIT_CONFIG
+
+
+class TestStartRepeat:
+    @pytest.mark.parametrize(("start", "repeats"), [(2, 2), (3, 1), (-1, 1)])
+    def test_repeats_past_the_frozen_ceiling_are_refused_before_a_launch(
+        self, repo: HistoryRepo, tmp_path: Path, start: int, repeats: int
+    ) -> None:
+        tasks = tmp_path / "tasks.json"
+        tasks.write_text(
+            json.dumps({"schema_version": 3, "tasks": [v3_task(repo)]}), encoding="utf-8"
+        )
+        code = cli.main(
+            [
+                "--tasks",
+                str(tasks),
+                "--repeats",
+                str(repeats),
+                "--start-repeat",
+                str(start),
+                "--real-home",
+                "--workspace-root",
+                str(tmp_path / "w"),
+                "--output-dir",
+                str(tmp_path / "out"),
+            ],
+            runner=lambda *a, **k: pytest.fail("a launch happened"),
+        )
+        assert code == cli.EXIT_CONFIG

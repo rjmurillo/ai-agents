@@ -286,6 +286,18 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tasks", type=Path, default=DEFAULT_TASKS)
     parser.add_argument("--repeats", type=int, default=3)
+    parser.add_argument(
+        "--start-repeat",
+        type=int,
+        default=0,
+        help="first repeat index, to fill cells a provider failure left missing (protocol v4)",
+    )
+    parser.add_argument(
+        "--combine",
+        nargs="+",
+        type=Path,
+        help="report directories of one protocol; print and write the frozen decision over them",
+    )
     parser.add_argument("--model", default="claude-sonnet-5-5")
     parser.add_argument("--effort", default=None, help="passed to every launch, both arms")
     parser.add_argument("--workspace-root", type=Path)
@@ -322,7 +334,12 @@ def _run_live(
         os.environ[REAL_HOME_ENV] = "1"
     tasks = batch.select_tasks(corpus.tasks, args.only_tasks)
     cells = len(tasks) * len(hs.ARMS) * args.repeats
-    if args.repeats < 1 or args.repeats > 3 or cells > args.max_cells:
+    if (
+        args.repeats < 1
+        or args.start_repeat < 0
+        or args.start_repeat + args.repeats > 3
+        or cells > args.max_cells
+    ):
         raise ablation_tasks.ControlAblationConfigError(
             f"{cells} cells with {args.repeats} repeats exceeds the frozen ceilings"
         )
@@ -345,7 +362,7 @@ def _run_live(
     entries: list[dict[str, object]] = []
     failures: list[dict[str, object]] = []
     for task in tasks:
-        for repeat in range(args.repeats):
+        for repeat in range(args.start_repeat, args.start_repeat + args.repeats):
             order = hs.ARMS if repeat % 2 == 0 else tuple(reversed(hs.ARMS))
             for arm in order:
                 blocked = guard.blocked_reason()
@@ -428,6 +445,14 @@ def _run_live(
 
 def main(argv: Sequence[str] | None = None, *, runner: claude_run.Runner = subprocess.run) -> int:
     args = _parser().parse_args(argv)
+    if args.combine:
+        try:
+            result = hs.combine_files(args.combine, args.tasks, args.output_dir)
+        except (OSError, ValueError, KeyError, ablation_tasks.ControlAblationConfigError) as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return EXIT_CONFIG
+        print(json.dumps(result, indent=2))
+        return EXIT_OK
     workspace_root = None
     try:
         skip = args.dry_run or args.real_home or real_home_enabled()
