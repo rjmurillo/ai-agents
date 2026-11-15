@@ -320,6 +320,22 @@ def test_the_bundle_is_built_before_dist_and_before_the_tarball_is_packed(
         assert steps[index]["working-directory"] == "${{ env.PACKAGE_DIR }}"
 
 
+def test_the_pack_folder_is_made_before_npm_pack_writes_into_it(
+    workflow: dict[str, Any],
+) -> None:
+    """npm pack does not create its destination folder.
+
+    The first dispatch of this workflow, run 43679280035 on 2026-11-15, failed
+    here with ENOENT because nothing had made ``$RUNNER_TEMP/pack``.
+    """
+    step = _steps(workflow, "build")[_index(workflow, "Pack the tarball once")]
+    lines = [line.strip() for line in str(step["run"]).splitlines() if line.strip()]
+    assert lines == [
+        'mkdir -p "$RUNNER_TEMP/pack"',
+        'npm pack --pack-destination "$RUNNER_TEMP/pack"',
+    ]
+
+
 def test_the_packed_tarball_is_checked_for_the_bundle_before_it_is_hashed(
     workflow: dict[str, Any],
 ) -> None:
