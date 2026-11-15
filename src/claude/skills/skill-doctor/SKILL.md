@@ -33,7 +33,7 @@ Share only artifacts the user explicitly authorizes.
 ## Operating systems
 
 The collector and renderer support Linux, macOS, and Windows.
-They require Python 3.10+ and use only its standard library.
+They run on python3 and use only its standard library.
 Git enables automatic repository discovery.
 Use the Bash examples on Linux and macOS, or PowerShell examples on Windows.
 Use `python3` on POSIX and `python` on Windows.
