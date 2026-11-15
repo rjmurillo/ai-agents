@@ -8,7 +8,7 @@ related:
   - REQ-028
   - TASK-037
 created: 2026-09-16
-updated: 2026-10-12
+updated: 2026-11-13
 author: spec
 tags:
   - governance
@@ -50,10 +50,8 @@ templates/rules/knowledge-persistence.md   canonical (edit: new "Placement
         |
         |  uv run python build/scripts/build_all.py
         v
-src/claude/rules/knowledge-persistence.md          plugin tree
 .claude/rules/knowledge-persistence.md             install tree
 .github/instructions/knowledge-persistence.instructions.md   Copilot mirror
-src/copilot-cli/instructions/knowledge-persistence.instructions.md   plugin mirror
 
 .serena/memories/README.md   canonical, hand-maintained (edit: new "What
                               belongs here" section, points at the taxonomy

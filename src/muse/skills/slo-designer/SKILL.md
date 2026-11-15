@@ -125,9 +125,7 @@ Good for: Data pipelines, ML inference, calculations.
 Calculate error budget for a given SLO target:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/slo-designer/scripts/calculate_error_budget.py" \
-  --target 99.9 \
-  --period monthly
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/slo-designer/scripts/calculate_error_budget.py --target 99.9 --period monthly; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 **Arguments:**

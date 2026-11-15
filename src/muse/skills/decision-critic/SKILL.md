@@ -37,12 +37,7 @@ SYNTHESIS (7)          Verdict: STAND (clean or flagged) | REVISE | ESCALATE
 ### decision-critic.py
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/decision-critic/scripts/decision-critic.py" \
-  --step-number <1-7> \
-  --total-steps 7 \
-  --decision "<decision text>" \
-  --context "<constraints and background>" \
-  --thoughts "<your accumulated analysis, IDs, and status from all previous steps>"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/decision-critic/scripts/decision-critic.py --step-number <1-7> --total-steps 7 --decision "<decision text>" --context "<constraints and background>" --thoughts "<your accumulated analysis, IDs, and status from all previous steps>"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 **Exit Codes**:

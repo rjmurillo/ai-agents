@@ -118,7 +118,7 @@ Add a named validator job to `lefthook.yml`:
 
 ```bash
 # Security detection (non-blocking warning)
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/security-detection/detect_infrastructure.py" --use-git-staged
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/security-detection/detect_infrastructure.py --use-git-staged; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ### CI Integration
@@ -138,8 +138,7 @@ do not have a staged diff.
     HEAD_SHA: ${{ github.sha }}
   run: >-
     git diff --no-renames --name-only -z "$BASE_SHA" "$HEAD_SHA"
-    | python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/security-detection/detect_infrastructure.py"
-    --files-from-stdin
+    | ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/security-detection/detect_infrastructure.py --files-from-stdin; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ## Exit Codes

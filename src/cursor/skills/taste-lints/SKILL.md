@@ -77,7 +77,7 @@ Skills exceeding 500 lines need progressive disclosure refactoring.
 
 ## Process
 
-1. Run `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/taste-lints/scripts/taste_lints.py"` with target files
+1. Run `taste_lints.py` with the target files, using a locator from the Scripts section. Put the files inside its argument list.
 2. Review AGENT_REMEDIATION blocks in output
 3. Apply suggested fixes
 4. Re-run to confirm compliance
@@ -90,23 +90,23 @@ Skills exceeding 500 lines need progressive disclosure refactoring.
 
 ```bash
 # Scan staged files
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/taste-lints/scripts/taste_lints.py" --git-staged
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/taste-lints/scripts/taste_lints.py --git-staged; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Scope to a pull request diff (only files changed vs the base branch)
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/taste-lints/scripts/taste_lints.py" --diff-scope "origin/$BASE_BRANCH"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/taste-lints/scripts/taste_lints.py --diff-scope "origin/$BASE_BRANCH"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Scan specific files
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/taste-lints/scripts/taste_lints.py" path/to/file.py
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/taste-lints/scripts/taste_lints.py path/to/file.py; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Scan a directory
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/taste-lints/scripts/taste_lints.py" --directory src/
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/taste-lints/scripts/taste_lints.py --directory src/; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
-# Text output lists at most 100 violations (errors first when cut); --max-violations 0 lists all
+# Text output lists at most 100 violations (errors first when cut); --max-violations 0 in the locator lists all
 # JSON output (never cut)
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/taste-lints/scripts/taste_lints.py" --format json --git-staged
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/taste-lints/scripts/taste_lints.py --format json --git-staged; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Run specific rules only
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/taste-lints/scripts/taste_lints.py" --rules file-size,naming
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/taste-lints/scripts/taste_lints.py --rules file-size,naming; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ## Exit Codes

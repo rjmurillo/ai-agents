@@ -106,7 +106,7 @@ Run the smoke probe. It runs `lefthook version`, `lefthook check-install`, and
 to the `lefthook==` pin in `pyproject.toml`.
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-build-and-env/scripts/env_probe.py" --repo . smoke
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-build-and-env/scripts/env_probe.py --repo . smoke; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Exit 0 means all three passed. Exit 1 names the failing command. Exit 3 means
@@ -174,10 +174,13 @@ The 15-minute smoke checklist. All boxes checked means the environment works.
 Run these instead of counting or comparing by hand. Each is read-only.
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-build-and-env/scripts/env_probe.py" --repo . pins      # interpreter, lefthook, PyYAML, requires-python, Node major, syntax floor, memory entries
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-build-and-env/scripts/env_probe.py" --repo . envfile   # .env present, .env tracked (exit 1), .env.example keys
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-build-and-env/scripts/env_probe.py" --repo . smoke     # Phase 3 commands (needs uv)
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-build-and-env/scripts/instruments.py" --repo . list
+# interpreter, lefthook, PyYAML, requires-python, Node major, syntax floor, memory entries
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-build-and-env/scripts/env_probe.py --repo . pins; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+# .env present, .env tracked (exit 1), .env.example keys
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-build-and-env/scripts/env_probe.py --repo . envfile; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+# Phase 3 commands (needs uv)
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-build-and-env/scripts/env_probe.py --repo . smoke; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-build-and-env/scripts/instruments.py --repo . list; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 `pins` answers what the files say, not what is installed: compare with
@@ -209,7 +212,7 @@ Last verified 2026-10-31 at commit `42e409325`. `reverify.json` holds the
 checks for the paths and strings this skill relies on. Check drift with:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_drift.py" check --repo . --skills-root .claude/skills --name ai-agents-build-and-env --require
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_drift.py check --repo . --skills-root .claude/skills --name ai-agents-build-and-env --require; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 | Fact | Source | Re-verify |

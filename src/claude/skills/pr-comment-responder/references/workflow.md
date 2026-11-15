@@ -19,7 +19,7 @@ Copilot map in `/pr-review`'s `pr-review-config.yaml` instead: it resolves the
 interpreter and the plugin root.
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/utils/check_github_transport.py"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/utils/check_github_transport.py; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 | Verdict | What to do |
@@ -65,10 +65,9 @@ Extract PR number and repository context from the user prompt before any API cal
 ### Step -1.1: Extract GitHub Context
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 
 # Extract PR numbers, issue numbers, owner/repo from user prompt
-python3 "$SCRIPTS_DIR/utils/extract_github_context.py" --text "[user_prompt]" --require-pr
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/utils/extract_github_context.py --text "[user_prompt]" --require-pr; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Result JSON contains:
 # - pr_numbers: Array of PR numbers found
@@ -82,8 +81,7 @@ python3 "$SCRIPTS_DIR/utils/extract_github_context.py" --text "[user_prompt]" --
 ### Step -1.2: Validate Context
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
-context=$(python3 "$SCRIPTS_DIR/utils/extract_github_context.py" --text "[user_prompt]" --require-pr)
+context=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/utils/extract_github_context.py --text "[user_prompt]" --require-pr; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) )
 # Exit code 1 if no PR found (fail fast, no user prompt)
 
 # Use first PR number (most common case is single PR)
@@ -118,10 +116,9 @@ When running autonomously (no user interaction possible):
 - Error message must be actionable: include what patterns are supported
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 
 # Autonomous execution - fail if context missing
-python3 "$SCRIPTS_DIR/utils/extract_github_context.py" --text "[prompt]" --require-pr
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/utils/extract_github_context.py --text "[prompt]" --require-pr; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Exit code 1 if no PR found:
 # "Cannot extract PR number from prompt. Provide explicit PR number or URL."
@@ -147,13 +144,12 @@ Verify core memory loaded:
 ### Step 1.0: Session State Check
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 SESSION_DIR=".project-toolkit/pr-comments/PR-[number]"
 
 if [ -d "$SESSION_DIR" ]; then
   echo "[CONTINUATION] Previous session found"
   PREVIOUS_COMMENTS=$(grep -c "^### Comment" "$SESSION_DIR/comments.md" 2>/dev/null || echo 0)
-  CURRENT_COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments | jq '.TotalComments')
+  CURRENT_COMMENTS=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_review_comments.py --pull-request [number] --include-issue-comments; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) | jq '.TotalComments')
 
   if [ "$CURRENT_COMMENTS" -gt "$PREVIOUS_COMMENTS" ]; then
     echo "[NEW COMMENTS] $((CURRENT_COMMENTS - PREVIOUS_COMMENTS)) new comments"
@@ -164,15 +160,13 @@ fi
 ### Step 1.1: Fetch PR Metadata
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
-python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request [number]
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_context.py --pull-request [number]; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ### Step 1.2: Enumerate All Reviewers
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
-python3 "$SCRIPTS_DIR/pr/get_pr_reviewers.py" --pull-request [number]
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_reviewers.py --pull-request [number]; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ### Step 1.2a: Load Reviewer-Specific Memories
@@ -191,22 +185,31 @@ for reviewer in ALL_REVIEWERS:
 ### Step 1.3: Retrieve ALL Comments
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 
 # IMPORTANT: Use --include-issue-comments to capture AI Quality Gate, CodeRabbit summaries
-python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_review_comments.py --pull-request [number] --include-issue-comments; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Then run the Phase 1 Recording fence in [gates.md](gates.md). It writes `total_comments.txt` and `comment_ids.txt`, the two artifacts every gate reads. Skip it and the gates block.
 
-Label comments on code that no longer exists by adding `--detect-stale` to the same command. Do not add `--exclude-stale` here: Phase 1 Recording counts every comment, so a stale comment stays in the comment map and needs a terminal status recorded through Gate 3. The script labels a stale comment `FileDeleted` (the file is gone from HEAD), `LineOutOfRange` (the line number exceeds the current file length), or `CodeChanged` (the diff hunk no longer matches). Use `--detect-stale --only-stale` during PR cleanup to find stale threads to resolve, and to spot bots that reviewed an outdated commit.
+Label comments on code that no longer exists with `--detect-stale`. Write the flag inside the locator, before its closing `; fi`:
+
+```bash
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_review_comments.py --pull-request [number] --include-issue-comments --detect-stale; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+```
+
+Do not add `--exclude-stale` here: Phase 1 Recording counts every comment, so a stale comment stays in the comment map and needs a terminal status recorded through Gate 3. The script labels a stale comment `FileDeleted` (the file is gone from HEAD), `LineOutOfRange` (the line number exceeds the current file length), or `CodeChanged` (the diff hunk no longer matches). During PR cleanup, add `--only-stale` to find stale threads to resolve, and to spot bots that reviewed an outdated commit:
+
+```bash
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_review_comments.py --pull-request [number] --detect-stale --only-stale; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+```
 
 ### Step 1.4: Confirm the PR is still actionable
 
 Run the PR-level gate before using cached review data:
 
 ```bash
-python3 "$SCRIPTS_DIR/pr/check_pr_live_state.py" --pull-request [number]
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/check_pr_live_state.py --pull-request [number]; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Stop when `Data.action` is `SKIP`. The mutation helpers then run a second,
@@ -219,10 +222,9 @@ returns `Data.action=SKIP` without mutation.
 ### Step 2.1: Acknowledge All Comments (Batch)
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 
 # Review and issue comments use different endpoints. Keep the batches separate.
-comments=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments)
+comments=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_review_comments.py --pull-request [number] --include-issue-comments; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) )
 review_ids=$(echo "$comments" | jq -r '.Comments[] | select(.CommentType == "Review") | .Id')
 issue_ids=$(echo "$comments" | jq -r '.Comments[] | select(.CommentType == "Issue") | .Id')
 
@@ -232,16 +234,14 @@ issue_ids=$(echo "$comments" | jq -r '.Comments[] | select(.CommentType == "Issu
 PR_COMMENT_LOG=".project-toolkit/pr-comments/PR-[number]/session.log"
 
 if [ -n "$review_ids" ]; then
-  python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" \
-    --pull-request [number] --comment-id $review_ids --reaction eyes || exit 1
+  ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/reactions/add_comment_reaction.py --pull-request [number] --comment-id $review_ids --reaction eyes; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) || exit 1
   for id in $review_ids; do
     printf 'reaction eyes review %s\n' "$id" >> "$PR_COMMENT_LOG"
   done
 fi
 
 if [ -n "$issue_ids" ]; then
-  python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" \
-    --comment-type issue --comment-id $issue_ids --reaction eyes || exit 1
+  ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/reactions/add_comment_reaction.py --comment-type issue --comment-id $issue_ids --reaction eyes; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) || exit 1
   for id in $issue_ids; do
     printf 'reaction eyes issue %s\n' "$id" >> "$PR_COMMENT_LOG"
   done
@@ -368,12 +368,10 @@ Fix: the finding's claim about the code was false, not merely undesirable to
 act on.
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 
 # In-thread reply. The thread helper requeries the target immediately before
 # posting and again before an optional resolve mutation.
-python3 "$SCRIPTS_DIR/pr/add_pr_review_thread_reply.py" \
-  --pull-request [number] --thread-id [thread-id] --body "[response]"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/add_pr_review_thread_reply.py --pull-request [number] --thread-id [thread-id] --body "[response]"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ### Step 5.1: Record Terminal Outcomes Decided Here

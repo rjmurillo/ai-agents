@@ -194,7 +194,8 @@ Each step is its own pull request. A step starts when the one before it merged.
 Assignment sites need their own rule. At 48b4ea4c2, 97 lines in `templates` and
 `src/claude` assign a variable from the nested form, such as `SCRIPTS_DIR=...`,
 and later commands run `python3 "$SCRIPTS_DIR/..."`. The count comes from
-`git grep -nE '^\s*[A-Za-z_]+=.*COPILOT_PLUGIN_ROOT:-\$\{CLAUDE_PLUGIN_ROOT:-' 48b4ea4c2 -- templates src/claude`.
+`git grep -nE '^\s*[A-Za-z_][A-Za-z0-9_]*=.*COPILOT_PLUGIN_ROOT:-\$\{CLAUDE_PLUGIN_ROOT:-' 48b4ea4c2 -- templates src/claude`.
+The validator uses this pattern. The shorter `[A-Za-z_]+=` also gives 97 at 48b4ea4c2 (checked 2026-11-12).
 It covers Markdown, YAML, and `.py` lines alike. Step 3 states the scope of the
 inventory it builds. A narrower pattern counts 84 to 92, so the inventory fixes
 the real number. The locator takes the target
@@ -213,6 +214,47 @@ form. The ADR still records such a host as unproven.
 
 Rollback: revert the migration pull requests. The resolver is inert while no site
 calls it.
+
+## Status at 2026-11-12
+
+The record stays `proposed` and `implemented: false`, because a `proposed` record
+cannot carry `implemented: true` (`check_adr_lifecycle.py`). Steps 1 to 3 have
+merged. Steps 4 and 5 are partial. 22 skill sites outside Class G remain.
+
+| Step | Pull request | Result |
+|---|---|---|
+| 1 | #7326 | This ADR, with two debate logs. |
+| 2 | #7330 | The resolver, the recipe, and the tests. The real-CLI smoke covers Claude Code. #7333 made the mypy gate follow the resolver symlink. |
+| 3 | #7336 | The validator reads the locator and gains `--fix`. |
+| 4 | #7337, #7339, #7340, #7341 | Agents, then three skill batches. Partial: seven skills remain. |
+| 5 | #7342 | Invocations and assignments in the `src/claude` support files. Prose mentions of the nested form remain in `src/claude` and `templates/rules`. |
+| 6 | #7337, #7342 | Partial. The `templates/agents` and `src/claude` allowances are zero. The `templates/skills` allowance is not. |
+
+At 4aff49bb0 (2026-11-12), `LEGACY_SITE_BASELINE` holds `templates/skills` at 15
+invocations and 7 assignments. It holds `src/claude yaml` at 17 invocations, which
+is Class G and stays by design. The Copilot CLI probe returned UNAVAILABLE for
+quota. The Codex probe was not run.
+
+Seven skills keep the legacy form. Each needs a decision, because the tool cannot
+move it. "Rule 1" and "rule 2" below are rules of
+`check_plugin_root_interpreter.py`. On 2026-11-12, for the `autoplan`,
+`memory-maintenance`, and `skillforge` rows, the blocker was reproduced by
+rewriting the sites by hand and running that validator. The `repository-completion-proof` row
+was read from the validator's rule text and the script's import. The other rows
+are facts about the commands or the byte cap.
+
+| Skill | Sites | What stops the migration |
+|---|---|---|
+| `skill-bootstrap` | 11 invocations | `--fix` rewrites all 11. SKILL.md grows from 24,552 to 26,400 bytes (24,552 plus 11 times 168, computed), over the 24,576-byte cap. |
+| `push-pr` | 4 invocations | The commands run `python3 -I`. `--fix` leaves them, because the locator has no interpreter option. |
+| `autoplan` | 2 assignments | Rule 2 rejects `resolve_route.py`, which imports `yaml` (issue #5949). A byte-budget effect was not measured. |
+| `memory-maintenance` | 1 assignment | Rule 2 rejects `count_memory_tokens.py`, which imports `tiktoken` (issue #5949). |
+| `skillforge` | 1 assignment | Rule 2 rejects `quick_validate.py`, which imports `yaml`, and `package_skill.py`, which imports it through `quick_validate` (issue #5949). |
+| `repository-completion-proof` | 2 assignments | Both set `GITHUB_SCRIPTS`. The commands run `uv run python`, and rule 1 allows only `python3`. `run_completion_gate.py` imports `yaml`. |
+| `skillopt` | 1 assignment | `SKILLOPT_DIR` lets Codex and PowerShell run with no plugin root. Shipped references read it. |
+
+`--fix` leaves every assignment for a person, as the Rollout section says. Until
+these sites move, issue #7281 stays open for the seven skills.
 
 ## Alternatives considered
 

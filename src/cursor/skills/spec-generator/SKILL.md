@@ -53,7 +53,7 @@ The frontmatter schema is bundled at `references/spec-schemas.md`; `.agents/gove
 3. After writing each spec file, run the validator and do not report completion until it exits 0:
 
    ```bash
-   python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/spec-generator/scripts/validate_spec_frontmatter.py" <file> [<file> ...]
+   ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/spec-generator/scripts/validate_spec_frontmatter.py <file> [<file> ...]; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
    ```
 
 Common drift this gate stops: `priority: medium` (use `P1`), `category: tooling` (use `functional` or `constraint`), task `status: ready` (use `todo`), `complexity: S` for a 1.25h estimate (use `XS`). Design files MUST set both `status` and `priority`; they are required, not optional.

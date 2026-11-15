@@ -51,9 +51,9 @@ Jargon, defined once:
 The generation seam is ASYMMETRIC (ADR-072, accepted and not yet implemented, refines it; the running system is what follows). Find your file BEFORE editing. Editing a generated tree is the classic failure (see Anti-Patterns).
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-generation-and-release/scripts/generator_inventory.py" --repo . path <repo-path>
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-generation-and-release/scripts/generator_inventory.py" --repo . generators
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-generation-and-release/scripts/generator_inventory.py" --repo . skills
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-generation-and-release/scripts/generator_inventory.py --repo . path <repo-path>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-generation-and-release/scripts/generator_inventory.py --repo . generators; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-generation-and-release/scripts/generator_inventory.py --repo . skills; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 - `path` answers which tree is canonical for a repo path and what regenerates it, from `templates/platforms/binplace.yaml` rows plus `OWNED_PREFIXES`. Exit 1 means no row covers the path. It does not see hand-maintained exceptions inside a generated tree, such as a shipped skill's `scripts/` and `references/`.
@@ -89,8 +89,8 @@ Flags, read from source:
 ### Phase 3: Run the Drift Gates Locally Before Pushing
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-generation-and-release/scripts/generator_inventory.py" --repo . gates
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-generation-and-release/scripts/instruments.py" --repo . run build-all-check
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-generation-and-release/scripts/generator_inventory.py --repo . gates; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-generation-and-release/scripts/instruments.py --repo . run build-all-check; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 `gates` maps each drift gate to the lefthook job or workflow job that runs it and exits 1 for a gate with no wiring. The gate list, local commands, and caveats are in [references/drift-gates.md](references/drift-gates.md). Its answer does not say a gate is green, only where it runs.
@@ -113,8 +113,8 @@ Two Claude-plugin manifests exist; `.claude/.claude-plugin/plugin.json` is retir
 The rule (docstring of `build/scripts/validate_plugin_version_bump.py`): neither manifest, and no entry in any `marketplace.json`, may carry a `version` field. Claude Code then resolves freshness from the git commit SHA, which moves on every merge. ADR-092 reverses ADR-079's hand-bumped rule (ADR-079 was superseded by ADR-091, and ADR-091 by ADR-092) after ADR-092 measured 14 of 22 conflicting PRs conflicting on that one line.
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-generation-and-release/scripts/instruments.py" --repo . run version-field
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-generation-and-release/scripts/instruments.py" --repo . run manifest-parity
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-generation-and-release/scripts/instruments.py --repo . run version-field; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-generation-and-release/scripts/instruments.py --repo . run manifest-parity; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 `version-field` fails when a manifest or marketplace entry carries `version`. `manifest-parity` checks description component counts only. Neither lists which manifests exist; the table above does.
@@ -150,7 +150,7 @@ Both scripts are read-only, print JSON with an `examined` count, and answer `--h
 - `instruments.py` with `list` and `run <id>`; it links the build and manifest checks and passes the child's exit code through.
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-generation-and-release/scripts/instruments.py" --repo . list
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-generation-and-release/scripts/instruments.py --repo . list; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ## Anti-Patterns
@@ -183,10 +183,10 @@ Before pushing a change that touched a canonical or generated surface:
 Volatile facts come from the script in Phase 1, not from this file. `reverify.json` holds the checks that pin the paths and source strings this skill cites. Run the drift command after any edit here:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_drift.py" check --repo . --skills-root .claude/skills --name ai-agents-generation-and-release --require
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_drift.py check --repo . --skills-root .claude/skills --name ai-agents-generation-and-release --require; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
-`python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-generation-and-release/scripts/instruments.py" --repo . list` prints every linked instrument and exits 1 when one is missing.
+`( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-generation-and-release/scripts/instruments.py --repo . list; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )` prints every linked instrument and exits 1 when one is missing.
 
 | Fact | Source | Re-verify |
 |------|--------|-----------|

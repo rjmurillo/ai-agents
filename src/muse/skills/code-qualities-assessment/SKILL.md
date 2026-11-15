@@ -233,7 +233,7 @@ Create `.qualityrc.json` to customize thresholds. Optional `minConfidence` (defa
 After running assessment, run the bundled validator and require exit 0:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/code-qualities-assessment/scripts/assess.py" --target "$TARGET_PATH"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/code-qualities-assessment/scripts/assess.py --target "$TARGET_PATH"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 echo "exit=$?"   # must be 0; 10 = regressed, 11 = thresholds not met, 1 = script error
 ```
 

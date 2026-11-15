@@ -252,9 +252,7 @@ When a problem spans multiple domains:
 Structured classification with validation.
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/cynefin-classifier/scripts/classify.py" \
-  --problem "Description of the problem" \
-  --context "Additional context about constraints, environment"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/cynefin-classifier/scripts/classify.py --problem "Description of the problem" --context "Additional context about constraints, environment"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 **Exit Codes**:
@@ -367,13 +365,11 @@ Escalate to human or senior decision-maker when:
 After classification, run the bundled validator:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/cynefin-classifier/scripts/classify.py" \
-  --problem "Description of the problem" \
-  --context "Additional context about constraints, environment"
-echo "exit=$?"   # 0 = classification complete, 1 = invalid arguments, 2 = Confusion domain (valid classification)
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/cynefin-classifier/scripts/classify.py --problem "Description of the problem" --context "Additional context about constraints, environment"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+echo "exit=$?"   # 0 = classification complete, 1 = invalid arguments, 2 = Confusion domain (valid classification) or a launcher failure
 ```
 
-- [ ] `classify.py` exited 0 or 2 (exit 1 = invalid arguments; exit 2 = valid Confusion domain classification)
+- [ ] `classify.py` exited 0 or 2 (exit 1 = invalid arguments; exit 2 = valid Confusion domain classification only when it printed a classification and stderr has no `ptk_run:` line; a `ptk_run:` line means the launcher failed and nothing was classified)
 - [ ] Domain identified with confidence level (HIGH/MEDIUM/LOW)
 - [ ] Rationale explains cause-effect relationship
 - [ ] Response strategy matches the domain (not borrowed from another)

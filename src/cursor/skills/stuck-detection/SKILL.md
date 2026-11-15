@@ -183,8 +183,8 @@ nudge or a system prompt.
 
 ## Process
 
-1. Run `python3 "$SCRIPTS_DIR/stuck_detection.py" check "<text>"`, with
-   `SCRIPTS_DIR` set as in Usage below
+1. Run `check "<text>"` through the locator shown in Usage below, with the
+   text inside the locator's argument list
 2. If the JSON result has `"stuck": true`, inject the `nudge` field into the
    orchestrator's next system prompt so the model self-corrects on its next
    turn. The `nudge` is internal control text wrapped in `<stuck-detection>`
@@ -198,24 +198,23 @@ nudge or a system prompt.
 ## Usage
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/stuck-detection"
 
 # Check a response for stuck pattern (text via arg or stdin)
-python3 "$SCRIPTS_DIR/stuck_detection.py" check "your response text"
-echo "your response" | python3 "$SCRIPTS_DIR/stuck_detection.py" check
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/stuck-detection/stuck_detection.py check "your response text"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+echo "your response" | ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/stuck-detection/stuck_detection.py check; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Show current history state
-python3 "$SCRIPTS_DIR/stuck_detection.py" status
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/stuck-detection/stuck_detection.py status; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Reset history after a topic change
-python3 "$SCRIPTS_DIR/stuck_detection.py" reset
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/stuck-detection/stuck_detection.py reset; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Extract signature only (debugging)
-python3 "$SCRIPTS_DIR/stuck_detection.py" extract "your text"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/stuck-detection/stuck_detection.py extract "your text"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Check recent tool events for a failure loop (file or piped stdin)
-python3 "$SCRIPTS_DIR/stuck_detection.py" check-failures --events events.json
-python3 "$SCRIPTS_DIR/stuck_detection.py" check-failures --repeat 4 < events.json
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/stuck-detection/stuck_detection.py check-failures --events events.json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/stuck-detection/stuck_detection.py check-failures --repeat 4 < events.json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 `check-failures` exits 0 with JSON on stdout whether or not it finds a loop.
@@ -292,7 +291,7 @@ match the input.
 
 After integrating, confirm the following before relying on the guard:
 
-- [ ] `python3 "$SCRIPTS_DIR/stuck_detection.py" status` returns valid JSON with the configured `history_length`
+- [ ] `status`, run through the Usage locator, returns valid JSON with the configured `history_length`
 - [ ] Three calls to `check` with the same long input return `"stuck": true` on the third call
 - [ ] A call to `reset` zeroes `history_length` on the next `status` check
 - [ ] The history file lives outside the repository working tree (XDG state dir or env-overridden path)

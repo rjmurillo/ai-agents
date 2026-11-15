@@ -179,13 +179,13 @@ repository-controlled code, so command-name matching is not a safe approval boun
 Run the dispatcher from the repo root. `list` shows each row and whether its file exists; `run <id>` execs it.
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-config-catalog/scripts/instruments.py" --repo . list
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-config-catalog/scripts/instruments.py --repo . list; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 `flag_locator.py` is the dedicated script. Its answers cover only files the catalog attributes to a flag:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-config-catalog/scripts/flag_locator.py" --repo . locate --list
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-config-catalog/scripts/flag_locator.py --repo . locate --list; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 - `locate <id|name>` takes a kebab id or the exact flag name (`AI_AGENTS_PYTEST_WORKERS`) and prints `file:line` for each attributed file. Exit 1 means a file is missing or lost the needle: the flag moved or died, so fix this catalog first.
@@ -201,7 +201,7 @@ Rows that link existing tools: `hook-counts` (owner script in `ai-agents-portabi
 Audited 2026-10-31 against the working tree at commit 42e409325. The retired Copilot gate `.github/hooks/require-subagent-model.json` stays absent (ADR-097). Cites name a symbol or a script id, not a line number, because line numbers drift. `reverify.json` holds the machine checks. Run the drift command from the repo root:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_drift.py" check --repo . --skills-root .claude/skills --name ai-agents-config-catalog --require
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_drift.py check --repo . --skills-root .claude/skills --name ai-agents-config-catalog --require; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 `SKIP_TESTS` is also absent from `pre_pr.py`. `pre_pr_sequence.py` still names `--skip-tests` in its `_Gate` docstring, on purpose, to say why `skip_flag` is gone.

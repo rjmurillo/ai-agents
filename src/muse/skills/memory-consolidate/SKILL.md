@@ -115,8 +115,7 @@ Use the bundled helper for target-dependent Git operations. Its commands carry
 no target paths, so command-string terminals remain safe:
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory-consolidate/scripts"
-python3 "$SCRIPTS_DIR/memory_git_targets.py" path
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory-consolidate/scripts/memory_git_targets.py path; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Use a file-writing tool to write a JSON object with `startingCommit` and a
@@ -129,7 +128,7 @@ use a filesystem file-writing tool. Re-read the target through Serena
 immediately before mutation and compare its content hash with the last state
 this pass observed. If it changed, stop without writing. On any partial
 failure, leave the Git diff for review and do not auto-restore files. Run
-`python3 "$SCRIPTS_DIR/memory_git_targets.py" cleanup` after success or failure.
+`( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory-consolidate/scripts/memory_git_targets.py cleanup; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )` after success or failure.
 Every path from Serena or an index must be
 relative, contain no `..` segment, and resolve under the real
 `.serena/memories/` root. Reject absolute paths and symlink escapes before

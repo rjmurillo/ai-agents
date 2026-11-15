@@ -4,6 +4,6 @@
   "private": true,
   "description": "Pinned @github/copilot for plugin-cli-smoke.yml. Renovate bumps the version and the lockfile together.",
   "dependencies": {
-    "@github/copilot": "1.0.105"
+    "@github/copilot": "1.0.107"
   }
 }

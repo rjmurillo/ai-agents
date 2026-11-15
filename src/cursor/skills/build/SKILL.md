@@ -90,7 +90,7 @@ failing check first.
 1. **Decide.** Run the trigger with every planned or verified changed path,
    each as its own argument, plus each effect you verified in the diff body.
    Never shell-expand the paths.
-   `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/build/scripts/validation_trigger.py" --changed-path <path> --effect <name>`
+   `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/build/scripts/validation_trigger.py --changed-path <path> --effect <name>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`
    Effects: `pass-fail-semantics`, `severity-change`, `baseline-update`,
    `fixture-redefines-case`, `validator-config`, `vendored-logic`,
    `generated-validator`. Exit `2` on an empty changed-path list or an unknown
@@ -106,7 +106,7 @@ failing check first.
    change location (see that skill's Validation Change Record contract for
    where the record file resolves, `<record-path>` below).
 4. **Check.** Run the record validator:
-   `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/validation-authority/scripts/validation_record.py" --record <record-path> --changed-path <path>`
+   `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/validation-authority/scripts/validation_record.py --record <record-path> --changed-path <path>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`
    (repeat `--changed-path` for every path from step 1). Exit `0`: Phase 3 may
    edit only the location each target's `authority.permitted_change_location`
    names. Exit `1`: stop editing the named targets until the record is

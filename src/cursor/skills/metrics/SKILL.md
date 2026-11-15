@@ -88,29 +88,28 @@ After execution:
 
 ```bash
 # Basic usage (30 days, summary output)
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/metrics/collect_metrics.py"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/metrics/collect_metrics.py; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Last 90 days as markdown
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/metrics/collect_metrics.py" --since 90 --output markdown
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/metrics/collect_metrics.py --since 90 --output markdown; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # JSON output for automation
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/metrics/collect_metrics.py" --output json
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/metrics/collect_metrics.py --output json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Backlog provenance of issues created in the last 7 days (Markdown)
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/metrics"
-python "$SCRIPTS_DIR/backlog_provenance.py" --days 7
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/metrics/backlog_provenance.py --days 7; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Same report as JSON, for an explicit UTC interval ending 2026-09-29 (exclusive)
-python "$SCRIPTS_DIR/backlog_provenance.py" --days 29 --until 2026-09-29T00:00:00Z --output-format json
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/metrics/backlog_provenance.py --days 29 --until 2026-09-29T00:00:00Z --output-format json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Defect lineage records (this repo keeps them in .project-toolkit/metrics/lineage/):
 # validate, report, and recheck against origin/<default_branch> (run git fetch origin first)
-python "$SCRIPTS_DIR/defect_lineage.py" check <records-dir>
-python "$SCRIPTS_DIR/defect_lineage.py" report <records-dir>
-python "$SCRIPTS_DIR/defect_lineage.py" recheck <records-dir>/<id>.json --write
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/metrics/defect_lineage.py check <records-dir>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/metrics/defect_lineage.py report <records-dir>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/metrics/defect_lineage.py recheck <records-dir>/<id>.json --write; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # --root belongs to the top-level parser, so it goes before the subcommand
-python "$SCRIPTS_DIR/defect_lineage.py" --root <repo> recheck <records-dir>/<id>.json --write
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/metrics/defect_lineage.py --root <repo> recheck <records-dir>/<id>.json --write; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ## Metrics Collected
@@ -225,10 +224,7 @@ To generate a monthly dashboard report:
 
 ```bash
 # Generate report
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/metrics/collect_metrics.py" \
-    --since 30 \
-    --output markdown \
-    > .project-toolkit/metrics/report-$(date +%Y-%m).md
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/metrics/collect_metrics.py --since 30 --output markdown > .project-toolkit/metrics/report-$(date +%Y-%m).md; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Review and commit
 git add .project-toolkit/metrics/

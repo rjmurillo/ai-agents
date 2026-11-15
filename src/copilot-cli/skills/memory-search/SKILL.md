@@ -40,16 +40,15 @@ Use this skill when the user says:
 
 ```bash
 # Search memory (Tier 1)
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "git hooks"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/search_memory.py "git hooks"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # JSON output for scripting
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "git hooks" --format json
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/search_memory.py "git hooks" --format json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 The search script is canonical and shared with the `memory` router; this
 sub-skill does not reimplement it. It lives at
-`skills/memory/scripts/search_memory.py` under the plugin root (`COPILOT_PLUGIN_ROOT`, then
-`CLAUDE_PLUGIN_ROOT`, falling back to `.claude`).
+`skills/memory/scripts/search_memory.py`, which the locator above runs.
 
 ## Quick Reference
 

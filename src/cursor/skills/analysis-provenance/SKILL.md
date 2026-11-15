@@ -27,13 +27,13 @@ Identify code ownership before modifying validators, linters, or tool configurat
 
 ```bash
 # Check provenance of a single file
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/analysis-provenance/scripts/check_provenance.py" --target .config/markdownlint.json
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/analysis-provenance/scripts/check_provenance.py --target .config/markdownlint.json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Check provenance of a directory
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/analysis-provenance/scripts/check_provenance.py" --target .config/
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/analysis-provenance/scripts/check_provenance.py --target .config/; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # JSON output for automation
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/analysis-provenance/scripts/check_provenance.py" --target PSScriptAnalyzerSettings.psd1 --format json
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/analysis-provenance/scripts/check_provenance.py --target PSScriptAnalyzerSettings.psd1 --format json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ---
@@ -79,7 +79,7 @@ graph TD
 ```
 Need to modify a validator/linter?
 │
-├─ Run: python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/analysis-provenance/scripts/check_provenance.py" --target <file>
+├─ Run: ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/analysis-provenance/scripts/check_provenance.py --target <file>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 │
 ├─ Result: UPSTREAM
 │  ├─ Do NOT modify the tool/file directly
@@ -100,7 +100,7 @@ Need to modify a validator/linter?
 From the repository root, run:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/analysis-provenance/scripts/check_provenance.py" --target <path> [options]
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/analysis-provenance/scripts/check_provenance.py --target <path> [options]; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 | Parameter | Required | Default | Description |
@@ -187,7 +187,7 @@ After running provenance check:
 ### Check Validator Config (LOCAL)
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/analysis-provenance/scripts/check_provenance.py" --target .markdownlint.json
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/analysis-provenance/scripts/check_provenance.py --target .markdownlint.json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ```
@@ -205,7 +205,7 @@ Recommendation: Safe to modify as needed.
 ### Check External Tool (UPSTREAM)
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/analysis-provenance/scripts/check_provenance.py" --target node_modules/markdownlint-cli2/lib/main.js
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/analysis-provenance/scripts/check_provenance.py --target node_modules/markdownlint-cli2/lib/main.js; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ```
@@ -223,7 +223,7 @@ Recommendation: Do NOT modify. Configure via .markdownlint.json instead.
 ### JSON Output
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/analysis-provenance/scripts/check_provenance.py" --target PSScriptAnalyzerSettings.psd1 --format json
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/analysis-provenance/scripts/check_provenance.py --target PSScriptAnalyzerSettings.psd1 --format json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ```json
@@ -264,8 +264,7 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/analysis-
 
 ```bash
 # Check provenance FIRST
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/analysis-provenance/scripts/check_provenance.py" \
-  --target <validator-file>
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/analysis-provenance/scripts/check_provenance.py --target <validator-file>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # If UPSTREAM: adjust config
 # If LOCAL: modify file

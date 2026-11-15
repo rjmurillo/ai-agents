@@ -344,8 +344,7 @@ Extracts episode data from session logs.
 **Syntax**:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" <session-log-path> \
-    [--output-path DIR] [--force | --preserve] [--pending-stage]
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/extract_session_episode.py <session-log-path> [--output-path DIR] [{--force,--preserve}] [--pending-stage]; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 **Parameters**:
@@ -369,8 +368,7 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/sc
 **Example**:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" \
-    .project-toolkit/sessions/2026-01-01-session-126.json
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/extract_session_episode.py .project-toolkit/sessions/2026-01-01-session-126.json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Output:
 # Episode extracted:
@@ -392,7 +390,7 @@ The retrospective agent auto-extracts episodes at session end:
 ```bash
 SESSION_LOG=".project-toolkit/sessions/${SESSION_ID}.json"
 
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" "$SESSION_LOG"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/extract_session_episode.py "$SESSION_LOG"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ### With Session Protocol
@@ -405,7 +403,7 @@ before the discontinuation, or cherry-picked from an older one):
 ## Session End (BLOCKING)
 
 - [ ] Update the per-issue handoff
-- [ ] Extract episode if a session log exists: `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py"`
+- [ ] Extract episode if a session log exists: `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/extract_session_episode.py <session-log-path>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`
 - [ ] Update Serena memory
 - [ ] Commit all changes (including .project-toolkit/memory/episodes/)
 ```
@@ -415,7 +413,7 @@ before the discontinuation, or cherry-picked from an older one):
 `memory_router.search_memory` covers Serena only. The episode store is searched by the CLI wrapper:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "routing decision"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/search_memory.py "routing decision"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ## Use Cases

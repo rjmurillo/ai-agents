@@ -169,9 +169,7 @@ location and run the validator again on that file. The `artifact` field names
 that final location.
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-external-claims/scripts/claim_ledger.py" \
-    --ledger "{analysis-dir}/{topic-slug}-analysis-claims.json" \
-    --artifact "{analysis-dir}/{topic-slug}-analysis.draft.md"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-external-claims/scripts/claim_ledger.py --ledger "{analysis-dir}/{topic-slug}-analysis-claims.json" --artifact "{analysis-dir}/{topic-slug}-analysis.draft.md"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 | Exit | Meaning | Next move |

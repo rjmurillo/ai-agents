@@ -665,190 +665,208 @@ pre-push:
     - group:
         parallel: true
         jobs:
-          # Issue #6725: on a loaded shared host (48 CPUs, load average 45 to
-          # 60, many parallel pushes) the old fixed 4m cap killed clean diffs
-          # with `signal: killed` partway through light gates. pre_pr.py now
-          # takes one host-wide heavy-stage slot and waits for load to drop
-          # BEFORE its run clock starts, in this hook only (the
-          # AI_AGENTS_PRE_PR_FAST_STAGE_RAN marker below); direct runs and CI
-          # keep their behavior. The wait is at most 300s
-          # (pre_pr_headroom.HEADROOM_WAIT_SECONDS), so the timeout is the
-          # 240s run budget plus that wait: 9m. PRE_PR_OUTER_CAP_SECONDS stays
-          # the run budget left after the wait. When the wait runs out the
-          # gates still run and a warning names load. See
-          # scripts/validation/host_headroom.py for the AI_AGENTS_HEAVY_STAGE_*
-          # knobs. The group is parallel and the e2e smokes hold it at 20m, so
-          # the pre-push declared total does not move.
-          - name: pre-pr-validation
-            timeout: 9m
-            run: uv run --frozen python scripts/validation/pre_pr.py --compact
-            env:
-              SKIP_AUTOFIX: "1"
-              # The five deferral targets are unconditional jobs. Four are in
-              # the fast stage, so this job starts only after they pass;
-              # count-ratchets runs beside it in this group (issue #7070). The
-              # hook is piped, so any of them failing blocks the push.
-              # Direct pre_pr.py and CI calls leave this unset and run all gates.
-              AI_AGENTS_PRE_PR_FAST_STAGE_RAN: "1"
-              # This job's run budget in seconds: its timeout (above) less
-              # the headroom wait. The generated-staleness gate clamps its
-              # deadline to the run's remaining share, and the wait restarts
-              # that clock; a test pins the values.
-              PRE_PR_OUTER_CAP_SECONDS: "240"
+          # Isolate the scanner from Python collection and validation load.
+          # The compute lane is 3m + max(remaining jobs) = 18m; the CLI smokes
+          # (20m) and workflow-local-run (30m) stay parallel outside it.
+          # scripts/ci/lefthook_budget_model.py:entry_cost sums the piped lane
+          # and takes the outer maximum, so the declared budget does not rise.
+          - group:
+              piped: true
+              jobs:
+                # Blocking. The awesome-ai-plugins listing needs a HOL plugin
+                # scanner score of 80 on the whole tree, so this scores HEAD with the
+                # scanner pinned in build/plugin-scanner/uv.lock; CI runs the same
+                # version through .github/workflows/plugin-scanner.yml. Too slow for
+                # pre-commit: 48s standalone on 4 CPUs. The script spends one 165s
+                # budget across the tree export, the scanner install, and the scan,
+                # so it reports its own exit 3 before this 3m cap; the cap stays under
+                # the 240s container ceiling (test_lefthook_container_bound.py). The
+                # first run installs the scanner from PyPI; offline with no cached
+                # install, it exits 3 and blocks the push
+                # (fix: uv sync --project build/plugin-scanner --frozen online).
+                - name: plugin-scanner
+                  timeout: 3m
+                  run: uv run --frozen python scripts/validation/check_plugin_scanner_score.py
 
-          # Issue #7070: moved here from the fast stage. Most ratchets
-          # materialize the merge-base tree into temp storage, so the wall
-          # clock follows disk speed: about 48s with temp on tmpfs, and past
-          # the old 85s deadline on an overlay disk. The registry deadline is
-          # 600s (checks_ratchet._AGGREGATE_TIMEOUT_SECONDS) and this cap stays
-          # above it so the deadline fires first and names the ratchet; a test
-          # pins both. Routed through git_hook_policy so a managed container
-          # clamps it to the container ceiling. Cost: a count violation now
-          # surfaces when this stage finishes, not in the first minute of a
-          # push. The group is parallel and workflow-local-run holds it at
-          # 30m, so the pre-push declared total does not move.
-          - name: count-ratchets
-            timeout: 660s
-            run: uv run --frozen python scripts/validation/git_hook_policy.py count-ratchets
+                - group:
+                    parallel: true
+                    jobs:
+                      # Issue #6725: on a loaded shared host (48 CPUs, load average 45 to
+                      # 60, many parallel pushes) the old fixed 4m cap killed clean diffs
+                      # with `signal: killed` partway through light gates. pre_pr.py now
+                      # takes one host-wide heavy-stage slot and waits for load to drop
+                      # BEFORE its run clock starts, in this hook only (the
+                      # AI_AGENTS_PRE_PR_FAST_STAGE_RAN marker below); direct runs and CI
+                      # keep their behavior. The wait is at most 300s
+                      # (pre_pr_headroom.HEADROOM_WAIT_SECONDS), so the timeout is the
+                      # 240s run budget plus that wait: 9m. PRE_PR_OUTER_CAP_SECONDS stays
+                      # the run budget left after the wait. When the wait runs out the
+                      # gates still run and a warning names load. See
+                      # scripts/validation/host_headroom.py for the AI_AGENTS_HEAVY_STAGE_*
+                      # knobs. The group is parallel and the e2e smokes hold it at 20m, so
+                      # the pre-push declared total does not move.
+                      - name: pre-pr-validation
+                        timeout: 9m
+                        run: uv run --frozen python scripts/validation/pre_pr.py --compact
+                        env:
+                          SKIP_AUTOFIX: "1"
+                          # The five deferral targets are unconditional jobs. Four are in
+                          # the fast stage, so this job starts only after they pass;
+                          # count-ratchets runs beside it in this group (issue #7070). The
+                          # hook is piped, so any of them failing blocks the push.
+                          # Direct pre_pr.py and CI calls leave this unset and run all gates.
+                          AI_AGENTS_PRE_PR_FAST_STAGE_RAN: "1"
+                          # This job's run budget in seconds: its timeout (above) less
+                          # the headroom wait. The generated-staleness gate clamps its
+                          # deadline to the run's remaining share, and the wait restarts
+                          # that clock; a test pins the values.
+                          PRE_PR_OUTER_CAP_SECONDS: "240"
 
-          - name: worktree-gc-report
-            timeout: 2m
-            run: uv run --frozen python scripts/ci/report_advisory_result.py run --validator worktree-gc-report --scope "registered worktrees" --timeout 100 --findings-exit 1 -- uv run --frozen python scripts/maintenance/gc_worktrees.py
+                      # Issue #7070: moved here from the fast stage. Most ratchets
+                      # materialize the merge-base tree into temp storage, so the wall
+                      # clock follows disk speed: about 48s with temp on tmpfs, and past
+                      # the old 85s deadline on an overlay disk. The registry deadline is
+                      # 600s (checks_ratchet._AGGREGATE_TIMEOUT_SECONDS) and this cap stays
+                      # above it so the deadline fires first and names the ratchet; a test
+                      # pins both. Routed through git_hook_policy so a managed container
+                      # clamps it to the container ceiling. Cost: a count violation now
+                      # surfaces when this stage finishes, not in the first minute of a
+                      # push. The group is parallel and workflow-local-run holds it at
+                      # 30m, so the pre-push declared total does not move.
+                      - name: count-ratchets
+                        timeout: 660s
+                        run: uv run --frozen python scripts/validation/git_hook_policy.py count-ratchets
 
-          # Issue 5360: report-only. Stale branch sections in the shared
-          # .git/config grow without bound, so every push counts them. The
-          # reporter exits 0, so this job never blocks a push and never
-          # writes. Removal stays manual: run the script with --apply.
-          - name: branch-config-prune-report
-            timeout: 2m
-            run: uv run --frozen python scripts/ci/report_advisory_result.py run --validator branch-config-prune-report --scope "branch sections in .git/config" --timeout 100 --findings-exit 1 -- uv run --frozen python scripts/maintenance/prune_branch_config.py --fail-on-stale
+                      - name: worktree-gc-report
+                        timeout: 2m
+                        run: uv run --frozen python scripts/ci/report_advisory_result.py run --validator worktree-gc-report --scope "registered worktrees" --timeout 100 --findings-exit 1 -- uv run --frozen python scripts/maintenance/gc_worktrees.py
 
-          # Blocking. The awesome-ai-plugins listing needs a HOL plugin
-          # scanner score of 80 on the whole tree, so this scores HEAD with the
-          # scanner pinned in build/plugin-scanner/uv.lock; CI runs the same
-          # version through .github/workflows/plugin-scanner.yml. Too slow for
-          # pre-commit: 48s standalone on 4 CPUs. The script spends one 165s
-          # budget across the tree export, the scanner install, and the scan,
-          # so it reports its own exit 3 before this 3m cap; the cap stays under
-          # the 240s container ceiling (test_lefthook_container_bound.py). The
-          # group is parallel and the e2e smokes hold it at 20m, so the pre-push
-          # declared total does not move. The first run installs the scanner
-          # from PyPI; offline with no cached install, it exits 3 and blocks the
-          # push (fix: uv sync --project build/plugin-scanner --frozen online).
-          - name: plugin-scanner
-            timeout: 3m
-            run: uv run --frozen python scripts/validation/check_plugin_scanner_score.py
+                      # Issue 5360: report-only. Stale branch sections in the shared
+                      # .git/config grow without bound, so every push counts them. The
+                      # reporter exits 0, so this job never blocks a push and never
+                      # writes. Removal stays manual: run the script with --apply.
+                      - name: branch-config-prune-report
+                        timeout: 2m
+                        run: uv run --frozen python scripts/ci/report_advisory_result.py run --validator branch-config-prune-report --scope "branch sections in .git/config" --timeout 100 --findings-exit 1 -- uv run --frozen python scripts/maintenance/prune_branch_config.py --fail-on-stale
 
-          # Runs `pytest --testmon` over tests/ (issue #6239): pytest-testmon
-          # re-runs only the tests whose recorded dependencies changed since
-          # its last run. `.testmondata` is git-ignored local state. With none,
-          # the hook first fetches main's CI seed (push runs on main only,
-          # 30s cap; see `testmon-seed` in pytest.yml) and otherwise only
-          # collects the suite, which checks imports and leaves every test to
-          # CI (issue #6200). Every partition runs even after one
-          # fails, and the exit code is the worst. Selection is
-          # best effort: it misses code a test reaches only through a
-          # subprocess. A failing run blocks the push. CI still runs every
-          # pytest leg in full on every push, pull request, and merge-queue
-          # event, so the hook is early feedback, not the gate. The hook sets
-          # COVERAGE_CORE=ctrace because testmon on Python 3.14 otherwise
-          # records through sysmon and under-selects. Set
-          # `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1` to run the whole suite
-          # here with no selection. The 15m cap is the ceiling for the opt-in,
-          # whose inner budget is 780s. The default path gets 180s (issue
-          # #6200), so a selection that does not finish fails the push. Inside
-          # a managed container `run_pytest` clamps the aggregate to 150s
-          # before it starts a child, so that number bounds a container push.
-          # See ADR-104. The worker cap is "scaled" (issue #6199): half
-          # the visible CPUs, at least 4 and at most 16, never above the CPU
-          # count. A fixed 4 left a 48-core workstation 1.8x slower than 16
-          # workers. A positive integer here is still a fixed cap.
-          # Issue #6609: pytest takes one host-wide heavy-stage slot (3 by
-          # default) and, holding it, waits for load below the CPU count BEFORE
-          # its budget clock starts.
-          # The wait is what the 15m cap leaves above the budget, less 60s; a
-          # test pins PYTHON_TESTS_JOB_CAP_SECONDS to this timeout. When the
-          # wait runs out pytest still runs and the warning names load. Off
-          # when CI is set; see scripts/validation/host_headroom.py for the
-          # AI_AGENTS_HEAVY_STAGE_* knobs, which override the CPU-count default.
-          - name: python-tests
-            timeout: 15m
-            run: uv run --frozen python scripts/validation/git_hook_policy.py pytest
-            env:
-              AI_AGENTS_PYTEST_WORKER_CAP: "scaled"
-              # Issue #5383: shared CPU budget. CPU-bound on every Python
-              # push: python-tests (xdist workers), pre-pr-validation,
-              # zero-collection-tests, python-type-check; each sibling is one
-              # process, so three CPUs are held back and xdist runs
-              # min(scaled_worker_cap, visible CPUs - 3) workers, never fewer
-              # than one (scaled_worker_cap is the AI_AGENTS_PYTEST_WORKER_CAP
-              # "scaled" value set above, not a fixed 4). When
-              # the partitions overlap, the serial safe-push lane counts in
-              # that budget too (pytest_lanes.plan_lanes process_budget). A
-              # four-CPU container runs one worker beside them. The test in
-              # tests/test_lefthook_integration.py pins reserve == sibling
-              # count. I/O-bound: worktree-gc-report, and the two CLI e2e jobs
-              # (hook-anchoring-e2e, plugin-load-e2e), which wait on an agent
-              # CLI over the network. Not measured. workflow-local-run runs
-              # `act` and is CPU-bound when its glob fires; a static reserve
-              # cannot cover a glob-gated job, so a push that fires it can
-              # still exceed the container allocation. The rest are
-              # lightweight.
-              AI_AGENTS_PYTEST_CPU_RESERVE: "3"
+                      # Runs `pytest --testmon` over tests/ (issue #6239): pytest-testmon
+                      # re-runs only the tests whose recorded dependencies changed since
+                      # its last run. `.testmondata` is git-ignored local state. With none,
+                      # the hook first fetches main's CI seed (push runs on main only,
+                      # 30s cap; see `testmon-seed` in pytest.yml) and otherwise only
+                      # collects the suite, which checks imports and leaves every test to
+                      # CI (issue #6200). Every partition runs even after one
+                      # fails, and the exit code is the worst. Selection is
+                      # best effort: it misses code a test reaches only through a
+                      # subprocess. A failing run blocks the push. CI still runs every
+                      # pytest leg in full on every push, pull request, and merge-queue
+                      # event, so the hook is early feedback, not the gate. The hook sets
+                      # COVERAGE_CORE=ctrace because testmon on Python 3.14 otherwise
+                      # records through sysmon and under-selects. Set
+                      # `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1` to run the whole suite
+                      # here with no selection. The 15m cap is the ceiling for the opt-in,
+                      # whose inner budget is 780s. The default path gets 180s (issue
+                      # #6200), so a selection that does not finish fails the push. Inside
+                      # a managed container `run_pytest` clamps the aggregate to 150s
+                      # before it starts a child, so that number bounds a container push.
+                      # See ADR-104. The worker cap is "scaled" (issue #6199): half
+                      # the visible CPUs, at least 4 and at most 16, never above the CPU
+                      # count. A fixed 4 left a 48-core workstation 1.8x slower than 16
+                      # workers. A positive integer here is still a fixed cap.
+                      # Issue #6609: pytest takes one host-wide heavy-stage slot (3 by
+                      # default) and, holding it, waits for load below the CPU count BEFORE
+                      # its budget clock starts.
+                      # The wait is what the 15m cap leaves above the budget, less 60s; a
+                      # test pins PYTHON_TESTS_JOB_CAP_SECONDS to this timeout. When the
+                      # wait runs out pytest still runs and the warning names load. Off
+                      # when CI is set; see scripts/validation/host_headroom.py for the
+                      # AI_AGENTS_HEAVY_STAGE_* knobs, which override the CPU-count default.
+                      - name: python-tests
+                        timeout: 15m
+                        run: uv run --frozen python scripts/validation/git_hook_policy.py pytest
+                        env:
+                          AI_AGENTS_PYTEST_WORKER_CAP: "scaled"
+                          # Issue #5383: shared CPU budget. CPU-bound on every Python
+                          # push: python-tests (xdist workers), pre-pr-validation,
+                          # zero-collection-tests, python-type-check; each sibling is one
+                          # process, so three CPUs are held back and xdist runs
+                          # min(scaled_worker_cap, visible CPUs - 3) workers, never fewer
+                          # than one (scaled_worker_cap is the AI_AGENTS_PYTEST_WORKER_CAP
+                          # "scaled" value set above, not a fixed 4). When
+                          # the partitions overlap, the serial safe-push lane counts in
+                          # that budget too (pytest_lanes.plan_lanes process_budget). A
+                          # four-CPU container runs one worker beside them. The test in
+                          # tests/test_lefthook_integration.py pins reserve == sibling
+                          # count. I/O-bound: worktree-gc-report, and the two CLI e2e jobs
+                          # (hook-anchoring-e2e, plugin-load-e2e), which wait on an agent
+                          # CLI over the network. Not measured. workflow-local-run runs
+                          # `act` and is CPU-bound when its glob fires; a static reserve
+                          # cannot cover a glob-gated job, so a push that fires it can
+                          # still exceed the container allocation. The rest are
+                          # lightweight.
+                          AI_AGENTS_PYTEST_CPU_RESERVE: "3"
 
-          # Issue #4494: a test_*.py inside testpaths that defines no test
-          # collects nothing, is counted in no failure, and reads as a passing
-          # suite forever. Scheduled here rather than in the fast stage because
-          # its cost is one pytest collection over testpaths (13s standalone,
-          # 28,893 items), which is the same work python-tests beside it does;
-          # the fast stage is for gates that finish in seconds. The 4m cap is
-          # the per-job container ceiling, sized for a loaded machine rather
-          # than the standalone number (ci-scripts.md MUST-16).
-          #
-          # Copilot review round 8 (PR #5344): no `glob` here on purpose. This
-          # is a whole-tree check, not a diff-scoped one, and `.claude/rules/
-          # ci-scripts.md`'s "Path filters gate the diff, never the tree"
-          # section's "whole tree MUST run" rule applies to local pre-push the
-          # same way it applies to the CI job this mirrors
-          # (`zero-collection-guard` in `.github/workflows/pytest.yml`). A
-          # non-Python push (`uv.lock`, `.python-version`) changes the pytest
-          # environment this script measures, so filtering it out here would
-          # let a lock-only push skip the one local check that would catch a
-          # regression the environment change introduced.
-          - name: zero-collection-tests
-            timeout: 4m
-            run: uv run --frozen python scripts/validation/check_zero_collection_tests.py
+                      # Issue #4494: a test_*.py inside testpaths that defines no test
+                      # collects nothing, is counted in no failure, and reads as a passing
+                      # suite forever. Scheduled here rather than in the fast stage because
+                      # its cost is one pytest collection over testpaths (13s standalone,
+                      # 28,893 items), which is the same work python-tests beside it does;
+                      # the fast stage is for gates that finish in seconds. The 4m cap is
+                      # the per-job container ceiling, sized for a loaded machine rather
+                      # than the standalone number (ci-scripts.md MUST-16).
+                      #
+                      # Copilot review round 8 (PR #5344): no `glob` here on purpose. This
+                      # is a whole-tree check, not a diff-scoped one, and `.claude/rules/
+                      # ci-scripts.md`'s "Path filters gate the diff, never the tree"
+                      # section's "whole tree MUST run" rule applies to local pre-push the
+                      # same way it applies to the CI job this mirrors
+                      # (`zero-collection-guard` in `.github/workflows/pytest.yml`). A
+                      # non-Python push (`uv.lock`, `.python-version`) changes the pytest
+                      # environment this script measures, so filtering it out here would
+                      # let a lock-only push skip the one local check that would catch a
+                      # regression the environment change introduced.
+                      - name: zero-collection-tests
+                        timeout: 4m
+                        run: uv run --frozen python scripts/validation/check_zero_collection_tests.py
 
-          - name: python-lint-advisory
-            timeout: 2m
-            run: uv run --frozen python scripts/ci/report_advisory_result.py run --propagate-errors --validator python-lint-advisory --scope "pushed Python files" --timeout 100 --findings-exit 1 -- uv run --frozen --extra dev ruff check -- {push_files}
-            glob: "**/*.py"
+                      - name: python-lint-advisory
+                        timeout: 2m
+                        run: uv run --frozen python scripts/ci/report_advisory_result.py run --propagate-errors --validator python-lint-advisory --scope "pushed Python files" --timeout 100 --findings-exit 1 -- uv run --frozen --extra dev ruff check -- {push_files}
+                        glob: "**/*.py"
 
-          # 4m, not main's 2m. git_hook_policy.py splits a push into one mypy
-          # child per batch class and caps each child at MYPY_TIMEOUT_SECONDS
-          # (60s): a source batch, a test batch, and then one child per
-          # scripts/validation/ path and one per colliding basename. Those last
-          # two sources are unbounded, so no fixed cap covers every reachable
-          # push. 4m covers the ordinary three-child push (source, test, one
-          # validation file) with 60s to spare. A fourth child uses the margin
-          # up, and a fifth overruns. The inner 60s timeout is the real guard
-          # past that point; the job cap only decides whether you see its
-          # diagnostic. tests/test_lefthook_integration.py sums the children per
-          # job and asserts the three-child margin.
-          - name: python-type-check
-            timeout: 4m
-            run: uv run --frozen --extra dev python scripts/validation/git_hook_policy.py mypy {push_files}
-            glob: "**/*.py"
-            exclude:
-              - ".claude/lib/**"
-              - ".claude/hooks/**"
-              - ".claude/skills/**"
-              - "src/copilot-cli/lib/**"
-              - "src/copilot-cli/hooks/**"
-              - "src/copilot-cli/skills/**"
-              - "tests/skills/**"
-              - "docs/**"
-              - "evals/**"
+                      # 4m, not main's 2m. git_hook_policy.py splits a push into one mypy
+                      # child per batch class and caps each child at MYPY_TIMEOUT_SECONDS
+                      # (60s): a source batch, a test batch, and then one child per
+                      # scripts/validation/ path and one per colliding basename. Those last
+                      # two sources are unbounded, so no fixed cap covers every reachable
+                      # push. 4m covers the ordinary three-child push (source, test, one
+                      # validation file) with 60s to spare. A fourth child uses the margin
+                      # up, and a fifth overruns. The inner 60s timeout is the real guard
+                      # past that point; the job cap only decides whether you see its
+                      # diagnostic. tests/test_lefthook_integration.py sums the children per
+                      # job and asserts the three-child margin.
+                      - name: python-type-check
+                        timeout: 4m
+                        run: uv run --frozen --extra dev python scripts/validation/git_hook_policy.py mypy {push_files}
+                        glob: "**/*.py"
+                        exclude:
+                          - ".claude/lib/**"
+                          - ".claude/hooks/**"
+                          - ".claude/skills/**"
+                          - "src/copilot-cli/lib/**"
+                          - "src/copilot-cli/hooks/**"
+                          - "src/copilot-cli/skills/**"
+                          - "tests/skills/**"
+                          - "docs/**"
+                          - "evals/**"
+
+                      - name: additions-advisory
+                        timeout: 2m
+                        run: uv run --frozen python scripts/validation/git_hook_policy.py additions
+
+                      - name: bot-cascade-advisory
+                        timeout: 2m
+                        run: uv run --frozen python scripts/validation/git_hook_policy.py bot-cascade
 
           # Kept at main's 30m. Cut to 10m earlier on this branch and put
           # back in review (PR #5319): rule 7 sizes a cap from a measured
@@ -864,10 +882,6 @@ pre-push:
             timeout: 30m
             run: uv run --frozen python scripts/validation/git_hook_policy.py workflow-local {push_files}
             glob: ".github/workflows/**/*.{yml,yaml}"
-
-          - name: additions-advisory
-            timeout: 2m
-            run: uv run --frozen python scripts/validation/git_hook_policy.py additions
 
           - name: hook-anchoring-e2e
             timeout: 20m
@@ -919,7 +933,3 @@ pre-push:
               - "tests/integration/test_e2e_install.py"
               - "pyproject.toml"
               - "uv.lock"
-
-          - name: bot-cascade-advisory
-            timeout: 2m
-            run: uv run --frozen python scripts/validation/git_hook_policy.py bot-cascade

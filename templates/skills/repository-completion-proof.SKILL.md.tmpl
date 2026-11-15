@@ -166,8 +166,8 @@ Follow the [shared maintenance policy](../repository-pr-recovery/references/libr
 Each question below has a runnable instrument. The dispatcher lists them and runs one by id:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/repository-completion-proof/scripts/instruments.py" --repo . list
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/repository-completion-proof/scripts/instruments.py" --repo . run <id> -- <args>
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/repository-completion-proof/scripts/instruments.py --repo . list; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/repository-completion-proof/scripts/instruments.py --repo . run <id> -- <args>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Ids: `verify-config` (Phase 1), `merged-state`, `settled-zero`, `completion-gate`, `resolution-shas`, `suppressed-findings` (Phase 2), `merge-ready`, `live-state` (Phase 3).
@@ -181,5 +181,5 @@ Whether `live-state` and `merge-ready` join the check event to the head revision
 `reverify.json` holds the checks that tie this skill to the dispatcher and config it names. Run the drift check after any edit:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_drift.py" check --repo . --skills-root .claude/skills --name repository-completion-proof --require
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_drift.py check --repo . --skills-root .claude/skills --name repository-completion-proof --require; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
