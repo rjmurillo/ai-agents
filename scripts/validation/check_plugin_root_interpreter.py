@@ -96,13 +96,18 @@ Detection:
 
   **The locator (ADR-121).** ``plugin_root_interpreter_sites.py`` finds each
   locator and reads its script path out of the text with
-  ``plugin_run_launcher.find_locators``. Rule 1 holds by construction, because the
-  locator's interpreter is fixed text. Rule 2 applies to the extracted path exactly
-  as it does to a legacy operand. Rule 4 holds because the locator names both
-  variables. A locator that no longer reads back (a bad target, a missing end) is an
-  offense. A locator in shipped YAML is an offense no allowance and no declaration
-  covers: the completion gate splits commands with ``shlex`` and runs no shell, so
-  the locator would stay literal there (ADR-121 decision 1, Class G).
+  ``plugin_run_launcher.find_locators``. The locator's interpreter comes from the
+  closed set ``plugin_run_launcher.INTERPRETERS`` (ADR-121 decision 12), so rule 1
+  holds by construction, except that the ``uv run --frozen python`` form is an
+  offense outside a ``distribution: repo-local`` skill. Rule 2 applies to the
+  extracted path as it does to a legacy operand, minus any module that
+  ``GUARDED_IMPORT_ALLOWANCES`` covers for that target (decision 13); the ``uv``
+  form skips the import scan but still needs a tracked target. Rule 4 holds
+  because the locator names both variables. A locator that no longer reads back
+  (a bad target, a missing end) is an offense. A locator in shipped YAML is an
+  offense no allowance and no declaration covers: the completion gate splits
+  commands with ``shlex`` and runs no shell, so the locator would stay literal
+  there (ADR-121 decision 1, Class G).
 
   **Rule 6 (legacy ratchet).** Authored files (``templates/`` and the hand-kept files
   under ``src/claude/``, including the hand-maintained ``src/claude/lib`` modules;
@@ -126,7 +131,8 @@ Detection:
 
 Exit codes (ADR-035):
   0 - no offenses found and every allowance still matches
-  1 - one or more offenses found, an allowance matches nothing, or a legacy-site
+  1 - one or more offenses found, an allowance matches nothing (including a
+      guarded-import allowance), or a legacy-site
       count differs from its baseline
   2 - configuration error (git unavailable, an in-scope tracked file could not
       be read, or the scan examined zero files)
@@ -458,10 +464,19 @@ def find_offenses(
 
 
 def find_yaml_offenses(
-    text: str, rel: str, repo_root: Path, tracked_py: set[str], used_allowances: set[_Key]
+    text: str,
+    rel: str,
+    repo_root: Path,
+    tracked_py: set[str],
+    used_allowances: set[_Key],
+    used_guarded: _UsedGuarded = None,
 ) -> list[tuple[int, str]]:
-    """Return rule 1 to 3 offenses minus allowances; record each allowance used."""
-    found = _plugin_root_offenses(text, rel, repo_root, tracked_py)
+    """Return rule 1 to 3 offenses minus allowances; record each allowance used.
+
+    ``used_guarded`` receives each guarded-import allowance a Class G site applied,
+    so an allowance whose only sites are shipped YAML is not reported stale.
+    """
+    found = _plugin_root_offenses(text, rel, repo_root, tracked_py, None, used_guarded)
     found += _bare_path_offenses(text, rel)
     root_relative = next((rel[len(r) :] for r in _PLUGIN_ROOTS if rel.startswith(r)), rel)
     owners, reported = _allowances.yaml_key_paths(text), []
@@ -590,7 +605,7 @@ def scan(
         if legacy_counts is not None and group is not None:
             _ratchet.tally(legacy_counts, group, _sites.count_legacy_sites(text))
         if _is_yaml(rel):
-            found = find_yaml_offenses(text, rel, repo_root, tracked_py, used)
+            found = find_yaml_offenses(text, rel, repo_root, tracked_py, used, used_guarded)
         else:
             found = find_offenses(text, rel, repo_root, tracked_py, imports, used_guarded)
         all_offenses.extend((rel, lineno, message) for lineno, message in found)

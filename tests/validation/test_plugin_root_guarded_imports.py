@@ -15,10 +15,15 @@ import pytest
 
 from scripts.validation import check_plugin_root_interpreter as checker
 from scripts.validation import plugin_root_guarded_imports as guarded
+
+# The sites module puts build/scripts on sys.path for the validator itself, so the
+# recipe is reached through it and this test adds no path of its own.
+from scripts.validation.plugin_root_interpreter_sites import plugin_run_launcher
 from tests.validation.test_check_plugin_root_interpreter import REPO_ROOT, make_repo
 
-sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
-from plugin_run_launcher import ISOLATED_INTERPRETER, UV_INTERPRETER, render_locator
+ISOLATED_INTERPRETER = plugin_run_launcher.ISOLATED_INTERPRETER
+UV_INTERPRETER = plugin_run_launcher.UV_INTERPRETER
+render_locator = plugin_run_launcher.render_locator
 
 GUARDED_YAML = "try:\n    import yaml\nexcept ImportError:\n    yaml = None\n"
 UNGUARDED_YAML = "import yaml\n"
@@ -158,6 +163,45 @@ def test_an_unguarded_sibling_in_the_closure_voids_the_allowance(tmp_path: Path)
     files = {MAPPED: "import helper\n", sibling: UNGUARDED_YAML, **_locator_readme()}
     [offense] = _scan(tmp_path, files)
     assert f"{sibling} imports it with no fallback" in offense
+
+
+@pytest.mark.usefixtures("allow_yaml")
+def test_an_unguarded_child_started_through_sys_executable_voids_the_allowance(
+    tmp_path: Path,
+) -> None:
+    """Rule 2's walk follows `sys.executable` children, so the guard check must too."""
+    child = ".claude/skills/demo/scripts/child.py"
+    parent = (
+        GUARDED_YAML
+        + "import subprocess, sys\n"
+        + f'subprocess.run([sys.executable, "{child}"], check=True)\n'
+    )
+    files = {MAPPED: parent, child: UNGUARDED_YAML, **_locator_readme()}
+    [offense] = _scan(tmp_path, files)
+    assert f"{child} imports it with no fallback" in offense
+
+
+@pytest.mark.usefixtures("allow_yaml")
+def test_a_guarded_child_started_through_sys_executable_keeps_the_allowance(
+    tmp_path: Path,
+) -> None:
+    child = ".claude/skills/demo/scripts/child.py"
+    parent = (
+        "import subprocess, sys\n" + f'subprocess.run([sys.executable, "{child}"], check=True)\n'
+    )
+    files = {MAPPED: parent, child: GUARDED_YAML, **_locator_readme()}
+    assert _scan(tmp_path, files) == []
+
+
+@pytest.mark.usefixtures("allow_yaml")
+def test_an_allowance_used_only_by_shipped_yaml_is_recorded(tmp_path: Path) -> None:
+    """Class G YAML keeps the legacy form; its use of an allowance must count."""
+    legacy = f'python3 "${{COPILOT_PLUGIN_ROOT:-${{CLAUDE_PLUGIN_ROOT:-.claude}}}}/{TARGET}"'
+    config = f"scripts:\n  run: {legacy}\n"
+    used: set = set()
+    files = {MAPPED: GUARDED_YAML, "src/claude/skills/demo/demo-config.yaml": config}
+    assert _scan(tmp_path, files, used) == []
+    assert used == {(MAPPED, "yaml")}
 
 
 def test_an_allowance_for_another_target_does_not_apply(

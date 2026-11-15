@@ -168,19 +168,6 @@ def _imported_roots(node: ast.stmt) -> list[str]:
     return []
 
 
-def import_time_roots(source: str) -> list[str]:
-    """Return the top-level name of every import that runs at import time, guarded or not.
-
-    Raises ``SyntaxError`` for source that does not parse.
-    """
-    tree = ast.parse(source)
-    return [
-        name
-        for node, _guarded in _import_time_imports(tree.body, guarded=False)
-        for name in _imported_roots(node)
-    ]
-
-
 def unguarded_third_party_imports(
     source: str, is_repo_module: Callable[[str], bool]
 ) -> list[tuple[int, str]]:

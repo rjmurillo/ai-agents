@@ -29,7 +29,7 @@ _BUILD_SCRIPTS = Path(__file__).resolve().parents[2] / "build" / "scripts"
 if str(_BUILD_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_BUILD_SCRIPTS))
 
-import plugin_run_launcher  # noqa: E402
+import plugin_run_launcher as plugin_run_launcher  # noqa: E402  (re-exported for tests)
 
 PLUGIN_ROOT_VARS = ("COPILOT_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT")
 # The locator form a repo-local skill may carry (ADR-121 decision 12).
