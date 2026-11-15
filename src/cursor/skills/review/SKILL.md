@@ -146,12 +146,12 @@ In round 2 or 3, add **Flagged notes (not counted)** after it: axis, `file:line`
 
 Followed by per-axis findings in detail. Each finding:
 
-- **severity**: CRITICAL | IMPORTANT | SUGGESTION
+- **severity**: CRITICAL | IMPORTANT | SUGGESTION | UNSPECIFIED
 - **category**: short keyword
 - **location**: `file:line`
 - **recommendation**: one-sentence fix
 
-Categorize a finding as **Critical** if its axis verdict is `CRITICAL_FAIL`, **Important** if `WARN`, **Suggestion** otherwise.
+Label each finding from its own value, never its axis verdict: `resources/finding-severity.md`. Display only.
 
 ## Write the SHA-bound PASS marker
 
