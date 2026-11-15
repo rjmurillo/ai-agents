@@ -16,14 +16,14 @@ Usage:
 Examples:
     python {{SCRIPT_NAME}}.py input.json
     python {{SCRIPT_NAME}}.py input.json --verbose --output result.json
+    python {{SCRIPT_NAME}}.py input.json --output result.json --dry-run
 
-Exit Codes:
+Exit Codes (shared 0-4 contract; one code per failure type):
     0  - Success
-    1  - General failure
-    2  - Invalid arguments
-    3  - File not found
-    10 - Validation failure
-    11 - Fast-fail check failure
+    1  - The run failed a check (validation or fast-fail)
+    2  - Usage or configuration error: invalid arguments, missing input file
+    3  - An external tool or service failed
+    4  - Authentication or permission failure
 """
 
 import argparse
@@ -232,6 +232,7 @@ Examples:
   %(prog)s input.json
   %(prog)s input.json --verbose
   %(prog)s input.json --output result.json --json
+  %(prog)s input.json --output result.json --dry-run
         """,
     )
 
@@ -247,7 +248,18 @@ Examples:
 
     parser.add_argument("--no-fast-fail", action="store_true", help="Skip the fast-fail check")
 
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Report what --output would write, then write nothing",
+    )
+
     args = parser.parse_args()
+
+    # ----- Preconditions (exit 2: usage or configuration error) -----
+    if not args.input.is_file():
+        print(f"Error: input file not found: {args.input}", file=sys.stderr)
+        sys.exit(2)
 
     # ----- Process -----
     options = {
@@ -269,7 +281,7 @@ Examples:
                 )
             else:
                 print(f"Fast-fail check failed: {check_msg}", file=sys.stderr)
-            sys.exit(11)  # Fast-fail check failure
+            sys.exit(1)  # A check failed
 
     # ----- Output -----
     if args.json:
@@ -289,7 +301,9 @@ Examples:
             print(f"  Warning: {warning}", file=sys.stderr)
 
     # ----- Write to File -----
-    if args.output and result.success:
+    if args.output and result.success and args.dry_run:
+        print(f"Dry run: would write {len(result.data)} keys to {args.output}", file=sys.stderr)
+    elif args.output and result.success:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(result.data, indent=2))
         if not args.json:

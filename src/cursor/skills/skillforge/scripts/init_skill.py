@@ -32,7 +32,7 @@ SKILL_MD_TEMPLATE = """\
 ---
 name: {name}
 description: >
-  TODO: Describe what this skill does in 1-2 sentences.
+  TODO: Say what this skill does. Use when TODO: user intent and trigger contexts.
 ---
 
 # {title}
@@ -71,6 +71,10 @@ TODO: Describe what happens in this phase.
 
 **Verification:** TODO: How to verify this phase succeeded.
 
+## Gotchas
+
+- TODO: An environment-specific fact that defies a reasonable assumption.
+
 ## Anti-Patterns
 
 | Avoid | Why | Instead |
@@ -87,7 +91,7 @@ After execution:
 
 ## References
 
-- [TODO](references/TODO) - TODO: Description
+- [TODO](references/TODO) - TODO: Description. Read when TODO: load condition.
 """
 
 README_REFERENCES = """\
@@ -118,7 +122,9 @@ They run via `python scripts/<name>.py` from the skill root.
 
 - Each script should have a docstring, argparse CLI, and explicit exit codes
 - Use the Result dataclass pattern (see script-template.py in SkillForge assets)
-- Exit 0 = success, 1 = failure, 2 = bad args, 10 = validation fail
+- Exit codes follow the shared 0-4 contract: 0 success, 1 a check failed,
+  2 usage or configuration error, 3 external failure, 4 authentication failure
+- Write state only behind a `--dry-run` preview, and keep reruns idempotent
 """
 
 README_ASSETS = """\
@@ -242,7 +248,13 @@ def validate_name(name: str) -> tuple[bool, str]:
     """Validate skill name is kebab-case and within limits."""
     if not name:
         return False, "Skill name cannot be empty"
-    if not re.match(r"^[a-z][a-z0-9-]*$", name):
+    try:
+        from _constants import NAME_REGEX
+    except ImportError:
+        NAME_REGEX = r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"  # noqa: N806
+    if name.endswith("-") and re.match(r"^[a-z0-9][a-z0-9-]*$", name):
+        return False, f"Name '{name}' cannot end with hyphen or have consecutive hyphens"
+    if not re.match(NAME_REGEX, name):
         return False, f"Name '{name}' must be kebab-case (lowercase letters, digits, hyphens)"
     if name.endswith("-") or "--" in name:
         return False, f"Name '{name}' cannot end with hyphen or have consecutive hyphens"

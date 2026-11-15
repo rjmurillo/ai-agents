@@ -29,9 +29,14 @@ state the assumption and give the dependent step a clean skip path.
 ```yaml
 ---
 name: <kebab-case, at most 64 characters, equal to the directory name>
-description: <action, domain noun, and the real trigger phrase in the first 200 characters>
+description: <what it does (action and domain noun), then "Use when" plus the user's intent and the real trigger phrase, all in the first 200 characters>
 ---
 ```
+
+The description follows the `skillforge` skill's `references/skill-content-rules.md`
+description rules: say what the skill does and when to use it, describe user
+intent, name a "Do NOT use for..." boundary when a sibling skill overlaps, and
+stay at or under 1024 characters (<https://agentskills.io/specification>).
 
 Add `user-invocable: true` only for skills a user types by name.
 
