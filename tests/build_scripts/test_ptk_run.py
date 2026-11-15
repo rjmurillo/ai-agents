@@ -58,6 +58,16 @@ def tree(tmp_path: Path) -> Path:
     return _plugin_tree(tmp_path / "plugin")
 
 
+@pytest.fixture(autouse=True)
+def _no_ambient_roots(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Fallthrough reads the root variables and `.claude` under cwd; isolate both."""
+    for name in ("CLAUDE_PLUGIN_ROOT", "COPILOT_PLUGIN_ROOT"):
+        monkeypatch.delenv(name, raising=False)
+    work = tmp_path / "cwd"
+    work.mkdir()
+    monkeypatch.chdir(work)
+
+
 @pytest.fixture
 def resolver(tree: Path) -> ModuleType:
     return _load(tree / "lib" / "ptk_run.py")
@@ -136,7 +146,7 @@ def test_resolve_target_returns_the_joined_path_for_a_regular_file(
 
 
 def test_resolve_target_rejects_a_missing_file(resolver: ModuleType, tree: Path) -> None:
-    with pytest.raises(resolver.ResolverError, match="not a file"):
+    with pytest.raises(resolver.ResolverError, match="not a file under any plugin root"):
         resolver.resolve_target(str(tree), "skills/x/scripts/missing.py")
 
 
