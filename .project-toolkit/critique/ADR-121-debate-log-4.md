@@ -93,6 +93,16 @@ Only the three seats that asked for changes in round 2 re-voted. The other three
 
 Merge the amendment as `proposed`. Step 8 implements decisions 11 to 13 with the tests the Rollout section lists. Step 9 migrates the 22 sites and closes issue #7281.
 
+## Post-Consensus Editorial Move
+
+After round 3, `pre_pr.py` failed two checks: the ADR reached 524 lines against
+the 500-line cap (taste `file-size` and the ADR lifecycle `size-cap`). The gate
+asks for detail to move to an analysis file. Three subsections moved verbatim
+to `.project-toolkit/analysis/ADR-121-amendment-2026-11-14.md`: Measurements,
+Reviewer asks decided, and Costs and limits. The ADR keeps every numbered
+decision and the rollout, plus a short summary and a link. No decision text
+changed, so the panel did not re-vote.
+
 ## Debate State
 
 **Round**: 3 of 10 (counted within this debate log)
