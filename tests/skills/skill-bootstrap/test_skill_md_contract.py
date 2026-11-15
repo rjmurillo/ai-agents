@@ -32,11 +32,12 @@ BUNDLED = (
     "references/discovery.md",
     "references/hosted-platforms.md",
     "references/authoring-and-gates.md",
+    "references/scripts.md",
 )
-PORTABLE_SCRIPT = (
-    "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
-    "/skills/skill-bootstrap/scripts/bootstrap_boundary.py"
-)
+SCRIPT_DIR = "skills/skill-bootstrap/scripts"
+sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
+from plugin_run_launcher import find_locators
+
 LINK_RE = re.compile(r"\]\((references/[^)#\s]+)(?:#[^)]*)?\)")
 
 
@@ -78,12 +79,25 @@ def test_reference_links_resolve(root: str) -> None:
         assert (_skill_dir(root) / link).is_file(), f"{root}: {link}"
 
 
+def locator_calls(text: str) -> set[tuple[str, str]]:
+    """Return ``(script name, first argument)`` for every ADR-121 locator in ``text``."""
+    calls: set[tuple[str, str]] = set()
+    for line in text.splitlines():
+        for match in find_locators(line):
+            assert match.script_rel is not None, match.problem
+            calls.add((match.script_rel.rsplit("/", 1)[1], match.args.split(" ", 1)[0]))
+            assert match.script_rel.startswith(SCRIPT_DIR + "/"), match.script_rel
+    return calls
+
+
 @pytest.mark.parametrize("root", SHIPPED_ROOTS)
 def test_script_path_is_portable(root: str) -> None:
+    """Every documented command is the ADR-121 locator, never the legacy nested form."""
     text = _skill_md(root)
-    assert f'python3 "{PORTABLE_SCRIPT}" snapshot' in text
-    assert f'python3 "{PORTABLE_SCRIPT}" plan' in text
-    assert f'python3 "{PORTABLE_SCRIPT}" verify' in text
+    assert "COPILOT_PLUGIN_ROOT:-" not in text
+    calls = locator_calls(text)
+    for subcommand in ("snapshot", "plan", "verify"):
+        assert ("bootstrap_boundary.py", subcommand) in calls
 
 
 def test_context_optimizer_stage_precedes_skillopt_in_process() -> None:
@@ -98,8 +112,9 @@ def test_context_optimizer_stage_precedes_skillopt_in_process() -> None:
 
 
 def test_skill_md_documents_exit_codes_in_a_table_with_one_row_per_script() -> None:
-    text = _skill_md()
-    assert "Exit code 0 means success and exit code 1 means findings" in text
+    assert "Exit code 0 means success and exit code 1 means findings" in _skill_md()
+    assert "references/scripts.md" in _skill_md()
+    text = (_skill_dir(".claude") / "references" / "scripts.md").read_text(encoding="utf-8")
     header = "| Script | Exit 2: configuration | Exit 3: external |"
     assert header in text
     rows = text.split(header, 1)[1].split("\n\n", 1)[0].splitlines()[2:]

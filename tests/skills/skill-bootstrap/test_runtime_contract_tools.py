@@ -24,7 +24,7 @@ from test_runtime_contract import (
     _host_env,
 )
 
-CAPABILITY_LINE_RE = re.compile(r'bootstrap_(mine|forms|drift|eval)\.py" (\w+)')
+CAPABILITY_LINE_RE = re.compile(r"bootstrap_(mine|forms|drift|eval)\.py (\w+)")
 
 
 def _capability_commands(files: dict[str, Path]) -> list[tuple[str, str]]:

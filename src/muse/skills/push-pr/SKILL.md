@@ -35,7 +35,7 @@ Based on the above changes:
 3. Run the secure path allocator:
 
    ```bash
-   python3 -I "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/new_pr.py" --prepare-body-file
+   ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 -I "$d/lib/ptk_run.py" skills/github/scripts/pr/new_pr.py --prepare-body-file; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
    ```
 
    - On Windows the allocator refuses to run. Follow the
@@ -58,7 +58,7 @@ Based on the above changes:
 4. Check the title and body file before the push, which can take minutes:
 
    ```bash
-   python3 -I "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/new_pr.py" --preflight --title "<conventional commit title>" --body-file ".project-toolkit/scratch/pr-body-<returned-uuid>.md"
+   ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 -I "$d/lib/ptk_run.py" skills/github/scripts/pr/new_pr.py --preflight --title "<conventional commit title>" --body-file ".project-toolkit/scratch/pr-body-<returned-uuid>.md"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
    ```
 
    `--preflight` checks the title format and the body file: its path, that it is a regular UTF-8 file, and that the placeholder line is gone.
@@ -102,7 +102,7 @@ Based on the above changes:
    -->
 
    ```bash
-   python3 -I "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/new_pr.py" --title "<conventional commit title>" --body-file ".project-toolkit/scratch/pr-body-<returned-uuid>.md"
+   ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 -I "$d/lib/ptk_run.py" skills/github/scripts/pr/new_pr.py --title "<conventional commit title>" --body-file ".project-toolkit/scratch/pr-body-<returned-uuid>.md"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
    ```
 
 - Branch checked out in a worktree outside the clone, and the command runs from another checkout (for example the primary clone): append `--head "<branch>"`. Running the command from the worktree itself needs no `--head`, because `new_pr.py` uses the current branch. Never remove the worktree to open the PR. Push the branch first, since `gh` resolves the head on the remote. `new_pr.py` exits 2 and prints the push command when origin lacks the branch.
@@ -138,7 +138,7 @@ stdin, never as a command-line argument to `gh`.
 4. Step 7: run the same command with the body text inline:
 
    ```bash
-   python3 -I "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/new_pr.py" --title "<conventional commit title>" --body '<body text>'
+   ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 -I "$d/lib/ptk_run.py" skills/github/scripts/pr/new_pr.py --title "<conventional commit title>" --body '<body text>'; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
    ```
 
    - Paste the file's final contents, unchanged, as the `--body` text. Step 5

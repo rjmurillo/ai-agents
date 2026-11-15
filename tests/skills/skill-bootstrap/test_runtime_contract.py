@@ -13,6 +13,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 from bootstrap_helpers import write
@@ -20,10 +21,27 @@ from bootstrap_helpers import write
 from tests.pwsh_launcher_probe import require_working_pwsh
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
+from plugin_run_launcher import find_locators, render_locator
+
 PLUGIN_ROOT = REPO_ROOT / ".claude"
 SKILL_MD = PLUGIN_ROOT / "skills" / "skill-bootstrap" / "SKILL.md"
-LINE_RE = re.compile(r'^\s*(python3 "\$\{COPILOT_PLUGIN_ROOT.*)$', re.MULTILINE)
+SCRIPTS_REF = PLUGIN_ROOT / "skills" / "skill-bootstrap" / "references" / "scripts.md"
+# One ADR-121 locator per line. Optional `[...]` groups are stripped from the
+# arguments only, because the locator text holds `[ -n "$d" ]` tests of its own.
+LINE_RE = re.compile(r"^\s*(\( for d in .*lib/ptk_run\.py.*)$", re.MULTILINE)
 OPTIONAL_RE = re.compile(r"\s*\[[^\]]*\]")
+
+
+def strip_optional(line: str) -> str:
+    """Return the locator on ``line`` with optional `[...]` argument groups removed."""
+    [match] = list(find_locators(line))
+    assert match.script_rel is not None, match.problem
+    return render_locator(
+        match.script_rel, OPTIONAL_RE.sub("", match.args).strip(), match.interpreter
+    )
+
+
 SKILL_NAME = "demo-change-control"
 
 
@@ -33,9 +51,9 @@ def _documented_commands(snap: Path) -> dict[str, str]:
     for line in LINE_RE.findall(SKILL_MD.read_text(encoding="utf-8")):
         if "bootstrap_boundary.py" not in line:
             continue
-        match = re.search(r'bootstrap_boundary\.py" (snapshot|plan|verify)\b', line)
-        assert match, f"python3 line names no subcommand: {line}"
-        text = OPTIONAL_RE.sub("", line)
+        match = re.search(r"bootstrap_boundary\.py (snapshot|plan|verify)\b", line)
+        assert match, f"locator names no subcommand: {line}"
+        text = strip_optional(line)
         for placeholder, value in (
             ("<project>-<lens>", SKILL_NAME),
             ("<new-skill>", SKILL_NAME),
@@ -133,10 +151,10 @@ PS_LINE_RE = re.compile(r'^python "\$root/.*$', re.MULTILINE)
 
 def _documented_powershell(snap: Path) -> str:
     """Return the documented PowerShell root line plus its snapshot command."""
-    text = SKILL_MD.read_text(encoding="utf-8")
+    text = SCRIPTS_REF.read_text(encoding="utf-8")
     root_line = PS_ROOT_RE.search(text)
     command = PS_LINE_RE.search(text)
-    assert root_line and command, "SKILL.md has no PowerShell form"
+    assert root_line and command, "references/scripts.md has no PowerShell form"
     filled = command.group(0).replace("<output-root>", ".claude/skills")
     filled = filled.replace("<snapshot path>", str(snap))
     assert "<" not in filled, f"unfilled placeholder: {filled}"

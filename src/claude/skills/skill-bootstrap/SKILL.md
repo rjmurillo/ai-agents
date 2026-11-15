@@ -86,7 +86,7 @@ flowchart TD
 ```
 
 In the commands below, `<output-root>` is `.claude/skills` or `.github/skills`. Pass `--name` once per skill. On Windows
-PowerShell, see [Scripts](#scripts).
+PowerShell, see [references/scripts.md](references/scripts.md#windows-powershell).
 
 ### Phase 1: Scope, mode, outcomes, boundary
 
@@ -108,7 +108,7 @@ PowerShell, see [Scripts](#scripts).
 7. Record the boundary before any write. Put the snapshot in the system temp directory or a session scratch directory, and keep the same path for Phase 6:
 
    ```bash
-   python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_boundary.py" snapshot --repo . --output-root <output-root> --out "<snapshot path>"
+   ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_boundary.py snapshot --repo . --output-root <output-root> --out "<snapshot path>"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
    ```
 
 **Authority.** Write only inside `<output-root>` and the paths the user authorized in step 3. The snapshot, plan, doctor artifacts, sweep run directory (new, deleted at run end), `bootstrap_mine.py --out` file, frozen eval cases file, eval cases, and eval results are the only writes outside the repository. Run no mutating git command, deployment, publication, tracker mutation, message, or platform-setting change; call only read tools on connected servers. Evaluation grants no extra write authority. Modify an existing skill only when it is inside the boundary and passed with `--update`; otherwise compose it or report the proposed change.
@@ -125,7 +125,7 @@ PowerShell, see [Scripts](#scripts).
 2. Mine before you browse. The script lists reverts and ranks churn hotspots, TODO and FIXME hotspots, and (with `--prs-json` from the host API) review rounds, review failures, and missed items. Exclude generated mirrors. When `reverts_truncated` is true, the scan stopped at `--max-commits` (default 3000); raise it to read older history:
 
    ```bash
-   python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_mine.py" candidates --repo . --top 10 --exclude <generated-prefix>
+   ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_mine.py candidates --repo . --top 10 --exclude <generated-prefix>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
    ```
 
    Optionally add `--sessions-json <inventory.json>` for deterministic
@@ -160,8 +160,8 @@ Decide per outcome or lens. `skillforge` triage in Phase 4 makes the final call;
 Then sort every verified item by tool form and write the plan file (schema in [references/authoring-and-gates.md](references/authoring-and-gates.md#plan-file)). Ask one question per item: **can a program compute this from repository state?** If yes, it is `instrument` or `both`, never scaffold-only. Validate the plan, then names and conflicts:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_forms.py" check --plan "<plan path>"
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_boundary.py" plan --repo . --output-root <output-root> --project <project> --name <project>-<lens>
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_forms.py check --plan "<plan path>"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_boundary.py plan --repo . --output-root <output-root> --project <project> --name <project>-<lens>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 To improve an existing skill, pass it twice: `--name <skill> --update <skill>`. Exit code 1 from either command means a violation, a conflict, or an invalid name: fix the plan, rename, get authorization for `--update`, or drop the skill. Never overwrite blindly.
@@ -171,8 +171,8 @@ To improve an existing skill, pass it twice: `--name <skill> --update <skill>`. 
 Invoke `skillforge` once per selected skill with the brief in [references/authoring-and-gates.md](references/authoring-and-gates.md). Every `instrument` or `both` item ships its script and tests; every skill ships `reverify.json`. Run independent skills in parallel agents when the harness supports it. If `skillforge` is unavailable, report `skillforge: UNAVAILABLE` and stop authoring. After authoring, prove the scripts exist and the text is grounded:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_forms.py" check --plan "<plan path>" --skills-root <output-root> --require-scripts
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_mine.py" claims --repo . --authored <output-root>/<new-skill> <output-root>/<new-skill>
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_forms.py check --plan "<plan path>" --skills-root <output-root> --require-scripts; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_mine.py claims --repo . --authored <output-root>/<new-skill> <output-root>/<new-skill>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Pass each skill this run wrote or updated with `--authored`, so its uncommitted files count. A `claims` finding with context `current` is a defect to fix. A `historical` one is a hint: read the line and decide.
@@ -183,8 +183,8 @@ Pass each skill this run wrote or updated with `--authored`, so its uncommitted 
 2. Build and run the capability eval, per [references/authoring-and-gates.md](references/authoring-and-gates.md#capability-eval). Score against the same frozen file that was frozen before the knowledge-mode baseline run (for any other mode, freeze before the first run). Run each case without the skill (`baseline`) and with it (`with_skill`), then score:
 
    ```bash
-   python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_eval.py" freeze --cases "<cases path>" --out "<frozen path>"
-   python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_eval.py" score --frozen "<frozen path>" --results "<results path>"
+   ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_eval.py freeze --cases "<cases path>" --out "<frozen path>"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+   ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_eval.py score --frozen "<frozen path>" --results "<results path>"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
    ```
 
    A skill whose cases are all `no_gap` adds nothing measurable: drop it or report why it stays. A skill whose cases are all `flat` does not transfer: `score` exits 1 in every mode, names it under `flat_skills`, and lists its cases in `failing_cases`. Fix the skill or the cases. One `flat` case among other statuses does not fail. A `regression` is a blocking finding. In `knowledge` mode, add `--mode knowledge` to `score`: a skill whose cases are all `no_gap` then also exits 1, with its cases in `failing_cases`. A regex result that times out is left ungraded, so its case is `incomplete`.
@@ -197,8 +197,8 @@ Pass each skill this run wrote or updated with `--authored`, so its uncommitted 
 3. Prove provenance holds, then prove the boundary held, with the same snapshot path:
 
    ```bash
-   python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_drift.py" check --repo . --skills-root <output-root> --name <new-skill> --require
-   python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_boundary.py" verify --repo . --snapshot "<snapshot path>" --output-root <output-root> --name <new-skill>
+   ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_drift.py check --repo . --skills-root <output-root> --name <new-skill> --require; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+   ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_boundary.py verify --repo . --snapshot "<snapshot path>" --output-root <output-root> --name <new-skill>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
    ```
 
    Run the drift check without `--allow-commands` unless the user approved the argv list of each `command` check; a skill whose checks were all skipped reports `skipped`, which proves nothing, so `--require` fails it.
@@ -211,50 +211,16 @@ Pass each skill this run wrote or updated with `--authored`, so its uncommitted 
 Skills decay as the repository moves. Run the drift check on a schedule, after a large merge, or before relying on a library you did not author:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_drift.py" check --repo . --skills-root <output-root>
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_drift.py check --repo . --skills-root <output-root>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Exit code 1 lists `update_candidates` and gives `update_args` as a JSON list of argv tokens. Pass those tokens as separate arguments to a new bootstrap run; never paste them into a shell string. A skill directory whose name is not kebab-case is reported `malformed` and is left out of `update_args`. A skill whose checks hit a timeout (a slow command, or the 900 s total deadline) and none failed is `incomplete`: it exits 1 and is listed under `timed_out`, not in `update_candidates`. Re-run the check for it; do not rebuild it. For a library authored before `reverify.json` existed, run `bootstrap_mine.py claims` on it instead.
 
 ## Scripts
 
-Each CLI uses only the Python standard library, prints JSON with an `examined` count, writes nothing inside the repository (`bootstrap_eval.py freeze` writes there only with `--allow-in-repo`; `bootstrap_mine.py --out` refuses an in-repo path with no override), and runs on Linux, macOS, and Windows.
+Each CLI uses only the Python standard library, prints JSON with an `examined` count, and writes nothing inside the repository. Exit code 0 means success and exit code 1 means findings that need action, for every script. `bootstrap_friction.py`, `bootstrap_review.py`, and `review_clusters.py` are modules the miner imports, not CLIs. [references/scripts.md](references/scripts.md) holds the exit 2 and 3 table per script, the subcommand table, the `bootstrap_boundary.py` detail, and the Windows PowerShell form.
 
-`bootstrap_friction.py`, `bootstrap_review.py`, and `review_clusters.py` are modules the miner imports, not CLIs.
-
-Exit code 0 means success and exit code 1 means findings that need action, for every script. Exit codes 2 and 3 differ by script:
-
-| Script | Exit 2: configuration | Exit 3: external |
-|---|---|---|
-| `bootstrap_mine.py` | Bad arguments; not a repository; bad rev; unreadable `TARGET` or `--prs-json`; refused `--out`; an authored file over the 5 MiB read cap | Git missing, failed, or timed out; a working-tree read failed; `--out` write failed, including a write race |
-| `bootstrap_forms.py` | Bad arguments; unreadable or malformed plan | None |
-| `bootstrap_eval.py` | Bad arguments; unreadable or malformed cases, results, or frozen file; edited frozen file; refused `--out`, including a write race | Git missing, failed, or timed out; the regex grader child failed; `--out` write failed; any other I/O error |
-| `bootstrap_sweep.py` | Bad arguments; malformed or mismatched input; run directory in the repository or not empty; changed judge rubric; git missing or failed; any read or write failure (payload `error` is `io`) | None |
-| `bootstrap_drift.py` | Bad arguments; repo or skills root not a directory; unknown `--name` | None; an unreadable `reverify.json` is `malformed` (exit 1) |
-| `bootstrap_boundary.py` | See the detail below | Git missing, failed, or timed out; an unreadable working-tree file |
-
-The payload `error` names the cause: `config` for exit 2, `git` or `io` for exit 3. `bootstrap_sweep.py` exits 2 for both, with `config` for git failures and `io` for read or write failures.
-
-| Script and subcommand | Phase | Computes |
-|---|---|---|
-| `bootstrap_mine.py candidates` | 2 | Reverts; ranked churn, TODO hotspots, review rounds |
-| `bootstrap_mine.py claims` | 4, 6, drift | Repository paths and line references in skill text that are missing, untracked, or out of range, each labeled `current` or `historical` |
-| `bootstrap_forms.py check` | 3, 4 | Plan violations: computable item without an instrument, script missing, scaffold without a reason |
-| `bootstrap_eval.py freeze`, `score` | 5 | Hash-frozen cases; pass rate per condition, capability delta, `gain`, `no_gap`, `flat`, `regression`, `incomplete` |
-| `bootstrap_sweep.py plan`, `index`, `import`, `tally` | 2 | Source classes and read tools; evidence checks and batches; judge rows; ranked incidents, knowledge gaps, friction map |
-| `bootstrap_drift.py check` | 6, drift | Each skill's `reverify.json` checks; `update_candidates`; `timed_out`; `--require` also fails a skill with no `reverify.json` or only skipped checks |
-| `bootstrap_boundary.py plan`, `snapshot`, `verify` | 1, 3, 6 | Names and conflicts; the write boundary |
-
-`bootstrap_boundary.py` detail: `plan` exits 1 on a conflict or an invalid name. `verify` exits 1 on a path outside the boundary, an existing skill changed without `--update`, an ignored file written in a skill (it would not ship), HEAD or branch moved, or index flags or `info/exclude` changed. Exit code 2 covers bad arguments; an output root outside the allowed set; an output root, skill directory, or `--also-allow` path that git ignores; an `--also-allow` path outside the repository, under `.git`, or overlapping a skills root; a symlink in any of those paths; or a snapshot that already exists, is inside the repository, is unreadable, or is from another repository or output root. `verify` does not see gitignored files outside the output root, empty directories, other writes inside `.git/`, or tag, config, and push operations. It catches accidental writes by a cooperating run; it is not a sandbox. Only the Phase 1 snapshot counts, so `snapshot` refuses to overwrite an existing file. An unreadable file in the working tree stops `snapshot` with exit code 3 before any write.
-
-`bootstrap_drift.py` runs a `command` check only with `--allow-commands`; review the argv first, because it executes repository code. The command gets no stdin, discarded output, and only `PATH`, `HOME`, and locale variables from the environment. Never pass `--allow-commands` in a job that holds secrets or runs on untrusted pull request content.
-
-On Windows PowerShell 7, set the plugin root once, then run the same subcommands with `python`. The first non-empty value wins, as in the bash form:
-
-```powershell
-$root = @($env:COPILOT_PLUGIN_ROOT, $env:CLAUDE_PLUGIN_ROOT, '.claude') | Where-Object { $_ } | Select-Object -First 1
-python "$root/skills/skill-bootstrap/scripts/bootstrap_boundary.py" snapshot --repo . --output-root <output-root> --out "<snapshot path>"
-```
+`bootstrap_drift.py` runs a `command` check only with `--allow-commands`, which executes repository code. Never pass it in a job that holds secrets or runs on untrusted pull request content.
 
 ## Limits
 
