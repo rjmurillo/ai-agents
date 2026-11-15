@@ -35,8 +35,9 @@ BUNDLED = (
     "references/scripts.md",
 )
 SCRIPT_DIR = "skills/skill-bootstrap/scripts"
-sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
-from plugin_run_launcher import find_locators
+from scripts.validation.plugin_root_interpreter_sites import plugin_run_launcher
+
+find_locators = plugin_run_launcher.find_locators
 
 LINK_RE = re.compile(r"\]\((references/[^)#\s]+)(?:#[^)]*)?\)")
 

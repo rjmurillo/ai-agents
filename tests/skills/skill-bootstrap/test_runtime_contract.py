@@ -13,7 +13,6 @@ import os
 import re
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
 from bootstrap_helpers import write
@@ -21,8 +20,10 @@ from bootstrap_helpers import write
 from tests.pwsh_launcher_probe import require_working_pwsh
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
-from plugin_run_launcher import find_locators, render_locator
+from scripts.validation.plugin_root_interpreter_sites import plugin_run_launcher
+
+find_locators = plugin_run_launcher.find_locators
+render_locator = plugin_run_launcher.render_locator
 
 PLUGIN_ROOT = REPO_ROOT / ".claude"
 SKILL_MD = PLUGIN_ROOT / "skills" / "skill-bootstrap" / "SKILL.md"
