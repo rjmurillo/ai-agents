@@ -96,9 +96,11 @@ class Report:
         }
 
 
-def evaluate(directory: Path, profile: str, waived: set[str]) -> tuple[list[Result], list[str]]:
-    """Run every rule against one skill directory."""
-    doc = load_skill(directory)
+def evaluate(
+    directory: Path, profile: str, waived: set[str], root: Path | None = None
+) -> tuple[list[Result], list[str]]:
+    """Run every rule against one skill directory, reading only inside root."""
+    doc = load_skill(directory, root)
     results: list[Result] = []
     for rule in RULES:
         if rule.check is None:
@@ -215,7 +217,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="conformance.py",
         description=__doc__.split("\n\n", 1)[0],
-        epilog="Statuses and exit codes: see the module docstring, or SKILL.md's reference.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="Statuses:" + __doc__.split("Statuses:", 1)[1],
     )
     parser.add_argument("skills", nargs="*", metavar="SKILL_DIR", help="skill directory to check")
     parser.add_argument("--root", help="every SKILL_DIR must resolve inside DIR (default: cwd)")
@@ -270,9 +273,10 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.write(render_catalog(args.profile, args.format))
         return 0
     directories = resolve_skills(parser, args.skills, args.root)
+    root = Path(resolve_root(args.root))
     reports = []
     for raw, directory in zip(args.skills, directories, strict=True):
-        results, notes = evaluate(directory, args.profile, set(args.waive))
+        results, notes = evaluate(directory, args.profile, set(args.waive), root)
         reports.append(Report(_display(Path(raw)), results, notes))
     exit_code = 1 if any(failed(report.results, args.strict) for report in reports) else 0
     if args.format == "json":

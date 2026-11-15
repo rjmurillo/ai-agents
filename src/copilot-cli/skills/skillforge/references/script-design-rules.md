@@ -162,7 +162,8 @@ coverage. These additions apply to a script a skill ships.
 - **Drive `main(argv)` in-process** for each behavior, and assert the returned
   code plus both streams through `capsys`. Run the real process with
   `sys.executable` only for what needs one: `--help`, a bad flag, and stdin.
-  Pass a timeout and drop `CI` and `GITHUB_` variables from its environment.
+  Pass a timeout and `encoding="utf-8"` with `errors="replace"`, and drop
+  `CI` and `GITHUB_` variables from its environment.
 - **Test every exit code the script can return.** Each test asserts the code,
   that stdout holds only the result, and that the error is on stderr. A failure
   path also asserts stdout is empty.
@@ -236,6 +237,8 @@ def _run(*args: str, cwd: Path) -> subprocess.CompletedProcess[str]:
         stdin=subprocess.DEVNULL,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=60,
         check=False,
     )

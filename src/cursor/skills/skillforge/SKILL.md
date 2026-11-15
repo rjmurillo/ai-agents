@@ -283,7 +283,7 @@ SKILL="$HOME/.claude/skills/my-skill"
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillforge/scripts/quick_validate.py "$SKILL" --root "$HOME/.claude"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 # Full structural validation:
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillforge/scripts/validate-skill.py "$SKILL" --root "$HOME/.claude"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
-# agentskills.io conformance; add --profile project inside this repository:
+# agentskills.io conformance (in this repository, add --profile project):
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillforge/scripts/conformance.py "$SKILL" --root "$HOME/.claude"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 # Unsafe hook command examples in docs:
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillforge/scripts/check_docs_safety.py "$SKILL"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
@@ -338,7 +338,7 @@ After creation:
 
 ## Scripts
 
-Entry scripts: `init_skill.py`, `triage_skill_request.py`, `discover_skills.py`, `quick_validate.py`, `validate-skill.py`, `conformance.py`, `check_docs_safety.py`, `skill_modularity_audit.py`, and `package_skill.py`. Each runs on the Python 3 standard library and documents its exit codes in `--help`: `0` success, `1` a check failed, `2` usage or configuration error, `3` external failure, `4` authentication failure.
+Entry scripts: `init_skill.py`, `triage_skill_request.py`, `discover_skills.py`, `quick_validate.py`, `validate-skill.py`, `conformance.py`, `check_docs_safety.py`, `skill_modularity_audit.py`, and `package_skill.py`. Each runs on the Python 3 standard library; `quick_validate.py` and `validate-skill.py` use PyYAML when it is installed and fall back to a stdlib parser when it is not. Exit codes differ by script; read [references/scripts-and-validation.md](references/scripts-and-validation.md) before you act on one.
 
 ---
 
@@ -359,7 +359,7 @@ Entry scripts: `init_skill.py`, `triage_skill_request.py`, `discover_skills.py`,
 | [Output Structure](references/output-structure.md) | You write frontmatter or lay out directories |
 | [Scripts and Validation](references/scripts-and-validation.md) | You pick a script, read a validator exit code, or use `--root` |
 | [Script Integration Framework](references/script-integration-framework.md) | You decide whether to add a script |
-| [Script Design Rules](references/script-design-rules.md) | You write, change, review, or test a bundled script |
+| [Script Design Rules](references/script-design-rules.md) | You write, review, or test a bundled script |
 | [Script Patterns Catalog](references/script-patterns-catalog.md) | You write a script |
 | [Phase 4 Deep Dive](references/phase4-synthesis-deep-dive.md) | You run the Phase 4 panel |
 | [Synthesis Protocol](references/synthesis-protocol.md) | You run the multi-agent panel |

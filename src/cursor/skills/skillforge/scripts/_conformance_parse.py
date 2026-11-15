@@ -10,9 +10,12 @@ report NOT_EVALUATED instead of guessing.
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from _path_guard import contained_realpath, resolve_root
 
 KEY_RE = re.compile(r"^([A-Za-z0-9_][A-Za-z0-9_.-]*)[ \t]*:(?:[ \t]+(.*)|[ \t]*)$")
 BLOCK_SCALAR_RE = re.compile(r"^([|>])([+-]?)([1-9]?)([+-]?)\s*(?:#.*)?$")
@@ -68,6 +71,7 @@ class SkillDoc:
     """Everything the checks read about one skill directory."""
 
     directory: Path
+    root: Path | None = None
     skill_md: Path | None = None
     text: str = ""
     has_frontmatter: bool = False
@@ -143,7 +147,14 @@ def _scalar(text: str, line_no: int) -> object:
         return [Scalar(item, plain=True) for item in items if item]
     if text[0] in "@`%":
         raise ParseError(f"line {line_no}: a plain scalar cannot start with {text[0]!r}")
-    return Scalar(_strip_comment(text), plain=True)
+    return Scalar(_plain_text(_strip_comment(text), line_no), plain=True)
+
+
+def _plain_text(text: str, line_no: int) -> str:
+    """Reject a plain scalar that YAML would read as a nested mapping."""
+    if ": " in text or text.endswith(":"):
+        raise ParseError(f"line {line_no}: ': ' in an unquoted value; quote the whole value")
+    return text
 
 
 def _block_scalar(
@@ -166,19 +177,36 @@ def _block_scalar(
         return Scalar(""), i
     width = min(_indent(line) for line in content)
     body = [line[width:] if line.strip() else "" for line in collected]
-    if style == "|":
-        text = "\n".join(body)
-    else:
-        text = ""
-        for index, line in enumerate(body):
-            if index and line and body[index - 1]:
-                text += " "
-            elif index:
-                text += "\n"
-            text += line
+    text = "\n".join(body) if style == "|" else _fold(body)
     if chomp == "-":
         return Scalar(text), i
     return Scalar(text + "\n"), i
+
+
+def _fold(body: list[str]) -> str:
+    """Fold block lines the way YAML's '>' style does.
+
+    A break between two normal lines becomes a space. Blank lines between them
+    become one newline each, and the break itself is dropped. A break next to a
+    more-indented line is kept, so that line's layout survives.
+    """
+    text = ""
+    previous: str | None = None
+    blanks = 0
+    for line in body:
+        if not line:
+            blanks += 1
+            continue
+        kind = "more" if line[0] in " \t" else "text"
+        if previous is None:
+            text += "\n" * blanks
+        elif previous == "text" and kind == "text":
+            text += "\n" * blanks if blanks else " "
+        else:
+            text += "\n" * (blanks + 1)
+        text += line
+        previous, blanks = kind, 0
+    return text
 
 
 def _plain_continuation(
@@ -189,7 +217,7 @@ def _plain_continuation(
     while i < len(lines) and lines[i].strip() and _indent(lines[i]) > parent_indent:
         if lines[i].strip().startswith("#"):
             break
-        parts.append(_strip_comment(lines[i].strip()))
+        parts.append(_plain_text(_strip_comment(lines[i].strip()), i + 1))
         i += 1
     return Scalar(" ".join(parts), plain=True), i
 
@@ -302,22 +330,38 @@ def split_frontmatter(text: str) -> tuple[str | None, str, str | None]:
     return None, text, "the frontmatter has no closing '---' line"
 
 
-def load_skill(directory: Path) -> SkillDoc:
-    """Read SKILL.md from a skill directory and parse what the checks need."""
-    doc = SkillDoc(directory=directory)
+def contained(doc: SkillDoc, path: Path) -> bool:
+    """True when path resolves inside the root the caller trusts."""
+    root = doc.root if doc.root is not None else doc.directory
+    return contained_realpath(path, resolve_root(str(root))) is not None
+
+
+def load_skill(directory: Path, root: Path | None = None) -> SkillDoc:
+    """Read SKILL.md from a skill directory and parse what the checks need.
+
+    Every file read stays inside root, which defaults to the skill directory.
+    The file name must match exactly, so a case-insensitive filesystem cannot
+    pass skill.md off as SKILL.md.
+    """
+    doc = SkillDoc(directory=directory, root=root)
+    try:
+        names = set(os.listdir(directory))
+    except OSError as exc:
+        doc.frontmatter_error = f"cannot list the skill directory: {exc}"
+        return doc
     for name in ("SKILL.md", "skill.md"):
-        candidate = directory / name
-        if candidate.is_file():
-            doc.skill_md = candidate
-            if name == "skill.md":
-                doc.notes.append("found skill.md; the spec names SKILL.md")
+        if name in names and (directory / name).is_file():
+            doc.skill_md = directory / name
             break
     if doc.skill_md is None:
+        return doc
+    if not contained(doc, doc.skill_md):
+        doc.frontmatter_error = f"{doc.skill_md.name} resolves outside the root; not read"
         return doc
     try:
         doc.text = doc.skill_md.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
-        doc.frontmatter_error = f"cannot read SKILL.md as UTF-8: {exc}"
+        doc.frontmatter_error = f"cannot read {doc.skill_md.name} as UTF-8: {exc}"
         return doc
     raw, doc.body, doc.frontmatter_error = split_frontmatter(doc.text)
     if raw is None:

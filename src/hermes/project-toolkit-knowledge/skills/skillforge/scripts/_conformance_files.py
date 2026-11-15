@@ -7,11 +7,17 @@ from __future__ import annotations
 
 import ast
 import json
+import posixpath
 import re
 from pathlib import Path
 
-from _conformance_checks import _FENCE_RE, NotApplicableError, body_or_skip
-from _conformance_parse import SkillDoc
+from _conformance_checks import (
+    _FENCE_RE,
+    NotApplicableError,
+    NotEvaluatedError,
+    body_or_skip,
+)
+from _conformance_parse import SkillDoc, contained
 
 _RUNNER_RE = re.compile(
     r"(?:^|[\s;&|(])(uvx|npx|bunx|pipx\s+run|deno\s+run|go\s+run)\s+([^\n;&|]*)"
@@ -28,12 +34,19 @@ def _has_main_guard(path: Path) -> bool:
         tree = ast.parse(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, SyntaxError):
         return True
-    for node in tree.body:
-        if isinstance(node, ast.If) and isinstance(node.test, ast.Compare):
-            names = [node.test.left, *node.test.comparators]
-            if any(isinstance(n, ast.Name) and n.id == "__name__" for n in names):
-                return True
-    return False
+    return any(_is_main_test(node.test) for node in tree.body if isinstance(node, ast.If))
+
+
+def _is_main_test(test: ast.expr) -> bool:
+    """True only for `__name__ == "__main__"`, in either order."""
+    if not isinstance(test, ast.Compare) or len(test.ops) != 1:
+        return False
+    if not isinstance(test.ops[0], ast.Eq):
+        return False
+    sides = [test.left, test.comparators[0]]
+    has_name = any(isinstance(n, ast.Name) and n.id == "__name__" for n in sides)
+    has_main = any(isinstance(n, ast.Constant) and n.value == "__main__" for n in sides)
+    return has_name and has_main
 
 
 def entry_scripts(doc: SkillDoc) -> list[Path]:
@@ -43,16 +56,26 @@ def entry_scripts(doc: SkillDoc) -> list[Path]:
     module that other scripts import is not. Names starting with `_`, `.`, or
     `test_` are skipped.
     """
-    root = doc.directory / "scripts"
-    if not root.is_dir():
+    scripts_dir = doc.directory / "scripts"
+    if not scripts_dir.is_dir():
         raise NotApplicableError("no scripts directory")
-    found = [
+    if not contained(doc, scripts_dir):
+        raise NotEvaluatedError("the scripts directory resolves outside the root; not read")
+    candidates = [
         path
-        for path in sorted(root.iterdir())
+        for path in sorted(scripts_dir.iterdir())
         if path.is_file()
         and path.suffix.lower() in _SCRIPT_SUFFIXES
         and not path.name.startswith(("_", ".", "test_"))
-        and (path.suffix != ".py" or _has_main_guard(path))
+    ]
+    for path in candidates:
+        note = f"skipped {path.name}: it resolves outside the root"
+        if not contained(doc, path) and note not in doc.notes:
+            doc.notes.append(note)
+    found = [
+        path
+        for path in candidates
+        if contained(doc, path) and (path.suffix != ".py" or _has_main_guard(path))
     ]
     if not found:
         raise NotApplicableError("no entry scripts")
@@ -65,7 +88,7 @@ def scripts_listed(doc: SkillDoc) -> list[str]:
     return [
         f"{path.name} (scripts directory) is not named in SKILL.md"
         for path in scripts
-        if path.name not in body
+        if not re.search(rf"(?<![\w.-]){re.escape(path.name)}(?![\w-])", body)
     ]
 
 
@@ -167,14 +190,28 @@ def _code_blocks(markdown: str) -> list[str]:
     return blocks
 
 
+def _spec_pinned(spec: str) -> bool:
+    """True when a package spec names a version: name@1, @scope/name@1, name==1."""
+    spec = re.sub(r"^(npm|jsr):", "", spec)
+    name = spec[1:] if spec.startswith("@") else spec
+    return "@" in name or "==" in name
+
+
 def _pinned(runner: str, args: str) -> bool:
+    """True when the command pins its package, or runs a local file instead of one."""
     tokens = args.split()
-    if runner == "uvx" and "--from" in tokens:
-        index = tokens.index("--from")
-        spec = tokens[index + 1] if index + 1 < len(tokens) else ""
-        return "==" in spec or "@" in spec
+    for index, token in enumerate(tokens):
+        for flag in ("--from", "--spec"):
+            if token == flag:
+                return _spec_pinned(tokens[index + 1] if index + 1 < len(tokens) else "")
+            if token.startswith(flag + "="):
+                return _spec_pinned(token.split("=", 1)[1])
     package = next((token for token in tokens if not token.startswith("-")), "")
-    return "@" in package[1:] or "==" in package
+    if not package or package.startswith((".", "/", "~", "$")):
+        return True
+    if runner == "deno run" and not package.startswith(("npm:", "jsr:")):
+        return True
+    return _spec_pinned(package)
 
 
 def scripts_pinned_one_off(doc: SkillDoc) -> list[str]:
@@ -190,7 +227,7 @@ def scripts_pinned_one_off(doc: SkillDoc) -> list[str]:
 # Evaluating skills guide ----------------------------------------------------
 
 
-def _eval_case_problems(directory: Path, where: str, case: object) -> list[str]:
+def _eval_case_problems(doc: SkillDoc, where: str, case: object) -> list[str]:
     """Return the shape problems in one evals[] entry."""
     if not isinstance(case, dict):
         return [f"{where} must be an object"]
@@ -202,8 +239,14 @@ def _eval_case_problems(directory: Path, where: str, case: object) -> list[str]:
     if not isinstance(files, list) or not all(isinstance(item, str) for item in files):
         problems.append(f"{where}.files must be a list of paths")
     else:
-        missing = [item for item in files if not (directory / item).exists()]
-        problems.extend(f"{where}.files: {item} does not exist" for item in missing)
+        for item in files:
+            normalized = posixpath.normpath(item)
+            if posixpath.isabs(item) or normalized == ".." or normalized.startswith("../"):
+                problems.append(f"{where}.files: {item} leaves the skill directory")
+            elif not contained(doc, doc.directory / normalized):
+                problems.append(f"{where}.files: {item} resolves outside the root")
+            elif not (doc.directory / normalized).exists():
+                problems.append(f"{where}.files: {item} does not exist")
     assertions = case.get("assertions", [])
     if not isinstance(assertions, list) or not all(
         isinstance(a, str) and a.strip() for a in assertions
@@ -216,6 +259,8 @@ def _load_evals(doc: SkillDoc) -> dict[str, object]:
     path = doc.directory / "evals" / "evals.json"
     if not path.is_file():
         raise NotApplicableError("no evals/evals.json")
+    if not contained(doc, path):
+        raise NotEvaluatedError("evals/evals.json resolves outside the root; not read")
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, ValueError) as exc:
@@ -245,5 +290,5 @@ def evals_file_shape(doc: SkillDoc) -> list[str]:
     if not isinstance(cases, list) or not cases:
         return [*problems, "evals must be a non-empty list"]
     for index, case in enumerate(cases):
-        problems.extend(_eval_case_problems(doc.directory, f"evals[{index}]", case))
+        problems.extend(_eval_case_problems(doc, f"evals[{index}]", case))
     return problems

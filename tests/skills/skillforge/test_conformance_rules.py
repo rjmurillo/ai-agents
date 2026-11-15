@@ -348,3 +348,63 @@ class TestProfilesAndWaivers:
     def test_project_profile_does_not_relax_undeclared_rules(self, tmp_path: Path) -> None:
         skill = make_skill(tmp_path, frontmatter=_fm(name="other-name"))
         assert _status(skill, "spec.name.matches-directory", "project") == "FAIL"
+
+
+class TestReviewedEdgeCases:
+    """Cases from the PR #7376 review, each checked against YAML or the guides."""
+
+    def test_colon_space_in_a_plain_value_is_a_parse_error(self, tmp_path: Path) -> None:
+        skill = make_skill(tmp_path, frontmatter=_fm(description="Format notes: use at release"))
+        assert _status(skill, "spec.frontmatter.mapping") == "FAIL"
+        assert "quote the whole value" in _problems(skill, "spec.frontmatter.mapping")
+
+    def test_folded_paragraph_break_counts_one_newline(self, tmp_path: Path) -> None:
+        folded = "description: >-\n  " + "a" * 511 + "\n\n  " + "b" * 512 + "\n"
+        skill = make_skill(tmp_path, frontmatter="name: release-notes\n" + folded)
+        assert _status(skill, "spec.description.max-length") == "PASS"
+
+    def test_bare_compatibility_is_a_null_failure(self, tmp_path: Path) -> None:
+        skill = make_skill(tmp_path, frontmatter=_fm(extra="compatibility:\n"))
+        assert _status(skill, "spec.compatibility.length") == "FAIL"
+        assert "got null" in _problems(skill, "spec.compatibility.length")
+
+    def test_lowercase_skill_md_fails_the_file_name_rule(self, tmp_path: Path) -> None:
+        skill = tmp_path / "release-notes"
+        skill.mkdir()
+        (skill / "skill.md").write_text(f"---\n{_fm()}---\n\n# Body\n", encoding="utf-8")
+        assert "SKILL.md" in _problems(skill, "spec.skill-md.present")
+        assert _status(skill, "spec.name.matches-directory") == "PASS"
+
+    def test_reference_style_link_to_a_missing_file_warns(self, tmp_path: Path) -> None:
+        body = "See the [guide][g].\n\n[g]: references/missing.md\n"
+        skill = make_skill(tmp_path, body=body)
+        assert "missing.md" in _problems(skill, "spec.references.resolve")
+
+    def test_not_equal_main_guard_is_not_an_entry_script(self, tmp_path: Path) -> None:
+        helper = 'if __name__ != "__main__":\n    VALUE = 1\n'
+        skill = make_skill(tmp_path, files={"scripts/helper.py": helper})
+        assert _status(skill, "scripts.listed-in-skill-md") == "NOT_APPLICABLE"
+
+    def test_script_name_inside_a_longer_name_is_not_listed(self, tmp_path: Path) -> None:
+        script = 'import argparse\nif __name__ == "__main__":\n    pass\n'
+        skill = make_skill(tmp_path, body="Run `overrun.py`.\n", files={"scripts/run.py": script})
+        assert "run.py (scripts directory)" in _problems(skill, "scripts.listed-in-skill-md")
+
+    @pytest.mark.parametrize(
+        ("command", "status"),
+        [
+            ("uvx --from=ruff==0.8.0 ruff check .", "PASS"),
+            ("pipx run --spec black==24.10.0 black .", "PASS"),
+            ("deno run jsr:@std/cli", "WARN"),
+            ("deno run jsr:@std/cli@1.0.0", "PASS"),
+            ("deno run --allow-read main.ts", "PASS"),
+            ("npx ./local-tool.js", "PASS"),
+            ("go run ./cmd/tool", "PASS"),
+            ("npx @scope/tool", "WARN"),
+        ],
+    )
+    def test_pinning_follows_command_syntax(
+        self, tmp_path: Path, command: str, status: str
+    ) -> None:
+        skill = make_skill(tmp_path, body=f"```bash\n{command}\n```\n")
+        assert _status(skill, "scripts.pinned-one-off") == status

@@ -19,7 +19,7 @@ code, or validate a skill that lives in another checkout.
 | `frontmatter.py` | Internal helper module: shared YAML frontmatter parsing (imported, not run directly) |
 | `_constants.py` | Internal helper module: shared constants and thresholds (imported, not run directly) |
 | `_inflection.py` | Internal helper module: shared word-inflection matching for discovery and triage (imported, not run directly) |
-| `_conformance_parse.py`, `_conformance_checks.py`, `_conformance_rules.py` | Internal helper modules for `conformance.py`: the frontmatter reader, the static checks, and the rule catalog (imported, not run directly) |
+| `_conformance_parse.py`, `_conformance_checks.py`, `_conformance_files.py`, `_conformance_rules.py`, `_conformance_guides.py` | Internal helper modules for `conformance.py`: the frontmatter reader, the static checks, and the spec and guide rule catalogs (imported, not run directly) |
 
 ## Validator exit codes and `--root`
 
@@ -47,8 +47,8 @@ its skill-creation guides. Every rule has an id, a level, and the URL of the
 section it comes from. Print the catalog with `--list`, and add `--format json`
 for a machine-readable copy.
 
-- **Levels.** MUST and SHOULD follow the source page's wording. A guideline
-  the page only recommends is SHOULD.
+- **Levels.** MUST, SHOULD, and MAY follow the source page's wording. A
+  guideline the page only recommends is SHOULD.
 - **Automated or manual.** A rule a static check can decide runs as a check. A
   rule only a reader can judge, such as "says what the skill does and when to
   use it", reports MANUAL. Pass `--manual` to list those for review.
@@ -62,6 +62,11 @@ for a machine-readable copy.
 - **Empty compatibility.** The spec says compatibility "must be 1-500
   characters if provided", so an empty value fails here. `skills-ref` checks
   only the maximum and accepts it.
+- **File name.** The spec names the file `SKILL.md`, so a lowercase
+  `skill.md` fails `spec.skill-md.present`. `skills-ref` accepts either.
+- **Root boundary.** Every file the checks read stays inside `--root`, or
+  inside the skill directory when no root is given. A symlink that leaves it
+  is reported, never followed.
 
 Statuses: PASS, FAIL (a MUST rule failed), WARN (a SHOULD or MAY rule failed),
 DEVIATION, WAIVED, NOT_APPLICABLE (nothing to check), NOT_EVALUATED, and

@@ -14,7 +14,7 @@ import re
 import unicodedata
 from collections.abc import Callable
 
-from _conformance_parse import Scalar, SkillDoc, core_type
+from _conformance_parse import Scalar, SkillDoc, contained, core_type
 from _constants import (
     BODY_MAX_LINES,
     BODY_TOKEN_BUDGET,
@@ -29,6 +29,7 @@ SPEC_FIELDS = frozenset(
 )
 
 _FENCE_RE = re.compile(r"^(\s*)(`{3,}|~{3,})(.*)$")
+_REF_DEF_RE = re.compile(r"^ {0,3}\[[^\]]+\]:[ \t]*<?([^\s>]+)>?", re.M)
 _LINK_RE = re.compile(r"(?<!!)\[[^\]]*\]\(\s*<?([^)\s>]+)>?(?:\s+\"[^\"]*\")?\s*\)")
 
 
@@ -52,11 +53,15 @@ def _fields(doc: SkillDoc) -> dict[str, object]:
 
 def _string_field(doc: SkillDoc, key: str, *, required: bool) -> str:
     fields = _fields(doc)
-    if key not in fields or fields[key] is None:
+    if key not in fields:
         if required:
             return ""
         raise NotApplicableError(f"no {key} field")
     value = fields[key]
+    if value is None:
+        if required:
+            return ""
+        raise _FieldTypeError(f"{key} must be a string, got null; omit the field instead")
     if not isinstance(value, str) or core_type(value) is not None:
         raise _FieldTypeError(f"{key} must be a string, got {_describe(value)}")
     return str(value)
@@ -99,7 +104,11 @@ def _name(doc: SkillDoc) -> str:
 
 
 def skill_md_present(doc: SkillDoc) -> list[str]:
-    return [] if doc.skill_md else ["no SKILL.md in the skill directory"]
+    if doc.skill_md is None:
+        return ["no SKILL.md in the skill directory"]
+    if doc.skill_md.name != "SKILL.md":
+        return [f"found {doc.skill_md.name}; the spec names the file SKILL.md"]
+    return []
 
 
 def frontmatter_delimited(doc: SkillDoc) -> list[str]:
@@ -275,7 +284,9 @@ def strip_fenced_code(text: str) -> str:
 def local_links(markdown: str) -> list[str]:
     """Return relative link targets, without anchors, outside fenced code."""
     targets: list[str] = []
-    for raw in _LINK_RE.findall(strip_fenced_code(markdown)):
+    text = strip_fenced_code(markdown)
+    # Inline links, plus reference definitions such as `[ref]: references/x.md`.
+    for raw in [*_LINK_RE.findall(text), *_REF_DEF_RE.findall(text)]:
         target = raw.split("#", 1)[0].split("?", 1)[0]
         if not target or re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", target):
             continue
@@ -307,7 +318,10 @@ def references_resolve(doc: SkillDoc) -> list[str]:
         normalized = posixpath.normpath(target)
         if target.startswith("/") or normalized.startswith(".."):
             continue
-        if not (doc.directory / normalized).exists():
+        path = doc.directory / normalized
+        if not contained(doc, path):
+            problems.append(f"link target resolves outside the root: {target}")
+        elif not path.exists():
             problems.append(f"link target does not exist: {target}")
     return problems
 
@@ -324,7 +338,7 @@ def references_one_level(doc: SkillDoc) -> list[str]:
             problems.append(f"link is nested more than one directory deep: {target}")
     for linked in sorted(direct):
         path = doc.directory / linked
-        if path.suffix.lower() != ".md" or not path.is_file():
+        if path.suffix.lower() != ".md" or not path.is_file() or not contained(doc, path):
             continue
         try:
             text = path.read_text(encoding="utf-8")
@@ -333,6 +347,6 @@ def references_one_level(doc: SkillDoc) -> list[str]:
         for target in local_links(text):
             chained = posixpath.normpath(posixpath.join(posixpath.dirname(linked), target))
             if chained.endswith(".md") and chained not in direct and chained != "SKILL.md":
-                if (doc.directory / chained).is_file():
+                if (doc.directory / chained).is_file() and contained(doc, doc.directory / chained):
                     problems.append(f"{chained} is reachable only through {linked}")
     return problems
