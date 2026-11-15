@@ -57,18 +57,20 @@ def files() -> list[str]:
 def rooted_files(manifest: sm.Manifest, files: list[str]) -> list[str]:
     """Files under a manifest root, the only ones ``check_classification`` reads.
 
-    Deleting a surface row leaves ``roots`` unchanged, so one filter serves every
-    weakened manifest.
+    This repeats the root guard at the top of ``check_classification`` in
+    build/scripts/check_surface_parity.py. Deleting a surface row leaves
+    ``roots`` unchanged, so one filter serves every weakened manifest.
     """
     return [f for f in files if any(sm.rel_to(f, root) is not None for root in manifest.roots)]
 
 
 def any_finding(manifest: sm.Manifest, files: list[str], rooted_files: list[str]) -> bool:
-    """True when any check of ``run_checks`` reports a finding, cheapest check first.
+    """True when a ``run_checks`` check other than import closure reports a finding.
 
-    Each deletion case needs only one finding, and the classification scan costs
-    about 0.2s per call over the real tree. Stopping at the first non-empty check
-    keeps the parametrized cases inside the slow-test budget in pyproject.toml.
+    Each deletion case needs only one finding. The classification scan over the
+    real tree is the costliest check here, so it runs last, and the first
+    non-empty check ends the call. This keeps the parametrized cases inside the
+    slow-test budget in pyproject.toml.
     """
     checks = (
         lambda: csp.check_declarations(REPO_ROOT, manifest),
