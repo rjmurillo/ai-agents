@@ -1,0 +1,63 @@
+diff --git a/scripts/validation/git_hook_policy.py b/scripts/validation/git_hook_policy.py
+index 434ea62..1a1804f 100644
+--- a/scripts/validation/git_hook_policy.py
++++ b/scripts/validation/git_hook_policy.py
+@@ -3743,8 +3743,17 @@ def run_mypy(paths: Sequence[str], repo_root: Path) -> int:
+         if not full_path.is_file():
+             continue
+         if full_path.is_symlink():
+-            print(f"ERROR: refusing to type-check symlink: {path}", file=sys.stderr)
+-            return 2
++            # A link to a regular file inside the repo (binplace's .claude/lib
++            # entries) is checked through its target, which is in the same diff.
++            # Links that leave the repo, or do not resolve to a file, stay refused.
++            root = repo_root.resolve()
++            target = full_path.resolve()
++            if not (target.is_file() and target.is_relative_to(root)):
++                print(f"ERROR: refusing to type-check symlink: {path}", file=sys.stderr)
++                return 2
++            path = target.relative_to(root).as_posix()
++        if path in checked_paths:
++            continue
+         checked_paths.append(path)
+     checked_paths = [
+         path for path in checked_paths if not _is_verbatim_mirror_on_disk(repo_root, path)
+diff --git a/tests/validation/test_checks_mypy_symlinks.py b/tests/validation/test_checks_mypy_symlinks.py
+index f9812e0..9f9f2bc 100644
+--- a/tests/validation/test_checks_mypy_symlinks.py
++++ b/tests/validation/test_checks_mypy_symlinks.py
+@@ -64,8 +64,31 @@ def test_run_mypy_receives_the_source_not_the_link(self, repo: Path) -> None:
+         assert outcome.state is EvidenceState.PASS
+         run_mypy.assert_called_once_with(["src/lib/mod.py"], repo)
+ 
+-    def test_negative_control_the_unresolved_list_would_pass_the_link(self, repo: Path) -> None:
+-        """Without the swap, the link reaches run_mypy, which refuses it with exit 2."""
++    def test_run_mypy_still_refuses_a_link_that_leaves_the_repo(
++        self, repo: Path, tmp_path_factory: pytest.TempPathFactory
++    ) -> None:
+         from git_hook_policy import run_mypy
+ 
+-        assert run_mypy([".claude/lib/mod.py"], repo) == 2
++        outside = tmp_path_factory.mktemp("outside") / "evil.py"
++        outside.write_text("Y = 2\n", encoding="utf-8")
++        (repo / ".claude" / "lib" / "evil.py").symlink_to(outside)
++        assert run_mypy([".claude/lib/evil.py"], repo) == 2
++
++    def test_run_mypy_checks_an_in_repo_link_through_its_target(
++        self, repo: Path, capsys: pytest.CaptureFixture[str]
++    ) -> None:
++        from git_hook_policy import run_mypy
++
++        with (
++            patch("git_hook_policy._is_verbatim_mirror_on_disk", return_value=False),
++            patch("git_hook_policy._mypy_ratchet_base_ref", return_value="HEAD"),
++            patch(
++                "git_hook_policy._filter_to_merge_base_scope", side_effect=lambda p, *_: p
++            ) as scope,
++            patch("git_hook_policy._changed_line_map", return_value={}),
++            patch("git_hook_policy._mypy_invocations", return_value=[]),
++        ):
++            code = run_mypy([".claude/lib/mod.py", "src/lib/mod.py"], repo)
++        assert code == 0
++        assert "refusing" not in capsys.readouterr().err
++        assert scope.call_args.args[0] == ["src/lib/mod.py"]
