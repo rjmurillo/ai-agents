@@ -454,8 +454,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--journal",
         default=None,
         help=(
-            "Explicit native Copilot events.jsonl path. Read only when given, and only "
-            "if every working directory it records is inside --project-dir."
+            "Explicit native Copilot events.jsonl path. Read only when given. Receipts are "
+            "reported only if every working directory it records is inside --project-dir."
         ),
     )
     return parser

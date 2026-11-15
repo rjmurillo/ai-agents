@@ -71,6 +71,36 @@ def test_build_pack_lays_out_manifest_skills_and_lib(tmp_path: Path) -> None:
     assert not any(rel.startswith("skills/gamma") for rel in files)
 
 
+def test_build_pack_skips_an_excluded_file_and_keeps_its_siblings(tmp_path: Path) -> None:
+    repo = make_repo(tmp_path)
+    config = make_config(excludedFiles={"alpha/scripts/run.py": "needs a missing skill"})
+
+    files = hermes_packs.build_pack(repo / "src/claude/skills", config.packs[0], config, {})
+
+    assert "skills/alpha/scripts/run.py" not in files
+    assert "skills/alpha/references/r.md" in files
+    assert "skills/alpha/SKILL.md" in files
+
+
+def test_plan_tree_drops_one_file_per_excluded_file_from_the_pack_count(tmp_path: Path) -> None:
+    repo = make_repo(tmp_path)
+    before = hermes_packs.plan_tree(repo, make_config())
+    after = hermes_packs.plan_tree(
+        repo, make_config(excludedFiles={"alpha/scripts/run.py": "needs a missing skill"})
+    )
+
+    assert set(before) - set(after) == {"project-toolkit-one/skills/alpha/scripts/run.py"}
+    assert set(after) - set(before) == set()
+
+
+def test_plan_tree_fails_when_an_excluded_file_matches_nothing(tmp_path: Path) -> None:
+    repo = make_repo(tmp_path)
+    config = make_config(excludedFiles={"alpha/scripts/gone.py": "why"})
+
+    with pytest.raises(cfg.HermesPackError, match="matches no file"):
+        hermes_packs.plan_tree(repo, config)
+
+
 def test_build_pack_applies_the_frontmatter_drop_to_skill_md_only(tmp_path: Path) -> None:
     repo = make_repo(tmp_path)
     config = make_config(frontmatterDrop=["metadata", "model"])
@@ -222,6 +252,19 @@ def test_index_says_so_when_nothing_is_excluded() -> None:
     config = make_config(excluded={})
 
     assert "No skill is excluded." in hermes_packs.render_index(config).decode("utf-8")
+
+
+def test_index_lists_excluded_files_with_their_reasons() -> None:
+    config = make_config(excludedFiles={"alpha/scripts/run.py": "Needs a missing skill."})
+
+    text = hermes_packs.render_index(config).decode("utf-8")
+
+    assert "## Excluded files" in text
+    assert "- `alpha/scripts/run.py`: Needs a missing skill." in text
+
+
+def test_index_has_no_excluded_files_section_when_none_are_excluded() -> None:
+    assert "Excluded files" not in hermes_packs.render_index(make_config()).decode("utf-8")
 
 
 def test_index_has_no_dash_characters_or_generated_banner() -> None:

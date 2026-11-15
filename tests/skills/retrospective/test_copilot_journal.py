@@ -7,6 +7,7 @@ results so a leak into the output is detectable.
 from __future__ import annotations
 
 import importlib.util
+import io
 import json
 import sys
 from hashlib import sha1
@@ -57,6 +58,15 @@ def complete(call: object, success: object = True, **fields) -> dict:
 def session_start(cwd: Path | None) -> dict:
     context = {"cwd": str(cwd)} if cwd is not None else {}
     return ev("session.start", {"context": context})
+
+
+def context_event(kind: str, cwd: object = None, git_root: object = None) -> dict:
+    context = {}
+    if cwd is not None:
+        context["cwd"] = str(cwd)
+    if git_root is not None:
+        context["gitRoot"] = str(git_root)
+    return ev(kind, {"context": context})
 
 
 def write_journal(path: Path, rows: list) -> Path:
@@ -170,9 +180,13 @@ def test_no_prompt_reasoning_argument_or_result_text_in_output(
 ) -> None:
     write_journal(journal_path, basic_rows(repo))
 
-    extract.main(["--project-dir", str(repo), "--journal", str(journal_path)])
+    code = extract.main(["--project-dir", str(repo), "--journal", str(journal_path)])
 
     out = capsys.readouterr().out
+    payload = json.loads(out)
+    assert code == 0
+    assert payload["journal"]["available"] is True
+    assert {r["call_id"] for r in payload["journal"]["receipts"]} == {"c1", "c2"}
     for sentinel in (PROMPT, REASONING, RESULT, ARG_VALUE):
         assert sentinel not in out
 
@@ -342,9 +356,9 @@ def test_record_cap_is_reported(
 
     report = journal_mod.extract_receipts(journal_path, repo)
 
+    _assert_unavailable(report, "read cap")
     assert report["records_truncated"] is True
     assert report["records_read"] == 3
-    assert "c2" not in receipts_by_id(report)
 
 
 def test_skipped_records_are_counted(repo: Path, journal_path: Path) -> None:
@@ -376,7 +390,7 @@ def test_skipped_records_are_counted(repo: Path, journal_path: Path) -> None:
 def test_reuses_skill_doctor_event_filter() -> None:
     doctor = journal_mod._load_doctor()
     assert doctor is not None
-    parser = doctor[2]
+    parser = doctor[1]
     assert callable(parser._copilot_events)
 
 
@@ -390,3 +404,229 @@ def test_extraction_creates_no_toolkit_session_log(repo: Path, journal_path: Pat
 
     assert not (repo / ".project-toolkit").exists()
     assert list(repo.rglob("*session*")) == []
+
+
+# Scope rule: a context event records one working directory, cwd else gitRoot.
+
+
+def _available(report: dict) -> bool:
+    return report["available"] is True and report["reason"] == ""
+
+
+def test_cwd_inside_with_git_root_equal_to_the_repo_is_in_scope(
+    repo: Path, journal_path: Path
+) -> None:
+    rows = [context_event("session.start", repo, repo), start("c1"), complete("c1")]
+    write_journal(journal_path, rows)
+
+    assert _available(journal_mod.extract_receipts(journal_path, repo))
+
+
+def test_cwd_in_a_subdirectory_is_in_scope_when_project_dir_is_that_subdirectory(
+    repo: Path, journal_path: Path
+) -> None:
+    sub = repo / "pkg"
+    sub.mkdir()
+    rows = [context_event("session.start", sub, repo), start("c1"), complete("c1")]
+    write_journal(journal_path, rows)
+
+    assert _available(journal_mod.extract_receipts(journal_path, sub))
+
+
+def test_cwd_outside_is_out_of_scope_even_when_git_root_is_inside(
+    repo: Path, tmp_path: Path, journal_path: Path
+) -> None:
+    rows = [context_event("session.start", tmp_path, repo), start("c1"), complete("c1")]
+    write_journal(journal_path, rows)
+
+    _assert_unavailable(journal_mod.extract_receipts(journal_path, repo), "outside the repository")
+
+
+def test_git_root_elsewhere_does_not_override_a_cwd_inside(
+    repo: Path, tmp_path: Path, journal_path: Path
+) -> None:
+    elsewhere = (tmp_path / "elsewhere").resolve()
+    elsewhere.mkdir()
+    rows = [context_event("session.start", repo, elsewhere), start("c1"), complete("c1")]
+    write_journal(journal_path, rows)
+
+    assert _available(journal_mod.extract_receipts(journal_path, repo))
+
+
+def test_git_root_is_the_directory_only_when_cwd_is_absent(
+    repo: Path, tmp_path: Path, journal_path: Path
+) -> None:
+    inside = write_journal(
+        journal_path, [context_event("session.start", None, repo), start("c1"), complete("c1")]
+    )
+    outside = write_journal(
+        tmp_path / "second" / "events.jsonl",
+        [context_event("session.start", None, tmp_path), start("c1"), complete("c1")],
+    )
+
+    assert _available(journal_mod.extract_receipts(inside, repo))
+    _assert_unavailable(journal_mod.extract_receipts(outside, repo), "outside the repository")
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        {"context": {"cwd": "/a", "gitRoot": "/b"}},
+        {"context": {"gitRoot": "/b"}},
+        {"context": {"cwd": "", "gitRoot": "/b"}},
+        {"context": {"cwd": 7, "gitRoot": "/b"}},
+        {"context": {}},
+        {"context": "not-a-dict"},
+        {"cwd": "/a", "gitRoot": "/b"},
+    ],
+)
+def test_recorded_cwd_matches_skill_doctor(data: dict) -> None:
+    parser = journal_mod._load_doctor()[1]
+    meta = {"cwd": None, "cwd_history": [], "started_at": None}
+
+    parser._copilot_context(meta, data, None)
+
+    assert journal_mod._recorded_cwd(data) == meta["cwd"]
+
+
+# Call identity: matching uses the full id, display uses a bounded one.
+
+
+def test_call_ids_sharing_a_long_prefix_stay_two_calls(repo: Path, journal_path: Path) -> None:
+    prefix = "x" * (journal_mod._MAX_FIELD_CHARS + 10)
+    first, second = prefix + "-first", prefix + "-second"
+    rows = [
+        session_start(repo),
+        start(first),
+        start(second),
+        complete(first, True),
+        complete(second, False),
+    ]
+    write_journal(journal_path, rows)
+
+    report = journal_mod.extract_receipts(journal_path, repo)
+
+    assert [r["outcome"] for r in report["receipts"]] == ["succeeded", "failed"]
+    assert all(len(r["call_id"]) <= journal_mod._MAX_FIELD_CHARS for r in report["receipts"])
+    assert report["completions_without_retained_start"] == 0
+
+
+# Read budget: malformed, blank and oversized lines count before decoding.
+
+
+def test_malformed_lines_count_against_the_line_budget(
+    repo: Path, journal_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(journal_mod, "MAX_LINES", 5)
+    write_journal(journal_path, [session_start(repo), *["{bad"] * 20])
+
+    report = journal_mod.extract_receipts(journal_path, repo)
+
+    _assert_unavailable(report, "read cap")
+    assert report["lines_read"] == 5
+    assert report["records_truncated"] is True
+    assert report["malformed_lines"] == 4
+
+
+def test_a_journal_exactly_at_the_line_budget_is_not_truncated(
+    repo: Path, journal_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(journal_mod, "MAX_LINES", 3)
+    write_journal(journal_path, [session_start(repo), start("c1"), complete("c1")])
+
+    report = journal_mod.extract_receipts(journal_path, repo)
+
+    assert _available(report)
+    assert report["lines_read"] == 3
+    assert report["records_truncated"] is False
+
+
+def test_a_line_over_the_length_cap_is_skipped_and_reading_continues(
+    repo: Path, journal_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(journal_mod, "MAX_LINE_CHARS", 200)
+    huge = json.dumps(start("huge", "bash", {"command": "y" * 5000}))
+    write_journal(journal_path, [session_start(repo), huge, start("c1"), complete("c1")])
+
+    report = journal_mod.extract_receipts(journal_path, repo)
+
+    assert _available(report)
+    assert report["oversized_lines"] == 1
+    assert [r["call_id"] for r in report["receipts"]] == ["c1"]
+
+
+def test_a_line_exactly_at_the_length_cap_is_still_parsed(
+    repo: Path, journal_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    row = start("c1", arguments={"pad": ""})
+    pad = 300 - len(json.dumps(row))
+    row = start("c1", arguments={"pad": "p" * pad})
+    assert len(json.dumps(row)) == 300
+    monkeypatch.setattr(journal_mod, "MAX_LINE_CHARS", 300)
+    write_journal(journal_path, [session_start(repo), row, complete("c1")])
+
+    report = journal_mod.extract_receipts(journal_path, repo)
+
+    assert _available(report)
+    assert report["oversized_lines"] == 0
+
+
+def test_deeply_nested_json_is_counted_malformed_not_a_crash(
+    repo: Path, journal_path: Path
+) -> None:
+    deep = "[" * 200_000 + "]" * 200_000
+    write_journal(journal_path, [session_start(repo), deep, start("c1"), complete("c1")])
+
+    report = journal_mod.extract_receipts(journal_path, repo)
+
+    assert _available(report)
+    assert report["malformed_lines"] == 1
+
+
+# Truncation and read failures never read as complete.
+
+
+def test_record_cap_before_an_outside_context_change_is_not_in_scope(
+    repo: Path, tmp_path: Path, journal_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    moved = context_event("session.context_changed", tmp_path)
+    write_journal(journal_path, [session_start(repo), start("c1"), complete("c1"), moved])
+
+    full = journal_mod.extract_receipts(journal_path, repo)
+    monkeypatch.setattr(journal_mod, "MAX_RECORDS", 3)
+    capped = journal_mod.extract_receipts(journal_path, repo)
+
+    _assert_unavailable(full, "outside the repository")
+    _assert_unavailable(capped, "read cap")
+
+
+class _FailingStream(io.StringIO):
+    """Serve the first lines, then fail the way a dropped disk or share does."""
+
+    def readline(self, size: int = -1) -> str:
+        line = super().readline(size)
+        if not line:
+            raise OSError(5, "Input/output error")
+        return line
+
+
+def test_read_failure_after_valid_events_is_unavailable(
+    repo: Path, journal_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write_journal(journal_path, [session_start(repo), start("c1"), complete("c1")])
+    real_open = Path.open
+    target = journal_path.resolve()
+    text = journal_path.read_text(encoding="utf-8")
+
+    def flaky_open(self: Path, *args: object, **kwargs: object):
+        if self == target:
+            return _FailingStream(text)
+        return real_open(self, *args, **kwargs)
+
+    control = journal_mod.extract_receipts(journal_path, repo)
+    monkeypatch.setattr(Path, "open", flaky_open)
+    failed = journal_mod.extract_receipts(journal_path, repo)
+
+    assert _available(control)
+    _assert_unavailable(failed, "read failed: OSError")
+    assert failed["records_read"] == 3
