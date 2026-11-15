@@ -254,7 +254,7 @@ def decide(
     if len(entries) != expected_cells or not all(e["valid"] for e in entries):
         return {**base, "outcome": "INCONCLUSIVE", "reasons": ["missing or invalid cells"]}
 
-    def tally(tasks: set[str]) -> dict[str, Mapping[str, float]]:
+    def tally(tasks: set[str]) -> dict[str, dict[str, float]]:
         out = {}
         for arm in ARMS:
             rows = _arm_rows(entries, arm, tasks)

@@ -28,6 +28,7 @@ import sys
 import time
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -63,7 +64,7 @@ def cell_dir(workspace_root: Path, task_id: str, repeat: int) -> Path:
 
     Cells run one at a time and each is deleted after grading, so both arms reuse it.
     """
-    return workspace_root / path_safe(f"{task_id}-r{repeat}")
+    return Path(workspace_root, path_safe(f"{task_id}-r{repeat}"))
 
 
 def _file_state(workspace: Path) -> dict[str, str]:
@@ -99,7 +100,7 @@ class _Cell:
         self.cost = 0.0
         self.wall = 0.0
         self.failures = 0
-        self.launches: list[dict[str, object]] = []
+        self.launches: list[dict[str, Any]] = []
 
     def launch(self, role: str, prompt: str, markers: Sequence[str], **kwargs: object) -> str:
         try:
@@ -124,7 +125,7 @@ class _Cell:
                 "trajectory": trajectory,
             }
         )
-        return reply
+        return str(reply)
 
 
 def run_cell(
@@ -367,7 +368,7 @@ def _run_live(
                 entry["change_patch"] = write_patch(
                     output_dir, arm, task.id, repeat, str(batch.redact(patch, literals))
                 )
-                entries.append(batch.redact(entry, literals))  # type: ignore[arg-type]
+                entries.append(batch.redact(entry, literals))
     stall = {t.id for t in tasks if corpus.stall[t.id]}
     decision = hs.decide(entries, stall, {t.id for t in tasks} - stall, cells)
     report: dict[str, object] = {
