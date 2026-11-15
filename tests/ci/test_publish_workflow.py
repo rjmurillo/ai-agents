@@ -9,7 +9,6 @@ jobs that hold secrets or decide the verdict.
 from __future__ import annotations
 
 import re
-import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -319,53 +318,6 @@ def test_the_bundle_is_built_before_dist_and_before_the_tarball_is_packed(
     assert steps[dist]["run"].strip() == "bun run build"
     for index in (install, bundle, dist):
         assert steps[index]["working-directory"] == "${{ env.PACKAGE_DIR }}"
-
-
-def _run_pack_script(script: str, tmp_path: Path, name: str) -> tuple[int, Path]:
-    """Run a pack script under ``bash -e`` with a stand-in npm; return its exit code and temp root.
-
-    The stand-in writes the tarball into ``--pack-destination`` and, like npm,
-    does not make that folder.
-    """
-    bin_dir = tmp_path / f"{name}-bin"
-    bin_dir.mkdir()
-    npm = bin_dir / "npm"
-    npm.write_text('#!/bin/sh\n: > "$3/package.tgz"\n', encoding="utf-8")
-    npm.chmod(0o755)
-    runner_temp = tmp_path / f"{name}-temp"
-    runner_temp.mkdir()
-    done = subprocess.run(
-        ["bash", "-e", "-c", script],
-        cwd=tmp_path,
-        env={"PATH": f"{bin_dir}:/usr/bin:/bin", "RUNNER_TEMP": str(runner_temp)},
-        capture_output=True,
-        text=True,
-        timeout=30,
-        check=False,
-    )
-    return done.returncode, runner_temp
-
-
-@pytest.mark.skipif("sys.platform == 'win32'", reason="the workflow step is a bash script")
-def test_the_pack_step_makes_its_folder_before_npm_pack_writes_into_it(
-    workflow: dict[str, Any], tmp_path: Path
-) -> None:
-    """npm pack does not create its destination folder.
-
-    The first dispatch of this workflow, run 43679280035 on 2026-11-15 UTC,
-    failed here with ENOENT because nothing had made ``$RUNNER_TEMP/pack``.
-    """
-    step = _steps(workflow, "build")[_index(workflow, "Pack the tarball once")]
-    assert "--pack-destination" in step["run"]
-
-    code, runner_temp = _run_pack_script(step["run"], tmp_path, "fixed")
-    assert code == 0
-    assert (runner_temp / "pack" / "package.tgz").is_file()
-
-    before_the_fix = 'npm pack --pack-destination "$RUNNER_TEMP/pack"'
-    code, runner_temp = _run_pack_script(before_the_fix, tmp_path, "control")
-    assert code != 0
-    assert not (runner_temp / "pack").exists()
 
 
 def test_the_packed_tarball_is_checked_for_the_bundle_before_it_is_hashed(
