@@ -26,6 +26,7 @@ if str(_BUILD_SCRIPTS) not in sys.path:
 
 import skill_distribution  # noqa: E402
 
+from scripts.validation import check_doc_interpreter_portability as _doc  # noqa: E402
 from scripts.validation import plugin_root_interpreter_rules as _rules  # noqa: E402
 
 GuardedKey = tuple[str, str]  # (target under `.claude/`, third-party module)
@@ -64,24 +65,20 @@ def is_repo_local_site(repo_root: Path, rel: str) -> bool:
         return False
 
 
-def closure_files(
-    target: str, repo_root: Path, tracked_py: set[str], resolve: ModuleResolver
-) -> list[str]:
-    """Return ``target`` and every tracked file its import-time imports reach."""
+def closure_files(target: str, repo_root: Path, tracked_py: set[str]) -> list[str]:
+    """Return ``target`` and every tracked file rule 2's walk reaches from it.
+
+    The edges come from ``check_doc_interpreter_portability.dependency_files``:
+    import-time imports and tracked scripts started through ``sys.executable``.
+    """
     seen: list[str] = []
-    queue = [target]
+    queue = [_doc.canonical_path(target, repo_root, tracked_py)]
     while queue:
         rel = queue.pop(0)
-        if rel in seen or rel not in tracked_py:
+        if rel in seen:
             continue
         seen.append(rel)
-        source = (repo_root / rel).read_text(encoding="utf-8")
-        for name in _rules.import_time_roots(source):
-            if name in sys.stdlib_module_names:
-                continue
-            local = resolve(name, rel, tracked_py)
-            if local:
-                queue.extend(local)
+        queue.extend(_doc.dependency_files(rel, repo_root, tracked_py))
     return seen
 
 
@@ -90,7 +87,7 @@ def unguarded_in_closure(
 ) -> list[str]:
     """Return the closure files that import ``module`` with no surviving fallback."""
     found: list[str] = []
-    for rel in closure_files(target, repo_root, tracked_py, resolve):
+    for rel in closure_files(target, repo_root, tracked_py):
         source = (repo_root / rel).read_text(encoding="utf-8")
 
         def is_repo_module(name: str, importer: str = rel) -> bool:
