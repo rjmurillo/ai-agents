@@ -19,7 +19,7 @@ import hashlib
 import json
 import math
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
@@ -256,11 +256,27 @@ def decide(
     stall_tasks: set[str],
     control_tasks: set[str],
     expected_cells: int,
+    expected_keys: Collection[tuple[str, str, int]] | None = None,
 ) -> dict[str, Any]:
-    """Apply the frozen rule. The default is to retain the incumbent routing."""
+    """Apply the frozen rule. The default is to retain the incumbent routing.
+
+    With `expected_keys` (the task file's `(task, arm, repeat)` grid) the cells must be
+    exactly that set. A count alone lets an unexpected cell stand in for a missing one.
+    """
     base = {"routing": "retain incumbent", "reasons": []}
+    reasons: list[str] = []
     if len(entries) != expected_cells or not all(e["valid"] for e in entries):
-        return {**base, "outcome": "INCONCLUSIVE", "reasons": ["missing or invalid cells"]}
+        reasons.append("missing or invalid cells")
+    if expected_keys is not None:
+        keys = {(e["task_id"], e["arm"], e["repeat"]) for e in entries}
+        missing, unexpected = set(expected_keys) - keys, keys - set(expected_keys)
+        if missing or unexpected:
+            reasons.append(
+                f"cells differ from the task grid: missing {len(missing)}, "
+                f"unexpected {len(unexpected)}"
+            )
+    if reasons:
+        return {**base, "outcome": "INCONCLUSIVE", "reasons": reasons}
 
     def tally(tasks: set[str]) -> dict[str, dict[str, float]]:
         out = {}
@@ -316,8 +332,20 @@ def combine(
     """
     entries: list[dict[str, Any]] = []
     seen: set[tuple[str, str, int]] = set()
+    reference: dict[str, Any] = {}
     for report_dir in report_dirs:
         report = json.loads((report_dir / "report.json").read_text(encoding="utf-8"))
+        provenance = report.get("provenance") or {}
+        facts = {
+            "tasks_file_sha256": provenance.get("tasks_file_sha256"),
+            "model_requested": provenance.get("model_requested"),
+            "effort": report.get("effort"),
+        }
+        for name, value in facts.items():
+            if not value:
+                raise ControlAblationConfigError(f"{report_dir}: report lacks {name}")
+            if reference.setdefault(name, value) != value:
+                raise ControlAblationConfigError(f"batches disagree on {name}")
         for entry in report["entries"]:
             key = (entry["task_id"], entry["arm"], entry["repeat"])
             if key in seen:
@@ -325,14 +353,20 @@ def combine(
             seen.add(key)
             entries.append(entry)
     tasks = payload["tasks"]
+    expected = {(t["id"], arm, r) for t in tasks for arm in ARMS for r in range(repeats)}
+    if seen - expected:
+        raise ControlAblationConfigError(
+            f"unexpected cells not in the task grid: {sorted(seen - expected)}"
+        )
     stall = {t["id"] for t in tasks if t["stall"]}
     control = {t["id"] for t in tasks if not t["stall"]}
-    expected = len(tasks) * len(ARMS) * repeats
     return {
         "batches": [str(d) for d in report_dirs],
+        "tasks_file_sha256": reference["tasks_file_sha256"],
         "cells": len(entries),
-        "expected_cells": expected,
-        "decision": decide(entries, stall, control, expected),
+        "expected_cells": len(expected),
+        "missing_cells": [list(c) for c in sorted(expected - seen)],
+        "decision": decide(entries, stall, control, len(expected), expected_keys=expected),
     }
 
 
@@ -340,7 +374,10 @@ def combine_files(
     report_dirs: Sequence[Path], tasks_file: Path, output_dir: Path | None
 ) -> dict[str, Any]:
     """`combine` over a task file, writing `decision.json` into `output_dir` when given."""
-    result = combine(report_dirs, json.loads(tasks_file.read_text(encoding="utf-8")))
+    raw = tasks_file.read_bytes()
+    result = combine(report_dirs, json.loads(raw.decode("utf-8")))
+    if result["tasks_file_sha256"] != hashlib.sha256(raw).hexdigest():
+        raise ControlAblationConfigError("the task file on disk is not the one the reports ran")
     if output_dir is not None:
         output_dir.mkdir(parents=True, exist_ok=True)
         (output_dir / "decision.json").write_text(json.dumps(result, indent=2), encoding="utf-8")

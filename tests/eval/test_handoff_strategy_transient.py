@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import sys
@@ -140,7 +141,8 @@ class TestCellRetry:
         later = set(range(2, 20))
         with pytest.raises(claude_run.HarnessFailureError) as caught:
             run(repo, tmp_path, monkeypatch, {"fail_calls": later}, sleeps)
-        assert caught.value.cost_usd == pytest.approx(0.01)
+        assert caught.value.cost_usd == 0.0  # this launch reported none
+        assert caught.value.prior_cost_usd == pytest.approx(0.01)
 
     def test_a_non_transient_failure_is_not_retried(
         self, repo: HistoryRepo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -166,9 +168,14 @@ def _entry(task: str, arm: str, repeat: int, accepted: bool = True) -> dict[str,
     }
 
 
-def _batch(path: Path, entries: list[dict[str, Any]]) -> Path:
+def _batch(path: Path, entries: list[dict[str, Any]], tasks_sha: str = "a" * 64) -> Path:
     path.mkdir(parents=True)
-    (path / "report.json").write_text(json.dumps({"entries": entries}), encoding="utf-8")
+    report = {
+        "entries": entries,
+        "effort": "medium",
+        "provenance": {"tasks_file_sha256": tasks_sha, "model_requested": "claude-sonnet-5-5"},
+    }
+    (path / "report.json").write_text(json.dumps(report), encoding="utf-8")
     return path
 
 
@@ -189,7 +196,7 @@ class TestCombine:
         cells = [(t, a, r) for t in ("s", "n") for r in range(3) for a in hs.ARMS]
         only = _batch(tmp_path / "a", [_entry(*c) for c in cells[:11]])
         result = hs.combine([only], TASKS)
-        assert result["decision"]["reasons"] == ["missing or invalid cells"]
+        assert result["decision"]["reasons"][0] == "missing or invalid cells"
 
     def test_a_cell_in_two_batches_is_refused(self, tmp_path: Path) -> None:
         one = _batch(tmp_path / "a", [_entry("s", hs.ARM_CONTINUE, 0)])
@@ -198,9 +205,10 @@ class TestCombine:
             hs.combine([one, two], TASKS)
 
     def test_the_cli_writes_the_decision_and_exits_zero(self, tmp_path: Path) -> None:
-        one = _batch(tmp_path / "a", [_entry("s", hs.ARM_CONTINUE, 0)])
         tasks = tmp_path / "tasks.json"
         tasks.write_text(json.dumps(TASKS), encoding="utf-8")
+        sha = hashlib.sha256(tasks.read_bytes()).hexdigest()
+        one = _batch(tmp_path / "a", [_entry("s", hs.ARM_CONTINUE, 0)], tasks_sha=sha)
         out = tmp_path / "out"
         code = cli.main(["--combine", str(one), "--tasks", str(tasks), "--output-dir", str(out)])
         assert code == cli.EXIT_OK

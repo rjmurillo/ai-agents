@@ -47,10 +47,14 @@ class HarnessFailureError(RuntimeError):
         cost_usd: float = 0.0,
         wall_seconds: float = 0.0,
         transient: bool = False,
+        prior_cost_usd: float = 0.0,
     ) -> None:
         super().__init__(message)
         self.cost_usd = cost_usd
         self.wall_seconds = wall_seconds
+        #: Spend of the cell's earlier launches, kept apart from `cost_usd` so a caller can
+        #: count it without hiding that this launch's own cost is unmeasured (issue #7350).
+        self.prior_cost_usd = prior_cost_usd
         #: A provider rate limit or overload whose stream reported its cost (issue #7350).
         #: The launch did no work, so a caller may retry it and count the cost as measured.
         self.transient = transient

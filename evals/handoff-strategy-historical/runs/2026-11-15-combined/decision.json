@@ -3,8 +3,10 @@
     "evals/handoff-strategy-historical/runs/2026-11-15-v3",
     "evals/handoff-strategy-historical/runs/2026-11-15-v4-fill"
   ],
+  "tasks_file_sha256": "bad0f411a3a6681037942b45c760fab949dffa3a3ee50d2a35cfde0cce8ab315",
   "cells": 12,
   "expected_cells": 12,
+  "missing_cells": [],
   "decision": {
     "routing": "retain incumbent",
     "reasons": [

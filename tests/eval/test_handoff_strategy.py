@@ -27,6 +27,7 @@ if str(EVAL_DIR) not in sys.path:
 import _control_ablation as ablation  # noqa: E402
 import _control_ablation_claude as claude_run  # noqa: E402
 import _control_ablation_tasks as ablation_tasks  # noqa: E402
+import _handoff_cell as handoff_cell  # noqa: E402
 import _handoff_strategy as hs  # noqa: E402
 import eval_handoff_strategy as cli  # noqa: E402
 from _runtime_harness import REAL_HOME_ENV  # noqa: E402
@@ -388,7 +389,7 @@ class TestRunCell:
             "--model",
             "m",
         ]
-        shown = cli._argv_summary(argv)
+        shown = handoff_cell.argv_summary(argv)
         assert "SECRET PROMPT" not in shown and "ROLE" not in shown
         assert shown[-1] == "m"
 

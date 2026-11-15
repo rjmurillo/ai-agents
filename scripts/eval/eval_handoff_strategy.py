@@ -28,7 +28,6 @@ import sys
 import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -43,8 +42,9 @@ import _control_ablation_history as history  # noqa: E402
 import _control_ablation_tasks as ablation_tasks  # noqa: E402
 import _handoff_strategy as hs  # noqa: E402
 import _outcome_record as outcome_record  # noqa: E402
+from _handoff_cell import Cell, cell_dir, file_state  # noqa: E402
 from _isolated_claude_login import IsolatedLoginError, isolated_login_values  # noqa: E402
-from _run_changes import path_safe, write_patch  # noqa: E402
+from _run_changes import write_patch  # noqa: E402
 from _runtime_harness import REAL_HOME_ENV, probe_version, real_home_enabled  # noqa: E402
 from _runtime_parity import ParityConfigError  # noqa: E402
 
@@ -57,89 +57,6 @@ _HARNESS_ERRORS = (
     subprocess.SubprocessError,
     OSError,
 )
-
-
-def cell_dir(workspace_root: Path, task_id: str, repeat: int) -> Path:
-    """Arm-neutral cell path: the reproduction's traceback prints it, so it must not name the arm.
-
-    Cells run one at a time and each is deleted after grading, so both arms reuse it.
-    """
-    return Path(workspace_root, path_safe(f"{task_id}-r{repeat}"))
-
-
-def _file_state(workspace: Path) -> dict[str, str]:
-    """Non-incidental changed paths mapped to content hashes, to detect an investigator write."""
-    state: dict[str, str] = {}
-    for path in grade.changed_paths(workspace):
-        if ablation._is_incidental_path(path):
-            continue
-        target = workspace / path
-        state[path] = (
-            hashlib.sha256(target.read_bytes()).hexdigest() if target.is_file() else "deleted"
-        )
-    return state
-
-
-def _argv_summary(argv: Sequence[str]) -> list[str]:
-    """The argv with the prompt and role text replaced by hashes, so a report stays small."""
-    out: list[str] = []
-    hide = False
-    for item in argv:
-        out.append(f"<sha256 {hs.sha256_text(item)}>" if hide else item)
-        hide = item in ("--print", "--append-system-prompt")
-    return out
-
-
-class _Cell:
-    """Accumulates one cell's launches, spend, and time."""
-
-    def __init__(
-        self,
-        model: str,
-        timeout: float,
-        runner: claude_run.Runner,
-        workspace: Path,
-        sleep: Callable[[float], None] = time.sleep,
-    ) -> None:
-        self.model, self.timeout, self.runner, self.workspace = model, timeout, runner, workspace
-        self.sleep = sleep
-        self.transient_retries = 0
-        self.cost = 0.0
-        self.wall = 0.0
-        self.failures = 0
-        self.launches: list[dict[str, Any]] = []
-
-    def launch(self, role: str, prompt: str, markers: Sequence[str], **kwargs: object) -> str:
-        for attempt in range(hs.TRANSIENT_RETRIES + 1):
-            try:
-                events, reply, cost, wall, argv = claude_run.invoke_launch(
-                    self.workspace, prompt, self.model, self.timeout, self.runner, **kwargs
-                )
-                break
-            except claude_run.HarnessFailureError as exc:
-                self.cost += exc.cost_usd
-                self.wall += exc.wall_seconds
-                if not exc.transient or attempt == hs.TRANSIENT_RETRIES:
-                    # Carry the whole cell's spend so far, earlier launches included.
-                    exc.cost_usd, exc.wall_seconds = self.cost, self.wall
-                    raise
-                self.transient_retries += 1
-                self.sleep(hs.TRANSIENT_WAITS[attempt])
-        self.cost += cost
-        self.wall += wall
-        self.failures += claude_run.tool_failures(events)
-        trajectory = claude_run.trajectory(events, markers)
-        self.launches.append(
-            {
-                "role": role,
-                "argv": _argv_summary(argv),
-                "cost_usd": cost,
-                "wall_seconds": round(wall, 2),
-                "reply": reply,
-                "trajectory": trajectory,
-            }
-        )
-        return str(reply)
 
 
 def run_cell(
@@ -158,14 +75,14 @@ def run_cell(
     runner: claude_run.Runner,
     markers: Sequence[str],
     sleep: Callable[[float], None] = time.sleep,
-) -> tuple[dict[str, object], dict[str, object], str, _Cell]:
+) -> tuple[dict[str, object], dict[str, object], str, Cell]:
     """Run one task x arm x repeat; return (entry, record, patch, cell).
 
     Raises `HarnessFailureError` when a launch fails or the base is not a stalled state.
     """
     workspace = cell_dir(workspace_root, task.id, repeat)
     grade.seed_workspace(workspace, task, control.files)
-    cell = _Cell(model, timeout, runner, workspace, sleep)
+    cell = Cell(model, timeout, runner, workspace, sleep)
     base = grade.run_acceptance(workspace, task)
     if base.returncode == 0:
         raise claude_run.HarnessFailureError(
@@ -176,9 +93,10 @@ def run_cell(
     findings = feedback = ""
     invalid = ""
     repair_turns = 0
+    first_attempt_exit: int | None = None
     reply = ""
     for round_index in range(hs.REPAIR_ROUNDS + 1):
-        before = _file_state(workspace)
+        before = file_state(workspace)
         findings = cell.launch(
             f"investigator:{arm}:r{round_index}",
             hs.investigator_prompt(arm, facts, findings, feedback),
@@ -187,7 +105,7 @@ def run_cell(
             allowed_tools=hs.INVESTIGATOR_ALLOWED,
             extra_args=["--append-system-prompt", role, *effort_args],
         )
-        if _file_state(workspace) != before:
+        if file_state(workspace) != before:
             invalid = "investigator changed the workspace"
             break
         reply = cell.launch(
@@ -197,6 +115,8 @@ def run_cell(
             extra_args=effort_args,
         )
         acceptance = grade.run_acceptance(workspace, task)
+        if round_index == 0:
+            first_attempt_exit = acceptance.returncode
         if acceptance.returncode == 0 or round_index == hs.REPAIR_ROUNDS:
             break
         feedback = (acceptance.stdout + acceptance.stderr)[-hs.FEEDBACK_CHARS :]
@@ -233,6 +153,10 @@ def run_cell(
         human_correction_minutes=None,
     )
     record = ablation.build_record(evidence)
+    # `build_record` assumes a zero-retry run. Say what this cell did.
+    record["config"]["retry_budget"] = hs.REPAIR_ROUNDS
+    record["execution"]["retries"] = repair_turns
+    record["execution"]["first_pass"] = "PASS" if first_attempt_exit == 0 else "FAIL"
     outcome_record.parse_record(record)
     scope = ablation.scope_violations(changed, task.allowed_paths)
     entry: dict[str, object] = {
@@ -242,6 +166,7 @@ def run_cell(
         "valid": not invalid,
         "invalid_reason": invalid or None,
         "base_acceptance_exit": base.returncode,
+        "first_attempt_exit": first_attempt_exit,
         "acceptance_exit": acceptance.returncode,
         "heldout_exit": followup.returncode,
         "accepted": not invalid
@@ -343,6 +268,8 @@ def _run_live(
         raise ablation_tasks.ControlAblationConfigError(
             f"{cells} cells with {args.repeats} repeats exceeds the frozen ceilings"
         )
+    repeats = range(args.start_repeat, args.start_repeat + args.repeats)
+    batch.refuse_recorded_cells(output_dir, list(hs.ARMS), tasks, repeats)
     cap = args.max_cost_usd
     if cap is not None and (not math.isfinite(cap) or cap <= 0):
         raise ablation_tasks.ControlAblationConfigError("--max-cost-usd must be finite and > 0")
@@ -364,7 +291,7 @@ def _run_live(
     entries: list[dict[str, object]] = []
     failures: list[dict[str, object]] = []
     for task in tasks:
-        for repeat in range(args.start_repeat, args.start_repeat + args.repeats):
+        for repeat in repeats:
             order = hs.ARMS if repeat % 2 == 0 else tuple(reversed(hs.ARMS))
             for arm in order:
                 blocked = guard.blocked_reason()
@@ -390,6 +317,8 @@ def _run_live(
                         markers=markers[task.id],
                     )
                 except _HARNESS_ERRORS as exc:
+                    if isinstance(exc, claude_run.HarnessFailureError):
+                        guard.spent += exc.prior_cost_usd  # earlier launches in this cell
                     if isinstance(exc, claude_run.HarnessFailureError) and exc.transient:
                         guard.spent += exc.cost_usd  # the stream reported its cost: measured
                     else:

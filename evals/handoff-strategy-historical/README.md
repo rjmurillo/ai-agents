@@ -106,6 +106,41 @@ Total recorded spend is $2.1806. The cells sum to $1.9875. The other
 $0.1931 is spend recorded for the four lost v3 cells (INFERRED
 from the batch arithmetic, not read per cell).
 
+## Review follow-up: four harness fixes after the first publish
+
+Four review threads on PR 7385 were valid against the code and are fixed in
+`scripts/eval/`, each with a test that fails on commit `29f04b444` and passes now
+(`tests/eval/test_handoff_strategy_review.py`).
+
+- **Combine checked only a count.** An unexpected cell could stand in for a missing
+  one. `combine` now builds the `(task, arm, repeat)` grid from the task file, refuses
+  an unexpected cell, lists missing cells, and refuses batches that disagree on task
+  file hash, model, or effort. `decide` takes the grid and returns INCONCLUSIVE when
+  the cells differ from it.
+- **A failing launch hid its own unmeasured cost.** Earlier spend overwrote it, so the
+  spend guard stayed open. The failing launch now keeps its own cost and earlier spend
+  rides separately.
+- **A rerun could relaunch recorded cells.** A batch into a directory that already
+  records a planned cell is now refused before any launch.
+- **Repaired cells were written as first-pass.** The outcome record now carries the
+  retry budget, the repairs used, and the first attempt's result.
+
+**The published verdict did not change.** I recomputed `runs/2026-11-15-combined/decision.json`
+with the fixed code. The decision block is identical: INCONCLUSIVE, retain incumbent, 12
+of 12 cells, none missing. The file gained two keys, `tasks_file_sha256` and `missing_cells`.
+No report, record, or patch was edited.
+
+Effect on the published batches, reasoned from the code and the records, not rerun:
+
+- Every v3 and fill cell used 0 repair turns and passed on its first attempt, so the
+  recorded `retries: 0` and `first_pass: PASS` are correct. The recorded
+  `retry_budget: 0` is wrong, because those cells could repair for 2 rounds. It was
+  left as recorded.
+- The four lost v3 cells failed on a transient provider error that reported its cost,
+  so the spend figures are the same under the old and new handling.
+- The fill batch ran in a new directory with `--start-repeat`, and `--combine` accepted
+  12 distinct cells, so no cell ran twice.
+
 ## Discrimination proof, before any candidate result
 
 `--dry-run` on the frozen task file passed before the first live launch. For both
