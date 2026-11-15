@@ -408,3 +408,19 @@ class TestReviewedEdgeCases:
     ) -> None:
         skill = make_skill(tmp_path, body=f"```bash\n{command}\n```\n")
         assert _status(skill, "scripts.pinned-one-off") == status
+
+
+@pytest.mark.parametrize(
+    ("body", "status"),
+    [
+        ("Run `scripts/run.py`.\n", "PASS"),
+        ("Run run.py.\n", "PASS"),
+        ("Run `run.py-old`.\n", "WARN"),
+        ("Run `run.pyc`.\n", "WARN"),
+        ("Run `my_run.py`.\n", "WARN"),
+    ],
+)
+def test_script_listing_matches_whole_file_names(tmp_path: Path, body: str, status: str) -> None:
+    script = 'import argparse\nif __name__ == "__main__":\n    pass\n'
+    skill = make_skill(tmp_path, body=body, files={"scripts/run.py": script})
+    assert _status(skill, "scripts.listed-in-skill-md") == status
