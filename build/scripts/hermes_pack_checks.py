@@ -156,6 +156,10 @@ def check_excluded_files(source_root: Path, config: HermesConfig) -> list[str]:
         skill, _, rel = entry.partition("/")
         if skill not in pack_of:
             problems.append(f"`excludedFiles` entry {entry!r}: skill {skill!r} is in no pack")
+        elif rel == "SKILL.md":
+            problems.append(
+                f"`excludedFiles` entry {entry!r} would ship {skill!r} without its SKILL.md"
+            )
         elif not (source_root / skill / rel).is_file():
             problems.append(f"`excludedFiles` entry {entry!r} matches no file in {skill!r}")
     return problems

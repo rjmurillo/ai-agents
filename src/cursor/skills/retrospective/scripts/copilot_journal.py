@@ -275,6 +275,13 @@ def _refusal(reader: _Reader, found: _Collector, discovery: Any, repo: Path) -> 
         return f"journal read failed: {reader.failure}"
     if reader.truncated:
         return "journal exceeds the read cap; scope of the unread part not confirmed"
+    if reader.oversized:
+        # A skipped line is never decoded, so it could be a context change that
+        # names a directory outside the repository. Fail closed.
+        return (
+            f"journal has {reader.oversized} line(s) over the length cap; "
+            "scope of the skipped records not confirmed"
+        )
     if not found.cwds:
         return "journal records no working directory; scope not confirmed"
     if not all(discovery.session_cwd_within_repo(cwd, repo) for cwd in found.cwds):

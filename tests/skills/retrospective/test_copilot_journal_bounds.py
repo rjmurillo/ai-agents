@@ -174,7 +174,7 @@ def test_a_journal_exactly_at_the_line_budget_is_not_truncated(
     assert report["records_truncated"] is False
 
 
-def test_a_line_over_the_length_cap_is_skipped_and_reading_continues(
+def test_a_line_over_the_length_cap_makes_the_journal_unavailable(
     repo: Path, journal_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(journal_mod, "MAX_LINE_CHARS", 200)
@@ -183,9 +183,28 @@ def test_a_line_over_the_length_cap_is_skipped_and_reading_continues(
 
     report = journal_mod.extract_receipts(journal_path, repo)
 
-    assert _available(report)
+    _assert_unavailable(report, "over the length cap")
     assert report["oversized_lines"] == 1
-    assert [r["call_id"] for r in report["receipts"]] == ["c1"]
+
+
+def test_an_oversized_context_change_cannot_hide_an_outside_directory(
+    repo: Path, journal_path: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(journal_mod, "MAX_LINE_CHARS", 300)
+    outside = str(tmp_path / "elsewhere")
+    hidden = {
+        "type": "session.context_changed",
+        "timestamp": "t",
+        "data": {"context": {"cwd": outside}, "pad": "z" * 1000},
+    }
+    write_journal(
+        journal_path,
+        [session_start(repo), json.dumps(hidden), start("c1"), complete("c1")],
+    )
+
+    report = journal_mod.extract_receipts(journal_path, repo)
+
+    _assert_unavailable(report, "over the length cap")
 
 
 def test_a_line_exactly_at_the_length_cap_is_still_parsed(

@@ -386,3 +386,12 @@ def test_check_excluded_files_rejects_a_skill_that_ships_in_no_pack(tmp_path: Pa
     problems = checks.check_excluded_files(tmp_path, config)
 
     assert len(problems) == 1 and "'delta' is in no pack" in problems[0]
+
+
+def test_check_excluded_files_rejects_a_skill_entrypoint(tmp_path: Path) -> None:
+    write_skill(tmp_path, "alpha", {"scripts/run.py": "x\n"})
+    config = make_config(excludedFiles={"alpha/SKILL.md": "why"})
+
+    problems = checks.check_excluded_files(tmp_path, config)
+
+    assert len(problems) == 1 and "without its SKILL.md" in problems[0]
