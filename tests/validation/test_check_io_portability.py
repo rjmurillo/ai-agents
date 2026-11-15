@@ -8,6 +8,7 @@ repository in ``tmp_path``.
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -245,14 +246,14 @@ class TestScanDiff:
 class TestGateEntry:
     def test_clean_branch_passes(self, repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            checker.checks_common, "_resolve_default_base_ref", lambda _root: "base"
+            sys.modules["checks_common"], "_resolve_default_base_ref", lambda _root: "base"
         )
 
         assert checker.validate_io_portability(repo) is True
 
     def test_violation_fails(self, repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            checker.checks_common, "_resolve_default_base_ref", lambda _root: "base"
+            sys.modules["checks_common"], "_resolve_default_base_ref", lambda _root: "base"
         )
         (repo / "new.py").write_text("open('f')\n", encoding="utf-8")
         _git(repo, "add", "-A")
@@ -260,13 +261,15 @@ class TestGateEntry:
         assert checker.validate_io_portability(repo) is False
 
     def test_no_base_ref_skips(self, repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(checker.checks_common, "_resolve_default_base_ref", lambda _root: None)
+        monkeypatch.setattr(
+            sys.modules["checks_common"], "_resolve_default_base_ref", lambda _root: None
+        )
 
         assert checker.validate_io_portability(repo) is True
 
     def test_git_failure_fails(self, repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            checker.checks_common, "_resolve_default_base_ref", lambda _root: "missing"
+            sys.modules["checks_common"], "_resolve_default_base_ref", lambda _root: "missing"
         )
 
         assert checker.validate_io_portability(repo) is False

@@ -182,7 +182,7 @@ def summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--corpus", default=DEFAULT_CORPUS)
-    parser.add_argument("--rows", type=Path, help="write per-row results as JSON here")
+    parser.add_argument("--rows", type=Path, help="write per-row results as JSONL here")
     parser.add_argument("--output", type=Path, help="write the summary JSON here")
     args = parser.parse_args(argv)
     try:
@@ -194,7 +194,7 @@ def main(argv: list[str] | None = None) -> int:
     results = [evaluate(row) for row in rows]
     summary = summarize(results)
     if args.rows:
-        args.rows.write_text(json.dumps(results, indent=1) + "\n", encoding="utf-8")
+        args.rows.write_text("".join(json.dumps(r) + "\n" for r in results), encoding="utf-8")
     if args.output:
         args.output.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(summary, indent=2))

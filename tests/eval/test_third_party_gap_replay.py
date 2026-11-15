@@ -8,6 +8,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -82,15 +83,20 @@ def args(corpus: Path, *extra: str) -> list[str]:
     return ["--corpus", str(corpus), "--prompt-ref", "main", *extra]
 
 
-def caller(text: str = CAUGHT) -> Any:
-    calls: list[str] = []
+class FakeCaller:
+    """Model seam: returns one fixed answer and records every prompt it was sent."""
 
-    def call(system: str, user: str) -> tuple[str, dict[str, Any]]:
-        calls.append(user)
-        return text, {"output_tokens": 7, "finish_reason": "stop"}
+    def __init__(self, text: str = CAUGHT) -> None:
+        self.text = text
+        self.calls: list[str] = []
 
-    call.calls = calls  # type: ignore[attr-defined]
-    return call
+    def __call__(self, system: str, user: str) -> tuple[str, dict[str, Any]]:
+        self.calls.append(user)
+        return self.text, {"output_tokens": 7, "finish_reason": "stop"}
+
+
+def caller(text: str = CAUGHT) -> FakeCaller:
+    return FakeCaller(text)
 
 
 class TestMain:
@@ -162,7 +168,7 @@ class TestOutputTokens:
 
 class TestRateLimitBackoff:
     def test_retries_429_then_returns(self) -> None:
-        answers = iter([RuntimeError("HTTP 429: rate_limit"), "ok"])
+        answers: Iterator[str | Exception] = iter([RuntimeError("HTTP 429: rate_limit"), "ok"])
         waits: list[float] = []
 
         def send() -> str:

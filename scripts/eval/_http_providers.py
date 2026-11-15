@@ -31,6 +31,7 @@ from _eval_common import (
     is_temperature_deprecated_message,
     safe_http_error_message,
 )
+from _http_timeout import http_timeout_seconds
 
 if TYPE_CHECKING:  # imported lazily at runtime; typed here for the client factory
     from anthropic.types import MessageParam
@@ -56,32 +57,8 @@ __all__ = [
     "_is_temperature_deprecated_sdk_error",
     "_normalize_and_raise",
     "_read_env_key",
-    "http_timeout_seconds",
     "weighted_input_cost_units",
 ]
-
-DEFAULT_HTTP_TIMEOUT_SECONDS = 120.0
-MAX_HTTP_TIMEOUT_SECONDS = 1800.0
-
-
-def http_timeout_seconds() -> float:
-    """Per-call timeout: 120s, or EVAL_HTTP_TIMEOUT_SECONDS within (0, 1800].
-
-    A value that is not a number or falls outside that range raises, so a typo
-    never turns into an unbounded wait or a silent fallback.
-    """
-    raw = os.environ.get("EVAL_HTTP_TIMEOUT_SECONDS", "").strip()
-    if not raw:
-        return DEFAULT_HTTP_TIMEOUT_SECONDS
-    try:
-        value = float(raw)
-    except ValueError:
-        raise RuntimeError(f"EVAL_HTTP_TIMEOUT_SECONDS must be a number, got {raw!r}") from None
-    if not 0 < value <= MAX_HTTP_TIMEOUT_SECONDS:
-        raise RuntimeError(
-            f"EVAL_HTTP_TIMEOUT_SECONDS must be in (0, {MAX_HTTP_TIMEOUT_SECONDS:g}], got {raw}"
-        )
-    return value
 
 
 def _read_env_key(names: list[str]) -> str:
