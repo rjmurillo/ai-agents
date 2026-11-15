@@ -187,6 +187,21 @@ def test_a_line_over_the_length_cap_makes_the_journal_unavailable(
     assert report["oversized_lines"] == 1
 
 
+def test_reading_stops_at_the_first_oversized_line(
+    repo: Path, journal_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(journal_mod, "MAX_LINE_CHARS", 200)
+    huge = json.dumps(start("huge", "bash", {"command": "y" * 50_000}))
+    rows = [session_start(repo), huge] + [start(f"c{i}") for i in range(5)]
+    write_journal(journal_path, rows)
+
+    report = journal_mod.extract_receipts(journal_path, repo)
+
+    _assert_unavailable(report, "over the length cap")
+    assert report["lines_read"] == 2
+    assert report["oversized_lines"] == 1
+
+
 def test_an_oversized_context_change_cannot_hide_an_outside_directory(
     repo: Path, journal_path: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

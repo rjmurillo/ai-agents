@@ -172,9 +172,10 @@ class _Reader:
                 return
             self.lines += 1
             if len(line) > MAX_LINE_CHARS and not line.endswith("\n"):
-                self._skip_rest_of_line(stream)
+                # The journal is already unusable (see _refusal), so stop here
+                # instead of scanning an unbounded line to its end.
                 self.oversized += 1
-                continue
+                return
             record = self._decode(line)
             if record is None:
                 continue
@@ -195,13 +196,6 @@ class _Reader:
             self.malformed += 1
             return None
         return record
-
-    @staticmethod
-    def _skip_rest_of_line(stream: TextIO) -> None:
-        while True:
-            chunk = stream.readline(MAX_LINE_CHARS)
-            if not chunk or chunk.endswith("\n"):
-                return
 
 
 class _Collector:
