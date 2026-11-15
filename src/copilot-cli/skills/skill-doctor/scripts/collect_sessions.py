@@ -10,10 +10,10 @@ sessions used which skills, and emits:
   <out>/transcripts/<id>.md   - condensed transcripts for sampled sessions
   <out>/audit_manifest.json   - only with --audit-manifest: scope, catalog, provenance
 
-Everything runs locally; nothing is uploaded. Python 3.10+, stdlib only.
+Everything runs locally; nothing is uploaded. python3, stdlib only.
 Copyright (c) 2026 Denver Technologies, Inc. MIT license, see ../LICENSE.
 
-Exit codes: 0 ok; 1 a requested source is missing or none is found; 2 bad arguments.
+Exit codes: 0 ok; 2 bad arguments, or a requested source is missing or none is found.
 """
 
 from __future__ import annotations
@@ -283,7 +283,7 @@ class Collection:
 
 def _fatal(message: str) -> None:
     print(f"error: {message}", file=sys.stderr)
-    sys.exit(1)
+    sys.exit(2)
 
 
 def _collect(collection: Collection, homes: Any, cutoff: datetime) -> None:

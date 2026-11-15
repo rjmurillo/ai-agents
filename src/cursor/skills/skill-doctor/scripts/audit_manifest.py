@@ -20,7 +20,7 @@ identifies today's file. It never verifies what a historical session executed.
 
 Usage: audit_manifest.py MANIFEST.json   (exit 0 valid, 1 invalid, 2 bad input)
 
-Python 3.10+, stdlib only. Nothing is uploaded.
+python3, stdlib only. Nothing is uploaded.
 
 Exit codes: 0 the manifest is valid; 1 the manifest is invalid, or an export's
 evidence contradicts its scope; 2 bad arguments, or the manifest is unreadable

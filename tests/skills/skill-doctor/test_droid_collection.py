@@ -86,7 +86,7 @@ def test_cli_explicit_droid_harness_fails_when_home_is_missing(tmp_path, root):
         root=root,
     )
 
-    assert result.returncode == 1
+    assert result.returncode == 2
     assert "Droid not found at" in result.stderr
 
 
