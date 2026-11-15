@@ -274,12 +274,8 @@ Every /autoplan run ends with one summary block, not a narration stream:
 `resolve_route.py` is the deterministic long-tail resolver Phase 2b runs on
 a single-domain table miss (DESIGN-037). It reads local `SKILL.md`
 frontmatter and prints one JSON line to stdout; it opens no network
-connection and runs no subprocess. Run it the same way Phase 2b does, never
-as a bare relative invocation:
-
-```bash
-( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/autoplan/scripts/resolve_route.py --request "audit our CLI for developer friction"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
-```
+connection and runs no subprocess. Run it with the Phase 2b command, never
+as a bare relative invocation.
 
 Exit codes: `0` on any resolution, including `kind: "none"`. `2` for a
 missing skills root, a missing PyYAML module (named on stderr), or a bad

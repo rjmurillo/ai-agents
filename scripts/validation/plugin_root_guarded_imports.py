@@ -37,7 +37,7 @@ GuardedKey = tuple[str, str]  # (target under `.claude/`, third-party module)
 # An entry that no site applies is stale and fails the run.
 GUARDED_IMPORT_ALLOWANCES: dict[GuardedKey, str] = {
     (".claude/skills/autoplan/scripts/resolve_route.py", "yaml"): (
-        "autoplan (2 sites). Without PyYAML, main() exits 2 and names the module."
+        "autoplan (1 site). Without PyYAML, main() exits 2 and names the module."
     ),
     (".claude/skills/memory/scripts/count_memory_tokens.py", "tiktoken"): (
         "memory-maintenance (1 site). Without tiktoken, main() exits 1 and names the module."
