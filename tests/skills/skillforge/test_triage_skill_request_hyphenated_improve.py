@@ -114,3 +114,68 @@ def test_catalog_backed_hyphenated_improve_targets_the_existing_skill(
     assert data["input_category"] == EXPLICIT_IMPROVE
     assert data["action"] == triage.Action.IMPROVE_EXISTING
     assert data["details"]["target_skill"] == "context-mode"
+
+
+def _overlap(name: str, score: int) -> dict[str, object]:
+    return {"name": name, "score": score, "domains": [], "reasons": []}
+
+
+def _improve(query: str, matches: list[dict[str, object]], names: frozenset[str]) -> tuple:
+    category, signals = triage.classify_input(query)
+    return triage.make_triage_decision(category, signals, matches, query, frozenset(), names)
+
+
+def test_exact_name_wins_over_a_higher_ranked_longer_name() -> None:
+    matches = [_overlap("context-mode-plus", 90), _overlap("context-mode", 60)]
+    names = frozenset({"context-mode-plus", "context-mode"})
+
+    action, details = _improve("improve the context-mode skill", matches, names)
+
+    assert action == triage.Action.IMPROVE_EXISTING
+    assert details["target_skill"] == "context-mode"
+
+
+def test_exact_name_outside_the_ranked_matches_still_wins() -> None:
+    matches = [_overlap("context-mode-plus", 90)]
+    names = frozenset({"context-mode-plus", "context-mode"})
+
+    action, details = _improve("improve the context-mode skill", matches, names)
+
+    assert action == triage.Action.IMPROVE_EXISTING
+    assert details["target_skill"] == "context-mode"
+
+
+def test_two_longer_names_without_an_exact_name_ask_instead_of_guessing() -> None:
+    matches = [_overlap("context-mode-plus", 90), _overlap("context-mode-lite", 80)]
+    names = frozenset({"context-mode-plus", "context-mode-lite"})
+
+    action, details = _improve("improve the context-mode skill", matches, names)
+
+    assert action == triage.Action.CLARIFY
+    assert "target_skill" not in details
+
+
+def test_single_longer_name_without_an_exact_name_is_still_the_target() -> None:
+    matches = [_overlap("adr-generator", 70)]
+
+    action, details = _improve("improve the adr skill", matches, frozenset({"adr-generator"}))
+
+    assert action == triage.Action.IMPROVE_EXISTING
+    assert details["target_skill"] == "adr-generator"
+
+
+def test_catalog_with_overlapping_names_targets_the_exact_skill(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plus = make_skill(
+        "context-mode-plus",
+        "Context mode plus: improve context mode output for context mode users.",
+        keywords=["context", "mode", "plus"],
+    )
+    exact = make_skill("context-mode", "Keep tool output small.", keywords=["context"])
+    monkeypatch.setattr(triage, "load_skill_index", lambda: {"skills": [plus, exact]})
+
+    data = run_triage("improve the context-mode skill")
+
+    assert data["action"] == triage.Action.IMPROVE_EXISTING
+    assert data["details"]["target_skill"] == "context-mode"
