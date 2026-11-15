@@ -29,6 +29,8 @@ def _run(skill: Path, cwd: Path, repo: Path, journal: Path) -> tuple[int, dict]:
         [
             sys.executable,
             "-I",
+            # -B: the pack is a committed tree, so the run must not write bytecode into it.
+            "-B",
             str(script),
             "--project-dir",
             str(repo),
