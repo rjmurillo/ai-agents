@@ -107,6 +107,7 @@ Gather facts before interpretation. Observation precedes diagnosis.
 Evidence sources: the most recent session log under `.project-toolkit/sessions/`, `git log` for the
 period, optional GitHub activity through the `github` skill (never raw `gh`), and an explicit
 native Copilot journal via `extract_evidence.py --journal <events.jsonl>` (bounded tool receipts).
+Where the journal reader does not ship (the Hermes pack), the journal is reported unavailable.
 
 ### Phase 1: Generate Insights
 
