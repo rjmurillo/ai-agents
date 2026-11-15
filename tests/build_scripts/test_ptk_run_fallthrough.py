@@ -195,6 +195,7 @@ def test_fallthrough_keeps_stdout_for_the_target_alone(
     assert (result.returncode, result.stdout) == (0, "/only/this\n")
 
 
+@pytest.mark.skipif(os.name != "posix", reason="Windows forbids a newline in a file name")
 def test_note_prints_a_root_with_a_newline_through_repr(
     resolver: ModuleType,
     tree: Path,
