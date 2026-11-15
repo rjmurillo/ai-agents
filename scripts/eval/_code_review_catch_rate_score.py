@@ -37,6 +37,8 @@ _FINDING = re.compile(
     r"(?P<location>[^|]+?)\s*\|\s*(?P<klass>[A-Za-z][A-Za-z -]*?)\s*\|\s*(?P<text>.+?)\s*$",
     re.IGNORECASE,
 )
+# The finding grammar is shared with the third-party gap replay, which also reads the line.
+FINDING_PATTERN = _FINDING
 _LINE_SUFFIX = re.compile(r":(?:\d+(?:-\d+)?|\?|-)$")
 _HEX_RUN = re.compile(r"(?<![0-9a-zA-Z])[0-9a-f]{7,40}(?![0-9a-zA-Z])")
 _MIN_PATH_LEN = 3
