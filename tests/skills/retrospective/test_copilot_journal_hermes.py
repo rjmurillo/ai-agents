@@ -40,6 +40,8 @@ def _run(skill: Path, cwd: Path, repo: Path, journal: Path) -> tuple[int, dict]:
         cwd=cwd,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=60,
         check=False,
     )
