@@ -8,9 +8,7 @@ jobs that hold secrets or decide the verdict.
 
 from __future__ import annotations
 
-import os
 import re
-import shutil
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -339,7 +337,7 @@ def _run_pack_script(script: str, tmp_path: Path, name: str) -> tuple[int, Path]
     done = subprocess.run(
         ["bash", "-e", "-c", script],
         cwd=tmp_path,
-        env={"PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}", "RUNNER_TEMP": str(runner_temp)},
+        env={"PATH": f"{bin_dir}:/usr/bin:/bin", "RUNNER_TEMP": str(runner_temp)},
         capture_output=True,
         text=True,
         timeout=30,
@@ -348,7 +346,7 @@ def _run_pack_script(script: str, tmp_path: Path, name: str) -> tuple[int, Path]
     return done.returncode, runner_temp
 
 
-@pytest.mark.skipif(shutil.which("bash") is None, reason="the workflow step is a bash script")
+@pytest.mark.skipif("sys.platform == 'win32'", reason="the workflow step is a bash script")
 def test_the_pack_step_makes_its_folder_before_npm_pack_writes_into_it(
     workflow: dict[str, Any], tmp_path: Path
 ) -> None:
