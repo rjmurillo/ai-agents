@@ -108,15 +108,17 @@ SKILLFORGE_PREFIX_PATTERN = r"\bskillforge[:\s]"
 IMPROVE_VERBS = r"(?:improve|enhance|update|upgrade|fix|extend)"
 DETERMINERS = r"(?:the|my|our|this|a)"
 _DETERMINER_WORDS = frozenset({"the", "my", "our", "this", "a"})
+# A skill name is one word or hyphen-joined words ("build", "context-mode").
+SKILL_NAME = r"\w+(?:-\w+)*"
 
 # An improve verb that opens the request wins over a create verb used as a skill
 # name: "improve build skill" asks to change the build skill.
 LEADING_IMPROVE_PATTERN = (
-    rf"^\s*(?:please\s+)?{IMPROVE_VERBS}\s+(?:{DETERMINERS}\s+)?(?:\w+\s+)?skill\b"
+    rf"^\s*(?:please\s+)?{IMPROVE_VERBS}\s+(?:{DETERMINERS}\s+)?(?:{SKILL_NAME}\s+)?skill\b"
 )
 
 EXPLICIT_IMPROVE_PATTERNS = [
-    rf"\b{IMPROVE_VERBS}\s+(?:{DETERMINERS}\s+)?(?:\w+\s+)?skill\b",
+    rf"\b{IMPROVE_VERBS}\s+(?:{DETERMINERS}\s+)?(?:{SKILL_NAME}\s+)?skill\b",
     r"\bskill\s+(?:needs?|could\s+use|should\s+have)\b",
     r"\b(?:add|include)\s+(?:to|in)\s+(?:the\s+)?\w+\s+skill\b",
 ]
@@ -175,7 +177,7 @@ def _explicit_create(query_lower: str, signals: dict[str, Any]) -> tuple[str, di
 def _explicit_improve(query_lower: str, signals: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     """Build the EXPLICIT_IMPROVE result, naming the skill when the request does."""
     skill_match = re.search(
-        rf"{IMPROVE_VERBS}\s+(?:{DETERMINERS}\s+)?(\w+(?:-\w+)*)\s+skill", query_lower
+        rf"{IMPROVE_VERBS}\s+(?:{DETERMINERS}\s+)?({SKILL_NAME})\s+skill", query_lower
     )
     if skill_match and skill_match.group(1) not in _DETERMINER_WORDS:
         signals["mentioned_skill_name"] = skill_match.group(1)
