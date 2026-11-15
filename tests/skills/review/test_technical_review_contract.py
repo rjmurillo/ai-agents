@@ -9,6 +9,7 @@ instead of restating the doctrine that moved into it.
 
 from __future__ import annotations
 
+import glob
 import re
 from pathlib import Path
 
@@ -189,3 +190,136 @@ class TestAgentCarriesNoMovedDoctrine:
 
     def test_untrusted_block_stays_byte_identical_to_the_partial(self) -> None:
         assert _read(_UNTRUSTED_AGENT_PARTIAL) in self.TEXT
+
+
+_SHIP_RESOLUTION = (
+    PROJECT_ROOT
+    / "src"
+    / "claude"
+    / "skills"
+    / "ship"
+    / "references"
+    / "review-marker-resolution.md"
+)
+_RENDERED_AGENTS = (
+    PROJECT_ROOT / "src" / "claude" / "agents" / "code-reviewer.md",
+    PROJECT_ROOT / "src" / "copilot-cli" / "agents" / "code-reviewer.agent.md",
+    PROJECT_ROOT / "src" / "vs-code-agents" / "code-reviewer.agent.md",
+)
+_ROOT_VARS = "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+_CONTRACT_REL = "skills/review/resources/technical-review.md"
+
+
+def _candidates(text: str) -> list[str]:
+    """Return the contract candidates in resolution order.
+
+    The numbered checkout candidates come first, then each installed-plugin
+    root named in the "Otherwise try" sentence, joined to the contract path.
+    """
+    section = text.split("## Load the contract", 1)[1].split("Apply the loaded contract", 1)[0]
+    numbered = re.findall(r"(?m)^\d+\. `(.+?)`$", section)
+    sentence = re.search(r"Otherwise try `[^`]+` under (.+?) \(", section, re.DOTALL)
+    assert sentence, "installed-plugin sentence missing from the Load the contract section"
+    roots = re.findall(r"`(~/[^`]+)`", sentence.group(1))
+    return numbered + [f"{root}/{_CONTRACT_REL}" for root in roots]
+
+
+def _resolve(candidates: list[str], *, home: Path, cwd: Path, env: dict[str, str]) -> Path | None:
+    """Walk candidates as the agent does: env vars, `~`, glob, first readable file."""
+    for candidate in candidates:
+        root_value = env.get("COPILOT_PLUGIN_ROOT") or env.get("CLAUDE_PLUGIN_ROOT") or ".claude"
+        expanded = candidate.replace(_ROOT_VARS, root_value)
+        if expanded.startswith("~/"):
+            expanded = str(home) + expanded[1:]
+        if not Path(expanded).is_absolute():
+            expanded = str(cwd / expanded)
+        for match in sorted(glob.glob(expanded)):
+            if Path(match).is_file():
+                return Path(match)
+    return None
+
+
+def _install(root: Path) -> Path:
+    contract = root / _CONTRACT_REL
+    contract.parent.mkdir(parents=True)
+    contract.write_text("# contract\n")
+    return contract
+
+
+class TestAgentResolvesInstalledPluginContract:
+    """Issue #7356: find the contract in an installed plugin with both root vars unset."""
+
+    CANDIDATES = _candidates(_read(_AGENT_SHARED))
+
+    def test_candidate_list_names_the_installed_plugin_roots(self) -> None:
+        joined = "\n".join(self.CANDIDATES)
+        assert "~/.copilot/installed-plugins/_direct/project-toolkit/" in joined
+        assert "~/.copilot/installed-plugins/*/project-toolkit/" in joined
+        assert "~/.claude/plugins/cache/*/project-toolkit/" in joined
+
+    def test_installed_roots_match_the_ship_resolution_rule(self) -> None:
+        ship = _read(_SHIP_RESOLUTION)
+        ship_roots = re.findall(r'"\$\{HOME:-\}/(\.[^"]*?project-toolkit)"?', ship)
+        ship_roots = [r.replace('"/*/', "/*/") for r in ship_roots]
+        assert ship_roots, "ship rule lost its installed-plugin roots"
+        for root in ship_roots:
+            assert any(f"~/{root}/" in c for c in self.CANDIDATES), root
+
+    def test_checkout_paths_stay_and_precede_the_installed_roots(self) -> None:
+        index = {c: i for i, c in enumerate(self.CANDIDATES)}
+        checkout = index[f".claude/{_CONTRACT_REL}"]
+        direct = next(i for c, i in index.items() if "installed-plugins/_direct" in c)
+        assert index[f"{_ROOT_VARS}/{_CONTRACT_REL}"] == 0
+        assert checkout < index[_CONTRACT_REL] < direct
+
+    @pytest.mark.parametrize(
+        "root",
+        [
+            ".copilot/installed-plugins/_direct/project-toolkit",
+            ".copilot/installed-plugins/some-marketplace/project-toolkit",
+            ".claude/plugins/cache/some-marketplace/project-toolkit",
+        ],
+    )
+    def test_installed_plugin_resolves_with_both_root_vars_unset(
+        self, tmp_path: Path, root: str
+    ) -> None:
+        home, cwd = tmp_path / "home", tmp_path / "unrelated-checkout"
+        cwd.mkdir()
+        contract = _install(home / root)
+        assert _resolve(self.CANDIDATES, home=home, cwd=cwd, env={}) == contract
+
+    def test_root_variable_wins_over_an_installed_plugin(self, tmp_path: Path) -> None:
+        home, cwd = tmp_path / "home", tmp_path / "cwd"
+        cwd.mkdir()
+        _install(home / ".copilot/installed-plugins/_direct/project-toolkit")
+        explicit = _install(tmp_path / "explicit-root")
+        env = {"COPILOT_PLUGIN_ROOT": str(tmp_path / "explicit-root")}
+        assert _resolve(self.CANDIDATES, home=home, cwd=cwd, env=env) == explicit
+
+    def test_checkout_contract_wins_over_an_installed_plugin(self, tmp_path: Path) -> None:
+        home, cwd = tmp_path / "home", tmp_path / "cwd"
+        cwd.mkdir()
+        _install(home / ".copilot/installed-plugins/_direct/project-toolkit")
+        checkout = _install(cwd / ".claude")
+        assert _resolve(self.CANDIDATES, home=home, cwd=cwd, env={}) == checkout
+
+    def test_no_readable_location_resolves_nothing(self, tmp_path: Path) -> None:
+        home, cwd = tmp_path / "home", tmp_path / "cwd"
+        home.mkdir()
+        cwd.mkdir()
+        assert _resolve(self.CANDIDATES, home=home, cwd=cwd, env={}) is None
+
+    def test_other_plugin_in_the_installed_dir_is_not_matched(self, tmp_path: Path) -> None:
+        home, cwd = tmp_path / "home", tmp_path / "cwd"
+        cwd.mkdir()
+        _install(home / ".copilot/installed-plugins/_direct/other-plugin")
+        assert _resolve(self.CANDIDATES, home=home, cwd=cwd, env={}) is None
+
+    def test_refusal_to_pass_without_the_contract_is_kept(self) -> None:
+        text = _read(_AGENT_SHARED)
+        assert "Without the contract, never emit PASS." in text
+        assert "VERDICT: WARN" in text
+
+    @pytest.mark.parametrize("path", _RENDERED_AGENTS, ids=lambda p: p.parent.parent.name)
+    def test_rendered_copies_carry_the_same_candidates(self, path: Path) -> None:
+        assert _candidates(_read(path)) == self.CANDIDATES
