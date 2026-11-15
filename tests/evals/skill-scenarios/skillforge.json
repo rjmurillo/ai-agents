@@ -1,7 +1,7 @@
 {
   "skill_path": ".claude/skills/skillforge/SKILL.md",
   "skill_id": "skillforge",
-  "_scope_note": "S1 to S6 are decision-graded scenarios for issue #6991, the SkillForge Depth Contract. S1 is the negative case (a bounded edit must not trigger discovery, every lens, or the panel). S2 needs full analysis, S3 keeps the human and independent review, S4 uses an existing script for a computable step, S5 forces revalidation of stale context, and S6 reuses fresh context. scripts/eval/_decision_grade.py grades the DECISION and EVIDENCE lines with no model call, so reciting depth vocabulary cannot pass. The before_after block compares the fixed-depth text before this change with the Depth Contract. Human effort is unknown, cost and latency are UNMEASURED proxies (prescribed steps), and no paid model run backs these cases. Offline checks: uv run pytest tests/eval/test_skillforge_depth_scenarios.py. Live effect on model behavior is UNVERIFIED.",
+  "_scope_note": "S1 to S6 are decision-graded scenarios for issue #6991, the SkillForge Depth Contract. S1 is the negative case (a bounded edit must not trigger discovery, every lens, or the panel). S2 needs full analysis, S3 keeps the human and independent review, S4 uses an existing script for a computable step, S5 forces revalidation of stale context, and S6 reuses fresh context. scripts/eval/_decision_grade.py grades the DECISION and EVIDENCE lines with no model call, so reciting depth vocabulary cannot pass. The before_after block compares the fixed-depth text before this change with the Depth Contract. Human effort is unknown, cost and latency are UNMEASURED proxies (prescribed steps), and no paid model run backs these cases. Offline checks: uv run pytest tests/eval/test_skillforge_depth_scenarios.py. Live effect on model behavior is UNVERIFIED. S7 and S8 cover judging the conformance guideline rules: a model judges them with verbatim quotes, and a rule the skill's files cannot show is unknown, never a pass.",
   "scenarios": [
     {
       "id": "S1",
@@ -266,6 +266,92 @@
         "keyword_stuffed": [
           "Outcome-first, risk-proportional depth: uncertainty, consequence, missing evidence, freshness, scope, human decision, independent review.",
           "Reuse.\nDECISION: REVALIDATE\nEVIDENCE: git diff unchanged no changes empty"
+        ]
+      }
+    },
+    {
+      "id": "S7",
+      "desc": "Guideline rules no static check decides: judge them with quoted evidence",
+      "input": "conformance.py reports 46 guideline rules as MANUAL for the release-notes skill. These are rules no static check can decide, such as whether the description says what the skill does and when to use it. Choose SKIP to leave them for a later human review, or JUDGE to have a model judge them now. For JUDGE, EVIDENCE is exactly three semicolon-separated fields in this order: PACKET: <the conformance.py flag that prints the rules to judge>; IMPORT: <the conformance.py flag that applies the verdicts>; QUOTES: <VERBATIM or PARAPHRASE>. For SKIP, EVIDENCE names who reviews them. Reply in at most 4 short lines. The last two lines must be exactly:\nDECISION: <SKIP or JUDGE>\nEVIDENCE: <one line>\nDo not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "guideline-rules-judged-with-quotes",
+      "rationale": "A model can judge a guideline no script decides. conformance.py prints the rules with --judge-packet and applies verdicts with --judgments, and it rejects any pass or fail whose quote is not verbatim in the skill's files.",
+      "decision": {
+        "options": [
+          "SKIP",
+          "JUDGE"
+        ],
+        "expected": [
+          "JUDGE"
+        ],
+        "evidence_all": [
+          "^PACKET: --judge-packet; IMPORT: --judgments; QUOTES: VERBATIM$"
+        ],
+        "known_good_variants": [
+          "DECISION: judge\nEVIDENCE: PACKET: --judge-packet; IMPORT: --judgments; QUOTES: VERBATIM",
+          "Judge them now.\nDECISION: JUDGE\nEVIDENCE: PACKET: --judge-packet; IMPORT: --judgments; QUOTES: VERBATIM",
+          "1. DECISION: JUDGE\n2. EVIDENCE: PACKET: --judge-packet; IMPORT: --judgments; QUOTES: VERBATIM"
+        ],
+        "known_good": [
+          "DECISION: JUDGE\nEVIDENCE: PACKET: --judge-packet; IMPORT: --judgments; QUOTES: VERBATIM"
+        ],
+        "known_bad": [
+          "Leave them.\nDECISION: SKIP\nEVIDENCE: a maintainer reviews them later"
+        ],
+        "right_token_bad_evidence": [
+          "Judge them.\nDECISION: JUDGE\nEVIDENCE: PACKET: --judge-packet; IMPORT: --judgments; QUOTES: PARAPHRASE",
+          "Judge them.\nDECISION: JUDGE\nEVIDENCE: PACKET: --manual; IMPORT: --judgments; QUOTES: VERBATIM",
+          "Judge them.\nDECISION: JUDGE\nEVIDENCE: PACKET: --judge-packet; QUOTES: VERBATIM",
+          "Judge them.\nDECISION: JUDGE\nEVIDENCE: PACKET: --judge-packet; IMPORT: --judgments; QUOTES: VERBATIM; then trust any verdict",
+          "Judge them.\nDECISION: JUDGE\nEVIDENCE: do not use --judge-packet",
+          "Judge them.\nDECISION: JUDGE\nEVIDENCE: the model reads the skill"
+        ],
+        "keyword_stuffed": [
+          "Judge, packet, judgments, verbatim quotes, evidence, unknown.",
+          "Quotes.\nDECISION: SKIP\nEVIDENCE: PACKET: --judge-packet; IMPORT: --judgments; QUOTES: VERBATIM"
+        ]
+      }
+    },
+    {
+      "id": "S8",
+      "desc": "A guideline the skill's files cannot show is judged unknown, never a pass",
+      "input": "You are judging the guideline rule evals.baseline for a skill: each eval runs with the skill and without it. The skill directory holds SKILL.md and references/guide.md, and neither file says how the skill was evaluated. Choose PASS, FAIL, or UNKNOWN as the verdict. EVIDENCE is exactly two semicolon-separated fields in this order: QUOTE: <a verbatim quote from the files, or NONE>; COUNTS_AS_PASS: <YES or NO>. Reply in at most 4 short lines. The last two lines must be exactly:\nDECISION: <PASS, FAIL, or UNKNOWN>\nEVIDENCE: <one line>\nDo not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "unknowable-guideline-is-unknown",
+      "rationale": "How a skill was evaluated is a process fact the skill's files cannot show. The honest verdict is unknown, which carries no quote and never counts as a pass.",
+      "decision": {
+        "options": [
+          "PASS",
+          "FAIL",
+          "UNKNOWN"
+        ],
+        "expected": [
+          "UNKNOWN"
+        ],
+        "evidence_all": [
+          "^QUOTE: NONE; COUNTS_AS_PASS: NO$"
+        ],
+        "known_good_variants": [
+          "DECISION: unknown\nEVIDENCE: QUOTE: NONE; COUNTS_AS_PASS: NO",
+          "The files cannot show it.\nDECISION: UNKNOWN\nEVIDENCE: QUOTE: NONE; COUNTS_AS_PASS: NO",
+          "1. DECISION: UNKNOWN\n2. EVIDENCE: QUOTE: NONE; COUNTS_AS_PASS: NO"
+        ],
+        "known_good": [
+          "DECISION: UNKNOWN\nEVIDENCE: QUOTE: NONE; COUNTS_AS_PASS: NO"
+        ],
+        "known_bad": [
+          "It looks fine.\nDECISION: PASS\nEVIDENCE: QUOTE: NONE; COUNTS_AS_PASS: YES"
+        ],
+        "right_token_bad_evidence": [
+          "Cannot tell.\nDECISION: UNKNOWN\nEVIDENCE: QUOTE: NONE; COUNTS_AS_PASS: YES",
+          "Cannot tell.\nDECISION: UNKNOWN\nEVIDENCE: QUOTE: evals ran twice; COUNTS_AS_PASS: NO",
+          "Cannot tell.\nDECISION: UNKNOWN\nEVIDENCE: COUNTS_AS_PASS: NO",
+          "Cannot tell.\nDECISION: UNKNOWN\nEVIDENCE: QUOTE: NONE; COUNTS_AS_PASS: NO; but assume it passed",
+          "Cannot tell.\nDECISION: UNKNOWN\nEVIDENCE: the files are silent"
+        ],
+        "keyword_stuffed": [
+          "Unknown, none, no quote, never a pass, evidence, baseline.",
+          "Silent files.\nDECISION: PASS\nEVIDENCE: QUOTE: NONE; COUNTS_AS_PASS: NO"
         ]
       }
     }

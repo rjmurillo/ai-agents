@@ -49,9 +49,10 @@ for a machine-readable copy.
 
 - **Levels.** MUST, SHOULD, and MAY follow the source page's wording. A
   guideline the page only recommends is SHOULD.
-- **Automated or manual.** A rule a static check can decide runs as a check. A
-  rule only a reader can judge, such as "says what the skill does and when to
-  use it", reports MANUAL. Pass `--manual` to list those for review.
+- **Checked or judged.** A rule a static check can decide runs as a check. A
+  guideline only a reader can judge, such as "says what the skill does and when
+  to use it", reports MANUAL until a model judges it. See "Judging the
+  guideline rules" below.
 - **Static only.** The checks read files. They never run the skill's scripts.
 - **Same verdict everywhere.** The frontmatter reader is standard library
   only and never uses PyYAML. A construct it does not read, such as an anchor
@@ -69,11 +70,13 @@ for a machine-readable copy.
   is reported, never followed.
 
 Statuses: PASS, FAIL (a MUST rule failed), WARN (a SHOULD or MAY rule failed),
-DEVIATION, WAIVED, NOT_APPLICABLE (nothing to check), NOT_EVALUATED, and
-MANUAL. Exit code `0` means no FAIL and no MUST rule NOT_EVALUATED. Exit code
-`1` means a FAIL or a MUST rule NOT_EVALUATED; `--strict` also fails on WARN
-and on any NOT_EVALUATED. Exit code `2` means a usage error, an unknown
-`--waive` id, or a path that is missing, not a directory, or outside `--root`.
+DEVIATION, WAIVED, NOT_APPLICABLE (nothing to check), NOT_EVALUATED, MANUAL
+(a guideline not judged yet), JUDGED_PASS, JUDGED_FAIL, and JUDGED_UNKNOWN.
+Exit code `0` means no FAIL and no MUST rule NOT_EVALUATED. Exit code `1` means
+a FAIL or a MUST rule NOT_EVALUATED; `--strict` also fails on WARN, on any
+NOT_EVALUATED, and on JUDGED_FAIL. Exit code `2` means a usage error, an
+unknown `--waive` id, a path that is missing, not a directory, or outside
+`--root`, or a `--judgments` file that fails its checks.
 
 Profiles:
 
@@ -86,3 +89,37 @@ Profiles:
 
 Pass `--waive RULE_ID` once per rule to report a failure your skill accepts
 on purpose as WAIVED. Name the reason in the skill, not only in the command.
+
+### Judging the guideline rules
+
+The guideline rules ask for judgment, so the agent running SkillForge judges
+them. `conformance.py` never calls a model; it hands the rules over and checks
+what comes back.
+
+1. Print the packet: `conformance.py SKILL_DIR --judge-packet`. It holds the
+   rules still MANUAL for that skill, each with its criterion and source, plus
+   the skill's text files and the judging instructions. Under
+   `--profile project`, a guideline the project departs from on purpose reports
+   DEVIATION and stays out of the packet.
+2. Judge in a fresh context. Where the harness allows, give a subagent only the
+   packet and the skill directory, not the session that wrote the skill. Write
+   `{"judgments": [{"id", "verdict", "reason", "evidence"}]}`. The verdict is
+   `pass`, `fail`, or `unknown`. Each evidence item is
+   `{"file": "<path from the packet>", "quote": "<verbatim text>"}`.
+3. Apply it: `conformance.py SKILL_DIR --judgments judgments.json`.
+
+The import checks every verdict before it applies any of them:
+
+- A `pass` or `fail` needs at least one quote. Each quote has at least 12
+  characters and appears verbatim in the named file. Whitespace runs count as
+  one space, so a reflowed quote still matches.
+- The quoted file must be a text file inside the skill directory and inside
+  `--root`.
+- `unknown` needs no quote. Use it for what the files cannot show, such as
+  whether evals ran with and without the skill. It never counts as a pass.
+- An unknown rule id, a rule already decided by a check, a duplicate, or any
+  failed check rejects the whole file with exit 2, and nothing is applied.
+
+A judged rule reports JUDGED_PASS, JUDGED_FAIL, or JUDGED_UNKNOWN with the
+reason and quotes. Judging covers SHOULD and MAY guidelines only, so it never
+changes a MUST verdict. JUDGED_FAIL fails the run only with `--strict`.
