@@ -343,8 +343,9 @@ same root are adopted. `.claude` first, a `PLUGIN_ROOT` candidate,
       the same argument list, so `-I` reaches the target on both.
     - A consumer has no `uv` (MUST 4). The validator reads the skill name from
       the site's path and asks `build/scripts/skill_distribution.py`. That reader
-      returns shipped for a missing value and raises on any other value. The
-      validator counts both as shipped, and a shipped site with the `uv` form
+      returns shipped for a missing value, repo-local for `repo-local`, and
+      raises on any other value. The validator counts a missing or invalid
+      value as shipped, and a shipped site with the `uv` form
       is an offense. `--frozen` matches the repository's `uv` convention: `uv`
       runs from the lock as written and never rewrites it.
     - A legacy-form site keeps its current interpreter until it migrates. The
