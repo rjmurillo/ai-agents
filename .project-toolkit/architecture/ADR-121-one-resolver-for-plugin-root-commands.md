@@ -1,7 +1,7 @@
 ---
 id: ADR-121
 status: proposed
-date: 2026-11-11
+date: 2026-11-14
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -265,9 +265,9 @@ these sites move, issue #7281 stays open for the seven skills.
 ## Amendment 2026-11-14: the last seven skills
 
 On 2026-11-14 the owner chose option A in issue #7281. This amendment replaces
-decision 5 and amends decisions 3 and 7. It adds decisions 11 to 14. It also
-settles five reviewer asks from PRs #7340 and #7341. Decisions 1, 2, 4, 6, and
-8 to 10 stand as written.
+decision 5, amends decisions 3, 7, and 8, and extends decision 10. It adds
+decisions 11 to 14. It also settles five reviewer asks from PRs #7340 and
+#7341. Decisions 1, 2, 4, 6, and 9 stand as written.
 
 The measurements, the five reviewer asks with their reasons, and the costs this
 amendment accepts are in
@@ -342,10 +342,11 @@ same root are adopted. `.claude` first, a `PLUGIN_ROOT` candidate,
     - The POSIX path (`os.execv`) and the Windows path (`subprocess.run`) build
       the same argument list, so `-I` reaches the target on both.
     - A consumer has no `uv` (MUST 4). The validator reads the skill name from
-      the site's path and asks `build/scripts/skill_distribution.py`. A missing
-      or unknown value counts as shipped, and a shipped site with the `uv` form
-      is an offense. `--frozen` matches the repository's `uv` convention and
-      keeps `uv run` from rewriting the lock.
+      the site's path and asks `build/scripts/skill_distribution.py`. That reader
+      returns shipped for a missing value and raises on any other value. The
+      validator counts both as shipped, and a shipped site with the `uv` form
+      is an offense. `--frozen` matches the repository's `uv` convention: `uv`
+      runs from the lock as written and never rewrites it.
     - A legacy-form site keeps its current interpreter until it migrates. The
       legacy count (rule 6) treats `python3 -I` like `python3`.
     - `push-pr` uses `python3 -I`. `repository-completion-proof` uses the `uv`
@@ -405,23 +406,29 @@ Each step is its own pull request, in order.
 8. Decisions 11 to 13 in the resolver, the recipe, and the validator. Tests
    cover fallthrough order, realpath dedupe, the stderr line, the own-root-wins
    case, a foreign root with its own resolver, a stdout that carries only the
-   target's output, `-I` passthrough on both launch paths, the `uv` form and its repo-local gate, each allowance entry with its
-   module blocked, and every committed locator target resolving under its own
-   root with no fallthrough. No site moves.
+   target's output, `-I` passthrough on both launch paths, the `uv` form and
+   its repo-local gate, the allowance check, and every committed locator target
+   resolving under its own root with no fallthrough. No site moves. The
+   allowance list ships empty, because an entry no site applies is stale.
 9. Migrate the 22 sites (15 invocations and 7 assignments under
-   `templates/skills`), split `skill-bootstrap`, and add decision 14. The
+   `templates/skills`), split `skill-bootstrap`, and add decision 14. The four
+   allowance entries land here with their sites and blocked-module tests. The
    `templates/skills` entry in `LEGACY_SITE_BASELINE` goes from (15, 7) at
    b5e05e9c6 (2026-11-14) to (0, 0). The `src/claude yaml` count of 17 at
    b5e05e9c6 (2026-11-14) stays, because it is Class G. Prose mentions of the
    nested form in `src/claude` and `templates/rules` run nothing and sit outside
    that scope. The `repository-completion-proof` commands move from
-   `uv run python` to `uv run --frozen python`, so a stale lock now fails the
-   command instead of being rewritten. This step closes issue #7281, whose
+   `uv run python` to `uv run --frozen python`, so a stale lock is used as
+   written instead of being rewritten. `--locked`, which fails on a stale lock,
+   was weighed and not taken: the gate's own runs use `--frozen`. This step closes issue #7281, whose
    2026-11-12 status comment names these 22 sites as the open scope.
 
-Rollback: revert step 9, then step 8. A step 8 revert is safe for every site,
-because decision 11 changes nothing when the target is under the resolver's own
-root.
+Rollback: revert step 9, then step 8. A step 8 revert changes nothing for a
+site whose target is under the resolver's own root. It does restore exit 2 for
+the fallthrough cases decision 11 fixes, such as the PR #7340
+`fix-markdown-fences` command under a `project-toolkit-knowledge` root. That
+failure is loud, with the `ptk_run:` prefix, and matches the behavior before
+this amendment.
 
 ## Alternatives considered
 

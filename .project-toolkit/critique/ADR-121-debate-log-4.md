@@ -37,7 +37,7 @@
 - **P1, own-root identity.** The revision compares candidates by `os.path.realpath` and drops duplicates, so `.claude` is never probed twice when it is the own root through an ADR-119 link. It uses `os.path.isfile`, the same lexical test as decision 6.
 - **P1, version skew.** The draft claimed a fix for a skewed root. The revision says a root with an older resolver cannot fall through and still exits 2.
 - **P1, interpreter forms.** The revision adds a table: who may use each form, what rule 2 does, and how the target starts. Both launch paths pass `-I`. The `uv` form becomes `uv run --frozen python`, the repository convention (security P2-1).
-- **P1, repo-local gate.** The revision names `build/scripts/skill_distribution.py` as the reader of `metadata.distribution`. A missing or unknown value counts as shipped.
+- **P1, repo-local gate.** The revision names `build/scripts/skill_distribution.py` as the reader of `metadata.distribution`. The reader returns shipped for a missing value and raises on any other value; the validator counts both as shipped.
 - **P1, `SKILLOPT_DIR`.** The locator now wins. A preset is used only when the locator fails. The assignment aborts on empty, and `references/` commands use `${SKILLOPT_DIR:?}`. The PowerShell block is named hand-written, uses `Test-Path -LiteralPath`, and gets a structure test.
 - **P1, allowance list.** The revision names `GUARDED_IMPORT_ALLOWANCES` in `plugin_root_interpreter_allowances.py`, ties each entry to the sites it unblocks, and states that the blocked-module test runs in the pytest suite.
 - **P1, closing claim.** Step 9 now names the counts: `templates/skills` from (15, 7) to (0, 0), with the Class G count of 17 kept. It cites the issue comment that scoped the 22 sites.
@@ -48,7 +48,7 @@
 - **Manifest name check on env roots (security).** Rejected and recorded in the ADR. The Alternatives section already rejects the manifest as a marker, `.claude/` has none, and the Hermes packs are named `project-toolkit-delivery` and `project-toolkit-knowledge`.
 - **Guard-aware rule 2 instead of a list (independent-thinker).** Not taken. The owner's option A names an allowance list. The ADR records the alternative and why the list stays.
 - **Inline locators in `references/` instead of `where` (independent-thinker).** Not taken. Inlining would replace 24 short lines with locators of about 270 bytes each. `where` is a target, so decision 6 is unchanged.
-- **Bump `date` (architect).** Not taken. Debate log 3 set `date` to the decision date on purpose.
+- **Bump `date` (architect).** Not taken in round 1. Reversed after PR review; see Post-Review Corrections.
 - **Split step 9 (high-level-advisor).** The ADR keeps one step. The implementer may ship it as more than one pull request.
 
 ## Round 2 Summary
@@ -102,6 +102,18 @@ to `.project-toolkit/analysis/ADR-121-amendment-2026-11-14.md`: Measurements,
 Reviewer asks decided, and Costs and limits. The ADR keeps every numbered
 decision and the rollout, plus a short summary and a link. No decision text
 changed, so the panel did not re-vote.
+
+## Post-Review Corrections
+
+PR #7370 review raised five points after consensus. None changes a decision.
+
+- **`date`.** ADR-073 defines `date` as last updated. Debate log 3 kept the decision date for a Status-only edit; this amendment edits decisions, so `date` is now 2026-11-14. The architect asked for this in round 1.
+- **"Stand as written".** The intro now says the amendment also amends decision 8 (the failure text) and extends decision 10.
+- **`--frozen`.** The ADR said `--frozen` makes a stale lock fail. It does not: `uv` uses the lock as written and never rewrites it. The text now says so. `--locked`, which fails on a stale lock, was weighed and not taken, because the gate's own runs use `--frozen`.
+- **Rollback.** A step 8 revert restores exit 2 for the fallthrough cases decision 11 fixes, such as the PR #7340 `fix-markdown-fences` command. The text now names that loud failure instead of calling the revert safe for every site.
+- **Unknown `distribution` values.** See the corrected round 1 bullet above.
+
+The step 8 text also now says the allowance list ships empty and its entries land in step 9, because an entry no site applies fails as stale.
 
 ## Debate State
 
