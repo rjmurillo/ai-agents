@@ -13,7 +13,8 @@ the file at the reviewed commit and asks two questions with no model call:
 A row counts as caught when the check reports a violation of the matching
 kind within ``LINE_WINDOW`` lines of the Bugbot line. A negative control reads
 the same file at the pull request's final head and counts rows where the
-treatment still flags that line, which should be zero or explained.
+treatment finds no fewer violations of that rule than at the reviewed commit,
+which means the author's fix did not remove what the checker flags.
 
 Corpus: evals/third-party-review-gap/io-portability-corpus.json.
 
@@ -136,15 +137,22 @@ def evaluate(row: dict[str, Any]) -> dict[str, Any]:
     )
     caught = near(treatment_lines(row["path"], before, rule), row["line"])
     after = git_show(row["final_head"], row["path"])
-    still = None
-    if after is not None:
-        still = near(treatment_lines(row["path"], after, rule), row["line"])
+    before_count = rule_count(row["path"], before, rule)
+    after_count = None if after is None else rule_count(row["path"], after, rule)
     return {
         **row,
         "baseline_caught": near(baseline, row["line"]),
         "treatment_caught": caught,
-        "treatment_flags_final_head": still,
+        "rule_count_reviewed": before_count,
+        "rule_count_final_head": after_count,
+        # Line numbers drift between commits, so the control compares counts:
+        # the author's fix should leave fewer violations of this rule in the file.
+        "final_head_not_lower": after_count is not None and after_count >= before_count,
     }
+
+
+def rule_count(path: str, source: str, rule: str) -> int:
+    return sum(1 for v in treatment.scan_source(path, source) if v.rule == rule)
 
 
 def summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
@@ -160,7 +168,7 @@ def summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
         out[split] = {
             "baseline": cell(rows, "baseline_caught"),
             "treatment": cell(rows, "treatment_caught"),
-            "treatment_flags_final_head": cell(rows, "treatment_flags_final_head"),
+            "final_head_not_lower": cell(rows, "final_head_not_lower"),
         }
     for rule in sorted({r["rule"] for r in scored}):
         rows = [r for r in scored if r["rule"] == rule]

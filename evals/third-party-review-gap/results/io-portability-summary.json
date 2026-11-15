@@ -1,0 +1,135 @@
+{
+  "errors": 0,
+  "all": {
+    "baseline": {
+      "hits": 0,
+      "n": 86,
+      "ci": [
+        0.0,
+        0.043
+      ]
+    },
+    "treatment": {
+      "hits": 78,
+      "n": 86,
+      "ci": [
+        0.827,
+        0.952
+      ]
+    },
+    "final_head_not_lower": {
+      "hits": 7,
+      "n": 86,
+      "ci": [
+        0.04,
+        0.159
+      ]
+    }
+  },
+  "derive": {
+    "baseline": {
+      "hits": 0,
+      "n": 33,
+      "ci": [
+        0.0,
+        0.104
+      ]
+    },
+    "treatment": {
+      "hits": 33,
+      "n": 33,
+      "ci": [
+        0.896,
+        1.0
+      ]
+    },
+    "final_head_not_lower": {
+      "hits": 0,
+      "n": 33,
+      "ci": [
+        0.0,
+        0.104
+      ]
+    }
+  },
+  "heldout": {
+    "baseline": {
+      "hits": 0,
+      "n": 53,
+      "ci": [
+        0.0,
+        0.068
+      ]
+    },
+    "treatment": {
+      "hits": 45,
+      "n": 53,
+      "ci": [
+        0.729,
+        0.921
+      ]
+    },
+    "final_head_not_lower": {
+      "hits": 7,
+      "n": 53,
+      "ci": [
+        0.065,
+        0.248
+      ]
+    }
+  },
+  "file-text-encoding": {
+    "baseline": {
+      "hits": 0,
+      "n": 25,
+      "ci": [
+        0.0,
+        0.133
+      ]
+    },
+    "treatment": {
+      "hits": 25,
+      "n": 25,
+      "ci": [
+        0.867,
+        1.0
+      ]
+    }
+  },
+  "subprocess-text-encoding": {
+    "baseline": {
+      "hits": 0,
+      "n": 34,
+      "ci": [
+        0.0,
+        0.102
+      ]
+    },
+    "treatment": {
+      "hits": 32,
+      "n": 34,
+      "ci": [
+        0.809,
+        0.984
+      ]
+    }
+  },
+  "unguarded-symlink": {
+    "baseline": {
+      "hits": 0,
+      "n": 27,
+      "ci": [
+        0.0,
+        0.125
+      ]
+    },
+    "treatment": {
+      "hits": 21,
+      "n": 27,
+      "ci": [
+        0.592,
+        0.894
+      ]
+    }
+  }
+}
