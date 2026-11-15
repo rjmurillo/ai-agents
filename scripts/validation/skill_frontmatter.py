@@ -14,9 +14,14 @@ counts them.
   Claude platform rejects in skill metadata
 - compatibility: when present, a string of 1-500 characters
 - license: when present, a string
+
+The frontmatter is read with YAML 1.2 core-schema scalars, the schema the spec
+assumes: unquoted `on`, `off`, `yes`, `no`, and dates stay strings, while
+`true`, `false`, numbers, and null keep their types.
 - allowed-tools: a space-separated string per the spec; comma-separated strings
   and YAML lists, the forms Claude Code and this repository's generators use,
-  are accepted too. Each tool is judged by its name before any `(...)` argument.
+  are accepted too. A tool containing `*` passes as a wildcard; any other tool
+  is judged by its name before any `(...)` argument.
 - model: valid model identifiers (aliases or dated snapshots)
 
 Not checked here: top-level keys outside the spec and nested ``metadata``
@@ -44,6 +49,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _VALIDATION_PACKAGE_SENTINEL = _PROJECT_ROOT / "scripts" / "validation" / "models.py"
@@ -86,8 +92,8 @@ DATED_SNAPSHOT_PATTERN: re.Pattern[str] = re.compile(
 # PascalCase names (Read, Write, Bash, ...). The lowercase entries are kept
 # for Copilot CLI compatibility (gh copilot uses bash, view, edit, create).
 # Source: .project-toolkit/analysis/claude-code-skill-frontmatter-2026.md (section 5.4).
-# Parenthesized command-prefix forms like "Bash(pwsh:*)" pass via the
-# wildcard branch in validate_allowed_tools.
+# Parenthesized forms like "Bash(pwsh:*)" pass through `_tool_is_known`, which
+# accepts any tool containing `*` and otherwise checks the name before `(`.
 VALID_TOOLS: frozenset[str] = frozenset(
     {
         # Claude Code canonical tools (PascalCase)
@@ -135,6 +141,36 @@ RETIRED_MCP_SERVERS: frozenset[str] = frozenset({"forgetful"})
 NAME_MAX_LENGTH = 64
 DESCRIPTION_MAX_LENGTH = 1024
 COMPATIBILITY_MAX_LENGTH = 500
+
+
+# A safe loader whose implicit scalars follow the YAML 1.2 core schema. PyYAML's
+# default resolvers follow YAML 1.1, which reads unquoted `on`, `off`, `yes`, and
+# `no` as booleans and ISO dates as dates. Under YAML 1.2 those are strings, so
+# `name: on` is a valid skill name. Built with type() because PyYAML ships no
+# type stubs, and mypy refuses a class statement that subclasses an Any base.
+_Yaml12Loader: Any = type("_Yaml12Loader", (yaml.SafeLoader,), {})
+
+
+_YAML11_ONLY_TAGS = {"tag:yaml.org,2002:bool", "tag:yaml.org,2002:timestamp"}
+_Yaml12Loader.yaml_implicit_resolvers = {
+    first: [(tag, pattern) for tag, pattern in resolvers if tag not in _YAML11_ONLY_TAGS]
+    for first, resolvers in yaml.SafeLoader.yaml_implicit_resolvers.items()
+}
+_Yaml12Loader.add_implicit_resolver(
+    "tag:yaml.org,2002:bool",
+    re.compile(r"^(?:true|True|TRUE|false|False|FALSE)$"),
+    list("tTfF"),
+)
+
+
+def _load_yaml12(text: str) -> object:
+    """Load one YAML document with `_Yaml12Loader`, a SafeLoader subclass."""
+    loader = _Yaml12Loader(text)
+    try:
+        return loader.get_single_data()
+    finally:
+        loader.dispose()
+
 
 # XML tag detection pattern
 _XML_TAG_PATTERN: re.Pattern[str] = re.compile(r"<[^>]+>")
@@ -232,7 +268,7 @@ def parse_frontmatter(content: str) -> FrontmatterResult:
         result.errors.append("Frontmatter must use spaces for indentation (tabs not allowed)")
 
     try:
-        typed_frontmatter = yaml.safe_load(frontmatter_content) or {}
+        typed_frontmatter = _load_yaml12(frontmatter_content) or {}
     except yaml.YAMLError as exc:
         result.errors.append(f"Frontmatter YAML parse error: {exc}")
         typed_frontmatter = {}
@@ -360,10 +396,10 @@ def validate_compatibility(compatibility: object) -> list[str]:
 
 
 def validate_license(license_value: object) -> list[str]:
-    """Validate the optional 'license' field: a string."""
-    if isinstance(license_value, str) and license_value.strip():
+    """Validate the optional 'license' field: a string, as the spec defines it."""
+    if isinstance(license_value, str):
         return []
-    return [f"license must be a non-empty string, got {_type_name(license_value)}"]
+    return [f"license must be a string, got {_type_name(license_value)}"]
 
 
 def validate_model(model: str | None) -> list[str]:

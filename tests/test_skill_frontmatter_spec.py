@@ -65,6 +65,7 @@ class TestOptionalFields:
 
     def test_license_must_be_a_string(self) -> None:
         assert validate_license("MIT") == []
+        assert validate_license("") == []
         assert validate_license(["MIT"]) != []
 
     def test_description_must_be_a_string(self) -> None:
@@ -92,6 +93,38 @@ class TestTypedValues:
         result = validate_skill_file(skill_file)
 
         assert any("found 1201" in e for e in result.errors)
+
+
+class TestYaml12Scalars:
+    """The spec assumes YAML 1.2, where `on`, `yes`, and dates are strings (PR #7386 review)."""
+
+    @pytest.mark.parametrize(
+        ("directory", "frontmatter"),
+        [
+            ("on", "name: on\ndescription: Turn on the service\n"),
+            ("yes-skill", "name: yes-skill\ndescription: yes\n"),
+            ("dated", "name: dated\ndescription: 2026-11-15\n"),
+        ],
+    )
+    def test_yaml_1_1_booleans_and_dates_stay_strings(
+        self, tmp_path: Path, directory: str, frontmatter: str
+    ) -> None:
+        skill_file = tmp_path / directory / "SKILL.md"
+        skill_file.parent.mkdir()
+        skill_file.write_text(f"---\n{frontmatter}---\n", encoding="utf-8")
+
+        result = validate_skill_file(skill_file)
+
+        assert result.passed, result.errors
+
+    def test_true_and_numbers_keep_their_types(self, tmp_path: Path) -> None:
+        skill_file = tmp_path / "typed" / "SKILL.md"
+        skill_file.parent.mkdir()
+        skill_file.write_text("---\nname: typed\ndescription: true\n---\n", encoding="utf-8")
+
+        result = validate_skill_file(skill_file)
+
+        assert "description must be a string, got bool" in result.errors
 
 
 def _load_conformance() -> ModuleType:
