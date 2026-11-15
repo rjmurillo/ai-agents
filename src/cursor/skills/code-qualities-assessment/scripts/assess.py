@@ -167,6 +167,18 @@ _IMPORT_PATTERNS = {
 # Extracts the quoted import path from a line the Go import pattern matched.
 _GO_IMPORT_PATH = re.compile(r'"([^"]+)"')
 
+# Splits a matched Python import line into the module names it binds. The
+# ``import`` form lists comma-separated dotted names, each with an optional
+# ``as`` alias. The ``from`` form names one source module, relative if it
+# starts with a dot.
+_PY_PLAIN_IMPORT = re.compile(r"^\s*import\s+(.+)$")
+_PY_FROM_IMPORT = re.compile(r"^\s*from\s+(\S+)\s+import\s+")
+
+# Top-level standard-library module names. ``sys.stdlib_module_names`` exists
+# from Python 3.10, the plugin's syntax floor. An older interpreter gets an
+# empty set, so every import stays scored and nothing is wrongly exempted.
+_PY_STDLIB_MODULES = frozenset(getattr(sys, "stdlib_module_names", ()))
+
 # Reads the module path from a go.mod ``module`` directive.
 _GO_MODULE_DIRECTIVE = re.compile(r'^\s*module\s+"?([^"\s]+)"?', re.MULTILINE)
 
@@ -1219,6 +1231,30 @@ def _is_go_standard_import(import_path: str, module_path: str | None) -> bool:
     return "." not in import_path.split("/", 1)[0]
 
 
+def _is_python_standard_import(line: str) -> bool:
+    """Classify a matched Python import line as standard library only.
+
+    Relative imports are first-party. A line that binds several modules
+    (``import os, requests``) is standard only when every module is, so one
+    third-party name keeps the whole line scored.
+    """
+    code = line.split("#", 1)[0]
+    from_match = _PY_FROM_IMPORT.match(code)
+    if from_match:
+        modules = [from_match.group(1)]
+    else:
+        plain_match = _PY_PLAIN_IMPORT.match(code)
+        if not plain_match:
+            return False
+        modules = [part.split()[0] for part in plain_match.group(1).split(",") if part.split()]
+    if not modules:
+        return False
+    return all(
+        not module.startswith(".") and module.split(".", 1)[0] in _PY_STDLIB_MODULES
+        for module in modules
+    )
+
+
 def _score_coupling(
     language: str | None,
     code_lines: list[str],
@@ -1232,8 +1268,9 @@ def _score_coupling(
     0.0 so the threshold gate does not fail a file scored only by that
     untuned heuristic (matches the file-header contract).
 
-    Go standard-library imports are reported but not scored: they are stable
-    utilities, not application or third-party coupling (issue #7047).
+    Go and Python standard-library imports are reported but not scored: they
+    are stable utilities, not application or third-party coupling (issues
+    #7047 and #7354).
     """
     pattern = _IMPORT_PATTERNS.get(language) if language else None
     standard_count = 0
@@ -1246,6 +1283,8 @@ def _score_coupling(
                 match = _GO_IMPORT_PATH.search(line)
                 if match and _is_go_standard_import(match.group(1), module_path):
                     standard_count += 1
+        elif language == "python":
+            standard_count = sum(1 for line in import_lines if _is_python_standard_import(line))
         confidence = 0.6
         tuned = True
     else:
@@ -1265,6 +1304,11 @@ def _score_coupling(
     if language == "go":
         reasons.append(
             f"{standard_count} Go standard library (not scored), "
+            f"{scored_count} application or third-party (scored)"
+        )
+    elif language == "python" and standard_count:
+        reasons.append(
+            f"{standard_count} Python standard library (not scored), "
             f"{scored_count} application or third-party (scored)"
         )
     reasons.append(detail)
