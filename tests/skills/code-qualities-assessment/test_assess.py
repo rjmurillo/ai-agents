@@ -490,7 +490,7 @@ def test_go_stdlib_only_test_passes_absolute_coupling_gate(
         "10 Go standard library (not scored), 0 application or third-party (scored)",
         "Import count is reasonable",
     ]
-    report = json.loads((tmp_path / "quality.json").read_text())
+    report = json.loads((tmp_path / "quality.json").read_text(encoding="utf-8"))
     assert report["files"][0]["coupling"]["value"] == 10
     assert rc == 0
 
@@ -650,7 +650,7 @@ def test_python_stdlib_only_probe_passes_absolute_coupling_gate(
         "4 Python standard library (not scored), 0 application or third-party (scored)",
         "Import count is reasonable",
     ]
-    report = json.loads((tmp_path / "quality.json").read_text())
+    report = json.loads((tmp_path / "quality.json").read_text(encoding="utf-8"))
     assert report["files"][0]["coupling"]["value"] == 10
     assert rc == 0
 
@@ -711,6 +711,12 @@ def test_python_first_party_and_relative_imports_still_count(tmp_path: Path) -> 
         ("from .json import thing", False),
         ("import jsonschema", False),
         ("import logging_extra", False),
+        ("from os import path; import requests", False),
+        ("import os; import requests", False),
+        ("import os; from requests import get", False),
+        ("import os; import sys", True),
+        ("from os import path; import json;", True),
+        ("import os; x = 1", False),
     ],
 )
 def test_python_standard_import_classification(line: str, expected: bool) -> None:

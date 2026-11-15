@@ -1236,17 +1236,22 @@ def _is_python_standard_import(line: str) -> bool:
 
     Relative imports are first-party. A line that binds several modules
     (``import os, requests``) is standard only when every module is, so one
-    third-party name keeps the whole line scored.
+    third-party name keeps the whole line scored. Statements joined by ``;``
+    are checked one by one, and any non-import statement keeps the line scored.
     """
     code = line.split("#", 1)[0]
-    from_match = _PY_FROM_IMPORT.match(code)
-    if from_match:
-        modules = [from_match.group(1)]
-    else:
-        plain_match = _PY_PLAIN_IMPORT.match(code)
+    modules: list[str] = []
+    for statement in code.split(";"):
+        if not statement.strip():
+            continue
+        from_match = _PY_FROM_IMPORT.match(statement)
+        if from_match:
+            modules.append(from_match.group(1))
+            continue
+        plain_match = _PY_PLAIN_IMPORT.match(statement)
         if not plain_match:
             return False
-        modules = [part.split()[0] for part in plain_match.group(1).split(",") if part.split()]
+        modules.extend(part.split()[0] for part in plain_match.group(1).split(",") if part.split())
     if not modules:
         return False
     return all(
