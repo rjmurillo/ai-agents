@@ -1,7 +1,7 @@
 ---
 name: modernize
 version: 1.0.0
-description: Bring an aging PR up to date by first checking that its idea still belongs, then rebasing it with a SHA-pinned lease. Ends MODERNIZE, REWORK, or CLOSE. Use for `modernize this PR`, `refresh this stale PR`. Do NOT use to resolve conflicts alone (use merge-resolver) or for a decision with no rebase (use maintainer-review).
+description: Rebase an aging PR only after checking its idea still belongs. Ends MODERNIZE, REWORK, or CLOSE. Use for `modernize this PR`. Do NOT use for conflicts alone (use merge-resolver agent).
 license: MIT
 user-invocable: true
 ---
@@ -26,7 +26,7 @@ branch-update, and untrusted-content rules.
 |----------|-------|
 | Is this old PR still worth landing, and if so, bring it current | `modernize` (this skill) |
 | Should this PR exist at all, with no branch change | `maintainer-review` |
-| Resolve the conflicts on this branch, nothing more | `merge-resolver` |
+| Resolve the conflicts on this branch, nothing more | `merge-resolver` agent |
 | Rebase, cherry-pick, or recover my own branch | `git-advanced-workflows` |
 | Is the diff correct and safe before merge | `review` |
 
@@ -122,7 +122,7 @@ For a `MODERNIZE` disposition:
 1. Create a safe local branch or disposable worktree at the recorded PR head.
 2. Rebase its commits onto the freshly fetched base branch.
 3. Resolve each conflict by the PR's current intent and the base branch's newer
-   invariants. Hand mechanical conflict work to `merge-resolver`. If a conflict
+   invariants. Hand mechanical conflict work to the `merge-resolver` agent. If a conflict
    reveals a product or architecture disagreement, stop and reconsider the
    disposition instead of guessing.
 4. Compare the pre-rebase and post-rebase commit series with `git range-diff`
@@ -173,4 +173,4 @@ of manufacturing confidence.
 
 - **Disposition only**: when the user wants a verdict with no branch change, run
   Phases 1 to 3 and hand off to `maintainer-review` for the comment draft.
-- **Conflict-heavy rebase**: hand Phase 4 step 3 to `merge-resolver`.
+- **Conflict-heavy rebase**: hand Phase 4 step 3 to the `merge-resolver` agent.
