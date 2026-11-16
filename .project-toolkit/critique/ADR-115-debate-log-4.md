@@ -97,3 +97,8 @@ The `/review` run on `927396472` returned WARN from spec-compliance, security, r
 - Decision 3 records two rejected alternatives: exempting the generated trees from GP-003, and moving `version` under `metadata` in 102 sources.
 - Consequences names Muse Code's unknown-field tolerance as a risk. Reversibility names the installed-tree lag.
 - `templates/platforms/surface-parity.yaml` reasons for `skills-cursor` and `skills-muse` now list the kept keys.
+
+## PR #7395 review follow-up
+
+- The owner (review thread on ADR-115 Decision 3) noted that the Resolution above says the 2026-10-13 load is cited, but the `ebf475c84` rewrite dropped that citation. Decision 3 now carries the owner's suggested sentence. It cites the 2026-10-13 turn as inferred evidence for the Claude-plugin path only, not for a `src/cursor/` install.
+- Cursor Bugbot noted that frontmatter `date` stayed `2026-11-11`. ADR-073 defines `date` as last updated, so it is now `2026-11-15`.
