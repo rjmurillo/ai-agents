@@ -21,8 +21,7 @@ from _conformance_checks import (
     NotEvaluatedError,
     body_or_skip,
 )
-from _conformance_parse import SkillDoc, contained
-from _path_guard import contained_realpath, resolve_root
+from _conformance_parse import SkillDoc, contained, file_id, inside_skill
 
 _RUNNER_RE = re.compile(
     r"(?:^|[\s;&|(])(uvx|npx|bunx|pipx\s+run|deno\s+run|go\s+run)\s+([^\n;&|]*)"
@@ -339,40 +338,6 @@ JUDGE_INSTRUCTIONS = (
 )
 
 
-def file_id(path: Path) -> tuple[int, int] | None:
-    """Return the (device, inode) of the file a path reaches, or None when it cannot be read.
-
-    Comparing file identity, not path text, also catches a hard link or a
-    second symlink to the same file.
-    """
-    try:
-        info = os.stat(path)
-    except (OSError, RuntimeError, ValueError):
-        return None
-    return info.st_dev, info.st_ino
-
-
-def _real(path: Path) -> str | None:
-    """Return the case-normalized real path, or None when it cannot be resolved.
-
-    A symlink loop raises on some Python versions; treating it as unresolvable
-    keeps the judgments import on its exit-2 path instead of a traceback.
-    """
-    try:
-        return os.path.normcase(os.path.realpath(path))
-    except (OSError, RuntimeError, ValueError):
-        return None
-
-
-def inside_skill(path: Path, directory: Path, root: Path) -> bool:
-    """True when path resolves to a file inside both the skill directory and root."""
-    if _real(path) is None or not path.is_file():
-        return False
-    if contained_realpath(path, str(root)) is None:
-        return False
-    return contained_realpath(path, resolve_root(str(directory))) is not None
-
-
 @dataclass(frozen=True)
 class JudgingScope:
     """What a judgments file may name: the skill's files, its open rules, and waivers."""
@@ -382,10 +347,28 @@ class JudgingScope:
     allowed: frozenset[str]
     open_ids: frozenset[str]
     waived: frozenset[str]
+    excluded: tuple[int, int] | None = None
 
 
 def _collapse(text: str) -> str:
     return " ".join(text.split())
+
+
+def _read_inside(path: Path, scope: JudgingScope) -> str | None:
+    """Read a file only if the file opened is the one inside the skill and root.
+
+    Open first, then check: the path must resolve inside both boundaries now,
+    and reach the same file (device and inode) as the open descriptor. A swap
+    before or after the open fails one of the two checks. None means reject.
+    """
+    with open(path, "rb") as handle:
+        opened = os.fstat(handle.fileno())
+        identity = (opened.st_dev, opened.st_ino)
+        if identity == scope.excluded or file_id(path) != identity:
+            return None
+        if not inside_skill(path, scope.directory, scope.root):
+            return None
+        return handle.read().decode("utf-8", errors="replace")
 
 
 def _evidence_item_error(at: str, item: object, scope: JudgingScope) -> str | None:
@@ -399,15 +382,12 @@ def _evidence_item_error(at: str, item: object, scope: JudgingScope) -> str | No
         return f"{at}: quote needs at least {MIN_QUOTE_CHARS} characters"
     if file not in scope.allowed:
         return f"{at}: {file} is not a text file in the skill"
-    path = scope.directory / file
-    # Recheck at read time: the file may have become a symlink that leaves the
-    # skill or the root since the allowed list was built.
-    if not inside_skill(path, scope.directory, scope.root):
-        return f"{at}: {file} is not a text file in the skill"
     try:
-        text = path.read_text(encoding="utf-8", errors="replace")
+        text = _read_inside(scope.directory / file, scope)
     except OSError as exc:
         return f"{at}: cannot read {file}: {exc}"
+    if text is None:
+        return f"{at}: {file} is not a text file in the skill"
     if _collapse(quote) not in _collapse(text):
         return f"{at}: quote not found verbatim in {file}"
     return None

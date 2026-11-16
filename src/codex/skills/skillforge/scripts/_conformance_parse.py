@@ -374,3 +374,37 @@ def load_skill(directory: Path, root: Path | None = None) -> SkillDoc:
     except ParseError as exc:
         doc.parse_error = str(exc)
     return doc
+
+
+def file_id(path: Path) -> tuple[int, int] | None:
+    """Return the (device, inode) of the file a path reaches, or None when it cannot be read.
+
+    Comparing file identity, not path text, also catches a hard link or a
+    second symlink to the same file.
+    """
+    try:
+        info = os.stat(path)
+    except (OSError, RuntimeError, ValueError):
+        return None
+    return info.st_dev, info.st_ino
+
+
+def _real(path: Path) -> str | None:
+    """Return the case-normalized real path, or None when it cannot be resolved.
+
+    A symlink loop raises on some Python versions; treating it as unresolvable
+    keeps the judgments import on its exit-2 path instead of a traceback.
+    """
+    try:
+        return os.path.normcase(os.path.realpath(path))
+    except (OSError, RuntimeError, ValueError):
+        return None
+
+
+def inside_skill(path: Path, directory: Path, root: Path) -> bool:
+    """True when path resolves to a file inside both the skill directory and root."""
+    if _real(path) is None or not path.is_file():
+        return False
+    if contained_realpath(path, str(root)) is None:
+        return False
+    return contained_realpath(path, resolve_root(str(directory))) is not None

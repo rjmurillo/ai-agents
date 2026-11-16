@@ -55,11 +55,9 @@ from _conformance_files import (
     TEXT_SUFFIXES,
     JudgingScope,
     apply_judgments,
-    file_id,
-    inside_skill,
 )
 from _conformance_guides import GUIDE_RULES
-from _conformance_parse import load_skill
+from _conformance_parse import file_id, inside_skill, load_skill
 from _conformance_rules import SPEC_RULES, Rule
 from _path_guard import contained_realpath, resolve_root
 
@@ -248,7 +246,7 @@ def skill_files(directory: Path, root: Path, exclude: Path | None = None) -> lis
             continue
         if not inside_skill(path, directory, root):
             continue
-        if skipped is not None and file_id(path) == skipped:
+        if exclude is not None and file_id(path) in (None, skipped):
             continue
         found.append(path.relative_to(directory).as_posix())
     return found
@@ -367,14 +365,20 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.judgments:
         judgments = Path(args.judgments)
+        excluded = file_id(judgments)
         scope = JudgingScope(
             directory=directories[0],
             root=root,
             allowed=frozenset(skill_files(directories[0], root, exclude=judgments)),
             open_ids=frozenset(r.rule.id for r in reports[0].results if r.status == "MANUAL"),
             waived=frozenset(args.waive),
+            excluded=excluded,
         )
-        errors = apply_judgments(reports[0].results, judgments, scope)
+        errors = (
+            [f"cannot identify {judgments}: it is missing or unreadable"]
+            if excluded is None
+            else apply_judgments(reports[0].results, judgments, scope)
+        )
         if errors:
             print("judgments rejected; nothing applied:", file=sys.stderr)
             for error in errors:
