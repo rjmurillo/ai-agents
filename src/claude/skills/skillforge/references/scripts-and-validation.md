@@ -105,8 +105,8 @@ examples use the skill and root from the validation block in `SKILL.md`.
    its criterion and source, plus the skill's text files and the judging
    instructions. Under `--profile project`, a guideline the project departs
    from on purpose reports DEVIATION and stays out of the packet. Save the
-   packet outside the skill directory. A packet saved inside it is never
-   listed as evidence. A printed packet exits 0 and does not validate the
+   packet outside the skill directory. A text file inside it that holds a
+   saved packet's JSON, under any name, is never listed as evidence. A printed packet exits 0 and does not validate the
    skill; run conformance without `--judge-packet` for that. A bad path or
    more than one SKILL_DIR exits 2.
 
@@ -155,7 +155,8 @@ The import checks every verdict before it applies any of them:
 
 A quote proves the text is in the file, not that it supports the verdict.
 Read the reason before you trust a JUDGED_PASS. The 12-character floor only
-stops one-word quotes such as a heading. A relevance test, such as requiring a
+stops fragments shorter than 12 characters, such as one word. A longer heading
+still passes. A relevance test, such as requiring a
 quote from the section a rule names, was not adopted: a rule names a guide
 page, not a section of the skill, so the script has nothing to match.
 

@@ -33,8 +33,8 @@ JUDGE_INSTRUCTIONS = (
     "cannot show it, such as how the skill was tested; unknown is never a pass. "
     "Write the judgments file outside the skill directory."
 )
-# A saved packet starts with this key; its rule text is never evidence.
-_PACKET_KEY = b'"packet_version"'
+# A file larger than this is never treated as a saved packet.
+_PACKET_MAX_BYTES = 2 * 1024 * 1024
 
 
 class Judged(Protocol):
@@ -192,15 +192,38 @@ def apply_judgments(results: Sequence[Judged], raw: bytes, scope: JudgingScope) 
     return []
 
 
+def _decode(raw: bytes) -> str | None:
+    """Decode UTF-8, or UTF-16 with a byte order mark, as Windows PowerShell 5.1 writes."""
+    encoding = "utf-16" if raw[:2] in (b"\xff\xfe", b"\xfe\xff") else "utf-8-sig"
+    try:
+        return raw.decode(encoding)
+    except UnicodeDecodeError:
+        return None
+
+
 def _is_packet(path: Path) -> bool:
-    """True for a judge packet saved as JSON; quoting its rule text would ground nothing."""
-    if path.suffix.lower() != ".json":
-        return False
+    """True when a text file holds a saved judge packet, whatever its name or key order.
+
+    Quoting a packet's rule text would ground a verdict on the rule itself. A
+    file that is not a regular file, is too large, or is not a packet's JSON
+    object is not a packet.
+    """
     try:
         with open(path, "rb", opener=_nonblocking) as handle:
-            return _PACKET_KEY in handle.read(256)
+            opened = os.fstat(handle.fileno())
+            if not stat.S_ISREG(opened.st_mode) or opened.st_size > _PACKET_MAX_BYTES:
+                return False
+            raw = handle.read(_PACKET_MAX_BYTES + 1)
     except OSError:
         return False
+    text = _decode(raw) if raw else None
+    if text is None:
+        return False
+    try:
+        data = json.loads(text)
+    except (ValueError, RecursionError):
+        return False
+    return isinstance(data, dict) and "packet_version" in data and "rules" in data
 
 
 def skill_files(directory: Path, root: Path, exclude: tuple[int, int] | None = None) -> list[str]:

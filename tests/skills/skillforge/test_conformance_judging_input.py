@@ -151,21 +151,63 @@ def test_empty_judgments_path_is_a_usage_error(skill: Path) -> None:
     assert exit_info.value.code == 2
 
 
+def _sorted_keys(text: str) -> bytes:
+    return json.dumps(json.loads(text), sort_keys=True).encode("utf-8")
+
+
+@pytest.mark.parametrize(
+    ("name", "encode"),
+    [
+        ("conformance-packet.json", lambda text: text.encode("utf-8")),
+        ("packet.txt", lambda text: text.encode("utf-8")),
+        ("notes.md", _sorted_keys),
+        ("packet.json", lambda text: text.encode("utf-16")),
+    ],
+    ids=["json", "txt", "sorted-keys-md", "utf16"],
+)
 def test_packet_saved_inside_the_skill_is_not_evidence(
-    skill: Path, capsys: pytest.CaptureFixture[str]
+    skill: Path, capsys: pytest.CaptureFixture[str], name: str, encode: Any
 ) -> None:
     assert conformance.main(["release-notes", "--judge-packet"]) == 0
     packet_text = capsys.readouterr().out
-    (skill / "conformance-packet.json").write_text(packet_text, encoding="utf-8")
+    (skill / name).write_bytes(encode(packet_text))
     criterion = json.loads(packet_text)["rules"][0]["criterion"]
 
     assert conformance.main(["release-notes", "--judge-packet"]) == 0
-    assert "conformance-packet.json" not in json.loads(capsys.readouterr().out)["files"]
+    assert name not in json.loads(capsys.readouterr().out)["files"]
 
     judgment = _verdict()
-    judgment["evidence"] = [{"file": "conformance-packet.json", "quote": criterion}]
+    judgment["evidence"] = [{"file": name, "quote": criterion}]
     assert _judge(skill.parent, [judgment]) == 2
-    _rejected(capsys, "conformance-packet.json is not a text file in the skill")
+    _rejected(capsys, f"{name} is not a text file in the skill")
+
+
+def test_source_that_names_the_packet_key_is_still_evidence(
+    skill: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (skill / "scripts").mkdir()
+    (skill / "scripts" / "build.py").write_text(
+        'PACKET = {"packet_version": 1, "rules": []}\n', encoding="utf-8"
+    )
+
+    assert conformance.main(["release-notes", "--judge-packet"]) == 0
+    assert "scripts/build.py" in json.loads(capsys.readouterr().out)["files"]
+
+
+def test_unreadable_candidate_is_not_taken_for_a_packet(
+    skill: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    judging = conformance.apply_judgments_file.__globals__
+    real_open = open
+
+    def failing_open(path: Any, *args: Any, **kwargs: Any) -> Any:
+        if Path(path).name == "guide.md":
+            raise PermissionError(13, "Permission denied", str(path))
+        return real_open(path, *args, **kwargs)
+
+    monkeypatch.setitem(judging, "open", failing_open)
+
+    assert judging["_is_packet"](skill / "references" / "guide.md") is False
 
 
 def test_file_the_process_cannot_stat_is_left_out(

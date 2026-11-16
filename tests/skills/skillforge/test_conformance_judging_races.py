@@ -267,6 +267,17 @@ def test_fifo_swapped_in_after_listing_is_rejected_without_blocking(
     assert "references/guide.md is not a text file in the skill" in capsys.readouterr().err
 
 
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="needs named pipes")
+def test_packet_check_on_a_fifo_with_a_writer_is_false_not_a_crash(skill: Path) -> None:
+    fifo = skill / "evals.json"
+    os.mkfifo(fifo)
+    writer = os.open(fifo, os.O_RDWR | os.O_NONBLOCK)
+    try:
+        assert JUDGING["_is_packet"](fifo) is False
+    finally:
+        os.close(writer)
+
+
 def test_link_to_a_sibling_skill_under_the_same_root_is_not_evidence(
     skill: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

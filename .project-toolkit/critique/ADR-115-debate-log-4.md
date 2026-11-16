@@ -47,6 +47,10 @@ Vote: Disagree-and-Commit.
 | architect | Accept. No P0 or P1. P2: "raises it by what it adds" is loose but acceptable. |
 | critic | Accept. No P0 or P1. P2: the same wording is looser than round 1's text and acceptable. |
 
+## Owner checkpoint
+
+A later `/review` pass on PR #7387 noted that round 1's architect P1 (no split trigger) was closed without a recorded decision. The owner, Richard, chose on 2026-11-15 to record it as an accepted risk. Decision 6 now says repeated raises can reach 400, the next file then fails the build, and the owner decides whether to split the pack. No earlier trigger is set. This records an owner decision and changes no other text, so no further panel round ran.
+
 ## Outcome
 
 Outcome: Consensus in round 2, both reviewers Accept. Decision 6 points to `packMaxFiles` in `hermes.yaml` instead of restating it, so a later budget change needs no ADR edit. The ADR stays `proposed`.
