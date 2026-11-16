@@ -31,7 +31,7 @@ Exit codes follow ADR-035:
     0 - PR is ready to merge
     1 - PR is not ready to merge
     2 - PR not found
-    3 - API error
+    3 - API error, including a failed branch ruleset lookup
     4 - Auth error
 """
 
@@ -1159,15 +1159,25 @@ def _active_reported_names(contexts: list[dict], skipped_names: list[str]) -> se
     from an earlier push or debounce supersession) has not reported an active
     opinion for the current head commit and must still count as missing if
     the branch ruleset requires it.
+
+    A passing StatusContext is an active opinion even when a CancelledCheckRun
+    shares its name: classification lets the CheckRun group decide that name
+    and records it as skipped, but the passing status still satisfies the
+    required context. A failing or pending status does not rescue the name,
+    so it stays missing and blocks.
     """
     distinct_names: set[str] = set()
+    passing_status_names: set[str] = set()
     for ctx in contexts:
         typename = ctx.get("__typename")
         if typename == "CheckRun":
             distinct_names.add(ctx.get("name") or "unknown")
         elif typename == "StatusContext":
-            distinct_names.add(ctx.get("context") or "unknown")
-    return distinct_names - set(skipped_names)
+            name = ctx.get("context") or "unknown"
+            distinct_names.add(name)
+            if ctx.get("state") in _PASSING_STATUS_STATES:
+                passing_status_names.add(name)
+    return (distinct_names - set(skipped_names)) | passing_status_names
 
 
 def _reconcile_missing_required_checks(
@@ -1209,12 +1219,14 @@ def _evaluate_ci_checks(
     repo: str = "",
     pr_number: int = 0,
     advisory: frozenset[str] = frozenset(),
-) -> tuple[list[str], list[str], list[str], list[str], int, bool, int, bool]:
+) -> tuple[list[str], list[str], list[str], list[str], int, bool, int, bool, bool]:
     """Classify rollup contexts and append CI reasons.
 
     Returns ``(failed_required, pending_required, failed_non_required,
     pending_non_required, passed_checks, ci_passing, rollup_rows,
-    pages_complete)``. ``pages_complete`` is True when every status
+    pages_complete, ruleset_lookup_failed)``. ``ruleset_lookup_failed`` is
+    True when the branch ruleset could not be read, so the required-check
+    set is unknown. ``pages_complete`` is True when every status
     context on the latest commit was retrieved (either the inline
     first:100 page was complete, or paginated follow-up calls exhausted
     the list). False when truncation could not be resolved (paginate
@@ -1247,6 +1259,7 @@ def _evaluate_ci_checks(
             ci_passing,
             rollup_rows,
             pages_complete,
+            False,
         )
 
     contexts: list[dict] = []
@@ -1346,6 +1359,7 @@ def _evaluate_ci_checks(
         ci_passing,
         rollup_rows,
         pages_complete,
+        not ruleset_ok,
     )
 
 
@@ -1764,6 +1778,7 @@ def check_merge_readiness(
         ci_passing,
         rollup_rows,
         contexts_pages_complete,
+        ruleset_lookup_failed,
     ) = _evaluate_ci_checks(
         pr,
         ignore_ci,
@@ -1824,6 +1839,7 @@ def check_merge_readiness(
         "CIPassing": ci_passing,
         "IncludeNonRequired": include_non_required,
         "fetched_pages_complete": fetched_pages_complete,
+        "RulesetLookupFailed": ruleset_lookup_failed,
         "Reasons": reasons,
     }
     result["Tier"] = classify_tier(result, is_bot=is_bot)
@@ -2081,6 +2097,9 @@ def main(argv: list[str] | None = None) -> int:
     print(f"PR #{args.pull_request} is NOT ready to merge", file=sys.stderr)
     for reason in result["Reasons"]:
         print(f"  - {reason}", file=sys.stderr)
+    if result.get("RulesetLookupFailed"):
+        # Required checks are unknown, so "not ready" is not a verdict (ADR-035: 3).
+        return 3
     return 1
 
 

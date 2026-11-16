@@ -187,17 +187,21 @@ def fetch_ruleset_required_contexts(
     legacy ``/branches/{branch}/protection`` endpoint, which returns 404 for
     repos that use rulesets instead of branch protection).
 
-    Returns a sorted list of context strings, or None if the API call fails
+    Returns a sorted list of context strings, or None if the API call fails,
+    times out, or ``gh`` cannot be started
     (callers should treat None as unknown rather than empty). Refs issue #4359.
     """
     endpoint = f"repos/{owner}/{repo}/rules/branches/{branch}?per_page=100"
-    result = subprocess.run(
-        ["gh", "api", "--paginate", "--slurp", endpoint],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=30,
-    )
+    try:
+        result = subprocess.run(
+            ["gh", "api", "--paginate", "--slurp", endpoint],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return None
     if result.returncode != 0:
         return None
     try:
