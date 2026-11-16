@@ -293,4 +293,4 @@ class TestProvenanceOrder:
         assert report["provenance"]["runner_commit"] == repo.fix_sha
         assert in_run == ["1"]
         assert report["real_home"] is True
-        assert os.environ[REAL_HOME_ENV] == "0"
+        assert os.environ.get(REAL_HOME_ENV) == "0"

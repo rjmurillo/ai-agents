@@ -53,12 +53,14 @@ class SpyRunner(FakeClaudeRunner):
     def __init__(self, tasks: list[ablation_tasks.Task]) -> None:
         super().__init__(tasks)
         self.envs: list[dict[str, str]] = []
+        self.real_home: list[str | None] = []
 
     def __call__(self, argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         if "--version" not in [str(a) for a in argv]:
             env = kwargs["env"]
             assert isinstance(env, dict)
             self.envs.append({str(k): str(v) for k, v in env.items()})
+            self.real_home.append(os.environ.get(REAL_HOME_ENV))
         return super().__call__(argv, **kwargs)
 
 
@@ -95,7 +97,8 @@ def test_real_home_run_gets_no_token(tmp_path: Path, monkeypatch: pytest.MonkeyP
     runner = SpyRunner(load_tasks(tmp_path))
     monkeypatch.setenv(REAL_HOME_ENV, "0")
     code = cli.main(_live_args(tmp_path, "--real-home"), runner=runner)
-    assert os.environ[REAL_HOME_ENV] == "0"
+    assert runner.real_home and set(runner.real_home) == {"1"}
+    assert os.environ.get(REAL_HOME_ENV) == "0"
 
     assert code == cli.EXIT_OK
     assert TOKEN_ENV not in runner.envs[0]
@@ -147,7 +150,8 @@ def test_a_missing_login_is_not_needed_under_real_home(
     runner = SpyRunner(load_tasks(tmp_path))
     monkeypatch.setenv(REAL_HOME_ENV, "0")
     code = cli.main(_live_args(tmp_path, "--real-home"), runner=runner)
-    assert os.environ[REAL_HOME_ENV] == "0"
+    assert runner.real_home and set(runner.real_home) == {"1"}
+    assert os.environ.get(REAL_HOME_ENV) == "0"
 
     assert code == cli.EXIT_OK
 
