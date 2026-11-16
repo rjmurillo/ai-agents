@@ -217,14 +217,15 @@ and [references/specification-template.md](references/specification-template.md)
 ## Phase 3: Generation
 
 Generate the skill directory in this order: structure, `SKILL.md`, references,
-assets, then scripts when scripts are needed. Keep `SKILL.md` concise and move
-deep detail into progressive-disclosure reference files. Choose map, GPS, or
+assets, then any scripts. Keep `SKILL.md` concise; move deep detail into
+reference files. Choose map, GPS, or
 hybrid design with the Design Selection section of the script integration
 framework. Record that choice in the generated skill only where it changes the
 workflow. Reuse an existing tool before adding a script.
 
 Read [references/skill-content-rules.md](references/skill-content-rules.md)
-before you write or review a `SKILL.md` body or `description`. It owns the
+before you write or review a `SKILL.md` body or `description`, and for
+per-host native tool names. It owns the
 content rules and the description rules that `skillify` and `skillopt` cite.
 
 See [references/phase3-generation-deep-dive.md](references/phase3-generation-deep-dive.md),
@@ -282,7 +283,7 @@ SKILL="$HOME/.claude/skills/my-skill"
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillforge/scripts/package_skill.py "$SKILL" ./dist; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
-Read [references/scripts-and-validation.md](references/scripts-and-validation.md) before you act on a validator's exit code or validate a skill in another checkout with `--root DIR`.
+Read [references/scripts-and-validation.md](references/scripts-and-validation.md) before you act on an exit code, use `--root DIR`, or judge conformance guidelines.
 
 ---
 

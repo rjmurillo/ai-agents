@@ -135,7 +135,7 @@ class TestCli:
         make_skill(tmp_path)
         proc = _run("release-notes", cwd=tmp_path)
         assert proc.returncode == 0, proc.stdout
-        assert "need human review" in proc.stdout
+        assert "not judged yet" in proc.stdout
 
     def test_must_failure_exits_one_and_names_the_source(self, tmp_path: Path) -> None:
         make_skill(tmp_path, frontmatter="name: other-name\ndescription: d e f g\n")
