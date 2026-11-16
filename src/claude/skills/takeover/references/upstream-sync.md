@@ -10,7 +10,9 @@ That revision is a comparison base, not an upstream freshness claim.
 ## Local adaptations
 
 The body keeps the upstream text, reorganized under Triggers, Process, and Verification headings.
-It replaces the tstack skills this catalog lacks.
+The Triggers table, Verification checklist, Anti-Patterns, and Extension Points are local additions.
+The repository skill validator requires those sections.
+The body also replaces the tstack skills this catalog lacks.
 
 | Upstream reference | Local replacement |
 |---|---|
