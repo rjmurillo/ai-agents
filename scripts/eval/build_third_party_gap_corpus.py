@@ -237,6 +237,20 @@ def precision(prs: list[dict[str, Any]], cutoff: int) -> dict[str, Any]:
     }
 
 
+def check(files: dict[str, str], out_dir: Path) -> int:
+    """Exit code for --check: 1 when any rebuilt file differs from the one on disk."""
+    stale = []
+    for name, text in files.items():
+        target = out_dir / name
+        current = target.read_text(encoding="utf-8") if target.exists() else None
+        if current != text:
+            stale.append(name)
+    for name in stale:
+        print(f"DIFFERS: {name}", file=sys.stderr)
+    print(f"{len(stale)} of {len(files)} corpus file(s) differ from a rebuild")
+    return 1 if stale else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--dump", type=Path, required=True, help="miner output JSON")
@@ -264,16 +278,7 @@ def main(argv: list[str] | None = None) -> int:
         if not args.check:
             return 0
     if args.check:
-        stale = []
-        for name, text in files.items():
-            target = args.out_dir / name
-            current = target.read_text(encoding="utf-8") if target.exists() else None
-            if current != text:
-                stale.append(name)
-        for name in stale:
-            print(f"DIFFERS: {name}", file=sys.stderr)
-        print(f"{len(stale)} of {len(files)} corpus file(s) differ from a rebuild")
-        return 1 if stale else 0
+        return check(files, args.out_dir)
     for name, text in files.items():
         (args.out_dir / name).write_text(text, encoding="utf-8")
     print(json.dumps({"written": sorted(files), "funnel": built["funnel"]}))
