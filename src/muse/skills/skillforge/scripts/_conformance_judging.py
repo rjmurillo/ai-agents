@@ -244,18 +244,22 @@ def skill_files(directory: Path, root: Path, exclude: tuple[int, int] | None = N
     A file must resolve inside both the skill directory and root. ``exclude`` is
     the (device, inode) of the judgments file, so it cannot quote itself; a
     candidate whose identity cannot be read is left out, and so is a saved
-    judge packet or a file over 2 MiB.
+    judge packet or a file over 2 MiB. The walk never follows a directory
+    link, so a link cycle cannot hang it, and skips a directory it cannot read.
     """
     found = []
-    for path in sorted(directory.rglob("*")):
-        if path.suffix.lower() not in TEXT_SUFFIXES:
-            continue
-        if not inside_skill(path, directory, root) or _not_evidence(path):
-            continue
-        if exclude is not None and file_id(path) in (None, exclude):
-            continue
-        found.append(path.relative_to(directory).as_posix())
-    return found
+    for current, subdirs, names in os.walk(directory, followlinks=False):
+        subdirs.sort()
+        for name in names:
+            path = Path(current) / name
+            if path.suffix.lower() not in TEXT_SUFFIXES:
+                continue
+            if not inside_skill(path, directory, root) or _not_evidence(path):
+                continue
+            if exclude is not None and file_id(path) in (None, exclude):
+                continue
+            found.append(path.relative_to(directory).as_posix())
+    return sorted(found)
 
 
 def judge_packet(report: Any, files: list[str], profile: str) -> dict[str, object]:

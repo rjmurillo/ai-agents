@@ -20,6 +20,8 @@ Amended 2026-11-11 for issue #7226. The owner approved shipping agents to Codex 
 
 Amended 2026-11-15 at the owner's direction. The Cursor and Muse skill trees now keep `version` and `license`, which GP-003 requires. The Muse tree also keeps `metadata`, where some skills hold `version`. Decisions 3 and 8 record the change. The debate log is `.project-toolkit/critique/ADR-115-debate-log-4.md`.
 
+Amended 2026-11-15 for PR #7387. Decision 6 now points to `packMaxFiles` in `templates/platforms/hermes.yaml` instead of restating the budget, and records budget growth to the 400-file cap as an accepted risk. The debate log is `.project-toolkit/critique/ADR-115-debate-log-5.md`.
+
 ## Context
 
 The toolkit ships two plugin trees today. `src/claude/` serves Claude Code and `src/copilot-cli/` serves Copilot CLI. `src/vs-code-agents/` holds agent files and `copilot-instructions.md`, and no skills or rules. ADR-072 Decision 2 planned per-harness emitters for Cursor and Codex. Decision 5 shipped Cursor first and deferred Codex. Neither emitter exists.

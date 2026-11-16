@@ -323,3 +323,37 @@ class TestIdentityLookups:
         monkeypatch.setattr(os, "lstat", lstat)
 
         assert self.PARSE["resolved_identity"](skill / "SKILL.md", skill, skill.parent) is None
+
+
+def test_directory_link_cycle_does_not_hang_the_listing(
+    skill: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    loop = skill / "references" / "again"
+    try:
+        loop.symlink_to(skill, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"cannot create a symlink here: {exc}")
+
+    assert conformance.main(["release-notes", "--judge-packet"]) == 0
+
+    files = json.loads(capsys.readouterr().out)["files"]
+    assert files == ["SKILL.md", "references/guide.md"]
+
+
+@pytest.mark.skipif(
+    os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0),
+    reason="needs POSIX permissions and a non-root user",
+)
+def test_unreadable_subdirectory_is_skipped_not_a_crash(
+    skill: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    closed = skill / "private"
+    closed.mkdir()
+    (closed / "notes.md").write_text("Hidden notes nobody can list.\n", encoding="utf-8")
+    closed.chmod(0)
+    try:
+        assert conformance.main(["release-notes", "--judge-packet"]) == 0
+    finally:
+        closed.chmod(0o755)
+
+    assert "private/notes.md" not in json.loads(capsys.readouterr().out)["files"]

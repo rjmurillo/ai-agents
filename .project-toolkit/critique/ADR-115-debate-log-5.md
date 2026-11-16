@@ -51,6 +51,8 @@ Vote: Disagree-and-Commit.
 
 A later `/review` pass on PR #7387 noted that round 1's architect P1 (no split trigger) was closed without a recorded decision. The owner, Richard, chose on 2026-11-15 to record it as an accepted risk. Decision 6 now says repeated raises can reach 400, the next file then fails the build, and the owner decides whether to split the pack. No earlier trigger is set. This records an owner decision and changes no other text, so no further panel round ran.
 
+A later Cursor Bugbot review noted that the Status intro did not list this amendment. A Status paragraph now names it and this log. That records the decision above and changes no rule.
+
 ## Outcome
 
 Outcome: Consensus in round 2, both reviewers Accept. Decision 6 points to `packMaxFiles` in `hermes.yaml` instead of restating it, so a later budget change needs no ADR edit. The ADR stays `proposed`.
