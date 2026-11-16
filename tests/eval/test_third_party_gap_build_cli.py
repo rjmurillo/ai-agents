@@ -24,19 +24,28 @@ def _dump(tmp_path: Path, payload: object) -> Path:
 
 class TestDumpShape:
     @pytest.mark.parametrize(
-        "payload",
+        ("payload", "message"),
         [
-            [],
-            {"pull_requests": None, "mined_on": "2026-11-15"},
-            {"pull_requests": [1], "mined_on": "2026-11-15"},
-            {"pull_requests": [{"number": "1", "baseRefOid": "b"}], "mined_on": "2026-11-15"},
-            {"pull_requests": []},
-            {"pull_requests": [], "mined_on": "15 Nov"},
+            ([], "JSON object"),
+            ({"pull_requests": None, "mined_on": "2026-11-15"}, "list of objects"),
+            ({"pull_requests": [1], "mined_on": "2026-11-15"}, "list of objects"),
+            ({"pull_requests": [{"number": "1", "baseRefOid": "b"}]}, "integer number"),
+            ({"pull_requests": [{"number": 1, "baseRefOid": 7}]}, "integer number"),
+            ({"pull_requests": []}, "mined_on"),
+            ({"pull_requests": [], "mined_on": "15 Nov"}, "mined_on"),
+            ({"pull_requests": [], "mined_on": "2026-13-45"}, "calendar date"),
         ],
     )
-    def test_a_malformed_dump_exits_2(self, cli: Any, tmp_path: Path, payload: object) -> None:
+    def test_a_malformed_dump_is_refused_by_name(
+        self, cli: Any, payload: object, message: str
+    ) -> None:
+        with pytest.raises(ValueError, match=message):
+            cli.validate_dump(payload)
+
+    def test_a_malformed_dump_exits_2(self, cli: Any, tmp_path: Path) -> None:
         labels = tmp_path / "labels.jsonl"
         labels.write_text("", encoding="utf-8")
+        payload = {"pull_requests": None, "mined_on": "2026-11-15"}
 
         code = cli.main(["--dump", str(_dump(tmp_path, payload)), "--labels", str(labels)])
 

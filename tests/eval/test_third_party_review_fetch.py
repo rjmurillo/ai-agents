@@ -6,6 +6,7 @@ The GraphQL seam is a callable keyed on the query text, so no network is used.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -295,6 +296,7 @@ class TestMinerFetchExits:
         assert code == 0
         assert [p["number"] for p in dump["pull_requests"]] == [1]
         assert dump["graphql_cost"] == 1
+        assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", dump["mined_on"])
 
 
 class TestMinerWriteFailure:

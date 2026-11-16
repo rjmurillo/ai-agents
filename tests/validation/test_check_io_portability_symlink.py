@@ -117,6 +117,15 @@ class TestUnguardedSymlink:
 
         assert rules(source) == ["unguarded-symlink"]
 
+    def test_a_class_body_call_under_a_class_skip_runs_at_import(self) -> None:
+        source = (
+            "class TestLinks:\n"
+            "    pytestmark = pytest.mark.skipif(os.name == 'nt', reason='links')\n"
+            "    LINK = p.symlink_to('t')\n"
+        )
+
+        assert rules(source) == ["unguarded-symlink"]
+
     def test_a_skip_named_helper_still_guards_its_own_body(self) -> None:
         source = "def link_or_skip(p):\n    p.symlink_to('t')\n"
 

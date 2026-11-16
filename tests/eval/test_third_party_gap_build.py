@@ -62,6 +62,7 @@ class TestDisposition:
             ("b", ["Confirmed false positive: this is intentional."], True, "rejected"),
             ("✅ Addressed in commit abc", ["Not changed in this PR."], True, "rejected"),
             ("b", ["Fixed in abc1234; the other path already had it."], True, "accepted"),
+            ("b", ["Applied in abc1234; the other path already had it."], True, "accepted"),
         ],
     )
     def test_reply_shapes(

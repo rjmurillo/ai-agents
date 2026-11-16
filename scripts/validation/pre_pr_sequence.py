@@ -439,7 +439,7 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # Fails when a Python line ADDED since the base ref decodes text with the
     # platform locale (subprocess text mode or read_text/write_text/open with no
     # encoding) or creates a test symlink with no Windows skip. Cursor Bugbot
-    # raised 86 such findings on PRs #6110 to #7380 that no gate here caught
+    # raised 85 such findings on PRs #6110 to #7380 that no gate here caught
     # (evals/third-party-review-gap/README.md).
     _Gate("IO Portability (added lines)", _root_only(validate_io_portability)),
     # Fails when a live doc tells a contributor to run a script with third-party

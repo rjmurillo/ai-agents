@@ -29,7 +29,9 @@ REJECT = re.compile(
     r"|not reproduc)",
     re.IGNORECASE,
 )
-FIXED_WITH_SHA = re.compile(r"\b(fixed|addressed)\b[^.\n]{0,40}\b[0-9a-f]{7,40}\b", re.IGNORECASE)
+FIXED_WITH_SHA = re.compile(
+    r"\b(fixed|addressed|applied)\b[^.\n]{0,40}\b[0-9a-f]{7,40}\b", re.IGNORECASE
+)
 FIX_SHA = re.compile(
     r"\b(?:fixed|addressed|applied)\b[^.\n]{0,60}?\b([0-9a-f]{7,40})\b", re.IGNORECASE
 )

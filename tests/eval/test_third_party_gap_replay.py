@@ -438,7 +438,10 @@ class TestFinishReason:
 
 
 def test_the_reported_corpus_hash_is_of_the_bytes_scored(
-    corpus: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    corpus: Path,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import hashlib
 
@@ -447,8 +450,26 @@ def test_the_reported_corpus_hash_is_of_the_bytes_scored(
         json.dumps({"revision": "TG001", "trial": 0, "raw": CAUGHT}) + "\n", encoding="utf-8"
     )
 
+    expected = hashlib.sha256(corpus.read_bytes()).hexdigest()
+    reads: list[str] = []
+    real_bytes, real_text = Path.read_bytes, Path.read_text
+
+    def count_bytes(self: Path) -> bytes:
+        if self == corpus:
+            reads.append("bytes")
+        return real_bytes(self)
+
+    def count_text(self: Path, *a: Any, **k: Any) -> str:
+        if self == corpus:
+            reads.append("text")
+        return real_text(self, *a, **k)
+
+    monkeypatch.setattr(Path, "read_bytes", count_bytes)
+    monkeypatch.setattr(Path, "read_text", count_text)
+
     code = replay.main(args(corpus, "--checkpoint", str(checkpoint), "--rescore"), caller(), git)
 
     meta = json.loads(capsys.readouterr().out)["meta"]
     assert code == 0
-    assert meta["corpus_sha256"] == hashlib.sha256(corpus.read_bytes()).hexdigest()
+    assert meta["corpus_sha256"] == expected
+    assert reads == ["bytes"]

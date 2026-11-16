@@ -136,13 +136,14 @@ Honest caveats:
 - Review of this change found two symlink-guard shapes the first version
   misread. A module `pytestmark` that only adds fixtures exempted a whole file,
   and a named skip mark such as `POSIX_ONLY = pytest.mark.skipif(...)` used as
-  a decorator was not seen as a guard. Fixing both moved recall from 78 to 79
-  and removed one false flag at a final head.
+  a decorator was not seen as a guard. Fixing both moved recall from 78 of 86
+  to 79 of 86 and removed one false flag at a final head.
 - Bot review of pull request #7394 (2026-11-15) found the guard read any
   function or mark text containing `skip` as a skip. Now only a skip mark's own
   callable name counts, and a function named `test_*` is never a guard. The
   rerun catches held-out row T0462, whose symlink calls sit in
-  `test_main_skips_tracked_symlinks`: 79 to 80 overall, 46 to 47 held out.
+  `test_main_skips_tracked_symlinks`: 79 to 80 of 86 overall, 46 to 47 of 53
+  held out.
   The change came from the review, not from reading held-out misses.
 - A later review round made an explicit rejection outrank an opening word
   such as "Confirmed" unless the reply cites a fix commit. Ten accepted

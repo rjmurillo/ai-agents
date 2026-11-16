@@ -23,6 +23,7 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import re
 import subprocess
@@ -41,8 +42,7 @@ import check_io_portability as io_check  # noqa: E402
 OUT_DIR = "evals/third-party-review-gap"
 # Revisions whose fixing commit edited the reviewer prompt the replay loads, so
 # `eval_third_party_gap_replay.py --validate-corpus` finds fix lines in the prompt.
-# Revisions whose fixing commit edited the reviewer prompt the replay loads, as
-# (pull request, reviewed head). They were TG002, TG083, and TG223 on 2026-11-15.
+# Keyed as (pull request, reviewed head); they were TG002, TG083, and TG223 on 2026-11-15.
 LEAKING_REVISIONS = frozenset(
     {
         (6110, "3d89aa8968490f76e7f0e9a67e35c3ba6f07aba5"),
@@ -126,6 +126,10 @@ def validate_dump(dump: object) -> tuple[list[dict[str, Any]], str]:
     mined_on = dump.get("mined_on")
     if not isinstance(mined_on, str) or not MINED_ON.match(mined_on):
         raise ValueError("dump needs mined_on as YYYY-MM-DD (the miner writes it)")
+    try:
+        datetime.date.fromisoformat(mined_on)
+    except ValueError as exc:
+        raise ValueError(f"dump mined_on {mined_on!r} is not a calendar date") from exc
     return prs, mined_on
 
 
