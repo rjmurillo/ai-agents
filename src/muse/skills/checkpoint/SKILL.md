@@ -1,6 +1,15 @@
 ---
 name: checkpoint
+version: 1.0.0
 description: Write a timestamped, secret-redacted snapshot of decisions, progress and next actions to the checkpoints directory, then link it from the active session log. Use when you say `checkpoint this`, `save a recovery point`, or `snapshot where we are` before a risky change or at the end of a working block. Do NOT use to commit or push (it never does either), and do NOT use to write a retrospective (use retrospective).
+license: MIT
+metadata:
+  routing:
+    role: explicit-only
+    invoker: user
+    trigger: a user asks to write a checkpoint snapshot of decisions and progress
+    user-facing: true
+    rationale: Automatic routing would be unsafe. A snapshot writes files, so it runs only when a user asks. Inbound matches are the common word checkpoint.
 ---
 
 # Checkpoint

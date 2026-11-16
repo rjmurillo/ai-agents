@@ -1,6 +1,22 @@
 ---
 name: cva-analysis
+version: 1.0.0
 description: Systematic abstraction discovery using Commonality Variability Analysis. Build matrix of what varies vs what's constant, then let patterns emerge. Prevents wrong abstractions by deferring pattern selection until requirements are analyzed. Use when facing multiple similar requirements and need to discover natural abstractions.
+license: MIT
+metadata:
+  tier: 3
+  timelessness: 9
+  domains:
+    - design
+    - architecture
+    - patterns
+    - abstraction-discovery
+  author: Multi-Paradigm Design (Coplien 1999), adapted for modern engineering
+  routing:
+    role: lifecycle
+    invoker: review
+    trigger: review invokes cva-analysis when the change introduces a new abstraction
+    user-facing: false
 ---
 
 # CVA Analysis - Discover Natural Abstractions

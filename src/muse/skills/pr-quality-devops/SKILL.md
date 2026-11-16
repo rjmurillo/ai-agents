@@ -1,6 +1,14 @@
 ---
 name: pr-quality-devops
+version: 1.0.0
 description: Evaluate a local diff for CI/CD, build pipeline, and infrastructure risk, and return a PASS/WARN/CRITICAL_FAIL verdict. Use when you say `devops review my changes`, `run the devops gate`, or `is this workflow change safe`. Do NOT use to run all six axes (use pr-quality-all), and do NOT use to author the pipeline itself (use the devops agent).
+license: MIT
+metadata:
+  routing:
+    role: nested-helper
+    invoker: pr-quality-all
+    trigger: pr-quality-all invokes pr-quality-devops as one of its six axes
+    user-facing: true
 ---
 
 # PR Quality Gate: DevOps

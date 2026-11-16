@@ -1,6 +1,24 @@
 ---
 name: skillify
+version: 1.0.0
 description: Extract a reusable skill from a workflow you just finished. Use when you say `skillify this`, `save this as a skill`, or `make this proper`. Do NOT use to design a skill from a goal (use skillforge).
+license: MIT
+metadata:
+  capability:
+    kind: reusable-primitive
+    owns:
+      - skill-extraction-from-completed-workflow
+    status: active
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan routes a request to save a just-completed workflow as a skill
+    user-facing: true
+    intents:
+      - skillify this
+      - skillify
+      - save this as a skill
+      - make this proper
 ---
 
 # Skillify

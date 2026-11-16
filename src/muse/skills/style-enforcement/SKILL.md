@@ -1,6 +1,14 @@
 ---
 name: style-enforcement
 description: Validate code against style rules from .editorconfig, StyleCop.json, and Directory.Build.props. Use when you say "check style compliance", "validate editorconfig rules", "run style enforcement", "check naming conventions", or "validate line endings". Detects line ending violations, naming convention issues, indentation problems, and charset mismatches across C#, Python, PowerShell, and JavaScript. Do NOT use for taste/style invariants like file size or structured logging (use taste-lints).
+license: MIT
+metadata:
+  version: 1.0.0
+  routing:
+    role: conditional-adjunct
+    invoker: doc-accuracy
+    trigger: doc-accuracy points here for complementary code style checks
+    user-facing: false
 ---
 
 # Style Enforcement

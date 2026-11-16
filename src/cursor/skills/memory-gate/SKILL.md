@@ -1,5 +1,6 @@
 ---
 name: memory-gate
+version: 0.1.0
 description: Memory-First Gate (BLOCKING) and the Chesterton's Fence investigation
   protocol, split out of the memory router per ADR-063. Forces a memory search
   before you change existing code, constraints, or protocol, so the "why" is
@@ -7,6 +8,7 @@ description: Memory-First Gate (BLOCKING) and the Chesterton's Fence investigati
   `search memory before changing`, or `chesterton fence check`. Do NOT use for
   plain Tier 1 lookups (use memory-search) or recording a session (use
   memory-reflexion).
+license: MIT
 metadata:
   adr: ADR-063, ADR-070, ADR-106
   capability:
