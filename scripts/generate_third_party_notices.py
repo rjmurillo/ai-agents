@@ -79,6 +79,16 @@ FORKED_COMPONENTS: dict[str, dict[str, str]] = {
         ),
         "license_blank_line_prefix": "",
     },
+    "tstack takeover": {
+        "license": "MIT",
+        "url": "https://github.com/t3dotgg/tstack",
+        "author": "Theo Browne",
+        "local_path": "src/claude/skills/takeover",
+        "license_text": (
+            "MIT License\n\nCopyright (c) 2026 Theo Browne\n\n" + _MIT_PERMISSION_TEXT
+        ),
+        "license_blank_line_prefix": "",
+    },
     "SkillForge": {
         "license": "MIT",
         "url": "https://github.com/tripleyak/SkillForge",
@@ -94,12 +104,32 @@ FORKED_COMPONENTS: dict[str, dict[str, str]] = {
         "license_text": ("MIT License\n\nCopyright (c) 2025 OpenAI\n\n" + _MIT_PERMISSION_TEXT),
         "license_blank_line_prefix": "",
     },
+    "tstack modernize": {
+        "license": "MIT",
+        "url": "https://github.com/t3dotgg/tstack",
+        "author": "Theo Browne",
+        "local_path": "src/claude/skills/modernize",
+        "license_text": (
+            "MIT License\n\nCopyright (c) 2026 Theo Browne\n\n" + _MIT_PERMISSION_TEXT
+        ),
+        "license_blank_line_prefix": "",
+    },
     "gstack": {
         "license": "MIT",
         "url": "https://github.com/garrytan/gstack",
         "author": "Garry Tan",
         "local_path": "src/claude/skills/dx-review",
         "license_text": ("MIT License\n\nCopyright (c) 2026 Garry Tan\n\n" + _MIT_PERMISSION_TEXT),
+        "license_blank_line_prefix": "",
+    },
+    "tstack babysit-pr": {
+        "license": "MIT",
+        "url": "https://github.com/t3dotgg/tstack",
+        "author": "Theo Browne",
+        "local_path": "src/claude/skills/pr-babysit",
+        "license_text": (
+            "MIT License\n\nCopyright (c) 2026 Theo Browne\n\n" + _MIT_PERMISSION_TEXT
+        ),
         "license_blank_line_prefix": "",
     },
 }

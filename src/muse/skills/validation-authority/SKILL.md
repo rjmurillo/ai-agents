@@ -1,6 +1,16 @@
 ---
 name: validation-authority
 description: Treat upstream validators as authoritative. Align local config to them. Use when validation fails unexpectedly, before modifying validator behavior, or when tempted to change upstream tool code.
+license: MIT
+metadata:
+  version: 1.0.0
+  source: Session 366 retrospective
+  id: Validation-Authority-001
+  routing:
+    role: conditional-adjunct
+    invoker: build
+    trigger: build Phase 2b writes the decision record after analysis-provenance classifies a validation target
+    user-facing: true
 ---
 
 # Validation Authority

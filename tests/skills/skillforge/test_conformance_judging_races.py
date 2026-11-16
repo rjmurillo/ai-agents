@@ -1,0 +1,359 @@
+"""Judgment import against swaps around the read and failed identity lookups.
+
+Split from test_conformance_judging.py to keep each file under 500 lines.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from tests.skills.skillforge.conformance_support import conformance, make_skill
+
+BODY = "# Release notes\n\n## Gotchas\n\nThe changelog tool skips merge commits by default.\n"
+QUOTE = "The changelog tool skips merge commits by default."
+# The judging module's namespace, where the import calls open and file_id.
+JUDGING = conformance.apply_judgments_file.__globals__
+
+
+@pytest.fixture
+def skill(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    monkeypatch.chdir(tmp_path)
+    return make_skill(
+        tmp_path, body=BODY, files={"references/guide.md": "# Guide\n\nRead me when releasing.\n"}
+    )
+
+
+def _judge(tmp_path: Path, judgments: list[dict[str, Any]], *extra: str) -> int:
+    path = tmp_path / "judgments.json"
+    path.write_text(json.dumps({"judgments": judgments}), encoding="utf-8")
+    return conformance.main(["release-notes", "--judgments", str(path), "--format", "json", *extra])
+
+
+def _verdict(
+    verdict: str, quote: str = QUOTE, file: str = "SKILL.md", rule: str = "practice.gotchas"
+) -> dict[str, Any]:
+    evidence = [] if verdict == "unknown" else [{"file": file, "quote": quote}]
+    return {
+        "id": rule,
+        "verdict": verdict,
+        "reason": "Judged from the files.",
+        "evidence": evidence,
+    }
+
+
+class TestReadRaceAndIdentity:
+    """A swap around the read, and identity lookup failures."""
+
+    QUOTE_OUT = "An outside sentence that must never count."
+
+    @pytest.fixture
+    def swap(self, skill: Path, tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, Path]:
+        guide = skill / "references" / "guide.md"
+        guide.write_text("# Guide\n\nAn inside sentence that may count here.\n", encoding="utf-8")
+        outside = tmp_path_factory.mktemp("outside") / "secret.md"
+        outside.write_text(self.QUOTE_OUT + "\n", encoding="utf-8")
+        probe = outside.parent / "probe-link"
+        try:
+            probe.symlink_to(outside)
+        except OSError as exc:
+            pytest.skip(f"cannot create a symlink here: {exc}")
+        probe.unlink()
+        return guide, outside
+
+    @staticmethod
+    def _point(guide: Path, target: Path) -> None:
+        guide.unlink()
+        guide.symlink_to(target)
+
+    @pytest.mark.parametrize("timing", ["before-open", "after-open", "out-and-back"])
+    def test_swap_around_the_open_is_rejected(
+        self,
+        skill: Path,
+        swap: tuple[Path, Path],
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+        timing: str,
+    ) -> None:
+        guide, outside = swap
+        inside_copy = guide.parent / "guide-inside.md"
+        inside_copy.write_bytes(guide.read_bytes())
+        judging_globals = JUDGING
+        real_open = open
+
+        def racing_open(path: Any, *args: Any, **kwargs: Any) -> Any:
+            if Path(path).name != "guide.md":
+                return real_open(path, *args, **kwargs)
+            if timing == "before-open":
+                self._point(guide, outside)
+                return real_open(path, *args, **kwargs)
+            if timing == "after-open":
+                handle = real_open(path, *args, **kwargs)
+                self._point(guide, outside)
+                return handle
+            self._point(guide, outside)
+            handle = real_open(path, *args, **kwargs)
+            self._point(guide, inside_copy)
+            return handle
+
+        monkeypatch.setitem(judging_globals, "open", racing_open)
+        quote = (
+            self.QUOTE_OUT if timing != "after-open" else "An inside sentence that may count here."
+        )
+        judgment = _verdict("pass", quote=quote, file="references/guide.md")
+
+        code = _judge(skill.parent, [judgment])
+
+        assert code == 2
+        assert "references/guide.md is not a text file in the skill" in capsys.readouterr().err
+
+    def test_missing_judgments_file_is_rejected(
+        self, skill: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        code = conformance.main(["release-notes", "--judgments", str(skill.parent / "absent.json")])
+
+        assert code == 2
+        assert "cannot read" in capsys.readouterr().err
+
+    def test_judgments_identity_comes_from_the_file_that_is_read(
+        self, skill: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        invented = "An invented sentence held only by the judgments text."
+        judgment = _verdict("pass", quote=invented, file="references/evidence.json")
+        evidence = skill / "references" / "evidence.json"
+        evidence.write_text(json.dumps({"judgments": [judgment]}), encoding="utf-8")
+        decoy = skill.parent / "decoy.json"
+        decoy.write_text(json.dumps({"judgments": []}), encoding="utf-8")
+        link = skill.parent / "judgments.json"
+        try:
+            link.symlink_to(decoy)
+        except OSError as exc:
+            pytest.skip(f"cannot create a symlink here: {exc}")
+        real_open = open
+
+        def swapping_open(path: Any, *args: Any, **kwargs: Any) -> Any:
+            if Path(path).name == "judgments.json":
+                link.unlink()
+                link.symlink_to(evidence)
+            return real_open(path, *args, **kwargs)
+
+        monkeypatch.setitem(JUDGING, "open", swapping_open)
+
+        code = conformance.main(["release-notes", "--judgments", str(link)])
+
+        assert code == 2
+        assert "references/evidence.json is not a text file in the skill" in capsys.readouterr().err
+
+    def test_unidentifiable_candidate_is_left_out(
+        self, skill: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        real = JUDGING["file_id"]
+        monkeypatch.setitem(JUDGING, "file_id", lambda p: None if p.name == "SKILL.md" else real(p))
+
+        code = _judge(skill.parent, [_verdict("pass")])
+
+        assert code == 2
+        assert "SKILL.md is not a text file in the skill" in capsys.readouterr().err
+
+    def test_judgments_file_missed_at_listing_is_caught_at_read(
+        self, skill: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        invented = "An invented sentence held only by the judgments file."
+        path = skill.parent / "judgments.json"
+        judgment = _verdict("pass", quote=invented, file="references/evidence.json")
+        path.write_text(json.dumps({"judgments": [judgment]}), encoding="utf-8")
+        try:
+            os.link(path, skill / "references" / "evidence.json")
+        except OSError as exc:
+            pytest.skip(f"cannot create a hard link here: {exc}")
+        real = JUDGING["file_id"]
+        monkeypatch.setitem(
+            JUDGING,
+            "file_id",
+            lambda p: (0, 0) if p.name == "evidence.json" else real(p),
+        )
+
+        code = conformance.main(["release-notes", "--judgments", str(path)])
+
+        assert code == 2
+        assert "references/evidence.json is not a text file in the skill" in capsys.readouterr().err
+
+
+def test_swap_back_between_identity_and_containment_is_rejected(
+    skill: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path_factory: pytest.TempPathFactory,
+) -> None:
+    """The path is outside for the identity check and inside for containment.
+
+    After the open, each identity or resolution lookup on guide.md swaps it back
+    inside, the window a two-resolution check would leave open. One resolution
+    closes it. Hooking both file_id and _real keeps the test meaningful if the
+    read check ever goes back to a separate identity lookup.
+    """
+    guide = skill / "references" / "guide.md"
+    inside_copy = guide.parent / "guide-inside.md"
+    inside_copy.write_bytes(guide.read_bytes())
+    outside = tmp_path_factory.mktemp("outside") / "secret.md"
+    outside_quote = "An outside sentence that must never count."
+    outside.write_text(outside_quote + "\n", encoding="utf-8")
+    probe = outside.parent / "probe-link"
+    try:
+        probe.symlink_to(outside)
+    except OSError as exc:
+        pytest.skip(f"cannot create a symlink here: {exc}")
+    probe.unlink()
+    judging_globals = JUDGING
+    parse_globals = conformance.load_skill.__globals__
+    real_open = open
+    opened: list[bool] = []
+
+    def point(target: Path) -> None:
+        guide.unlink()
+        guide.symlink_to(target)
+
+    def outside_then_open(path: Any, *args: Any, **kwargs: Any) -> Any:
+        if Path(path).name == "guide.md":
+            point(outside)
+            opened.append(True)
+        return real_open(path, *args, **kwargs)
+
+    def swap_back_after(lookup: Any) -> Any:
+        def hooked(path: Any) -> Any:
+            result = lookup(path)
+            if opened and Path(path).name == "guide.md":
+                point(inside_copy)
+            return result
+
+        return hooked
+
+    monkeypatch.setitem(judging_globals, "open", outside_then_open)
+    monkeypatch.setitem(parse_globals, "_real", swap_back_after(parse_globals["_real"]))
+    monkeypatch.setitem(judging_globals, "file_id", swap_back_after(judging_globals["file_id"]))
+    judgment = _verdict("pass", quote=outside_quote, file="references/guide.md")
+
+    code = _judge(skill.parent, [judgment])
+
+    assert code == 2
+    assert "references/guide.md is not a text file in the skill" in capsys.readouterr().err
+    # The swap back ran, so the rejection is not the plain after-open case.
+    assert guide.resolve() == inside_copy.resolve()
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="needs named pipes")
+def test_fifo_swapped_in_after_listing_is_rejected_without_blocking(
+    skill: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    guide = skill / "references" / "guide.md"
+    listed = JUDGING["skill_files"]
+
+    def listed_then_fifo(*args: Any, **kwargs: Any) -> list[str]:
+        files = listed(*args, **kwargs)
+        guide.unlink()
+        os.mkfifo(guide)
+        return files
+
+    monkeypatch.setitem(JUDGING, "skill_files", listed_then_fifo)
+    judgment = _verdict("pass", quote="Read me when releasing.", file="references/guide.md")
+
+    code = _judge(skill.parent, [judgment])
+
+    assert code == 2
+    assert "references/guide.md is not a text file in the skill" in capsys.readouterr().err
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="needs named pipes")
+def test_packet_check_on_a_fifo_with_a_writer_is_false_not_a_crash(skill: Path) -> None:
+    fifo = skill / "evals.json"
+    os.mkfifo(fifo)
+    writer = os.open(fifo, os.O_RDWR | os.O_NONBLOCK)
+    try:
+        assert JUDGING["_not_evidence"](fifo) is False
+    finally:
+        os.close(writer)
+
+
+def test_link_to_a_sibling_skill_under_the_same_root_is_not_evidence(
+    skill: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    sibling = skill.parent / "other-notes" / "notes.md"
+    sibling.parent.mkdir()
+    sibling.write_text("A sibling sentence that belongs to another skill.\n", encoding="utf-8")
+    link = skill / "references" / "borrowed.md"
+    try:
+        link.symlink_to(sibling)
+    except OSError as exc:
+        pytest.skip(f"cannot create a symlink here: {exc}")
+    judgment = _verdict(
+        "pass", quote="A sibling sentence that belongs", file="references/borrowed.md"
+    )
+
+    code = _judge(skill.parent, [judgment])
+
+    assert code == 2
+    assert "references/borrowed.md is not a text file in the skill" in capsys.readouterr().err
+
+
+class TestIdentityLookups:
+    """The parser helpers fail closed when a lookup errors."""
+
+    PARSE = conformance.load_skill.__globals__
+
+    def test_file_id_of_a_missing_path_is_none(self, tmp_path: Path) -> None:
+        assert self.PARSE["file_id"](tmp_path / "missing.md") is None
+
+    def test_unresolvable_path_has_no_identity(
+        self, skill: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setitem(self.PARSE, "_real", lambda path: None)
+
+        assert self.PARSE["resolved_identity"](skill / "SKILL.md", skill, skill.parent) is None
+
+    def test_lstat_error_gives_no_identity(
+        self, skill: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def lstat(path: Any) -> Any:
+            raise PermissionError(13, "Permission denied", str(path))
+
+        monkeypatch.setattr(os, "lstat", lstat)
+
+        assert self.PARSE["resolved_identity"](skill / "SKILL.md", skill, skill.parent) is None
+
+
+def test_directory_link_cycle_does_not_hang_the_listing(
+    skill: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    loop = skill / "references" / "again"
+    try:
+        loop.symlink_to(skill, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"cannot create a symlink here: {exc}")
+
+    assert conformance.main(["release-notes", "--judge-packet"]) == 0
+
+    files = json.loads(capsys.readouterr().out)["files"]
+    assert files == ["SKILL.md", "references/guide.md"]
+
+
+@pytest.mark.skipif(
+    os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0),
+    reason="needs POSIX permissions and a non-root user",
+)
+def test_unreadable_subdirectory_is_skipped_not_a_crash(
+    skill: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    closed = skill / "private"
+    closed.mkdir()
+    (closed / "notes.md").write_text("Hidden notes nobody can list.\n", encoding="utf-8")
+    closed.chmod(0)
+    try:
+        assert conformance.main(["release-notes", "--judge-packet"]) == 0
+    finally:
+        closed.chmod(0o755)
+
+    assert "private/notes.md" not in json.loads(capsys.readouterr().out)["files"]

@@ -327,8 +327,10 @@ class _OpenAICompatibleProvider:
             kwargs["base_url"] = self._base_url
         # release-it: explicit timeout on every outbound call. max_retries=0
         # because the adapter owns the retry policy; an SDK retry layer here
-        # would be nested retries. 120s matches the urllib path.
-        kwargs["timeout"] = 120.0
+        # would be nested retries. 120s matches the urllib path; a reasoning
+        # model behind a proxy can need longer, so EVAL_HTTP_TIMEOUT_SECONDS
+        # may raise it within a fixed ceiling.
+        kwargs["timeout"] = _constants.http_timeout_seconds()
         kwargs["max_retries"] = 0
         if self._default_headers:
             kwargs["default_headers"] = dict(self._default_headers)

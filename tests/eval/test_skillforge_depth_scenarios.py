@@ -58,6 +58,8 @@ class TestScenarioSet:
             "S4": "deterministic-tool-for-computable-step",
             "S5": "stale-context-forces-revalidation",
             "S6": NEGATIVE_GATE,
+            "S7": "guideline-rules-judged-with-quotes",
+            "S8": "unknowable-guideline-is-unknown",
         }
 
     def test_every_decision_spec_is_sound(self) -> None:

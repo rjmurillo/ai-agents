@@ -107,8 +107,11 @@ requirement; link it instead of copying it. The tests requirement applies only
 to a script you add. Prose covers what no program can carry: the reason, the
 history, and where the script's answer stops being the whole answer. Reject a
 draft that asks the model to count, look up, compare, or list what a script
-could. Scripts follow the project's language and exit-code
-conventions, print the examined count, and stay read-only unless the skill's
+could. Write and test each script by the `skillforge` skill's
+`references/script-design-rules.md`: the shared exit codes (0 ok, 1 logic,
+2 usage or configuration, 3 external, 4 auth), `main(argv)` returning the
+code, and tests in the repository's test tree, never in the skill directory.
+Scripts also print the examined count and stay read-only unless the skill's
 outcome is a write.
 
 The rejected alternative is "add a script only for repeated deterministic
@@ -239,6 +242,11 @@ frozen cases. Build it in every run.
    missing and extra items), and the recorded time and tokens. Read the
    evidence before you trust a pass; a pass with thin evidence is a grader to
    tighten, and a grader that passes in both conditions is a case to drop.
+6. **Read the transcript before you edit.** For a `flat` or `regression`
+   case, read the execution transcript of its runs, not only the evidence
+   string. Look for the instruction that caused wasted steps, or the
+   guidance the agent lacked. Then edit the skill and score again. Source:
+   <https://agentskills.io/skill-creation/evaluating-skills> (iterating).
 
 When no agent runner is available, freeze the cases anyway and report
 `capability: NOT RUN (no runner)` with the frozen file. The next run scores
@@ -273,6 +281,13 @@ The order is fixed. Each stage reads the previous stage's output.
    Reporting rule: an accepted candidate is not installed. Report it as
    accepted but not deployed until the canonical source and its mirrors
    carry it.
+3. **Description trigger check.** The capability eval installs the skill
+   for every `with_skill` run, so it never tests whether the description
+   makes the agent load the skill. For each authored skill, run `skillopt`'s
+   `references/description-optimization.md`: trigger queries with near-miss
+   negatives, three runs per query, and a fixed train and validation split.
+   Otherwise report `description-trigger: NOT RUN` with the reason. Source:
+   <https://agentskills.io/skill-creation/optimizing-descriptions>.
 
 ## Review
 
@@ -297,6 +312,12 @@ The order is fixed. Each stage reads the previous stage's output.
    context-optimizer and the eligible skillopt gate again on changed
    workflows.
 6. Never write an approval marker yourself in place of an independent review.
+7. Offer a human review. The user may read each case's `with_skill` and
+   `baseline` outputs and record feedback per case, as
+   `{"<case_id>": "<specific complaint>"}`, where an empty string means the
+   output was fine. Feedback shapes the next Phase 4 edit. It never replaces
+   an independent review or the capability gate. Source:
+   <https://agentskills.io/skill-creation/evaluating-skills> (human review).
 
 ## Bootstrap report
 
@@ -309,13 +330,14 @@ of a guess.
 | Workflows | Name, accepted outcome, state: authored (files written), evaluated (capability eval scored), or installed (a fresh harness session lists it) |
 | Tool forms | Per skill: counts of scaffold, instrument, and both items; scripts shipped; `bootstrap_forms.py` exit code |
 | Capability | Per skill: baseline and with-skill pass rates, capability delta, case statuses, model, runs per condition; else `NOT RUN` with the frozen cases path |
+| Description trigger | Per skill: validation trigger pass rate and fresh-query pass rate from the description check; else `description-trigger: NOT RUN` with the reason |
 | Provenance | Per skill: `reverify.json` check count; `bootstrap_drift.py` and `claims` exit codes |
 | Reused features | Existing skills and scripts each workflow composes |
 | Verified shortcuts | Each hint with its evidence label and source reference |
 | Source coverage | Repository, discourse, each session client, memory, and one row per sweep source class: read, partial, declined, not connected, or `UNAVAILABLE`, with items read and what was not read |
 | Friction map | The sweep's `friction-map.md` table by system, `pattern_counts`, incidents used and dropped, `single_reader` and `incomplete` counts; else `NOT RUN` with the reason |
 | Knowledge gaps | Each `knowledge_gaps` row: incident key, disposition, and the skill, document finding, or owner question it became |
-| Stages | skill-doctor, candidates, skillforge, context-optimizer, capability eval, skillopt, review: ran, reused, or skipped, with the reason |
+| Stages | skill-doctor, candidates, skillforge, context-optimizer, capability eval, skillopt, description trigger check, review, human review: ran, reused, or skipped, with the reason |
 | Evaluation | Accepted results, human corrections, rejected attempts, recovery, unnecessary discovery; tokens, tool calls, context size, elapsed time where measured, else `UNMEASURED` |
 | Boundary | Output root, authorized names, `bootstrap_boundary.py verify` exit code |
 | Limits | Unresolved disagreements, unmeasured outcomes, smaller-model checks not run |

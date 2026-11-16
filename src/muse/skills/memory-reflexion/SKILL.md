@@ -1,11 +1,24 @@
 ---
 name: memory-reflexion
+version: 0.2.0
 description: Tier 2 episode extraction, the reflexion write path split out of the
   memory router per ADR-063. Extracts an episode from a completed session log so
   later sessions can replay what was tried and what it cost. Use when you say
   `extract episode from session`, `record what happened this session`, or
   `re-extract this episode`. Do NOT use for Tier 1 lookups (use memory-search)
   or for adding citations (use memory-enhancement).
+license: MIT
+metadata:
+  adr: ADR-038, ADR-063, ADR-089, ADR-103, ADR-106
+  capability:
+    kind: specialized-implementation
+    status: active
+  parent: memory
+  routing:
+    role: nested-helper
+    invoker: memory
+    trigger: memory routes a completed session recording request to the memory-reflexion sub-skill
+    user-facing: false
 ---
 
 # Memory Reflexion

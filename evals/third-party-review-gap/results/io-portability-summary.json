@@ -1,0 +1,162 @@
+{
+  "errors": 0,
+  "all": {
+    "baseline": {
+      "hits": 0,
+      "n": 85,
+      "ci": [
+        0.0,
+        0.043
+      ]
+    },
+    "treatment": {
+      "hits": 79,
+      "n": 85,
+      "ci": [
+        0.854,
+        0.967
+      ]
+    },
+    "treatment_shipped_mode": {
+      "hits": 79,
+      "n": 85,
+      "ci": [
+        0.854,
+        0.967
+      ]
+    },
+    "final_head_not_lower": {
+      "hits": 5,
+      "n": 84,
+      "ci": [
+        0.026,
+        0.132
+      ]
+    },
+    "final_head_unreadable": 1
+  },
+  "derive": {
+    "baseline": {
+      "hits": 0,
+      "n": 33,
+      "ci": [
+        0.0,
+        0.104
+      ]
+    },
+    "treatment": {
+      "hits": 33,
+      "n": 33,
+      "ci": [
+        0.896,
+        1.0
+      ]
+    },
+    "treatment_shipped_mode": {
+      "hits": 33,
+      "n": 33,
+      "ci": [
+        0.896,
+        1.0
+      ]
+    },
+    "final_head_not_lower": {
+      "hits": 0,
+      "n": 33,
+      "ci": [
+        0.0,
+        0.104
+      ]
+    },
+    "final_head_unreadable": 0
+  },
+  "heldout": {
+    "baseline": {
+      "hits": 0,
+      "n": 52,
+      "ci": [
+        0.0,
+        0.069
+      ]
+    },
+    "treatment": {
+      "hits": 46,
+      "n": 52,
+      "ci": [
+        0.77,
+        0.946
+      ]
+    },
+    "treatment_shipped_mode": {
+      "hits": 46,
+      "n": 52,
+      "ci": [
+        0.77,
+        0.946
+      ]
+    },
+    "final_head_not_lower": {
+      "hits": 5,
+      "n": 51,
+      "ci": [
+        0.043,
+        0.21
+      ]
+    },
+    "final_head_unreadable": 1
+  },
+  "file-text-encoding": {
+    "baseline": {
+      "hits": 0,
+      "n": 24,
+      "ci": [
+        0.0,
+        0.138
+      ]
+    },
+    "treatment": {
+      "hits": 24,
+      "n": 24,
+      "ci": [
+        0.862,
+        1.0
+      ]
+    }
+  },
+  "subprocess-text-encoding": {
+    "baseline": {
+      "hits": 0,
+      "n": 34,
+      "ci": [
+        0.0,
+        0.102
+      ]
+    },
+    "treatment": {
+      "hits": 32,
+      "n": 34,
+      "ci": [
+        0.809,
+        0.984
+      ]
+    }
+  },
+  "unguarded-symlink": {
+    "baseline": {
+      "hits": 0,
+      "n": 27,
+      "ci": [
+        0.0,
+        0.125
+      ]
+    },
+    "treatment": {
+      "hits": 23,
+      "n": 27,
+      "ci": [
+        0.675,
+        0.941
+      ]
+    }
+  }
+}

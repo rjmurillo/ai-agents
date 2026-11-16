@@ -29,11 +29,13 @@ Project Toolkit skills for GitHub pull request work, build, test, and quality ga
 - `maintainer-review`
 - `merge-resolver`
 - `metrics`
+- `modernize`
 - `observability`
 - `orphan-ref-validator`
 - `pipeline-validator`
 - `plan`
 - `pr-autofix`
+- `pr-babysit`
 - `pr-comment-responder`
 - `pr-quality-all`
 - `pr-quality-analyst`
@@ -52,6 +54,7 @@ Project Toolkit skills for GitHub pull request work, build, test, and quality ga
 - `steering-matcher`
 - `style-enforcement`
 - `sync`
+- `takeover`
 - `taste-lints`
 - `test`
 - `threat-modeling`
@@ -123,3 +126,9 @@ These skills ship in no pack.
 - `skill-doctor`: The bundled renderer asset exceeds Hermes' 1 MiB per-file limit.
 - `spec-generator`: Refers to excluded skill(s): review.
 - `stuck-detection`: plugin_guard returns dangerous for this skill (ADR-115 Decision 6).
+
+## Excluded files
+
+These files of a shipped skill ship in no pack.
+
+- `retrospective/scripts/copilot_journal.py`: Needs the skill-doctor parser, which Hermes does not ship, so --journal always reports unavailable there.

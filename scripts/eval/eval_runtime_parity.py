@@ -26,10 +26,14 @@ from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path, PurePosixPath
 from typing import cast
 
-from _isolated_claude_login import IsolatedLoginError, add_claude_login, require_isolated_login
+from _isolated_claude_login import (
+    IsolatedLoginError,
+    add_claude_login,
+    require_isolated_login,
+    temporary_real_home,
+)
 from _runtime_grader import GraderProtocol, grade_semantic_assertions, resolve_grader
 from _runtime_harness import (
-    REAL_HOME_ENV,
     SENTINEL,
     copilot_instruction_path,
     copilot_routing,
@@ -1131,45 +1135,44 @@ def main(argv: Sequence[str] | None = None, *, runner: Runner = _run_in_process_
     if isinstance(args.timeout, bool) or not math.isfinite(args.timeout) or args.timeout <= 0:
         print("Error: --timeout must be finite and greater than zero.", file=sys.stderr)
         return EXIT_CONFIG
-    if args.real_home:
-        os.environ[REAL_HOME_ENV] = "1"
-    output = (args.output or _default_output()).resolve()
-    try:
-        verify_worktree_identity()
-        _require_isolated_login(args.harnesses, args.claude_bin, dry_run=args.dry_run)
-        report, code = run_evaluation(
-            fixtures_path=args.fixtures.resolve(),
-            model=args.model,
-            output=output,
-            claude_bin=args.claude_bin,
-            copilot_bin=args.copilot_bin,
-            timeout=args.timeout,
-            dry_run=args.dry_run,
-            runner=runner,
-            harnesses=args.harnesses,
-            instructions_ref=args.instructions_ref,
-            grader_provider=args.grader_provider,
-            grader_model=args.grader_model,
-            workspace_root=args.workspace_root.resolve() if args.workspace_root else None,
-        )
-    except ParityConfigError as exc:
-        print(f"Error: {exc}", file=sys.stderr)
-        return EXIT_CONFIG
-    except IsolatedLoginError as exc:
-        print(f"Error: {exc}", file=sys.stderr)
-        return EXIT_AUTH
-    except (
-        FileNotFoundError,
-        OSError,
-        RuntimeError,
-        subprocess.SubprocessError,
-    ) as exc:
-        print(f"Error: {exc}", file=sys.stderr)
-        return EXIT_EXTERNAL
-    print(json.dumps(report, indent=2))
-    if not args.dry_run:
-        print(f"Report: {output}", file=sys.stderr)
-    return code
+    with temporary_real_home(args.real_home):
+        output = (args.output or _default_output()).resolve()
+        try:
+            verify_worktree_identity()
+            _require_isolated_login(args.harnesses, args.claude_bin, dry_run=args.dry_run)
+            report, code = run_evaluation(
+                fixtures_path=args.fixtures.resolve(),
+                model=args.model,
+                output=output,
+                claude_bin=args.claude_bin,
+                copilot_bin=args.copilot_bin,
+                timeout=args.timeout,
+                dry_run=args.dry_run,
+                runner=runner,
+                harnesses=args.harnesses,
+                instructions_ref=args.instructions_ref,
+                grader_provider=args.grader_provider,
+                grader_model=args.grader_model,
+                workspace_root=args.workspace_root.resolve() if args.workspace_root else None,
+            )
+        except ParityConfigError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return EXIT_CONFIG
+        except IsolatedLoginError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return EXIT_AUTH
+        except (
+            FileNotFoundError,
+            OSError,
+            RuntimeError,
+            subprocess.SubprocessError,
+        ) as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return EXIT_EXTERNAL
+        print(json.dumps(report, indent=2))
+        if not args.dry_run:
+            print(f"Report: {output}", file=sys.stderr)
+        return code
 
 
 if __name__ == "__main__":

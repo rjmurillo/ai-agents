@@ -7,8 +7,12 @@ Output (next to report.json):
                 self-contained page, with a Share button that draws a
                 1200x675 share card at 2x (2400x1350 pixels) client-side and downloads it.
 
-Python 3.10+, stdlib only. Uses system fonts so the page and the exported PNG
+python3, stdlib only. Uses system fonts so the page and the exported PNG
 render the same everywhere.
+
+Exit codes: 0 report.html was written; 1 report.json has no numeric
+scores.overall or makes an unsupported claim; 2 bad arguments, or report.json
+is unreadable or not JSON.
 """
 
 import argparse

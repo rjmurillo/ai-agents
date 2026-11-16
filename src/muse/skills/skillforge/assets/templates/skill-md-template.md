@@ -1,5 +1,8 @@
 ---
 name: {{SKILL_NAME}}
+# description: say what the skill does, then "Use when" plus the user's intent
+# and trigger contexts. Add "Do NOT use for" when a sibling skill overlaps.
+# Hard limit: 1024 characters.
 description: >
   {{DESCRIPTION}}
 license: MIT
@@ -54,6 +57,11 @@ metadata:
 
 **Verification:** {{PHASE_2_VERIFICATION}}
 
+## Gotchas
+
+- {{GOTCHA_1}}
+- {{GOTCHA_2}}
+
 ## Anti-Patterns
 
 | Avoid | Why | Instead |
@@ -76,4 +84,4 @@ After execution:
 
 ## References
 
-- [{{REF_1_NAME}}](references/{{REF_1_FILE}}) - {{REF_1_DESC}}
+- [{{REF_1_NAME}}](references/{{REF_1_FILE}}) - {{REF_1_DESC}} Read when {{REF_1_LOAD_CONDITION}}.

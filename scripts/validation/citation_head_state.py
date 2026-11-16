@@ -49,12 +49,15 @@ def _head_tracked_paths(repo_root: Path) -> set[str] | None:
 
 
 def _added_lines_since_base(
-    repo_root: Path, base_ref: str
+    repo_root: Path, base_ref: str, head_ref: str = "HEAD"
 ) -> dict[str, list[tuple[int, str]]] | None:
     """Map citing file -> [(new line number, line text)] for added lines.
 
-    Parses ``git diff -U0 --diff-filter=ACMR base...HEAD``: the committed
-    changes this branch would push, excluding deletions (a deleted citing
+    ``head_ref`` defaults to HEAD; an eval that replays a past pull request
+    passes the commit it reviewed, so it reads diffs exactly as the gates do.
+
+    Parses ``git diff -U0 --diff-filter=ACMRT base...head_ref``: the committed
+    changes the head would push, excluding deletions (a deleted citing
     file asserts nothing). File headers are recognized only OUTSIDE hunks,
     so an added line whose content begins ``++ `` is never misread as one.
     """
@@ -86,7 +89,7 @@ def _added_lines_since_base(
             # change whose whole post-image is added lines this gate must
             # scan; without it that content was silently unscanned.
             "--diff-filter=ACMRT",
-            f"{base_ref}...HEAD",
+            f"{base_ref}...{head_ref}",
         ],
     )
     if exit_code != 0:

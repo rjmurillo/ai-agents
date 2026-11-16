@@ -400,7 +400,7 @@ class ReportRendererTests(unittest.TestCase):
         )
         self.assertNotIn("[View in browser]", skill_text)
 
-    def test_skill_edits_only_use_failed_conversations(self):
+    def test_skill_edits_use_failed_conversations_and_cut_only_passing(self):
         skill_path = SKILL_ROOT / "SKILL.md"
         skill_text = skill_path.read_text(encoding="utf-8")
 
@@ -423,10 +423,12 @@ class ReportRendererTests(unittest.TestCase):
             skill_text,
         )
         self.assertIn(
-            "Use only `failed_conversations` as evidence for "
-            "skill-improvement suggestions and draft skill edits",
+            "Use `failed_conversations` as the evidence for corrective "
+            "suggestions and draft skill edits",
             skill_text,
         )
+        self.assertIn("A passing conversation can support only a cut", skill_text)
+        self.assertNotIn("Use only `failed_conversations`", skill_text)
 
     def test_report_renders_letter_grade(self):
         page = render_page(

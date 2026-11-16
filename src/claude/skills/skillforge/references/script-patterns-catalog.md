@@ -181,7 +181,7 @@ def cmd_status(args):
     return 0
 
 
-def main():
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Multi-command script example",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -208,25 +208,24 @@ Examples:
     # Subcommand: status
     status_parser = subparsers.add_parser("status", help="Show current status")
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if not args.command:
-        parser.print_help()
-        sys.exit(1)
+        parser.print_help(sys.stderr)
+        return 2
 
-    # Dispatch to handler
+    # Dispatch to handler; each handler returns an exit code
     handlers = {
         "init": cmd_init,
         "run": cmd_run,
         "status": cmd_status,
     }
 
-    exit_code = handlers[args.command](args)
-    sys.exit(exit_code)
+    return handlers[args.command](args)
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
 ```
 
 **When to Use:** Scripts with multiple distinct operations (state management, trackers).
@@ -243,7 +242,7 @@ import sys
 from pathlib import Path
 
 
-def main():
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Validate a skill directory")
 
     # Positional argument
@@ -256,12 +255,12 @@ def main():
 
     parser.add_argument("--strict", action="store_true", help="Treat warnings as errors")
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     # Validate input
     if not args.path.exists():
         print(f"Error: Path not found: {args.path}", file=sys.stderr)
-        sys.exit(2)
+        return 2
 
     # Process
     result = validate(args.path, verbose=args.verbose)
@@ -272,11 +271,11 @@ def main():
     else:
         print(result.format_report())
 
-    sys.exit(0 if result.is_valid else 1)
+    return 0 if result.is_valid else 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
 ```
 
 **When to Use:** Single-purpose scripts (validation, generation, transformation).
@@ -337,7 +336,7 @@ def save_state(path: Path, state: dict) -> None:
 
 
 # Usage
-def main():
+def main(argv: list[str] | None = None) -> int:
     state_path = get_state_path("my-skill", "my-project")
     state = load_state(state_path)
 
@@ -347,6 +346,7 @@ def main():
 
     save_state(state_path, state)
     print(f"State saved. Total runs: {state['data']['runs']}")
+    return 0
 ```
 
 **When to Use:** Progress tracking, multi-session workflows, caching.
@@ -412,51 +412,49 @@ def print_styled(message: str, style: str = "normal"):
 
 ### Pattern 7: Exit Code Conventions
 
-Consistent exit codes for script chaining.
+One exit code per failure type, from the shared contract (ADR-035). `main`
+returns the code; lower functions raise, and `main` maps each exception it can
+act on to a code and a stderr message.
 
 ```python
+import subprocess
 import sys
 from enum import IntEnum
 
 
 class ExitCode(IntEnum):
-    """Standard exit codes for skill scripts."""
+    """Shared exit codes. 5-99 are reserved; script-specific codes start at 100."""
 
-    SUCCESS = 0
-    GENERAL_ERROR = 1
-    INVALID_ARGUMENTS = 2
-    FILE_NOT_FOUND = 3
-    PERMISSION_DENIED = 4
-    VALIDATION_FAILED = 10
-    VERIFICATION_FAILED = 11
-    DEPENDENCY_ERROR = 20
-    NETWORK_ERROR = 21
-    TIMEOUT = 30
+    SUCCESS = 0  # including an idempotent no-op
+    LOGIC = 1  # a failed check or validation finding
+    CONFIG = 2  # bad arguments, missing input, missing dependency
+    EXTERNAL = 3  # API, network, timeout, or subprocess failure
+    AUTH = 4  # expired token, denied permission, rate limit
 
 
-def main():
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
     try:
-        result = process()
+        result = process(args.input)
+    except FileNotFoundError as exc:
+        print(f"error: input not found: {exc.filename}", file=sys.stderr)
+        return ExitCode.CONFIG
+    except PermissionError as exc:
+        print(f"error: permission denied: {exc.filename}", file=sys.stderr)
+        return ExitCode.AUTH
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, TimeoutError) as exc:
+        print(f"error: external step failed: {exc}", file=sys.stderr)
+        return ExitCode.EXTERNAL
+    return ExitCode.SUCCESS if result.success else ExitCode.LOGIC
 
-        if not result.success:
-            if "validation" in result.message.lower():
-                sys.exit(ExitCode.VALIDATION_FAILED)
-            sys.exit(ExitCode.GENERAL_ERROR)
 
-        sys.exit(ExitCode.SUCCESS)
-
-    except FileNotFoundError:
-        sys.exit(ExitCode.FILE_NOT_FOUND)
-    except PermissionError:
-        sys.exit(ExitCode.PERMISSION_DENIED)
-    except TimeoutError:
-        sys.exit(ExitCode.TIMEOUT)
-    except Exception as e:
-        print(f"Unexpected error: {e}", file=sys.stderr)
-        sys.exit(ExitCode.GENERAL_ERROR)
+if __name__ == "__main__":
+    sys.exit(main())
 ```
 
-**When to Use:** All scripts should use explicit exit codes.
+**When to Use:** Every script. List each code it can return in the module
+docstring and the `--help` epilog. Do not add a catch-all `except Exception`:
+an unexpected error should fail loudly with its traceback.
 
 ---
 
@@ -641,13 +639,13 @@ def validate(path: Path, strict: bool = False) -> ValidationResult:
     return result
 
 
-def main():
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Validate <target>")
     parser.add_argument("path", type=Path, help="Path to validate")
     parser.add_argument("--strict", action="store_true", help="Treat warnings as errors")
     parser.add_argument("--json", action="store_true", help="Output as JSON")
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     result = validate(args.path, args.strict)
 
@@ -662,11 +660,11 @@ def main():
     else:
         print(result.format_report())
 
-    sys.exit(0 if result.is_valid else 1)
+    return 0 if result.is_valid else 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
 ```
 
 ### State Management Script Template
@@ -716,24 +714,24 @@ def cmd_status(args):
     pass
 
 
-def main():
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Track <purpose>")
     subparsers = parser.add_subparsers(dest="command")
 
     # Add subparsers...
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if not args.command:
-        parser.print_help()
-        sys.exit(1)
+        parser.print_help(sys.stderr)
+        return 2
 
     handlers = {"init": cmd_init, "add": cmd_add, "update": cmd_update, "status": cmd_status}
-    sys.exit(handlers[args.command](args))
+    return handlers[args.command](args)
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
 ```
 
 ### Generation Script Template
@@ -784,29 +782,29 @@ def generate(input_path: Path, output_path: Path) -> bool:
     return True
 
 
-def main():
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Generate <artifact>")
     parser.add_argument("input", type=Path, help="Input file")
     parser.add_argument("--output", "-o", type=Path, required=True, help="Output file")
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if not args.input.exists():
         print(f"Error: Input not found: {args.input}", file=sys.stderr)
-        sys.exit(2)
+        return 2
 
     success = generate(args.input, args.output)
 
     if success:
         print(f"Generated: {args.output}")
-        sys.exit(0)
+        return 0
     else:
         print("Generation failed", file=sys.stderr)
-        sys.exit(1)
+        return 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
 ```
 
 ---

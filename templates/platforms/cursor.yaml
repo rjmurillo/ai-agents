@@ -55,10 +55,13 @@ artifacts:
     outputDir: "src/cursor/skills"
     mode: "directory-copy"
     excludeFilenames: ["AGENTS.md", "CLAUDE.md"]
-    # https://cursor.com/docs/context/skills documents these seven SKILL.md keys
-    # and does not say whether other keys (version, license, allowed-tools,
+    # https://cursor.com/docs/context/skills documents the first seven SKILL.md
+    # keys below and does not say whether other keys (allowed-tools,
     # argument-hint, user-invocable, model) are ignored or rejected. An
-    # allow-list ships only the documented ones. The body is copied verbatim.
+    # allow-list ships only the documented ones, plus version and license:
+    # GP-003 requires both in every SKILL.md, and the agentskills.io spec
+    # defines license (ADR-115 Decision 3, amended 2026-11-15). The body is
+    # copied verbatim.
     frontmatterKeep:
       - name
       - description
@@ -67,6 +70,8 @@ artifacts:
       - icon
       - color
       - metadata
+      - version
+      - license
   rules:
     sourceDir: "src/claude/rules"
     outputDir: "src/cursor/rules"

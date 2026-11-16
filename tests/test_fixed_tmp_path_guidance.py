@@ -33,7 +33,7 @@ def test_guidance_uses_unique_per_run_paths():
                 "tempfile.mktemp",
                 "tempfile.mkstemp",
                 "tempfile.TemporaryDirectory",
-                'new_pr.py" --prepare-body-file',
+                "skills/github/scripts/pr/new_pr.py --prepare-body-file",
             )
         )
 
@@ -44,7 +44,7 @@ def test_push_pr_body_path_is_confined_by_its_tool_allowlist():
         Path("src/copilot-cli/skills/push-pr/SKILL.md"),
     ):
         text = (_REPO_ROOT / relative_path).read_text(encoding="utf-8")
-        assert 'new_pr.py" --prepare-body-file' in text
+        assert "skills/github/scripts/pr/new_pr.py --prepare-body-file" in text
         frontmatter = text.split("---", maxsplit=2)[1]
         assert "Edit(.project-toolkit/scratch/pr-body-*.md)" in frontmatter
         assert ", Write" not in frontmatter

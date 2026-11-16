@@ -1,6 +1,19 @@
 ---
 name: spec-generator
+version: 1.0.1
 description: Transform feature descriptions into 3-tier specifications (Requirements, Design, Tasks) using EARS syntax, with schema-validated frontmatter on every emitted file. Reads the canonical spec schema before writing and rejects any out-of-range enum value. Use when you say "generate spec", "formalize requirements", or "create requirements/design/tasks". Do NOT use to decide what to build or to run the gates that precede it (use spec, which invokes this to write the artifacts).
+license: MIT
+metadata:
+  capability:
+    kind: specialized-implementation
+    depends-on:
+      - untrusted-content-handling
+    status: active
+  routing:
+    role: lifecycle
+    invoker: spec
+    trigger: spec invokes spec-generator to emit the REQ, DESIGN, and TASK files
+    user-facing: true
 ---
 
 # Spec Generator Skill

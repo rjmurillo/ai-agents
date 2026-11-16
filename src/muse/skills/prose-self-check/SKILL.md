@@ -1,11 +1,19 @@
 ---
 name: prose-self-check
+version: 0.3.0
 description: Pre-emit AI-vernacular self-check an agent runs on its OWN prose
   before writing a session-log narrative, ADR context section, retrospective, or
   PR description. Four layers ordered by reader-trust, not ease of detection.
   Use when you say `prose self-check`, `audit my writing for AI tells`, `does
   this read as AI-written`, or before emitting any prose artifact. Do NOT use
   for code style (use style-enforcement) or to rewrite human-authored text.
+license: MIT
+metadata:
+  routing:
+    role: conditional-adjunct
+    invoker: spec-generator
+    trigger: spec-generator runs prose-self-check before emitting any prose artifact
+    user-facing: false
 ---
 
 # Prose Self-Check

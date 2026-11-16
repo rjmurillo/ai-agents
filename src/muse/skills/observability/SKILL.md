@@ -1,6 +1,18 @@
 ---
 name: observability
+version: 1.0.0
 description: Use when you say `query agent logs`, `find slow tool calls`, `show agent errors`, or `what to log`. Query and analyze agent JSONL event logs for debugging, performance analysis, and decision tracing.
+license: MIT
+metadata:
+  capability:
+    kind: reusable-primitive
+    owns: [operational-event-selection]
+    status: active
+  routing:
+    role: conditional-adjunct
+    invoker: ai-agents-debugging-playbook
+    trigger: in the ai-agents repository, ai-agents-debugging-playbook points here to query agent JSONL event logs
+    user-facing: false
 ---
 
 # Agent Observability Skill

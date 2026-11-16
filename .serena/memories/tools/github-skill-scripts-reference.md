@@ -22,7 +22,7 @@ The scripts listed in this reference are primarily PR-related, so most are under
 
 | Script | Purpose | Key Args |
 |--------|---------|----------|
-| `get_pull_requests.py` | List PRs | `--owner`, `--repo`, `--state`, `--limit`, `--label`, `--author` |
+| `get_pull_requests.py` | List PRs | `--owner`, `--repo`, `--state`, `--limit`, `--label`, `--author`, `--base`, `--head` |
 | `get_pr_context.py` | PR details (title, body, files) | `--owner`, `--repo`, `--pull-request` |
 | `test_pr_merge_ready.py` | Check merge readiness | `--owner`, `--repo`, `--pull-request` |
 | `test_pr_merged.py` | Check if PR merged | `--owner`, `--repo`, `--pull-request` |
