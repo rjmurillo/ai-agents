@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import ast
 import json
+import os
 import posixpath
 import re
 from dataclasses import dataclass
@@ -338,18 +339,31 @@ JUDGE_INSTRUCTIONS = (
 )
 
 
+def _real(path: Path) -> str | None:
+    """Return the case-normalized real path, or None when it cannot be resolved.
+
+    A symlink loop raises on some Python versions; treating it as unresolvable
+    keeps the judgments import on its exit-2 path instead of a traceback.
+    """
+    try:
+        return os.path.normcase(os.path.realpath(path))
+    except (OSError, RuntimeError, ValueError):
+        return None
+
+
 def skill_files(directory: Path, root: Path, exclude: Path | None = None) -> list[str]:
     """Return the text files a judge may quote, as POSIX paths relative to the skill.
 
     A file must resolve inside both the skill directory and root. ``exclude``
     keeps a judgments file saved in the skill from quoting itself as evidence.
     """
-    skipped = exclude.resolve() if exclude is not None else None
+    skipped = _real(exclude) if exclude is not None else None
     found = []
     for path in sorted(directory.rglob("*")):
         if path.suffix.lower() not in TEXT_SUFFIXES or not path.is_file():
             continue
-        if path.resolve() == skipped:
+        real = _real(path)
+        if real is None or real == skipped:
             continue
         if contained_realpath(path, str(root)) is None:
             continue

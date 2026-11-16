@@ -301,3 +301,69 @@ class TestReviewFindings:
         self, skill: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         assert "at least 12 characters" in _packet(capsys)["instructions"]
+
+
+@pytest.mark.skipif(not hasattr(os, "symlink"), reason="needs symlinks")
+def test_looping_judgments_path_is_rejected_not_a_crash(
+    skill: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    loop = skill.parent / "loop.json"
+    try:
+        loop.symlink_to(loop)
+    except OSError as exc:
+        pytest.skip(f"cannot create a symlink here: {exc}")
+
+    code = conformance.main(["release-notes", "--judgments", str(loop)])
+
+    captured = capsys.readouterr()
+    assert code == 2
+    assert "nothing applied" in captured.err
+
+
+@pytest.mark.skipif(not hasattr(os, "symlink"), reason="needs symlinks")
+def test_looping_file_in_the_skill_is_left_out_of_the_packet(
+    skill: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    loop = skill / "references" / "loop.md"
+    try:
+        loop.symlink_to(loop)
+    except OSError as exc:
+        pytest.skip(f"cannot create a symlink here: {exc}")
+
+    files = _packet(capsys)["files"]
+
+    assert "references/loop.md" not in files
+    assert "SKILL.md" in files
+
+
+def test_resolution_error_on_the_judgments_path_is_rejected(
+    skill: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Python 3.10 to 3.12 raise RuntimeError on a symlink loop; 3.13+ do not.
+
+    Simulate the older behavior, so this test catches a crash on hosts the
+    shipped script supports even when the suite runs on a newer Python.
+    """
+    import os.path
+    import pathlib
+
+    target = skill.parent / "loop.json"
+    real_resolve, real_realpath = pathlib.Path.resolve, os.path.realpath
+
+    def resolve(self: pathlib.Path, strict: bool = False) -> pathlib.Path:
+        if self.name == "loop.json":
+            raise RuntimeError(f"Symlink loop from {self}")
+        return real_resolve(self, strict=strict)
+
+    def realpath(path: Any, *args: Any, **kwargs: Any) -> str:
+        if os.fspath(path).endswith("loop.json"):
+            raise RuntimeError(f"Symlink loop from {path}")
+        return real_realpath(path, *args, **kwargs)
+
+    monkeypatch.setattr(pathlib.Path, "resolve", resolve)
+    monkeypatch.setattr(os.path, "realpath", realpath)
+
+    code = conformance.main(["release-notes", "--judgments", str(target)])
+
+    assert code == 2
+    assert "nothing applied" in capsys.readouterr().err
