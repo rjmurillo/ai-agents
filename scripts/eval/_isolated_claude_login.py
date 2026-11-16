@@ -10,10 +10,36 @@ the run. No credential file is copied or linked.
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator
+from contextlib import contextmanager
 
 import _claude_cli
 from _cli_credentials import CredentialNotFoundError, resolve_cached
-from _runtime_harness import credential_values
+from _runtime_harness import REAL_HOME_ENV, credential_values
+
+
+@contextmanager
+def temporary_real_home(enabled: bool) -> Iterator[None]:
+    """Set ``EVAL_RUNTIME_REAL_HOME`` for one call, then restore the prior value.
+
+    The eval CLIs used to assign the flag on ``os.environ`` and leave it set.
+    In-process tests that pass ``--real-home`` then leak the opt-in into later
+    tests on the same pytest-xdist worker, so the Claude credential suite
+    skips relocation and stops refusing a missing token.
+    """
+    if not enabled:
+        yield
+        return
+    previous = os.environ.get(REAL_HOME_ENV)
+    os.environ[REAL_HOME_ENV] = "1"
+    try:
+        yield
+    finally:
+        if previous is None:
+            os.environ.pop(REAL_HOME_ENV, None)
+        else:
+            os.environ[REAL_HOME_ENV] = previous
+
 
 _NO_ISOLATED_LOGIN = (
     "an isolated Claude run needs a token, but the stored login has none. "
