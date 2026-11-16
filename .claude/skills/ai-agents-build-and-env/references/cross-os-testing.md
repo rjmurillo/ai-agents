@@ -176,14 +176,16 @@ branch first, never on `main`. An agent asks the user before it makes that
 commit. Mounting the git common
 directory works for both a main clone and a linked worktree. The mount is
 read-only, but the container can still read it. Check that no git config file
-in it holds credentials first. The check prints `clean`, or a line starting
-with `STOP`. It prints file names, never the matching text, and it prints
+in it holds credentials first. It flags a user name or token in an `http` or
+`https` URL and any `extraheader` setting. An `ssh://git@` remote is not a
+credential and passes. The check prints `clean`, or a line starting with
+`STOP`. It prints file names, never the matching text, and it prints
 `STOP: check failed` when it cannot read a file. Read the printed word, not
 the exit code. Mount the directory only after it prints `clean`:
 
 ```bash
 dir=$(git rev-parse --path-format=absolute --git-common-dir) || dir=/nonexistent
-hits=$(grep -rliE --include=config --include=config.worktree '://[^/@]+@|extraheader' "$dir")
+hits=$(grep -rliE --include=config --include=config.worktree 'https?://[^/@]+@|extraheader' "$dir")
 case $? in
   0) printf 'STOP: credentials in:\n%s\n' "$hits" ;;
   1) echo clean ;;
