@@ -10,6 +10,7 @@ metadata:
     intents:
       - take over this PR
       - take over this branch
+      - take over this thread
       - take over an agent thread
       - finish someone else's PR
       - continue an abandoned PR
@@ -55,8 +56,9 @@ another agent already built it.
    tests do not prove the user experience works. State what remains
    unverified.
 6. **Finish.** When the requested finish includes a PR, use `push-pr` to file
-   it. Do not stop at creation: follow checks with the `github` skill and
-   answer review threads with `pr-comment-responder`. Merge or close the
+   a replacement PR, or push to the existing branch for an in-place or stacked
+   continuation. Do not stop at creation: follow checks with the `github` skill
+   and answer review threads with `pr-comment-responder`. Merge or close the
    original PR only when authorized.
 
 ## Verification

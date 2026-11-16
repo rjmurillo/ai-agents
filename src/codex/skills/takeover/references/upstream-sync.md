@@ -17,7 +17,7 @@ The body also replaces the tstack skills this catalog lacks.
 | Upstream reference | Local replacement |
 |---|---|
 | `modernize` | Prose step to update against the intended base, plus the merge-resolver agent for conflicts |
-| `file-pr` | `push-pr` |
+| `file-pr` (file or update) | `push-pr` for a replacement PR; a push to the existing branch for an in-place update |
 | `babysit-pr` | `github` skill for checks, `pr-comment-responder` for review threads |
 | `leaving-pr-comments` | `pr-comment-responder` |
 
