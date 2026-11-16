@@ -4,6 +4,12 @@
 Closes a PR with optional comment explaining the reason.
 Supports idempotency: returns success if already closed.
 A failed closing comment stops the run with exit 3 before the close call.
+A retry skips posting when the same author already left an identical comment, then
+closes. A token that cannot call GET /user (an Actions installation token) matches
+an identical comment from any bot account instead. The skip is by body, not by
+time: closing, reopening, and closing again with the same text posts it only once.
+The comment lookup also runs under --dry-run, so a lookup failure exits 3 there too.
+Success output adds commentPosted, commentSkipped, and existingCommentId.
 
 Exit codes follow ADR-035:
     0 - Success
@@ -66,7 +72,7 @@ examples:
 exit codes:
   0  success
   2  not found
-  3  external error (API failure, including a failed closing comment: the PR stays open)
+  3  external error (API failure, including a failed closing comment or comment lookup: the PR stays open)
   4  auth error
 """
 
@@ -85,7 +91,11 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         help="Pull request number",
     )
-    parser.add_argument("--comment", default="", help="Comment to post before closing")
+    parser.add_argument(
+        "--comment",
+        default="",
+        help="Comment to post before closing; skipped when an identical one by the same author exists",
+    )
     parser.add_argument(
         "--comment-file",
         default="",
@@ -94,7 +104,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Read the PR state and report what would happen; comment and close nothing",
+        help=(
+            "Read the PR state and existing comments, and report what would happen; "
+            "comment and close nothing"
+        ),
     )
     return parser
 
@@ -142,7 +155,10 @@ def _authenticated_login() -> str | None:
 def _find_existing_closing_comment(
     owner: str, repo: str, pr: int, comment: str
 ) -> dict[str, Any] | None:
-    """Return an existing conversation comment by the same author with an identical body."""
+    """Return an identical-body conversation comment by the same author, else None.
+
+    When GET /user is denied, any bot-authored comment with an identical body counts.
+    """
     endpoint = f"repos/{owner}/{repo}/issues/{pr}/comments"
     what = f"read the comments of {owner}/{repo}#{pr}"
     try:
@@ -168,6 +184,11 @@ def _find_existing_closing_comment(
         return None
     login = _authenticated_login()
     if login is None:
+        print(
+            "Note: GET /user is denied for this token; matching identical comments by bot "
+            "authors instead of by login.",
+            file=sys.stderr,
+        )
         # Installation token: GET /user is denied, so the author is unknowable.
         # An identical body from a bot account is the retry of this command.
         return first_bot_comment(same_body)

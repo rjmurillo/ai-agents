@@ -310,3 +310,101 @@ class TestInstallationTokenRetry:
             )
         assert exc.value.code == 3
         assert "NOT closed" in capsys.readouterr().err
+
+
+class TestLookupEdges:
+    def test_user_lookup_timeout_fails_closed(self, capsys):
+        import subprocess
+
+        pages = json.dumps(
+            [[{"id": 5, "body": "Superseded", "user": {"login": "a", "type": "User"}}]]
+        )
+        with pytest.raises(SystemExit) as exc:
+            _run_close(
+                ["--pull-request", "5", "--comment", "Superseded"],
+                [
+                    _completed(stdout=json.dumps({"state": "OPEN"})),
+                    _completed(stdout=pages),
+                    subprocess.TimeoutExpired(cmd="gh", timeout=30),
+                ],
+            )
+        assert exc.value.code == 3
+        assert "timed out" in capsys.readouterr().err
+
+    def test_comment_list_timeout_fails_closed(self):
+        import subprocess
+
+        with pytest.raises(SystemExit) as exc:
+            _run_close(
+                ["--pull-request", "5", "--comment", "Superseded"],
+                [
+                    _completed(stdout=json.dumps({"state": "OPEN"})),
+                    subprocess.TimeoutExpired(cmd="gh", timeout=120),
+                ],
+            )
+        assert exc.value.code == 3
+
+    def test_empty_login_with_success_exit_fails_closed(self):
+        pages = json.dumps(
+            [[{"id": 5, "body": "Superseded", "user": {"login": "a", "type": "User"}}]]
+        )
+        with pytest.raises(SystemExit) as exc:
+            _run_close(
+                ["--pull-request", "5", "--comment", "Superseded"],
+                [
+                    _completed(stdout=json.dumps({"state": "OPEN"})),
+                    _completed(stdout=pages),
+                    _completed(rc=0, stdout="\n"),
+                ],
+            )
+        assert exc.value.code == 3
+
+    def test_denied_lookup_notes_the_fallback_on_stderr(self, capsys):
+        pages = json.dumps([[{"id": 5, "body": "S", "user": {"login": "x[bot]", "type": "Bot"}}]])
+        _run_close(
+            ["--pull-request", "5", "--comment", "S"],
+            [
+                _completed(stdout=json.dumps({"state": "OPEN"})),
+                _completed(stdout=pages),
+                _completed(rc=1, stderr=_DENIED),
+                _completed(rc=0),
+            ],
+        )
+        assert "matching identical comments by bot" in capsys.readouterr().err
+
+    def test_different_bot_with_identical_body_is_skipped_by_design(self, capsys):
+        pages = json.dumps(
+            [[{"id": 9, "body": "S", "user": {"login": "other-app[bot]", "type": "Bot"}}]]
+        )
+        rc, subcommands = _run_close(
+            ["--pull-request", "5", "--comment", "S"],
+            [
+                _completed(stdout=json.dumps({"state": "OPEN"})),
+                _completed(stdout=pages),
+                _completed(rc=1, stderr=_DENIED),
+                _completed(rc=0),
+            ],
+        )
+        assert rc == 0
+        assert ["pr", "comment"] not in subcommands
+        assert json.loads(capsys.readouterr().out)["existingCommentId"] == 9
+
+    def test_dry_run_comment_lookup_failure_exits_3(self):
+        with pytest.raises(SystemExit) as exc:
+            _run_dry(
+                ["--pull-request", "5", "--comment", "S", "--dry-run"],
+                [
+                    _completed(stdout=json.dumps({"state": "OPEN"})),
+                    _completed(rc=1, stderr="HTTP 502 Bad Gateway"),
+                ],
+            )
+        assert exc.value.code == 3
+
+    @pytest.mark.parametrize("state", ["CLOSED", "MERGED"])
+    def test_closed_or_merged_pr_skips_the_comment_lookup(self, state):
+        rc, run = _run_dry(
+            ["--pull-request", "5", "--comment", "S", "--dry-run"],
+            [_completed(stdout=json.dumps({"state": state}))],
+        )
+        assert rc == 0
+        assert run.call_count == 1
