@@ -104,6 +104,16 @@ FORKED_COMPONENTS: dict[str, dict[str, str]] = {
         "license_text": ("MIT License\n\nCopyright (c) 2025 OpenAI\n\n" + _MIT_PERMISSION_TEXT),
         "license_blank_line_prefix": "",
     },
+    "tstack modernize": {
+        "license": "MIT",
+        "url": "https://github.com/t3dotgg/tstack",
+        "author": "Theo Browne",
+        "local_path": "src/claude/skills/modernize",
+        "license_text": (
+            "MIT License\n\nCopyright (c) 2026 Theo Browne\n\n" + _MIT_PERMISSION_TEXT
+        ),
+        "license_blank_line_prefix": "",
+    },
     "gstack": {
         "license": "MIT",
         "url": "https://github.com/garrytan/gstack",
