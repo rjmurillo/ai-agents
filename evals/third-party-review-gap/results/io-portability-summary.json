@@ -32,7 +32,8 @@
         0.032,
         0.144
       ]
-    }
+    },
+    "final_head_unreadable": 1
   },
   "derive": {
     "baseline": {
@@ -66,7 +67,8 @@
         0.0,
         0.104
       ]
-    }
+    },
+    "final_head_unreadable": 0
   },
   "heldout": {
     "baseline": {
@@ -100,7 +102,8 @@
         0.053,
         0.226
       ]
-    }
+    },
+    "final_head_unreadable": 1
   },
   "file-text-encoding": {
     "baseline": {

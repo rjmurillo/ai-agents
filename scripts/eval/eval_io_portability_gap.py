@@ -143,7 +143,7 @@ def evaluate(row: dict[str, Any]) -> dict[str, Any]:
     """Score one row; a git, ruff, or shape failure becomes an ``error`` row, never a miss."""
     try:
         return _evaluate(row)
-    except RuntimeError as exc:
+    except (RuntimeError, ValueError, subprocess.SubprocessError, OSError) as exc:
         return {**row, "error": str(exc)[:300]}
 
 
@@ -163,6 +163,10 @@ def _evaluate(row: dict[str, Any]) -> dict[str, Any]:
     after = git_show(row["final_head"], row["path"])
     before_count = rule_count(row["path"], before, rule)
     after_count = None if after is None else rule_count(row["path"], after, rule)
+    # Line numbers drift between commits, so the control compares counts: the
+    # author's fix should leave fewer violations of this rule in the file. An
+    # unreadable final head (the file was deleted or moved) is neither outcome.
+    not_lower = None if after_count is None else after_count >= before_count
     return {
         **row,
         "baseline_caught": near(baseline, row["line"]),
@@ -170,9 +174,7 @@ def _evaluate(row: dict[str, Any]) -> dict[str, Any]:
         "shipped_caught": shipped,
         "rule_count_reviewed": before_count,
         "rule_count_final_head": after_count,
-        # Line numbers drift between commits, so the control compares counts:
-        # the author's fix should leave fewer violations of this rule in the file.
-        "final_head_not_lower": after_count is not None and after_count >= before_count,
+        "final_head_not_lower": not_lower,
     }
 
 
@@ -184,9 +186,10 @@ def shipped_lines(row: dict[str, Any], source: str) -> list[int]:
     """
     if not row.get("merge_base"):
         return []
-    diff = _git(*treatment.PINNED_DIFF_ARGS, row["merge_base"], row["reviewed"], "--", row["path"])
-    diff = diff or ""
-    added = treatment.added_lines(diff).get(row["path"], set())
+    # The gate's own parser over the replayed commit pair; a git failure raises.
+    added = treatment.added_line_numbers(REPO_ROOT, row["merge_base"], row["reviewed"]).get(
+        row["path"], set()
+    )
     return [
         line
         for v in treatment.scan_source(row["path"], source)
@@ -214,6 +217,9 @@ def summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
             "treatment": cell(rows, "treatment_caught"),
             "treatment_shipped_mode": cell(rows, "shipped_caught"),
             "final_head_not_lower": cell(rows, "final_head_not_lower"),
+            "final_head_unreadable": sum(
+                1 for r in rows if "final_head_not_lower" in r and r["final_head_not_lower"] is None
+            ),
         }
     for rule in sorted({r["rule"] for r in scored}):
         rows = [r for r in scored if r["rule"] == rule]

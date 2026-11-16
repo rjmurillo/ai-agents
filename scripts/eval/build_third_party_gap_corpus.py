@@ -15,6 +15,7 @@ Exit codes:
     0  ok
     1  --check found a rebuilt file that differs from the committed one
     2  config error (unreadable dump or labels, missing label)
+    3  git failed while computing --stats
 """
 
 from __future__ import annotations
@@ -186,9 +187,9 @@ def doc_on_added_lines(rows: list[dict[str, Any]]) -> dict[str, int]:
     docs = [r for r in rows if r["defect_class"] == "doc-accuracy"]
     on_added = 0
     for r in docs:
-        diff = git_run((*io_check.PINNED_DIFF_ARGS, r["merge_base"], r["commit"], "--", r["path"]))
-        diff = diff or ""
-        added = io_check.added_lines(diff).get(r["path"], set())
+        added = io_check.added_line_numbers(REPO_ROOT, r["merge_base"], r["commit"]).get(
+            r["path"], set()
+        )
         on_added += any(abs(line - (r["line"] or 0)) <= DOC_LINE_WINDOW for line in added)
     return {"doc_accuracy": len(docs), "within_window": on_added, "window": DOC_LINE_WINDOW}
 
@@ -206,9 +207,9 @@ def precision(prs: list[dict[str, Any]], cutoff: int) -> dict[str, Any]:
         if not base or git_run(("cat-file", "-e", f"{head}^{{commit}}")) is None:
             continue
         examined += 1
-        diff = git_run((*io_check.PINNED_DIFF_ARGS, base, head, "--", "*.py")) or ""
-        for path, lines in io_check.added_lines(diff).items():
-            if io_check.is_skipped_path(path):
+        added = io_check.added_line_numbers(REPO_ROOT, base, head)
+        for path, lines in added.items():
+            if not path.endswith(".py") or io_check.is_skipped_path(path):
                 continue
             source = git_run(("show", f"{head}:{path}"))
             if source is None:
@@ -241,7 +242,11 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     files = render(built)
     if args.stats:
-        print(json.dumps(stats(dump, built), indent=2))
+        try:
+            print(json.dumps(stats(dump, built), indent=2))
+        except ValueError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 3
     if args.check:
         stale = []
         for name, text in files.items():

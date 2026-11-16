@@ -24,11 +24,13 @@ These are the three mechanical rules behind 86 of the 166 Cursor Bugbot
 
 Scope: with ``--base-ref``, only lines the branch's commits add over that
 ref are reported (``base...HEAD``, read from HEAD), so existing code does not
-block. Generated mirror trees
-(``MIRROR_PREFIXES``) are skipped in that mode: ``build_all.py`` copies them from
-``src/claude/`` and ``scripts/``, so a violation is reported once, at its
-source. With file arguments, every line in those files is reported. A call
-carrying ``**kwargs`` is skipped: its encoding cannot be read statically.
+block. A line moved unchanged within a file is not new and is not reported.
+Generated mirror trees (``MIRROR_PREFIXES``) are skipped in that mode, because
+``build_all.py`` copies them from ``src/claude/`` and ``scripts/``. Generated
+copies outside that list, such as ``src/claude/lib/`` and the rendered hook
+launchers, are still checked, so a violation in their source can be reported
+more than once. With file arguments, every line in those files is reported. A
+call carrying ``**kwargs`` is skipped: its encoding cannot be read statically.
 
 Suppress one line with ``# io-portability: ignore <reason>``.
 
@@ -60,7 +62,7 @@ import citation_head_state  # noqa: E402
 
 SUPPRESS = "# io-portability: ignore"
 # A suppression must say why: the marker followed by at least one word.
-_SUPPRESSION = re.compile(r"# io-portability: ignore\s+\S")
+_SUPPRESSION = re.compile(re.escape(SUPPRESS) + r"\s+\S")
 _SUBPROCESS_CALLS = frozenset({"run", "Popen", "check_output", "check_call", "call"})
 _TEXT_FLAGS = ("text", "universal_newlines")
 _SYMLINK_CATCHES = frozenset({"OSError", "NotImplementedError", "Exception", "BaseException"})
@@ -82,14 +84,6 @@ MIRROR_PREFIXES: tuple[str, ...] = (
     "src/muse/lib/",
     "src/hermes/",
 )
-# The diff flags citation_head_state._added_lines_since_base pins, for callers
-# that diff two named commits: a contributor's git config cannot change the
-# prefix, colour, rename detection, or diff driver of the output.
-PINNED_DIFF_ARGS: tuple[str, ...] = (
-    "-c", "core.quotePath=false", "diff", "--no-color", "--no-ext-diff", "--no-textconv",
-    "--text", "--find-renames", "--default-prefix", "-U0", "--diff-filter=ACMRT",
-)  # fmt: skip
-_HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(?P<start>\d+)(?:,(?P<count>\d+))? @@")
 
 
 @dataclass(frozen=True, slots=True, order=True)
@@ -300,7 +294,9 @@ def scan_source(path: str, source: str) -> list[Violation]:
         return []
     visitor = _Visitor(path, tree)
     visitor.visit(tree)
-    lines = source.splitlines()
+    # AST line numbers count LF only; splitlines() would also split on form feed
+    # and U+2028, shifting every later line (citation_head_state.py says the same).
+    lines = source.split("\n")
     return sorted(
         v
         for v in visitor.found
@@ -308,39 +304,34 @@ def scan_source(path: str, source: str) -> list[Violation]:
     )
 
 
-def added_lines(diff: str) -> dict[str, set[int]]:
-    """New-file line numbers added per path in a unified diff with zero context."""
-    out: dict[str, set[int]] = {}
-    current: str | None = None
-    in_hunk = False
-    for line in diff.splitlines():
-        if line.startswith("diff --git "):
-            current, in_hunk = None, False
-            continue
-        if not in_hunk and line.startswith("+++ "):
-            target = line[4:]
-            current = target[2:] if target.startswith("b/") else None
-            continue
-        hunk = _HUNK.match(line)
-        if hunk:
-            in_hunk = True
-        if hunk and current is not None:
-            start = int(hunk.group("start"))
-            count = int(hunk.group("count") or "1")
-            out.setdefault(current, set()).update(range(start, start + count))
-    return out
+def added_line_numbers(
+    repo_root: Path, base_ref: str, head_ref: str = "HEAD"
+) -> dict[str, set[int]]:
+    """Line numbers each path adds between ``base_ref`` and ``head_ref``, as the gate reads them.
+
+    The one parser the gate uses (``citation_head_state._added_lines_since_base``),
+    so an eval that replays a past commit pair measures the shipped behavior.
+    """
+    added = citation_head_state._added_lines_since_base(repo_root, base_ref, head_ref)
+    if added is None:
+        raise ValueError(f"git diff {base_ref}...{head_ref} failed")
+    return {path: {number for number, _text in lines} for path, lines in added.items()}
 
 
 def _git(repo_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git", "-C", str(repo_root), *args],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-        timeout=60,
-    )
+    """Run git; a timeout or a missing binary is a configuration error (exit 2), not a finding."""
+    try:
+        return subprocess.run(
+            ["git", "-C", str(repo_root), *args],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=60,
+        )
+    except (subprocess.SubprocessError, OSError) as exc:
+        raise ValueError(f"git {args[0]} could not run: {exc}") from exc
 
 
 def is_skipped_path(path: str) -> bool:
@@ -358,12 +349,9 @@ def scan_diff(base_ref: str, repo_root: Path = Path(".")) -> tuple[list[Violatio
     rename detection and diff drivers so a contributor's git config cannot empty
     the diff, and keeps renamed, copied and type-changed files.
     """
-    added = citation_head_state._added_lines_since_base(repo_root, base_ref)
-    if added is None:
-        raise ValueError(f"git diff against {base_ref} failed")
     changed = {
-        path: {number for number, _text in lines}
-        for path, lines in added.items()
+        path: lines
+        for path, lines in added_line_numbers(repo_root, base_ref).items()
         if path.endswith(".py") and not is_skipped_path(path)
     }
     found: list[Violation] = []

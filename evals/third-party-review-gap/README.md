@@ -129,7 +129,9 @@ Honest caveats:
 - Negative control: in 6 rows the file at the pull request's final head has no
   fewer violations of the rule than at the reviewed commit. Five are rows the
   checker misses (0 before, 0 after). The sixth, T0396, is a finding the
-  author never fixed.
+  author never fixed. One more row, T0462, cannot be judged: its file is gone
+  at the final head, so it is counted as `final_head_unreadable`, not as a
+  pass.
 - Review of this change found two symlink-guard shapes the first version
   misread. A module `pytestmark` that only adds fixtures exempted a whole file,
   and a named skip mark such as `POSIX_ONLY = pytest.mark.skipif(...)` used as
@@ -146,10 +148,14 @@ Honest caveats:
 The check now runs in `pre_pr.py` as the blocking gate `IO Portability (added
 lines)`. It reads the committed `base...HEAD` diff through the parser the
 other added-lines gates share, so renamed files are checked and a
-contributor's git settings cannot empty the diff. To exempt one line, add
+contributor's git settings cannot empty the diff. The shipped-mode row and the
+precision count use that same parser over each replayed commit pair. To exempt one line, add
 `# io-portability: ignore <reason>`; a marker with no reason does not count.
-To roll the gate back, delete its one `_Gate` row in
-`scripts/validation/pre_pr_sequence.py`.
+To roll the gate back, make four edits together: delete its `_Gate` row and
+its import in `scripts/validation/pre_pr_sequence.py`, delete its import in
+`scripts/validation/pre_pr.py`, remove `"IO Portability (added lines)"` from
+`EXPECTED_ORDER` in `tests/validation/test_pre_pr_sequence_registry.py`, and
+delete `tests/validation/test_check_io_portability_wiring.py`.
 
 ## Eval 2: model replay of the reviewer
 

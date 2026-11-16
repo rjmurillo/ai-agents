@@ -282,3 +282,21 @@ class TestMinerFetchExits:
         assert code == 0
         assert [p["number"] for p in dump["pull_requests"]] == [1]
         assert dump["graphql_cost"] == 1
+
+
+class TestMinerWriteFailure:
+    def test_unwritable_output_exits_2(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        from scripts.github_core import api
+
+        repo = type("Repo", (), {"owner": "o", "repo": "r"})()
+        monkeypatch.setattr(api, "resolve_repo_params", lambda _o, _r: repo)
+        pages = iter([{"rateLimit": {"cost": 1, "remaining": 5000}, **prs_page([pr(1)])}])
+        monkeypatch.setattr(api, "gh_graphql", lambda _q, _v: next(pages))
+        blocker = tmp_path / "file"
+        blocker.write_text("x", encoding="utf-8")
+
+        code = _load_miner().main(["--limit", "1", "--output", str(blocker / "d.json")])
+
+        assert code == 2

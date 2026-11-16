@@ -194,6 +194,11 @@ class TestScanSource:
     def test_suppression_comment_silences_its_line(self) -> None:
         assert rules("p.read_text()  # io-portability: ignore fixture bytes\n") == []
 
+    def test_suppression_line_survives_a_form_feed_earlier_in_the_file(self) -> None:
+        source = "# section\x0c break\np.read_text()  # io-portability: ignore fixture\n"
+
+        assert rules(source) == []
+
     def test_suppression_without_a_reason_does_not_silence(self) -> None:
         assert rules("p.read_text()  # io-portability: ignore\n") == ["file-text-encoding"]
 
@@ -225,16 +230,6 @@ class TestMirrorPrefixes:
 
     def test_canonical_skill_scripts_are_checked(self) -> None:
         assert not checker.is_skipped_path("src/claude/skills/x/scripts/y.py")
-
-
-class TestAddedLines:
-    def test_parses_added_ranges_and_ignores_deleted_files(self) -> None:
-        diff = (
-            "+++ b/a.py\n@@ -1,0 +3,2 @@\n@@ -9 +12 @@\n@@ -4,2 +20,0 @@\n"
-            "+++ /dev/null\n@@ -1,3 +0,0 @@\n"
-        )
-
-        assert checker.added_lines(diff) == {"a.py": {3, 4, 12}}
 
 
 def _git(repo: Path, *args: str) -> None:
@@ -321,6 +316,27 @@ class TestScanDiff:
 
         assert len(checker.scan_diff("base", repo)[0]) == 1
 
+    def test_added_line_numbers_reads_an_explicit_commit_pair(self, repo: Path) -> None:
+        _commit(repo, "c.py", "x = 1\nopen('f')\n")
+        head = subprocess.run(
+            ["git", "-C", str(repo), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=True,
+        ).stdout.strip()
+        _commit(repo, "c.py", "x = 1\nopen('f')\ny = 2\n")
+
+        added = checker.added_line_numbers(repo, "base", head)
+
+        assert added == {"c.py": {1, 2}}
+
+    def test_a_line_moved_unchanged_is_not_new(self, repo: Path) -> None:
+        _commit(repo, "old.py", "x = 1\np.read_text()\n")
+
+        assert checker.scan_diff("base", repo)[0] == []
+
     def test_unknown_base_raises(self, repo: Path) -> None:
         with pytest.raises(ValueError, match="no-such-ref"):
             checker.scan_diff("no-such-ref", repo)
@@ -378,6 +394,34 @@ class TestMain:
     @pytest.mark.parametrize("argv", [[], ["a.py", "--base-ref", "main"]])
     def test_neither_or_both_scopes_exit_2(self, argv: list[str]) -> None:
         assert checker.main(argv) == 2
+
+    def test_base_ref_run_from_a_subdirectory_sees_the_whole_diff(
+        self, repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _commit(repo, "pkg/inner/a.py", "open('f')\n")
+        _commit(repo, "top.py", "open('g')\n")
+        monkeypatch.chdir(repo / "pkg")
+
+        assert checker.main(["--base-ref", "base"]) == 1
+
+    def test_base_ref_run_on_a_clean_branch_exits_0(
+        self, repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _commit(repo, "pkg/a.py", "open('f', encoding='utf-8')\n")
+        monkeypatch.chdir(repo / "pkg")
+
+        assert checker.main(["--base-ref", "base"]) == 0
+
+    def test_git_that_cannot_run_is_a_config_error(
+        self, repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def timeout(*_a: object, **_k: object) -> None:
+            raise subprocess.TimeoutExpired("git", 60)
+
+        monkeypatch.setattr(subprocess, "run", timeout)
+
+        with pytest.raises(ValueError, match="could not run"):
+            checker.repository_root()
 
     def test_unreadable_file_exits_2(self, tmp_path: Path) -> None:
         assert checker.main([str(tmp_path / "missing.py")]) == 2

@@ -32,6 +32,8 @@ def _load() -> Any:
 
 replay = _load()
 
+import _third_party_gap_report as report  # noqa: E402
+
 BASE, HEAD, FIX = "a" * 40, "b" * 40, "c" * 40
 PATCH = "+++ b/scripts/tool.py\n@@ -1,0 +1,2 @@\n+line one\n+line two\n"
 CAUGHT = "FINDING: scripts/tool.py:2 | edge-case | drops it\nVERDICT: WARN"
@@ -252,17 +254,17 @@ class TestRateLimitBackoff:
 
 class TestMcNemar:
     def test_no_discordant_pairs_is_p_one(self) -> None:
-        assert replay.mcnemar_exact_p(0, 0) == 1.0
+        assert report.mcnemar_exact_p(0, 0) == 1.0
 
     def test_balanced_discordance_is_p_one(self) -> None:
-        assert replay.mcnemar_exact_p(4, 4) == 1.0
+        assert report.mcnemar_exact_p(4, 4) == 1.0
 
     def test_known_value_for_zero_versus_six(self) -> None:
         # Two-sided exact binomial for 0 of 6 at p = 0.5 is 2 / 64.
-        assert replay.mcnemar_exact_p(0, 6) == 2 / 64
+        assert report.mcnemar_exact_p(0, 6) == 2 / 64
 
     def test_is_symmetric(self) -> None:
-        assert replay.mcnemar_exact_p(2, 9) == replay.mcnemar_exact_p(9, 2)
+        assert report.mcnemar_exact_p(2, 9) == report.mcnemar_exact_p(9, 2)
 
 
 class TestCompare:

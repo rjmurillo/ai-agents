@@ -83,3 +83,63 @@ def test_a_ruff_failure_is_raised_not_scored(monkeypatch: pytest.MonkeyPatch) ->
 
     with pytest.raises(RuntimeError, match="ruff exited 2"):
         gap.ruff_lines("t.py", "x = 1\n", {"PLW1514"})
+
+
+def test_a_failed_shipped_diff_is_an_error_row(monkeypatch: pytest.MonkeyPatch) -> None:
+    def failing(_root: object, base: str, head: str) -> dict[str, set[int]]:
+        raise ValueError(f"git diff {base}...{head} failed")
+
+    monkeypatch.setattr(gap.treatment, "added_line_numbers", failing)
+    row = {
+        "rule": "file-text-encoding",
+        "path": "t.py",
+        "reviewed": "a" * 40,
+        "merge_base": "b" * 40,
+    }
+
+    with pytest.raises(ValueError, match="failed"):
+        gap.shipped_lines(row, "open('f')\n")
+
+
+def test_evaluate_turns_a_tool_timeout_into_an_error_row(monkeypatch: pytest.MonkeyPatch) -> None:
+    import subprocess
+
+    def stalled(*_a: object, **_k: object) -> str:
+        raise subprocess.TimeoutExpired("git", 60)
+
+    monkeypatch.setattr(gap, "git_show", stalled)
+    row = {"thread": "T1", "rule": "file-text-encoding", "path": "t.py", "line": 1,
+           "reviewed": "a" * 40, "final_head": "b" * 40, "merge_base": None}  # fmt: skip
+
+    assert "timed out" in gap.evaluate(row)["error"]
+
+
+def test_unreadable_final_head_is_counted_apart_from_the_control() -> None:
+    rows = [
+        {"split": "heldout", "rule": "r", "baseline_caught": False, "treatment_caught": True,
+         "shipped_caught": True, "final_head_not_lower": None},
+        {"split": "heldout", "rule": "r", "baseline_caught": False, "treatment_caught": True,
+         "shipped_caught": True, "final_head_not_lower": False},
+    ]  # fmt: skip
+
+    out = gap.summarize(rows)
+
+    assert out["heldout"]["final_head_unreadable"] == 1
+    assert out["heldout"]["final_head_not_lower"]["hits"] == 0
+
+
+def test_main_exits_3_when_a_row_cannot_be_scored(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    corpus = tmp_path / "c.json"
+    corpus.write_text(
+        '{"rows": [{"thread": "T1", "rule": "file-text-encoding", "path": "t.py", "line": 1,'
+        ' "reviewed": "--output=x", "final_head": null, "merge_base": null, "split": "derive"}]}',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(gap, "REPO_ROOT", tmp_path)
+
+    code = gap.main(["--corpus", "c.json"])
+
+    assert code == 3
+    assert "T1: reviewed is not a 40-hex commit id" in capsys.readouterr().err
