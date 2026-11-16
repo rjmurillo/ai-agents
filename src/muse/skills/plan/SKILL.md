@@ -1,6 +1,14 @@
 ---
 name: plan
+version: 1.0.0
 description: Decompose a spec into milestones and atomic tasks with dependency ordering, risk register, and complexity sizing. Use when you say `plan how to build this`, `break this into milestones`, or `decompose this spec`, and run it after spec. Do NOT use to decide what to build (use spec), to write the code (use build), or to run or resume an approved plan file through script-driven delegation (use planner).
+license: MIT
+metadata:
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan routes lifecycle requests to this skill
+    user-facing: true
 ---
 
 # Plan

@@ -1,6 +1,22 @@
 ---
 name: security-review
+version: 0.1.1
 description: Security review knowledge delivered as parent-inline context (the form-factor counterpart to the security agent). Threat-models a code change, scores risk with CWE/CVE evidence, and returns a verdict. Use to review a diff or snippet for vulnerabilities when you want the security knowledge inline rather than dispatched to a subagent. Do NOT use for STRIDE attack-surface analysis of a system or architecture; use threat-modeling instead. Do NOT use to decide whether security review is warranted (use security-detection).
+license: MIT
+metadata:
+  capability:
+    kind: specialized-implementation
+    depends-on:
+      - untrusted-content-handling
+    status: active
+  issue: "1875"
+  adr: ADR-058
+  canonical_source: templates/agents/security.shared.md
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan routes diff vulnerability review requests to security-review
+    user-facing: true
 ---
 
 # Security Review

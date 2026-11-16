@@ -1,11 +1,24 @@
 ---
 name: memory-maintenance
+version: 0.1.0
 description: Memory-system maintenance operations, split out of the memory router
   per ADR-063. Runs health checks, token-cost counting, atomicity size
   validation, graph-density improvement, and performance benchmarking against the
   canonical memory scripts. Use when you say `check memory health`, `count memory
   tokens`, or `benchmark memory performance`. Do NOT use for Tier 1 search (use
   memory-search) or recording a session (use memory-reflexion).
+license: MIT
+metadata:
+  adr: ADR-063, ADR-106
+  capability:
+    kind: specialized-implementation
+    status: active
+  parent: memory
+  routing:
+    role: nested-helper
+    invoker: curating-memories
+    trigger: curating-memories routes store health, token, and size checks to memory-maintenance
+    user-facing: false
 ---
 
 # Memory Maintenance

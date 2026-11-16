@@ -1,6 +1,26 @@
 ---
 name: business-strategy
+version: 0.1.0
 description: "Route a founder problem to the right business framework, then load that framework on demand. Distills 14 business books (customer discovery, positioning, pricing, sales, growth, persuasion) into scored, decision-tree skills. Use when you say diagnose my business problem, what framework applies, how do I validate demand, price this, position this, generate leads, or close deals. Do NOT use for software design (use the engineering rules) or for a single named decision (use decision-critic)."
+license: MIT
+metadata:
+  pack: business-strategy
+  jtbd_stages: [Discovery, Validation, Positioning, GoToMarket, Persuasion]
+  source_pattern: getagentseal/founder-playbook (MIT)
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan's long-tail resolver matches a founder business-strategy problem
+    user-facing: true
+    intents:
+      - business strategy
+      - business model
+      - competitive strategy
+      - founder problem
+      - business framework
+      - validate demand
+      - position product
+      - generate leads
 ---
 
 # Business Strategy

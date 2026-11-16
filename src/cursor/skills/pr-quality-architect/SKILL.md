@@ -1,6 +1,8 @@
 ---
 name: pr-quality-architect
+version: 1.0.0
 description: Review a local diff for design patterns, system boundaries, coupling and cohesion, and ADR compliance, and return a PASS/WARN/CRITICAL_FAIL verdict. Use when you say `architect review my changes`, `run the architect gate`, or `does this respect our boundaries`. Do NOT use to run all six axes (use pr-quality-all), and do NOT use to author a new ADR (use architect).
+license: MIT
 metadata:
   routing:
     role: nested-helper
