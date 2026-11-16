@@ -176,19 +176,25 @@ branch first, never on `main`. An agent asks the user before it makes that
 commit. Mounting the git common
 directory works for both a main clone and a linked worktree. The mount is
 read-only, but the container can still read it. Check that no git config file
-in it holds credentials first. The check prints `clean`, or `STOP` followed by
-file names, never the matching text. Read the printed word, not the exit code.
-Mount the directory only after it prints `clean`:
+in it holds credentials first. The check prints `clean`, or a line starting
+with `STOP`. It prints file names, never the matching text, and it prints
+`STOP: check failed` when it cannot read a file. Read the printed word, not
+the exit code. Mount the directory only after it prints `clean`:
 
 ```bash
-hits=$(find "$(git rev-parse --path-format=absolute --git-common-dir)" -type f \
-  \( -name config -o -name config.worktree \) \
-  -exec grep -liE '://[^/@]+@|extraheader' {} +)
-if [ -n "$hits" ]; then printf 'STOP: credentials in:\n%s\n' "$hits"; else echo clean; fi
+dir=$(git rev-parse --path-format=absolute --git-common-dir) || dir=/nonexistent
+hits=$(grep -rliE --include=config --include=config.worktree '://[^/@]+@|extraheader' "$dir")
+case $? in
+  0) printf 'STOP: credentials in:\n%s\n' "$hits" ;;
+  1) echo clean ;;
+  *) echo 'STOP: check failed' ;;
+esac
 ```
 
 `ubuntu:latest` resolved to the same image as `ubuntu:26.04` on 2026-11-15.
-Name `26.04` so the recipe keeps working when `latest` moves.
+Name `26.04` so the recipe keeps working when `latest` moves. An agent asks
+the user before it runs this block, since it pulls an image and runs the
+branch's code with network access.
 
 ```bash
 docker run --rm \
