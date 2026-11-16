@@ -119,3 +119,49 @@ class TestSelectionText:
 
         assert ("#7001 to #8000" in text, "PR >= 7650" in text) == (True, True)
         assert "PR >= 7650" in cli.REPLAY_RULE.format(cutoff=7650)
+
+
+class TestWriteGuard:
+    def test_write_under_the_checkout_from_outside_it_is_refused(
+        self, cli: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import shutil
+        import uuid
+
+        # Under .pytest_tmp/ and removed afterwards, so a regressed guard leaves no artifact.
+        out = cli.REPO_ROOT / ".pytest_tmp" / f"refused-write-{uuid.uuid4().hex}"
+        monkeypatch.chdir(tmp_path)
+        try:
+            code = cli.write({"findings.jsonl": "x\n"}, out, {})
+
+            assert code == 2
+            assert not out.exists()
+        finally:
+            shutil.rmtree(out, ignore_errors=True)
+
+    def test_write_to_a_directory_outside_the_checkout_is_allowed(
+        self, cli: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+
+        code = cli.write({"findings.jsonl": "x\n"}, tmp_path, {})
+
+        assert code == 0
+        assert (tmp_path / "findings.jsonl").read_text(encoding="utf-8") == "x\n"
+
+    def test_write_under_the_checkout_from_inside_it_is_allowed(
+        self, cli: Any, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import shutil
+        import uuid
+
+        out = cli.REPO_ROOT / ".pytest_tmp" / f"corpus-write-{uuid.uuid4().hex}"
+        out.mkdir(parents=True)
+        monkeypatch.chdir(cli.REPO_ROOT)
+        try:
+            code = cli.write({"findings.jsonl": "x\n"}, out, {})
+
+            assert code == 0
+            assert (out / "findings.jsonl").read_text(encoding="utf-8") == "x\n"
+        finally:
+            shutil.rmtree(out)
