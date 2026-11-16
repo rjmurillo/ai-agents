@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size -- pre-existing debt, one test module per script under test
 """Tests for test_pr_merge_ready.py skill script."""
 
 from __future__ import annotations
@@ -43,6 +44,8 @@ build_parser = _mod.build_parser
 check_merge_readiness = _mod.check_merge_readiness
 stale_dirty_suspected = _mod.stale_dirty_suspected
 classify_tier = _mod.classify_tier
+# Captured before the autouse fixture stubs it, for tests that need the real lookup.
+_REAL_FETCH_RULESET = _mod.fetch_ruleset_required_contexts
 
 
 @pytest.fixture(autouse=True)
@@ -3203,13 +3206,7 @@ class TestMissingRulesetRequiredChecks:
 
     def test_ruleset_lookup_timeout_returns_readiness_json(self, monkeypatch):
         """A gh timeout must produce a verdict, not abort the probe (issue: Devin thread)."""
-        from github_core import checks_rollup
-
-        monkeypatch.setattr(
-            _mod,
-            "fetch_ruleset_required_contexts",
-            checks_rollup.fetch_ruleset_required_contexts,
-        )
+        monkeypatch.setattr(_mod, "fetch_ruleset_required_contexts", _REAL_FETCH_RULESET)
         timeout = subprocess.TimeoutExpired(cmd=["gh", "api"], timeout=30)
         with (
             patch("test_pr_merge_ready.gh_graphql", return_value=_OPEN_PR),
