@@ -17,11 +17,12 @@ and the merge gate from the github skill's ``why_pr_blocked.py``.
   ready       required checks pass on the current head, no unresolved review
               thread, and the branch is not BEHIND, DIRTY, or a draft (default)
   green       required checks pass on the current head
-  any-change  stop after the first poll that prints an event
+  any-change  ready, but also stop after the first poll that prints an event
 
 Events: head, check (a required check failed), green, comment, review,
 thread, activity (more arrived than one poll lists), base, merge-state
-(BEHIND or DIRTY), blocked (always precedes exit 1), merged, closed.
+(BEHIND or DIRTY), ready (precedes a ready exit 0), blocked (precedes
+exit 1), merged, closed, and unreachable (precedes exit 3).
 Comments, reviews, and threads by the PR author or by you are skipped.
 
 Exit codes (ADR-035):
@@ -29,9 +30,9 @@ Exit codes (ADR-035):
   1  a new blocker needs action: a required check failed or never reported,
      the branch is DIRTY, the PR closed, or (ready) unresolved threads,
      BEHIND, draft, a required review, or a changes-requested review block it
-     after required checks pass. A ready exit also waits SETTLE_SECONDS after
-     this watcher first saw the head, so review bots can post. A blocker already reported to an earlier run
-     does not exit again; the watcher keeps waiting for it to clear.
+     after required checks pass. A ready exit waits SETTLE_SECONDS after this
+     watcher first saw the head, so review bots can post. A blocker already
+     reported does not exit again; the watcher waits for it to clear.
   2  bad arguments, the PR does not exist, another pr_wait already watches
      this PR, or why_pr_blocked.py returned a payload missing a key
   3  GitHub stayed unreachable for MAX_FAILED_POLLS consecutive polls
@@ -74,7 +75,7 @@ _script_dir = os.path.dirname(os.path.abspath(__file__))
 if _script_dir not in sys.path:
     sys.path.insert(0, _script_dir)
 
-from pr_wait_activity import diff_activity  # noqa: E402 - needs the script directory
+from pr_wait_activity import diff_activity, review_blockers  # noqa: E402 - needs the script directory
 from pr_wait_state import (  # noqa: E402 - needs the script directory on sys.path
     Json,
     State,
@@ -225,31 +226,13 @@ def diff_pr(state: State, pr: Json, baseline: bool) -> Poll:
     state.merge_state = merge_state
     if merge_state == "DIRTY":
         poll.blockers.add(f"dirty:{_short(head)}:{_short(base_oid)}")
-    poll.blockers.update(_review_blockers(pr, head))
+    poll.blockers.update(review_blockers(pr, head))
     poll.open_threads = {
         str(t.get("id"))
         for t in ((pr.get("reviewThreads") or {}).get("nodes") or [])
         if t.get("id") and not t.get("isResolved") and not t.get("isOutdated")
     }
     return poll
-
-
-def _review_blockers(pr: Json, head: str) -> set[str]:
-    """Draft and review-decision blockers; these gate ready only."""
-    blockers = {"draft"} if pr.get("isDraft") else set()
-    decision = pr.get("reviewDecision")
-    if decision == "CHANGES_REQUESTED":
-        blockers.add(f"changes-requested:{_latest_change_request(pr) or _short(head)}")
-    elif decision == "REVIEW_REQUIRED":
-        blockers.add("review-required")
-    return blockers
-
-
-def _latest_change_request(pr: Json) -> str:
-    """Id of the newest CHANGES_REQUESTED review, so a push does not re-arm it."""
-    nodes = ((pr.get("reviews") or {}).get("nodes")) or []
-    ids = [str(n.get("id", "")) for n in nodes if n.get("state") == "CHANGES_REQUESTED"]
-    return ids[-1] if ids else ""
 
 
 def evaluate_gate(state: State, gate: Json, until: str, poll: Poll) -> None:
@@ -279,11 +262,14 @@ def evaluate_gate(state: State, gate: Json, until: str, poll: Poll) -> None:
     if green and state.green_head != state.head:
         poll.events.append(f"green: required checks passed on {_short(state.head)}")
         state.green_head = state.head
+    elif not green:
+        # A rerun can turn the same head red, then green again; report each recovery.
+        state.green_head = ""
 
     if until == "green":
         poll.blockers = {b for b in poll.blockers if b.startswith(GREEN_BLOCKERS)}
         poll.done = 0 if green and not poll.blockers else None
-    elif until == "ready":
+    else:
         _ready_verdict(state, gate, poll, green)
 
 
@@ -306,6 +292,7 @@ def _ready_verdict(state: State, gate: Json, poll: Poll, green: bool) -> None:
     # Settle on when this watcher first saw the head instead.
     settled = time.time() - state.head_seen_at >= SETTLE_SECONDS
     if not poll.blockers and settled and state.merge_state in READY_MERGE_STATES:
+        poll.events.append(f"ready: {_short(state.head)} can merge once the merge gate agrees")
         poll.done = 0
 
 
@@ -391,8 +378,6 @@ def settle(state: State, poll: Poll, until: str) -> int | None:
         return poll.done
     if "closed" in poll.blockers:
         return 1
-    if until == "any-change":
-        return 0 if poll.events else None
     new = poll.blockers - state.blockers
     if poll.ready_checked:
         state.blockers = set(poll.blockers)
@@ -404,6 +389,8 @@ def settle(state: State, poll: Poll, until: str) -> int | None:
     if new:
         poll.events.append(f"blocked: {', '.join(sorted(new))}")
         return 1
+    if until == "any-change" and poll.events:
+        return 0
     return poll.done
 
 
@@ -478,6 +465,8 @@ def run(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Watch one pull request and print one line per real event.",
+        epilog=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("pr", help="PR number or PR URL")
     parser.add_argument("--repo", default=None, help="owner/name; default from URL or checkout")

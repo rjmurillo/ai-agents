@@ -229,7 +229,9 @@ def test_restart_with_known_blocker_waits_until_ready(
     monkeypatch.setattr(pw, "fetch_gate", lambda *_a: next(gates))
 
     assert pw.main(["5", "--repo", "o/r"]) == 0
-    assert capsys.readouterr().out == ""
+    assert capsys.readouterr().out.splitlines() == [
+        "ready: aaaaaaa can merge once the merge gate agrees"
+    ]
 
 
 def test_main_exits_two_on_graphql_not_found(
@@ -419,3 +421,41 @@ def test_push_then_green_does_not_rearm_changes_requested(
 
     assert pw.main(["5", "--repo", "o/r"]) == 0
     assert "blocked:" not in capsys.readouterr().out
+
+
+def test_any_change_exits_when_last_thread_resolves_silently(
+    isolated_state: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    pw.save_state(
+        isolated_state / "o+r+5.json",
+        pw.State(head="a" * 40, base_oid="b" * 40, blockers={"thread:t1"}, head_seen_at=1.0),
+    )
+    monkeypatch.setattr(pw, "fetch_snapshot", lambda *_a: (_pr(mergeStateStatus="CLEAN"), "me"))
+    monkeypatch.setattr(pw, "fetch_gate", lambda *_a: _gate())
+
+    assert pw.main(["5", "--repo", "o/r", "--until", "any-change"]) == 0
+    assert capsys.readouterr().out.startswith("green:")
+
+
+def test_any_change_reports_an_absent_check(
+    isolated_state: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    pw.save_state(
+        isolated_state / "o+r+5.json",
+        pw.State(head="a" * 40, base_oid="b" * 40, green_head="a" * 40, head_seen_at=1.0),
+    )
+    gate = _gate(MissingRequired=["e2e"], AbsentRequired=["e2e"])
+    monkeypatch.setattr(pw, "fetch_snapshot", lambda *_a: (_pr(), "me"))
+    monkeypatch.setattr(pw, "fetch_gate", lambda *_a: gate)
+
+    assert pw.main(["5", "--repo", "o/r", "--until", "any-change"]) == 1
+    assert capsys.readouterr().out.splitlines()[-1] == "blocked: absent:e2e:aaaaaaa"
+
+
+def test_help_lists_the_exit_codes(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit):
+        pw.main(["--help"])
+
+    out = capsys.readouterr().out
+    assert "Exit codes" in out
+    assert "unreachable" in out

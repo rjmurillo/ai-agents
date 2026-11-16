@@ -468,3 +468,21 @@ def test_resolving_one_of_two_threads_stays_quiet() -> None:
 
     assert _cycle(state, {"t2"}) is None
     assert state.blockers == {"thread:t2"}
+
+
+def test_rerun_recovery_on_same_head_reports_green_again() -> None:
+    state = pw.State(head="a" * 40, green_head="a" * 40)
+
+    failed = _gate_poll(state, _gate(FailingRequired=["ci"]), "green")
+    recovered = _gate_poll(state, _gate(), "green")
+
+    assert failed.events == ["check: ci failed on aaaaaaa"]
+    assert recovered.events == ["green: required checks passed on aaaaaaa"]
+
+
+def test_ready_exit_prints_a_ready_line() -> None:
+    state = pw.State(head="a" * 40, merge_state="CLEAN")
+
+    poll = _gate_poll(state, _gate(), "ready")
+
+    assert poll.events[-1] == "ready: aaaaaaa can merge once the merge gate agrees"

@@ -99,3 +99,21 @@ def diff_activity(state: State, pr: Json, viewer: str, baseline: bool) -> list[s
     for thread in _nodes(threads):
         notes.thread(thread)
     return notes.finish(thread_total)
+
+
+def review_blockers(pr: Json, head: str) -> set[str]:
+    """Draft and review-decision blockers; these gate ready only."""
+    blockers = {"draft"} if pr.get("isDraft") else set()
+    decision = pr.get("reviewDecision")
+    if decision == "CHANGES_REQUESTED":
+        blockers.add(f"changes-requested:{_latest_change_request(pr) or head[:7]}")
+    elif decision == "REVIEW_REQUIRED":
+        blockers.add("review-required")
+    return blockers
+
+
+def _latest_change_request(pr: Json) -> str:
+    """Id of the newest CHANGES_REQUESTED review, so a push does not re-arm it."""
+    nodes = ((pr.get("reviews") or {}).get("nodes")) or []
+    ids = [str(n.get("id", "")) for n in nodes if n.get("state") == "CHANGES_REQUESTED"]
+    return ids[-1] if ids else ""

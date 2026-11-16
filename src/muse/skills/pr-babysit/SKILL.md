@@ -134,8 +134,10 @@ Run the watcher through the plugin locator:
 `<pr>` is a PR number or URL. Add `--repo owner/name` when the checkout is not
 the PR's repository. It prints one line per real event (`head`, `check`,
 `green`, `comment`, `review`, `thread`, `activity`, `base`, `merge-state`,
-`blocked`, `merged`, `closed`) and nothing else on stdout. Every exit 1
-prints a `blocked:` or `closed` line first.
+`ready`, `blocked`, `merged`, `closed`) and nothing else on stdout, except one
+`unreachable:` line right before exit 3. Every exit 1 prints a `blocked:` or
+`closed` line first, and a ready exit 0 prints a `ready:` line. `--help` lists
+the exit codes.
 
 Exit codes:
 
@@ -155,7 +157,8 @@ push. A blocker only a person can clear (a required review, a reviewer's
 thread) exits 1 once, then the restarted watcher waits for it quietly, across
 pushes, until a green poll shows it cleared. A required check counts as never
 reported only 45 minutes after the watcher first saw the head. `green` needs required
-checks only. `any-change` exits on the first event.
+checks only. `any-change` applies the `ready` rules and also exits on the
+first event.
 
 The gate reads required checks from the base-branch ruleset through
 `why_pr_blocked.py`, so it matches what branch protection enforces. The
