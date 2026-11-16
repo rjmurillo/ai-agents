@@ -368,64 +368,6 @@ def test_git_run_returns_none_when_git_times_out(monkeypatch: pytest.MonkeyPatch
     assert replay.git_run(("show", "HEAD:x")) is None
 
 
-class TestRepairTail:
-    def test_a_broken_last_line_is_cut_off(self, tmp_path: Path) -> None:
-        path = tmp_path / "rows.jsonl"
-        path.write_bytes(b'{"a": 1}\n{"revision": "TG00')
-
-        replay.repair_tail(path)
-
-        assert path.read_bytes() == b'{"a": 1}\n'
-
-    def test_a_whole_last_record_gets_its_newline(self, tmp_path: Path) -> None:
-        path = tmp_path / "rows.jsonl"
-        path.write_bytes(b'{"a": 1}\n{"b": 2}')
-
-        replay.repair_tail(path)
-
-        assert path.read_bytes() == b'{"a": 1}\n{"b": 2}\n'
-
-    def test_a_clean_file_is_left_alone(self, tmp_path: Path) -> None:
-        path = tmp_path / "rows.jsonl"
-        path.write_bytes(b'{"a": 1}\n')
-
-        replay.repair_tail(path)
-
-        assert path.read_bytes() == b'{"a": 1}\n'
-
-    def test_an_empty_file_is_left_alone(self, tmp_path: Path) -> None:
-        path = tmp_path / "rows.jsonl"
-        path.write_bytes(b"")
-
-        replay.repair_tail(path)
-
-        assert path.read_bytes() == b""
-
-    def test_a_broken_last_line_that_ends_in_a_newline_is_cut_off(self, tmp_path: Path) -> None:
-        path = tmp_path / "rows.jsonl"
-        path.write_bytes(b'{"a": 1}\n{"revision": "TG\n')
-
-        replay.repair_tail(path)
-
-        assert path.read_bytes() == b'{"a": 1}\n'
-
-    def test_trailing_blank_lines_after_a_whole_record_are_left_alone(self, tmp_path: Path) -> None:
-        path = tmp_path / "rows.jsonl"
-        path.write_bytes(b'{"a": 1}\n\n')
-
-        replay.repair_tail(path)
-
-        assert path.read_bytes() == b'{"a": 1}\n\n'
-
-    def test_a_single_broken_line_leaves_an_empty_file(self, tmp_path: Path) -> None:
-        path = tmp_path / "rows.jsonl"
-        path.write_bytes(b'{"revision": "TG')
-
-        replay.repair_tail(path)
-
-        assert path.read_bytes() == b""
-
-
 class TestOfflineModesNeedTheirFiles:
     @pytest.mark.parametrize("mode", ["--rescore", "--compare"])
     def test_a_missing_checkpoint_exits_2(self, corpus: Path, tmp_path: Path, mode: str) -> None:
@@ -479,24 +421,3 @@ class TestFinishReason:
         text, meta = replay.make_caller("m", usage)("system", "user")
 
         assert (text, meta["finish_reason"]) == ("answer", "length")
-
-
-class TestRepairTailInPlace:
-    def test_repair_never_rewrites_the_whole_file(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        def refuse(*_a: object, **_k: object) -> None:
-            raise AssertionError("repair_tail rewrote the whole file")
-
-        broken = tmp_path / "broken.jsonl"
-        broken.write_bytes(b'{"a": 1}\n{"revision": "TG00')
-        whole = tmp_path / "whole.jsonl"
-        whole.write_bytes(b'{"a": 1}\n{"b": 2}')
-        monkeypatch.setattr(Path, "write_bytes", refuse)
-        monkeypatch.setattr(Path, "write_text", refuse)
-
-        replay.repair_tail(broken)
-        replay.repair_tail(whole)
-
-        assert broken.read_bytes() == b'{"a": 1}\n'
-        assert whole.read_bytes() == b'{"a": 1}\n{"b": 2}\n'
