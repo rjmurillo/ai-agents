@@ -58,7 +58,7 @@ You have direct access to:
 
 ## Reference Loading
 
-QA references live under `${CLAUDE_PLUGIN_ROOT}/skills/test/references/`. They serve this agent; the `test` skill runs the six proof gates. Read one only when its condition holds. If the path does not resolve (a harness with no skill tree, such as the VS Code agent list), apply the rules in this file and state that the reference was unavailable.
+QA references live under `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/test/references/`. They serve this agent; the `test` skill runs the six proof gates. Read one only when its condition holds. If the path does not resolve (a harness with no skill tree, such as the VS Code agent list), apply the rules in this file and state that the reference was unavailable.
 
 - `qa-impact-analysis.md`: milestone-planner asks for impact analysis and you are writing the deliverable.
 - `qa-test-quality-patterns.md`: you are reviewing tests for sufficiency or flagging insufficient tests.

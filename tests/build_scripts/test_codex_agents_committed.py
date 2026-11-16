@@ -45,6 +45,17 @@ BODY_EDITS = {
         ),
     ]
 }
+# The Claude source renders bare ${CLAUDE_PLUGIN_ROOT} on these reference paths;
+# a Codex shell sets no plugin-root variable, so the copy keeps the shared root.
+SPLIT_REFERENCE_SKILLS = (
+    "adr-review",
+    "decision-critic",
+    "build",
+    "autoplan",
+    "test",
+    "security-scan",
+)
+SHARED_ROOT = "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
 _FRONTMATTER = re.compile(r"\A---\n(.*?)\n---\n(.*)\Z", re.DOTALL)
 _EXCLUDED = {"AGENTS.md", "CLAUDE.md"}
 
@@ -94,6 +105,9 @@ def test_disallows_agent_reads_both_input_forms(value: object, expected: bool) -
 def problems_with(stem: str, committed_text: str) -> list[str]:
     """Differences between a committed file's text and what the source should produce."""
     front, body = _read_source(stem)
+    for skill in SPLIT_REFERENCE_SKILLS:
+        suffix = f"/skills/{skill}/references/"
+        body = body.replace("${CLAUDE_PLUGIN_ROOT}" + suffix, SHARED_ROOT + suffix)
     for old, new in BODY_EDITS.get(stem, []):
         body = body.replace(old, new)
     try:

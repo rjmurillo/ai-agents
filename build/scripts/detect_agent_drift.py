@@ -71,6 +71,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+
+from split_reference_roots import restore_shared_reference_roots  # noqa: E402
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
@@ -303,16 +309,6 @@ _HANDOFF_PATTERNS = (
     (re.compile(r"`/agent\s+(\w+)`"), r"`invoke \1`"),
 )
 
-_REFERENCE_ROOT_PATTERNS = (
-    (
-        re.compile(
-            r"\$\{(?:CLAUDE_PLUGIN_ROOT|COPILOT_PLUGIN_ROOT)\}"
-            r"(/skills/(?:adr-review|decision-critic|build|autoplan|test|security-scan)/references/)"
-        ),
-        r"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}\1",
-    ),
-)
-
 _CODE_BLOCK_LANG = re.compile(r"```(bash|powershell|text|markdown|python)")
 _MULTI_BLANK_LINES = re.compile(r"\n{3,}")
 _WORD_SPLIT = re.compile(r"\W+")
@@ -439,8 +435,7 @@ def normalize_content(content: str) -> str:
     for pattern, replacement in _HANDOFF_PATTERNS:
         result = pattern.sub(replacement, result)
 
-    for pattern, replacement in _REFERENCE_ROOT_PATTERNS:
-        result = pattern.sub(replacement, result)
+    result = restore_shared_reference_roots(result)
 
     result = _CODE_BLOCK_LANG.sub("```", result)
 

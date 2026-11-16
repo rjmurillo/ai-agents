@@ -43,9 +43,10 @@ _HARNESS_FACT = (
     "one harness, not a command."
 )
 _SPLIT_AGENT_REF = (
-    "Build-rendered Claude host path for split-agent skill references; "
-    "authored templates keep the dual-variable fallback and Copilot CLI renders "
-    "COPILOT_PLUGIN_ROOT."
+    "Build-rendered Claude Code path for split-agent skill references. Keyed to "
+    "src/claude only: authored templates keep the dual-variable fallback, Copilot CLI "
+    "renders COPILOT_PLUGIN_ROOT, and the Cursor, Muse, and Codex copies restore the "
+    "fallback (split_reference_roots.py)."
 )
 
 # Rule 4 (single-root): files that may name the Claude plugin-root variable
@@ -54,15 +55,12 @@ _SPLIT_AGENT_REF = (
 # (number of standalone statements per copy, reason). The checker fails when a
 # file holds more, or fewer, than the count, and when a key matches no file.
 SINGLE_ROOT_ALLOWANCES: dict[str, tuple[int, str]] = {
-    "agents/architect.md": (1, _SPLIT_AGENT_REF),
-    "agents/critic.md": (1, _SPLIT_AGENT_REF),
-    "agents/implementer.md": (1, _SPLIT_AGENT_REF),
-    "agents/orchestrator.md": (1, _SPLIT_AGENT_REF),
-    "agents/qa.md": (1, _SPLIT_AGENT_REF),
-    "agents/security.md": (1, _SPLIT_AGENT_REF),
-    "agents/critic.toml": (1, _SPLIT_AGENT_REF),
-    "agents/implementer.toml": (1, _SPLIT_AGENT_REF),
-    "agents/orchestrator.toml": (1, _SPLIT_AGENT_REF),
+    "src/claude/agents/architect.md": (1, _SPLIT_AGENT_REF),
+    "src/claude/agents/critic.md": (1, _SPLIT_AGENT_REF),
+    "src/claude/agents/implementer.md": (1, _SPLIT_AGENT_REF),
+    "src/claude/agents/orchestrator.md": (1, _SPLIT_AGENT_REF),
+    "src/claude/agents/qa.md": (1, _SPLIT_AGENT_REF),
+    "src/claude/agents/security.md": (1, _SPLIT_AGENT_REF),
     "src/claude/hooks/hooks.json": (1, _CLAUDE_HOOK),
     "hooks/invoke_dispatch_claude.py": (4, _CLAUDE_HOOK),
     "hooks/PreCompact/invoke_compact_checkpoint.py": (1, _CLAUDE_HOOK),

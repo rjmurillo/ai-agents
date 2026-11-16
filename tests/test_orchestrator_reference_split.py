@@ -41,16 +41,12 @@ ORCHESTRATOR_PATHS = (
 
 
 def _expected_path_form(path: Path) -> str:
-    if path.parts[0] in ("templates", "src") and path.name in (
-        "orchestrator.shared.md",
-        "orchestrator.agent.md",
-    ):
-        if "copilot-cli" in path.parts:
-            return COPILOT_PATH_FORM
-        return SHARED_PATH_FORM
-    if ".github" in path.parts:
+    """Claude Code renders its bare root, Copilot CLI its own; every other copy keeps both."""
+    if path.parts[:2] in {(".claude", "agents"), ("src", "claude")}:
+        return CLAUDE_PATH_FORM
+    if ".github" in path.parts or "copilot-cli" in path.parts:
         return COPILOT_PATH_FORM
-    return CLAUDE_PATH_FORM
+    return SHARED_PATH_FORM
 
 
 # reference file -> (stub heading in the body, load condition phrase in Reference Loading)

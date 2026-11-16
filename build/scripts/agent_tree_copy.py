@@ -93,6 +93,7 @@ from agent_tools import is_readonly_tool as is_readonly_tool  # noqa: E402  re-e
 from atomic_write import publish_bytes_preserving_mode  # noqa: E402
 from generate_agents_common import read_yaml_frontmatter  # noqa: E402
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
+from split_reference_roots import restore_shared_reference_roots  # noqa: E402
 from yaml_loader import ConfigError, load_platform_config, validate_relative_path  # noqa: E402
 
 T = TypeVar("T")
@@ -178,6 +179,10 @@ def render_parsed(
     kept = {key: loaded[key] for key in spec.keep if key in loaded}
     if spec.derive_readonly and derive_readonly(loaded):
         kept[_READONLY_KEY] = True
+    # The source is a Claude Code render. Its bare Claude plugin-root reference
+    # paths resolve only where Claude Code rewrites them, so a copy for another
+    # host keeps the shared fallback root (ADR-115: no plugin-root variable there).
+    body = restore_shared_reference_roots(body)
     if body_edits:
         body = apply_body_replacements(body, body_edits, source)
     is_codex = spec.output_format == FORMAT_CODEX_TOML
