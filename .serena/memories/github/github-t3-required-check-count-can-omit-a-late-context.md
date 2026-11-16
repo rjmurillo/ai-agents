@@ -2,22 +2,27 @@
 
 ## Statement
 
-A required context that has not reported is absent, not pending.
-A count of passed required checks then reads complete when it is not.
-The T3 PR watcher said "All 8 required checks passed" on PR #7402.
+On PR #7402, the T3 PR watcher said "All 8 required checks passed".
 The ruleset listed 9 required contexts on 2026-11-16.
-Compare against `fetch_ruleset_required_contexts` in `scripts/github_core/checks_rollup.py`.
-A non-empty set difference means a required context is still missing.
+The ninth, `Run Python Tests`, had not reported at all.
+So the watcher count and a `merge_pr.py --dry-run` PASS do not prove the ruleset is met.
+`get_pr_checks.py` reads the ruleset and reports the gap as `MissingRequiredChecks`.
 
 ## Practice
 
-- Read the required set from the ruleset, not from the watcher's count.
-- `merge_pr.py --dry-run` passed while the real merge was refused.
-- So a dry-run PASS does not prove the ruleset is met.
+- Read `MissingRequiredChecks` and the required state from `get_pr_checks.py`.
+- Inside the grace window after a push, it reports an absent aggregate check as queued (#6389).
+- Fallback: diff the PR's checks against `fetch_ruleset_required_contexts` in `scripts/github_core/checks_rollup.py`.
+- That function returns `None` when the API call fails. Treat `None` as unknown, not as an empty list.
 - With the head reviewed and a context still missing, arm auto-merge.
 - Use `merge_pr.py --strategy squash --auto --expected-head-sha <full head SHA>`.
 - GitHub then merges once the last context reports.
-- `diagnosing-a-blocked-pr.md` covers the case with nothing missing.
+
+## How this differs from nearby memories
+
+- `diagnosing-a-blocked-pr.md` covers what `get_pr_checks.py` reports for a late context.
+- This memory covers two signals that do not see it: the T3 watcher count and `--dry-run`.
+- `github-merge-rest-is-authoritative-blocked-is-not.md` saw the same error with every check green (#4362).
 
 ## Evidence (PR #7402, head a75fc4dd7, 2026-11-16)
 
@@ -25,13 +30,11 @@ A non-empty set difference means a required context is still missing.
 - OBSERVED 15:43:33Z: `merge_pr.py --dry-run` returned "PR #7402 would be merged".
 - OBSERVED 15:44:07Z: the real call failed with "the base branch policy prohibits the merge".
 - OBSERVED 15:44:58Z: the ruleset listed 9 contexts. `get_pr_checks.py` showed 8 required rows.
-- OBSERVED: `Run Python Tests` was not in that list at all.
+- OBSERVED: `Run Python Tests` was not among those rows.
+- NOT RECORDED: the `MissingRequiredChecks` value at 15:44:58Z was not printed.
 - OBSERVED 15:45:13Z: auto-merge was armed on the full head SHA. The PR merged as 0b070c14b.
-- INFERRED: the context appears late because its job waits on others.
-- The `test-result` job in `.github/workflows/pytest.yml` has a long `needs:` list.
-- INFERRED: the refusal came from the missing context.
-- `github-merge-rest-is-authoritative-blocked-is-not.md` saw the same error with every check green (#4362).
-- An empty set difference points to that memory's case instead.
+- INFERRED: the context reports late because the `test-result` job in `.github/workflows/pytest.yml` waits on 7 other jobs.
+- INFERRED: the refusal came from the missing context, not from the #4362 case.
 
 ## Related
 

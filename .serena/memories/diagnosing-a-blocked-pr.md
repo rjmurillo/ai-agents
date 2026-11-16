@@ -144,5 +144,4 @@ Statement: before an agent labels a PR `blocked:human`, it reads the unresolved 
 
 Evidence: OBSERVED 2026-10-24 on the PR for issue #6896, which is #6899 (INFERRED from matching titles; the label itself is not re-checked). The agent labeled it `blocked:human` and blamed a non-required advisory check. The real block was one unresolved review thread. `get_pr_context.py` reports `review_thread_unresolved_count`, and `get_pr_checks.py` reports required check state.
 
-
-Related: a required context that has not reported yet is a different case. See `github/github-t3-required-check-count-can-omit-a-late-context.md`.
+Related: the T3 watcher count and `merge_pr.py --dry-run` do not see a late context. See `github/github-t3-required-check-count-can-omit-a-late-context.md`.

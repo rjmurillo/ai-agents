@@ -108,4 +108,4 @@ reports a clean result that is not real. Use the paginating skill script.
 
 - Issue #4362, this defect.
 - Issue #4359, the sibling defect in `get_pr_checks.py`.
-- `github-t3-required-check-count-can-omit-a-late-context.md`, the same error with a required context not yet reported.
+- `github-t3-required-check-count-can-omit-a-late-context.md`, the same error while a required context had not reported yet.
