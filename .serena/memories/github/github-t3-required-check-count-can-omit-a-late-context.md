@@ -15,7 +15,7 @@ So the watcher count and a `merge_pr.py --dry-run` PASS do not prove the ruleset
 - Fallback: diff the PR's checks against `fetch_ruleset_required_contexts` in `scripts/github_core/checks_rollup.py`.
 - That function returns `None` when the API call fails. Treat `None` as unknown, not as an empty list.
 - With the head reviewed and a context still missing, arm auto-merge.
-- Use `merge_pr.py --strategy squash --auto --expected-head-sha <full head SHA>`.
+- Use `merge_pr.py --pull-request <N> --strategy squash --auto --expected-head-sha <full head SHA>`.
 - GitHub then merges once the last context reports.
 
 ## How this differs from nearby memories
