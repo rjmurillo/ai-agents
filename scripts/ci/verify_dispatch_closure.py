@@ -24,16 +24,13 @@ itself closes that. This module runs the same verification from the base ref:
   * every file in that closure is compared byte for byte with the base ref, and a
     dynamic load the resolver cannot resolve is reported, as the gate reports it.
 
-It reuses the gate's own functions (`_collect_command_paths`,
-`_expand_import_closure`, `_unresolvable_dynamic_sites`) instead of restating
-them, so a fix to the gate reaches this check.
+It reuses the gate's own functions (`_collect_command_paths`, `_expand_import_closure`,
+`_unresolvable_dynamic_sites`), so a fix to the gate reaches this check.
 
-What this changes and what it does not. A change to the dispatcher, its config or
-a named verifier is now reported by a job whose definition the pull request cannot
-edit. It is reported, not blocked: the job's context is not a required check, and
-pinning it needs the publisher App ADR-101 requirement 2 describes. A legitimate
-change to a verifier reports here too, exactly as it halts the local gate until a
-human approves it.
+A change to the dispatcher, its config or a named verifier is reported by a job the
+pull request cannot edit. It is reported, not blocked: the context is not a required
+check (pinning it needs the publisher App of ADR-101 requirement 2). A legitimate
+verifier change reports here too, as it halts the local gate until a human approves.
 
 Every comparison is against the base ref tip, never the merge base: a head
 behind the base runs the old copy of a file the base moved. With `--head-sha`, a
@@ -44,8 +41,8 @@ base, because many agents merge at once. Every other finding still fails (issue 
 EXIT CODES (ADR-035):
   0 - the head's dispatch closure matches the base ref, apart from files
       reported STALE
-  1 - files differ, are removed or new, a symlink was added, or a dynamic
-      load cannot be resolved (stale files alone exit 0)
+  1 - files differ, are removed or new, a non-exempt symlink was added, or a
+      dynamic load cannot be resolved (STALE and EXEMPT findings alone exit 0)
   2 - configuration: a tree, the base config or the dispatcher cannot be read
 """
 
@@ -86,14 +83,13 @@ STALE_REMEDY = (
 _PR_NUMBER = 1  # command templates substitute {pr}; the value does not change which files are named
 
 
-def _load_ref_links() -> ModuleType:
-    """Load ``_ref_links.py`` from this file's own directory, the trusted tool root.
+def _load_sibling(name: str) -> ModuleType:
+    """Load ``<name>.py`` by path from this trusted tool root, never by name.
 
-    Loaded by path, never by name, so neither ``sys.path`` nor the head work tree
-    can substitute it; it works the same run as a script and imported as a package.
+    Neither ``sys.path`` nor the head work tree can substitute it.
     """
-    path = Path(__file__).resolve().parent / "_ref_links.py"
-    spec = importlib.util.spec_from_file_location("verify_dispatch_closure_ref_links", path)
+    path = Path(__file__).resolve().parent / f"{name}.py"
+    spec = importlib.util.spec_from_file_location(f"verify_dispatch_closure{name}", path)
     if spec is None or spec.loader is None:
         raise ImportError(f"cannot load {path}")
     module = importlib.util.module_from_spec(spec)
@@ -101,7 +97,8 @@ def _load_ref_links() -> ModuleType:
     return module
 
 
-_REF_LINKS = _load_ref_links()
+_REF_LINKS = _load_sibling("_ref_links")
+_EXEMPTION = _load_sibling("_link_exemption")
 _base_blob = _REF_LINKS.base_blob
 _blob_id = _REF_LINKS.blob_id
 _in_ref = _REF_LINKS.in_ref
@@ -124,6 +121,7 @@ class Report:
     removed: list[str] = field(default_factory=list)
     added: list[str] = field(default_factory=list)
     symlinks: list[str] = field(default_factory=list)
+    exempt: list[str] = field(default_factory=list)
     unresolved: list[str] = field(default_factory=list)
     stale: list[str] = field(default_factory=list)
 
@@ -139,6 +137,7 @@ class Report:
             "changed": sorted(self.changed),
             "removed": sorted(self.removed),
             "symlinks": sorted(self.symlinks),
+            "exempt_links": sorted(self.exempt),
             "added": sorted(self.added),
             "unresolved": sorted(self.unresolved),
             "stale": sorted(self.stale),
@@ -306,8 +305,9 @@ def verify(tool_root: Path, head_root: Path, base_ref: str, head_sha: str | None
     The roots are the files the BASE config names, in the base tree, plus the
     dispatcher and the config. A root the head deletes is reported as removed: a
     pull request that deletes the gate must not read as a clean closure. A symlink
-    the head adds anywhere is reported: the local gate fails closed on any
-    symlink, and a symlink with the target's bytes compares equal to the target.
+    the head adds anywhere is reported, except a generated install link the gate
+    cannot reach (`_link_exemption.py`, issue #7398): the gate refuses an unpinned
+    link while it builds the closure, so a file behind one drops out unseen.
     """
     gate = _load_gate(tool_root)
     config = _base_config(tool_root)
@@ -323,6 +323,7 @@ def verify(tool_root: Path, head_root: Path, base_ref: str, head_sha: str | None
             [path for path in roots if _head_file(head_root, path) is not None], head_root
         )
         unresolved = gate._unresolvable_dynamic_sites(closure, head_root)
+        import_roots = _EXEMPTION.import_roots(gate, closure, head_root)
     forks = _merge_bases(tool_root, base_ref, head_sha)
     if not forks and head_sha is not None:
         print("note: no merge base for the head, so STALE reads as CHANGED", file=sys.stderr)
@@ -336,7 +337,10 @@ def verify(tool_root: Path, head_root: Path, base_ref: str, head_sha: str | None
         if kind is not None:
             buckets[kind].append(path)
     symlinks, stale_links = _new_symlinks(tool_root, head_root, base_ref, head_sha, forks, links)
-    report.symlinks.extend(symlinks)
+    trees = (tool_root, head_root, base_ref, _REF_LINKS.INERT_GIT)
+    report.symlinks, report.exempt = _EXEMPTION.split(
+        symlinks, trees, {*roots, *closure}, import_roots
+    )
     report.stale.extend(stale_links)
     report.unresolved.extend(unresolved)
     return report
@@ -448,7 +452,7 @@ def _print(report: Report, as_json: bool) -> None:
         f"dispatch-closure: {report.examined} files examined; {len(report.changed)} differ, "
         f"{len(report.removed)} removed, {len(report.added)} not in the base ref, "
         f"{len(report.symlinks)} new symlinks, {len(report.unresolved)} unresolved loads, "
-        f"{len(report.stale)} stale"
+        f"{len(report.stale)} stale, {len(report.exempt)} exempt install links"
     )
     for label, items in (
         ("DIFFERS", report.changed),
@@ -457,6 +461,7 @@ def _print(report: Report, as_json: bool) -> None:
         ("NEW", report.added),
         ("UNRESOLVED", report.unresolved),
         ("STALE", report.stale),
+        ("EXEMPT", report.exempt),
     ):
         for item in sorted(items):
             print(_plain(f"dispatch-closure: {label} {item}"))
