@@ -105,7 +105,6 @@ from skill_template_grammar import (  # noqa: E402,F401 (F401: re-exported for c
     check_grammar,
     render,
 )
-from split_reference_roots import CLAUDE_ROOT, render_host_reference_roots  # noqa: E402
 
 _CLAUDE_SUFFIX = ".claude.md.tmpl"
 _COPILOT_SUFFIX = ".copilot.md.tmpl"
@@ -242,10 +241,25 @@ def owned_targets(repo_root: Path) -> set[Path]:
     return {repo_root / "src" / "claude" / "agents" / f"{stem}.md" for stem in discover(repo_root)}
 
 
+# A private copy of SPLIT_REFERENCE_SKILLS in build/generate_agents_common.py, kept
+# here so this module gains no import; test_split_reference_roots.py pins parity.
+_SPLIT_REFERENCE_SKILLS = (
+    "adr-review",
+    "decision-critic",
+    "build",
+    "autoplan",
+    "test",
+    "security-scan",
+)
+_SHARED_ROOT = "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+
+
 def _rewrite_claude_reference_roots(text: str) -> str:
     """Render split-agent skill reference paths to the bare Claude Code plugin-root token."""
-    rendered: str = render_host_reference_roots(text, CLAUDE_ROOT)
-    return rendered
+    for skill in _SPLIT_REFERENCE_SKILLS:
+        suffix = f"/skills/{skill}/references/"
+        text = text.replace(_SHARED_ROOT + suffix, "${CLAUDE_PLUGIN_ROOT}" + suffix)
+    return text
 
 
 def _try_render(

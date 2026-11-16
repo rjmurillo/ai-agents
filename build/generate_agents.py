@@ -47,9 +47,11 @@ from drift_allowlist import (  # noqa: E402
     split_differences,
 )
 from generate_agents_common import (  # noqa: E402
+    COPILOT_ROOT,
     convert_frontmatter_for_platform,
     convert_handoff_syntax,
     convert_memory_prefix,
+    convert_reference_roots,
     expand_toolset_references,
     format_frontmatter_yaml,
     is_path_within_root,
@@ -59,7 +61,6 @@ from generate_agents_common import (  # noqa: E402
 )
 from model_pin_manifest import load_pin_manifest  # noqa: E402
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
-from split_reference_roots import COPILOT_ROOT, render_host_reference_roots  # noqa: E402
 from yaml_loader import ConfigError, load_platform_config  # noqa: E402
 
 
@@ -184,7 +185,7 @@ _COPILOT_FAMILY = frozenset({"copilot-cli", "github"})
 
 def _rewrite_copilot_reference_roots(text: str) -> str:
     """Render split-agent skill reference paths to bare ${COPILOT_PLUGIN_ROOT} for Copilot CLI."""
-    rendered: str = render_host_reference_roots(text, COPILOT_ROOT)
+    rendered: str = convert_reference_roots(text, COPILOT_ROOT)
     return rendered
 
 

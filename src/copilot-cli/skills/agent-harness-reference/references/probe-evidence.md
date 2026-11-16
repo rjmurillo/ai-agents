@@ -2,7 +2,7 @@
 
 # Probe Evidence Behind the Hook Contract
 
-Updated: 2026-11-16
+Updated: 2026-10-12
 
 This file records version-scoped runtime observations. Official behavior belongs
 in `official-hook-contracts.md`. Keep a probe here when the docs are silent, when
@@ -427,52 +427,3 @@ Consequences:
 Re-run on each Copilot CLI upgrade: a changed result for the scoped cases above
 is a contract change, and the mirror must then be excluded or respelled before
 it ships.
-
-## 11. Plugin-root tokens in agent and skill bodies (PR #7363)
-
-Date: 2026-11-16.
-
-Versions: cursor-agent 2026.11.13-eacade1, Codex CLI 0.169.0, Muse Code
-1.4.20, all on Linux.
-
-Hypothesis: a host replaces a plugin-root token in an agent body before the
-model reads it. No host documents this. Cursor documents its plugin-root
-variables for hooks and MCP config only.
-
-Method:
-
-1. Write a probe agent whose body holds three lines and tells the model to quote
-   them verbatim, with no tools:
-   - LINE-A: `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/x/references/`
-   - LINE-B: `${CLAUDE_PLUGIN_ROOT}/skills/x/references/`
-   - LINE-C: `$CLAUDE_PLUGIN_ROOT/skills/x`, `{{CLAUDE_PLUGIN_ROOT}}`, and one
-     host token (`${CURSOR_PLUGIN_ROOT}`, or `${CODEX_PLUGIN_ROOT}` and
-     `${PLUGIN_ROOT}`)
-2. Load it as each host loads agents. Cursor: a plugin through `--plugin-dir`.
-   Codex: the project agents folder of a scratch workspace. Muse Code: the
-   project agents folder of a scratch workspace trusted with the run flag.
-3. Ask a skill with the same tokens to quote itself, and run
-   `env | grep PLUGIN` in the skill's shell.
-
-Observed:
-
-```text
-host    agent LINE-A   agent LINE-B (bare Claude)   other tokens                 skill body   shell PLUGIN vars
-Cursor  literal        plugin root path             CURSOR_PLUGIN_ROOT replaced  literal      none
-Codex   literal        literal                      literal                      literal      none
-Muse    literal        literal                      literal                      literal      none
-```
-
-LINE-A is the negative control. Cursor replaced only the exact
-`${CLAUDE_PLUGIN_ROOT}` and `${CURSOR_PLUGIN_ROOT}` forms. It left
-`$CLAUDE_PLUGIN_ROOT`, `{{CLAUDE_PLUGIN_ROOT}}`, and `${PLUGIN_ROOT}` literal.
-Grade: EMPIRICAL, one sample per host and load mode. A Cursor marketplace
-install, a Codex plugin agent, and Copilot CLI were not probed.
-
-Consequences:
-
-- The Cursor agent copies keep the bare Claude token on split-agent reference
-  paths (the `keepClaudeReferenceRoot` key of the Cursor platform config).
-- The Codex and Muse Code copies keep the nested form. No form resolves for an
-  installed consumer there. The nested form still resolves in a checkout.
-- Re-run on a host upgrade, or before relying on the Copilot CLI render.

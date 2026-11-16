@@ -47,7 +47,12 @@ _SPLIT_AGENT_REF = (
     "an agent body: Claude Code (ADR-121 row 4) and Cursor (probe of 2026-11-16). "
     "Templates keep the dual-variable fallback, Copilot CLI renders COPILOT_PLUGIN_ROOT "
     "(agent-body rewrite unmeasured, ADR-121), "
-    "and the Codex and Muse copies keep the fallback (split_reference_roots.py)."
+    "and the Codex and Muse copies keep the fallback (generate_agents_common.py)."
+)
+
+_SPLIT_AGENT_BUILD = (
+    "Build transform that writes the bare Claude token into Claude Code agent renders. "
+    "It is a string the build emits, not a command."
 )
 
 # Rule 4 (single-root): files that may name the Claude plugin-root variable
@@ -56,6 +61,7 @@ _SPLIT_AGENT_REF = (
 # (number of standalone statements per copy, reason). The checker fails when a
 # file holds more, or fewer, than the count, and when a key matches no file.
 SINGLE_ROOT_ALLOWANCES: dict[str, tuple[int, str]] = {
+    "build/scripts/agent_templates.py": (1, _SPLIT_AGENT_BUILD),
     "src/claude/agents/architect.md": (1, _SPLIT_AGENT_REF),
     "src/claude/agents/critic.md": (1, _SPLIT_AGENT_REF),
     "src/claude/agents/implementer.md": (1, _SPLIT_AGENT_REF),
@@ -91,7 +97,7 @@ SINGLE_ROOT_ALLOWANCES: dict[str, tuple[int, str]] = {
     ),
     "skills/agent-harness-reference/SKILL.md": (2, _HARNESS_FACT),
     "templates/skills/agent-harness-reference.SKILL.md.tmpl": (2, _HARNESS_FACT),
-    "skills/agent-harness-reference/references/probe-evidence.md": (3, _HARNESS_FACT),
+    "skills/agent-harness-reference/references/probe-evidence.md": (1, _HARNESS_FACT),
     "skills/github/scripts/pr/run_completion_gate.py": (
         2,
         "A table that still recognizes the legacy single-root form in installed configs, "

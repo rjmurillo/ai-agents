@@ -23,13 +23,15 @@ import agent_tree_copy as atc  # noqa: E402
 import detect_agent_drift  # noqa: E402
 import generate_agents  # noqa: E402
 import schema_tree_keys  # noqa: E402
-from split_reference_roots import (  # noqa: E402
+from generate_agents_common import (  # noqa: E402
     CLAUDE_ROOT,
     COPILOT_ROOT,
     SHARED_ROOT,
     SPLIT_REFERENCE_SKILLS,
-    render_host_reference_roots,
     restore_shared_reference_roots,
+)
+from generate_agents_common import (  # noqa: E402
+    convert_reference_roots as render_host_reference_roots,
 )
 
 HOST_ROOTS = (CLAUDE_ROOT, COPILOT_ROOT)
@@ -268,3 +270,29 @@ def test_host_render_carries_its_own_reference_root(
 
     assert any(_ref(host_root, skill) in text for skill in SPLIT_REFERENCE_SKILLS), agent
     assert not any(_ref(SHARED_ROOT, skill) in text for skill in SPLIT_REFERENCE_SKILLS), agent
+
+
+def _skills_with_references() -> list[str]:
+    root = REPO_ROOT / "src" / "claude" / "skills"
+    return sorted(p.parent.name for p in root.glob("*/references") if p.is_dir())
+
+
+def test_agent_templates_private_skill_list_matches_the_shared_list() -> None:
+    assert agent_templates._SPLIT_REFERENCE_SKILLS == SPLIT_REFERENCE_SKILLS
+    assert agent_templates._SHARED_ROOT == SHARED_ROOT
+
+
+@pytest.mark.parametrize("skill", _skills_with_references())
+def test_every_copy_rewrites_exactly_the_shared_skill_set(skill: str) -> None:
+    shared = _ref(SHARED_ROOT, skill)
+    expected = skill in SPLIT_REFERENCE_SKILLS
+
+    claude = agent_templates._rewrite_claude_reference_roots(shared)
+    copilot = generate_agents._rewrite_copilot_reference_roots(shared)
+    drift = {root: detect_agent_drift.normalize_content(_ref(root, skill)) for root in HOST_ROOTS}
+
+    assert (claude == _ref(CLAUDE_ROOT, skill)) is expected
+    assert (copilot == _ref(COPILOT_ROOT, skill)) is expected
+    for root, normalized in drift.items():
+        assert (shared in normalized) is expected, root
+        assert (restore_shared_reference_roots(_ref(root, skill)) == shared) is expected, root
