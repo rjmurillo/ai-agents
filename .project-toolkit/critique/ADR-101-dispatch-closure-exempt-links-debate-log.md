@@ -2,7 +2,7 @@
 
 ## Summary
 
-- ADR: `.project-toolkit/architecture/ADR-101-enforcement-planes.md`, section "Amendment 2026-11-16".
+- ADR: `.project-toolkit/architecture/ADR-101-enforcement-planes.md`, the "Amended 2026-11-16" text on the Application B dispatcher bullet.
 - Driver: issue #7398. `Verify dispatch closure against base` failed on every skill PR (#7392, #7396) on the two generated ADR-119 links.
 - Panel: full six seats (architect, critic, independent-thinker, security, analyst, high-level-advisor), because the change edits executable enforcement (`scripts/ci/verify_dispatch_closure.py`, new `scripts/ci/_link_exemption.py`).
 - Outcome: Consensus after three rounds. Round 2 had three Accept, one Disagree-and-Commit, and two Block; both Blocks moved to Accept in Round 3.
@@ -316,3 +316,5 @@ Final state: ADR-101 status stays `accepted`; this is an amendment, not a new de
 ## Post-consensus implementation note
 
 A repository check (`check_agents_write_targets.py`) forbids naming the Codex skill root outside the files that own it. `EXEMPT_INSTALL_TREES` was therefore replaced by `EXEMPT_ROW_CLASSES = {"skills", "skills-codex"}`, which selects the same two binplace rows by class. Behavior is unchanged: the same 23 tests pass, and removing the class filter fails `test_a_link_under_a_non_exempt_install_tree`.
+
+A second check, the ADR lifecycle `size-cap` in `scripts/validation/check_adr_lifecycle.py`, refuses ADR-101 past 500 lines, and its baseline may not be raised. The reviewed amendment text was therefore moved, unchanged, from its own section to the end of the Application B bullet it amends ("The dispatcher itself is in the tree it checks"). The `taste-lint` file-size waiver was dropped, since the file is back at 500 lines. The same inline placement was used for ADR-097 for the same reason (see `vendor-provenance-removal-notes-debate-log.md`). The waiver discussion in Round 1 (IT-2, architect W6, critic W3) is resolved by removing the waiver.
