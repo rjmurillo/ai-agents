@@ -114,7 +114,7 @@ class TestTriggers:
         assert 1 <= len(phrases) <= 5, f"found {len(phrases)} trigger phrases"
 
     def test_retro_fill_trigger_present(self, skill_text: str) -> None:
-        # #2079 invokes the skill from `/retro fill <date>`; the trigger must exist.
+        # #2079 invokes the skill from `/retrospective fill <date>`; the trigger must exist.
         phrases = _BACKTICK.findall(_triggers_section(skill_text))
         assert any("retro fill" in p for p in phrases)
 
