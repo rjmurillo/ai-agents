@@ -39,6 +39,7 @@ def _import(scripts: Path, module: str, env: dict[str, str]) -> subprocess.Compl
         [sys.executable, "-I", "-c", code],
         capture_output=True,
         encoding="utf-8",
+        errors="replace",
         env=env,
         timeout=60,
         check=False,
