@@ -175,15 +175,16 @@ The container clones from your local git directory, so it tests the commit at
 branch first, never on `main`. An agent asks the user before it makes that
 commit. Mounting the git common
 directory works for both a main clone and a linked worktree. The mount is
-read-only, but the container can still read it. Check that no config file in
-it holds credentials first. The check prints only file names, never the
-matching text. It prints nothing when the directory is clean; stop if it
-prints a path:
+read-only, but the container can still read it. Check that no git config file
+in it holds credentials first. The check prints `clean`, or `STOP` followed by
+file names, never the matching text. Read the printed word, not the exit code.
+Mount the directory only after it prints `clean`:
 
 ```bash
-find "$(git rev-parse --path-format=absolute --git-common-dir)" -maxdepth 4 -type f \
+hits=$(find "$(git rev-parse --path-format=absolute --git-common-dir)" -type f \
   \( -name config -o -name config.worktree \) \
-  -exec grep -liE '://[^/@]+@|extraheader' {} +
+  -exec grep -liE '://[^/@]+@|extraheader' {} +)
+if [ -n "$hits" ]; then printf 'STOP: credentials in:\n%s\n' "$hits"; else echo clean; fi
 ```
 
 `ubuntu:latest` resolved to the same image as `ubuntu:26.04` on 2026-11-15.
@@ -221,12 +222,13 @@ Replace `tests/test_paths.py` with the tests your change touches.
 
 A Windows container gives a fresh Windows with no Python installed. Use it to
 watch by hand how a script fails when no interpreter is on `PATH`. The
-`vanilla-windows` CI job automates that check for the plugin hooks. Switch
-Docker Desktop to Windows containers first, then mount a host checkout
-read-only:
+`vanilla-windows` CI job automates that check for the plugin hooks. An agent
+asks the user before it pulls this image. Switch Docker Desktop to Windows
+containers first. Copy only the scripts under test into a new folder, and
+mount that folder read-only, never a checkout with its `.git` directory:
 
 ```powershell
-docker run --rm -it --isolation=hyperv -v "${PWD}:C:\src:ro" mcr.microsoft.com/windows/servercore:ltsc2025 powershell
+docker run --rm -it --isolation=hyperv -v 'C:\scratch\under-test:C:\src:ro' mcr.microsoft.com/windows/servercore:ltsc2025 powershell
 ```
 
 Inside, `cd C:\src` and run the script under test. Process isolation needs the
