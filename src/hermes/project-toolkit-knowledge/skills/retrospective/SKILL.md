@@ -3,7 +3,7 @@ name: retrospective
 version: 0.1.0
 description: Extract learnings from a session or task through structured retrospective frameworks. Gathers evidence, runs Five Whys and fishbone diagnosis, scores atomicity, and writes a canonical retrospective artifact. Use to turn execution experience into institutional knowledge. Use when you say "run a retrospective", "retro fill", "list pending retros", or "extract learnings from this session". Do NOT use for in-conversation correction capture (use the reflect skill).
 license: MIT
-argument-hint: fill <YYYY-MM-DD>
+argument-hint: "[fill <YYYY-MM-DD> | list | <scope>]"
 user-invocable: true
 ---
 
@@ -18,6 +18,12 @@ live verbatim in `references/`; this file is the orchestration contract.
 
 This skill owns the long-form rubrics the retrospective agent loads from `references/`.
 It is callable from `Skill("retrospective")` and from `/retrospective fill <date>`.
+
+**Argument dispatch.** When `$ARGUMENTS` starts with `fill` or `list`, follow
+references/skeleton-fill.md and nothing else: it fills one dated skeleton or lists
+pending ones. Any other argument is the scope for the Phase 0..5 workflow below.
+A bare `/retrospective` with no arguments asks for that scope; it does not list
+skeletons, which the retired `/retro` did. Use `/retrospective list` for that.
 The Stop hook that once invoked it automatically was deleted, so a
 retrospective is written when someone asks for one.
 
@@ -217,5 +223,7 @@ Before the retrospective is complete, confirm:
   (candidate list, delegation request, termination rules, artifact block).
 - [handoff-example.md](references/handoff-example.md): a filled example of the agent's
   structured handoff block.
+- [skeleton-fill.md](references/skeleton-fill.md): the `fill` and `list` operations for
+  auto-retro skeletons, including the untrusted-data rules for their filenames and bodies.
 - `.claude/agents/retrospective.md`: the agent that loads these references. The references
   are the canonical home of the rubrics; the agent keeps only the gates and load conditions.

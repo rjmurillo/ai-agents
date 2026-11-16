@@ -29,6 +29,12 @@ live verbatim in `references/`; this file is the orchestration contract.
 
 This skill owns the long-form rubrics the retrospective agent loads from `references/`.
 It is callable from `Skill("retrospective")` and from `/retrospective fill <date>`.
+
+**Argument dispatch.** When `$ARGUMENTS` starts with `fill` or `list`, follow
+references/skeleton-fill.md and nothing else: it fills one dated skeleton or lists
+pending ones. Any other argument is the scope for the Phase 0..5 workflow below.
+A bare `/retrospective` with no arguments asks for that scope; it does not list
+skeletons, which the retired `/retro` did. Use `/retrospective list` for that.
 The Stop hook that once invoked it automatically was deleted, so a
 retrospective is written when someone asks for one.
 
@@ -228,5 +234,7 @@ Before the retrospective is complete, confirm:
   (candidate list, delegation request, termination rules, artifact block).
 - [handoff-example.md](references/handoff-example.md): a filled example of the agent's
   structured handoff block.
+- [skeleton-fill.md](references/skeleton-fill.md): the `fill` and `list` operations for
+  auto-retro skeletons, including the untrusted-data rules for their filenames and bodies.
 - `.claude/agents/retrospective.md`: the agent that loads these references. The references
   are the canonical home of the rubrics; the agent keeps only the gates and load conditions.
