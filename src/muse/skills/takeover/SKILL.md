@@ -4,10 +4,6 @@ description: Finish another contributor's PR, branch, or agent thread while keep
 ---
 # Takeover
 
-Forked from t3dotgg/tstack by Theo Browne, under MIT.
-Copyright (c) 2026 Theo Browne. See `LICENSE`.
-Maintainers: read `references/upstream-sync.md` before reconciling upstream changes.
-
 Take responsibility for finishing the original goal while preserving the
 original contributors' credit. Do not defend an implementation just because
 another agent already built it.
