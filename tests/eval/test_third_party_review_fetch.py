@@ -5,20 +5,17 @@ The GraphQL seam is a callable keyed on the query text, so no network is used.
 
 from __future__ import annotations
 
-import importlib.util
 import json
-import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-EVAL_DIR = Path(__file__).resolve().parents[2] / "scripts" / "eval"
-if str(EVAL_DIR) not in sys.path:
-    sys.path.insert(0, str(EVAL_DIR))
+from tests.eval._third_party_gap_test_support import eval_path, load_script
 
-import _third_party_review_fetch as fetch  # noqa: E402
-import _third_party_review_findings as findings  # noqa: E402
+with eval_path():
+    import _third_party_review_fetch as fetch
+    import _third_party_review_findings as findings
 
 
 def conn(nodes: list[Any], cursor: str | None = None) -> dict[str, Any]:
@@ -173,14 +170,7 @@ class TestFindings:
 
 
 def _load_miner() -> Any:
-    spec = importlib.util.spec_from_file_location(
-        "mine_third_party_review_findings", EVAL_DIR / "mine_third_party_review_findings.py"
-    )
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
+    return load_script("mine_third_party_review_findings")
 
 
 class TestMinerCli:

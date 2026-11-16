@@ -111,11 +111,11 @@ line within 3 of Bugbot's line.
 | Arm | All | Derive | Held out |
 |---|---|---|---|
 | Baseline: `check_subprocess_encoding.py` plus `ruff` with this repository's config | 0/86 (CI 0% to 4%) | 0/33 | 0/53 |
-| Treatment: `scripts/validation/check_io_portability.py`, whole file | 79/86 (CI 84% to 96%) | 33/33 | 46/53 |
-| Treatment as shipped: only lines the pull request added | 79/86 (CI 84% to 96%) | 33/33 | 46/53 |
+| Treatment: `scripts/validation/check_io_portability.py`, whole file | 80/86 (CI 86% to 97%) | 33/33 | 47/53 |
+| Treatment as shipped: only lines the pull request added | 80/86 (CI 86% to 97%) | 33/33 | 47/53 |
 
 Per rule: subprocess encoding 32/34, file encoding 25/25, unguarded symlink
-22/27. Files: `results/io-portability-summary.json`, per row
+23/27. Files: `results/io-portability-summary.json`, per row
 `results/io-portability-rows.jsonl`.
 
 The baseline is 0 for two reasons: `check_subprocess_encoding.py` scans only
@@ -128,8 +128,8 @@ Honest caveats:
   call's closing parenthesis, so the match was widened to the whole call span
   after reading misses that included held-out rows.
 - Negative control: in 6 of the 85 judged rows (6 of 52 held out) the file at
-  the pull request's final head has no fewer violations of the rule than at the reviewed commit. Five are rows the
-  checker misses (0 before, 0 after). The sixth, T0396, is a finding the
+  the pull request's final head has no fewer violations of the rule than at
+  the reviewed commit. Five are rows the checker misses (0 before, 0 after). The sixth, T0396, is a finding the
   author never fixed. One more row, T0462, cannot be judged: its file is gone
   at the final head, so it is counted as `final_head_unreadable`, not as a
   pass.
@@ -138,6 +138,12 @@ Honest caveats:
   and a named skip mark such as `POSIX_ONLY = pytest.mark.skipif(...)` used as
   a decorator was not seen as a guard. Fixing both moved recall from 78 to 79
   and removed one false flag at a final head.
+- Bot review of pull request #7394 (2026-11-16) found the guard read any
+  function or mark text containing `skip` as a skip. Now only a skip mark's own
+  callable name counts, and a function named `test_*` is never a guard. The
+  rerun catches held-out row T0462, whose symlink calls sit in
+  `test_main_skips_tracked_symlinks`: 79 to 80 overall, 46 to 47 held out.
+  The change came from the review, not from reading held-out misses.
 - Precision, in the mode that ships (added lines only): over the 170 held-out
   merged pull requests whose head commit is present locally (of 215), the
   check flags 49 lines in 15 pull requests (9%). Twenty sampled flags on files
@@ -175,7 +181,10 @@ No model judges another model.
 Treatment: the "Defect hunt" section in
 `src/claude/skills/review/resources/technical-review.md` (six checks: matchers,
 failure paths, prose claims, siblings, tests, inputs), written from the derive
-split only. Baseline: the same files at `c98e82b21`, this branch's fork point.
+split only. The treatment arm ran with `--prompt-ref 23f2e14d7` (2026-11-15), a
+commit on this pull request's branch; after a squash merge,
+`git fetch origin pull/7394/head` keeps it reachable. Baseline: the same files
+at `c98e82b21`, this branch's fork point.
 At that commit `templates/agents/code-reviewer.shared.md` differs from `main`
 by a two-line rewrite of where the agent looks for the contract file. The
 replay inlines the contract, so that text does not change what it measures.
@@ -218,7 +227,7 @@ What the run does show:
   hits rose from 46 to 61 and empty reviews fell from 40 to 30, but the line
   match did not follow.
 - **The replayed reviewer catches no platform-portability defect.** 0 of 44 in
-  both arms. The deterministic check in Eval 1 catches 79 of 86 of that kind.
+  both arms. The deterministic check in Eval 1 catches 80 of 86 of that kind.
   That class belongs to a static gate, not a prompt.
 
 Files: `results/replay-heldout-baseline.json`,
@@ -233,11 +242,24 @@ above are the ones that applied. New runs write them on every row.
 
 ## Run
 
+The committed corpora come from one dump, mined on 2026-11-15. The dump holds
+third-party comment text, so it is not committed. Only that same dump makes
+`--check` pass. A fresh mine reads the newest 1000 pull requests, a later
+window, so `--check` on it reports drift by design. Each label also names its
+thread URL, and the builder refuses a label whose URL does not match.
+
+Fresh mining (a new window; rebuilds the corpora, so relabel any new finding):
+
 ```bash
-# The dump holds third-party comment text; keep it in the ignored scratch tree.
 uv run python scripts/eval/mine_third_party_review_findings.py --limit 1000 \
   --output .project-toolkit/scratch/3p/dump.json
-uv run python scripts/eval/build_third_party_gap_corpus.py --dump .project-toolkit/scratch/3p/dump.json --check --stats
+uv run python scripts/eval/build_third_party_gap_corpus.py --dump .project-toolkit/scratch/3p/dump.json --stats
+```
+
+Frozen reproduction (the committed corpora and results):
+
+```bash
+uv run python scripts/eval/build_third_party_gap_corpus.py --dump <the 2026-11-15 dump> --check --stats
 uv run python scripts/eval/eval_io_portability_gap.py --output summary.json --rows rows.jsonl
 uv run python scripts/eval/eval_third_party_gap_replay.py --split all --validate-corpus
 EVAL_PROVIDER=openai OPENAI_BASE_URL=<compatible endpoint> EVAL_HTTP_TIMEOUT_SECONDS=1800 \

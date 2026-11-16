@@ -5,17 +5,14 @@ The git seam is a plain callable over an argv tuple, so no repository is needed.
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from typing import Any
 
 import pytest
 
-EVAL_DIR = Path(__file__).resolve().parents[2] / "scripts" / "eval"
-if str(EVAL_DIR) not in sys.path:
-    sys.path.insert(0, str(EVAL_DIR))
+from tests.eval._third_party_gap_test_support import eval_path
 
-import _third_party_gap_core as core  # noqa: E402
+with eval_path():
+    import _third_party_gap_core as core
 
 BASE, HEAD, FIX = "a" * 40, "b" * 40, "c" * 40
 PATCH = (

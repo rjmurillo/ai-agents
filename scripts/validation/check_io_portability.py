@@ -115,6 +115,15 @@ def _kwarg(call: ast.Call, name: str) -> ast.expr | None:
     return None
 
 
+def _given(node: ast.expr | None) -> bool:
+    """An argument that sets a value. A literal ``None`` keeps the locale default."""
+    return node is not None and not (isinstance(node, ast.Constant) and node.value is None)
+
+
+def _positional(call: ast.Call, index: int) -> ast.expr | None:
+    return call.args[index] if len(call.args) > index else None
+
+
 def _has_star_kwargs(call: ast.Call) -> bool:
     return any(keyword.arg is None for keyword in call.keywords)
 
@@ -151,7 +160,7 @@ def _subprocess_names(tree: ast.Module) -> tuple[set[str], set[str]]:
 
 
 def _text_mode_without_encoding(call: ast.Call) -> bool:
-    if _has_star_kwargs(call) or _kwarg(call, "encoding") is not None:
+    if _has_star_kwargs(call) or _given(_kwarg(call, "encoding")):
         return False
     return any(_is_true(_kwarg(call, flag)) for flag in _TEXT_FLAGS)
 
@@ -165,16 +174,17 @@ def _mode_is_text(mode: ast.expr | None) -> bool:
 
 
 def _file_io_without_encoding(call: ast.Call) -> str | None:
-    if _has_star_kwargs(call) or _kwarg(call, "encoding") is not None:
+    if _has_star_kwargs(call) or _given(_kwarg(call, "encoding")):
         return None
     _, name = _callee(call)
     is_attr = isinstance(call.func, ast.Attribute)
-    if is_attr and name == "read_text" and not call.args:
+    # Each check names the positional slot that holds the encoding.
+    if is_attr and name == "read_text" and not _given(_positional(call, 0)):
         return "read_text() without encoding"
-    if is_attr and name == "write_text" and len(call.args) < 2:
+    if is_attr and name == "write_text" and not _given(_positional(call, 1)):
         return "write_text() without encoding"
     if not is_attr and name == "open" and (call.args or _kwarg(call, "file") is not None):
-        if len(call.args) >= 4:
+        if _given(_positional(call, 3)):
             return None
         mode = call.args[1] if len(call.args) > 1 else _kwarg(call, "mode")
         return "open() in text mode without encoding" if _mode_is_text(mode) else None
@@ -244,7 +254,10 @@ class _Visitor(ast.NodeVisitor):
         self._found.append(Violation(self._path, line, rule, message, end))
 
     def _scope(self, node: ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef) -> None:
-        guarded = "skip" in node.name.lower() or _has_skipif(node.decorator_list, self._skip_marks)
+        # A helper such as symlink_or_skip guards its body; a test named test_skips_x does not.
+        name = node.name.lower()
+        named_guard = "skip" in name and not name.startswith("test")
+        guarded = named_guard or _has_skipif(node.decorator_list, self._skip_marks)
         self._guards.append(guarded)
         self.generic_visit(node)
         self._guards.pop()

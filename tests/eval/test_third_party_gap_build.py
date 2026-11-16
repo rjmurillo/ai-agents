@@ -5,20 +5,17 @@ The git seam is a callable over an argv tuple, dispatched on the command.
 
 from __future__ import annotations
 
-import importlib.util
 import json
-import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-EVAL_DIR = Path(__file__).resolve().parents[2] / "scripts" / "eval"
-if str(EVAL_DIR) not in sys.path:
-    sys.path.insert(0, str(EVAL_DIR))
+from tests.eval._third_party_gap_test_support import eval_path, load_script
 
-import _third_party_gap_build as build  # noqa: E402
-import _third_party_review_findings as findings  # noqa: E402
+with eval_path():
+    import _third_party_gap_build as build
+    import _third_party_review_findings as findings
 
 REVIEWED, FIX, BASE, MB = "a" * 40, "f" * 40, "b" * 40, "c" * 40
 
@@ -75,6 +72,7 @@ class TestBotThreads:
         prs = [
             {
                 "number": 9,
+                "author": {"login": "rjmurillo"},
                 "reviewThreads": [
                     thread(comment("rjmurillo")),
                     thread(
@@ -92,6 +90,21 @@ class TestBotThreads:
         assert [(r["id"], r["bot"]) for r in rows] == [("T0001", "cursor"), ("T0002", "semgrep")]
         assert rows[0]["first_reply"] == "Fixed in abc1234"
         assert rows[0]["disposition"] == "accepted"
+
+    def test_a_reply_from_someone_other_than_the_author_does_not_accept(self) -> None:
+        prs = [
+            {
+                "number": 9,
+                "author": {"login": "rjmurillo"},
+                "reviewThreads": [
+                    thread(comment("cursor"), comment("someone-else", "Fixed in abc1234"))
+                ],
+            }
+        ]
+
+        (row,) = build.bot_threads(prs)
+
+        assert (row["first_reply"], row["disposition"]) == ("", "resolved-silent")
 
 
 class TestFindingsBotNames:
@@ -157,6 +170,18 @@ class TestAdmit:
     def test_each_refusal(self, reply: str, git: Any, outcome: str) -> None:
         assert build.admit(row(reply), BASE, git) == (outcome, None)
 
+    @pytest.mark.parametrize("failing", [("show", "--format="), ("diff", "--name-only"), ("diff",)])
+    def test_a_failed_git_read_on_existing_commits_raises(self, failing: tuple[str, ...]) -> None:
+        inner = fake_git()
+
+        def git(args: tuple[str, ...]) -> str | None:
+            # Fail only the read named by `failing`; "diff" alone means the patch read.
+            hit = args[: len(failing)] == failing and (failing != ("diff",) or "-z" not in args)
+            return None if hit else inner(args)
+
+        with pytest.raises(RuntimeError, match="failed on commits that exist"):
+            build.admit(row(), BASE, git)
+
     def test_a_path_with_a_space_is_matched_whole(self) -> None:
         spaced = row() | {"path": "scripts/my tool.py"}
 
@@ -179,13 +204,21 @@ class TestSplitAndCorpora:
             build.finding_rows([{"id": "T0001", "pr": 1}], {})
 
     def test_finding_rows_sort_by_pr_then_id(self) -> None:
-        admitted = [{"id": "T0002", "pr": 2}, {"id": "T0003", "pr": 1}]
-        labels = {"T0002": {"theme": "a"}, "T0003": {"theme": "b"}}
+        admitted = [{"id": "T0002", "pr": 2, "url": "u2"}, {"id": "T0003", "pr": 1, "url": "u3"}]
+        labels = {"T0002": {"theme": "a", "url": "u2"}, "T0003": {"theme": "b", "url": "u3"}}
 
         rows = build.finding_rows(admitted, labels)
 
         assert [r["id"] for r in rows] == ["T0003", "T0002"]
         assert list(rows[0]) == list(build.FINDING_KEYS)
+
+    @pytest.mark.parametrize("label_url", ["u-other", None])
+    def test_a_label_bound_to_another_thread_is_refused(self, label_url: str | None) -> None:
+        admitted = [{"id": "T0002", "pr": 2, "url": "u2"}]
+        labels = {"T0002": {"theme": "a", "url": label_url}}
+
+        with pytest.raises(ValueError, match="another thread"):
+            build.finding_rows(admitted, labels)
 
     def test_replay_groups_by_revision_filters_and_excludes(self) -> None:
         base = {
@@ -225,14 +258,7 @@ class TestSplitAndCorpora:
 
 
 def _load_cli() -> Any:
-    spec = importlib.util.spec_from_file_location(
-        "build_third_party_gap_corpus", EVAL_DIR / "build_third_party_gap_corpus.py"
-    )
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
+    return load_script("build_third_party_gap_corpus")
 
 
 class TestCli:

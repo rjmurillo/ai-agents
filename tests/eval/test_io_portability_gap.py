@@ -2,25 +2,16 @@
 
 from __future__ import annotations
 
-import importlib.util
-import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-EVAL_DIR = Path(__file__).resolve().parents[2] / "scripts" / "eval"
+from tests.eval._third_party_gap_test_support import load_script
 
 
 def _load() -> Any:
-    spec = importlib.util.spec_from_file_location(
-        "eval_io_portability_gap", EVAL_DIR / "eval_io_portability_gap.py"
-    )
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
+    return load_script("eval_io_portability_gap")
 
 
 gap = _load()

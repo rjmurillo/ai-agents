@@ -52,6 +52,18 @@ class TestUnguardedSymlink:
 
         assert rules(source) == ["unguarded-symlink"]
 
+    @pytest.mark.parametrize("name", ["test_skips_existing_link", "TestSkipExisting"])
+    def test_a_test_named_for_skipping_is_not_a_guard(self, name: str) -> None:
+        keyword = "class" if name.startswith("Test") else "def"
+        body = "    def test_x(self, p):\n        p.symlink_to('t')\n"
+        source = (
+            f"class {name}:\n{body}"
+            if keyword == "class"
+            else f"def {name}(p):\n    p.symlink_to('t')\n"
+        )
+
+        assert rules(source) == ["unguarded-symlink"]
+
     def test_skip_named_helper_guards(self) -> None:
         source = "def symlink_or_skip(p, t):\n    p.symlink_to(t)\n"
 

@@ -5,34 +5,24 @@ The model and git seams are injected callables: no network, no repository.
 
 from __future__ import annotations
 
-import importlib.util
 import json
-import sys
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-EVAL_DIR = Path(__file__).resolve().parents[2] / "scripts" / "eval"
-if str(EVAL_DIR) not in sys.path:
-    sys.path.insert(0, str(EVAL_DIR))
+from tests.eval._third_party_gap_test_support import eval_path, load_script
 
 
 def _load() -> Any:
-    spec = importlib.util.spec_from_file_location(
-        "eval_third_party_gap_replay", EVAL_DIR / "eval_third_party_gap_replay.py"
-    )
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
+    return load_script("eval_third_party_gap_replay")
 
 
 replay = _load()
 
-import _third_party_gap_report as report  # noqa: E402
+with eval_path():
+    import _third_party_gap_report as report
 
 BASE, HEAD, FIX = "a" * 40, "b" * 40, "c" * 40
 PATCH = "+++ b/scripts/tool.py\n@@ -1,0 +1,2 @@\n+line one\n+line two\n"
@@ -403,3 +393,39 @@ class TestRepairTail:
         replay.repair_tail(path)
 
         assert path.read_bytes() == b""
+
+
+class TestOfflineModesNeedTheirFiles:
+    @pytest.mark.parametrize("mode", ["--rescore", "--compare"])
+    def test_a_missing_checkpoint_exits_2(self, corpus: Path, tmp_path: Path, mode: str) -> None:
+        present = tmp_path / "present.jsonl"
+        present.write_text("", encoding="utf-8")
+        missing = str(tmp_path / "missing.jsonl")
+        extra = ["--rescore"] if mode == "--rescore" else ["--compare", str(present)]
+
+        code = replay.main(args(corpus, "--checkpoint", missing, *extra), caller(), git)
+
+        assert code == 2
+
+    def test_a_missing_compare_baseline_exits_2(self, corpus: Path, tmp_path: Path) -> None:
+        present = tmp_path / "present.jsonl"
+        present.write_text("", encoding="utf-8")
+        argv = args(corpus, "--checkpoint", str(present), "--compare", str(tmp_path / "nope"))
+
+        assert replay.main(argv, caller(), git) == 2
+
+
+class TestFinishReason:
+    @pytest.mark.parametrize(
+        ("metadata", "expected"),
+        [
+            ({"stop_reason": "max_tokens"}, "length"),
+            ({"stop_reason": "end_turn"}, None),
+            ({"finish_reason": "stop", "stop_reason": "max_tokens"}, "stop"),
+            ({}, None),
+        ],
+    )
+    def test_maps_the_default_provider_stop_reason(
+        self, metadata: dict[str, object], expected: str | None
+    ) -> None:
+        assert replay.finish_reason(metadata) == expected

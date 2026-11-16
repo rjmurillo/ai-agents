@@ -96,7 +96,11 @@ def bot_threads(pull_requests: list[dict[str, Any]]) -> list[dict[str, Any]]:
             if bot is None:
                 continue
             comments = thread["comments"]
-            replies = [c.get("body") or "" for c in findings.human_replies(comments)]
+            # Only the pull request author can accept a finding for the author agent.
+            author = _login(pr)
+            replies = [
+                c.get("body") or "" for c in findings.human_replies(comments) if _login(c) == author
+            ]
             body = comments[0].get("body") or ""
             commit = comments[0].get("originalCommit")
             rows.append(
@@ -116,6 +120,18 @@ def bot_threads(pull_requests: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return rows
 
 
+def _read(git: GitRun, args: tuple[str, ...]) -> str:
+    """Output of a git read whose commits are known to exist; a failure is an error.
+
+    Read as empty text, a failed read would admit a finding with no diff and
+    then drop it from the replay corpus without a trace.
+    """
+    out = git(args)
+    if out is None:
+        raise RuntimeError(f"git {' '.join(args[:2])} failed on commits that exist")
+    return out
+
+
 def admit(row: dict[str, Any], base_oid: str, git: GitRun) -> tuple[str, dict[str, Any] | None]:
     """Admission step for one accepted thread: ``(outcome, admitted row or None)``."""
     match = FIX_SHA.search(row["first_reply"])
@@ -127,7 +143,7 @@ def admit(row: dict[str, Any], base_oid: str, git: GitRun) -> tuple[str, dict[st
     fix = resolved.strip()
     if git(("cat-file", "-e", f"{row['commit'] or 'x'}^{{commit}}")) is None:
         return "reviewed_missing", None
-    touched = (git(("show", "--format=", "--name-only", "-z", fix)) or "").split("\0")
+    touched = _read(git, ("show", "--format=", "--name-only", "-z", fix)).split("\0")
     if row["path"] not in touched:
         return "fix_misses_path", None
     merge_base = (git(("merge-base", base_oid, row["commit"])) or "").strip()
@@ -135,8 +151,8 @@ def admit(row: dict[str, Any], base_oid: str, git: GitRun) -> tuple[str, dict[st
         return "no_merge_base", None
     if git(("merge-base", "--is-ancestor", row["commit"], fix)) is None:
         return "fix_not_descendant", None
-    files = (git(("diff", "--name-only", "-z", merge_base, row["commit"])) or "").split("\0")
-    diff = git(("diff", merge_base, row["commit"])) or ""
+    files = _read(git, ("diff", "--name-only", "-z", merge_base, row["commit"])).split("\0")
+    diff = _read(git, ("diff", merge_base, row["commit"]))
     admitted = {
         **row,
         "fix": fix,
@@ -163,10 +179,17 @@ def heldout_cutoff(prs: list[int]) -> int:
 def finding_rows(
     admitted: list[dict[str, Any]], labels: dict[str, dict[str, Any]]
 ) -> list[dict[str, Any]]:
-    """``findings.jsonl`` rows: admitted threads joined to their model-drafted labels."""
+    """``findings.jsonl`` rows: admitted threads joined to their model-drafted labels.
+
+    Ids are ordinal, so a reordered dump would hand a label to another thread.
+    Each label names its thread URL, and a label whose URL differs is refused.
+    """
     missing = [a["id"] for a in admitted if a["id"] not in labels]
     if missing:
         raise ValueError(f"no label for {len(missing)} admitted thread(s), first {missing[0]}")
+    moved = [a["id"] for a in admitted if labels[a["id"]].get("url") != a["url"]]
+    if moved:
+        raise ValueError(f"{len(moved)} label(s) name another thread's URL, first {moved[0]}")
     rows = [{**a, **{k: labels[a["id"]].get(k) for k in LABEL_KEYS}} for a in admitted]
     return [
         {k: r.get(k) for k in FINDING_KEYS} for r in sorted(rows, key=lambda r: (r["pr"], r["id"]))

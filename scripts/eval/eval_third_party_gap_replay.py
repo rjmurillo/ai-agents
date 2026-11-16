@@ -42,6 +42,12 @@ import _code_review_catch_rate_core as cr_core
 import _third_party_gap_core as core
 from _anthropic_api import DEFAULT_MODEL, call_api, load_api_key_for_selected_provider
 from _eval_api_adapter_constants import http_timeout_seconds
+from _third_party_gap_checkpoint import (
+    STAMP_KEYS,
+    load_checkpoint,
+    repair_tail,
+    stamp_mismatch,
+)
 from _third_party_gap_report import aggregate, compare
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -104,71 +110,6 @@ def select(revisions: tuple[core.Revision, ...], split: str, ids: str) -> list[c
     return chosen
 
 
-def load_checkpoint(path: Path | None) -> list[dict[str, Any]]:
-    """Finished rows, one per (revision, trial). Errored rows are dropped so they rerun.
-
-    Two runs that overlapped on one checkpoint can each write the same job. The
-    first finished row is kept, so a duplicate never counts a defect twice.
-    """
-    if path is None or not path.exists():
-        return []
-    rows: list[dict[str, Any]] = []
-    seen: set[tuple[str, int]] = set()
-    lines = [ln for ln in path.read_text(encoding="utf-8").splitlines() if ln]
-    for index, line in enumerate(lines):
-        try:
-            row = json.loads(line)
-        except json.JSONDecodeError:
-            if index == len(lines) - 1:
-                break  # a killed run can leave a half-written last line
-            raise
-        if not isinstance(row, dict) or "revision" not in row or "trial" not in row:
-            raise ValueError(f"checkpoint {path} holds a line that is not a result row")
-        key = (str(row["revision"]), int(row["trial"]))
-        if not row.get("error") and key not in seen:
-            seen.add(key)
-            rows.append(row)
-    return rows
-
-
-def repair_tail(path: Path) -> None:
-    """Make the checkpoint safe to append to before a resumed run writes to it.
-
-    A killed run can leave a half-written last line with no newline. Appending
-    to it would glue the next answer onto that fragment and lose it. A broken
-    fragment is cut off at its first byte; a whole record only gets its newline.
-    """
-    if not path.exists():
-        return
-    data = path.read_bytes()
-    if not data or data.endswith(b"\n"):
-        return
-    start = data.rfind(b"\n") + 1
-    try:
-        json.loads(data[start:])
-    except ValueError:
-        path.write_bytes(data[:start])
-        return
-    path.write_bytes(data + b"\n")
-
-
-def stamp_mismatch(done: list[dict[str, Any]], stamp: dict[str, str]) -> str | None:
-    """Why the checkpoint's answers belong to another arm, or None when they match.
-
-    Resuming reuses every finished answer, so one recorded under another prompt
-    ref, model, or provider (or under none) would be reported as this arm's.
-    """
-    for row in done:
-        for key in STAMP_KEYS:
-            if row.get(key) != stamp[key]:
-                return (
-                    f"checkpoint row {row['revision']} trial {row['trial']} has "
-                    f"{key}={row.get(key)!r}, this run uses {stamp[key]!r}; "
-                    "use a new checkpoint for a new arm"
-                )
-    return None
-
-
 def rescore(rows: list[dict[str, Any]], revisions: list[core.Revision]) -> list[dict[str, Any]]:
     by_id = {r.id: r for r in revisions}
     return [
@@ -224,6 +165,18 @@ def call_with_rate_limit_backoff(
         raise
 
 
+def finish_reason(metadata: dict[str, object]) -> str | None:
+    """The provider's finish reason; Anthropic's ``max_tokens`` stop reads as ``length``.
+
+    The default provider reports ``stop_reason``, not ``finish_reason``, so a
+    truncated answer would otherwise not count as cut at the ceiling.
+    """
+    reason = metadata.get("finish_reason")
+    if reason is None and metadata.get("stop_reason") == "max_tokens":
+        return "length"
+    return reason if isinstance(reason, str) else None
+
+
 def make_caller(model: str, usage: dict[str, int]) -> Caller:
     # Read the timeout setting once, so a bad value is a config error before any call.
     http_timeout_seconds()
@@ -246,7 +199,7 @@ def make_caller(model: str, usage: dict[str, int]) -> Caller:
         with lock:
             usage["calls"] += 1
             usage["output_tokens"] += tokens
-        return text, {"output_tokens": tokens, "finish_reason": metadata.get("finish_reason")}
+        return text, {"output_tokens": tokens, "finish_reason": finish_reason(metadata)}
 
     return call
 
@@ -322,9 +275,6 @@ def _titles(revisions: list[core.Revision], corpus_raw: dict[str, Any]) -> dict[
     return {r.id: str(raw.get(r.id, "")) for r in revisions}
 
 
-STAMP_KEYS = ("prompt_ref", "model", "provider")
-
-
 def run_stamp(args: argparse.Namespace) -> dict[str, str]:
     return {
         "prompt_ref": args.prompt_ref or "worktree",
@@ -384,26 +334,8 @@ def main(
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
     usage = {"calls": 0, "output_tokens": 0}
-    if args.compare:
-        if checkpoint is None:
-            print("ERROR: --compare needs --checkpoint (the treatment arm)", file=sys.stderr)
-            return 2
-        try:
-            baseline_rows = rescore(load_checkpoint(Path(args.compare)), revisions)
-        except (OSError, UnicodeDecodeError, ValueError) as exc:
-            print(f"ERROR: {exc}", file=sys.stderr)
-            return 2
-        treatment_rows = rescore(done, revisions)
-        result = compare(baseline_rows, treatment_rows, revisions)
-        sources = {"baseline": baseline_rows, "treatment": treatment_rows}
-        return _emit(args, result, corpus_path, usage, sources)
-    if args.rescore:
-        if checkpoint is None:
-            print("ERROR: --rescore needs --checkpoint", file=sys.stderr)
-            return 2
-        rescored = rescore(done, revisions)
-        result = aggregate(rescored, revisions)
-        return _emit(args, result, corpus_path, usage, {"checkpoint": rescored})
+    if args.compare or args.rescore:
+        return _offline(args, checkpoint, done, revisions, corpus_path)
     try:
         system = load_system_prompt(args.prompt_ref, git)
         titles = _titles(revisions, corpus_raw)
@@ -433,6 +365,40 @@ def main(
         repair_tail(checkpoint)
     rows = run(jobs, caller, args.workers, checkpoint, done, stamp)
     return _finish(args, rows, revisions, corpus_path, usage)
+
+
+def _offline(
+    args: argparse.Namespace,
+    checkpoint: Path | None,
+    done: list[dict[str, Any]],
+    revisions: list[core.Revision],
+    corpus_path: Path,
+) -> int:
+    """--compare and --rescore: score stored answers, call no model.
+
+    A model run may start from no checkpoint; scoring needs every file to exist,
+    or a typo would score an empty arm and exit 0.
+    """
+    inputs = [checkpoint] + ([Path(args.compare)] if args.compare else [])
+    absent = [str(p) for p in inputs if p is None or not p.is_file()]
+    if absent:
+        mode = "--compare" if args.compare else "--rescore"
+        print(f"ERROR: {mode} needs existing checkpoint files; missing {absent}", file=sys.stderr)
+        return 2
+    usage = {"calls": 0, "output_tokens": 0}
+    if not args.compare:
+        rescored = rescore(done, revisions)
+        result = aggregate(rescored, revisions)
+        return _emit(args, result, corpus_path, usage, {"checkpoint": rescored})
+    try:
+        baseline_rows = rescore(load_checkpoint(Path(args.compare)), revisions)
+    except (OSError, UnicodeDecodeError, ValueError) as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+    treatment_rows = rescore(done, revisions)
+    result = compare(baseline_rows, treatment_rows, revisions)
+    sources = {"baseline": baseline_rows, "treatment": treatment_rows}
+    return _emit(args, result, corpus_path, usage, sources)
 
 
 def _finish(

@@ -29,6 +29,11 @@ class TestSubprocessTextEncoding:
 
         assert rules(source) == ["subprocess-text-encoding"]
 
+    def test_text_mode_with_a_none_encoding_is_flagged(self) -> None:
+        source = "import subprocess\nsubprocess.run(['git'], text=True, encoding=None)\n"
+
+        assert rules(source) == ["subprocess-text-encoding"]
+
     def test_universal_newlines_without_encoding_is_flagged(self) -> None:
         source = "import subprocess\nsubprocess.check_output(['git'], universal_newlines=True)\n"
 
@@ -75,6 +80,10 @@ class TestFileTextEncoding:
             "open('f')",
             "open('f', 'w')",
             "open(file='f', mode='w')",
+            "p.read_text(encoding=None)",
+            "p.read_text(None)",
+            "p.write_text('x', None)",
+            "open('f', 'w', -1, None)",
         ],
     )
     def test_text_io_without_encoding_is_flagged(self, call: str) -> None:
