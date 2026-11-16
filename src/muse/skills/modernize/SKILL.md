@@ -1,6 +1,20 @@
 ---
 name: modernize
+version: 1.0.0
 description: Rebase an aging PR only after checking its idea still belongs. Ends MODERNIZE, REWORK, or CLOSE. Use for `modernize this PR`. Do NOT use for conflicts alone (use merge-resolver agent or skill).
+license: MIT
+metadata:
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan's long-tail resolver matches a request to bring an old or stale pull request up to date
+    user-facing: true
+    intents:
+      - modernize this pr
+      - modernize pr
+      - refresh stale pr
+      - update old pr
+      - revive old pr
 ---
 
 # Modernize

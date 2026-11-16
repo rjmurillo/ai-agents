@@ -1,6 +1,29 @@
 ---
 name: adr-review
+version: 1.1.0
 description: Multi-agent debate orchestration for Architecture Decision Records. Automatically triggers on ADR create/edit/delete. Coordinates architect, critic, independent-thinker, security, analyst, and high-level-advisor agents in structured debate rounds until consensus. Use when you say "review this ADR", when an ADR is created/edited/deleted, or when reviewing, accepting, or updating a decision file under .project-toolkit/architecture/, docs/architecture/, docs/decisions/, docs/adr/, or architecture/decisions/, including intent like "review this decision record" or "check this rationale for future maintainers". Do NOT use to author a new ADR (use adr-generator).
+license: MIT
+metadata:
+  domains: [architecture, governance, multi-agent, consensus]
+  capability:
+    kind: orchestrator
+    status: active
+  inputs: [adr-file-path, change-type]
+  outputs: [debate-log, updated-adr, recommendations]
+  file_triggers:
+    patterns:
+      - ".project-toolkit/architecture/ADR-*.md"
+      - "docs/adr/ADR-*.md"
+      - "docs/architecture/ADR-*.md"
+      - "docs/decisions/ADR-*.md"
+      - "architecture/decisions/ADR-*.md"
+    events: [create, update, delete]
+    auto_invoke: true
+  routing:
+    role: conditional-adjunct
+    invoker: ai-agents-change-control
+    trigger: in the ai-agents repository, ai-agents-change-control fires the adr-review debate gate on any ADR create or edit
+    user-facing: false
 ---
 
 # ADR Review

@@ -1,6 +1,7 @@
 ---
 name: skillforge
 description: "Intelligent skill router and creator. Analyzes ANY input to recommend existing skills, improve them, or create new ones. Use when you say \"create a skill\", \"do I have a skill for\", \"which skill should I use\", \"improve the X skill\", or \"SkillForge: {goal}\". Do NOT use for context optimization, placement analysis, markdown compression, extraction and indexing, or rule audits (use context-optimizer), eval-gated optimization of an existing skill (use skillopt), or saving finished work as a skill (use skillify)."
+license: MIT
 metadata:
   version: 4.1.0
   domains: [meta-skill, automation, skill-creation, orchestration, agentic, routing]

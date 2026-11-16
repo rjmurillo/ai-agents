@@ -1,6 +1,8 @@
 ---
 name: chaos-experiment
+version: 1.1.0
 description: Design and document chaos engineering experiments. Guide steady state baseline, hypothesis formation, failure injection plans, and results analysis. Use when you say "design a chaos experiment", "plan a game day", "failure injection", "test resilience", or "chaos engineering". Do NOT use for security threat analysis (use threat-modeling) or pre-launch project risk identification (use pre-mortem).
+license: MIT
 metadata:
   domains: [chaos-engineering, resilience, reliability, testing]
   routing:

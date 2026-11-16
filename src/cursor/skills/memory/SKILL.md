@@ -1,11 +1,13 @@
 ---
 name: memory
+version: 0.4.0
 description: Thin router for the tiered memory system. Points callers at the
   focused sub-skills for each operation, Tier 1 search, the reflexion write path,
   the memory-first gate, maintenance, and consolidation. Use when you ask "what
   do we know about X", "recall prior context", or "search memory" and are not
   sure which operation you need. Do NOT use for adding citations (use
   memory-enhancement) or narrative cross-system reports (use memory-documentary).
+license: MIT
 metadata:
   adr: ADR-038, ADR-063, ADR-106
   timelessness: 8/10
