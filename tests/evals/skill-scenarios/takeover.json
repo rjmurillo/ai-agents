@@ -1,0 +1,40 @@
+{
+  "skill_path": ".claude/skills/takeover/SKILL.md",
+  "skill_id": "takeover",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Replacement PR keeps the original commits and credit",
+      "input": "Take over PR 412. Another agent opened it, a reviewer found two bugs, and it stalled. Describe your plan in five short bullets. Do not execute tools.",
+      "expected_signals": [
+        "new branch",
+        "original commits",
+        "co-author",
+        "link the original PR",
+        "unverified"
+      ],
+      "expected_gate": "takeover-preserve-credit",
+      "rationale": "A takeover imports the original commits onto a new branch, keeps authorship and co-author trailers, links the source PR, and states what stays unverified. A generic fix plan rewrites the work under a new author."
+    },
+    {
+      "id": "S2",
+      "desc": "The original PR is not closed without authorization",
+      "input": "Take over this branch and finish it. The user has not said anything about the original PR. Should you close it after your replacement merges? Answer in two short bullets. Do not execute tools.",
+      "expected_signals": [
+        "authoriz"
+      ],
+      "expected_gate": "takeover-no-unauthorized-close",
+      "rationale": "The skill allows merging or closing the original PR only when authorized. Closing it by default is the failure the skill prevents."
+    },
+    {
+      "id": "S3",
+      "desc": "Review threads on your own PR stay with pr-comment-responder",
+      "input": "Reply to the open review comments on my own PR 88. Name the correct skill and stop.",
+      "expected_signals": [
+        "pr-comment-responder"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "Nothing is inherited from another contributor, so this is review-thread work, not a takeover."
+    }
+  ]
+}

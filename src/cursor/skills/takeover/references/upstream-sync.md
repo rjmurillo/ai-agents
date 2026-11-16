@@ -14,7 +14,7 @@ It replaces the tstack skills this catalog lacks.
 
 | Upstream reference | Local replacement |
 |---|---|
-| `modernize` | Prose step to update against the intended base, plus `merge-resolver` for conflicts |
+| `modernize` | Prose step to update against the intended base, plus the merge-resolver agent for conflicts |
 | `file-pr` | `push-pr` |
 | `babysit-pr` | `github` skill for checks, `pr-comment-responder` for review threads |
 | `leaving-pr-comments` | `pr-comment-responder` |

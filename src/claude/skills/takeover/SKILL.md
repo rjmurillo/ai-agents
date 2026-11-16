@@ -2,7 +2,7 @@
 name: takeover
 version: 1.0.0
 license: MIT
-description: Take over existing work and finish its original goal while keeping the original contributors' credit. Use when you say `take over this PR`, `take over this branch`, `take over this thread`, or `takeover`. Do NOT use to answer review threads on your own PR (use pr-comment-responder), to only resolve merge conflicts (use merge-resolver), to triage many open PRs (use pr-autofix), or to attribute a blocked check (use repository-pr-recovery).
+description: Finish another contributor's PR, branch, or agent thread while keeping their credit. Use when you say `take over this PR`, `take over this branch`, or `takeover`. Do NOT use for review threads on your own PR (use pr-comment-responder), conflicts alone (use the merge-resolver agent), or many-PR triage (use pr-autofix).
 user-invocable: true
 metadata:
   routing:
@@ -56,7 +56,7 @@ another agent already built it.
    architecture. Rework what is necessary to finish the same goal, not
    unrelated features. Simplify the implementation without dropping intended
    behavior or surfaces. Recheck the source PR too: it may have improved while
-   you were working. Use `merge-resolver` when the update hits conflicts.
+   you were working. Use the merge-resolver agent when the update hits conflicts.
 5. **Verify.** Independently verify the original failure and realistic
    workflows, following repository guidance and permissions. Green mocked
    tests do not prove the user experience works. State what remains

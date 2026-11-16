@@ -16,7 +16,7 @@ uv run python ./scripts/skill_description_budget.py --output-format json
 uv run python ./scripts/skill_description_budget.py --budget-file scripts/skill_description_budget.json   # CI gate (skill-passive-compliance.yml), exit 1 over the per-root char ceiling
 ```
 
-- Current baseline (2026-10-31 at 42e409325): 121 skills, 49257 chars, ~12315 estimated tokens, passing the 49300-char `.claude/skills` ceiling in `scripts/skill_description_budget.json`; top offenders `adr-generator` at 839 chars, `skillforge` at 706, `planner` at 678. Re-measure with `baseline_snapshot.py`.
+- Current baseline (2026-11-16, takeover added on 203c26dcb): 123 skills, 49586 chars, ~12397 estimated tokens, passing the 49600-char `.claude/skills` ceiling in `scripts/skill_description_budget.json`; top offenders `adr-generator` at 839 chars, `planner` at 678, `adr-review` at 664. Re-measure with `baseline_snapshot.py`.
 - Healthy: total flat or falling; a new skill adds roughly 350-500 chars (house style), hard cap 1024 (`DESCRIPTION_MAX_LENGTH = 1024` at `.claude/skills/skillforge/scripts/_constants.py:74`, enforced at `.claude/skills/skillforge/scripts/validate-skill.py:286-287`). The copy at `validate-skill.py:221` (import at `:193`) is an `except ImportError` fallback, so change the constants file, not the validator. <!-- citation-freshness: ignore -- symlinked shipped skill; tracked at src/claude/skills/skillforge/scripts/_constants.py and validate-skill.py -->
 - Unhealthy: total climbing PR over PR with no budget flag set; any single description near 1024.
 - Trap: the token figure is a chars/4 heuristic, deliberately not tiktoken. Trend it; never quote it as an exact cost.
