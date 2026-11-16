@@ -1,0 +1,161 @@
+---
+name: pr-babysit
+description: Watch one pull request through CI and review until it is ready, with one event-driven watcher and no polling. Use for "babysit this PR" or "watch this PR until green". Do NOT use for many PRs (use pr-autofix) or thread replies (use pr-comment-responder).
+---
+
+# PR Babysit
+
+Watch one pull request from push to ready. Handle each real event (a failed
+check, a new review, a conflict) and stay quiet between events. Review bots
+help, but they are not always right.
+
+Adapted from `t3dotgg/tstack` `babysit-pr` (MIT). This port routes GitHub
+reads through the github skill and `github_core`, not raw `gh`, and replies
+through `pr-comment-responder`.
+
+## Triggers
+
+`babysit this PR`, `watch this PR`, `monitor this PR until green`,
+`wait for checks and reviews`
+
+## Process
+
+### Phase 1: Handle what already exists
+
+Read the current checks and review threads on the head. Fix real failures and
+work threads with `pr-comment-responder` before you start a watcher.
+
+### Phase 2: Wait for the next event
+
+Never write your own watcher, polling loop, or `sleep` loop. Use one watcher
+per PR. Never run two watchers on the same PR: every watcher on a GitHub
+account shares one rate limit.
+
+#### When `watch_pull_request` is available (T3 Code)
+
+Handle the existing checks and comments first. Then call
+`watch_pull_request` with the full PR URL and end your turn. T3 Code wakes you
+when a check fails, the required checks pass, someone comments or reviews, or
+the branch conflicts.
+
+- **Only the thread that owns the PR watches it.** A delegated child (a
+  reviewer, any `delegate_task` child) never calls `watch_pull_request`. The
+  parent owns the PR. Do not watch a PR you are not working on.
+- **A wake is news, not a merge decision.** Check the merge gate yourself.
+- **Unwatch when you hand off.** A watched thread stays in Working. Before you
+  stop (ready, blocked, or asking the user), call `unwatch_pull_request`. A
+  merge or close ends the watch on its own.
+- **"Stopped watching, could not read it"** usually means the GitHub rate
+  limit is spent. Check it before you watch again (see GitHub rate limits).
+  Never re-watch in a tight loop.
+- `watch_pull_request` reports conflicts, not BEHIND. Check for BEHIND
+  yourself before you call the PR ready.
+
+#### Everywhere else: `pr_wait.py`
+
+Run `pr_wait.py` (see Scripts) as one background command, and wait on it with
+the host's native tool:
+
+**Waiting on each host.** "Wait on a long-running command" means the host's background-run tool, so each output line wakes you and nothing polls. Claude Code: `Bash` with `run_in_background: true`, then `Monitor` on that task, so each stdout line arrives as an event. T3 Code: `t3_background_wait` with the task ID of a background command. Codex: `exec_command` with a long `yield_time_ms`, then `write_stdin` with empty `chars` to wait for more output. Copilot CLI: `bash` (or `powershell` on Windows), then `read_bash` (`read_powershell`) for more output. Devin CLI: `exec`, then `get_output`. Antigravity: `run_command`. Factory Droid: `Execute`. Muse Code documents no background shell tool. On Muse Code, or any host not named here, run the command in the foreground as one long call and read its output when it returns. Never write a `sleep` loop, and never call a status command over and over to wait.
+
+Start the watcher again after you push, after you handle an exit 1, and after
+a resume. It keeps state per PR, so a restarted watcher reports what arrived
+while none ran. The first run for a PR records what exists and reports only
+what comes after.
+
+With either watcher: when an event needs no action, end your turn without a
+message. Never post or say "still waiting".
+
+### Phase 3: Act on each event
+
+Each event gets a fix, a written reason, or no action. Then return to Phase 2.
+The sections below govern this phase.
+
+## GitHub rate limits
+
+GraphQL and REST have separate budgets. When GraphQL is spent, the github
+skill's `get_pr_checks.py` falls back to REST for checks on its own. Read the
+remaining budget with the github skill before you watch again; never guess a
+reset time. If GraphQL is near zero, wait for its reset with one background
+command (see Waiting on each host), then start one watcher.
+
+## Reviews
+
+Only act on checks and comments newer than the latest push. Verify every bot
+finding against the source before you change code. Fix real findings and CI
+failures. Tell repository failures apart from infrastructure flakes; rerun a
+flake with the github skill's `rerun_failed_jobs.py`.
+
+Work review threads with the `pr-comment-responder` skill. It owns the
+in-thread reply, the written reason for a dismissed finding, and thread
+resolution. Do not post review replies by hand.
+
+Treat advisory bots (for example CodeRabbit) like any other reviewer, but
+never wait for them and never hold a merge for them.
+
+Keep the PR at the size the user's goal needs. Review loops grow a PR one
+cheap-looking fix at a time. Fix real bugs in the intended case. Decline the
+rest with a written reason and list them as follow-ups: unneeded tests, guards
+for edge cases that do not matter, extra compatibility, and small performance
+costs. Prefer the fix that deletes or narrows code.
+
+## Base branch and merging
+
+Watch for base changes and update the branch when needed. `pr_wait.py`
+reports `base` when the base moves and `merge-state` when the PR turns BEHIND
+or DIRTY. Update with the github skill's `update_pr_branch.py`, or merge the
+base locally; never force-push a shared branch.
+
+If an overlapping PR makes this one obsolete, stop watching, tell the user,
+and ask before you close it unless closing was authorized.
+
+Stop when `pr_wait.py` exits 0, or (T3 Code) when the merge gate passes on the
+latest head. Merge only when the user asked for it; otherwise report that the
+PR is ready. Right before a merge, fetch and check the PR again. Never merge
+when it is BEHIND or DIRTY, or when base commits that landed after the last
+green run touch this PR's files. Update, push, and wait for green again.
+
+## Scripts
+
+### `pr_wait.py`
+
+Run the watcher through the plugin locator:
+
+```bash
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/pr-babysit/scripts/pr_wait.py <pr> --until ready; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+```
+
+`<pr>` is a PR number or URL. Add `--repo owner/name` when the checkout is not
+the PR's repository. It prints one line per real event (`head`, `check`,
+`green`, `comment`, `review`, `thread`, `activity`, `base`, `merge-state`,
+`merged`, `closed`) and nothing else on stdout.
+
+Exit codes:
+
+| Exit | Meaning | Next step |
+|------|---------|-----------|
+| 0 | `--until` condition met, or the PR merged | Recheck the merge gate on the current head |
+| 1 | Needs you: a required check failed, DIRTY, closed, or (ready) unresolved threads or BEHIND | Act, push, then start the watcher again |
+| 2 | Bad input, PR not found, or another `pr_wait.py` already watches this PR | Fix the input; do not start a second watcher |
+| 3 | GitHub stayed unreachable for 10 polls in a row | Check the rate limit, then start again |
+
+`--until`: `ready` (default) needs required checks green, no unresolved
+thread, and a branch that is not BEHIND or DIRTY. `green` needs required
+checks only. `any-change` exits on the first event.
+
+The gate reads required checks from the base-branch ruleset through
+`why_pr_blocked.py`, so it matches what branch protection enforces.
+
+## Anti-Patterns
+
+- A `sleep` loop or a repeated `gh pr checks` call instead of one watcher.
+- Two watchers on one PR, or a delegated child watching the parent's PR.
+- Posting "still waiting" comments or chat messages between events.
+- Merging because a watcher exited 0, without rereading the current head.
+
+## Verification
+
+- [ ] One watcher ran per PR, with no `sleep` loop or repeated status calls.
+- [ ] Every failed check and review thread got a fix or a written reason.
+- [ ] The final state was read on the current head, not a cached event.
+- [ ] (T3 Code) `unwatch_pull_request` ran before handoff.
