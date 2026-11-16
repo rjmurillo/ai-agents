@@ -77,13 +77,11 @@ def test_real_home_run_leaves_the_config_dir_unset_and_records_the_confound(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.delenv(REAL_HOME_ENV, raising=False)
     monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
     runner = EnvSpyRunner(load_tasks(tmp_path))
-    try:
-        code = cli.main(_live_args(tmp_path, "--real-home"), runner=runner)
-    finally:
-        os.environ.pop(REAL_HOME_ENV, None)
+    monkeypatch.setenv(REAL_HOME_ENV, "0")
+    code = cli.main(_live_args(tmp_path, "--real-home"), runner=runner)
+    assert os.environ[REAL_HOME_ENV] == "0"
     assert code == cli.EXIT_OK
     report = json.loads(capsys.readouterr().out)
     assert report["real_home"] is True

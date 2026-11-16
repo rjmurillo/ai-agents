@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -253,10 +254,12 @@ class TestProvenanceOrder:
     def test_runner_state_is_taken_before_the_first_launch(
         self, repo: HistoryRepo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        monkeypatch.setenv(REAL_HOME_ENV, "0")
         loaded = corpus(repo)
         task = loaded.tasks[0]
         runner = FakeRunner(task)
         seen: list[int] = []
+        in_run: list[str | None] = []
 
         def version_aware(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
             if "--version" in argv:
@@ -267,6 +270,7 @@ class TestProvenanceOrder:
 
         def spy(root: Path) -> dict[str, object]:
             seen.append(len(runner.calls))
+            in_run.append(os.environ.get(REAL_HOME_ENV))
             return real_state(root)
 
         monkeypatch.setattr(cli.batch, "runner_state", spy)
@@ -287,3 +291,6 @@ class TestProvenanceOrder:
         assert seen == [0]
         assert len(runner.calls) >= 2
         assert report["provenance"]["runner_commit"] == repo.fix_sha
+        assert in_run == ["1"]
+        assert report["real_home"] is True
+        assert os.environ[REAL_HOME_ENV] == "0"

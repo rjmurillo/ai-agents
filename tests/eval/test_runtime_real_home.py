@@ -224,3 +224,22 @@ def test_a_finished_real_home_run_does_not_keep_the_claude_transport_opted_in(
         tmp_path / "profile", claude_cli.ResolvedCredential(claude_cli.STEP_ENV, "tok")
     )
     assert env["CLAUDE_CONFIG_DIR"] == str(tmp_path / "profile")
+
+
+def test_parity_main_sets_real_home_only_for_the_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(ENV, "0")
+    seen: list[str | None] = []
+
+    def fake_run(**_kwargs: object) -> tuple[dict[str, object], int]:
+        seen.append(os.environ.get(ENV))
+        return {}, parity.EXIT_OK
+
+    monkeypatch.setattr(parity, "verify_worktree_identity", lambda: None)
+    monkeypatch.setattr(parity, "_require_isolated_login", lambda *_a, **_k: None)
+    monkeypatch.setattr(parity, "run_evaluation", fake_run)
+    code = parity.main(["--real-home", "--dry-run", "--output", str(tmp_path / "r.json")])
+    assert code == parity.EXIT_OK
+    assert seen == ["1"]
+    assert os.environ[ENV] == "0"
