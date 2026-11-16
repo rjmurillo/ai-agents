@@ -24,6 +24,7 @@ import argparse
 import datetime
 import hashlib
 import json
+import math
 import os
 import subprocess
 import sys
@@ -188,6 +189,60 @@ def output_tokens(metadata: dict[str, object]) -> int:
     return nested if isinstance(nested, int) else 0
 
 
+def mcnemar_exact_p(only_a: int, only_b: int) -> float:
+    """Two-sided exact McNemar p: a binomial test on the discordant pairs at p = 0.5."""
+    n = only_a + only_b
+    if n == 0:
+        return 1.0
+    tail: float = sum(math.comb(n, i) for i in range(min(only_a, only_b) + 1)) / 2**n
+    return min(1.0, 2 * tail)
+
+
+def compare(
+    baseline: list[dict[str, Any]],
+    treatment: list[dict[str, Any]],
+    revisions: list[core.Revision],
+) -> dict[str, Any]:
+    """Pair the two arms by (revision, trial, defect) and test the caught difference.
+
+    Only jobs both arms finished are paired, so an arm that ran further never
+    gets credit for the extra jobs. ``context`` splits the same counts by the
+    defect's ``context`` label.
+    """
+    contexts = {d.thread: d.context for r in revisions for d in r.defects}
+    by_key = {(r["revision"], int(r["trial"])): r for r in treatment}
+    cells: dict[str, dict[str, int]] = {}
+    outcome = ("both", "baseline_only", "treatment_only", "neither")
+    for row in baseline:
+        other = by_key.get((row["revision"], int(row["trial"])))
+        if other is None:
+            continue
+        for thread, got in row["defects"].items():
+            mine, theirs = got["caught"], other["defects"][thread]["caught"]
+            key = (
+                "both"
+                if mine and theirs
+                else "baseline_only"
+                if mine
+                else ("treatment_only" if theirs else "neither")
+            )
+            for group in ("all", f"context:{contexts.get(thread, 'unknown')}"):
+                cell = cells.setdefault(
+                    group, dict.fromkeys((*outcome, "same_file_baseline", "same_file_treatment"), 0)
+                )
+                cell[key] += 1
+                cell["same_file_baseline"] += int(got["same_file"])
+                cell["same_file_treatment"] += int(other["defects"][thread]["same_file"])
+    paired: dict[str, dict[str, Any]] = {}
+    for group, cell in sorted(cells.items()):
+        paired[group] = {
+            **cell,
+            "n": sum(cell[k] for k in outcome),
+            "mcnemar_p": mcnemar_exact_p(cell["baseline_only"], cell["treatment_only"]),
+        }
+    return {"paired": paired}
+
+
 RATE_LIMIT_WAITS_SECONDS = (60, 120, 300, 600, 900, 900, 900, 900)
 
 
@@ -286,6 +341,11 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--checkpoint", default=None)
     parser.add_argument("--output", default=None, help="write aggregate JSON here")
     parser.add_argument("--rescore", action="store_true", help="score --checkpoint; no call")
+    parser.add_argument(
+        "--compare",
+        default=None,
+        help="baseline checkpoint; pair it with --checkpoint (treatment) by job; no call",
+    )
     parser.add_argument("--validate-corpus", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
@@ -328,6 +388,17 @@ def main(
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
     usage = {"calls": 0, "output_tokens": 0}
+    if args.compare:
+        if checkpoint is None:
+            print("ERROR: --compare needs --checkpoint (the treatment arm)", file=sys.stderr)
+            return 2
+        try:
+            baseline_rows = rescore(load_checkpoint(Path(args.compare)), revisions)
+        except (OSError, UnicodeDecodeError, ValueError) as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 2
+        result = compare(baseline_rows, rescore(done, revisions), revisions)
+        return _emit(args, result, corpus_path, usage)
     if args.rescore:
         if checkpoint is None:
             print("ERROR: --rescore needs --checkpoint", file=sys.stderr)

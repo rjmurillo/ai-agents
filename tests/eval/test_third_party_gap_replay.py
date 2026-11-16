@@ -218,3 +218,53 @@ class TestRateLimitBackoff:
         with pytest.raises(RuntimeError, match="429"):
             replay.call_with_rate_limit_backoff(send, waits.append)
         assert waits == list(replay.RATE_LIMIT_WAITS_SECONDS)
+
+
+class TestMcNemar:
+    def test_no_discordant_pairs_is_p_one(self) -> None:
+        assert replay.mcnemar_exact_p(0, 0) == 1.0
+
+    def test_balanced_discordance_is_p_one(self) -> None:
+        assert replay.mcnemar_exact_p(4, 4) == 1.0
+
+    def test_known_value_for_zero_versus_six(self) -> None:
+        # Two-sided exact binomial for 0 of 6 at p = 0.5 is 2 / 64.
+        assert replay.mcnemar_exact_p(0, 6) == 2 / 64
+
+    def test_is_symmetric(self) -> None:
+        assert replay.mcnemar_exact_p(2, 9) == replay.mcnemar_exact_p(9, 2)
+
+
+class TestCompare:
+    def test_pairs_only_jobs_both_arms_finished(
+        self, corpus: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        miss = "NO FINDINGS\nVERDICT: PASS"
+        base = tmp_path / "base.jsonl"
+        treat = tmp_path / "treat.jsonl"
+        base.write_text(
+            json.dumps({"revision": "TG001", "trial": 0, "raw": miss})
+            + "\n"
+            + json.dumps({"revision": "TG002", "trial": 0, "raw": miss})
+            + "\n",
+            encoding="utf-8",
+        )
+        treat.write_text(
+            json.dumps({"revision": "TG001", "trial": 0, "raw": CAUGHT}) + "\n", encoding="utf-8"
+        )
+
+        code = replay.main(
+            args(corpus, "--checkpoint", str(treat), "--compare", str(base)), caller(), git
+        )
+
+        paired = json.loads(capsys.readouterr().out)["result"]["paired"]
+        assert code == 0
+        assert paired["all"]["n"] == 1
+        assert paired["all"]["treatment_only"] == 1
+        assert paired["context:diff-local"]["treatment_only"] == 1
+
+    def test_compare_without_checkpoint_exits_2(self, corpus: Path, tmp_path: Path) -> None:
+        base = tmp_path / "base.jsonl"
+        base.write_text("", encoding="utf-8")
+
+        assert replay.main(args(corpus, "--compare", str(base)), caller(), git) == 2
