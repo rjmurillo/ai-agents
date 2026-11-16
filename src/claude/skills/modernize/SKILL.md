@@ -1,7 +1,7 @@
 ---
 name: modernize
 version: 1.0.0
-description: Rebase an aging PR only after checking its idea still belongs. Ends MODERNIZE, REWORK, or CLOSE. Use for `modernize this PR`. Do NOT use for conflicts alone (use merge-resolver agent).
+description: Rebase an aging PR only after checking its idea still belongs. Ends MODERNIZE, REWORK, or CLOSE. Use for `modernize this PR`. Do NOT use for conflicts alone (use merge-resolver agent or skill).
 license: MIT
 user-invocable: true
 metadata:
