@@ -53,6 +53,14 @@ class TestRepairTail:
 
         assert path.read_bytes() == b'{"a": 1}\n'
 
+    def test_a_broken_last_line_before_blank_crlf_lines_is_cut_off(self, tmp_path: Path) -> None:
+        path = tmp_path / "rows.jsonl"
+        path.write_bytes(b'{"a": 1}\r\n{"revision": "TG\r\n\r\n')
+
+        checkpoint.repair_tail(path)
+
+        assert path.read_bytes() == b'{"a": 1}\r\n'
+
     def test_trailing_blank_lines_after_a_whole_record_are_left_alone(self, tmp_path: Path) -> None:
         path = tmp_path / "rows.jsonl"
         path.write_bytes(b'{"a": 1}\n\n')

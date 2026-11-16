@@ -54,7 +54,7 @@ def repair_tail(path: Path) -> None:
     if not path.exists():
         return
     data = path.read_bytes()
-    body = data.rstrip(b"\n")
+    body = data.rstrip(b"\r\n")
     if not body:
         return
     start = body.rfind(b"\n") + 1

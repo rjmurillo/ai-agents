@@ -262,8 +262,10 @@ uv run python scripts/eval/build_third_party_gap_corpus.py --dump .project-toolk
 ```
 
 Frozen reproduction (the committed corpora and results). The first command
-needs the unpublished 2026-11-15 dump, so only its holder can run it. The rest
-need this repository and the fetched pull request commits:
+needs the unpublished 2026-11-15 dump, so only its holder can run it. The
+Eval 1, `--validate-corpus`, and model-run commands also need the fetched pull
+request commits. The last command, `--compare`, reads no git and needs only
+this directory:
 
 ```bash
 uv run python scripts/eval/build_third_party_gap_corpus.py --dump <the 2026-11-15 dump> --check --stats

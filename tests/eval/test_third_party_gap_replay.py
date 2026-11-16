@@ -134,6 +134,20 @@ class TestMain:
         reloaded = replay.load_checkpoint(checkpoint)
         assert sorted(r["revision"] for r in reloaded) == ["TG001", "TG002"]
 
+    def test_a_resume_of_a_subset_ignores_rows_outside_it(
+        self, corpus: Path, tmp_path: Path
+    ) -> None:
+        checkpoint = tmp_path / "rows.jsonl"
+        assert replay.main(args(corpus, "--checkpoint", str(checkpoint)), caller(), git) == 0
+        fake = caller()
+
+        code = replay.main(
+            args(corpus, "--checkpoint", str(checkpoint), "--revisions", "TG001"), fake, git
+        )
+
+        assert code == 0
+        assert fake.calls == []
+
     def test_checkpoint_answers_for_a_changed_prompt_are_refused(
         self, corpus: Path, tmp_path: Path
     ) -> None:
