@@ -288,7 +288,9 @@ def _try_render(
 
 
 def render_claude(tmpl_path: Path, partials_dir: Path, table: dict[str, object]) -> str:
-    """Render a Claude template, then expand its ``$mcp:`` references.
+    """Render a Claude template, expand its ``$mcp:`` references, and set its reference root.
+
+    Split-agent reference paths get the bare Claude plugin-root token.
 
     Raises the grammar errors :func:`render` raises, plus
     ``agent_capabilities.CapabilityError`` for an unknown server.

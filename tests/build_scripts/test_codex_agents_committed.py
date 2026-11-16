@@ -47,6 +47,8 @@ BODY_EDITS = {
 }
 # The Claude source renders bare ${CLAUDE_PLUGIN_ROOT} on these reference paths;
 # a Codex shell sets no plugin-root variable, so the copy keeps the shared root.
+# Written out on purpose, not imported from split_reference_roots, so this test
+# stays independent of the generator (module docstring).
 SPLIT_REFERENCE_SKILLS = (
     "adr-review",
     "decision-critic",

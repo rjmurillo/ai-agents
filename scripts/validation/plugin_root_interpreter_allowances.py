@@ -45,7 +45,8 @@ _HARNESS_FACT = (
 _SPLIT_AGENT_REF = (
     "Split-agent skill reference path for a host that replaces the bare Claude token in "
     "an agent body: Claude Code (ADR-121 row 4) and Cursor (probe of 2026-11-16). "
-    "Templates keep the dual-variable fallback, Copilot CLI renders COPILOT_PLUGIN_ROOT, "
+    "Templates keep the dual-variable fallback, Copilot CLI renders COPILOT_PLUGIN_ROOT "
+    "(agent-body rewrite unmeasured, ADR-121), "
     "and the Codex and Muse copies keep the fallback (split_reference_roots.py)."
 )
 

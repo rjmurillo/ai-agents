@@ -10,6 +10,8 @@ Claude Code rewrites a bare ``${CLAUDE_PLUGIN_ROOT}`` to an absolute path
 (ADR-121, evidence row 4). Cursor does the same for a plugin agent body (probe
 of 2026-11-16), so its copy keeps the Claude token (``keepClaudeReferenceRoot``
 in ``agent_tree_copy.py``). The Copilot CLI render uses ``${COPILOT_PLUGIN_ROOT}``.
+That Copilot choice is unproven: ADR-121 records its probe as UNAVAILABLE, and the
+documented variable reaches plugin hooks only.
 Codex and Muse Code rewrite no token and set no plugin-root variable (same
 probe), so their copies keep the shared form, which resolves in a checkout.
 
@@ -36,8 +38,11 @@ COPILOT_ROOT = "${COPILOT_PLUGIN_ROOT}"
 _HOST_ROOTS = frozenset({CLAUDE_ROOT, COPILOT_ROOT})
 
 _BARE_ROOT_REFERENCE = re.compile(
-    r"\$\{(?:CLAUDE_PLUGIN_ROOT|COPILOT_PLUGIN_ROOT)\}"
-    r"(/skills/(?:" + "|".join(re.escape(s) for s in SPLIT_REFERENCE_SKILLS) + r")/references/)"
+    "(?:"
+    + "|".join(re.escape(root) for root in sorted(_HOST_ROOTS))
+    + ")(/skills/(?:"
+    + "|".join(re.escape(s) for s in SPLIT_REFERENCE_SKILLS)
+    + ")/references/)"
 )
 
 
