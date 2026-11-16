@@ -241,3 +241,24 @@ def test_fallback_host_agents_carry_no_bare_claude_reference_root(tree: str) -> 
 
     assert offenders == []
     assert len(shared) == 5, shared
+
+
+SPLIT_AGENTS = ("architect", "critic", "implementer", "orchestrator", "qa", "security")
+
+
+@pytest.mark.parametrize(
+    ("pattern", "host_root"),
+    [
+        ("src/claude/agents/{}.md", CLAUDE_ROOT),
+        ("src/copilot-cli/agents/{}.agent.md", COPILOT_ROOT),
+    ],
+    ids=["claude", "copilot-cli"],
+)
+@pytest.mark.parametrize("agent", SPLIT_AGENTS)
+def test_host_render_carries_its_own_reference_root(
+    pattern: str, host_root: str, agent: str
+) -> None:
+    text = (REPO_ROOT / pattern.format(agent)).read_text(encoding="utf-8")
+
+    assert any(_ref(host_root, skill) in text for skill in SPLIT_REFERENCE_SKILLS), agent
+    assert not any(_ref(SHARED_ROOT, skill) in text for skill in SPLIT_REFERENCE_SKILLS), agent

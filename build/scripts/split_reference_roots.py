@@ -5,11 +5,13 @@ reference files from a skill's ``references/`` folder. The authored templates
 write that folder with the shared fallback root, which names both plugin-root
 variables and the ``.claude`` checkout default.
 
-A host that rewrites its own bare token in an agent body gets that token
-instead. Claude Code rewrites a bare ``${CLAUDE_PLUGIN_ROOT}`` to an absolute
-path (ADR-121, evidence row 4). The Copilot CLI render uses
-``${COPILOT_PLUGIN_ROOT}``. A copy for any other host keeps the shared form,
-because ADR-115 records that a Cursor shell sees no plugin-root variable.
+A host that rewrites a bare token in an agent body gets that token instead.
+Claude Code rewrites a bare ``${CLAUDE_PLUGIN_ROOT}`` to an absolute path
+(ADR-121, evidence row 4). Cursor does the same for a plugin agent body (probe
+of 2026-11-16), so its copy keeps the Claude token (``keepClaudeReferenceRoot``
+in ``agent_tree_copy.py``). The Copilot CLI render uses ``${COPILOT_PLUGIN_ROOT}``.
+Codex and Muse Code rewrite no token and set no plugin-root variable (same
+probe), so their copies keep the shared form, which resolves in a checkout.
 
 Stdlib only: ``detect_agent_drift.py`` runs as plain ``python3``.
 """

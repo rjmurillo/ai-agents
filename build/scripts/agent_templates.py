@@ -263,7 +263,8 @@ def _try_render(
     Different than canonical: when ``table`` is given (the Claude variant
     only), ``- $mcp:<server>`` frontmatter list items expand into MCP wildcard grants
     for every prefix variant of the server. An unknown name, or a bare MCP wildcard, is a
-    configuration error, exit 2, the same floor a missing partial gets.
+    configuration error, exit 2, the same floor a missing partial gets. The Claude
+    variant also renders split-agent reference paths with the bare Claude root.
     """
     try:
         rendered = str(render(tmpl_path, partials_dir))
