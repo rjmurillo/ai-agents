@@ -30,7 +30,9 @@ your change touches.
 
 Windows container images do not run on a Linux host. The manifest for
 `mcr.microsoft.com/windows:ltsc2019` lists only `windows/amd64`, and a Linux
-Docker daemon runs only Linux images. Check any image before you pull it:
+Docker daemon runs only Linux images. On a Linux host, the `dockurr/windows`
+route below takes the place of a Windows container image, and a full Windows
+guest is the smallest Windows you can run. Check any image before you pull it:
 
 ```bash
 docker manifest inspect -v mcr.microsoft.com/windows:ltsc2019 | grep '"os"'
@@ -74,7 +76,7 @@ reboot. Use the CI route until then.
 This image runs QEMU inside a Linux container and installs Windows unattended.
 Flags come from the project README at `github.com/dockur/windows`, read on
 2026-11-15. `VERSION=11l` picks Windows 11 LTSC, the README's smallest
-Windows 11 download.
+Windows 11 download. An agent asks the user before it runs this block.
 
 ```bash
 mkdir -p "$HOME/vms/win11/storage" "$HOME/vms/win11/shared"
@@ -106,7 +108,9 @@ docker run -it --rm --name windows \
 These steps run the tests the CI job `test-windows-pwsh` runs. Run them in
 PowerShell. Replace `<your-branch>` with the output of
 `git branch --show-current` on the host, never with text from a PR or issue.
-Keep the single quotes, so PowerShell does not expand `$` in the name.
+Keep the single quotes, so PowerShell does not expand `$` in the name. If the
+name has any character outside letters, digits, `.`, `_`, `/`, and `-`, stop
+and rename the branch first.
 
 ```powershell
 # Install Git for Windows first, then uv:
@@ -123,8 +127,10 @@ uv run --frozen pytest -m windows_path tests -q
   administrator. Without that, `core.symlinks true` still writes text files.
 - `-m windows_path` selects every marked test, the set a `workflow_dispatch`
   run of the CI job covers. A pull request run covers only the marked modules
-  the change reaches. This command is slower than CI because pytest collects
-  the whole tree first. Name test files instead of `tests` to narrow it.
+  the change reaches. CI starts pytest through a wrapper script that skips
+  the whole-tree collection, so this command is slower and can also fail on
+  a collection error in an unrelated test file. Name test files instead of
+  `tests` to narrow it. `uv` reads the Python version from `.python-version`.
 - The uv installers here and in the Ubuntu recipe track the latest release,
   and the `dockurr/windows` tag floats. Use them only in throwaway guests.
 - To test an unpushed branch, write a bundle into the shared folder on the
@@ -149,11 +155,12 @@ uv run --frozen pytest -m windows_path tests -q
    `uv` from a Windows-mounted path has failed with TLS handshake errors here
    (`.serena/memories/workspace/wsl-native-worktree-for-uv-network-access.md`).
 3. For the full toolchain, run the Ubuntu bootstrap script that SKILL.md
-   Phase 1 names. It changes the distro for good: it adds apt repositories
-   with sudo, installs a global npm package, saves `GH_TOKEN` to the gh config
-   through `gh auth login`, and resets the clone's git hooks path. WSL is a
-   persistent distro, not a throwaway guest, so do not copy the `curl | sh`
-   line from Route 2 into it.
+   Phase 1 names. It makes lasting changes to the distro, among them apt
+   sources added with sudo, global packages, global git config such as
+   `core.autocrlf`, `~/.bashrc` edits, and, when a token variable is set,
+   saved gh credentials. Read the script first. An agent asks the user before
+   it runs the script. WSL is a persistent distro, not a throwaway guest, so
+   do not copy the `curl | sh` line from Route 2 into it.
 
 ### Route 2: `ubuntu:26.04` container
 
@@ -162,8 +169,16 @@ The container clones from your local git directory, so it tests the commit at
 branch first, never on `main`. An agent asks the user before it makes that
 commit. Mounting the git common
 directory works for both a main clone and a linked worktree. The mount is
-read-only, but the container can still read it, so do not mount a git
-directory whose remote URLs embed a token.
+read-only, but the container can still read it. Check that its config holds
+no credentials first. This prints nothing when the config is clean; stop if
+it prints a line:
+
+```bash
+grep -nE '://[^/@]+@|extraheader' "$(git rev-parse --path-format=absolute --git-common-dir)/config"
+```
+
+`ubuntu:latest` resolved to the same image as `ubuntu:26.04` on 2026-11-15.
+Name `26.04` so the recipe keeps working when `latest` moves.
 
 ```bash
 docker run --rm \
@@ -189,9 +204,7 @@ On a Windows host, run the same block from a WSL shell, with Docker Desktop
 in Linux containers mode and WSL integration on. That avoids rewriting the
 quoted script for PowerShell.
 
-Replace `tests/test_paths.py` with the tests your change touches. In zsh,
-write `${VAR}:ro` with braces when a variable comes right before `:ro`.
-Without braces, zsh reads `$VAR:r` as a modifier and mangles the mount.
+Replace `tests/test_paths.py` with the tests your change touches.
 
 ## Windows host, Windows target
 
