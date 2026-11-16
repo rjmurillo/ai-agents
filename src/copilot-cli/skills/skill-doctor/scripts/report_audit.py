@@ -13,7 +13,7 @@ unchanged. ``validate_audit`` makes the JSON totals and the report scorecard
 agree before any HTML is written. Escaping is injected (``esc``) so this module
 shares the renderer's single escape function.
 
-Python 3.10+, stdlib only.
+python3, stdlib only.
 """
 
 from __future__ import annotations

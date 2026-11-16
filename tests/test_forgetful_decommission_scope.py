@@ -114,6 +114,12 @@ EXEMPTIONS: dict[str, tuple[str, int, str]] = {
     "tests/test_forgetful_decommission_scope.py": (NEEDLE, 7, "this guard's own needle"),
     "tests/test_skill_registry.py": (NEEDLE, 3, "keyword left the memory category"),
     "tests/test_validation_skill_frontmatter.py": (NEEDLE, 8, "retired tool grant is rejected"),
+    "tests/test_skill_frontmatter_spec.py": (NEEDLE, 2, "retired MCP tool names are rejected"),
+    "scripts/validation/skill_frontmatter.py": (
+        REGISTRY,
+        1,
+        "RETIRED_MCP_SERVERS keeps the name so a grant for it is refused",
+    ),
     ".project-toolkit/specs/PRD-memory-enhancement-layer-for-serena-forgetful.md": (
         RECORD,
         11,

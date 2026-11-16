@@ -11,7 +11,7 @@ export is refused when any of them appears in it.
 Exit codes: 0 written, 1 canary check failed or report invalid, 2 bad
 arguments or unreadable input.
 
-Python 3.10+, stdlib only.
+python3, stdlib only.
 """
 
 from __future__ import annotations
