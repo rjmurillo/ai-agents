@@ -15,7 +15,8 @@ Method and limits: ``evals/third-party-review-gap/README.md``.
 Exit codes:
     0  ok
     1  --check found a rebuilt file that differs from the committed one
-    2  config error (unreadable dump or labels, missing label)
+    2  config error (unreadable dump or labels, missing label, or a write
+       under this checkout from a directory outside it)
     3  git could not run, or failed while computing --stats
 """
 
@@ -251,6 +252,23 @@ def check(files: dict[str, str], out_dir: Path) -> int:
     return 1 if stale else 0
 
 
+def write(files: dict[str, str], out_dir: Path, funnel: dict[str, int]) -> int:
+    """Write the rebuilt files; refuse a checkout the current directory is not in.
+
+    ``REPO_ROOT`` comes from this script's location, not from where it runs. A
+    builder from checkout A run inside checkout B would rewrite A's corpus, so
+    a write under ``REPO_ROOT`` needs the current directory inside it too.
+    """
+    root = REPO_ROOT.resolve()
+    if out_dir.resolve().is_relative_to(root) and not Path.cwd().resolve().is_relative_to(root):
+        print(f"ERROR: refusing to write under {root}: cwd is outside it", file=sys.stderr)
+        return 2
+    for name, text in files.items():
+        (out_dir / name).write_text(text, encoding="utf-8")
+    print(json.dumps({"written": sorted(files), "funnel": funnel}))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--dump", type=Path, required=True, help="miner output JSON")
@@ -279,10 +297,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
     if args.check:
         return check(files, args.out_dir)
-    for name, text in files.items():
-        (args.out_dir / name).write_text(text, encoding="utf-8")
-    print(json.dumps({"written": sorted(files), "funnel": built["funnel"]}))
-    return 0
+    return write(files, args.out_dir, built["funnel"])
 
 
 if __name__ == "__main__":

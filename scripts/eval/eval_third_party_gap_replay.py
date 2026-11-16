@@ -131,6 +131,44 @@ def load_checkpoint(path: Path | None) -> list[dict[str, Any]]:
     return rows
 
 
+def repair_tail(path: Path) -> None:
+    """Make the checkpoint safe to append to before a resumed run writes to it.
+
+    A killed run can leave a half-written last line with no newline. Appending
+    to it would glue the next answer onto that fragment and lose it. A broken
+    fragment is cut off at its first byte; a whole record only gets its newline.
+    """
+    if not path.exists():
+        return
+    data = path.read_bytes()
+    if not data or data.endswith(b"\n"):
+        return
+    start = data.rfind(b"\n") + 1
+    try:
+        json.loads(data[start:])
+    except ValueError:
+        path.write_bytes(data[:start])
+        return
+    path.write_bytes(data + b"\n")
+
+
+def stamp_mismatch(done: list[dict[str, Any]], stamp: dict[str, str]) -> str | None:
+    """Why the checkpoint's answers belong to another arm, or None when they match.
+
+    Resuming reuses every finished answer, so one recorded under another prompt
+    ref, model, or provider (or under none) would be reported as this arm's.
+    """
+    for row in done:
+        for key in STAMP_KEYS:
+            if row.get(key) != stamp[key]:
+                return (
+                    f"checkpoint row {row['revision']} trial {row['trial']} has "
+                    f"{key}={row.get(key)!r}, this run uses {stamp[key]!r}; "
+                    "use a new checkpoint for a new arm"
+                )
+    return None
+
+
 def rescore(rows: list[dict[str, Any]], revisions: list[core.Revision]) -> list[dict[str, Any]]:
     by_id = {r.id: r for r in revisions}
     return [
@@ -378,6 +416,10 @@ def main(
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
     jobs = [(r, t, reviews[r.id]) for r in revisions for t in range(args.trials)]
+    stamp = run_stamp(args)
+    if (mismatch := stamp_mismatch(done, stamp)) is not None:
+        print(f"ERROR: {mismatch}", file=sys.stderr)
+        return 2
     if args.dry_run:
         print(json.dumps({"revisions": len(revisions), "planned_calls": len(jobs)}))
         return 0
@@ -387,7 +429,9 @@ def main(
         except RuntimeError as exc:
             print(f"ERROR loading credentials: {exc}", file=sys.stderr)
             return 2
-    rows = run(jobs, caller, args.workers, checkpoint, done, run_stamp(args))
+    if checkpoint is not None:
+        repair_tail(checkpoint)
+    rows = run(jobs, caller, args.workers, checkpoint, done, stamp)
     return _finish(args, rows, revisions, corpus_path, usage)
 
 

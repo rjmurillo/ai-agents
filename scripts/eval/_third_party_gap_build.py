@@ -127,7 +127,7 @@ def admit(row: dict[str, Any], base_oid: str, git: GitRun) -> tuple[str, dict[st
     fix = resolved.strip()
     if git(("cat-file", "-e", f"{row['commit'] or 'x'}^{{commit}}")) is None:
         return "reviewed_missing", None
-    touched = (git(("show", "--format=", "--name-only", fix)) or "").split()
+    touched = (git(("show", "--format=", "--name-only", "-z", fix)) or "").split("\0")
     if row["path"] not in touched:
         return "fix_misses_path", None
     merge_base = (git(("merge-base", base_oid, row["commit"])) or "").strip()
@@ -135,7 +135,7 @@ def admit(row: dict[str, Any], base_oid: str, git: GitRun) -> tuple[str, dict[st
         return "no_merge_base", None
     if git(("merge-base", "--is-ancestor", row["commit"], fix)) is None:
         return "fix_not_descendant", None
-    files = (git(("diff", "--name-only", merge_base, row["commit"])) or "").split()
+    files = (git(("diff", "--name-only", "-z", merge_base, row["commit"])) or "").split("\0")
     diff = git(("diff", merge_base, row["commit"])) or ""
     admitted = {
         **row,

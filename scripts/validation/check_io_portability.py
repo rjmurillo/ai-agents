@@ -173,7 +173,7 @@ def _file_io_without_encoding(call: ast.Call) -> str | None:
         return "read_text() without encoding"
     if is_attr and name == "write_text" and len(call.args) < 2:
         return "write_text() without encoding"
-    if not is_attr and name == "open" and call.args:
+    if not is_attr and name == "open" and (call.args or _kwarg(call, "file") is not None):
         if len(call.args) >= 4:
             return None
         mode = call.args[1] if len(call.args) > 1 else _kwarg(call, "mode")
@@ -188,20 +188,33 @@ def _catches_symlink_failure(handler: ast.ExceptHandler) -> bool:
     return any(isinstance(n, ast.Name) and n.id in _SYMLINK_CATCHES for n in names)
 
 
+def _is_skip_mark(expr: ast.expr, skip_marks: frozenset[str]) -> bool:
+    """A mark whose callable is a skip, or a module alias of one.
+
+    Only the callable's own name counts (``pytest.mark.skipif``, ``unittest.skipIf``,
+    ``skip_on_windows``). Arguments do not: ``usefixtures('skip_cache')`` does not
+    skip. A list or tuple, as ``pytestmark`` allows, guards when any element does.
+    """
+    if isinstance(expr, ast.List | ast.Tuple):
+        return any(_is_skip_mark(e, skip_marks) for e in expr.elts)
+    target = expr.func if isinstance(expr, ast.Call) else expr
+    if isinstance(target, ast.Name):
+        return target.id in skip_marks or "skip" in target.id.lower()
+    return isinstance(target, ast.Attribute) and "skip" in target.attr.lower()
+
+
 def _has_skipif(decorators: Iterable[ast.expr], skip_marks: frozenset[str]) -> bool:
-    """A decorator that names a skip, directly or through a module-level alias."""
-    return any("skip" in ast.unparse(d) or ast.unparse(d) in skip_marks for d in decorators)
+    """A decorator that is a skip mark, directly or through a module-level alias."""
+    return any(_is_skip_mark(d, skip_marks) for d in decorators)
 
 
 def _module_skip_marks(tree: ast.Module) -> frozenset[str]:
     """Module names bound to a skip mark, as in ``POSIX_ONLY = pytest.mark.skipif(...)``."""
-    return frozenset(
-        target.id
-        for node in tree.body
-        if isinstance(node, ast.Assign) and "skip" in ast.unparse(node.value)
-        for target in node.targets
-        if isinstance(target, ast.Name)
-    )
+    marks: set[str] = set()
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and _is_skip_mark(node.value, frozenset(marks)):
+            marks.update(t.id for t in node.targets if isinstance(t, ast.Name))
+    return frozenset(marks)
 
 
 class _Visitor(ast.NodeVisitor):
@@ -214,7 +227,7 @@ class _Visitor(ast.NodeVisitor):
         self._module_skip = any(
             isinstance(node, ast.Assign)
             and any(isinstance(t, ast.Name) and t.id == "pytestmark" for t in node.targets)
-            and "skip" in ast.unparse(node.value)
+            and _is_skip_mark(node.value, self._skip_marks)
             for node in tree.body
         )
         self._guards: list[bool] = []  # one entry per enclosing scope or try that guards

@@ -211,10 +211,11 @@ def build_user_prompt(title: str, patch: str) -> str:
 
 def build_review_input(revision: Revision, title: str, system: str, git: GitRun) -> ReviewInput:
     """Read the pull request diff at the reviewed head. No fixing commit is an input."""
-    listing = git(("diff", "--name-only", revision.base, revision.head))
+    # NUL-delimited, so a path with a space, quote, or newline arrives unchanged.
+    listing = git(("diff", "--name-only", "-z", revision.base, revision.head))
     if listing is None:
         raise CorpusError(f"{revision.id}: cannot list {revision.base}..{revision.head}")
-    files = reviewable_files(listing.splitlines())
+    files = reviewable_files([p for p in listing.split("\0") if p])
     missing = sorted({d.path for d in revision.defects} - set(files))
     if missing:
         raise CorpusError(f"{revision.id}: defect paths not in the reviewed diff: {missing}")

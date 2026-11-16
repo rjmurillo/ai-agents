@@ -42,8 +42,8 @@ CAUGHT = "FINDING: scripts/tool.py:2 | edge-case | drops it\nVERDICT: WARN"
 def git(args: tuple[str, ...]) -> str | None:
     if args[0] == "show" and ":" in args[1]:
         return "---\nname: x\n---\nPROMPT"
-    if args[:2] == ("diff", "--name-only"):
-        return "scripts/tool.py\n"
+    if args[:3] == ("diff", "--name-only", "-z"):
+        return "scripts/tool.py\0"
     if args[0] == "diff":
         return PATCH
     raise AssertionError(f"unexpected git call {args}")
@@ -128,20 +128,51 @@ class TestMain:
         self, corpus: Path, tmp_path: Path
     ) -> None:
         checkpoint = tmp_path / "rows.jsonl"
+        argv = args(corpus, "--checkpoint", str(checkpoint))
+        stamp = replay.run_stamp(replay.parse_args(argv))
         checkpoint.write_text(
-            json.dumps({"revision": "TG001", "trial": 0, "raw": CAUGHT, "findings": 1})
+            json.dumps({"revision": "TG001", "trial": 0, "raw": CAUGHT, **stamp})
             + "\n"
-            + json.dumps({"revision": "TG002", "trial": 0, "error": "429"})
+            + json.dumps({"revision": "TG002", "trial": 0, "error": "429", **stamp})
             + "\n"
             + '{"revision": "TG00',
             encoding="utf-8",
         )
         fake = caller()
 
-        code = replay.main(args(corpus, "--checkpoint", str(checkpoint)), fake, git)
+        code = replay.main(argv, fake, git)
 
         assert code == 0
         assert len(fake.calls) == 1
+        reloaded = replay.load_checkpoint(checkpoint)
+        assert sorted(r["revision"] for r in reloaded) == ["TG001", "TG002"]
+
+    def test_checkpoint_from_another_arm_is_refused_before_any_call(
+        self, corpus: Path, tmp_path: Path
+    ) -> None:
+        checkpoint = tmp_path / "rows.jsonl"
+        argv = args(corpus, "--checkpoint", str(checkpoint))
+        stamp = replay.run_stamp(replay.parse_args(argv)) | {"prompt_ref": "baseline"}
+        checkpoint.write_text(
+            json.dumps({"revision": "TG001", "trial": 0, "raw": CAUGHT, **stamp}) + "\n",
+            encoding="utf-8",
+        )
+        fake = caller()
+
+        code = replay.main(argv, fake, git)
+
+        assert code == 2
+        assert fake.calls == []
+
+    def test_unstamped_checkpoint_rows_are_refused(self, corpus: Path, tmp_path: Path) -> None:
+        checkpoint = tmp_path / "rows.jsonl"
+        checkpoint.write_text(
+            json.dumps({"revision": "TG001", "trial": 0, "raw": CAUGHT}) + "\n", encoding="utf-8"
+        )
+        fake = caller()
+
+        assert replay.main(args(corpus, "--checkpoint", str(checkpoint)), fake, git) == 2
+        assert fake.calls == []
 
     def test_duplicate_checkpoint_rows_count_once(
         self, corpus: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -330,3 +361,29 @@ def test_git_run_returns_none_when_git_times_out(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(subprocess, "run", stalled)
 
     assert replay.git_run(("show", "HEAD:x")) is None
+
+
+class TestRepairTail:
+    def test_a_broken_last_line_is_cut_off(self, tmp_path: Path) -> None:
+        path = tmp_path / "rows.jsonl"
+        path.write_bytes(b'{"a": 1}\n{"revision": "TG00')
+
+        replay.repair_tail(path)
+
+        assert path.read_bytes() == b'{"a": 1}\n'
+
+    def test_a_whole_last_record_gets_its_newline(self, tmp_path: Path) -> None:
+        path = tmp_path / "rows.jsonl"
+        path.write_bytes(b'{"a": 1}\n{"b": 2}')
+
+        replay.repair_tail(path)
+
+        assert path.read_bytes() == b'{"a": 1}\n{"b": 2}\n'
+
+    def test_a_clean_file_is_left_alone(self, tmp_path: Path) -> None:
+        path = tmp_path / "rows.jsonl"
+        path.write_bytes(b'{"a": 1}\n')
+
+        replay.repair_tail(path)
+
+        assert path.read_bytes() == b'{"a": 1}\n'

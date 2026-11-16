@@ -69,7 +69,13 @@ class TestSubprocessTextEncoding:
 class TestFileTextEncoding:
     @pytest.mark.parametrize(
         "call",
-        ["p.read_text()", "p.write_text('x')", "open('f')", "open('f', 'w')"],
+        [
+            "p.read_text()",
+            "p.write_text('x')",
+            "open('f')",
+            "open('f', 'w')",
+            "open(file='f', mode='w')",
+        ],
     )
     def test_text_io_without_encoding_is_flagged(self, call: str) -> None:
         assert rules(f"{call}\n") == ["file-text-encoding"]
@@ -82,6 +88,7 @@ class TestFileTextEncoding:
             "p.write_text('x', 'utf-8')",
             "open('f', 'rb')",
             "open('f', mode='wb')",
+            "open(file='f', mode='rb')",
             "open('f', encoding='utf-8')",
             "open('f', 'r', -1, 'utf-8')",
             "open('f', computed_mode)",
@@ -170,6 +177,39 @@ class TestUnguardedSymlink:
 
     def test_named_mark_that_does_not_skip_does_not_guard(self) -> None:
         source = "SLOW = pytest.mark.slow\n@SLOW\ndef test_x(p):\n    p.symlink_to('t')\n"
+
+        assert rules(source) == ["unguarded-symlink"]
+
+    @pytest.mark.parametrize(
+        "value", ["POSIX_ONLY", "[POSIX_ONLY]", "(pytest.mark.slow, POSIX_ONLY)"]
+    )
+    def test_module_pytestmark_naming_a_skip_alias_guards(self, value: str) -> None:
+        source = (
+            "POSIX_ONLY = pytest.mark.skipif(os.name != 'posix', reason='links')\n"
+            f"pytestmark = {value}\ndef test_x(p):\n    p.symlink_to('t')\n"
+        )
+
+        assert rules(source) == []
+
+    @pytest.mark.parametrize(
+        "mark",
+        [
+            "pytest.mark.usefixtures('skip_cache')",
+            "[pytest.mark.usefixtures('skip_cache')]",
+            "pytest.mark.parametrize('mode', ['skip'])",
+        ],
+    )
+    def test_a_skip_word_inside_mark_arguments_does_not_guard(self, mark: str) -> None:
+        module = f"pytestmark = {mark}\ndef test_x(p):\n    p.symlink_to('t')\n"
+        decorated = f"@{mark}\ndef test_x(p):\n    p.symlink_to('t')\n"
+
+        assert (rules(module), rules(decorated)) == (["unguarded-symlink"], ["unguarded-symlink"])
+
+    def test_an_alias_of_a_non_skip_mark_with_skip_in_its_arguments_does_not_guard(self) -> None:
+        source = (
+            "CACHE = pytest.mark.usefixtures('skip_cache')\n"
+            "@CACHE\ndef test_x(p):\n    p.symlink_to('t')\n"
+        )
 
         assert rules(source) == ["unguarded-symlink"]
 

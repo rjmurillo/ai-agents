@@ -68,7 +68,7 @@ def corpus(*revs: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def fake_git(names: str = "scripts/tool.py\n", patch: str = PATCH) -> core.GitRun:
+def fake_git(names: str = "scripts/tool.py\0", patch: str = PATCH) -> core.GitRun:
     def git(args: tuple[str, ...]) -> str | None:
         if args[:2] == ("diff", "--name-only"):
             return names
@@ -178,7 +178,7 @@ class TestBuildReviewInput:
         _, (rev,) = core.parse_corpus(corpus())
 
         with pytest.raises(core.CorpusError, match="not in the reviewed diff"):
-            core.build_review_input(rev, "t", "S", fake_git(names="other.py\n"))
+            core.build_review_input(rev, "t", "S", fake_git(names="other.py\0"))
 
     def test_oversized_diff_is_refused(self) -> None:
         _, (rev,) = core.parse_corpus(corpus())

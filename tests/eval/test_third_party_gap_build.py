@@ -110,14 +110,14 @@ def fake_git(touched: str = "a.py", ancestor: bool = True, resolves: bool = True
                 return FIX + "\n" if resolves else None
             case ("cat-file", *_):
                 return ""
-            case ("show", "--format=", "--name-only", _):
-                return touched + "\n"
+            case ("show", "--format=", "--name-only", "-z", _):
+                return touched + "\0"
             case ("merge-base", "--is-ancestor", *_):
                 return "" if ancestor else None
             case ("merge-base", *_):
                 return MB + "\n"
-            case ("diff", "--name-only", *_):
-                return "a.py\n"
+            case ("diff", "--name-only", "-z", *_):
+                return touched + "\0"
             case ("diff", *_):
                 return "diff text"
         raise AssertionError(f"unexpected git call {args}")
@@ -156,6 +156,14 @@ class TestAdmit:
     )
     def test_each_refusal(self, reply: str, git: Any, outcome: str) -> None:
         assert build.admit(row(reply), BASE, git) == (outcome, None)
+
+    def test_a_path_with_a_space_is_matched_whole(self) -> None:
+        spaced = row() | {"path": "scripts/my tool.py"}
+
+        outcome, kept = build.admit(spaced, BASE, fake_git(touched="scripts/my tool.py"))
+
+        assert outcome == "admitted"
+        assert kept is not None and kept["path_in_diff"]
 
 
 class TestSplitAndCorpora:
@@ -381,3 +389,28 @@ class TestCliGitFailures:
 
         assert code == 0
         assert not (tmp_path / "findings.jsonl").exists()
+
+
+class TestWriteGuard:
+    def test_write_under_the_checkout_from_outside_it_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        cli = _load_cli()
+        out = cli.REPO_ROOT / "evals" / "does-not-exist"
+        monkeypatch.chdir(tmp_path)
+
+        code = cli.write({"findings.jsonl": "x\n"}, out, {})
+
+        assert code == 2
+        assert not out.exists()
+
+    def test_write_to_a_directory_outside_the_checkout_is_allowed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        cli = _load_cli()
+        monkeypatch.chdir(tmp_path)
+
+        code = cli.write({"findings.jsonl": "x\n"}, tmp_path, {})
+
+        assert code == 0
+        assert (tmp_path / "findings.jsonl").read_text(encoding="utf-8") == "x\n"

@@ -257,6 +257,10 @@ provider rejects it before generating anything. A timeout is not retried.
 - **Floors, not rates.** Bots were rate limited for most of the window, and
   a finding the author rejected or never answered is not in the corpus.
 - **Model-drafted labels.** See Admission.
+- **Only the first reply names the fix.** Admission reads the fix commit from
+  the author's first reply. In the dump of 2026-11-16, 3 accepted threads cite
+  their fix only in a later reply, so they count as `no_sha`. Admitting them
+  would change both corpora and void the paid replay, so they stay out.
 - **The replay has no tools.** 52 percent of findings need a file outside the
   diff, and a tool-free reviewer cannot see it. The real `code-reviewer` reads
   and searches the repository.
