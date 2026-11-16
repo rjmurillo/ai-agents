@@ -2408,12 +2408,12 @@ class TestDeletedDocsLeaveChangedFiles:
     @staticmethod
     def _branch_that_deletes_and_edits(tmp_path: Path) -> Path:
         repo = _git_repo(tmp_path / "repo")
-        (repo / "kept.md").write_text("# Kept\n")
-        (repo / "gone.md").write_text("# Gone\n")
-        (repo / "main.py").write_text("def foo():\n    pass\n")
+        (repo / "kept.md").write_text("# Kept\n", encoding="utf-8")
+        (repo / "gone.md").write_text("# Gone\n", encoding="utf-8")
+        (repo / "main.py").write_text("def foo():\n    pass\n", encoding="utf-8")
         _commit_all(repo, "base")
         (repo / "gone.md").unlink()
-        (repo / "kept.md").write_text("# Kept, edited\n")
+        (repo / "kept.md").write_text("# Kept, edited\n", encoding="utf-8")
         _commit_all(repo, "delete one doc, edit another")
         return repo
 

@@ -14,9 +14,13 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from diff_scope_helpers import commit, git, make_repo, mod
+_HELPERS_DIR = str(Path(__file__).resolve().parent)
+sys.path.insert(0, _HELPERS_DIR)
+try:
+    from diff_scope_helpers import commit, git, make_repo, mod
+finally:
+    # Drop the entry so the helper path does not leak into later test modules.
+    sys.path.remove(_HELPERS_DIR)
 
 from scripts.ai_review_common.verdict import adapt_local_axis_verdict
 
@@ -40,7 +44,7 @@ def _run_gate(repo: Path, out_dir: Path, capsys: pytest.CaptureFixture[str]) -> 
 def test_delete_and_edit_adapts_to_pass(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     repo = make_repo(tmp_path, {"kept.md": "# Kept\n", "gone.md": "# Gone\n"})
     (repo / "gone.md").unlink()
-    (repo / "kept.md").write_text("# Kept, edited\n")
+    (repo / "kept.md").write_text("# Kept, edited\n", encoding="utf-8")
     commit(repo, "delete one doc, edit another")
 
     rc, output = _run_gate(repo, tmp_path / "out", capsys)
