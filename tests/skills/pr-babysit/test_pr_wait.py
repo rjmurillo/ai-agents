@@ -491,3 +491,20 @@ def test_tests_do_not_add_their_directory_to_sys_path() -> None:
     here = str(Path(__file__).resolve().parent)
 
     assert here not in sys.path
+
+
+def test_main_exits_two_at_once_when_gh_is_missing(
+    isolated_state: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import github_core.api as api
+
+    calls = {"n": 0}
+
+    def no_gh(*_a: Any, **_k: Any) -> Any:
+        calls["n"] += 1
+        raise FileNotFoundError(2, "No such file or directory", "gh")
+
+    monkeypatch.setattr(api, "gh_graphql", no_gh)
+
+    assert pw.main(["5", "--repo", "o/r"]) == 2
+    assert calls["n"] == 1

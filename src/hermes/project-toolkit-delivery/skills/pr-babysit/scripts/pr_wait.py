@@ -34,7 +34,8 @@ Exit codes (ADR-035):
      watcher first saw the head, so review bots can post. A blocker already
      reported does not exit again; the watcher waits for it to clear.
   2  bad arguments, the PR does not exist, another pr_wait already watches
-     this PR, or why_pr_blocked.py returned a payload missing a key
+     this PR, gh is not on PATH, or why_pr_blocked.py returned a payload
+     missing a key
   3  GitHub stayed unreachable for MAX_FAILED_POLLS consecutive polls
   4  gh is not authenticated
 
@@ -152,6 +153,10 @@ class AuthError(RuntimeError):
 
 class ContractError(RuntimeError):
     """why_pr_blocked.py returned a payload without a key pr_wait reads."""
+
+
+class SetupError(RuntimeError):
+    """The gh CLI is not installed or not on PATH; retrying cannot help."""
 
 
 @dataclass
@@ -303,6 +308,8 @@ def fetch_snapshot(owner: str, name: str, number: int) -> tuple[Json, str]:
 
     try:
         data = gh_graphql(SNAPSHOT_QUERY, {"owner": owner, "name": name, "number": number})
+    except FileNotFoundError as exc:
+        raise SetupError(f"gh is not installed or not on PATH: {exc}") from exc
     except RuntimeError as exc:
         if _NOT_FOUND.search(str(exc)):
             raise LookupError(f"PR {owner}/{name}#{number} not found") from exc
@@ -412,7 +419,7 @@ def watch(state: State, state_path: Path, target: tuple[str, str, int], args: An
         except LookupError as exc:
             log(str(exc))
             return 2
-        except ContractError as exc:
+        except (ContractError, SetupError) as exc:
             log(str(exc))
             return 2
         except AuthError as exc:
