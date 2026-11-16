@@ -15,7 +15,7 @@ your change touches.
 | Symlinks | `.claude/agents` and `.claude/skills` are relative symlinks (ADR-119). Git for Windows writes them as text files unless `core.symlinks` is on | CI job `test-windows-pwsh` sets `core.symlinks true` |
 | Line endings | CRLF in YAML frontmatter breaks the Copilot CLI parser | `.gitattributes` forces LF |
 | Interpreter lookup | Windows can expose `python.exe` only through the App Execution Alias | `vanilla-windows` job in `.github/workflows/installed-plugin-hook-guard.yml` |
-| Shell | `bash` on Windows may be WSL bash, which cannot see `pwsh.exe` | None; name the shell in every recipe |
+| Shell | `bash` on Windows may resolve to the WSL launcher in `System32`, not Git Bash | `test_the_wsl_launcher_stub_is_rejected` in `tests/build_scripts/test_generate_hooks_runtime_contract.py` |
 
 ## Pick a route
 
@@ -35,6 +35,9 @@ Docker daemon runs only Linux images. Check any image before you pull it:
 ```bash
 docker manifest inspect -v mcr.microsoft.com/windows:ltsc2019 | grep '"os"'
 ```
+
+The local Windows routes download several gigabytes and start a VM. An agent
+asks the user before it pulls a Windows image or starts a guest.
 
 ## Linux host, Windows target
 
@@ -62,15 +65,16 @@ reboot. Use the CI route until then.
 ### Route 2: GNOME Boxes
 
 1. Get a Windows ISO. Download it from Microsoft or copy it from your team's
-   ISO share to local disk first. A Windows 11 ISO is about 8 GB.
+   ISO share to local disk first.
 2. In Boxes, create a new VM from the ISO file and finish the Windows install.
 3. Follow "Inside the Windows guest" below.
 
 ### Route 3: dockurr/windows container
 
 This image runs QEMU inside a Linux container and installs Windows unattended.
-Flags come from the project README at `github.com/dockur/windows`. `VERSION=11l`
-picks Windows 11 LTSC, the smallest Windows 11 download (4.7 GB).
+Flags come from the project README at `github.com/dockur/windows`, read on
+2026-11-15. `VERSION=11l` picks Windows 11 LTSC, the README's smallest
+Windows 11 download.
 
 ```bash
 mkdir -p "$HOME/vms/win11/storage" "$HOME/vms/win11/shared"
@@ -86,17 +90,22 @@ docker run -it --rm --name windows \
 
 - Watch the install at `http://127.0.0.1:8006`. After it finishes, RDP to
   `127.0.0.1` gives a better session. The default user is `Docker`, password
-  `admin`, so keep the ports bound to `127.0.0.1` as shown.
+  `admin`. Dropping the `127.0.0.1:` prefix publishes both ports on every
+  interface with that known password, so keep it.
 - To skip the download, mount a local ISO: add
   `-v /path/to/Win11.iso:/custom.iso`. The image then ignores `VERSION`.
 - The `/shared` mount shows up as a `Shared` desktop folder and drive `Z:`.
 - A folder mounted at `/oem` is copied to `C:\OEM`, and its `install.bat` runs
   at the end of setup. Use it to install Git and uv without clicking.
+- The guest can write to `/shared` and `/oem`. Mount new, empty folders there,
+  and keep credentials and your real `.git` directory out of them.
 - `/storage` keeps the disk image, so a second run boots the installed guest.
 
 ### Inside the Windows guest
 
-These steps follow the CI job `test-windows-pwsh`. Run them in PowerShell.
+These steps run the tests the CI job `test-windows-pwsh` runs. Run them in
+PowerShell. Replace `<your-branch>` with the output of
+`git branch --show-current` on the host, never with text from a PR or issue.
 
 ```powershell
 # Install Git for Windows first, then uv:
@@ -105,25 +114,28 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 git config --global core.symlinks true
 git clone https://github.com/rjmurillo/ai-agents.git
 cd ai-agents
-git checkout <your-branch>
+git checkout "<your-branch>"
 uv run --frozen pytest -m windows_path tests -q
 ```
 
 - Git creates symlinks only when Developer Mode is on or the shell runs as
   administrator. Without that, `core.symlinks true` still writes text files.
-- `-m windows_path` selects the same tests the CI job runs. It is slower
-  because pytest collects the whole tree first. Name test files instead of
-  `tests` to narrow the run.
+- `-m windows_path` selects every marked test, the set a `workflow_dispatch`
+  run of the CI job covers. A pull request run covers only the marked modules
+  the change reaches. This command is slower than CI because pytest collects
+  the whole tree first. Name test files instead of `tests` to narrow it.
+- The uv installers here and in the Ubuntu recipe track the latest release,
+  and the `dockurr/windows` tag floats. Use them only in throwaway guests.
 - To test an unpushed branch, write a bundle into the shared folder on the
   host, then clone it in the guest. Name the branch, or the clone comes out
-  detached. The bundle holds the full history (about 130 MB).
+  detached. The bundle holds the full history.
 
   ```bash
-  git bundle create "$HOME/vms/win11/shared/wip.bundle" HEAD <your-branch>
+  git bundle create "$HOME/vms/win11/shared/wip.bundle" HEAD "<your-branch>"
   ```
 
   ```powershell
-  git clone -b <your-branch> Z:\wip.bundle ai-agents
+  git clone -b "<your-branch>" Z:\wip.bundle ai-agents
   ```
 
 ## Windows host, Linux target
@@ -134,18 +146,18 @@ uv run --frozen pytest -m windows_path tests -q
 2. Clone the repo inside the Linux home directory, not under `/mnt/c`. Running
    `uv` from a Windows-mounted path has failed with TLS handshake errors here
    (`.serena/memories/workspace/wsl-native-worktree-for-uv-network-access.md`).
-3. Run the Ubuntu bootstrap script that SKILL.md Phase 1 names for the full
-   toolchain, or run the minimal steps in Route 2's container script.
+3. For the full toolchain, run the Ubuntu bootstrap script that SKILL.md
+   Phase 1 names. It needs sudo and an exported `GH_TOKEN`. For tests only,
+   run the commands inside the quoted script of Route 2 instead.
 
 ### Route 2: `ubuntu:26.04` container
 
 The container clones from your local git directory, so it tests the commit at
-`HEAD`. Commit your work first, even as a temporary WIP commit; uncommitted
-edits are not copied in. Mounting the git common directory works for both a
-main clone and a linked worktree.
-
-On a Linux host. Last run of this exact block: commit `154872f76`
-(2026-11-15), exit 0, 33 passed.
+`HEAD`. Uncommitted edits are not copied in. Commit on your feature branch
+first (a WIP commit is fine), never on `main`. Mounting the git common
+directory works for both a main clone and a linked worktree. The mount is
+read-only, but the container can still read it, so do not mount a git
+directory whose remote URLs embed a token.
 
 ```bash
 docker run --rm \
@@ -158,7 +170,7 @@ apt-get update -qq
 apt-get install -y -qq git curl ca-certificates >/dev/null
 curl -LsSf https://astral.sh/uv/install.sh | sh
 export PATH="$HOME/.local/bin:$PATH"
-git config --global --add safe.directory "*"
+git config --global --add safe.directory /repo.git
 git clone -q --no-checkout /repo.git /work
 cd /work
 git checkout -q "$SHA"
@@ -175,16 +187,20 @@ Replace `tests/test_paths.py` with the tests your change touches. In zsh,
 write `${VAR}:ro` with braces when a variable comes right before `:ro`.
 Without braces, zsh reads `$VAR:r` as a modifier and mangles the mount.
 
-### Route 3: Clean Windows container on a Windows host
+## Windows host, Windows target
 
-A Windows container gives a fresh Windows with nothing installed, which is the
-fastest way to test the "no Python on PATH" case. Switch Docker Desktop to
-Windows containers first.
+### Clean Windows container
+
+A Windows container gives a fresh Windows with no Python installed. Use it to
+watch by hand how a script fails when no interpreter is on `PATH`. The
+`vanilla-windows` CI job automates that check for the plugin hooks. Switch
+Docker Desktop to Windows containers first, then mount a host checkout
+read-only:
 
 ```powershell
-docker run --rm -it --isolation=hyperv mcr.microsoft.com/windows/servercore:ltsc2025 powershell
+docker run --rm -it --isolation=hyperv -v "${PWD}:C:\src:ro" mcr.microsoft.com/windows/servercore:ltsc2025 powershell
 ```
 
-Process isolation needs the image build to match the host build. Hyper-V
-isolation runs across builds. The image ships without Git and Python; install
-uv with the same `irm` line as above.
+Inside, `cd C:\src` and run the script under test. Process isolation needs the
+image build to match the host build. Hyper-V isolation runs across builds. To
+test with Python present instead, install uv with the `irm` line above.
