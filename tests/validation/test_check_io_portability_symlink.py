@@ -87,6 +87,24 @@ class TestUnguardedSymlink:
 
         assert rules(source) == []
 
+    def test_class_level_pytestmark_skip_guards_its_methods(self) -> None:
+        source = (
+            "class TestLinks:\n"
+            "    pytestmark = pytest.mark.skipif(os.name == 'nt', reason='links')\n"
+            "    def test_x(self, p):\n        p.symlink_to('t')\n"
+        )
+
+        assert rules(source) == []
+
+    def test_class_level_pytestmark_without_a_skip_does_not_guard(self) -> None:
+        source = (
+            "class TestLinks:\n"
+            "    pytestmark = pytest.mark.usefixtures('skip_cache')\n"
+            "    def test_x(self, p):\n        p.symlink_to('t')\n"
+        )
+
+        assert rules(source) == ["unguarded-symlink"]
+
     def test_skip_named_helper_guards(self) -> None:
         source = "def symlink_or_skip(p, t):\n    p.symlink_to(t)\n"
 

@@ -174,7 +174,9 @@ def _mode_is_text(mode: ast.expr | None) -> bool:
 
 
 def _file_io_without_encoding(call: ast.Call) -> str | None:
-    if _has_star_kwargs(call) or _given(_kwarg(call, "encoding")):
+    # Unpacked arguments can carry the encoding or a binary mode; judge only what is visible.
+    starred = any(isinstance(arg, ast.Starred) for arg in call.args)
+    if starred or _has_star_kwargs(call) or _given(_kwarg(call, "encoding")):
         return None
     _, name = _callee(call)
     is_attr = isinstance(call.func, ast.Attribute)
@@ -199,6 +201,7 @@ def _catches_symlink_failure(handler: ast.ExceptHandler) -> bool:
 
 
 _PYTEST_SKIP_MARKS = frozenset({"skip", "skipif"})
+_CONDITIONAL_SKIPS = frozenset({"skipif", "skipIf"})
 
 
 def _is_skip_mark(expr: ast.expr, skip_marks: frozenset[str]) -> bool:
@@ -228,20 +231,23 @@ def _is_skip_mark(expr: ast.expr, skip_marks: frozenset[str]) -> bool:
 def _never_skips(call: ast.Call) -> bool:
     """A conditional skip whose condition is a literal false value, so it never skips."""
     condition = call.args[0] if call.args else _kwarg(call, "condition")
-    return (
-        isinstance(condition, ast.Constant)
-        and not condition.value
-        and _callee(call)[1]
-        in (
-            "skipif",
-            "skipIf",
-        )
-    )
+    falsy = isinstance(condition, ast.Constant) and not condition.value
+    return falsy and _callee(call)[1] in _CONDITIONAL_SKIPS
 
 
 def _has_skipif(decorators: Iterable[ast.expr], skip_marks: frozenset[str]) -> bool:
     """A decorator that is a skip mark, directly or through a module-level alias."""
     return any(_is_skip_mark(d, skip_marks) for d in decorators)
+
+
+def _pytestmark_skips(body: list[ast.stmt], skip_marks: frozenset[str]) -> bool:
+    """A ``pytestmark = ...`` assignment in this module or class body that skips."""
+    return any(
+        isinstance(stmt, ast.Assign)
+        and any(isinstance(t, ast.Name) and t.id == "pytestmark" for t in stmt.targets)
+        and _is_skip_mark(stmt.value, skip_marks)
+        for stmt in body
+    )
 
 
 def _module_skip_marks(tree: ast.Module) -> frozenset[str]:
@@ -260,12 +266,7 @@ class _Visitor(ast.NodeVisitor):
         self._modules, self._functions = _subprocess_names(tree)
         self._skip_marks = _module_skip_marks(tree)
         # Only a module mark that skips counts; `pytestmark = usefixtures(...)` does not guard.
-        self._module_skip = any(
-            isinstance(node, ast.Assign)
-            and any(isinstance(t, ast.Name) and t.id == "pytestmark" for t in node.targets)
-            and _is_skip_mark(node.value, self._skip_marks)
-            for node in tree.body
-        )
+        self._module_skip = _pytestmark_skips(tree.body, self._skip_marks)
         self._guards: list[bool] = []  # one entry per enclosing scope or try that guards
         self._found: list[Violation] = []
 
@@ -284,6 +285,8 @@ class _Visitor(ast.NodeVisitor):
         name = node.name.lower()
         named_guard = "skip" in name and not name.startswith("test")
         guarded = named_guard or _has_skipif(node.decorator_list, self._skip_marks)
+        if isinstance(node, ast.ClassDef):  # a class pytestmark marks every method
+            guarded = guarded or _pytestmark_skips(node.body, self._skip_marks)
         self._guards.append(guarded)
         self.generic_visit(node)
         self._guards.pop()

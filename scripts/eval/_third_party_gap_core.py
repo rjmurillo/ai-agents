@@ -34,7 +34,7 @@ MAX_DIFF_CHARS = 110_000
 EXCLUDED_PATHS = re.compile(r"(\.lock$|\.jsonl$)")
 _SHA = re.compile(r"^[0-9a-f]{40}$")
 _REV_ID = re.compile(r"^TG\d{3,4}$")
-_HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(?P<start>\d+)(?:,\d+)? @@")
+_HUNK = re.compile(r"^@@ -\d+(?:,(?P<old_len>\d+))? \+(?P<start>\d+)(?:,(?P<new_len>\d+))? @@")
 _LOCATION = re.compile(r"^(?P<path>.+?):(?P<line>\d+)(?:-\d+)?$")
 SPLITS = ("derive", "heldout")
 CONTEXTS = ("diff-local", "repo-context", "external-knowledge")
@@ -180,21 +180,32 @@ def load_corpus(path: Path) -> tuple[dict[str, Any], tuple[Revision, ...]]:
 
 
 def number_new_lines(patch: str) -> str:
-    """Prefix each added or context line with its new-file line number and a tab."""
+    """Prefix each added or context line with its new-file line number and a tab.
+
+    A hunk header gives how many old and new lines follow, so a body line that
+    starts with ``--- `` or ``+++ `` (a removed ``-- x`` or added ``++ x``) is
+    still numbered. Header lines are only recognized between hunks.
+    """
     out: list[str] = []
-    line_no: int | None = None
+    line_no = old_left = new_left = 0
     for raw in patch.splitlines():
         hunk = _HUNK.match(raw)
-        if hunk:
+        if hunk and old_left <= 0 and new_left <= 0:
             line_no = int(hunk.group("start"))
+            old_left = int(hunk.group("old_len") or 1)
+            new_left = int(hunk.group("new_len") or 1)
             out.append(raw)
             continue
-        if line_no is None or raw.startswith(("diff --git", "--- ", "+++ ", "\\")):
+        if (old_left <= 0 and new_left <= 0) or raw.startswith("\\"):
             out.append(raw)
             continue
         if raw.startswith("-"):
+            old_left -= 1
             out.append(f"\t{raw}")
             continue
+        if not raw.startswith("+"):
+            old_left -= 1
+        new_left -= 1
         out.append(f"{line_no}\t{raw}")
         line_no += 1
     return "\n".join(out)

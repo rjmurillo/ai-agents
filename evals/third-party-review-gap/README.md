@@ -209,6 +209,13 @@ reached the output ceiling.
 | Baseline (`c98e82b21`) | 18/162 (11.1%, CI 7.1% to 16.9%) | 46 | 40 of 102 | 2,403,036 |
 | Treatment (defect hunt) | 21/162 (13.0%, CI 8.6% to 19.0%) | 61 | 30 of 102 | 2,657,228 |
 
+The recorded run numbered the diff with an earlier parser that also put a
+line number on git's per-file `index` and `new file mode` lines. Code-line
+numbers were the same, both arms saw the same text, and scoring reads stored
+answers, so these results stand; a fresh run builds slightly different
+prompts, so its prompt hashes differ from the recorded ones (bot review of
+pull request #7394, 2026-11-15).
+
 Paired by defect-trial: 9 both, 9 baseline only, 12 treatment only, 132
 neither. Exact McNemar p = 0.66. Discordant pairs by context, baseline only
 vs treatment only: diff-local 3 vs 4 (p = 1.0), repo-context 4 vs 7

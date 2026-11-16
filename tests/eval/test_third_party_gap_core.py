@@ -122,6 +122,25 @@ class TestNumberNewLines:
         assert "13\t tail" in lines
         assert lines[-1] == "\\ No newline at end of file"
 
+    def test_body_lines_that_look_like_headers_are_still_numbered(self) -> None:
+        patch = "@@ -1,2 +1,2 @@\n--- removed sql comment\n+++ added text\n same\n"
+
+        lines = core.number_new_lines(patch).splitlines()
+
+        assert lines[1:] == ["\t--- removed sql comment", "1\t+++ added text", "2\t same"]
+
+    def test_file_header_lines_between_files_are_not_numbered(self) -> None:
+        second = (
+            "diff --git a/b.py b/b.py\nnew file mode 100644\nindex 0000000..1111111\n"
+            "--- /dev/null\n+++ b/b.py\n@@ -0,0 +1 @@\n+x = 1\n"
+        )
+
+        lines = core.number_new_lines(PATCH.rstrip("\n").rsplit("\n", 1)[0] + "\n" + second)
+
+        assert "new file mode 100644" in lines.splitlines()
+        assert "index 0000000..1111111" in lines.splitlines()
+        assert "1\t+x = 1" in lines.splitlines()
+
 
 class TestParseAndScore:
     def test_finding_line_number_is_read(self) -> None:
