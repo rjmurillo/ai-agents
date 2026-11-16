@@ -1,6 +1,15 @@
 ---
 name: slo-designer
+version: 1.0.0
 description: Design Service Level Objectives (SLOs) with SLIs, targets, alerting thresholds, and error budget calculations following Google SRE best practices. Use when defining reliability targets, designing SLOs, calculating error budgets, or establishing service level indicators.
+license: MIT
+metadata:
+  source: Google SRE Book
+  routing:
+    role: lifecycle
+    invoker: review
+    trigger: review invokes slo-designer when the change defines or affects a reliability target
+    user-facing: false
 ---
 
 # SLO Designer

@@ -1,5 +1,6 @@
 ---
 name: stuck-detection
+version: 1.3.0
 description: >-
   Detect agent loops (repeated topics or repeated tool failures) and emit a
   self-reflection nudge. Use as an orchestrator guard against token-burning
@@ -7,6 +8,13 @@ description: >-
   looping", "check failure loop", or "reset stuck history". Do NOT use
   for semantic similarity checks or multi-turn intent tracking; use a richer
   evaluation tool for those.
+license: MIT
+metadata:
+  routing:
+    role: conditional-adjunct
+    invoker: ai-agents-debugging-playbook
+    trigger: in the ai-agents repository, ai-agents-debugging-playbook triggers stuck-detection after three read-only commands find no cause
+    user-facing: false
 ---
 
 # Stuck Detection Guard

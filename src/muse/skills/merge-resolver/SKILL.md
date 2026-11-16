@@ -1,6 +1,24 @@
 ---
 name: merge-resolver
+version: 2.3.0
 description: Resolve merge conflicts by analyzing git history and commit intent. Handles PR conflicts, branch conflicts, and session file conflicts with automated resolution for known patterns. Use when you say "resolve merge conflicts", "fix conflicts on this branch", "PR has conflicts with main", "can't merge due to conflicts", or "resolve PR conflicts". Do NOT use for rebasing, cherry-picking, or complex history rewrites (use git-advanced-workflows).
+license: MIT
+metadata:
+  domains:
+  - git
+  - github
+  - merge-conflicts
+  - pr-maintenance
+  capability:
+    kind: specialized-implementation
+    status: active
+  complexity: advanced
+  routing:
+    role: explicit-only
+    invoker: user
+    trigger: a user asks to resolve merge conflicts
+    user-facing: true
+    rationale: Automatic routing would be noisy. Conflict callers already send work to the merge-resolver agent, so routing this skill too would duplicate that path.
 ---
 # Merge Resolver
 

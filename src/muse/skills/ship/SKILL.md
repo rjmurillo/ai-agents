@@ -1,6 +1,14 @@
 ---
 name: ship
+version: 1.0.0
 description: Run the four pre-flight checks, then create the PR or validate a contributor branch without touching it. Use when you say `ship it`, `ship this branch`, or `run pre-flight and open the PR`, and run it after review. Do NOT use to open a PR without the gates (use push-pr), and do NOT use to run the review axes themselves (use review).
+license: MIT
+metadata:
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan routes lifecycle requests to this skill
+    user-facing: true
 ---
 
 # Ship
