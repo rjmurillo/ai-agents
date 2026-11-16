@@ -181,3 +181,56 @@ class TestReadRaceAndIdentity:
 
         assert code == 2
         assert "references/evidence.json is not a text file in the skill" in capsys.readouterr().err
+
+
+def test_swap_back_between_identity_and_containment_is_rejected(
+    skill: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path_factory: pytest.TempPathFactory,
+) -> None:
+    """Cursor's case: the path is outside for the identity check, inside for containment.
+
+    The hook swaps the file back inside right after an identity lookup, the
+    window a two-resolution check left open. A single resolution closes it.
+    """
+    guide = skill / "references" / "guide.md"
+    inside_copy = guide.parent / "guide-inside.md"
+    inside_copy.write_bytes(guide.read_bytes())
+    outside = tmp_path_factory.mktemp("outside") / "secret.md"
+    outside_quote = "An outside sentence that must never count."
+    outside.write_text(outside_quote + "\n", encoding="utf-8")
+    probe = outside.parent / "probe-link"
+    try:
+        probe.symlink_to(outside)
+    except OSError as exc:
+        pytest.skip(f"cannot create a symlink here: {exc}")
+    probe.unlink()
+    files_globals = conformance.apply_judgments.__globals__
+    real_open = open
+
+    def point(target: Path) -> None:
+        guide.unlink()
+        guide.symlink_to(target)
+
+    def outside_then_open(path: Any, *args: Any, **kwargs: Any) -> Any:
+        if Path(path).name == "guide.md":
+            point(outside)
+        return real_open(path, *args, **kwargs)
+
+    real_file_id = files_globals.get("file_id")
+
+    def identity_then_swap_back(path: Path) -> Any:
+        result = real_file_id(path) if real_file_id else None
+        if path.name == "guide.md":
+            point(inside_copy)
+        return result
+
+    monkeypatch.setitem(files_globals, "open", outside_then_open)
+    monkeypatch.setitem(files_globals, "file_id", identity_then_swap_back)
+    judgment = _verdict("pass", quote=outside_quote, file="references/guide.md")
+
+    code = _judge(skill.parent, [judgment])
+
+    assert code == 2
+    assert "references/guide.md is not a text file in the skill" in capsys.readouterr().err

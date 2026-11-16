@@ -21,7 +21,7 @@ from _conformance_checks import (
     NotEvaluatedError,
     body_or_skip,
 )
-from _conformance_parse import SkillDoc, contained, file_id, inside_skill
+from _conformance_parse import SkillDoc, contained, resolved_identity
 
 _RUNNER_RE = re.compile(
     r"(?:^|[\s;&|(])(uvx|npx|bunx|pipx\s+run|deno\s+run|go\s+run)\s+([^\n;&|]*)"
@@ -357,16 +357,17 @@ def _collapse(text: str) -> str:
 def _read_inside(path: Path, scope: JudgingScope) -> str | None:
     """Read a file only if the file opened is the one inside the skill and root.
 
-    Open first, then check: the path must resolve inside both boundaries now,
-    and reach the same file (device and inode) as the open descriptor. A swap
-    before or after the open fails one of the two checks. None means reject.
+    Open first, then resolve the path once: the resolved file must sit inside
+    both boundaries and be the same file (device and inode) as the open
+    descriptor. A swap before or after the open fails the match. None means
+    reject.
     """
     with open(path, "rb") as handle:
         opened = os.fstat(handle.fileno())
         identity = (opened.st_dev, opened.st_ino)
-        if identity == scope.excluded or file_id(path) != identity:
+        if identity == scope.excluded:
             return None
-        if not inside_skill(path, scope.directory, scope.root):
+        if resolved_identity(path, scope.directory, scope.root) != identity:
             return None
         return handle.read().decode("utf-8", errors="replace")
 

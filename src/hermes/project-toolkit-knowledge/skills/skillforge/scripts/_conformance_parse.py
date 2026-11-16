@@ -15,7 +15,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from _path_guard import contained_realpath, resolve_root
+from _path_guard import contained_realpath, is_within, resolve_root
 
 KEY_RE = re.compile(r"^([A-Za-z0-9_][A-Za-z0-9_.-]*)[ \t]*:(?:[ \t]+(.*)|[ \t]*)$")
 BLOCK_SCALAR_RE = re.compile(r"^([|>])([+-]?)([1-9]?)([+-]?)\s*(?:#.*)?$")
@@ -408,3 +408,23 @@ def inside_skill(path: Path, directory: Path, root: Path) -> bool:
     if contained_realpath(path, str(root)) is None:
         return False
     return contained_realpath(path, resolve_root(str(directory))) is not None
+
+
+def resolved_identity(path: Path, directory: Path, root: Path) -> tuple[int, int] | None:
+    """Resolve path once; return its (device, inode) only if it lies inside both boundaries.
+
+    Containment and identity come from the same resolution, and lstat does not
+    follow a final symlink, so a path swapped after resolving cannot pass.
+    """
+    real = _real(path)
+    if real is None:
+        return None
+    if not is_within(real, resolve_root(str(root))):
+        return None
+    if not is_within(real, resolve_root(str(directory))):
+        return None
+    try:
+        info = os.lstat(real)
+    except OSError:
+        return None
+    return info.st_dev, info.st_ino
