@@ -13,6 +13,13 @@ TEST_PATH = "tests/test_sample.py"
 CODE_PATH = "scripts/sample.py"
 
 
+FLAG = "unguarded-symlink"
+LINK = "p.symlink_to('t')"
+SKIP_NT = "pytest.mark.skipif(os.name == 'nt', reason='links')"
+USEFIXTURES = "pytest.mark.usefixtures('skip_cache')"
+METHOD = f"    def test_x(self, p):\n        {LINK}\n"
+
+
 def rules(source: str, path: str = TEST_PATH) -> list[str]:
     return [v.rule for v in checker.scan_source(path, source)]
 
@@ -87,54 +94,44 @@ class TestUnguardedSymlink:
 
         assert rules(source) == []
 
-    def test_class_level_pytestmark_skip_guards_its_methods(self) -> None:
-        source = (
-            "class TestLinks:\n"
-            "    pytestmark = pytest.mark.skipif(os.name == 'nt', reason='links')\n"
-            "    def test_x(self, p):\n        p.symlink_to('t')\n"
-        )
-
-        assert rules(source) == []
-
-    def test_class_level_pytestmark_without_a_skip_does_not_guard(self) -> None:
-        source = (
-            "class TestLinks:\n"
-            "    pytestmark = pytest.mark.usefixtures('skip_cache')\n"
-            "    def test_x(self, p):\n        p.symlink_to('t')\n"
-        )
-
-        assert rules(source) == ["unguarded-symlink"]
-
-    def test_a_try_around_a_def_does_not_guard_its_body(self) -> None:
-        source = (
-            "try:\n    def make_link(p):\n        p.symlink_to('t')\nexcept OSError:\n    pass\n"
-        )
-
-        assert rules(source) == ["unguarded-symlink"]
-
-    def test_a_module_skip_does_not_cover_import_time_calls(self) -> None:
-        source = "pytestmark = pytest.mark.skip(reason='x')\np.symlink_to('t')\n"
-
-        assert rules(source) == ["unguarded-symlink"]
-
-    def test_a_class_body_call_under_a_class_skip_runs_at_import(self) -> None:
-        source = (
-            "class TestLinks:\n"
-            "    pytestmark = pytest.mark.skipif(os.name == 'nt', reason='links')\n"
-            "    LINK = p.symlink_to('t')\n"
-        )
-
-        assert rules(source) == ["unguarded-symlink"]
-
-    def test_a_skip_named_helper_still_guards_its_own_body(self) -> None:
-        source = "def link_or_skip(p):\n    p.symlink_to('t')\n"
-
-        assert rules(source) == []
-
-    def test_skip_named_helper_guards(self) -> None:
-        source = "def symlink_or_skip(p, t):\n    p.symlink_to(t)\n"
-
-        assert rules(source) == []
+    @pytest.mark.parametrize(
+        ("source", "expected"),
+        [
+            pytest.param(
+                f"class TestLinks:\n    pytestmark = {SKIP_NT}\n{METHOD}",
+                [],
+                id="class-pytestmark-skip-guards-methods",
+            ),
+            pytest.param(
+                f"class TestLinks:\n    pytestmark = {USEFIXTURES}\n{METHOD}",
+                [FLAG],
+                id="class-pytestmark-without-skip",
+            ),
+            pytest.param(
+                f"class TestLinks:\n    pytestmark = {SKIP_NT}\n    LINK = {LINK}\n",
+                [FLAG],
+                id="class-body-call-runs-at-import",
+            ),
+            pytest.param(
+                f"try:\n    def make_link(p):\n        {LINK}\nexcept OSError:\n    pass\n",
+                [FLAG],
+                id="try-around-def-does-not-guard-body",
+            ),
+            pytest.param(
+                f"pytestmark = pytest.mark.skip(reason='x')\n{LINK}\n",
+                [FLAG],
+                id="module-skip-misses-import-time-call",
+            ),
+            pytest.param(f"def link_or_skip(p):\n    {LINK}\n", [], id="skip-named-helper"),
+            pytest.param(
+                "def symlink_or_skip(p, t):\n    p.symlink_to(t)\n", [], id="skip-named-helper-arg"
+            ),
+        ],
+    )
+    def test_a_guard_covers_only_code_it_runs_around(
+        self, source: str, expected: list[str]
+    ) -> None:
+        assert rules(source) == expected
 
     def test_skipif_decorator_on_function_guards(self) -> None:
         source = (
