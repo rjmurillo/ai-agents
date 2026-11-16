@@ -13,9 +13,7 @@ import pytest
 
 from scripts.github_core.api import RepoInfo
 
-# ---------------------------------------------------------------------------
 # Import the script via importlib (not a package)
-# ---------------------------------------------------------------------------
 _SCRIPTS_DIR = (
     Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
@@ -38,18 +36,14 @@ pytestmark = pytest.mark.usefixtures("stub_git_probes", "tmp_path_is_temp_root")
 build_parser = _mod.build_parser
 
 
-# ---------------------------------------------------------------------------
 # Helpers
-# ---------------------------------------------------------------------------
 
 
 def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
     return subprocess.CompletedProcess(args=[], returncode=rc, stdout=stdout, stderr=stderr)
 
 
-# ---------------------------------------------------------------------------
 # Tests: build_parser
-# ---------------------------------------------------------------------------
 
 
 class TestBuildParser:
@@ -62,9 +56,7 @@ class TestBuildParser:
         assert args.pull_request == 50
 
 
-# ---------------------------------------------------------------------------
 # Tests: main
-# ---------------------------------------------------------------------------
 
 
 class TestMain:
