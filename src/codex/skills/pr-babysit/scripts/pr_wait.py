@@ -289,8 +289,11 @@ def _ready_verdict(state: State, gate: Json, poll: Poll, green: bool) -> None:
         poll.blockers = {b for b in poll.blockers if b.startswith(GREEN_BLOCKERS)}
         return
     poll.ready_checked = True
-    if int(gate.get("UnresolvedThreads") or 0) > 0:
-        poll.blockers.add("threads")
+    unresolved = int(gate.get("UnresolvedThreads") or 0)
+    if unresolved > 0:
+        # Keyed by count: a thread a bot adds after a push raises it and fires
+        # again, while threads waiting on a reviewer stay quiet across pushes.
+        poll.blockers.add(f"threads:{unresolved}")
     if state.merge_state == "BEHIND":
         poll.blockers.add(f"behind:{_short(state.base_oid)}")
     # Commit age is not push age: a slow pre-push makes a fresh push look old.

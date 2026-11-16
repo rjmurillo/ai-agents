@@ -215,7 +215,7 @@ def test_restart_with_known_blocker_waits_until_ready(
             head="a" * 40,
             base_oid="b" * 40,
             green_head="a" * 40,
-            blockers={"threads"},
+            blockers={"threads:1"},
             head_seen_at=1.0,
         ),
     )

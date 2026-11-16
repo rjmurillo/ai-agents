@@ -230,7 +230,7 @@ def test_ready_is_done_when_green_clean_and_no_threads() -> None:
 def test_ready_blocks_on_unresolved_threads() -> None:
     state = pw.State(head="a" * 40, merge_state="BLOCKED")
 
-    assert _gate_poll(state, _gate(UnresolvedThreads=2), "ready").blockers == {"threads"}
+    assert _gate_poll(state, _gate(UnresolvedThreads=2), "ready").blockers == {"threads:2"}
 
 
 def test_ready_blocks_on_behind_keyed_by_base() -> None:
@@ -409,3 +409,24 @@ def test_cleared_review_blocker_is_forgotten_after_green_check() -> None:
     pw.settle(state, _gate_poll(state, _gate(), "ready"), "ready")
 
     assert state.blockers == set()
+
+
+def test_new_bot_thread_after_push_fires_again() -> None:
+    state = pw.State(head="c" * 40, merge_state="BLOCKED", blockers={"threads:1"})
+    pw.diff_pr(state, _pr(), False)
+    pending = _gate_poll(state, _gate(PendingRequired=["ci"], UnresolvedThreads=2), "ready")
+    assert pw.settle(state, pending, "ready") is None
+
+    green = _gate_poll(state, _gate(UnresolvedThreads=2), "ready")
+
+    assert pw.settle(state, green, "ready") == 1
+    assert green.events[-1] == "blocked: threads:2"
+
+
+def test_same_unresolved_threads_stay_quiet_across_push() -> None:
+    state = pw.State(head="c" * 40, merge_state="BLOCKED", blockers={"threads:1"})
+    pw.diff_pr(state, _pr(), False)
+
+    green = _gate_poll(state, _gate(UnresolvedThreads=1), "ready")
+
+    assert pw.settle(state, green, "ready") is None
