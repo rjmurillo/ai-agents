@@ -405,7 +405,7 @@ def inside_skill(path: Path, directory: Path, root: Path) -> bool:
     """True when path resolves to a file inside both the skill directory and root."""
     if _real(path) is None or not path.is_file():
         return False
-    if contained_realpath(path, str(root)) is None:
+    if contained_realpath(path, resolve_root(str(root))) is None:
         return False
     return contained_realpath(path, resolve_root(str(directory))) is not None
 

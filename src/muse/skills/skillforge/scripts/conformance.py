@@ -12,8 +12,9 @@ Usage:
     conformance.py SKILL_DIR [SKILL_DIR ...] [--root DIR] [--profile spec|project]
                    [--waive RULE_ID ...] [--strict] [--format text|json]
                    [--verbose] [--manual]
-    conformance.py SKILL_DIR --judge-packet [--profile spec|project]
-    conformance.py SKILL_DIR --judgments FILE [--profile spec|project] [--strict]
+    conformance.py SKILL_DIR --judge-packet [--root DIR] [--profile spec|project]
+    conformance.py SKILL_DIR --judgments FILE [--root DIR] [--profile spec|project]
+                   [--strict]
     conformance.py --list [--profile spec|project] [--format text|json]
 
 Statuses:
@@ -307,7 +308,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--verbose", action="store_true", help="also print PASS and NOT_APPLICABLE rows"
     )
     parser.add_argument(
-        "--manual", action="store_true", help="also print the guidelines that need human review"
+        "--manual", action="store_true", help="also print the guideline rules not judged yet"
     )
     parser.add_argument("--list", action="store_true", help="print the rule catalog and exit")
     judging = parser.add_mutually_exclusive_group()
@@ -410,4 +411,10 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    # Judged reasons and quotes are model text. A console code page that cannot
+    # encode a character must not turn the report into a traceback and exit 1.
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(errors="backslashreplace")
     sys.exit(main())

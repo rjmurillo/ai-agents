@@ -191,8 +191,10 @@ def test_swap_back_between_identity_and_containment_is_rejected(
 ) -> None:
     """Cursor's case: the path is outside for the identity check, inside for containment.
 
-    The hook swaps the file back inside right after an identity lookup, the
-    window a two-resolution check left open. A single resolution closes it.
+    After the open, each identity or resolution lookup on guide.md swaps it back
+    inside, the window a two-resolution check left open. One resolution closes
+    it. The hooks cover both the old lookup (file_id in the importer) and the
+    current one (_real in the parser).
     """
     guide = skill / "references" / "guide.md"
     inside_copy = guide.parent / "guide-inside.md"
@@ -207,7 +209,9 @@ def test_swap_back_between_identity_and_containment_is_rejected(
         pytest.skip(f"cannot create a symlink here: {exc}")
     probe.unlink()
     files_globals = conformance.apply_judgments.__globals__
+    parse_globals = conformance.inside_skill.__globals__
     real_open = open
+    opened: list[bool] = []
 
     def point(target: Path) -> None:
         guide.unlink()
@@ -216,21 +220,27 @@ def test_swap_back_between_identity_and_containment_is_rejected(
     def outside_then_open(path: Any, *args: Any, **kwargs: Any) -> Any:
         if Path(path).name == "guide.md":
             point(outside)
+            opened.append(True)
         return real_open(path, *args, **kwargs)
 
-    real_file_id = files_globals.get("file_id")
+    def swap_back_after(lookup: Any) -> Any:
+        def hooked(path: Any) -> Any:
+            result = lookup(path)
+            if opened and Path(path).name == "guide.md":
+                point(inside_copy)
+            return result
 
-    def identity_then_swap_back(path: Path) -> Any:
-        result = real_file_id(path) if real_file_id else None
-        if path.name == "guide.md":
-            point(inside_copy)
-        return result
+        return hooked
 
     monkeypatch.setitem(files_globals, "open", outside_then_open)
-    monkeypatch.setitem(files_globals, "file_id", identity_then_swap_back)
+    monkeypatch.setitem(parse_globals, "_real", swap_back_after(parse_globals["_real"]))
+    if "file_id" in files_globals:
+        monkeypatch.setitem(files_globals, "file_id", swap_back_after(files_globals["file_id"]))
     judgment = _verdict("pass", quote=outside_quote, file="references/guide.md")
 
     code = _judge(skill.parent, [judgment])
 
     assert code == 2
     assert "references/guide.md is not a text file in the skill" in capsys.readouterr().err
+    # The swap back ran, so the rejection is not the plain after-open case.
+    assert guide.resolve() == inside_copy.resolve()
