@@ -216,14 +216,19 @@ def diff_pr(state: State, pr: Json, baseline: bool) -> Poll:
     state.merge_state = merge_state
     if merge_state == "DIRTY":
         poll.blockers.add(f"dirty:{_short(head)}:{_short(base_oid)}")
-    if pr.get("isDraft"):
-        poll.blockers.add("draft")
+    poll.blockers.update(_review_blockers(pr, head))
+    return poll
+
+
+def _review_blockers(pr: Json, head: str) -> set[str]:
+    """Draft and review-decision blockers; these gate ready only."""
+    blockers = {"draft"} if pr.get("isDraft") else set()
     decision = pr.get("reviewDecision")
     if decision == "CHANGES_REQUESTED":
-        poll.blockers.add(f"changes-requested:{_latest_change_request(pr) or _short(head)}")
+        blockers.add(f"changes-requested:{_latest_change_request(pr) or _short(head)}")
     elif decision == "REVIEW_REQUIRED":
-        poll.blockers.add(f"review-required:{_short(head)}")
-    return poll
+        blockers.add(f"review-required:{_short(head)}")
+    return blockers
 
 
 def _latest_change_request(pr: Json) -> str:
