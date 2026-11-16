@@ -3,15 +3,10 @@
 from __future__ import annotations
 
 import json
-import subprocess
 from unittest.mock import patch
 
 from scripts.github_core.api import RepoInfo
-
-
-def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
-    return subprocess.CompletedProcess(args=[], returncode=rc, stdout=stdout, stderr=stderr)
-
+from tests.test_close_pr import _completed, main
 
 OPEN = _completed(stdout=json.dumps({"state": "OPEN"}))
 DENIED = "gh: Resource not accessible by integration (HTTP 403)"
@@ -32,8 +27,6 @@ def pages(*comments: tuple[str, str, str]):
 
 def run_close(argv, replies):
     """Run close_pr.main against scripted gh replies; return (exit code, mock)."""
-    from tests.test_close_pr import main
-
     with (
         patch("close_pr.assert_gh_authenticated"),
         patch("close_pr.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
