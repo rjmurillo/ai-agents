@@ -227,15 +227,23 @@ class _Visitor(ast.NodeVisitor):
         guarded = named_guard or _has_skipif(node.decorator_list, self._skip_marks)
         if isinstance(node, ast.ClassDef):  # a class pytestmark marks every method
             guarded = guarded or _pytestmark_skips(node.body, self._skip_marks)
-        self._skips.append(guarded)
         if isinstance(node, ast.ClassDef):
+            self._skips.append(guarded)
             self.generic_visit(node)
-        else:  # a function body runs later, outside any try around its definition
-            saved, self._tries = self._tries, []
-            self._function_depth += 1
-            self.generic_visit(node)
-            self._function_depth -= 1
-            self._tries = saved
+            self._skips.pop()
+            return
+        # Decorators, defaults, and annotations run when the def runs, in the
+        # enclosing scope; only the body runs later, outside any try around it.
+        for part in (*node.decorator_list, node.args, node.returns):
+            if part is not None:
+                self.visit(part)
+        self._skips.append(guarded)
+        saved, self._tries = self._tries, []
+        self._function_depth += 1
+        for statement in node.body:
+            self.visit(statement)
+        self._function_depth -= 1
+        self._tries = saved
         self._skips.pop()
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:

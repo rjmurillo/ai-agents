@@ -135,6 +135,12 @@ def validate_dump(dump: object) -> tuple[list[dict[str, Any]], str]:
     return prs, mined_on
 
 
+def selection_texts(numbers: list[int], cutoff: int) -> tuple[str, str]:
+    """The replay and Eval 1 selection rules for this dump's PR range and held-out cutoff."""
+    replay = REPLAY_RULE.format(cutoff=cutoff)
+    return replay, IO_RULE.format(first=min(numbers), last=max(numbers), cutoff=cutoff)
+
+
 def build_all(dump: dict[str, Any], labels: dict[str, dict[str, Any]]) -> dict[str, Any]:
     prs, mined_on = validate_dump(dump)
     base_of = {p["number"]: p["baseRefOid"] for p in prs}
@@ -159,8 +165,7 @@ def build_all(dump: dict[str, Any], labels: dict[str, dict[str, Any]]) -> dict[s
     revisions, excluded = build.replay_revisions(full, titles, LEAKING_REVISIONS)
     heads = {p["number"]: p["headRefOid"] for p in prs}
     io = build.io_rows(threads, heads, base_of, cutoff, git_run)
-    numbers = [p["number"] for p in prs]
-    io_rule = IO_RULE.format(first=min(numbers), last=max(numbers), cutoff=cutoff)
+    replay_rule, io_rule = selection_texts([p["number"] for p in prs], cutoff)
     return {
         "threads": threads,
         "funnel": dict(funnel),
@@ -169,7 +174,7 @@ def build_all(dump: dict[str, Any], labels: dict[str, dict[str, Any]]) -> dict[s
         "replay": {
             "schema_version": 1,
             "selection": {
-                "rule": REPLAY_RULE.format(cutoff=cutoff),
+                "rule": replay_rule,
                 "source": "findings.jsonl",
                 "excluded": {
                     "rule": "A revision is dropped when --validate-corpus finds a fixing commit's "
@@ -276,8 +281,11 @@ def check(files: dict[str, str], out_dir: Path) -> int:
     stale = []
     for name, text in files.items():
         target = out_dir / name
+        # Read directly: Path.exists() reads an unreadable target as missing.
         try:
-            current = target.read_text(encoding="utf-8") if target.exists() else None
+            current: str | None = target.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            current = None
         except (OSError, UnicodeDecodeError) as exc:
             print(f"ERROR: cannot read {target}: {exc}", file=sys.stderr)
             return 2
@@ -296,11 +304,12 @@ def write(files: dict[str, str], out_dir: Path, funnel: dict[str, int]) -> int:
     builder from checkout A run inside checkout B would rewrite A's corpus, so
     a write under ``REPO_ROOT`` needs the current directory inside it too.
     """
-    root = REPO_ROOT.resolve()
-    if out_dir.resolve().is_relative_to(root) and not Path.cwd().resolve().is_relative_to(root):
-        print(f"ERROR: refusing to write under {root}: cwd is outside it", file=sys.stderr)
-        return 2
     try:
+        root = REPO_ROOT.resolve()
+        cwd_inside = Path.cwd().resolve().is_relative_to(root)
+        if out_dir.resolve().is_relative_to(root) and not cwd_inside:
+            print(f"ERROR: refusing to write under {root}: cwd is outside it", file=sys.stderr)
+            return 2
         out_dir.mkdir(parents=True, exist_ok=True)
         for name, text in files.items():
             (out_dir / name).write_text(text, encoding="utf-8")

@@ -278,9 +278,9 @@ uv run python scripts/eval/build_third_party_gap_corpus.py --dump .project-toolk
 uv run python scripts/eval/build_third_party_gap_corpus.py --dump .project-toolkit/scratch/3p/dump.json
 ```
 
-The `--stats` run only prints counts; the last command writes the corpora. It
-stops with exit 2 until every newly admitted finding has a row in
-`labels.jsonl`.
+The `--stats` run only prints counts; the last command writes the corpora.
+Both builder commands stop with exit 2 until every newly admitted finding has a
+row in `labels.jsonl`.
 
 Frozen reproduction (the committed corpora and results). The first command
 needs the unpublished 2026-11-15 dump, so only its holder can run it. The

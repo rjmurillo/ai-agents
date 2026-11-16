@@ -17,6 +17,7 @@ FLAG = "unguarded-symlink"
 LINK = "p.symlink_to('t')"
 SKIP_NT = "pytest.mark.skipif(os.name == 'nt', reason='links')"
 USEFIXTURES = "pytest.mark.usefixtures('skip_cache')"
+SKIP_ALL = "pytest.mark.skip(reason='x')"
 METHOD = f"    def test_x(self, p):\n        {LINK}\n"
 
 
@@ -121,6 +122,21 @@ class TestUnguardedSymlink:
                 f"pytestmark = pytest.mark.skip(reason='x')\n{LINK}\n",
                 [FLAG],
                 id="module-skip-misses-import-time-call",
+            ),
+            pytest.param(
+                f"pytestmark = {SKIP_ALL}\ndef test_x(link={LINK}):\n    pass\n",
+                [FLAG],
+                id="module-skip-misses-default-argument",
+            ),
+            pytest.param(
+                f"pytestmark = {SKIP_ALL}\n@deco({LINK})\ndef test_x():\n    pass\n",
+                [FLAG],
+                id="module-skip-misses-decorator",
+            ),
+            pytest.param(
+                f"try:\n    def make(link={LINK}):\n        pass\nexcept OSError:\n    pass\n",
+                [],
+                id="try-around-def-guards-its-default",
             ),
             pytest.param(f"def link_or_skip(p):\n    {LINK}\n", [], id="skip-named-helper"),
             pytest.param(

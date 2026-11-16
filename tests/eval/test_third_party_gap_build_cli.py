@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -72,6 +73,27 @@ class TestOutputErrors:
 
         assert cli.write({"findings.jsonl": "x\n"}, blocker / "out", {}) == 2
 
+    @pytest.mark.skipif(os.name != "posix" or os.geteuid() == 0, reason="needs POSIX non-root")
+    def test_a_target_in_an_unreadable_directory_exits_2(self, cli: Any, tmp_path: Path) -> None:
+        locked = tmp_path / "locked"
+        locked.mkdir()
+        (locked / "findings.jsonl").write_text("x\n", encoding="utf-8")
+        locked.chmod(0)
+        try:
+            assert cli.check({"findings.jsonl": "x\n"}, locked) == 2
+        finally:
+            locked.chmod(0o700)
+
+    def test_a_removed_working_directory_exits_2(
+        self, cli: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        gone = tmp_path / "gone"
+        gone.mkdir()
+        monkeypatch.chdir(gone)
+        gone.rmdir()
+
+        assert cli.write({"findings.jsonl": "x\n"}, tmp_path / "out", {}) == 2
+
     def test_an_unreadable_check_target_exits_2(self, cli: Any, tmp_path: Path) -> None:
         (tmp_path / "findings.jsonl").mkdir()
 
@@ -85,6 +107,12 @@ class TestSelectionText:
         )
 
         assert cli.IO_RULE.format(first=6110, last=7380, cutoff=7066) == corpus["selection"]["rule"]
+
+    def test_selection_texts_take_the_range_and_cutoff_of_the_input(self, cli: Any) -> None:
+        replay, io = cli.selection_texts([7300, 7001, 8000], 7650)
+
+        assert "PR >= 7650" in replay
+        assert ("#7001 to #8000" in io, "PR >= 7650" in io) == (True, True)
 
     def test_a_new_window_states_its_own_cutoff_and_range(self, cli: Any) -> None:
         text = cli.IO_RULE.format(first=7001, last=8000, cutoff=7650)
