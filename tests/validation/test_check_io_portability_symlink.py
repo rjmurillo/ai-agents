@@ -44,6 +44,14 @@ class TestUnguardedSymlink:
 
         assert rules(source) == []
 
+    def test_try_star_catching_oserror_guards(self) -> None:
+        source = (
+            "def test_x(p):\n    try:\n        p.symlink_to('t')\n"
+            "    except* OSError:\n        pass\n"
+        )
+
+        assert rules(source) == []
+
     def test_try_catching_only_valueerror_does_not_guard(self) -> None:
         source = (
             "def test_x(p):\n    try:\n        p.symlink_to('t')\n"

@@ -108,6 +108,10 @@ class TestSelectionText:
         )
 
         assert cli.IO_RULE.format(first=6110, last=7380, cutoff=7066) == corpus["selection"]["rule"]
+        replay = json.loads(
+            (cli.REPO_ROOT / cli.OUT_DIR / "replay-corpus.json").read_text(encoding="utf-8")
+        )
+        assert cli.REPLAY_RULE.format(cutoff=7066) == replay["selection"]["rule"]
 
     def test_selection_texts_take_the_range_and_cutoff_of_the_input(self, cli: Any) -> None:
         replay, io = cli.selection_texts([7300, 7001, 8000], 7650)
