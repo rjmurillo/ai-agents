@@ -282,7 +282,7 @@ SKILL="$HOME/.claude/skills/my-skill"
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillforge/scripts/package_skill.py "$SKILL" ./dist; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
-Read [references/scripts-and-validation.md](references/scripts-and-validation.md) before you act on a validator's exit code or validate a skill in another checkout with `--root DIR`.
+Read [references/scripts-and-validation.md](references/scripts-and-validation.md) before you act on an exit code, use `--root DIR`, or judge conformance guidelines.
 
 ---
 

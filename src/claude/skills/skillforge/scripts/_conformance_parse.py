@@ -15,7 +15,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from _path_guard import contained_realpath, resolve_root
+from _path_guard import contained_realpath, is_within, resolve_root
 
 KEY_RE = re.compile(r"^([A-Za-z0-9_][A-Za-z0-9_.-]*)[ \t]*:(?:[ \t]+(.*)|[ \t]*)$")
 BLOCK_SCALAR_RE = re.compile(r"^([|>])([+-]?)([1-9]?)([+-]?)\s*(?:#.*)?$")
@@ -374,3 +374,62 @@ def load_skill(directory: Path, root: Path | None = None) -> SkillDoc:
     except ParseError as exc:
         doc.parse_error = str(exc)
     return doc
+
+
+def file_id(path: Path) -> tuple[int, int] | None:
+    """Return the (device, inode) of the file a path reaches, or None when it cannot be read.
+
+    Comparing file identity, not path text, also catches a hard link or a
+    second symlink to the same file.
+    """
+    try:
+        info = os.stat(path)
+    except (OSError, RuntimeError, ValueError):
+        return None
+    return info.st_dev, info.st_ino
+
+
+def _real(path: Path) -> str | None:
+    """Return the case-normalized real path, or None when it cannot be resolved.
+
+    A symlink loop raises on some Python versions; treating it as unresolvable
+    keeps the judgments import on its exit-2 path instead of a traceback.
+    """
+    try:
+        return os.path.normcase(os.path.realpath(path))
+    except (OSError, RuntimeError, ValueError):
+        return None
+
+
+def inside_skill(path: Path, directory: Path, root: Path) -> bool:
+    """True when path resolves to a file inside both the skill directory and root.
+
+    resolved_identity owns the boundary rule. is_file raises on a directory the
+    process can list but not enter on Python 3.10 to 3.13; that file is left out.
+    """
+    try:
+        if not path.is_file():
+            return False
+    except OSError:
+        return False
+    return resolved_identity(path, directory, root) is not None
+
+
+def resolved_identity(path: Path, directory: Path, root: Path) -> tuple[int, int] | None:
+    """Resolve path once; return its (device, inode) only if it lies inside both boundaries.
+
+    Containment and identity come from the same resolution, and lstat does not
+    follow a final symlink, so a path swapped after resolving cannot pass.
+    """
+    real = _real(path)
+    if real is None:
+        return None
+    if not is_within(real, resolve_root(str(root))):
+        return None
+    if not is_within(real, resolve_root(str(directory))):
+        return None
+    try:
+        info = os.lstat(real)
+    except OSError:
+        return None
+    return info.st_dev, info.st_ino
