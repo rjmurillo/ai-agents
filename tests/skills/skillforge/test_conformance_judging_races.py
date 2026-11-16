@@ -47,7 +47,7 @@ def _verdict(
 
 
 class TestReadRaceAndIdentity:
-    """Third review round: a swap around the read, and identity lookup failures."""
+    """A swap around the read, and identity lookup failures."""
 
     QUOTE_OUT = "An outside sentence that must never count."
 
@@ -189,12 +189,12 @@ def test_swap_back_between_identity_and_containment_is_rejected(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
-    """Cursor's case: the path is outside for the identity check, inside for containment.
+    """The path is outside for the identity check and inside for containment.
 
     After the open, each identity or resolution lookup on guide.md swaps it back
-    inside, the window a two-resolution check left open. One resolution closes
-    it. The hooks cover both the old lookup (file_id in the importer) and the
-    current one (_real in the parser).
+    inside, the window a two-resolution check would leave open. One resolution
+    closes it. Hooking both file_id and _real keeps the test meaningful if the
+    read check ever goes back to a separate identity lookup.
     """
     guide = skill / "references" / "guide.md"
     inside_copy = guide.parent / "guide-inside.md"
@@ -234,8 +234,7 @@ def test_swap_back_between_identity_and_containment_is_rejected(
 
     monkeypatch.setitem(judging_globals, "open", outside_then_open)
     monkeypatch.setitem(parse_globals, "_real", swap_back_after(parse_globals["_real"]))
-    if "file_id" in judging_globals:
-        monkeypatch.setitem(judging_globals, "file_id", swap_back_after(judging_globals["file_id"]))
+    monkeypatch.setitem(judging_globals, "file_id", swap_back_after(judging_globals["file_id"]))
     judgment = _verdict("pass", quote=outside_quote, file="references/guide.md")
 
     code = _judge(skill.parent, [judgment])
@@ -244,3 +243,72 @@ def test_swap_back_between_identity_and_containment_is_rejected(
     assert "references/guide.md is not a text file in the skill" in capsys.readouterr().err
     # The swap back ran, so the rejection is not the plain after-open case.
     assert guide.resolve() == inside_copy.resolve()
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="needs named pipes")
+def test_fifo_swapped_in_after_listing_is_rejected_without_blocking(
+    skill: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    guide = skill / "references" / "guide.md"
+    listed = JUDGING["skill_files"]
+
+    def listed_then_fifo(*args: Any, **kwargs: Any) -> list[str]:
+        files = listed(*args, **kwargs)
+        guide.unlink()
+        os.mkfifo(guide)
+        return files
+
+    monkeypatch.setitem(JUDGING, "skill_files", listed_then_fifo)
+    judgment = _verdict("pass", quote="Read me when releasing.", file="references/guide.md")
+
+    code = _judge(skill.parent, [judgment])
+
+    assert code == 2
+    assert "references/guide.md is not a text file in the skill" in capsys.readouterr().err
+
+
+def test_link_to_a_sibling_skill_under_the_same_root_is_not_evidence(
+    skill: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    sibling = skill.parent / "other-notes" / "notes.md"
+    sibling.parent.mkdir()
+    sibling.write_text("A sibling sentence that belongs to another skill.\n", encoding="utf-8")
+    link = skill / "references" / "borrowed.md"
+    try:
+        link.symlink_to(sibling)
+    except OSError as exc:
+        pytest.skip(f"cannot create a symlink here: {exc}")
+    judgment = _verdict(
+        "pass", quote="A sibling sentence that belongs", file="references/borrowed.md"
+    )
+
+    code = _judge(skill.parent, [judgment])
+
+    assert code == 2
+    assert "references/borrowed.md is not a text file in the skill" in capsys.readouterr().err
+
+
+class TestIdentityLookups:
+    """The parser helpers fail closed when a lookup errors."""
+
+    PARSE = conformance.load_skill.__globals__
+
+    def test_file_id_of_a_missing_path_is_none(self, tmp_path: Path) -> None:
+        assert self.PARSE["file_id"](tmp_path / "missing.md") is None
+
+    def test_unresolvable_path_has_no_identity(
+        self, skill: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setitem(self.PARSE, "_real", lambda path: None)
+
+        assert self.PARSE["resolved_identity"](skill / "SKILL.md", skill, skill.parent) is None
+
+    def test_lstat_error_gives_no_identity(
+        self, skill: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def lstat(path: Any) -> Any:
+            raise PermissionError(13, "Permission denied", str(path))
+
+        monkeypatch.setattr(os, "lstat", lstat)
+
+        assert self.PARSE["resolved_identity"](skill / "SKILL.md", skill, skill.parent) is None

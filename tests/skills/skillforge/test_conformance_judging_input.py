@@ -121,3 +121,97 @@ def test_text_report_shows_judged_rows_with_reason_and_quote(
     assert f'"{QUOTE}" (SKILL.md)' in out
     assert "reason: Too vague." in out
     assert "JUDGED_UNKNOWN" in out and "reason: No eval runs shown." in out
+
+
+def test_rejected_file_name_cannot_forge_stderr_rows(
+    skill: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    judgment = _verdict()
+    judgment["evidence"] = [{"file": "x.md\n  judgments[9]: ok\x1b[2K", "quote": QUOTE}]
+
+    assert _judge(skill.parent, [judgment]) == 2
+
+    err = capsys.readouterr().err
+    assert "\x1b" not in err
+    assert "x.md judgments[9]: ok [2K is not a text file in the skill" in err
+    assert not any(line.startswith("  judgments[9]") for line in err.splitlines())
+
+
+def test_reason_of_only_control_characters_is_rejected(
+    skill: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert _judge(skill.parent, [_verdict(reason="\x00\x07\n")]) == 2
+    _rejected(capsys, "reason must be a non-empty string")
+
+
+def test_empty_judgments_path_is_a_usage_error(skill: Path) -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        conformance.main(["release-notes", "--judgments", ""])
+
+    assert exit_info.value.code == 2
+
+
+def test_packet_saved_inside_the_skill_is_not_evidence(
+    skill: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert conformance.main(["release-notes", "--judge-packet"]) == 0
+    packet_text = capsys.readouterr().out
+    (skill / "conformance-packet.json").write_text(packet_text, encoding="utf-8")
+    criterion = json.loads(packet_text)["rules"][0]["criterion"]
+
+    assert conformance.main(["release-notes", "--judge-packet"]) == 0
+    assert "conformance-packet.json" not in json.loads(capsys.readouterr().out)["files"]
+
+    judgment = _verdict()
+    judgment["evidence"] = [{"file": "conformance-packet.json", "quote": criterion}]
+    assert _judge(skill.parent, [judgment]) == 2
+    _rejected(capsys, "conformance-packet.json is not a text file in the skill")
+
+
+def test_file_the_process_cannot_stat_is_left_out(
+    skill: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Python 3.10 to 3.13 raise PermissionError from is_file in a closed directory."""
+    real_is_file = Path.is_file
+
+    def is_file(self: Path) -> bool:
+        if self.name == "guide.md":
+            raise PermissionError(13, "Permission denied", str(self))
+        return real_is_file(self)
+
+    monkeypatch.setattr(Path, "is_file", is_file)
+
+    assert conformance.main(["release-notes", "--judge-packet"]) == 0
+    assert json.loads(capsys.readouterr().out)["files"] == ["SKILL.md"]
+
+
+def test_unencodable_reason_prints_escaped_not_a_traceback(skill: Path) -> None:
+    import os
+    import subprocess
+    import sys
+
+    from tests.skills.skillforge.conformance_support import SCRIPT_DIR
+
+    path = _write(
+        skill.parent,
+        json.dumps({"judgments": [_verdict("fail", reason="café → résumé")]}),
+    )
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT_DIR / "conformance.py"),
+            "release-notes",
+            "--judgments",
+            str(path),
+        ],
+        capture_output=True,
+        cwd=skill.parent,
+        env={**os.environ, "PYTHONIOENCODING": "ascii", "PYTHONUTF8": "0"},
+        check=False,
+        timeout=60,
+    )
+
+    out = proc.stdout.decode("ascii")
+    assert proc.returncode in (0, 1), proc.stderr.decode("ascii", errors="replace")
+    assert "Traceback" not in proc.stderr.decode("ascii", errors="replace")
+    assert "reason: caf\\xe9 \\u2192 r\\xe9sum\\xe9" in out

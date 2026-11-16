@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import json
 import os
+import stat
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from _conformance_files import _SCRIPT_SUFFIXES
 from _conformance_parse import file_id, inside_skill, resolved_identity
@@ -31,6 +33,17 @@ JUDGE_INSTRUCTIONS = (
     "cannot show it, such as how the skill was tested; unknown is never a pass. "
     "Write the judgments file outside the skill directory."
 )
+# A saved packet starts with this key; its rule text is never evidence.
+_PACKET_KEY = b'"packet_version"'
+
+
+class Judged(Protocol):
+    """The result fields judging reads and sets; conformance.Result has them."""
+
+    rule: Any
+    status: str
+    reason: str
+    problems: list[str]
 
 
 @dataclass(frozen=True)
@@ -54,16 +67,23 @@ def _one_line(text: str) -> str:
     return _collapse("".join(c if c.isprintable() else " " for c in text))
 
 
+def _nonblocking(path: str, flags: int) -> int:
+    """Open without blocking, so a FIFO swapped in after listing cannot hang the run."""
+    return os.open(path, flags | getattr(os, "O_NONBLOCK", 0))
+
+
 def _read_inside(path: Path, scope: JudgingScope) -> str | None:
     """Read a file only if the file opened is the one inside the skill and root.
 
     Open first, then resolve the path once: the resolved file must sit inside
-    both boundaries and be the same file (device and inode) as the open
+    both boundaries and be the same regular file (device and inode) as the open
     descriptor. A swap before or after the open fails the match. None means
     reject.
     """
-    with open(path, "rb") as handle:
+    with open(path, "rb", opener=_nonblocking) as handle:
         opened = os.fstat(handle.fileno())
+        if not stat.S_ISREG(opened.st_mode):
+            return None
         identity = (opened.st_dev, opened.st_ino)
         if identity == scope.excluded:
             return None
@@ -81,16 +101,18 @@ def _evidence_item_error(at: str, item: object, scope: JudgingScope) -> str | No
         return f"{at}: file and quote must both be strings"
     if len(_collapse(quote)) < MIN_QUOTE_CHARS:
         return f"{at}: quote needs at least {MIN_QUOTE_CHARS} characters"
+    # The name is model text bound for stderr, so it gets the report's one-line form.
+    shown = _one_line(file)
     if file not in scope.allowed:
-        return f"{at}: {file} is not a text file in the skill"
+        return f"{at}: {shown} is not a text file in the skill"
     try:
         text = _read_inside(scope.directory / file, scope)
     except OSError as exc:
-        return f"{at}: cannot read {file}: {exc}"
+        return f"{at}: cannot read {shown}: {_one_line(exc.strerror or str(exc))}"
     if text is None:
-        return f"{at}: {file} is not a text file in the skill"
+        return f"{at}: {shown} is not a text file in the skill"
     if _collapse(quote) not in _collapse(text):
-        return f"{at}: quote not found verbatim in {file}"
+        return f"{at}: quote not found verbatim in {shown}"
     return None
 
 
@@ -114,7 +136,7 @@ def _judgment_errors(item: object, index: int, scope: JudgingScope) -> list[str]
     if not isinstance(verdict, str) or verdict not in VERDICT_STATUS:
         return [f"{where}: verdict must be pass, fail, or unknown"]
     errors = []
-    if not isinstance(item.get("reason"), str) or not item["reason"].strip():
+    if not isinstance(item.get("reason"), str) or not _one_line(item["reason"]):
         errors.append(f"{where}: reason must be a non-empty string")
     evidence = item.get("evidence", [])
     if verdict != "unknown" and not evidence:
@@ -134,7 +156,7 @@ def _read_judgments(raw: bytes) -> list[object] | str:
     return items
 
 
-def apply_judgments(results: list[Any], raw: bytes, scope: JudgingScope) -> list[str]:
+def apply_judgments(results: Sequence[Judged], raw: bytes, scope: JudgingScope) -> list[str]:
     """Apply a judgments file's bytes to the MANUAL results, or return why it was rejected.
 
     Every verdict is checked before any result changes, so a rejected file
@@ -170,18 +192,30 @@ def apply_judgments(results: list[Any], raw: bytes, scope: JudgingScope) -> list
     return []
 
 
+def _is_packet(path: Path) -> bool:
+    """True for a judge packet saved as JSON; quoting its rule text would ground nothing."""
+    if path.suffix.lower() != ".json":
+        return False
+    try:
+        with open(path, "rb", opener=_nonblocking) as handle:
+            return _PACKET_KEY in handle.read(256)
+    except OSError:
+        return False
+
+
 def skill_files(directory: Path, root: Path, exclude: tuple[int, int] | None = None) -> list[str]:
     """Return the text files a judge may quote, as POSIX paths relative to the skill.
 
     A file must resolve inside both the skill directory and root. ``exclude`` is
     the (device, inode) of the judgments file, so it cannot quote itself; a
-    candidate whose identity cannot be read is left out.
+    candidate whose identity cannot be read is left out, and so is a saved
+    judge packet.
     """
     found = []
     for path in sorted(directory.rglob("*")):
         if path.suffix.lower() not in TEXT_SUFFIXES:
             continue
-        if not inside_skill(path, directory, root):
+        if not inside_skill(path, directory, root) or _is_packet(path):
             continue
         if exclude is not None and file_id(path) in (None, exclude):
             continue
@@ -221,7 +255,7 @@ def judge_packet(report: Any, files: list[str], profile: str) -> dict[str, objec
 
 
 def apply_judgments_file(
-    results: list[Any], directory: Path, root: Path, judgments: Path, waived: frozenset[str]
+    results: Sequence[Judged], directory: Path, root: Path, judgments: Path, waived: frozenset[str]
 ) -> list[str]:
     """Apply a judgments file to one skill's results, or return why it was rejected."""
     # Take the identity from the same open file that is read, so a path swapped

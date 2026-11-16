@@ -193,8 +193,8 @@ class TestRejecting:
         assert "not a text file in the skill" in capsys.readouterr().err
 
 
-class TestReviewFindings:
-    """Cases from the PR #7387 review: malformed input exits 2, never a traceback."""
+class TestMalformedInput:
+    """Malformed input exits 2, never a traceback."""
 
     @pytest.mark.parametrize(
         ("judgment", "message"),
@@ -336,41 +336,39 @@ def test_looping_file_in_the_skill_is_left_out_of_the_packet(
     assert "SKILL.md" in files
 
 
-def test_resolution_error_on_the_judgments_path_is_rejected(
+def test_resolution_error_on_an_evidence_file_is_rejected(
     skill: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Python 3.10 to 3.12 raise RuntimeError on a symlink loop; 3.13+ do not.
 
-    Simulate the older behavior, so this test catches a crash on hosts the
-    shipped script supports even when the suite runs on a newer Python.
+    Simulate the older behavior on the quoted file, so this test catches a
+    crash on hosts the shipped script supports even on a newer Python.
     """
     import os.path
-    import pathlib
 
-    target = skill.parent / "loop.json"
-    real_resolve, real_realpath = pathlib.Path.resolve, os.path.realpath
-
-    def resolve(self: pathlib.Path, strict: bool = False) -> pathlib.Path:
-        if self.name == "loop.json":
-            raise RuntimeError(f"Symlink loop from {self}")
-        return real_resolve(self, strict=strict)
+    real_realpath = os.path.realpath
+    raised: list[str] = []
 
     def realpath(path: Any, *args: Any, **kwargs: Any) -> str:
-        if os.fspath(path).endswith("loop.json"):
+        if os.fspath(path).endswith("guide.md"):
+            raised.append(os.fspath(path))
             raise RuntimeError(f"Symlink loop from {path}")
         return real_realpath(path, *args, **kwargs)
 
-    monkeypatch.setattr(pathlib.Path, "resolve", resolve)
     monkeypatch.setattr(os.path, "realpath", realpath)
+    judgment = _verdict("pass", quote="Read me when releasing.", file="references/guide.md")
 
-    code = conformance.main(["release-notes", "--judgments", str(target)])
+    code = _judge(skill.parent, [judgment])
 
+    assert raised, "the realpath hook never ran"
     assert code == 2
-    assert "nothing applied" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "references/guide.md is not a text file in the skill" in err
+    assert "nothing applied" in err
 
 
-class TestSecondReview:
-    """Cases from the second PR #7387 review."""
+class TestEvidenceBoundary:
+    """Evidence files that leave the skill or change after listing."""
 
     def test_hard_link_to_the_judgments_file_is_not_evidence(
         self, skill: Path, capsys: pytest.CaptureFixture[str]

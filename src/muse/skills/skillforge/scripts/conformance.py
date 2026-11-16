@@ -14,14 +14,15 @@ Usage:
                    [--verbose] [--manual]
     conformance.py SKILL_DIR --judge-packet [--root DIR] [--profile spec|project]
     conformance.py SKILL_DIR --judgments FILE [--root DIR] [--profile spec|project]
-                   [--strict]
+                   [--waive RULE_ID ...] [--strict] [--format text|json]
+                   [--verbose]
     conformance.py --list [--profile spec|project] [--format text|json]
 
 Statuses:
     PASS            the check found nothing
     FAIL            a MUST rule failed
     WARN            a SHOULD or MAY rule failed
-    DEVIATION       the rule failed, and the project profile declares why
+    DEVIATION       the project profile declares why the rule is not met
     WAIVED          the rule failed, and --waive named it
     NOT_APPLICABLE  the skill has nothing this rule checks
     NOT_EVALUATED   the check could not decide, such as unparsable frontmatter
@@ -298,7 +299,10 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.write(render_catalog(args.profile, args.format))
         return 0
     directories = resolve_skills(parser, args.skills, args.root)
-    if (args.judge_packet or args.judgments) and len(directories) != 1:
+    if args.judgments == "":
+        parser.error("--judgments needs a file path")
+    judging = args.judge_packet or args.judgments is not None
+    if judging and len(directories) != 1:
         parser.error("--judge-packet and --judgments take exactly one SKILL_DIR")
     root = Path(resolve_root(args.root))
     reports = []
@@ -309,7 +313,7 @@ def main(argv: list[str] | None = None) -> int:
         packet = judge_packet(reports[0], skill_files(directories[0], root), args.profile)
         sys.stdout.write(json.dumps(packet, indent=2) + "\n")
         return 0
-    if args.judgments:
+    if args.judgments is not None:
         errors = apply_judgments_file(
             reports[0].results, directories[0], root, Path(args.judgments), frozenset(args.waive)
         )

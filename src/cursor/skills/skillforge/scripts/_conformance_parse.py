@@ -402,12 +402,17 @@ def _real(path: Path) -> str | None:
 
 
 def inside_skill(path: Path, directory: Path, root: Path) -> bool:
-    """True when path resolves to a file inside both the skill directory and root."""
-    if _real(path) is None or not path.is_file():
+    """True when path resolves to a file inside both the skill directory and root.
+
+    resolved_identity owns the boundary rule. is_file raises on a directory the
+    process can list but not enter on Python 3.10 to 3.13; that file is left out.
+    """
+    try:
+        if not path.is_file():
+            return False
+    except OSError:
         return False
-    if contained_realpath(path, resolve_root(str(root))) is None:
-        return False
-    return contained_realpath(path, resolve_root(str(directory))) is not None
+    return resolved_identity(path, directory, root) is not None
 
 
 def resolved_identity(path: Path, directory: Path, root: Path) -> tuple[int, int] | None:
