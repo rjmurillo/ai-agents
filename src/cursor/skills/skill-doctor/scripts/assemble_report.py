@@ -17,7 +17,7 @@ harness's ``sampling.per_harness.<harness>.sampled`` count must equal its scored
 count, so a partly imported batch review cannot be graded as complete.
 
 Exit codes: 0 written, 1 invalid or inconsistent input (nothing written),
-2 bad arguments or an unreadable file. Python 3.10+, stdlib only.
+2 bad arguments or an unreadable file. python3, stdlib only.
 """
 
 from __future__ import annotations
@@ -138,7 +138,10 @@ def assemble(
 
 
 def _parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="Assemble report.json from scored records.")
+    p = argparse.ArgumentParser(
+        description="Assemble report.json from scored records.",
+        epilog="Exit codes:" + (__doc__ or "").split("Exit codes:", 1)[-1],
+    )
     p.add_argument("draft", type=Path, help="report draft JSON (findings, suggestions, stats)")
     p.add_argument("--scores", type=Path, required=True, help="scores.json with scored sessions")
     p.add_argument("--artifact", type=Path, default=None, help="score_artifact.json to verify")

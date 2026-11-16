@@ -14,7 +14,7 @@ two apart:
 - ``skillopt_prompt`` and ``skillforge_prompt`` build copyable handoff text
   from the suggestion's own fields. Nothing here starts either skill.
 
-Python 3.10+, stdlib only.
+python3, stdlib only.
 """
 
 from __future__ import annotations

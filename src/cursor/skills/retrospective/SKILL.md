@@ -105,7 +105,9 @@ Gather facts before interpretation. Observation precedes diagnosis.
   [frameworks.md, Outcome Classification](references/frameworks.md#activity-outcome-classification).
 
 Evidence sources: the most recent session log under `.project-toolkit/sessions/`, `git log` for the
-period, and optional GitHub activity through the `github` skill. Do not use raw `gh`.
+period, optional GitHub activity through the `github` skill (never raw `gh`), and an explicit
+native Copilot journal via `extract_evidence.py --journal <events.jsonl>` (bounded tool receipts).
+Where the journal reader does not ship (the Hermes pack), the journal is reported unavailable.
 
 ### Phase 1: Generate Insights
 
@@ -207,7 +209,7 @@ Before the retrospective is complete, confirm:
 | Script | Purpose | Exit codes |
 |---|---|---|
 | `scripts/run_retrospective.py` | Orchestrate Phase 0 to Phase 5 and write the retrospective artifact. | `0` artifact written; `1` a supplied learning scored below the persistence threshold (still written); `2` usage or configuration error; `3` unexpected external failure. |
-| `scripts/extract_evidence.py` | Gather Phase 0 evidence (session log, git history) for the scope. | `0` evidence gathered (sources may be marked absent); `2` usage or configuration error; `3` unexpected external failure. |
+| `scripts/extract_evidence.py` | Gather Phase 0 evidence (session log, git history, optional `--journal`) for the scope. | `0` evidence gathered (sources may be marked absent); `2` usage or configuration error; `3` unexpected external failure. |
 | `scripts/score_atomicity.py` | Score a candidate learning against the 70% persistence threshold. | `0` at or above threshold; `1` below threshold (refine or reject); `2` usage or configuration error. |
 
 ## References
