@@ -11,7 +11,8 @@ The same tests pass alone and pass locally. The failure looks unrelated to the P
 `eval_handoff_strategy._run_live` then writes `os.environ[REAL_HOME_ENV] = "1"` directly (`scripts/eval/eval_handoff_strategy.py` line 259).
 The test does not call `monkeypatch.setenv` for that variable, so pytest does not restore it.
 Every later test in the same worker sees `EVAL_RUNTIME_REAL_HOME=1`.
-With that flag set, the Claude CLI helpers skip their HOME relocation (`scripts/eval/_claude_cli.py` lines 123 to 127).
+With that flag set, the Claude CLI helpers skip their HOME relocation and credential lookup.
+The check is `_real_home_requested()` (`scripts/eval/_claude_cli.py` line 127). The skips are at lines 191 and 216.
 The credential transport tests expect the relocation, so their `[claude]` cases fail.
 Whether it fails depends on how the split puts tests in one worker, so it shows up as a flake.
 

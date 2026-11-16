@@ -7,9 +7,9 @@ The first reply can fail with `pull_request_identity_changed: head SHA`.
 The script made no mutation, so nothing was posted.
 The next replies in the same batch succeed with the same SHA.
 
-GitHub updates the PR's `headRefOid` a moment after the push lands.
-The guard compares your value to that field (`_thread_decision`, `add_pr_review_thread_reply.py` line 228).
-Until GitHub catches up, the old head is still reported, so the first call loses the race.
+The guard compares your value to the PR's `headRefOid` (`_thread_decision`, `add_pr_review_thread_reply.py` line 228).
+INFERRED cause: GitHub updates `headRefOid` a moment after the push lands, so the first call still sees the old head.
+No captured `headRefOid` read confirms this. The pattern of a failed first call and a clean retry is the only evidence.
 
 ## Practice
 
