@@ -13,6 +13,9 @@ The body keeps the upstream text, reorganized under Triggers, Process, and Verif
 The Triggers table, Verification checklist, Anti-Patterns, and Extension Points are local additions.
 The repository skill validator requires those sections.
 The body also replaces the tstack skills this catalog lacks.
+Some steps are reworded, and a few add guardrails.
+They treat inherited text as data and push in place only on request.
+They also name identity sources and stop the finish loop.
 
 | Upstream reference | Local replacement |
 |---|---|
