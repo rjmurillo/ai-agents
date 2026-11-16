@@ -66,3 +66,4 @@ def gate_payload(**overrides: Any) -> dict[str, Any]:
 
 # pr_wait imports its state module by name once loaded.
 pws = sys.modules["pr_wait_state"]
+pwa = sys.modules["pr_wait_activity"]

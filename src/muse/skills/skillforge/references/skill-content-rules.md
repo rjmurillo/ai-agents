@@ -109,7 +109,7 @@ points the model at a tool that does not exist there.
 
 ### Operations and verified tool names
 
-Checked 2026-11-16 against the sources below. Recheck a row before you
+Each name was matched in its cited source on 2026-11-16. Recheck a row before you
 change it.
 
 | Operation | Claude Code | T3 Code | Codex | Copilot CLI | Others |
@@ -117,8 +117,8 @@ change it.
 | Spawn a subagent | `Agent` (`Task`) | `delegate_task` | `spawn_agent` | `task` | Muse Code `subagent_spawn`; Devin `run_subagent`; Antigravity `invoke_subagent`; Factory Droid `Task` |
 | Ask the user | Claude Code `AskUserQuestion` | provider's question tool | `request_user_input` (Plan mode) | `ask_user` | Muse Code `request_user_input`; Devin `ask_user_question`; Factory Droid `AskUser` |
 | Run a shell command | `Bash` / `PowerShell` | provider's terminal tool | `exec_command` | `bash` / `powershell` | Devin `exec`; Antigravity `run_command`; Factory Droid `Execute` |
-| Wait on a background command | `Bash` `run_in_background`, then `Monitor` | `t3_background_wait` | `write_stdin` with empty `chars` | `read_bash` / `read_powershell` | Devin `get_output`; Muse Code: none documented |
-| Watch a pull request | none | `watch_pull_request`, `unwatch_pull_request` | none | none | none documented |
+| Wait on a background command | `Monitor` with the command (`timeout_ms` up to 1800000) | `t3_background_wait` | `write_stdin` with empty `chars` | `read_bash` / `read_powershell` | Devin `get_output`; Muse Code: none documented |
+| Watch a pull request | none documented | `watch_pull_request`, `unwatch_pull_request` | none documented | none documented | none documented |
 | Load a skill | `Skill` | provider's skill tool | read the `SKILL.md` | `skill` | host docs |
 
 Sources:
@@ -128,7 +128,10 @@ Sources:
 - Copilot CLI: <https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference>
 - Devin CLI: <https://docs.devin.ai/cli/subagents.md>
 - Antigravity: <https://antigravity.google/docs/hooks/>
-- Factory Droid: <https://docs.factory.ai/reference/hooks-reference>
+- Factory Droid: <https://docs.factory.ai/reference/hooks-reference> (`Execute`, `Task`) and
+  <https://docs.factory.ai/cli/configuration/custom-droids> (`AskUser`)
+- Muse Code: `subagent_spawn` and `request_user_input` as recorded by ADR-115 in
+  the `rjmurillo/ai-agents` repository. Muse Code publishes no tool reference.
 - T3 Code: the live tool catalog of the session.
 
 ### Review check

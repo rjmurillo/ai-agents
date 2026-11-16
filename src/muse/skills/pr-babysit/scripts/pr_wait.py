@@ -73,6 +73,7 @@ _script_dir = os.path.dirname(os.path.abspath(__file__))
 if _script_dir not in sys.path:
     sys.path.insert(0, _script_dir)
 
+from pr_wait_activity import diff_activity  # noqa: E402 - needs the script directory
 from pr_wait_state import (  # noqa: E402 - needs the script directory on sys.path
     Json,
     State,
@@ -88,8 +89,10 @@ DEFAULT_INTERVAL = 30
 MIN_INTERVAL = 10
 MAX_BACKOFF = 300
 MAX_FAILED_POLLS = 10
-THREAD_WINDOW = 100
 READY_MERGE_STATES = ("CLEAN", "HAS_HOOKS", "UNSTABLE", "BLOCKED")
+# Review bots post 30 to 120 seconds after a push. A zero-thread reading
+# taken sooner is not evidence that no thread is coming.
+SETTLE_SECONDS = 180
 _NOT_FOUND = re.compile(r"Could not resolve to a (PullRequest|Repository)|NOT_FOUND")
 
 SNAPSHOT_QUERY = """
@@ -97,7 +100,7 @@ query($owner: String!, $name: String!, $number: Int!) {
   viewer { login }
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
-      url state isDraft headRefOid baseRefName baseRefOid mergeStateStatus
+      url state isDraft reviewDecision headRefOid baseRefName baseRefOid mergeStateStatus
       author { login }
       comments(last: 50) { totalCount nodes { id url author { login } } }
       reviews(last: 50) { totalCount nodes { id url state author { login } } }
@@ -128,6 +131,7 @@ class Poll:
     events: list[str] = field(default_factory=list)
     blockers: set[str] = field(default_factory=set)
     done: int | None = None
+    review_pending: bool = False
 
 
 def log(message: str) -> None:
@@ -155,91 +159,8 @@ def parse_target(raw: str, repo: str | None) -> tuple[str, str, int]:
     return info.owner, info.repo, int(raw)
 
 
-def _login(node: Json | None) -> str:
-    author = (node or {}).get("author") or {}
-    return str(author.get("login") or "ghost")
-
-
 def _short(sha: str) -> str:
     return sha[:7] if sha else "unknown"
-
-
-def _nodes(conn: Json | None) -> list[Json]:
-    return list((conn or {}).get("nodes") or [])
-
-
-def _total(conn: Json | None) -> int:
-    return int((conn or {}).get("totalCount") or 0)
-
-
-class _Notes:
-    """Collects activity events, skipping seen ids and the author's own posts."""
-
-    def __init__(self, state: State, ignored: set[str], baseline: bool) -> None:
-        self.state = state
-        self.ignored = ignored
-        self.baseline = baseline
-        self.events: list[str] = []
-        self.overflow = False
-
-    def note(self, kind: str, node: Json, detail: str = "") -> None:
-        node_id = str(node.get("id", ""))
-        if not node_id or node_id in self.state.seen:
-            return
-        self.state.seen.add(node_id)
-        login = _login(node)
-        if self.baseline or login.lower() in self.ignored:
-            return
-        suffix = f" {detail}" if detail else ""
-        self.events.append(f"{kind}: {login}{suffix} {node.get('url', '')}".rstrip())
-
-    def connection(self, key: str, conn: Json | None, kind: str) -> None:
-        total = _total(conn)
-        nodes = _nodes(conn)
-        if total - self.state.totals.get(key, total) > len(nodes):
-            self.overflow = True
-        self.state.totals[key] = total
-        for node in nodes:
-            self.note(kind, node, str(node.get("state", "")) if kind == "review" else "")
-
-    def thread(self, thread: Json) -> None:
-        thread_id = str(thread.get("id", ""))
-        last = thread.get("last") or {}
-        count = _total(last)
-        previous = self.state.thread_counts.get(thread_id)
-        self.state.thread_counts[thread_id] = count
-        # A gap between the first and last comment means replies this poll
-        # cannot list: more than one new reply, or a new thread with replies.
-        if (previous is None and count > 2) or (previous is not None and count - previous > 1):
-            self.overflow = True
-        for node in _nodes(thread.get("first")) + _nodes(last):
-            self.note("thread", node)
-
-
-def diff_activity(state: State, pr: Json, viewer: str, baseline: bool) -> list[str]:
-    """Return activity events and update state. A baseline poll prints nothing."""
-    notes = _Notes(state, {_login(pr).lower(), viewer.lower()}, baseline)
-    notes.connection("comments", pr.get("comments"), "comment")
-    notes.connection("reviews", pr.get("reviews"), "review")
-
-    threads = pr.get("reviewThreads") or {}
-    thread_total = _total(threads)
-    if thread_total - state.totals.get("reviewThreads", thread_total) > len(_nodes(threads)):
-        notes.overflow = True
-    state.totals["reviewThreads"] = thread_total
-    for thread in _nodes(threads):
-        notes.thread(thread)
-
-    if baseline:
-        if thread_total > THREAD_WINDOW:
-            notes.events.append(
-                f"activity: {thread_total} threads; replies in the oldest "
-                f"{thread_total - THREAD_WINDOW} are not watched; read every thread"
-            )
-        return notes.events
-    if notes.overflow:
-        notes.events.append("activity: more arrived than one poll lists; read every thread")
-    return notes.events
 
 
 def diff_pr(state: State, pr: Json, baseline: bool) -> Poll:
@@ -272,6 +193,10 @@ def diff_pr(state: State, pr: Json, baseline: bool) -> Poll:
         poll.blockers.add(f"dirty:{_short(head)}:{_short(base_oid)}")
     if pr.get("isDraft"):
         poll.blockers.add("draft")
+    decision = pr.get("reviewDecision")
+    if decision == "CHANGES_REQUESTED":
+        poll.blockers.add(f"changes-requested:{_short(head)}")
+    poll.review_pending = decision == "REVIEW_REQUIRED"
     return poll
 
 
@@ -305,14 +230,31 @@ def evaluate_gate(state: State, gate: Json, until: str, poll: Poll) -> None:
 def _ready_verdict(state: State, gate: Json, poll: Poll, green: bool) -> None:
     """Draft, threads, and BEHIND block ready only once required checks pass."""
     if not green:
-        poll.blockers.discard("draft")
+        poll.blockers = {b for b in poll.blockers if b.startswith(("check:", "dirty:"))}
         return
     if int(gate.get("UnresolvedThreads") or 0) > 0:
         poll.blockers.add("threads")
     if state.merge_state == "BEHIND":
         poll.blockers.add(f"behind:{_short(state.base_oid)}")
-    if not poll.blockers and state.merge_state in READY_MERGE_STATES:
+    settled = _seconds_since(gate.get("HeadCommittedAt")) >= SETTLE_SECONDS
+    if (
+        not poll.blockers
+        and not poll.review_pending
+        and settled
+        and state.merge_state in READY_MERGE_STATES
+    ):
         poll.done = 0
+
+
+def _seconds_since(stamp: object) -> float:
+    """Seconds since an ISO-8601 UTC stamp; an unreadable stamp counts as settled."""
+    from datetime import datetime
+
+    try:
+        moment = datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+    except ValueError:
+        return float(SETTLE_SECONDS)
+    return time.time() - moment.timestamp()
 
 
 def fetch_snapshot(owner: str, name: str, number: int) -> tuple[Json, str]:

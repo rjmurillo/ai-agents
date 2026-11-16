@@ -73,10 +73,9 @@ the branch conflicts.
 
 #### Everywhere else: `pr_wait.py`
 
-Run `pr_wait.py` (see Scripts) as one background command, and wait on it with
-the host's native tool:
+Run `pr_wait.py` (see Scripts) under the host's native wait tool:
 
-**Waiting on each host.** "Wait on a long-running command" means the host's background-run tool, so each output line wakes you and nothing polls. Claude Code: `Bash` with `run_in_background: true`, then `Monitor` on that task, so each stdout line arrives as an event. T3 Code: `t3_background_wait` with the task ID of a background command. Codex: `exec_command` with a long `yield_time_ms`, then `write_stdin` with empty `chars` to wait for more output. Copilot CLI: `bash` (or `powershell` on Windows), then `read_bash` (`read_powershell`) for more output. Devin CLI: `exec`, then `get_output`. Antigravity: `run_command`. Factory Droid: `Execute`. Muse Code documents no background shell tool. On Muse Code, or any host not named here, run the command in the foreground as one long call and read its output when it returns. Never write a `sleep` loop, and never call a status command over and over to wait.
+**Waiting on each host.** "Wait on a long-running command" means the host's background-run tool, so each output line wakes you and nothing polls. Claude Code: `Monitor` with the command and `timeout_ms: 1800000` (its cap), so each stdout line arrives as an event; re-arm it when it expires. For one completion notice, `Bash` with `run_in_background: true` instead. T3 Code: `t3_background_wait` with the task ID of a background command. Codex: `exec_command` with a long `yield_time_ms`, then `write_stdin` with empty `chars` to wait for more output. Copilot CLI: `bash` (or `powershell` on Windows), then `read_bash` (`read_powershell`) for more output. Devin CLI: `exec`, then `get_output`. Antigravity: `run_command`. Factory Droid: `Execute`. Muse Code documents no background shell tool. On Muse Code, or any host not named here, run the command in the foreground as one long call and read its output when it returns. Never write a `sleep` loop, and never call a status command over and over to wait.
 
 Start the watcher again after you push, after you handle an exit 1, and after
 a resume. It keeps state per PR for 6 hours, so a restarted watcher reports
@@ -135,8 +134,9 @@ base locally; never force-push a shared branch.
 If an overlapping PR makes this one obsolete, stop watching, tell the user,
 and ask before you close it unless closing was authorized.
 
-Stop when `pr_wait.py` exits 0, or (T3 Code) when the merge gate passes on the
-latest head. Merge only when the user asked for it; otherwise report that the
+The merge gate is the github skill's `test_pr_merge_ready.py` on the latest
+head. A watcher exit 0 or a T3 Code wake is the cue to run it, not a pass.
+Stop when that gate passes. Merge only when the user asked for it; otherwise report that the
 PR is ready. Right before a merge, fetch and check the PR again. Never merge
 when it is BEHIND or DIRTY, or when base commits that landed after the last
 green run touch this PR's files. Update, push, and wait for green again.
@@ -162,13 +162,15 @@ Exit codes:
 | Exit | Meaning | Next step |
 |------|---------|-----------|
 | 0 | `--until` condition met, or the PR merged | Recheck the merge gate on the current head |
-| 1 | A new blocker: a required check failed, DIRTY, closed, or (ready) unresolved threads, BEHIND, or draft | Act, push, then start the watcher again |
+| 1 | A new blocker: a required check failed, DIRTY, closed, or (ready) unresolved threads, BEHIND, draft, or changes requested | Act, push, then start the watcher again |
 | 2 | Bad input, PR not found, or another `pr_wait.py` already watches this PR | Fix the input; do not start a second watcher |
 | 3 | GitHub stayed unreachable for 10 polls in a row | Check the rate limit, then start again |
 | 4 | `gh` is not authenticated | Sign in to `gh`, then start again |
 
 `--until`: `ready` (default) needs required checks green, no unresolved
-thread, and a branch that is not BEHIND, DIRTY, or a draft. `green` needs required
+thread, no pending or changes-requested review, a branch that is not BEHIND,
+DIRTY, or a draft, and a head at least 3 minutes old, since review bots post
+30 to 120 seconds after a push. `green` needs required
 checks only. `any-change` exits on the first event.
 
 The gate reads required checks from the base-branch ruleset through

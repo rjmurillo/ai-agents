@@ -9,11 +9,11 @@
       "expected_signals": [
         "pr_wait.py",
         "Monitor",
-        "run_in_background",
+        "timeout_ms",
         "no sleep loop"
       ],
       "expected_gate": "pr-babysit-one-watcher",
-      "rationale": "The skill's core contract is one event-driven watcher per PR. A response that runs pr_wait.py in the background under Monitor, and refuses a hand-written sleep or polling loop, is attributable to the skill and its host-wait callout."
+      "rationale": "The skill's core contract is one event-driven watcher per PR. A response that runs pr_wait.py as a Monitor command with a long timeout_ms, and refuses a hand-written sleep or polling loop, is attributable to the skill and its host-wait callout."
     },
     {
       "id": "S2",

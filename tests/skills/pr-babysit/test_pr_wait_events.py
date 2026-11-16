@@ -6,11 +6,13 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _pr_wait_helpers import gate_payload as _gate
 from _pr_wait_helpers import node as _node
 from _pr_wait_helpers import pr_payload as _pr
-from _pr_wait_helpers import pw
+from _pr_wait_helpers import pw, pwa
 
 # diff_activity
 
@@ -113,12 +115,12 @@ def test_skipped_thread_replies_report_activity_line() -> None:
 
 def test_baseline_warns_when_threads_exceed_window() -> None:
     state = pw.State()
-    pr = _pr(reviewThreads={"totalCount": pw.THREAD_WINDOW + 5, "nodes": []})
+    pr = _pr(reviewThreads={"totalCount": pwa.THREAD_WINDOW + 5, "nodes": []})
 
     events = pw.diff_activity(state, pr, "me", baseline=True)
 
     assert events == [
-        f"activity: {pw.THREAD_WINDOW + 5} threads; replies in the oldest 5 are not "
+        f"activity: {pwa.THREAD_WINDOW + 5} threads; replies in the oldest 5 are not "
         "watched; read every thread"
     ]
 
@@ -289,3 +291,41 @@ def test_settle_closed_exits_one_even_for_any_change() -> None:
     poll = pw.Poll(events=["closed"], blockers={"closed"}, done=1)
 
     assert pw.settle(pw.State(), poll, "any-change") == 1
+
+
+def test_changes_requested_is_a_blocker_keyed_by_head() -> None:
+    poll = pw.diff_pr(pw.State(), _pr(reviewDecision="CHANGES_REQUESTED"), True)
+
+    assert poll.blockers == {"changes-requested:aaaaaaa"}
+
+
+def test_ready_waits_while_review_is_required() -> None:
+    state = pw.State(head="a" * 40, merge_state="BLOCKED")
+
+    poll = _gate_poll(state, _gate(), "ready", review_pending=True)
+
+    assert (poll.blockers, poll.done) == (set(), None)
+
+
+def test_ready_waits_for_bots_after_a_fresh_push(monkeypatch: pytest.MonkeyPatch) -> None:
+    state = pw.State(head="a" * 40, merge_state="CLEAN")
+    monkeypatch.setattr(pw.time, "time", lambda: 1_000_000_000.0 + 60)
+    gate = _gate(HeadCommittedAt="2001-09-09T01:46:40Z")
+
+    assert _gate_poll(state, gate, "ready").done is None
+
+
+def test_ready_exits_once_settle_window_passes(monkeypatch: pytest.MonkeyPatch) -> None:
+    state = pw.State(head="a" * 40, merge_state="CLEAN")
+    monkeypatch.setattr(pw.time, "time", lambda: 1_000_000_000.0 + pw.SETTLE_SECONDS)
+    gate = _gate(HeadCommittedAt="2001-09-09T01:46:40Z")
+
+    assert _gate_poll(state, gate, "ready").done == 0
+
+
+def test_green_ignores_review_state() -> None:
+    state = pw.State(head="a" * 40)
+
+    poll = _gate_poll(state, _gate(), "green", blockers={"changes-requested:a"})
+
+    assert (poll.blockers, poll.done) == (set(), 0)
