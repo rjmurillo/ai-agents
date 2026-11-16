@@ -16,6 +16,8 @@ from tests.skills.skillforge.conformance_support import conformance, make_skill
 
 BODY = "# Release notes\n\n## Gotchas\n\nThe changelog tool skips merge commits by default.\n"
 QUOTE = "The changelog tool skips merge commits by default."
+# The judging module's namespace, where the import calls open and file_id.
+JUDGING = conformance.apply_judgments_file.__globals__
 
 
 @pytest.fixture
@@ -80,7 +82,7 @@ class TestReadRaceAndIdentity:
         guide, outside = swap
         inside_copy = guide.parent / "guide-inside.md"
         inside_copy.write_bytes(guide.read_bytes())
-        files_globals = conformance.apply_judgments.__globals__
+        judging_globals = JUDGING
         real_open = open
 
         def racing_open(path: Any, *args: Any, **kwargs: Any) -> Any:
@@ -98,7 +100,7 @@ class TestReadRaceAndIdentity:
             self._point(guide, inside_copy)
             return handle
 
-        monkeypatch.setitem(files_globals, "open", racing_open)
+        monkeypatch.setitem(judging_globals, "open", racing_open)
         quote = (
             self.QUOTE_OUT if timing != "after-open" else "An inside sentence that may count here."
         )
@@ -139,7 +141,7 @@ class TestReadRaceAndIdentity:
                 link.symlink_to(evidence)
             return real_open(path, *args, **kwargs)
 
-        monkeypatch.setitem(conformance.__dict__, "open", swapping_open)
+        monkeypatch.setitem(JUDGING, "open", swapping_open)
 
         code = conformance.main(["release-notes", "--judgments", str(link)])
 
@@ -149,10 +151,8 @@ class TestReadRaceAndIdentity:
     def test_unidentifiable_candidate_is_left_out(
         self, skill: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        real = conformance.__dict__["file_id"]
-        monkeypatch.setitem(
-            conformance.__dict__, "file_id", lambda p: None if p.name == "SKILL.md" else real(p)
-        )
+        real = JUDGING["file_id"]
+        monkeypatch.setitem(JUDGING, "file_id", lambda p: None if p.name == "SKILL.md" else real(p))
 
         code = _judge(skill.parent, [_verdict("pass")])
 
@@ -170,9 +170,9 @@ class TestReadRaceAndIdentity:
             os.link(path, skill / "references" / "evidence.json")
         except OSError as exc:
             pytest.skip(f"cannot create a hard link here: {exc}")
-        real = conformance.__dict__["file_id"]
+        real = JUDGING["file_id"]
         monkeypatch.setitem(
-            conformance.__dict__,
+            JUDGING,
             "file_id",
             lambda p: (0, 0) if p.name == "evidence.json" else real(p),
         )
@@ -208,8 +208,8 @@ def test_swap_back_between_identity_and_containment_is_rejected(
     except OSError as exc:
         pytest.skip(f"cannot create a symlink here: {exc}")
     probe.unlink()
-    files_globals = conformance.apply_judgments.__globals__
-    parse_globals = conformance.inside_skill.__globals__
+    judging_globals = JUDGING
+    parse_globals = conformance.load_skill.__globals__
     real_open = open
     opened: list[bool] = []
 
@@ -232,10 +232,10 @@ def test_swap_back_between_identity_and_containment_is_rejected(
 
         return hooked
 
-    monkeypatch.setitem(files_globals, "open", outside_then_open)
+    monkeypatch.setitem(judging_globals, "open", outside_then_open)
     monkeypatch.setitem(parse_globals, "_real", swap_back_after(parse_globals["_real"]))
-    if "file_id" in files_globals:
-        monkeypatch.setitem(files_globals, "file_id", swap_back_after(files_globals["file_id"]))
+    if "file_id" in judging_globals:
+        monkeypatch.setitem(judging_globals, "file_id", swap_back_after(judging_globals["file_id"]))
     judgment = _verdict("pass", quote=outside_quote, file="references/guide.md")
 
     code = _judge(skill.parent, [judgment])

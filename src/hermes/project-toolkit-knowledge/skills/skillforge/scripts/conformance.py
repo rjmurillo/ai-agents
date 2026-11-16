@@ -51,14 +51,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _conformance_checks import NotApplicableError, NotEvaluatedError
-from _conformance_files import (
-    JUDGE_INSTRUCTIONS,
-    TEXT_SUFFIXES,
-    JudgingScope,
-    apply_judgments,
-)
 from _conformance_guides import GUIDE_RULES
-from _conformance_parse import file_id, inside_skill, load_skill
+from _conformance_judging import apply_judgments_file, judge_packet, skill_files
+from _conformance_parse import load_skill
 from _conformance_rules import SPEC_RULES, Rule
 from _path_guard import contained_realpath, resolve_root
 
@@ -234,56 +229,6 @@ def render_catalog(profile: str, fmt: str) -> str:
     return "\n".join(lines) + "\n"
 
 
-def skill_files(directory: Path, root: Path, exclude: tuple[int, int] | None = None) -> list[str]:
-    """Return the text files a judge may quote, as POSIX paths relative to the skill.
-
-    A file must resolve inside both the skill directory and root. ``exclude`` is
-    the (device, inode) of the judgments file, so it cannot quote itself; a
-    candidate whose identity cannot be read is left out.
-    """
-    found = []
-    for path in sorted(directory.rglob("*")):
-        if path.suffix.lower() not in TEXT_SUFFIXES:
-            continue
-        if not inside_skill(path, directory, root):
-            continue
-        if exclude is not None and file_id(path) in (None, exclude):
-            continue
-        found.append(path.relative_to(directory).as_posix())
-    return found
-
-
-def judge_packet(report: Report, files: list[str], profile: str) -> dict[str, object]:
-    """Build the packet an agent judges: the unjudged rules and the files to read."""
-    return {
-        "packet_version": 1,
-        "skill": report.path,
-        "profile": profile,
-        "instructions": JUDGE_INSTRUCTIONS,
-        "answer_format": {
-            "judgments": [
-                {
-                    "id": "rule id from rules",
-                    "verdict": "pass | fail | unknown",
-                    "reason": "one sentence",
-                    "evidence": [{"file": "path from files", "quote": "verbatim text"}],
-                }
-            ]
-        },
-        "files": files,
-        "rules": [
-            {
-                "id": r.rule.id,
-                "level": r.rule.level,
-                "source": r.rule.source,
-                "criterion": r.rule.summary,
-            }
-            for r in report.results
-            if r.status == "MANUAL"
-        ],
-    }
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="conformance.py",
@@ -343,31 +288,6 @@ def resolve_skills(
     return directories
 
 
-def _apply_judgments_file(
-    report: Report, directory: Path, root: Path, args: argparse.Namespace
-) -> list[str]:
-    """Apply --judgments to one skill's report, or return why the file was rejected."""
-    judgments = Path(args.judgments)
-    # Take the identity from the same open file that is read, so a path swapped
-    # between the two cannot exclude one file and import another.
-    try:
-        with open(judgments, "rb") as handle:
-            opened = os.fstat(handle.fileno())
-            raw = handle.read()
-    except OSError as exc:
-        return [f"cannot read {judgments}: {exc}"]
-    excluded = (opened.st_dev, opened.st_ino)
-    scope = JudgingScope(
-        directory=directory,
-        root=root,
-        allowed=frozenset(skill_files(directory, root, exclude=excluded)),
-        open_ids=frozenset(r.rule.id for r in report.results if r.status == "MANUAL"),
-        waived=frozenset(args.waive),
-        excluded=excluded,
-    )
-    return apply_judgments(report.results, raw, scope)
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -390,7 +310,9 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.write(json.dumps(packet, indent=2) + "\n")
         return 0
     if args.judgments:
-        errors = _apply_judgments_file(reports[0], directories[0], root, args)
+        errors = apply_judgments_file(
+            reports[0].results, directories[0], root, Path(args.judgments), frozenset(args.waive)
+        )
         if errors:
             print("judgments rejected; nothing applied:", file=sys.stderr)
             for error in errors:

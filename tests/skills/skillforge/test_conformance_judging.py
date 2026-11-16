@@ -406,7 +406,7 @@ class TestSecondReview:
         except OSError as exc:
             pytest.skip(f"cannot create a symlink here: {exc}")
         probe.unlink()
-        files = conformance.__dict__["skill_files"]
+        files = conformance.apply_judgments_file.__globals__["skill_files"]
 
         def listed_then_swapped(*args: Any, **kwargs: Any) -> list[str]:
             listed = files(*args, **kwargs)
@@ -414,7 +414,9 @@ class TestSecondReview:
             guide.symlink_to(outside)
             return listed
 
-        monkeypatch.setattr(conformance, "skill_files", listed_then_swapped)
+        monkeypatch.setitem(
+            conformance.apply_judgments_file.__globals__, "skill_files", listed_then_swapped
+        )
         judgment = _verdict(
             "pass", quote="An outside sentence that must never count.", file="references/guide.md"
         )
