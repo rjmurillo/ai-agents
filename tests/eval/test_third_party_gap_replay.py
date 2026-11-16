@@ -319,3 +319,14 @@ class TestPartialFailure:
         assert code == 3
         assert json.loads(captured.out)["result"]["errors"] == 1
         assert "1 of 2 call(s) failed" in captured.err
+
+
+def test_git_run_returns_none_when_git_times_out(monkeypatch: pytest.MonkeyPatch) -> None:
+    import subprocess
+
+    def stalled(*_a: object, **_k: object) -> None:
+        raise subprocess.TimeoutExpired("git", 60)
+
+    monkeypatch.setattr(subprocess, "run", stalled)
+
+    assert replay.git_run(("show", "HEAD:x")) is None

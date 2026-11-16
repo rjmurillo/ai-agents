@@ -58,16 +58,20 @@ def git_show(commit: str, path: str) -> str | None:
 
 
 def _git(*args: str) -> str | None:
-    result = subprocess.run(
-        ["git", *args],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-        cwd=str(REPO_ROOT),
-        timeout=60,
-    )
+    """Git stdout, or None on a non-zero exit. A timeout or a missing git raises RuntimeError."""
+    try:
+        result = subprocess.run(
+            ["git", *args],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            cwd=str(REPO_ROOT),
+            timeout=60,
+        )
+    except (subprocess.SubprocessError, OSError) as exc:
+        raise RuntimeError(f"git {args[0]} could not run: {exc}") from exc
     return result.stdout if result.returncode == 0 else None
 
 
@@ -216,7 +220,11 @@ def summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
             "baseline": cell(rows, "baseline_caught"),
             "treatment": cell(rows, "treatment_caught"),
             "treatment_shipped_mode": cell(rows, "shipped_caught"),
-            "final_head_not_lower": cell(rows, "final_head_not_lower"),
+            # Only rows whose final head could be read are judged by the control.
+            "final_head_not_lower": cell(
+                [r for r in rows if r.get("final_head_not_lower") is not None],
+                "final_head_not_lower",
+            ),
             "final_head_unreadable": sum(
                 1 for r in rows if "final_head_not_lower" in r and r["final_head_not_lower"] is None
             ),

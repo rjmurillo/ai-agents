@@ -58,16 +58,20 @@ Caller = Callable[[str, str], tuple[str, dict[str, Any]]]
 
 
 def git_run(args: tuple[str, ...]) -> str | None:
-    result = subprocess.run(
-        ["git", *args],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-        timeout=60,
-        cwd=str(REPO_ROOT),
-    )
+    """Git stdout, or None on a non-zero exit, a timeout, or a missing git binary."""
+    try:
+        result = subprocess.run(
+            ["git", *args],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=60,
+            cwd=str(REPO_ROOT),
+        )
+    except (subprocess.SubprocessError, OSError):
+        return None
     return result.stdout if result.returncode == 0 else None
 
 

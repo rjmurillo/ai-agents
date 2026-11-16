@@ -56,8 +56,8 @@ def _added_lines_since_base(
     ``head_ref`` defaults to HEAD; an eval that replays a past pull request
     passes the commit it reviewed, so it reads diffs exactly as the gates do.
 
-    Parses ``git diff -U0 --diff-filter=ACMR base...HEAD``: the committed
-    changes this branch would push, excluding deletions (a deleted citing
+    Parses ``git diff -U0 --diff-filter=ACMRT base...head_ref``: the committed
+    changes the head would push, excluding deletions (a deleted citing
     file asserts nothing). File headers are recognized only OUTSIDE hunks,
     so an added line whose content begins ``++ `` is never misread as one.
     """

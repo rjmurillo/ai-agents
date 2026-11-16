@@ -126,6 +126,37 @@ def test_unreadable_final_head_is_counted_apart_from_the_control() -> None:
 
     assert out["heldout"]["final_head_unreadable"] == 1
     assert out["heldout"]["final_head_not_lower"]["hits"] == 0
+    assert out["heldout"]["final_head_not_lower"]["n"] == 1
+
+
+def test_evaluate_turns_a_failed_shipped_diff_into_an_error_row(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def failing(_root: object, base: str, head: str) -> dict[str, set[int]]:
+        raise ValueError(f"git diff {base}...{head} failed")
+
+    monkeypatch.setattr(gap.treatment, "added_line_numbers", failing)
+    monkeypatch.setattr(gap, "git_show", lambda _c, _p: "open('f')\n")
+    monkeypatch.setattr(gap, "ruff_lines", lambda _p, _s, _c: [])
+    row = {"thread": "T1", "rule": "file-text-encoding", "path": "t.py", "line": 1,
+           "reviewed": "a" * 40, "final_head": "b" * 40, "merge_base": "c" * 40}  # fmt: skip
+
+    out = gap.evaluate(row)
+
+    assert "failed" in out["error"]
+    assert "shipped_caught" not in out
+
+
+def test_git_that_times_out_raises_runtime_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    import subprocess
+
+    def stalled(*_a: object, **_k: object) -> None:
+        raise subprocess.TimeoutExpired("git", 60)
+
+    monkeypatch.setattr(subprocess, "run", stalled)
+
+    with pytest.raises(RuntimeError, match="could not run"):
+        gap.git_show("a" * 40, "t.py")
 
 
 def test_main_exits_3_when_a_row_cannot_be_scored(

@@ -55,16 +55,20 @@ IO_RULE = (
 
 
 def git_run(args: tuple[str, ...]) -> str | None:
-    result = subprocess.run(
-        ["git", *args],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-        timeout=120,
-        cwd=str(REPO_ROOT),
-    )
+    """Git stdout, or None on a non-zero exit, a timeout, or a missing git binary."""
+    try:
+        result = subprocess.run(
+            ["git", *args],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=120,
+            cwd=str(REPO_ROOT),
+        )
+    except (subprocess.SubprocessError, OSError):
+        return None
     return result.stdout if result.returncode == 0 else None
 
 
@@ -165,7 +169,9 @@ def stats(dump: dict[str, Any], built: dict[str, Any]) -> dict[str, Any]:
         revisions[(f["merge_base"], f["commit"])] += 1
     marked = Counter[str]()
     for (base, head), count in revisions.items():
-        log = git_run(("log", "--format=%B", f"{base}..{head}")) or ""
+        log = git_run(("log", "--format=%B", f"{base}..{head}"))
+        if log is None:
+            raise ValueError(f"git log {base}..{head} failed")
         key = "marker" if marker.search(log) else "no_marker"
         marked[f"{key}_revisions"] += 1
         marked[f"{key}_findings"] += count
@@ -213,7 +219,7 @@ def precision(prs: list[dict[str, Any]], cutoff: int) -> dict[str, Any]:
                 continue
             source = git_run(("show", f"{head}:{path}"))
             if source is None:
-                continue
+                raise ValueError(f"git show {head}:{path} failed for a path the diff listed")
             for v in io_check.scan_source(path, source):
                 if any(v.spans(line) for line in lines):
                     flagged[pr["number"]] += 1

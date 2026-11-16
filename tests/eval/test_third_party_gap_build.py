@@ -279,3 +279,50 @@ class TestCli:
         argv = ["--dump", str(dump), "--labels", str(labels), "--out-dir", str(tmp_path), "--check"]
 
         assert cli.main(argv) == 0
+
+
+class TestCliGitFailures:
+    @pytest.fixture
+    def cli(self) -> Any:
+        return _load_cli()
+
+    def test_stats_exits_3_when_git_log_fails(
+        self, cli: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        dump = tmp_path / "dump.json"
+        dump.write_text(json.dumps({"pull_requests": []}), encoding="utf-8")
+        built = {"threads": [], "findings": [{"merge_base": "a" * 40, "commit": "b" * 40}]}
+        monkeypatch.setattr(cli, "build_all", lambda _d, _l: built)
+        monkeypatch.setattr(cli, "render", lambda _b: {})
+        monkeypatch.setattr(cli, "git_run", lambda _args: None)
+        labels = tmp_path / "labels.jsonl"
+        labels.write_text("", encoding="utf-8")
+
+        code = cli.main(["--dump", str(dump), "--labels", str(labels), "--stats"])
+
+        assert code == 3
+
+    def test_precision_raises_when_a_listed_path_cannot_be_read(
+        self, cli: Any, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def git(args: tuple[str, ...]) -> str | None:
+            return None if args[0] == "show" else "c" * 40 + "\n"
+
+        monkeypatch.setattr(cli, "git_run", git)
+        monkeypatch.setattr(cli.io_check, "added_line_numbers", lambda _r, _b, _h: {"a.py": {1}})
+        prs = [{"number": 9, "state": "MERGED", "headRefOid": "h" * 40, "baseRefOid": "b" * 40}]
+
+        with pytest.raises(ValueError, match="failed for a path the diff listed"):
+            cli.precision(prs, 1)
+
+    def test_git_run_returns_none_when_git_times_out(
+        self, cli: Any, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import subprocess
+
+        def stalled(*_a: object, **_k: object) -> None:
+            raise subprocess.TimeoutExpired("git", 120)
+
+        monkeypatch.setattr(subprocess, "run", stalled)
+
+        assert cli.git_run(("log",)) is None

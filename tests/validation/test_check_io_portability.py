@@ -199,6 +199,11 @@ class TestScanSource:
 
         assert rules(source) == []
 
+    def test_suppression_line_survives_a_lone_carriage_return_line_end(self) -> None:
+        source = "x = 1\rp.read_text()  # io-portability: ignore fixture\r"
+
+        assert rules(source) == []
+
     def test_suppression_without_a_reason_does_not_silence(self) -> None:
         assert rules("p.read_text()  # io-portability: ignore\n") == ["file-text-encoding"]
 
@@ -337,6 +342,24 @@ class TestScanDiff:
 
         assert checker.scan_diff("base", repo)[0] == []
 
+    def test_a_violation_moved_below_other_lines_is_not_new(self, repo: Path) -> None:
+        _commit(repo, "old.py", "p.read_text()\nx = 1\ny = 2\n")
+        _git(repo, "branch", "-f", "base")
+        _commit(repo, "old.py", "x = 1\ny = 2\np.read_text()\n")
+
+        found, _ = checker.scan_diff("base", repo)
+
+        assert found == []
+
+    def test_a_moved_line_that_changes_is_new(self, repo: Path) -> None:
+        _commit(repo, "old.py", "p.read_text()\nx = 1\ny = 2\n")
+        _git(repo, "branch", "-f", "base")
+        _commit(repo, "old.py", "x = 1\ny = 2\nq.read_text()\n")
+
+        found, _ = checker.scan_diff("base", repo)
+
+        assert [(v.path, v.line) for v in found] == [("old.py", 3)]
+
     def test_unknown_base_raises(self, repo: Path) -> None:
         with pytest.raises(ValueError, match="no-such-ref"):
             checker.scan_diff("no-such-ref", repo)
@@ -422,6 +445,18 @@ class TestMain:
 
         with pytest.raises(ValueError, match="could not run"):
             checker.repository_root()
+
+    def test_base_ref_run_exits_2_when_git_times_out(
+        self, repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(repo)
+
+        def timeout(*_a: object, **_k: object) -> None:
+            raise subprocess.TimeoutExpired("git", 60)
+
+        monkeypatch.setattr(subprocess, "run", timeout)
+
+        assert checker.main(["--base-ref", "base"]) == 2
 
     def test_unreadable_file_exits_2(self, tmp_path: Path) -> None:
         assert checker.main([str(tmp_path / "missing.py")]) == 2

@@ -294,9 +294,10 @@ def scan_source(path: str, source: str) -> list[Violation]:
         return []
     visitor = _Visitor(path, tree)
     visitor.visit(tree)
-    # AST line numbers count LF only; splitlines() would also split on form feed
-    # and U+2028, shifting every later line (citation_head_state.py says the same).
-    lines = source.split("\n")
+    # Match the AST's line model: CRLF, a lone CR, and LF each end a line, while
+    # form feed and U+2028 do not. splitlines() would split on those too and
+    # shift every later line number.
+    lines = re.split(r"\r\n|\r|\n", source)
     return sorted(
         v
         for v in visitor.found
