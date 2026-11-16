@@ -48,7 +48,7 @@ and writes nothing.
 | Step | Count |
 |---|---|
 | Bot-opened threads | 1390 |
-| Author accepted (reply or bot "addressed" marker) | 963 |
+| Author accepted (a cited fix, or an accepting reply or bot "addressed" marker with no rejection) | 953 |
 | Reply cites a fix commit | 817 |
 | Fix commit does not resolve | 1 |
 | Fix commit does not touch the thread's path | 68 |
@@ -92,7 +92,7 @@ Three facts change what to fix:
    cite a "learned rule" stored in Cursor's service. The author agents never
    see them. The top three (subprocess text mode without an encoding,
    `read_text`/`write_text` without an encoding, test symlinks with no Windows
-   skip) account for 86 threads the author fixed or resolved.
+   skip) account for 85 threads the author fixed or resolved.
 2. **False prose is new prose.** 197 of the 200 `doc-accuracy` findings sit
    within 2 lines of a line the pull request itself added (`--stats`). The review pipeline does not check a
    new sentence's claim against the code it describes.
@@ -103,18 +103,18 @@ Three facts change what to fix:
 
 ## Eval 1: deterministic checks
 
-`io-portability-corpus.json`: 86 Bugbot learned-rule findings (33 derive, 53
+`io-portability-corpus.json`: 85 Bugbot learned-rule findings (33 derive, 52
 held out). `scripts/eval/eval_io_portability_gap.py` reads each file at the
 commit Bugbot reviewed and asks, with no model call, whether a check flags a
 line within 3 of Bugbot's line.
 
 | Arm | All | Derive | Held out |
 |---|---|---|---|
-| Baseline: `check_subprocess_encoding.py` plus `ruff` with this repository's config | 0/86 (CI 0% to 4%) | 0/33 | 0/53 |
-| Treatment: `scripts/validation/check_io_portability.py`, whole file | 80/86 (CI 86% to 97%) | 33/33 | 47/53 |
-| Treatment as shipped: only lines the pull request added | 80/86 (CI 86% to 97%) | 33/33 | 47/53 |
+| Baseline: `check_subprocess_encoding.py` plus `ruff` with this repository's config | 0/85 (CI 0% to 4%) | 0/33 | 0/52 |
+| Treatment: `scripts/validation/check_io_portability.py`, whole file | 79/85 (CI 85% to 97%) | 33/33 | 46/52 |
+| Treatment as shipped: only lines the pull request added | 79/85 (CI 85% to 97%) | 33/33 | 46/52 |
 
-Per rule: subprocess encoding 32/34, file encoding 25/25, unguarded symlink
+Per rule: subprocess encoding 32/34, file encoding 24/24, unguarded symlink
 23/27. Files: `results/io-portability-summary.json`, per row
 `results/io-portability-rows.jsonl`.
 
@@ -127,10 +127,10 @@ Honest caveats:
 - The first treatment run scored 53/86. Bugbot anchors some findings on a
   call's closing parenthesis, so the match was widened to the whole call span
   after reading misses that included held-out rows.
-- Negative control: in 6 of the 85 judged rows (6 of 52 held out) the file at
+- Negative control: in 5 of the 84 judged rows (5 of 51 held out) the file at
   the pull request's final head has no fewer violations of the rule than at
-  the reviewed commit. Five are rows the checker misses (0 before, 0 after). The sixth, T0396, is a finding the
-  author never fixed. One more row, T0462, cannot be judged: its file is gone
+  the reviewed commit. All five are rows the checker misses (0 before, 0
+  after). One more row, T0462, cannot be judged: its file is gone
   at the final head, so it is counted as `final_head_unreadable`, not as a
   pass.
 - Review of this change found two symlink-guard shapes the first version
@@ -144,6 +144,13 @@ Honest caveats:
   rerun catches held-out row T0462, whose symlink calls sit in
   `test_main_skips_tracked_symlinks`: 79 to 80 overall, 46 to 47 held out.
   The change came from the review, not from reading held-out misses.
+- A later review round made an explicit rejection outrank an opening word
+  such as "Confirmed" unless the reply cites a fix commit. Ten accepted
+  threads became rejected; none was admitted, so `findings.jsonl` and the
+  replay corpus did not change. One was held-out row T0396 ("Valid and Low.
+  Not changed in this PR"), the row the author never fixed, so Eval 1 went
+  from 80/86 to 79/85 and from 47/53 to 46/52 held out. The reject words are
+  broad ("already" matches in passing), so the accepted count is a floor.
 - Precision, in the mode that ships (added lines only): over the 170 held-out
   merged pull requests whose head commit is present locally (of 215), the
   check flags 49 lines in 15 pull requests (9%). Twenty sampled flags on files
@@ -234,7 +241,7 @@ What the run does show:
   hits rose from 46 to 61 and empty reviews fell from 40 to 30, but the line
   match did not follow.
 - **The replayed reviewer catches no platform-portability defect.** 0 of 44 in
-  both arms. The deterministic check in Eval 1 catches 80 of 86 of that kind.
+  both arms. The deterministic check in Eval 1 catches 79 of 85 of that kind.
   That class belongs to a static gate, not a prompt.
 
 Files: `results/replay-heldout-baseline.json`,
@@ -258,7 +265,8 @@ the dump. Eval 1 also reads the reviewed commits, which
 rescoring needs nothing outside this directory. A fresh mine reads the newest
 1000 pull requests, a later window, so `--check` on it reports drift by design.
 Each label also names its thread URL, and the builder refuses a label whose
-URL does not match.
+URL does not match. The builder reads the mining date from the dump's `mined_on`,
+which the miner writes, and refuses a dump without it.
 
 Fresh mining (a new window; rebuilds the corpora, so relabel any new finding):
 

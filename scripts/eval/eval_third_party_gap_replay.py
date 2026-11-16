@@ -289,7 +289,7 @@ def run_stamp(args: argparse.Namespace) -> dict[str, str]:
 
 
 def rebuilt_meta(
-    args: argparse.Namespace, corpus_path: Path, sources: dict[str, list[dict[str, Any]]]
+    args: argparse.Namespace, corpus_sha: str, sources: dict[str, list[dict[str, Any]]]
 ) -> dict[str, Any]:
     """Meta for --rescore and --compare, which make no model call.
 
@@ -307,18 +307,18 @@ def rebuilt_meta(
         "rebuilt_from_checkpoint": True,
         "split": args.split,
         "date": datetime.date.today().isoformat(),
-        "corpus_sha256": hashlib.sha256(corpus_path.read_bytes()).hexdigest(),
+        "corpus_sha256": corpus_sha,
         "arms": arms,
     }
 
 
-def _meta(args: argparse.Namespace, corpus_path: Path, usage: dict[str, int]) -> dict[str, Any]:
+def _meta(args: argparse.Namespace, corpus_sha: str, usage: dict[str, int]) -> dict[str, Any]:
     return {
         **run_stamp(args),
         "split": args.split,
         "trials": args.trials,
         "date": datetime.date.today().isoformat(),
-        "corpus_sha256": hashlib.sha256(corpus_path.read_bytes()).hexdigest(),
+        "corpus_sha256": corpus_sha,
         **usage,
     }
 
@@ -331,16 +331,19 @@ def main(
     corpus_path = REPO_ROOT / args.corpus
     checkpoint = Path(args.checkpoint) if args.checkpoint else None
     try:
-        _, revisions_all = core.load_corpus(corpus_path)
-        corpus_raw = json.loads(corpus_path.read_text(encoding="utf-8"))
+        # One read: the revisions scored and the hash reported come from the same bytes.
+        corpus_bytes = corpus_path.read_bytes()
+        corpus_raw = json.loads(corpus_bytes.decode("utf-8"))
+        _, revisions_all = core.parse_corpus(corpus_raw)
         revisions = select(revisions_all, args.split, args.revisions)
         done = load_checkpoint(checkpoint)
     except (core.CorpusError, OSError, UnicodeDecodeError, ValueError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
     usage = {"calls": 0, "output_tokens": 0}
+    corpus_sha = hashlib.sha256(corpus_bytes).hexdigest()
     if args.compare or args.rescore:
-        return _offline(args, checkpoint, done, revisions, corpus_path)
+        return _offline(args, checkpoint, done, revisions, corpus_sha)
     try:
         system = load_system_prompt(args.prompt_ref, git)
         titles = _titles(revisions, corpus_raw)
@@ -370,7 +373,7 @@ def main(
     if checkpoint is not None:
         repair_tail(checkpoint)
     rows = run(jobs, caller, args.workers, checkpoint, done, stamp)
-    return _finish(args, rows, revisions, corpus_path, usage)
+    return _finish(args, rows, revisions, corpus_sha, usage)
 
 
 def _offline(
@@ -378,7 +381,7 @@ def _offline(
     checkpoint: Path | None,
     done: list[dict[str, Any]],
     revisions: list[core.Revision],
-    corpus_path: Path,
+    corpus_sha: str,
 ) -> int:
     """--compare and --rescore: score stored answers, call no model.
 
@@ -395,7 +398,7 @@ def _offline(
     if not args.compare:
         rescored = rescore(done, revisions)
         result = aggregate(rescored, revisions)
-        return _emit(args, result, corpus_path, usage, {"checkpoint": rescored})
+        return _emit(args, result, corpus_sha, usage, {"checkpoint": rescored})
     try:
         baseline_rows = rescore(load_checkpoint(Path(args.compare)), revisions)
     except (OSError, UnicodeDecodeError, ValueError) as exc:
@@ -404,14 +407,14 @@ def _offline(
     treatment_rows = rescore(done, revisions)
     result = compare(baseline_rows, treatment_rows, revisions)
     sources = {"baseline": baseline_rows, "treatment": treatment_rows}
-    return _emit(args, result, corpus_path, usage, sources)
+    return _emit(args, result, corpus_sha, usage, sources)
 
 
 def _finish(
     args: argparse.Namespace,
     rows: list[dict[str, Any]],
     revisions: list[core.Revision],
-    corpus_path: Path,
+    corpus_sha: str,
     usage: dict[str, int],
 ) -> int:
     """Emit the result of a model run; any failed call makes the exit 3."""
@@ -422,7 +425,7 @@ def _finish(
         return 3
     result = aggregate(scored, revisions)
     result["errors"] = len(failed)
-    _emit(args, result, corpus_path, usage)
+    _emit(args, result, corpus_sha, usage)
     if failed:
         # A partial result must not read as complete: the failed jobs rerun from the checkpoint.
         print(
@@ -436,11 +439,11 @@ def _finish(
 def _emit(
     args: argparse.Namespace,
     result: dict[str, Any],
-    corpus_path: Path,
+    corpus_sha: str,
     usage: dict[str, int],
     sources: dict[str, list[dict[str, Any]]] | None = None,
 ) -> int:
-    meta = rebuilt_meta(args, corpus_path, sources) if sources else _meta(args, corpus_path, usage)
+    meta = rebuilt_meta(args, corpus_sha, sources) if sources else _meta(args, corpus_sha, usage)
     payload = {"meta": meta, "result": result}
     text = json.dumps(payload, indent=2)
     if args.output:

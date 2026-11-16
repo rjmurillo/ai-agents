@@ -59,6 +59,9 @@ class TestDisposition:
             ("b", [], True, "resolved-silent"),
             ("b", [], False, "unclear"),
             ("b", ["Thanks, looking."], True, "unclear"),
+            ("b", ["Confirmed false positive: this is intentional."], True, "rejected"),
+            ("✅ Addressed in commit abc", ["Not changed in this PR."], True, "rejected"),
+            ("b", ["Fixed in abc1234; the other path already had it."], True, "accepted"),
         ],
     )
     def test_reply_shapes(
@@ -253,11 +256,23 @@ class TestSplitAndCorpora:
             {**base, "id": "T0005", "pr": 4, "commit": REVIEWED},
         ]
 
-        revisions = build.replay_revisions(rows, {1: "one"}, {"TG002"})
+        revisions, excluded = build.replay_revisions(rows, {1: "one"}, frozenset({(4, REVIEWED)}))
 
         assert [(r["id"], len(r["defects"]), r["title"]) for r in revisions] == [
             ("TG001", 2, "one")
         ]
+        assert excluded == ["TG002"]
+
+    def test_an_exclusion_that_matches_no_revision_raises(self) -> None:
+        row = {
+            "bot": "devin", "path": "a.py", "fix": FIX, "defect_class": "logic-error",
+            "theme": "t", "context_needed": "diff-local", "summary": "s", "split": "derive",
+            "merge_base": MB, "path_in_diff": True, "diff_chars_all": 10, "line": 3,
+            "id": "T0001", "pr": 1, "commit": REVIEWED,
+        }  # fmt: skip
+
+        with pytest.raises(ValueError, match="not in the replay set"):
+            build.replay_revisions([row], {}, frozenset({(9, REVIEWED)}))
 
     def test_io_rows_keep_the_three_rules_and_fixed_or_silent_threads(self) -> None:
         threads = [

@@ -81,6 +81,13 @@ def fake_git(names: str = "scripts/tool.py\0", patch: str = PATCH) -> core.GitRu
 
 
 class TestParseCorpus:
+    def test_a_revision_that_is_not_an_object_is_refused(self) -> None:
+        payload = corpus()
+        payload["revisions"] = [None]
+
+        with pytest.raises(core.CorpusError, match="JSON object"):
+            core.parse_corpus(payload)
+
     def test_valid_corpus_parses(self) -> None:
         _, revs = core.parse_corpus(corpus())
 
@@ -93,6 +100,7 @@ class TestParseCorpus:
             ({"base": "zz"}, "40-hex"),
             ({"split": "train"}, "split"),
             ({"defects": []}, "non-empty"),
+            ({"defects": [None]}, "JSON object"),
             ({"pr": "7"}, "integer"),
             ({"defects": [defect(context="vibes")]}, "context"),
             ({"defects": [defect(line=0)]}, "positive"),

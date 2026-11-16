@@ -140,6 +140,8 @@ def parse_revision(raw: dict[str, Any]) -> Revision:
     defects_raw = raw.get("defects")
     if not isinstance(defects_raw, list) or not defects_raw:
         raise CorpusError(f"{rev_id}: defects must be a non-empty list")
+    if not all(isinstance(d, dict) for d in defects_raw):
+        raise CorpusError(f"{rev_id}: each defect must be a JSON object")
     pr = raw.get("pr")
     if not isinstance(pr, int):
         raise CorpusError(f"{rev_id}: pr must be an integer")
@@ -164,6 +166,8 @@ def parse_corpus(payload: object) -> tuple[dict[str, Any], tuple[Revision, ...]]
     raw = payload.get("revisions")
     if not isinstance(raw, list) or not raw:
         raise CorpusError("revisions must be a non-empty list")
+    if not all(isinstance(r, dict) for r in raw):
+        raise CorpusError("each revision must be a JSON object")
     revisions = tuple(parse_revision(r) for r in raw)
     ids = [r.id for r in revisions]
     if len(set(ids)) != len(ids):

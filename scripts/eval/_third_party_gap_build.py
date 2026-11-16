@@ -78,12 +78,14 @@ def disposition(
     break its silence.
     """
     accepting = replies if accepting is None else accepting
-    if any(FIXED_WITH_SHA.search(r) or ACCEPT.search(r) for r in accepting):
-        return "accepted"
-    if any(marker in body for marker in BOT_ADDRESSED):
+    # A cited fix commit is the strongest evidence. Short of that, an explicit
+    # rejection outranks an opening word: "Confirmed false positive" rejects.
+    if any(FIXED_WITH_SHA.search(r) for r in accepting):
         return "accepted"
     if any(REJECT.search(r) for r in replies):
         return "rejected"
+    if any(ACCEPT.search(r) for r in accepting) or any(m in body for m in BOT_ADDRESSED):
+        return "accepted"
     if resolved and not replies:
         return "resolved-silent"
     return "unclear"
@@ -203,9 +205,15 @@ def finding_rows(
 
 
 def replay_revisions(
-    rows: list[dict[str, Any]], titles: dict[int, str], exclude: set[str]
-) -> list[dict[str, Any]]:
-    """Group replayable findings by reviewed revision, ids ``TG001`` in (pr, commit) order."""
+    rows: list[dict[str, Any]], titles: dict[int, str], exclude: frozenset[tuple[int, str]]
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Group replayable findings by reviewed revision, ids ``TG001`` in (pr, commit) order.
+
+    ``exclude`` names revisions by (pull request, reviewed head), never by id,
+    because ids follow sort order and shift when the mined window changes.
+    Returns the kept revisions and the ids of the excluded ones. A key that
+    matches no revision raises, so a stale exclusion cannot pass silently.
+    """
     ok = [
         r
         for r in rows
@@ -240,7 +248,11 @@ def replay_revisions(
                 ],
             }
         )
-    return [r for r in revisions if r["id"] not in exclude]
+    found = {(r["pr"], r["head"]) for r in revisions}
+    if missing := sorted(exclude - found):
+        raise ValueError(f"excluded revision(s) not in the replay set: {missing}")
+    kept = [r for r in revisions if (r["pr"], r["head"]) not in exclude]
+    return kept, [r["id"] for r in revisions if (r["pr"], r["head"]) in exclude]
 
 
 def io_rows(

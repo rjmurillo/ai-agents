@@ -105,6 +105,23 @@ class TestUnguardedSymlink:
 
         assert rules(source) == ["unguarded-symlink"]
 
+    def test_a_try_around_a_def_does_not_guard_its_body(self) -> None:
+        source = (
+            "try:\n    def make_link(p):\n        p.symlink_to('t')\nexcept OSError:\n    pass\n"
+        )
+
+        assert rules(source) == ["unguarded-symlink"]
+
+    def test_a_module_skip_does_not_cover_import_time_calls(self) -> None:
+        source = "pytestmark = pytest.mark.skip(reason='x')\np.symlink_to('t')\n"
+
+        assert rules(source) == ["unguarded-symlink"]
+
+    def test_a_skip_named_helper_still_guards_its_own_body(self) -> None:
+        source = "def link_or_skip(p):\n    p.symlink_to('t')\n"
+
+        assert rules(source) == []
+
     def test_skip_named_helper_guards(self) -> None:
         source = "def symlink_or_skip(p, t):\n    p.symlink_to(t)\n"
 

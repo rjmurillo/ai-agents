@@ -3,34 +3,34 @@
   "all": {
     "baseline": {
       "hits": 0,
-      "n": 86,
+      "n": 85,
       "ci": [
         0.0,
         0.043
       ]
     },
     "treatment": {
-      "hits": 80,
-      "n": 86,
+      "hits": 79,
+      "n": 85,
       "ci": [
-        0.856,
-        0.968
+        0.854,
+        0.967
       ]
     },
     "treatment_shipped_mode": {
-      "hits": 80,
-      "n": 86,
+      "hits": 79,
+      "n": 85,
       "ci": [
-        0.856,
-        0.968
+        0.854,
+        0.967
       ]
     },
     "final_head_not_lower": {
-      "hits": 6,
-      "n": 85,
+      "hits": 5,
+      "n": 84,
       "ci": [
-        0.033,
-        0.146
+        0.026,
+        0.132
       ]
     },
     "final_head_unreadable": 1
@@ -73,34 +73,34 @@
   "heldout": {
     "baseline": {
       "hits": 0,
-      "n": 53,
+      "n": 52,
       "ci": [
         0.0,
-        0.068
+        0.069
       ]
     },
     "treatment": {
-      "hits": 47,
-      "n": 53,
+      "hits": 46,
+      "n": 52,
       "ci": [
-        0.774,
-        0.947
+        0.77,
+        0.946
       ]
     },
     "treatment_shipped_mode": {
-      "hits": 47,
-      "n": 53,
+      "hits": 46,
+      "n": 52,
       "ci": [
-        0.774,
-        0.947
+        0.77,
+        0.946
       ]
     },
     "final_head_not_lower": {
-      "hits": 6,
-      "n": 52,
+      "hits": 5,
+      "n": 51,
       "ci": [
-        0.054,
-        0.23
+        0.043,
+        0.21
       ]
     },
     "final_head_unreadable": 1
@@ -108,17 +108,17 @@
   "file-text-encoding": {
     "baseline": {
       "hits": 0,
-      "n": 25,
+      "n": 24,
       "ci": [
         0.0,
-        0.133
+        0.138
       ]
     },
     "treatment": {
-      "hits": 25,
-      "n": 25,
+      "hits": 24,
+      "n": 24,
       "ci": [
-        0.867,
+        0.862,
         1.0
       ]
     }

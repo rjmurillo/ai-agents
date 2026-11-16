@@ -19,6 +19,7 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import logging
 import subprocess
@@ -58,6 +59,8 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
 
 def summarize(dump: dict[str, Any]) -> dict[str, Any]:
     prs = dump["pull_requests"]
+    if not isinstance(prs, list):
+        raise TypeError(f"pull_requests is a {type(prs).__name__}, not a list")
     rows = findings.extract_bot_threads(prs)
     by_bot: Counter[str] = Counter()
     resolved: Counter[str] = Counter()
@@ -98,6 +101,7 @@ def _fetch(args: argparse.Namespace) -> int:
         return EXIT_EXTERNAL
     dump = {
         "repository": f"{info.owner}/{info.repo}",
+        "mined_on": datetime.datetime.now(datetime.timezone.utc).date().isoformat(),
         "limit": args.limit,
         "graphql_cost": budget.cost,
         "requests": budget.requests,

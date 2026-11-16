@@ -435,3 +435,20 @@ class TestFinishReason:
         text, meta = replay.make_caller("m", usage)("system", "user")
 
         assert (text, meta["finish_reason"]) == ("answer", "length")
+
+
+def test_the_reported_corpus_hash_is_of_the_bytes_scored(
+    corpus: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import hashlib
+
+    checkpoint = tmp_path / "rows.jsonl"
+    checkpoint.write_text(
+        json.dumps({"revision": "TG001", "trial": 0, "raw": CAUGHT}) + "\n", encoding="utf-8"
+    )
+
+    code = replay.main(args(corpus, "--checkpoint", str(checkpoint), "--rescore"), caller(), git)
+
+    meta = json.loads(capsys.readouterr().out)["meta"]
+    assert code == 0
+    assert meta["corpus_sha256"] == hashlib.sha256(corpus.read_bytes()).hexdigest()

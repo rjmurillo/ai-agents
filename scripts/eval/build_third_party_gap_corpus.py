@@ -41,7 +41,16 @@ import check_io_portability as io_check  # noqa: E402
 OUT_DIR = "evals/third-party-review-gap"
 # Revisions whose fixing commit edited the reviewer prompt the replay loads, so
 # `eval_third_party_gap_replay.py --validate-corpus` finds fix lines in the prompt.
-LEAKING_REVISIONS = frozenset({"TG002", "TG083", "TG223"})
+# Revisions whose fixing commit edited the reviewer prompt the replay loads, as
+# (pull request, reviewed head). They were TG002, TG083, and TG223 on 2026-11-15.
+LEAKING_REVISIONS = frozenset(
+    {
+        (6110, "3d89aa8968490f76e7f0e9a67e35c3ba6f07aba5"),
+        (6431, "8f0493d3c919ead7bc7070a79e5276aef71d9b40"),
+        (7272, "aad7328d4acb56533207bd57f34daa0e5dec6147"),
+    }
+)
+MINED_ON = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 REPLAY_RULE = (
     "Every admitted finding in findings.jsonl whose path is in the pull request diff (merge base "
     "to reviewed commit), whose diff is at most 110000 characters, and whose thread has a line, "
@@ -104,8 +113,24 @@ def load_labels(path: Path) -> dict[str, dict[str, Any]]:
     return labels
 
 
+def validate_dump(dump: object) -> tuple[list[dict[str, Any]], str]:
+    """The pull requests and mining date of a dump, or ValueError naming the bad shape."""
+    if not isinstance(dump, dict):
+        raise ValueError("dump must be a JSON object")
+    prs = dump.get("pull_requests")
+    if not isinstance(prs, list) or not all(isinstance(p, dict) for p in prs):
+        raise ValueError("dump pull_requests must be a list of objects")
+    for pr in prs:
+        if not isinstance(pr.get("number"), int) or not isinstance(pr.get("baseRefOid"), str):
+            raise ValueError("each pull request needs an integer number and a baseRefOid")
+    mined_on = dump.get("mined_on")
+    if not isinstance(mined_on, str) or not MINED_ON.match(mined_on):
+        raise ValueError("dump needs mined_on as YYYY-MM-DD (the miner writes it)")
+    return prs, mined_on
+
+
 def build_all(dump: dict[str, Any], labels: dict[str, dict[str, Any]]) -> dict[str, Any]:
-    prs = dump["pull_requests"]
+    prs, mined_on = validate_dump(dump)
     base_of = {p["number"]: p["baseRefOid"] for p in prs}
     threads = build.bot_threads(prs)
     funnel: Counter[str] = Counter(bot_threads=len(threads))
@@ -125,7 +150,7 @@ def build_all(dump: dict[str, Any], labels: dict[str, dict[str, Any]]) -> dict[s
     by_id = {a["id"]: a for a in admitted}
     full = [{**by_id[r["id"]], **r} for r in rows]
     titles = {p["number"]: p.get("title", "") for p in prs}
-    revisions = build.replay_revisions(full, titles, set(LEAKING_REVISIONS))
+    revisions, excluded = build.replay_revisions(full, titles, LEAKING_REVISIONS)
     heads = {p["number"]: p["headRefOid"] for p in prs}
     io = build.io_rows(threads, heads, base_of, cutoff, git_run)
     return {
@@ -142,14 +167,14 @@ def build_all(dump: dict[str, Any], labels: dict[str, dict[str, Any]]) -> dict[s
                     "rule": "A revision is dropped when --validate-corpus finds a fixing commit's "
                     "added lines in the reviewer prompt, because the fix edited the reviewer "
                     "contract or agent template the replay loads.",
-                    "ids": sorted(LEAKING_REVISIONS),
+                    "ids": excluded,
                 },
             },
             "revisions": revisions,
         },
         "io": {
             "schema_version": 1,
-            "selection": {"rule": IO_RULE, "mined_on": "2026-11-15"},
+            "selection": {"rule": IO_RULE, "mined_on": mined_on},
             "rows": io,
         },
     }
@@ -243,7 +268,11 @@ def check(files: dict[str, str], out_dir: Path) -> int:
     stale = []
     for name, text in files.items():
         target = out_dir / name
-        current = target.read_text(encoding="utf-8") if target.exists() else None
+        try:
+            current = target.read_text(encoding="utf-8") if target.exists() else None
+        except (OSError, UnicodeDecodeError) as exc:
+            print(f"ERROR: cannot read {target}: {exc}", file=sys.stderr)
+            return 2
         if current != text:
             stale.append(name)
     for name in stale:
@@ -263,8 +292,13 @@ def write(files: dict[str, str], out_dir: Path, funnel: dict[str, int]) -> int:
     if out_dir.resolve().is_relative_to(root) and not Path.cwd().resolve().is_relative_to(root):
         print(f"ERROR: refusing to write under {root}: cwd is outside it", file=sys.stderr)
         return 2
-    for name, text in files.items():
-        (out_dir / name).write_text(text, encoding="utf-8")
+    try:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        for name, text in files.items():
+            (out_dir / name).write_text(text, encoding="utf-8")
+    except OSError as exc:
+        print(f"ERROR: cannot write {out_dir}: {exc}", file=sys.stderr)
+        return 2
     print(json.dumps({"written": sorted(files), "funnel": funnel}))
     return 0
 

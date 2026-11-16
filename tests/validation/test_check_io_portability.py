@@ -125,6 +125,11 @@ class TestScanSource:
 
         assert rules(source) == []
 
+    def test_a_marker_inside_a_string_does_not_suppress(self) -> None:
+        source = "p.write_text('# io-portability: ignore example')\n"
+
+        assert rules(source) == ["file-text-encoding"]
+
     def test_suppression_line_survives_a_lone_carriage_return_line_end(self) -> None:
         source = "x = 1\rp.read_text()  # io-portability: ignore fixture\r"
 
