@@ -1,0 +1,267 @@
+#!/usr/bin/env python3
+"""Replay Cursor Bugbot learned-rule findings against this repository's own checks.
+
+Each corpus row is a Cursor Bugbot finding the author fixed or silently resolved: a file, a line,
+the commit Bugbot reviewed, and the rule it applied. For each row this reads
+the file at the reviewed commit and asks two questions with no model call:
+
+1. Baseline: would a check this repository ran at that time have flagged the
+   line? The baseline is ``check_subprocess_encoding.py`` (scoped as it is,
+   to ``scripts/``) plus ``ruff`` with the repository's own configuration.
+2. Treatment: does ``scripts/validation/check_io_portability.py`` flag it?
+
+A row counts as caught when the check reports a violation of the matching
+kind within ``LINE_WINDOW`` lines of the Bugbot line. A negative control reads
+the same file at the pull request's final head and counts rows where the
+treatment finds no fewer violations of that rule than at the reviewed commit,
+which means the author's fix did not remove what the checker flags.
+
+Corpus: evals/third-party-review-gap/io-portability-corpus.json.
+
+Exit codes: 0 ok, 2 config or corpus error, 3 a row could not be scored
+(git, ruff, or a malformed commit id); it is listed on stderr and counted
+under ``errors``, never scored as a miss.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+from typing import Any
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT / "scripts" / "validation"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import check_io_portability as treatment  # noqa: E402
+import check_subprocess_encoding as legacy  # noqa: E402
+from _adr_catch_rate_stats import wilson_interval  # noqa: E402
+
+DEFAULT_CORPUS = "evals/third-party-review-gap/io-portability-corpus.json"
+LINE_WINDOW = 3
+# Commit ids reach git argv, so anything else (an option such as --output=...) is refused.
+SHA = re.compile(r"^[0-9a-f]{40}$")
+RUFF_CODES_BY_RULE = {
+    "file-text-encoding": {"PLW1514"},
+    "subprocess-text-encoding": {"PLW1510", "PLW1514"},
+    "unguarded-symlink": set(),
+}
+
+
+def git_show(commit: str, path: str) -> str | None:
+    return _git("show", f"{commit}:{path}")
+
+
+def _git(*args: str) -> str | None:
+    """Git stdout, or None on a non-zero exit. A timeout or a missing git raises RuntimeError."""
+    try:
+        result = subprocess.run(
+            ["git", *args],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            cwd=str(REPO_ROOT),
+            timeout=60,
+        )
+    except (subprocess.SubprocessError, OSError) as exc:
+        raise RuntimeError(f"git {args[0]} could not run: {exc}") from exc
+    return result.stdout if result.returncode == 0 else None
+
+
+def near(lines: list[int], target: int) -> bool:
+    return any(abs(line - target) <= LINE_WINDOW for line in lines)
+
+
+def legacy_lines(path: str, source: str) -> list[int]:
+    """Lines the subprocess encoding gate flags, honoring its scripts/-only scope."""
+    if not path.startswith("scripts/"):
+        return []
+    import ast
+
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return []
+    found: list[int] = legacy._violations_in_tree(tree, source)
+    return found
+
+
+def ruff_lines(path: str, source: str, codes: set[str]) -> list[int]:
+    """Lines ruff flags under the repository configuration, filtered to ``codes``."""
+    if not codes:
+        return []
+    with tempfile.TemporaryDirectory() as tmp:
+        target = Path(tmp) / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(source, encoding="utf-8")
+        result = subprocess.run(
+            [
+                "uv",
+                "run",
+                "--frozen",
+                "ruff",
+                "check",
+                "--config",
+                str(REPO_ROOT / "pyproject.toml"),
+                "--output-format",
+                "json",
+                "--exit-zero",
+                str(target),
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            cwd=str(REPO_ROOT),
+            timeout=120,
+        )
+    # --exit-zero keeps findings at exit 0, so any other exit is a tool failure.
+    if result.returncode != 0:
+        raise RuntimeError(f"ruff exited {result.returncode}: {result.stderr.strip()[:200]}")
+    try:
+        rows = json.loads(result.stdout or "[]")
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"ruff output is not JSON: {exc}") from exc
+    return [r["location"]["row"] for r in rows if r.get("code") in codes]
+
+
+def treatment_lines(path: str, source: str, rule: str) -> list[int]:
+    """Every line a flagged call covers. Bugbot anchors some findings on the closing line."""
+    return [
+        line
+        for v in treatment.scan_source(path, source)
+        if v.rule == rule
+        for line in range(v.line, max(v.line, v.end_line) + 1)
+    ]
+
+
+def evaluate(row: dict[str, Any]) -> dict[str, Any]:
+    """Score one row; a git, ruff, or shape failure becomes an ``error`` row, never a miss."""
+    try:
+        return _evaluate(row)
+    except (RuntimeError, ValueError, subprocess.SubprocessError, OSError) as exc:
+        return {**row, "error": str(exc)[:300]}
+
+
+def _evaluate(row: dict[str, Any]) -> dict[str, Any]:
+    for key in ("reviewed", "final_head", "merge_base"):
+        if row.get(key) is not None and not SHA.match(str(row[key])):
+            raise RuntimeError(f"{key} is not a 40-hex commit id")
+    before = git_show(row["reviewed"], row["path"])
+    if before is None:
+        return {**row, "error": "file unreadable at reviewed commit"}
+    rule = row["rule"]
+    baseline = legacy_lines(row["path"], before) + ruff_lines(
+        row["path"], before, RUFF_CODES_BY_RULE[rule]
+    )
+    caught = near(treatment_lines(row["path"], before, rule), row["line"])
+    shipped = near(shipped_lines(row, before), row["line"])
+    after = git_show(row["final_head"], row["path"])
+    before_count = rule_count(row["path"], before, rule)
+    after_count = None if after is None else rule_count(row["path"], after, rule)
+    # Line numbers drift between commits, so the control compares counts: the
+    # author's fix should leave fewer violations of this rule in the file. An
+    # unreadable final head (the file was deleted or moved) is neither outcome.
+    not_lower = None if after_count is None else after_count >= before_count
+    return {
+        **row,
+        "baseline_caught": near(baseline, row["line"]),
+        "treatment_caught": caught,
+        "shipped_caught": shipped,
+        "rule_count_reviewed": before_count,
+        "rule_count_final_head": after_count,
+        "final_head_not_lower": not_lower,
+    }
+
+
+def shipped_lines(row: dict[str, Any], source: str) -> list[int]:
+    """Lines the gate reports as shipped: violations that touch a line the PR added.
+
+    The pre-PR gate scans only lines added since the merge base, so a Bugbot
+    finding on a line the pull request did not add passes it.
+    """
+    if not row.get("merge_base"):
+        return []
+    # The gate's own parser over the replayed commit pair; a git failure raises.
+    added = treatment.added_line_numbers(REPO_ROOT, row["merge_base"], row["reviewed"]).get(
+        row["path"], set()
+    )
+    return [
+        line
+        for v in treatment.scan_source(row["path"], source)
+        if v.rule == row["rule"] and any(v.spans(a) for a in added)
+        for line in range(v.line, max(v.line, v.end_line) + 1)
+    ]
+
+
+def rule_count(path: str, source: str, rule: str) -> int:
+    return sum(1 for v in treatment.scan_source(path, source) if v.rule == rule)
+
+
+def summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
+    def cell(rows: list[dict[str, Any]], key: str) -> dict[str, Any]:
+        hits = sum(1 for r in rows if r.get(key))
+        low, high = wilson_interval(hits, len(rows)) if rows else (0.0, 0.0)
+        return {"hits": hits, "n": len(rows), "ci": [round(low, 3), round(high, 3)]}
+
+    scored = [r for r in results if "error" not in r]
+    out: dict[str, Any] = {"errors": len(results) - len(scored)}
+    for split in ("all", "derive", "heldout"):
+        rows = [r for r in scored if split == "all" or r["split"] == split]
+        out[split] = {
+            "baseline": cell(rows, "baseline_caught"),
+            "treatment": cell(rows, "treatment_caught"),
+            "treatment_shipped_mode": cell(rows, "shipped_caught"),
+            # Only rows whose final head could be read are judged by the control.
+            "final_head_not_lower": cell(
+                [r for r in rows if r.get("final_head_not_lower") is not None],
+                "final_head_not_lower",
+            ),
+            "final_head_unreadable": sum(
+                1 for r in rows if "final_head_not_lower" in r and r["final_head_not_lower"] is None
+            ),
+        }
+    for rule in sorted({r["rule"] for r in scored}):
+        rows = [r for r in scored if r["rule"] == rule]
+        out[rule] = {
+            "baseline": cell(rows, "baseline_caught"),
+            "treatment": cell(rows, "treatment_caught"),
+        }
+    return out
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--corpus", default=DEFAULT_CORPUS)
+    parser.add_argument("--rows", type=Path, help="write per-row results as JSONL here")
+    parser.add_argument("--output", type=Path, help="write the summary JSON here")
+    args = parser.parse_args(argv)
+    try:
+        corpus = json.loads((REPO_ROOT / args.corpus).read_text(encoding="utf-8"))
+        rows = corpus["rows"]
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, KeyError) as exc:
+        print(f"ERROR: cannot read corpus: {exc}", file=sys.stderr)
+        return 2
+    results = [evaluate(row) for row in rows]
+    summary = summarize(results)
+    for failed in (r for r in results if "error" in r):
+        print(f"ERROR: {failed['thread']}: {failed['error']}", file=sys.stderr)
+    if args.rows:
+        args.rows.write_text("".join(json.dumps(r) + "\n" for r in results), encoding="utf-8")
+    if args.output:
+        args.output.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+    print(json.dumps(summary, indent=2))
+    # An unscored row is not a miss; a run with any is incomplete.
+    return 3 if summary["errors"] else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
