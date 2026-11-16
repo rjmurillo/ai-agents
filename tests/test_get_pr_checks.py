@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -2647,6 +2648,34 @@ class TestChecksRollupRulesetHelpers:
             result = fetch_ruleset_required_contexts("o", "r", "main")
 
         assert result is None
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            subprocess.TimeoutExpired(cmd=["gh", "api"], timeout=30),
+            FileNotFoundError("gh"),
+            PermissionError("gh"),
+        ],
+        ids=["timeout", "gh-missing", "gh-not-executable"],
+    )
+    def test_fetch_ruleset_required_contexts_returns_none_when_gh_cannot_complete(self, error):
+        """A timeout or unlaunchable gh is an unknown result, not an exception."""
+        from github_core.checks_rollup import fetch_ruleset_required_contexts
+
+        with patch("github_core.checks_rollup.subprocess.run", side_effect=error):
+            result = fetch_ruleset_required_contexts("o", "r", "main")
+
+        assert result is None
+
+    def test_fetch_ruleset_required_contexts_does_not_swallow_other_errors(self):
+        """Only timeout and launch failures map to None; a bug still surfaces."""
+        from github_core.checks_rollup import fetch_ruleset_required_contexts
+
+        with (
+            patch("github_core.checks_rollup.subprocess.run", side_effect=ValueError("bug")),
+            pytest.raises(ValueError),
+        ):
+            fetch_ruleset_required_contexts("o", "r", "main")
 
     def test_fetch_ruleset_required_contexts_returns_none_on_bad_json(self):
         """Returns None when gh api returns invalid JSON."""
