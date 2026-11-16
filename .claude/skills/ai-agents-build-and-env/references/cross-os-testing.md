@@ -147,14 +147,16 @@ uv run --frozen pytest -m windows_path tests -q
    `uv` from a Windows-mounted path has failed with TLS handshake errors here
    (`.serena/memories/workspace/wsl-native-worktree-for-uv-network-access.md`).
 3. For the full toolchain, run the Ubuntu bootstrap script that SKILL.md
-   Phase 1 names. It needs sudo and an exported `GH_TOKEN`. For tests only,
-   run the commands inside the quoted script of Route 2 instead.
+   Phase 1 names. It uses sudo and reads `GH_TOKEN`. WSL is a persistent
+   distro, not a throwaway guest, so do not copy the `curl | sh` line from
+   Route 2 into it.
 
 ### Route 2: `ubuntu:26.04` container
 
 The container clones from your local git directory, so it tests the commit at
-`HEAD`. Uncommitted edits are not copied in. Commit on your feature branch
-first (a WIP commit is fine), never on `main`. Mounting the git common
+`HEAD`. Uncommitted edits are not copied in, so commit them on your feature
+branch first, never on `main`. An agent asks the user before it makes that
+commit. Mounting the git common
 directory works for both a main clone and a linked worktree. The mount is
 read-only, but the container can still read it, so do not mount a git
 directory whose remote URLs embed a token.
