@@ -273,7 +273,7 @@ def test_packet_check_on_a_fifo_with_a_writer_is_false_not_a_crash(skill: Path) 
     os.mkfifo(fifo)
     writer = os.open(fifo, os.O_RDWR | os.O_NONBLOCK)
     try:
-        assert JUDGING["_is_packet"](fifo) is False
+        assert JUDGING["_not_evidence"](fifo) is False
     finally:
         os.close(writer)
 

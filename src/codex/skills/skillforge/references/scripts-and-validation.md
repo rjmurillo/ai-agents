@@ -106,7 +106,8 @@ examples use the skill and root from the validation block in `SKILL.md`.
    instructions. Under `--profile project`, a guideline the project departs
    from on purpose reports DEVIATION and stays out of the packet. Save the
    packet outside the skill directory. A text file inside it that holds a
-   saved packet's JSON, under any name, is never listed as evidence. A printed packet exits 0 and does not validate the
+   saved packet's JSON, under any name, is never evidence, and neither is a
+   text file over 2 MiB. The import checks both again on the bytes it reads. A printed packet exits 0 and does not validate the
    skill; run conformance without `--judge-packet` for that. A bad path or
    more than one SKILL_DIR exits 2.
 

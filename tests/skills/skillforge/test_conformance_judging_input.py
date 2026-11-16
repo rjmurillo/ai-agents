@@ -221,7 +221,7 @@ def test_unreadable_candidate_is_not_taken_for_a_packet(
 
     monkeypatch.setitem(judging, "open", failing_open)
 
-    assert judging["_is_packet"](skill / "references" / "guide.md") is False
+    assert judging["_not_evidence"](skill / "references" / "guide.md") is False
 
 
 def test_file_the_process_cannot_stat_is_left_out(
@@ -271,3 +271,45 @@ def test_unencodable_reason_prints_escaped_not_a_traceback(skill: Path) -> None:
     assert proc.returncode in (0, 1), proc.stderr.decode("ascii", errors="replace")
     assert "Traceback" not in proc.stderr.decode("ascii", errors="replace")
     assert "reason: caf\\xe9 \\u2192 r\\xe9sum\\xe9" in out
+
+
+def _packet_and_criterion(capsys: pytest.CaptureFixture[str]) -> tuple[str, str]:
+    assert conformance.main(["release-notes", "--judge-packet"]) == 0
+    text = capsys.readouterr().out
+    return text, json.loads(text)["rules"][0]["criterion"]
+
+
+def test_packet_padded_past_the_size_limit_is_not_evidence(
+    skill: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    packet, criterion = _packet_and_criterion(capsys)
+    (skill / "padded.txt").write_text(packet + " " * (2 * 1024 * 1024), encoding="utf-8")
+
+    assert conformance.main(["release-notes", "--judge-packet"]) == 0
+    assert "padded.txt" not in json.loads(capsys.readouterr().out)["files"]
+
+    judgment = _verdict()
+    judgment["evidence"] = [{"file": "padded.txt", "quote": criterion}]
+    assert _judge(skill.parent, [judgment]) == 2
+    _rejected(capsys, "padded.txt is not a text file in the skill")
+
+
+def test_file_rewritten_as_a_packet_after_listing_is_not_evidence(
+    skill: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    packet, criterion = _packet_and_criterion(capsys)
+    guide = skill / "references" / "guide.md"
+    judging = conformance.apply_judgments_file.__globals__
+    listed = judging["skill_files"]
+
+    def listed_then_rewritten(*args: Any, **kwargs: Any) -> list[str]:
+        files = listed(*args, **kwargs)
+        guide.write_text(packet, encoding="utf-8")
+        return files
+
+    monkeypatch.setitem(judging, "skill_files", listed_then_rewritten)
+    judgment = _verdict()
+    judgment["evidence"] = [{"file": "references/guide.md", "quote": criterion}]
+
+    assert _judge(skill.parent, [judgment]) == 2
+    _rejected(capsys, "references/guide.md is not a text file in the skill")

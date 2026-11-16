@@ -33,8 +33,9 @@ JUDGE_INSTRUCTIONS = (
     "cannot show it, such as how the skill was tested; unknown is never a pass. "
     "Write the judgments file outside the skill directory."
 )
-# A file larger than this is never treated as a saved packet.
-_PACKET_MAX_BYTES = 2 * 1024 * 1024
+# A text file larger than this is never evidence: it could be a padded packet,
+# and nothing that large is a quote a judge should rely on.
+_EVIDENCE_MAX_BYTES = 2 * 1024 * 1024
 
 
 class Judged(Protocol):
@@ -77,8 +78,9 @@ def _read_inside(path: Path, scope: JudgingScope) -> str | None:
 
     Open first, then resolve the path once: the resolved file must sit inside
     both boundaries and be the same regular file (device and inode) as the open
-    descriptor. A swap before or after the open fails the match. None means
-    reject.
+    descriptor. A swap before or after the open fails the match. The bytes
+    read are checked again for packet content and size, because the file may
+    have changed since it was listed. None means reject.
     """
     with open(path, "rb", opener=_nonblocking) as handle:
         opened = os.fstat(handle.fileno())
@@ -89,7 +91,10 @@ def _read_inside(path: Path, scope: JudgingScope) -> str | None:
             return None
         if resolved_identity(path, scope.directory, scope.root) != identity:
             return None
-        return handle.read().decode("utf-8", errors="replace")
+        raw = handle.read(_EVIDENCE_MAX_BYTES + 1)
+    if len(raw) > _EVIDENCE_MAX_BYTES or _holds_packet(raw):
+        return None
+    return raw.decode("utf-8", errors="replace")
 
 
 def _evidence_item_error(at: str, item: object, scope: JudgingScope) -> str | None:
@@ -201,21 +206,8 @@ def _decode(raw: bytes) -> str | None:
         return None
 
 
-def _is_packet(path: Path) -> bool:
-    """True when a text file holds a saved judge packet, whatever its name or key order.
-
-    Quoting a packet's rule text would ground a verdict on the rule itself. A
-    file that is not a regular file, is too large, or is not a packet's JSON
-    object is not a packet.
-    """
-    try:
-        with open(path, "rb", opener=_nonblocking) as handle:
-            opened = os.fstat(handle.fileno())
-            if not stat.S_ISREG(opened.st_mode) or opened.st_size > _PACKET_MAX_BYTES:
-                return False
-            raw = handle.read(_PACKET_MAX_BYTES + 1)
-    except OSError:
-        return False
+def _holds_packet(raw: bytes) -> bool:
+    """True when the bytes are a saved judge packet, whatever the key order or encoding."""
     text = _decode(raw) if raw else None
     if text is None:
         return False
@@ -226,19 +218,39 @@ def _is_packet(path: Path) -> bool:
     return isinstance(data, dict) and "packet_version" in data and "rules" in data
 
 
+def _not_evidence(path: Path) -> bool:
+    """True when a listed text file must not be quoted: a saved packet, or too large.
+
+    Quoting a packet's rule text would ground a verdict on the rule itself. A
+    file that is not a regular file or cannot be read is left to the read
+    check, which rejects it.
+    """
+    try:
+        with open(path, "rb", opener=_nonblocking) as handle:
+            opened = os.fstat(handle.fileno())
+            if not stat.S_ISREG(opened.st_mode):
+                return False
+            if opened.st_size > _EVIDENCE_MAX_BYTES:
+                return True
+            raw = handle.read(_EVIDENCE_MAX_BYTES + 1)
+    except OSError:
+        return False
+    return len(raw) > _EVIDENCE_MAX_BYTES or _holds_packet(raw)
+
+
 def skill_files(directory: Path, root: Path, exclude: tuple[int, int] | None = None) -> list[str]:
     """Return the text files a judge may quote, as POSIX paths relative to the skill.
 
     A file must resolve inside both the skill directory and root. ``exclude`` is
     the (device, inode) of the judgments file, so it cannot quote itself; a
     candidate whose identity cannot be read is left out, and so is a saved
-    judge packet.
+    judge packet or a file over 2 MiB.
     """
     found = []
     for path in sorted(directory.rglob("*")):
         if path.suffix.lower() not in TEXT_SUFFIXES:
             continue
-        if not inside_skill(path, directory, root) or _is_packet(path):
+        if not inside_skill(path, directory, root) or _not_evidence(path):
             continue
         if exclude is not None and file_id(path) in (None, exclude):
             continue
