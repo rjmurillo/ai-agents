@@ -147,8 +147,10 @@ asked to carry out:
 3. Resolve each conflict inside the rebase, by the PR's current intent and the
    base branch's newer invariants. Do not hand it to `merge-resolver`: that
    workflow merges, commits, and pushes, which skips this skill's consent and
-   pinned lease. If a conflict reveals a product or architecture disagreement, run `git rebase --abort`
-   and reconsider the disposition instead of guessing.
+   pinned lease. For a `REWORK`, resolve conflicts the agreed rewrite covers by
+   that rewrite. If a conflict reveals a product or architecture disagreement
+   the disposition does not cover, run `git rebase --abort` and reconsider the
+   disposition instead of guessing.
 4. Compare the pre-rebase and post-rebase commit series with `git range-diff`
    and inspect the final diff. Confirm that no intended behavior disappeared and
    no already-landed behavior came back.
