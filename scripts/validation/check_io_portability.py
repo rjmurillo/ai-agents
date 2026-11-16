@@ -198,6 +198,9 @@ def _catches_symlink_failure(handler: ast.ExceptHandler) -> bool:
     return any(isinstance(n, ast.Name) and n.id in _SYMLINK_CATCHES for n in names)
 
 
+_PYTEST_SKIP_MARKS = frozenset({"skip", "skipif"})
+
+
 def _is_skip_mark(expr: ast.expr, skip_marks: frozenset[str]) -> bool:
     """A mark whose callable is a skip, or a module alias of one.
 
@@ -207,10 +210,33 @@ def _is_skip_mark(expr: ast.expr, skip_marks: frozenset[str]) -> bool:
     """
     if isinstance(expr, ast.List | ast.Tuple):
         return any(_is_skip_mark(e, skip_marks) for e in expr.elts)
+    if isinstance(expr, ast.Call) and _never_skips(expr):
+        return False
     target = expr.func if isinstance(expr, ast.Call) else expr
     if isinstance(target, ast.Name):
         return target.id in skip_marks or "skip" in target.id.lower()
-    return isinstance(target, ast.Attribute) and "skip" in target.attr.lower()
+    if not isinstance(target, ast.Attribute):
+        return False
+    # A pytest mark skips only when it is pytest's own skip or skipif; a custom
+    # mark such as ``pytest.mark.skip_cache`` only labels the test.
+    owner = target.value
+    if isinstance(owner, ast.Attribute) and owner.attr == "mark":
+        return target.attr in _PYTEST_SKIP_MARKS
+    return "skip" in target.attr.lower()
+
+
+def _never_skips(call: ast.Call) -> bool:
+    """A conditional skip whose condition is a literal false value, so it never skips."""
+    condition = call.args[0] if call.args else _kwarg(call, "condition")
+    return (
+        isinstance(condition, ast.Constant)
+        and not condition.value
+        and _callee(call)[1]
+        in (
+            "skipif",
+            "skipIf",
+        )
+    )
 
 
 def _has_skipif(decorators: Iterable[ast.expr], skip_marks: frozenset[str]) -> bool:

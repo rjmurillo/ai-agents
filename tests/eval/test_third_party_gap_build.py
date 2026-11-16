@@ -227,9 +227,13 @@ class TestSplitAndCorpora:
         assert [r["id"] for r in rows] == ["T0003", "T0002"]
         assert list(rows[0]) == list(build.FINDING_KEYS)
 
-    @pytest.mark.parametrize("label_url", ["u-other", None])
-    def test_a_label_bound_to_another_thread_is_refused(self, label_url: str | None) -> None:
-        admitted = [{"id": "T0002", "pr": 2, "url": "u2"}]
+    @pytest.mark.parametrize(
+        ("thread_url", "label_url"), [("u2", "u-other"), ("u2", None), (None, None), ("", "")]
+    )
+    def test_a_label_not_bound_to_its_thread_is_refused(
+        self, thread_url: str | None, label_url: str | None
+    ) -> None:
+        admitted = [{"id": "T0002", "pr": 2, "url": thread_url}]
         labels = {"T0002": {"theme": "a", "url": label_url}}
 
         with pytest.raises(ValueError, match="another thread"):

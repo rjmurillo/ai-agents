@@ -64,6 +64,29 @@ class TestUnguardedSymlink:
 
         assert rules(source) == ["unguarded-symlink"]
 
+    @pytest.mark.parametrize(
+        "mark",
+        [
+            "pytest.mark.skipif(False, reason='never')",
+            "pytest.mark.skipif(condition=0, reason='never')",
+            "unittest.skipIf(False, 'never')",
+            "pytest.mark.skip_cache",
+            "pytest.mark.skip_slow('x')",
+        ],
+    )
+    def test_a_mark_that_never_skips_does_not_guard(self, mark: str) -> None:
+        source = f"@{mark}\ndef test_x(p):\n    p.symlink_to('t')\n"
+
+        assert rules(source) == ["unguarded-symlink"]
+
+    @pytest.mark.parametrize(
+        "mark", ["pytest.mark.skip(reason='x')", "pytest.mark.skip", "unittest.skipIf(WIN, 'x')"]
+    )
+    def test_a_real_skip_mark_guards(self, mark: str) -> None:
+        source = f"@{mark}\ndef test_x(p):\n    p.symlink_to('t')\n"
+
+        assert rules(source) == []
+
     def test_skip_named_helper_guards(self) -> None:
         source = "def symlink_or_skip(p, t):\n    p.symlink_to(t)\n"
 

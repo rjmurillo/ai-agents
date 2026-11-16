@@ -14,6 +14,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from types import ModuleType
+from typing import cast
 
 EVAL_DIR = Path(__file__).resolve().parents[2] / "scripts" / "eval"
 
@@ -39,6 +40,8 @@ def load_script(stem: str) -> ModuleType:
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     saved_path = list(sys.path)
+    # An entry bound to None blocks an import, so "absent" is tracked apart from it.
+    had_entry = stem in sys.modules
     saved_module = sys.modules.get(stem)
     sys.modules[stem] = module
     sys.path.insert(0, str(EVAL_DIR))
@@ -46,8 +49,8 @@ def load_script(stem: str) -> ModuleType:
         spec.loader.exec_module(module)
     finally:
         sys.path[:] = saved_path
-        if saved_module is None:
+        if not had_entry:
             sys.modules.pop(stem, None)
         else:
-            sys.modules[stem] = saved_module
+            sys.modules[stem] = cast(ModuleType, saved_module)
     return module

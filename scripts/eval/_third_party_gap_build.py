@@ -89,12 +89,6 @@ def disposition(
     return "unclear"
 
 
-def _login(node: dict[str, Any]) -> str:
-    author = node.get("author")
-    login = author.get("login") if isinstance(author, dict) else None
-    return login if isinstance(login, str) else ""
-
-
 def bot_threads(pull_requests: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Every bot-opened thread in dump order, with a stable ``T0001`` id."""
     rows: list[dict[str, Any]] = []
@@ -105,10 +99,10 @@ def bot_threads(pull_requests: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 continue
             comments = thread["comments"]
             # Only the pull request author can accept a finding for the author agent.
-            author = _login(pr)
+            author = findings.author_login(pr)
             humans = findings.human_replies(comments)
             replies = [c.get("body") or "" for c in humans]
-            by_author = [c.get("body") or "" for c in humans if _login(c) == author]
+            by_author = [c.get("body") or "" for c in humans if findings.author_login(c) == author]
             body = comments[0].get("body") or ""
             commit = comments[0].get("originalCommit")
             rows.append(
@@ -197,7 +191,9 @@ def finding_rows(
     missing = [a["id"] for a in admitted if a["id"] not in labels]
     if missing:
         raise ValueError(f"no label for {len(missing)} admitted thread(s), first {missing[0]}")
-    moved = [a["id"] for a in admitted if labels[a["id"]].get("url") != a["url"]]
+    moved = [
+        a["id"] for a in admitted if not a.get("url") or labels[a["id"]].get("url") != a["url"]
+    ]
     if moved:
         raise ValueError(f"{len(moved)} label(s) name another thread's URL, first {moved[0]}")
     rows = [{**a, **{k: labels[a["id"]].get(k) for k in LABEL_KEYS}} for a in admitted]

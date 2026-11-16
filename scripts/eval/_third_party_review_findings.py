@@ -40,7 +40,8 @@ def bot_name(login: str | None) -> str | None:
     return THIRD_PARTY_BOTS.get(key)
 
 
-def _login(node: dict[str, Any]) -> str:
+def author_login(node: dict[str, Any]) -> str:
+    """The login of a GraphQL node's author, or "" when the author is gone or malformed."""
     author = node.get("author")
     if not isinstance(author, dict):
         return ""
@@ -57,12 +58,12 @@ def _oid(node: dict[str, Any], key: str) -> str | None:
 def opener_bot(thread: dict[str, Any]) -> str | None:
     """The third-party bot that opened a review thread, or None."""
     comments = thread.get("comments") or []
-    return bot_name(_login(comments[0])) if comments else None
+    return bot_name(author_login(comments[0])) if comments else None
 
 
 def human_replies(comments: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Replies after the opener whose author is known and is not a third-party bot."""
-    return [c for c in comments[1:] if _login(c) and bot_name(_login(c)) is None]
+    return [c for c in comments[1:] if author_login(c) and bot_name(author_login(c)) is None]
 
 
 def extract_bot_threads(pull_requests: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -78,14 +79,18 @@ def extract_bot_threads(pull_requests: list[dict[str, Any]]) -> list[dict[str, A
             if bot is None:
                 continue
             replies = [
-                {"login": _login(c), "body": c.get("body") or "", "created_at": c.get("createdAt")}
+                {
+                    "login": author_login(c),
+                    "body": c.get("body") or "",
+                    "created_at": c.get("createdAt"),
+                }
                 for c in human_replies(comments)
             ]
             rows.append(
                 {
                     "pr": pr["number"],
                     "pr_title": pr.get("title", ""),
-                    "pr_author": _login(pr),
+                    "pr_author": author_login(pr),
                     "pr_state": pr.get("state"),
                     "base_oid": pr.get("baseRefOid"),
                     "merge_oid": _oid(pr, "mergeCommit"),
