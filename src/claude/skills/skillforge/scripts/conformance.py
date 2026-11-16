@@ -3,31 +3,41 @@
 
 Every rule in the catalog has an id, a level (MUST, SHOULD, MAY) taken from the
 source page's wording, and the URL of the section it comes from. Rules a
-script can check run as static checks; the rest are listed for human review.
-No code from the checked skill runs.
+script can check run as static checks. The rest are guidelines a model judges:
+--judge-packet prints them, the agent writes verdicts that quote the skill's
+files, and --judgments imports those verdicts after checking every quote.
+No code from the checked skill runs, and the script calls no model.
 
 Usage:
     conformance.py SKILL_DIR [SKILL_DIR ...] [--root DIR] [--profile spec|project]
                    [--waive RULE_ID ...] [--strict] [--format text|json]
                    [--verbose] [--manual]
+    conformance.py SKILL_DIR --judge-packet [--root DIR] [--profile spec|project]
+    conformance.py SKILL_DIR --judgments FILE [--root DIR] [--profile spec|project]
+                   [--waive RULE_ID ...] [--strict] [--format text|json]
+                   [--verbose]
     conformance.py --list [--profile spec|project] [--format text|json]
 
 Statuses:
     PASS            the check found nothing
     FAIL            a MUST rule failed
     WARN            a SHOULD or MAY rule failed
-    DEVIATION       the rule failed, and the project profile declares why
+    DEVIATION       the project profile declares why the rule is not met
     WAIVED          the rule failed, and --waive named it
     NOT_APPLICABLE  the skill has nothing this rule checks
     NOT_EVALUATED   the check could not decide, such as unparsable frontmatter
-    MANUAL          a guideline no script can judge; review it by hand
+    MANUAL          a guideline not judged yet; see --judge-packet
+    JUDGED_PASS     a model judged the guideline met, with quoted evidence
+    JUDGED_FAIL     a model judged the guideline unmet, with quoted evidence
+    JUDGED_UNKNOWN  a model could not tell from the skill's files; never a pass
 
 Exit codes:
     0  no FAIL, and no NOT_EVALUATED on a MUST rule
-    1  a FAIL, or a MUST rule NOT_EVALUATED; with --strict, also any WARN or
-       NOT_EVALUATED
-    2  usage error: bad flag, unknown --waive id, or a path that is missing,
-       not a directory, or outside --root
+    1  a FAIL, or a MUST rule NOT_EVALUATED; with --strict, also any WARN,
+       NOT_EVALUATED, or JUDGED_FAIL
+    2  usage error: bad flag, unknown --waive id, a path that is missing, not a
+       directory, or outside --root, or a --judgments file that fails its
+       checks (nothing from it is applied)
 """
 
 from __future__ import annotations
@@ -43,6 +53,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _conformance_checks import NotApplicableError, NotEvaluatedError
 from _conformance_guides import GUIDE_RULES
+from _conformance_judging import apply_judgments_file, judge_packet, skill_files
 from _conformance_parse import load_skill
 from _conformance_rules import SPEC_RULES, Rule
 from _path_guard import contained_realpath, resolve_root
@@ -56,7 +67,10 @@ STATUS_ORDER = (
     "WARN",
     "DEVIATION",
     "WAIVED",
+    "JUDGED_FAIL",
+    "JUDGED_UNKNOWN",
     "PASS",
+    "JUDGED_PASS",
     "NOT_APPLICABLE",
     "MANUAL",
 )
@@ -104,8 +118,10 @@ def evaluate(
     results: list[Result] = []
     for rule in RULES:
         if rule.check is None:
-            reason = rule.deviation if profile == "project" and rule.deviation else ""
-            results.append(Result(rule, "MANUAL", reason=reason))
+            if profile == "project" and rule.deviation:
+                results.append(Result(rule, "DEVIATION", reason=rule.deviation))
+            else:
+                results.append(Result(rule, "MANUAL"))
             continue
         try:
             problems = rule.check(doc)
@@ -132,7 +148,7 @@ def failed(results: list[Result], strict: bool) -> bool:
             return True
         if result.status == "NOT_EVALUATED" and (strict or result.rule.level == "MUST"):
             return True
-        if strict and result.status == "WARN":
+        if strict and result.status in ("WARN", "JUDGED_FAIL"):
             return True
     return False
 
@@ -159,7 +175,7 @@ def render_text(reports: list[Report], profile: str, verbose: bool, manual: bool
         lines.append(f"agentskills.io conformance: {report.path} (profile: {profile})")
         for note in report.notes:
             lines.append(f"  note: {note}")
-        hidden = {"PASS", "NOT_APPLICABLE", "MANUAL"} if not verbose else {"MANUAL"}
+        hidden = {"PASS", "JUDGED_PASS", "NOT_APPLICABLE", "MANUAL"} if not verbose else {"MANUAL"}
         if manual:
             hidden.discard("MANUAL")
         for result in sorted(results, key=lambda r: STATUS_ORDER.index(r.status)):
@@ -173,7 +189,7 @@ def render_text(reports: list[Report], profile: str, verbose: bool, manual: bool
                 lines.append(f"      {problem}")
             if result.reason:
                 lines.append(f"      reason: {result.reason}")
-            if result.status in ("FAIL", "WARN", "MANUAL"):
+            if result.status in ("FAIL", "WARN", "MANUAL", "JUDGED_FAIL", "JUDGED_UNKNOWN"):
                 lines.append(f"      source: {result.rule.source}")
         tally = counts(results)
         summary = ", ".join(
@@ -182,7 +198,8 @@ def render_text(reports: list[Report], profile: str, verbose: bool, manual: bool
         lines.append(f"  {summary}")
         if tally["MANUAL"] and not manual:
             lines.append(
-                f"  {tally['MANUAL']} guideline items need human review; rerun with --manual to list them."
+                f"  {tally['MANUAL']} guideline rules are not judged yet; "
+                "use --judge-packet and --judgments, or --manual to list them."
             )
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"
@@ -237,9 +254,18 @@ def build_parser() -> argparse.ArgumentParser:
         "--verbose", action="store_true", help="also print PASS and NOT_APPLICABLE rows"
     )
     parser.add_argument(
-        "--manual", action="store_true", help="also print the guidelines that need human review"
+        "--manual", action="store_true", help="also print the guideline rules not judged yet"
     )
     parser.add_argument("--list", action="store_true", help="print the rule catalog and exit")
+    judging = parser.add_mutually_exclusive_group()
+    judging.add_argument(
+        "--judge-packet",
+        action="store_true",
+        help="print the unjudged guideline rules as JSON for an agent to judge",
+    )
+    judging.add_argument(
+        "--judgments", metavar="FILE", help="apply an agent's verdicts on the guideline rules"
+    )
     return parser
 
 
@@ -263,6 +289,16 @@ def resolve_skills(
     return directories
 
 
+def _check_judging_args(
+    parser: argparse.ArgumentParser, args: argparse.Namespace, skill_count: int
+) -> None:
+    """Exit 2 through parser.error on an empty --judgments or a judging run over many skills."""
+    if args.judgments == "":
+        parser.error("--judgments needs a file path")
+    if (args.judge_packet or args.judgments is not None) and skill_count != 1:
+        parser.error("--judge-packet and --judgments take exactly one SKILL_DIR")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -273,11 +309,25 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.write(render_catalog(args.profile, args.format))
         return 0
     directories = resolve_skills(parser, args.skills, args.root)
+    _check_judging_args(parser, args, len(directories))
     root = Path(resolve_root(args.root))
     reports = []
     for raw, directory in zip(args.skills, directories, strict=True):
         results, notes = evaluate(directory, args.profile, set(args.waive), root)
         reports.append(Report(_display(Path(raw)), results, notes))
+    if args.judge_packet:
+        packet = judge_packet(reports[0], skill_files(directories[0], root), args.profile)
+        sys.stdout.write(json.dumps(packet, indent=2) + "\n")
+        return 0
+    if args.judgments is not None:
+        errors = apply_judgments_file(
+            reports[0].results, directories[0], root, Path(args.judgments), frozenset(args.waive)
+        )
+        if errors:
+            print("judgments rejected; nothing applied:", file=sys.stderr)
+            for error in errors:
+                print(f"  {error}", file=sys.stderr)
+            return 2
     exit_code = 1 if any(failed(report.results, args.strict) for report in reports) else 0
     if args.format == "json":
         payload = {
@@ -293,4 +343,10 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    # Judged reasons and quotes are model text. A console code page that cannot
+    # encode a character must not turn the report into a traceback and exit 1.
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(errors="backslashreplace")
     sys.exit(main())

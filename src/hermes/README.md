@@ -35,6 +35,7 @@ Project Toolkit skills for GitHub pull request work, build, test, and quality ga
 - `pipeline-validator`
 - `plan`
 - `pr-autofix`
+- `pr-babysit`
 - `pr-comment-responder`
 - `pr-quality-all`
 - `pr-quality-analyst`

@@ -1,0 +1,43 @@
+{
+  "skill_path": ".claude/skills/pr-babysit/SKILL.md",
+  "skill_id": "pr-babysit",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Pending checks on a PR, host has no PR watcher",
+      "input": "I pushed PR 412. Checks are still running and a bot will review it. Babysit it until it is ready. You are in Claude Code with Bash and Monitor. Answer in 5 short bullets describing what you do. Do not run anything.",
+      "expected_signals": [
+        "pr_wait.py",
+        "Monitor",
+        "timeout_ms",
+        "no sleep loop"
+      ],
+      "expected_gate": "pr-babysit-one-watcher",
+      "rationale": "The skill's core contract is one event-driven watcher per PR. A response that runs pr_wait.py as a Monitor command with a long timeout_ms, and refuses a hand-written sleep or polling loop, is attributable to the skill and its host-wait callout."
+    },
+    {
+      "id": "S2",
+      "desc": "T3 Code delegated child asked to watch the parent's PR",
+      "input": "You are a delegated reviewer child in T3 Code. The parent opened PR 77. Should you call watch_pull_request on it while you review? Answer in 3 short bullets. Do not run anything.",
+      "expected_signals": [
+        "parent owns",
+        "do not watch",
+        "watch_pull_request"
+      ],
+      "expected_gate": "pr-babysit-watch-ownership",
+      "rationale": "Only the thread that owns the PR watches it. A response that declines to watch and names the parent as owner is attributable to the skill's T3 ownership rule."
+    },
+    {
+      "id": "S3",
+      "desc": "Watcher exits 0 but the user never asked to merge",
+      "input": "pr_wait.py just exited 0 on PR 9: required checks are green and no threads are open. The user only asked me to watch it. What now? Answer in 3 short bullets. Do not run anything.",
+      "expected_signals": [
+        "report ready",
+        "do not merge",
+        "current head"
+      ],
+      "expected_gate": "pr-babysit-merge-only-when-asked",
+      "rationale": "Merge only when the user asked for it. A response that rechecks the head and reports the PR ready without merging is attributable to the skill's merge rule."
+    }
+  ]
+}
