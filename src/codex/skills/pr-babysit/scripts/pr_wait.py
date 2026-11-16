@@ -22,19 +22,10 @@ checks from the base-branch ruleset, plus unresolved threads).
   green       required checks pass on the current head
   any-change  stop after the first poll that prints an event
 
-Events
-  head        a new commit landed on the PR branch
-  check       a required check failed (one line per check)
-  green       every required check passed on the current head
-  comment     a new PR comment from someone other than the PR author or you
-  review      a new review from someone else
-  thread      a new review thread, or a reply in one, from someone else
-  activity    more activity arrived than one poll can list; read every thread
-  base        the base branch moved
-  merge-state the branch became BEHIND or DIRTY
-  blocked     the --until condition needs your action (always precedes exit 1)
-  merged      the PR merged
-  closed      the PR closed without merging
+Events: head, check (a required check failed), green, comment, review,
+thread, activity (more arrived than one poll lists), base, merge-state
+(BEHIND or DIRTY), blocked (always precedes exit 1), merged, closed.
+Comments, reviews, and threads by the PR author or by you are skipped.
 
 Exit codes (ADR-035):
   0  the --until condition is met, or the PR merged
@@ -66,7 +57,7 @@ import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import IO, Any
+from typing import Any
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
@@ -78,17 +69,25 @@ if not os.path.isdir(_lib_dir):
     sys.exit(2)
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+if _script_dir not in sys.path:
+    sys.path.insert(0, _script_dir)
 
-Json = dict[str, Any]
+from pr_wait_state import (  # noqa: E402 - needs the script directory on sys.path
+    Json,
+    State,
+    acquire_lock,
+    load_state,
+    save_state,
+    state_dir,
+    state_key,
+)
 
 UNTIL_CHOICES = ("ready", "green", "any-change")
 DEFAULT_INTERVAL = 30
 MIN_INTERVAL = 10
 MAX_BACKOFF = 300
 MAX_FAILED_POLLS = 10
-# A state file older than this describes an old session. Start a fresh
-# baseline instead of replaying hours of comments as new events.
-STALE_STATE_SECONDS = 6 * 3600
 THREAD_WINDOW = 100
 READY_MERGE_STATES = ("CLEAN", "HAS_HOOKS", "UNSTABLE", "BLOCKED")
 _NOT_FOUND = re.compile(r"Could not resolve to a (PullRequest|Repository)|NOT_FOUND")
@@ -123,48 +122,6 @@ class AuthError(RuntimeError):
 
 
 @dataclass
-class State:
-    """What earlier polls already reported for one PR."""
-
-    head: str = ""
-    base_oid: str = ""
-    merge_state: str = ""
-    seen: set[str] = field(default_factory=set)
-    thread_counts: dict[str, int] = field(default_factory=dict)
-    totals: dict[str, int] = field(default_factory=dict)
-    failing: set[str] = field(default_factory=set)
-    green_head: str = ""
-    blockers: set[str] = field(default_factory=set)
-
-    def to_json(self) -> Json:
-        return {
-            "head": self.head,
-            "base_oid": self.base_oid,
-            "merge_state": self.merge_state,
-            "seen": sorted(self.seen),
-            "thread_counts": self.thread_counts,
-            "totals": self.totals,
-            "failing": sorted(self.failing),
-            "green_head": self.green_head,
-            "blockers": sorted(self.blockers),
-        }
-
-    @classmethod
-    def from_json(cls, data: Json) -> State:
-        return cls(
-            head=str(data.get("head", "")),
-            base_oid=str(data.get("base_oid", "")),
-            merge_state=str(data.get("merge_state", "")),
-            seen=set(data.get("seen", [])),
-            thread_counts={str(k): int(v) for k, v in data.get("thread_counts", {}).items()},
-            totals={str(k): int(v) for k, v in data.get("totals", {}).items()},
-            failing=set(data.get("failing", [])),
-            green_head=str(data.get("green_head", "")),
-            blockers=set(data.get("blockers", [])),
-        )
-
-
-@dataclass
 class Poll:
     """One poll's output: events to print, blockers seen, and a terminal exit."""
 
@@ -196,59 +153,6 @@ def parse_target(raw: str, repo: str | None) -> tuple[str, str, int]:
 
     info = resolve_repo_params("", "")
     return info.owner, info.repo, int(raw)
-
-
-def state_dir() -> Path:
-    if os.name == "nt":
-        base = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
-    else:
-        base = os.environ.get("XDG_STATE_HOME") or str(Path.home() / ".local" / "state")
-    return Path(base) / "pr-babysit"
-
-
-def state_key(owner: str, name: str, number: int) -> str:
-    """GitHub names are case-insensitive, so one PR maps to one lock."""
-    return f"{owner}__{name}__{number}".lower()
-
-
-def acquire_lock(path: Path) -> IO[str] | None:
-    """Take a non-blocking exclusive lock. Return None when another holds it."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    handle = open(path, "a+", encoding="utf-8")  # held for the process life; closed on refusal
-    try:
-        if os.name == "nt":
-            import msvcrt
-
-            handle.seek(0)
-            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
-        else:
-            import fcntl
-
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except OSError:
-        handle.close()
-        return None
-    handle.seek(0)
-    handle.truncate()
-    handle.write(str(os.getpid()))
-    handle.flush()
-    return handle
-
-
-def load_state(path: Path, now: float) -> State | None:
-    """Return the saved state, or None for a fresh baseline."""
-    try:
-        if now - path.stat().st_mtime > STALE_STATE_SECONDS:
-            return None
-        return State.from_json(json.loads(path.read_text(encoding="utf-8")))
-    except (OSError, ValueError, TypeError, AttributeError):
-        return None
-
-
-def save_state(path: Path, state: State) -> None:
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(state.to_json()), encoding="utf-8")
-    os.replace(tmp, path)
 
 
 def _login(node: Json | None) -> str:
@@ -393,11 +297,13 @@ def evaluate_gate(state: State, gate: Json, until: str, poll: Poll) -> None:
 
     if until == "green":
         poll.blockers = {b for b in poll.blockers if b.startswith(("check:", "dirty:"))}
-        if green:
-            poll.done = 0
-        return
-    if until != "ready":
-        return
+        poll.done = 0 if green else None
+    elif until == "ready":
+        _ready_verdict(state, gate, poll, green)
+
+
+def _ready_verdict(state: State, gate: Json, poll: Poll, green: bool) -> None:
+    """Draft, threads, and BEHIND block ready only once required checks pass."""
     if not green:
         poll.blockers.discard("draft")
         return
