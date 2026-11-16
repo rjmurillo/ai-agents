@@ -125,7 +125,7 @@ def main(argv: list[str] | None = None) -> int:
         except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
             print(f"error: cannot read dump: {exc}", file=sys.stderr)
             return EXIT_CONFIG
-        except (KeyError, TypeError) as exc:
+        except (AttributeError, KeyError, TypeError) as exc:
             print(f"error: dump has no pull_requests list: {exc!r}", file=sys.stderr)
             return EXIT_CONFIG
         print(json.dumps(summary, indent=2))

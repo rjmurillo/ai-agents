@@ -138,7 +138,7 @@ Honest caveats:
   and a named skip mark such as `POSIX_ONLY = pytest.mark.skipif(...)` used as
   a decorator was not seen as a guard. Fixing both moved recall from 78 to 79
   and removed one false flag at a final head.
-- Bot review of pull request #7394 (2026-11-16) found the guard read any
+- Bot review of pull request #7394 (2026-11-15) found the guard read any
   function or mark text containing `skip` as a skip. Now only a skip mark's own
   callable name counts, and a function named `test_*` is never a guard. The
   rerun catches held-out row T0462, whose symlink calls sit in
@@ -280,7 +280,7 @@ provider rejects it before generating anything. A timeout is not retried.
   a finding the author rejected or never answered is not in the corpus.
 - **Model-drafted labels.** See Admission.
 - **Only the first reply names the fix.** Admission reads the fix commit from
-  the author's first reply. In the dump of 2026-11-16, 3 accepted threads cite
+  the author's first reply. In the dump of 2026-11-15, 3 accepted threads cite
   their fix only in a later reply, so they count as `no_sha`. Admitting them
   would change both corpora and void the paid replay, so they stay out.
 - **The replay has no tools.** 52 percent of findings need a file outside the

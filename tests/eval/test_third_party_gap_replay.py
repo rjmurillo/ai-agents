@@ -429,3 +429,39 @@ class TestFinishReason:
         self, metadata: dict[str, object], expected: str | None
     ) -> None:
         assert replay.finish_reason(metadata) == expected
+
+    def test_the_caller_reports_a_max_tokens_stop_as_length(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def fake_call_api(*_a: object, metadata: dict[str, object], **_k: object) -> str:
+            metadata.update(stop_reason="max_tokens", output_tokens=7)
+            return "answer"
+
+        monkeypatch.setattr(replay, "call_api", fake_call_api)
+        monkeypatch.setattr(replay, "load_api_key_for_selected_provider", lambda: "k")
+        usage = {"calls": 0, "output_tokens": 0}
+
+        text, meta = replay.make_caller("m", usage)("system", "user")
+
+        assert (text, meta["finish_reason"]) == ("answer", "length")
+
+
+class TestRepairTailInPlace:
+    def test_repair_never_rewrites_the_whole_file(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def refuse(*_a: object, **_k: object) -> None:
+            raise AssertionError("repair_tail rewrote the whole file")
+
+        broken = tmp_path / "broken.jsonl"
+        broken.write_bytes(b'{"a": 1}\n{"revision": "TG00')
+        whole = tmp_path / "whole.jsonl"
+        whole.write_bytes(b'{"a": 1}\n{"b": 2}')
+        monkeypatch.setattr(Path, "write_bytes", refuse)
+        monkeypatch.setattr(Path, "write_text", refuse)
+
+        replay.repair_tail(broken)
+        replay.repair_tail(whole)
+
+        assert broken.read_bytes() == b'{"a": 1}\n'
+        assert whole.read_bytes() == b'{"a": 1}\n{"b": 2}\n'

@@ -202,7 +202,7 @@ class TestMinerCli:
 
         assert _load_miner().main(["--summarize", str(dump)]) == 2
 
-    @pytest.mark.parametrize("text", ['{"other": 1}', "[1, 2]"])
+    @pytest.mark.parametrize("text", ['{"other": 1}', "[1, 2]", '{"pull_requests": [1]}'])
     def test_dump_without_a_pull_request_list_exits_2(self, tmp_path: Path, text: str) -> None:
         dump = tmp_path / "dump.json"
         dump.write_text(text, encoding="utf-8")
