@@ -191,3 +191,113 @@ class TestRejecting:
 
         assert _judge(skill.parent, [judgment]) == 2
         assert "not a text file in the skill" in capsys.readouterr().err
+
+
+class TestReviewFindings:
+    """Cases from the PR #7387 review: malformed input exits 2, never a traceback."""
+
+    @pytest.mark.parametrize(
+        ("judgment", "message"),
+        [
+            ({**_verdict("pass"), "id": []}, "is not an unjudged guideline rule"),
+            ({**_verdict("pass"), "verdict": {}}, "pass, fail, or unknown"),
+            (
+                {**_verdict("pass"), "evidence": [{"file": "SKILL.md", "quote": 123456789012}]},
+                "must both be strings",
+            ),
+            (
+                {**_verdict("pass"), "evidence": [{"file": ["SKILL.md"], "quote": QUOTE}]},
+                "must both be strings",
+            ),
+        ],
+    )
+    def test_non_string_fields_are_rejected_before_any_change(
+        self,
+        skill: Path,
+        capsys: pytest.CaptureFixture[str],
+        judgment: dict[str, Any],
+        message: str,
+    ) -> None:
+        (skill / "references" / "digits.md").write_text(
+            "Code 123456789012 here.\n", encoding="utf-8"
+        )
+
+        code = _judge(skill.parent, [judgment])
+
+        captured = capsys.readouterr()
+        assert code == 2
+        assert message in captured.err
+        assert captured.out == ""
+
+    def test_repeated_array_ids_do_not_crash(
+        self, skill: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        bad = {**_verdict("pass"), "id": ["practice.gotchas"]}
+
+        assert _judge(skill.parent, [bad, bad]) == 2
+        assert "is not an unjudged guideline rule" in capsys.readouterr().err
+
+    def test_waived_judged_fail_does_not_fail_strict(
+        self, skill: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        code = _judge(skill.parent, [_verdict("fail")], "--strict", "--waive", "practice.gotchas")
+
+        result = _status(capsys, "practice.gotchas")
+        assert code == 0
+        assert result["status"] == "WAIVED"
+        assert "judged fail" in result["reason"] and QUOTE in result["problems"][0]
+
+    def test_waiver_leaves_a_judged_pass_alone(
+        self, skill: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        assert _judge(skill.parent, [_verdict("pass")], "--waive", "practice.gotchas") == 0
+        assert _status(capsys, "practice.gotchas")["status"] == "JUDGED_PASS"
+
+    def test_every_recognized_script_type_is_in_the_packet_and_quotable(
+        self, skill: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        line = "console.error('release tag is missing');"
+        (skill / "scripts").mkdir()
+        (skill / "scripts" / "run.mjs").write_text(line + "\n", encoding="utf-8")
+
+        assert "scripts/run.mjs" in _packet(capsys)["files"]
+        assert _judge(skill.parent, [_verdict("pass", quote=line, file="scripts/run.mjs")]) == 0
+
+    @pytest.mark.skipif(
+        os.name == "nt" or os.geteuid() == 0, reason="needs POSIX permissions as non-root"
+    )
+    def test_unreadable_evidence_file_is_rejected_not_a_crash(
+        self, skill: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        locked = skill / "references" / "locked.md"
+        locked.write_text("A sentence nobody may read here.\n", encoding="utf-8")
+        locked.chmod(0)
+        try:
+            judgment = _verdict(
+                "pass", quote="A sentence nobody may read here.", file="references/locked.md"
+            )
+
+            code = _judge(skill.parent, [judgment])
+        finally:
+            locked.chmod(0o644)
+
+        assert code == 2
+        assert "cannot read references/locked.md" in capsys.readouterr().err
+
+    def test_judgments_file_in_the_skill_is_not_evidence(
+        self, skill: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        invented = "An invented sentence that only the judgments file holds."
+        path = skill / "judgments.json"
+        judgment = _verdict("pass", quote=invented, file="judgments.json")
+        path.write_text(json.dumps({"judgments": [judgment]}), encoding="utf-8")
+
+        code = conformance.main(["release-notes", "--judgments", str(path)])
+
+        assert code == 2
+        assert "judgments.json is not a text file in the skill" in capsys.readouterr().err
+
+    def test_packet_states_the_quote_minimum(
+        self, skill: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        assert "at least 12 characters" in _packet(capsys)["instructions"]

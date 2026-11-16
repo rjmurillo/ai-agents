@@ -1,6 +1,7 @@
-"""Static checks for the scripts and evals rules in the conformance catalog.
+"""Static checks for the scripts and evals rules, and judgment checking, for conformance.
 
-These read the skill's scripts and evals files. They never run them.
+These read the skill's scripts, evals, and text files. They never run them, and
+they call no model.
 """
 
 from __future__ import annotations
@@ -9,7 +10,9 @@ import ast
 import json
 import posixpath
 import re
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from _conformance_checks import (
     _FENCE_RE,
@@ -18,6 +21,7 @@ from _conformance_checks import (
     body_or_skip,
 )
 from _conformance_parse import SkillDoc, contained
+from _path_guard import contained_realpath, resolve_root
 
 _RUNNER_RE = re.compile(
     r"(?:^|[\s;&|(])(uvx|npx|bunx|pipx\s+run|deno\s+run|go\s+run)\s+([^\n;&|]*)"
@@ -312,3 +316,154 @@ def evals_file_shape(doc: SkillDoc) -> list[str]:
     for index, case in enumerate(cases):
         problems.extend(_eval_case_problems(doc, f"evals[{index}]", case))
     return problems
+
+
+# Judging the guideline rules --------------------------------------------------
+# conformance.py prints the rules no check decides, an agent judges them, and
+# these functions accept a verdict only when its quotes appear in the skill.
+
+VERDICT_STATUS = {"pass": "JUDGED_PASS", "fail": "JUDGED_FAIL", "unknown": "JUDGED_UNKNOWN"}
+MIN_QUOTE_CHARS = 12
+# Every script type the static checks recognize, plus prose and data files.
+TEXT_SUFFIXES = frozenset(_SCRIPT_SUFFIXES | {".md", ".json", ".yaml", ".yml", ".txt"})
+JUDGE_INSTRUCTIONS = (
+    "Judge each rule from the files listed, and nothing else. Run in a fresh "
+    "context with only this packet and the skill directory, not the session "
+    "that wrote the skill. For each rule write verdict pass, fail, or unknown, "
+    "and a one-sentence reason. A pass or fail cites at least one quote copied "
+    f"verbatim from a listed file, at least {MIN_QUOTE_CHARS} characters long "
+    "after whitespace runs collapse to one space. Answer unknown when the files "
+    "cannot show it, such as how the skill was tested; unknown is never a pass. "
+    "Write the judgments file outside the skill directory."
+)
+
+
+def skill_files(directory: Path, root: Path, exclude: Path | None = None) -> list[str]:
+    """Return the text files a judge may quote, as POSIX paths relative to the skill.
+
+    A file must resolve inside both the skill directory and root. ``exclude``
+    keeps a judgments file saved in the skill from quoting itself as evidence.
+    """
+    skipped = exclude.resolve() if exclude is not None else None
+    found = []
+    for path in sorted(directory.rglob("*")):
+        if path.suffix.lower() not in TEXT_SUFFIXES or not path.is_file():
+            continue
+        if path.resolve() == skipped:
+            continue
+        if contained_realpath(path, str(root)) is None:
+            continue
+        if contained_realpath(path, resolve_root(str(directory))) is None:
+            continue
+        found.append(path.relative_to(directory).as_posix())
+    return found
+
+
+@dataclass(frozen=True)
+class JudgingScope:
+    """What a judgments file may name: the skill's files, its open rules, and waivers."""
+
+    directory: Path
+    allowed: frozenset[str]
+    open_ids: frozenset[str]
+    waived: frozenset[str]
+
+
+def _collapse(text: str) -> str:
+    return " ".join(text.split())
+
+
+def _evidence_item_error(at: str, item: object, scope: JudgingScope) -> str | None:
+    """Return why one evidence item fails, or None when its quote is in the named file."""
+    if not isinstance(item, dict):
+        return f"{at}: must be an object"
+    file, quote = item.get("file"), item.get("quote")
+    if not isinstance(file, str) or not isinstance(quote, str):
+        return f"{at}: file and quote must both be strings"
+    if len(_collapse(quote)) < MIN_QUOTE_CHARS:
+        return f"{at}: quote needs at least {MIN_QUOTE_CHARS} characters"
+    if file not in scope.allowed:
+        return f"{at}: {file} is not a text file in the skill"
+    try:
+        text = (scope.directory / file).read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        return f"{at}: cannot read {file}: {exc}"
+    if _collapse(quote) not in _collapse(text):
+        return f"{at}: quote not found verbatim in {file}"
+    return None
+
+
+def _evidence_errors(where: str, evidence: object, scope: JudgingScope) -> list[str]:
+    if not isinstance(evidence, list):
+        return [f"{where}: evidence must be a list"]
+    errors = (
+        _evidence_item_error(f"{where}.evidence[{index}]", item, scope)
+        for index, item in enumerate(evidence)
+    )
+    return [error for error in errors if error is not None]
+
+
+def _judgment_errors(item: object, index: int, scope: JudgingScope) -> list[str]:
+    where = f"judgments[{index}]"
+    if not isinstance(item, dict):
+        return [f"{where}: must be an object"]
+    rule_id, verdict = item.get("id"), item.get("verdict")
+    if not isinstance(rule_id, str) or rule_id not in scope.open_ids:
+        return [f"{where}: {rule_id!r} is not an unjudged guideline rule for this skill"]
+    if not isinstance(verdict, str) or verdict not in VERDICT_STATUS:
+        return [f"{where}: verdict must be pass, fail, or unknown"]
+    errors = []
+    if not isinstance(item.get("reason"), str) or not item["reason"].strip():
+        errors.append(f"{where}: reason must be a non-empty string")
+    evidence = item.get("evidence", [])
+    if verdict != "unknown" and not evidence:
+        errors.append(f"{where}: a {verdict} verdict needs at least one quote")
+    return errors + _evidence_errors(where, evidence, scope)
+
+
+def _read_judgments(path: Path) -> list[object] | str:
+    """Return the judgments list from the file, or why it cannot be read."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, ValueError) as exc:
+        return f"cannot read {path}: {exc}"
+    items = data.get("judgments") if isinstance(data, dict) else None
+    if not isinstance(items, list):
+        return "the file needs a top-level 'judgments' list"
+    return items
+
+
+def apply_judgments(results: list[Any], path: Path, scope: JudgingScope) -> list[str]:
+    """Apply a judgments file to the MANUAL results, or return why it was rejected.
+
+    Every verdict is checked before any result changes, so a rejected file
+    leaves the report as it was.
+    """
+    items = _read_judgments(path)
+    if isinstance(items, str):
+        return [items]
+    ids = [item.get("id") for item in items if isinstance(item, dict)]
+    string_ids = [i for i in ids if isinstance(i, str)]
+    errors = [
+        f"{i!r} is judged more than once"
+        for i in sorted(set(string_ids))
+        if string_ids.count(i) > 1
+    ]
+    for index, item in enumerate(items):
+        errors.extend(_judgment_errors(item, index, scope))
+    if errors:
+        return errors
+    verdicts = {item["id"]: item for item in items if isinstance(item, dict)}
+    for result in results:
+        item = verdicts.get(result.rule.id)
+        if item is None:
+            continue
+        result.status = VERDICT_STATUS[item["verdict"]]
+        result.reason = item["reason"].strip()
+        result.problems = [
+            f'"{_collapse(e["quote"])}" ({e["file"]})' for e in item.get("evidence", [])
+        ]
+        if result.status == "JUDGED_FAIL" and result.rule.id in scope.waived:
+            result.status = "WAIVED"
+            result.reason = f"waived with --waive; judged fail: {result.reason}"
+    return []

@@ -102,19 +102,31 @@ what comes back.
    `--profile project`, a guideline the project departs from on purpose reports
    DEVIATION and stays out of the packet.
 2. Judge in a fresh context. Where the harness allows, give a subagent only the
-   packet and the skill directory, not the session that wrote the skill. Write
-   `{"judgments": [{"id", "verdict", "reason", "evidence"}]}`. The verdict is
-   `pass`, `fail`, or `unknown`. Each evidence item is
-   `{"file": "<path from the packet>", "quote": "<verbatim text>"}`.
-3. Apply it: `conformance.py SKILL_DIR --judgments judgments.json`.
+   packet and the skill directory, not the session that wrote the skill. Save
+   the verdicts outside the skill directory, in this shape:
+
+   ```json
+   {"judgments": [
+     {"id": "practice.gotchas", "verdict": "pass",
+      "reason": "SKILL.md lists traps the agent would not expect.",
+      "evidence": [{"file": "SKILL.md", "quote": "The changelog tool skips merge commits"}]},
+     {"id": "evals.baseline", "verdict": "unknown",
+      "reason": "The files do not show how the skill was evaluated.",
+      "evidence": []}
+   ]}
+   ```
+
+3. Apply it: `conformance.py SKILL_DIR --judgments /tmp/judgments.json`.
 
 The import checks every verdict before it applies any of them:
 
+- `id`, `verdict`, `reason`, `file`, and `quote` must be strings.
 - A `pass` or `fail` needs at least one quote. Each quote has at least 12
   characters and appears verbatim in the named file. Whitespace runs count as
   one space, so a reflowed quote still matches.
 - The quoted file must be a text file inside the skill directory and inside
-  `--root`.
+  `--root`: Markdown, JSON, YAML, plain text, or any script type the checks
+  recognize. The judgments file itself never counts as evidence.
 - `unknown` needs no quote. Use it for what the files cannot show, such as
   whether evals ran with and without the skill. It never counts as a pass.
 - An unknown rule id, a rule already decided by a check, a duplicate, or any
@@ -122,4 +134,6 @@ The import checks every verdict before it applies any of them:
 
 A judged rule reports JUDGED_PASS, JUDGED_FAIL, or JUDGED_UNKNOWN with the
 reason and quotes. Judging covers SHOULD and MAY guidelines only, so it never
-changes a MUST verdict. JUDGED_FAIL fails the run only with `--strict`.
+changes a MUST verdict. JUDGED_FAIL fails the run only with `--strict`, and
+`--waive RULE_ID` turns a judged fail into WAIVED, keeping the reason and
+quotes.
