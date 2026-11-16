@@ -288,13 +288,15 @@ Before building, make two edits in the same change that commits the rebuilt
 corpora:
 
 - Remap `labels.jsonl`. Finding ids are ordinal (`T0001` in dump order), so a
-  new window renumbers them. The builder then refuses every moved label with
-  exit 2 (`label(s) name another thread's URL`). No script remaps them. Give
-  each label the id of the finding with the same `url`, then label each new
-  finding.
-- Prune `LEAKING_REVISIONS` in `build_third_party_gap_corpus.py`. Remove each
-  entry whose pull request is outside the new window. A stale entry stops the
-  build with exit 2 (`excluded revision(s) not in the replay set`). Removing an
+  new window renumbers them. The builder stops with exit 2, first on ids with
+  no label row (`no label for N admitted thread(s)`), then on labels whose
+  `url` differs (`label(s) name another thread's URL`). Each message names
+  only the first id. No script remaps them. Give each label the id of the
+  finding with the same `url`, then label each new finding.
+- Prune `LEAKING_REVISIONS` in `build_third_party_gap_corpus.py`. A stale
+  entry stops the build with exit 2 (`excluded revision(s) not in the replay
+  set`), naming every key it cannot find. Remove those entries. The usual
+  cause is a pull request outside the new window. Removing an
   entry before the rebuild changes the replay corpus, so `--check` against the
   old corpora fails.
 
