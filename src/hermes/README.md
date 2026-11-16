@@ -29,6 +29,7 @@ Project Toolkit skills for GitHub pull request work, build, test, and quality ga
 - `maintainer-review`
 - `merge-resolver`
 - `metrics`
+- `modernize`
 - `observability`
 - `orphan-ref-validator`
 - `pipeline-validator`
