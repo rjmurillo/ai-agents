@@ -296,7 +296,8 @@ def scan_source(path: str, source: str) -> list[Violation]:
     visitor.visit(tree)
     # Match the AST's line model: CRLF, a lone CR, and LF each end a line, while
     # form feed and U+2028 do not. splitlines() would split on those too and
-    # shift every later line number.
+    # shift every later line number. Known limit: git numbers diff lines by LF
+    # only, so in a file with lone-CR line ends added-line matching can miss.
     lines = re.split(r"\r\n|\r|\n", source)
     return sorted(
         v

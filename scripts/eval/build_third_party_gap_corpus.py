@@ -6,8 +6,9 @@ model-drafted labels in ``evals/third-party-review-gap/labels.jsonl``, then
 writes ``findings.jsonl``, ``replay-corpus.json`` and
 ``io-portability-corpus.json``. ``--check`` writes nothing and exits 1 when a
 rebuilt file differs from the committed one. ``--stats`` prints the counts the
-README cites. The pull request commits must be present locally
-(``git fetch origin pull/<n>/head`` for each mined pull request).
+README cites and, without ``--check``, writes nothing. The pull request
+commits must be present locally (``git fetch origin pull/<n>/head`` for each
+mined pull request).
 
 Method and limits: ``evals/third-party-review-gap/README.md``.
 
@@ -15,7 +16,7 @@ Exit codes:
     0  ok
     1  --check found a rebuilt file that differs from the committed one
     2  config error (unreadable dump or labels, missing label)
-    3  git failed while computing --stats
+    3  git could not run, or failed while computing --stats
 """
 
 from __future__ import annotations
@@ -55,7 +56,11 @@ IO_RULE = (
 
 
 def git_run(args: tuple[str, ...]) -> str | None:
-    """Git stdout, or None on a non-zero exit, a timeout, or a missing git binary."""
+    """Git stdout, or None on a non-zero exit (a missing commit or path).
+
+    A timeout or a missing git binary raises RuntimeError: read as None, it
+    would drop a finding or a pull request from the counts without a trace.
+    """
     try:
         result = subprocess.run(
             ["git", *args],
@@ -67,8 +72,8 @@ def git_run(args: tuple[str, ...]) -> str | None:
             timeout=120,
             cwd=str(REPO_ROOT),
         )
-    except (subprocess.SubprocessError, OSError):
-        return None
+    except (subprocess.SubprocessError, OSError) as exc:
+        raise RuntimeError(f"git {args[0]} could not run: {exc}") from exc
     return result.stdout if result.returncode == 0 else None
 
 
@@ -243,6 +248,9 @@ def main(argv: list[str] | None = None) -> int:
     try:
         dump = json.loads(args.dump.read_text(encoding="utf-8"))
         built = build_all(dump, load_labels(args.labels))
+    except RuntimeError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 3
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, KeyError, ValueError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
@@ -250,9 +258,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.stats:
         try:
             print(json.dumps(stats(dump, built), indent=2))
-        except ValueError as exc:
+        except (RuntimeError, ValueError) as exc:
             print(f"ERROR: {exc}", file=sys.stderr)
             return 3
+        if not args.check:
+            return 0
     if args.check:
         stale = []
         for name, text in files.items():

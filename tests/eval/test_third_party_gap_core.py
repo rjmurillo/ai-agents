@@ -192,6 +192,17 @@ class TestBuildReviewInput:
 
 
 class TestCheckNoLeak:
+    def test_unreadable_revision_diff_raises(self) -> None:
+        _, (rev,) = core.parse_corpus(corpus())
+        review = core.build_review_input(rev, "t", "S", fake_git())
+        inner = fake_git()
+
+        def git(args: tuple[str, ...]) -> str | None:
+            return None if args == ("diff", rev.base, rev.head) else inner(args)
+
+        with pytest.raises(core.CorpusError, match="not readable"):
+            core.check_no_leak(rev, review, git)
+
     def test_clean_prompt_has_no_reasons(self) -> None:
         _, (rev,) = core.parse_corpus(corpus())
         review = core.build_review_input(rev, "t", "S", fake_git())

@@ -231,7 +231,9 @@ def build_review_input(revision: Revision, title: str, system: str, git: GitRun)
 def check_no_leak(revision: Revision, review: ReviewInput, git: GitRun) -> list[str]:
     """Reasons the prompt carries content from any fixing commit. Empty means clean."""
     prompt = review.system + "\n" + review.user
-    intro = git(("diff", revision.base, revision.head)) or ""
+    intro = git(("diff", revision.base, revision.head))
+    if intro is None:
+        raise CorpusError(f"{revision.id}: diff {revision.base}..{revision.head} is not readable")
     reasons: list[str] = []
     for fix in sorted({d.fix for d in revision.defects}):
         subject = git(("show", fix, "--format=%s", "--no-patch"))

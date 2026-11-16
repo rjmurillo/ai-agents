@@ -315,7 +315,7 @@ class TestCliGitFailures:
         with pytest.raises(ValueError, match="failed for a path the diff listed"):
             cli.precision(prs, 1)
 
-    def test_git_run_returns_none_when_git_times_out(
+    def test_git_run_raises_when_git_times_out(
         self, cli: Any, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         import subprocess
@@ -325,4 +325,59 @@ class TestCliGitFailures:
 
         monkeypatch.setattr(subprocess, "run", stalled)
 
-        assert cli.git_run(("log",)) is None
+        with pytest.raises(RuntimeError, match="could not run"):
+            cli.git_run(("log",))
+
+    def test_stats_exits_3_when_merge_base_times_out(
+        self, cli: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import subprocess
+
+        pr = {"number": 9, "state": "MERGED", "headRefOid": "h" * 40, "baseRefOid": "b" * 40}
+        dump = tmp_path / "dump.json"
+        dump.write_text(json.dumps({"pull_requests": [pr]}), encoding="utf-8")
+        built = {"threads": [], "findings": [], "funnel": {}, "cutoff": 1}
+        monkeypatch.setattr(cli, "build_all", lambda _d, _l: built)
+        monkeypatch.setattr(cli, "render", lambda _b: {})
+
+        def stalled(*_a: object, **_k: object) -> None:
+            raise subprocess.TimeoutExpired("git", 120)
+
+        monkeypatch.setattr(subprocess, "run", stalled)
+        labels = tmp_path / "labels.jsonl"
+        labels.write_text("", encoding="utf-8")
+
+        code = cli.main(["--dump", str(dump), "--labels", str(labels), "--stats"])
+
+        assert code == 3
+
+    def test_build_that_cannot_run_git_exits_3(
+        self, cli: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def fail(_d: object, _l: object) -> None:
+            raise RuntimeError("git cat-file could not run")
+
+        monkeypatch.setattr(cli, "build_all", fail)
+        dump = tmp_path / "dump.json"
+        dump.write_text(json.dumps({"pull_requests": []}), encoding="utf-8")
+        labels = tmp_path / "labels.jsonl"
+        labels.write_text("", encoding="utf-8")
+
+        assert cli.main(["--dump", str(dump), "--labels", str(labels)]) == 3
+
+    def test_stats_alone_writes_nothing(
+        self, cli: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        dump = tmp_path / "dump.json"
+        dump.write_text(json.dumps({"pull_requests": []}), encoding="utf-8")
+        monkeypatch.setattr(cli, "build_all", lambda _d, _l: {})
+        monkeypatch.setattr(cli, "render", lambda _b: {"findings.jsonl": "new\n"})
+        monkeypatch.setattr(cli, "stats", lambda _d, _b: {})
+        labels = tmp_path / "labels.jsonl"
+        labels.write_text("", encoding="utf-8")
+        argv = ["--dump", str(dump), "--labels", str(labels), "--out-dir", str(tmp_path), "--stats"]
+
+        code = cli.main(argv)
+
+        assert code == 0
+        assert not (tmp_path / "findings.jsonl").exists()

@@ -458,5 +458,17 @@ class TestMain:
 
         assert checker.main(["--base-ref", "base"]) == 2
 
+    def test_base_ref_run_exits_2_when_the_diff_fails(
+        self, repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(repo)
+
+        def failing(_root: object, base: str, head: str = "HEAD") -> dict[str, set[int]]:
+            raise ValueError(f"git diff {base}...{head} failed")
+
+        monkeypatch.setattr(checker, "added_line_numbers", failing)
+
+        assert checker.main(["--base-ref", "base"]) == 2
+
     def test_unreadable_file_exits_2(self, tmp_path: Path) -> None:
         assert checker.main([str(tmp_path / "missing.py")]) == 2

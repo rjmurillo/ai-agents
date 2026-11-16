@@ -42,7 +42,8 @@ only when the author's reply cites a fix commit, that commit resolves locally,
 it touches the thread's path, and it descends from the commit the bot reviewed.
 `scripts/eval/build_third_party_gap_corpus.py` applies these steps to a saved
 dump and rebuilds every corpus file here; `--check` confirms the committed
-files match a rebuild, and `--stats` prints the other counts this page cites.
+files match a rebuild, and `--stats` prints the other counts this page cites
+and writes nothing.
 
 | Step | Count |
 |---|---|
@@ -200,8 +201,9 @@ reached the output ceiling.
 | Treatment (defect hunt) | 21/162 (13.0%, CI 8.6% to 19.0%) | 61 | 30 of 102 | 2,657,228 |
 
 Paired by defect-trial: 9 both, 9 baseline only, 12 treatment only, 132
-neither. Exact McNemar p = 0.66. By context: diff-local 3 vs 4 (p = 1.0),
-repo-context 4 vs 7 (p = 0.55), external-knowledge 2 vs 1 (p = 1.0).
+neither. Exact McNemar p = 0.66. Discordant pairs by context, baseline only
+vs treatment only: diff-local 3 vs 4 (p = 1.0), repo-context 4 vs 7
+(p = 0.55), external-knowledge 2 vs 1 (p = 1.0).
 
 **Verdict: no measurable gain. The treatment fails the decision rule and is
 not part of this change.** `technical-review.md` is unchanged from `main`.
