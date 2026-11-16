@@ -74,6 +74,24 @@ def _main(base: Path, head: Path) -> int:
     return vdc.main(["--tool-root", str(base), "--base-ref", "HEAD", "--head-root", str(head)])
 
 
+def _split(
+    base: Path,
+    head: Path,
+    named: set[str] | None = None,
+    roots: set[str] | None = None,
+    ref: str = "HEAD",
+) -> tuple[list[str], list[str]]:
+    """Classify the one new link `.claude/skills/fresh` directly."""
+    trees = (base, head, ref, vdc._REF_LINKS.INERT_GIT)
+    return vdc._EXEMPTION.split([".claude/skills/fresh"], trees, named or set(), roots or set())
+
+
+def _rebase_head(base: Path, head: Path, message: str) -> None:
+    """Commit the base edit and move the head to it."""
+    _commit(base, message)
+    git(head, "checkout", "--detach", "-q", "--force", rev(base))
+
+
 class TestExemptInstallLinks:
     def test_a_new_skill_and_its_codex_link_exit_zero(
         self, skill_trees: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
@@ -184,8 +202,7 @@ class TestLinksThatStillFail:
         config["scripts"]["claude_code"]["top"] = "python3 .claude/run.py"
         write(base, CONFIG, yaml.safe_dump(config))
         write(base, ".claude/run.py", "X = 1\n")
-        _commit(base, "a verifier directly under .claude makes it an import root")
-        git(head, "checkout", "--detach", "-q", "--force", rev(base))
+        _rebase_head(base, head, "a verifier directly under .claude makes it an import root")
         _new_skill(head, "fresh")
 
         self._reported(base, head, ".claude/skills/fresh")
@@ -209,8 +226,7 @@ class TestLinksThatStillFail:
         config = yaml.safe_load((base / CONFIG).read_text(encoding="utf-8"))
         config["scripts"]["claude_code"]["go"] += " --rules .claude/skills/fresh/rules.yaml"
         write(base, CONFIG, yaml.safe_dump(config))
-        _commit(base, "name a fresh script")
-        git(head, "checkout", "--detach", "-q", "--force", rev(base))
+        _rebase_head(base, head, "name a fresh script")
         _new_skill(head, "fresh")
         write(head, "src/claude/skills/fresh/rules.yaml", "rules: []\n")
 
@@ -223,8 +239,7 @@ class TestLinksThatStillFail:
         config = yaml.safe_load((base / CONFIG).read_text(encoding="utf-8"))
         config["scripts"]["claude_code"]["go"] += " --rules ./.claude/skills/fresh/rules.yaml"
         write(base, CONFIG, yaml.safe_dump(config))
-        _commit(base, "name a fresh data file with a ./ spelling")
-        git(head, "checkout", "--detach", "-q", "--force", rev(base))
+        _rebase_head(base, head, "name a fresh data file with a ./ spelling")
         _new_skill(head, "fresh")
         write(head, "src/claude/skills/fresh/rules.yaml", "rules: []\n")
 
@@ -234,14 +249,7 @@ class TestLinksThatStillFail:
         base, head = skill_trees
         _new_skill(head, "fresh")
         absolute = str(head / ".claude/skills/fresh/rules.yaml")
-        reported, exempt = vdc._EXEMPTION.split(
-            [".claude/skills/fresh"],
-            (base, head, "HEAD", vdc._REF_LINKS.INERT_GIT),
-            {absolute},
-            set(),
-        )
-
-        assert (reported, exempt) == ([".claude/skills/fresh"], [])
+        assert _split(base, head, named={absolute}) == ([".claude/skills/fresh"], [])
 
     def test_a_dangling_target_with_the_right_link_text(
         self, skill_trees: tuple[Path, Path]
@@ -254,33 +262,24 @@ class TestLinksThatStillFail:
     def test_a_named_path_under_the_target_spelling(self, skill_trees: tuple[Path, Path]) -> None:
         base, head = skill_trees
         _new_skill(head, "fresh")
-        reported, exempt = vdc._EXEMPTION.split(
+        assert _split(base, head, named={"src/claude/skills/fresh/rules.yaml"}) == (
             [".claude/skills/fresh"],
-            (base, head, "HEAD", vdc._REF_LINKS.INERT_GIT),
-            {"src/claude/skills/fresh/rules.yaml"},
-            set(),
+            [],
         )
-
-        assert (reported, exempt) == ([".claude/skills/fresh"], [])
 
     def test_an_import_root_under_the_link(self, skill_trees: tuple[Path, Path]) -> None:
         base, head = skill_trees
         _new_skill(head, "fresh")
-        reported, exempt = vdc._EXEMPTION.split(
+        assert _split(base, head, roots={".claude/skills/fresh/lib"}) == (
             [".claude/skills/fresh"],
-            (base, head, "HEAD", vdc._REF_LINKS.INERT_GIT),
-            set(),
-            {".claude/skills/fresh/lib"},
+            [],
         )
-
-        assert (reported, exempt) == ([".claude/skills/fresh"], [])
 
     def test_a_row_that_is_not_a_link_row(self, skill_trees: tuple[Path, Path]) -> None:
         base, head = skill_trees
         rows = [{**r, "link": False} if r["class"] == "skills" else r for r in ROWS]
         write(base, BINPLACE, yaml.safe_dump({"rows": rows}))
-        _commit(base, "skills row is not a link row")
-        git(head, "checkout", "--detach", "-q", "--force", rev(base))
+        _rebase_head(base, head, "skills row is not a link row")
         _new_skill(head, "fresh")
 
         self._reported(base, head, ".claude/skills/fresh")
@@ -303,8 +302,7 @@ class TestLinksThatStillFail:
             BINPLACE,
             yaml.safe_dump({"rows": [r for r in rows if r["install_tree"] != ".claude/skills"]}),
         )
-        _commit(base, "skills row installs into a dotless tree")
-        git(head, "checkout", "--detach", "-q", "--force", rev(base))
+        _rebase_head(base, head, "skills row installs into a dotless tree")
         _new_skill(head, "fresh", install="plain")
 
         self._reported(base, head, "plain/fresh")
@@ -312,22 +310,14 @@ class TestLinksThatStillFail:
     def test_a_named_directory_above_the_link(self, skill_trees: tuple[Path, Path]) -> None:
         base, head = skill_trees
         _new_skill(head, "fresh")
-        reported, exempt = vdc._EXEMPTION.split(
-            [".claude/skills/fresh"],
-            (base, head, "HEAD", vdc._REF_LINKS.INERT_GIT),
-            {".claude/skills"},
-            set(),
-        )
-
-        assert (reported, exempt) == ([".claude/skills/fresh"], [])
+        assert _split(base, head, named={".claude/skills"}) == ([".claude/skills/fresh"], [])
 
     def test_a_malformed_base_manifest_exempts_nothing(
         self, skill_trees: tuple[Path, Path]
     ) -> None:
         base, head = skill_trees
         write(base, BINPLACE, "rows: [unclosed\n")
-        _commit(base, "break the manifest")
-        git(head, "checkout", "--detach", "-q", "--force", rev(base))
+        _rebase_head(base, head, "break the manifest")
         _new_skill(head, "fresh")
 
         self._reported(base, head, ".claude/skills/fresh")
@@ -335,14 +325,7 @@ class TestLinksThatStillFail:
     def test_an_unlistable_base_ref_exempts_nothing(self, skill_trees: tuple[Path, Path]) -> None:
         base, head = skill_trees
         _new_skill(head, "fresh")
-        reported, exempt = vdc._EXEMPTION.split(
-            [".claude/skills/fresh"],
-            (base, head, "no-such-ref", vdc._REF_LINKS.INERT_GIT),
-            set(),
-            set(),
-        )
-
-        assert (reported, exempt) == ([".claude/skills/fresh"], [])
+        assert _split(base, head, ref="no-such-ref") == ([".claude/skills/fresh"], [])
 
     def test_a_row_the_head_adds_to_binplace_is_not_trusted(
         self, skill_trees: tuple[Path, Path]
