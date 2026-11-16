@@ -116,8 +116,7 @@ Do not call a PR current only because Git reports no conflicts.
   conflicts, test, and update the branch. With none, report and change nothing.
 - **REWORK**: the goal is still useful, but a mechanical rebase would keep the
   wrong implementation. Explain the smallest credible rewrite and stop. Carry
-  it out only when the user asked for that rework; its push follows Phase 4
-  steps 6 to 8.
+  it out only when the user asked for that rework, through every Phase 4 step.
 - **CLOSE**: the PR is superseded, obsolete, directionally wrong, or no longer
   worth its cost. Cite concrete evidence and stop. Do not rebase an obsolete
   branch, and do not close it without explicit permission.
@@ -127,17 +126,18 @@ not a reason to keep a PR alive.
 
 ### Phase 4: Rebase without losing intent
 
-For a `MODERNIZE` disposition with an update reason:
+For a `MODERNIZE` disposition with an update reason, or a `REWORK` the user
+asked to carry out:
 
 1. Create a safe local branch or disposable worktree at the recorded PR head.
    Keep `refs/modernize-backup/${BRANCH}` at that SHA. A rollback after a
    push needs a fresh user yes and a lease pinned to the pushed SHA.
-2. Rebase its commits onto the freshly fetched base branch.
-3. Resolve each conflict by the PR's current intent and the base branch's newer
-   invariants. Hand mechanical conflict work to the `merge-resolver` agent
-   where the host has one; otherwise follow the `merge-resolver` skill inline.
-   If a conflict
-   reveals a product or architecture disagreement, run `git rebase --abort`
+2. Rebase its commits onto the freshly fetched base branch. For a `REWORK`,
+   apply the agreed rewrite on top of that rebase.
+3. Resolve each conflict inside the rebase, by the PR's current intent and the
+   base branch's newer invariants. Do not hand it to `merge-resolver`: that
+   workflow merges, commits, and pushes, which skips this skill's consent and
+   pinned lease. If a conflict reveals a product or architecture disagreement, run `git rebase --abort`
    and reconsider the disposition instead of guessing.
 4. Compare the pre-rebase and post-rebase commit series with `git range-diff`
    and inspect the final diff. Confirm that no intended behavior disappeared and
