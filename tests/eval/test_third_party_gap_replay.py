@@ -183,6 +183,13 @@ class TestOutputTokens:
         assert replay.output_tokens({}) == 0
 
 
+@pytest.fixture(autouse=True)
+def _reset_rate_limit_breaker() -> Iterator[None]:
+    replay.RATE_LIMIT_EXHAUSTED.clear()
+    yield
+    replay.RATE_LIMIT_EXHAUSTED.clear()
+
+
 class TestRateLimitBackoff:
     def test_retries_429_then_returns(self) -> None:
         answers: Iterator[str | Exception] = iter([RuntimeError("HTTP 429: rate_limit"), "ok"])
@@ -209,15 +216,38 @@ class TestRateLimitBackoff:
             replay.call_with_rate_limit_backoff(send, waits.append)
         assert (sent, waits) == ([1], [])
 
-    def test_persistent_429_raises_after_the_schedule(self) -> None:
+    def test_persistent_429_raises_after_the_schedule_and_trips_the_breaker(self) -> None:
         waits: list[float] = []
 
         def send() -> str:
-            raise RuntimeError("429")
+            raise RuntimeError("OpenAI API returned HTTP 429: error=rate_limit")
 
-        with pytest.raises(RuntimeError, match="429"):
+        with pytest.raises(RuntimeError, match="HTTP 429"):
             replay.call_with_rate_limit_backoff(send, waits.append)
         assert waits == list(replay.RATE_LIMIT_WAITS_SECONDS)
+        assert replay.RATE_LIMIT_EXHAUSTED.is_set()
+
+    def test_after_the_breaker_trips_a_job_fails_without_calling(self) -> None:
+        replay.RATE_LIMIT_EXHAUSTED.set()
+        sent: list[int] = []
+
+        def send() -> str:
+            sent.append(1)
+            return "ok"
+
+        with pytest.raises(RuntimeError, match="exhausted"):
+            replay.call_with_rate_limit_backoff(send, lambda _w: None)
+        assert sent == []
+
+    def test_digits_429_inside_other_text_are_not_retried(self) -> None:
+        waits: list[float] = []
+
+        def send() -> str:
+            raise RuntimeError("EVAL_HTTP_TIMEOUT_SECONDS must be in (0, 1800], got 4290")
+
+        with pytest.raises(RuntimeError, match="4290"):
+            replay.call_with_rate_limit_backoff(send, waits.append)
+        assert waits == []
 
 
 class TestMcNemar:
@@ -268,3 +298,22 @@ class TestCompare:
         base.write_text("", encoding="utf-8")
 
         assert replay.main(args(corpus, "--compare", str(base)), caller(), git) == 2
+
+
+class TestPartialFailure:
+    def test_one_failed_call_exits_3_and_counts_the_error(
+        self, corpus: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        failures = iter([True, False])
+
+        def flaky(system: str, user: str) -> tuple[str, dict[str, Any]]:
+            if next(failures):
+                raise RuntimeError("HTTP 500")
+            return CAUGHT, {"output_tokens": 1}
+
+        code = replay.main(args(corpus, "--workers", "1"), flaky, git)
+
+        captured = capsys.readouterr()
+        assert code == 3
+        assert json.loads(captured.out)["result"]["errors"] == 1
+        assert "1 of 2 call(s) failed" in captured.err

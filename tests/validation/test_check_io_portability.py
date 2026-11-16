@@ -160,6 +160,26 @@ class TestUnguardedSymlink:
 
         assert rules(source) == []
 
+    def test_named_skip_mark_on_a_class_guards(self) -> None:
+        source = (
+            "POSIX_ONLY = pytest.mark.skipif(os.name != 'posix', reason='links')\n"
+            "@POSIX_ONLY\nclass TestX:\n    def test_x(self, p):\n        p.symlink_to('t')\n"
+        )
+
+        assert rules(source) == []
+
+    def test_named_mark_that_does_not_skip_does_not_guard(self) -> None:
+        source = "SLOW = pytest.mark.slow\n@SLOW\ndef test_x(p):\n    p.symlink_to('t')\n"
+
+        assert rules(source) == ["unguarded-symlink"]
+
+    def test_module_pytestmark_without_a_skip_does_not_guard(self) -> None:
+        source = (
+            "pytestmark = pytest.mark.usefixtures('repo')\ndef test_x(p):\n    p.symlink_to('t')\n"
+        )
+
+        assert rules(source) == ["unguarded-symlink"]
+
     def test_symlink_outside_test_paths_is_ignored(self) -> None:
         source = "def make(p):\n    p.symlink_to('t')\n"
 
@@ -174,6 +194,9 @@ class TestScanSource:
     def test_suppression_comment_silences_its_line(self) -> None:
         assert rules("p.read_text()  # io-portability: ignore fixture bytes\n") == []
 
+    def test_suppression_without_a_reason_does_not_silence(self) -> None:
+        assert rules("p.read_text()  # io-portability: ignore\n") == ["file-text-encoding"]
+
     def test_syntax_error_yields_nothing(self) -> None:
         assert rules("def broken(:\n") == []
 
@@ -184,6 +207,24 @@ class TestScanSource:
 
         assert (violation.line, violation.end_line) == (2, 5)
         assert violation.spans(5) and not violation.spans(6)
+
+
+class TestMirrorPrefixes:
+    def test_mirror_prefixes_match_the_generated_mirror_map(self) -> None:
+        from scripts.validation.git_hook_policy import _GENERATED_MIRRORS
+
+        python_trees = ("/skills/", "/lib/", "/hooks/")
+        generated = {
+            output
+            for output, _source, _suffix in _GENERATED_MIRRORS
+            if output.startswith("src/") and any(output.endswith(t) for t in python_trees)
+        }
+        expected = (generated - {"src/claude/skills/"}) | {"src/hermes/"}
+
+        assert set(checker.MIRROR_PREFIXES) == expected
+
+    def test_canonical_skill_scripts_are_checked(self) -> None:
+        assert not checker.is_skipped_path("src/claude/skills/x/scripts/y.py")
 
 
 class TestAddedLines:
@@ -219,9 +260,16 @@ def repo(tmp_path: Path) -> Path:
     return tmp_path
 
 
+def _commit(repo: Path, rel: str, text: str) -> None:
+    (repo / rel).parent.mkdir(parents=True, exist_ok=True)
+    (repo / rel).write_text(text, encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", f"edit {rel}")
+
+
 class TestScanDiff:
-    def test_only_added_lines_are_reported(self, repo: Path) -> None:
-        (repo / "old.py").write_text("p.read_text()\nq.write_text('x')\n", encoding="utf-8")
+    def test_only_lines_the_branch_commits_add_are_reported(self, repo: Path) -> None:
+        _commit(repo, "old.py", "p.read_text()\nq.write_text('x')\n")
 
         found, examined = checker.scan_diff("base", repo)
 
@@ -229,17 +277,52 @@ class TestScanDiff:
         assert examined == 1
 
     def test_mirror_and_fixture_trees_are_skipped(self, repo: Path) -> None:
-        for rel in ("src/cursor/skills/s/x.py", "tests/fixtures/x.py"):
-            (repo / rel).parent.mkdir(parents=True)
-            (repo / rel).write_text("p.read_text()\n", encoding="utf-8")
-        _git(repo, "add", "-A")
+        _commit(repo, "src/cursor/skills/s/x.py", "p.read_text()\n")
+        _commit(repo, "tests/fixtures/x.py", "p.read_text()\n")
 
         found, examined = checker.scan_diff("base", repo)
 
         assert (found, examined) == ([], 0)
 
+    def test_added_lines_in_a_renamed_file_are_checked(self, repo: Path) -> None:
+        body = "".join(f"value_{i} = {i}\n" for i in range(30))
+        _commit(repo, "a.py", body)
+        _git(repo, "branch", "-f", "base")
+        _git(repo, "mv", "a.py", "b.py")
+        _commit(repo, "b.py", body + "q.read_text()\n")
+
+        found, _ = checker.scan_diff("base", repo)
+
+        assert [(v.path, v.line) for v in found] == [("b.py", 31)]
+
+    @pytest.mark.parametrize(
+        ("key", "value"),
+        [("diff.noprefix", "true"), ("diff.mnemonicPrefix", "true"), ("color.diff", "always")],
+    )
+    def test_contributor_diff_config_cannot_empty_the_scan(
+        self, repo: Path, key: str, value: str
+    ) -> None:
+        _git(repo, "config", key, value)
+        _commit(repo, "new.py", "open('f')\n")
+
+        found, examined = checker.scan_diff("base", repo)
+
+        assert (len(found), examined) == (1, 1)
+
+    def test_uncommitted_violation_does_not_block(self, repo: Path) -> None:
+        _commit(repo, "c.py", "x = 1\n")
+        (repo / "c.py").write_text("x = 1\nopen('f')\n", encoding="utf-8")
+
+        assert checker.scan_diff("base", repo)[0] == []
+
+    def test_uncommitted_fix_does_not_hide_a_committed_violation(self, repo: Path) -> None:
+        _commit(repo, "c.py", "open('f')\n")
+        (repo / "c.py").write_text("open('f', encoding='utf-8')\n", encoding="utf-8")
+
+        assert len(checker.scan_diff("base", repo)[0]) == 1
+
     def test_unknown_base_raises(self, repo: Path) -> None:
-        with pytest.raises(ValueError, match="merge base"):
+        with pytest.raises(ValueError, match="no-such-ref"):
             checker.scan_diff("no-such-ref", repo)
 
 
@@ -255,8 +338,7 @@ class TestGateEntry:
         monkeypatch.setattr(
             sys.modules["checks_common"], "_resolve_default_base_ref", lambda _root: "base"
         )
-        (repo / "new.py").write_text("open('f')\n", encoding="utf-8")
-        _git(repo, "add", "-A")
+        _commit(repo, "new.py", "open('f')\n")
 
         assert checker.validate_io_portability(repo) is False
 

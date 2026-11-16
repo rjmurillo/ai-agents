@@ -1,4 +1,4 @@
-"""Tests for the pure parts of scripts/eval/eval_io_portability_gap.py (no git, no ruff)."""
+"""Tests for scripts/eval/eval_io_portability_gap.py that need no git history; ruff is faked."""
 
 from __future__ import annotations
 
@@ -6,6 +6,8 @@ import importlib.util
 import sys
 from pathlib import Path
 from typing import Any
+
+import pytest
 
 EVAL_DIR = Path(__file__).resolve().parents[2] / "scripts" / "eval"
 
@@ -59,3 +61,25 @@ def test_shipped_lines_without_a_merge_base_is_empty() -> None:
     row = {"rule": "file-text-encoding", "path": "t.py", "reviewed": "a" * 40}
 
     assert gap.shipped_lines(row, "open('f')\n") == []
+
+
+def test_malformed_commit_id_becomes_an_error_row_not_a_miss() -> None:
+    row = {"thread": "T1", "rule": "file-text-encoding", "path": "t.py", "line": 1,
+           "reviewed": "--output=/tmp/x", "final_head": "a" * 40, "merge_base": None}  # fmt: skip
+
+    result = gap.evaluate(row)
+
+    assert "not a 40-hex commit id" in result["error"]
+    assert "treatment_caught" not in result
+
+
+def test_a_ruff_failure_is_raised_not_scored(monkeypatch: pytest.MonkeyPatch) -> None:
+    import subprocess
+
+    def failed(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess([], 2, stdout="", stderr="boom")
+
+    monkeypatch.setattr(gap.subprocess, "run", failed)
+
+    with pytest.raises(RuntimeError, match="ruff exited 2"):
+        gap.ruff_lines("t.py", "x = 1\n", {"PLW1514"})

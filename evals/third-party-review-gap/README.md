@@ -92,8 +92,8 @@ Three facts change what to fix:
    see them. The top three (subprocess text mode without an encoding,
    `read_text`/`write_text` without an encoding, test symlinks with no Windows
    skip) account for 86 threads the author fixed or resolved.
-2. **False prose is new prose.** 197 of the 200 `doc-accuracy` findings sit on
-   lines the pull request itself added. The review pipeline does not check a
+2. **False prose is new prose.** 197 of the 200 `doc-accuracy` findings sit
+   within 2 lines of a line the pull request itself added (`--stats`). The review pipeline does not check a
    new sentence's claim against the code it describes.
 3. **Running `/review` barely moved the count.** Revisions whose commits carry
    a `/review` marker drew 1.91 admitted findings each; revisions without one
@@ -110,11 +110,11 @@ line within 3 of Bugbot's line.
 | Arm | All | Derive | Held out |
 |---|---|---|---|
 | Baseline: `check_subprocess_encoding.py` plus `ruff` with this repository's config | 0/86 (CI 0% to 4%) | 0/33 | 0/53 |
-| Treatment: `scripts/validation/check_io_portability.py`, whole file | 78/86 (CI 83% to 95%) | 33/33 | 45/53 |
-| Treatment as shipped: only lines the pull request added | 78/86 (CI 83% to 95%) | 33/33 | 45/53 |
+| Treatment: `scripts/validation/check_io_portability.py`, whole file | 79/86 (CI 84% to 96%) | 33/33 | 46/53 |
+| Treatment as shipped: only lines the pull request added | 79/86 (CI 84% to 96%) | 33/33 | 46/53 |
 
 Per rule: subprocess encoding 32/34, file encoding 25/25, unguarded symlink
-21/27. Files: `results/io-portability-summary.json`, per row
+22/27. Files: `results/io-portability-summary.json`, per row
 `results/io-portability-rows.jsonl`.
 
 The baseline is 0 for two reasons: `check_subprocess_encoding.py` scans only
@@ -126,19 +126,30 @@ Honest caveats:
 - The first treatment run scored 53/86. Bugbot anchors some findings on a
   call's closing parenthesis, so the match was widened to the whole call span
   after reading misses that included held-out rows.
-- Negative control: in 7 rows the file at the pull request's final head has no
-  fewer violations of the rule than at the reviewed commit. Six are rows the
-  checker missed (0 before, 0 after). The seventh, T0396, is a finding the
+- Negative control: in 6 rows the file at the pull request's final head has no
+  fewer violations of the rule than at the reviewed commit. Five are rows the
+  checker misses (0 before, 0 after). The sixth, T0396, is a finding the
   author never fixed.
+- Review of this change found two symlink-guard shapes the first version
+  misread. A module `pytestmark` that only adds fixtures exempted a whole file,
+  and a named skip mark such as `POSIX_ONLY = pytest.mark.skipif(...)` used as
+  a decorator was not seen as a guard. Fixing both moved recall from 78 to 79
+  and removed one false flag at a final head.
 - Precision, in the mode that ships (added lines only): over the 170 held-out
   merged pull requests whose head commit is present locally (of 215), the
   check flags 49 lines in 15 pull requests (9%). Twenty sampled flags on files
   Bugbot never threaded were all real. `--stats` reproduces the count.
-- The whole tree holds 2794 violations, so the check runs on added lines only
-  and skips generated mirror trees and `fixtures/` directories.
+- The whole tree holds 2790 violations in 731 files at `e926495cb`
+  (2026-11-15), so the check runs on added lines only and skips generated
+  mirror trees and `fixtures/` directories.
 
 The check now runs in `pre_pr.py` as the blocking gate `IO Portability (added
-lines)`.
+lines)`. It reads the committed `base...HEAD` diff through the parser the
+other added-lines gates share, so renamed files are checked and a
+contributor's git settings cannot empty the diff. To exempt one line, add
+`# io-portability: ignore <reason>`; a marker with no reason does not count.
+To roll the gate back, delete its one `_Gate` row in
+`scripts/validation/pre_pr_sequence.py`.
 
 ## Eval 2: model replay of the reviewer
 
@@ -199,7 +210,7 @@ What the run does show:
   hits rose from 46 to 61 and empty reviews fell from 40 to 30, but the line
   match did not follow.
 - **The replayed reviewer catches no platform-portability defect.** 0 of 44 in
-  both arms. The deterministic check in Eval 1 catches 78 of 86 of that kind.
+  both arms. The deterministic check in Eval 1 catches 79 of 86 of that kind.
   That class belongs to a static gate, not a prompt.
 
 Files: `results/replay-heldout-baseline.json`,
@@ -215,8 +226,10 @@ above are the ones that applied. New runs write them on every row.
 ## Run
 
 ```bash
-uv run python scripts/eval/mine_third_party_review_findings.py --limit 1000 --output dump.json
-uv run python scripts/eval/build_third_party_gap_corpus.py --dump dump.json --check --stats
+# The dump holds third-party comment text; keep it in the ignored scratch tree.
+uv run python scripts/eval/mine_third_party_review_findings.py --limit 1000 \
+  --output .project-toolkit/scratch/3p/dump.json
+uv run python scripts/eval/build_third_party_gap_corpus.py --dump .project-toolkit/scratch/3p/dump.json --check --stats
 uv run python scripts/eval/eval_io_portability_gap.py --output summary.json --rows rows.jsonl
 uv run python scripts/eval/eval_third_party_gap_replay.py --split all --validate-corpus
 EVAL_PROVIDER=openai OPENAI_BASE_URL=<compatible endpoint> EVAL_HTTP_TIMEOUT_SECONDS=1800 \

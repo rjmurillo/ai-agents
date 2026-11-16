@@ -92,17 +92,11 @@ def bot_threads(pull_requests: list[dict[str, Any]]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for pr in pull_requests:
         for thread in pr.get("reviewThreads", []):
-            comments = thread.get("comments") or []
-            if not comments:
-                continue
-            bot = findings.bot_name(_login(comments[0]))
+            bot = findings.opener_bot(thread)
             if bot is None:
                 continue
-            replies = [
-                c.get("body") or ""
-                for c in comments[1:]
-                if _login(c) and findings.bot_name(_login(c)) is None
-            ]
+            comments = thread["comments"]
+            replies = [c.get("body") or "" for c in findings.human_replies(comments)]
             body = comments[0].get("body") or ""
             commit = comments[0].get("originalCommit")
             rows.append(

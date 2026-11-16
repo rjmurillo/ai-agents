@@ -208,3 +208,77 @@ class TestMinerCli:
 
     def test_non_positive_limit_exits_2(self) -> None:
         assert _load_miner().main(["--limit", "0", "--output", "x.json"]) == 2
+
+
+class TestPageCaps:
+    def test_pull_request_page_cap_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(fetch, "MAX_PR_PAGES", 2)
+        fake = Fake([prs_page([pr(3)], "c1"), prs_page([pr(2)], "c2")])
+
+        with pytest.raises(fetch.FetchError, match="exceeded 2 pages"):
+            fetch.fetch_recent_pull_requests(fake, "o", "r", 10)
+
+    def test_nested_connection_page_cap_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(fetch, "MAX_SUB_PAGES", 1)
+        first = pr(5, conn([thread("t1", "cursor")], "tc"))
+        more = {
+            "repository": {"pullRequest": {"reviewThreads": conn([thread("t2", "cursor")], "td")}}
+        }
+
+        with pytest.raises(fetch.FetchError, match="exceeded 1 pages"):
+            fetch.fetch_recent_pull_requests(Fake([prs_page([first]), more]), "o", "r", 1)
+
+
+class TestMinerFetchExits:
+    @pytest.fixture
+    def api(self, monkeypatch: pytest.MonkeyPatch) -> Any:
+        from scripts.github_core import api
+
+        repo = type("Repo", (), {"owner": "o", "repo": "r"})()
+        monkeypatch.setattr(api, "resolve_repo_params", lambda _o, _r: repo)
+        return api
+
+    def test_incomplete_pagination_exits_3(
+        self, api: Any, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        page = {"repository": {"pullRequests": {"pageInfo": {"hasNextPage": True}, "nodes": []}}}
+        monkeypatch.setattr(api, "gh_graphql", lambda _q, _v: page)
+
+        code = _load_miner().main(["--limit", "5", "--output", str(tmp_path / "d.json")])
+
+        assert code == 3
+        assert not (tmp_path / "d.json").exists()
+
+    def test_auth_failure_exits_4(
+        self, api: Any, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        def refuse(_q: str, _v: object) -> dict[str, Any]:
+            raise RuntimeError("HTTP 401: Bad credentials")
+
+        monkeypatch.setattr(api, "gh_graphql", refuse)
+        monkeypatch.setattr(api, "is_auth_failure_text", lambda text: "401" in text)
+
+        assert _load_miner().main(["--limit", "5", "--output", str(tmp_path / "d.json")]) == 4
+
+    def test_gh_that_cannot_run_exits_3(
+        self, api: Any, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        def missing(_q: str, _v: object) -> dict[str, Any]:
+            raise FileNotFoundError("gh")
+
+        monkeypatch.setattr(api, "gh_graphql", missing)
+
+        assert _load_miner().main(["--limit", "5", "--output", str(tmp_path / "d.json")]) == 3
+
+    def test_complete_read_writes_the_dump(
+        self, api: Any, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        pages = iter([{"rateLimit": {"cost": 1, "remaining": 5000}, **prs_page([pr(1)])}])
+        monkeypatch.setattr(api, "gh_graphql", lambda _q, _v: next(pages))
+
+        code = _load_miner().main(["--limit", "1", "--output", str(tmp_path / "d.json")])
+
+        dump = json.loads((tmp_path / "d.json").read_text(encoding="utf-8"))
+        assert code == 0
+        assert [p["number"] for p in dump["pull_requests"]] == [1]
+        assert dump["graphql_cost"] == 1

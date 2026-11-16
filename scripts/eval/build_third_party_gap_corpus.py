@@ -40,9 +40,9 @@ OUT_DIR = "evals/third-party-review-gap"
 # `eval_third_party_gap_replay.py --validate-corpus` finds fix lines in the prompt.
 LEAKING_REVISIONS = frozenset({"TG002", "TG083", "TG223"})
 REPLAY_RULE = (
-    "Every admitted finding in findings.json whose path is in the pull request diff (merge base "
+    "Every admitted finding in findings.jsonl whose path is in the pull request diff (merge base "
     "to reviewed commit), whose diff is at most 110000 characters, and whose thread has a line, "
-    "grouped by reviewed revision. Split follows findings.json (heldout when PR >= 7066)."
+    "grouped by reviewed revision. Split follows findings.jsonl (heldout when PR >= 7066)."
 )
 IO_RULE = (
     "Cursor Bugbot review threads on PRs #6110 to #7380 whose body names the learned rule "
@@ -126,7 +126,7 @@ def build_all(dump: dict[str, Any], labels: dict[str, dict[str, Any]]) -> dict[s
             "schema_version": 1,
             "selection": {
                 "rule": REPLAY_RULE,
-                "source": "findings.json",
+                "source": "findings.jsonl",
                 "excluded": {
                     "rule": "A revision is dropped when --validate-corpus finds a fixing commit's "
                     "added lines in the reviewer prompt, because the fix edited the reviewer "
@@ -169,12 +169,28 @@ def stats(dump: dict[str, Any], built: dict[str, Any]) -> dict[str, Any]:
         marked[f"{key}_revisions"] += 1
         marked[f"{key}_findings"] += count
     return {
+        "doc_findings_on_added_lines": doc_on_added_lines(built["findings"]),
         "funnel": built["funnel"],
         "heldout_cutoff_pr": built["cutoff"],
         "cursor_learned_rule_threads": rules[True],
         "review_marker": dict(marked),
         "precision_heldout": precision(prs, built["cutoff"]),
     }
+
+
+DOC_LINE_WINDOW = 2
+
+
+def doc_on_added_lines(rows: list[dict[str, Any]]) -> dict[str, int]:
+    """Doc-accuracy findings whose line is within DOC_LINE_WINDOW of a line the PR added."""
+    docs = [r for r in rows if r["defect_class"] == "doc-accuracy"]
+    on_added = 0
+    for r in docs:
+        diff = git_run((*io_check.PINNED_DIFF_ARGS, r["merge_base"], r["commit"], "--", r["path"]))
+        diff = diff or ""
+        added = io_check.added_lines(diff).get(r["path"], set())
+        on_added += any(abs(line - (r["line"] or 0)) <= DOC_LINE_WINDOW for line in added)
+    return {"doc_accuracy": len(docs), "within_window": on_added, "window": DOC_LINE_WINDOW}
 
 
 def precision(prs: list[dict[str, Any]], cutoff: int) -> dict[str, Any]:
@@ -190,7 +206,7 @@ def precision(prs: list[dict[str, Any]], cutoff: int) -> dict[str, Any]:
         if not base or git_run(("cat-file", "-e", f"{head}^{{commit}}")) is None:
             continue
         examined += 1
-        diff = git_run(("diff", "-U0", "--diff-filter=AM", base, head, "--", "*.py")) or ""
+        diff = git_run((*io_check.PINNED_DIFF_ARGS, base, head, "--", "*.py")) or ""
         for path, lines in io_check.added_lines(diff).items():
             if io_check.is_skipped_path(path):
                 continue

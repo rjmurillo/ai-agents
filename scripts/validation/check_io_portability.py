@@ -16,14 +16,15 @@ Three rules, each an AST check with no guesswork about intent:
     A test file calls ``symlink_to`` or ``os.symlink`` outside a ``try`` that
     catches ``OSError`` or ``NotImplementedError``, in a function with no
     ``skip`` in its name, no ``skipif`` marker on the function or its class, and
-    no module ``pytestmark``. Windows without Developer Mode raises ``OSError``,
+    no module ``pytestmark`` that skips. Windows without Developer Mode raises ``OSError``,
     so the test errors instead of skipping.
 
 These are the three mechanical rules behind 86 of the 166 Cursor Bugbot
 "learned rule" findings on pull requests #6110 to #7380 (evals/third-party-review-gap).
 
-Scope: with ``--base-ref``, only lines added since the merge base with that ref
-are reported, so existing code does not block. Generated mirror trees
+Scope: with ``--base-ref``, only lines the branch's commits add over that
+ref are reported (``base...HEAD``, read from HEAD), so existing code does not
+block. Generated mirror trees
 (``MIRROR_PREFIXES``) are skipped in that mode: ``build_all.py`` copies them from
 ``src/claude/`` and ``scripts/``, so a violation is reported once, at its
 source. With file arguments, every line in those files is reported. A call
@@ -55,17 +56,24 @@ for _entry in (_REPO_ROOT, _SCRIPT_DIR):
         sys.path.insert(0, str(_entry))
 
 import checks_common  # noqa: E402
+import citation_head_state  # noqa: E402
 
 SUPPRESS = "# io-portability: ignore"
+# A suppression must say why: the marker followed by at least one word.
+_SUPPRESSION = re.compile(r"# io-portability: ignore\s+\S")
 _SUBPROCESS_CALLS = frozenset({"run", "Popen", "check_output", "check_call", "call"})
 _TEXT_FLAGS = ("text", "universal_newlines")
 _SYMLINK_CATCHES = frozenset({"OSError", "NotImplementedError", "Exception", "BaseException"})
-# Generated copies of src/claude/skills and the scripts/ lib packages, rendered by
-# build/scripts/build_all.py (see templates/AGENTS.md, "Skip"). Editing them is
-# overwritten, so a finding there belongs to the source file.
+# Generated Python trees: every output prefix in
+# scripts/validation/git_hook_policy.py:_GENERATED_MIRRORS that can hold a .py
+# file, plus src/hermes/ (ADR-115 Decision 6 packs). src/claude/skills/ is
+# deliberately absent although that map lists it: since ADR-119 it is the
+# canonical, hand-maintained skill source, so its scripts are checked.
+# test_mirror_prefixes_match_the_generated_mirror_map pins this.
 MIRROR_PREFIXES: tuple[str, ...] = (
     "src/copilot-cli/skills/",
     "src/copilot-cli/lib/",
+    "src/copilot-cli/hooks/",
     "src/codex/skills/",
     "src/codex/lib/",
     "src/cursor/skills/",
@@ -74,6 +82,13 @@ MIRROR_PREFIXES: tuple[str, ...] = (
     "src/muse/lib/",
     "src/hermes/",
 )
+# The diff flags citation_head_state._added_lines_since_base pins, for callers
+# that diff two named commits: a contributor's git config cannot change the
+# prefix, colour, rename detection, or diff driver of the output.
+PINNED_DIFF_ARGS: tuple[str, ...] = (
+    "-c", "core.quotePath=false", "diff", "--no-color", "--no-ext-diff", "--no-textconv",
+    "--text", "--find-renames", "--default-prefix", "-U0", "--diff-filter=ACMRT",
+)  # fmt: skip
 _HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(?P<start>\d+)(?:,(?P<count>\d+))? @@")
 
 
@@ -179,8 +194,20 @@ def _catches_symlink_failure(handler: ast.ExceptHandler) -> bool:
     return any(isinstance(n, ast.Name) and n.id in _SYMLINK_CATCHES for n in names)
 
 
-def _has_skipif(decorators: Iterable[ast.expr]) -> bool:
-    return any("skip" in ast.unparse(d) for d in decorators)
+def _has_skipif(decorators: Iterable[ast.expr], skip_marks: frozenset[str]) -> bool:
+    """A decorator that names a skip, directly or through a module-level alias."""
+    return any("skip" in ast.unparse(d) or ast.unparse(d) in skip_marks for d in decorators)
+
+
+def _module_skip_marks(tree: ast.Module) -> frozenset[str]:
+    """Module names bound to a skip mark, as in ``POSIX_ONLY = pytest.mark.skipif(...)``."""
+    return frozenset(
+        target.id
+        for node in tree.body
+        if isinstance(node, ast.Assign) and "skip" in ast.unparse(node.value)
+        for target in node.targets
+        if isinstance(target, ast.Name)
+    )
 
 
 class _Visitor(ast.NodeVisitor):
@@ -188,9 +215,12 @@ class _Visitor(ast.NodeVisitor):
         self._path = path
         self._test_file = is_test_path(path)
         self._modules, self._functions = _subprocess_names(tree)
+        self._skip_marks = _module_skip_marks(tree)
+        # Only a module mark that skips counts; `pytestmark = usefixtures(...)` does not guard.
         self._module_skip = any(
             isinstance(node, ast.Assign)
             and any(isinstance(t, ast.Name) and t.id == "pytestmark" for t in node.targets)
+            and "skip" in ast.unparse(node.value)
             for node in tree.body
         )
         self._guards: list[bool] = []  # one entry per enclosing scope or try that guards
@@ -207,7 +237,7 @@ class _Visitor(ast.NodeVisitor):
         self._found.append(Violation(self._path, line, rule, message, end))
 
     def _scope(self, node: ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef) -> None:
-        guarded = "skip" in node.name.lower() or _has_skipif(node.decorator_list)
+        guarded = "skip" in node.name.lower() or _has_skipif(node.decorator_list, self._skip_marks)
         self._guards.append(guarded)
         self.generic_visit(node)
         self._guards.pop()
@@ -272,7 +302,9 @@ def scan_source(path: str, source: str) -> list[Violation]:
     visitor.visit(tree)
     lines = source.splitlines()
     return sorted(
-        v for v in visitor.found if not (0 < v.line <= len(lines) and SUPPRESS in lines[v.line - 1])
+        v
+        for v in visitor.found
+        if not (0 < v.line <= len(lines) and _SUPPRESSION.search(lines[v.line - 1]))
     )
 
 
@@ -280,12 +312,18 @@ def added_lines(diff: str) -> dict[str, set[int]]:
     """New-file line numbers added per path in a unified diff with zero context."""
     out: dict[str, set[int]] = {}
     current: str | None = None
+    in_hunk = False
     for line in diff.splitlines():
-        if line.startswith("+++ "):
+        if line.startswith("diff --git "):
+            current, in_hunk = None, False
+            continue
+        if not in_hunk and line.startswith("+++ "):
             target = line[4:]
             current = target[2:] if target.startswith("b/") else None
             continue
         hunk = _HUNK.match(line)
+        if hunk:
+            in_hunk = True
         if hunk and current is not None:
             start = int(hunk.group("start"))
             count = int(hunk.group("count") or "1")
@@ -311,27 +349,40 @@ def is_skipped_path(path: str) -> bool:
 
 
 def scan_diff(base_ref: str, repo_root: Path = Path(".")) -> tuple[list[Violation], int]:
-    """Violations on lines added since the merge base with ``base_ref``, and files examined.
+    """Violations on lines this branch adds over ``base_ref``, and Python files examined.
 
-    The diff runs against the working tree, so an uncommitted edit is checked too.
+    Judges what a push sends: the committed ``base_ref...HEAD`` diff, with
+    sources read from HEAD, so an uncommitted edit neither hides nor adds a
+    finding. The added lines come from ``citation_head_state._added_lines_since_base``,
+    the parser the other added-lines gates share, which pins prefixes, colour,
+    rename detection and diff drivers so a contributor's git config cannot empty
+    the diff, and keeps renamed, copied and type-changed files.
     """
-    merge_base = _git(repo_root, ["merge-base", base_ref, "HEAD"])
-    if merge_base.returncode != 0:
-        raise ValueError(f"cannot find merge base with {base_ref}: {merge_base.stderr.strip()}")
-    diff = _git(
-        repo_root, ["diff", "-U0", "--diff-filter=AM", merge_base.stdout.strip(), "--", "*.py"]
-    )
-    if diff.returncode != 0:
-        raise ValueError(f"git diff failed: {diff.stderr.strip()}")
+    added = citation_head_state._added_lines_since_base(repo_root, base_ref)
+    if added is None:
+        raise ValueError(f"git diff against {base_ref} failed")
+    changed = {
+        path: {number for number, _text in lines}
+        for path, lines in added.items()
+        if path.endswith(".py") and not is_skipped_path(path)
+    }
     found: list[Violation] = []
-    changed = {p: lines for p, lines in added_lines(diff.stdout).items() if not is_skipped_path(p)}
     for path, lines in sorted(changed.items()):
-        try:
-            source = (repo_root / path).read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError) as exc:
-            raise ValueError(f"cannot read {path}: {exc}") from exc
-        found.extend(v for v in scan_source(path, source) if any(v.spans(line) for line in lines))
+        shown = _git(repo_root, ["show", f"HEAD:{path}"])
+        if shown.returncode != 0:
+            raise ValueError(f"cannot read {path} at HEAD: {shown.stderr.strip()}")
+        found.extend(
+            v for v in scan_source(path, shown.stdout) if any(v.spans(line) for line in lines)
+        )
     return found, len(changed)
+
+
+def repository_root() -> Path:
+    """The working tree's top level, so a run from a subdirectory sees the whole diff."""
+    top = _git(Path("."), ["rev-parse", "--show-toplevel"])
+    if top.returncode != 0:
+        raise ValueError(f"not inside a git repository: {top.stderr.strip()}")
+    return Path(top.stdout.strip())
 
 
 def validate_io_portability(repo_root: Path) -> bool:
@@ -385,7 +436,10 @@ def main(argv: list[str] | None = None) -> int:
         print("error: pass either files or --base-ref", file=sys.stderr)
         return 2
     try:
-        found, examined = scan_diff(args.base_ref) if args.base_ref else scan_files(args.files)
+        if args.base_ref:
+            found, examined = scan_diff(args.base_ref, repository_root())
+        else:
+            found, examined = scan_files(args.files)
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2

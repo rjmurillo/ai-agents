@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import subprocess
 import sys
 from collections import Counter
 from pathlib import Path
@@ -92,6 +93,9 @@ def _fetch(args: argparse.Namespace) -> int:
     except RuntimeError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_AUTH if is_auth_failure_text(str(exc)) else EXIT_EXTERNAL
+    except (subprocess.SubprocessError, OSError) as exc:
+        print(f"error: gh could not run: {exc}", file=sys.stderr)
+        return EXIT_EXTERNAL
     dump = {
         "repository": f"{info.owner}/{info.repo}",
         "limit": args.limit,
@@ -99,8 +103,12 @@ def _fetch(args: argparse.Namespace) -> int:
         "requests": budget.requests,
         "pull_requests": prs,
     }
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(dump), encoding="utf-8")
+    try:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(dump), encoding="utf-8")
+    except OSError as exc:
+        print(f"error: cannot write {args.output}: {exc}", file=sys.stderr)
+        return EXIT_CONFIG
     print(json.dumps({k: v for k, v in dump.items() if k != "pull_requests"} | {"read": len(prs)}))
     return EXIT_OK
 

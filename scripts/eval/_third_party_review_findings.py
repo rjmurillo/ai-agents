@@ -54,6 +54,17 @@ def _oid(node: dict[str, Any], key: str) -> str | None:
     return oid if isinstance(oid, str) else None
 
 
+def opener_bot(thread: dict[str, Any]) -> str | None:
+    """The third-party bot that opened a review thread, or None."""
+    comments = thread.get("comments") or []
+    return bot_name(_login(comments[0])) if comments else None
+
+
+def human_replies(comments: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Replies after the opener whose author is known and is not a third-party bot."""
+    return [c for c in comments[1:] if _login(c) and bot_name(_login(c)) is None]
+
+
 def extract_bot_threads(pull_requests: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """One row per review thread whose first comment came from a third-party bot."""
     rows: list[dict[str, Any]] = []
@@ -63,12 +74,12 @@ def extract_bot_threads(pull_requests: list[dict[str, Any]]) -> list[dict[str, A
             if not comments:
                 continue
             opener = comments[0]
-            bot = bot_name(_login(opener))
+            bot = opener_bot(thread)
             if bot is None:
                 continue
             replies = [
                 {"login": _login(c), "body": c.get("body") or "", "created_at": c.get("createdAt")}
-                for c in comments[1:]
+                for c in human_replies(comments)
             ]
             rows.append(
                 {

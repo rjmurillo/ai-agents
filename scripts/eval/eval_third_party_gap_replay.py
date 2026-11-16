@@ -26,6 +26,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -42,6 +43,7 @@ import _code_review_catch_rate_core as cr_core
 import _third_party_gap_core as core
 from _adr_catch_rate_stats import wilson_interval
 from _anthropic_api import DEFAULT_MODEL, call_api, load_api_key_for_selected_provider
+from _eval_api_adapter_constants import http_timeout_seconds
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CORPUS = "evals/third-party-review-gap/replay-corpus.json"
@@ -243,6 +245,12 @@ def compare(
     return {"paired": paired}
 
 
+# The transports report a rate limit as "HTTP 429". A bare "429" can appear in
+# other text (a timeout value, a token count), so match the status phrase only.
+RATE_LIMITED = re.compile(r"\bHTTP 429\b")
+# Set once any job exhausts the wait schedule; later jobs then fail at once
+# instead of each sleeping through the whole schedule again.
+RATE_LIMIT_EXHAUSTED = threading.Event()
 RATE_LIMIT_WAITS_SECONDS = (60, 120, 300, 600, 900, 900, 900, 900)
 
 
@@ -255,17 +263,27 @@ def call_with_rate_limit_backoff(
     other failure may have been billed, so it is never retried here: it becomes
     an error row that a later run with the same checkpoint reruns on purpose.
     """
-    for wait in RATE_LIMIT_WAITS_SECONDS:
+    if RATE_LIMIT_EXHAUSTED.is_set():
+        raise RuntimeError("rate limit schedule already exhausted by another job; not calling")
+    for attempt, wait in enumerate(RATE_LIMIT_WAITS_SECONDS, 1):
         try:
             return send()
         except RuntimeError as exc:
-            if "429" not in str(exc):
+            if not RATE_LIMITED.search(str(exc)):
                 raise
+            print(f"rate limited (HTTP 429), attempt {attempt}: waiting {wait}s", file=sys.stderr)
             sleep(wait)
-    return send()
+    try:
+        return send()
+    except RuntimeError as exc:
+        if RATE_LIMITED.search(str(exc)):
+            RATE_LIMIT_EXHAUSTED.set()
+        raise
 
 
 def make_caller(model: str, usage: dict[str, int]) -> Caller:
+    # Read the timeout setting once, so a bad value is a config error before any call.
+    http_timeout_seconds()
     api_key = load_api_key_for_selected_provider()
     lock = threading.Lock()
 
@@ -466,10 +484,21 @@ def main(
             return 2
     rows = run(jobs, caller, args.workers, checkpoint, done, run_stamp(args))
     scored = [r for r in rows if not r.get("error")]
+    failed = [r for r in rows if r.get("error")]
     if rows and not scored:
         print("ERROR: every call failed", file=sys.stderr)
         return 3
-    return _emit(args, aggregate(scored, revisions), corpus_path, usage)
+    result = aggregate(scored, revisions)
+    result["errors"] = len(failed)
+    _emit(args, result, corpus_path, usage)
+    if failed:
+        # A partial result must not read as complete: the failed jobs rerun from the checkpoint.
+        print(
+            f"ERROR: {len(failed)} of {len(rows)} call(s) failed; first: {failed[0]['error']}",
+            file=sys.stderr,
+        )
+        return 3
+    return 0
 
 
 def _emit(

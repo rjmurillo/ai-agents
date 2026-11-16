@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Replay Cursor Bugbot learned-rule findings against this repository's own checks.
 
-Each corpus row is a Cursor Bugbot finding the author fixed: a file, a line,
+Each corpus row is a Cursor Bugbot finding the author fixed or silently resolved: a file, a line,
 the commit Bugbot reviewed, and the rule it applied. For each row this reads
 the file at the reviewed commit and asks two questions with no model call:
 
@@ -18,13 +18,16 @@ which means the author's fix did not remove what the checker flags.
 
 Corpus: evals/third-party-review-gap/io-portability-corpus.json.
 
-Exit codes: 0 ok, 2 config or corpus error.
+Exit codes: 0 ok, 2 config or corpus error, 3 a row could not be scored
+(git, ruff, or a malformed commit id); it is listed on stderr and counted
+under ``errors``, never scored as a miss.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -41,6 +44,8 @@ from _adr_catch_rate_stats import wilson_interval  # noqa: E402
 
 DEFAULT_CORPUS = "evals/third-party-review-gap/io-portability-corpus.json"
 LINE_WINDOW = 3
+# Commit ids reach git argv, so anything else (an option such as --output=...) is refused.
+SHA = re.compile(r"^[0-9a-f]{40}$")
 RUFF_CODES_BY_RULE = {
     "file-text-encoding": {"PLW1514"},
     "subprocess-text-encoding": {"PLW1510", "PLW1514"},
@@ -114,10 +119,13 @@ def ruff_lines(path: str, source: str, codes: set[str]) -> list[int]:
             cwd=str(REPO_ROOT),
             timeout=120,
         )
+    # --exit-zero keeps findings at exit 0, so any other exit is a tool failure.
+    if result.returncode != 0:
+        raise RuntimeError(f"ruff exited {result.returncode}: {result.stderr.strip()[:200]}")
     try:
         rows = json.loads(result.stdout or "[]")
-    except json.JSONDecodeError:
-        return []
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"ruff output is not JSON: {exc}") from exc
     return [r["location"]["row"] for r in rows if r.get("code") in codes]
 
 
@@ -132,6 +140,17 @@ def treatment_lines(path: str, source: str, rule: str) -> list[int]:
 
 
 def evaluate(row: dict[str, Any]) -> dict[str, Any]:
+    """Score one row; a git, ruff, or shape failure becomes an ``error`` row, never a miss."""
+    try:
+        return _evaluate(row)
+    except RuntimeError as exc:
+        return {**row, "error": str(exc)[:300]}
+
+
+def _evaluate(row: dict[str, Any]) -> dict[str, Any]:
+    for key in ("reviewed", "final_head", "merge_base"):
+        if row.get(key) is not None and not SHA.match(str(row[key])):
+            raise RuntimeError(f"{key} is not a 40-hex commit id")
     before = git_show(row["reviewed"], row["path"])
     if before is None:
         return {**row, "error": "file unreadable at reviewed commit"}
@@ -165,7 +184,8 @@ def shipped_lines(row: dict[str, Any], source: str) -> list[int]:
     """
     if not row.get("merge_base"):
         return []
-    diff = _git("diff", "-U0", row["merge_base"], row["reviewed"], "--", row["path"]) or ""
+    diff = _git(*treatment.PINNED_DIFF_ARGS, row["merge_base"], row["reviewed"], "--", row["path"])
+    diff = diff or ""
     added = treatment.added_lines(diff).get(row["path"], set())
     return [
         line
@@ -218,12 +238,15 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     results = [evaluate(row) for row in rows]
     summary = summarize(results)
+    for failed in (r for r in results if "error" in r):
+        print(f"ERROR: {failed['thread']}: {failed['error']}", file=sys.stderr)
     if args.rows:
         args.rows.write_text("".join(json.dumps(r) + "\n" for r in results), encoding="utf-8")
     if args.output:
         args.output.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(summary, indent=2))
-    return 0
+    # An unscored row is not a miss; a run with any is incomplete.
+    return 3 if summary["errors"] else 0
 
 
 if __name__ == "__main__":
