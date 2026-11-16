@@ -33,6 +33,7 @@ class State:
     totals: dict[str, int] = field(default_factory=dict)
     failing: set[str] = field(default_factory=set)
     green_head: str = ""
+    head_seen_at: float = 0.0
     blockers: set[str] = field(default_factory=set)
 
     def to_json(self) -> Json:
@@ -45,6 +46,7 @@ class State:
             "totals": self.totals,
             "failing": sorted(self.failing),
             "green_head": self.green_head,
+            "head_seen_at": self.head_seen_at,
             "blockers": sorted(self.blockers),
         }
 
@@ -59,6 +61,7 @@ class State:
             totals={str(k): int(v) for k, v in data.get("totals", {}).items()},
             failing=set(data.get("failing", [])),
             green_head=str(data.get("green_head", "")),
+            head_seen_at=float(data.get("head_seen_at", 0.0)),
             blockers=set(data.get("blockers", [])),
         )
 
@@ -78,7 +81,7 @@ def state_key(owner: str, name: str, number: int) -> str:
 
 def acquire_lock(path: Path) -> IO[str] | None:
     """Take a non-blocking exclusive lock. Return None when another holds it."""
-    path.parent.mkdir(parents=True, exist_ok=True)
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     handle = open(path, "a+", encoding="utf-8")  # held for the process life; closed on refusal
     try:
         if sys.platform == "win32":

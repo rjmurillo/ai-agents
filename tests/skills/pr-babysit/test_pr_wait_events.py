@@ -299,33 +299,76 @@ def test_changes_requested_is_a_blocker_keyed_by_head() -> None:
     assert poll.blockers == {"changes-requested:aaaaaaa"}
 
 
-def test_ready_waits_while_review_is_required() -> None:
-    state = pw.State(head="a" * 40, merge_state="BLOCKED")
-
-    poll = _gate_poll(state, _gate(), "ready", review_pending=True)
-
-    assert (poll.blockers, poll.done) == (set(), None)
-
-
-def test_ready_waits_for_bots_after_a_fresh_push(monkeypatch: pytest.MonkeyPatch) -> None:
-    state = pw.State(head="a" * 40, merge_state="CLEAN")
-    monkeypatch.setattr(pw.time, "time", lambda: 1_000_000_000.0 + 60)
-    gate = _gate(HeadCommittedAt="2001-09-09T01:46:40Z")
-
-    assert _gate_poll(state, gate, "ready").done is None
-
-
-def test_ready_exits_once_settle_window_passes(monkeypatch: pytest.MonkeyPatch) -> None:
-    state = pw.State(head="a" * 40, merge_state="CLEAN")
-    monkeypatch.setattr(pw.time, "time", lambda: 1_000_000_000.0 + pw.SETTLE_SECONDS)
-    gate = _gate(HeadCommittedAt="2001-09-09T01:46:40Z")
-
-    assert _gate_poll(state, gate, "ready").done == 0
-
-
 def test_green_ignores_review_state() -> None:
     state = pw.State(head="a" * 40)
 
     poll = _gate_poll(state, _gate(), "green", blockers={"changes-requested:a"})
 
     assert (poll.blockers, poll.done) == (set(), 0)
+
+
+def test_green_with_known_dirty_blocker_does_not_exit_zero() -> None:
+    state = pw.State(head="a" * 40, blockers={"dirty:aaaaaaa:bbbbbbb"})
+    poll = _gate_poll(state, _gate(), "green", blockers={"dirty:aaaaaaa:bbbbbbb"})
+
+    assert poll.done is None
+    assert pw.settle(state, poll, "green") is None
+
+
+def test_head_seen_at_is_set_on_new_head(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(pw.time, "time", lambda: 42.0)
+    state = pw.State()
+
+    pw.diff_pr(state, _pr(), True)
+
+    assert state.head_seen_at == 42.0
+
+
+def test_changes_requested_is_keyed_by_review_id() -> None:
+    reviews = {
+        "totalCount": 2,
+        "nodes": [
+            _node("r1", "rev", state="CHANGES_REQUESTED"),
+            _node("r2", "rev", state="CHANGES_REQUESTED"),
+        ],
+    }
+    pr = _pr(reviewDecision="CHANGES_REQUESTED", reviews=reviews)
+
+    assert pw.diff_pr(pw.State(), pr, True).blockers == {"changes-requested:r2"}
+
+
+def test_review_required_is_a_blocker_on_a_green_head() -> None:
+    state = pw.State(head="a" * 40, merge_state="BLOCKED")
+    blockers = pw.diff_pr(pw.State(head="a" * 40), _pr(reviewDecision="REVIEW_REQUIRED"), True)
+
+    poll = _gate_poll(state, _gate(), "ready", blockers=set(blockers.blockers))
+
+    assert (poll.blockers, poll.done) == ({"review-required:aaaaaaa"}, None)
+
+
+def test_absent_required_check_blocks_green_and_ready() -> None:
+    for until in ("green", "ready"):
+        state = pw.State(head="a" * 40, merge_state="BLOCKED")
+        gate = _gate(MissingRequired=["e2e"], AbsentRequired=["e2e"])
+
+        poll = _gate_poll(state, gate, until)
+
+        assert poll.blockers == {"absent:e2e:aaaaaaa"}, until
+
+
+def test_ready_waits_until_head_seen_for_settle_window(monkeypatch: pytest.MonkeyPatch) -> None:
+    state = pw.State(head="a" * 40, merge_state="CLEAN", head_seen_at=1_000.0)
+    monkeypatch.setattr(pw.time, "time", lambda: 1_000.0 + pw.SETTLE_SECONDS - 1)
+
+    assert _gate_poll(state, _gate(), "ready").done is None
+
+    monkeypatch.setattr(pw.time, "time", lambda: 1_000.0 + pw.SETTLE_SECONDS)
+    assert _gate_poll(state, _gate(), "ready").done == 0
+
+
+def test_gate_payload_missing_a_key_fails_loud() -> None:
+    gate = _gate()
+    del gate["FailingRequired"]
+
+    with pytest.raises(RuntimeError, match="FailingRequired"):
+        _gate_poll(pw.State(head="a" * 40), gate, "ready")

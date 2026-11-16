@@ -59,6 +59,7 @@ def gate_payload(**overrides: Any) -> dict[str, Any]:
         "UnresolvedThreads": 0,
         "RulesetContextsAvailable": True,
         "OverallState": "SUCCESS",
+        "AbsentRequired": [],
     }
     gate.update(overrides)
     return gate

@@ -95,8 +95,8 @@ points the model at a tool that does not exist there.
    Devin, and Factory Droid where a primary source documents the tool. End
    with what to do on any other host (run it yourself, ask in plain chat, run
    one long foreground command).
-3. **Cite a primary source, or name no tool.** Use official docs or the
-   host's source repository. A forum post, a leaked prompt, or a third-party
+3. **Cite a primary source, or name no tool.** Use official docs, the
+   host's source repository, or a signed-in run recorded in an ADR. A forum post, a leaked prompt, or a third-party
    wrapper is not a source. When no source exists, write the fallback only.
 4. **Gate optional host tools on presence.** Write "when `watch_pull_request`
    is available", not "in T3 Code, call it". A host may run several providers
@@ -109,7 +109,7 @@ points the model at a tool that does not exist there.
 
 ### Operations and verified tool names
 
-Each name was matched in its cited source on 2026-11-16. Recheck a row before you
+Each name was matched in its cited source on 2026-11-16 (UTC). Recheck a row before you
 change it.
 
 | Operation | Claude Code | T3 Code | Codex | Copilot CLI | Others |

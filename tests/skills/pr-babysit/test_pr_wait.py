@@ -77,8 +77,14 @@ def test_second_lock_on_same_pr_is_refused(tmp_path: Path) -> None:
 
 @pytest.fixture
 def isolated_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    clock = {"now": 1_000_000.0}
+
+    def sleep(seconds: float) -> None:
+        clock["now"] += seconds
+
     monkeypatch.setattr(pw, "state_dir", lambda: tmp_path)
-    monkeypatch.setattr(pw.time, "sleep", lambda _s: None)
+    monkeypatch.setattr(pw.time, "sleep", sleep)
+    monkeypatch.setattr(pw.time, "time", lambda: clock["now"])
     return tmp_path
 
 
@@ -205,7 +211,13 @@ def test_restart_with_known_blocker_waits_until_ready(
 ) -> None:
     pw.save_state(
         isolated_state / "o__r__5.json",
-        pw.State(head="a" * 40, base_oid="b" * 40, green_head="a" * 40, blockers={"threads"}),
+        pw.State(
+            head="a" * 40,
+            base_oid="b" * 40,
+            green_head="a" * 40,
+            blockers={"threads"},
+            head_seen_at=1.0,
+        ),
     )
     gates = iter([_gate(UnresolvedThreads=1), _gate(UnresolvedThreads=0)])
     monkeypatch.setattr(pw, "fetch_snapshot", lambda *_a: (_pr(mergeStateStatus="CLEAN"), "me"))
@@ -261,3 +273,98 @@ def test_fetch_gate_maps_permanent_exits(
 
 def test_state_key_is_case_insensitive() -> None:
     assert pw.state_key("Foo", "Bar", 5) == pw.state_key("foo", "bar", 5)
+
+
+@pytest.mark.parametrize("repo", ["../x/y", "o/..", "o/r;rm", "-o/r", "o/r/z"])
+def test_parse_target_rejects_unsafe_repo_names(repo: str) -> None:
+    with pytest.raises(ValueError):
+        pw.parse_target("5", repo)
+
+
+def test_failed_gate_keeps_activity_for_the_next_poll(
+    isolated_state: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    pw.save_state(
+        isolated_state / "o__r__5.json",
+        pw.State(head="a" * 40, base_oid="b" * 40, totals={"comments": 0}),
+    )
+    pr = _pr(comments={"totalCount": 1, "nodes": [_node("c9", "bot")]})
+    monkeypatch.setattr(pw, "fetch_snapshot", lambda *_a: (pr, "me"))
+    gates = iter([RuntimeError("gate timeout"), _gate(FailingRequired=["x"])])
+
+    def gate(*_a: Any) -> Any:
+        item = next(gates)
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+    monkeypatch.setattr(pw, "fetch_gate", gate)
+
+    assert pw.main(["5", "--repo", "o/r"]) == 1
+    assert "comment: bot https://x/c9" in capsys.readouterr().out
+
+
+def test_why_pr_blocked_payload_carries_every_key_pr_wait_reads() -> None:
+    import ast
+
+    source = pw.why_pr_blocked_path().read_text(encoding="utf-8")
+    keys = {
+        node.value
+        for tree_node in ast.walk(ast.parse(source))
+        if isinstance(tree_node, ast.Dict)
+        for node in tree_node.keys
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+    }
+    read = {
+        "FailingRequired",
+        "PendingRequired",
+        "MissingRequired",
+        "IndeterminateRequired",
+        "UnresolvedThreads",
+        "RulesetContextsAvailable",
+        "OverallState",
+        "AbsentRequired",
+    }
+
+    assert read <= keys
+    assert set(pw.GATE_KEYS) <= keys
+
+
+def test_main_exits_four_on_snapshot_auth_failure(
+    isolated_state: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import github_core.api as api
+
+    def no_auth(*_a: Any, **_k: Any) -> Any:
+        raise RuntimeError("gh auth login required: HTTP 401 Bad credentials")
+
+    monkeypatch.setattr(api, "gh_graphql", no_auth)
+
+    assert pw.main(["5", "--repo", "o/r"]) == 4
+
+
+def test_main_exits_two_on_null_pull_request(
+    isolated_state: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import github_core.api as api
+
+    monkeypatch.setattr(api, "gh_graphql", lambda *_a, **_k: {"repository": {"pullRequest": None}})
+
+    assert pw.main(["5", "--repo", "o/r"]) == 2
+
+
+def test_transient_failures_reset_after_a_good_poll(
+    isolated_state: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    results = iter([RuntimeError("HTTP 502"), RuntimeError("HTTP 502"), None])
+
+    def snapshot(*_a: Any) -> Any:
+        item = next(results, None)
+        if isinstance(item, Exception):
+            raise item
+        return _pr(mergeStateStatus="CLEAN"), "me"
+
+    monkeypatch.setattr(pw, "fetch_snapshot", snapshot)
+    monkeypatch.setattr(pw, "fetch_gate", lambda *_a: _gate())
+
+    assert pw.main(["5", "--repo", "o/r"]) == 0

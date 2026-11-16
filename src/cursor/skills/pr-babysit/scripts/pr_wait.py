@@ -29,9 +29,11 @@ Comments, reviews, and threads by the PR author or by you are skipped.
 
 Exit codes (ADR-035):
   0  the --until condition is met, or the PR merged
-  1  a new blocker needs action: a required check failed, the branch is DIRTY,
-     the PR closed, or (ready) unresolved threads, BEHIND, or draft block it
-     after required checks pass. A blocker already reported to an earlier run
+  1  a new blocker needs action: a required check failed or never reported,
+     the branch is DIRTY, the PR closed, or (ready) unresolved threads,
+     BEHIND, draft, a required review, or a changes-requested review block it
+     after required checks pass. A ready exit also waits SETTLE_SECONDS after
+     this watcher first saw the head, so review bots can post. A blocker already reported to an earlier run
      does not exit again; the watcher keeps waiting for it to clear.
   2  bad arguments, the PR does not exist, or another pr_wait already watches
      this PR
@@ -49,8 +51,10 @@ check and merge state at once.
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
+import random
 import re
 import subprocess
 import sys
@@ -90,9 +94,24 @@ MIN_INTERVAL = 10
 MAX_BACKOFF = 300
 MAX_FAILED_POLLS = 10
 READY_MERGE_STATES = ("CLEAN", "HAS_HOOKS", "UNSTABLE", "BLOCKED")
-# Review bots post 30 to 120 seconds after a push. A zero-thread reading
-# taken sooner is not evidence that no thread is coming.
+# Review bots post 30 to 120 seconds after a push (observed for Copilot and
+# Devin; see the github skill's wait_for_unresolved_zero.py). A zero-thread
+# reading taken sooner is not evidence that no thread is coming. Heuristic.
 SETTLE_SECONDS = 180
+# Blockers that still apply under --until green; the rest gate ready only.
+GREEN_BLOCKERS = ("check:", "dirty:", "absent:")
+# Keys pr_wait reads from why_pr_blocked.py. A missing key is a contract break,
+# not a pass, so the poll fails loud instead of reading the PR as green.
+GATE_KEYS = (
+    "FailingRequired",
+    "PendingRequired",
+    "MissingRequired",
+    "AbsentRequired",
+    "IndeterminateRequired",
+    "UnresolvedThreads",
+    "RulesetContextsAvailable",
+    "OverallState",
+)
 _NOT_FOUND = re.compile(r"Could not resolve to a (PullRequest|Repository)|NOT_FOUND")
 
 SNAPSHOT_QUERY = """
@@ -117,7 +136,12 @@ query($owner: String!, $name: String!, $number: Int!) {
 }
 """
 
-_PR_URL = re.compile(r"github\.com/([^/\s]+)/([^/\s]+)/pull/(\d+)")
+# GitHub owner and repository names: letters, digits, '.', '_', '-'. The
+# names also key the state and lock files, so nothing else may pass.
+_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+_PR_URL = re.compile(
+    r"github\.com/([A-Za-z0-9][A-Za-z0-9._-]*)/([A-Za-z0-9][A-Za-z0-9._-]*)/pull/(\d+)"
+)
 
 
 class AuthError(RuntimeError):
@@ -131,7 +155,6 @@ class Poll:
     events: list[str] = field(default_factory=list)
     blockers: set[str] = field(default_factory=set)
     done: int | None = None
-    review_pending: bool = False
 
 
 def log(message: str) -> None:
@@ -150,7 +173,7 @@ def parse_target(raw: str, repo: str | None) -> tuple[str, str, int]:
         raise ValueError(f"not a PR number or PR URL: {raw!r}")
     if repo:
         parts = repo.split("/")
-        if len(parts) != 2 or not all(parts):
+        if len(parts) != 2 or not all(_NAME.fullmatch(part) for part in parts):
             raise ValueError(f"--repo must be owner/name, got {repo!r}")
         return parts[0], parts[1], int(raw)
     from github_core.api import resolve_repo_params
@@ -178,6 +201,8 @@ def diff_pr(state: State, pr: Json, baseline: bool) -> Poll:
         state.failing.clear()
         state.green_head = ""
         state.blockers.clear()
+    if head != state.head or not state.head_seen_at:
+        state.head_seen_at = time.time()
     state.head = head
 
     base_oid = str(pr.get("baseRefOid", ""))
@@ -195,18 +220,32 @@ def diff_pr(state: State, pr: Json, baseline: bool) -> Poll:
         poll.blockers.add("draft")
     decision = pr.get("reviewDecision")
     if decision == "CHANGES_REQUESTED":
-        poll.blockers.add(f"changes-requested:{_short(head)}")
-    poll.review_pending = decision == "REVIEW_REQUIRED"
+        poll.blockers.add(f"changes-requested:{_latest_change_request(pr) or _short(head)}")
+    elif decision == "REVIEW_REQUIRED":
+        poll.blockers.add(f"review-required:{_short(head)}")
     return poll
+
+
+def _latest_change_request(pr: Json) -> str:
+    """Id of the newest CHANGES_REQUESTED review, so a push does not re-arm it."""
+    nodes = ((pr.get("reviews") or {}).get("nodes")) or []
+    ids = [str(n.get("id", "")) for n in nodes if n.get("state") == "CHANGES_REQUESTED"]
+    return ids[-1] if ids else ""
 
 
 def evaluate_gate(state: State, gate: Json, until: str, poll: Poll) -> None:
     """Add check events, blockers, and a ready exit from a why_pr_blocked payload."""
+    missing = [key for key in GATE_KEYS if key not in gate]
+    if missing:
+        raise RuntimeError(f"why_pr_blocked payload lacks {', '.join(missing)}")
     failing = set(gate.get("FailingRequired") or [])
     for name in sorted(failing - state.failing):
         poll.events.append(f"check: {name} failed on {_short(state.head)}")
     state.failing = failing
     poll.blockers.update(f"check:{name}" for name in failing)
+    absent = sorted(gate.get("AbsentRequired") or [])
+    if absent:
+        poll.blockers.add(f"absent:{','.join(absent)}:{_short(state.head)}")
 
     waiting = bool(
         gate.get("PendingRequired")
@@ -221,8 +260,8 @@ def evaluate_gate(state: State, gate: Json, until: str, poll: Poll) -> None:
         state.green_head = state.head
 
     if until == "green":
-        poll.blockers = {b for b in poll.blockers if b.startswith(("check:", "dirty:"))}
-        poll.done = 0 if green else None
+        poll.blockers = {b for b in poll.blockers if b.startswith(GREEN_BLOCKERS)}
+        poll.done = 0 if green and not poll.blockers else None
     elif until == "ready":
         _ready_verdict(state, gate, poll, green)
 
@@ -230,31 +269,17 @@ def evaluate_gate(state: State, gate: Json, until: str, poll: Poll) -> None:
 def _ready_verdict(state: State, gate: Json, poll: Poll, green: bool) -> None:
     """Draft, threads, and BEHIND block ready only once required checks pass."""
     if not green:
-        poll.blockers = {b for b in poll.blockers if b.startswith(("check:", "dirty:"))}
+        poll.blockers = {b for b in poll.blockers if b.startswith(GREEN_BLOCKERS)}
         return
     if int(gate.get("UnresolvedThreads") or 0) > 0:
         poll.blockers.add("threads")
     if state.merge_state == "BEHIND":
         poll.blockers.add(f"behind:{_short(state.base_oid)}")
-    settled = _seconds_since(gate.get("HeadCommittedAt")) >= SETTLE_SECONDS
-    if (
-        not poll.blockers
-        and not poll.review_pending
-        and settled
-        and state.merge_state in READY_MERGE_STATES
-    ):
+    # Commit age is not push age: a slow pre-push makes a fresh push look old.
+    # Settle on when this watcher first saw the head instead.
+    settled = time.time() - state.head_seen_at >= SETTLE_SECONDS
+    if not poll.blockers and settled and state.merge_state in READY_MERGE_STATES:
         poll.done = 0
-
-
-def _seconds_since(stamp: object) -> float:
-    """Seconds since an ISO-8601 UTC stamp; an unreadable stamp counts as settled."""
-    from datetime import datetime
-
-    try:
-        moment = datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
-    except ValueError:
-        return float(SETTLE_SECONDS)
-    return time.time() - moment.timestamp()
 
 
 def fetch_snapshot(owner: str, name: str, number: int) -> tuple[Json, str]:
@@ -359,6 +384,7 @@ def watch(state: State, state_path: Path, target: tuple[str, str, int], args: An
     failures = 0
     delay = max(args.interval, MIN_INTERVAL)
     while True:
+        before = copy.deepcopy(state)
         try:
             poll = poll_once(state, target, args.until, baseline)
         except LookupError as exc:
@@ -368,22 +394,24 @@ def watch(state: State, state_path: Path, target: tuple[str, str, int], args: An
             log(f"gh is not authenticated: {str(exc)[:200]}")
             return 4
         except (RuntimeError, OSError, ValueError, subprocess.TimeoutExpired) as exc:
+            # A failed poll must not consume what it already diffed.
+            state = before
             failures += 1
             text = str(exc)
             log(f"poll failed ({failures}/{MAX_FAILED_POLLS}): {text[:200]}")
             if failures >= MAX_FAILED_POLLS:
                 print("unreachable: GitHub stayed unreachable; check the rate limit", flush=True)
                 return 3
-            if "rate limit" in text.lower():
-                delay = min(delay * 2, MAX_BACKOFF)
-            time.sleep(delay)
+            delay = min(delay * 2, MAX_BACKOFF)
+            time.sleep(delay + random.uniform(0, delay / 4))
             continue
 
         failures = 0
         delay = max(args.interval, MIN_INTERVAL)
         code = settle(state, poll, args.until)
-        save_state(state_path, state)
+        # Print before saving: a crash in between repeats an event, never drops one.
         emit(poll.events)
+        save_state(state_path, state)
         baseline = False
         if code is not None:
             return code
