@@ -289,6 +289,16 @@ def resolve_skills(
     return directories
 
 
+def _check_judging_args(
+    parser: argparse.ArgumentParser, args: argparse.Namespace, skill_count: int
+) -> None:
+    """Exit 2 through parser.error on an empty --judgments or a judging run over many skills."""
+    if args.judgments == "":
+        parser.error("--judgments needs a file path")
+    if (args.judge_packet or args.judgments is not None) and skill_count != 1:
+        parser.error("--judge-packet and --judgments take exactly one SKILL_DIR")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -299,11 +309,7 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.write(render_catalog(args.profile, args.format))
         return 0
     directories = resolve_skills(parser, args.skills, args.root)
-    if args.judgments == "":
-        parser.error("--judgments needs a file path")
-    judging = args.judge_packet or args.judgments is not None
-    if judging and len(directories) != 1:
-        parser.error("--judge-packet and --judgments take exactly one SKILL_DIR")
+    _check_judging_args(parser, args, len(directories))
     root = Path(resolve_root(args.root))
     reports = []
     for raw, directory in zip(args.skills, directories, strict=True):
