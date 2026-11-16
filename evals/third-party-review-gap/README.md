@@ -126,8 +126,8 @@ Honest caveats:
 - The first treatment run scored 53/86. Bugbot anchors some findings on a
   call's closing parenthesis, so the match was widened to the whole call span
   after reading misses that included held-out rows.
-- Negative control: in 6 rows the file at the pull request's final head has no
-  fewer violations of the rule than at the reviewed commit. Five are rows the
+- Negative control: in 6 of the 85 judged rows (6 of 52 held out) the file at
+  the pull request's final head has no fewer violations of the rule than at the reviewed commit. Five are rows the
   checker misses (0 before, 0 after). The sixth, T0396, is a finding the
   author never fixed. One more row, T0462, cannot be judged: its file is gone
   at the final head, so it is counted as `final_head_unreadable`, not as a

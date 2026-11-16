@@ -27,10 +27,10 @@
     },
     "final_head_not_lower": {
       "hits": 6,
-      "n": 86,
+      "n": 85,
       "ci": [
-        0.032,
-        0.144
+        0.033,
+        0.146
       ]
     },
     "final_head_unreadable": 1
@@ -97,10 +97,10 @@
     },
     "final_head_not_lower": {
       "hits": 6,
-      "n": 53,
+      "n": 52,
       "ci": [
-        0.053,
-        0.226
+        0.054,
+        0.23
       ]
     },
     "final_head_unreadable": 1
