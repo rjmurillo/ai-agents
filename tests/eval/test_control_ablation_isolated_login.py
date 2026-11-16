@@ -53,12 +53,14 @@ class SpyRunner(FakeClaudeRunner):
     def __init__(self, tasks: list[ablation_tasks.Task]) -> None:
         super().__init__(tasks)
         self.envs: list[dict[str, str]] = []
+        self.real_home: list[str | None] = []
 
     def __call__(self, argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         if "--version" not in [str(a) for a in argv]:
             env = kwargs["env"]
             assert isinstance(env, dict)
             self.envs.append({str(k): str(v) for k, v in env.items()})
+            self.real_home.append(os.environ.get(REAL_HOME_ENV))
         return super().__call__(argv, **kwargs)
 
 
@@ -91,12 +93,12 @@ def test_runtime_env_itself_stays_login_free(tmp_path: Path) -> None:
     assert TOKEN_ENV not in runtime_harness.runtime_env(tmp_path, "claude")
 
 
-def test_real_home_run_gets_no_token(tmp_path: Path) -> None:
+def test_real_home_run_gets_no_token(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     runner = SpyRunner(load_tasks(tmp_path))
-    try:
-        code = cli.main(_live_args(tmp_path, "--real-home"), runner=runner)
-    finally:
-        os.environ.pop(REAL_HOME_ENV, None)
+    monkeypatch.setenv(REAL_HOME_ENV, "0")
+    code = cli.main(_live_args(tmp_path, "--real-home"), runner=runner)
+    assert runner.real_home and set(runner.real_home) == {"1"}
+    assert os.environ.get(REAL_HOME_ENV) == "0"
 
     assert code == cli.EXIT_OK
     assert TOKEN_ENV not in runner.envs[0]
@@ -146,10 +148,10 @@ def test_a_missing_login_is_not_needed_under_real_home(
 ) -> None:
     set_sources(monkeypatch, "_claude_cli", disk=lambda _env: None, probe=True)
     runner = SpyRunner(load_tasks(tmp_path))
-    try:
-        code = cli.main(_live_args(tmp_path, "--real-home"), runner=runner)
-    finally:
-        os.environ.pop(REAL_HOME_ENV, None)
+    monkeypatch.setenv(REAL_HOME_ENV, "0")
+    code = cli.main(_live_args(tmp_path, "--real-home"), runner=runner)
+    assert runner.real_home and set(runner.real_home) == {"1"}
+    assert os.environ.get(REAL_HOME_ENV) == "0"
 
     assert code == cli.EXIT_OK
 
