@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import sys
+from types import ModuleType
 
 from tests.eval._third_party_gap_test_support import EVAL_DIR, eval_path, load_script
 
 
 def test_load_script_restores_sys_path_and_the_module_binding() -> None:
     before_path = list(sys.path)
-    sentinel = object()
-    sys.modules["mine_third_party_review_findings"] = sentinel  # type: ignore[assignment]
+    sentinel = ModuleType("sentinel")
+    sys.modules["mine_third_party_review_findings"] = sentinel
     try:
         module = load_script("mine_third_party_review_findings")
 
