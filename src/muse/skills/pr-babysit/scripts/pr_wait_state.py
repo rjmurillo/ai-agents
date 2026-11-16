@@ -76,7 +76,8 @@ def state_dir() -> Path:
 
 def state_key(owner: str, name: str, number: int) -> str:
     """GitHub names are case-insensitive, so one PR maps to one lock."""
-    return f"{owner}__{name}__{number}".lower()
+    # '+' cannot appear in a GitHub name, so no two PRs share a key.
+    return f"{owner}+{name}+{number}".lower()
 
 
 def acquire_lock(path: Path) -> IO[str] | None:

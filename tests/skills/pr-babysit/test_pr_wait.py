@@ -93,7 +93,7 @@ def test_main_exits_two_on_bad_target(isolated_state: Path) -> None:
 
 
 def test_main_exits_two_when_another_watcher_holds_lock(isolated_state: Path) -> None:
-    held = pw.acquire_lock(isolated_state / "o__r__5.lock")
+    held = pw.acquire_lock(isolated_state / "o+r+5.lock")
     try:
         assert pw.main(["5", "--repo", "o/r"]) == 2
     finally:
@@ -167,7 +167,7 @@ def test_restart_reports_what_arrived_between_runs(
     isolated_state: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     pw.save_state(
-        isolated_state / "o__r__5.json",
+        isolated_state / "o+r+5.json",
         pw.State(head="a" * 40, base_oid="b" * 40, totals={"comments": 0}),
     )
     pr = _pr(comments={"totalCount": 1, "nodes": [_node("c9", "bot")]})
@@ -210,7 +210,7 @@ def test_restart_with_known_blocker_waits_until_ready(
     isolated_state: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     pw.save_state(
-        isolated_state / "o__r__5.json",
+        isolated_state / "o+r+5.json",
         pw.State(
             head="a" * 40,
             base_oid="b" * 40,
@@ -275,6 +275,10 @@ def test_state_key_is_case_insensitive() -> None:
     assert pw.state_key("Foo", "Bar", 5) == pw.state_key("foo", "bar", 5)
 
 
+def test_state_key_separates_names_containing_underscores() -> None:
+    assert pw.state_key("a__b", "c", 5) != pw.state_key("a", "b__c", 5)
+
+
 @pytest.mark.parametrize("repo", ["../x/y", "o/..", "o/r;rm", "-o/r", "o/r/z"])
 def test_parse_target_rejects_unsafe_repo_names(repo: str) -> None:
     with pytest.raises(ValueError):
@@ -285,7 +289,7 @@ def test_failed_gate_keeps_activity_for_the_next_poll(
     isolated_state: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     pw.save_state(
-        isolated_state / "o__r__5.json",
+        isolated_state / "o+r+5.json",
         pw.State(head="a" * 40, base_oid="b" * 40, totals={"comments": 0}),
     )
     pr = _pr(comments={"totalCount": 1, "nodes": [_node("c9", "bot")]})
@@ -368,3 +372,45 @@ def test_transient_failures_reset_after_a_good_poll(
     monkeypatch.setattr(pw, "fetch_gate", lambda *_a: _gate())
 
     assert pw.main(["5", "--repo", "o/r"]) == 0
+
+
+def test_main_exits_two_on_gate_contract_break(
+    isolated_state: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    gate = _gate()
+    del gate["UnresolvedThreads"]
+    monkeypatch.setattr(pw, "fetch_snapshot", lambda *_a: (_pr(), "me"))
+    monkeypatch.setattr(pw, "fetch_gate", lambda *_a: gate)
+
+    assert pw.main(["5", "--repo", "o/r"]) == 2
+
+
+def test_push_then_green_does_not_rearm_changes_requested(
+    isolated_state: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    reviews = {"totalCount": 1, "nodes": [_node("r1", "rev", state="CHANGES_REQUESTED")]}
+    pw.save_state(
+        isolated_state / "o+r+5.json",
+        pw.State(
+            head="c" * 40,
+            base_oid="b" * 40,
+            blockers={"changes-requested:r1"},
+            head_seen_at=1.0,
+            totals={"reviews": 1},
+            seen={"r1"},
+        ),
+    )
+    snapshots = iter(
+        [
+            _pr(reviewDecision="CHANGES_REQUESTED", reviews=reviews),
+            _pr(reviewDecision="CHANGES_REQUESTED", reviews=reviews),
+            _pr(reviewDecision="APPROVED", reviews=reviews, mergeStateStatus="CLEAN"),
+        ]
+    )
+    gates = iter([_gate(PendingRequired=["ci"]), _gate(), _gate()])
+    approved = _pr(reviewDecision="APPROVED", reviews=reviews, mergeStateStatus="CLEAN")
+    monkeypatch.setattr(pw, "fetch_snapshot", lambda *_a: (next(snapshots, approved), "me"))
+    monkeypatch.setattr(pw, "fetch_gate", lambda *_a: next(gates, _gate()))
+
+    assert pw.main(["5", "--repo", "o/r"]) == 0
+    assert "blocked:" not in capsys.readouterr().out

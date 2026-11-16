@@ -35,8 +35,8 @@ Exit codes (ADR-035):
      after required checks pass. A ready exit also waits SETTLE_SECONDS after
      this watcher first saw the head, so review bots can post. A blocker already reported to an earlier run
      does not exit again; the watcher keeps waiting for it to clear.
-  2  bad arguments, the PR does not exist, or another pr_wait already watches
-     this PR
+  2  bad arguments, the PR does not exist, another pr_wait already watches
+     this PR, or why_pr_blocked.py returned a payload missing a key
   3  GitHub stayed unreachable for MAX_FAILED_POLLS consecutive polls
   4  gh is not authenticated
 
@@ -100,6 +100,8 @@ READY_MERGE_STATES = ("CLEAN", "HAS_HOOKS", "UNSTABLE", "BLOCKED")
 SETTLE_SECONDS = 180
 # Blockers that still apply under --until green; the rest gate ready only.
 GREEN_BLOCKERS = ("check:", "dirty:", "absent:")
+# Same grace why_pr_blocked gives a required check that has not reported.
+ABSENT_GRACE_SECONDS = 2700
 # Keys pr_wait reads from why_pr_blocked.py. A missing key is a contract break,
 # not a pass, so the poll fails loud instead of reading the PR as green.
 GATE_KEYS = (
@@ -148,6 +150,10 @@ class AuthError(RuntimeError):
     """gh has no usable credential; retrying cannot help."""
 
 
+class ContractError(RuntimeError):
+    """why_pr_blocked.py returned a payload without a key pr_wait reads."""
+
+
 @dataclass
 class Poll:
     """One poll's output: events to print, blockers seen, and a terminal exit."""
@@ -155,6 +161,8 @@ class Poll:
     events: list[str] = field(default_factory=list)
     blockers: set[str] = field(default_factory=set)
     done: int | None = None
+    # True once ready-only blockers were evaluated on a green head this poll.
+    ready_checked: bool = False
 
 
 def log(message: str) -> None:
@@ -200,7 +208,9 @@ def diff_pr(state: State, pr: Json, baseline: bool) -> Poll:
         poll.events.append(f"head: {_short(head)}")
         state.failing.clear()
         state.green_head = ""
-        state.blockers.clear()
+        # Check failures are per head. Review and thread blockers persist
+        # until a green poll shows them cleared, so a push does not re-arm them.
+        state.blockers = {b for b in state.blockers if not b.startswith("check:")}
     if head != state.head or not state.head_seen_at:
         state.head_seen_at = time.time()
     state.head = head
@@ -227,7 +237,7 @@ def _review_blockers(pr: Json, head: str) -> set[str]:
     if decision == "CHANGES_REQUESTED":
         blockers.add(f"changes-requested:{_latest_change_request(pr) or _short(head)}")
     elif decision == "REVIEW_REQUIRED":
-        blockers.add(f"review-required:{_short(head)}")
+        blockers.add("review-required")
     return blockers
 
 
@@ -242,14 +252,16 @@ def evaluate_gate(state: State, gate: Json, until: str, poll: Poll) -> None:
     """Add check events, blockers, and a ready exit from a why_pr_blocked payload."""
     missing = [key for key in GATE_KEYS if key not in gate]
     if missing:
-        raise RuntimeError(f"why_pr_blocked payload lacks {', '.join(missing)}")
+        raise ContractError(f"why_pr_blocked payload lacks {', '.join(missing)}")
     failing = set(gate.get("FailingRequired") or [])
     for name in sorted(failing - state.failing):
         poll.events.append(f"check: {name} failed on {_short(state.head)}")
     state.failing = failing
     poll.blockers.update(f"check:{name}" for name in failing)
     absent = sorted(gate.get("AbsentRequired") or [])
-    if absent:
+    # why_pr_blocked ages a missing check from the commit date, not the push,
+    # so trust "absent" only once this watcher has seen the head that long.
+    if absent and time.time() - state.head_seen_at >= ABSENT_GRACE_SECONDS:
         poll.blockers.add(f"absent:{','.join(absent)}:{_short(state.head)}")
 
     waiting = bool(
@@ -276,6 +288,7 @@ def _ready_verdict(state: State, gate: Json, poll: Poll, green: bool) -> None:
     if not green:
         poll.blockers = {b for b in poll.blockers if b.startswith(GREEN_BLOCKERS)}
         return
+    poll.ready_checked = True
     if int(gate.get("UnresolvedThreads") or 0) > 0:
         poll.blockers.add("threads")
     if state.merge_state == "BEHIND":
@@ -372,7 +385,13 @@ def settle(state: State, poll: Poll, until: str) -> int | None:
     if until == "any-change":
         return 0 if poll.events else None
     new = poll.blockers - state.blockers
-    state.blockers = set(poll.blockers)
+    if poll.ready_checked:
+        state.blockers = set(poll.blockers)
+    else:
+        # Ready-only blockers were not evaluated (checks pending, or green
+        # mode). Keep them known so they do not fire again later.
+        kept = {b for b in state.blockers if not b.startswith(GREEN_BLOCKERS)}
+        state.blockers = set(poll.blockers) | kept
     if new:
         poll.events.append(f"blocked: {', '.join(sorted(new))}")
         return 1
@@ -393,6 +412,9 @@ def watch(state: State, state_path: Path, target: tuple[str, str, int], args: An
         try:
             poll = poll_once(state, target, args.until, baseline)
         except LookupError as exc:
+            log(str(exc))
+            return 2
+        except ContractError as exc:
             log(str(exc))
             return 2
         except AuthError as exc:

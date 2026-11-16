@@ -140,13 +140,15 @@ def test_closed_pr_is_done_one() -> None:
     assert (poll.events, poll.done, poll.blockers) == (["closed"], 1, {"closed"})
 
 
-def test_new_head_resets_failing_green_and_blockers() -> None:
-    state = pw.State(head="c" * 40, failing={"lint"}, green_head="c" * 40, blockers={"threads"})
+def test_new_head_resets_checks_but_keeps_review_blockers() -> None:
+    state = pw.State(
+        head="c" * 40, failing={"lint"}, green_head="c" * 40, blockers={"threads", "check:lint"}
+    )
 
     poll = pw.diff_pr(state, _pr(), False)
 
     assert poll.events == ["head: aaaaaaa"]
-    assert (state.failing, state.green_head, state.blockers) == (set(), "", set())
+    assert (state.failing, state.green_head, state.blockers) == (set(), "", {"threads"})
 
 
 def test_base_move_is_reported_after_baseline() -> None:
@@ -282,7 +284,7 @@ def test_settle_keeps_waiting_on_known_blocker() -> None:
 
 def test_settle_rearms_blocker_after_it_clears() -> None:
     state = pw.State(blockers={"threads"})
-    pw.settle(state, pw.Poll(), "ready")
+    pw.settle(state, pw.Poll(ready_checked=True), "ready")
 
     assert pw.settle(state, pw.Poll(blockers={"threads"}), "ready") == 1
 
@@ -343,7 +345,7 @@ def test_review_required_is_a_blocker_on_a_green_head() -> None:
 
     poll = _gate_poll(state, _gate(), "ready", blockers=set(blockers.blockers))
 
-    assert (poll.blockers, poll.done) == ({"review-required:aaaaaaa"}, None)
+    assert (poll.blockers, poll.done) == ({"review-required"}, None)
 
 
 def test_absent_required_check_blocks_green_and_ready() -> None:
@@ -372,3 +374,38 @@ def test_gate_payload_missing_a_key_fails_loud() -> None:
 
     with pytest.raises(RuntimeError, match="FailingRequired"):
         _gate_poll(pw.State(head="a" * 40), gate, "ready")
+
+
+def test_absent_check_waits_for_grace_after_head_sighting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = pw.State(head="a" * 40, head_seen_at=1_000.0)
+    gate = _gate(MissingRequired=["e2e"], AbsentRequired=["e2e"])
+    monkeypatch.setattr(pw.time, "time", lambda: 1_000.0 + pw.ABSENT_GRACE_SECONDS - 1)
+
+    assert _gate_poll(state, gate, "green").blockers == set()
+
+    monkeypatch.setattr(pw.time, "time", lambda: 1_000.0 + pw.ABSENT_GRACE_SECONDS)
+    assert _gate_poll(state, gate, "green").blockers == {"absent:e2e:aaaaaaa"}
+
+
+def test_review_blocker_survives_pending_phase_without_rearming() -> None:
+    state = pw.State(head="a" * 40, merge_state="BLOCKED", blockers={"changes-requested:r1"})
+    pending = _gate_poll(
+        state, _gate(PendingRequired=["ci"]), "ready", blockers={"changes-requested:r1"}
+    )
+
+    assert pw.settle(state, pending, "ready") is None
+    assert "changes-requested:r1" in state.blockers
+
+    green = _gate_poll(state, _gate(), "ready", blockers={"changes-requested:r1"})
+
+    assert pw.settle(state, green, "ready") is None
+    assert green.events == ["green: required checks passed on aaaaaaa"]
+
+
+def test_cleared_review_blocker_is_forgotten_after_green_check() -> None:
+    state = pw.State(head="a" * 40, merge_state="BLOCKED", blockers={"threads"})
+    pw.settle(state, _gate_poll(state, _gate(), "ready"), "ready")
+
+    assert state.blockers == set()
