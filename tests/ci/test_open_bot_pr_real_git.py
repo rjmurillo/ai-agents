@@ -117,7 +117,7 @@ def _remote_file(origin: Path, ref: str, path: str) -> str:
 def test_publish_pushes_the_bot_branch_and_leaves_main_alone(
     repo: tuple[Path, Path], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    origin, _ = repo
+    origin, work = repo
     gh = _FakeGh()
     monkeypatch.setattr(subprocess, "run", gh)
     main_before = _git(origin, "rev-parse", "refs/heads/main")
@@ -125,7 +125,12 @@ def test_publish_pushes_the_bot_branch_and_leaves_main_alone(
     assert _git(origin, "rev-parse", "refs/heads/main") == main_before
     assert _remote_file(origin, f"refs/heads/{_BRANCH}", _STATS) == "v2"
     assert _remote_file(origin, f"refs/heads/{_BRANCH}", _REPORT) == "v2"
-    assert _git(origin, "log", "-1", "--format=%an", f"refs/heads/{_BRANCH}") == "bot"
+    assert (
+        _git(origin, "log", "-1", "--format=%an <%ae>|%cn <%ce>", f"refs/heads/{_BRANCH}")
+        == "bot <bot@example.com>|bot <bot@example.com>"
+    )
+    assert _git(work, "config", "--local", "user.name") == "seed"
+    assert _git(work, "config", "--local", "user.email") == "seed@example.com"
     assert len(gh.created) == 1
 
 
