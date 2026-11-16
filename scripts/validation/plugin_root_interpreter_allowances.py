@@ -61,7 +61,7 @@ _SPLIT_AGENT_BUILD = (
 # (number of standalone statements per copy, reason). The checker fails when a
 # file holds more, or fewer, than the count, and when a key matches no file.
 SINGLE_ROOT_ALLOWANCES: dict[str, tuple[int, str]] = {
-    "build/scripts/agent_templates.py": (2, _SPLIT_AGENT_BUILD),
+    "build/scripts/agent_templates.py": (1, _SPLIT_AGENT_BUILD),
     "src/claude/agents/architect.md": (1, _SPLIT_AGENT_REF),
     "src/claude/agents/critic.md": (1, _SPLIT_AGENT_REF),
     "src/claude/agents/implementer.md": (1, _SPLIT_AGENT_REF),

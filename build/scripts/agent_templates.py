@@ -243,35 +243,23 @@ def owned_targets(repo_root: Path) -> set[Path]:
 
 # A private copy of SPLIT_REFERENCE_SKILLS in build/generate_agents_common.py, kept
 # here so this module gains no import; test_split_reference_roots.py pins parity.
-_SPLIT_REFERENCE_SKILLS = (
-    "adr-review",
-    "decision-critic",
-    "build",
-    "autoplan",
-    "test",
-    "security-scan",
+_SPLIT_REFERENCE_SKILLS = tuple(
+    "adr-review decision-critic build autoplan test security-scan".split()
 )
 _SHARED_ROOT = "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+_MARKER_END = re.compile(r"(<!-- vendor-portability:.*?)(\s*-->)", re.DOTALL)
 
 
 def _rewrite_claude_reference_roots(text: str) -> str:
     """Render split-agent reference paths to the bare Claude token, plus the checkout clause."""
     for skill in _SPLIT_REFERENCE_SKILLS:
-        suffix = f"/skills/{skill}/references/"
-        if f"`{_SHARED_ROOT}{suffix}`." in text:
-            text = text.replace(
-                f"`{_SHARED_ROOT}{suffix}`.",
-                f"`${{CLAUDE_PLUGIN_ROOT}}{suffix}`. In a checkout that loads this agent with no"
-                f" plugin root, read `.claude{suffix}` instead.",
-            )
-            text = re.sub(
-                r"(<!-- vendor-portability:.*?)(\s*-->)",
-                rf"\g<1> Checkout fallback path: .claude/skills/{skill}/references.\g<2>",
-                text,
-                count=1,
-                flags=re.DOTALL,
-            )
-        text = text.replace(_SHARED_ROOT + suffix, "${CLAUDE_PLUGIN_ROOT}" + suffix)
+        suffix, local = f"/skills/{skill}/references/", f".claude/skills/{skill}/references"
+        shared, bare = _SHARED_ROOT + suffix, "${CLAUDE_PLUGIN_ROOT}" + suffix
+        if f"`{shared}`." in text:
+            clause = f" In a checkout that loads this agent with no plugin root, read `{local}/`"
+            text = text.replace(f"`{shared}`.", f"`{bare}`.{clause} instead.")
+            text = _MARKER_END.sub(rf"\g<1> Checkout fallback path: {local}.\g<2>", text, count=1)
+        text = text.replace(shared, bare)
     return text
 
 
