@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size -- pre-existing debt, one test module per script under test
 """Tests for test_pr_merge_ready.py skill script."""
 
 from __future__ import annotations
@@ -43,6 +44,13 @@ build_parser = _mod.build_parser
 check_merge_readiness = _mod.check_merge_readiness
 stale_dirty_suspected = _mod.stale_dirty_suspected
 classify_tier = _mod.classify_tier
+# Captured before the autouse fixture stubs it, for tests that need the real lookup.
+_REAL_FETCH_RULESET = _mod.fetch_ruleset_required_contexts
+
+
+@pytest.fixture(autouse=True)
+def _stub_ruleset_required_contexts(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(_mod, "fetch_ruleset_required_contexts", lambda *args, **kwargs: [])
 
 
 class TestScriptCommit:
@@ -3106,3 +3114,228 @@ class TestIsBotFlagReachesTierT5:
         """
         tier = self._tier(["--pull-request", "42"], capsys)
         assert tier == "T2", f"expected the pre-fix misclassification, got {tier}"
+
+
+class TestMissingRulesetRequiredChecks:
+    """Required checks in the branch ruleset that have not reported yet block merge."""
+
+    def test_missing_required_check_in_non_empty_rollup_is_pending(self):
+        with (
+            patch("test_pr_merge_ready.gh_graphql", return_value=_OPEN_PR),
+            patch(
+                "test_pr_merge_ready.fetch_ruleset_required_contexts",
+                return_value=["build", "Run Python Tests"],
+            ),
+        ):
+            result = check_merge_readiness("o", "r", 42)
+
+        assert result["CanMerge"] is False
+        assert result["CIPassing"] is False
+        assert result["PendingRequiredChecks"] == ["Run Python Tests"]
+        assert "1 required CI check(s) pending: Run Python Tests" in result["Reasons"]
+        assert result["Tier"] == "T2"
+
+    def test_missing_required_check_in_empty_rollup_is_pending(self):
+        pr_data = json.loads(json.dumps(_OPEN_PR))
+        rollup = pr_data["repository"]["pullRequest"]["commits"]["nodes"][0]["commit"][
+            "statusCheckRollup"
+        ]
+        rollup["contexts"]["nodes"] = []
+        with (
+            patch("test_pr_merge_ready.gh_graphql", return_value=pr_data),
+            patch(
+                "test_pr_merge_ready.fetch_ruleset_required_contexts",
+                return_value=["Run Python Tests"],
+            ),
+        ):
+            result = check_merge_readiness("o", "r", 42)
+
+        assert result["CanMerge"] is False
+        assert result["CIPassing"] is False
+        assert result["PendingRequiredChecks"] == ["Run Python Tests"]
+        assert "1 required CI check(s) pending: Run Python Tests" in result["Reasons"]
+
+    def test_cancelled_only_required_check_counts_as_missing_and_pending(self):
+        pr_data = json.loads(json.dumps(_OPEN_PR))
+        rollup = pr_data["repository"]["pullRequest"]["commits"]["nodes"][0]["commit"][
+            "statusCheckRollup"
+        ]
+        rollup["contexts"]["nodes"] = [
+            {
+                "__typename": "CheckRun",
+                "name": "Run Python Tests",
+                "status": "COMPLETED",
+                "conclusion": "CANCELLED",
+                "isRequired": True,
+            }
+        ]
+        with (
+            patch("test_pr_merge_ready.gh_graphql", return_value=pr_data),
+            patch(
+                "test_pr_merge_ready.fetch_ruleset_required_contexts",
+                return_value=["Run Python Tests"],
+            ),
+        ):
+            result = check_merge_readiness("o", "r", 42)
+
+        assert result["CanMerge"] is False
+        assert result["CIPassing"] is False
+        assert result["PendingRequiredChecks"] == ["Run Python Tests"]
+        assert "1 required CI check(s) pending: Run Python Tests" in result["Reasons"]
+
+    def test_ruleset_lookup_failure_fails_closed(self):
+        with (
+            patch("test_pr_merge_ready.gh_graphql", return_value=_OPEN_PR),
+            patch(
+                "test_pr_merge_ready.fetch_ruleset_required_contexts",
+                return_value=None,
+            ),
+        ):
+            result = check_merge_readiness("o", "r", 42)
+
+        assert result["CanMerge"] is False
+        assert result["CIPassing"] is False
+        assert "Failed to read required checks from branch ruleset for 'main'" in result["Reasons"]
+        assert result["RulesetLookupFailed"] is True
+
+    def test_successful_ruleset_lookup_does_not_flag_failure(self):
+        with patch("test_pr_merge_ready.gh_graphql", return_value=_OPEN_PR):
+            result = check_merge_readiness("o", "r", 42)
+
+        assert result["RulesetLookupFailed"] is False
+
+    def test_ruleset_lookup_timeout_returns_readiness_json(self, monkeypatch):
+        """A gh timeout must produce a verdict, not abort the probe (issue: Devin thread)."""
+        monkeypatch.setattr(_mod, "fetch_ruleset_required_contexts", _REAL_FETCH_RULESET)
+        timeout = subprocess.TimeoutExpired(cmd=["gh", "api"], timeout=30)
+        with (
+            patch("test_pr_merge_ready.gh_graphql", return_value=_OPEN_PR),
+            patch("github_core.checks_rollup.subprocess.run", side_effect=timeout),
+        ):
+            result = check_merge_readiness("o", "r", 42)
+
+        assert result["CanMerge"] is False
+        assert result["RulesetLookupFailed"] is True
+        assert "Failed to read required checks from branch ruleset for 'main'" in result["Reasons"]
+
+    def _run_main(self, pr_data, ruleset_return):
+        with (
+            patch("test_pr_merge_ready.assert_gh_authenticated"),
+            patch(
+                "test_pr_merge_ready.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("test_pr_merge_ready.gh_graphql", return_value=pr_data),
+            patch(
+                "test_pr_merge_ready.fetch_ruleset_required_contexts",
+                return_value=ruleset_return,
+            ),
+        ):
+            return main(["--pull-request", "42"])
+
+    def test_main_exits_3_when_ruleset_lookup_fails(self, capsys):
+        """ADR-035: an unreadable ruleset is an API error (3), not not-ready (1)."""
+        rc = self._run_main(_OPEN_PR, None)
+
+        assert rc == 3
+        out = json.loads(capsys.readouterr().out)
+        assert out["CanMerge"] is False
+        assert out["RulesetLookupFailed"] is True
+
+    def test_main_exits_1_when_required_check_missing_but_lookup_succeeds(self, capsys):
+        rc = self._run_main(_OPEN_PR, ["build", "Run Python Tests"])
+
+        assert rc == 1
+        assert json.loads(capsys.readouterr().out)["RulesetLookupFailed"] is False
+
+    def test_main_exits_0_when_ruleset_satisfied(self, capsys):
+        assert self._run_main(_OPEN_PR, ["build"]) == 0
+
+    def test_main_exits_1_when_other_blockers_exist_with_lookup_failure(self, capsys):
+        """A definite block is not retryable, so it keeps exit 1 over exit 3."""
+        pr_data = json.loads(json.dumps(_OPEN_PR))
+        pr_data["repository"]["pullRequest"]["isDraft"] = True
+
+        assert self._run_main(pr_data, None) == 1
+        assert json.loads(capsys.readouterr().out)["RulesetLookupFailed"] is True
+
+    def test_main_exits_1_when_required_check_failed_and_lookup_fails(self, capsys):
+        pr_data = self._pr_with_contexts(
+            [
+                {
+                    "__typename": "CheckRun",
+                    "name": "build",
+                    "status": "COMPLETED",
+                    "conclusion": "FAILURE",
+                    "isRequired": True,
+                }
+            ]
+        )
+
+        assert self._run_main(pr_data, None) == 1
+
+    def _pr_with_contexts(self, nodes):
+        pr_data = json.loads(json.dumps(_OPEN_PR))
+        rollup = pr_data["repository"]["pullRequest"]["commits"]["nodes"][0]["commit"][
+            "statusCheckRollup"
+        ]
+        rollup["contexts"]["nodes"] = nodes
+        return pr_data
+
+    @staticmethod
+    def _cancelled_run(name):
+        return {
+            "__typename": "CheckRun",
+            "name": name,
+            "status": "COMPLETED",
+            "conclusion": "CANCELLED",
+            "isRequired": True,
+        }
+
+    @staticmethod
+    def _status(name, state):
+        return {"__typename": "StatusContext", "context": name, "state": state, "isRequired": True}
+
+    def _readiness_with_ruleset(self, nodes, required):
+        with (
+            patch(
+                "test_pr_merge_ready.gh_graphql",
+                return_value=self._pr_with_contexts(nodes),
+            ),
+            patch(
+                "test_pr_merge_ready.fetch_ruleset_required_contexts",
+                return_value=required,
+            ),
+        ):
+            return check_merge_readiness("o", "r", 42)
+
+    def test_passing_status_satisfies_name_shared_with_cancelled_check_run(self):
+        result = self._readiness_with_ruleset(
+            [self._cancelled_run("ci"), self._status("ci", "SUCCESS")], ["ci"]
+        )
+
+        assert result["PendingRequiredChecks"] == []
+        assert result["CanMerge"] is True
+
+    def test_expected_status_satisfies_name_shared_with_cancelled_check_run(self):
+        result = self._readiness_with_ruleset(
+            [self._cancelled_run("ci"), self._status("ci", "EXPECTED")], ["ci"]
+        )
+
+        assert result["PendingRequiredChecks"] == []
+
+    @pytest.mark.parametrize("state", ["FAILURE", "ERROR", "PENDING"])
+    def test_non_passing_status_does_not_rescue_cancelled_check_run(self, state):
+        result = self._readiness_with_ruleset(
+            [self._cancelled_run("ci"), self._status("ci", state)], ["ci"]
+        )
+
+        assert result["PendingRequiredChecks"] == ["ci"]
+        assert result["CanMerge"] is False
+
+    def test_passing_status_for_other_name_does_not_rescue_cancelled_check_run(self):
+        result = self._readiness_with_ruleset(
+            [self._cancelled_run("ci"), self._status("other", "SUCCESS")], ["ci"]
+        )
+
+        assert result["PendingRequiredChecks"] == ["ci"]
