@@ -30,6 +30,8 @@ CLI as UNAVAILABLE.
    them verbatim, with no tools:
    - LINE-A: `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/x/references/`
    - LINE-B: `${CLAUDE_PLUGIN_ROOT}/skills/x/references/`
+   - A first Cursor run used a single MARKER-AGENT line that held
+     `${CLAUDE_PLUGIN_ROOT}`, `${CURSOR_PLUGIN_ROOT}`, and `${PLUGIN_ROOT}`.
    - LINE-C, Cursor and Muse Code: `$CLAUDE_PLUGIN_ROOT/skills/x`,
      `{{CLAUDE_PLUGIN_ROOT}}`, and `${CURSOR_PLUGIN_ROOT}`
    - LINE-C, Codex: `${CODEX_PLUGIN_ROOT}`, `${PLUGIN_ROOT}`, and
@@ -90,5 +92,6 @@ Grade: EMPIRICAL, one sample per host and load mode.
   plugin root, because a project agent sees the token literal.
 - Cursor agent copies keep the bare Claude token on split-agent reference paths.
 - Codex and Muse Code copies keep the nested form. No form resolves for an
-  installed consumer on those hosts. The nested form still resolves in a checkout.
+  installed consumer on those hosts. That the nested form resolves to `.claude`
+  in a checkout is INFERRED: a model sees it literal and must choose the default.
 - Re-run on a host upgrade, and before relying on the Copilot CLI render.

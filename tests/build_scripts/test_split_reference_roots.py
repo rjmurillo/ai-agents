@@ -452,3 +452,20 @@ def test_copilot_implementer_marker_declares_the_checkout_path() -> None:
 
     assert MARKER_DECLARATION.format(skill="build") in text
     assert "Checkout fallback path" not in vs_code
+
+
+@pytest.mark.parametrize("skill", SPLIT_REFERENCE_SKILLS)
+def test_every_copy_handles_a_marker_body_the_same(skill: str) -> None:
+    text = MARKER + "\n\n" + _sentence(SHARED_ROOT, skill)
+
+    shared = render_host_reference_roots(text, CLAUDE_ROOT)
+    private = agent_templates._rewrite_claude_reference_roots(text)
+    normalized = {
+        root: detect_agent_drift.normalize_content(render_host_reference_roots(text, root))
+        for root in HOST_ROOTS
+    }
+
+    assert private == shared
+    assert MARKER_DECLARATION.format(skill=skill) in shared
+    for root, value in normalized.items():
+        assert value == detect_agent_drift.normalize_content(text), root

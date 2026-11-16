@@ -537,7 +537,7 @@ def convert_memory_prefix(body: str, prefix: str) -> str:
 # token. That Copilot choice is unproven: ADR-121 records its probe as
 # UNAVAILABLE, and the documented variable reaches plugin hooks only. Codex and
 # Muse Code rewrite no token and set no plugin-root variable (same probe), so
-# their copies keep the shared form, which resolves in a checkout. The probe
+# their copies keep the shared form, as main does. The probe
 # record is .project-toolkit/analysis/2026-11-16-agent-body-plugin-root-probes.md.
 #
 # Claude Code 2.1.325 replaces no token in a project agent body (same record), so
@@ -546,7 +546,9 @@ def convert_memory_prefix(body: str, prefix: str) -> str:
 # names the in-repo ``.claude/skills/<skill>/references/`` path.
 #
 # agent_templates.py and detect_agent_drift.py keep private copies of the skill
-# list; tests/build_scripts/test_split_reference_roots.py pins their parity.
+# list, the clause, and the marker declaration, and the Codex oracle in
+# tests/build_scripts/test_codex_agents_committed.py keeps its own on purpose.
+# tests/build_scripts/test_split_reference_roots.py pins the first two copies.
 
 SPLIT_REFERENCE_SKILLS: tuple[str, ...] = (
     "adr-review",

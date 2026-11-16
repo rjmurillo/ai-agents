@@ -319,6 +319,11 @@ _CHECKOUT_CLAUSE_PATTERN = re.compile(
     r" In a checkout that loads this agent with no plugin root, read"
     r" `\.claude/skills/\2/references/` instead\."
 )
+# They also declare that path in an existing vendor-portability marker; drop it too.
+_MARKER_DECLARATION_PATTERN = re.compile(
+    r" Checkout fallback path: \.claude/skills/"
+    r"(?:adr-review|decision-critic|build|autoplan|test|security-scan)/references\."
+)
 
 _CODE_BLOCK_LANG = re.compile(r"```(bash|powershell|text|markdown|python)")
 _MULTI_BLANK_LINES = re.compile(r"\n{3,}")
@@ -447,6 +452,7 @@ def normalize_content(content: str) -> str:
         result = pattern.sub(replacement, result)
 
     result = _CHECKOUT_CLAUSE_PATTERN.sub(r"\1", result)
+    result = _MARKER_DECLARATION_PATTERN.sub("", result)
     result = _REFERENCE_ROOT_PATTERN.sub(_SHARED_REFERENCE_ROOT, result)
 
     result = _CODE_BLOCK_LANG.sub("```", result)

@@ -258,11 +258,19 @@ def _rewrite_claude_reference_roots(text: str) -> str:
     """Render split-agent reference paths to the bare Claude token, plus the checkout clause."""
     for skill in _SPLIT_REFERENCE_SKILLS:
         suffix = f"/skills/{skill}/references/"
-        text = text.replace(
-            f"`{_SHARED_ROOT}{suffix}`.",
-            f"`${{CLAUDE_PLUGIN_ROOT}}{suffix}`. In a checkout that loads this agent with no"
-            f" plugin root, read `.claude{suffix}` instead.",
-        )
+        if f"`{_SHARED_ROOT}{suffix}`." in text:
+            text = text.replace(
+                f"`{_SHARED_ROOT}{suffix}`.",
+                f"`${{CLAUDE_PLUGIN_ROOT}}{suffix}`. In a checkout that loads this agent with no"
+                f" plugin root, read `.claude{suffix}` instead.",
+            )
+            text = re.sub(
+                r"(<!-- vendor-portability:.*?)(\s*-->)",
+                rf"\g<1> Checkout fallback path: .claude/skills/{skill}/references.\g<2>",
+                text,
+                count=1,
+                flags=re.DOTALL,
+            )
         text = text.replace(_SHARED_ROOT + suffix, "${CLAUDE_PLUGIN_ROOT}" + suffix)
     return text
 
