@@ -185,27 +185,32 @@ def _has_skipif(decorators: Iterable[ast.expr]) -> bool:
 
 class _Visitor(ast.NodeVisitor):
     def __init__(self, path: str, tree: ast.Module) -> None:
-        self.path = path
-        self.test_file = is_test_path(path)
-        self.modules, self.functions = _subprocess_names(tree)
-        self.module_skip = any(
+        self._path = path
+        self._test_file = is_test_path(path)
+        self._modules, self._functions = _subprocess_names(tree)
+        self._module_skip = any(
             isinstance(node, ast.Assign)
             and any(isinstance(t, ast.Name) and t.id == "pytestmark" for t in node.targets)
             for node in tree.body
         )
-        self.guards: list[bool] = []  # one entry per enclosing scope or try that guards
-        self.found: list[Violation] = []
+        self._guards: list[bool] = []  # one entry per enclosing scope or try that guards
+        self._found: list[Violation] = []
+
+    @property
+    def found(self) -> list[Violation]:
+        """Violations in visit order."""
+        return list(self._found)
 
     def _add(self, node: ast.AST, rule: str, message: str) -> None:
         line = getattr(node, "lineno", 0)
         end = getattr(node, "end_lineno", None) or line
-        self.found.append(Violation(self.path, line, rule, message, end))
+        self._found.append(Violation(self._path, line, rule, message, end))
 
     def _scope(self, node: ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef) -> None:
         guarded = "skip" in node.name.lower() or _has_skipif(node.decorator_list)
-        self.guards.append(guarded)
+        self._guards.append(guarded)
         self.generic_visit(node)
-        self.guards.pop()
+        self._guards.pop()
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         self._scope(node)
@@ -218,10 +223,10 @@ class _Visitor(ast.NodeVisitor):
 
     def _try(self, node: ast.Try | ast.TryStar) -> None:
         """Only the ``try`` body is guarded; handlers, ``else`` and ``finally`` are not."""
-        self.guards.append(any(_catches_symlink_failure(h) for h in node.handlers))
+        self._guards.append(any(_catches_symlink_failure(h) for h in node.handlers))
         for statement in node.body:
             self.visit(statement)
-        self.guards.pop()
+        self._guards.pop()
         for handler in node.handlers:
             self.visit(handler)
         for tail in (*node.orelse, *node.finalbody):
@@ -235,8 +240,8 @@ class _Visitor(ast.NodeVisitor):
 
     def visit_Call(self, node: ast.Call) -> None:
         receiver, name = _callee(node)
-        is_subprocess = (receiver in self.modules and name in _SUBPROCESS_CALLS) or (
-            receiver is None and name in self.functions
+        is_subprocess = (receiver in self._modules and name in _SUBPROCESS_CALLS) or (
+            receiver is None and name in self._functions
         )
         if is_subprocess and _text_mode_without_encoding(node):
             self._add(
@@ -245,8 +250,8 @@ class _Visitor(ast.NodeVisitor):
         message = _file_io_without_encoding(node)
         if message:
             self._add(node, "file-text-encoding", message)
-        if self.test_file and self._is_symlink_call(receiver, name, node):
-            if not (self.module_skip or any(self.guards)):
+        if self._test_file and self._is_symlink_call(receiver, name, node):
+            if not (self._module_skip or any(self._guards)):
                 self._add(node, "unguarded-symlink", "symlink created without a platform skip")
         self.generic_visit(node)
 
