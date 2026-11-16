@@ -119,14 +119,11 @@ class TestMain:
     ) -> None:
         checkpoint = tmp_path / "rows.jsonl"
         argv = args(corpus, "--checkpoint", str(checkpoint))
-        stamp = replay.run_stamp(replay.parse_args(argv))
+        assert replay.main(argv, caller(), git) == 0
+        first, second = checkpoint.read_text(encoding="utf-8").splitlines()
+        errored = json.loads(second) | {"error": "429"}
         checkpoint.write_text(
-            json.dumps({"revision": "TG001", "trial": 0, "raw": CAUGHT, **stamp})
-            + "\n"
-            + json.dumps({"revision": "TG002", "trial": 0, "error": "429", **stamp})
-            + "\n"
-            + '{"revision": "TG00',
-            encoding="utf-8",
+            f"{first}\n{json.dumps(errored)}\n" + '{"revision": "TG00', encoding="utf-8"
         )
         fake = caller()
 
@@ -136,6 +133,24 @@ class TestMain:
         assert len(fake.calls) == 1
         reloaded = replay.load_checkpoint(checkpoint)
         assert sorted(r["revision"] for r in reloaded) == ["TG001", "TG002"]
+
+    def test_checkpoint_answers_for_a_changed_prompt_are_refused(
+        self, corpus: Path, tmp_path: Path
+    ) -> None:
+        checkpoint = tmp_path / "rows.jsonl"
+        argv = args(corpus, "--checkpoint", str(checkpoint))
+        assert replay.main(argv, caller(), git) == 0
+
+        def edited_prompt(argv_: tuple[str, ...]) -> str | None:
+            out = git(argv_)
+            return out.replace("PROMPT", "EDITED PROMPT") if out else out
+
+        fake = caller()
+
+        code = replay.main(argv, fake, edited_prompt)
+
+        assert code == 2
+        assert fake.calls == []
 
     def test_checkpoint_from_another_arm_is_refused_before_any_call(
         self, corpus: Path, tmp_path: Path
@@ -385,6 +400,22 @@ class TestRepairTail:
         replay.repair_tail(path)
 
         assert path.read_bytes() == b""
+
+    def test_a_broken_last_line_that_ends_in_a_newline_is_cut_off(self, tmp_path: Path) -> None:
+        path = tmp_path / "rows.jsonl"
+        path.write_bytes(b'{"a": 1}\n{"revision": "TG\n')
+
+        replay.repair_tail(path)
+
+        assert path.read_bytes() == b'{"a": 1}\n'
+
+    def test_trailing_blank_lines_after_a_whole_record_are_left_alone(self, tmp_path: Path) -> None:
+        path = tmp_path / "rows.jsonl"
+        path.write_bytes(b'{"a": 1}\n\n')
+
+        replay.repair_tail(path)
+
+        assert path.read_bytes() == b'{"a": 1}\n\n'
 
     def test_a_single_broken_line_leaves_an_empty_file(self, tmp_path: Path) -> None:
         path = tmp_path / "rows.jsonl"

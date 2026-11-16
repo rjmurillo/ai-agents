@@ -44,6 +44,8 @@ from _anthropic_api import DEFAULT_MODEL, call_api, load_api_key_for_selected_pr
 from _eval_api_adapter_constants import http_timeout_seconds
 from _third_party_gap_checkpoint import (
     STAMP_KEYS,
+    input_mismatch,
+    input_sha256,
     load_checkpoint,
     repair_tail,
     stamp_mismatch,
@@ -222,6 +224,7 @@ def run(
     def work(job: tuple[core.Revision, int, core.ReviewInput]) -> dict[str, Any]:
         rev, trial, review = job
         row: dict[str, Any] = {"revision": rev.id, "trial": trial, **(stamp or {})}
+        row["input_sha256"] = input_sha256(review.system, review.user)
         try:
             raw, call_meta = caller(review.system, review.user)
             row.update(raw=raw, **call_meta, **core.score_revision(raw, rev))
@@ -351,7 +354,8 @@ def main(
         return 2
     jobs = [(r, t, reviews[r.id]) for r in revisions for t in range(args.trials)]
     stamp = run_stamp(args)
-    if (mismatch := stamp_mismatch(done, stamp)) is not None:
+    expected = {(r.id, t): input_sha256(v.system, v.user) for r, t, v in jobs}
+    if (mismatch := stamp_mismatch(done, stamp) or input_mismatch(done, expected)) is not None:
         print(f"ERROR: {mismatch}", file=sys.stderr)
         return 2
     if args.dry_run:

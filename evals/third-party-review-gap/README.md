@@ -243,10 +243,15 @@ above are the ones that applied. New runs write them on every row.
 ## Run
 
 The committed corpora come from one dump, mined on 2026-11-15. The dump holds
-third-party comment text, so it is not committed. Only that same dump makes
-`--check` pass. A fresh mine reads the newest 1000 pull requests, a later
-window, so `--check` on it reports drift by design. Each label also names its
-thread URL, and the builder refuses a label whose URL does not match.
+third-party comment text, so it is not committed or published anywhere. Only
+that same dump makes `--check` pass, so the corpus rebuild cannot be reproduced
+outside the machine that mined it. Both evals read the committed corpora, not
+the dump. Eval 1 also reads the reviewed commits, which
+`git fetch origin pull/<n>/head` brings in for each pull request. The Eval 2
+rescoring needs nothing outside this directory. A fresh mine reads the newest
+1000 pull requests, a later window, so `--check` on it reports drift by design.
+Each label also names its thread URL, and the builder refuses a label whose
+URL does not match.
 
 Fresh mining (a new window; rebuilds the corpora, so relabel any new finding):
 
@@ -256,7 +261,9 @@ uv run python scripts/eval/mine_third_party_review_findings.py --limit 1000 \
 uv run python scripts/eval/build_third_party_gap_corpus.py --dump .project-toolkit/scratch/3p/dump.json --stats
 ```
 
-Frozen reproduction (the committed corpora and results):
+Frozen reproduction (the committed corpora and results). The first command
+needs the unpublished 2026-11-15 dump, so only its holder can run it. The rest
+need this repository and the fetched pull request commits:
 
 ```bash
 uv run python scripts/eval/build_third_party_gap_corpus.py --dump <the 2026-11-15 dump> --check --stats
@@ -286,5 +293,10 @@ provider rejects it before generating anything. A timeout is not retried.
 - **The replay has no tools.** 52 percent of findings need a file outside the
   diff, and a tool-free reviewer cannot see it. The real `code-reviewer` reads
   and searches the repository.
+- **Offline rescoring does not re-check inputs.** A model run stamps each row
+  with a SHA-256 of its exact prompt and refuses to resume rows whose prompt
+  changed. `--rescore` and `--compare` build no prompts, so they cannot check
+  that hash; a revision id reused with a different diff would be rescored. The
+  committed run rows predate the hash.
 - **One model.** `claude-sonnet-5` through an OpenAI-compatible proxy with
   thinking on. The harness default reviewer model may differ.
