@@ -206,6 +206,19 @@ class TestMinerCli:
     def test_unreadable_dump_exits_2(self, tmp_path: Path) -> None:
         assert _load_miner().main(["--summarize", str(tmp_path / "none.json")]) == 2
 
+    def test_dump_that_is_not_utf8_exits_2(self, tmp_path: Path) -> None:
+        dump = tmp_path / "dump.json"
+        dump.write_bytes(b'{"pull_requests": ["\xff"]}')
+
+        assert _load_miner().main(["--summarize", str(dump)]) == 2
+
+    @pytest.mark.parametrize("text", ['{"other": 1}', "[1, 2]"])
+    def test_dump_without_a_pull_request_list_exits_2(self, tmp_path: Path, text: str) -> None:
+        dump = tmp_path / "dump.json"
+        dump.write_text(text, encoding="utf-8")
+
+        assert _load_miner().main(["--summarize", str(dump)]) == 2
+
     def test_non_positive_limit_exits_2(self) -> None:
         assert _load_miner().main(["--limit", "0", "--output", "x.json"]) == 2
 

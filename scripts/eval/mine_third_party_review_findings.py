@@ -121,11 +121,14 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_CONFIG
     if args.summarize:
         try:
-            dump = json.loads(args.summarize.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
+            summary = summarize(json.loads(args.summarize.read_text(encoding="utf-8")))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
             print(f"error: cannot read dump: {exc}", file=sys.stderr)
             return EXIT_CONFIG
-        print(json.dumps(summarize(dump), indent=2))
+        except (KeyError, TypeError) as exc:
+            print(f"error: dump has no pull_requests list: {exc!r}", file=sys.stderr)
+            return EXIT_CONFIG
+        print(json.dumps(summary, indent=2))
         return EXIT_OK
     if args.output is None:
         print("error: --output is required to fetch", file=sys.stderr)
