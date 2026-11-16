@@ -345,7 +345,14 @@ def publish(args: argparse.Namespace, changed: list[str]) -> int:
     for command in (
         ["checkout", "-B", args.branch],
         ["add", "--", *changed],
-        ["commit", *_message_flags(args.message)],
+        [
+            "-c",
+            f"user.name={args.user_name}",
+            "-c",
+            f"user.email={args.user_email}",
+            "commit",
+            *_message_flags(args.message),
+        ],
         ["push", "--set-upstream", "origin", args.branch],
     ):
         if _run(command) != 0:
@@ -456,10 +463,6 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
     try:
-        for key, value in (("user.name", args.user_name), ("user.email", args.user_email)):
-            if _run(["config", key, value]) != 0:
-                return EXIT_GIT_FAILED
-
         if args.artifact_dir:
             imported = import_artifact(args.artifact_dir, args.path)
             missing = [path for path in args.path if path not in imported]
