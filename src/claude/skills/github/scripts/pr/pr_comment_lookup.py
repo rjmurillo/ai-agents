@@ -8,9 +8,23 @@ calls and maps every failure to exit 3 with the PR left open.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from typing import Any
+
+_plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
+    _lib_dir = os.path.join(_plugin_root, "lib")
+else:
+    _lib_dir = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
+    )
+if not os.path.isdir(_lib_dir):
+    print(f"Plugin lib directory not found: {_lib_dir}", file=sys.stderr)
+    sys.exit(2)  # Config error per ADR-035
+if _lib_dir not in sys.path:
+    sys.path.insert(0, _lib_dir)
 
 from github_core.api import error_and_exit, sanitize_failure_detail
 from pr_comment_dedupe import (
