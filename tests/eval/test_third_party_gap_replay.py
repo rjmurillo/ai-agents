@@ -387,3 +387,19 @@ class TestRepairTail:
         replay.repair_tail(path)
 
         assert path.read_bytes() == b'{"a": 1}\n'
+
+    def test_an_empty_file_is_left_alone(self, tmp_path: Path) -> None:
+        path = tmp_path / "rows.jsonl"
+        path.write_bytes(b"")
+
+        replay.repair_tail(path)
+
+        assert path.read_bytes() == b""
+
+    def test_a_single_broken_line_leaves_an_empty_file(self, tmp_path: Path) -> None:
+        path = tmp_path / "rows.jsonl"
+        path.write_bytes(b'{"revision": "TG')
+
+        replay.repair_tail(path)
+
+        assert path.read_bytes() == b""

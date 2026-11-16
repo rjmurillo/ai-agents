@@ -414,3 +414,21 @@ class TestWriteGuard:
 
         assert code == 0
         assert (tmp_path / "findings.jsonl").read_text(encoding="utf-8") == "x\n"
+
+    def test_write_under_the_checkout_from_inside_it_is_allowed(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import shutil
+        import uuid
+
+        cli = _load_cli()
+        out = cli.REPO_ROOT / ".pytest_tmp" / f"corpus-write-{uuid.uuid4().hex}"
+        out.mkdir(parents=True)
+        monkeypatch.chdir(cli.REPO_ROOT)
+        try:
+            code = cli.write({"findings.jsonl": "x\n"}, out, {})
+
+            assert code == 0
+            assert (out / "findings.jsonl").read_text(encoding="utf-8") == "x\n"
+        finally:
+            shutil.rmtree(out)
