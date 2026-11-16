@@ -85,10 +85,11 @@ SKILLS_KEYS = {
     "hermesCommit",
     "packs",
     "excluded",
+    "excludedFiles",
 }
 SKILLS_MODES = {"directory-copy", "hermes-packs"}
 HERMES_PACKS_MODE = "hermes-packs"
-HERMES_ONLY_KEYS = {"packMaxFiles", "hermesCommit", "packs", "excluded"}
+HERMES_ONLY_KEYS = {"packMaxFiles", "hermesCommit", "packs", "excluded", "excludedFiles"}
 # `lib` only supports directory-copy today; no `mode` selector. If a
 # second mode (symlink, etc.) lands later, add `mode` to LIB_KEYS and
 # enforce it in `_build_lib`. Until then, an unused field is documentation

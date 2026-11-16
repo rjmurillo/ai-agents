@@ -1,9 +1,22 @@
 ---
 name: memory-enhancement
+version: 1.0.0
 description: >
   Manage memory citations, verify code references, and track confidence scores. Use when adding citations to memories, checking memory health, or verifying code references are still valid.
   Use when you say "add a citation", "verify this memory's code refs", "check memory health".
   Do NOT use for searching or creating memories (use memory) or for documentary reports (use memory-documentary).
+license: MIT
+metadata:
+  domains: [memory, citations, verification]
+  capability:
+    kind: reusable-primitive
+    status: active
+  adr: ADR-038, ADR-106
+  routing:
+    role: nested-helper
+    invoker: memory-search
+    trigger: memory-search chains its results through memory-enhancement for citations and confidence scoring
+    user-facing: false
 ---
 
 # Memory Enhancement

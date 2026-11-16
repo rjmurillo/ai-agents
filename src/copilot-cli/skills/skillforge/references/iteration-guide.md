@@ -8,7 +8,8 @@ Skill creation does not end at generation. The best skills are shaped by real us
 
 ```
 1. USE the skill on a real task
-2. NOTICE where Claude struggles, produces inconsistent output, or asks unnecessary questions
+2. NOTICE where Claude struggles, produces inconsistent output, or asks unnecessary questions.
+   Read the execution trace, not only the final output.
 3. IDENTIFY whether the fix belongs in SKILL.md, a reference file, a script, or an asset
 4. IMPLEMENT the change
 5. TEST by re-running the same task (or a similar one)
@@ -16,6 +17,8 @@ Skill creation does not end at generation. The best skills are shaped by real us
 ```
 
 Each iteration should target one specific behavior. Resist the urge to rewrite large sections at once.
+
+Source: [agentskills.io best practices](https://agentskills.io/skill-creation/best-practices), "Refine with real execution".
 
 ---
 
@@ -28,6 +31,9 @@ Each iteration should target one specific behavior. Resist the urge to rewrite l
 | Claude skips a step | Make the step explicit with a checkpoint |
 | Claude invents its own approach | Tighten instructions (lower degrees of freedom) |
 | Claude follows instructions but the result is wrong | Fix the instructions, not Claude |
+| Trace shows each run writing the same helper logic | Bundle it as a tested script in the skill's scripts directory |
+| Trace shows steps spent on an instruction that did not apply | Cut the instruction or state when it applies |
+| Trace shows the agent trying several approaches in turn | Replace the menu of options with one default |
 | Script fails on edge cases | Add input validation or error handling |
 | Skill works but takes too many turns | Consolidate steps, reduce back-and-forth |
 

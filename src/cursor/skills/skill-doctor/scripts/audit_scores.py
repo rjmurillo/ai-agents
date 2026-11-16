@@ -2,6 +2,9 @@
 
 Executes SKILL.md Step 3 over a scores file. Label tables are parsed at runtime
 from ``scorers/*.md`` so the numeric values cannot drift from the rubrics.
+
+Exit codes: 0 success; 1 the scored sessions fail validation; 2 bad
+arguments, unreadable input, or a failed write.
 """
 
 from __future__ import annotations
@@ -49,6 +52,9 @@ _SCORE_RE = re.compile(r"^\s*score:\s*([0-9]*\.?[0-9]+)\s*$")
 
 class ScoreInputError(ValueError):
     """Raised for unusable rubric files."""
+
+
+_EXIT_CODES = "Exit codes:" + (__doc__ or "").split("Exit codes:", 1)[-1]
 
 
 def load_label_table(rubric_path: Path) -> dict[str, float]:
@@ -352,7 +358,10 @@ def write_atomic(path: Path, data: Mapping[str, Any]) -> None:
 
 
 def _parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="Validate and aggregate skill-doctor scores.")
+    p = argparse.ArgumentParser(
+        description="Validate and aggregate skill-doctor scores.",
+        epilog=_EXIT_CODES,
+    )
     p.add_argument("scores", type=Path, help="scores JSON file")
     p.add_argument("--out", type=Path, default=None, help="write artifact JSON here")
     return p

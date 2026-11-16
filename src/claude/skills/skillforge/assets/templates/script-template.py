@@ -16,14 +16,15 @@ Usage:
 Examples:
     python {{SCRIPT_NAME}}.py input.json
     python {{SCRIPT_NAME}}.py input.json --verbose --output result.json
+    python {{SCRIPT_NAME}}.py input.json --output result.json --dry-run
 
-Exit Codes:
-    0  - Success
-    1  - General failure
-    2  - Invalid arguments
-    3  - File not found
-    10 - Validation failure
-    11 - Fast-fail check failure
+Exit Codes (shared contract; one code per failure type):
+    0  - Success, including an idempotent no-op
+    1  - The run failed a check (validation or fast-fail)
+    2  - Usage or configuration error: invalid arguments, missing input file
+    3  - An external tool or service failed
+    4  - Authentication or permission failure, including a rate limit
+    5-99 are reserved. A script-specific code starts at 100 and is listed here.
 """
 
 import argparse
@@ -106,7 +107,7 @@ def load_state(path: Path | None = None) -> dict:
         return {"version": "1.0", "created_at": datetime.now().isoformat(), "data": {}}
 
     try:
-        return json.loads(path.read_text())
+        return json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
         # Backup corrupted file and return fresh state
         backup = path.with_suffix(".json.bak")
@@ -135,7 +136,7 @@ def save_state(state: dict, path: Path | None = None) -> None:
 
     # Write to temp file first for atomic save
     temp_path = path.with_suffix(".json.tmp")
-    temp_path.write_text(json.dumps(state, indent=2))
+    temp_path.write_text(json.dumps(state, indent=2), encoding="utf-8")
     temp_path.rename(path)
 
 
@@ -170,18 +171,18 @@ def process(input_path: Path, options: dict) -> Result:
     #
     # Example:
     # try:
-    #     data = json.loads(input_path.read_text())
+    #     data = json.loads(input_path.read_text(encoding="utf-8"))
     #     result = transform(data)
     #     return Result(
     #         success=True,
     #         message="Processing complete",
     #         data=result
     #     )
-    # except Exception as e:
+    # except (OSError, ValueError) as exc:
     #     return Result(
     #         success=False,
-    #         message=str(e),
-    #         errors=[str(e)]
+    #         message=str(exc),
+    #         errors=[str(exc)]
     #     )
 
     return Result(
@@ -223,15 +224,17 @@ def fast_fail_check(result: Result) -> tuple[bool, str]:
 # ===========================================================================
 
 
-def main():
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="{{BRIEF_DESCRIPTION}}",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   %(prog)s input.json
-  %(prog)s input.json --verbose
-  %(prog)s input.json --output result.json --json
+  %(prog)s input.json --output result.json --dry-run
+
+Exit codes: 0 success, 1 a check failed, 2 usage or configuration error,
+3 external failure, 4 authentication failure.
         """,
     )
 
@@ -247,57 +250,72 @@ Examples:
 
     parser.add_argument("--no-fast-fail", action="store_true", help="Skip the fast-fail check")
 
-    args = parser.parse_args()
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Report what --output would write, then write nothing",
+    )
 
-    # ----- Process -----
-    options = {
-        "verbose": args.verbose,
-    }
+    return parser
 
-    if args.verbose:
-        print(f"Processing: {args.input}", file=sys.stderr)
 
-    result = process(args.input, options)
-
-    # ----- Fast-Fail Check -----
-    if not args.no_fast_fail and result.success:
-        is_valid, check_msg = fast_fail_check(result)
-        if not is_valid:
-            if args.json:
-                print(
-                    json.dumps({"success": False, "error": f"Fast-fail check failed: {check_msg}"})
-                )
-            else:
-                print(f"Fast-fail check failed: {check_msg}", file=sys.stderr)
-            sys.exit(11)  # Fast-fail check failure
-
-    # ----- Output -----
+def report(result: Result, args: argparse.Namespace) -> None:
+    """Print the result: data on stdout, errors and warnings on stderr."""
     if args.json:
         print(json.dumps(result.to_dict(), indent=2))
+        return
+    if result.success:
+        print(f"Success: {result.message}")
+        if args.verbose:
+            for key, value in result.data.items():
+                print(f"  {key}: {value}")
     else:
-        if result.success:
-            print(f"Success: {result.message}")
-            if args.verbose:
-                for key, value in result.data.items():
-                    print(f"  {key}: {value}")
-        else:
-            print(f"Failed: {result.message}", file=sys.stderr)
-            for error in result.errors:
-                print(f"  Error: {error}", file=sys.stderr)
+        print(f"Failed: {result.message}", file=sys.stderr)
+        for error in result.errors:
+            print(f"  Error: {error}", file=sys.stderr)
+    for warning in result.warnings:
+        print(f"  Warning: {warning}", file=sys.stderr)
 
-        for warning in result.warnings:
-            print(f"  Warning: {warning}", file=sys.stderr)
 
-    # ----- Write to File -----
-    if args.output and result.success:
+def write_output(result: Result, args: argparse.Namespace) -> None:
+    """Write --output, or with --dry-run only say what it would write."""
+    if args.output and result.success and args.dry_run:
+        print(f"Dry run: would write {len(result.data)} keys to {args.output}", file=sys.stderr)
+    elif args.output and result.success:
         args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(json.dumps(result.data, indent=2))
+        args.output.write_text(json.dumps(result.data, indent=2), encoding="utf-8")
         if not args.json:
             print(f"Output written to: {args.output}")
 
-    # ----- Exit -----
-    sys.exit(0 if result.success else 1)
+
+def main(argv: list[str] | None = None) -> int:
+    """Run the CLI and return the exit code; tests call this with an argv list."""
+    args = build_parser().parse_args(argv)
+
+    # ----- Preconditions (exit 2: usage or configuration error) -----
+    if not args.input.is_file():
+        print(f"Error: input file not found: {args.input}", file=sys.stderr)
+        return 2
+
+    if args.verbose:
+        print(f"Processing: {args.input}", file=sys.stderr)
+    result = process(args.input, {"verbose": args.verbose})
+
+    # ----- Fast-Fail Check (exit 1: a check failed) -----
+    if not args.no_fast_fail and result.success:
+        is_valid, check_msg = fast_fail_check(result)
+        if not is_valid:
+            message = f"Fast-fail check failed: {check_msg}"
+            if args.json:
+                print(json.dumps({"success": False, "error": message}))
+            else:
+                print(message, file=sys.stderr)
+            return 1  # A check failed
+
+    report(result, args)
+    write_output(result, args)
+    return 0 if result.success else 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

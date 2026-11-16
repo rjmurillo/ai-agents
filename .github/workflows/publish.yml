@@ -163,7 +163,9 @@ jobs:
 
       - name: Pack the tarball once
         working-directory: ${{ env.PACKAGE_DIR }}
-        run: npm pack --pack-destination "$RUNNER_TEMP/pack"
+        run: |
+          mkdir -p "$RUNNER_TEMP/pack"
+          npm pack --pack-destination "$RUNNER_TEMP/pack"
 
       - name: Verify the tarball contents
         run: python3 scripts/ci/verify_npm_tarball_contents.py --dir "$RUNNER_TEMP/pack"

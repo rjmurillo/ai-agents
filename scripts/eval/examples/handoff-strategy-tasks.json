@@ -1,0 +1,166 @@
+{
+  "schema_version": 3,
+  "tasks": [
+    {
+      "id": "issue-7328-mypy-symlink-run-mypy",
+      "notes": "citation-freshness: ignore -- the prompt quotes issue #7328 verbatim as written before the fix",
+      "prompt": "Fix this GitHub issue in this repository.\n\nIssue #7328: bug(validation): mypy changed-files gate refuses the .claude/lib symlinks that binplace creates\n\n## Problem\n\n`pre_pr.py` fails the \"Mypy Changed Files (ratchet)\" check with exit 2 when a branch adds or edits a tracked symlink under `.claude/lib/`. The runner prints `ERROR: refusing to type-check symlink: .claude/lib/ptk_run.py`.\n\n`.claude/lib/` entries are symlinks into `src/claude/lib/` by design (ADR-119 decision 14, binplace). Every new shared lib module therefore creates one, and every edit to `paths.py` or `bootstrap.py` touches one.\n\n## Cause\n\n`scripts/validation/checks_mypy.py` builds its file set with `git diff --name-only --diff-filter=ACMR` and keeps a path when `(repo_root / p).is_file()`. `is_file()` follows links, so a symlink to a file passes. `run_mypy` in `scripts/validation/git_hook_policy.py` (around line 3745) then returns 2 for any symlink. The target under `src/claude/lib/` is in the same diff and is type-checked on its own.\n\n## Measured\n\nMeasured 2026-11-12 on branch `feat/7281-ptk-run-resolver` (head 4060d8aa0 after merging main at 2602078d9): `uv run python scripts/validation/pre_pr.py` reported `[FAIL] Mypy Changed Files (ratchet) ... run_mypy exited 2 over 16 changed file(s)`. The only symlink among the 16 was `.claude/lib/ptk_run.py`.\n\n## Suggested fix\n\nDrop a tracked symlink from the file set in `checks_mypy.py` when its target is a regular file inside the repository. Keep the refusal in `run_mypy` for any caller that passes a symlink directly. Add a test for both.\n\n## Step 0\n\n### Q3\n\nAnyone adding a module to `src/claude/lib/` is blocked at pre-PR and at the pre-push mypy job until this is fixed.\n\n### Q5\n\n`pre_pr.py` output at head 4060d8aa0 on 2026-11-12, quoted above.\n\n",
+      "source": {
+        "repository": "rjmurillo/ai-agents",
+        "issue": 7328,
+        "fix_pr": 7333,
+        "base_sha": "329d3b5d452345bc8445fe6a18b939e434769873",
+        "fix_sha": "3cf312bc14baa9757634b77e0c1c0c95334b34d1",
+        "seed_paths": [
+          "scripts",
+          "tests/__init__.py",
+          "tests/validation",
+          "pyproject.toml"
+        ],
+        "withheld_files": {
+          "tests/validation/test_run_mypy_symlinks_withheld.py": "tests/validation/test_run_mypy_symlinks.py"
+        }
+      },
+      "allowed_paths": [
+        "scripts/validation/git_hook_policy.py",
+        "scripts/validation/checks_mypy.py",
+        "tests/validation/*.py"
+      ],
+      "acceptance": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-p",
+        "no:cacheprovider",
+        "-q",
+        "tests/validation/test_issue_7328_repro.py"
+      ],
+      "followup": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-p",
+        "no:cacheprovider",
+        "-q",
+        "tests/validation/test_run_mypy_symlinks_withheld.py",
+        "--deselect",
+        "tests/validation/test_run_mypy_symlinks_withheld.py::TestInRepoSymlinkSource",
+        "--deselect",
+        "tests/validation/test_run_mypy_symlinks_withheld.py::TestRunMypyOnALink::test_the_link_and_its_source_are_checked_once"
+      ],
+      "external_marker": null,
+      "response_checks": [],
+      "visible_files": {
+        "tests/validation/test_issue_7328_repro.py": "\"\"\"Residual symptom of issue #7328, written from the issue text and the CI log line.\n\n`run_mypy` is given a tracked symlink under `.claude/lib/` that points at a regular\nPython file inside the repository. It must not refuse the link.\n\"\"\"\n\nfrom __future__ import annotations\n\nimport os\nimport subprocess\nfrom pathlib import Path\nfrom unittest.mock import patch\n\nimport pytest\n\nfrom scripts.validation import git_hook_policy\nfrom scripts.validation.git_hook_policy import run_mypy\n\npytestmark = pytest.mark.skipif(os.name != \"posix\", reason=\"symlinks need POSIX\")\n\n\ndef _git(repo: Path, *args: str) -> None:\n    subprocess.run([\"git\", \"-C\", str(repo), *args], capture_output=True, check=True)\n\n\ndef test_run_mypy_does_not_refuse_a_link_to_an_in_repo_python_file(\n    tmp_path: Path, capsys: pytest.CaptureFixture[str]\n) -> None:\n    _git(tmp_path, \"init\")\n    _git(tmp_path, \"config\", \"user.email\", \"test@test.com\")\n    _git(tmp_path, \"config\", \"user.name\", \"Test\")\n    (tmp_path / \"src\" / \"lib\").mkdir(parents=True)\n    (tmp_path / \".claude\" / \"lib\").mkdir(parents=True)\n    (tmp_path / \"src\" / \"lib\" / \"mod.py\").write_text(\"X = 1\\n\", encoding=\"utf-8\")\n    (tmp_path / \".claude\" / \"lib\" / \"mod.py\").symlink_to(\"../../src/lib/mod.py\")\n    _git(tmp_path, \"add\", \"-A\")\n    _git(tmp_path, \"commit\", \"-m\", \"base\")\n    (tmp_path / \"src\" / \"lib\" / \"mod.py\").write_text(\"X = 2\\n\", encoding=\"utf-8\")\n    _git(tmp_path, \"add\", \"-A\")\n    _git(tmp_path, \"commit\", \"-m\", \"touch\")\n    with patch.object(git_hook_policy, \"_mypy_ratchet_base_ref\", return_value=\"HEAD~1\"):\n        code = run_mypy([\".claude/lib/mod.py\"], tmp_path)\n    assert \"refusing to type-check symlink\" not in capsys.readouterr().err\n    assert code != 2\n"
+      },
+      "withheld_edits": [
+        {
+          "path": "tests/validation/test_run_mypy_symlinks_withheld.py",
+          "old": "from scripts.validation.git_hook_policy import _in_repo_symlink_source, run_mypy",
+          "new": "from scripts.validation.git_hook_policy import run_mypy"
+        }
+      ],
+      "brief": {
+        "symptom": "After the change this issue suggested merged (PR #7329, already in this tree), the CI step \"Run mypy ratchet\" and the pre-push mypy job still print `ERROR: refusing to type-check symlink: .claude/lib/ptk_run.py` and exit 2. Observed on the CI run for PR #7330 on 2026-11-12.",
+        "rejected_hypotheses": "Hypothesis tried and shipped: only the file-set builder in scripts/validation/checks_mypy.py needed to change, by swapping a tracked symlink for its in-repo source, while run_mypy keeps refusing links. The symptom above shows that was not enough.",
+        "non_goals": "Do not weaken any safety check run_mypy applies to untrusted paths. Do not edit workflows or lefthook.yml."
+      },
+      "stall": true,
+      "controls": {
+        "known_good": {
+          "files_from_fix": [
+            "scripts/validation/git_hook_policy.py",
+            "scripts/validation/checks_mypy.py"
+          ],
+          "response": "run_mypy now resolves an in-repo symlink to its source."
+        },
+        "known_bad": {
+          "edits": [
+            {
+              "path": "scripts/validation/git_hook_policy.py",
+              "old": "        if full_path.is_symlink():\n            print(f\"ERROR: refusing to type-check symlink: {path}\", file=sys.stderr)\n            return 2\n",
+              "new": ""
+            }
+          ],
+          "response": "run_mypy no longer refuses symlinks."
+        }
+      }
+    },
+    {
+      "id": "issue-6169-codex-login-stderr",
+      "case": "historical_fix",
+      "notes": "citation-freshness: ignore -- the prompt quotes issue #6169 verbatim as opened against base 316171ac; its file:line citations describe that commit, not HEAD",
+      "prompt": "Fix this GitHub issue in this repository.\n\nIssue #6169: fix(eval): Codex login probe reads stdout, but the CLI prints status to stderr\n\n## Problem\n\nThe Codex existing-login step never fires on a real CLI.\n`codex_login_probe` reads only stdout from `codex login status`.\nThe real Codex CLI writes that status to stderr.\n\n## Evidence\n\n- `scripts/eval/_cli_credential_sources.py:178` returns `completed.stdout` only.\n- `scripts/eval/_cli_credential_sources.py:200` matches `Logged in using ChatGPT` in that output.\n- A local run of `codex login status` exited 0, wrote 0 bytes to stdout, and wrote 171 bytes to stderr.\n\n## Impact\n\nIt fails closed, so no run starts without a credential.\nAn operator with a valid ChatGPT login still falls through to the prompt step.\nUnattended Codex evals then stop with a missing-credential error.\n\n## Fix direction\n\nRead stderr when stdout is empty, or join both streams before the line match.\nAdd a test where the fake CLI prints the status line to stderr.\n\nFound while merging #6151.\n\n## Step 0\n\n### Q3\n\nOperators running Codex evals on a ChatGPT login; the existing-login step never matches\n\n### Q5\n\ncodex login status: rc=0, stdout 0 bytes, stderr 171 bytes (2026-10-04 local run)\n",
+      "source": {
+        "repository": "rjmurillo/ai-agents",
+        "issue": 6169,
+        "fix_pr": 6343,
+        "base_sha": "316171ac67064874afe9965547cf5aac89f1ffc9",
+        "fix_sha": "045750319851fe56aa2000da9cadd61b8a983f91",
+        "seed_paths": [
+          "scripts/eval",
+          "tests/__init__.py",
+          "tests/eval",
+          "pyproject.toml"
+        ],
+        "withheld_files": {
+          "tests/eval/test_cli_credential_sources_withheld.py": "tests/eval/test_cli_credential_sources.py"
+        }
+      },
+      "allowed_paths": [
+        "scripts/eval/_cli_credential_sources.py",
+        "tests/eval/*.py"
+      ],
+      "acceptance": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-p",
+        "no:cacheprovider",
+        "-q",
+        "tests/eval/test_issue_6169_repro.py"
+      ],
+      "followup": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-p",
+        "no:cacheprovider",
+        "-q",
+        "tests/eval/test_cli_credential_sources_withheld.py",
+        "--deselect",
+        "tests/eval/test_cli_credential_sources_withheld.py::TestLoginProbes::test_codex_matches_the_line_amid_other_stderr_output"
+      ],
+      "external_marker": null,
+      "response_checks": [],
+      "controls": {
+        "known_good": {
+          "files_from_fix": [
+            "scripts/eval/_cli_credential_sources.py"
+          ],
+          "response": "codex_login_probe now reads stderr as well as stdout."
+        },
+        "known_bad": {
+          "edits": [
+            {
+              "path": "scripts/eval/_cli_credential_sources.py",
+              "old": "    return completed.stdout or \"\" if completed.returncode == 0 else None\n",
+              "new": "    if completed.returncode != 0:\n        return None\n    return f\"{completed.stdout or ''}\\n{completed.stderr or ''}\"\n"
+            }
+          ],
+          "response": "Every login probe now reads stdout and stderr together."
+        }
+      },
+      "visible_files": {
+        "tests/eval/test_issue_6169_repro.py": "\"\"\"Symptom of issue #6169: `codex login status` prints its status line to stderr.\"\"\"\n\nfrom __future__ import annotations\n\nimport subprocess\nfrom typing import Any\n\nimport pytest\n\nfrom tests.eval._credential_test_support import _cli_credential_sources as src\n\n\ndef test_codex_login_probe_reads_a_status_line_printed_to_stderr(\n    monkeypatch: pytest.MonkeyPatch,\n) -> None:\n    def fake_run(argv: list[str], **kwargs: Any) -> Any:\n        return subprocess.CompletedProcess(argv, 0, \"\", \"Logged in using ChatGPT\\n\")\n\n    monkeypatch.setattr(src.subprocess, \"run\", fake_run)\n    assert src.codex_login_probe(\"codex\", {})\n"
+      },
+      "withheld_edits": [],
+      "brief": {
+        "symptom": "codex login status: rc=0, stdout 0 bytes, stderr 171 bytes (2026-10-04 local run, quoted in the issue).",
+        "rejected_hypotheses": "None. No earlier fix attempt exists for this issue.",
+        "non_goals": "Do not change how the other login probes read their output. Do not touch files outside the allowed paths."
+      },
+      "stall": false
+    }
+  ]
+}

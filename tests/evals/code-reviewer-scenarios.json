@@ -182,7 +182,7 @@
       ],
       "expected_verdict": "APPLY_FALLBACK_AND_NOTE_UNAVAILABLE",
       "expected_reason_contains": "unavailable",
-      "rationale": "The agent's Load the contract section states that when none of the three candidate paths resolves, it applies the fallback invariants and states in its output that the contract was unavailable. The agent must still report the real bug using the fallback invariants, not refuse to review and not silently proceed without noting the degraded mode."
+      "rationale": "The agent's Load the contract section states that when no candidate path resolves, it applies the fallback invariants and reports the contract as unavailable. The agent must still report the real bug using the fallback invariants, not refuse to review and not silently proceed without noting the degraded mode."
     },
     {
       "id": "CR16",

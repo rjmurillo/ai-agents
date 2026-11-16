@@ -2,7 +2,7 @@
 type: requirement
 id: REQ-049
 title: skill-bootstrap cross-source friction sweep with evidence files and independent judges
-status: draft
+status: implemented
 priority: P1
 category: functional
 created: 2026-11-11
@@ -10,6 +10,7 @@ related:
   - "#7155"
   - "#7160"
   - "#6642"
+  - "#7255"
 ---
 
 # REQ-049: skill-bootstrap cross-source friction sweep with evidence files and independent judges
@@ -194,4 +195,4 @@ Tier 3. Domain: Complicated (known pattern from skill-doctor, new sources). Meth
 
 ## Tasks (sequenced)
 
-See `.project-toolkit/plans/active/REQ-049-skill-bootstrap-cross-source-friction.md`.
+See `.agents/archive/plans/REQ-049-skill-bootstrap-cross-source-friction.md` (completed; shipped in rjmurillo/ai-agents#7255).

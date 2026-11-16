@@ -92,6 +92,11 @@ EXEMPTIONS: dict[str, tuple[str, int, str]] = {
     "evals/reports/adr-063-kill-gate-20260708/memory-search.json": (RECORD, 4, _FROZEN_RUN),
     "evals/reports/skill-triage-20260509-135851/results.json": (RECORD, 1, _FROZEN_RUN),
     "evals/reports/skill-triage-20260509-135851/run.log": (RECORD, 9, _FROZEN_RUN),
+    "evals/third-party-review-gap/runs/replay-heldout-baseline-rows.jsonl": (
+        RECORD,
+        1,
+        _FROZEN_RUN,
+    ),
     "tests/commands/test_research_command_contract.py": (NEEDLE, 19, "names no retired tool"),
     "tests/commands/test_spec_step0_5.py": (NEEDLE, 3, "Step 0.5 names no retired backend"),
     "tests/skills/context-gather/test_context_gather.py": (NEEDLE, 20, "names no retired tier"),
@@ -114,6 +119,12 @@ EXEMPTIONS: dict[str, tuple[str, int, str]] = {
     "tests/test_forgetful_decommission_scope.py": (NEEDLE, 7, "this guard's own needle"),
     "tests/test_skill_registry.py": (NEEDLE, 3, "keyword left the memory category"),
     "tests/test_validation_skill_frontmatter.py": (NEEDLE, 8, "retired tool grant is rejected"),
+    "tests/test_skill_frontmatter_spec.py": (NEEDLE, 2, "retired MCP tool names are rejected"),
+    "scripts/validation/skill_frontmatter.py": (
+        REGISTRY,
+        1,
+        "RETIRED_MCP_SERVERS keeps the name so a grant for it is refused",
+    ),
     ".project-toolkit/specs/PRD-memory-enhancement-layer-for-serena-forgetful.md": (
         RECORD,
         11,

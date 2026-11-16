@@ -42,7 +42,7 @@ def _make_skill(dir_path: Path) -> None:
     """Create a minimal skill directory so the guard has a real target."""
     dir_path.mkdir(parents=True, exist_ok=True)
     (dir_path / "SKILL.md").write_text(
-        "---\nname: sample\ndescription: sample skill\n---\n\n# Sample\n",
+        f"---\nname: {dir_path.name}\ndescription: sample skill\n---\n\n# Sample\n",
         encoding="utf-8",
     )
 
@@ -137,7 +137,7 @@ def test_symlink_within_cwd_is_allowed(script: Path, tmp_path: Path) -> None:
     real = workdir / "real"
     real.mkdir(parents=True)
     (real / "SKILL.md").write_text(
-        "---\nname: ok\ndescription: in-root content\n---\n",
+        "---\nname: skill\ndescription: in-root content\n---\n",
         encoding="utf-8",
     )
     skill = workdir / "skill"

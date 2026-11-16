@@ -1,6 +1,27 @@
 ---
 name: api-doc-authoring
+version: 1.0.0
 description: Write API docs around a developer use case, with executed examples and failure recovery. Use when you say `document this API` or `write the API guide`. Do NOT use to verify doc claims (use doc-accuracy) or design the API.
+license: MIT
+metadata:
+  capability:
+    kind: reusable-primitive
+    owns:
+      - api-documentation-authoring
+    depends-on:
+      - artifact-neutral-code-quality
+    status: active
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan's long-tail resolver matches an API documentation authoring request
+    user-facing: true
+    intents:
+      - api documentation
+      - document this api
+      - api quickstart
+      - api guide
+      - endpoint documentation
 ---
 
 # API Doc Authoring

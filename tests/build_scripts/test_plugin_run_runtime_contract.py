@@ -214,7 +214,10 @@ def test_no_root_holds_the_resolver_exits_2_with_the_prefix_and_runs_nothing(
 def test_a_root_whose_resolver_exists_but_whose_target_does_not_exits_2_loud(
     world: World,
 ) -> None:
-    """ADR-121 version skew: the first root that passes the probe is final."""
+    """ADR-121 version skew: when no candidate holds the target, the resolver fails loud.
+
+    Both variables name `ours`, so decision 11's fallthrough has no other root to try.
+    """
     result = _run(
         world,
         render_locator("skills/x/scripts/other.py"),

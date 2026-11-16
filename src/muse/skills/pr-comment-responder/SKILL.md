@@ -1,5 +1,6 @@
 ---
 name: pr-comment-responder
+version: 2.0.0
 description: Work the review threads on one pull request. Gathers every comment,
   acknowledges it, triages by domain then reviewer, fixes or replies in-thread, and
   records a terminal status for each thread. Use when you say "respond to PR comments",
@@ -7,6 +8,19 @@ description: Work the review threads on one pull request. Gathers every comment,
   Do NOT use for several PRs at once or a completion-gate verdict (use pr-review), for a
   single known reply (use post_pr_comment_reply.py directly), for a full pre-merge review
   (use review), or to run the local quality gates before pushing (use pr-quality-all).
+license: MIT
+metadata:
+  capability:
+    kind: orchestrator
+    owns: [review-conversation, review-thread-closure]
+    depends-on:
+      - untrusted-content-handling
+    status: active
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan routes requests to respond to PR review threads to pr-comment-responder
+    user-facing: true
 ---
 # PR Comment Responder
 

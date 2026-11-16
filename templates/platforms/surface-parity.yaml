@@ -264,7 +264,7 @@ surfaces:
     authority: src/claude/skills
     generator: build/scripts/generate_skills.py
     owner: build_all.py --check
-    reason: SKILL.md frontmatter keeps only name, description, paths, disable-model-invocation, icon, color, and metadata. The body and every support file are copied unchanged.
+    reason: SKILL.md frontmatter keeps only name, description, paths, disable-model-invocation, icon, color, metadata, version, and license. The body and every support file are copied unchanged.
   - id: skills-review-sidecar-codex
     path: src/codex/skills/review/scripts/validate_review_marker.py
     relation: generated
@@ -291,7 +291,7 @@ surfaces:
     authority: src/claude/skills
     generator: build/scripts/generate_skills.py
     owner: build_all.py --check
-    reason: Frontmatter keeps only name and description (frontmatterKeep in templates/platforms/muse.yaml); the body ships verbatim.
+    reason: Frontmatter keeps name, description, version, license and metadata (frontmatterKeep in templates/platforms/muse.yaml); the body ships verbatim.
 
   # ---- Lib packages -------------------------------------------------------
   - id: lib-hook-utilities-claude-plugin

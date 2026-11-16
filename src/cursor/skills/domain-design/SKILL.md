@@ -1,6 +1,8 @@
 ---
 name: domain-design
+version: 1.0.0
 description: Design an API, schema, or module boundary from the business behavior it must support, not from source payload shape or generic CRUD. Decides explicit state, domain operation versus CRUD, and history, then checks the design against use cases. Use when you say `design this schema`, `API design`, or `CRUD or domain operation`. Do NOT use for abstraction discovery (use cva-analysis).
+license: MIT
 metadata:
   capability:
     kind: reusable-primitive

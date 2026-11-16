@@ -25,6 +25,10 @@ from skillify_text import (
 
 DESCRIPTION_LEAD_CHARS = 200
 MAX_NAME_CHARS = 64
+# agentskills.io limits. The line cap matches skillforge's skill_modularity_audit.py
+# LINE_LIMIT: a file of exactly 500 lines passes, 501 fails.
+MAX_DESCRIPTION_CHARS = 1024
+MAX_SKILL_LINES = 500
 MIN_LIST_ITEMS = 2
 MODE_CREATE = "create"
 MODE_PATCH = "patch"
@@ -102,7 +106,9 @@ def verify_skill(
     anywhere in the description, source-only tool names, and the audit-driven
     approval and recovery checks. It skips the skeleton sections and the
     description-lead check, because host skills use their own layout. In patch mode a `Process` section stands in for a
-    missing `Procedure` section.
+    missing `Procedure` section. Both modes cap the description at 1024
+    characters. Only `create` caps SKILL.md at 500 lines, so patching an
+    existing oversize host skill is not blocked.
     """
     if mode not in MODES:
         raise SkillifyError(f"mode must be one of: {', '.join(MODES)}")
@@ -115,6 +121,8 @@ def verify_skill(
     patching = mode == MODE_PATCH
     checks = [
         *_name_checks(meta.get("name", ""), skill_file.parent.name),
+        _description_length_check(meta.get("description", "")),
+        *([] if patching else [_line_count_check(text)]),
         *(_patch_checks(meta, trigger) if patching else _create_checks(meta, trigger, sections)),
         _tool_name_check(text),
     ]
@@ -203,6 +211,24 @@ def _name_checks(name: str, directory: str) -> list[dict[str, Any]]:
             f"name '{name}' vs directory '{directory}'",
         ),
     ]
+
+
+def _description_length_check(description: str) -> dict[str, Any]:
+    length = len(description)
+    return _check(
+        "description_within_limit",
+        length <= MAX_DESCRIPTION_CHARS,
+        f"description is {length} characters; the limit is {MAX_DESCRIPTION_CHARS}",
+    )
+
+
+def _line_count_check(text: str) -> dict[str, Any]:
+    lines = len(text.splitlines())
+    return _check(
+        "skill_within_line_limit",
+        lines <= MAX_SKILL_LINES,
+        f"SKILL.md is {lines} lines; the limit is {MAX_SKILL_LINES}. Move detail to references/",
+    )
 
 
 def _description_check(description: str, trigger: str) -> dict[str, Any]:

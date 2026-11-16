@@ -104,7 +104,7 @@ SINGLE_ROOT_ALLOWANCES: dict[str, tuple[int, str]] = {
 # migrates the sites; never raise one. A group with no entry has a baseline of (0, 0).
 LEGACY_SITE_BASELINE: dict[str, tuple[int, int, str]] = {
     "templates/agents": (0, 0, "Migrated in rollout step 4 (agents first)."),
-    "templates/skills": (15, 7, "Migrates in rollout step 4, in batches the budget allows."),
+    "templates/skills": (0, 0, "Migrated in ADR-121 rollout step 9 (issue #7281)."),
     "src/claude": (0, 0, "Migrated in rollout step 5 (hand-authored skill support files)."),
     "src/claude yaml": (
         17,
