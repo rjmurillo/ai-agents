@@ -28,7 +28,7 @@ def read_comment(comment: str, comment_file: str) -> str:
 
 
 def pr_state(pr: int, repo_flag: str) -> str:
-    """Read the PR state, or exit 2/3 the same way main previously did."""
+    """Read the PR state, or exit 2/3 as ADR-035 defines."""
     state_result = subprocess.run(
         ["gh", "pr", "view", str(pr), "--repo", repo_flag, "--json", "state"],
         capture_output=True,

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import importlib.util
 import json
-import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -12,6 +11,7 @@ from unittest.mock import patch
 import pytest
 
 from scripts.github_core.api import RepoInfo
+from tests.close_pr_test_support import _completed
 
 # Import the script via importlib (not a package)
 _SCRIPTS_DIR = (
@@ -37,10 +37,6 @@ build_parser = _mod.build_parser
 
 
 # Helpers
-
-
-def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
-    return subprocess.CompletedProcess(args=[], returncode=rc, stdout=stdout, stderr=stderr)
 
 
 # Tests: build_parser

@@ -1,12 +1,13 @@
 """Pure helpers that decide whether a comment was already posted.
 
-``post_pr_comment_reply.py`` and ``new_pr_review_comment.py`` read the existing
-comments before they post. If the same author already posted an identical body in
+``post_pr_comment_reply.py``, ``new_pr_review_comment.py``, and ``close_pr.py``
+(through ``pr_comment_lookup.py``) read the existing comments before they post.
+If the same author already posted an identical body in
 the same place, the script reports ``SKIP`` and posts nothing, so an agent that
 retries a command never leaves a duplicate (agentskills.io, "Using scripts in
 skills": "Agents may retry commands").
 
-These helpers run no I/O. Each script owns its ``gh api`` call and maps failures
+These helpers run no I/O. Each caller owns its ``gh api`` call and maps failures
 to its own envelope and exit code.
 
 Pagination contract (``.claude/rules/lossless-queue-reads.md``): the read must see

@@ -104,7 +104,7 @@ def _read_with_close_pr(path: Path, area: Area) -> str:
             raise _CapturedError(args[args.index("--body") + 1])
         if "api" in args:
             # close_pr.py now lists existing comments before it posts.
-            # An empty paginated slurp (see test_close_pr._NO_COMMENTS).
+            # An empty paginated slurp (see close_pr_test_support.pages).
             return _completed("[[]]")
         return _completed(json.dumps({"state": "OPEN"}))
 

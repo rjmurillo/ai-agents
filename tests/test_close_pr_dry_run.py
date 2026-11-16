@@ -6,8 +6,7 @@ import json
 
 import pytest
 
-from tests.close_pr_test_support import OPEN, pages, run_close, state_reply
-from tests.test_close_pr import _completed
+from tests.close_pr_test_support import OPEN, _completed, pages, run_close, state_reply
 
 pytestmark = pytest.mark.usefixtures("stub_git_probes", "tmp_path_is_temp_root")
 
@@ -32,7 +31,7 @@ _DRY = ["--pull-request", "5", "--dry-run"]
 )
 def test_failed_pr_view_exit_code(stdout, stderr, code):
     """A failed PR lookup maps to the ADR-035 code and never closes the PR."""
-    replies = [_completed(rc=1, stdout=stdout, stderr=stderr)] * 3
+    replies = [_completed(rc=1, stdout=stdout, stderr=stderr)]  # any later gh call raises
     with pytest.raises(SystemExit) as exc:
         run_close(["--pull-request", "999999"], replies)
     assert exc.value.code == code

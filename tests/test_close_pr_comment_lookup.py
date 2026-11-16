@@ -7,8 +7,14 @@ import subprocess
 
 import pytest
 
-from tests.close_pr_test_support import DENIED, OPEN, pages, run_close, subcommands
-from tests.test_close_pr import _completed
+from tests.close_pr_test_support import (
+    DENIED,
+    OPEN,
+    _completed,
+    pages,
+    run_close,
+    subcommands,
+)
 
 pytestmark = pytest.mark.usefixtures("stub_git_probes", "tmp_path_is_temp_root")
 

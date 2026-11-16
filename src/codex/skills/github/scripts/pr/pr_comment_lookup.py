@@ -98,7 +98,5 @@ def find_existing_comment(owner: str, repo: str, pr: int, comment: str) -> dict[
             "authors instead of by login.",
             file=sys.stderr,
         )
-        # Installation token: GET /user is denied, so the author is unknowable.
-        # An identical body from a bot account is the retry of this command.
         return first_bot_comment(same_body)
     return first_by_author(same_body, login)
