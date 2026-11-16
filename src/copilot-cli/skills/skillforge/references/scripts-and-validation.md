@@ -128,8 +128,8 @@ examples use the skill and root from the validation block in `SKILL.md`.
    ]}
    ```
 
-3. Apply the verdicts. Add `--verbose` to also print JUDGED_PASS rows with
-   their reasons and quotes; by default only failures and unknowns print.
+3. Apply the verdicts. JUDGED_PASS rows are hidden by default, like PASS rows;
+   add `--verbose` to print them with their reasons and quotes.
 
    ```bash
    ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillforge/scripts/conformance.py "$SKILL" --root "$HOME/.claude" --judgments judgments.json --verbose; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
