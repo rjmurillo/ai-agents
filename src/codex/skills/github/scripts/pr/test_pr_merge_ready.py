@@ -31,7 +31,7 @@ Exit codes follow ADR-035:
     0 - PR is ready to merge
     1 - PR is not ready to merge
     2 - PR not found
-    3 - API error, including a failed branch ruleset lookup
+    3 - API error: a failed branch ruleset lookup with no other blocker
     4 - Auth error
 """
 
@@ -1192,9 +1192,10 @@ def _reconcile_missing_required_checks(
 ) -> bool:
     """Reconcile branch ruleset required checks against active rollup checks.
 
-    Returns True when the ruleset lookup succeeded (or was skipped because
-    owner/repo/base_ref is absent), and False when the ruleset API failed so
-    the caller can fail closed on ``ci_passing``.
+    Returns True when the ruleset lookup succeeded, or when it was not
+    attempted because owner, repo, or base_ref is absent (required checks stay
+    unverified in that case). Returns False when the ruleset API failed so the
+    caller can fail closed on ``ci_passing``.
     """
     base_ref = _base_ref_name(pr)
     if not (owner and repo and base_ref):
@@ -2097,8 +2098,10 @@ def main(argv: list[str] | None = None) -> int:
     print(f"PR #{args.pull_request} is NOT ready to merge", file=sys.stderr)
     for reason in result["Reasons"]:
         print(f"  - {reason}", file=sys.stderr)
-    if result.get("RulesetLookupFailed"):
-        # Required checks are unknown, so "not ready" is not a verdict (ADR-035: 3).
+    # The lookup failure adds exactly one reason. When it is the only reason,
+    # readiness is unknown and the caller may retry (ADR-035: 3). Any other
+    # reason is a definite block, so retrying cannot help and exit 1 stands.
+    if result.get("RulesetLookupFailed") and len(result["Reasons"]) == 1:
         return 3
     return 1
 

@@ -3254,12 +3254,28 @@ class TestMissingRulesetRequiredChecks:
     def test_main_exits_0_when_ruleset_satisfied(self, capsys):
         assert self._run_main(_OPEN_PR, ["build"]) == 0
 
-    def test_main_exits_3_even_when_other_blockers_exist(self, capsys):
-        """The required-check set is unknown, so the verdict is an API error."""
+    def test_main_exits_1_when_other_blockers_exist_with_lookup_failure(self, capsys):
+        """A definite block is not retryable, so it keeps exit 1 over exit 3."""
         pr_data = json.loads(json.dumps(_OPEN_PR))
         pr_data["repository"]["pullRequest"]["isDraft"] = True
 
-        assert self._run_main(pr_data, None) == 3
+        assert self._run_main(pr_data, None) == 1
+        assert json.loads(capsys.readouterr().out)["RulesetLookupFailed"] is True
+
+    def test_main_exits_1_when_required_check_failed_and_lookup_fails(self, capsys):
+        pr_data = self._pr_with_contexts(
+            [
+                {
+                    "__typename": "CheckRun",
+                    "name": "build",
+                    "status": "COMPLETED",
+                    "conclusion": "FAILURE",
+                    "isRequired": True,
+                }
+            ]
+        )
+
+        assert self._run_main(pr_data, None) == 1
 
     def _pr_with_contexts(self, nodes):
         pr_data = json.loads(json.dumps(_OPEN_PR))
