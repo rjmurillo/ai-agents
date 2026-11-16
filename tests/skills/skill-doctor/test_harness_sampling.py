@@ -274,7 +274,10 @@ def test_quotas_deal_round_robin_and_never_exceed_a_pool():
 
 def test_skill_documents_the_deterministic_rule_verbatim():
     skill = Path(__file__).resolve().parents[3] / "src" / "claude" / "skills" / "skill-doctor"
+    # SKILL.md points to references/collection.md, which keeps the rule verbatim.
     text = (skill / "SKILL.md").read_text(encoding="utf-8")
+    assert "references/collection.md` (Sampling disclosure)" in text
+    text += (skill / "references" / "collection.md").read_text(encoding="utf-8")
 
     assert SAMPLING_RULE in text
     assert WITHIN_HARNESS_RULE in text

@@ -62,6 +62,11 @@ def test_parse_stanza_allows_a_missing_excluded_table() -> None:
         ({"packs": []}, "non-empty mapping"),
         ({"excluded": ["delta"]}, "mapping of skill name to reason"),
         ({"excluded": {"delta": "  "}}, "needs a non-empty reason"),
+        ({"excludedFiles": ["alpha/scripts/run.py"]}, "mapping of file path to reason"),
+        ({"excludedFiles": {"alpha/scripts/run.py": " "}}, "needs a non-empty reason"),
+        ({"excludedFiles": {"run.py": "why"}}, "<skill>/<relative path>"),
+        ({"excludedFiles": {"alpha/../beta/SKILL.md": "why"}}, "no `.` or `..`"),
+        ({"excludedFiles": {"alpha//run.py": "why"}}, "no `.` or `..`"),
     ],
 )
 def test_parse_stanza_rejects_a_bad_value(override: dict[str, object], needle: str) -> None:
@@ -335,3 +340,58 @@ def test_limits_reject_a_file_over_one_megabyte() -> None:
         f"p/big.txt is {cfg.HERMES_MAX_FILE_BYTES + 1} bytes; "
         f"Hermes refuses a file over {cfg.HERMES_MAX_FILE_BYTES}"
     ]
+
+
+# --- excludedFiles -----------------------------------------------------------
+
+
+def test_parse_stanza_reads_excluded_files() -> None:
+    config = make_config(excludedFiles={"alpha/scripts/run.py": " Needs a missing skill. "})
+
+    assert config.excluded_files == {"alpha/scripts/run.py": "Needs a missing skill."}
+
+
+def test_parse_stanza_defaults_to_no_excluded_files() -> None:
+    assert make_config().excluded_files == {}
+
+
+def test_check_excluded_files_accepts_a_real_file_of_a_packed_skill(tmp_path: Path) -> None:
+    write_skill(tmp_path, "alpha", {"scripts/run.py": "x\n"})
+    config = make_config(excludedFiles={"alpha/scripts/run.py": "why"})
+
+    assert checks.check_excluded_files(tmp_path, config) == []
+
+
+def test_check_excluded_files_rejects_an_entry_that_matches_no_file(tmp_path: Path) -> None:
+    write_skill(tmp_path, "alpha")
+    config = make_config(excludedFiles={"alpha/scripts/renamed.py": "why"})
+
+    problems = checks.check_excluded_files(tmp_path, config)
+
+    assert len(problems) == 1
+    assert "alpha/scripts/renamed.py" in problems[0] and "matches no file" in problems[0]
+
+
+def test_check_excluded_files_rejects_a_directory_entry(tmp_path: Path) -> None:
+    write_skill(tmp_path, "alpha", {"scripts/run.py": "x\n"})
+    config = make_config(excludedFiles={"alpha/scripts": "why"})
+
+    assert "matches no file" in checks.check_excluded_files(tmp_path, config)[0]
+
+
+def test_check_excluded_files_rejects_a_skill_that_ships_in_no_pack(tmp_path: Path) -> None:
+    write_skill(tmp_path, "delta", {"scripts/run.py": "x\n"})
+    config = make_config(excludedFiles={"delta/scripts/run.py": "why"})
+
+    problems = checks.check_excluded_files(tmp_path, config)
+
+    assert len(problems) == 1 and "'delta' is in no pack" in problems[0]
+
+
+def test_check_excluded_files_rejects_a_skill_entrypoint(tmp_path: Path) -> None:
+    write_skill(tmp_path, "alpha", {"scripts/run.py": "x\n"})
+    config = make_config(excludedFiles={"alpha/SKILL.md": "why"})
+
+    problems = checks.check_excluded_files(tmp_path, config)
+
+    assert len(problems) == 1 and "without its SKILL.md" in problems[0]

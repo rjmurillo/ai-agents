@@ -51,6 +51,7 @@ tracking issue and the named deliverable present in the working tree.
 | `spec-005-command-skill-bundling-implementation.md` | Landed partial, registry now stale | `scripts/validation/bundle_registry.py` and `tests/test_command_bundles.py` exist, but all 15 registry rows fail and the check never left advisory mode. Tracked in #3424. |
 | `6069-pr-gated-cli-smoke.md` | Complete | REQ-047 shipped in PR #6240 (`9b40ac957`), which closed #6069. Archived directly because the plans README requires `completed/` to be empty at rest (#3426). The first nine-leg CI proof is dispatch run 37875066342 on `main`. |
 | `6239-retire-test-selector.md` | Complete | Import-graph test selector retired and pytest legs balanced by duration in PR #6241 (`0c801576a`), which closed #6239. Archived directly because the plans README requires `completed/` to be empty at rest (#3426). |
+| `REQ-049-skill-bootstrap-cross-source-friction.md` | Complete | REQ-049 shipped in PR #7255 (`b959011e3`, 2026-11-11): `bootstrap_sweep.py`, five judge rubrics, and the `institutional-knowledge` lens in skill-bootstrap. Archived directly because the plans README requires `completed/` to be empty at rest (#3426). Review-outcome clustering stays open under #7155. |
 
 ## Reading these files
 

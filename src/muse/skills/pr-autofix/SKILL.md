@@ -1,6 +1,14 @@
 ---
 name: pr-autofix
-description: Fix PRs autonomously. Triage open PRs by tier, address thread feedback, fix CI failures, and enable auto-merge when the 4-condition Ready-to-Merge gate passes. Use when you say `pr-autofix`, `autofix this pr`, or `monitor open prs`. Do NOT use to answer review comments interactively on one PR (use pr-review), and do NOT use to run the six quality axes over your working changes (use pr-quality-all).
+version: 1.0.0
+description: Fix open PRs autonomously. Triage by tier, address thread feedback, fix CI failures, and enable auto-merge when the 4-condition Ready-to-Merge gate passes. Use when you say `pr-autofix`, `autofix this pr`, or `monitor open prs`. Do NOT use to watch one PR (use pr-babysit), to answer one PR's review comments (use pr-review), or to run the quality axes (use pr-quality-all).
+license: MIT
+metadata:
+  routing:
+    role: conditional-adjunct
+    invoker: pr-review
+    trigger: pr-review redirects a red check with no review comments here
+    user-facing: true
 ---
 
 # PR Autofix

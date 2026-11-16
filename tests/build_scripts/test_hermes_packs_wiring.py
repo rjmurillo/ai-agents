@@ -71,6 +71,30 @@ def test_schema_rejects_pack_keys_on_the_directory_copy_mode() -> None:
     assert any("need `mode: hermes-packs`" in e for e in errors)
 
 
+def test_schema_rejects_excluded_files_on_the_directory_copy_mode() -> None:
+    doc = {
+        "schemaVersion": "1.0",
+        "provider": "x",
+        "artifacts": {
+            "skills": {
+                "sourceDir": "a",
+                "outputDir": "b",
+                "mode": "directory-copy",
+                "excludedFiles": {"alpha/scripts/run.py": "why"},
+            }
+        },
+    }
+    errors, _ = schema.validate_yaml_doc(doc)
+    assert any("need `mode: hermes-packs`" in e and "excludedFiles" in e for e in errors)
+
+
+def test_schema_accepts_excluded_files_on_the_hermes_packs_mode() -> None:
+    stanza = make_stanza(excludedFiles={"alpha/scripts/run.py": "why"})
+    doc = {"schemaVersion": "1.0", "provider": "x", "artifacts": {"skills": stanza}}
+    errors, _ = schema.validate_yaml_doc(doc)
+    assert errors == []
+
+
 def test_schema_rejects_an_unknown_skills_mode() -> None:
     doc = {
         "schemaVersion": "1.0",

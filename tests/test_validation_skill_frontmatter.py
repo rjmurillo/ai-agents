@@ -102,8 +102,19 @@ class TestValidateName:
     def test_valid_numeric_only(self) -> None:
         assert validate_name("12345") == []
 
-    def test_valid_hyphens_at_boundaries(self) -> None:
-        assert validate_name("-test-skill-") == []
+    def test_hyphens_at_boundaries_rejected(self) -> None:
+        # agentskills.io: name must not start or end with a hyphen.
+        assert any("starts or ends with a hyphen" in e for e in validate_name("-test-skill-"))
+
+    def test_consecutive_hyphens_rejected(self) -> None:
+        assert any("consecutive hyphens" in e for e in validate_name("test--skill"))
+
+    def test_name_must_match_directory(self) -> None:
+        assert validate_name("test-skill", "test-skill") == []
+        assert any("must match its directory" in e for e in validate_name("test-skill", "other"))
+
+    def test_non_string_name_rejected(self) -> None:
+        assert validate_name(123) == ["name must be a string, got int"]
 
     def test_valid_max_length_64(self) -> None:
         assert validate_name("a" * 64) == []
@@ -128,7 +139,7 @@ class TestValidateName:
     def test_special_characters_rejected(self) -> None:
         errors = validate_name("test_skill!")
         assert any("Invalid name format" in e for e in errors)
-        assert any("invalid characters" in e for e in errors)
+        assert any("characters other than a-z, 0-9, and hyphen" in e for e in errors)
 
     def test_exceeds_64_characters(self) -> None:
         errors = validate_name("a" * 65)
@@ -439,7 +450,8 @@ class TestValidateSkillFile:
     """Tests for single file validation."""
 
     def test_valid_file(self, tmp_path: Path) -> None:
-        skill_file = tmp_path / "SKILL.md"
+        skill_file = tmp_path / "test-skill" / "SKILL.md"
+        skill_file.parent.mkdir()
         skill_file.write_text("---\nname: test-skill\ndescription: A test skill\n---\n# Body")
         result = validate_skill_file(skill_file)
         assert result.passed is True
@@ -473,7 +485,8 @@ class TestValidateSkillFile:
         assert any("Invalid model" in e for e in result.errors)
 
     def test_valid_with_all_optional_fields(self, tmp_path: Path) -> None:
-        skill_file = tmp_path / "SKILL.md"
+        skill_file = tmp_path / "full-skill" / "SKILL.md"
+        skill_file.parent.mkdir()
         skill_file.write_text(
             "---\nname: full-skill\n"
             "description: Full skill with all fields\n"
@@ -495,7 +508,8 @@ class TestValidateSkillFile:
         assert any("argument-hint must be a string" in e for e in result.errors)
 
     def test_frontmatter_only_no_body(self, tmp_path: Path) -> None:
-        skill_file = tmp_path / "SKILL.md"
+        skill_file = tmp_path / "no-content" / "SKILL.md"
+        skill_file.parent.mkdir()
         skill_file.write_text(
             "---\nname: no-content\ndescription: Skill with no content after frontmatter\n---"
         )
@@ -519,7 +533,7 @@ class TestMain:
         assert "No SKILL.md files found" in capsys.readouterr().out
 
     def test_valid_file_ci_mode_returns_0(self, tmp_path: Path) -> None:
-        skill_dir = tmp_path / ".claude" / "skills" / "ok"
+        skill_dir = tmp_path / ".claude" / "skills" / "ok-skill"
         skill_dir.mkdir(parents=True)
         (skill_dir / "SKILL.md").write_text("---\nname: ok-skill\ndescription: Valid\n---")
         exit_code = main(
@@ -580,7 +594,7 @@ class TestMain:
     def test_mixed_results_summary(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        valid_dir = tmp_path / ".claude" / "skills" / "valid"
+        valid_dir = tmp_path / ".claude" / "skills" / "valid-skill"
         valid_dir.mkdir(parents=True)
         (valid_dir / "SKILL.md").write_text(
             "---\nname: valid-skill\ndescription: Valid test skill\n---"
@@ -603,7 +617,7 @@ class TestMain:
         assert "Failed: 1" in output
 
     def test_changed_files_arg(self, tmp_path: Path) -> None:
-        skill_dir = tmp_path / ".claude" / "skills" / "ok"
+        skill_dir = tmp_path / ".claude" / "skills" / "ok-skill"
         skill_dir.mkdir(parents=True)
         skill_file = skill_dir / "SKILL.md"
         skill_file.write_text("---\nname: ok-skill\ndescription: Valid\n---")

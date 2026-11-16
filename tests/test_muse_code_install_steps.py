@@ -148,3 +148,58 @@ def test_rerun_replaces_skills_and_lib_and_moves_old_copies_to_backup(tmp_path: 
     assert (backup / "skills" / "github" / "local-edit.txt").read_text(encoding="utf-8") == "mine"
     assert (backup / "lib" / "dropped_upstream.py").is_file()
     assert _run_skill_script(root / "skills", tmp_path).returncode == 0
+
+
+LIMIT_HEADING = "### Known limit: skill scripts under the default Muse Code sandbox"
+# Each phrase is one fact issue #7364 asks the guide to state.
+LIMIT_FACTS = {
+    "the symptom users see": "[Errno 13] Permission denied",
+    "the folder the sandbox denies": "~/.config/muse",
+    "the workaround flag": "--disable-sandbox",
+    "the absence of a supported allowlist": "no supported setting",
+}
+
+
+def _limit_section(text: str) -> str:
+    """Return the guide's known-limit section, or "" when the heading is absent."""
+    if LIMIT_HEADING not in text:
+        return ""
+    return text.split(LIMIT_HEADING, 1)[1].split("\n## ", 1)[0]
+
+
+def _limit_gaps(text: str) -> list[str]:
+    section = _limit_section(text)
+    return [name for name, phrase in LIMIT_FACTS.items() if phrase not in section]
+
+
+def test_guide_states_the_sandbox_limit_and_the_workaround() -> None:
+    text = GUIDE.read_text(encoding="utf-8")
+
+    assert _limit_section(text) != "", "the known-limit section is missing"
+    assert _limit_gaps(text) == []
+
+
+def test_guide_check_section_points_the_permission_denied_failure_at_the_limit() -> None:
+    text = GUIDE.read_text(encoding="utf-8")
+    check = text.split("### Check Muse Code", 1)[1].split(LIMIT_HEADING, 1)[0]
+
+    assert "[Errno 13] Permission denied" in check
+    assert "See the next section." in check
+
+
+def test_limit_check_reports_every_fact_when_the_section_is_absent() -> None:
+    assert _limit_gaps("### Check Muse Code\n\nOnly the old paragraph.\n") == list(LIMIT_FACTS)
+
+
+def test_limit_check_reports_the_missing_workaround_and_nothing_else() -> None:
+    text = GUIDE.read_text(encoding="utf-8")
+    section = _limit_section(text)
+    without_flag = text.replace(section, section.replace("--disable-sandbox", "--some-flag"))
+
+    assert _limit_gaps(without_flag) == ["the workaround flag"]
+
+
+def test_limit_check_ignores_facts_that_sit_outside_the_section() -> None:
+    stub = f"{LIMIT_HEADING}\n\nNothing useful.\n\n## Next\n\n{' '.join(LIMIT_FACTS.values())}\n"
+
+    assert _limit_gaps(stub) == list(LIMIT_FACTS)

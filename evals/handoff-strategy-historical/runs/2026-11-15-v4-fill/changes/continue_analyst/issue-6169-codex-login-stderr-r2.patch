@@ -1,0 +1,64 @@
+diff --git a/scripts/eval/_cli_credential_sources.py b/scripts/eval/_cli_credential_sources.py
+index 9b0c1df..15cc8c7 100644
+--- a/scripts/eval/_cli_credential_sources.py
++++ b/scripts/eval/_cli_credential_sources.py
+@@ -160,7 +160,9 @@ def _probe_env(environ: Mapping[str, str]) -> dict[str, str]:
+     return {name: value for name in _PROBE_ENV_NAMES if (value := environ.get(name))}
+ 
+ 
+-def _probe_output(argv: list[str], environ: Mapping[str, str]) -> str | None:
++def _probe_output(
++    argv: list[str], environ: Mapping[str, str], include_stderr: bool = False
++) -> str | None:
+     try:
+         completed = subprocess.run(
+             argv,
+@@ -175,7 +177,12 @@ def _probe_output(argv: list[str], environ: Mapping[str, str]) -> str | None:
+         )
+     except (OSError, subprocess.SubprocessError):
+         return None
+-    return completed.stdout or "" if completed.returncode == 0 else None
++    if completed.returncode != 0:
++        return None
++    text = completed.stdout or ""
++    if include_stderr:
++        text += "\n" + (completed.stderr or "")
++    return text
+ 
+ 
+ def claude_login_probe(executable: str, environ: Mapping[str, str]) -> bool:
+@@ -194,7 +201,7 @@ def claude_login_probe(executable: str, environ: Mapping[str, str]) -> bool:
+ 
+ def codex_login_probe(executable: str, environ: Mapping[str, str]) -> bool:
+     """True when `codex login status` reports the ChatGPT plan login."""
+-    output = _probe_output([executable, "login", "status"], environ)
++    output = _probe_output([executable, "login", "status"], environ, include_stderr=True)
+     if output is None:
+         return False
+     return any(line.strip() == "Logged in using ChatGPT" for line in output.splitlines())
+diff --git a/tests/eval/test_issue_6169_repro.py b/tests/eval/test_issue_6169_repro.py
+index 8f40245..0d82636 100644
+--- a/tests/eval/test_issue_6169_repro.py
++++ b/tests/eval/test_issue_6169_repro.py
+@@ -18,3 +18,21 @@ def fake_run(argv: list[str], **kwargs: Any) -> Any:
+ 
+     monkeypatch.setattr(src.subprocess, "run", fake_run)
+     assert src.codex_login_probe("codex", {})
++
++
+[redacted: email](
++    ("rc", "out", "err", "expected"),
++    [
++        (0, "Logged in using ChatGPT\n", "", True),
++        (1, "", "Logged in using ChatGPT\n", False),
++        (0, "", "Not logged in\n", False),
++    ],
++)
++def test_codex_login_probe_branches(
++    monkeypatch: pytest.MonkeyPatch, rc: int, out: str, err: str, expected: bool
++) -> None:
++    def fake_run(argv: list[str], **kwargs: Any) -> Any:
++        return subprocess.CompletedProcess(argv, rc, out, err)
++
++    monkeypatch.setattr(src.subprocess, "run", fake_run)
++    assert src.codex_login_probe("codex", {}) is expected

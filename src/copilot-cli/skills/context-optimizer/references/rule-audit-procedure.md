@@ -113,7 +113,7 @@ against and costs credits rather than API spend.
 ```bash
 EVAL_PROVIDER=copilot-cli uv run python scripts/eval/eval-rule-activation.py \
   --scenarios tests/evals/rule-scenarios/<rule>.json \
-  --model claude-opus-5 \
+  --model claude-opus-5-5 \
   --output /tmp/audit/opus-1.json
 ```
 

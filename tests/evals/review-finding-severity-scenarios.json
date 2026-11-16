@@ -1,0 +1,54 @@
+{
+  "scenarios": [
+    {
+      "id": "FS1",
+      "desc": "A WARN axis holding one high and one low finding labels them differently",
+      "input": "/review ran the architect axis. Its verdict is WARN. It recorded two findings in this order: finding A with severity high, finding B with severity low. Decide how the findings table labels A then B. Answer with the label pair in the order the findings are listed.",
+      "verdict_options": [
+        "IMPORTANT_THEN_SUGGESTION",
+        "IMPORTANT_THEN_IMPORTANT",
+        "SUGGESTION_THEN_SUGGESTION"
+      ],
+      "expected_verdict": "IMPORTANT_THEN_SUGGESTION",
+      "rationale": "Issue 7351: each finding keeps its own recorded severity. The WARN verdict is not copied onto the low finding."
+    },
+    {
+      "id": "FS2",
+      "desc": "A CRITICAL_FAIL axis holding one critical and one low finding does not label both critical",
+      "input": "/review ran the security axis. Its verdict is CRITICAL_FAIL. It recorded two findings in this order: finding A with severity critical, finding B with severity low. Decide how the findings table labels A then B. Answer with the label pair in the order the findings are listed.",
+      "verdict_options": [
+        "CRITICAL_THEN_SUGGESTION",
+        "CRITICAL_THEN_CRITICAL",
+        "IMPORTANT_THEN_SUGGESTION"
+      ],
+      "expected_verdict": "CRITICAL_THEN_SUGGESTION",
+      "rationale": "Issue 7351: the CRITICAL_FAIL verdict must not flow down to the low finding."
+    },
+    {
+      "id": "FS3",
+      "desc": "A finding with no severity is UNSPECIFIED, not borrowed from the axis verdict",
+      "input": "/review ran the devops axis. Its verdict is WARN. It recorded one finding with a description and a file but no severity field. Decide which severity label the findings table gives that finding. Reply with one label.",
+      "verdict_options": [
+        "UNSPECIFIED",
+        "IMPORTANT",
+        "SUGGESTION",
+        "CRITICAL"
+      ],
+      "expected_verdict": "UNSPECIFIED",
+      "rationale": "A missing value is UNSPECIFIED. The axis verdict is never the source of a finding label."
+    },
+    {
+      "id": "FS4",
+      "desc": "Scanner error and warning violations keep their own labels",
+      "input": "/review ran local axis 3 (golden-principles). The scanner JSON has error_count 1 and warning_count 1, and a violations array with two items: the first has severity error, the second has severity warning. Decide how the findings table labels the first then the second. Answer with the label pair in the order the findings are listed.",
+      "verdict_options": [
+        "CRITICAL_THEN_IMPORTANT",
+        "UNSPECIFIED_THEN_UNSPECIFIED",
+        "CRITICAL_THEN_CRITICAL",
+        "IMPORTANT_THEN_SUGGESTION"
+      ],
+      "expected_verdict": "CRITICAL_THEN_IMPORTANT",
+      "rationale": "The scanner reports a per-item severity. An error can fail the axis, a warning can only reach WARN."
+    }
+  ]
+}

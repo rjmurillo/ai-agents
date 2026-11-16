@@ -108,18 +108,25 @@ SKILLFORGE_PREFIX_PATTERN = r"\bskillforge[:\s]"
 IMPROVE_VERBS = r"(?:improve|enhance|update|upgrade|fix|extend)"
 DETERMINERS = r"(?:the|my|our|this|a)"
 _DETERMINER_WORDS = frozenset({"the", "my", "our", "this", "a"})
+# A skill name is one word or hyphen-joined words ("build", "context-mode").
+SKILL_NAME = r"\w+(?:-\w+)*"
 
 # An improve verb that opens the request wins over a create verb used as a skill
 # name: "improve build skill" asks to change the build skill.
 LEADING_IMPROVE_PATTERN = (
-    rf"^\s*(?:please\s+)?{IMPROVE_VERBS}\s+(?:{DETERMINERS}\s+)?(?:\w+\s+)?skill\b"
+    rf"^\s*(?:please\s+)?{IMPROVE_VERBS}\s+(?:{DETERMINERS}\s+)?(?:{SKILL_NAME}\s+)?skill\b"
 )
 
 EXPLICIT_IMPROVE_PATTERNS = [
-    rf"\b{IMPROVE_VERBS}\s+(?:{DETERMINERS}\s+)?(?:\w+\s+)?skill\b",
+    rf"\b{IMPROVE_VERBS}\s+(?:{DETERMINERS}\s+)?(?:{SKILL_NAME}\s+)?skill\b",
     r"\bskill\s+(?:needs?|could\s+use|should\s+have)\b",
     r"\b(?:add|include)\s+(?:to|in)\s+(?:the\s+)?\w+\s+skill\b",
 ]
+
+# Captures the skill name an improve request names, hyphens included.
+IMPROVE_SKILL_NAME_PATTERN = re.compile(
+    rf"{IMPROVE_VERBS}\s+(?:{DETERMINERS}\s+)?({SKILL_NAME})\s+skill"
+)
 
 SKILL_QUESTION_PATTERNS = [
     r"\bdo\s+(?:i|we)\s+have\s+(?:a\s+)?skill\b",
@@ -174,9 +181,7 @@ def _explicit_create(query_lower: str, signals: dict[str, Any]) -> tuple[str, di
 
 def _explicit_improve(query_lower: str, signals: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     """Build the EXPLICIT_IMPROVE result, naming the skill when the request does."""
-    skill_match = re.search(
-        rf"{IMPROVE_VERBS}\s+(?:{DETERMINERS}\s+)?(\w+(?:-\w+)*)\s+skill", query_lower
-    )
+    skill_match = IMPROVE_SKILL_NAME_PATTERN.search(query_lower)
     if skill_match and skill_match.group(1) not in _DETERMINER_WORDS:
         signals["mentioned_skill_name"] = skill_match.group(1)
     return InputCategory.EXPLICIT_IMPROVE, signals
@@ -1038,15 +1043,42 @@ def topic_is_covered(matches: list[dict[str, Any]]) -> bool:
     return bool(covering_skills(matches))
 
 
+def _improve_target(
+    skill_name: str,
+    matches: list[dict[str, Any]],
+    indexed_names: frozenset[str],
+) -> str | None:
+    """Pick the skill an improve request names, or None when it is unclear.
+
+    An exact name wins over a higher-ranked name that only contains it, so
+    "context-mode" never resolves to "context-mode-plus". Without an exact
+    name, a containing name is used only when it is the single candidate.
+    """
+    wanted = skill_name.lower()
+    for m in matches:
+        if m["name"].lower() == wanted:
+            return str(m["name"])
+    if wanted in indexed_names:
+        return wanted
+    partial = [m["name"] for m in matches if wanted in m["name"].lower()]
+    if len(partial) == 1:
+        return str(partial[0])
+    return None
+
+
 def make_triage_decision(
     category: str,
     signals: dict[str, Any],
     matches: list[dict[str, Any]],
     query: str,
     indexed_name_words: frozenset[str] = frozenset(),
+    indexed_names: frozenset[str] = frozenset(),
 ) -> tuple[str, dict[str, Any]]:
     """
     Make the final triage decision based on input analysis and skill matches.
+
+    indexed_names is every indexed skill name, lowercased. An improve request
+    that names a skill exactly targets it even when it ranks outside matches.
 
     indexed_name_words is every word in every indexed skill name. Unclear input
     that uses a short word from that set ("adr" in adr-generator) names a skill
@@ -1111,14 +1143,13 @@ def make_triage_decision(
     if category == InputCategory.EXPLICIT_IMPROVE:
         skill_name = signals.get("mentioned_skill_name")
         if skill_name:
-            # Find the mentioned skill
-            for m in matches:
-                if skill_name.lower() in m["name"].lower():
-                    return Action.IMPROVE_EXISTING, {
-                        **details,
-                        "reason": f"Improving existing skill: {m['name']}",
-                        "target_skill": m["name"],
-                    }
+            target = _improve_target(skill_name, matches, indexed_names)
+            if target:
+                return Action.IMPROVE_EXISTING, {
+                    **details,
+                    "reason": f"Improving existing skill: {target}",
+                    "target_skill": target,
+                }
         # Couldn't find mentioned skill
         return Action.CLARIFY, {
             **details,
@@ -1279,7 +1310,10 @@ def triage_request(query: str) -> Result:
         for skill in skills
         for word in _TOKEN_PATTERN.findall(str(skill.get("name", "")).lower())
     )
-    action, details = make_triage_decision(category, signals, matches, query, indexed_name_words)
+    indexed_names = frozenset(str(skill.get("name", "")).lower() for skill in skills)
+    action, details = make_triage_decision(
+        category, signals, matches, query, indexed_name_words, indexed_names
+    )
 
     # Build response
     return Result(

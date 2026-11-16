@@ -3,7 +3,9 @@
 ADR-115 Decision 6: the Hermes tree is a set of packs, each a portable Agent
 Plugins v1 package under ``src/hermes/project-toolkit-<name>/``. A hand
 maintained ``packs`` table says which pack carries each shipped skill, and an
-``excluded`` table names the skills that ship nowhere, each with a reason.
+``excluded`` table names the skills that ship nowhere, each with a reason. An
+``excludedFiles`` table names single files of a shipped skill that no pack
+carries, because the file cannot work in a Hermes pack.
 
 This module only turns the YAML stanza into typed values and rejects a
 malformed stanza. Whether the table matches the skills on disk is checked in
@@ -18,7 +20,7 @@ cap, so it may not exceed it.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 HERMES_MAX_PACK_FILES = 400
 HERMES_MAX_PACK_BYTES = 10 * 1024 * 1024
@@ -70,6 +72,7 @@ class HermesConfig:
     frontmatter_drop: frozenset[str]
     packs: tuple[PackSpec, ...]
     excluded: dict[str, str]
+    excluded_files: dict[str, str] = field(default_factory=dict)
 
 
 def _require_str(stanza: dict[str, object], key: str, problems: list[str]) -> str:
@@ -152,6 +155,28 @@ def _parse_excluded(stanza: dict[str, object], problems: list[str]) -> dict[str,
     return excluded
 
 
+def _parse_excluded_files(stanza: dict[str, object], problems: list[str]) -> dict[str, str]:
+    """Return ``{"<skill>/<path in skill>": reason}`` for files that ship in no pack."""
+    raw = stanza.get("excludedFiles")
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        problems.append("`artifacts.skills.excludedFiles` must be a mapping of file path to reason")
+        return {}
+    excluded: dict[str, str] = {}
+    for path, reason in raw.items():
+        label = f"`artifacts.skills.excludedFiles.{path}`"
+        if not isinstance(path, str) or not isinstance(reason, str) or not reason.strip():
+            problems.append(f"{label} needs a non-empty reason string")
+            continue
+        parts = path.split("/")
+        if len(parts) < 2 or any(part in ("", ".", "..") for part in parts):
+            problems.append(f"{label}: key must be `<skill>/<relative path>` with no `.` or `..`")
+            continue
+        excluded[path] = reason.strip()
+    return excluded
+
+
 def parse_stanza(stanza: dict[str, object]) -> HermesConfig:
     """Return the typed config, or raise :class:`HermesPackError` listing every problem."""
     problems: list[str] = []
@@ -164,6 +189,7 @@ def parse_stanza(stanza: dict[str, object]) -> HermesConfig:
     drop = _parse_drop(stanza, problems)
     packs = _parse_packs(stanza, problems)
     excluded = _parse_excluded(stanza, problems)
+    excluded_files = _parse_excluded_files(stanza, problems)
     if problems:
         raise HermesPackError(problems)
     return HermesConfig(
@@ -174,4 +200,5 @@ def parse_stanza(stanza: dict[str, object]) -> HermesConfig:
         frontmatter_drop=drop,
         packs=packs,
         excluded=excluded,
+        excluded_files=excluded_files,
     )

@@ -18,7 +18,7 @@
       "label": "opus5",
       "role": "reference",
       "provider": "copilot-cli",
-      "model": "claude-opus-5"
+      "model": "claude-opus-5.5"
     },
     {
       "label": "opus55",

@@ -10,7 +10,8 @@ artifacts:
     sourceDir: "src/claude/skills"
     outputDir: "src/hermes"
     # Budget under the Hermes cap of 400 files, counting lib/ and plugin.json.
-    packMaxFiles: 380
+    # 381 makes room for skillforge's judging module (_conformance_judging.py).
+    packMaxFiles: 381
     # hermes-agent commit whose plugin_guard and install limits this table was
     # measured against. The guard test and the smoke test install this commit.
     hermesCommit: "63d0b94120027d487c9a5235b9ec64b696af1b26"
@@ -35,11 +36,12 @@ artifacts:
            chaos-experiment, code-qualities-assessment, codeql-scan, destructive-change-safety,
            doc-accuracy, dx-review, execution-plans, fix-markdown-fences, git-advanced-workflows,
            github, github-url-intercept, golden-principles, maintainer-review, merge-resolver,
-           metrics, observability, orphan-ref-validator, pipeline-validator, plan, pr-autofix,
-           pr-comment-responder, pr-quality-all, pr-quality-analyst, pr-quality-architect,
+           metrics, modernize, observability, orphan-ref-validator, pipeline-validator, plan,
+           pr-autofix, pr-babysit, pr-comment-responder, pr-quality-all, pr-quality-analyst,
+           pr-quality-architect,
            pr-quality-devops, pr-quality-qa, pr-quality-roadmap, pr-quality-security, pr-review,
            push-pr, quality-grades, research, reviewer-findings, security-review, slo-designer,
-           steering-matcher, style-enforcement, sync, taste-lints, test, threat-modeling,
+           steering-matcher, style-enforcement, sync, takeover, taste-lints, test, threat-modeling,
            validate-pr-description, validation-authority, windows-image-updater]
       knowledge:
         description: "Project Toolkit skills for memory, context, decisions, requirements, strategy, and documentation."
@@ -72,3 +74,7 @@ artifacts:
       security-detection: "Refers to excluded skill(s): review."
       spec-generator: "Refers to excluded skill(s): review."
       ship: "Refers to excluded skill(s): review."
+    # A file of a packed skill that no pack carries. The key is
+    # `<skill>/<path inside the skill>`. A key that matches no file fails the build.
+    excludedFiles:
+      retrospective/scripts/copilot_journal.py: "Needs the skill-doctor parser, which Hermes does not ship, so --journal always reports unavailable there."

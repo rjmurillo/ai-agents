@@ -1,6 +1,27 @@
 ---
 name: destructive-change-safety
+version: 1.0.0
 description: Prove blast radius and recovery before a change that deletes, overwrites, drops, or revokes state. Scans for destructive sinks, traces callers and flags, previews scope without mutating, and blocks on unknown scope, bad cardinality, or no rollback. Use when you say `is this delete safe` or `blast radius`. Do NOT use for read-only changes or security review (use security-scan).
+license: MIT
+metadata:
+  capability:
+    kind: reusable-primitive
+    owns:
+      - destructive-change-safety
+    depends-on:
+      - technical-review
+    status: active
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan's long-tail resolver matches a destructive-change or blast-radius request
+    user-facing: true
+    intents:
+      - destructive change safety
+      - blast radius
+      - is this delete safe
+      - rollback plan
+      - irreversible migration
 ---
 
 # Destructive Change Safety

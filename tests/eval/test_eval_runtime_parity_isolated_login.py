@@ -53,7 +53,7 @@ def test_real_home_run_uses_the_cli_login_and_gets_no_token(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv(TOKEN_ENV, raising=False)
-    monkeypatch.setenv(parity.REAL_HOME_ENV, "1")
+    monkeypatch.setenv(runtime_harness.REAL_HOME_ENV, "1")
     _disk_login(monkeypatch)
 
     assert TOKEN_ENV not in parity._fixture_env(tmp_path, "claude", "claude")
@@ -147,7 +147,7 @@ def test_preflight_skips_runs_that_need_no_isolated_login(
     monkeypatch.delenv(TOKEN_ENV, raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     if real_home:
-        monkeypatch.setenv(parity.REAL_HOME_ENV, "1")
+        monkeypatch.setenv(runtime_harness.REAL_HOME_ENV, "1")
     set_sources(monkeypatch, "_claude_cli", disk=lambda _env: None, probe=True)
 
     parity._require_isolated_login(harnesses, "claude", dry_run=dry_run)

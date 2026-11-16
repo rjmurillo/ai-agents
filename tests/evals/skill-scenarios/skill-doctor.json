@@ -86,6 +86,28 @@
       ],
       "expected_gate": "skill-doctor-assemble-without-manifest",
       "rationale": "The catalog comes only from an audit manifest the collector wrote; without one, the assemble command leaves out --manifest rather than inventing a catalog."
+    },
+    {
+      "id": "S8",
+      "desc": "Passing conversation supports a Cut candidate",
+      "input": "Run skill-doctor. One passing conversation loaded skill release-notes, and the agent skipped its 40-line manual setup section because a script already did that work. No failed conversation used release-notes. Do not execute tools. In three short bullets, say what candidate you would draft and what evidence it cites.",
+      "expected_signals": [
+        "Cut:",
+        "passing"
+      ],
+      "expected_gate": "skill-doctor-passing-cut",
+      "rationale": "A passing conversation may back only a removal. The candidate starts with Cut: and cites the passing conversation, the scorer, and the moment."
+    },
+    {
+      "id": "S9",
+      "desc": "Passing conversation cannot back a corrective edit",
+      "input": "Run skill-doctor. Only passing conversations used skill release-notes. In one of them, the agent might have done better with an extra checklist. Do not execute tools. In two short bullets, say whether skill-doctor drafts an edit that adds the checklist, and why.",
+      "expected_signals": [
+        "failed",
+        "Cut:"
+      ],
+      "expected_gate": "skill-doctor-no-corrective-from-passing",
+      "rationale": "Corrective suggestions need a failed conversation. A passing conversation alone supports only a Cut: candidate, so no checklist edit is drafted."
     }
   ]
 }

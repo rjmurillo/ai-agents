@@ -43,10 +43,13 @@ import _control_ablation_history as history  # noqa: E402
 import _control_ablation_tasks as ablation_tasks  # noqa: E402
 import _durable_review as durable_review  # noqa: E402
 import _outcome_record as outcome_record  # noqa: E402
-from _isolated_claude_login import IsolatedLoginError, isolated_login_values  # noqa: E402
+from _isolated_claude_login import (  # noqa: E402
+    IsolatedLoginError,
+    isolated_login_values,
+    temporary_real_home,
+)
 from _run_changes import path_safe, write_patch  # noqa: E402
 from _runtime_harness import (  # noqa: E402
-    REAL_HOME_ENV,
     probe_version,
     real_home_enabled,
 )
@@ -398,69 +401,68 @@ def _run(
     if args.dry_run:
         report, ok = dry_run.run_dry_run(tasks, workspace_root)
         return report, (EXIT_OK if ok else EXIT_LOGIC)
-    if args.real_home:
-        os.environ[REAL_HOME_ENV] = "1"
-    control_names = batch.requested_controls(args.controls)
-    if args.start_repeat < 0 or args.repeats < 1:
-        raise ablation_tasks.ControlAblationConfigError(
-            "--start-repeat must be >= 0 and --repeats >= 1"
+    with temporary_real_home(args.real_home):
+        control_names = batch.requested_controls(args.controls)
+        if args.start_repeat < 0 or args.repeats < 1:
+            raise ablation_tasks.ControlAblationConfigError(
+                "--start-repeat must be >= 0 and --repeats >= 1"
+            )
+        if args.reviewer_model is not None and not args.reviewer_model.strip():
+            raise ablation_tasks.ControlAblationConfigError("--reviewer-model must not be empty")
+        if args.reviewer_model is not None:
+            try:
+                durable_review.ReviewerSpec("claude", args.reviewer_model, "default")
+            except ValueError as exc:
+                raise ablation_tasks.ControlAblationConfigError(f"--reviewer-model: {exc}") from exc
+        # Each run may add one reviewer launch, so the cap binds launches, not runs.
+        launches_per_run = 2 if args.reviewer_model is not None else 1
+        total_runs = len(tasks) * len(control_names) * args.repeats * launches_per_run
+        if total_runs > args.max_runs:
+            raise ablation_tasks.ControlAblationConfigError(
+                f"{total_runs} launches (tasks x controls x repeats, x2 with a reviewer) exceeds "
+                f"--max-runs {args.max_runs}; refusing before any model call (AC-3)"
+            )
+        repeats = range(args.start_repeat, args.start_repeat + args.repeats)
+        batch.refuse_recorded_cells(output_dir, control_names, tasks, repeats)
+        cap = args.max_cost_usd
+        if cap is not None and (not math.isfinite(cap) or cap <= 0):
+            raise ablation_tasks.ControlAblationConfigError("--max-cost-usd must be finite and > 0")
+        pass_env = batch.parse_pass_env(args.pass_env, os.environ)
+        controls = {name: ablation.resolve_control(name, control_root) for name in control_names}
+        if control_root != REPO_ROOT:
+            # Controls now hold their bytes; no agent should find the base tree on disk.
+            batch.remove_tree(control_root)
+        # Before the first launch: a mid-batch edit or commit is never attributed to it.
+        provenance = batch.build_provenance(
+            repo_root=REPO_ROOT,
+            tasks_file=tasks_file,
+            payload=payload,
+            sources=sources,
+            controls=controls,
+            model=args.model,
+            pass_env=pass_env,
+            max_cost_usd=args.max_cost_usd,
+            interpreter=sys.executable,
         )
-    if args.reviewer_model is not None and not args.reviewer_model.strip():
-        raise ablation_tasks.ControlAblationConfigError("--reviewer-model must not be empty")
-    if args.reviewer_model is not None:
-        try:
-            durable_review.ReviewerSpec("claude", args.reviewer_model, "default")
-        except ValueError as exc:
-            raise ablation_tasks.ControlAblationConfigError(f"--reviewer-model: {exc}") from exc
-    # Each run may add one reviewer launch, so the cap binds launches, not runs.
-    launches_per_run = 2 if args.reviewer_model is not None else 1
-    total_runs = len(tasks) * len(control_names) * args.repeats * launches_per_run
-    if total_runs > args.max_runs:
-        raise ablation_tasks.ControlAblationConfigError(
-            f"{total_runs} launches (tasks x controls x repeats, x2 with a reviewer) exceeds "
-            f"--max-runs {args.max_runs}; refusing before any model call (AC-3)"
+        report, code = _run_live(
+            tasks,
+            controls,
+            repeats=repeats,
+            model=args.model,
+            timeout=args.timeout,
+            workspace_root=workspace_root,
+            output_dir=output_dir,
+            runner=batch.child_env_runner(runner, pass_env, sys.executable),
+            reviewer_model=args.reviewer_model,
+            withheld_markers=history.withheld_markers(sources, REPO_ROOT),
+            max_cost_usd=args.max_cost_usd,
+            secret_literals=[
+                *batch.secret_literals(pass_env, os.environ),
+                *isolated_login_values(claude_run.CLAUDE_EXECUTABLE, skip=real_home_enabled()),
+            ],
         )
-    repeats = range(args.start_repeat, args.start_repeat + args.repeats)
-    batch.refuse_recorded_cells(output_dir, control_names, tasks, repeats)
-    cap = args.max_cost_usd
-    if cap is not None and (not math.isfinite(cap) or cap <= 0):
-        raise ablation_tasks.ControlAblationConfigError("--max-cost-usd must be finite and > 0")
-    pass_env = batch.parse_pass_env(args.pass_env, os.environ)
-    controls = {name: ablation.resolve_control(name, control_root) for name in control_names}
-    if control_root != REPO_ROOT:
-        # Controls now hold their bytes; no agent should find the base tree on disk.
-        batch.remove_tree(control_root)
-    # Before the first launch: a mid-batch edit or commit is never attributed to it.
-    provenance = batch.build_provenance(
-        repo_root=REPO_ROOT,
-        tasks_file=tasks_file,
-        payload=payload,
-        sources=sources,
-        controls=controls,
-        model=args.model,
-        pass_env=pass_env,
-        max_cost_usd=args.max_cost_usd,
-        interpreter=sys.executable,
-    )
-    report, code = _run_live(
-        tasks,
-        controls,
-        repeats=repeats,
-        model=args.model,
-        timeout=args.timeout,
-        workspace_root=workspace_root,
-        output_dir=output_dir,
-        runner=batch.child_env_runner(runner, pass_env, sys.executable),
-        reviewer_model=args.reviewer_model,
-        withheld_markers=history.withheld_markers(sources, REPO_ROOT),
-        max_cost_usd=args.max_cost_usd,
-        secret_literals=[
-            *batch.secret_literals(pass_env, os.environ),
-            *isolated_login_values(claude_run.CLAUDE_EXECUTABLE, skip=real_home_enabled()),
-        ],
-    )
-    report["provenance"] = provenance
-    return report, code
+        report["provenance"] = provenance
+        return report, code
 
 
 def main(argv: Sequence[str] | None = None, *, runner: claude_run.Runner = subprocess.run) -> int:
