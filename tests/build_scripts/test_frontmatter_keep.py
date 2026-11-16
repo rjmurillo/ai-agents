@@ -167,7 +167,7 @@ def test_keep_helper_distinguishes_absent_from_empty() -> None:
         generate_skills._frontmatter_keep({"frontmatterKeep": None})
 
 
-def test_committed_cursor_skills_carry_only_documented_keys() -> None:
+def test_committed_cursor_skills_carry_only_allowed_keys() -> None:
     documented = {
         "name",
         "description",
@@ -176,6 +176,9 @@ def test_committed_cursor_skills_carry_only_documented_keys() -> None:
         "icon",
         "color",
         "metadata",
+        # GP-003 keys, ADR-115 Decision 3 amended 2026-11-15.
+        "version",
+        "license",
     }
     skills = sorted((REPO_ROOT / "src" / "cursor" / "skills").glob("*/SKILL.md"))
     assert len(skills) == len(list((REPO_ROOT / "src" / "claude" / "skills").glob("*/SKILL.md")))

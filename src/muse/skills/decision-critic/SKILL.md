@@ -1,6 +1,14 @@
 ---
 name: decision-critic
+version: 1.0.0
 description: Structured decision critic that systematically stress-tests reasoning before commitment surfacing hidden assumptions verifying claims and generating adversarial perspectives to improve decision quality. Do NOT use to surface failure risks pre-launch (use pre-mortem), probe why a constraint exists (use chestertons-fence), or ask the user to choose (use decision-question).
+license: MIT
+metadata:
+  routing:
+    role: conditional-adjunct
+    invoker: buy-vs-build-framework
+    trigger: buy-vs-build-framework feeds its Phase 4 rationale to decision-critic for validation
+    user-facing: false
 ---
 
 # Decision Critic

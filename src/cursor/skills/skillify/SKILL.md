@@ -1,6 +1,8 @@
 ---
 name: skillify
+version: 1.0.0
 description: Extract a reusable skill from a workflow you just finished. Use when you say `skillify this`, `save this as a skill`, or `make this proper`. Do NOT use to design a skill from a goal (use skillforge).
+license: MIT
 metadata:
   capability:
     kind: reusable-primitive

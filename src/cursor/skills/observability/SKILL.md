@@ -1,6 +1,8 @@
 ---
 name: observability
+version: 1.0.0
 description: Use when you say `query agent logs`, `find slow tool calls`, `show agent errors`, or `what to log`. Query and analyze agent JSONL event logs for debugging, performance analysis, and decision tracing.
+license: MIT
 metadata:
   capability:
     kind: reusable-primitive

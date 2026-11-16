@@ -1,6 +1,7 @@
 ---
 name: metrics
 description: Collect agent usage metrics from git history and generate health reports. Use when measuring agent adoption, reviewing system health, or producing periodic dashboards. Collects Invocation Rate, Coverage, Infrastructure Review, and Usage Distribution. Use when you say "collect agent metrics", "generate metrics dashboard", or "weekly metrics report".
+license: MIT
 metadata:
   routing:
     role: explicit-only
@@ -8,6 +9,7 @@ metadata:
     trigger: a user asks to collect agent usage metrics
     user-facing: true
     rationale: Automatic routing would be noisy. Usage collection is an operator task, and inbound matches are the common word metrics in unrelated prose.
+version: 1.0.0
 ---
 
 # Agent Metrics Collection Utility
