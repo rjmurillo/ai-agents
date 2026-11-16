@@ -342,6 +342,25 @@ def resolve_skills(
     return directories
 
 
+def _apply_judgments_file(
+    report: Report, directory: Path, root: Path, args: argparse.Namespace
+) -> list[str]:
+    """Apply --judgments to one skill's report, or return why the file was rejected."""
+    judgments = Path(args.judgments)
+    excluded = file_id(judgments)
+    if excluded is None:
+        return [f"cannot identify {judgments}: it is missing or unreadable"]
+    scope = JudgingScope(
+        directory=directory,
+        root=root,
+        allowed=frozenset(skill_files(directory, root, exclude=judgments)),
+        open_ids=frozenset(r.rule.id for r in report.results if r.status == "MANUAL"),
+        waived=frozenset(args.waive),
+        excluded=excluded,
+    )
+    return apply_judgments(report.results, judgments, scope)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -364,21 +383,7 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.write(json.dumps(packet, indent=2) + "\n")
         return 0
     if args.judgments:
-        judgments = Path(args.judgments)
-        excluded = file_id(judgments)
-        scope = JudgingScope(
-            directory=directories[0],
-            root=root,
-            allowed=frozenset(skill_files(directories[0], root, exclude=judgments)),
-            open_ids=frozenset(r.rule.id for r in reports[0].results if r.status == "MANUAL"),
-            waived=frozenset(args.waive),
-            excluded=excluded,
-        )
-        errors = (
-            [f"cannot identify {judgments}: it is missing or unreadable"]
-            if excluded is None
-            else apply_judgments(reports[0].results, judgments, scope)
-        )
+        errors = _apply_judgments_file(reports[0], directories[0], root, args)
         if errors:
             print("judgments rejected; nothing applied:", file=sys.stderr)
             for error in errors:
