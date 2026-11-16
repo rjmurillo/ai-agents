@@ -156,12 +156,12 @@ _IMPORT_PATTERNS = {
     "python": re.compile(r"^\s*(?:import\s+\S|from\s+\S+\s+import\s+)"),
     "javascript": re.compile(r"^\s*import\s+|\brequire\s*\("),
     "typescript": re.compile(r"^\s*import\s+|\brequire\s*\("),
-    # Match directive shapes through the semicolon, not resource declarations.
+    # Classify directive shapes, not identifier spellings or resource declarations.
     "csharp": re.compile(
         r"^\s*(?:global\s+)?using\s+"
         r"(?:static\s+[^;]+|"
-        r"(?:unsafe\s+)?@?[A-Za-z_]\w*\s*=\s*[^;]+|"
-        r"(?:@?[A-Za-z_]\w*\s*(?:::|\.)\s*)*@?[A-Za-z_]\w*)\s*;"
+        r"(?:unsafe\s+)?[^\s;=.:()]+\s*=\s*[^;]+|"
+        r"(?:[^\s;=.:()]+\s*(?:::|\.)\s*)*[^\s;=.:()]+)\s*;"
     ),
     "java": re.compile(r"^\s*import\s+[A-Za-z_]"),
     "go": re.compile(
@@ -1283,6 +1283,8 @@ def _score_coupling(
     are stable utilities, not application or third-party coupling (issues
     #7047 and #7354).
     """
+    if language == "csharp":
+        code_lines = [re.sub(r"/\*.*?\*/", " ", line) for line in code_lines]
     pattern = _IMPORT_PATTERNS.get(language) if language else None
     standard_count = 0
     if pattern is not None:
