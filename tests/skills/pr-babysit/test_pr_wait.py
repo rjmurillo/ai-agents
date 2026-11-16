@@ -215,12 +215,17 @@ def test_restart_with_known_blocker_waits_until_ready(
             head="a" * 40,
             base_oid="b" * 40,
             green_head="a" * 40,
-            blockers={"threads:1"},
+            blockers={"thread:t1"},
             head_seen_at=1.0,
         ),
     )
     gates = iter([_gate(UnresolvedThreads=1), _gate(UnresolvedThreads=0)])
-    monkeypatch.setattr(pw, "fetch_snapshot", lambda *_a: (_pr(mergeStateStatus="CLEAN"), "me"))
+    thread = {"id": "t1", "isResolved": False, "isOutdated": False}
+    snapshots = iter(
+        [_pr(mergeStateStatus="CLEAN", reviewThreads={"totalCount": 1, "nodes": [thread]})]
+    )
+    resolved = _pr(mergeStateStatus="CLEAN")
+    monkeypatch.setattr(pw, "fetch_snapshot", lambda *_a: (next(snapshots, resolved), "me"))
     monkeypatch.setattr(pw, "fetch_gate", lambda *_a: next(gates))
 
     assert pw.main(["5", "--repo", "o/r"]) == 0

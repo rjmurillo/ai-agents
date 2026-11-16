@@ -128,7 +128,7 @@ query($owner: String!, $name: String!, $number: Int!) {
       reviewThreads(last: 100) {
         totalCount
         nodes {
-          id
+          id isResolved isOutdated
           first: comments(first: 1) { nodes { id url author { login } } }
           last: comments(last: 1) { totalCount nodes { id url author { login } } }
         }
@@ -163,6 +163,8 @@ class Poll:
     done: int | None = None
     # True once ready-only blockers were evaluated on a green head this poll.
     ready_checked: bool = False
+    # Unresolved, current review thread ids in the snapshot window.
+    open_threads: set[str] = field(default_factory=set)
 
 
 def log(message: str) -> None:
@@ -227,6 +229,11 @@ def diff_pr(state: State, pr: Json, baseline: bool) -> Poll:
     if merge_state == "DIRTY":
         poll.blockers.add(f"dirty:{_short(head)}:{_short(base_oid)}")
     poll.blockers.update(_review_blockers(pr, head))
+    poll.open_threads = {
+        str(t.get("id"))
+        for t in ((pr.get("reviewThreads") or {}).get("nodes") or [])
+        if t.get("id") and not t.get("isResolved") and not t.get("isOutdated")
+    }
     return poll
 
 
@@ -291,9 +298,11 @@ def _ready_verdict(state: State, gate: Json, poll: Poll, green: bool) -> None:
     poll.ready_checked = True
     unresolved = int(gate.get("UnresolvedThreads") or 0)
     if unresolved > 0:
-        # Keyed by count: a thread a bot adds after a push raises it and fires
-        # again, while threads waiting on a reviewer stay quiet across pushes.
-        poll.blockers.add(f"threads:{unresolved}")
+        # One blocker per thread: a new thread fires once, a resolved one just
+        # drops, and threads waiting on a reviewer stay quiet across pushes.
+        poll.blockers.update(f"thread:{tid}" for tid in poll.open_threads)
+        if unresolved > len(poll.open_threads):
+            poll.blockers.add("threads:unlisted")
     if state.merge_state == "BEHIND":
         poll.blockers.add(f"behind:{_short(state.base_oid)}")
     # Commit age is not push age: a slow pre-push makes a fresh push look old.

@@ -142,13 +142,13 @@ def test_closed_pr_is_done_one() -> None:
 
 def test_new_head_resets_checks_but_keeps_review_blockers() -> None:
     state = pw.State(
-        head="c" * 40, failing={"lint"}, green_head="c" * 40, blockers={"threads", "check:lint"}
+        head="c" * 40, failing={"lint"}, green_head="c" * 40, blockers={"thread:t1", "check:lint"}
     )
 
     poll = pw.diff_pr(state, _pr(), False)
 
     assert poll.events == ["head: aaaaaaa"]
-    assert (state.failing, state.green_head, state.blockers) == (set(), "", {"threads"})
+    assert (state.failing, state.green_head, state.blockers) == (set(), "", {"thread:t1"})
 
 
 def test_base_move_is_reported_after_baseline() -> None:
@@ -230,7 +230,30 @@ def test_ready_is_done_when_green_clean_and_no_threads() -> None:
 def test_ready_blocks_on_unresolved_threads() -> None:
     state = pw.State(head="a" * 40, merge_state="BLOCKED")
 
-    assert _gate_poll(state, _gate(UnresolvedThreads=2), "ready").blockers == {"threads:2"}
+    poll = _gate_poll(state, _gate(UnresolvedThreads=2), "ready", open_threads={"t1", "t2"})
+
+    assert poll.blockers == {"thread:t1", "thread:t2"}
+
+
+def test_threads_beyond_the_window_block_as_unlisted() -> None:
+    state = pw.State(head="a" * 40, merge_state="BLOCKED")
+
+    poll = _gate_poll(state, _gate(UnresolvedThreads=3), "ready", open_threads={"t1"})
+
+    assert poll.blockers == {"thread:t1", "threads:unlisted"}
+
+
+def test_open_threads_come_from_unresolved_current_snapshot_nodes() -> None:
+    threads = {
+        "totalCount": 3,
+        "nodes": [
+            {"id": "t1", "isResolved": False, "isOutdated": False},
+            {"id": "t2", "isResolved": True, "isOutdated": False},
+            {"id": "t3", "isResolved": False, "isOutdated": True},
+        ],
+    }
+
+    assert pw.diff_pr(pw.State(), _pr(reviewThreads=threads), True).open_threads == {"t1"}
 
 
 def test_ready_blocks_on_behind_keyed_by_base() -> None:
@@ -268,25 +291,25 @@ def test_green_reported_once_per_head() -> None:
 
 def test_settle_exits_one_on_new_blocker_with_line() -> None:
     state = pw.State()
-    poll = pw.Poll(blockers={"threads"})
+    poll = pw.Poll(blockers={"thread:t1"})
 
     assert pw.settle(state, poll, "ready") == 1
-    assert poll.events == ["blocked: threads"]
+    assert poll.events == ["blocked: thread:t1"]
 
 
 def test_settle_keeps_waiting_on_known_blocker() -> None:
-    state = pw.State(blockers={"threads"})
-    poll = pw.Poll(blockers={"threads"})
+    state = pw.State(blockers={"thread:t1"})
+    poll = pw.Poll(blockers={"thread:t1"})
 
     assert pw.settle(state, poll, "ready") is None
     assert poll.events == []
 
 
 def test_settle_rearms_blocker_after_it_clears() -> None:
-    state = pw.State(blockers={"threads"})
+    state = pw.State(blockers={"thread:t1"})
     pw.settle(state, pw.Poll(ready_checked=True), "ready")
 
-    assert pw.settle(state, pw.Poll(blockers={"threads"}), "ready") == 1
+    assert pw.settle(state, pw.Poll(blockers={"thread:t1"}), "ready") == 1
 
 
 def test_settle_closed_exits_one_even_for_any_change() -> None:
@@ -405,28 +428,43 @@ def test_review_blocker_survives_pending_phase_without_rearming() -> None:
 
 
 def test_cleared_review_blocker_is_forgotten_after_green_check() -> None:
-    state = pw.State(head="a" * 40, merge_state="BLOCKED", blockers={"threads"})
+    state = pw.State(head="a" * 40, merge_state="BLOCKED", blockers={"thread:t1"})
     pw.settle(state, _gate_poll(state, _gate(), "ready"), "ready")
 
     assert state.blockers == set()
 
 
-def test_new_bot_thread_after_push_fires_again() -> None:
-    state = pw.State(head="c" * 40, merge_state="BLOCKED", blockers={"threads:1"})
+def _cycle(state: Any, open_threads: set[str]) -> int | None:
+    """Push, one pending poll, then a green poll with the given open threads."""
     pw.diff_pr(state, _pr(), False)
-    pending = _gate_poll(state, _gate(PendingRequired=["ci"], UnresolvedThreads=2), "ready")
+    count = len(open_threads)
+    pending = _gate_poll(state, _gate(PendingRequired=["ci"], UnresolvedThreads=count), "ready")
     assert pw.settle(state, pending, "ready") is None
+    green = _gate_poll(state, _gate(UnresolvedThreads=count), "ready", open_threads=open_threads)
+    result: int | None = pw.settle(state, green, "ready")
+    return result
 
-    green = _gate_poll(state, _gate(UnresolvedThreads=2), "ready")
 
-    assert pw.settle(state, green, "ready") == 1
-    assert green.events[-1] == "blocked: threads:2"
+def test_new_bot_thread_after_push_fires_again() -> None:
+    state = pw.State(head="c" * 40, merge_state="BLOCKED", blockers={"thread:t1"})
+
+    assert _cycle(state, {"t1", "t2"}) == 1
+
+
+def test_resolve_plus_new_thread_in_one_push_fires() -> None:
+    state = pw.State(head="c" * 40, merge_state="BLOCKED", blockers={"thread:t1", "thread:t2"})
+
+    assert _cycle(state, {"t3", "t4"}) == 1
 
 
 def test_same_unresolved_threads_stay_quiet_across_push() -> None:
-    state = pw.State(head="c" * 40, merge_state="BLOCKED", blockers={"threads:1"})
-    pw.diff_pr(state, _pr(), False)
+    state = pw.State(head="c" * 40, merge_state="BLOCKED", blockers={"thread:t1"})
 
-    green = _gate_poll(state, _gate(UnresolvedThreads=1), "ready")
+    assert _cycle(state, {"t1"}) is None
 
-    assert pw.settle(state, green, "ready") is None
+
+def test_resolving_one_of_two_threads_stays_quiet() -> None:
+    state = pw.State(head="c" * 40, merge_state="BLOCKED", blockers={"thread:t1", "thread:t2"})
+
+    assert _cycle(state, {"t2"}) is None
+    assert state.blockers == {"thread:t2"}
