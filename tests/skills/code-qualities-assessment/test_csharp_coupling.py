@@ -1,6 +1,9 @@
 """C# directive and resource classification regressions for issue #7406."""
 
 import importlib.util
+import json
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -42,6 +45,8 @@ assess_content = _mod.assess_content
         "global using unsafe Pointer = int*;",
         "global using static System.Math;",
         "global /* shared */ using static System.Math;",
+        "using\n    System.IO\n    ;",
+        "global /* shared\n import */ using static\n System.Math;",
     ],
 )
 def test_csharp_directives_count_as_dependencies(directive: str) -> None:
@@ -92,3 +97,145 @@ def test_csharp_resource_cleanup_preserves_coupling() -> None:
 
     assert baseline.reasons[0] == "1 import/dependency statements"
     assert with_cleanup == baseline
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ("using System.IO; using System.Text;", 2),
+        ("namespace Example {\nusing System.IO;\nclass C {}\n}", 1),
+        ("namespace Example;\nusing System.IO;\nclass C {}", 1),
+        ("/*\nusing System.IO;\n*/", 0),
+        ('class C { string text = @"\nusing System.IO;\n"; }', 0),
+        ('class C { string text = """\nusing System.IO;\n"""; }', 0),
+    ],
+)
+def test_csharp_counts_syntax_nodes_not_source_lines(source: str, expected: int) -> None:
+    """AC1/AC2: Syntax determines dependencies, regardless of lines or literal text."""
+    coupling = assess_content(Path("Syntax.cs"), source).coupling
+
+    assert coupling.reasons[0] == f"{expected} import/dependency statements"
+    assert coupling.value == 10.0 - expected
+
+
+@pytest.mark.parametrize("module_name", ["tree_sitter", "tree_sitter_c_sharp"])
+def test_missing_csharp_parser_fails_cli_without_affecting_python(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    module_name: str,
+) -> None:
+    """AC1: Missing parsing tools fail explicitly, never report a passing C# score."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setitem(sys.modules, module_name, None)
+    csharp = tmp_path / "Imports.cs"
+    csharp.write_text("using System.IO;\n", encoding="utf-8")
+    python = tmp_path / "example.py"
+    python.write_text("def example():\n    return 1\n", encoding="utf-8")
+
+    result = _mod.main(["--target", str(csharp), "--format", "json"])
+    output = capsys.readouterr()
+
+    assert result == 1
+    assert "tree-sitter" in output.err
+    assert "install" in output.err.lower()
+    assert not output.out
+    assert _mod.main(["--target", str(python), "--format", "json"]) == 0
+
+
+def test_invalid_csharp_fails_cli_instead_of_reporting_no_dependencies(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """AC1: A syntax error must not become a successful zero-dependency assessment."""
+    monkeypatch.chdir(tmp_path)
+    target = tmp_path / "Invalid.cs"
+    target.write_text("using System.IO\n", encoding="utf-8")
+
+    result = _mod.main(["--target", str(target), "--format", "json"])
+    output = capsys.readouterr()
+
+    assert result == 1
+    assert "C#" in output.err
+    assert "syntax" in output.err.lower()
+    assert not output.out
+
+
+@pytest.mark.parametrize("error_type", [OSError, ValueError, TypeError])
+def test_broken_csharp_parser_fails_cli_without_a_success_report(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    error_type: type[Exception],
+) -> None:
+    """AC1: Native-load and grammar-initialization errors cannot pass the gate."""
+    monkeypatch.chdir(tmp_path)
+    target = tmp_path / "Imports.cs"
+    target.write_text("using System.IO;\n", encoding="utf-8")
+
+    def broken_parser(_language: object) -> None:
+        raise error_type("Parser initialization failed")
+
+    monkeypatch.setattr(importlib.import_module("tree_sitter"), "Parser", broken_parser)
+
+    result = _mod.main(["--target", str(target), "--format", "json"])
+    output = capsys.readouterr()
+
+    assert result == 1
+    assert "Parser initialization failed" in output.err
+    assert not output.out
+
+
+@pytest.mark.parametrize(
+    "plugin_parts",
+    [
+        ("claude",),
+        ("copilot-cli",),
+        ("codex",),
+        ("cursor",),
+        ("hermes", "project-toolkit-delivery"),
+        ("muse",),
+    ],
+)
+def test_shipped_csharp_parser_runs_from_consumer_directory(
+    tmp_path: Path, plugin_parts: tuple[str, ...]
+) -> None:
+    """AC1/AC2: Every shipped scanner parses source outside its own plugin directory."""
+    root = Path(__file__).resolve().parents[3]
+    script = root.joinpath(
+        "src", *plugin_parts, "skills", "code-qualities-assessment", "scripts", "assess.py"
+    )
+    target = tmp_path / "Consumer.cs"
+    target.write_text(
+        'global\nusing System.IO;\nclass C {\nstring text = @"\n'
+        'using Not.AnImport;\nusing Another.NotImport;\n";\n'
+        "void Cleanup() { using var stream = new MemoryStream(); }\n}\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-I", str(script), "--target", str(target), "--format", "json"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+
+    assert result.returncode == 0, result.stderr
+    coupling = json.loads(result.stdout)["files"][0]["coupling"]
+    assert coupling["value"] == 9.0
+    assert coupling["confidence"] == 0.6
+    assert coupling["reasons"][0] == "1 import/dependency statements"
+
+    without_packages = subprocess.run(
+        [sys.executable, "-I", "-S", str(script), "--target", str(target), "--format", "json"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+
+    assert without_packages.returncode == 1
+    assert "tree-sitter" in without_packages.stderr
+    assert not without_packages.stdout

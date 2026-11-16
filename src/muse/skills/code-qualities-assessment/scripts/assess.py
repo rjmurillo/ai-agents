@@ -156,13 +156,6 @@ _IMPORT_PATTERNS = {
     "python": re.compile(r"^\s*(?:import\s+\S|from\s+\S+\s+import\s+)"),
     "javascript": re.compile(r"^\s*import\s+|\brequire\s*\("),
     "typescript": re.compile(r"^\s*import\s+|\brequire\s*\("),
-    # Classify directive shapes, not identifier spellings or resource declarations.
-    "csharp": re.compile(
-        r"^\s*(?:global\s+)?using\s+"
-        r"(?:static\s+[^;]+|"
-        r"(?:unsafe\s+)?[^\s;=.:()]+\s*=\s*[^;]+|"
-        r"(?:[^\s;=.:()]+\s*(?:::|\.)\s*)*[^\s;=.:()]+)\s*;"
-    ),
     "java": re.compile(r"^\s*import\s+[A-Za-z_]"),
     "go": re.compile(
         r'^\s*import\s+(?:(?:[A-Za-z_]\w*|\.)\s+)?"[^"]+"\s*(?://.*)?$'
@@ -1266,6 +1259,30 @@ def _is_python_standard_import(line: str) -> bool:
     )
 
 
+class CSharpParserError(RuntimeError):
+    """C# dependencies cannot be measured reliably."""
+
+
+def _count_csharp_imports(source: str) -> int:
+    """Count directive syntax nodes, not resource declarations or literal text."""
+    try:
+        import tree_sitter_c_sharp
+        from tree_sitter import Language, Parser, Query, QueryCursor
+
+        language = Language(tree_sitter_c_sharp.language())
+        tree = Parser(language).parse(source.encode("utf-8"))
+        if tree.root_node.has_error:
+            raise CSharpParserError("Cannot count C# dependencies: the source has syntax errors")
+        query = Query(language, "(using_directive) @dependency")
+        return len(QueryCursor(query).captures(tree.root_node).get("dependency", []))
+    except (ImportError, OSError, TypeError, ValueError) as exc:
+        raise CSharpParserError(
+            f"C# dependency parsing failed: {exc}. "
+            "Install the parser packages in the scanner's Python environment: "
+            "python -m pip install tree-sitter==0.26.1 tree-sitter-c-sharp==0.23.5"
+        ) from exc
+
+
 def _score_coupling(
     language: str | None,
     code_lines: list[str],
@@ -1279,15 +1296,18 @@ def _score_coupling(
     0.0 so the threshold gate does not fail a file scored only by that
     untuned heuristic (matches the file-header contract).
 
-    Go and Python standard-library imports are reported but not scored: they
-    are stable utilities, not application or third-party coupling (issues
-    #7047 and #7354).
+    C# receives original source lines for syntax-tree parsing. Other languages
+    receive filtered code lines. Go and Python standard-library imports are
+    reported but not scored: they are stable utilities, not application or
+    third-party coupling (issues #7047 and #7354).
     """
-    if language == "csharp":
-        code_lines = [re.sub(r"/\*.*?\*/", " ", line) for line in code_lines]
     pattern = _IMPORT_PATTERNS.get(language) if language else None
     standard_count = 0
-    if pattern is not None:
+    if language == "csharp":
+        import_count = _count_csharp_imports("\n".join(code_lines))
+        confidence = 0.6
+        tuned = True
+    elif pattern is not None:
         import_lines = [line for line in code_lines if pattern.search(line)]
         import_count = len(import_lines)
         if language == "go":
@@ -1495,7 +1515,9 @@ def assess_content(
         file_path=str(file_path),
         category=category,
         cohesion=_score_cohesion(language, code_lines, loc),
-        coupling=_score_coupling(language, code_lines, resolve_go_module),
+        coupling=_score_coupling(
+            language, lines if language == "csharp" else code_lines, resolve_go_module
+        ),
         encapsulation=_score_encapsulation(language, code_lines),
         testability=_score_testability(language, code_lines),
         non_redundancy=_score_non_redundancy(lines, language is not None),
@@ -1795,6 +1817,8 @@ def _assess_files(
     for file_path in files:
         try:
             assessments.append(assess_file(file_path, context, use_serena))
+        except CSharpParserError:
+            raise
         except Exception as e:
             print(f"Error assessing {file_path}: {e}", file=sys.stderr)
             assessments.append(_unreadable_assessment(file_path, f"assessment failed: {e}"))
@@ -1914,8 +1938,8 @@ def main(argv: list[str] | None = None) -> int:
         print("No files to assess", file=sys.stderr)
         return 1
 
-    assessments = _assess_files(files, args.context, args.use_serena == "yes")
     try:
+        assessments = _assess_files(files, args.context, args.use_serena == "yes")
         comparisons, new_file_assessments = _build_regression_inputs(
             assessments,
             gate_mode,
