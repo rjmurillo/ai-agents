@@ -1,9 +1,10 @@
 """Boundary tests for host-specific split-agent reference roots.
 
 Claude Code and Copilot CLI renders carry their own bare plugin-root token on the
-six split-agent reference paths. Every other copy (Cursor, Muse, Codex) and the
-drift normalizer keep the shared fallback root, because those hosts never set a
-plugin-root variable in a model's shell (ADR-115).
+six split-agent reference paths. Cursor replaces the bare Claude token in a plugin
+agent body, so its copy keeps that token. Codex and Muse Code replace no token and
+set no plugin-root variable, so their copies and the drift normalizer keep the
+shared fallback root (probes of 2026-11-16).
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ import agent_templates  # noqa: E402
 import agent_tree_copy as atc  # noqa: E402
 import detect_agent_drift  # noqa: E402
 import generate_agents  # noqa: E402
+import schema_tree_keys  # noqa: E402
 from split_reference_roots import (  # noqa: E402
     CLAUDE_ROOT,
     COPILOT_ROOT,
@@ -31,7 +33,8 @@ from split_reference_roots import (  # noqa: E402
 )
 
 HOST_ROOTS = (CLAUDE_ROOT, COPILOT_ROOT)
-COPY_TREES = ("src/cursor/agents", "src/muse/agents", "src/codex/agents")
+FALLBACK_TREES = ("src/muse/agents", "src/codex/agents")
+CURSOR_TREE = "src/cursor/agents"
 
 
 def _ref(root: str, skill: str) -> str:
@@ -148,16 +151,87 @@ def test_tree_copy_restores_shared_root_from_claude_body() -> None:
     assert CLAUDE_ROOT not in rendered
 
 
+def test_tree_copy_keeps_claude_root_when_the_host_replaces_it() -> None:
+    body = f"\nReferences live under `{_ref(CLAUDE_ROOT, 'build')}`.\n"
+    spec = atc.RenderSpec(keep=["name"], keep_claude_reference_root=True)
+
+    rendered = atc.render_parsed({"name": "implementer"}, body, "implementer.md", spec)
+
+    assert rendered is not None
+    assert _ref(CLAUDE_ROOT, "build") in rendered
+    assert SHARED_ROOT not in rendered
+
+
+@pytest.mark.parametrize(
+    ("platform", "expected"), [("cursor", True), ("codex", False), ("muse", False)]
+)
+def test_platform_config_sets_reference_root_per_host(platform: str, expected: bool) -> None:
+    config = REPO_ROOT / "templates" / "platforms" / f"{platform}.yaml"
+    stanza = atc._read_stanza(config)
+
+    assert stanza is not None
+    assert (stanza.get(atc.KEEP_ROOT_KEY) is True) is expected
+
+
+def test_schema_rejects_non_boolean_keep_root() -> None:
+    stanza = {"frontmatterKeep": ["name"], "sourceDir": "a", "outputDir": "b"}
+    stanza[atc.KEEP_ROOT_KEY] = "yes"
+
+    errors = schema_tree_keys.validate_agents_tree_copy("agents", stanza)
+
+    assert any("keepClaudeReferenceRoot`: must be a boolean" in e for e in errors)
+
+
+def test_schema_rejects_keep_root_without_tree_copy() -> None:
+    errors = schema_tree_keys.validate_agents_tree_copy("agents", {atc.KEEP_ROOT_KEY: True})
+
+    assert any("keepClaudeReferenceRoot`: requires `frontmatterKeep`" in e for e in errors)
+
+
 def test_every_split_skill_ships_a_references_folder() -> None:
     for skill in SPLIT_REFERENCE_SKILLS:
         assert (REPO_ROOT / "src" / "claude" / "skills" / skill / "references").is_dir(), skill
 
 
-@pytest.mark.parametrize("tree", COPY_TREES)
-def test_copied_host_agents_carry_no_bare_claude_reference_root(tree: str) -> None:
+def _split_agent_files(tree: str) -> list[Path]:
     files = sorted((REPO_ROOT / tree).glob("*.*"))
     assert files, f"no agent files under {tree}"
+    return files
 
+
+def test_cursor_agents_carry_the_bare_claude_reference_root() -> None:
+    found = [
+        path.name
+        for path in _split_agent_files(CURSOR_TREE)
+        for skill in SPLIT_REFERENCE_SKILLS
+        if _ref(CLAUDE_ROOT, skill) in path.read_text(encoding="utf-8")
+    ]
+    nested = [
+        path.name
+        for path in _split_agent_files(CURSOR_TREE)
+        for skill in SPLIT_REFERENCE_SKILLS
+        if _ref(SHARED_ROOT, skill) in path.read_text(encoding="utf-8")
+    ]
+
+    assert sorted(found) == [
+        "architect.md",
+        "critic.md",
+        "implementer.md",
+        "orchestrator.md",
+        "qa.md",
+    ]
+    assert nested == []
+
+
+@pytest.mark.parametrize("tree", FALLBACK_TREES)
+def test_fallback_host_agents_carry_no_bare_claude_reference_root(tree: str) -> None:
+    files = _split_agent_files(tree)
+    shared = [
+        path.name
+        for path in files
+        for skill in SPLIT_REFERENCE_SKILLS
+        if _ref(SHARED_ROOT, skill) in path.read_text(encoding="utf-8")
+    ]
     offenders = [
         f"{path.relative_to(REPO_ROOT).as_posix()}: {skill}"
         for path in files
@@ -166,3 +240,4 @@ def test_copied_host_agents_carry_no_bare_claude_reference_root(tree: str) -> No
     ]
 
     assert offenders == []
+    assert len(shared) == 5, shared

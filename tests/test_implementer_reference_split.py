@@ -39,8 +39,8 @@ IMPLEMENTER_PATHS = (
 
 
 def _expected_path_form(path: Path) -> str:
-    """Claude Code renders its bare root, Copilot CLI its own; every other copy keeps both."""
-    if path.parts[:2] in {(".claude", "agents"), ("src", "claude")}:
+    """Claude Code and Cursor get the bare Claude root, Copilot CLI its own, the rest both."""
+    if path.parts[:2] in {(".claude", "agents"), ("src", "claude"), ("src", "cursor")}:
         return CLAUDE_PATH_FORM
     if ".github" in path.parts or "copilot-cli" in path.parts:
         return COPILOT_PATH_FORM

@@ -72,6 +72,7 @@ AGENTS_KEYS = {
     "skipToolRestricted",
     "outputFormat",
     "noSubagentsNote",
+    "keepClaudeReferenceRoot",
 }
 SKILLS_KEYS = {
     "sourceDir",
