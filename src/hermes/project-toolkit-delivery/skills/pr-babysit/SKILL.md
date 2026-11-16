@@ -63,9 +63,15 @@ the host's native tool:
 **Waiting on each host.** "Wait on a long-running command" means the host's background-run tool, so each output line wakes you and nothing polls. Claude Code: `Bash` with `run_in_background: true`, then `Monitor` on that task, so each stdout line arrives as an event. T3 Code: `t3_background_wait` with the task ID of a background command. Codex: `exec_command` with a long `yield_time_ms`, then `write_stdin` with empty `chars` to wait for more output. Copilot CLI: `bash` (or `powershell` on Windows), then `read_bash` (`read_powershell`) for more output. Devin CLI: `exec`, then `get_output`. Antigravity: `run_command`. Factory Droid: `Execute`. Muse Code documents no background shell tool. On Muse Code, or any host not named here, run the command in the foreground as one long call and read its output when it returns. Never write a `sleep` loop, and never call a status command over and over to wait.
 
 Start the watcher again after you push, after you handle an exit 1, and after
-a resume. It keeps state per PR, so a restarted watcher reports what arrived
-while none ran. The first run for a PR records what exists and reports only
-what comes after.
+a resume. It keeps state per PR for 6 hours, so a restarted watcher reports
+what arrived while none ran. A blocker it already reported (for example a
+thread only the reviewer can resolve) does not exit again: the watcher waits
+for it to clear. A first run, or a run after a longer gap, reports the current
+check and merge state and only newer comments.
+
+A host that cannot stream lines from a background command never sees events
+until the command ends. There, run with `--until any-change` so each event
+ends the run.
 
 With either watcher: when an event needs no action, end your turn without a
 message. Never post or say "still waiting".
@@ -132,23 +138,27 @@ Run the watcher through the plugin locator:
 `<pr>` is a PR number or URL. Add `--repo owner/name` when the checkout is not
 the PR's repository. It prints one line per real event (`head`, `check`,
 `green`, `comment`, `review`, `thread`, `activity`, `base`, `merge-state`,
-`merged`, `closed`) and nothing else on stdout.
+`blocked`, `merged`, `closed`) and nothing else on stdout. Every exit 1
+prints a `blocked:` or `closed` line first.
 
 Exit codes:
 
 | Exit | Meaning | Next step |
 |------|---------|-----------|
 | 0 | `--until` condition met, or the PR merged | Recheck the merge gate on the current head |
-| 1 | Needs you: a required check failed, DIRTY, closed, or (ready) unresolved threads or BEHIND | Act, push, then start the watcher again |
+| 1 | A new blocker: a required check failed, DIRTY, closed, or (ready) unresolved threads, BEHIND, or draft | Act, push, then start the watcher again |
 | 2 | Bad input, PR not found, or another `pr_wait.py` already watches this PR | Fix the input; do not start a second watcher |
 | 3 | GitHub stayed unreachable for 10 polls in a row | Check the rate limit, then start again |
+| 4 | `gh` is not authenticated | Sign in to `gh`, then start again |
 
 `--until`: `ready` (default) needs required checks green, no unresolved
-thread, and a branch that is not BEHIND or DIRTY. `green` needs required
+thread, and a branch that is not BEHIND, DIRTY, or a draft. `green` needs required
 checks only. `any-change` exits on the first event.
 
 The gate reads required checks from the base-branch ruleset through
-`why_pr_blocked.py`, so it matches what branch protection enforces.
+`why_pr_blocked.py`, so it matches what branch protection enforces. The
+watcher sees the newest 100 review threads. On a PR with more, it says so
+once; read every thread with `pr-comment-responder` before you call it ready.
 
 ## Anti-Patterns
 

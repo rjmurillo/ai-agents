@@ -18,7 +18,7 @@ checks from the base-branch ruleset, plus unresolved threads).
 
 --until
   ready       required checks pass on the current head, no unresolved review
-              thread, and the branch is not BEHIND or DIRTY (default)
+              thread, and the branch is not BEHIND, DIRTY, or a draft (default)
   green       required checks pass on the current head
   any-change  stop after the first poll that prints an event
 
@@ -32,21 +32,27 @@ Events
   activity    more activity arrived than one poll can list; read every thread
   base        the base branch moved
   merge-state the branch became BEHIND or DIRTY
+  blocked     the --until condition needs your action (always precedes exit 1)
   merged      the PR merged
   closed      the PR closed without merging
 
 Exit codes (ADR-035):
   0  the --until condition is met, or the PR merged
-  1  the condition cannot be met without action: a required check failed, the
-     branch is DIRTY, the PR closed, or (ready) unresolved threads or BEHIND
-     block it after required checks pass
-  2  bad arguments, or another pr_wait already watches this PR
+  1  a new blocker needs action: a required check failed, the branch is DIRTY,
+     the PR closed, or (ready) unresolved threads, BEHIND, or draft block it
+     after required checks pass. A blocker already reported to an earlier run
+     does not exit again; the watcher keeps waiting for it to clear.
+  2  bad arguments, the PR does not exist, or another pr_wait already watches
+     this PR
   3  GitHub stayed unreachable for MAX_FAILED_POLLS consecutive polls
+  4  gh is not authenticated
 
 State lives in the user state directory under ``pr-babysit``. A lock makes a
-second watcher for the same PR exit at once. A state file lets a restarted
-watcher report what arrived while no watcher ran. The first run for a PR
-records what already exists and reports only what comes after.
+second watcher for the same PR exit at once. A state file lets a watcher
+restarted within STALE_STATE_SECONDS report what arrived while none ran.
+A first run, or a run after a longer gap, records the existing comments,
+reviews, and threads and reports only newer ones. It reports the current
+check and merge state at once.
 """
 
 from __future__ import annotations
@@ -83,22 +89,25 @@ MAX_FAILED_POLLS = 10
 # A state file older than this describes an old session. Start a fresh
 # baseline instead of replaying hours of comments as new events.
 STALE_STATE_SECONDS = 6 * 3600
-ACTIVITY_WINDOW = 50
+THREAD_WINDOW = 100
+READY_MERGE_STATES = ("CLEAN", "HAS_HOOKS", "UNSTABLE", "BLOCKED")
+_NOT_FOUND = re.compile(r"Could not resolve to a (PullRequest|Repository)|NOT_FOUND")
 
 SNAPSHOT_QUERY = """
 query($owner: String!, $name: String!, $number: Int!) {
   viewer { login }
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
-      url state headRefOid baseRefName baseRefOid mergeStateStatus
+      url state isDraft headRefOid baseRefName baseRefOid mergeStateStatus
       author { login }
       comments(last: 50) { totalCount nodes { id url author { login } } }
       reviews(last: 50) { totalCount nodes { id url state author { login } } }
-      reviewThreads(last: 50) {
+      reviewThreads(last: 100) {
         totalCount
         nodes {
           id
-          comments(last: 1) { totalCount nodes { id url author { login } } }
+          first: comments(first: 1) { nodes { id url author { login } } }
+          last: comments(last: 1) { totalCount nodes { id url author { login } } }
         }
       }
     }
@@ -107,6 +116,10 @@ query($owner: String!, $name: String!, $number: Int!) {
 """
 
 _PR_URL = re.compile(r"github\.com/([^/\s]+)/([^/\s]+)/pull/(\d+)")
+
+
+class AuthError(RuntimeError):
+    """gh has no usable credential; retrying cannot help."""
 
 
 @dataclass
@@ -121,6 +134,7 @@ class State:
     totals: dict[str, int] = field(default_factory=dict)
     failing: set[str] = field(default_factory=set)
     green_head: str = ""
+    blockers: set[str] = field(default_factory=set)
 
     def to_json(self) -> Json:
         return {
@@ -132,6 +146,7 @@ class State:
             "totals": self.totals,
             "failing": sorted(self.failing),
             "green_head": self.green_head,
+            "blockers": sorted(self.blockers),
         }
 
     @classmethod
@@ -145,7 +160,17 @@ class State:
             totals={str(k): int(v) for k, v in data.get("totals", {}).items()},
             failing=set(data.get("failing", [])),
             green_head=str(data.get("green_head", "")),
+            blockers=set(data.get("blockers", [])),
         )
+
+
+@dataclass
+class Poll:
+    """One poll's output: events to print, blockers seen, and a terminal exit."""
+
+    events: list[str] = field(default_factory=list)
+    blockers: set[str] = field(default_factory=set)
+    done: int | None = None
 
 
 def log(message: str) -> None:
@@ -179,6 +204,11 @@ def state_dir() -> Path:
     else:
         base = os.environ.get("XDG_STATE_HOME") or str(Path.home() / ".local" / "state")
     return Path(base) / "pr-babysit"
+
+
+def state_key(owner: str, name: str, number: int) -> str:
+    """GitHub names are case-insensitive, so one PR maps to one lock."""
+    return f"{owner}__{name}__{number}".lower()
 
 
 def acquire_lock(path: Path) -> IO[str] | None:
@@ -230,96 +260,126 @@ def _short(sha: str) -> str:
     return sha[:7] if sha else "unknown"
 
 
-def diff_activity(state: State, pr: Json, viewer: str, baseline: bool) -> list[str]:
-    """Return activity events and update state. A baseline poll prints nothing."""
-    events: list[str] = []
-    ignored = {_login(pr).lower(), viewer.lower()}
+def _nodes(conn: Json | None) -> list[Json]:
+    return list((conn or {}).get("nodes") or [])
 
-    def note(kind: str, node: Json, detail: str = "") -> None:
+
+def _total(conn: Json | None) -> int:
+    return int((conn or {}).get("totalCount") or 0)
+
+
+class _Notes:
+    """Collects activity events, skipping seen ids and the author's own posts."""
+
+    def __init__(self, state: State, ignored: set[str], baseline: bool) -> None:
+        self.state = state
+        self.ignored = ignored
+        self.baseline = baseline
+        self.events: list[str] = []
+        self.overflow = False
+
+    def note(self, kind: str, node: Json, detail: str = "") -> None:
         node_id = str(node.get("id", ""))
-        if not node_id or node_id in state.seen:
+        if not node_id or node_id in self.state.seen:
             return
-        state.seen.add(node_id)
+        self.state.seen.add(node_id)
         login = _login(node)
-        if baseline or login.lower() in ignored:
+        if self.baseline or login.lower() in self.ignored:
             return
         suffix = f" {detail}" if detail else ""
-        events.append(f"{kind}: {login}{suffix} {node.get('url', '')}".rstrip())
+        self.events.append(f"{kind}: {login}{suffix} {node.get('url', '')}".rstrip())
 
-    overflow = False
-    for key, kind in (("comments", "comment"), ("reviews", "review")):
-        conn = pr.get(key) or {}
-        nodes = conn.get("nodes") or []
-        total = int(conn.get("totalCount") or 0)
-        before = state.totals.get(key, total)
-        if total - before > len(nodes):
-            overflow = True
-        state.totals[key] = total
+    def connection(self, key: str, conn: Json | None, kind: str) -> None:
+        total = _total(conn)
+        nodes = _nodes(conn)
+        if total - self.state.totals.get(key, total) > len(nodes):
+            self.overflow = True
+        self.state.totals[key] = total
         for node in nodes:
-            note(kind, node, str(node.get("state", "")) if kind == "review" else "")
+            self.note(kind, node, str(node.get("state", "")) if kind == "review" else "")
+
+    def thread(self, thread: Json) -> None:
+        thread_id = str(thread.get("id", ""))
+        last = thread.get("last") or {}
+        count = _total(last)
+        previous = self.state.thread_counts.get(thread_id)
+        self.state.thread_counts[thread_id] = count
+        # A gap between the first and last comment means replies this poll
+        # cannot list: more than one new reply, or a new thread with replies.
+        if (previous is None and count > 2) or (previous is not None and count - previous > 1):
+            self.overflow = True
+        for node in _nodes(thread.get("first")) + _nodes(last):
+            self.note("thread", node)
+
+
+def diff_activity(state: State, pr: Json, viewer: str, baseline: bool) -> list[str]:
+    """Return activity events and update state. A baseline poll prints nothing."""
+    notes = _Notes(state, {_login(pr).lower(), viewer.lower()}, baseline)
+    notes.connection("comments", pr.get("comments"), "comment")
+    notes.connection("reviews", pr.get("reviews"), "review")
 
     threads = pr.get("reviewThreads") or {}
-    thread_total = int(threads.get("totalCount") or 0)
-    if thread_total - state.totals.get("reviewThreads", thread_total) > len(
-        threads.get("nodes") or []
-    ):
-        overflow = True
+    thread_total = _total(threads)
+    if thread_total - state.totals.get("reviewThreads", thread_total) > len(_nodes(threads)):
+        notes.overflow = True
     state.totals["reviewThreads"] = thread_total
-    for thread in threads.get("nodes") or []:
-        thread_id = str(thread.get("id", ""))
-        conn = thread.get("comments") or {}
-        count = int(conn.get("totalCount") or 0)
-        previous = state.thread_counts.get(thread_id)
-        state.thread_counts[thread_id] = count
-        if previous is not None and count - previous > 1:
-            overflow = True
-        for node in conn.get("nodes") or []:
-            note("thread", node)
+    for thread in _nodes(threads):
+        notes.thread(thread)
 
-    if overflow and not baseline:
-        events.append("activity: more arrived than one poll lists; read every thread")
-    return events
+    if baseline:
+        if thread_total > THREAD_WINDOW:
+            notes.events.append(
+                f"activity: {thread_total} threads; replies in the oldest "
+                f"{thread_total - THREAD_WINDOW} are not watched; read every thread"
+            )
+        return notes.events
+    if notes.overflow:
+        notes.events.append("activity: more arrived than one poll lists; read every thread")
+    return notes.events
 
 
-def diff_pr(state: State, pr: Json, baseline: bool) -> tuple[list[str], int | None]:
-    """Return head, base, merge-state, and terminal events plus an exit code."""
-    events: list[str] = []
+def diff_pr(state: State, pr: Json, baseline: bool) -> Poll:
+    """Return head, base, merge-state, and terminal events plus blockers."""
+    poll = Poll()
     pr_state = str(pr.get("state", ""))
     if pr_state == "MERGED":
-        return ["merged"], 0
+        return Poll(events=["merged"], done=0)
     if pr_state == "CLOSED":
-        return ["closed"], 1
+        return Poll(events=["closed"], blockers={"closed"}, done=1)
 
     head = str(pr.get("headRefOid", ""))
     if state.head and head != state.head:
-        events.append(f"head: {_short(head)}")
+        poll.events.append(f"head: {_short(head)}")
         state.failing.clear()
         state.green_head = ""
+        state.blockers.clear()
     state.head = head
 
     base_oid = str(pr.get("baseRefOid", ""))
     if state.base_oid and base_oid != state.base_oid and not baseline:
-        events.append(f"base: {pr.get('baseRefName', '')} moved to {_short(base_oid)}")
+        poll.events.append(f"base: {pr.get('baseRefName', '')} moved to {_short(base_oid)}")
     state.base_oid = base_oid
 
     merge_state = str(pr.get("mergeStateStatus", ""))
     if merge_state in ("BEHIND", "DIRTY") and merge_state != state.merge_state:
-        events.append(f"merge-state: {merge_state}")
+        poll.events.append(f"merge-state: {merge_state}")
     state.merge_state = merge_state
     if merge_state == "DIRTY":
-        return events, 1
-    return events, None
+        poll.blockers.add(f"dirty:{_short(head)}:{_short(base_oid)}")
+    if pr.get("isDraft"):
+        poll.blockers.add("draft")
+    return poll
 
 
-def evaluate_gate(state: State, gate: Json, until: str) -> tuple[list[str], int | None]:
-    """Turn a why_pr_blocked payload into check events and an exit decision."""
-    events: list[str] = []
+def evaluate_gate(state: State, gate: Json, until: str, poll: Poll) -> None:
+    """Add check events, blockers, and a ready exit from a why_pr_blocked payload."""
     failing = set(gate.get("FailingRequired") or [])
     for name in sorted(failing - state.failing):
-        events.append(f"check: {name} failed on {_short(state.head)}")
+        poll.events.append(f"check: {name} failed on {_short(state.head)}")
     state.failing = failing
+    poll.blockers.update(f"check:{name}" for name in failing)
 
-    waiting = (
+    waiting = bool(
         gate.get("PendingRequired")
         or gate.get("MissingRequired")
         or gate.get("IndeterminateRequired")
@@ -328,27 +388,38 @@ def evaluate_gate(state: State, gate: Json, until: str) -> tuple[list[str], int 
         waiting = waiting or gate.get("OverallState") != "SUCCESS"
     green = not failing and not waiting
     if green and state.green_head != state.head:
-        events.append(f"green: required checks passed on {_short(state.head)}")
+        poll.events.append(f"green: required checks passed on {_short(state.head)}")
         state.green_head = state.head
 
-    if failing:
-        return events, 1
     if until == "green":
-        return events, 0 if green else None
-    if until == "ready" and green:
-        if int(gate.get("UnresolvedThreads") or 0) > 0:
-            return events, 1
-        if state.merge_state == "BEHIND":
-            return events, 1
-        if state.merge_state in ("CLEAN", "HAS_HOOKS", "UNSTABLE", "BLOCKED"):
-            return events, 0
-    return events, None
+        poll.blockers = {b for b in poll.blockers if b.startswith(("check:", "dirty:"))}
+        if green:
+            poll.done = 0
+        return
+    if until != "ready":
+        return
+    if not green:
+        poll.blockers.discard("draft")
+        return
+    if int(gate.get("UnresolvedThreads") or 0) > 0:
+        poll.blockers.add("threads")
+    if state.merge_state == "BEHIND":
+        poll.blockers.add(f"behind:{_short(state.base_oid)}")
+    if not poll.blockers and state.merge_state in READY_MERGE_STATES:
+        poll.done = 0
 
 
 def fetch_snapshot(owner: str, name: str, number: int) -> tuple[Json, str]:
-    from github_core.api import gh_graphql
+    from github_core.api import gh_graphql, is_auth_failure_text
 
-    data = gh_graphql(SNAPSHOT_QUERY, {"owner": owner, "name": name, "number": number})
+    try:
+        data = gh_graphql(SNAPSHOT_QUERY, {"owner": owner, "name": name, "number": number})
+    except RuntimeError as exc:
+        if _NOT_FOUND.search(str(exc)):
+            raise LookupError(f"PR {owner}/{name}#{number} not found") from exc
+        if is_auth_failure_text(str(exc)):
+            raise AuthError(str(exc)) from exc
+        raise
     pr = ((data.get("repository") or {}).get("pullRequest")) or None
     if pr is None:
         raise LookupError(f"PR {owner}/{name}#{number} not found")
@@ -388,9 +459,14 @@ def fetch_gate(owner: str, name: str, number: int) -> Json:
         timeout=180,
         check=False,
     )
+    detail = (result.stderr or result.stdout).strip().splitlines()
+    last = detail[-1] if detail else ""
+    if result.returncode == 2:
+        raise LookupError(f"why_pr_blocked: {last}")
+    if result.returncode == 4:
+        raise AuthError(f"why_pr_blocked: {last}")
     if result.returncode not in (0, 1):
-        detail = (result.stderr or result.stdout).strip().splitlines()
-        raise RuntimeError(f"why_pr_blocked exit {result.returncode}: {detail[-1:] or ''}")
+        raise RuntimeError(f"why_pr_blocked exit {result.returncode}: {last}")
     payload = json.loads(result.stdout)
     data = payload.get("Data")
     if not isinstance(data, dict):
@@ -398,17 +474,31 @@ def fetch_gate(owner: str, name: str, number: int) -> Json:
     return data
 
 
-def poll_once(
-    state: State, target: tuple[str, str, int], until: str, baseline: bool
-) -> tuple[list[str], int | None]:
+def poll_once(state: State, target: tuple[str, str, int], until: str, baseline: bool) -> Poll:
     """Read one snapshot and, unless the PR is already terminal, the merge gate."""
     pr, viewer = fetch_snapshot(*target)
-    events, code = diff_pr(state, pr, baseline)
-    events += diff_activity(state, pr, viewer, baseline)
-    if code is None:
-        gate_events, code = evaluate_gate(state, fetch_gate(*target), until)
-        events += gate_events
-    return events, code
+    poll = diff_pr(state, pr, baseline)
+    poll.events += diff_activity(state, pr, viewer, baseline)
+    if poll.done is None:
+        evaluate_gate(state, fetch_gate(*target), until, poll)
+    return poll
+
+
+def settle(state: State, poll: Poll, until: str) -> int | None:
+    """Turn a poll into an exit code. A blocker exits only the first time it is seen."""
+    if poll.done is not None and not poll.blockers:
+        state.blockers.clear()
+        return poll.done
+    if "closed" in poll.blockers:
+        return 1
+    if until == "any-change":
+        return 0 if poll.events else None
+    new = poll.blockers - state.blockers
+    state.blockers = set(poll.blockers)
+    if new:
+        poll.events.append(f"blocked: {', '.join(sorted(new))}")
+        return 1
+    return poll.done
 
 
 def emit(lines: list[str]) -> None:
@@ -416,33 +506,19 @@ def emit(lines: list[str]) -> None:
         print(line, flush=True)
 
 
-def run(args: argparse.Namespace) -> int:
-    try:
-        owner, name, number = parse_target(args.pr, args.repo)
-    except ValueError as exc:
-        log(str(exc))
-        return 2
-
-    key = f"{owner}__{name}__{number}".replace("/", "_")
-    directory = state_dir()
-    lock = acquire_lock(directory / f"{key}.lock")
-    if lock is None:
-        log(f"another pr_wait already watches {owner}/{name}#{number}; not starting a second one")
-        return 2
-
-    state_path = directory / f"{key}.json"
-    saved = load_state(state_path, time.time())
-    state = saved or State()
-    baseline = saved is None
+def watch(state: State, state_path: Path, target: tuple[str, str, int], args: Any) -> int:
+    baseline = not state_path.exists() or not state.head
     failures = 0
     delay = max(args.interval, MIN_INTERVAL)
-
     while True:
         try:
-            events, code = poll_once(state, (owner, name, number), args.until, baseline)
+            poll = poll_once(state, target, args.until, baseline)
         except LookupError as exc:
             log(str(exc))
             return 2
+        except AuthError as exc:
+            log(f"gh is not authenticated: {str(exc)[:200]}")
+            return 4
         except (RuntimeError, OSError, ValueError, subprocess.TimeoutExpired) as exc:
             failures += 1
             text = str(exc)
@@ -457,14 +533,34 @@ def run(args: argparse.Namespace) -> int:
 
         failures = 0
         delay = max(args.interval, MIN_INTERVAL)
+        code = settle(state, poll, args.until)
         save_state(state_path, state)
-        emit(events)
+        emit(poll.events)
         baseline = False
         if code is not None:
             return code
-        if args.until == "any-change" and events:
-            return 0
         time.sleep(delay)
+
+
+def run(args: argparse.Namespace) -> int:
+    try:
+        owner, name, number = parse_target(args.pr, args.repo)
+    except ValueError as exc:
+        log(str(exc))
+        return 2
+
+    key = state_key(owner, name, number)
+    directory = state_dir()
+    lock = acquire_lock(directory / f"{key}.lock")
+    if lock is None:
+        log(f"another pr_wait already watches {owner}/{name}#{number}; not starting a second one")
+        return 2
+    with lock:
+        state_path = directory / f"{key}.json"
+        saved = load_state(state_path, time.time())
+        if saved is None:
+            state_path.unlink(missing_ok=True)
+        return watch(saved or State(), state_path, (owner, name, number), args)
 
 
 def build_parser() -> argparse.ArgumentParser:
