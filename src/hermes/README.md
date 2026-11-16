@@ -52,6 +52,7 @@ Project Toolkit skills for GitHub pull request work, build, test, and quality ga
 - `steering-matcher`
 - `style-enforcement`
 - `sync`
+- `takeover`
 - `taste-lints`
 - `test`
 - `threat-modeling`
