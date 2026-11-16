@@ -137,23 +137,33 @@ class Budget:
     """Tracks GraphQL cost and refuses a request when the shared budget is low."""
 
     def __init__(self, floor: int = MIN_REMAINING_POINTS) -> None:
-        self.floor = floor
-        self.cost = 0
-        self.remaining: int | None = None
-        self.requests = 0
+        self._floor = floor
+        self._cost = 0
+        self._remaining: int | None = None
+        self._requests = 0
+
+    @property
+    def cost(self) -> int:
+        """Points spent by every request this budget accounted."""
+        return self._cost
+
+    @property
+    def requests(self) -> int:
+        """Requests this budget accounted."""
+        return self._requests
 
     def account(self, data: dict[str, Any]) -> None:
-        self.requests += 1
+        self._requests += 1
         limit = data.get("rateLimit")
         if isinstance(limit, dict) and isinstance(limit.get("cost"), int):
-            self.cost += limit["cost"]
+            self._cost += limit["cost"]
             if isinstance(limit.get("remaining"), int):
-                self.remaining = limit["remaining"]
+                self._remaining = limit["remaining"]
 
     def require(self, what: str) -> None:
-        if self.remaining is not None and self.remaining < self.floor:
+        if self._remaining is not None and self._remaining < self._floor:
             raise FetchError(
-                f"GraphQL budget low ({self.remaining} points left) before {what}; "
+                f"GraphQL budget low ({self._remaining} points left) before {what}; "
                 "stopped so the shared budget is not emptied"
             )
 

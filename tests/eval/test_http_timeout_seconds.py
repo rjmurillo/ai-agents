@@ -1,4 +1,4 @@
-"""Tests for http_timeout_seconds in scripts/eval/_http_timeout.py."""
+"""Tests for http_timeout_seconds in scripts/eval/_eval_api_adapter_constants.py."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ EVAL_DIR = Path(__file__).resolve().parents[2] / "scripts" / "eval"
 if str(EVAL_DIR) not in sys.path:
     sys.path.insert(0, str(EVAL_DIR))
 
-import _http_timeout as http  # noqa: E402
+import _eval_api_adapter_constants as http  # noqa: E402
 
 ENV = "EVAL_HTTP_TIMEOUT_SECONDS"
 
