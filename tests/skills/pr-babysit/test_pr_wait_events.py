@@ -2,17 +2,28 @@
 
 from __future__ import annotations
 
+import importlib.util
 import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _pr_wait_helpers import gate_payload as _gate
-from _pr_wait_helpers import node as _node
-from _pr_wait_helpers import pr_payload as _pr
-from _pr_wait_helpers import pw, pwa
+# Load the shared helpers by path, so the test directory never joins sys.path.
+_helpers = sys.modules.get("_pr_wait_helpers")
+if _helpers is None:
+    _spec = importlib.util.spec_from_file_location(
+        "_pr_wait_helpers", Path(__file__).with_name("_pr_wait_helpers.py")
+    )
+    assert _spec and _spec.loader
+    _helpers = importlib.util.module_from_spec(_spec)
+    sys.modules["_pr_wait_helpers"] = _helpers
+    _spec.loader.exec_module(_helpers)
+_gate = _helpers.gate_payload
+_node = _helpers.node
+_pr = _helpers.pr_payload
+pw = _helpers.pw
+pwa = _helpers.pwa
 
 # diff_activity
 

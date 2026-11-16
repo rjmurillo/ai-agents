@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import sys
 from pathlib import Path
@@ -9,11 +10,21 @@ from typing import Any
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _pr_wait_helpers import gate_payload as _gate
-from _pr_wait_helpers import node as _node
-from _pr_wait_helpers import pr_payload as _pr
-from _pr_wait_helpers import pw, pws
+# Load the shared helpers by path, so the test directory never joins sys.path.
+_helpers = sys.modules.get("_pr_wait_helpers")
+if _helpers is None:
+    _spec = importlib.util.spec_from_file_location(
+        "_pr_wait_helpers", Path(__file__).with_name("_pr_wait_helpers.py")
+    )
+    assert _spec and _spec.loader
+    _helpers = importlib.util.module_from_spec(_spec)
+    sys.modules["_pr_wait_helpers"] = _helpers
+    _spec.loader.exec_module(_helpers)
+_gate = _helpers.gate_payload
+_node = _helpers.node
+_pr = _helpers.pr_payload
+pw = _helpers.pw
+pws = _helpers.pws
 
 # parse_target
 
@@ -459,3 +470,24 @@ def test_help_lists_the_exit_codes(capsys: pytest.CaptureFixture[str]) -> None:
     out = capsys.readouterr().out
     assert "Exit codes" in out
     assert "unreachable" in out
+
+
+def test_parse_target_accepts_dot_prefixed_repo_names() -> None:
+    assert pw.parse_target("5", "octo/.github") == ("octo", ".github", 5)
+    assert pw.parse_target("https://github.com/octo/.github/pull/9", None) == (
+        "octo",
+        ".github",
+        9,
+    )
+
+
+@pytest.mark.parametrize("repo", ["o/.", "o/..", ".o/r", "o_x/r"])
+def test_parse_target_rejects_dot_only_repos_and_bad_owners(repo: str) -> None:
+    with pytest.raises(ValueError):
+        pw.parse_target("5", repo)
+
+
+def test_tests_do_not_add_their_directory_to_sys_path() -> None:
+    here = str(Path(__file__).resolve().parent)
+
+    assert here not in sys.path

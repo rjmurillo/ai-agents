@@ -136,12 +136,14 @@ query($owner: String!, $name: String!, $number: Int!) {
 }
 """
 
-# GitHub owner and repository names: letters, digits, '.', '_', '-'. The
-# names also key the state and lock files, so nothing else may pass.
-_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
-_PR_URL = re.compile(
-    r"github\.com/([A-Za-z0-9][A-Za-z0-9._-]*)/([A-Za-z0-9][A-Za-z0-9._-]*)/pull/(\d+)"
-)
+# GitHub names. An owner is letters, digits, and '-', starting alphanumeric.
+# A repository is letters, digits, '.', '_', '-', and may start with '.'
+# (".github"), but '.' and '..' are not names. The names also key the state
+# and lock files, so nothing else may pass.
+_OWNER = r"[A-Za-z0-9][A-Za-z0-9-]*"
+_REPO = r"(?!\.\.?(?:/|$))[A-Za-z0-9._-]+"
+_PR_URL = re.compile(rf"github\.com/({_OWNER})/({_REPO})/pull/(\d+)")
+_REPO_ARG = re.compile(rf"({_OWNER})/({_REPO})")
 
 
 class AuthError(RuntimeError):
@@ -180,10 +182,10 @@ def parse_target(raw: str, repo: str | None) -> tuple[str, str, int]:
     if not raw.isdigit() or int(raw) <= 0:
         raise ValueError(f"not a PR number or PR URL: {raw!r}")
     if repo:
-        parts = repo.split("/")
-        if len(parts) != 2 or not all(_NAME.fullmatch(part) for part in parts):
+        arg = _REPO_ARG.fullmatch(repo)
+        if arg is None or arg.group(2) in (".", ".."):
             raise ValueError(f"--repo must be owner/name, got {repo!r}")
-        return parts[0], parts[1], int(raw)
+        return arg.group(1), arg.group(2), int(raw)
     from github_core.api import resolve_repo_params
 
     info = resolve_repo_params("", "")
