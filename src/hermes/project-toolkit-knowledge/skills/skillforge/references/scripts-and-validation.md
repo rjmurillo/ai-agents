@@ -96,14 +96,26 @@ The guideline rules ask for judgment, so the agent running SkillForge judges
 them. `conformance.py` never calls a model; it hands the rules over and checks
 what comes back.
 
-1. Print the packet: `conformance.py SKILL_DIR --judge-packet`. It holds the
-   rules still MANUAL for that skill, each with its criterion and source, plus
-   the skill's text files and the judging instructions. Under
-   `--profile project`, a guideline the project departs from on purpose reports
-   DEVIATION and stays out of the packet.
+Run both commands with the same skill, `--root`, and `--profile`. A different
+profile changes which guidelines are open, so the import can reject a verdict.
+Pass `--root` when the skill sits outside the current directory. These
+examples use the skill and root from the validation block in `SKILL.md`.
+
+1. Print the packet. It holds the rules still MANUAL for that skill, each with
+   its criterion and source, plus the skill's text files and the judging
+   instructions. Under `--profile project`, a guideline the project departs
+   from on purpose reports DEVIATION and stays out of the packet. Printing a
+   packet always exits 0 and does not validate the skill; run conformance
+   without `--judge-packet` for that.
+
+   ```bash
+   ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillforge/scripts/conformance.py "$SKILL" --root "$HOME/.claude" --judge-packet > conformance-packet.json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+   ```
+
 2. Judge in a fresh context. Where the harness allows, give a subagent only the
    packet and the skill directory, not the session that wrote the skill. Save
-   the verdicts outside the skill directory, in this shape:
+   the verdicts in the working directory, outside the skill directory, in this
+   shape:
 
    ```json
    {"judgments": [
@@ -116,7 +128,12 @@ what comes back.
    ]}
    ```
 
-3. Apply it: `conformance.py SKILL_DIR --judgments /tmp/judgments.json`.
+3. Apply the verdicts. Add `--verbose` to also print JUDGED_PASS rows with
+   their reasons and quotes; by default only failures and unknowns print.
+
+   ```bash
+   ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillforge/scripts/conformance.py "$SKILL" --root "$HOME/.claude" --judgments judgments.json --verbose; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+   ```
 
 The import checks every verdict before it applies any of them:
 
