@@ -21,9 +21,8 @@ user-invocable: true
 |----------|-------|
 | Is this old PR still worth landing, and if so, bring it current | `modernize` (this skill) |
 | Should this PR exist at all, with no branch change | `maintainer-review` |
-| Resolve the conflicts on this branch, nothing more | `merge-resolver` agent |
+| Resolve the conflicts on this branch, nothing more | `merge-resolver` agent, or that skill inline where no agent ships |
 | Rebase, cherry-pick, or recover my own branch | `git-advanced-workflows` |
-| Is the diff correct and safe before merge | `review` |
 
 ## Guardrails
 
