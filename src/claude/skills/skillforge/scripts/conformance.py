@@ -52,9 +52,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _conformance_checks import NotApplicableError, NotEvaluatedError
 from _conformance_files import (
     JUDGE_INSTRUCTIONS,
+    TEXT_SUFFIXES,
     JudgingScope,
     apply_judgments,
-    skill_files,
+    file_id,
+    inside_skill,
 )
 from _conformance_guides import GUIDE_RULES
 from _conformance_parse import load_skill
@@ -233,6 +235,25 @@ def render_catalog(profile: str, fmt: str) -> str:
     return "\n".join(lines) + "\n"
 
 
+def skill_files(directory: Path, root: Path, exclude: Path | None = None) -> list[str]:
+    """Return the text files a judge may quote, as POSIX paths relative to the skill.
+
+    A file must resolve inside both the skill directory and root. ``exclude``
+    keeps a judgments file saved in the skill from quoting itself as evidence.
+    """
+    skipped = file_id(exclude) if exclude is not None else None
+    found = []
+    for path in sorted(directory.rglob("*")):
+        if path.suffix.lower() not in TEXT_SUFFIXES:
+            continue
+        if not inside_skill(path, directory, root):
+            continue
+        if skipped is not None and file_id(path) == skipped:
+            continue
+        found.append(path.relative_to(directory).as_posix())
+    return found
+
+
 def judge_packet(report: Report, files: list[str], profile: str) -> dict[str, object]:
     """Build the packet an agent judges: the unjudged rules and the files to read."""
     return {
@@ -291,12 +312,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--manual", action="store_true", help="also print the guidelines that need human review"
     )
     parser.add_argument("--list", action="store_true", help="print the rule catalog and exit")
-    parser.add_argument(
+    judging = parser.add_mutually_exclusive_group()
+    judging.add_argument(
         "--judge-packet",
         action="store_true",
         help="print the unjudged guideline rules as JSON for an agent to judge",
     )
-    parser.add_argument(
+    judging.add_argument(
         "--judgments", metavar="FILE", help="apply an agent's verdicts on the guideline rules"
     )
     return parser
@@ -347,6 +369,7 @@ def main(argv: list[str] | None = None) -> int:
         judgments = Path(args.judgments)
         scope = JudgingScope(
             directory=directories[0],
+            root=root,
             allowed=frozenset(skill_files(directories[0], root, exclude=judgments)),
             open_ids=frozenset(r.rule.id for r in reports[0].results if r.status == "MANUAL"),
             waived=frozenset(args.waive),

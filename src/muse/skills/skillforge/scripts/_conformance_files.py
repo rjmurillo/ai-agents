@@ -339,6 +339,19 @@ JUDGE_INSTRUCTIONS = (
 )
 
 
+def file_id(path: Path) -> tuple[int, int] | None:
+    """Return the (device, inode) of the file a path reaches, or None when it cannot be read.
+
+    Comparing file identity, not path text, also catches a hard link or a
+    second symlink to the same file.
+    """
+    try:
+        info = os.stat(path)
+    except (OSError, RuntimeError, ValueError):
+        return None
+    return info.st_dev, info.st_ino
+
+
 def _real(path: Path) -> str | None:
     """Return the case-normalized real path, or None when it cannot be resolved.
 
@@ -351,26 +364,13 @@ def _real(path: Path) -> str | None:
         return None
 
 
-def skill_files(directory: Path, root: Path, exclude: Path | None = None) -> list[str]:
-    """Return the text files a judge may quote, as POSIX paths relative to the skill.
-
-    A file must resolve inside both the skill directory and root. ``exclude``
-    keeps a judgments file saved in the skill from quoting itself as evidence.
-    """
-    skipped = _real(exclude) if exclude is not None else None
-    found = []
-    for path in sorted(directory.rglob("*")):
-        if path.suffix.lower() not in TEXT_SUFFIXES or not path.is_file():
-            continue
-        real = _real(path)
-        if real is None or real == skipped:
-            continue
-        if contained_realpath(path, str(root)) is None:
-            continue
-        if contained_realpath(path, resolve_root(str(directory))) is None:
-            continue
-        found.append(path.relative_to(directory).as_posix())
-    return found
+def inside_skill(path: Path, directory: Path, root: Path) -> bool:
+    """True when path resolves to a file inside both the skill directory and root."""
+    if _real(path) is None or not path.is_file():
+        return False
+    if contained_realpath(path, str(root)) is None:
+        return False
+    return contained_realpath(path, resolve_root(str(directory))) is not None
 
 
 @dataclass(frozen=True)
@@ -378,6 +378,7 @@ class JudgingScope:
     """What a judgments file may name: the skill's files, its open rules, and waivers."""
 
     directory: Path
+    root: Path
     allowed: frozenset[str]
     open_ids: frozenset[str]
     waived: frozenset[str]
@@ -398,8 +399,13 @@ def _evidence_item_error(at: str, item: object, scope: JudgingScope) -> str | No
         return f"{at}: quote needs at least {MIN_QUOTE_CHARS} characters"
     if file not in scope.allowed:
         return f"{at}: {file} is not a text file in the skill"
+    path = scope.directory / file
+    # Recheck at read time: the file may have become a symlink that leaves the
+    # skill or the root since the allowed list was built.
+    if not inside_skill(path, scope.directory, scope.root):
+        return f"{at}: {file} is not a text file in the skill"
     try:
-        text = (scope.directory / file).read_text(encoding="utf-8", errors="replace")
+        text = path.read_text(encoding="utf-8", errors="replace")
     except OSError as exc:
         return f"{at}: cannot read {file}: {exc}"
     if _collapse(quote) not in _collapse(text):

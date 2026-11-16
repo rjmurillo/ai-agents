@@ -367,3 +367,57 @@ def test_resolution_error_on_the_judgments_path_is_rejected(
 
     assert code == 2
     assert "nothing applied" in capsys.readouterr().err
+
+
+class TestSecondReview:
+    """Cases from the second PR #7387 review."""
+
+    def test_hard_link_to_the_judgments_file_is_not_evidence(
+        self, skill: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        invented = "An invented sentence held only by the judgments file."
+        path = skill.parent / "judgments.json"
+        judgment = _verdict("pass", quote=invented, file="references/evidence.json")
+        path.write_text(json.dumps({"judgments": [judgment]}), encoding="utf-8")
+        try:
+            os.link(path, skill / "references" / "evidence.json")
+        except OSError as exc:
+            pytest.skip(f"cannot create a hard link here: {exc}")
+
+        code = conformance.main(["release-notes", "--judgments", str(path)])
+
+        assert code == 2
+        assert "references/evidence.json is not a text file in the skill" in capsys.readouterr().err
+
+    @pytest.mark.skipif(not hasattr(os, "symlink"), reason="needs symlinks")
+    def test_file_swapped_for_an_outside_symlink_after_listing_is_rejected(
+        self,
+        skill: Path,
+        capsys: pytest.CaptureFixture[str],
+        tmp_path_factory: pytest.TempPathFactory,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        guide = skill / "references" / "guide.md"
+        outside = tmp_path_factory.mktemp("outside") / "secret.md"
+        outside.write_text("An outside sentence that must never count.\n", encoding="utf-8")
+        files = conformance.__dict__["skill_files"]
+
+        def listed_then_swapped(*args: Any, **kwargs: Any) -> list[str]:
+            listed = files(*args, **kwargs)
+            guide.unlink()
+            guide.symlink_to(outside)
+            return listed
+
+        monkeypatch.setattr(conformance, "skill_files", listed_then_swapped)
+        judgment = _verdict(
+            "pass", quote="An outside sentence that must never count.", file="references/guide.md"
+        )
+
+        assert _judge(skill.parent, [judgment]) == 2
+        assert "references/guide.md is not a text file in the skill" in capsys.readouterr().err
+
+    def test_packet_and_judgments_flags_are_exclusive(self, skill: Path) -> None:
+        with pytest.raises(SystemExit) as exit_info:
+            conformance.main(["release-notes", "--judge-packet", "--judgments", "missing.json"])
+
+        assert exit_info.value.code == 2
