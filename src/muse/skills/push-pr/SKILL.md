@@ -1,6 +1,14 @@
 ---
 name: push-pr
+version: 1.0.0
 description: Commit the working tree, push the branch, and open a pull request with the repository template filled in from the real diff. Use when you say `push and open a PR`, `open a pull request`, or `push this branch`. Do NOT use to run the pre-ship review gates (use ship), and do NOT use to validate PR metadata alone (use validate-pr-description).
+license: MIT
+metadata:
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan routes push-only requests to push-pr
+    user-facing: true
 ---
 
 # Push PR

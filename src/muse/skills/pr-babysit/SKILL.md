@@ -1,6 +1,28 @@
 ---
 name: pr-babysit
+version: 1.0.0
 description: Watch one pull request through CI and review until it is ready, with one event-driven watcher and no polling. Use for "babysit this PR" or "watch this PR until green". Do NOT use for many PRs (use pr-autofix) or thread replies (use pr-comment-responder).
+license: MIT
+metadata:
+  source_pattern: t3dotgg/tstack babysit-pr (MIT)
+  capability:
+    kind: orchestrator
+    depends-on: [review-conversation, review-thread-closure]
+    status: active
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan's long-tail resolver matches a request to watch or babysit one PR
+    user-facing: true
+    intents:
+      - babysit pr
+      - babysit this pr
+      - watch pr
+      - watch this pr
+      - monitor pr
+      - wait for checks
+      - wait for ci
+      - wait for review
 ---
 
 # PR Babysit

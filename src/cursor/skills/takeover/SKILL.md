@@ -1,5 +1,7 @@
 ---
 name: takeover
+version: 1.0.0
+license: MIT
 description: Finish another contributor's PR, branch, or agent thread while keeping their credit. Use when you say `take over this PR`, `take over this branch`, or `takeover`. Do NOT use for review threads on your own PR (use pr-comment-responder), conflicts alone (use the merge-resolver agent), or many-PR triage (use pr-autofix).
 metadata:
   routing:

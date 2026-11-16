@@ -1,6 +1,8 @@
 ---
 name: pr-babysit
+version: 1.0.0
 description: Watch one pull request through CI and review until it is ready, with one event-driven watcher and no polling. Use for "babysit this PR" or "watch this PR until green". Do NOT use for many PRs (use pr-autofix) or thread replies (use pr-comment-responder).
+license: MIT
 metadata:
   source_pattern: t3dotgg/tstack babysit-pr (MIT)
   capability:

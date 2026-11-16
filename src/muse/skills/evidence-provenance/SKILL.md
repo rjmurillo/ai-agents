@@ -1,6 +1,19 @@
 ---
 name: evidence-provenance
+version: 1.0.0
 description: Decide whether evidence is independent or the same loop twice, and whether a named check was run. Classifies lineage (premise, origin, time, mutability, environment), keeps authority a separate axis, and reports VERIFIED, NOT RUN, UNAVAILABLE, or FAILED. Use when you say `is this independent evidence`, `did the reviewer confirm this`, `closed loop`, or `count the confirmations`. Do NOT use to report progress (use the voice rule) or to pick the governing validator (use validation-authority).
+license: MIT
+metadata:
+  capability:
+    kind: reusable-primitive
+    owns:
+      - evidence-provenance
+    status: active
+  routing:
+    role: conditional-adjunct
+    invoker: review
+    trigger: review or a test gate must decide whether two pieces of evidence confirm a claim independently
+    user-facing: true
 ---
 
 # Evidence Provenance

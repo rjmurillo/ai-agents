@@ -1,5 +1,6 @@
 ---
 name: doc-accuracy
+version: 1.0.0
 description: >-
   Multi-phase documentation verification treating code as source of truth. Use
   when you say "check documentation accuracy", "verify code examples compile",
@@ -7,6 +8,13 @@ description: >-
   pre-release doc audits and checking behavioral claims. Do NOT use for broad
   codebase analysis (use analyze) or fixing markdown fence syntax (use
   fix-markdown-fences).
+license: MIT
+metadata:
+  routing:
+    role: lifecycle
+    invoker: review
+    trigger: review invokes doc-accuracy as one of its four local quality axes
+    user-facing: false
 ---
 
 # Documentation Accuracy Skill

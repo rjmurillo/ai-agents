@@ -1,6 +1,28 @@
 ---
 name: skill-bootstrap
+version: 1.0.0
 description: Mine a repository's history, reviews, and agent sessions to author and evaluate its project skill library. Use when you say `bootstrap skills`, `capture project workflow knowledge`, `build this repo's skill library`, or `project skill library`, including existing-skill improvements. Do NOT use for one skill (use skillforge), scored tuning (use skillopt), or session diagnosis (use skill-doctor).
+license: MIT
+metadata:
+  domains: [skill-creation, onboarding, workflow, knowledge-handoff]
+  capability:
+    kind: orchestrator
+    owns:
+      - project-workflow-skill-bootstrap
+    depends-on: []
+    status: active
+  inputs: [target-repository, output-root, mode, accepted-outcomes, budget]
+  outputs: [project-skills, skill-scripts, capability-eval, bootstrap-report]
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan's long-tail resolver matches a request to build a project's workflow skill library
+    user-facing: true
+    intents:
+      - bootstrap skills
+      - capture project workflow knowledge
+      - build this repo's skill library
+      - project skill library
 ---
 
 # Skill Bootstrap

@@ -1,6 +1,33 @@
 ---
 name: github
+version: 4.0.0
 description: Execute GitHub operations (PRs, issues, milestones, labels, comments, merges) using Python scripts with structured output and error handling. Use when working with pull requests, issues, review comments, CI checks, or milestones instead of raw gh. Use when you say "create a PR", "add label to issue", or "check CI status". Do NOT use to read a pasted github.com URL (use github-url-intercept).
+license: MIT
+metadata:
+  domains:
+    - github
+    - pr
+    - issue
+    - labels
+    - milestones
+    - comments
+    - reactions
+  capability:
+    kind: specialized-implementation
+    status: active
+  complexity: intermediate
+  generator:
+    keep_headings:
+      - Decision Tree
+      - Offline Invocation
+      - Script Reference
+      - Output Format
+      - See Also
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan routes PR, issue, label, and milestone operations to github
+    user-facing: true
 ---
 # GitHub Skill
 

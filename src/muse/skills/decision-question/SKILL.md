@@ -1,6 +1,19 @@
 ---
 name: decision-question
+version: 1.0.0
 description: Ask the user to choose only when blocked on a decision they own, with the smallest complete decision brief. Use when you say `ask the user to choose`, `do I need a user decision here`, or `present a decision brief`. Do NOT use to review a decision already made (use decision-critic) or to surface project risks (use pre-mortem).
+license: MIT
+metadata:
+  capability:
+    kind: reusable-primitive
+    owns:
+      - user-decision-elicitation
+    status: active
+  routing:
+    role: conditional-adjunct
+    invoker: autoplan
+    trigger: autoplan's confusion protocol finds a material decision only the user can make
+    user-facing: false
 ---
 
 # Decision Question
