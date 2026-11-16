@@ -72,3 +72,7 @@ artifacts:
       security-detection: "Refers to excluded skill(s): review."
       spec-generator: "Refers to excluded skill(s): review."
       ship: "Refers to excluded skill(s): review."
+    # A file of a packed skill that no pack carries. The key is
+    # `<skill>/<path inside the skill>`. A key that matches no file fails the build.
+    excludedFiles:
+      retrospective/scripts/copilot_journal.py: "Needs the skill-doctor parser, which Hermes does not ship, so --journal always reports unavailable there."

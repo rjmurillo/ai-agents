@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from scripts.validation import check_plugin_root_interpreter as checker
+from scripts.validation import plugin_root_guarded_imports as guarded
 from scripts.validation import plugin_root_interpreter_allowances as allowances
 from scripts.validation import plugin_root_interpreter_ratchet as ratchet
 from scripts.validation import plugin_root_interpreter_sites as sites
@@ -333,6 +334,7 @@ def _no_other_allowances(monkeypatch: pytest.MonkeyPatch) -> None:
     """Empty the tables that name files of this checkout, so a fixture repo is not stale."""
     monkeypatch.setattr(checker, "_YAML_ALLOWANCES", {})
     monkeypatch.setattr(checker, "_SINGLE_ROOT_ALLOWANCES", {})
+    monkeypatch.setattr(guarded, "GUARDED_IMPORT_ALLOWANCES", {})
 
 
 def _own(

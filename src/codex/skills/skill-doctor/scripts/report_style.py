@@ -6,7 +6,7 @@ those tokens, so the page never mixes a light block into a dark page. Prose
 and headings use the system sans stack; monospace is kept for code, paths,
 prompts and diffs.
 
-Python 3.10+, stdlib only.
+python3, stdlib only.
 """
 
 PAGE_CSS = """

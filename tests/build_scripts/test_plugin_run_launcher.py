@@ -280,3 +280,48 @@ def test_find_locators_reports_a_head_with_no_tail() -> None:
     cut = render_locator(SCRIPT).split("; fi;")[0]
     [match] = plugin_run_launcher.find_locators(cut)
     assert (match.script_rel, match.problem) == (None, "locator has no closing text")
+
+
+# ---- ADR-121 decision 12: the closed interpreter set -------------------------------------
+
+
+@pytest.mark.parametrize("interpreter", plugin_run_launcher.INTERPRETERS)
+def test_every_interpreter_renders_and_reads_back(interpreter: str) -> None:
+    text = plugin_run_launcher.render_locator(
+        "skills/x/scripts/y.py", '-a "b c"', interpreter=interpreter
+    )
+    assert f'exec {interpreter} "$d/lib/ptk_run.py" skills/x/scripts/y.py' in text
+    assert plugin_run_launcher.split_locator(text) == ("skills/x/scripts/y.py", '-a "b c"')
+    [match] = list(plugin_run_launcher.find_locators(f"run `{text}` now"))
+    assert (match.script_rel, match.interpreter, match.problem) == (
+        "skills/x/scripts/y.py",
+        interpreter,
+        None,
+    )
+
+
+def test_the_default_interpreter_text_is_unchanged() -> None:
+    """Every site migrated before the amendment keeps its bytes."""
+    assert plugin_run_launcher.render_locator(
+        "skills/x/scripts/y.py"
+    ) == plugin_run_launcher.render_locator("skills/x/scripts/y.py", interpreter="python3")
+    assert (
+        'exec python3 "$d/lib/ptk_run.py" skills/x/scripts/y.py;'
+        in plugin_run_launcher.render_locator("skills/x/scripts/y.py")
+    )
+
+
+@pytest.mark.parametrize("interpreter", ["python", "python3 -u", "uv run python", "python3.11"])
+def test_an_interpreter_outside_the_set_is_refused(interpreter: str) -> None:
+    with pytest.raises(plugin_run_launcher.LauncherError, match="interpreter is not one of"):
+        plugin_run_launcher.render_locator("skills/x/scripts/y.py", interpreter=interpreter)
+
+
+def test_a_committed_locator_with_an_unknown_interpreter_is_reported() -> None:
+    text = plugin_run_launcher.render_locator("skills/x/scripts/y.py").replace(
+        "exec python3 ", "exec python3.11 "
+    )
+    [match] = list(plugin_run_launcher.find_locators(text))
+    assert match.script_rel is None
+    assert match.problem is not None and "python3.11" in match.problem
+    assert plugin_run_launcher.split_locator(text) is None

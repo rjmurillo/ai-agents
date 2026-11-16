@@ -448,6 +448,23 @@ def _direct_imports(
     return direct
 
 
+def dependency_files(rel_path: str, repo_root: Path, tracked_py: set[str]) -> tuple[str, ...]:
+    """Return the tracked files ``rel_path`` reaches directly, after canonicalizing it.
+
+    The edges are the ones :func:`third_party_imports` walks: import-time imports
+    of repository modules, and tracked scripts started through ``sys.executable``.
+    ``plugin_root_guarded_imports`` walks the same edges, so an allowance cannot
+    clear a dependency the producer would report.
+    """
+    canonical = _canonical_tracked(repo_root, rel_path, tracked_py)
+    return _parse_direct_imports(canonical, repo_root, tracked_py).targets
+
+
+def canonical_path(rel_path: str, repo_root: Path, tracked_py: set[str]) -> str:
+    """Return the tracked path ``rel_path`` resolves to, the key the closure walk uses."""
+    return _canonical_tracked(repo_root, rel_path, tracked_py)
+
+
 def _walk_imports(
     rel_path: str,
     repo_root: Path,
