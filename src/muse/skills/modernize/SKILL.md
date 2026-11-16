@@ -8,11 +8,6 @@ description: Rebase an aging PR only after checking its idea still belongs. Ends
 > Modernize the idea, not just the branch. A clean rebase does not prove that
 > the PR still belongs in the product.
 
-Adapted from the `modernize` skill in t3dotgg/tstack (upstream commit 11e37a7,
-MIT, Copyright (c) 2026 Theo Browne). The attribution and full license text
-live in `THIRD-PARTY-NOTICES.TXT`. This version adds this repository's push,
-branch-update, and untrusted-content rules.
-
 ## Triggers
 
 `modernize this PR`, `refresh this stale PR`, `update this old PR`
