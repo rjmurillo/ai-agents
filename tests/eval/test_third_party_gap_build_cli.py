@@ -76,3 +76,18 @@ class TestOutputErrors:
         (tmp_path / "findings.jsonl").mkdir()
 
         assert cli.check({"findings.jsonl": "x\n"}, tmp_path) == 2
+
+
+class TestSelectionText:
+    def test_the_frozen_input_renders_the_committed_texts(self, cli: Any) -> None:
+        corpus = json.loads(
+            (cli.REPO_ROOT / cli.OUT_DIR / "io-portability-corpus.json").read_text(encoding="utf-8")
+        )
+
+        assert cli.IO_RULE.format(first=6110, last=7380, cutoff=7066) == corpus["selection"]["rule"]
+
+    def test_a_new_window_states_its_own_cutoff_and_range(self, cli: Any) -> None:
+        text = cli.IO_RULE.format(first=7001, last=8000, cutoff=7650)
+
+        assert ("#7001 to #8000" in text, "PR >= 7650" in text) == (True, True)
+        assert "PR >= 7650" in cli.REPLAY_RULE.format(cutoff=7650)

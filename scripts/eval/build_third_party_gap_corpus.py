@@ -51,17 +51,19 @@ LEAKING_REVISIONS = frozenset(
     }
 )
 MINED_ON = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+# Selection texts are filled from the dump, so a new mining window states its own
+# cutoff and pull request range. The committed corpora read 7066 and #6110 to #7380.
 REPLAY_RULE = (
     "Every admitted finding in findings.jsonl whose path is in the pull request diff (merge base "
     "to reviewed commit), whose diff is at most 110000 characters, and whose thread has a line, "
-    "grouped by reviewed revision. Split follows findings.jsonl (heldout when PR >= 7066)."
+    "grouped by reviewed revision. Split follows findings.jsonl (heldout when PR >= {cutoff})."
 )
 IO_RULE = (
-    "Cursor Bugbot review threads on PRs #6110 to #7380 whose body names the learned rule "
+    "Cursor Bugbot review threads on PRs #{first} to #{last} whose body names the learned rule "
     "'subprocess.run with text=True must include encoding', 'Tests using symlinks must "
     "pytest.skip', or 'Path.read_text/write_text must include encoding', that the author fixed "
     "(reply cites a fix commit) or resolved, with a line and a reviewed commit. Split: heldout "
-    "when PR >= 7066."
+    "when PR >= {cutoff}."
 )
 
 
@@ -157,6 +159,8 @@ def build_all(dump: dict[str, Any], labels: dict[str, dict[str, Any]]) -> dict[s
     revisions, excluded = build.replay_revisions(full, titles, LEAKING_REVISIONS)
     heads = {p["number"]: p["headRefOid"] for p in prs}
     io = build.io_rows(threads, heads, base_of, cutoff, git_run)
+    numbers = [p["number"] for p in prs]
+    io_rule = IO_RULE.format(first=min(numbers), last=max(numbers), cutoff=cutoff)
     return {
         "threads": threads,
         "funnel": dict(funnel),
@@ -165,7 +169,7 @@ def build_all(dump: dict[str, Any], labels: dict[str, dict[str, Any]]) -> dict[s
         "replay": {
             "schema_version": 1,
             "selection": {
-                "rule": REPLAY_RULE,
+                "rule": REPLAY_RULE.format(cutoff=cutoff),
                 "source": "findings.jsonl",
                 "excluded": {
                     "rule": "A revision is dropped when --validate-corpus finds a fixing commit's "
@@ -178,7 +182,7 @@ def build_all(dump: dict[str, Any], labels: dict[str, dict[str, Any]]) -> dict[s
         },
         "io": {
             "schema_version": 1,
-            "selection": {"rule": IO_RULE, "mined_on": mined_on},
+            "selection": {"rule": io_rule, "mined_on": mined_on},
             "rows": io,
         },
     }

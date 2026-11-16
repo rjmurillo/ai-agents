@@ -275,7 +275,12 @@ Fresh mining (a new window; rebuilds the corpora, so relabel any new finding):
 uv run python scripts/eval/mine_third_party_review_findings.py --limit 1000 \
   --output .project-toolkit/scratch/3p/dump.json
 uv run python scripts/eval/build_third_party_gap_corpus.py --dump .project-toolkit/scratch/3p/dump.json --stats
+uv run python scripts/eval/build_third_party_gap_corpus.py --dump .project-toolkit/scratch/3p/dump.json
 ```
+
+The `--stats` run only prints counts; the last command writes the corpora. It
+stops with exit 2 until every newly admitted finding has a row in
+`labels.jsonl`.
 
 Frozen reproduction (the committed corpora and results). The first command
 needs the unpublished 2026-11-15 dump, so only its holder can run it. The

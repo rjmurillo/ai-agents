@@ -456,14 +456,20 @@ class TestWriteGuard:
     def test_write_under_the_checkout_from_outside_it_is_refused(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        import shutil
+        import uuid
+
         cli = _load_cli()
-        out = cli.REPO_ROOT / "evals" / "does-not-exist"
+        # Under .pytest_tmp/ and removed afterwards, so a regressed guard leaves no artifact.
+        out = cli.REPO_ROOT / ".pytest_tmp" / f"refused-write-{uuid.uuid4().hex}"
         monkeypatch.chdir(tmp_path)
+        try:
+            code = cli.write({"findings.jsonl": "x\n"}, out, {})
 
-        code = cli.write({"findings.jsonl": "x\n"}, out, {})
-
-        assert code == 2
-        assert not out.exists()
+            assert code == 2
+            assert not out.exists()
+        finally:
+            shutil.rmtree(out, ignore_errors=True)
 
     def test_write_to_a_directory_outside_the_checkout_is_allowed(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
