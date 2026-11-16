@@ -24,8 +24,10 @@ import detect_agent_drift  # noqa: E402
 import generate_agents  # noqa: E402
 import schema_tree_keys  # noqa: E402
 from generate_agents_common import (  # noqa: E402
+    CHECKOUT_CLAUSE,
     CLAUDE_ROOT,
     COPILOT_ROOT,
+    MARKER_DECLARATION,
     SHARED_ROOT,
     SPLIT_REFERENCE_SKILLS,
     restore_shared_reference_roots,
@@ -41,6 +43,61 @@ CURSOR_TREE = "src/cursor/agents"
 
 def _ref(root: str, skill: str) -> str:
     return f"{root}/skills/{skill}/references/"
+
+
+def _sentence(root: str, skill: str) -> str:
+    return f"References live under `{_ref(root, skill)}`. They serve this agent."
+
+
+def _rendered_sentence(root: str, skill: str) -> str:
+    clause = CHECKOUT_CLAUSE.format(skill=skill)
+    return f"References live under `{_ref(root, skill)}`.{clause} They serve this agent."
+
+
+@pytest.mark.parametrize("host_root", HOST_ROOTS)
+@pytest.mark.parametrize("skill", SPLIT_REFERENCE_SKILLS)
+def test_render_adds_checkout_clause_after_sentence_path(host_root: str, skill: str) -> None:
+    rendered = render_host_reference_roots(_sentence(SHARED_ROOT, skill), host_root)
+
+    assert rendered == _rendered_sentence(host_root, skill)
+    assert f"`.claude/skills/{skill}/references/`" in rendered
+
+
+@pytest.mark.parametrize("host_root", HOST_ROOTS)
+@pytest.mark.parametrize("skill", SPLIT_REFERENCE_SKILLS)
+def test_restore_drops_checkout_clause(host_root: str, skill: str) -> None:
+    rendered = render_host_reference_roots(_sentence(SHARED_ROOT, skill), host_root)
+
+    assert restore_shared_reference_roots(rendered) == _sentence(SHARED_ROOT, skill)
+    assert render_host_reference_roots(rendered, host_root) == rendered
+
+
+def test_restore_keeps_clause_naming_another_skill() -> None:
+    mismatched = _rendered_sentence(CLAUDE_ROOT, "build").replace(
+        "`.claude/skills/build/references/`", "`.claude/skills/test/references/`"
+    )
+
+    restored = restore_shared_reference_roots(mismatched)
+
+    assert "`.claude/skills/test/references/` instead." in restored
+
+
+@pytest.mark.parametrize("host_root", HOST_ROOTS)
+def test_drift_normalizer_drops_checkout_clause(host_root: str) -> None:
+    rendered = render_host_reference_roots(_sentence(SHARED_ROOT, "test"), host_root)
+
+    assert detect_agent_drift.normalize_content(rendered) == detect_agent_drift.normalize_content(
+        _sentence(SHARED_ROOT, "test")
+    )
+
+
+@pytest.mark.parametrize("skill", SPLIT_REFERENCE_SKILLS)
+def test_claude_render_copy_matches_shared_render_with_clause(skill: str) -> None:
+    text = _sentence(SHARED_ROOT, skill)
+
+    assert agent_templates._rewrite_claude_reference_roots(text) == render_host_reference_roots(
+        text, CLAUDE_ROOT
+    )
 
 
 @pytest.mark.parametrize("host_root", HOST_ROOTS)
@@ -143,24 +200,25 @@ def test_drift_normalizer_keeps_non_split_bare_root() -> None:
 
 
 def test_tree_copy_restores_shared_root_from_claude_body() -> None:
-    body = f"\nReferences live under `{_ref(CLAUDE_ROOT, 'build')}`.\n"
+    body = "\n" + _rendered_sentence(CLAUDE_ROOT, "build") + "\n"
     spec = atc.RenderSpec(keep=["name"])
 
     rendered = atc.render_parsed({"name": "implementer"}, body, "implementer.md", spec)
 
     assert rendered is not None
-    assert _ref(SHARED_ROOT, "build") in rendered
+    assert _sentence(SHARED_ROOT, "build") in rendered
     assert CLAUDE_ROOT not in rendered
+    assert "In a checkout" not in rendered
 
 
 def test_tree_copy_keeps_claude_root_when_the_host_replaces_it() -> None:
-    body = f"\nReferences live under `{_ref(CLAUDE_ROOT, 'build')}`.\n"
+    body = "\n" + _rendered_sentence(CLAUDE_ROOT, "build") + "\n"
     spec = atc.RenderSpec(keep=["name"], keep_claude_reference_root=True)
 
     rendered = atc.render_parsed({"name": "implementer"}, body, "implementer.md", spec)
 
     assert rendered is not None
-    assert _ref(CLAUDE_ROOT, "build") in rendered
+    assert _rendered_sentence(CLAUDE_ROOT, "build") in rendered
     assert SHARED_ROOT not in rendered
 
 
@@ -247,8 +305,11 @@ def test_fallback_host_agents_carry_no_bare_claude_reference_root(tree: str) -> 
         if _ref(CLAUDE_ROOT, skill) in path.read_text(encoding="utf-8")
     ]
 
+    clauses = [path.name for path in files if "In a checkout that loads" in path.read_text("utf-8")]
+
     assert offenders == []
     assert len(shared) == 5, shared
+    assert clauses == []
 
 
 SPLIT_AGENTS = ("architect", "critic", "implementer", "orchestrator", "qa", "security")
@@ -296,3 +357,98 @@ def test_every_copy_rewrites_exactly_the_shared_skill_set(skill: str) -> None:
     for root, normalized in drift.items():
         assert (shared in normalized) is expected, root
         assert (restore_shared_reference_roots(_ref(root, skill)) == shared) is expected, root
+
+
+AGENT_SKILL = {
+    "architect": "adr-review",
+    "critic": "decision-critic",
+    "implementer": "build",
+    "orchestrator": "autoplan",
+    "qa": "test",
+    "security": "security-scan",
+}
+
+
+@pytest.mark.parametrize(
+    ("pattern", "host_root"),
+    [
+        ("src/claude/agents/{}.md", CLAUDE_ROOT),
+        ("src/copilot-cli/agents/{}.agent.md", COPILOT_ROOT),
+        ("src/cursor/agents/{}.md", CLAUDE_ROOT),
+    ],
+    ids=["claude", "copilot-cli", "cursor"],
+)
+@pytest.mark.parametrize("agent", SPLIT_AGENTS)
+def test_bare_root_render_names_the_checkout_path(pattern: str, host_root: str, agent: str) -> None:
+    path = REPO_ROOT / pattern.format(agent)
+    if "cursor" in pattern and agent == "security":
+        assert not path.exists()  # Cursor ships no security agent (ADR-115 Decision 3).
+        return
+    skill = AGENT_SKILL[agent]
+    expected = f"`{_ref(host_root, skill)}`." + CHECKOUT_CLAUSE.format(skill=skill)
+
+    assert path.read_text(encoding="utf-8").count(expected) == 1
+
+
+@pytest.mark.parametrize("agent", SPLIT_AGENTS)
+def test_vs_code_render_keeps_nested_form_without_clause(agent: str) -> None:
+    text = (REPO_ROOT / f"src/vs-code-agents/{agent}.agent.md").read_text(encoding="utf-8")
+
+    assert f"`{_ref(SHARED_ROOT, AGENT_SKILL[agent])}`." in text
+    assert "In a checkout that loads" not in text
+
+
+@pytest.mark.parametrize("skill", SPLIT_REFERENCE_SKILLS)
+def test_checkout_path_named_by_the_clause_holds_reference_files(skill: str) -> None:
+    folder = REPO_ROOT / ".claude" / "skills" / skill / "references"
+
+    assert folder.is_dir(), folder
+    assert sorted(folder.glob("*.md")), folder
+
+
+def test_agent_skill_map_covers_the_shared_skill_list() -> None:
+    assert sorted(AGENT_SKILL.values()) == sorted(SPLIT_REFERENCE_SKILLS)
+
+
+MARKER = "<!-- vendor-portability: declares `.agents/` paths. -->"
+
+
+def test_render_declares_checkout_path_in_existing_marker() -> None:
+    text = MARKER + "\n\n" + _sentence(SHARED_ROOT, "build")
+
+    rendered = render_host_reference_roots(text, COPILOT_ROOT)
+
+    declared = MARKER.replace(" -->", MARKER_DECLARATION.format(skill="build") + " -->")
+    assert rendered.startswith(declared + "\n\n")
+    assert rendered.count("Checkout fallback path") == 1
+    assert render_host_reference_roots(rendered, COPILOT_ROOT) == rendered
+
+
+def test_render_adds_no_marker_when_body_has_none() -> None:
+    rendered = render_host_reference_roots(_sentence(SHARED_ROOT, "build"), COPILOT_ROOT)
+
+    assert "vendor-portability" not in rendered
+
+
+def test_render_leaves_marker_alone_without_a_clause() -> None:
+    text = MARKER + "\n" + f"Read `{_ref(SHARED_ROOT, 'build')}x.md` first."
+
+    rendered = render_host_reference_roots(text, COPILOT_ROOT)
+
+    assert rendered.startswith(MARKER + "\n")
+
+
+def test_restore_drops_marker_declaration() -> None:
+    text = MARKER + "\n\n" + _sentence(SHARED_ROOT, "build")
+
+    rendered = render_host_reference_roots(text, COPILOT_ROOT)
+
+    assert restore_shared_reference_roots(rendered) == text
+
+
+def test_copilot_implementer_marker_declares_the_checkout_path() -> None:
+    text = (REPO_ROOT / "src/copilot-cli/agents/implementer.agent.md").read_text("utf-8")
+    vs_code = (REPO_ROOT / "src/vs-code-agents/implementer.agent.md").read_text("utf-8")
+
+    assert MARKER_DECLARATION.format(skill="build") in text
+    assert "Checkout fallback path" not in vs_code

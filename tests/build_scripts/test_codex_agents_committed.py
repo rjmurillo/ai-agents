@@ -109,6 +109,13 @@ def problems_with(stem: str, committed_text: str) -> list[str]:
     front, body = _read_source(stem)
     for skill in SPLIT_REFERENCE_SKILLS:
         suffix = f"/skills/{skill}/references/"
+        clause = (
+            " In a checkout that loads this agent with no plugin root, read"
+            f" `.claude{suffix}` instead."
+        )
+        body = body.replace(
+            "`${CLAUDE_PLUGIN_ROOT}" + suffix + "`." + clause, f"`{SHARED_ROOT}{suffix}`."
+        )
         body = body.replace("${CLAUDE_PLUGIN_ROOT}" + suffix, SHARED_ROOT + suffix)
     for old, new in BODY_EDITS.get(stem, []):
         body = body.replace(old, new)

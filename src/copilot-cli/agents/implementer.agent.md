@@ -21,7 +21,7 @@ role: executor
 isolation_required: true
 ---
 
-<!-- vendor-portability: This template declares its `.agents/` session-scaffold path dependencies and tells vendored consumers how to proceed when the scaffold is absent. -->
+<!-- vendor-portability: This template declares its `.agents/` session-scaffold path dependencies and tells vendored consumers how to proceed when the scaffold is absent. Checkout fallback path: .claude/skills/build/references. -->
 
 # Implementer Agent
 
@@ -197,7 +197,7 @@ Design bottom-up: qualities (cohesion, coupling, DRY, encapsulation, testability
 
 ## Reference Loading
 
-Implementer references live under `${COPILOT_PLUGIN_ROOT}/skills/build/references/`. They serve this agent; the `build` skill is the slice-by-slice build workflow. Read one only when its condition holds. If the path does not resolve (a harness with no skill tree, such as the VS Code agent list), apply the rules in this file and state that the reference was unavailable.
+Implementer references live under `${COPILOT_PLUGIN_ROOT}/skills/build/references/`. In a checkout that loads this agent with no plugin root, read `.claude/skills/build/references/` instead. They serve this agent; the `build` skill is the slice-by-slice build workflow. Read one only when its condition holds. If the path does not resolve (a harness with no skill tree, such as the VS Code agent list), apply the rules in this file and state that the reference was unavailable.
 
 - `implementer-design-and-errors.md`, when you design or refactor code and need the coupling types, the retry examples, or the error category table.
 - `implementer-impact-analysis.md`, when milestone-planner requests impact analysis; `implementer-estimation.md`, when you estimate complexity or report an estimate.

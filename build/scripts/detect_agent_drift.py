@@ -312,6 +312,13 @@ _REFERENCE_ROOT_PATTERN = re.compile(
     r"(/skills/(?:adr-review|decision-critic|build|autoplan|test|security-scan)/references/)"
 )
 _SHARED_REFERENCE_ROOT = r"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}\1"
+# The same renders add a checkout clause after that path; drop it first.
+_CHECKOUT_CLAUSE_PATTERN = re.compile(
+    r"(\$\{(?:CLAUDE_PLUGIN_ROOT|COPILOT_PLUGIN_ROOT)\}"
+    r"/skills/(adr-review|decision-critic|build|autoplan|test|security-scan)/references/`\.)"
+    r" In a checkout that loads this agent with no plugin root, read"
+    r" `\.claude/skills/\2/references/` instead\."
+)
 
 _CODE_BLOCK_LANG = re.compile(r"```(bash|powershell|text|markdown|python)")
 _MULTI_BLANK_LINES = re.compile(r"\n{3,}")
@@ -439,6 +446,7 @@ def normalize_content(content: str) -> str:
     for pattern, replacement in _HANDOFF_PATTERNS:
         result = pattern.sub(replacement, result)
 
+    result = _CHECKOUT_CLAUSE_PATTERN.sub(r"\1", result)
     result = _REFERENCE_ROOT_PATTERN.sub(_SHARED_REFERENCE_ROOT, result)
 
     result = _CODE_BLOCK_LANG.sub("```", result)

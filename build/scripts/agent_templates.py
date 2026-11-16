@@ -255,9 +255,14 @@ _SHARED_ROOT = "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
 
 
 def _rewrite_claude_reference_roots(text: str) -> str:
-    """Render split-agent skill reference paths to the bare Claude Code plugin-root token."""
+    """Render split-agent reference paths to the bare Claude token, plus the checkout clause."""
     for skill in _SPLIT_REFERENCE_SKILLS:
         suffix = f"/skills/{skill}/references/"
+        text = text.replace(
+            f"`{_SHARED_ROOT}{suffix}`.",
+            f"`${{CLAUDE_PLUGIN_ROOT}}{suffix}`. In a checkout that loads this agent with no"
+            f" plugin root, read `.claude{suffix}` instead.",
+        )
         text = text.replace(_SHARED_ROOT + suffix, "${CLAUDE_PLUGIN_ROOT}" + suffix)
     return text
 

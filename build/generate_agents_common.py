@@ -540,6 +540,11 @@ def convert_memory_prefix(body: str, prefix: str) -> str:
 # their copies keep the shared form, which resolves in a checkout. The probe
 # record is .project-toolkit/analysis/2026-11-16-agent-body-plugin-root-probes.md.
 #
+# Claude Code 2.1.325 replaces no token in a project agent body (same record), so
+# a checkout that loads these agents from its own agents folder sees the bare
+# token unexpanded. Each bare-token render therefore adds CHECKOUT_CLAUSE, which
+# names the in-repo ``.claude/skills/<skill>/references/`` path.
+#
 # agent_templates.py and detect_agent_drift.py keep private copies of the skill
 # list; tests/build_scripts/test_split_reference_roots.py pins their parity.
 
@@ -558,6 +563,36 @@ COPILOT_ROOT = "${COPILOT_PLUGIN_ROOT}"
 
 _HOST_ROOTS = frozenset({CLAUDE_ROOT, COPILOT_ROOT})
 
+CHECKOUT_CLAUSE = (
+    " In a checkout that loads this agent with no plugin root, read"
+    " `.claude/skills/{skill}/references/` instead."
+)
+_CLAUSE_HEAD, _CLAUSE_TAIL = CHECKOUT_CLAUSE.split("{skill}")
+
+_CHECKOUT_CLAUSE_AFTER_BARE_ROOT = re.compile(
+    "((?:"
+    + "|".join(re.escape(root) for root in sorted(_HOST_ROOTS))
+    + ")/skills/(?P<skill>"
+    + "|".join(re.escape(s) for s in SPLIT_REFERENCE_SKILLS)
+    + ")/references/`\\.)"
+    + re.escape(_CLAUSE_HEAD)
+    + "(?P=skill)"
+    + re.escape(_CLAUSE_TAIL)
+)
+
+# A body that already carries a vendor-portability marker must declare every
+# upstream path its prose names, so the render that adds CHECKOUT_CLAUSE also adds
+# MARKER_DECLARATION inside that marker. It never adds a marker where none exists.
+MARKER_DECLARATION = " Checkout fallback path: .claude/skills/{skill}/references."
+_PORTABILITY_MARKER_END = re.compile(r"(<!-- vendor-portability:.*?)(\s*-->)", re.DOTALL)
+_MARKER_DECLARATION_PATTERN = re.compile(
+    re.escape(MARKER_DECLARATION.split("{skill}")[0])
+    + "(?:"
+    + "|".join(re.escape(s) for s in SPLIT_REFERENCE_SKILLS)
+    + ")"
+    + re.escape(MARKER_DECLARATION.split("{skill}")[1])
+)
+
 _BARE_ROOT_REFERENCE = re.compile(
     "(?:"
     + "|".join(re.escape(root) for root in sorted(_HOST_ROOTS))
@@ -570,6 +605,9 @@ _BARE_ROOT_REFERENCE = re.compile(
 def convert_reference_roots(text: str, host_root: str) -> str:
     """Replace the shared root with ``host_root`` on split-agent reference paths only.
 
+    A path that ends a sentence also gets :data:`CHECKOUT_CLAUSE` after it, and the
+    body's first vendor-portability marker, when it has one, gets
+    :data:`MARKER_DECLARATION`.
     Other skill paths and other folders under a split skill keep the shared root.
     Raises ``ValueError`` for a root that is not a known host token.
     """
@@ -577,6 +615,13 @@ def convert_reference_roots(text: str, host_root: str) -> str:
         raise ValueError(f"unknown host plugin root: {host_root!r}")
     for skill in SPLIT_REFERENCE_SKILLS:
         suffix = f"/skills/{skill}/references/"
+        sentence_end = f"`{SHARED_ROOT}{suffix}`."
+        if sentence_end in text:
+            text = text.replace(
+                sentence_end, f"`{host_root}{suffix}`." + CHECKOUT_CLAUSE.format(skill=skill)
+            )
+            declaration = MARKER_DECLARATION.format(skill=skill).replace("\\", "\\\\")
+            text = _PORTABILITY_MARKER_END.sub(r"\g<1>" + declaration + r"\g<2>", text, count=1)
         text = text.replace(SHARED_ROOT + suffix, host_root + suffix)
     return text
 
@@ -586,8 +631,10 @@ def restore_shared_reference_roots(text: str) -> str:
 
     The inverse of :func:`convert_reference_roots` for either host token. A copy
     of a Claude body for another host uses it, and drift detection uses it to compare
-    host renders as one text.
+    host renders as one text. It also drops the checkout clause the render added.
     """
+    text = _CHECKOUT_CLAUSE_AFTER_BARE_ROOT.sub(r"\1", text)
+    text = _MARKER_DECLARATION_PATTERN.sub("", text)
     return _BARE_ROOT_REFERENCE.sub(lambda m: SHARED_ROOT + m.group(1), text)
 
 
