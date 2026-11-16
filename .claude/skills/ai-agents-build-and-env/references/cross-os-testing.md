@@ -106,6 +106,7 @@ docker run -it --rm --name windows \
 These steps run the tests the CI job `test-windows-pwsh` runs. Run them in
 PowerShell. Replace `<your-branch>` with the output of
 `git branch --show-current` on the host, never with text from a PR or issue.
+Keep the single quotes, so PowerShell does not expand `$` in the name.
 
 ```powershell
 # Install Git for Windows first, then uv:
@@ -114,7 +115,7 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 git config --global core.symlinks true
 git clone https://github.com/rjmurillo/ai-agents.git
 cd ai-agents
-git checkout "<your-branch>"
+git checkout '<your-branch>'
 uv run --frozen pytest -m windows_path tests -q
 ```
 
@@ -131,11 +132,12 @@ uv run --frozen pytest -m windows_path tests -q
   detached. The bundle holds the full history.
 
   ```bash
-  git bundle create "$HOME/vms/win11/shared/wip.bundle" HEAD "<your-branch>"
+  BR=$(git branch --show-current)
+  git bundle create "$HOME/vms/win11/shared/wip.bundle" HEAD "$BR"
   ```
 
   ```powershell
-  git clone -b "<your-branch>" Z:\wip.bundle ai-agents
+  git clone -b '<your-branch>' Z:\wip.bundle ai-agents
   ```
 
 ## Windows host, Linux target
@@ -147,9 +149,11 @@ uv run --frozen pytest -m windows_path tests -q
    `uv` from a Windows-mounted path has failed with TLS handshake errors here
    (`.serena/memories/workspace/wsl-native-worktree-for-uv-network-access.md`).
 3. For the full toolchain, run the Ubuntu bootstrap script that SKILL.md
-   Phase 1 names. It uses sudo and reads `GH_TOKEN`. WSL is a persistent
-   distro, not a throwaway guest, so do not copy the `curl | sh` line from
-   Route 2 into it.
+   Phase 1 names. It changes the distro for good: it adds apt repositories
+   with sudo, installs a global npm package, saves `GH_TOKEN` to the gh config
+   through `gh auth login`, and resets the clone's git hooks path. WSL is a
+   persistent distro, not a throwaway guest, so do not copy the `curl | sh`
+   line from Route 2 into it.
 
 ### Route 2: `ubuntu:26.04` container
 
@@ -177,7 +181,7 @@ git clone -q --no-checkout /repo.git /work
 cd /work
 git checkout -q "$SHA"
 uv sync --frozen --extra dev
-uv run pytest tests/test_paths.py -q -p no:cacheprovider
+uv run --frozen pytest tests/test_paths.py -q -p no:cacheprovider
 '
 ```
 
@@ -204,5 +208,7 @@ docker run --rm -it --isolation=hyperv -v "${PWD}:C:\src:ro" mcr.microsoft.com/w
 ```
 
 Inside, `cd C:\src` and run the script under test. Process isolation needs the
-image build to match the host build. Hyper-V isolation runs across builds. To
+image build to match the host build. Hyper-V isolation can also run an image
+older than the host, but not a newer one, so `ltsc2025` needs a Windows 11
+24H2 or Server 2025 host. To
 test with Python present instead, install uv with the `irm` line above.
