@@ -400,6 +400,12 @@ class TestSecondReview:
         guide = skill / "references" / "guide.md"
         outside = tmp_path_factory.mktemp("outside") / "secret.md"
         outside.write_text("An outside sentence that must never count.\n", encoding="utf-8")
+        probe = outside.parent / "probe-link"
+        try:
+            probe.symlink_to(outside)
+        except OSError as exc:
+            pytest.skip(f"cannot create a symlink here: {exc}")
+        probe.unlink()
         files = conformance.__dict__["skill_files"]
 
         def listed_then_swapped(*args: Any, **kwargs: Any) -> list[str]:
