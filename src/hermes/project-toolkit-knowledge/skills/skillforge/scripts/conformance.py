@@ -233,20 +233,20 @@ def render_catalog(profile: str, fmt: str) -> str:
     return "\n".join(lines) + "\n"
 
 
-def skill_files(directory: Path, root: Path, exclude: Path | None = None) -> list[str]:
+def skill_files(directory: Path, root: Path, exclude: tuple[int, int] | None = None) -> list[str]:
     """Return the text files a judge may quote, as POSIX paths relative to the skill.
 
-    A file must resolve inside both the skill directory and root. ``exclude``
-    keeps a judgments file saved in the skill from quoting itself as evidence.
+    A file must resolve inside both the skill directory and root. ``exclude`` is
+    the (device, inode) of the judgments file, so it cannot quote itself; a
+    candidate whose identity cannot be read is left out.
     """
-    skipped = file_id(exclude) if exclude is not None else None
     found = []
     for path in sorted(directory.rglob("*")):
         if path.suffix.lower() not in TEXT_SUFFIXES:
             continue
         if not inside_skill(path, directory, root):
             continue
-        if exclude is not None and file_id(path) in (None, skipped):
+        if exclude is not None and file_id(path) in (None, exclude):
             continue
         found.append(path.relative_to(directory).as_posix())
     return found
@@ -347,18 +347,24 @@ def _apply_judgments_file(
 ) -> list[str]:
     """Apply --judgments to one skill's report, or return why the file was rejected."""
     judgments = Path(args.judgments)
-    excluded = file_id(judgments)
-    if excluded is None:
-        return [f"cannot identify {judgments}: it is missing or unreadable"]
+    # Take the identity from the same open file that is read, so a path swapped
+    # between the two cannot exclude one file and import another.
+    try:
+        with open(judgments, "rb") as handle:
+            opened = os.fstat(handle.fileno())
+            raw = handle.read()
+    except OSError as exc:
+        return [f"cannot read {judgments}: {exc}"]
+    excluded = (opened.st_dev, opened.st_ino)
     scope = JudgingScope(
         directory=directory,
         root=root,
-        allowed=frozenset(skill_files(directory, root, exclude=judgments)),
+        allowed=frozenset(skill_files(directory, root, exclude=excluded)),
         open_ids=frozenset(r.rule.id for r in report.results if r.status == "MANUAL"),
         waived=frozenset(args.waive),
         excluded=excluded,
     )
-    return apply_judgments(report.results, judgments, scope)
+    return apply_judgments(report.results, raw, scope)
 
 
 def main(argv: list[str] | None = None) -> int:

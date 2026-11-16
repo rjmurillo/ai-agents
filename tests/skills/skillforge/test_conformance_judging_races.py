@@ -109,20 +109,42 @@ class TestReadRaceAndIdentity:
         assert code == 2
         assert "references/guide.md is not a text file in the skill" in capsys.readouterr().err
 
-    def test_unidentifiable_judgments_file_is_rejected(
-        self, skill: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+    def test_missing_judgments_file_is_rejected(
+        self, skill: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        real = conformance.__dict__["file_id"]
-        monkeypatch.setitem(
-            conformance.__dict__,
-            "file_id",
-            lambda p: None if p.name == "judgments.json" else real(p),
-        )
-
-        code = _judge(skill.parent, [_verdict("pass")])
+        code = conformance.main(["release-notes", "--judgments", str(skill.parent / "absent.json")])
 
         assert code == 2
-        assert "cannot identify" in capsys.readouterr().err
+        assert "cannot read" in capsys.readouterr().err
+
+    def test_judgments_identity_comes_from_the_file_that_is_read(
+        self, skill: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        invented = "An invented sentence held only by the judgments text."
+        judgment = _verdict("pass", quote=invented, file="references/evidence.json")
+        evidence = skill / "references" / "evidence.json"
+        evidence.write_text(json.dumps({"judgments": [judgment]}), encoding="utf-8")
+        decoy = skill.parent / "decoy.json"
+        decoy.write_text(json.dumps({"judgments": []}), encoding="utf-8")
+        link = skill.parent / "judgments.json"
+        try:
+            link.symlink_to(decoy)
+        except OSError as exc:
+            pytest.skip(f"cannot create a symlink here: {exc}")
+        real_open = open
+
+        def swapping_open(path: Any, *args: Any, **kwargs: Any) -> Any:
+            if Path(path).name == "judgments.json":
+                link.unlink()
+                link.symlink_to(evidence)
+            return real_open(path, *args, **kwargs)
+
+        monkeypatch.setitem(conformance.__dict__, "open", swapping_open)
+
+        code = conformance.main(["release-notes", "--judgments", str(link)])
+
+        assert code == 2
+        assert "references/evidence.json is not a text file in the skill" in capsys.readouterr().err
 
     def test_unidentifiable_candidate_is_left_out(
         self, skill: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch

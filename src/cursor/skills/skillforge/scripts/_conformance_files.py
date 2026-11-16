@@ -421,25 +421,25 @@ def _judgment_errors(item: object, index: int, scope: JudgingScope) -> list[str]
     return errors + _evidence_errors(where, evidence, scope)
 
 
-def _read_judgments(path: Path) -> list[object] | str:
-    """Return the judgments list from the file, or why it cannot be read."""
+def _read_judgments(raw: bytes) -> list[object] | str:
+    """Return the judgments list from the file's bytes, or why it cannot be parsed."""
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, ValueError) as exc:
-        return f"cannot read {path}: {exc}"
+        data = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError) as exc:
+        return f"the judgments file is not valid UTF-8 JSON: {exc}"
     items = data.get("judgments") if isinstance(data, dict) else None
     if not isinstance(items, list):
         return "the file needs a top-level 'judgments' list"
     return items
 
 
-def apply_judgments(results: list[Any], path: Path, scope: JudgingScope) -> list[str]:
-    """Apply a judgments file to the MANUAL results, or return why it was rejected.
+def apply_judgments(results: list[Any], raw: bytes, scope: JudgingScope) -> list[str]:
+    """Apply a judgments file's bytes to the MANUAL results, or return why it was rejected.
 
     Every verdict is checked before any result changes, so a rejected file
     leaves the report as it was.
     """
-    items = _read_judgments(path)
+    items = _read_judgments(raw)
     if isinstance(items, str):
         return [items]
     ids = [item.get("id") for item in items if isinstance(item, dict)]
