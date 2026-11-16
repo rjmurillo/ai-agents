@@ -70,6 +70,12 @@ Python via `uv python install --default`, Node 22, pwsh, gh, syncs dependencies,
 and installs Lefthook. Do not copy its shell implementation for new scripts;
 ADR-042 requires Python for new automation.
 
+Testing on the other OS (Windows from a Linux host, Linux from a Windows host):
+follow [references/cross-os-testing.md](references/cross-os-testing.md). It
+covers the CI Windows leg, a Windows VM or `dockurr/windows` container (needs
+`/dev/kvm`), Ubuntu on WSL, and a throwaway `ubuntu:26.04` container.
+Windows container images do not run on a Linux Docker host.
+
 Manual Python install when not using the bootstrap script:
 
 ```bash

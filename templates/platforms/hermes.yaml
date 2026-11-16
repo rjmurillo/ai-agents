@@ -39,7 +39,7 @@ artifacts:
            pr-comment-responder, pr-quality-all, pr-quality-analyst, pr-quality-architect,
            pr-quality-devops, pr-quality-qa, pr-quality-roadmap, pr-quality-security, pr-review,
            push-pr, quality-grades, research, reviewer-findings, security-review, slo-designer,
-           steering-matcher, style-enforcement, sync, taste-lints, test, threat-modeling,
+           steering-matcher, style-enforcement, sync, takeover, taste-lints, test, threat-modeling,
            validate-pr-description, validation-authority, windows-image-updater]
       knowledge:
         description: "Project Toolkit skills for memory, context, decisions, requirements, strategy, and documentation."
