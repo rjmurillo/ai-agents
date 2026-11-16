@@ -114,9 +114,14 @@ Keep the single quotes, so PowerShell does not expand `$` in the name. If the
 name has any character outside letters, digits, `.`, `_`, `/`, and `-`, stop
 and rename the branch first.
 
+Git needs permission to create the repo's symlinks. Turn on Developer Mode in
+Windows settings, or run the shell as administrator, before you clone.
+
 ```powershell
 # Install Git for Windows first, then uv:
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+# The installer ran in a child shell. Reload PATH so this shell finds uv:
+$env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
 
 git config --global core.symlinks true
 git clone https://github.com/rjmurillo/ai-agents.git
@@ -125,8 +130,6 @@ git checkout '<your-branch>'
 uv run --frozen pytest -m windows_path tests -q
 ```
 
-- Git creates symlinks only when Developer Mode is on or the shell runs as
-  administrator. Without that, `core.symlinks true` still writes text files.
 - `-m windows_path` selects every marked test, the set a `workflow_dispatch`
   run of the CI job covers. A pull request run covers only the marked modules
   the change reaches. CI starts pytest through a wrapper script that skips
@@ -180,7 +183,7 @@ prints a path:
 ```bash
 find "$(git rev-parse --path-format=absolute --git-common-dir)" -maxdepth 4 -type f \
   \( -name config -o -name config.worktree \) \
-  -exec grep -lE '://[^/@]+@|extraheader' {} +
+  -exec grep -liE '://[^/@]+@|extraheader' {} +
 ```
 
 `ubuntu:latest` resolved to the same image as `ubuntu:26.04` on 2026-11-15.
