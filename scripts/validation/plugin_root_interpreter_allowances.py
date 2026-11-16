@@ -91,7 +91,7 @@ SINGLE_ROOT_ALLOWANCES: dict[str, tuple[int, str]] = {
     ),
     "skills/agent-harness-reference/SKILL.md": (2, _HARNESS_FACT),
     "templates/skills/agent-harness-reference.SKILL.md.tmpl": (2, _HARNESS_FACT),
-    "skills/agent-harness-reference/references/probe-evidence.md": (1, _HARNESS_FACT),
+    "skills/agent-harness-reference/references/probe-evidence.md": (3, _HARNESS_FACT),
     "skills/github/scripts/pr/run_completion_gate.py": (
         2,
         "A table that still recognizes the legacy single-root form in installed configs, "

@@ -188,9 +188,15 @@ def test_schema_rejects_keep_root_without_tree_copy() -> None:
     assert any("keepClaudeReferenceRoot`: requires `frontmatterKeep`" in e for e in errors)
 
 
-def test_every_split_skill_ships_a_references_folder() -> None:
-    for skill in SPLIT_REFERENCE_SKILLS:
-        assert (REPO_ROOT / "src" / "claude" / "skills" / skill / "references").is_dir(), skill
+@pytest.mark.parametrize("tree", ["claude", "copilot-cli", "cursor", "codex", "muse"])
+def test_every_split_skill_ships_a_references_folder_in_each_host_tree(tree: str) -> None:
+    missing = [
+        skill
+        for skill in SPLIT_REFERENCE_SKILLS
+        if not (REPO_ROOT / "src" / tree / "skills" / skill / "references").is_dir()
+    ]
+
+    assert missing == []
 
 
 def _split_agent_files(tree: str) -> list[Path]:
