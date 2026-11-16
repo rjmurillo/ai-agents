@@ -62,9 +62,7 @@ Other languages and quality scores retain their existing heuristics.
 
 Install these packages into the Python environment that runs the scanner:
 
-```bash
-python3 -m pip install tree-sitter==0.26.1 tree-sitter-c-sharp==0.23.5
-```
+Run `python3 -m pip install tree-sitter==0.26.1 tree-sitter-c-sharp==0.23.5`.
 
 The scanner imports these packages only when assessing C# source.
 Missing packages or C# syntax errors exit 1 without a passing report.
