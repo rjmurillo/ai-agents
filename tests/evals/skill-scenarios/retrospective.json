@@ -5,7 +5,7 @@
     {
       "id": "S1",
       "desc": "Fill request for a dated skeleton",
-      "input": "/retrospective fill 2026-06-03. Answer in 5 short bullets. Do not modify any files.",
+      "input": "/retrospective fill 2026-06-03\n\nAnswer in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "skeleton-pending-fill",
         "auto-retro",
