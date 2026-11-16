@@ -102,6 +102,8 @@ docker run -it --rm --name windows \
 - The guest can write to `/shared` and `/oem`. Mount new, empty folders there,
   and keep credentials and your real `.git` directory out of them.
 - `/storage` keeps the disk image, so a second run boots the installed guest.
+  The guest lives until you delete `$HOME/vms/win11/storage`. Treat it as a
+  test machine with a known password, and delete that folder when done.
 
 ### Inside the Windows guest
 
@@ -132,7 +134,8 @@ uv run --frozen pytest -m windows_path tests -q
   a collection error in an unrelated test file. Name test files instead of
   `tests` to narrow it. `uv` reads the Python version from `.python-version`.
 - The uv installers here and in the Ubuntu recipe track the latest release,
-  and the `dockurr/windows` tag floats. Use them only in throwaway guests.
+  and the `dockurr/windows` tag floats. Use them only in test guests and
+  containers you delete afterward.
 - To test an unpushed branch, write a bundle into the shared folder on the
   host, then clone it in the guest. Name the branch, or the clone comes out
   detached. The bundle holds the full history.
@@ -169,12 +172,15 @@ The container clones from your local git directory, so it tests the commit at
 branch first, never on `main`. An agent asks the user before it makes that
 commit. Mounting the git common
 directory works for both a main clone and a linked worktree. The mount is
-read-only, but the container can still read it. Check that its config holds
-no credentials first. This prints nothing when the config is clean; stop if
-it prints a line:
+read-only, but the container can still read it. Check that no config file in
+it holds credentials first. The check prints only file names, never the
+matching text. It prints nothing when the directory is clean; stop if it
+prints a path:
 
 ```bash
-grep -nE '://[^/@]+@|extraheader' "$(git rev-parse --path-format=absolute --git-common-dir)/config"
+find "$(git rev-parse --path-format=absolute --git-common-dir)" -maxdepth 4 -type f \
+  \( -name config -o -name config.worktree \) \
+  -exec grep -lE '://[^/@]+@|extraheader' {} +
 ```
 
 `ubuntu:latest` resolved to the same image as `ubuntu:26.04` on 2026-11-15.
