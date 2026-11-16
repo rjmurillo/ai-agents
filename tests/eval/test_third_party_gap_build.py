@@ -104,7 +104,22 @@ class TestBotThreads:
 
         (row,) = build.bot_threads(prs)
 
-        assert (row["first_reply"], row["disposition"]) == ("", "resolved-silent")
+        assert (row["first_reply"], row["disposition"]) == ("", "unclear")
+
+    def test_a_rejection_from_someone_other_than_the_author_still_rejects(self) -> None:
+        prs = [
+            {
+                "number": 9,
+                "author": {"login": "rjmurillo"},
+                "reviewThreads": [
+                    thread(comment("cursor"), comment("someone-else", "This is a false positive"))
+                ],
+            }
+        ]
+
+        (row,) = build.bot_threads(prs)
+
+        assert row["disposition"] == "rejected"
 
 
 class TestFindingsBotNames:

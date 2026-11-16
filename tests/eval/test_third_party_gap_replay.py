@@ -420,6 +420,10 @@ class TestFinishReason:
         ("metadata", "expected"),
         [
             ({"stop_reason": "max_tokens"}, "length"),
+            (
+                {"stop_reason": "model_context_window_exceeded", "termination": "token_limit"},
+                "length",
+            ),
             ({"stop_reason": "end_turn"}, None),
             ({"finish_reason": "stop", "stop_reason": "max_tokens"}, "stop"),
             ({}, None),

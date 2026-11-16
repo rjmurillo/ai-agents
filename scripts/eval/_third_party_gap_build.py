@@ -68,9 +68,17 @@ def learned_rule(body: str) -> str | None:
     return text.split(" Reviewed by")[0].strip()
 
 
-def disposition(body: str, replies: list[str], resolved: bool) -> str:
-    """accepted, rejected, resolved-silent, or unclear, from the author's replies."""
-    if any(FIXED_WITH_SHA.search(r) or ACCEPT.search(r) for r in replies):
+def disposition(
+    body: str, replies: list[str], resolved: bool, accepting: list[str] | None = None
+) -> str:
+    """accepted, rejected, resolved-silent, or unclear, from the human replies.
+
+    ``accepting`` holds the replies that may accept (the pull request author's);
+    it defaults to ``replies``. Any human reply can still reject the finding or
+    break its silence.
+    """
+    accepting = replies if accepting is None else accepting
+    if any(FIXED_WITH_SHA.search(r) or ACCEPT.search(r) for r in accepting):
         return "accepted"
     if any(marker in body for marker in BOT_ADDRESSED):
         return "accepted"
@@ -98,9 +106,9 @@ def bot_threads(pull_requests: list[dict[str, Any]]) -> list[dict[str, Any]]:
             comments = thread["comments"]
             # Only the pull request author can accept a finding for the author agent.
             author = _login(pr)
-            replies = [
-                c.get("body") or "" for c in findings.human_replies(comments) if _login(c) == author
-            ]
+            humans = findings.human_replies(comments)
+            replies = [c.get("body") or "" for c in humans]
+            by_author = [c.get("body") or "" for c in humans if _login(c) == author]
             body = comments[0].get("body") or ""
             commit = comments[0].get("originalCommit")
             rows.append(
@@ -111,8 +119,10 @@ def bot_threads(pull_requests: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     "path": thread.get("path"),
                     "line": thread.get("originalLine") or thread.get("line"),
                     "commit": commit.get("oid") if isinstance(commit, dict) else None,
-                    "disposition": disposition(body, replies, bool(thread.get("isResolved"))),
-                    "first_reply": clean(replies[0])[:600] if replies else "",
+                    "disposition": disposition(
+                        body, replies, bool(thread.get("isResolved")), accepting=by_author
+                    ),
+                    "first_reply": clean(by_author[0])[:600] if by_author else "",
                     "learned_rule": learned_rule(body),
                     "url": comments[0].get("url"),
                 }

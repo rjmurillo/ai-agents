@@ -166,13 +166,15 @@ def call_with_rate_limit_backoff(
 
 
 def finish_reason(metadata: dict[str, object]) -> str | None:
-    """The provider's finish reason; Anthropic's ``max_tokens`` stop reads as ``length``.
+    """The provider's finish reason; an Anthropic token-limit stop reads as ``length``.
 
-    The default provider reports ``stop_reason``, not ``finish_reason``, so a
-    truncated answer would otherwise not count as cut at the ceiling.
+    The default provider reports ``stop_reason`` and ``termination``, not
+    ``finish_reason``, so a truncated answer would otherwise not count as cut at
+    the ceiling. ``termination == "token_limit"`` covers every token-limit stop.
     """
     reason = metadata.get("finish_reason")
-    if reason is None and metadata.get("stop_reason") == "max_tokens":
+    token_limit = metadata.get("termination") == "token_limit"
+    if reason is None and (token_limit or metadata.get("stop_reason") == "max_tokens"):
         return "length"
     return reason if isinstance(reason, str) else None
 
