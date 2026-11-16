@@ -12,6 +12,7 @@ Claude source and that every copy carries a version and a license.
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -25,12 +26,23 @@ import generate_skills  # noqa: E402
 
 PLATFORMS = ("cursor", "muse")
 GP003_KEYS = ("version", "license")
+# The frontmatter block: from the opening `---` line to the next `---` line.
+_FRONTMATTER = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n", re.DOTALL)
 
 
 def _frontmatter(text: str) -> dict[str, object]:
-    loaded = yaml.safe_load(text.split("---")[1])
+    match = _FRONTMATTER.match(text)
+    assert match, "no frontmatter block"
+    loaded = yaml.safe_load(match.group(1))
     assert isinstance(loaded, dict)
     return loaded
+
+
+def _gp003_values(fm: dict[str, object]) -> tuple[object, object, object]:
+    """Return (top-level version, metadata.version, license); GP-003 accepts either version."""
+    metadata = fm.get("metadata")
+    nested = metadata.get("version") if isinstance(metadata, dict) else None
+    return fm.get("version"), nested, fm.get("license")
 
 
 def _platform_keep(platform: str) -> list[str]:
@@ -114,12 +126,6 @@ def test_version_nested_under_metadata_survives(tmp_path: Path, platform: str) -
     assert fm["license"] == "MIT"
 
 
-def _gp003_values(fm: dict[str, object]) -> tuple[object, object, object]:
-    metadata = fm.get("metadata")
-    nested = metadata.get("version") if isinstance(metadata, dict) else None
-    return fm.get("version"), nested, fm.get("license")
-
-
 @pytest.mark.parametrize("platform", PLATFORMS)
 def test_committed_copies_match_claude_version_and_license(platform: str) -> None:
     claude_skills = sorted((REPO_ROOT / "src" / "claude" / "skills").glob("*/SKILL.md"))
@@ -138,6 +144,7 @@ def test_committed_copies_match_claude_version_and_license(platform: str) -> Non
 
 @pytest.mark.parametrize("platform", PLATFORMS)
 def test_every_committed_copy_carries_a_version_and_license(platform: str) -> None:
+    """Guard the case the parity test cannot: a source that lacks a key."""
     copies = sorted((REPO_ROOT / "src" / platform / "skills").glob("*/SKILL.md"))
     assert copies, f"no {platform} skills found"
 
@@ -150,3 +157,18 @@ def test_every_committed_copy_carries_a_version_and_license(platform: str) -> No
             missing.append(copy_md.parent.name)
 
     assert missing == [], f"checked {len(copies)} copies"
+
+
+@pytest.mark.parametrize("platform", PLATFORMS)
+def test_committed_copies_carry_only_keep_list_keys(platform: str) -> None:
+    keep = set(_platform_keep(platform))
+    assert not {"allowed-tools", "model"} & keep, "keep-list must not widen tool or model scope"
+    copies = sorted((REPO_ROOT / "src" / platform / "skills").glob("*/SKILL.md"))
+    assert copies, f"no {platform} skills found"
+
+    extra = {
+        copy_md.parent.name: sorted(set(_frontmatter(copy_md.read_text(encoding="utf-8"))) - keep)
+        for copy_md in copies
+    }
+
+    assert {name: keys for name, keys in extra.items() if keys} == {}, f"checked {len(copies)}"

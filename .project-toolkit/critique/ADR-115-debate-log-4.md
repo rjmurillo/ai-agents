@@ -88,3 +88,12 @@ Consensus: both reviewers vote Accept in round 2 with no open P0 or P1. Acceptan
 
 - Hermes copies of `skillforge`, `style-enforcement`, and `validation-authority` lose `metadata.version`. The task covered Cursor and Muse only. The owner decides whether Hermes keeps `version`.
 - The GP-003 scanner checks only `.claude/skills/`. It never checks the `src/cursor/`, `src/muse/`, or `src/hermes/` copies.
+
+## Pre-merge review follow-up
+
+The `/review` run on `927396472` returned WARN from spec-compliance, security, reliability, and decision-rigor. No axis returned CRITICAL_FAIL. Follow-up edits:
+
+- Signed-in `cursor-agent` 2026.11.11 probe, 2026-11-15. A project `.cursor/skills/` copy carrying `version`, `license`, and `metadata` registered with zero tool calls, as did a name-and-description control. A malformed-YAML control also registered, so the probe shows non-rejection only. `--plugin-dir` registered none of the three, so the plugin install path stays a deferred item, now with a failure signature and a trigger.
+- Decision 3 records two rejected alternatives: exempting the generated trees from GP-003, and moving `version` under `metadata` in 102 sources.
+- Consequences names Muse Code's unknown-field tolerance as a risk. Reversibility names the installed-tree lag.
+- `templates/platforms/surface-parity.yaml` reasons for `skills-cursor` and `skills-muse` now list the kept keys.

@@ -168,7 +168,7 @@ def test_keep_helper_distinguishes_absent_from_empty() -> None:
 
 
 def test_committed_cursor_skills_carry_only_allowed_keys() -> None:
-    documented = {
+    allowed = {
         "name",
         "description",
         "paths",
@@ -184,6 +184,6 @@ def test_committed_cursor_skills_carry_only_allowed_keys() -> None:
     assert len(skills) == len(list((REPO_ROOT / "src" / "claude" / "skills").glob("*/SKILL.md")))
     for skill in skills:
         keys = set(yaml.safe_load(skill.read_text(encoding="utf-8").split("---")[1]))
-        assert keys <= documented, skill
+        assert keys <= allowed, skill
         assert {"name", "description"} <= keys, skill
         assert skill.parent.name == yaml.safe_load(skill.read_text().split("---")[1])["name"]
