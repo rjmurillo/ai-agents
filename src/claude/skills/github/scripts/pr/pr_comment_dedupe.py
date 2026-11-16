@@ -80,6 +80,20 @@ def first_by_author(comments: list[dict[str, Any]], login: str) -> dict[str, Any
     return None
 
 
+def first_bot_comment(comments: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Return the first comment whose author is a bot account (``user.type == "Bot"``).
+
+    Fallback for a token that cannot read its own login (an Actions installation
+    token gets 403 from ``GET /user``). Such a token posts as a bot, so an
+    identical body from a bot is the earlier run of the same command.
+    """
+    for comment in comments:
+        user = comment.get("user")
+        if isinstance(user, dict) and user.get("type") == "Bot":
+            return comment
+    return None
+
+
 def thread_comments(
     review_comments: list[dict[str, Any]], comment_id: int
 ) -> list[dict[str, Any]] | None:

@@ -140,3 +140,25 @@ class TestCommentsAtLine:
         del c["side"]
         assert dedupe.comments_at_line([c], "a.py", 5, "RIGHT") == [c]
         assert dedupe.comments_at_line([c], "a.py", 5, "LEFT") == []
+
+
+class TestFirstBotComment:
+    def test_returns_first_bot_authored_comment(self):
+        comments = [
+            {"id": 1, "user": {"login": "alice", "type": "User"}},
+            {"id": 2, "user": {"login": "ci[bot]", "type": "Bot"}},
+            {"id": 3, "user": {"login": "other[bot]", "type": "Bot"}},
+        ]
+        assert dedupe.first_bot_comment(comments)["id"] == 2
+
+    @pytest.mark.parametrize(
+        "comments",
+        [
+            [],
+            [{"id": 1, "user": {"login": "alice", "type": "User"}}],
+            [{"id": 1}],
+            [{"user": None}],
+        ],
+    )
+    def test_returns_none_without_a_bot_author(self, comments):
+        assert dedupe.first_bot_comment(comments) is None

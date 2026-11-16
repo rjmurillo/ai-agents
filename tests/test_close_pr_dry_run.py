@@ -217,3 +217,96 @@ class TestClosingCommentDedupe:
         assert ["pr", "comment"] not in subcommands
         assert ["pr", "close"] not in subcommands
         assert "NOT closed" in capsys.readouterr().err
+
+
+_DENIED = "gh: Resource not accessible by integration (HTTP 403)"
+
+
+def _run_close(argv, replies):
+    with (
+        patch("close_pr.assert_gh_authenticated"),
+        patch("close_pr.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
+        patch("subprocess.run", side_effect=replies) as run,
+    ):
+        rc = main(argv)
+    return rc, [c.args[0][1:3] for c in run.call_args_list]
+
+
+class TestInstallationTokenRetry:
+    """An Actions installation token cannot call GET /user; the retry must still close."""
+
+    def test_denied_user_lookup_skips_identical_bot_comment_and_closes(self, capsys):
+        pages = json.dumps(
+            [
+                [
+                    {
+                        "id": 5,
+                        "body": "Superseded",
+                        "user": {"login": "github-actions[bot]", "type": "Bot"},
+                    }
+                ]
+            ]
+        )
+        rc, subcommands = _run_close(
+            ["--pull-request", "5", "--comment", "Superseded"],
+            [
+                _completed(stdout=json.dumps({"state": "OPEN"})),
+                _completed(stdout=pages),
+                _completed(rc=1, stderr=_DENIED),
+                _completed(rc=0),
+            ],
+        )
+        assert rc == 0
+        assert ["pr", "comment"] not in subcommands
+        assert subcommands[-1] == ["pr", "close"]
+        out = json.loads(capsys.readouterr().out)
+        assert out["commentSkipped"] is True
+        assert out["existingCommentId"] == 5
+
+    def test_denied_user_lookup_posts_when_identical_body_is_from_a_human(self, capsys):
+        pages = json.dumps(
+            [[{"id": 5, "body": "Superseded", "user": {"login": "alice", "type": "User"}}]]
+        )
+        rc, subcommands = _run_close(
+            ["--pull-request", "5", "--comment", "Superseded"],
+            [
+                _completed(stdout=json.dumps({"state": "OPEN"})),
+                _completed(stdout=pages),
+                _completed(rc=1, stderr=_DENIED),
+                _completed(rc=0),
+                _completed(rc=0),
+            ],
+        )
+        assert rc == 0
+        assert ["pr", "comment"] in subcommands
+        assert subcommands[-1] == ["pr", "close"]
+        assert json.loads(capsys.readouterr().out)["commentPosted"] is True
+
+    def test_denied_user_lookup_with_no_matching_body_posts_and_closes(self):
+        rc, subcommands = _run_close(
+            ["--pull-request", "5", "--comment", "Superseded"],
+            [
+                _completed(stdout=json.dumps({"state": "OPEN"})),
+                _completed(stdout="[[]]"),
+                _completed(rc=0),
+                _completed(rc=0),
+            ],
+        )
+        assert rc == 0
+        assert subcommands[-2:] == [["pr", "comment"], ["pr", "close"]]
+
+    def test_other_user_lookup_failure_still_fails_closed(self, capsys):
+        pages = json.dumps(
+            [[{"id": 5, "body": "Superseded", "user": {"login": "x[bot]", "type": "Bot"}}]]
+        )
+        with pytest.raises(SystemExit) as exc:
+            _run_close(
+                ["--pull-request", "5", "--comment", "Superseded"],
+                [
+                    _completed(stdout=json.dumps({"state": "OPEN"})),
+                    _completed(stdout=pages),
+                    _completed(rc=1, stderr="HTTP 502 Bad Gateway"),
+                ],
+            )
+        assert exc.value.code == 3
+        assert "NOT closed" in capsys.readouterr().err

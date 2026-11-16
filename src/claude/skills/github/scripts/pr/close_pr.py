@@ -52,6 +52,7 @@ from github_core.validation import assert_valid_body_file, read_body_file_text
 from pr_comment_dedupe import (
     LOOKUP_TIMEOUT_SECONDS,
     body_matches,
+    first_bot_comment,
     first_by_author,
     flatten_pages,
     paginated_args,
@@ -106,7 +107,17 @@ def _lookup_failure(what: str, detail: str) -> str:
     )
 
 
-def _authenticated_login() -> str:
+_INTEGRATION_DENIAL = "resource not accessible by integration"
+
+
+def _authenticated_login() -> str | None:
+    """Return the token owner's login, or None for a token that cannot call GET /user.
+
+    A GitHub Actions installation token gets 403 "Resource not accessible by
+    integration" from GET /user (see ``scripts/github_core/rate_limit.py``). That
+    denial is not an API failure: the caller falls back to matching bot authors.
+    Every other failure still exits 3.
+    """
     try:
         result = subprocess.run(
             ["gh", "api", "user", "--jq", ".login"],
@@ -119,10 +130,13 @@ def _authenticated_login() -> str:
     except subprocess.TimeoutExpired:
         error_and_exit(_lookup_failure("read the authenticated user", "timed out after 30s"), 3)
     login = (result.stdout or "").strip()
-    if result.returncode != 0 or not login:
-        detail = sanitize_failure_detail(result.stderr or result.stdout, limit=400)
-        error_and_exit(_lookup_failure("read the authenticated user", detail or "empty login"), 3)
-    return login
+    if result.returncode == 0 and login:
+        return login
+    raw = result.stderr or result.stdout or ""
+    if result.returncode != 0 and _INTEGRATION_DENIAL in raw.casefold():
+        return None
+    detail = sanitize_failure_detail(raw, limit=400)
+    error_and_exit(_lookup_failure("read the authenticated user", detail or "empty login"), 3)
 
 
 def _find_existing_closing_comment(
@@ -152,7 +166,12 @@ def _find_existing_closing_comment(
     same_body = body_matches(comments, comment)
     if not same_body:
         return None
-    return first_by_author(same_body, _authenticated_login())
+    login = _authenticated_login()
+    if login is None:
+        # Installation token: GET /user is denied, so the author is unknowable.
+        # An identical body from a bot account is the retry of this command.
+        return first_bot_comment(same_body)
+    return first_by_author(same_body, login)
 
 
 def _report_noop_or_plan(
