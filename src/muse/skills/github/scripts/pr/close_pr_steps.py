@@ -14,6 +14,18 @@ from github_core.not_found import is_pr_not_found
 from github_core.validation import assert_valid_body_file, read_body_file_text
 
 
+def _run_gh(args: list[str]) -> subprocess.CompletedProcess[str]:
+    """Run one gh command with captured, UTF-8 decoded output and a 30s timeout."""
+    return subprocess.run(
+        args,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30,
+        check=False,
+    )
+
+
 def read_comment(comment: str, comment_file: str) -> str:
     """Return the closing comment text from --comment or --comment-file."""
     if not comment_file:
@@ -29,14 +41,7 @@ def read_comment(comment: str, comment_file: str) -> str:
 
 def pr_state(pr: int, repo_flag: str) -> str:
     """Read the PR state, or exit 2/3 as ADR-035 defines."""
-    state_result = subprocess.run(
-        ["gh", "pr", "view", str(pr), "--repo", repo_flag, "--json", "state"],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=30,
-        check=False,
-    )
+    state_result = _run_gh(["gh", "pr", "view", str(pr), "--repo", repo_flag, "--json", "state"])
 
     if state_result.returncode != 0:
         output = state_result.stderr or state_result.stdout
@@ -49,13 +54,8 @@ def pr_state(pr: int, repo_flag: str) -> str:
 
 def post_closing_comment(pr: int, repo_flag: str, comment: str) -> None:
     """Post the closing comment, or exit 3 without closing the PR."""
-    comment_result = subprocess.run(
-        ["gh", "pr", "comment", str(pr), "--repo", repo_flag, "--body", comment],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=30,
-        check=False,
+    comment_result = _run_gh(
+        ["gh", "pr", "comment", str(pr), "--repo", repo_flag, "--body", comment]
     )
     if comment_result.returncode != 0:
         error_and_exit(
@@ -69,14 +69,7 @@ def post_closing_comment(pr: int, repo_flag: str, comment: str) -> None:
 
 def close_pull_request(pr: int, repo_flag: str) -> None:
     """Close the PR, or exit 3 on failure."""
-    close_result = subprocess.run(
-        ["gh", "pr", "close", str(pr), "--repo", repo_flag],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=30,
-        check=False,
-    )
+    close_result = _run_gh(["gh", "pr", "close", str(pr), "--repo", repo_flag])
 
     if close_result.returncode != 0:
         error_and_exit(
