@@ -40,10 +40,24 @@ class HarnessFailureError(RuntimeError):
     still paid for.
     """
 
-    def __init__(self, message: str, *, cost_usd: float = 0.0, wall_seconds: float = 0.0) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        cost_usd: float = 0.0,
+        wall_seconds: float = 0.0,
+        transient: bool = False,
+        prior_cost_usd: float = 0.0,
+    ) -> None:
         super().__init__(message)
         self.cost_usd = cost_usd
         self.wall_seconds = wall_seconds
+        #: Spend of the cell's earlier launches, kept apart from `cost_usd` so a caller can
+        #: count it without hiding that this launch's own cost is unmeasured (issue #7350).
+        self.prior_cost_usd = prior_cost_usd
+        #: A provider rate limit or overload whose stream reported its cost (issue #7350).
+        #: The launch did no work, so a caller may retry it and count the cost as measured.
+        self.transient = transient
 
 
 # ---------------------------------------------------------------------------
@@ -62,11 +76,15 @@ def claude_argv(
     *,
     tools: str = PRODUCER_TOOLS,
     allowed_tools: str | None = PRODUCER_ALLOWED,
+    extra_args: Sequence[str] = (),
 ) -> list[str]:
     """Build the fixed argv DESIGN-044's run sequence specifies for step 2.
 
     The defaults are the producer run. The reviewer arm passes read-only
     `tools` and `allowed_tools=None`, which drops the Bash allowlist.
+    `extra_args` appends flags after the fixed ones (issue #7350: a role's
+    `--append-system-prompt`, an explicit `--effort`); empty keeps the argv
+    byte-identical to the one #6814 froze.
     """
     argv = [
         CLAUDE_EXECUTABLE,
@@ -90,7 +108,7 @@ def claude_argv(
     ]
     if allowed_tools is not None:
         argv += ["--allowedTools", allowed_tools]
-    return argv
+    return [*argv, *extra_args]
 
 
 def total_cost_usd(events: Sequence[Mapping[str, object]]) -> float | None:
@@ -102,6 +120,19 @@ def total_cost_usd(events: Sequence[Mapping[str, object]]) -> float | None:
             return None
         return float(value)
     return None
+
+
+_TRANSIENT_MARKERS = ("rate_limit_error", "overloaded_error")
+
+
+def is_transient_failure(stdout: str) -> bool:
+    """True when a failed launch's stream names a provider rate limit or overload and a cost."""
+    if not any(marker in stdout for marker in _TRANSIENT_MARKERS):
+        return False
+    try:
+        return total_cost_usd(parse_events(stdout)) is not None
+    except RuntimeOutputError:
+        return False
 
 
 def _reported_cost(stdout: str) -> float:
@@ -151,6 +182,29 @@ def invoke_claude(
     arrives as a token in the child environment (`add_claude_login`).
     """
     return _run_claude(workspace, claude_argv(model, task.prompt), model, timeout, runner)
+
+
+def invoke_launch(
+    workspace: Path,
+    prompt: str,
+    model: str,
+    timeout: float,
+    runner: Runner,
+    *,
+    tools: str = PRODUCER_TOOLS,
+    allowed_tools: str | None = PRODUCER_ALLOWED,
+    extra_args: Sequence[str] = (),
+) -> tuple[list[dict[str, object]], str, float, float, list[str]]:
+    """Run one Claude CLI turn with a caller-built prompt, tool set, and extra flags.
+
+    The strategy comparison (issue #7350) launches an investigator and a
+    producer per round, each with its own prompt and tools. Same failure
+    contract as `invoke_claude`.
+    """
+    argv = claude_argv(
+        model, prompt, tools=tools, allowed_tools=allowed_tools, extra_args=extra_args
+    )
+    return _run_claude(workspace, argv, model, timeout, runner)
 
 
 def invoke_reviewer(
@@ -205,7 +259,10 @@ def _run_claude(
     spent = _reported_cost(result.stdout)
     if result.returncode != 0:
         raise HarnessFailureError(
-            f"claude exited {result.returncode}", cost_usd=spent, wall_seconds=wall_seconds
+            f"claude exited {result.returncode}",
+            cost_usd=spent,
+            wall_seconds=wall_seconds,
+            transient=is_transient_failure(result.stdout),
         )
     try:
         events = parse_events(result.stdout)

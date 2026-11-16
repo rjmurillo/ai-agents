@@ -1,0 +1,52 @@
+diff --git a/scripts/validation/git_hook_policy.py b/scripts/validation/git_hook_policy.py
+index 434ea62..20c9fd7 100644
+--- a/scripts/validation/git_hook_policy.py
++++ b/scripts/validation/git_hook_policy.py
+@@ -3743,8 +3743,19 @@ def run_mypy(paths: Sequence[str], repo_root: Path) -> int:
+         if not full_path.is_file():
+             continue
+         if full_path.is_symlink():
+-            print(f"ERROR: refusing to type-check symlink: {path}", file=sys.stderr)
+-            return 2
++            # Accept a link only to a regular file inside the repo; check the
++            # target (never the link) through the same safety filter.
++            root = repo_root.resolve()
++            target = full_path.resolve()
++            target_rel: str | None = None
++            if target.is_file() and target.is_relative_to(root):
++                target_rel = _safe_relative_path(target.relative_to(root).as_posix())
++            if target_rel is None:
++                print(f"ERROR: refusing to type-check symlink: {path}", file=sys.stderr)
++                return 2
++            if target_rel not in checked_paths:
++                checked_paths.append(target_rel)
++            continue
+         checked_paths.append(path)
+     checked_paths = [
+         path for path in checked_paths if not _is_verbatim_mirror_on_disk(repo_root, path)
+diff --git a/tests/validation/test_issue_7328_repro.py b/tests/validation/test_issue_7328_repro.py
+index 144d69a..9cb03d8 100644
+--- a/tests/validation/test_issue_7328_repro.py
++++ b/tests/validation/test_issue_7328_repro.py
+@@ -42,3 +42,21 @@ def test_run_mypy_does_not_refuse_a_link_to_an_in_repo_python_file(
+         code = run_mypy([".claude/lib/mod.py"], tmp_path)
+     assert "refusing to type-check symlink" not in capsys.readouterr().err
+     assert code != 2
++
++
++def test_run_mypy_still_refuses_link_escaping_repo(
++    tmp_path: Path, capsys: pytest.CaptureFixture[str]
++) -> None:
++    repo = tmp_path / "repo"
++    (repo / ".claude" / "lib").mkdir(parents=True)
++    outside = tmp_path / "outside.py"
++    outside.write_text("X = 1\n", encoding="utf-8")
++    (repo / ".claude" / "lib" / "mod.py").symlink_to(outside)
++    assert run_mypy([".claude/lib/mod.py"], repo) == 2
++    assert "refusing to type-check symlink" in capsys.readouterr().err
++
++
++def test_run_mypy_dangling_link_is_skipped(tmp_path: Path) -> None:
++    (tmp_path / ".claude" / "lib").mkdir(parents=True)
++    (tmp_path / ".claude" / "lib" / "mod.py").symlink_to("../../missing.py")
++    assert run_mypy([".claude/lib/mod.py"], tmp_path) == 0

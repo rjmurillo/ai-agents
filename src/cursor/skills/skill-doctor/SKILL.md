@@ -44,7 +44,7 @@ Never derive it from the user's working directory or require a Git checkout.
 
 ```bash
 : "${SKILL_ROOT:?Set SKILL_ROOT from the absolute path of the loaded SKILL.md}"
-test -f "$SKILL_ROOT/scripts/collect_sessions.py" || exit 1
+test -f "$SKILL_ROOT/scripts/collect_sessions.py" || exit 2
 ```
 
 In PowerShell, set the same loaded-skill path and use native temporary storage:
