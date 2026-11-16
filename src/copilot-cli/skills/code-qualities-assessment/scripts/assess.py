@@ -156,7 +156,13 @@ _IMPORT_PATTERNS = {
     "python": re.compile(r"^\s*(?:import\s+\S|from\s+\S+\s+import\s+)"),
     "javascript": re.compile(r"^\s*import\s+|\brequire\s*\("),
     "typescript": re.compile(r"^\s*import\s+|\brequire\s*\("),
-    "csharp": re.compile(r"^\s*using\s+[A-Za-z_]"),
+    # Match directive shapes through the semicolon, not resource declarations.
+    "csharp": re.compile(
+        r"^\s*(?:global\s+)?using\s+"
+        r"(?:static\s+[^;]+|"
+        r"(?:unsafe\s+)?@?[A-Za-z_]\w*\s*=\s*[^;]+|"
+        r"(?:@?[A-Za-z_]\w*\s*(?:::|\.)\s*)*@?[A-Za-z_]\w*)\s*;"
+    ),
     "java": re.compile(r"^\s*import\s+[A-Za-z_]"),
     "go": re.compile(
         r'^\s*import\s+(?:(?:[A-Za-z_]\w*|\.)\s+)?"[^"]+"\s*(?://.*)?$'
