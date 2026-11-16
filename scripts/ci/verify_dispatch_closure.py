@@ -89,7 +89,7 @@ def _load_sibling(name: str) -> ModuleType:
     Neither ``sys.path`` nor the head work tree can substitute it.
     """
     path = Path(__file__).resolve().parent / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(f"verify_dispatch_closure{name}", path)
+    spec = importlib.util.spec_from_file_location(f"vdc_{name.lstrip('_')}", path)
     if spec is None or spec.loader is None:
         raise ImportError(f"cannot load {path}")
     module = importlib.util.module_from_spec(spec)

@@ -8,6 +8,7 @@ negative case below changes exactly one condition.
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,7 @@ import yaml
 
 from scripts.ci import verify_dispatch_closure as vdc
 from tests.ci.dispatch_closure_helpers import CONFIG, VERIFIER, git, link_demo_skill, rev, write
+from tests.ci.dispatch_closure_runner import check
 
 BINPLACE = "templates/platforms/binplace.yaml"
 ROWS = [
@@ -97,6 +99,30 @@ class TestExemptInstallLinks:
 
         assert report.clean, report.to_json()
         assert report.exempt == [".claude/skills/fresh"]
+
+
+class TestCiPath:
+    def test_main_with_a_head_sha_exempts_a_new_skill(
+        self, skill_trees: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """The CI shape: --head-sha writes the head with checkout-index, then verifies."""
+        base, _ = skill_trees
+        upstream = base.parent / "upstream"
+        subprocess.run(
+            ["git", "clone", "-q", str(base), str(upstream)], capture_output=True, check=True
+        )
+        git(upstream, "config", "user.email", "t@example.invalid")
+        git(upstream, "config", "user.name", "t")
+        _new_skill(upstream, "fresh")
+        _commit(upstream, "add a skill")
+        sha = rev(upstream)
+        git(upstream, "update-ref", "refs/pull/1/head", sha)
+
+        report = check(base, upstream, sha, capsys)
+
+        assert report["code"] == vdc.EXIT_OK, report
+        assert report["exempt_links"] == [".claude/skills/fresh"]
+        assert report["symlinks"] == []
 
 
 class TestLinksThatStillFail:
@@ -245,6 +271,52 @@ class TestLinksThatStillFail:
             (base, head, "HEAD", vdc._REF_LINKS.INERT_GIT),
             set(),
             {".claude/skills/fresh/lib"},
+        )
+
+        assert (reported, exempt) == ([".claude/skills/fresh"], [])
+
+    def test_a_row_that_is_not_a_link_row(self, skill_trees: tuple[Path, Path]) -> None:
+        base, head = skill_trees
+        rows = [{**r, "link": False} if r["class"] == "skills" else r for r in ROWS]
+        write(base, BINPLACE, yaml.safe_dump({"rows": rows}))
+        _commit(base, "skills row is not a link row")
+        git(head, "checkout", "--detach", "-q", "--force", rev(base))
+        _new_skill(head, "fresh")
+
+        self._reported(base, head, ".claude/skills/fresh")
+
+    def test_a_skill_row_without_a_dot_led_install_tree(
+        self, skill_trees: tuple[Path, Path]
+    ) -> None:
+        base, head = skill_trees
+        rows = [
+            *ROWS,
+            {
+                "class": "skills",
+                "plugin_tree": "src/claude/skills",
+                "install_tree": "plain",
+                "link": True,
+            },
+        ]
+        write(
+            base,
+            BINPLACE,
+            yaml.safe_dump({"rows": [r for r in rows if r["install_tree"] != ".claude/skills"]}),
+        )
+        _commit(base, "skills row installs into a dotless tree")
+        git(head, "checkout", "--detach", "-q", "--force", rev(base))
+        _new_skill(head, "fresh", install="plain")
+
+        self._reported(base, head, "plain/fresh")
+
+    def test_a_named_directory_above_the_link(self, skill_trees: tuple[Path, Path]) -> None:
+        base, head = skill_trees
+        _new_skill(head, "fresh")
+        reported, exempt = vdc._EXEMPTION.split(
+            [".claude/skills/fresh"],
+            (base, head, "HEAD", vdc._REF_LINKS.INERT_GIT),
+            {".claude/skills"},
+            set(),
         )
 
         assert (reported, exempt) == ([".claude/skills/fresh"], [])

@@ -21,7 +21,8 @@ link is exempt only when every condition holds:
   * its target is a real entry inside the head tree, with no link component;
   * the base ref has nothing at the link path, so a real directory the head
     replaces with a link is never exempt;
-  * no root or closure path is the link, its target, or under either;
+  * no root or closure path is the link or its target, sits under either, or
+    is a directory above either;
   * the link is not, does not contain, and does not lie anywhere under an import
     root of any closure script, as the gate's own `_import_roots` computes them.
     The work-tree root is skipped: every exempt tree starts with a dot, so no
@@ -69,7 +70,9 @@ def link_rows(tool_root: Path) -> dict[str, str]:
         install, plugin = row.get("install_tree"), row.get("plugin_tree")
         if row.get("class") not in EXEMPT_ROW_CLASSES:
             continue
-        if isinstance(install, str) and isinstance(plugin, str):
+        # The root-skip in `is_exempt` relies on a dot-led install tree, which no
+        # dotted import can name; a row without one is never exempt.
+        if isinstance(install, str) and isinstance(plugin, str) and install.startswith("."):
             found[install] = plugin
     return found
 
@@ -82,7 +85,7 @@ def import_roots(gate: ModuleType, closure: Iterable[str], head_root: Path) -> s
             continue
         for root in gate._import_roots(head_root / path, head_root):
             try:
-                roots.add(Path(root).relative_to(head_root).as_posix())
+                roots.add(Path(root).resolve().relative_to(head_root.resolve()).as_posix())
             except ValueError:
                 continue
     return roots
@@ -152,7 +155,7 @@ def is_exempt(
     if _in_base(tool_root, base_ref, link, inert_git):
         return False
     spelled = {_normalized(p, head_root) for p in named}
-    if any(_within(p, link) or _within(p, target) for p in spelled):
+    if any(_within(p, s) or _within(s, p) for p in spelled for s in (link, target)):
         return False
     for root in roots:
         if root == ".":
