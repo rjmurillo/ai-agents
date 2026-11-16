@@ -12,7 +12,7 @@ your change touches.
 | Difference | Where it bites | Existing guard |
 |---|---|---|
 | Path separators, drive letters, case-insensitive compare | Path joins, `startswith` checks, path keys in dicts | Tests marked `windows_path` (`pyproject.toml` markers) |
-| Symlinks | `.claude/agents` and `.claude/skills` are relative symlinks (ADR-119). Git for Windows writes them as text files unless `core.symlinks` is on | CI job `test-windows-pwsh` sets `core.symlinks true` |
+| Symlinks | `.claude/agents` and `.claude/skills` hold relative symlinks (ADR-119). Git for Windows writes them as text files unless `core.symlinks` is on | CI job `test-windows-pwsh` sets `core.symlinks true` |
 | Line endings | CRLF in YAML frontmatter breaks the Copilot CLI parser | `.gitattributes` forces LF |
 | Interpreter lookup | Windows can expose `python.exe` only through the App Execution Alias | `vanilla-windows` job in `.github/workflows/installed-plugin-hook-guard.yml` |
 | Shell | `bash` on Windows may resolve to the WSL launcher in `System32`, not Git Bash | `test_the_wsl_launcher_stub_is_rejected` in `tests/build_scripts/test_generate_hooks_runtime_contract.py` |
@@ -107,15 +107,16 @@ docker run -it --rm --name windows \
 
 ### Inside the Windows guest
 
-These steps run the tests the CI job `test-windows-pwsh` runs. Run them in
+These steps select the same tests as the CI job `test-windows-pwsh`. Run them in
 PowerShell. Replace `<your-branch>` with the output of
 `git branch --show-current` on the host, never with text from a PR or issue.
 Keep the single quotes, so PowerShell does not expand `$` in the name. If the
 name has any character outside letters, digits, `.`, `_`, `/`, and `-`, stop
 and rename the branch first.
 
-Git needs permission to create the repo's symlinks. Turn on Developer Mode in
-Windows settings, or run the shell as administrator, before you clone.
+Git needs permission to create the repo's symlinks. Inside the test guest
+only, turn on Developer Mode in Windows settings, or run the shell as
+administrator, before you clone.
 
 ```powershell
 # Install Git for Windows first, then uv:
@@ -156,9 +157,11 @@ uv run --frozen pytest -m windows_path tests -q
 
 ### Route 1: Ubuntu on WSL
 
-1. Run `wsl --list --online` and install the newest Ubuntu it lists.
-2. Clone the repo inside the Linux home directory, not under `/mnt/c`. Running
-   `uv` from a Windows-mounted path has failed with TLS handshake errors here
+1. Run `wsl --list --online` and install the newest Ubuntu it lists. An agent
+   asks the user before it installs a distro.
+2. Clone the repo inside the Linux home directory, not under `/mnt/c`. A
+   Windows-native worktree has failed `uv` with TLS handshake errors here, and
+   a clone in the WSL home directory worked
    (`.serena/memories/workspace/wsl-native-worktree-for-uv-network-access.md`).
 3. For the full toolchain, run the Ubuntu bootstrap script that SKILL.md
    Phase 1 names. It makes lasting changes to the distro, among them apt
@@ -170,28 +173,11 @@ uv run --frozen pytest -m windows_path tests -q
 
 ### Route 2: `ubuntu:26.04` container
 
-The container clones from your local git directory, so it tests the commit at
-`HEAD`. Uncommitted edits are not copied in, so commit them on your feature
-branch first, never on `main`. An agent asks the user before it makes that
-commit. Mounting the git common
-directory works for both a main clone and a linked worktree. The mount is
-read-only, but the container can still read it. Check that no git config file
-in it holds credentials first. It flags a user name or token in an `http` or
-`https` URL and any `extraheader` setting. An `ssh://git@` remote is not a
-credential and passes. The check prints `clean`, or a line starting with
-`STOP`. It prints file names, never the matching text, and it prints
-`STOP: check failed` when it cannot read a file. Read the printed word, not
-the exit code. Mount the directory only after it prints `clean`:
-
-```bash
-dir=$(git rev-parse --path-format=absolute --git-common-dir) || dir=/nonexistent
-hits=$(grep -rliE --include=config --include=config.worktree 'https?://[^/@]+@|extraheader' "$dir")
-case $? in
-  0) printf 'STOP: credentials in:\n%s\n' "$hits" ;;
-  1) echo clean ;;
-  *) echo 'STOP: check failed' ;;
-esac
-```
+The container gets a `git bundle` of `HEAD`, never your git directory. A
+bundle holds commits only, so no remote URL, token, hook, or other branch
+reaches the container. It tests the commit at `HEAD`. Uncommitted edits are
+not copied in, so commit them on your feature branch first, never on `main`.
+An agent asks the user before it makes that commit.
 
 `ubuntu:latest` resolved to the same image as `ubuntu:26.04` on 2026-11-15.
 Name `26.04` so the recipe keeps working when `latest` moves. An agent asks
@@ -199,9 +185,10 @@ the user before it runs this block, since it pulls an image and runs the
 branch's code with network access.
 
 ```bash
+bundle_dir=$(mktemp -d)
+git bundle create "$bundle_dir/head.bundle" HEAD
 docker run --rm \
-  -e SHA="$(git rev-parse HEAD)" \
-  -v "$(git rev-parse --path-format=absolute --git-common-dir):/repo.git:ro" \
+  -v "$bundle_dir/head.bundle:/head.bundle:ro" \
   ubuntu:26.04 bash -c '
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
@@ -209,10 +196,8 @@ apt-get update -qq
 apt-get install -y -qq git curl ca-certificates >/dev/null
 curl -LsSf https://astral.sh/uv/install.sh | sh
 export PATH="$HOME/.local/bin:$PATH"
-git config --global --add safe.directory /repo.git
-git clone -q --no-checkout /repo.git /work
+git clone -q /head.bundle /work
 cd /work
-git checkout -q "$SHA"
 uv sync --frozen --extra dev
 uv run --frozen pytest tests/test_paths.py -q -p no:cacheprovider
 '
