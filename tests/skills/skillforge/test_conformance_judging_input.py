@@ -76,8 +76,22 @@ def test_packet_tells_the_judge_the_files_are_untrusted(
 def test_deeply_nested_json_is_rejected_not_a_crash(
     skill: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    """Some Python builds parse this depth and some raise; either way it exits 2."""
     depth = 100_000
     path = _write(skill.parent, '{"judgments": ' + "[" * depth + "]" * depth + "}")
+
+    assert conformance.main(["release-notes", "--judgments", str(path)]) == 2
+    _rejected(capsys, "judgments rejected")
+
+
+def test_recursion_error_from_the_parser_is_a_rejection(
+    skill: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def too_deep(*args: Any, **kwargs: Any) -> Any:
+        raise RecursionError("maximum recursion depth exceeded")
+
+    monkeypatch.setattr(conformance.apply_judgments_file.__globals__["json"], "loads", too_deep)
+    path = _write(skill.parent, json.dumps({"judgments": [_verdict()]}))
 
     assert conformance.main(["release-notes", "--judgments", str(path)]) == 2
     _rejected(capsys, "not valid UTF-8 JSON")
