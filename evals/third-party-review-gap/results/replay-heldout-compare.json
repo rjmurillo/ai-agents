@@ -1,0 +1,57 @@
+{
+  "meta": {
+    "model": "claude-sonnet-5",
+    "provider": "anthropic",
+    "prompt_ref": "worktree",
+    "split": "heldout",
+    "trials": 1,
+    "date": "2026-11-15",
+    "corpus_sha256": "b6a85b47cc142a27b398a611d544bce55bf798fb6358154ff8a4aa2b0f037872",
+    "calls": 0,
+    "output_tokens": 0
+  },
+  "result": {
+    "paired": {
+      "all": {
+        "both": 9,
+        "baseline_only": 9,
+        "treatment_only": 12,
+        "neither": 132,
+        "same_file_baseline": 46,
+        "same_file_treatment": 61,
+        "n": 162,
+        "mcnemar_p": 0.6636238098144531
+      },
+      "context:diff-local": {
+        "both": 2,
+        "baseline_only": 3,
+        "treatment_only": 4,
+        "neither": 37,
+        "same_file_baseline": 16,
+        "same_file_treatment": 19,
+        "n": 46,
+        "mcnemar_p": 1.0
+      },
+      "context:external-knowledge": {
+        "both": 2,
+        "baseline_only": 2,
+        "treatment_only": 1,
+        "neither": 13,
+        "same_file_baseline": 6,
+        "same_file_treatment": 10,
+        "n": 18,
+        "mcnemar_p": 1.0
+      },
+      "context:repo-context": {
+        "both": 5,
+        "baseline_only": 4,
+        "treatment_only": 7,
+        "neither": 82,
+        "same_file_baseline": 24,
+        "same_file_treatment": 32,
+        "n": 98,
+        "mcnemar_p": 0.548828125
+      }
+    }
+  }
+}

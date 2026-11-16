@@ -150,36 +150,6 @@ unless it is an actual bug.
    executable evidence: a run, a focused demo, a trace, or a named specialist,
    rather than treating source inspection as proof of the experience.
 
-## Defect hunt
-
-Run these six checks on the added and changed lines before writing findings.
-Each targets a defect class that third-party reviewers kept catching after this
-contract's review had passed. A finding from these checks names the input or
-call path that triggers it; that trigger is the evidence for its confidence.
-
-1. **Matchers.** For each new or changed regex, glob, parser, or string test,
-   write one input it must accept and one it must reject, including an edge:
-   empty, prefix only, mixed case, other separators, a Windows path. Report one
-   that misbehaves.
-2. **Failure paths.** Follow each new error branch, `except` clause, fallback,
-   or skip to the exit code or return value its caller acts on. Report a
-   failure, crash, or skipped check that ends as success, exit 0, or an empty
-   result the caller reads as clean.
-3. **Prose claims.** For each added sentence in a docstring, comment, help text,
-   Markdown file, or template that states what code does, a count, a default, a
-   path, or an exit code, check it against the code. A false claim is a defect,
-   not a nit.
-4. **Siblings.** When the diff fixes or adds a behavior in one function, mode,
-   or tree, find its twins (the other CLI mode, the read and the write side, the
-   other platform copy, the other caller) and report the one left unchanged.
-5. **Tests.** For each changed test, name the realistic defect it would catch.
-   Report a test that still passes with the change reverted, a missing negative
-   case, or a test that leaks state (environment, `sys.path`, cwd) into later
-   tests.
-6. **Inputs.** For each new input source (file, environment variable, JSON
-   field, CLI argument, API response), check empty, missing or null, duplicate,
-   non-UTF-8, and very large values.
-
 ## Edge cases and concurrency
 
 Consider realistic edge cases, not only the happy path. This check is
