@@ -536,7 +536,7 @@ def _merge_base(repo_root: Path, base_oid: str, head_oid: str, env: dict[str, st
 def _get_changed_diff(
     diff_base: str, repo_root: Path
 ) -> tuple[set[str], dict[str, list[list[int]]]]:
-    """Return changed files and their changed new-side line ranges.
+    """Return changed files still present at HEAD and their new-side line ranges.
 
     The first element is the ``_get_changed_files`` set. The second maps a
     changed file to ``[start, end]`` inclusive line ranges on the HEAD side,
@@ -552,7 +552,7 @@ def _get_changed_diff(
 
 
 def _get_changed_files(diff_base: str, repo_root: Path) -> set[str]:
-    """Get files changed on HEAD since it forked from diff_base.
+    """Get files changed on HEAD since it forked from diff_base, minus deletions.
 
     The diff runs from ``merge-base(diff_base, HEAD)`` to HEAD, the same
     change set as ``git diff diff_base...HEAD``. Committed changes only.
@@ -563,7 +563,8 @@ def _get_changed_files(diff_base: str, repo_root: Path) -> set[str]:
     2. Resolve each revision to an OID and verify object accessibility.
     3. Resolve ``<revision>^{commit}``; non-commit bases are config exit 2.
     4. Resolve the merge-base; unrelated histories are config exit 2.
-    5. Diff by resolved commit OIDs using NUL-separated output (``-z``).
+    5. Diff by resolved commit OIDs using NUL-separated output (``-z``),
+       dropping deleted paths (``--diff-filter=d``).
 
     All git commands use ``_git_env()`` to strip inherited repository-
     selection variables (GIT_DIR, GIT_WORK_TREE, etc.).
@@ -735,7 +736,12 @@ def _resolve_fork_and_head(diff_base: str, repo_root: Path, env: dict[str, str])
 
 
 def _diff_name_set(repo_root: Path, fork_oid: str, head_oid: str, env: dict[str, str]) -> set[str]:
-    """Phase 5: diff by resolved OIDs, NUL-separated output."""
+    """Phase 5: diff by resolved OIDs, NUL-separated output.
+
+    ``--diff-filter=d`` drops deleted paths. A deleted file has no HEAD-side
+    content to inventory, so listing it made a complete run read as a
+    partial inventory to the review adapter, which then reported UNKNOWN.
+    """
     oid = fork_oid
     try:
         # Not reachable as command injection: the refs are commit OIDs that
@@ -749,6 +755,7 @@ def _diff_name_set(repo_root: Path, fork_oid: str, head_oid: str, env: dict[str,
                 "--no-ext-diff",
                 "--no-textconv",
                 "--no-renames",
+                "--diff-filter=d",
                 "--name-only",
                 "-z",
                 oid,
