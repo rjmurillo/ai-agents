@@ -306,14 +306,21 @@ class TestCli:
         assert json.loads(text) == obj
         assert len(text.splitlines()) == 8
 
-    def test_dump_with_no_admitted_finding_exits_2(self, tmp_path: Path) -> None:
+    def test_dump_with_no_admitted_finding_exits_2(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         cli = _load_cli()
         dump = tmp_path / "dump.json"
-        dump.write_text(json.dumps({"pull_requests": []}), encoding="utf-8")
+        dump.write_text(
+            json.dumps({"pull_requests": [], "mined_on": "2026-11-15"}), encoding="utf-8"
+        )
         labels = tmp_path / "labels.jsonl"
         labels.write_text("", encoding="utf-8")
 
-        assert cli.main(["--dump", str(dump), "--labels", str(labels), "--check"]) == 2
+        code = cli.main(["--dump", str(dump), "--labels", str(labels), "--check"])
+
+        assert code == 2
+        assert "no admitted findings" in capsys.readouterr().err
 
     def test_unreadable_dump_exits_2(self, tmp_path: Path) -> None:
         assert _load_cli().main(["--dump", str(tmp_path / "none.json")]) == 2

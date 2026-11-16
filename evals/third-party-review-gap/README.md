@@ -269,18 +269,38 @@ Each label also names its thread URL, and the builder refuses a label whose
 URL does not match. The builder reads the mining date from the dump's `mined_on`,
 which the miner writes, and refuses a dump without it.
 
-Fresh mining (a new window; rebuilds the corpora, so relabel any new finding):
+Fresh mining (a new window; rebuilds the corpora):
 
 ```bash
 uv run python scripts/eval/mine_third_party_review_findings.py --limit 1000 \
   --output .project-toolkit/scratch/3p/dump.json
+git fetch origin '+refs/pull/*/head:refs/remotes/origin/pr/*'
 uv run python scripts/eval/build_third_party_gap_corpus.py --dump .project-toolkit/scratch/3p/dump.json --stats
 uv run python scripts/eval/build_third_party_gap_corpus.py --dump .project-toolkit/scratch/3p/dump.json
 ```
 
+The miner saves API records, not git objects, so the fetch brings in each pull
+request's commits. Without it, the builder drops a finding whose fix commit is
+missing (`fix_unresolved`) or whose reviewed commit is missing
+(`reviewed_missing`). It reports no error, so the corpus just shrinks.
+
+Before building, make two edits in the same change that commits the rebuilt
+corpora:
+
+- Remap `labels.jsonl`. Finding ids are ordinal (`T0001` in dump order), so a
+  new window renumbers them. The builder then refuses every moved label with
+  exit 2 (`label(s) name another thread's URL`). No script remaps them. Give
+  each label the id of the finding with the same `url`, then label each new
+  finding.
+- Prune `LEAKING_REVISIONS` in `build_third_party_gap_corpus.py`. Remove each
+  entry whose pull request is outside the new window. A stale entry stops the
+  build with exit 2 (`excluded revision(s) not in the replay set`). Removing an
+  entry before the rebuild changes the replay corpus, so `--check` against the
+  old corpora fails.
+
 The `--stats` run only prints counts; the last command writes the corpora.
-Both builder commands stop with exit 2 until every newly admitted finding has a
-row in `labels.jsonl`.
+Both builder commands stop with exit 2 until every admitted finding has a
+label whose `url` matches.
 
 Frozen reproduction (the committed corpora and results). The first command
 needs the unpublished 2026-11-15 dump, so only its holder can run it. The
@@ -297,7 +317,8 @@ EVAL_PROVIDER=openai OPENAI_BASE_URL=<compatible endpoint> EVAL_HTTP_TIMEOUT_SEC
   --split heldout --trials 2 --model claude-sonnet-5 --prompt-ref <ref> \
   --checkpoint rows.jsonl --output result.json
 uv run python scripts/eval/eval_third_party_gap_replay.py --split heldout \
-  --checkpoint treatment-rows.jsonl --compare baseline-rows.jsonl
+  --checkpoint evals/third-party-review-gap/runs/replay-heldout-treatment-rows.jsonl \
+  --compare evals/third-party-review-gap/runs/replay-heldout-baseline-rows.jsonl
 ```
 
 The replay never caps an answer to save tokens; each row records its output

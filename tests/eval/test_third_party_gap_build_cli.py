@@ -84,6 +84,7 @@ class TestOutputErrors:
         finally:
             locked.chmod(0o700)
 
+    @pytest.mark.skipif(os.name != "posix", reason="Windows cannot remove the working directory")
     def test_a_removed_working_directory_exits_2(
         self, cli: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
