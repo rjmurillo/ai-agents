@@ -5,7 +5,7 @@ each bound to a source digest. ``import`` checks one batch of score rows against
 assignment, then replaces the accepted-scores file atomically. Any rejected batch
 leaves the last accepted file byte-for-byte unchanged.
 
-Python 3.10+, stdlib only.
+python3, stdlib only.
 
 Exit codes: 0 success; 1 an import was rejected and nothing was written;
 2 bad arguments, or a file could not be read or written.
