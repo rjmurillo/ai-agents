@@ -185,10 +185,11 @@ the user before it runs this block, since it pulls an image and runs the
 branch's code with network access.
 
 ```bash
-bundle_dir=$(mktemp -d)
-git bundle create "$bundle_dir/head.bundle" HEAD
+bundle="$HOME/.cache/cross-os-test/head.bundle"
+mkdir -p "$(dirname "$bundle")"
+git bundle create "$bundle" HEAD
 docker run --rm \
-  -v "$bundle_dir/head.bundle:/head.bundle:ro" \
+  -v "$bundle:/head.bundle:ro" \
   ubuntu:26.04 bash -c '
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
@@ -207,7 +208,9 @@ On a Windows host, run the same block from a WSL shell, with Docker Desktop
 in Linux containers mode and WSL integration on. That avoids rewriting the
 quoted script for PowerShell.
 
-Replace `tests/test_paths.py` with the tests your change touches.
+Replace `tests/test_paths.py` with the tests your change touches. Each run
+overwrites the one bundle file in `~/.cache/cross-os-test/`, so runs do not
+pile up copies of the history.
 
 ## Windows host, Windows target
 
