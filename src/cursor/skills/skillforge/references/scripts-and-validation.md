@@ -154,7 +154,10 @@ The import checks every verdict before it applies any of them:
   failed check rejects the whole file with exit 2, and nothing is applied.
 
 A quote proves the text is in the file, not that it supports the verdict.
-Read the reason before you trust a JUDGED_PASS.
+Read the reason before you trust a JUDGED_PASS. The 12-character floor only
+stops one-word quotes such as a heading. A relevance test, such as requiring a
+quote from the section a rule names, was not adopted: a rule names a guide
+page, not a section of the skill, so the script has nothing to match.
 
 A judged rule reports JUDGED_PASS, JUDGED_FAIL, or JUDGED_UNKNOWN with the
 reason and quotes, each on one line: line breaks and control characters become
