@@ -39,8 +39,9 @@ description: Rebase an aging PR only after checking its idea still belongs. Ends
   protected or long-lived branch, report and stop unless the user names that
   branch for rewrite.
 - Push only to a head branch in the base repository that you can already push
-  to. A fork head (`isCrossRepository: true`) stops after Phase 3: report the
-  disposition, and do not check out, run, or push its code.
+  to. Compare the PR's head repository (owner and name) with the base
+  repository. A fork head, or a head repository you cannot read, stops after
+  Phase 3: report the disposition, and do not check out, run, or push its code.
 - Never use `--force` or a bare `--force-with-lease`. Pin the lease to the
   head SHA you observed before the rebase:
   `--force-with-lease="refs/heads/${BRANCH}:${OBSERVED_SHA}"`. Quote every
