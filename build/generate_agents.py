@@ -184,7 +184,8 @@ _COPILOT_FAMILY = frozenset({"copilot-cli", "github"})
 
 def _rewrite_copilot_reference_roots(text: str) -> str:
     """Render split-agent skill reference paths to bare ${COPILOT_PLUGIN_ROOT} for Copilot CLI."""
-    return render_host_reference_roots(text, COPILOT_ROOT)
+    rendered: str = render_host_reference_roots(text, COPILOT_ROOT)
+    return rendered
 
 
 def _platform_source(

@@ -244,7 +244,8 @@ def owned_targets(repo_root: Path) -> set[Path]:
 
 def _rewrite_claude_reference_roots(text: str) -> str:
     """Render split-agent skill reference paths to the bare Claude Code plugin-root token."""
-    return render_host_reference_roots(text, CLAUDE_ROOT)
+    rendered: str = render_host_reference_roots(text, CLAUDE_ROOT)
+    return rendered
 
 
 def _try_render(
