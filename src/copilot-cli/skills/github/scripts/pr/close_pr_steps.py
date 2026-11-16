@@ -32,7 +32,8 @@ def pr_state(pr: int, repo_flag: str) -> str:
     state_result = subprocess.run(
         ["gh", "pr", "view", str(pr), "--repo", repo_flag, "--json", "state"],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
         check=False,
     )
@@ -71,7 +72,8 @@ def close_pull_request(pr: int, repo_flag: str) -> None:
     close_result = subprocess.run(
         ["gh", "pr", "close", str(pr), "--repo", repo_flag],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
         check=False,
     )
