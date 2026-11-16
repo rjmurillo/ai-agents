@@ -10,11 +10,8 @@ URL or from the current checkout. Stdout carries only events, one line each, so
 a host monitor (for example Claude Code's Monitor tool) wakes the agent once
 per real event. Progress and transient errors go to stderr.
 
-The script composes existing project-toolkit pieces instead of a second
-GitHub client. Each poll runs one small GraphQL snapshot through
-``github_core.api.gh_graphql`` (PR state, head, base, merge state, activity)
-and the github skill's ``why_pr_blocked.py`` for the merge gate (required
-checks from the base-branch ruleset, plus unresolved threads).
+Each poll reads one GraphQL snapshot through ``github_core.api.gh_graphql``
+and the merge gate from the github skill's ``why_pr_blocked.py``.
 
 --until
   ready       required checks pass on the current head, no unresolved review
