@@ -1,5 +1,6 @@
 ---
 name: memory-consolidate
+version: 0.1.0
 description: Reflective consolidation pass over Serena memory files. Separates
   durable context (preferences, working style, key relationships, recurring
   workflows) from dated context (projects, deadlines, one-off tasks), merges
@@ -9,6 +10,7 @@ description: Reflective consolidation pass over Serena memory files. Separates
   Serena memory`, `merge memory files`, or `tidy the memory index`. Do NOT use
   for in-file supersession markers (use curating-memories) or health, token, or
   size checks (use memory-maintenance).
+license: MIT
 metadata:
   routing:
     role: nested-helper

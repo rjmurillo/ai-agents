@@ -1,5 +1,6 @@
 ---
 name: dx-review
+version: 1.0.0
 description: >
   Evidence-based developer experience audit. Discovers the target, tests
   onboarding and setup flows, evaluates API/CLI ergonomics, error messages,
@@ -10,6 +11,19 @@ description: >
   one exists (boomerang). Use when asked to "run a DX audit", "test the
   developer experience", "measure onboarding friction", "DX scorecard", or
   "evaluate developer ergonomics".
+license: MIT
+metadata:
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan's long-tail resolver matches a developer-friction audit
+    user-facing: true
+    intents:
+      - developer experience audit
+      - developer friction
+      - onboarding friction
+      - dx scorecard
+      - cli ergonomics audit
 ---
 
 # dx-review: Evidence-Based Developer Experience Audit

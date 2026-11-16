@@ -1,10 +1,22 @@
 ---
 name: autoplan
+version: 0.1.0
 description: Route any request to the right skill, command, or agent chain with
   defaults, so nobody hand-picks from the full catalog. Use when you say
   `/autoplan`, `do it`, `handle it`, `figure this out`, or when a concrete
   request names no skill. Do NOT use when the user names a specific skill or
   lifecycle command; invoke that directly.
+license: MIT
+metadata:
+  capability:
+    kind: orchestrator
+    status: active
+  inspiration: gstack /autoplan (garrytan/gstack autoplan/SKILL.md.tmpl)
+  routing:
+    role: front-door
+    invoker: harness
+    trigger: the harness selects autoplan for a concrete request that names no skill
+    user-facing: true
 ---
 
 # Autoplan

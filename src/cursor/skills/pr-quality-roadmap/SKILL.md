@@ -1,6 +1,8 @@
 ---
 name: pr-quality-roadmap
+version: 1.0.0
 description: Assess a local diff for strategic alignment, scope creep, and user value, and return a PASS/WARN/CRITICAL_FAIL verdict. Use when you say `roadmap review my changes`, `run the roadmap gate`, or `does this serve a real user`. Do NOT use to run all six axes (use pr-quality-all), and do NOT use to set the roadmap (use the roadmap agent).
+license: MIT
 metadata:
   routing:
     role: nested-helper
