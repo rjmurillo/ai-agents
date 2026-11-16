@@ -19,7 +19,7 @@ Three rules, each an AST check with no guesswork about intent:
     no module ``pytestmark``. Windows without Developer Mode raises ``OSError``,
     so the test errors instead of skipping.
 
-These are the three mechanical rules behind 80 of the 166 Cursor Bugbot
+These are the three mechanical rules behind 86 of the 166 Cursor Bugbot
 "learned rule" findings on pull requests #6110 to #7380 (evals/third-party-review-gap).
 
 Scope: with ``--base-ref``, only lines added since the merge base with that ref

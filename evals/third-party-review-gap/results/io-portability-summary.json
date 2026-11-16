@@ -17,6 +17,14 @@
         0.952
       ]
     },
+    "treatment_shipped_mode": {
+      "hits": 78,
+      "n": 86,
+      "ci": [
+        0.827,
+        0.952
+      ]
+    },
     "final_head_not_lower": {
       "hits": 7,
       "n": 86,
@@ -43,6 +51,14 @@
         1.0
       ]
     },
+    "treatment_shipped_mode": {
+      "hits": 33,
+      "n": 33,
+      "ci": [
+        0.896,
+        1.0
+      ]
+    },
     "final_head_not_lower": {
       "hits": 0,
       "n": 33,
@@ -62,6 +78,14 @@
       ]
     },
     "treatment": {
+      "hits": 45,
+      "n": 53,
+      "ci": [
+        0.729,
+        0.921
+      ]
+    },
+    "treatment_shipped_mode": {
       "hits": 45,
       "n": 53,
       "ci": [

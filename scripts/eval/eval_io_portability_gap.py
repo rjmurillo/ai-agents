@@ -49,8 +49,12 @@ RUFF_CODES_BY_RULE = {
 
 
 def git_show(commit: str, path: str) -> str | None:
+    return _git("show", f"{commit}:{path}")
+
+
+def _git(*args: str) -> str | None:
     result = subprocess.run(
-        ["git", "show", f"{commit}:{path}"],
+        ["git", *args],
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -136,6 +140,7 @@ def evaluate(row: dict[str, Any]) -> dict[str, Any]:
         row["path"], before, RUFF_CODES_BY_RULE[rule]
     )
     caught = near(treatment_lines(row["path"], before, rule), row["line"])
+    shipped = near(shipped_lines(row, before), row["line"])
     after = git_show(row["final_head"], row["path"])
     before_count = rule_count(row["path"], before, rule)
     after_count = None if after is None else rule_count(row["path"], after, rule)
@@ -143,12 +148,31 @@ def evaluate(row: dict[str, Any]) -> dict[str, Any]:
         **row,
         "baseline_caught": near(baseline, row["line"]),
         "treatment_caught": caught,
+        "shipped_caught": shipped,
         "rule_count_reviewed": before_count,
         "rule_count_final_head": after_count,
         # Line numbers drift between commits, so the control compares counts:
         # the author's fix should leave fewer violations of this rule in the file.
         "final_head_not_lower": after_count is not None and after_count >= before_count,
     }
+
+
+def shipped_lines(row: dict[str, Any], source: str) -> list[int]:
+    """Lines the gate reports as shipped: violations that touch a line the PR added.
+
+    The pre-PR gate scans only lines added since the merge base, so a Bugbot
+    finding on a line the pull request did not add passes it.
+    """
+    if not row.get("merge_base"):
+        return []
+    diff = _git("diff", "-U0", row["merge_base"], row["reviewed"], "--", row["path"]) or ""
+    added = treatment.added_lines(diff).get(row["path"], set())
+    return [
+        line
+        for v in treatment.scan_source(row["path"], source)
+        if v.rule == row["rule"] and any(v.spans(a) for a in added)
+        for line in range(v.line, max(v.line, v.end_line) + 1)
+    ]
 
 
 def rule_count(path: str, source: str, rule: str) -> int:
@@ -168,6 +192,7 @@ def summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
         out[split] = {
             "baseline": cell(rows, "baseline_caught"),
             "treatment": cell(rows, "treatment_caught"),
+            "treatment_shipped_mode": cell(rows, "shipped_caught"),
             "final_head_not_lower": cell(rows, "final_head_not_lower"),
         }
     for rule in sorted({r["rule"] for r in scored}):

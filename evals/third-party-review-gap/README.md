@@ -37,9 +37,12 @@ below is a floor on what the bots would have found.
 
 ### Admission
 
-A bot thread becomes a finding in `findings.jsonl` (one finding per line) only when the author's reply
-cites a fix commit, that commit resolves locally, it touches the thread's
-path, and it descends from the commit the bot reviewed.
+A bot thread becomes a finding in `findings.jsonl` (one finding per line)
+only when the author's reply cites a fix commit, that commit resolves locally,
+it touches the thread's path, and it descends from the commit the bot reviewed.
+`scripts/eval/build_third_party_gap_corpus.py` applies these steps to a saved
+dump and rebuilds every corpus file here; `--check` confirms the committed
+files match a rebuild, and `--stats` prints the other counts this page cites.
 
 | Step | Count |
 |---|---|
@@ -55,7 +58,9 @@ path, and it descends from the commit the bot reviewed.
 test.
 
 `defect_class`, `theme`, `context_needed`, `mechanical`, and `summary` were
-drafted by a model in one pass and are not hand-audited. A read of 28 held-out
+drafted by a model in one pass and are not hand-audited. The labels are in
+`labels.jsonl`, and the instructions the model followed are in
+`label-brief.md`. A read of 28 held-out
 rows disagreed with about 5 `context_needed` labels, roughly 18 percent, mostly
 regex defects labeled `external-knowledge` that a diff reader could see.
 
@@ -105,7 +110,8 @@ line within 3 of Bugbot's line.
 | Arm | All | Derive | Held out |
 |---|---|---|---|
 | Baseline: `check_subprocess_encoding.py` plus `ruff` with this repository's config | 0/86 (CI 0% to 4%) | 0/33 | 0/53 |
-| Treatment: `scripts/validation/check_io_portability.py` | 78/86 (CI 83% to 95%) | 33/33 | 45/53 |
+| Treatment: `scripts/validation/check_io_portability.py`, whole file | 78/86 (CI 83% to 95%) | 33/33 | 45/53 |
+| Treatment as shipped: only lines the pull request added | 78/86 (CI 83% to 95%) | 33/33 | 45/53 |
 
 Per rule: subprocess encoding 32/34, file encoding 25/25, unguarded symlink
 21/27. Files: `results/io-portability-summary.json`, per row
@@ -124,9 +130,10 @@ Honest caveats:
   fewer violations of the rule than at the reviewed commit. Six are rows the
   checker missed (0 before, 0 after). The seventh, T0396, is a finding the
   author never fixed.
-- Precision, in the mode that ships (added lines only): over the 215 held-out
-  merged pull requests the check flags 49 lines in 15 pull requests (7%).
-  Twenty sampled flags on files Bugbot never threaded were all real.
+- Precision, in the mode that ships (added lines only): over the 170 held-out
+  merged pull requests whose head commit is present locally (of 215), the
+  check flags 49 lines in 15 pull requests (9%). Twenty sampled flags on files
+  Bugbot never threaded were all real. `--stats` reproduces the count.
 - The whole tree holds 2794 violations, so the check runs on added lines only
   and skips generated mirror trees and `fixtures/` directories.
 
@@ -151,6 +158,9 @@ Treatment: the "Defect hunt" section in
 `src/claude/skills/review/resources/technical-review.md` (six checks: matchers,
 failure paths, prose claims, siblings, tests, inputs), written from the derive
 split only. Baseline: the same files at `c98e82b21`, this branch's fork point.
+At that commit `templates/agents/code-reviewer.shared.md` differs from `main`
+by a two-line rewrite of where the agent looks for the contract file. The
+replay inlines the contract, so that text does not change what it measures.
 
 Decision rule, written on 2026-11-15 after an interim look at 57 of 102 jobs
 per arm and before the final numbers: keep the treatment only when, on the
@@ -197,13 +207,17 @@ Files: `results/replay-heldout-baseline.json`,
 and every answer in `runs/replay-heldout-*-rows.jsonl`. Each rows file holds
 105 lines for 102 jobs: a process restart wrote 3 jobs twice, and the loader
 keeps the first finished row per job. `--rescore` and `--compare` rebuild the
-results from those files with no model call.
+results from those files with no model call. A rebuilt result says
+`rebuilt_from_checkpoint` and reads prompt ref, model, and provider from the
+rows. These rows predate that stamp and say `not recorded`; the run parameters
+above are the ones that applied. New runs write them on every row.
 
 ## Run
 
 ```bash
 uv run python scripts/eval/mine_third_party_review_findings.py --limit 1000 --output dump.json
-uv run python scripts/eval/eval_io_portability_gap.py --output summary.json --rows rows.json
+uv run python scripts/eval/build_third_party_gap_corpus.py --dump dump.json --check --stats
+uv run python scripts/eval/eval_io_portability_gap.py --output summary.json --rows rows.jsonl
 uv run python scripts/eval/eval_third_party_gap_replay.py --split all --validate-corpus
 EVAL_PROVIDER=openai OPENAI_BASE_URL=<compatible endpoint> EVAL_HTTP_TIMEOUT_SECONDS=1800 \
   uv run --extra eval python scripts/eval/eval_third_party_gap_replay.py \

@@ -296,14 +296,16 @@ def run(
     workers: int,
     checkpoint: Path | None,
     done: list[dict[str, Any]],
+    stamp: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
+    """Run pending jobs. ``stamp`` (prompt ref, model, provider) is written on every row."""
     finished = {(r["revision"], int(r["trial"])) for r in done}
     pending = [j for j in jobs if (j[0].id, j[1]) not in finished]
     lock = threading.Lock()
 
     def work(job: tuple[core.Revision, int, core.ReviewInput]) -> dict[str, Any]:
         rev, trial, review = job
-        row: dict[str, Any] = {"revision": rev.id, "trial": trial}
+        row: dict[str, Any] = {"revision": rev.id, "trial": trial, **(stamp or {})}
         try:
             raw, call_meta = caller(review.system, review.user)
             row.update(raw=raw, **call_meta, **core.score_revision(raw, rev))
@@ -359,11 +361,44 @@ def _titles(revisions: list[core.Revision], corpus_raw: dict[str, Any]) -> dict[
     return {r.id: str(raw.get(r.id, "")) for r in revisions}
 
 
-def _meta(args: argparse.Namespace, corpus_path: Path, usage: dict[str, int]) -> dict[str, Any]:
+STAMP_KEYS = ("prompt_ref", "model", "provider")
+
+
+def run_stamp(args: argparse.Namespace) -> dict[str, str]:
     return {
+        "prompt_ref": args.prompt_ref or "worktree",
         "model": args.model,
         "provider": os.environ.get("EVAL_PROVIDER") or "anthropic",
-        "prompt_ref": args.prompt_ref or "worktree",
+    }
+
+
+def rebuilt_meta(
+    args: argparse.Namespace, corpus_path: Path, sources: dict[str, list[dict[str, Any]]]
+) -> dict[str, Any]:
+    """Meta for --rescore and --compare, which make no model call.
+
+    Run parameters come from the rows, never from this invocation's flags, so a
+    rebuilt result cannot claim a model, provider, or prompt it did not use.
+    """
+    arms = {}
+    for name, rows in sources.items():
+        arms[name] = {
+            "rows": len(rows),
+            "output_tokens": sum(int(r.get("output_tokens") or 0) for r in rows),
+            **{k: sorted({str(r.get(k, "not recorded")) for r in rows}) for k in STAMP_KEYS},
+        }
+    return {
+        "rebuilt_from_checkpoint": True,
+        "split": args.split,
+        "date": datetime.date.today().isoformat(),
+        "corpus_sha256": hashlib.sha256(corpus_path.read_bytes()).hexdigest(),
+        "arms": arms,
+    }
+
+
+def _meta(args: argparse.Namespace, corpus_path: Path, usage: dict[str, int]) -> dict[str, Any]:
+    return {
+        **run_stamp(args),
         "split": args.split,
         "trials": args.trials,
         "date": datetime.date.today().isoformat(),
@@ -397,14 +432,17 @@ def main(
         except (OSError, UnicodeDecodeError, ValueError) as exc:
             print(f"ERROR: {exc}", file=sys.stderr)
             return 2
-        result = compare(baseline_rows, rescore(done, revisions), revisions)
-        return _emit(args, result, corpus_path, usage)
+        treatment_rows = rescore(done, revisions)
+        result = compare(baseline_rows, treatment_rows, revisions)
+        sources = {"baseline": baseline_rows, "treatment": treatment_rows}
+        return _emit(args, result, corpus_path, usage, sources)
     if args.rescore:
         if checkpoint is None:
             print("ERROR: --rescore needs --checkpoint", file=sys.stderr)
             return 2
-        result = aggregate(rescore(done, revisions), revisions)
-        return _emit(args, result, corpus_path, usage)
+        rescored = rescore(done, revisions)
+        result = aggregate(rescored, revisions)
+        return _emit(args, result, corpus_path, usage, {"checkpoint": rescored})
     try:
         system = load_system_prompt(args.prompt_ref, git)
         titles = _titles(revisions, corpus_raw)
@@ -426,7 +464,7 @@ def main(
         except RuntimeError as exc:
             print(f"ERROR loading credentials: {exc}", file=sys.stderr)
             return 2
-    rows = run(jobs, caller, args.workers, checkpoint, done)
+    rows = run(jobs, caller, args.workers, checkpoint, done, run_stamp(args))
     scored = [r for r in rows if not r.get("error")]
     if rows and not scored:
         print("ERROR: every call failed", file=sys.stderr)
@@ -435,9 +473,14 @@ def main(
 
 
 def _emit(
-    args: argparse.Namespace, result: dict[str, Any], corpus_path: Path, usage: dict[str, int]
+    args: argparse.Namespace,
+    result: dict[str, Any],
+    corpus_path: Path,
+    usage: dict[str, int],
+    sources: dict[str, list[dict[str, Any]]] | None = None,
 ) -> int:
-    payload = {"meta": _meta(args, corpus_path, usage), "result": result}
+    meta = rebuilt_meta(args, corpus_path, sources) if sources else _meta(args, corpus_path, usage)
+    payload = {"meta": meta, "result": result}
     text = json.dumps(payload, indent=2)
     if args.output:
         Path(args.output).write_text(text + "\n", encoding="utf-8")

@@ -22,7 +22,10 @@ THIRD_PARTY_BOTS: dict[str, str] = {
     "sourcery-ai": "sourcery",
     "qodo-merge-pro": "qodo",
     "greptile-apps": "greptile",
+    "github-advanced-security": "codeql",
 }
+# The Semgrep app's login carries the installing account, as `semgrep-code-<owner>`.
+SEMGREP_PREFIX = "semgrep-code-"
 
 _BOT_SUFFIX = re.compile(r"\[bot\]$", re.IGNORECASE)
 
@@ -32,6 +35,8 @@ def bot_name(login: str | None) -> str | None:
     if not login:
         return None
     key = _BOT_SUFFIX.sub("", login).lower()
+    if key.startswith(SEMGREP_PREFIX):
+        return "semgrep"
     return THIRD_PARTY_BOTS.get(key)
 
 

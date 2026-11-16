@@ -53,3 +53,9 @@ def test_summarize_splits_and_counts_errors() -> None:
     assert out["all"]["treatment"]["hits"] == 1
     assert out["heldout"]["treatment"]["n"] == 1
     assert out["r"]["baseline"]["hits"] == 0
+
+
+def test_shipped_lines_without_a_merge_base_is_empty() -> None:
+    row = {"rule": "file-text-encoding", "path": "t.py", "reviewed": "a" * 40}
+
+    assert gap.shipped_lines(row, "open('f')\n") == []

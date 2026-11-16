@@ -1,14 +1,37 @@
 {
   "meta": {
-    "model": "claude-sonnet-5",
-    "provider": "anthropic",
-    "prompt_ref": "worktree",
+    "rebuilt_from_checkpoint": true,
     "split": "heldout",
-    "trials": 1,
     "date": "2026-11-15",
     "corpus_sha256": "b6a85b47cc142a27b398a611d544bce55bf798fb6358154ff8a4aa2b0f037872",
-    "calls": 0,
-    "output_tokens": 0
+    "arms": {
+      "baseline": {
+        "rows": 102,
+        "output_tokens": 2403036,
+        "prompt_ref": [
+          "not recorded"
+        ],
+        "model": [
+          "not recorded"
+        ],
+        "provider": [
+          "not recorded"
+        ]
+      },
+      "treatment": {
+        "rows": 102,
+        "output_tokens": 2657228,
+        "prompt_ref": [
+          "not recorded"
+        ],
+        "model": [
+          "not recorded"
+        ],
+        "provider": [
+          "not recorded"
+        ]
+      }
+    }
   },
   "result": {
     "paired": {
