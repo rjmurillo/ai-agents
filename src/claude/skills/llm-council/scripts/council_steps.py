@@ -133,6 +133,8 @@ def cmd_rank(args: argparse.Namespace) -> int:
     """Check Stage 1 survivors and write the anonymised Stage 2 prompt."""
     run_dir = Path(args.run_dir)
     plan = _plan(run_dir)
+    if "survivors" in plan:
+        raise StepError("rank already ran for this run; the survivors are frozen")
     responses = _replies(run_dir, "stage1", plan["council"])
     if len(responses) < plan["min_responses"]:
         print(
@@ -189,10 +191,12 @@ def cmd_chair(args: argparse.Namespace) -> int:
     return _emit(
         {
             "chairman": plan["chairman"],
+            "chairman_unavailable": plan["unavailable"].get(plan["chairman"], ""),
             "prompt": str(run_dir / "stage3-prompt.md"),
             "reply": str(run_dir / "chairman.md"),
             "borda": [[label_map[lbl], round(score, 2)] for lbl, score in aggregate],
             "unparsed_rankers": sorted(set(rankings_raw) - set(parsed)),
+            "missing_rankers": [m for m in survivors if m not in rankings_raw],
         }
     )
 
@@ -209,8 +213,16 @@ def cmd_finish(args: argparse.Namespace) -> int:
     for model in plan["council"]:
         if model not in responses and model not in errors:
             errors[model] = "replied after ranking started" if model in late else "no reply"
+    for model in survivors:
+        if model not in rankings_raw:
+            errors[model] = "no Stage 2 ranking"
     if not synthesis:
-        synthesis = "[Chairman synthesis failed: no reply]"
+        reason = plan["unavailable"].get(plan["chairman"])
+        synthesis = (
+            f"[Chairman unavailable: {reason}]"
+            if reason
+            else "[Chairman synthesis failed: no reply]"
+        )
     run = {
         "mode": plan["mode"],
         "chairman": plan["chairman"],

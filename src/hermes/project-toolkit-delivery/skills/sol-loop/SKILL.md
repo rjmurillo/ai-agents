@@ -29,8 +29,8 @@ review-model-unavailable WARN path.
 ## Rules
 
 - **After the critic.** The fresh critic reviews first and stays as it is.
-  Save its output to a file. `sol_loop.py` refuses a missing critic file, or
-  one older than `HEAD` or any uncommitted change.
+  Save its output to a file. `gate` refuses a missing critic file, or one
+  older than `HEAD` or any uncommitted change, before Sol starts.
 - **Sol only.** Never substitute a Gemini, Grok, Claude, or mixed "Fusion"
   model. `sol_loop.py` refuses any id that is not `gpt-<version>-sol`.
 - **2 rounds at most.** Round 1 is full. Round 2 checks only open findings and
@@ -61,7 +61,7 @@ Swap `gate` and its flags for the other steps:
 |------|------|-------------|------------|
 | `gate` | Before each round | `--route t3\|native\|none` | `0` proceed or skip (read `verdict`), `1` round cap hit, `2` config error |
 | `record` | After Sol replies | `--reply REPLY_FILE` | `0` logged, `1` round cap hit, `2` config error or log not written, `3` reply had no verdict (WARN) |
-| `unavailable` | Sol was started and failed | `--failure-class CLASS --detail TEXT` | `3` WARN logged |
+| `unavailable` | Sol was started and failed | `--failure-class CLASS --detail TEXT` | `3` WARN logged (even if the critic file is unreadable), `2` refused model id |
 | `outcome` | After you answer a finding | `--run LOG --id S1 --outcome fixed\|disagree\|declined --evidence TEXT` | `0` updated, `2` bad log or id |
 | `summarize` | Any time | none | `0` totals printed |
 

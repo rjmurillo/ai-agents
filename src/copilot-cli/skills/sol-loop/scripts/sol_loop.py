@@ -36,7 +36,6 @@ import hashlib
 import json
 import os
 import re
-import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -73,6 +72,12 @@ from sol_findings import (  # noqa: E402
     mark_sol_only,
     parse_reply,
 )
+from sol_git import (  # noqa: E402
+    _critic_is_stale,
+    _git,
+    _repo_relative,
+    default_log_base,
+)
 
 SOL_MODEL_PATTERN = re.compile(r"^gpt-\d+(?:\.\d+)?-sol$")
 MAX_ROUNDS = 2
@@ -106,33 +111,6 @@ def validate_model(model: str) -> str | None:
         f"model {model!r} refused: sol-loop accepts only a GPT Sol id such as "
         "gpt-6.1-sol. Gemini, Grok, Claude, and mixed Fusion ids are not allowed."
     )
-
-
-def _git(cwd: Path, *args: str) -> str:
-    try:
-        proc = subprocess.run(
-            ["git", *args],
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            check=False,
-        )
-    except FileNotFoundError:
-        return ""
-    return proc.stdout.strip() if proc.returncode == 0 else ""
-
-
-def default_log_base(repo: Path) -> Path:
-    """Anchor logs at the reviewed checkout's top level.
-
-    Commit each run file with the branch it reviewed: a linked worktree is
-    removed when its work ends. ``AI_AGENTS_ARTIFACT_ROOT`` overrides the root.
-    This script never writes into a different checkout on its own.
-    """
-    top = _git(repo, "rev-parse", "--show-toplevel")
-    return Path(top) if top else repo
 
 
 def load_runs(log_dir: Path) -> tuple[list[tuple[Path, dict]], int]:
@@ -187,38 +165,6 @@ def _read_text(path: Path, label: str) -> tuple[str, str]:
     return text, ""
 
 
-def _newest_uncommitted_change(repo: Path, skip: tuple[Path, ...]) -> float:
-    """Newest mtime among modified and untracked files, ignoring ``skip`` paths.
-
-    Fixes made during the loop stay uncommitted (the skill does not push
-    mid-loop), so HEAD alone would let a round-1 critic file pass round 2.
-    Run logs and the critic file itself are skipped: they are loop output.
-    """
-    top = _git(repo, "rev-parse", "--show-toplevel")
-    if not top:
-        return 0.0
-    newest = 0.0
-    for entry in _git(repo, "status", "--porcelain", "-z", "--untracked-files=all").split("\0"):
-        if len(entry) < 4:
-            continue
-        path = (Path(top) / entry[3:]).resolve()
-        if any(path == s or s in path.parents for s in skip) or not path.is_file():
-            continue
-        newest = max(newest, path.stat().st_mtime)
-    return newest
-
-
-def _critic_is_stale(repo: Path, critic: Path, log_dir: Path) -> bool:
-    """True when the critic output predates HEAD or an uncommitted change."""
-    head_time = _git(repo, "log", "-1", "--format=%ct", "HEAD")
-    if not head_time.isdigit():
-        return False
-    newest = max(
-        int(head_time), _newest_uncommitted_change(repo, (critic.resolve(), log_dir.resolve()))
-    )
-    return critic.stat().st_mtime < newest
-
-
 def _emit(payload: dict) -> None:
     print(json.dumps(payload, indent=2, sort_keys=True))
 
@@ -243,27 +189,16 @@ class Run:
         return EXIT_CONFIG if log is None and exit_code == EXIT_OK else exit_code
 
 
-def _start(args: argparse.Namespace) -> tuple[Run | None, str]:
-    """Validate shared inputs and build the run record. Returns (run, error)."""
-    repo = Path(args.repo).resolve()
-    critic = Path(args.critic_findings)
-    error = validate_model(args.model)
-    critic_text = ""
+def _log_dir(args: argparse.Namespace, repo: Path) -> Path:
     base = Path(args.log_base).resolve() if args.log_base else default_log_base(repo)
-    log_dir = paths.artifact_dir(LOG_SUBDIR, base=base)
-    if not error:
-        critic_text, error = _read_text(critic, "critic output")
-    if not error and _critic_is_stale(repo, critic, log_dir):
-        error = (
-            "critic output is older than HEAD or an uncommitted change; "
-            "rerun the fresh critic on the current code first"
-        )
-    if error:
-        return None, error
+    return paths.artifact_dir(LOG_SUBDIR, base=base)
+
+
+def _base_record(args: argparse.Namespace, repo: Path, log_dir: Path, critic_text: str) -> dict:
     branch = _git(repo, "branch", "--show-current")
     # Key on the branch so rounds before and after the PR opens share one count.
     key = branch or (f"pr-{args.pr}" if args.pr else "local")
-    record = {
+    return {
         "schema_version": SCHEMA_VERSION,
         "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "key": key,
@@ -273,7 +208,9 @@ def _start(args: argparse.Namespace) -> tuple[Run | None, str]:
         "round": prior_rounds(log_dir, key) + 1,
         "model": args.model,
         "author_family": args.author_family,
-        "critic_sha256": hashlib.sha256(critic_text.encode("utf-8")).hexdigest(),
+        "critic_sha256": hashlib.sha256(critic_text.encode("utf-8")).hexdigest()
+        if critic_text
+        else "",
         "overlap_rule": f"same file and line within {OVERLAP_LINE_WINDOW} of a critic path:line or range",
         "verdict": "",
         "failure_class": "",
@@ -281,7 +218,40 @@ def _start(args: argparse.Namespace) -> tuple[Run | None, str]:
         "dropped": [],
         "counts": {"raw": 0, "kept": 0, "dropped": 0, "sol_only": 0, "overlap": 0},
     }
-    return Run(critic_text=critic_text, record=record, log_dir=log_dir), ""
+
+
+def _start(
+    args: argparse.Namespace, *, check_fresh: bool, require_critic: bool = True
+) -> tuple[Run | None, str]:
+    """Validate shared inputs and build the run record. Returns (run, error).
+
+    Only ``gate`` checks critic freshness: it runs before Sol starts, so it is
+    the step that enforces "after the critic". ``record`` and ``unavailable``
+    run after Sol answered or failed, when edits in the checkout are expected.
+    """
+    repo = Path(args.repo).resolve()
+    critic = Path(args.critic_findings)
+    log_dir = _log_dir(args, repo)
+    error = validate_model(args.model)
+    critic_text, critic_error = ("", "")
+    if not error:
+        critic_text, critic_error = _read_text(critic, "critic output")
+        error = critic_error if require_critic else ""
+    if not error and check_fresh and _critic_is_stale(repo, critic, log_dir):
+        error = (
+            "critic output is older than HEAD or an uncommitted change; "
+            "rerun the fresh critic on the current code first"
+        )
+    if error:
+        return None, error
+    run = Run(
+        critic_text=critic_text,
+        record=_base_record(args, repo, log_dir, critic_text),
+        log_dir=log_dir,
+    )
+    if critic_error:
+        run.record["critic_error"] = critic_error
+    return run, ""
 
 
 def _skip_reason(args: argparse.Namespace) -> str:
@@ -297,15 +267,18 @@ def cmd_gate(args: argparse.Namespace) -> int:
     if args.route == "none":
         _emit({"verdict": "SKIPPED", "reason": "no Sol route in this harness", "log": None})
         return EXIT_OK
-    run, error = _start(args)
+    skip = _skip_reason(args)
+    if skip:
+        # A skip needs no critic and no model check: nothing will be reviewed.
+        repo = Path(args.repo).resolve()
+        log_dir = _log_dir(args, repo)
+        run = Run(critic_text="", record=_base_record(args, repo, log_dir, ""), log_dir=log_dir)
+        payload = {"verdict": "SKIPPED", "reason": skip}
+        return run.finish("skipped", payload, EXIT_OK, skip_reason=skip)
+    run, error = _start(args, check_fresh=True)
     if run is None:
         print(f"sol_loop: {error}", file=sys.stderr)
         return EXIT_CONFIG
-    skip = _skip_reason(args)
-    if skip:
-        return run.finish(
-            "skipped", {"verdict": "SKIPPED", "reason": skip}, EXIT_OK, skip_reason=skip
-        )
     if run.record["round"] > MAX_ROUNDS:
         reason = f"{MAX_ROUNDS} Sol rounds already logged for {run.record['key']}; hand open findings to a human"
         return run.finish("escalated", {"verdict": "ESCALATE", "reason": reason}, EXIT_ESCALATE)
@@ -333,8 +306,11 @@ def _unavailable(run: Run, failure_class: str, detail: str) -> int:
 
 
 def cmd_unavailable(args: argparse.Namespace) -> int:
-    """Log a started Sol round that failed, and print the policy WARN."""
-    run, error = _start(args)
+    """Log a started Sol round that failed, and print the policy WARN.
+
+    An unreadable critic file does not block the WARN; it is noted in the log.
+    """
+    run, error = _start(args, check_fresh=False, require_critic=False)
     if run is None:
         print(f"sol_loop: {error}", file=sys.stderr)
         return EXIT_CONFIG
@@ -343,7 +319,7 @@ def cmd_unavailable(args: argparse.Namespace) -> int:
 
 def cmd_record(args: argparse.Namespace) -> int:
     """Parse Sol's reply for this round and write the ledger."""
-    run, error = _start(args)
+    run, error = _start(args, check_fresh=False)
     if run is None:
         print(f"sol_loop: {error}", file=sys.stderr)
         return EXIT_CONFIG
@@ -361,7 +337,7 @@ def cmd_record(args: argparse.Namespace) -> int:
         return _unavailable(
             run, "invalid-output", "verdict CHANGES with no S<n> [severity] finding lines"
         )
-    kept, dropped = filter_findings(raw)
+    kept, dropped = filter_findings([_repo_relative(Path(args.repo).resolve(), f) for f in raw])
     marked = [{**f, "outcome": "open"} for f in mark_sol_only(kept, run.critic_text)]
     sol_only = sum(1 for f in marked if f["sol_only"])
     counts = {

@@ -225,3 +225,45 @@ def test_chair_and_finish_need_rank_first(tmp_path, question, capsys, command):
 
     assert code == steps.EXIT_CONFIG
     assert "run `rank`" in capsys.readouterr().err
+
+
+def test_missing_stage2_ranker_is_reported(tmp_path, question, capsys):
+    # Regression for Sol round 1 S3: a ranker that never replied must not vanish.
+    run_dir = tmp_path / "run"
+    _answered(capsys, run_dir, question)
+    _, rank = _run(capsys, "rank", "--run-dir", str(run_dir))
+    first, *rest = rank["replies"].items()
+    for _, path in rest:
+        _write(path, "FINAL RANKING:\n1. Response A\n2. Response B\n3. Response C\n4. Response D\n")
+
+    _, chair = _run(capsys, "chair", "--run-dir", str(run_dir))
+    _, finish = _run(capsys, "finish", "--run-dir", str(run_dir))
+
+    assert chair["missing_rankers"] == [first[0]]
+    assert finish["errors"] == {first[0]: "no Stage 2 ranking"}
+    assert "no Stage 2 ranking" in Path(finish["artifact"]).read_text(encoding="utf-8")
+
+
+def test_second_rank_is_refused(tmp_path, question, capsys):
+    run_dir = tmp_path / "run"
+    _answered(capsys, run_dir, question)
+    _run(capsys, "rank", "--run-dir", str(run_dir))
+
+    code = steps.main(["rank", "--run-dir", str(run_dir)])
+
+    assert code == steps.EXIT_CONFIG
+    assert "already ran" in capsys.readouterr().err
+
+
+def test_unavailable_chairman_is_reported_not_replaced(tmp_path, question, capsys):
+    run_dir = tmp_path / "run"
+    _, init = _init(capsys, run_dir, question, "--unavailable", "gpt-6-astra=not in this harness")
+    for path in init["replies"].values():
+        _write(path, "answer")
+    _run(capsys, "rank", "--run-dir", str(run_dir))
+
+    _, chair = _run(capsys, "chair", "--run-dir", str(run_dir))
+    _, finish = _run(capsys, "finish", "--run-dir", str(run_dir))
+
+    assert chair["chairman_unavailable"] == "not in this harness"
+    assert finish["synthesis"] == "[Chairman unavailable: not in this harness]"

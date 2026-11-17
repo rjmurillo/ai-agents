@@ -26,7 +26,11 @@ _VERDICT = re.compile(r"^\s*\**\s*VERDICT\s*:\s*\**\s*(APPROVE|CHANGES)\b", re.I
 # then dropped with a reason instead of vanishing. A list marker ("-", "*", or
 # "1.") may lead the line.
 _FINDING = re.compile(r"^\s*(?:[-*]|\d+[.)])?\s*\**(S\d+)\**\s*\[([^\]\n]+)\]\s*(.*)$")
-_LEADING_LOCATION = re.compile(r"^`?([^\s`:]+):(\d+)`?\s*(.*)$")
+_LEADING_LOCATION = re.compile(r"^`?([^\s`:\[\]()]+)(?::|#L)(\d+)`?\s*(.*)$")
+# Sol often cites a location as a markdown link: [file.py:12](/abs/path/file.py:12).
+# The link target carries the full path, so it wins over the label.
+_LINK_LOCATION = re.compile(r"^\[([^\]\n]+)\]\(<?([^)>\s]+)>?\)\s*(.*)$")
+_PATH_LINE = re.compile(r"^`?(.+?)`?(?::|#L)(\d+)(?:-L?\d+)?$")
 _REPRO = re.compile(r"\bRepro:\s*(.*?)(?=\s*\bFix:|$)", re.I)
 _FIX = re.compile(r"\bFix:\s*(.*)$", re.I)
 
@@ -35,11 +39,23 @@ class ReplyError(ValueError):
     """Sol's reply has no ``VERDICT:`` line, so it is not a review."""
 
 
+def _location(rest: str) -> tuple[str, int | None, str]:
+    """Return (file, line, remaining text) from the start of a finding's text."""
+    link = _LINK_LOCATION.match(rest)
+    if link:
+        for candidate in (link.group(2), link.group(1)):
+            parts = _PATH_LINE.match(candidate)
+            if parts:
+                return parts.group(1), int(parts.group(2)), link.group(3)
+        return "", None, link.group(3)
+    plain = _LEADING_LOCATION.match(rest)
+    if plain:
+        return plain.group(1), int(plain.group(2)), plain.group(3)
+    return "", None, rest
+
+
 def _parse_finding(fid: str, severity: str, rest: str) -> dict:
-    location = _LEADING_LOCATION.match(rest.strip())
-    file_value, line, body = ("", None, rest.strip())
-    if location:
-        file_value, line, body = location.group(1), int(location.group(2)), location.group(3)
+    file_value, line, body = _location(rest.strip())
     repro = _REPRO.search(body)
     fix = _FIX.search(body)
     claim = body[: repro.start()] if repro else body[: fix.start()] if fix else body
@@ -99,7 +115,10 @@ def filter_findings(raw: list[object]) -> tuple[list[dict], list[dict]]:
     return kept, dropped
 
 
-_LOCATION = re.compile(r"([A-Za-z0-9_./\\-]+\.[A-Za-z0-9]+):(\d+)(?:-(\d+))?")
+# Matches `path:12`, `path:12-40`, `` `path`:12 ``, `path#L12`, and extensionless
+# names such as `Makefile:10`. A false match only adds overlap, which keeps the
+# sol_only count a lower bound.
+_LOCATION = re.compile(r"([A-Za-z0-9_./\\-]*[A-Za-z0-9_])`?(?::|#L)(\d+)(?:-L?(\d+))?")
 
 
 def _norm_path(value: str) -> str:

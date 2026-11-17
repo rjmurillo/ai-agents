@@ -206,3 +206,53 @@ def test_list_markers_before_the_id_are_accepted(prefix):
     )
 
     assert [(f["id"], f["file"], f["line"]) for f in findings] == [("S1", "a.py", 3)]
+
+
+# Location forms seen in real replies and critic reports
+
+
+def test_markdown_link_location_uses_the_link_target():
+    reply = (
+        "VERDICT: CHANGES\n"
+        "S1 [should] [sol_loop.py:124](/repo/src/sol_loop.py:124) strips the status. "
+        "Repro: modify a tracked file. Fix: keep the space.\n"
+    )
+
+    _, findings = rules.parse_reply(reply)
+
+    assert (findings[0]["file"], findings[0]["line"]) == ("/repo/src/sol_loop.py", 124)
+    assert findings[0]["claim"] == "strips the status"
+    assert findings[0]["repro"] == "modify a tracked file"
+
+
+def test_markdown_link_without_line_in_target_falls_back_to_label():
+    _, findings = rules.parse_reply("VERDICT: CHANGES\nS1 [should] [a.py:9](a.py) bug. Repro: x.\n")
+
+    assert (findings[0]["file"], findings[0]["line"]) == ("a.py", 9)
+
+
+def test_hash_line_location():
+    _, findings = rules.parse_reply("VERDICT: CHANGES\nS1 [should] src/a.py#L7 bug. Repro: x.\n")
+
+    assert (findings[0]["file"], findings[0]["line"]) == ("src/a.py", 7)
+
+
+@pytest.mark.parametrize(
+    ("critic", "file", "line"),
+    [
+        ("Makefile:10 has a bad target", "Makefile", 10),
+        ("see `a.py`:12 for the bug", "a.py", 12),
+        ("see a.py#L12", "a.py", 12),
+        ("see a.py#L10-L20", "a.py", 18),
+    ],
+)
+def test_critic_location_forms_count_as_overlap(critic, file, line):
+    marked = rules.mark_sol_only([_finding(file=file, line=line)], critic)
+
+    assert marked[0]["sol_only"] is False
+
+
+def test_absolute_sol_path_overlaps_relative_critic_path():
+    marked = rules.mark_sol_only([_finding(file="/repo/src/app/a.py", line=10)], CRITIC_TEXT)
+
+    assert marked[0]["sol_only"] is False

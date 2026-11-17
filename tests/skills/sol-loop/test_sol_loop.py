@@ -333,3 +333,36 @@ def test_summarize_reads_the_committed_first_run():
 
     assert unreadable == 0
     assert len(runs) >= 1
+
+
+# Skips come before validation; the WARN does not depend on the critic file
+
+
+def test_same_family_skip_needs_no_critic_file(tmp_path, capsys):
+    code = mod.main(
+        _argv("gate", tmp_path, tmp_path / "missing.md", "--route", "t3", author="openai")
+    )
+
+    assert code == mod.EXIT_OK
+    assert _out(capsys)["verdict"] == "SKIPPED"
+
+
+def test_off_switch_skips_even_with_a_bad_model(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("AI_AGENTS_SOL_PASS", "off")
+    argv = _argv("gate", tmp_path, tmp_path / "missing.md", "--route", "t3")
+    argv[argv.index("--model") + 1] = "claude-opus-5-5"
+
+    code = mod.main(argv)
+
+    assert code == mod.EXIT_OK
+    assert _out(capsys)["verdict"] == "SKIPPED"
+
+
+def test_unavailable_warns_even_when_critic_file_is_unreadable(tmp_path, capsys):
+    argv = _argv("unavailable", tmp_path, tmp_path / "missing.md", "--failure-class", "timeout")
+
+    code = mod.main(argv)
+
+    assert code == mod.EXIT_UNAVAILABLE
+    assert _out(capsys)["reason"] == "review-model-unavailable"
+    assert "cannot read critic output" in _logs(tmp_path)[0]["critic_error"]

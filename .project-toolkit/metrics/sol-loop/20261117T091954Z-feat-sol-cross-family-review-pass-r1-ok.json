@@ -1,0 +1,59 @@
+{
+  "author_family": "anthropic",
+  "branch": "feat/sol-cross-family-review-pass",
+  "counts": {
+    "dropped": 0,
+    "kept": 3,
+    "overlap": 2,
+    "raw": 3,
+    "sol_only": 1
+  },
+  "critic_sha256": "525727cc40018c1d4c35be338058ee6da8eb41a972464481feeaa3c363a042cf",
+  "dropped": [],
+  "failure_class": "",
+  "findings": [
+    {
+      "claim": "`.strip()` corrupts Git\u2019s first unstaged-modification entry, allowing a stale critic",
+      "file": "src/claude/skills/sol-loop/scripts/sol_loop.py",
+      "fix": "preserve porcelain output\u2019s leading whitespace.",
+      "id": "S1",
+      "line": 124,
+      "outcome": "open",
+      "repro": "commit `app.py`, save critic output, then modify `app.py`. Git returns `\" M app.py\\0\"`; the helper strips its leading space, checks `pp.py`, and `gate` incorrectly returns `PROCEED`",
+      "severity": "should",
+      "sol_only": true
+    },
+    {
+      "claim": "Saving Sol\u2019s reply inside the checkout prevents recording that round",
+      "file": "src/claude/skills/sol-loop/scripts/sol_loop.py",
+      "fix": "exclude the supplied reply file from freshness checks.",
+      "id": "S2",
+      "line": 217,
+      "outcome": "open",
+      "repro": "run `gate` successfully, save `VERDICT: APPROVE` as untracked `reply.md`, then run `record --reply reply.md`. It exits 2 with \u201ccritic output is older than HEAD or an uncommitted change.\u201d",
+      "severity": "should",
+      "sol_only": false
+    },
+    {
+      "claim": "Missing Stage 2 members disappear from failure reporting",
+      "file": "src/claude/skills/llm-council/scripts/council_steps.py",
+      "fix": "report missing rankers against the frozen survivor list and preserve those failures in the artifact.",
+      "id": "S3",
+      "line": 195,
+      "outcome": "open",
+      "repro": "complete all four Stage 1 replies, omit one Stage 2 reply, then run `chair` and `finish`. `unparsed_rankers` returns `[]`, `errors` returns `{}`, and the artifact reports no failure",
+      "severity": "should",
+      "sol_only": false
+    }
+  ],
+  "head_sha": "c74b79f3da6d875086400bee3c767d3a55fd3989",
+  "key": "feat/sol-cross-family-review-pass",
+  "model": "gpt-6.1-sol",
+  "overlap_rule": "same file and line within 3 of a critic path:line or range",
+  "pr": "7416",
+  "round": 1,
+  "schema_version": 2,
+  "status": "ok",
+  "timestamp": "2026-11-17T09:19:54Z",
+  "verdict": "CHANGES"
+}

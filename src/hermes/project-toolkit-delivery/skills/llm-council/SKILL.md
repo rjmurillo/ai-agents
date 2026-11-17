@@ -95,8 +95,10 @@ stop and report which members were missing.
    It freezes the survivors; a Stage 1 reply that lands later is listed as late
    and left out. Start one `delegate_task` per survivor with the Stage 2
    prompt, and save each reply.
-5. Run `council_steps.py chair`. It runs the Borda count. Start one
-   `delegate_task` on the chairman with the Stage 3 prompt, and save its reply.
+5. Run `council_steps.py chair`. It runs the Borda count and names rankers
+   that never replied. Start one `delegate_task` on the chairman with the
+   Stage 3 prompt, and save its reply. If `chairman_unavailable` is set, do not
+   pick another chairman: `finish` records the reason.
 6. Run `council_steps.py finish` to write the artifact.
 
 Do not wait idle: read each reply as it arrives. A timeout, error, or empty
