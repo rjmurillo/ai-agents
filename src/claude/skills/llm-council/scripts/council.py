@@ -219,14 +219,18 @@ def _announce(council: list[str], chairman: str, mode: str, out_path: Path, log:
     log(f"[council] mode: {mode}    artifact: {out_path}")
 
 
+def _quiet_log(*_args: object, **_kwargs: object) -> None:
+    return None
+
+
+def _stderr_log(*args: object, **kwargs: object) -> None:
+    print(*args, **kwargs, file=sys.stderr, flush=True)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     council, chairman = resolve_members(args.mode, args.models, args.cheap, args.chairman)
-    log: Log = (
-        (lambda *a, **k: None)
-        if args.quiet
-        else (lambda *a, **k: print(*a, **k, file=sys.stderr, flush=True))
-    )
+    log: Log = _quiet_log if args.quiet else _stderr_log
     token = _fetch_token(council, chairman, log)
     out_path = _out_path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)

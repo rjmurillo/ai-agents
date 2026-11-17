@@ -1,7 +1,7 @@
 ---
 name: llm-council
 version: 1.0.0
-description: Run a cross-vendor LLM council on a hard judgment question. Councillors answer in parallel, rank each other anonymously by Borda count, and a chairman synthesizes. Default frontier members are GPT-6 Astra, GPT-6 Sol, Claude Opus 5.5, and Claude Sonnet 5. Use for "ask the council", "council take", or "what do the models say". Do NOT use for code review (use review) or a Sol-only review (use sol-loop).
+description: Cross-vendor LLM council for hard judgment calls, with parallel answers, Borda ranking, and a chairman verdict. Use for "ask the council". Not for code review (use review).
 license: MIT
 metadata:
   source_pattern: thevgavini/ghcp-llm-council (MIT); T3 delegate transport from t3dotgg/tstack council (MIT)

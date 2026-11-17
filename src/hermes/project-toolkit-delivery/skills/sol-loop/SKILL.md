@@ -1,9 +1,9 @@
 ---
 name: sol-loop
 version: 1.0.0
-description: Review a change with GPT Sol, a second model family, after the fresh critic, in at most 2 rounds, and log the findings only Sol raised. Use for "sol loop", "Sol review", or a cross-family review after the critic. Do NOT use for a full pre-merge review (use review) or a multi-model panel (use llm-council).
+description: GPT Sol review after the fresh critic, at most 2 rounds, logging findings only Sol raised. Use for "sol loop". Not for pre-merge review (use review).
 license: MIT
-argument-hint: "[pr-number] [--author-family anthropic|openai|unknown]"
+argument-hint: "[pr-number --author-family anthropic|openai|unknown]"
 user-invocable: true
 ---
 

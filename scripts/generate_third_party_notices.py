@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size  FORKED_COMPONENTS is license data, one entry per vendored skill.
 """Generate THIRD-PARTY-NOTICES.TXT from shipped plugin components.
 
 Scans the plugin source paths defined in .claude-plugin/marketplace.json
@@ -158,7 +159,8 @@ FORKED_COMPONENTS: dict[str, dict[str, str]] = {
         "author": "Vivekananda Gavini and ghcp-llm-council contributors",
         "local_path": "src/claude/skills/llm-council",
         "license_text": (
-            "MIT License\n\nCopyright (c) 2026 Vivekananda Gavini and ghcp-llm-council contributors\n\n"
+            "MIT License\n\n"
+            "Copyright (c) 2026 Vivekananda Gavini and ghcp-llm-council contributors\n\n"
             + _MIT_PERMISSION_TEXT
         ),
         "license_blank_line_prefix": "",
