@@ -8,6 +8,7 @@ link to, copy of, or read of a credential file, and the report records that
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -163,3 +164,63 @@ def test_the_real_home_grader_forwards_an_exported_token_without_reading_disk(
     assert env["HOME"] == str(tmp_path)
     assert "CLAUDE_CONFIG_DIR" not in env
     assert "ANTHROPIC_API_KEY" not in env
+
+
+def _temporary_real_home():
+    return sys.modules["_isolated_claude_login"].temporary_real_home
+
+
+def test_temporary_real_home_restores_an_unset_variable(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv(ENV, raising=False)
+    with _temporary_real_home()(True):
+        assert os.environ[ENV] == "1"
+        assert runtime_harness.real_home_enabled() is True
+    assert ENV not in os.environ
+    assert runtime_harness.real_home_enabled() is False
+
+
+def test_temporary_real_home_restores_the_previous_value(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(ENV, "0")
+    with _temporary_real_home()(True):
+        assert os.environ[ENV] == "1"
+    assert os.environ[ENV] == "0"
+
+
+def test_temporary_real_home_off_leaves_the_environment_alone(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(ENV, raising=False)
+    with _temporary_real_home()(False):
+        assert ENV not in os.environ
+    assert ENV not in os.environ
+
+
+def test_temporary_real_home_restores_after_an_exception(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv(ENV, raising=False)
+    with pytest.raises(RuntimeError, match="boom"):
+        with _temporary_real_home()(True):
+            raise RuntimeError("boom")
+    assert ENV not in os.environ
+
+
+def test_a_finished_real_home_run_does_not_keep_the_claude_transport_opted_in(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A leaked EVAL_RUNTIME_REAL_HOME skipped relocation and the missing-token refusal."""
+    eval_dir = str(Path(__file__).resolve().parents[2] / "scripts" / "eval")
+    sys.path.insert(0, eval_dir)
+    try:
+        import _claude_cli as claude_cli
+    finally:
+        sys.path.remove(eval_dir)
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv(ENV, raising=False)
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "tok")
+    with _temporary_real_home()(True):
+        pass
+    provider = claude_cli._ClaudeCLIProvider()
+    env = provider._build_env(
+        tmp_path / "profile", claude_cli.ResolvedCredential(claude_cli.STEP_ENV, "tok")
+    )
+    assert env["CLAUDE_CONFIG_DIR"] == str(tmp_path / "profile")

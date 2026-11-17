@@ -43,9 +43,9 @@ import _control_ablation_tasks as ablation_tasks  # noqa: E402
 import _handoff_strategy as hs  # noqa: E402
 import _outcome_record as outcome_record  # noqa: E402
 from _handoff_cell import Cell, cell_dir, file_state  # noqa: E402
-from _isolated_claude_login import IsolatedLoginError, isolated_login_values  # noqa: E402
+from _isolated_claude_login import IsolatedLoginError, isolated_login_values, temporary_real_home  # noqa: E402
 from _run_changes import write_patch  # noqa: E402
-from _runtime_harness import REAL_HOME_ENV, probe_version, real_home_enabled  # noqa: E402
+from _runtime_harness import probe_version, real_home_enabled  # noqa: E402
 from _runtime_parity import ParityConfigError  # noqa: E402
 
 EXIT_OK, EXIT_LOGIC, EXIT_CONFIG, EXIT_EXTERNAL, EXIT_AUTH = 0, 1, 2, 3, 4
@@ -255,124 +255,127 @@ def _run_live(
     output_dir: Path,
     runner: claude_run.Runner,
 ) -> tuple[dict[str, object], int]:
-    if args.real_home:
-        os.environ[REAL_HOME_ENV] = "1"
-    tasks = batch.select_tasks(corpus.tasks, args.only_tasks)
-    cells = len(tasks) * len(hs.ARMS) * args.repeats
-    if (
-        args.repeats < 1
-        or args.start_repeat < 0
-        or args.start_repeat + args.repeats > 3
-        or cells > args.max_cells
-    ):
-        raise ablation_tasks.ControlAblationConfigError(
-            f"{cells} cells with {args.repeats} repeats exceeds the frozen ceilings"
+    with temporary_real_home(args.real_home):
+        tasks = batch.select_tasks(corpus.tasks, args.only_tasks)
+        cells = len(tasks) * len(hs.ARMS) * args.repeats
+        if (
+            args.repeats < 1
+            or args.start_repeat < 0
+            or args.start_repeat + args.repeats > 3
+            or cells > args.max_cells
+        ):
+            raise ablation_tasks.ControlAblationConfigError(
+                f"{cells} cells with {args.repeats} repeats exceeds the frozen ceilings"
+            )
+        repeats = range(args.start_repeat, args.start_repeat + args.repeats)
+        batch.refuse_recorded_cells(output_dir, list(hs.ARMS), tasks, repeats)
+        cap = args.max_cost_usd
+        if cap is not None and (not math.isfinite(cap) or cap <= 0):
+            raise ablation_tasks.ControlAblationConfigError("--max-cost-usd must be finite and > 0")
+        pass_env = batch.parse_pass_env(args.pass_env, os.environ)
+        roles = {arm: hs.role_text(REPO_ROOT, arm) for arm in hs.ARMS}
+        controls = _controls(corpus, workspace_root)
+        markers = history.withheld_markers(corpus.sources, REPO_ROOT)
+        # Before the first launch: this batch's own records and patches are untracked files later.
+        runner_state = batch.runner_state(REPO_ROOT)
+        wrapped = batch.child_env_runner(runner, pass_env, sys.executable)
+        version = probe_version(
+            claude_run.CLAUDE_EXECUTABLE, "claude", workspace_root / "_probe", wrapped, args.timeout
         )
-    repeats = range(args.start_repeat, args.start_repeat + args.repeats)
-    batch.refuse_recorded_cells(output_dir, list(hs.ARMS), tasks, repeats)
-    cap = args.max_cost_usd
-    if cap is not None and (not math.isfinite(cap) or cap <= 0):
-        raise ablation_tasks.ControlAblationConfigError("--max-cost-usd must be finite and > 0")
-    pass_env = batch.parse_pass_env(args.pass_env, os.environ)
-    roles = {arm: hs.role_text(REPO_ROOT, arm) for arm in hs.ARMS}
-    controls = _controls(corpus, workspace_root)
-    markers = history.withheld_markers(corpus.sources, REPO_ROOT)
-    # Before the first launch: this batch's own records and patches are untracked files later.
-    runner_state = batch.runner_state(REPO_ROOT)
-    wrapped = batch.child_env_runner(runner, pass_env, sys.executable)
-    version = probe_version(
-        claude_run.CLAUDE_EXECUTABLE, "claude", workspace_root / "_probe", wrapped, args.timeout
-    )
-    guard = batch.SpendGuard.resumed(cap, output_dir)
-    literals = [
-        *batch.secret_literals(pass_env, os.environ),
-        *isolated_login_values(claude_run.CLAUDE_EXECUTABLE, skip=real_home_enabled()),
-    ]
-    entries: list[dict[str, object]] = []
-    failures: list[dict[str, object]] = []
-    for task in tasks:
-        for repeat in repeats:
-            order = hs.ARMS if repeat % 2 == 0 else tuple(reversed(hs.ARMS))
-            for arm in order:
-                blocked = guard.blocked_reason()
-                if blocked:
-                    failures.append(
-                        {"task_id": task.id, "arm": arm, "repeat": repeat, "reason": blocked}
+        guard = batch.SpendGuard.resumed(cap, output_dir)
+        literals = [
+            *batch.secret_literals(pass_env, os.environ),
+            *isolated_login_values(claude_run.CLAUDE_EXECUTABLE, skip=real_home_enabled()),
+        ]
+        entries: list[dict[str, object]] = []
+        failures: list[dict[str, object]] = []
+        for task in tasks:
+            for repeat in repeats:
+                order = hs.ARMS if repeat % 2 == 0 else tuple(reversed(hs.ARMS))
+                for arm in order:
+                    blocked = guard.blocked_reason()
+                    if blocked:
+                        failures.append(
+                            {"task_id": task.id, "arm": arm, "repeat": repeat, "reason": blocked}
+                        )
+                        continue
+                    try:
+                        entry, record, patch, cell = run_cell(
+                            task,
+                            corpus.briefs[task.id],
+                            arm,
+                            repeat,
+                            controls[task.id],
+                            role=roles[arm],
+                            model=args.model,
+                            effort=args.effort,
+                            harness_version=version,
+                            timeout=args.timeout,
+                            workspace_root=workspace_root,
+                            runner=wrapped,
+                            markers=markers[task.id],
+                        )
+                    except _HARNESS_ERRORS as exc:
+                        if isinstance(exc, claude_run.HarnessFailureError):
+                            guard.spent += exc.prior_cost_usd  # earlier launches in this cell
+                        if isinstance(exc, claude_run.HarnessFailureError) and exc.transient:
+                            guard.spent += exc.cost_usd  # the stream reported its cost: measured
+                        else:
+                            guard.add_failure(exc)
+                        failures.append(
+                            {"task_id": task.id, "arm": arm, "repeat": repeat, "reason": str(exc)}
+                        )
+                        continue
+                    finally:
+                        batch.remove_cell(cell_dir(workspace_root, task.id, repeat))
+                    guard.add_record(record)
+                    with (output_dir / batch.records_filename(arm)).open(
+                        "a", encoding="utf-8"
+                    ) as fh:
+                        fh.write(json.dumps(record) + "\n")
+                    entry["change_patch"] = write_patch(
+                        output_dir, arm, task.id, repeat, str(batch.redact(patch, literals))
                     )
-                    continue
-                try:
-                    entry, record, patch, cell = run_cell(
-                        task,
-                        corpus.briefs[task.id],
-                        arm,
-                        repeat,
-                        controls[task.id],
-                        role=roles[arm],
-                        model=args.model,
-                        effort=args.effort,
-                        harness_version=version,
-                        timeout=args.timeout,
-                        workspace_root=workspace_root,
-                        runner=wrapped,
-                        markers=markers[task.id],
-                    )
-                except _HARNESS_ERRORS as exc:
-                    if isinstance(exc, claude_run.HarnessFailureError):
-                        guard.spent += exc.prior_cost_usd  # earlier launches in this cell
-                    if isinstance(exc, claude_run.HarnessFailureError) and exc.transient:
-                        guard.spent += exc.cost_usd  # the stream reported its cost: measured
-                    else:
-                        guard.add_failure(exc)
-                    failures.append(
-                        {"task_id": task.id, "arm": arm, "repeat": repeat, "reason": str(exc)}
-                    )
-                    continue
-                finally:
-                    batch.remove_cell(cell_dir(workspace_root, task.id, repeat))
-                guard.add_record(record)
-                with (output_dir / batch.records_filename(arm)).open("a", encoding="utf-8") as fh:
-                    fh.write(json.dumps(record) + "\n")
-                entry["change_patch"] = write_patch(
-                    output_dir, arm, task.id, repeat, str(batch.redact(patch, literals))
-                )
-                entries.append(batch.redact(entry, literals))
-    stall = {t.id for t in tasks if corpus.stall[t.id]}
-    decision = hs.decide(entries, stall, {t.id for t in tasks} - stall, cells)
-    report: dict[str, object] = {
-        "notes": hs.CITATION_NOTE,
-        "mode": "live",
-        "harness_version": version,
-        "real_home": real_home_enabled(),
-        "effort": args.effort or "harness default, not set",
-        "spent_usd": guard.spent,
-        "spend_unmeasured": guard.unmeasured,
-        "entries": entries,
-        "failures": failures,
-        "decision": decision,
-        "provenance": {
-            **runner_state,
-            "tasks_file_sha256": hashlib.sha256(args.tasks.read_bytes()).hexdigest(),
-            "task_sha256": {
-                str(t.get("id")): batch.canonical_sha256(t)
-                for t in json.loads(args.tasks.read_text(encoding="utf-8"))["tasks"]
+                    entries.append(batch.redact(entry, literals))
+        stall = {t.id for t in tasks if corpus.stall[t.id]}
+        decision = hs.decide(entries, stall, {t.id for t in tasks} - stall, cells)
+        report: dict[str, object] = {
+            "notes": hs.CITATION_NOTE,
+            "mode": "live",
+            "harness_version": version,
+            "real_home": real_home_enabled(),
+            "effort": args.effort or "harness default, not set",
+            "spent_usd": guard.spent,
+            "spend_unmeasured": guard.unmeasured,
+            "entries": entries,
+            "failures": failures,
+            "decision": decision,
+            "provenance": {
+                **runner_state,
+                "tasks_file_sha256": hashlib.sha256(args.tasks.read_bytes()).hexdigest(),
+                "task_sha256": {
+                    str(t.get("id")): batch.canonical_sha256(t)
+                    for t in json.loads(args.tasks.read_text(encoding="utf-8"))["tasks"]
+                },
+                "sources": {
+                    k: v.__dict__ if hasattr(v, "__dict__") else str(v)
+                    for k, v in corpus.sources.items()
+                },
+                "role_files": {arm: hs.ROLE_FILES[arm] for arm in hs.ARMS},
+                "role_sha256": {arm: hs.sha256_text(roles[arm]) for arm in hs.ARMS},
+                "prompt_templates": hs.prompt_template_hashes(),
+                "controls": {tid: batch.control_manifest(c) for tid, c in controls.items()},
+                "model_requested": args.model,
+                "pass_env": pass_env,
+                "agent_path_first": str(Path(sys.executable).parent),
+                "max_cost_usd": cap,
+                "repair_rounds": hs.REPAIR_ROUNDS,
+                "started_unix": int(time.time()),
             },
-            "sources": {
-                k: v.__dict__ if hasattr(v, "__dict__") else str(v)
-                for k, v in corpus.sources.items()
-            },
-            "role_files": {arm: hs.ROLE_FILES[arm] for arm in hs.ARMS},
-            "role_sha256": {arm: hs.sha256_text(roles[arm]) for arm in hs.ARMS},
-            "prompt_templates": hs.prompt_template_hashes(),
-            "controls": {tid: batch.control_manifest(c) for tid, c in controls.items()},
-            "model_requested": args.model,
-            "pass_env": pass_env,
-            "agent_path_first": str(Path(sys.executable).parent),
-            "max_cost_usd": cap,
-            "repair_rounds": hs.REPAIR_ROUNDS,
-            "started_unix": int(time.time()),
-        },
-    }
-    return report, (EXIT_EXTERNAL if failures or not all(e["valid"] for e in entries) else EXIT_OK)
+        }
+        return report, (
+            EXIT_EXTERNAL if failures or not all(e["valid"] for e in entries) else EXIT_OK
+        )
 
 
 def main(argv: Sequence[str] | None = None, *, runner: claude_run.Runner = subprocess.run) -> int:

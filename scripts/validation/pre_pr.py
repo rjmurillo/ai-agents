@@ -58,6 +58,7 @@ from check_citation_freshness import validate_citation_freshness
 from check_doc_interpreter_portability import (
     validate_doc_interpreter_portability,
 )
+from check_io_portability import validate_io_portability
 from check_measurement_anchoring import validate_measurement_anchoring
 from check_nested_tests import validate_no_nested_tests
 from check_rule_adr_citations import validate_rule_adr_citations

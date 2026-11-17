@@ -42,7 +42,7 @@ You have direct access to:
 
 ## Reference Loading
 
-Architect references live under `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/adr-review/references/`. They serve this agent; the `adr-review` skill runs the ADR debate. Read one only when its condition holds. If the path does not resolve (a harness with no skill tree, such as the VS Code agent list), apply the rules in this file and state that the reference was unavailable.
+Architect references live under `${CLAUDE_PLUGIN_ROOT}/skills/adr-review/references/`. In a checkout that loads this agent with no plugin root, read `.claude/skills/adr-review/references/` instead. They serve this agent; the `adr-review` skill runs the ADR debate. Read one only when its condition holds. If the path does not resolve (a harness with no skill tree, such as the VS Code agent list), apply the rules in this file and state that the reference was unavailable.
 
 - `architect-impact-analysis.md`: milestone-planner asks for impact analysis and you are writing the deliverable.
 - `architect-code-organization-review.md`: a PR adds directories or relocates files.

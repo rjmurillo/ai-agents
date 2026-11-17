@@ -27,6 +27,10 @@ artifacts:
     # shipped at all (ADR-115 Decision 3), because Cursor would run it with
     # every tool. An agent with no tools list ships without readonly.
     deriveReadonly: true
+    # Cursor replaces the bare Claude plugin-root token in a plugin agent body with the
+    # plugin root (cursor-agent 2026.11.13 probe, 2026-11-16), so the split-agent
+    # reference paths keep it. Codex and Muse Code replace no token.
+    keepClaudeReferenceRoot: true
     # Cursor ships no `security` agent (its tools list is not read-only, ADR-115
     # Decision 3), so each line below that hands work to one is reworded to say
     # what a Cursor user can do: report the finding to the user and flag it.
