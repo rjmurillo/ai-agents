@@ -54,6 +54,33 @@
       "rationale": "Positive api-doc-authoring activation (#5414); must not fall through to dx-review or the orchestrator."
     },
     {
+      "id": "lt-technical-writing",
+      "family": "long-tail-single-domain",
+      "request": "Write a tutorial and a how-to guide for the new retry option, then edit the docs for clarity.",
+      "expect": {
+        "kind": "specialist",
+        "route": "technical-writing",
+        "routes_absent": [
+          "orchestrator",
+          "api-doc-authoring"
+        ]
+      },
+      "rationale": "Positive technical-writing activation; a docs page request must not fall through to the orchestrator."
+    },
+    {
+      "id": "lt-technical-writing-api-negative",
+      "family": "long-tail-single-domain",
+      "request": "Document this API for developers with a quickstart.",
+      "expect": {
+        "kind": "specialist",
+        "route": "api-doc-authoring",
+        "routes_absent": [
+          "technical-writing"
+        ]
+      },
+      "rationale": "Negative control: an endpoint API request stays with api-doc-authoring after technical-writing adds its intents."
+    },
+    {
       "id": "lt-skillify-this",
       "family": "long-tail-single-domain",
       "request": "skillify this",

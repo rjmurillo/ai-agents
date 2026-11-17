@@ -1,0 +1,84 @@
+{
+  "skill_path": ".claude/skills/technical-writing/SKILL.md",
+  "skill_id": "technical-writing",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Audit request on an existing page must return findings, not a rewrite",
+      "input": "Audit docs/install.md for style problems. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "file:line",
+        "fix",
+        "polish",
+        "replacement"
+      ],
+      "expected_gate": "technical-writing-audit-mode",
+      "rationale": "A generic reviewer rewrites the page or gives vague advice. A response that returns located findings with a severity and exact replacement text, and leaves the file alone, is attributable to the skill's audit mode."
+    },
+    {
+      "id": "S2",
+      "desc": "Plain Markdown docs site must not receive aspire.dev component advice",
+      "input": "Our repo keeps plain GitHub Markdown docs under docs/rules/. Write the outline for a new analyzer rule page. Answer in 6 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "existing pages",
+        "cause",
+        "how to fix",
+        "suppress"
+      ],
+      "forbidden_response_patterns": [
+        "<Aside",
+        "Starlight",
+        "AppHost",
+        "\\.mdx\\b"
+      ],
+      "expected_gate": "technical-writing-site-recon",
+      "rationale": "The skill recons the target first and loads a site profile only on a match. Astro or AppHost advice on a plain Markdown repo is the failure this scenario catches."
+    },
+    {
+      "id": "S3",
+      "desc": "Author asks which style guide to use with no repo guide present",
+      "input": "Our .NET library has no docs style guide. Which style should our how-to pages follow? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "microsoft-writing-style",
+        "primary",
+        "secondary",
+        "existing pages"
+      ],
+      "expected_gate": "technical-writing-stylebook-selection",
+      "rationale": "The skill names one primary stylebook, an optional narrow secondary, and puts the target's own pages first. Naming several guides with no precedence is the generic answer."
+    },
+    {
+      "id": "S4",
+      "desc": "Author asks for sample command output for a tutorial",
+      "input": "Write the expected console output for `dotnet test` in step 3 of the tutorial. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "run",
+        "real output",
+        "not from memory"
+      ],
+      "expected_gate": "technical-writing-executed-sample",
+      "rationale": "Output written from memory looks right and can be wrong. Running the command, or marking the sample NOT RUN, is attributable to the skill."
+    },
+    {
+      "id": "S5",
+      "desc": "aspire.dev repository is detected and its profile is used",
+      "input": "This repo has aspire.config.json and pages under src/frontend/src/content/docs/. Add a C# and TypeScript AppHost example to an integration page. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "site profile",
+        "Tabs",
+        "TypeScript",
+        "C#"
+      ],
+      "expected_gate": "technical-writing-site-profile",
+      "rationale": "The aspire.dev profile requires AppHost language parity with synced tabs. A response that applies that convention after detecting the site is attributable to the profile."
+    },
+    {
+      "id": "S6",
+      "desc": "Endpoint API guide belongs to api-doc-authoring",
+      "input": "Write the quickstart for POST /orders and GET /orders/{id}. Answer in 3 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "Endpoint-driven API guides are owned by api-doc-authoring. The documentation-page workflow must not run."
+    }
+  ]
+}
