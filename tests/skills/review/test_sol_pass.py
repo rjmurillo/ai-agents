@@ -15,6 +15,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -134,8 +135,15 @@ def test_critic_findings_flag_is_required():
 
 def _git_repo(path: Path) -> None:
     path.mkdir()
-    for args in (["init", "-q"], ["commit", "-q", "--allow-empty", "-m", "init"]):
+    identity = ["-c", "user.name=Test", "-c", "user.email=test@example.com"]
+    for args in (["init", "-q"], [*identity, "commit", "-q", "--allow-empty", "-m", "init"]):
         subprocess.run(["git", *args], cwd=path, check=True, capture_output=True)
+
+
+def _touch_after_head(path: Path) -> None:
+    """Set mtime past HEAD's whole-second commit time, so the order is certain."""
+    later = time.time() + 5
+    os.utime(path, (later, later))
 
 
 @_needs_git
@@ -167,6 +175,7 @@ def test_refuses_critic_output_older_than_head(tmp_path, critic_file, capsys):
 def test_accepts_critic_output_newer_than_head(tmp_path, critic_file):
     repo = tmp_path / "repo"
     _git_repo(repo)
+    _touch_after_head(critic_file)
     runner = FakeRunner(_ok([]))
 
     code = mod.main(
@@ -438,3 +447,30 @@ def test_codex_runner_reports_not_installed(monkeypatch, tmp_path):
     result = mod.codex_runner("gpt-6.1-sol", "p", tmp_path / "s.json", tmp_path, 5)
 
     assert (result.ok, result.failure_class) == (False, "not-installed")
+
+
+@_needs_git
+def test_branch_keeps_one_round_count_when_pr_number_appears(tmp_path, critic_file):
+    repo = tmp_path / "repo"
+    _git_repo(repo)
+    _touch_after_head(critic_file)
+    runner = FakeRunner(_ok([]))
+    base = [
+        "run",
+        "--repo",
+        str(repo),
+        "--log-base",
+        str(tmp_path),
+        "--critic-findings",
+        str(critic_file),
+    ]
+
+    codes = [
+        mod.main(base, runner=runner),
+        mod.main([*base, "--pr", "7"], runner=runner),
+        mod.main([*base, "--pr", "7"], runner=runner),
+    ]
+
+    assert codes == [mod.EXIT_OK, mod.EXIT_OK, mod.EXIT_ESCALATE]
+    assert len(runner.calls) == 2
+    assert {log["key"] for log in _logs(tmp_path)} == {_logs(tmp_path)[0]["branch"]}

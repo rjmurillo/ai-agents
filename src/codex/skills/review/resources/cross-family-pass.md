@@ -22,8 +22,9 @@ that checkout:
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/review/scripts/sol_pass.py run --critic-findings CRITIC_OUTPUT_FILE --pr PR_NUMBER; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
-The script counts the completed Sol rounds already in the run log for that PR
-(for the branch, without `--pr`). Round 2 counts only defects the diff
+The script counts the completed Sol rounds already in the run log for the
+current branch, so runs before and after the PR opens share one count. With
+no branch (a detached HEAD), it counts by `--pr`. Round 2 counts only defects the diff
 introduced, per `frozen-finding-contract.md`. A third run makes no model call:
 it exits 1 and the open findings go to a human.
 
@@ -35,7 +36,7 @@ it exits 1 and the open findings go to a human.
 | Independence | Sol does not see the critic's findings. They are used only afterward, to mark overlap. |
 | Findings | Each needs a file, a line, and a repro. A finding missing one, or a style nit, is dropped and logged as dropped. |
 | Unavailable | `WARN` with reason `review-model-unavailable` and "Review model unavailable, deferring to human." No second call. No fallback to a same-family reviewer. |
-| Rounds | At most 2 completed Sol reviews per PR, counted from the run log. |
+| Rounds | At most 2 completed Sol reviews per branch, counted from the run log. |
 
 Exit codes: `0` pass ran or was switched off, `1` round cap hit (escalate),
 `2` config error (no, empty, unreadable, or stale critic output; refused
@@ -48,10 +49,14 @@ reviewer. It does not join the `/review` verdict merge and writes no marker.
 ## Run log
 
 Every run writes one JSON file to
-`<artifact root>/metrics/sol-pass/<timestamp>-<pr>-r<round>-<status>.json`. The
-artifact root is the plugin's default artifact directory in the reviewed checkout, or
-`AI_AGENTS_ARTIFACT_ROOT` when set. A linked worktree is removed when its work
-ends, so set that variable to a lasting directory to keep the logs.
+`<artifact root>/metrics/sol-pass/<timestamp>-<key>-r<round>-<status>.json`.
+The artifact root is the plugin's default artifact directory in the reviewed
+checkout, or `AI_AGENTS_ARTIFACT_ROOT` when set.
+
+Commit each run file with the branch it reviewed. A linked worktree is removed
+when its work ends, and an uncommitted run file goes with it. Committed files
+merge with the PR, so the history survives and the round count travels with
+the branch. One file per run means two branches never conflict on a log line.
 
 Each file holds the PR, branch, head SHA, round, model, status (`ok`,
 `skipped`, `unavailable`, `escalated`), failure class, every kept finding with

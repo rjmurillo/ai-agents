@@ -32,7 +32,7 @@ import subprocess
 import sys
 import tempfile
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -315,10 +315,11 @@ def _start(args: argparse.Namespace) -> tuple[Run | None, str]:
     branch = _git(repo, "branch", "--show-current")
     base = Path(args.log_base).resolve() if args.log_base else default_log_base(repo)
     log_dir = paths.artifact_dir(LOG_SUBDIR, base=base)
-    key = f"pr-{args.pr}" if args.pr else (branch or "local")
+    # Key on the branch so runs before and after the PR opens share one count.
+    key = branch or (f"pr-{args.pr}" if args.pr else "local")
     record = {
         "schema_version": SCHEMA_VERSION,
-        "timestamp": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "key": key,
         "pr": args.pr,
         "branch": branch,

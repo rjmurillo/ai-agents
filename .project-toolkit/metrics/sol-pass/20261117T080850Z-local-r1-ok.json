@@ -1,0 +1,33 @@
+{
+  "base": "origin/main",
+  "branch": "",
+  "counts": {
+    "dropped": 0,
+    "kept": 1,
+    "overlap": 0,
+    "raw": 1,
+    "sol_only": 1
+  },
+  "critic_sha256": "82e051bca5f7ff63e6da21eb1e96961526466cdd6054dd353877b3c8f105ba7b",
+  "dropped": [],
+  "failure_class": "",
+  "findings": [
+    {
+      "category": "correctness",
+      "file": "src/claude/skills/review/resources/cross-family-pass.md",
+      "line": 17,
+      "repro": "Unset CLAUDE_PLUGIN_ROOT and COPILOT_PLUGIN_ROOT, change into src/claude/skills/review, and execute the command on line 20. It exits 2 with 'ptk_run: no plugin root holds lib/ptk_run.py'.",
+      "severity": "P2",
+      "sol_only": true,
+      "summary": "[P2] Run from the reviewed checkout instead of the skill directory. The documented working directory breaks the relative .claude launcher lookup. With an absolute plugin-root environment variable, the launcher succeeds but --repo defaults to the plugin skill directory, so an external installation reviews the plugin rather than the consumer checkout. The same instructions appear in all five host copies."
+    }
+  ],
+  "head_sha": "8315fc682847f2d865f7c008344ffcb4af91e86c",
+  "model": "gpt-6.1-sol",
+  "overlap_rule": "same file and line within 3 of a critic path:line",
+  "pr": "",
+  "round": 1,
+  "schema_version": 1,
+  "status": "ok",
+  "timestamp": "2026-11-17T08:08:50Z"
+}
