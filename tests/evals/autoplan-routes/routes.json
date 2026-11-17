@@ -94,6 +94,45 @@
       "rationale": "Negative control: a non-documentation request that says guide must not route to technical-writing."
     },
     {
+      "id": "lt-technical-writing-code-guide-negative",
+      "family": "negative-noise",
+      "request": "Write unit tests that follow the style guide.",
+      "expect": {
+        "kind": "none",
+        "route": null,
+        "routes_absent": [
+          "technical-writing"
+        ]
+      },
+      "rationale": "Negative control: a code task that names a style guide has no docs noun and must not route to technical-writing."
+    },
+    {
+      "id": "lt-technical-writing-docs-route-negative",
+      "family": "negative-noise",
+      "request": "Write the page handler for the docs route.",
+      "expect": {
+        "kind": "none",
+        "route": null,
+        "routes_absent": [
+          "technical-writing"
+        ]
+      },
+      "rationale": "Negative control: writing a web handler for a docs route is code work, not a documentation page."
+    },
+    {
+      "id": "lt-technical-writing-docstring-negative",
+      "family": "negative-noise",
+      "request": "Edit documentation strings in parser.py.",
+      "expect": {
+        "kind": "none",
+        "route": null,
+        "routes_absent": [
+          "technical-writing"
+        ]
+      },
+      "rationale": "Negative control: editing docstrings is code work and must not route to technical-writing."
+    },
+    {
       "id": "lt-skillify-this",
       "family": "long-tail-single-domain",
       "request": "skillify this",

@@ -26,13 +26,11 @@
         "suppress"
       ],
       "forbidden_response_patterns": [
-        "<Aside\\b[^>]*>",
-        "<TabItem\\b",
         "\\bimport\\b[^\\n]*@astrojs/starlight",
-        "\\bTabs syncKey="
+        "\\bimport\\b[^\\n]*@components/"
       ],
       "expected_gate": "technical-writing-site-recon",
-      "rationale": "The skill recons the target first and loads a site profile only on a match. Astro or AppHost advice on a plain Markdown repo is the failure this scenario catches."
+      "rationale": "The skill recons the target first and loads a site profile only on a match. A response that imports Astro or Starlight components for a plain Markdown repo is the failure this scenario catches; naming a component in order to reject it is not."
     },
     {
       "id": "S3",

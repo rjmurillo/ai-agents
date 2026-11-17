@@ -29,8 +29,9 @@
 
 - Cut sentences that say what the page is about to do.
 - Split long sentences. Replace jargon or define it on first use.
-- Check the page against [prose patterns](prose-patterns.md) and
-  [common documentation issues](common-documentation-issues.md).
+- Check the page against [prose patterns](prose-patterns.md),
+  [common documentation issues](common-documentation-issues.md), and
+  [cross-referencing](cross-referencing.md).
 
 ## 5. Test and polish
 

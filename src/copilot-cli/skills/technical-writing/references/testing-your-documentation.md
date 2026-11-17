@@ -5,8 +5,10 @@ not only that the Markdown renders.
 
 ## Before you submit
 
-1. **Build or preview the page** with the site's own tool (for example
-   `mkdocs serve`, `docfx`, `astro dev`, or the repository's docs script). For a
+1. **Build or preview the page** with the site's own tool. Prefer a one-shot
+   build (`mkdocs build`, `docfx build`, `astro build`, or the repository's docs
+   script). A preview server such as `mkdocs serve` or `astro dev` never exits:
+   start it as a background process and stop it when testing ends. For a
    repository with plain Markdown, render it the way the host shows it.
 2. **Check every edited link.** Run the site's link checker when it has one.
    Otherwise open each internal target and confirm it exists.
