@@ -132,7 +132,8 @@ name. Declare the file with one HTML comment:
   and no earlier line contains three backticks or tildes. A marker below any
   code fence is ignored. The first valid marker wins.
 - It silences `unresolved_symbol` for that file only. Other checks still run.
-- A marker with no name suppresses nothing and yields a high
+- A marker with no real name (no letter or digit, a leading `-`, or the
+  literal `<name>`) suppresses nothing and yields a high
   `invalid_external_sdk_marker` finding at its line.
 - `claims.json` records `sdk`, `reason`, and `line`. Phase 3 counts suppressed
   symbols, and `summary` and `markdown` print one exemption line per file.

@@ -193,6 +193,11 @@ def test_resolving_example_in_marked_file_passes(
         ("", ("", "")),
         (" -- reason", ("", "reason")),
         ("   ", ("", "")),
+        (" --vendored from x ", ("", "")),
+        (" <name> -- <reason> ", ("", "<reason>")),
+        (" - -- r ", ("", "r")),
+        (" \u200b -- r ", ("", "r")),
+        (" .NET -- r ", (".NET", "r")),
     ],
 )
 def test_parse_sdk_marker_body(body: str, expected: tuple[str, str]) -> None:
@@ -369,3 +374,34 @@ def test_summary_and_markdown_formats_show_the_exemption(
     assert "unresolved_symbol suppressed" in summary
     assert "## External SDK exemptions" in report
     assert expected in report
+
+
+@pytest.mark.parametrize(
+    "marker",
+    [
+        pytest.param("<!-- doc-accuracy: external-sdk --vendored from x -->", id="dash-typo"),
+        pytest.param("<!-- doc-accuracy: external-sdk <name> -- <reason> -->", id="placeholder"),
+        pytest.param("<!-- doc-accuracy: external-sdk \u200b -- r -->", id="zero-width-name"),
+    ],
+)
+def test_marker_without_a_real_sdk_name_is_reported_and_suppresses_nothing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], marker: str
+) -> None:
+    code, findings = _scan(tmp_path, capsys, f"# T\n{marker}\n\n{FOREIGN_FENCE}")
+
+    assert code == 10
+    assert len(_by_category(findings, "invalid_external_sdk_marker")) == 1
+    assert _by_category(findings, "unresolved_symbol")
+
+
+def test_exemption_line_says_not_checked_when_phase_three_did_not_run() -> None:
+    claims = {"external_sdk_files": {"doc.md": {"sdk": "Aspire", "reason": "r", "line": 2}}}
+
+    without_phase_three = mod._exemption_lines(claims, None)
+    with_phase_three = mod._exemption_lines(claims, {"external_sdk_suppressed": {}})
+
+    assert without_phase_three == [
+        "External SDK exemption: doc.md (SDK Aspire, marker line 2), reason: r; "
+        "unresolved_symbol not checked (phase 3 did not run)"
+    ]
+    assert with_phase_three[0].endswith("; 0 unresolved_symbol suppressed")

@@ -1322,8 +1322,9 @@ def _extract_identifiers(code: str, lang: str = "") -> list[str]:
 # File-level opt-out for Markdown that documents another product's SDK:
 #   <!-- doc-accuracy: external-sdk <name> -- <reason> -->
 # A well-formed marker silences ``unresolved_symbol`` for the whole file.
-# A marker with no SDK name is reported (INVALID_SDK_MARKER_CLAIM) so a typo
-# cannot hide real errors.
+# A marker whose SDK name is missing or not a real name (no letter or digit,
+# starts with "-", or is the "<name>" placeholder) is reported as
+# INVALID_SDK_MARKER_CLAIM and suppresses nothing.
 #
 # Fail closed, with no fence state. A marker is honored only when (a) its line
 # starts with ``<!--`` at column 0, and (b) no EARLIER line contains a run of
@@ -1349,9 +1350,20 @@ def _parse_sdk_marker_body(body: str) -> tuple[str, str]:
     """
     tokens = body.split()
     if "--" not in tokens:
-        return " ".join(tokens), ""
-    split_at = tokens.index("--")
-    return " ".join(tokens[:split_at]), " ".join(tokens[split_at + 1 :])
+        name, reason = " ".join(tokens), ""
+    else:
+        split_at = tokens.index("--")
+        name, reason = " ".join(tokens[:split_at]), " ".join(tokens[split_at + 1 :])
+    return (name if _is_valid_sdk_name(name) else ""), reason
+
+
+def _is_valid_sdk_name(name: str) -> bool:
+    """True when ``name`` names an SDK, not a typo or the template placeholder."""
+    return (
+        any(ch.isalnum() for ch in name)
+        and not name.startswith("-")
+        and not (name.startswith("<") and name.endswith(">"))
+    )
 
 
 def _find_external_sdk_markers(lines: list[str]) -> list[tuple[int, str, str]]:
@@ -1362,7 +1374,7 @@ def _find_external_sdk_markers(lines: list[str]) -> list[tuple[int, str, str]]:
     Scanning stops at the first line holding such a run. A marker after that
     line is ignored, whether well formed or nameless, because it may be example
     text inside a fence. ``sdk name`` is "" for a nameless marker, which the
-    caller reports. A marker split across lines is not recognized.
+    caller reports. A marker split across LF-terminated lines is not recognized.
     """
     markers: list[tuple[int, str, str]] = []
     for number, line in enumerate(lines, start=1):
@@ -1388,7 +1400,11 @@ def _exemption_lines(
             f"External SDK exemption: {path} (SDK {info.get('sdk', '')}, "
             f"marker line {info.get('line', '?')}), "
             f"reason: {info.get('reason') or 'none given'}; "
-            f"{suppressed.get(path, 0)} unresolved_symbol suppressed"
+            + (
+                f"{suppressed.get(path, 0)} unresolved_symbol suppressed"
+                if compilability_data is not None
+                else "unresolved_symbol not checked (phase 3 did not run)"
+            )
         )
     return lines
 
