@@ -219,6 +219,13 @@ def slug_collision(members: list[str]) -> str:
     return ""
 
 
+def members_error(members: list[str]) -> str:
+    """Error text for an empty council or colliding reply files, else ""."""
+    if not members:
+        return "the council is empty: --models named no model ids"
+    return slug_collision(members)
+
+
 def min_responses_error(value: int) -> str:
     """Error text when --min-responses is below 1, else "". Zero survivors cannot be ranked."""
     return "" if value >= 1 else f"--min-responses must be at least 1, got {value}"

@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 import time
 import types
 from pathlib import Path
@@ -339,3 +340,36 @@ def test_record_stores_repo_relative_paths(tmp_path, critic_file, capsys):
     mod.main(_argv("record", tmp_path, critic_file, "--reply", str(reply), repo=repo))
 
     assert _logs(tmp_path)[0]["findings"][0]["file"] == "pkg/mod.py"
+
+
+@pytest.mark.parametrize(
+    ("citation", "expected"),
+    [
+        ("C:\\work\\repo\\pkg\\mod.py:3", "pkg/mod.py"),
+        ("`c:/Work/Repo/pkg/mod.py:3`", "pkg/mod.py"),
+        ("[mod.py:3](/C:/work/repo/pkg/mod.py:3)", "pkg/mod.py"),
+        ("D:\\other\\mod.py:3", "D:\\other\\mod.py"),
+    ],
+)
+def test_record_maps_windows_citations_inside_the_checkout(
+    tmp_path, critic_file, capsys, monkeypatch, citation, expected
+):
+    git_mod = sys.modules["sol_git"]
+    real_git = git_mod._git
+
+    def windows_top(cwd, *args, **kwargs):
+        if args == ("rev-parse", "--show-toplevel"):
+            return "C:/work/repo"
+        return real_git(cwd, *args, **kwargs)
+
+    monkeypatch.setattr(git_mod, "_git", windows_top)
+    reply = tmp_path / "reply.md"
+    reply.write_text(
+        f"VERDICT: CHANGES\nS1 [should] {citation} bug. Repro: run it.\n", encoding="utf-8"
+    )
+
+    code = mod.main(_argv("record", tmp_path, critic_file, "--reply", str(reply)))
+
+    finding = _logs(tmp_path)[0]["findings"][0]
+    assert code == mod.EXIT_OK
+    assert (finding["file"], finding["line"]) == (expected, 3)

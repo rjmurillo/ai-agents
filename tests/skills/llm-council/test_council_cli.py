@@ -212,6 +212,20 @@ def test_colliding_member_slugs_exit_2_naming_both_ids(tmp_path, monkeypatch, ca
     assert not out.exists()
 
 
+@pytest.mark.parametrize("models", [",", " , ,", "   "])
+def test_models_naming_no_ids_exit_2_before_any_call(tmp_path, monkeypatch, capsys, models):
+    fake, calls = _fake()
+    monkeypatch.setattr(council, "call_model", fake)
+    out = tmp_path / "run.md"
+
+    code = council.main(["q", "--models", models, "--out", str(out), "--quiet"])
+
+    assert code == 2
+    assert "the council is empty" in capsys.readouterr().err
+    assert calls == []
+    assert not out.exists()
+
+
 def test_distinct_member_slugs_are_accepted(tmp_path, monkeypatch):
     fake, _ = _fake()
     monkeypatch.setattr(council, "call_model", fake)

@@ -308,6 +308,17 @@ def test_init_rejects_members_whose_reply_files_collide(tmp_path, question, caps
     assert not run_dir.exists()
 
 
+@pytest.mark.parametrize("models", [",", " , ,"])
+def test_init_rejects_models_that_name_no_ids(tmp_path, question, capsys, models):
+    run_dir = tmp_path / "run"
+
+    code = steps.main([*_init_args(run_dir, question), "--models", models])
+
+    assert code == 2
+    assert "the council is empty" in capsys.readouterr().err
+    assert not run_dir.exists()
+
+
 def test_init_accepts_members_with_distinct_reply_files(tmp_path, question, capsys):
     code, init = _init(
         capsys, tmp_path / "run", question, "--models", "openai/gpt-4.1,openai/gpt-4.2"

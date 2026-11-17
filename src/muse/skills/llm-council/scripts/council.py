@@ -68,12 +68,12 @@ from council_core import (  # noqa: E402
     borda,
     chairman_prompt,
     labels_for,
+    members_error,
     min_responses_error,
     parse_ranking,
     ranker_prompt,
     render_artifact,
     resolve_members,
-    slug_collision,
     stage1_prompt,
 )
 
@@ -230,7 +230,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     config_error = min_responses_error(args.min_responses)
     council, chairman = resolve_members(args.mode, args.models, args.cheap, args.chairman)
-    config_error = config_error or slug_collision(council)
+    config_error = config_error or members_error(council)
     if config_error:
         print(f"council: {config_error}", file=sys.stderr)
         return 2

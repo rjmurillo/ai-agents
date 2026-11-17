@@ -40,12 +40,12 @@ from council_core import (  # noqa: E402
     chairman_prompt,
     labels_for,
     member_slug,
+    members_error,
     min_responses_error,
     parse_ranking,
     ranker_prompt,
     render_artifact,
     resolve_members,
-    slug_collision,
     stage1_prompt,
 )
 
@@ -90,7 +90,7 @@ def _emit(payload: dict) -> int:
 def cmd_init(args: argparse.Namespace) -> int:
     """Resolve members, record unavailable ones, and write the Stage 1 prompt."""
     council, chairman = resolve_members(args.mode, args.models, args.cheap, args.chairman)
-    config_error = min_responses_error(args.min_responses) or slug_collision(council)
+    config_error = min_responses_error(args.min_responses) or members_error(council)
     if config_error:
         raise StepError(config_error)
     bad = [item for item in args.unavailable if "=" not in item]

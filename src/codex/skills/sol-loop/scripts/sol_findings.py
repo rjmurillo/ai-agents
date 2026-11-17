@@ -26,7 +26,8 @@ _VERDICT = re.compile(r"^\s*\**\s*VERDICT\s*:\s*\**\s*(APPROVE|CHANGES)\b", re.I
 # then dropped with a reason instead of vanishing. A list marker ("-", "*", or
 # "1.") may lead the line.
 _FINDING = re.compile(r"^\s*(?:[-*]|\d+[.)])?\s*\**(S\d+)\**\s*\[([^\]\n]+)\]\s*(.*)$")
-_LEADING_LOCATION = re.compile(r"^`?([^\s`:\[\]()]+)(?::|#L)(\d+)`?\s*(.*)$")
+# An optional drive letter keeps a Windows path such as C:\repo\a.py:12 whole.
+_LEADING_LOCATION = re.compile(r"^`?((?:[A-Za-z]:[\\/])?[^\s`:\[\]()]+)(?::|#L)(\d+)`?\s*(.*)$")
 # Sol often cites a location as a markdown link: [file.py:12](/abs/path/file.py:12).
 # The link target carries the full path, so it wins over the label.
 _LINK_LOCATION = re.compile(r"^\[([^\]\n]+)\]\(<?([^)>\s]+)>?\)\s*(.*)$")

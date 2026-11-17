@@ -15,7 +15,10 @@ from __future__ import annotations
 import re
 import subprocess
 from collections.abc import Iterator
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
+
+# A Windows absolute path, optionally behind a URL-style slash: C:\x, C:/x, /C:/x.
+_WINDOWS_ABSOLUTE = re.compile(r"^/?([A-Za-z]:[\\/].*)$")
 
 
 def _git(cwd: Path, *args: str, strip: bool = True) -> str:
@@ -149,16 +152,26 @@ def resolve_commit(repo: Path, ref: str) -> str:
     return _git(repo, "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}")
 
 
+def _relative_to_top(value: str, top: str) -> str:
+    """Return ``value`` relative to ``top`` in POSIX form, or "" when it is outside.
+
+    A drive-letter path is compared as a Windows path on any host, so a
+    Windows checkout's ``C:/repo`` top and a ``C:\\repo\\a.py`` citation match.
+    """
+    windows = _WINDOWS_ABSOLUTE.match(value)
+    try:
+        if windows:
+            return PureWindowsPath(windows.group(1)).relative_to(PureWindowsPath(top)).as_posix()
+        if value.startswith("/"):
+            return Path(value).resolve().relative_to(Path(top).resolve()).as_posix()
+    except ValueError:
+        return ""
+    return ""
+
+
 def _repo_relative(repo: Path, finding: dict) -> dict:
     """Rewrite an absolute file path inside the checkout as a repo-relative one."""
     value = str(finding.get("file") or "")
     top = _git(repo, "rev-parse", "--show-toplevel")
-    if not value.startswith("/") or not top:
-        return finding
-    try:
-        return {
-            **finding,
-            "file": Path(value).resolve().relative_to(Path(top).resolve()).as_posix(),
-        }
-    except ValueError:
-        return finding
+    relative = _relative_to_top(value, top) if value and top else ""
+    return {**finding, "file": relative} if relative else finding
