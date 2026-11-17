@@ -8,6 +8,8 @@ and ``gate --route cli`` steps.
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -246,6 +248,32 @@ def _launch_fails(out):
 def _invalid_utf8_reply(out):
     out.write_bytes(b"VERDICT: \xff\xfe\n")
     return Proc(0)
+
+
+def test_run_sol_keeps_the_reply_when_temp_cleanup_fails(on_path, monkeypatch, tmp_path):
+    on_path("codex")
+
+    def answer(out):
+        out.write_text("VERDICT: APPROVE\n", encoding="utf-8")
+        return Proc(0)
+
+    def failing_rmtree(path, ignore_errors=False, onerror=None, *, onexc=None, **kwargs):
+        """Fail like shutil.rmtree: report through the handler tempfile passes."""
+        try:
+            raise OSError("directory busy")
+        except OSError as exc:
+            if ignore_errors:
+                return
+            if onexc is None:
+                raise
+            onexc(os.rmdir, path, exc)
+
+    _runner_run(monkeypatch, answer)
+    monkeypatch.setattr(shutil, "rmtree", failing_rmtree)
+
+    result = cli.run_sol("codex", SOL, "b", tmp_path)
+
+    assert (result.ok, result.text) == (True, "VERDICT: APPROVE\n")
 
 
 def test_run_sol_reports_a_launcher_that_cannot_start(on_path, monkeypatch, tmp_path):

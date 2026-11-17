@@ -150,7 +150,8 @@ def run_sol(
         return CliResult(
             ok=False, failure_class="unknown", detail=f"{runner or 'no runner'} is not on PATH"
         )
-    with tempfile.TemporaryDirectory() as tmp:
+    # A cleanup error after Sol answered must not discard the reply.
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         try:
             proc, text = _call(runner, model, brief, cwd, timeout, Path(tmp))
         except subprocess.TimeoutExpired:
