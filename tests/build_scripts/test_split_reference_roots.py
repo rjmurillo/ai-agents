@@ -9,14 +9,9 @@ shared fallback root (probes of 2026-11-16).
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from split_reference_helpers import (
+from tests.build_scripts.split_reference_helpers import (
     HOST_ROOTS,
     MARKER,
     ref,

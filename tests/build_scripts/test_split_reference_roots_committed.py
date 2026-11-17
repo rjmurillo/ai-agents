@@ -6,14 +6,9 @@ clause names must exist in this repository.
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from split_reference_helpers import (
+from tests.build_scripts.split_reference_helpers import (
     AGENT_SKILL,
     CURSOR_TREE,
     FALLBACK_TREES,
@@ -45,6 +40,44 @@ def test_platform_config_sets_reference_root_per_host(platform: str, expected: b
 
     assert stanza is not None
     assert (stanza.get(atc.KEEP_ROOT_KEY) is True) is expected
+
+
+# Hosts whose agent loader was probed replacing the bare Claude token in a
+# plugin agent body (2026-11-16). Every other tree-copy host keeps the nested
+# fallback, so a new host must be probed before it joins this set.
+PROBED_TOKEN_HOSTS = frozenset({"cursor"})
+
+
+def _tree_copy_hosts() -> dict[str, dict[str, object]]:
+    hosts = {}
+    for config in sorted((REPO_ROOT / "templates" / "platforms").glob("*.yaml")):
+        stanza = atc._read_stanza(config)
+        if stanza is not None:
+            hosts[config.stem] = stanza
+    return hosts
+
+
+def test_every_tree_copy_host_is_classified_by_probe() -> None:
+    hosts = _tree_copy_hosts()
+
+    assert {"cursor", "codex", "muse"} <= set(hosts)
+    keepers = {name for name, stanza in hosts.items() if stanza.get(atc.KEEP_ROOT_KEY) is True}
+    assert keepers == PROBED_TOKEN_HOSTS
+
+
+@pytest.mark.parametrize("platform", sorted(set(_tree_copy_hosts()) - PROBED_TOKEN_HOSTS))
+def test_unprobed_tree_copy_hosts_ship_no_bare_claude_root(platform: str) -> None:
+    stanza = _tree_copy_hosts()[platform]
+    tree = REPO_ROOT / str(stanza["outputDir"])
+    bare = [
+        path.name
+        for path in sorted(tree.iterdir())
+        if path.is_file()
+        for skill in SPLIT_REFERENCE_SKILLS
+        if ref(CLAUDE_ROOT, skill) in path.read_text(encoding="utf-8")
+    ]
+
+    assert bare == []
 
 
 @pytest.mark.parametrize("tree", ["claude", "copilot-cli", "cursor", "codex", "muse"])
