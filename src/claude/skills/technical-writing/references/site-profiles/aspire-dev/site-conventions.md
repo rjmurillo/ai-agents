@@ -1,5 +1,6 @@
 # aspire.dev Site Conventions
 
+<!-- doc-accuracy: external-sdk Aspire -- vendored from microsoft/aspire.dev; the C# examples document the Aspire SDK, not this repository -->
 <!-- # taste-lint: ignore file-size -- vendored aspire.dev doc-writer SKILL.md body, kept whole so it diffs cleanly against upstream. -->
 
 Load this profile only when the target repository is `microsoft/aspire.dev`: it

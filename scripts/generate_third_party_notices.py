@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size  FORKED_COMPONENTS is license data, one entry per vendored skill.
 """Generate THIRD-PARTY-NOTICES.TXT from shipped plugin components.
 
 Scans the plugin source paths defined in .claude-plugin/marketplace.json
@@ -129,6 +130,38 @@ FORKED_COMPONENTS: dict[str, dict[str, str]] = {
         "local_path": "src/claude/skills/pr-babysit",
         "license_text": (
             "MIT License\n\nCopyright (c) 2026 Theo Browne\n\n" + _MIT_PERMISSION_TEXT
+        ),
+        "license_blank_line_prefix": "",
+    },
+    "tstack sol-loop": {
+        "license": "MIT",
+        "url": "https://github.com/t3dotgg/tstack",
+        "author": "Theo Browne",
+        "local_path": "src/claude/skills/sol-loop",
+        "license_text": (
+            "MIT License\n\nCopyright (c) 2026 Theo Browne\n\n" + _MIT_PERMISSION_TEXT
+        ),
+        "license_blank_line_prefix": "",
+    },
+    "tstack council": {
+        "license": "MIT",
+        "url": "https://github.com/t3dotgg/tstack",
+        "author": "Theo Browne",
+        "local_path": "src/claude/skills/llm-council",
+        "license_text": (
+            "MIT License\n\nCopyright (c) 2026 Theo Browne\n\n" + _MIT_PERMISSION_TEXT
+        ),
+        "license_blank_line_prefix": "",
+    },
+    "ghcp-llm-council": {
+        "license": "MIT",
+        "url": "https://github.com/thevgavini/ghcp-llm-council",
+        "author": "Vivekananda Gavini and ghcp-llm-council contributors",
+        "local_path": "src/claude/skills/llm-council",
+        "license_text": (
+            "MIT License\n\n"
+            "Copyright (c) 2026 Vivekananda Gavini and ghcp-llm-council contributors\n\n"
+            + _MIT_PERMISSION_TEXT
         ),
         "license_blank_line_prefix": "",
     },

@@ -1,0 +1,32 @@
+{
+  "skill_path": ".claude/skills/llm-council/SKILL.md",
+  "skill_id": "llm-council",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "T3 Code session asks the council a design question",
+      "input": "You are in T3 Code. Ask the council whether we should build or buy a feature flag service. Answer in 5 short bullets describing what you do. Do not run anything.",
+      "expected_signals": [
+        "orchestrator_capabilities",
+        "delegate_task",
+        "council_steps.py",
+        "Borda",
+        "chairman"
+      ],
+      "expected_gate": "llm-council-t3-route",
+      "rationale": "The skill resolves members with orchestrator_capabilities, starts one delegate_task per member, and runs the Stage 2 Borda count and chairman through council_steps.py. A response naming those is attributable to the skill."
+    },
+    {
+      "id": "S2",
+      "desc": "A council member is missing from the harness",
+      "input": "orchestrator_capabilities has no GPT-6 Astra in this session. Should I use Gemini instead for the council? Answer in 3 short bullets. Do not run anything.",
+      "expected_signals": [
+        "report",
+        "do not substitute",
+        "--unavailable"
+      ],
+      "expected_gate": "llm-council-no-substitute",
+      "rationale": "A missing member is reported and recorded, never replaced. A response that refuses the substitute and records the member as unavailable is attributable to the skill."
+    }
+  ]
+}
