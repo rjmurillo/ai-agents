@@ -35,12 +35,12 @@ artifacts:
            benchmark-models, build,
            chaos-experiment, code-qualities-assessment, codeql-scan, destructive-change-safety,
            doc-accuracy, dx-review, execution-plans, fix-markdown-fences, git-advanced-workflows,
-           github, github-url-intercept, golden-principles, maintainer-review, merge-resolver,
+           github, github-url-intercept, golden-principles, llm-council, maintainer-review, merge-resolver,
            metrics, modernize, observability, orphan-ref-validator, pipeline-validator, plan,
            pr-autofix, pr-babysit, pr-comment-responder, pr-quality-all, pr-quality-analyst,
            pr-quality-architect,
            pr-quality-devops, pr-quality-qa, pr-quality-roadmap, pr-quality-security, pr-review,
-           push-pr, quality-grades, research, reviewer-findings, security-review, slo-designer,
+           push-pr, quality-grades, research, reviewer-findings, security-review, slo-designer, sol-loop,
            steering-matcher, style-enforcement, sync, takeover, taste-lints, test, threat-modeling,
            validate-pr-description, validation-authority, windows-image-updater]
       knowledge:
