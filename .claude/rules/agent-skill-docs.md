@@ -42,14 +42,15 @@ PR #7416 added `sol-loop` and `llm-council` with no page.
 
 ## Checking
 
-List agents and skills with no page, from the repository root:
+List agents and skills with no page, from the repository root. It reads the
+working tree, so it sees a new skill or page you have not committed yet:
 
 ```bash
 export LC_ALL=C
-comm -13 <(git ls-tree --name-only HEAD docs/skills/ | sed 's#.*/##;s#\.md$##' | sort) \
-  <({ git ls-tree -d --name-only HEAD src/claude/skills/; git ls-tree -d --name-only HEAD .claude/skills/; } | sed 's#.*/##' | sort -u)
-comm -13 <(git ls-tree --name-only HEAD docs/agents/ | sed 's#.*/##;s#\.md$##' | sort) \
-  <(git ls-tree --name-only HEAD templates/agents/ | grep '\.shared\.md$' | sed 's#.*/##;s#\.shared\.md$##' | sort)
+comm -13 <(ls docs/skills | sed 's/\.md$//' | sort) \
+  <(find src/claude/skills .claude/skills -mindepth 1 -maxdepth 1 \( -type d -o -type l \) -exec basename {} \; | sort -u)
+comm -13 <(ls docs/agents | sed 's/\.md$//' | sort) \
+  <(ls templates/agents | sed -n 's/\.shared\.md$//p' | sort)
 ```
 
 Empty output means every agent and skill has a page. It does not prove a page
