@@ -52,7 +52,10 @@ def _symlink_repo(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
 def _retarget(link: Path, target: str, when: float | None = None) -> None:
     """Replace the symlink with a new one; ``when`` pins the new link's own mtime."""
     link.unlink()
-    link.symlink_to(target)
+    try:
+        link.symlink_to(target)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks are not supported here")
     if when is not None:
         os.utime(link, (when, when), follow_symlinks=False)
 
@@ -161,7 +164,7 @@ def test_review_skips_without_calling_sol(
 
 def _first_run_log(tmp_path, critic_file) -> Path:
     assert _record(tmp_path, critic_file, _reply(tmp_path)) == mod.EXIT_OK
-    return next(_log_dir(tmp_path).glob("*.json"))
+    return Path(next(_log_dir(tmp_path).glob("*.json")))
 
 
 def _outcome_argv(path: Path) -> list[str]:
