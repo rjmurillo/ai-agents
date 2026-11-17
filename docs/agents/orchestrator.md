@@ -23,19 +23,19 @@ The `orchestrator` agent coordinates specialist agents end to end. It classifies
 In Claude Code, start your prompt with the agent name:
 
 ```text
-orchestrator: add a dry-run flag to scripts/github/close_pr.py end to end, from plan through tests
+orchestrator: add a dry-run flag to scripts/export_report.py end to end, from plan through tests
 ```
 
 In GitHub Copilot CLI:
 
 ```bash
-copilot --agent orchestrator --prompt "add a dry-run flag to scripts/github/close_pr.py end to end, from plan through tests"
+copilot --agent orchestrator --prompt "add a dry-run flag to scripts/export_report.py end to end, from plan through tests"
 ```
 
 In VS Code or Visual Studio Copilot Chat:
 
 ```text
-@orchestrator add a dry-run flag to scripts/github/close_pr.py end to end, from plan through tests
+@orchestrator add a dry-run flag to scripts/export_report.py end to end, from plan through tests
 ```
 
 ## What you get
@@ -91,7 +91,7 @@ Budget limits: at most 15 delegations per task (a warning at 10) and at most 4 c
 
 The agent verifies artifacts, not reports. A "done" with no matching diff or file counts as unverified. It stops after acceptance. It checks session state before it acts after a handoff, compaction, or interruption, and holds when the live repository disagrees with the record. A hook denial is policy feedback, not consent.
 
-Tools: `Read`, `Grep`, `Glob`, `Bash`, `TodoWrite`, and `Task` for delegation, plus Serena memory. It has no unrestricted web access. For the full routing algorithm, see [Orchestrator routing algorithm](../orchestrator-routing-algorithm.md).
+In Claude Code, the agent sets no `tools` list, so it inherits every tool the session has. For the full routing algorithm, see [Orchestrator routing algorithm](../orchestrator-routing-algorithm.md).
 
 A multi-step prompt:
 

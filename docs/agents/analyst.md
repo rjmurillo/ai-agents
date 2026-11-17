@@ -24,19 +24,19 @@ The `analyst` agent investigates before you implement. It surfaces root causes, 
 In Claude Code, start your prompt with the agent name:
 
 ```text
-analyst: find why the required-checks gate in scripts/pr_merge_ready.py reports pending for a missing ruleset check
+analyst: find why the discount check in src/billing/checkout.py returns the wrong total for an expired coupon
 ```
 
 In GitHub Copilot CLI:
 
 ```bash
-copilot --agent analyst --prompt "find why the required-checks gate in scripts/pr_merge_ready.py reports pending for a missing ruleset check"
+copilot --agent analyst --prompt "find why the discount check in src/billing/checkout.py returns the wrong total for an expired coupon"
 ```
 
 In VS Code or Visual Studio Copilot Chat:
 
 ```text
-@analyst find why the required-checks gate in scripts/pr_merge_ready.py reports pending for a missing ruleset check
+@analyst find why the discount check in src/billing/checkout.py returns the wrong total for an expired coupon
 ```
 
 ## What you get

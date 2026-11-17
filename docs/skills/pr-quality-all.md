@@ -77,7 +77,7 @@ Merge rules (canonical source: `merge_verdicts` in `.claude/lib/ai_review_common
 
 Each axis also emits schema-bound JSON. A tool that consumes results should parse that JSON, not the table.
 
-The skill is kept as a standalone surface by a recorded decision. [`pr-comment-responder`](pr-comment-responder.md) routes local quality gates here before a push. `review` stays the pre-merge gate and writes the marker that [`ship`](ship.md) validates.
+The skill is kept as a standalone surface by a decision recorded on 2026-09-29 in its `SKILL.md`. [`pr-comment-responder`](pr-comment-responder.md) routes local quality gates here before a push. `review` stays the pre-merge gate and writes the marker that [`ship`](ship.md) validates.
 
 To add a seventh axis, add its `pr-quality-<name>` skill, then add one row to the table and one line to step 3. The merge table does not change, because it works on tokens.
 

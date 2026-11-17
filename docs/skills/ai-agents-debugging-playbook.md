@@ -18,8 +18,7 @@ Maps a recurring failure in this repository to a first command, a discriminating
 
 ## Quick start
 
-This skill has no short slash command, so the agent usually loads it for you. In a Claude Code session inside this repository you can still type `/ai-agents-debugging-playbook`. The agent loads it when your request
-matches. To ask for it by name, say:
+The agent usually loads this skill for you when your request matches. In a Claude Code session inside this repository, you can also type `/ai-agents-debugging-playbook`. To ask for it by name, say:
 
 ```text
 Use the ai-agents-debugging-playbook skill to triage why my push to this branch was rejected by a guard.

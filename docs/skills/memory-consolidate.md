@@ -71,7 +71,7 @@ uv run python .claude/skills/memory-consolidate/scripts/memory_git_targets.py ch
 | `restore` | Restore every manifest target from the starting commit. Overwrites edits. Takes `--dry-run`. |
 | `cleanup` | Remove the manifest. Takes `--dry-run`. |
 
-Exit codes: 0 ok, 1 invalid manifest, 2 usage error or not in a git repository, 3 a git command failed.
+Exit codes: 0 ok, 1 invalid manifest, 2 usage error, not in a git repository, or no manifest yet (outside a consolidation run), 3 a git command failed.
 
 ## Where it runs
 

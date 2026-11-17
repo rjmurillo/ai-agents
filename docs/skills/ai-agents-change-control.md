@@ -18,8 +18,7 @@ Classifies a change in this repository, lists the gates that class triggers, and
 
 ## Quick start
 
-This skill has no short slash command, so the agent usually loads it for you. In a Claude Code session inside this repository you can still type `/ai-agents-change-control`. The agent loads it when your request
-matches. To ask for it by name, say:
+The agent usually loads this skill for you when your request matches. In a Claude Code session inside this repository, you can also type `/ai-agents-change-control`. To ask for it by name, say:
 
 ```text
 Use the ai-agents-change-control skill to classify my staged changes and list the gates they trigger.

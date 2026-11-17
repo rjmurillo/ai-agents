@@ -18,8 +18,7 @@ Runs a cross-harness hook change for Claude Code and GitHub Copilot CLI. It uses
 
 ## Quick start
 
-This skill has no short slash command, so the agent usually loads it for you. In a Claude Code session inside this repository you can still type `/ai-agents-portability-campaign`. The agent loads it when your request
-matches. To ask for it by name, say:
+The agent usually loads this skill for you when your request matches. In a Claude Code session inside this repository, you can also type `/ai-agents-portability-campaign`. To ask for it by name, say:
 
 ```text
 Use the ai-agents-portability-campaign skill to port the new PreToolUse hook to Copilot CLI and verify the shipped artifacts.

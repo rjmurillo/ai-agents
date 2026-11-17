@@ -4,6 +4,8 @@ An agent is a specialist with one job, such as research, design review, or testi
 
 Each page below covers one agent: when to use it, a prompt you can copy, what you get back, and how advanced users chain it with other agents.
 
+The prompts on these pages use sample PR numbers and file paths. Replace them with your own.
+
 New here? Read [Agents and skills](../agents-and-skills.md) for how the two fit together, then [Call agents and skills](../call-agents-and-skills.md) for the exact syntax on your host.
 
 ## Pick an agent by task

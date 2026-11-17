@@ -45,8 +45,10 @@ uv run python .claude/skills/memory/scripts/count_memory_tokens.py .serena/memor
 uv run python .claude/skills/memory/scripts/test_memory_size.py .serena/memories --pattern "*.md"
 uv run python .claude/skills/memory/scripts/measure_memory_performance.py --format console --iterations 5 --warmup 2
 uv run python .claude/skills/memory/scripts/improve_memory_graph_density.py --dry-run
-uv run python .claude/skills/memory/scripts/invoke_memory_cross_reference.py --output-json
 ```
+
+> [!WARNING]
+> `invoke_memory_cross_reference.py` rewrites memory files and has no dry-run mode. It also exits `0` when it changes files. Run it only after a density dry run, then review its edits with `git diff --stat .serena/memories`.
 
 | Script | Flags from `--help` |
 | --- | --- |

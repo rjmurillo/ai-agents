@@ -19,19 +19,19 @@ The `issue-feature-review` agent reviews a GitHub feature request with construct
 In Claude Code, start your prompt with the agent name:
 
 ```text
-issue-feature-review: review this request. Title: "Add dry-run flag to close_pr.py". Body: users want to preview what the script would close.
+issue-feature-review: review this request. Title: "Add dry-run flag to export_report.py". Body: users want to preview what the script would export.
 ```
 
 In GitHub Copilot CLI:
 
 ```bash
-copilot --agent issue-feature-review --prompt "review this request. Title: 'Add dry-run flag to close_pr.py'. Body: users want to preview what the script would close."
+copilot --agent issue-feature-review --prompt "review this request. Title: 'Add dry-run flag to export_report.py'. Body: users want to preview what the script would export."
 ```
 
 In VS Code or Visual Studio Copilot Chat:
 
 ```text
-@issue-feature-review review this request. Title: "Add dry-run flag to close_pr.py". Body: users want to preview what the script would close.
+@issue-feature-review review this request. Title: "Add dry-run flag to export_report.py". Body: users want to preview what the script would export.
 ```
 
 ## What you get

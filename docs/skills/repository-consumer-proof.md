@@ -19,8 +19,7 @@ Verifies that hooks, installed dispatch, and agent behavior work for a consumer 
 
 ## Quick start
 
-This skill has no short slash command, so the agent usually loads it for you. In a Claude Code session inside this repository you can still type `/repository-consumer-proof`. The agent loads it when your request
-matches. To ask for it by name, say:
+The agent usually loads this skill for you when your request matches. In a Claude Code session inside this repository, you can also type `/repository-consumer-proof`. To ask for it by name, say:
 
 ```text
 Use the repository-consumer-proof skill to prove the installed completion hook runs from a foreign working directory.

@@ -19,8 +19,7 @@ Defines what counts as evidence for a change in this repository and how to produ
 
 ## Quick start
 
-This skill has no short slash command, so the agent usually loads it for you. In a Claude Code session inside this repository you can still type `/ai-agents-validation-and-qa`. The agent loads it when your request
-matches. To ask for it by name, say:
+The agent usually loads this skill for you when your request matches. In a Claude Code session inside this repository, you can also type `/ai-agents-validation-and-qa`. To ask for it by name, say:
 
 ```text
 Use the ai-agents-validation-and-qa skill to tell me which tests and coverage proof I need for my change to a validation script.

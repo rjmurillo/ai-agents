@@ -23,19 +23,19 @@ The `comment-analyzer` agent checks code comments against the code they describe
 In Claude Code, start your prompt with the agent name:
 
 ```text
-comment-analyzer: check the docstrings changed in src/claude/lib/github_core/pr_state.py against the code
+comment-analyzer: check the docstrings changed in src/billing/invoice.py against the code
 ```
 
 In GitHub Copilot CLI:
 
 ```bash
-copilot --agent comment-analyzer --prompt "check the docstrings changed in src/claude/lib/github_core/pr_state.py against the code"
+copilot --agent comment-analyzer --prompt "check the docstrings changed in src/billing/invoice.py against the code"
 ```
 
 In VS Code or Visual Studio Copilot Chat:
 
 ```text
-@comment-analyzer check the docstrings changed in src/claude/lib/github_core/pr_state.py against the code
+@comment-analyzer check the docstrings changed in src/billing/invoice.py against the code
 ```
 
 ## What you get

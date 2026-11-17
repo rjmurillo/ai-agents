@@ -24,19 +24,19 @@ The `implementer` agent writes production-quality code from an approved plan. It
 In Claude Code, start your prompt with the agent name:
 
 ```text
-implementer: implement the dry-run flag for scripts/github/close_pr.py per .project-toolkit/planning/TASKS-dry-run.md
+implementer: implement the dry-run flag for scripts/export_report.py per .project-toolkit/planning/TASKS-dry-run.md
 ```
 
 In GitHub Copilot CLI:
 
 ```bash
-copilot --agent implementer --prompt "implement the dry-run flag for scripts/github/close_pr.py per .project-toolkit/planning/TASKS-dry-run.md"
+copilot --agent implementer --prompt "implement the dry-run flag for scripts/export_report.py per .project-toolkit/planning/TASKS-dry-run.md"
 ```
 
 In VS Code or Visual Studio Copilot Chat:
 
 ```text
-@implementer implement the dry-run flag for scripts/github/close_pr.py per .project-toolkit/planning/TASKS-dry-run.md
+@implementer implement the dry-run flag for scripts/export_report.py per .project-toolkit/planning/TASKS-dry-run.md
 ```
 
 ## What you get

@@ -50,7 +50,7 @@ The skill never applies the `description-validation-bypass` label. A human maint
 
 **Windows.** The allocator refuses to run on Windows with `ERROR: secure PR body files are not supported on Windows`. In that case only, pass the body inline with `--body '<text>'` instead of `--body-file`. Use single quotes in bash and a single-quoted here-string in PowerShell, never double quotes. Do not add `--skip-validation`. The source file lists the full fallback steps.
 
-**Security scope.** The skill's `allowed-tools` grant is scoped to specific `git` subcommands and to `new_pr.py` run in isolated mode (`-I`). Do not widen it to bare `Bash`.
+**Security scope.** The skill's `allowed-tools` grant is scoped: specific `git` subcommands, `new_pr.py` and `pr_description.py` run in isolated mode (`-I`), `mkdir -p .project-toolkit/scratch`, and edits to `.project-toolkit/scratch/pr-body-*.md`. The [`SKILL.md`](../../src/claude/skills/push-pr/SKILL.md) frontmatter is the full list. Do not widen it to bare `Bash`.
 
 ## Where it runs
 

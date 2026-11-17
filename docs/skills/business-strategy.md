@@ -74,6 +74,7 @@ The skill bundles no scripts.
 
 ## Related
 
+- [Optional skill packs](../installation.md#optional-skill-packs): this skill is the `business` pack for a non-marketplace install.
 - [`decision-critic`](decision-critic.md): challenges one named decision.
 - [`autoplan`](autoplan.md): routes founder business-strategy problems here.
 - Source: [`SKILL.md`](../../src/claude/skills/business-strategy/SKILL.md)

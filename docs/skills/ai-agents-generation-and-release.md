@@ -19,8 +19,7 @@ Runs the generation and release machinery of this repository: the generators in 
 
 ## Quick start
 
-This skill has no short slash command, so the agent usually loads it for you. In a Claude Code session inside this repository you can still type `/ai-agents-generation-and-release`. The agent loads it when your request
-matches. To ask for it by name, say:
+The agent usually loads this skill for you when your request matches. In a Claude Code session inside this repository, you can also type `/ai-agents-generation-and-release`. To ask for it by name, say:
 
 ```text
 Use the ai-agents-generation-and-release skill to regenerate the mirrors after my edit to a canonical agent template and run the drift checks.

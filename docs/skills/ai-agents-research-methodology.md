@@ -18,8 +18,7 @@ Describes how a hunch becomes an accepted result in this repository: the evidenc
 
 ## Quick start
 
-This skill has no short slash command, so the agent usually loads it for you. In a Claude Code session inside this repository you can still type `/ai-agents-research-methodology`. The agent loads it when your request
-matches. To ask for it by name, say:
+The agent usually loads this skill for you when your request matches. In a Claude Code session inside this repository, you can also type `/ai-agents-research-methodology`. To ask for it by name, say:
 
 ```text
 Use the ai-agents-research-methodology skill to take my idea about a new push guard through the idea lifecycle.

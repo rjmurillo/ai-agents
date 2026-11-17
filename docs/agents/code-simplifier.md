@@ -19,19 +19,19 @@ The `code-simplifier` agent simplifies recently modified code for clarity, consi
 In Claude Code, start your prompt with the agent name:
 
 ```text
-code-simplifier: simplify the functions I changed in src/claude/lib/github_core/pr_state.py
+code-simplifier: simplify the functions I changed in src/billing/invoice.py
 ```
 
 In GitHub Copilot CLI:
 
 ```bash
-copilot --agent code-simplifier --prompt "simplify the functions I changed in src/claude/lib/github_core/pr_state.py"
+copilot --agent code-simplifier --prompt "simplify the functions I changed in src/billing/invoice.py"
 ```
 
 In VS Code or Visual Studio Copilot Chat:
 
 ```text
-@code-simplifier simplify the functions I changed in src/claude/lib/github_core/pr_state.py
+@code-simplifier simplify the functions I changed in src/billing/invoice.py
 ```
 
 ## What you get

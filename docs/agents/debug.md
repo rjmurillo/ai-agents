@@ -20,19 +20,19 @@ The `debug` agent finds and fixes a bug through four phases: assessment, investi
 In Claude Code, start your prompt with the agent name:
 
 ```text
-debug: tests/test_pr_merge_ready.py fails with a KeyError on the ruleset field, find the root cause and fix it
+debug: tests/test_checkout.py fails with a KeyError on the coupon field, find the root cause and fix it
 ```
 
 In GitHub Copilot CLI:
 
 ```bash
-copilot --agent debug --prompt "tests/test_pr_merge_ready.py fails with a KeyError on the ruleset field, find the root cause and fix it"
+copilot --agent debug --prompt "tests/test_checkout.py fails with a KeyError on the coupon field, find the root cause and fix it"
 ```
 
 In VS Code or Visual Studio Copilot Chat:
 
 ```text
-@debug tests/test_pr_merge_ready.py fails with a KeyError on the ruleset field, find the root cause and fix it
+@debug tests/test_checkout.py fails with a KeyError on the coupon field, find the root cause and fix it
 ```
 
 ## What you get
@@ -60,7 +60,7 @@ The agent stays on the specific bug. It hands off as follows:
 A multi-step prompt:
 
 ```text
-debug: reproduce the flaky failure in tests/test_close_pr.py, list ranked hypotheses, fix the most likely one with the smallest change, then run the full test file and report the root cause.
+debug: reproduce the flaky failure in tests/test_export.py, list ranked hypotheses, fix the most likely one with the smallest change, then run the full test file and report the root cause.
 ```
 
 ## Where it runs

@@ -19,19 +19,19 @@ The `type-design-analyzer` agent reviews the design of types. It rates encapsula
 In Claude Code, start your prompt with the agent name:
 
 ```text
-type-design-analyzer: review the PullRequestState class in src/claude/lib/github_core/pr_state.py
+type-design-analyzer: review the Invoice class in src/billing/invoice.py
 ```
 
 In GitHub Copilot CLI:
 
 ```bash
-copilot --agent type-design-analyzer --prompt "review the PullRequestState class in src/claude/lib/github_core/pr_state.py"
+copilot --agent type-design-analyzer --prompt "review the Invoice class in src/billing/invoice.py"
 ```
 
 In VS Code or Visual Studio Copilot Chat:
 
 ```text
-@type-design-analyzer review the PullRequestState class in src/claude/lib/github_core/pr_state.py
+@type-design-analyzer review the Invoice class in src/billing/invoice.py
 ```
 
 ## What you get

@@ -18,8 +18,7 @@ Attributes why a pull request in this repository is blocked, why a required chec
 
 ## Quick start
 
-This skill has no short slash command, so the agent usually loads it for you. In a Claude Code session inside this repository you can still type `/repository-pr-recovery`. The agent loads it when your request
-matches. To ask for it by name, say:
+The agent usually loads this skill for you when your request matches. In a Claude Code session inside this repository, you can also type `/repository-pr-recovery`. To ask for it by name, say:
 
 ```text
 Use the repository-pr-recovery skill to find out why PR 1234 is blocked and whether its red check also fails on main.

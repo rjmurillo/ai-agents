@@ -19,8 +19,7 @@ Gives you the design decisions of this repository as a contract. You check it be
 
 ## Quick start
 
-This skill has no short slash command, so the agent usually loads it for you. In a Claude Code session inside this repository you can still type `/ai-agents-architecture-contract`. The agent loads it when your request
-matches. To ask for it by name, say:
+The agent usually loads this skill for you when your request matches. In a Claude Code session inside this repository, you can also type `/ai-agents-architecture-contract`. To ask for it by name, say:
 
 ```text
 Use the ai-agents-architecture-contract skill to tell me which tree is canonical for `.claude/agents/` before I edit it.

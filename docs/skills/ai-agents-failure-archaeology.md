@@ -18,8 +18,7 @@ Records this repository's settled battles. Each major incident maps to a symptom
 
 ## Quick start
 
-This skill has no short slash command, so the agent usually loads it for you. In a Claude Code session inside this repository you can still type `/ai-agents-failure-archaeology`. The agent loads it when your request
-matches. To ask for it by name, say:
+The agent usually loads this skill for you when your request matches. In a Claude Code session inside this repository, you can also type `/ai-agents-failure-archaeology`. To ask for it by name, say:
 
 ```text
 Use the ai-agents-failure-archaeology skill to check whether weakening the push guard has been tried before.

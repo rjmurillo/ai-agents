@@ -19,8 +19,7 @@ A library of six recipes for replacing assumption with measurement in this repos
 
 ## Quick start
 
-This skill has no short slash command, so the agent usually loads it for you. In a Claude Code session inside this repository you can still type `/ai-agents-empirical-probe-toolkit`. The agent loads it when your request
-matches. To ask for it by name, say:
+The agent usually loads this skill for you when your request matches. In a Claude Code session inside this repository, you can also type `/ai-agents-empirical-probe-toolkit`. To ask for it by name, say:
 
 ```text
 Use the ai-agents-empirical-probe-toolkit skill to calibrate the new push guard against the last five real PRs.

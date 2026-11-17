@@ -21,19 +21,19 @@ The `qa` agent verifies that an implementation works for real users, not only th
 In Claude Code, start your prompt with the agent name:
 
 ```text
-qa: verify the dry-run feature for close_pr.py against the acceptance criteria in issue 42
+qa: verify the dry-run feature for export_report.py against the acceptance criteria in issue 42
 ```
 
 In GitHub Copilot CLI:
 
 ```bash
-copilot --agent qa --prompt "verify the dry-run feature for close_pr.py against the acceptance criteria in issue 42"
+copilot --agent qa --prompt "verify the dry-run feature for export_report.py against the acceptance criteria in issue 42"
 ```
 
 In VS Code or Visual Studio Copilot Chat:
 
 ```text
-@qa verify the dry-run feature for close_pr.py against the acceptance criteria in issue 42
+@qa verify the dry-run feature for export_report.py against the acceptance criteria in issue 42
 ```
 
 ## What you get

@@ -8,13 +8,13 @@ This page shows the exact text to type to start an agent or a skill on each host
 - Know the name of the agent or skill you want. Browse [Agents](agents/README.md) or [Skills](skills/README.md).
 - Check whether the skill has a short slash command. The **Slash command** column in [Skills](skills/README.md) shows a command such as `/spec`, `match` for skills the agent loads on its own, or `by name` for skills you must start yourself.
 
-Examples on these pages use PR `123` and issue `42`. Replace them with your own numbers.
+Examples on these pages use PR `123`, issue `42`, and sample file paths. Replace them with your own numbers and paths.
 
 ## Call a skill
 
 ### Claude Code
 
-After a marketplace install, Claude Code puts each plugin skill under the plugin's name. Type the full form, then any argument:
+After a marketplace install, Claude Code puts each plugin skill under the plugin's name, as `/plugin-name:skill-name` ([Claude Code skills](https://code.claude.com/docs/en/skills)). Type the full form, then any argument:
 
 ```text
 /project-toolkit:spec Add rate limiting to the API
@@ -26,7 +26,7 @@ Inside a checkout of `rjmurillo/ai-agents`, the skills also load from the reposi
 /spec Add rate limiting to the API
 ```
 
-Claude Code accepts a slash command for every plugin skill, not only the ones with a short slash command. For example, `/project-toolkit:threat-modeling` starts the `threat-modeling` skill.
+Claude Code accepts a slash command for every plugin skill, not only the ones with a short slash command, because `user-invocable` defaults to `true` there ([Claude Code skills](https://code.claude.com/docs/en/skills)). For example, `/project-toolkit:threat-modeling` starts the `threat-modeling` skill.
 
 ### GitHub Copilot CLI
 
