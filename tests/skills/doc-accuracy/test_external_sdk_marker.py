@@ -128,14 +128,28 @@ def test_marker_inside_inline_code_does_not_suppress(
     assert _by_category(findings, "unresolved_symbol")
 
 
-def test_marker_after_a_closed_fence_still_counts(
+def test_marker_below_a_closed_fence_is_not_honored(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    """Accepted cost of the no-fence-state rule: the marker must precede every fence."""
     doc = f"# Aspire\n\n```text\nexample\n```\n\n{MARKER}\n\n{FOREIGN_FENCE}"
     code, findings = _scan(tmp_path, capsys, doc)
 
-    assert code == 0
-    assert findings == []
+    assert code == 10
+    assert _by_category(findings, "unresolved_symbol")
+    assert _by_category(findings, "invalid_external_sdk_marker") == []
+
+
+@pytest.mark.parametrize("run", ["```\nx\n```", "~~~\nx\n~~~", "````\nx\n````", "text ``` text"])
+def test_nameless_marker_after_a_fence_like_line_is_ignored(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], run: str
+) -> None:
+    doc = f"# Aspire\n\n{run}\n<!-- doc-accuracy: external-sdk -->\n\n{FOREIGN_FENCE}"
+    code, findings = _scan(tmp_path, capsys, doc)
+
+    assert code == 10
+    assert _by_category(findings, "invalid_external_sdk_marker") == []
+    assert _by_category(findings, "unresolved_symbol")
 
 
 def test_marker_scope_is_one_file(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -189,13 +203,12 @@ def test_find_markers_reports_every_honored_marker_with_line_and_reason() -> Non
     lines = [
         "# T",
         "<!-- doc-accuracy: external-sdk A -- r -->",
+        "<!-- doc-accuracy: external-sdk -->",
         "```",
         "<!-- doc-accuracy: external-sdk Hidden -- r -->",
-        "```",
-        "<!-- doc-accuracy: external-sdk -->",
     ]
 
-    assert mod._find_external_sdk_markers(lines) == [(2, "A", "r"), (6, "", "")]
+    assert mod._find_external_sdk_markers(lines) == [(2, "A", "r"), (3, "", "")]
 
 
 @pytest.mark.parametrize(
@@ -209,6 +222,26 @@ def test_find_markers_reports_every_honored_marker_with_line_and_reason() -> Non
         pytest.param(f"```text\n    ```\n{MARKER}\n```\n", id="indented-backticks-inside-fence"),
         pytest.param(f"```markdown\n- ```\n{MARKER}\n```\n", id="list-backticks-inside-fence"),
         pytest.param(f"    ```\n\n```text\n{MARKER}\n```\n", id="indented-code-then-real-fence"),
+        pytest.param(
+            f"- ```text\n  x\n  ```\n\n```\n{MARKER}\n```\n", id="listline-fence-then-real-fence"
+        ),
+        pytest.param(
+            f"- Step\n\n  ```text\n  x\n\npara\n\n```\n{MARKER}\n```\n",
+            id="unclosed-list-fence-then-real-fence",
+        ),
+        pytest.param(
+            f"<div>\n```\n```\n</div>\n\n```\n{MARKER}\n```\n", id="html-block-backticks-then-fence"
+        ),
+        pytest.param(
+            f"<!--\n```\n```\n-->\n\n```\n{MARKER}\n```\n", id="html-comment-backticks-then-fence"
+        ),
+        pytest.param(
+            f"> ```text\n> x\n\n  ```\n\n```\n{MARKER}\n```\n", id="blockquote-fence-then-fence"
+        ),
+        pytest.param(f"\t```\n\n```\n{MARKER}\n```\n", id="tab-fence-like-then-fence"),
+        pytest.param(f"``` a`b\n```\n```\n{MARKER}\n```\n", id="backtick-info-then-fence"),
+        pytest.param(f"- ```text\n  x\n  ```\n\n{MARKER}\n", id="list-fence-then-column0-marker"),
+        pytest.param(f"~~~\nx\n~~~\n\n{MARKER}\n", id="tilde-fence-then-marker"),
         pytest.param(f"    {MARKER}\n", id="indented-code-block"),
         pytest.param(f" {MARKER}\n", id="leading-space-marker"),
         pytest.param(f"\t{MARKER}\n", id="leading-tab-marker"),
