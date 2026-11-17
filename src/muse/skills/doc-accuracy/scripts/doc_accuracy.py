@@ -1323,49 +1323,92 @@ def _extract_identifiers(code: str, lang: str = "") -> list[str]:
 #   <!-- doc-accuracy: external-sdk <name> -- <reason> -->
 # A well-formed marker silences ``unresolved_symbol`` for the whole file.
 # A marker with no SDK name is reported (INVALID_SDK_MARKER_CLAIM) so a typo
-# cannot hide real errors.
+# cannot hide real errors. The rule fails closed: a marker counts only when
+# ``<!--`` starts at column 0 of a line outside every fenced code block, so a
+# marker with leading whitespace, a ``>`` prefix, or inside an indented code
+# block, a list-item fence, or a blockquote fence is never honored. That also
+# makes inline code spans irrelevant: nothing can precede the marker on its
+# line.
 _EXTERNAL_SDK_MARKER_RE = re.compile(r"<!--\s*doc-accuracy:\s*external-sdk\b(?P<body>.*?)-->")
 _SDK_NAME_REASON_SPLIT_RE = re.compile(r"\s+--(?:\s+|$)")
-_MD_FENCE_OPEN_RE = re.compile(r"^ {0,3}(?P<run>`{3,}|~{3,})(?P<info>.*)$")
-_INLINE_CODE_RE = re.compile(r"(?P<ticks>`+)(?:(?!(?P=ticks)).)+?(?P=ticks)")
-INVALID_SDK_MARKER_CLAIM = "external_sdk_marker_invalid"
+_FENCE_RUN_RE = re.compile(r"(?P<run>`{3,}|~{3,})(?P<info>.*)$")
+_LIST_MARKER_RE = re.compile(r"(?:[-+*]|\d{1,9}[.)])[ \t]+")
+INVALID_SDK_MARKER_CLAIM = "invalid_external_sdk_marker"
 
 
-def _parse_sdk_marker_body(body: str) -> str:
-    """Return the SDK name from a marker body, or "" when it has none."""
-    name = _SDK_NAME_REASON_SPLIT_RE.split(body.strip(), maxsplit=1)[0].strip()
-    return "" if name.startswith("--") else name
+def _parse_sdk_marker_body(body: str) -> tuple[str, str]:
+    """Return ``(sdk name, reason)`` from a marker body; name is "" when absent."""
+    parts = _SDK_NAME_REASON_SPLIT_RE.split(body.strip(), maxsplit=1)
+    name = parts[0].strip()
+    if name.startswith("--"):
+        return "", ""
+    return name, parts[1].strip() if len(parts) > 1 else ""
 
 
-def _find_external_sdk_markers(lines: list[str]) -> list[tuple[int, str]]:
-    """Find external-sdk markers in prose, as ``(1-based line, sdk name)`` pairs.
+def _strip_container_prefix(line: str) -> str:
+    """Drop leading whitespace, ``>`` quote prefixes, and list markers."""
+    rest = line.lstrip(" \t")
+    while True:
+        if rest.startswith(">"):
+            rest = rest[1:].lstrip(" \t")
+            continue
+        list_marker = _LIST_MARKER_RE.match(rest)
+        if list_marker is None:
+            return rest
+        rest = rest[list_marker.end() :]
 
-    A marker inside a fenced code block (backtick or tilde, closed by a run at
-    least as long as the opener) or an inline code span is documentation about
-    the marker, not a declaration, and is ignored. ``sdk name`` is "" for a
-    marker that names no SDK. Markers inside indented code blocks and markers
-    split across lines are not recognized.
+
+def _find_external_sdk_markers(lines: list[str]) -> list[tuple[int, str, str]]:
+    """Find honored markers as ``(1-based line, sdk name, reason)`` tuples.
+
+    Fence openers and closers are recognized after stripping any container
+    prefix (see :func:`_strip_container_prefix`), so a fence nested in a list
+    item or blockquote still hides the lines it contains. A fence closes on a
+    run of the same character at least as long as the opener. ``sdk name`` is
+    "" for a marker that names no SDK. A marker split across lines is not
+    recognized.
     """
-    markers: list[tuple[int, str]] = []
+    markers: list[tuple[int, str, str]] = []
     fence: str | None = None
     for number, line in enumerate(lines, start=1):
-        opener = _MD_FENCE_OPEN_RE.match(line)
+        fence_match = _FENCE_RUN_RE.match(_strip_container_prefix(line))
         if fence is not None:
-            closes = opener and not opener.group("info").strip()
             if (
-                closes
-                and opener.group("run")[0] == fence[0]
-                and len(opener.group("run")) >= len(fence)
+                fence_match
+                and not fence_match.group("info").strip()
+                and fence_match.group("run")[0] == fence[0]
+                and len(fence_match.group("run")) >= len(fence)
             ):
                 fence = None
             continue
-        if opener and not (opener.group("run")[0] == "`" and "`" in opener.group("info")):
-            fence = opener.group("run")
+        if fence_match and not (
+            fence_match.group("run")[0] == "`" and "`" in fence_match.group("info")
+        ):
+            fence = fence_match.group("run")
             continue
-        prose = _INLINE_CODE_RE.sub("", line)
-        for match in _EXTERNAL_SDK_MARKER_RE.finditer(prose):
-            markers.append((number, _parse_sdk_marker_body(match.group("body"))))
+        marker = _EXTERNAL_SDK_MARKER_RE.match(line)
+        if marker:
+            name, reason = _parse_sdk_marker_body(marker.group("body"))
+            markers.append((number, name, reason))
     return markers
+
+
+def _exemption_lines(
+    claims_data: dict[str, Any] | None, compilability_data: dict[str, Any] | None
+) -> list[str]:
+    """One human-readable line per file exempted by an external-sdk marker."""
+    exempt = (claims_data or {}).get("external_sdk_files", {})
+    suppressed = (compilability_data or {}).get("external_sdk_suppressed", {})
+    lines = []
+    for path, info in sorted(exempt.items()):
+        info = info if isinstance(info, dict) else {"sdk": str(info)}
+        lines.append(
+            f"External SDK exemption: {path} (SDK {info.get('sdk', '')}, "
+            f"marker line {info.get('line', '?')}), "
+            f"reason: {info.get('reason') or 'none given'}; "
+            f"{suppressed.get(path, 0)} unresolved_symbol suppressed"
+        )
+    return lines
 
 
 def _extract_quantitative_claims(line: str) -> list[str]:
@@ -1390,7 +1433,7 @@ def run_claim_extraction(
     """Phase 2: Extract verifiable claims from documentation files."""
     claims: list[Claim] = []
     claim_counter = 0
-    external_sdk_files: dict[str, str] = {}
+    external_sdk_files: dict[str, dict[str, Any]] = {}
 
     # Build symbol -> source file mapping
     symbol_to_source: dict[str, str] = {}
@@ -1409,9 +1452,11 @@ def run_claim_extraction(
         mapped_sources = doc_info.get("mapped_source_files", [])
         default_source = mapped_sources[0] if mapped_sources else ""
 
-        for marker_line, sdk_name in _find_external_sdk_markers(lines):
+        for marker_line, sdk_name, reason in _find_external_sdk_markers(lines):
             if sdk_name:
-                external_sdk_files.setdefault(doc_info["path"], sdk_name)
+                external_sdk_files.setdefault(
+                    doc_info["path"], {"sdk": sdk_name, "reason": reason, "line": marker_line}
+                )
                 continue
             claim_counter += 1
             claims.append(
@@ -1599,7 +1644,8 @@ def run_compilability_check(
     # Build a set of all known symbol names for quick lookup
     known_names = set(symbol_index.keys())
 
-    external_sdk_files: dict[str, str] = claims_data.get("external_sdk_files", {})
+    external_sdk_files: dict[str, Any] = claims_data.get("external_sdk_files", {})
+    external_sdk_suppressed: dict[str, int] = {}
 
     for claim_dict in claims_data.get("claims", []):
         if claim_dict["type"] == INVALID_SDK_MARKER_CLAIM:
@@ -1728,6 +1774,8 @@ def run_compilability_check(
                 # The file declares itself documentation for another SDK, so a
                 # symbol missing here is not a claim about this repository.
                 if claim_dict["file"] in external_sdk_files:
+                    path = claim_dict["file"]
+                    external_sdk_suppressed[path] = external_sdk_suppressed.get(path, 0) + 1
                     continue
 
                 finding_counter += 1
@@ -1762,6 +1810,7 @@ def run_compilability_check(
             claims_by_id,
             assessment.get("changed_lines"),
         ),
+        "external_sdk_suppressed": external_sdk_suppressed,
     }
 
 
@@ -1852,6 +1901,12 @@ def generate_markdown_report(
             lines.append(f"- {ct}: {count}")
         lines.append("")
 
+    if exemptions := _exemption_lines(claims_data, compilability_data):
+        lines.append("## External SDK exemptions")
+        lines.append("")
+        lines.extend(f"- {text}" for text in exemptions)
+        lines.append("")
+
     if compilability_data and compilability_data["findings"]:
         lines.append("## Findings")
         lines.append("")
@@ -1890,6 +1945,8 @@ def _print_summary(
         print(f"Claims: {len(claims_data['claims'])} total")
         for ct, count in sorted(by_type.items()):
             print(f"  {ct}: {count}")
+    for text in _exemption_lines(claims_data, compilability_data):
+        print(text)
     if compilability_data:
         print(f"Findings: {gate_result['total_findings']} total")
         for sev in ("critical", "high", "medium", "low", "info"):

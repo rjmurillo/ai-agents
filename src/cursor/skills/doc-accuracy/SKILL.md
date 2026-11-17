@@ -119,21 +119,28 @@ With `--diff-base`, only claims on changed lines block. See
 
 ### Documenting another product's SDK
 
-Phase 3 checks every symbol in a code example against this repository. A
-Markdown file that documents a foreign SDK (vendored docs) fails on every API
-name. Declare it with one HTML comment in the prose of that file:
+Phase 3 checks CamelCase symbols in code examples of supported languages
+against this repository. A Markdown file that documents a foreign SDK (vendored
+docs) fails on every API name. Declare it with one HTML comment:
 
 ```text
 <!-- doc-accuracy: external-sdk <name> -- <reason> -->
 ```
 
 - `<name>` is required. `<reason>` is expected and says why the file is exempt.
+  A marker with a name but no reason stays valid and records an empty reason.
+- The marker must start at column 0 of a line outside any code block. A marker
+  with leading spaces or a `>` prefix, or inside a fenced, list-item,
+  blockquote, or indented code block, is never honored.
 - The marker silences `unresolved_symbol` for that file only. Every other check
   still runs, and a symbol that exists in this repository is still verified.
 - A marker with no name, such as `<!-- doc-accuracy: external-sdk -->`,
   suppresses nothing and yields a high `invalid_external_sdk_marker` finding
-  at its line.
-- A marker inside a fenced code block or inline code is ignored.
+  at its line. With two valid markers in one file, the first wins.
+- The exemption is recorded: `claims.json` keeps `sdk`, `reason`, and `line`
+  per file (`external_sdk_files`), and Phase 3 output counts suppressed
+  symbols per file (`external_sdk_suppressed`). The `summary` and `markdown`
+  formats print one exemption line per marked file with the suppressed count.
 
 ---
 
