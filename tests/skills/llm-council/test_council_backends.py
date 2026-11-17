@@ -245,7 +245,7 @@ class FakeResponse:
 
 
 class FakeConnection:
-    seen: list[dict] = []
+    seen: list[dict[str, object]] = []
 
     def __init__(self, host, timeout=None, context=None):
         FakeConnection.seen.append({"host": host, "timeout": timeout, "context": context})
