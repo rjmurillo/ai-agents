@@ -1323,55 +1323,49 @@ def _extract_identifiers(code: str, lang: str = "") -> list[str]:
 #   <!-- doc-accuracy: external-sdk <name> -- <reason> -->
 # A well-formed marker silences ``unresolved_symbol`` for the whole file.
 # A marker with no SDK name is reported (INVALID_SDK_MARKER_CLAIM) so a typo
-# cannot hide real errors. The rule fails closed: a marker counts only when
-# ``<!--`` starts at column 0 of a line outside every fenced code block, so a
-# marker with leading whitespace, a ``>`` prefix, or inside an indented code
-# block, a list-item fence, or a blockquote fence is never honored. That also
-# makes inline code spans irrelevant: nothing can precede the marker on its
-# line.
-_EXTERNAL_SDK_MARKER_RE = re.compile(r"<!--\s*doc-accuracy:\s*external-sdk\b(?P<body>.*?)-->")
-_SDK_NAME_REASON_SPLIT_RE = re.compile(r"\s+--(?:\s+|$)")
-_FENCE_RUN_RE = re.compile(r"(?P<run>`{3,}|~{3,})(?P<info>.*)$")
-_LIST_MARKER_RE = re.compile(r"(?:[-+*]|\d{1,9}[.)])[ \t]+")
+# cannot hide real errors.
+#
+# Fail closed: a marker is honored only when ``<!--`` starts at column 0 of a
+# line outside a top-level fenced code block. In CommonMark a line that starts
+# at column 0 ends any list item or blockquote, so a column-0 marker can sit
+# only inside a top-level fence. Fences are therefore tracked at top level
+# alone, and a line inside an open fence is never stripped or reinterpreted.
+# A marker with leading whitespace or a ``>`` prefix, or in a list-item,
+# blockquote, or indented code block, is never honored.
+_EXTERNAL_SDK_MARKER_RE = re.compile(
+    r"<!--\s*doc-accuracy:\s*external-sdk(?=\s|-->)(?P<body>.*?)-->"
+)
+_FENCE_RE = re.compile(r" {0,3}(?P<run>`{3,}|~{3,})(?P<info>.*)$")
 INVALID_SDK_MARKER_CLAIM = "invalid_external_sdk_marker"
 
 
 def _parse_sdk_marker_body(body: str) -> tuple[str, str]:
-    """Return ``(sdk name, reason)`` from a marker body; name is "" when absent."""
-    parts = _SDK_NAME_REASON_SPLIT_RE.split(body.strip(), maxsplit=1)
-    name = parts[0].strip()
-    if name.startswith("--"):
-        return "", ""
-    return name, parts[1].strip() if len(parts) > 1 else ""
+    """Return ``(sdk name, reason)`` from a marker body; name is "" when absent.
 
-
-def _strip_container_prefix(line: str) -> str:
-    """Drop leading whitespace, ``>`` quote prefixes, and list markers."""
-    rest = line.lstrip(" \t")
-    while True:
-        if rest.startswith(">"):
-            rest = rest[1:].lstrip(" \t")
-            continue
-        list_marker = _LIST_MARKER_RE.match(rest)
-        if list_marker is None:
-            return rest
-        rest = rest[list_marker.end() :]
+    The name is the whitespace-separated tokens before the first ``--`` token,
+    the reason is the tokens after it. One linear pass, no regex.
+    """
+    tokens = body.split()
+    if "--" not in tokens:
+        return " ".join(tokens), ""
+    split_at = tokens.index("--")
+    return " ".join(tokens[:split_at]), " ".join(tokens[split_at + 1 :])
 
 
 def _find_external_sdk_markers(lines: list[str]) -> list[tuple[int, str, str]]:
     """Find honored markers as ``(1-based line, sdk name, reason)`` tuples.
 
-    Fence openers and closers are recognized after stripping any container
-    prefix (see :func:`_strip_container_prefix`), so a fence nested in a list
-    item or blockquote still hides the lines it contains. A fence closes on a
-    run of the same character at least as long as the opener. ``sdk name`` is
-    "" for a marker that names no SDK. A marker split across lines is not
-    recognized.
+    Only top-level fences are tracked. An opener is up to three spaces, a run
+    of three or more backticks or tildes, and an info string (no backtick for a
+    backtick fence). While a fence is open, the only line that matters is its
+    closer: up to three spaces, the same character, a run at least as long as
+    the opener, then only whitespace. ``sdk name`` is "" for a marker that
+    names no SDK. A marker split across lines is not recognized.
     """
     markers: list[tuple[int, str, str]] = []
     fence: str | None = None
     for number, line in enumerate(lines, start=1):
-        fence_match = _FENCE_RUN_RE.match(_strip_container_prefix(line))
+        fence_match = _FENCE_RE.match(line)
         if fence is not None:
             if (
                 fence_match
