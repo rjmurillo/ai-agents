@@ -168,7 +168,7 @@ Code review in two stages: a spec-compliance gate, then review axes picked by th
 
 Pre-flight validation, CI check, and PR creation.
 
-```text
+```bash
 /ship <target-branch>
 ```
 
@@ -186,10 +186,9 @@ Default target is `main` unless specified.
 |-------|------|----------|
 | Pipeline | CI checks green, no suppressed failures | Yes |
 | Security | No new CWE findings, no secrets in diff | Yes |
-| Review | A SHA-bound `/review` marker commit on HEAD | Yes |
+| Review | /review run, no unresolved Critical findings | Yes |
 | Tests | All tests green, no unjustified skips | Yes |
-
-Golden principles and taste lints run as `/review` axes, not as a separate `/ship` check. See [`ship`](skills/ship.md).
+| Standards | Golden principles and taste lints pass | Yes |
 
 **Output:** Ship report with per-check PASS/FAIL, PR link if created, and follow-up items.
 
