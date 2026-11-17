@@ -38,7 +38,7 @@ In VS Code or Visual Studio Copilot Chat:
 
 ## What you get
 
-The agent reports the debt it removed as numbers: lines deleted, files cleaned, and dependencies removed. It uses the text status markers `[PASS]`, `[FAIL]`, `[WARNING]`, `[COMPLETE]`, and `[BLOCKED]`. The source does not name a report file or a fixed report layout.
+The agent reports the debt it removed as numbers: lines deleted, files cleaned, and dependencies removed. It uses the text status markers `[PASS]`, `[FAIL]`, `[WARNING]`, `[COMPLETE]`, and `[BLOCKED]`. It writes no fixed report file or layout.
 
 ## Advanced use
 

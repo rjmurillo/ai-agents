@@ -58,7 +58,7 @@ The process has four steps:
 
 A short self-assessment tells you whether the router is the right entry point. It scores 8 points and passes at 4. Below 4, you probably know your stage, so read the named reference directly.
 
-Limits the source states: a symptom like "we need to grow" routes nowhere. The model assumes one dominant broken stage. The books target early-stage software founders, so regulated, hardware, and enterprise businesses may find routes mis-weighted. The router points and does not execute.
+Limits: a symptom like "we need to grow" routes nowhere. The model assumes one dominant broken stage. The books target early-stage software founders, so regulated, hardware, and enterprise businesses may find routes mis-weighted. The router points and does not execute.
 
 The skill bundles no scripts.
 

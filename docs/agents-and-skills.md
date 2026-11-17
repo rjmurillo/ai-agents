@@ -66,6 +66,8 @@ You do not edit the agent or skill files a host loads. The build renders them fr
 - Agents come from `templates/agents/<name>.shared.md`.
 - A skill's `SKILL.md` comes from `templates/skills/<name>.SKILL.md.tmpl`. Its scripts and reference files live in `src/claude/skills/<name>/`.
 
+The reference pages under `docs/agents/` and `docs/skills/` are written by hand. When you change a `SKILL.md`, an agent template, or a script's flags, update the matching page in the same pull request.
+
 The build writes a copy for each host, such as Claude Code, Copilot CLI, Codex, Cursor, and Muse. See [Change a rule and a skill through templates](training/template-first-authoring.md) to make a change.
 
 ## Next

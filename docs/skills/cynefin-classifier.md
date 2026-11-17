@@ -62,7 +62,7 @@ Exit 2 is a valid Confusion classification when the script printed one and stder
 
 Escalate to a human decision-maker when confidence is `LOW`, the problem sits on a domain boundary, stakes are high (production, security, data), the result contradicts team consensus, or a Chaotic problem has no runbook.
 
-The source suggests these handoffs: [`decision-critic`](decision-critic.md) after a Complicated result, the `milestone-planner` agent to design experiments after a Complex result, the `architect` agent for Complicated architecture decisions, and the `analyst` agent for Confusion. [`buy-vs-build-framework`](buy-vs-build-framework.md) runs this skill first when the problem domain is unclear. Three references cover the framework, domain transitions, and software applications.
+Suggested handoffs: [`decision-critic`](decision-critic.md) after a Complicated result, the `milestone-planner` agent to design experiments after a Complex result, the `architect` agent for Complicated architecture decisions, and the `analyst` agent for Confusion. [`buy-vs-build-framework`](buy-vs-build-framework.md) runs this skill first when the problem domain is unclear. Three references cover the framework, domain transitions, and software applications.
 
 ## Where it runs
 

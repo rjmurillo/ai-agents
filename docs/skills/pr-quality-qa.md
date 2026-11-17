@@ -14,7 +14,7 @@ Judges your local diff on test coverage, error handling, and whether the tests w
 ## When not to use it
 
 - You want all six axes and one merged verdict: use [`pr-quality-all`](pr-quality-all.md) instead.
-- You want the tests written for you: use [`test`](test.md) instead.
+- You want the tests written for you: use [`build`](build.md), which writes tests first. Use [`test`](test.md) to prove a finished change works.
 - You want a test strategy and verification against acceptance criteria: use the [`qa`](../agents/qa.md) agent instead.
 
 ## Quick start
@@ -78,7 +78,7 @@ To change what this axis checks, edit [`.github/prompts/pr-quality-gate-qa.md`](
 ## Related
 
 - [`pr-quality-all`](pr-quality-all.md): run all six axes and merge the verdicts.
-- [`test`](test.md): write and run the tests this gate asks for.
+- [`build`](build.md): write the tests this gate asks for. [`test`](test.md): prove the change works across its gates.
 - [`qa`](../agents/qa.md): the QA agent that verifies implementations.
 - Source: [`SKILL.md`](../../src/claude/skills/pr-quality-qa/SKILL.md)
 - How to call skills on each host: [Call agents and skills](../call-agents-and-skills.md)

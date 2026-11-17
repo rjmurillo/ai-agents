@@ -143,7 +143,7 @@ Multi-dimensional quality validation across 6 gates: functional, non-functional,
 
 ### /review -- Review Before Merge
 
-Five-axis code review across architecture, security, quality, tests, and standards.
+Code review in two stages: a spec-compliance gate, then review axes picked by the change's risk from a canonical set. See [`review`](skills/review.md).
 
 ```text
 /review <branch-or-pr-number>

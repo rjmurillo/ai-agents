@@ -77,7 +77,7 @@ The agents follow a 7-phase pipeline. Each phase has a defined input, a command 
 | 3 | Kanban | `/plan` | Decomposes specs into milestones with dependency ordering, risk register, and S/M/L sizing | Versioned execution plan artifact | After `/spec` output exists |
 | 4 | Implement | `/build` | TDD vertical slices, atomic commits, code-quality self-check | Committed code plus passing tests | After `/plan` output exists |
 | 5 | QA | `/test` | Six quality gates: functional, non-functional, security, DevOps, DX, observability | Gate verdicts table with PASS/WARN/CRITICAL_FAIL per gate | After `/build` completes a slice |
-| 6 | Review | `/review` | Five-axis review: architecture, security, quality, tests, standards | Findings list (Critical, Important, Suggestion) with file:line citations | After `/test` passes |
+| 6 | Review | `/review` | Spec-compliance gate, then review axes picked by risk (see [`review`](skills/review.md)) | Findings list (Critical, Important, Suggestion) with file:line citations | After `/test` passes |
 | 7 | Ship | `/ship` | Pre-flight checks (pipeline, security, review, tests, standards) then PR creation | Ship report plus PR link | After `/review` has no unresolved Critical findings |
 
 ### Day Shift and Night Shift
@@ -120,8 +120,8 @@ sequenceDiagram
 - [Autonomous issue development](autonomous-issue-development.md) for running the full pipeline AFK
 - [Ideation workflow](ideation-workflow.md) for turning vague ideas into specs before `/spec`
 - [Plan, implement, and review with a team of agents](plan-implement-review.md) for how this toolkit compares with Claude Code Agent Teams and Copilot CLI custom agents
-- [`.claude/skills/spec/SKILL.md`](../src/claude/skills/spec/SKILL.md) for the full `/spec` process reference
-- [`.claude/skills/requirements-interview/SKILL.md`](../src/claude/skills/requirements-interview/SKILL.md) for Grill Me skill internals
+- [`src/claude/skills/spec/SKILL.md`](../src/claude/skills/spec/SKILL.md) for the full `/spec` process reference
+- [`src/claude/skills/requirements-interview/SKILL.md`](../src/claude/skills/requirements-interview/SKILL.md) for Grill Me skill internals
 
 ## Step 3: Verify
 

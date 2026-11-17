@@ -29,7 +29,7 @@ An episode JSON record in the repository episode store. The extractor reports th
 
 Only extract from completed sessions. A partial session yields an incomplete episode, which is a falsified record that outlives the session. An episode that records `success` for an abandoned session is worse than none. To fix a wrong record, fix the session log and re-extract. Do not hand-edit an episode.
 
-`memory-search` is the reader of episodes today. The source says whether episodes earn their keep is an open question that ADR-089 declined to settle.
+`memory-search` is the reader of episodes today. Whether episodes earn their keep is an open question that ADR-089 declined to settle.
 
 ## Advanced use
 

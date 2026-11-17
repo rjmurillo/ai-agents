@@ -25,6 +25,9 @@ In a Claude Code session inside a checkout of this repository, drop the prefix: 
 
 The skill lists your plugins with `claude plugins list`, then prints a status block and stops.
 
+> [!NOTE]
+> `pleaseai/claude-code-plugins` is a third-party marketplace, not part of this toolkit. Installing from it means you trust that publisher.
+
 ## What you get
 
 A status block like this:

@@ -21,7 +21,7 @@ This skill has no short slash command, so the agent usually loads it for you. In
 Use the decision-question skill to decide whether I need to choose between a schema migration and a compatibility view, and brief me if so.
 ```
 
-The skill first applies a routing gate. If no decision is yours to make, it acts and does not ask. Otherwise it presents one decision at a time through your host's ask tool.
+The skill first applies a routing gate. If no decision is yours to make, it acts within the authorization you already gave and does not ask. Otherwise it presents one decision at a time through your host's ask tool.
 
 ## What you get
 

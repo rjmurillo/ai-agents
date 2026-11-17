@@ -98,7 +98,7 @@ Not every agent ships to every host. Each agent page has a **Where it runs** tab
 
 You do not have to pick. Two front doors route the work for you:
 
-- `autoplan` picks one skill, lifecycle command, or agent chain for a request and runs it. See [`autoplan`](skills/autoplan.md). Its `SKILL.md` does not set `user-invocable: true`, so on hosts other than Claude Code, name it in your prompt.
+- `autoplan` picks one skill, lifecycle command, or agent chain for a request and runs it. See [`autoplan`](skills/autoplan.md).
 - The `orchestrator` agent splits a multi-step job across several agents and merges the results. See [`orchestrator`](agents/orchestrator.md).
 
 ```text

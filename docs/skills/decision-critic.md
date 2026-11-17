@@ -68,7 +68,7 @@ uv run python .claude/skills/decision-critic/scripts/decision-critic.py --help
 | `0` | Step guidance printed. |
 | `1` | Step number outside 1 to 7, or `--decision` missing at step 1. |
 
-The SKILL.md also lists an exit code `2` for failed or incomplete analysis. The `--help` output does not list it.
+The script exits only `0` or `1`.
 
 Example:
 

@@ -37,7 +37,7 @@ Each domain gets a grade for six layers: agents, skills, scripts, tests, docs, a
 | D | 40-59 | Blocking quality gaps |
 | F | 0-39 | Broken or missing |
 
-Gaps carry one of three severity labels: `critical` (missing required artifact), a middle label for important gaps to address soon, and `minor` (nice to have).
+Gaps carry one of three severity labels: `critical` (missing required artifact), `significant` (important, address soon), and `minor` (nice to have).
 
 When you write the report with `--output`, the script loads the earlier JSON results and labels each domain's trend:
 

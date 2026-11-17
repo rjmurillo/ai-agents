@@ -193,7 +193,7 @@ uv run python scripts/validate_workflows.py
 
 ### Example 1: Clean Validation
 
-```bash
+```text
 $ uv run python scripts/validate_workflows.py .github/workflows/pytest.yml
 Validating: .github/workflows/pytest.yml
 

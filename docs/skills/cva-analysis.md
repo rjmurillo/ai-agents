@@ -78,7 +78,7 @@ For handoff, ask [`decision-critic`](decision-critic.md) to validate the abstrac
 
 Re-run CVA when three or more new use cases arrive, when the architecture shifts, when the abstraction hurts performance, when the team says it is too complex, or at a quarterly review.
 
-The source lists a template generator and a matrix exporter as planned. They do not exist yet, so build the matrix and any diagram by hand. [`review`](review.md) invokes this skill when a change introduces a new abstraction.
+A template generator and a matrix exporter are planned but do not exist yet, so build the matrix and any diagram by hand. [`review`](review.md) invokes this skill when a change introduces a new abstraction.
 
 ## Where it runs
 

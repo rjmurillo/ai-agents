@@ -28,7 +28,7 @@ Claude Code puts plugin skills under the plugin's name, so you type the `project
 The **Slash command** column tells you how the skill is meant to start:
 
 - A command such as `/spec` marks a skill you start by typing it. Its `SKILL.md` sets `user-invocable: true`. Claude Code takes it as `/project-toolkit:spec` after a plugin install. In Copilot CLI, name it with a slash in your prompt: `Use the /spec skill to ...`.
-- `by name` marks a skill with explicit-only routing: the `autoplan` router never picks it, so you start it by name. Say `Use the <name> skill to ...`, or in Claude Code type `/project-toolkit:<name>`.
+- `by name` marks a skill with explicit-only routing and no short slash command: the `autoplan` router never picks it, so you start it by name. Say `Use the <name> skill to ...`, or in Claude Code type `/project-toolkit:<name>`.
 - `match` marks a skill the agent loads on its own when your request matches. To ask for it on any host, say `Use the <name> skill to ...`. In Claude Code you can also type `/project-toolkit:<name>`.
 
 ## Lifecycle

@@ -64,7 +64,7 @@ Rules the agent keeps:
 It also checks for manipulation patterns: artificial urgency, false finality, anchoring, good cop and bad cop, salami slicing, reciprocity traps, and emotional escalation. It can query memories on negotiation theory, behavioral frameworks, and information asymmetry.
 
 > [!NOTE]
-> The source says its Project Deal research is internal and cannot be audited. The agent treats the qualitative finding as the rule and the dollar figures as illustrative.
+> The agent's Project Deal research is internal and cannot be audited. The agent treats the qualitative finding as the rule and the dollar figures as illustrative.
 
 A multi-step prompt:
 

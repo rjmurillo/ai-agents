@@ -51,7 +51,7 @@ uv run python .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operati
 | `--ci` | CI mode: exit 1 on findings, exit 2 if `.codeql/` is missing. |
 | `--format` | `console` (default) or `json`. |
 
-| Operation | Use when | Time (from the source) | Output |
+| Operation | Use when | Typical time | Output |
 | --- | --- | --- | --- |
 | `full` | First scan, major changes, pre-PR validation | 30 to 60 seconds | SARIF and console |
 | `quick` | Iterative development, minor changes | 10 to 20 seconds | SARIF and console |

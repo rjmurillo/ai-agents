@@ -25,7 +25,7 @@ This skill is the toolkit's router for requests that name no skill. In Claude Co
 On other hosts, name it in your prompt:
 
 ```text
-Use the autoplan skill to fix the flaky retry test in tests/test_sync_job.py.
+Use the /autoplan skill to fix the flaky retry test in tests/test_sync_job.py.
 ```
 
 The agent also loads it on its own when your request names no skill.
