@@ -26,11 +26,10 @@
         "suppress"
       ],
       "forbidden_response_patterns": [
-        "\\bimport\\b[^\\n]*@astrojs/starlight",
-        "\\bimport\\b[^\\n]*@components/"
+        "\\bfrom\\s+[\"']@(?:astrojs/starlight|components/)"
       ],
       "expected_gate": "technical-writing-site-recon",
-      "rationale": "The skill recons the target first and loads a site profile only on a match. An Astro or Starlight component import in the answer is the unambiguous failure on a plain Markdown repo, so the grader caps it. Component advice in prose, and naming a component to reject it, is left to the judge, because a pattern cannot tell the two apart."
+      "rationale": "The skill recons the target first and loads a site profile only on a match. An import statement that pulls an Astro or Starlight component (`from '@astrojs/starlight...'` or `from '@components/...'`) is the clear failure on a plain Markdown repo, so the grader caps it. Prose advice, including naming a component or package to reject it, is left to the judge."
     },
     {
       "id": "S3",

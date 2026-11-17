@@ -273,7 +273,7 @@
           "technical-writing"
         ]
       },
-      "rationale": "Negative control from the new-cycle review: code work that names a stylebook or the docs prose checker must not route to technical-writing."
+      "rationale": "Negative control: fixing a stylebook loader crash is code work and must not route to technical-writing."
     },
     {
       "id": "lt-technical-writing-prose-checker-negative",
@@ -286,7 +286,7 @@
           "technical-writing"
         ]
       },
-      "rationale": "Negative control from the new-cycle review: code work that names a stylebook or the docs prose checker must not route to technical-writing."
+      "rationale": "Negative control: rewriting the docs prose checker is code work and must not route to technical-writing."
     },
     {
       "id": "lt-technical-writing-stylebook-plugin-negative",
@@ -299,7 +299,7 @@
           "technical-writing"
         ]
       },
-      "rationale": "Negative control from the new-cycle review: code work that names a stylebook or the docs prose checker must not route to technical-writing."
+      "rationale": "Negative control: adding stylebook support to plugin code is code work and must not route to technical-writing."
     },
     {
       "id": "lt-skillify-this",
