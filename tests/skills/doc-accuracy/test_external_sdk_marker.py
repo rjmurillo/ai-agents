@@ -399,9 +399,11 @@ def test_exemption_line_says_not_checked_when_phase_three_did_not_run() -> None:
 
     without_phase_three = mod._exemption_lines(claims, None)
     with_phase_three = mod._exemption_lines(claims, {"external_sdk_suppressed": {}})
+    phase_three_skipped = mod._exemption_lines(claims, {"status": "DID_NOT_RUN"})
 
     assert without_phase_three == [
         "External SDK exemption: doc.md (SDK Aspire, marker line 2), reason: r; "
         "unresolved_symbol not checked (phase 3 did not run)"
     ]
     assert with_phase_three[0].endswith("; 0 unresolved_symbol suppressed")
+    assert phase_three_skipped == without_phase_three

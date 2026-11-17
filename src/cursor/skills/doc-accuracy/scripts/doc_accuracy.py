@@ -1393,6 +1393,9 @@ def _exemption_lines(
     """One human-readable line per file exempted by an external-sdk marker."""
     exempt = (claims_data or {}).get("external_sdk_files", {})
     suppressed = (compilability_data or {}).get("external_sdk_suppressed", {})
+    phase_three_ran = (
+        compilability_data is not None and compilability_data.get("status") != "DID_NOT_RUN"
+    )
     lines = []
     for path, info in sorted(exempt.items()):
         info = info if isinstance(info, dict) else {"sdk": str(info)}
@@ -1402,7 +1405,7 @@ def _exemption_lines(
             f"reason: {info.get('reason') or 'none given'}; "
             + (
                 f"{suppressed.get(path, 0)} unresolved_symbol suppressed"
-                if compilability_data is not None
+                if phase_three_ran
                 else "unresolved_symbol not checked (phase 3 did not run)"
             )
         )
