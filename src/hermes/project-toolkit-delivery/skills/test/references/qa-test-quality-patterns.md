@@ -13,6 +13,9 @@ Flag tests that match these anti-patterns:
 | AAA pattern claims without execution | Structure without substance | Arrange/Act steps missing |
 | Missing Mock blocks for external deps | External calls leak into tests | gh CLI, API calls unmocked |
 | Tests verifying file existence only | Presence is not correctness | Content not validated |
+| Error handler around the call under test | Passes whether the call fails or not | `try`/`except: pass`, or a `catch` that only logs, wraps the act |
+| Limit tested on one side only | An off-by-one at the limit ships | No case at the exact limit and one past it |
+| Only minimal synthetic input to a parser | Skips the parts real input exercises | Parser fed `"a=b"` while production reads full log lines, URLs, or headers |
 
 **Detection**: Search for `Should -Match`, `Select-String`, `Get-Content.*Should` patterns without corresponding function invocations.
 
@@ -36,6 +39,10 @@ $result | Should -Be $expected
 
 # Edge cases: boundary values are covered (null, empty, maximum)
 $null, @(), [int]::MaxValue | ForEach-Object { Get-Something $_ }
+
+# Limits: test the exact limit and one past it
+Test-Something -Length 64 | Should -BeTrue
+Test-Something -Length 65 | Should -BeFalse
 ```
 
 ## Test Review Checklist
@@ -48,6 +55,9 @@ When reviewing tests, verify:
 - [ ] Tests verify outputs match expected values
 - [ ] Error conditions are tested with negative tests
 - [ ] Edge cases are covered (null inputs, empty arrays, boundary values)
+- [ ] Each limit is tested at the exact limit and one past it
+- [ ] No error handler around the act hides a failure (use `pytest.raises` or `Should -Throw`)
+- [ ] Parsers get at least one real input, such as a real log line, URL, or payload
 - [ ] Test names describe the scenario being tested
 - [ ] No tests use pattern matching on source code as validation
 ```
