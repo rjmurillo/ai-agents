@@ -26,6 +26,7 @@ Project Toolkit skills for GitHub pull request work, build, test, and quality ga
 - `github`
 - `github-url-intercept`
 - `golden-principles`
+- `llm-council`
 - `maintainer-review`
 - `merge-resolver`
 - `metrics`
