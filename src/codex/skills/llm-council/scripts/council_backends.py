@@ -51,14 +51,15 @@ API = f"https://{API_HOST}{API_PATH}"
 
 # One line of the metadata block Copilot CLI prints after the answer, matched
 # whole (``fullmatch``) in these shapes only: "Changes    +0 -0",
-# "AI Credits 21.8 (1m 20s)", "Tokens \u2191 34.8k" (anything may follow the
-# count), and "Resume     copilot --resume=<id>". Only a trailing run of these
+# "AI Credits 21.8 (1m 20s)", "Tokens \u2191 34.8k" (optionally followed by
+# " \u2022 \u2193 1.2k" counts), and "Resume     copilot --resume=<id>". Only a trailing run of these
 # lines (and blanks) is stripped, never a match inside the answer, and prose
 # such as "AI Credits 5 reviews remain." or "Tokens \u2191 grew a lot" is kept.
 _COPILOT_FOOTER_LINE = re.compile(
-    r"\s*(?:Changes\s+[+-]\d+(?:\s+[+-]\d+)?"
+    r"\s*(?:Changes\s+[+-]\d+\s+[+-]\d+"
     r"|AI Credits\s+\d+(?:\.\d+)?\s+\((?:\d+m(?:\s*\d+(?:\.\d+)?s)?|\d+(?:\.\d+)?s)\)"
-    r"|Tokens\s+[\u2191\u2193]\s+\d+(?:\.\d+)?[kM]?(?:\s.*)?"
+    r"|Tokens\s+[\u2191\u2193]\s+\d+(?:\.\d+)?[kM]?"
+    r"(?:\s+(?:[\u2022\u00b7]\s+)?[\u2191\u2193]\s+\d+(?:\.\d+)?[kM]?)*"
     r"|Resume\s+copilot --resume=\S+)\s*"
 )
 # The tool list Copilot prints before the answer when --available-tools is set:

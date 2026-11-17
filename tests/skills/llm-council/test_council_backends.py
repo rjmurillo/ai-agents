@@ -142,6 +142,8 @@ def test_mid_text_ai_credits_line_followed_by_prose_is_preserved(monkeypatch):
         "AI Credits 5 (soon)",
         "AI Credits 5 ()",
         "Resume copilot --resume=",
+        "Tokens ↑ 5 users are affected.",
+        "Changes +12",
     ],
 )
 def test_final_answer_line_shaped_like_a_footer_is_kept(monkeypatch, last_line):
