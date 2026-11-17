@@ -46,7 +46,7 @@ def _gate(tmp_path, critic, model="gpt-6.1-sol"):
 
 
 def _logs(tmp_path):
-    log_dir = tmp_path / ".project-toolkit" / "metrics" / "sol-loop"
+    log_dir = Path(mod.paths.artifact_dir(mod.LOG_SUBDIR, base=tmp_path))
     return [json.loads(p.read_text(encoding="utf-8")) for p in sorted(log_dir.glob("*.json"))]
 
 

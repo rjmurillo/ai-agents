@@ -62,7 +62,13 @@ def _record(tmp_path, critic, reply, *extra, **kw):
 
 
 def _log_dir(tmp_path):
-    return tmp_path / ".project-toolkit" / "metrics" / "sol-loop"
+    # Ask the paths module sol_loop bound to: plugin trees differ on the
+    # artifact root name, and a full run may load any tree's copy first.
+    return Path(mod.paths.artifact_dir(mod.LOG_SUBDIR, base=tmp_path))
+
+
+def _artifact_root(tmp_path):
+    return _log_dir(tmp_path).parent.parent
 
 
 def _logs(tmp_path):

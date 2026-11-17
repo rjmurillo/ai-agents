@@ -14,7 +14,18 @@ import json
 from pathlib import Path
 
 import pytest
-from _sol_loop_helpers import SOL, _argv, _gate, _log_dir, _logs, _out, _record, _reply, mod
+from _sol_loop_helpers import (
+    SOL,
+    _argv,
+    _artifact_root,
+    _gate,
+    _log_dir,
+    _logs,
+    _out,
+    _record,
+    _reply,
+    mod,
+)
 
 # Ordering after the fresh critic
 
@@ -158,7 +169,7 @@ def test_artifact_root_override_redirects_log(tmp_path, critic_file, monkeypatch
 
 
 def test_log_write_failure_exits_2_after_printing_verdict(tmp_path, critic_file, capsys):
-    (tmp_path / ".project-toolkit").write_text("not a directory", encoding="utf-8")
+    _artifact_root(tmp_path).write_text("not a directory", encoding="utf-8")
 
     code = _record(tmp_path, critic_file, _reply(tmp_path))
 
@@ -221,7 +232,7 @@ def test_changes_verdict_with_no_finding_lines_takes_warn_path(tmp_path, critic_
 
 
 def test_unavailable_warn_prints_when_log_write_fails(tmp_path, critic_file, capsys):
-    (tmp_path / ".project-toolkit").write_text("not a directory", encoding="utf-8")
+    _artifact_root(tmp_path).write_text("not a directory", encoding="utf-8")
 
     code = mod.main(_argv("unavailable", tmp_path, critic_file, "--failure-class", "timeout"))
 
