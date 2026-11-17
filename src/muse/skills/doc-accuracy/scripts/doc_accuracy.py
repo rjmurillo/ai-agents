@@ -1319,6 +1319,55 @@ def _extract_identifiers(code: str, lang: str = "") -> list[str]:
     return sorted(set(identifiers) - stdlib_names)
 
 
+# File-level opt-out for Markdown that documents another product's SDK:
+#   <!-- doc-accuracy: external-sdk <name> -- <reason> -->
+# A well-formed marker silences ``unresolved_symbol`` for the whole file.
+# A marker with no SDK name is reported (INVALID_SDK_MARKER_CLAIM) so a typo
+# cannot hide real errors.
+_EXTERNAL_SDK_MARKER_RE = re.compile(r"<!--\s*doc-accuracy:\s*external-sdk\b(?P<body>.*?)-->")
+_SDK_NAME_REASON_SPLIT_RE = re.compile(r"\s+--(?:\s+|$)")
+_MD_FENCE_OPEN_RE = re.compile(r"^ {0,3}(?P<run>`{3,}|~{3,})(?P<info>.*)$")
+_INLINE_CODE_RE = re.compile(r"(?P<ticks>`+)(?:(?!(?P=ticks)).)+?(?P=ticks)")
+INVALID_SDK_MARKER_CLAIM = "external_sdk_marker_invalid"
+
+
+def _parse_sdk_marker_body(body: str) -> str:
+    """Return the SDK name from a marker body, or "" when it has none."""
+    name = _SDK_NAME_REASON_SPLIT_RE.split(body.strip(), maxsplit=1)[0].strip()
+    return "" if name.startswith("--") else name
+
+
+def _find_external_sdk_markers(lines: list[str]) -> list[tuple[int, str]]:
+    """Find external-sdk markers in prose, as ``(1-based line, sdk name)`` pairs.
+
+    A marker inside a fenced code block (backtick or tilde, closed by a run at
+    least as long as the opener) or an inline code span is documentation about
+    the marker, not a declaration, and is ignored. ``sdk name`` is "" for a
+    marker that names no SDK. Markers inside indented code blocks and markers
+    split across lines are not recognized.
+    """
+    markers: list[tuple[int, str]] = []
+    fence: str | None = None
+    for number, line in enumerate(lines, start=1):
+        opener = _MD_FENCE_OPEN_RE.match(line)
+        if fence is not None:
+            closes = opener and not opener.group("info").strip()
+            if (
+                closes
+                and opener.group("run")[0] == fence[0]
+                and len(opener.group("run")) >= len(fence)
+            ):
+                fence = None
+            continue
+        if opener and not (opener.group("run")[0] == "`" and "`" in opener.group("info")):
+            fence = opener.group("run")
+            continue
+        prose = _INLINE_CODE_RE.sub("", line)
+        for match in _EXTERNAL_SDK_MARKER_RE.finditer(prose):
+            markers.append((number, _parse_sdk_marker_body(match.group("body"))))
+    return markers
+
+
 def _extract_quantitative_claims(line: str) -> list[str]:
     """Find quantitative claims in a line of text."""
     patterns = [
@@ -1341,6 +1390,7 @@ def run_claim_extraction(
     """Phase 2: Extract verifiable claims from documentation files."""
     claims: list[Claim] = []
     claim_counter = 0
+    external_sdk_files: dict[str, str] = {}
 
     # Build symbol -> source file mapping
     symbol_to_source: dict[str, str] = {}
@@ -1358,6 +1408,24 @@ def run_claim_extraction(
         lines = [ln[:-1] if ln.endswith("\r") else ln for ln in content.split("\n")]
         mapped_sources = doc_info.get("mapped_source_files", [])
         default_source = mapped_sources[0] if mapped_sources else ""
+
+        for marker_line, sdk_name in _find_external_sdk_markers(lines):
+            if sdk_name:
+                external_sdk_files.setdefault(doc_info["path"], sdk_name)
+                continue
+            claim_counter += 1
+            claims.append(
+                Claim(
+                    id=f"claim-{claim_counter:04d}",
+                    file=doc_info["path"],
+                    line=marker_line,
+                    claim_type=INVALID_SDK_MARKER_CLAIM,
+                    language="",
+                    content=lines[marker_line - 1].strip(),
+                    symbols_referenced=[],
+                    mapped_source=default_source,
+                )
+            )
 
         i = 0
         while i < len(lines):
@@ -1467,7 +1535,10 @@ def run_claim_extraction(
 
             i += 1
 
-    return {"claims": [c.to_dict() for c in claims]}
+    return {
+        "claims": [c.to_dict() for c in claims],
+        "external_sdk_files": external_sdk_files,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -1528,7 +1599,29 @@ def run_compilability_check(
     # Build a set of all known symbol names for quick lookup
     known_names = set(symbol_index.keys())
 
+    external_sdk_files: dict[str, str] = claims_data.get("external_sdk_files", {})
+
     for claim_dict in claims_data.get("claims", []):
+        if claim_dict["type"] == INVALID_SDK_MARKER_CLAIM:
+            finding_counter += 1
+            findings.append(
+                Finding(
+                    id=f"compile-{finding_counter:04d}",
+                    claim_id=claim_dict["id"],
+                    severity="high",
+                    category="invalid_external_sdk_marker",
+                    file=claim_dict["file"],
+                    line=claim_dict["line"],
+                    description=(
+                        "external-sdk marker names no SDK, so it suppresses nothing. "
+                        "Expected: <!-- doc-accuracy: external-sdk <name> -- <reason> -->"
+                    ),
+                    evidence={"documented": claim_dict["content"][:200]},
+                    suggested_fix="Add the SDK name and a reason after 'external-sdk'.",
+                )
+            )
+            continue
+
         if claim_dict["type"] not in ("code_example", "method_signature"):
             continue
 
@@ -1630,6 +1723,11 @@ def run_compilability_check(
                 # Python builtins (ImportError, ValueError, ...) are never
                 # repo symbols.
                 if lang == "python" and hasattr(builtins, sym_name):
+                    continue
+
+                # The file declares itself documentation for another SDK, so a
+                # symbol missing here is not a claim about this repository.
+                if claim_dict["file"] in external_sdk_files:
                     continue
 
                 finding_counter += 1

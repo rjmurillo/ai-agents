@@ -117,6 +117,24 @@ python3 scripts/doc_accuracy.py --target /path/to/repo --format summary
 With `--diff-base`, only claims on changed lines block. See
 `references/diff-scoping.md`.
 
+### Documenting another product's SDK
+
+Phase 3 checks every symbol in a code example against this repository. A
+Markdown file that documents a foreign SDK (vendored docs) fails on every API
+name. Declare it with one HTML comment in the prose of that file:
+
+```text
+<!-- doc-accuracy: external-sdk <name> -- <reason> -->
+```
+
+- `<name>` is required. `<reason>` is expected and says why the file is exempt.
+- The marker silences `unresolved_symbol` for that file only. Every other check
+  still runs, and a symbol that exists in this repository is still verified.
+- A marker with no name, such as `<!-- doc-accuracy: external-sdk -->`,
+  suppresses nothing and yields a high `invalid_external_sdk_marker` finding
+  at its line.
+- A marker inside a fenced code block or inline code is ignored.
+
 ---
 
 ## Output Artifacts
