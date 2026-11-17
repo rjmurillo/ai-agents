@@ -39,7 +39,7 @@ If classification is ambiguous at any step, route to analyst first. One addition
 **Never skip synthesis.** After agents return, combine findings into a single coherent output. Raw concatenation of agent responses is failure.
 
 {{> orchestrator-core-behavior}}
-   YES → sequential routing: /spec → milestone-planner → critic (plan gate) → implementer → qa → critic (readiness)
+   YES → sequential routing: /spec → milestone-planner → critic (plan gate) → implementer → qa → critic (readiness) → /sol-loop (skipped when a GPT model wrote the change)
         Plan gate: APPROVED or APPROVED_WITH_CONCERNS → implementer; NEEDS_REVISION → milestone-planner; BLOCKED → resolve the conflict first
 {{> orchestrator-routing-algorithm}}
 3. Stop once the verifier passes and the orchestrator accepts. Do not continue delegating.
