@@ -14,33 +14,36 @@
   "findings": [
     {
       "claim": "`.strip()` corrupts Git\u2019s first unstaged-modification entry, allowing a stale critic",
+      "evidence": "9a3800f: status output kept unstripped; test_modified_tracked_file_newer_than_critic_is_caught fails without it",
       "file": "src/claude/skills/sol-loop/scripts/sol_loop.py",
       "fix": "preserve porcelain output\u2019s leading whitespace.",
       "id": "S1",
       "line": 124,
-      "outcome": "open",
+      "outcome": "fixed",
       "repro": "commit `app.py`, save critic output, then modify `app.py`. Git returns `\" M app.py\\0\"`; the helper strips its leading space, checks `pp.py`, and `gate` incorrectly returns `PROCEED`",
       "severity": "should",
       "sol_only": true
     },
     {
       "claim": "Saving Sol\u2019s reply inside the checkout prevents recording that round",
+      "evidence": "9a3800f: only gate checks freshness; test_record_accepts_a_reply_saved_inside_the_checkout",
       "file": "src/claude/skills/sol-loop/scripts/sol_loop.py",
       "fix": "exclude the supplied reply file from freshness checks.",
       "id": "S2",
       "line": 217,
-      "outcome": "open",
+      "outcome": "fixed",
       "repro": "run `gate` successfully, save `VERDICT: APPROVE` as untracked `reply.md`, then run `record --reply reply.md`. It exits 2 with \u201ccritic output is older than HEAD or an uncommitted change.\u201d",
       "severity": "should",
       "sol_only": false
     },
     {
       "claim": "Missing Stage 2 members disappear from failure reporting",
+      "evidence": "9a3800f: chair missing_rankers and finish errors; test_missing_stage2_ranker_is_reported",
       "file": "src/claude/skills/llm-council/scripts/council_steps.py",
       "fix": "report missing rankers against the frozen survivor list and preserve those failures in the artifact.",
       "id": "S3",
       "line": 195,
-      "outcome": "open",
+      "outcome": "fixed",
       "repro": "complete all four Stage 1 replies, omit one Stage 2 reply, then run `chair` and `finish`. `unparsed_rankers` returns `[]`, `errors` returns `{}`, and the artifact reports no failure",
       "severity": "should",
       "sol_only": false
