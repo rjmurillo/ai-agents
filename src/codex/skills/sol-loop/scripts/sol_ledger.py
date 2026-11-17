@@ -6,9 +6,13 @@ with status ``ok`` and that branch's key.
 
 from __future__ import annotations
 
+import contextlib
 import json
+import os
 import re
+import stat
 import sys
+import tempfile
 from pathlib import Path
 
 OUTCOMES = ("fixed", "disagree", "declined")
@@ -76,6 +80,30 @@ def write_run_log(record: dict, log_dir: Path) -> Path | None:
     except OSError as exc:
         print(f"sol_loop: run log not written to {log_dir}: {exc}", file=sys.stderr)
     return None
+
+
+def replace_run_log(path: Path, record: dict) -> str:
+    """Replace an existing run log with ``record`` without ever truncating it first.
+
+    The JSON goes to a sibling temp file, then ``os.replace`` swaps it in, so a
+    failed write leaves the original bytes. The original's permission bits are
+    kept. Returns "" on success, or the error text after removing the temp file.
+    """
+    temp: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=path.parent, suffix=".tmp", delete=False
+        ) as handle:
+            temp = Path(handle.name)
+            handle.write(json.dumps(record, indent=2, sort_keys=True) + "\n")
+        os.chmod(temp, stat.S_IMODE(path.stat().st_mode))
+        os.replace(temp, path)
+    except OSError as exc:
+        if temp is not None:
+            with contextlib.suppress(OSError):
+                temp.unlink()
+        return str(exc)
+    return ""
 
 
 def summarize(log_dir: Path) -> dict:

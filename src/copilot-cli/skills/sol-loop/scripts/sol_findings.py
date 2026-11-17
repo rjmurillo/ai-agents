@@ -118,8 +118,8 @@ def filter_findings(raw: list[object]) -> tuple[list[dict], list[dict]]:
 
 
 # Matches `path:12`, `path:12-40`, `` `path`:12 ``, `path#L12`, and extensionless
-# names such as `Makefile:10`. A false match only adds overlap, which keeps the
-# sol_only count a lower bound.
+# names such as `Makefile:10`. A false match only adds overlap. A critic citation
+# with no line anchor is not matched, so the sol_only count is an estimate.
 _LOCATION = re.compile(r"([A-Za-z0-9_./\\-]*[A-Za-z0-9_])`?(?::|#L)(\d+)(?:-L?(\d+))?")
 
 
@@ -149,8 +149,8 @@ def mark_sol_only(findings: list[dict], critic_text: str) -> list[dict]:
     """Flag each finding ``sol_only`` unless the critic cited a nearby location.
 
     A critic citation that names a shorter path suffix (for example a bare
-    file name) counts as the same file. That errs toward overlap, so the
-    ``sol_only`` count is a lower bound, never inflated.
+    file name) counts as the same file. That errs toward overlap, but a critic
+    citation with no line anchor is missed, so ``sol_only`` is an estimate.
     """
     cited = critic_locations(critic_text)
     window = OVERLAP_LINE_WINDOW

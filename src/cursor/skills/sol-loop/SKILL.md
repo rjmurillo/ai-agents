@@ -43,7 +43,10 @@ review-model-unavailable WARN path.
 ## Rules
 
 - **After the critic.** The fresh critic reviews first and stays as it is.
-  Save its output to a file outside the checkout, so Sol cannot read it.
+  Save its output to a file outside the checkout, and never name it in the
+  brief, so it stays out of the diff and `git status` Sol reads. A read-only
+  sandbox can still read files outside the checkout, so this keeps Sol from
+  finding it, not from opening it.
   `gate` refuses a missing critic file, or one older than `HEAD`, the last
   checkout, or any uncommitted change, before Sol starts.
 - **Sol only.** Never substitute a Gemini, Grok, Claude, or mixed "Fusion"

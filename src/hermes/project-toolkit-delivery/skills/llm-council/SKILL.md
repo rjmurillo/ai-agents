@@ -136,7 +136,9 @@ No call can write. Copilot keeps `--allow-all-tools` so a permission prompt
 cannot wedge it. `--available-tools view` hides every other tool, including
 MCP servers that plugins add. Deny rules (which win over every allow) also
 remove shell, write, url, memory, and the built-in and user MCP servers.
-Copilot runs in an empty directory. Codex `-s read-only` blocks writes but not
+Copilot runs in an empty directory, but its `view` tool can still read the
+system temp directory, which Copilot allows by default. Codex `-s read-only`
+blocks writes but not
 reads, so a member steered by an earlier reply could read files outside its
 temp directory. Use this route when neither route above can reach the council,
 or for scheduled runs.

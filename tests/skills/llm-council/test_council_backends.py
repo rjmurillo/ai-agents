@@ -134,6 +134,34 @@ def test_mid_text_ai_credits_line_followed_by_prose_is_preserved(monkeypatch):
     assert _copilot_reply(answer + REAL_FOOTER, monkeypatch) == answer
 
 
+@pytest.mark.parametrize(
+    "last_line",
+    [
+        "AI Credits 5 reviews remain.",
+        "Tokens ↑ grew a lot",
+        "AI Credits 5 (soon)",
+        "AI Credits 5 ()",
+        "Resume copilot --resume=",
+    ],
+)
+def test_final_answer_line_shaped_like_a_footer_is_kept(monkeypatch, last_line):
+    answer = f"Answer.\n{last_line}"
+
+    assert _copilot_reply(answer, monkeypatch) == answer
+
+
+@pytest.mark.parametrize(
+    "footer",
+    [
+        "\n\nChanges    +0 -0\nAI Credits 0 (12s)\nResume     copilot --resume=68947a59-0d59-4080",
+        "\nAI Credits 21.8 (1m 20s)\nTokens ↑ 34.8k",
+        "\nAI Credits 3 (2m)\nTokens ↓ 2M ↑ 9",
+    ],
+)
+def test_exact_footer_shapes_are_stripped_after_an_answer_line(monkeypatch, footer):
+    assert _copilot_reply("Answer." + footer, monkeypatch) == "Answer."
+
+
 def test_answer_that_ends_with_changes_prose_keeps_it(monkeypatch):
     assert _copilot_reply("Result\nChanges +12 lines", monkeypatch) == "Result\nChanges +12 lines"
 
@@ -255,7 +283,7 @@ def test_copilot_calls_deny_shell_write_url_memory_and_mcp(calls, monkeypatch, l
 
     cmd = calls[0][0]
     denied = {cmd[i + 1] for i, arg in enumerate(cmd) if arg == "--deny-tool"}
-    assert denied == {"shell", "write", "url", "memory"}
+    assert denied - {"read"} == {"shell", "write", "url", "memory"}
     assert "--disable-builtin-mcps" in cmd
 
 

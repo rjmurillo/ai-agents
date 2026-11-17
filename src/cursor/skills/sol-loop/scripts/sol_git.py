@@ -12,7 +12,9 @@ code. A checkout git cannot read (not a repository) is not checked.
 
 from __future__ import annotations
 
+import os
 import re
+import stat
 import subprocess
 from collections.abc import Iterator
 from pathlib import Path, PureWindowsPath
@@ -20,12 +22,33 @@ from pathlib import Path, PureWindowsPath
 # A Windows absolute path, optionally behind a URL-style slash: C:\x, C:/x, /C:/x.
 _WINDOWS_ABSOLUTE = re.compile(r"^/?([A-Za-z]:[\\/].*)$")
 
+# Variables that point git at a repository other than ``cwd``. Inherited, they
+# make a read of checkout A answer for checkout B.
+_GIT_REPO_VARS = frozenset(
+    {
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_INDEX_FILE",
+        "GIT_COMMON_DIR",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_NAMESPACE",
+        "GIT_PREFIX",
+    }
+)
+
+
+def _git_env() -> dict[str, str]:
+    """The current environment minus the variables that redirect git to another repository."""
+    return {k: v for k, v in os.environ.items() if k not in _GIT_REPO_VARS}
+
 
 def _git(cwd: Path, *args: str, strip: bool = True) -> str:
     try:
         proc = subprocess.run(
             ["git", *args],
             cwd=cwd,
+            env=_git_env(),
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -64,28 +87,38 @@ def _dir_mtime(path: Path) -> float:
     return next((p.stat().st_mtime for p in path.parents if p.is_dir()), 0.0)
 
 
+def _is_skipped_entry(path: Path, skip: tuple[Path, ...]) -> bool:
+    """Skip-list test on the entry itself: resolve its directory, never a final symlink."""
+    return _is_skipped(path.parent.resolve() / path.name, skip)
+
+
 def _entry_mtime(path: Path, source: Path | None, skip: tuple[Path, ...]) -> float:
     """Newest change time one porcelain entry implies, 0.0 when it is skipped.
 
-    A file that is gone counts as its parent directory's mtime. A rename or
-    copy (``source`` is its old path) also counts both parent directories,
-    because a move keeps the file's own old mtime.
+    ``path`` and ``source`` are lexical, so a symlink counts its own mtime
+    (``lstat``), not its target's: retargeting a link to an old file is a
+    change. A path that is gone counts as its parent directory's mtime. A
+    rename or copy (``source`` is its old path) also counts both parent
+    directories, because a move keeps the file's own old mtime.
     """
     times = []
-    if not _is_skipped(path, skip):
-        if path.is_file():
-            times.append(path.stat().st_mtime)
-        elif not path.exists():
+    if not _is_skipped_entry(path, skip):
+        try:
+            info = os.lstat(path)
+        except OSError:
             times.append(_dir_mtime(path))
+        else:
+            if not stat.S_ISDIR(info.st_mode):
+                times.append(info.st_mtime)
         if source is not None:
             times.append(_dir_mtime(path))
-    if source is not None and not _is_skipped(source, skip):
+    if source is not None and not _is_skipped_entry(source, skip):
         times.append(_dir_mtime(source))
     return max(times, default=0.0)
 
 
 def _changed_paths(top: Path, raw: str) -> Iterator[tuple[Path, Path | None]]:
-    """Yield (path, rename or copy source) for each ``status --porcelain -z`` entry."""
+    """Yield lexical (path, rename or copy source) for each ``status --porcelain -z`` entry."""
     entries = raw.split("\0")
     index = 0
     while index < len(entries):
@@ -96,9 +129,9 @@ def _changed_paths(top: Path, raw: str) -> Iterator[tuple[Path, Path | None]]:
         source = None
         if ("R" in entry[:2] or "C" in entry[:2]) and index < len(entries):
             # with -z, a rename or copy source path follows as its own entry
-            source = (top / entries[index]).resolve()
+            source = top / entries[index]
             index += 1
-        yield (top / entry[3:]).resolve(), source
+        yield top / entry[3:], source
 
 
 def _newest_uncommitted_change(repo: Path, skip: tuple[Path, ...]) -> float:
@@ -135,14 +168,19 @@ def _critic_is_stale(
 ) -> bool:
     """True when the critic output predates HEAD, a move of HEAD, or an uncommitted change.
 
+    Commit and reflog times are whole seconds, so a critic written in the same
+    second as one of them cannot be proven newer and counts as stale: the
+    comparison truncates the critic's mtime. File mtimes keep their fraction.
     ``extra_skip`` names more loop-owned paths to ignore, such as the review brief.
     """
     head_time = _git(repo, "log", "-1", "--format=%ct", "HEAD")
     if not head_time.isdigit():
         return False
     skip = (critic.resolve(), log_dir.resolve(), *(p.resolve() for p in extra_skip))
-    newest = max(int(head_time), _head_moved_time(repo), _newest_uncommitted_change(repo, skip))
-    return critic.stat().st_mtime < newest
+    critic_time = critic.stat().st_mtime
+    if int(critic_time) <= max(int(head_time), _head_moved_time(repo)):
+        return True
+    return critic_time < _newest_uncommitted_change(repo, skip)
 
 
 def resolve_commit(repo: Path, ref: str) -> str:

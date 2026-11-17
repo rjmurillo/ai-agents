@@ -83,6 +83,7 @@ from sol_git import (  # noqa: E402
 from sol_ledger import (  # noqa: E402
     OUTCOMES,
     prior_rounds,
+    replace_run_log,
     summarize,
     write_run_log,
 )
@@ -225,32 +226,28 @@ def _start(
     return run, ""
 
 
-def _skip_reason(args: argparse.Namespace) -> str:
+def _skip_run(args: argparse.Namespace) -> int | None:
+    """Log a skip, which needs no critic or model check, and return its exit code, else None."""
     if os.environ.get("AI_AGENTS_SOL_PASS", "").strip().lower() in OFF_VALUES:
-        return "switched off by AI_AGENTS_SOL_PASS"
-    if args.author_family == "openai":
-        return "same-family: a GPT model wrote this change, so Sol would not be a second family"
-    return ""
+        skip = "switched off by AI_AGENTS_SOL_PASS"
+    elif args.author_family == "openai":
+        skip = "same-family: a GPT model wrote this change, so Sol would not be a second family"
+    else:
+        return None
+    repo = Path(args.repo).resolve()
+    log_dir = _log_dir(args, repo)
+    run = Run(critic_text="", record=_base_record(args, repo, log_dir, ""), log_dir=log_dir)
+    return run.finish("skipped", {"verdict": "SKIPPED", "reason": skip}, EXIT_OK, skip_reason=skip)
 
 
 def cmd_gate(args: argparse.Namespace) -> int:
     """Decide whether a Sol round may start."""
-    if args.route == "none" or (args.route == "cli" and not available_runner()):
-        reason = (
-            "no Sol route in this harness"
-            if args.route == "none"
-            else "no codex or droid CLI on PATH"
-        )
-        _emit({"verdict": "SKIPPED", "reason": reason, "log": None})
+    no_route = {"none": "no Sol route in this harness", "cli": "no codex or droid CLI on PATH"}
+    if args.route in no_route and (args.route == "none" or not available_runner()):
+        _emit({"verdict": "SKIPPED", "reason": no_route[args.route], "log": None})
         return EXIT_OK
-    skip = _skip_reason(args)
-    if skip:
-        # A skip needs no critic and no model check: nothing will be reviewed.
-        repo = Path(args.repo).resolve()
-        log_dir = _log_dir(args, repo)
-        run = Run(critic_text="", record=_base_record(args, repo, log_dir, ""), log_dir=log_dir)
-        payload = {"verdict": "SKIPPED", "reason": skip}
-        return run.finish("skipped", payload, EXIT_OK, skip_reason=skip)
+    if (skipped := _skip_run(args)) is not None:
+        return skipped
     run, error = _start(args, check_fresh=True)
     if run is None:
         print(f"sol_loop: {error}", file=sys.stderr)
@@ -344,8 +341,11 @@ def cmd_record(args: argparse.Namespace) -> int:
 def cmd_review(args: argparse.Namespace) -> int:
     """Last-resort route: run Sol through a native CLI, then record the reply.
 
-    This step starts Sol, so it checks critic freshness like ``gate``.
+    This step starts Sol, so it honors the same skip switches and checks critic
+    freshness like ``gate``.
     """
+    if (skipped := _skip_run(args)) is not None:
+        return skipped
     run, code = _started(args, check_fresh=True, skip_paths=(Path(args.brief_file),))
     if run is None:
         return code
@@ -407,10 +407,8 @@ def cmd_outcome(args: argparse.Namespace) -> int:
         print(f"sol_loop: no finding {args.id!r} in {path}", file=sys.stderr)
         return EXIT_CONFIG
     finding.update(outcome=args.outcome, evidence=args.evidence)
-    try:
-        path.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    except OSError as exc:
-        print(f"sol_loop: cannot write run log {path}: {exc}", file=sys.stderr)
+    if error := replace_run_log(path, record):
+        print(f"sol_loop: cannot write run log {path}: {error}", file=sys.stderr)
         return EXIT_CONFIG
     _emit({"id": args.id, "outcome": args.outcome, "log": str(path)})
     return EXIT_OK

@@ -66,6 +66,18 @@ def test_copilot_exposes_only_the_view_tool(calls, monkeypatch, long_prompt):
     assert "--disable-builtin-mcps" in cmd
 
 
+@pytest.mark.parametrize(("long_prompt", "reads_denied"), [(False, True), (True, False)])
+def test_only_a_long_prompt_may_read_files(calls, monkeypatch, long_prompt, reads_denied):
+    if long_prompt:
+        monkeypatch.setattr(backends, "_COPILOT_ARG_LIMIT", 1)
+
+    backends.call_copilot("gpt-6-sol", "question")
+
+    cmd = calls[0][0]
+    denied = {cmd[i + 1] for i, arg in enumerate(cmd) if arg == "--deny-tool"}
+    assert ("read" in denied) is reads_denied
+
+
 def test_short_copilot_call_runs_in_a_fresh_empty_directory(calls):
     backends.call_copilot("gpt-6-sol", "question")
 

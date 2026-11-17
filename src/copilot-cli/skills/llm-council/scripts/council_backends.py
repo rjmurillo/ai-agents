@@ -26,7 +26,9 @@ call is restricted as far as its harness allows:
   built-in MCP servers plus every server in the user's ``mcp-config.json`` are
   disabled; these stay as a second layer. ``--allow-all-tools`` stays so a
   permission prompt cannot wedge the run. Copilot runs in an empty temp
-  directory, never the caller's working directory.
+  directory, never the caller's working directory. Its ``view`` tool can still
+  read the system temp directory, which Copilot allows by default, so the empty
+  working directory limits the workspace but not temp.
 """
 
 from __future__ import annotations
@@ -47,15 +49,17 @@ API_HOST = "models.github.ai"
 API_PATH = "/inference/chat/completions"
 API = f"https://{API_HOST}{API_PATH}"
 
-# One line of the metadata block Copilot CLI prints after the answer, for
-# example "Changes    +0 -0", "AI Credits 0 (12s)", a "Tokens" line led by an
-# arrow, and "Resume     copilot --resume=<id>". Only a trailing run of these
-# lines (and blanks) is stripped, never a match inside the answer.
+# One line of the metadata block Copilot CLI prints after the answer, matched
+# whole (``fullmatch``) in these shapes only: "Changes    +0 -0",
+# "AI Credits 21.8 (1m 20s)", "Tokens \u2191 34.8k" (anything may follow the
+# count), and "Resume     copilot --resume=<id>". Only a trailing run of these
+# lines (and blanks) is stripped, never a match inside the answer, and prose
+# such as "AI Credits 5 reviews remain." or "Tokens \u2191 grew a lot" is kept.
 _COPILOT_FOOTER_LINE = re.compile(
-    r"^\s*(?:Changes\s+[+-]\d+(?:\s+[+-]\d+)?\s*$"
-    r"|AI Credits\s+\d"
-    r"|Tokens\s+[\u2191\u2193]"
-    r"|Resume\s+copilot --resume)"
+    r"\s*(?:Changes\s+[+-]\d+(?:\s+[+-]\d+)?"
+    r"|AI Credits\s+\d+(?:\.\d+)?\s+\((?:\d+m(?:\s*\d+(?:\.\d+)?s)?|\d+(?:\.\d+)?s)\)"
+    r"|Tokens\s+[\u2191\u2193]\s+\d+(?:\.\d+)?[kM]?(?:\s.*)?"
+    r"|Resume\s+copilot --resume=\S+)\s*"
 )
 # The tool list Copilot prints before the answer when --available-tools is set:
 # " \u25cf Disabled tools: a, b,\n   c, d\n\n".
@@ -300,7 +304,7 @@ def _copilot_via_file(model: str, prompt: str, timeout: int) -> subprocess.Compl
 def _strip_copilot_footer(text: str) -> str:
     """Drop the trailing metadata block: blank lines and footer lines, from the end up."""
     lines = text.split("\n")
-    while lines and (not lines[-1].strip() or _COPILOT_FOOTER_LINE.match(lines[-1])):
+    while lines and (not lines[-1].strip() or _COPILOT_FOOTER_LINE.fullmatch(lines[-1])):
         lines.pop()
     return "\n".join(lines)
 
@@ -313,9 +317,10 @@ def call_copilot(model: str, prompt: str, timeout: int = 240) -> str:
         with tempfile.TemporaryDirectory(
             prefix="council-copilot-", ignore_cleanup_errors=True
         ) as empty_dir:
-            proc = _copilot(
-                [prompt, "--model", model, *copilot_read_only_args()], timeout, empty_dir
-            )
+            # A short prompt needs no file at all; a deny rule with no path
+            # matches every read, and deny wins over --allow-all-tools.
+            args = [prompt, "--model", model, *copilot_read_only_args(), "--deny-tool", "read"]
+            proc = _copilot(args, timeout, empty_dir)
     if proc.returncode != 0:
         raise RuntimeError(f"copilot rc={proc.returncode}: {(proc.stderr or proc.stdout)[:400]}")
     out = _COPILOT_DISABLED_TOOLS.sub("", proc.stdout, count=1)
