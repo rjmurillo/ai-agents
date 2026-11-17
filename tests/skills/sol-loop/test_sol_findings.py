@@ -256,3 +256,18 @@ def test_absolute_sol_path_overlaps_relative_critic_path():
     marked = rules.mark_sol_only([_finding(file="/repo/src/app/a.py", line=10)], CRITIC_TEXT)
 
     assert marked[0]["sol_only"] is False
+
+
+@pytest.mark.parametrize(
+    ("location", "expected"),
+    [
+        ("[f.py:12](/abs/f.py:12:5)", ("/abs/f.py", 12)),
+        ("[f.py:12](/abs/f.py:12)", ("/abs/f.py", 12)),
+        ("[f.py#L12](/abs/f.py#L12-L20)", ("/abs/f.py", 12)),
+    ],
+)
+def test_link_target_with_column_keeps_the_line(location, expected):
+    # Regression for the round 2 critic D1: a column must not become the line.
+    _, findings = rules.parse_reply(f"VERDICT: CHANGES\nS1 [should] {location} bug. Repro: x.\n")
+
+    assert (findings[0]["file"], findings[0]["line"]) == expected

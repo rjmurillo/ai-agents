@@ -30,7 +30,8 @@ _LEADING_LOCATION = re.compile(r"^`?([^\s`:\[\]()]+)(?::|#L)(\d+)`?\s*(.*)$")
 # Sol often cites a location as a markdown link: [file.py:12](/abs/path/file.py:12).
 # The link target carries the full path, so it wins over the label.
 _LINK_LOCATION = re.compile(r"^\[([^\]\n]+)\]\(<?([^)>\s]+)>?\)\s*(.*)$")
-_PATH_LINE = re.compile(r"^`?(.+?)`?(?::|#L)(\d+)(?:-L?\d+)?$")
+# An optional ":col" after the line is allowed, so "f.py:12:5" is line 12.
+_PATH_LINE = re.compile(r"^`?(.+?)`?(?::|#L)(\d+)(?::\d+)?(?:-L?\d+)?$")
 _REPRO = re.compile(r"\bRepro:\s*(.*?)(?=\s*\bFix:|$)", re.I)
 _FIX = re.compile(r"\bFix:\s*(.*)$", re.I)
 
