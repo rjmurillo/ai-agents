@@ -231,27 +231,20 @@ def test_review_refuses_a_non_sol_model(tmp_path, critic_file, monkeypatch):
 
 
 def _runner_run(monkeypatch, behave):
-    """Patch ``subprocess.run`` for codex and droid only; git calls run for real."""
-    real_run = subprocess.run
-
-    def fake(cmd, **kwargs):
-        if cmd[0] in cli.RUNNERS:
-            return behave(cmd, **kwargs)
-        return real_run(cmd, **kwargs)
-
-    monkeypatch.setattr(cli.subprocess, "run", fake)
+    """Replace the codex launch with ``behave(out)``; git calls stay real."""
+    monkeypatch.setattr(cli, "_codex", lambda model, brief, cwd, timeout, out: behave(out))
 
 
 def _review(tmp_path, critic_file):
     return mod.main(_argv("review", tmp_path, critic_file, "--brief-file", str(_brief(tmp_path))))
 
 
-def _launch_fails(cmd, **kwargs):
+def _launch_fails(out):
     raise OSError(8, "Exec format error: bad interpreter")
 
 
-def _invalid_utf8_reply(cmd, **kwargs):
-    Path(cmd[cmd.index("-o") + 1]).write_bytes(b"VERDICT: \xff\xfe\n")
+def _invalid_utf8_reply(out):
+    out.write_bytes(b"VERDICT: \xff\xfe\n")
     return Proc(0)
 
 
@@ -309,8 +302,8 @@ def test_review_with_a_valid_codex_reply_still_records(
 ):
     on_path("codex")
 
-    def good(cmd, **kwargs):
-        Path(cmd[cmd.index("-o") + 1]).write_text("VERDICT: APPROVE\n", encoding="utf-8")
+    def good(out):
+        out.write_text("VERDICT: APPROVE\n", encoding="utf-8")
         return Proc(0)
 
     _runner_run(monkeypatch, good)

@@ -71,8 +71,12 @@ from the root of the checkout under review with the plugin locator:
 ```
 
 When no plugin root holds `lib/ptk_run.py` (for example Codex, or a plain
-checkout), run `python3 "<folder that holds this SKILL.md>/scripts/sol_loop.py"`
-with the same arguments. The script finds its own plugin's `lib/`.
+checkout), run the script beside this SKILL.md directly with the same
+arguments. It finds its own plugin's `lib/`:
+
+```bash
+python3 "<folder that holds this SKILL.md>/scripts/sol_loop.py" gate --route cli --critic-findings CRITIC_FILE --model SOL_MODEL --author-family anthropic
+```
 
 Swap `gate` and its flags for the other steps:
 

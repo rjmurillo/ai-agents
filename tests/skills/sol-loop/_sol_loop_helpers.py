@@ -7,10 +7,11 @@ import os
 import subprocess
 import time
 from pathlib import Path
+from typing import Any
 
 from tests.skills.claude_skills_import import import_skill_script
 
-mod = import_skill_script(
+mod: Any = import_skill_script(
     ".claude/skills/sol-loop/scripts/sol_loop.py", module_name="sol_loop_under_test"
 )
 

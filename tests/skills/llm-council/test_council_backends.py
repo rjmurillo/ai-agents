@@ -96,7 +96,8 @@ def test_arg_limit_threshold_reasonable():
 
 def _copilot_reply(stdout: str, monkeypatch) -> str:
     monkeypatch.setattr(backends.subprocess, "run", lambda cmd, **kw: Completed(stdout))
-    return backends.call_copilot("gpt-6-sol", "q")
+    reply: str = backends.call_copilot("gpt-6-sol", "q")
+    return reply
 
 
 REAL_FOOTER = "\n\nChanges    +0 -0\nAI Credits 0 (12s)\nResume     copilot --resume=68947a59-aaaa"
