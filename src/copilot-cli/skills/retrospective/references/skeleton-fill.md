@@ -1,8 +1,8 @@
 # Skeleton Fill And List
 
-This procedure replaces the retired `retro` skill. It parses the
-`fill` and list operations, resolves one skeleton file, and then runs the
-Phase 0..5 workflow in `SKILL.md`. Do not re-implement that workflow here.
+This procedure parses the `fill` and `list` operations, resolves one
+skeleton file, and then runs the Phase 0..5 workflow in `SKILL.md`. Do not
+re-implement that workflow here.
 
 Skeletons carry the marker `<!-- RETRO-STATE: skeleton-pending-fill -->`. The
 SessionStart context loader counts them and points the user at
