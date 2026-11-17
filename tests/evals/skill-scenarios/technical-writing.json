@@ -28,11 +28,11 @@
       "forbidden_response_patterns": [
         "\\bimport\\b[^\\n]*@astrojs/starlight",
         "\\bimport\\b[^\\n]*@components/",
-        "<(?:Aside|Tabs|TabItem)\\s+[A-Za-z]+=",
-        "</(?:Aside|Tabs|TabItem)>"
+        "(?m)^[ \\t]*(?:[-*][ \\t]+)?<(?-i:Aside|Tabs|TabItem)\\b",
+        "(?m)^[ \\t]*</(?-i:Aside|Tabs|TabItem)>"
       ],
       "expected_gate": "technical-writing-site-recon",
-      "rationale": "The skill recons the target first and loads a site profile only on a match. A response that writes Astro or Starlight component markup (an import, a tag with attributes, or a closing tag) fails on a plain Markdown repo. Naming a component in prose, including to reject it, is left to the judge."
+      "rationale": "The skill recons the target first and loads a site profile only on a match. A response that writes Astro or Starlight component markup fails on a plain Markdown repo: an import line, or a line that starts with an Aside, Tabs, or TabItem tag. A component named or quoted inside a sentence, including to reject it, is left to the judge."
     },
     {
       "id": "S3",
