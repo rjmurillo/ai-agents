@@ -69,7 +69,7 @@ Merge rules (canonical source: `merge_verdicts` in [`.claude/lib/ai_review_commo
 | --- | --- |
 | Any `CRITICAL_FAIL`, `REJECTED`, `FAIL`, `NEEDS_REVIEW`, or `NON_COMPLIANT` | `CRITICAL_FAIL` |
 | Any `WARN` or `PARTIAL`, and no critical token | `WARN` |
-| Any `UNKNOWN`, and no critical or warn token | `UNKNOWN` |
+| Any `UNKNOWN`, `DID_NOT_RUN`, or unrecognized token, and no critical or warn token | `UNKNOWN` |
 | All `PASS` or `COMPLIANT` | `PASS` |
 | No input | `UNKNOWN` |
 

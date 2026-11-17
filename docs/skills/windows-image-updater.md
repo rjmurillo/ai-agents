@@ -50,7 +50,7 @@ Rollback:
 
 | Failed at | Action |
 | --- | --- |
-| Phase 1 or 2, not pushed | `git checkout main && git branch -D feat/windows-image-update` |
+| Phase 1 or 2, not pushed | `git checkout main && git branch -D feat/windows-image-update` (this deletes unmerged local work on that branch; confirm you have nothing to keep) |
 | Phase 3, not pushed | `git reset --hard origin/main` (first confirm you are on the update branch and have no uncommitted work to keep; this discards it) |
 | Phase 4, pushed | Close the draft PR in Azure DevOps and delete the remote branch |
 

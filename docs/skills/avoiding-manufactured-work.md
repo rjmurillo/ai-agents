@@ -10,7 +10,7 @@ Checks whether follow-up work has a real consumer. It also sorts any finding tha
 
 ## When not to use it
 
-- You need to decide whether the work should exist before you start it: use a front gate before the work starts, such as the external `front-gate-before-pipeline` skill (not part of this toolkit) or Phase 0 of [`panning-for-gold`](panning-for-gold.md). This skill fires after work looks done.
+- You need to decide whether the work should exist before you start it: use a front gate before the work starts, such as the external `front-gate-before-pipeline` skill (not part of this toolkit) or Phase 0 of [`panning-for-gold`](panning-for-gold.md). This skill fires after work looks done. <!-- orphan-ref-ignore -->
 - You want to check a vendor or third-party claim against its primary source: use [`ai-agents-external-claims`](ai-agents-external-claims.md). That skill routes here when a deliverable has no consumer.
 
 ## Quick start

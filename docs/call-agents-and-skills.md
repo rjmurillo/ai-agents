@@ -50,7 +50,7 @@ Use the threat-modeling skill to threat-model the upload endpoint in src/api/upl
 
 A few skills have explicit-only routing, shown as `by name` in [Skills](skills/README.md). The `autoplan` router never picks them, so name them in your request, or in Claude Code type `/project-toolkit:<name>`.
 
-This works on every host, including Codex, Cursor, and Muse.
+This works on every host that ships the skill, including Codex, Cursor, and Muse. Check the skill's **Where it runs** table first. For example, `merge-resolver` does not ship to Copilot CLI.
 
 ## Call an agent
 

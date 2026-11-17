@@ -44,7 +44,7 @@ How the verdict forms:
 
 - Each axis ends with a verdict line. An axis that crashes or prints something unparseable counts as `UNKNOWN`.
 - Any failing token (`CRITICAL_FAIL`, `REJECTED`, `FAIL`, `NEEDS_REVIEW`, `NON_COMPLIANT`) gives `CRITICAL_FAIL`.
-- Otherwise any `WARN` or `PARTIAL` gives `WARN`, then any `UNKNOWN` gives `UNKNOWN`. All `PASS` gives `PASS`.
+- Otherwise any `WARN` or `PARTIAL` gives `WARN`, then any `UNKNOWN`, `DID_NOT_RUN`, or unrecognized token gives `UNKNOWN`. All `PASS` gives `PASS`.
 - `UNKNOWN` never hides a real finding. `WARN` plus `UNKNOWN` merges to `WARN`.
 
 ## Advanced use

@@ -186,9 +186,10 @@ Default target is `main` unless specified.
 |-------|------|----------|
 | Pipeline | CI checks green, no suppressed failures | Yes |
 | Security | No new CWE findings, no secrets in diff | Yes |
-| Review | /review run, no unresolved Critical findings | Yes |
+| Review | A SHA-bound `/review` marker commit on HEAD | Yes |
 | Tests | All tests green, no unjustified skips | Yes |
-| Standards | Golden principles and taste lints pass | Yes |
+
+Golden principles and taste lints run as `/review` axes, not as a separate `/ship` check. See [`ship`](skills/ship.md).
 
 **Output:** Ship report with per-check PASS/FAIL, PR link if created, and follow-up items.
 

@@ -80,7 +80,7 @@ Your trigger picks the phases: a full audit runs 1 to 6, `verify code examples` 
 
 `pr_snapshot.py` captures an immutable head and base snapshot of a pull request for review. Its flags include `--owner`, `--repo`, `--pull-request`, `--output-dir`, `--check-stale`, `--identity-file`, and `--run-scanner`. Exit `0` is ok, `1` is a verification or stale result, `2` config, `3` external, `4` auth.
 
-The skill states that Haiku agents are too shallow for Phase 4 and requires Sonnet agents, one per file group, so each agent keeps cross-cutting context. It replaces the earlier `incoherence`, `doc-coverage`, and `doc-sync` skills.
+The skill states that Haiku agents are too shallow for Phase 4 and requires Sonnet agents, one per file group, so each agent keeps cross-cutting context. It replaces the earlier `incoherence`, `doc-coverage`, and `doc-sync` skills. <!-- orphan-ref-ignore -->
 
 ## Where it runs
 

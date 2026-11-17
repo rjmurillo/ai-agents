@@ -6,7 +6,7 @@ Walks your open pull requests, sorts them into tiers, fixes failing CI and unres
 
 - You want open PRs triaged and worked in bulk: land-ready first, then CI fixes, then review threads.
 - You want one PR on your current branch fixed through to merge.
-- You want periodic triage that does not merge.
+- You want periodic triage that does not merge. Say `monitor open prs` for that mode. The no-argument and PR-number forms can merge or turn on auto-merge.
 - Trigger phrases: `pr-autofix`, `autofix this pr`, `monitor open prs`, `auto-merge ready prs`, `address pr feedback`.
 
 ## When not to use it
