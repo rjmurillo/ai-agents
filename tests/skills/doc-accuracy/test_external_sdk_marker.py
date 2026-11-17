@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -171,20 +172,20 @@ def test_resolving_example_in_marked_file_passes(
 @pytest.mark.parametrize(
     ("body", "expected"),
     [
-        (" Aspire -- reason ", "Aspire"),
-        (" Aspire ", "Aspire"),
-        (" Aspire SDK -- reason -- more ", "Aspire SDK"),
-        (" Aspire --", "Aspire"),
-        ("", ""),
-        (" -- reason", ""),
-        ("   ", ""),
+        (" Aspire -- reason ", ("Aspire", "reason")),
+        (" Aspire ", ("Aspire", "")),
+        (" Aspire SDK -- reason -- more ", ("Aspire SDK", "reason -- more")),
+        (" Aspire --", ("Aspire", "")),
+        ("", ("", "")),
+        (" -- reason", ("", "")),
+        ("   ", ("", "")),
     ],
 )
-def test_parse_sdk_marker_body(body: str, expected: str) -> None:
+def test_parse_sdk_marker_body(body: str, expected: tuple[str, str]) -> None:
     assert mod._parse_sdk_marker_body(body) == expected
 
 
-def test_find_markers_reports_every_prose_marker_with_its_line() -> None:
+def test_find_markers_reports_every_honored_marker_with_line_and_reason() -> None:
     lines = [
         "# T",
         "<!-- doc-accuracy: external-sdk A -- r -->",
@@ -194,4 +195,113 @@ def test_find_markers_reports_every_prose_marker_with_its_line() -> None:
         "<!-- doc-accuracy: external-sdk -->",
     ]
 
-    assert mod._find_external_sdk_markers(lines) == [(2, "A"), (6, "")]
+    assert mod._find_external_sdk_markers(lines) == [(2, "A", "r"), (6, "", "")]
+
+
+@pytest.mark.parametrize(
+    "hidden",
+    [
+        pytest.param(f"1. Step\n\n    ```text\n{MARKER}\n    ```\n", id="list-item-fence"),
+        pytest.param(f"- Step\n\n  ```text\n{MARKER}\n  ```\n", id="two-space-list-fence"),
+        pytest.param(f"- ```text\n{MARKER}\n  ```\n", id="fence-on-list-marker-line"),
+        pytest.param(f"> ```text\n> {MARKER}\n> ```\n", id="blockquote-fence"),
+        pytest.param(f"> ```text\n{MARKER}\n> ```\n", id="blockquote-fence-lazy-line"),
+        pytest.param(f"    {MARKER}\n", id="indented-code-block"),
+        pytest.param(f" {MARKER}\n", id="leading-space-marker"),
+        pytest.param(f"\t{MARKER}\n", id="leading-tab-marker"),
+        pytest.param(f"> {MARKER}\n", id="blockquote-marker"),
+    ],
+)
+def test_marker_in_nested_or_prefixed_context_is_never_honored(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], hidden: str
+) -> None:
+    code, findings = _scan(tmp_path, capsys, f"# Aspire\n\n{hidden}\n{FOREIGN_FENCE}")
+
+    flagged = {f["evidence"]["symbol"] for f in _by_category(findings, "unresolved_symbol")}
+    assert code == 10
+    assert FOREIGN_SYMBOLS <= flagged
+    assert _by_category(findings, "invalid_external_sdk_marker") == []
+
+
+def test_inline_code_scan_is_linear_on_backtick_runs() -> None:
+    line = "x " + "`" * 5000
+
+    start = time.perf_counter()
+    result = mod._find_external_sdk_markers([line])
+    elapsed = time.perf_counter() - start
+
+    assert result == []
+    assert elapsed < 1.0
+
+
+def test_two_valid_markers_first_wins_without_error(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    second = "<!-- doc-accuracy: external-sdk Other -- second -->"
+    code, findings = _scan(tmp_path, capsys, f"# A\n{MARKER}\n\n{second}\n\n{FOREIGN_FENCE}")
+    claims = json.loads((tmp_path / "out" / "claims.json").read_text(encoding="utf-8"))
+
+    assert code == 0
+    assert findings == []
+    assert claims["external_sdk_files"]["doc.md"]["sdk"] == "Aspire"
+    assert claims["external_sdk_files"]["doc.md"]["line"] == 2
+
+
+def test_bare_marker_beside_valid_one_is_still_reported(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    bare = "<!-- doc-accuracy: external-sdk -->"
+    code, findings = _scan(tmp_path, capsys, f"# A\n{MARKER}\n{bare}\n\n{FOREIGN_FENCE}")
+
+    invalid = _by_category(findings, "invalid_external_sdk_marker")
+    assert code == 10
+    assert [f["line"] for f in invalid] == [3]
+    assert _by_category(findings, "unresolved_symbol") == []
+
+
+def test_exemption_is_recorded_with_reason_and_suppressed_count(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _scan(tmp_path, capsys, f"# A\n{MARKER}\n\n{FOREIGN_FENCE}")
+    out = tmp_path / "out"
+    claims = json.loads((out / "claims.json").read_text(encoding="utf-8"))
+    phase3 = json.loads((out / "compilability-findings.json").read_text(encoding="utf-8"))
+
+    assert claims["external_sdk_files"] == {
+        "doc.md": {"sdk": "Aspire", "reason": "vendored from microsoft/aspire.dev", "line": 2}
+    }
+    assert phase3["external_sdk_suppressed"]["doc.md"] >= len(FOREIGN_SYMBOLS)
+
+
+def test_marker_without_reason_is_valid_and_records_empty_reason(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    code, _ = _scan(
+        tmp_path, capsys, f"# A\n<!-- doc-accuracy: external-sdk Aspire -->\n\n{FOREIGN_FENCE}"
+    )
+    claims = json.loads((tmp_path / "out" / "claims.json").read_text(encoding="utf-8"))
+
+    assert code == 0
+    assert claims["external_sdk_files"]["doc.md"]["reason"] == ""
+
+
+def test_summary_and_markdown_formats_show_the_exemption(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (tmp_path / ".git").write_text("gitdir: missing\n", encoding="utf-8")
+    (tmp_path / "RealService.cs").write_text("public class RealService { }\n", encoding="utf-8")
+    (tmp_path / "doc.md").write_text(f"# A\n{MARKER}\n\n{FOREIGN_FENCE}", encoding="utf-8")
+    out = tmp_path / "out"
+    base = ["--target", str(tmp_path), "--output-dir", str(out)]
+
+    assert mod.main([*base, "--format", "summary"]) == 0
+    summary = capsys.readouterr().out
+    assert mod.main([*base, "--format", "markdown"]) == 0
+    report = (out / "report.md").read_text(encoding="utf-8")
+
+    expected = "External SDK exemption: doc.md (SDK Aspire, marker line 2)"
+    assert expected in summary
+    assert "vendored from microsoft/aspire.dev" in summary
+    assert "unresolved_symbol suppressed" in summary
+    assert "## External SDK exemptions" in report
+    assert expected in report
