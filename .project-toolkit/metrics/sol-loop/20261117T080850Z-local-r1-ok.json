@@ -1,4 +1,5 @@
 {
+  "author_family": "anthropic",
   "base": "origin/main",
   "branch": "",
   "counts": {
@@ -14,8 +15,11 @@
   "findings": [
     {
       "category": "correctness",
+      "evidence": "97d102a: the doc now says to run from the root of the checkout under review",
       "file": "src/claude/skills/review/resources/cross-family-pass.md",
+      "id": "S1",
       "line": 17,
+      "outcome": "fixed",
       "repro": "Unset CLAUDE_PLUGIN_ROOT and COPILOT_PLUGIN_ROOT, change into src/claude/skills/review, and execute the command on line 20. It exits 2 with 'ptk_run: no plugin root holds lib/ptk_run.py'.",
       "severity": "P2",
       "sol_only": true,
@@ -23,11 +27,14 @@
     }
   ],
   "head_sha": "8315fc682847f2d865f7c008344ffcb4af91e86c",
+  "key": "local",
+  "migrated_from_schema_version": 1,
   "model": "gpt-6.1-sol",
   "overlap_rule": "same file and line within 3 of a critic path:line",
   "pr": "",
   "round": 1,
-  "schema_version": 1,
+  "schema_version": 2,
   "status": "ok",
-  "timestamp": "2026-11-17T08:08:50Z"
+  "timestamp": "2026-11-17T08:08:50Z",
+  "verdict": "CHANGES"
 }

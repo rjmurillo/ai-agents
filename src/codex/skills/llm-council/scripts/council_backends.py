@@ -15,8 +15,8 @@ from __future__ import annotations
 
 import http.client
 import json
-import os
 import re
+import shutil
 import subprocess
 import tempfile
 import urllib.error
@@ -94,28 +94,25 @@ def _run_copilot(args: list[str], timeout: int) -> subprocess.CompletedProcess:
 
 
 def _copilot_via_file(model: str, prompt: str, timeout: int) -> subprocess.CompletedProcess:
-    """Write a long prompt to a temp file and tell Copilot to read it.
+    """Write a long prompt to a private temp file and tell Copilot to read it.
 
     Copilot CLI exposes no stdin or file flag for the prompt itself, so this
-    read-this-file trampoline is the only portable path.
+    read-this-file trampoline is the only portable path. The file sits in its
+    own owner-only directory, and only that directory is granted with
+    ``--add-dir``, never the shared temp root.
     """
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".prompt.txt", delete=False, encoding="utf-8"
-    ) as tf:
-        tf.write(prompt)
-        prompt_path = tf.name
-    cmd_prompt = (
-        f"Read the file at {prompt_path} verbatim, then respond to the instructions it contains. "
-        "Output ONLY the final response: no preamble, no tool-call narration, no 'Read file' headers."
-    )
-    args = ["-p", cmd_prompt, "--model", model, "--allow-all-tools", "--no-color", "--add-dir"]
+    prompt_dir = Path(tempfile.mkdtemp(prefix="council-prompt-"))
     try:
-        return _run_copilot([*args, str(Path(prompt_path).parent)], timeout)
+        prompt_path = prompt_dir / "prompt.txt"
+        prompt_path.write_text(prompt, encoding="utf-8")
+        cmd_prompt = (
+            f"Read the file at {prompt_path} verbatim, then respond to the instructions it contains. "
+            "Output ONLY the final response: no preamble, no tool-call narration, no 'Read file' headers."
+        )
+        args = ["-p", cmd_prompt, "--model", model, "--allow-all-tools", "--no-color", "--add-dir"]
+        return _run_copilot([*args, str(prompt_dir)], timeout)
     finally:
-        try:
-            os.unlink(prompt_path)
-        except OSError:
-            pass
+        shutil.rmtree(prompt_dir, ignore_errors=True)
 
 
 def call_copilot(model: str, prompt: str, timeout: int = 240) -> str:

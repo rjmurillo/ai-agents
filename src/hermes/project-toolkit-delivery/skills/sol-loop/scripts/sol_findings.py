@@ -22,7 +22,10 @@ KEPT_SEVERITIES = ("blocker", "should")
 SEVERITIES = (*KEPT_SEVERITIES, "nit")
 
 _VERDICT = re.compile(r"^\s*\**\s*VERDICT\s*:\s*\**\s*(APPROVE|CHANGES)\b", re.I | re.M)
-_FINDING = re.compile(r"^\s*[-*]?\s*\**(S\d+)\**\s*\[([A-Za-z]+)\]\s*(.*)$")
+# Any bracketed label counts, so a finding tagged [P1] or [major] is parsed and
+# then dropped with a reason instead of vanishing. A list marker ("-", "*", or
+# "1.") may lead the line.
+_FINDING = re.compile(r"^\s*(?:[-*]|\d+[.)])?\s*\**(S\d+)\**\s*\[([^\]\n]+)\]\s*(.*)$")
 _LEADING_LOCATION = re.compile(r"^`?([^\s`:]+):(\d+)`?\s*(.*)$")
 _REPRO = re.compile(r"\bRepro:\s*(.*?)(?=\s*\bFix:|$)", re.I)
 _FIX = re.compile(r"\bFix:\s*(.*)$", re.I)
@@ -42,7 +45,7 @@ def _parse_finding(fid: str, severity: str, rest: str) -> dict:
     claim = body[: repro.start()] if repro else body[: fix.start()] if fix else body
     return {
         "id": fid,
-        "severity": severity.lower(),
+        "severity": severity.strip().lower(),
         "file": file_value,
         "line": line,
         "claim": claim.strip().rstrip("."),
@@ -67,8 +70,11 @@ def parse_reply(text: str) -> tuple[str, list[dict]]:
 def drop_reason(item: dict) -> str:
     """Why a finding is dropped, or "" when it is kept."""
     line = item.get("line")
-    if str(item.get("severity") or "").lower() not in KEPT_SEVERITIES:
+    severity = str(item.get("severity") or "").strip().lower()
+    if severity == "nit":
         return "nit"
+    if severity not in KEPT_SEVERITIES:
+        return "unknown-severity"
     if not str(item.get("file") or "").strip():
         return "missing-file"
     if not isinstance(line, int) or isinstance(line, bool) or line < 1:

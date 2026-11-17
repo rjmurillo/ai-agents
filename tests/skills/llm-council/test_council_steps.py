@@ -108,9 +108,20 @@ def test_unavailable_must_name_a_member(tmp_path, question, capsys):
 
 
 def test_unavailable_needs_model_equals_reason(tmp_path, question, capsys):
-    code, _ = _init(capsys, tmp_path / "run", question, "--unavailable", "gpt-6-astra")
+    code = steps.main(
+        [
+            "init",
+            "--run-dir",
+            str(tmp_path / "run"),
+            "--question-file",
+            str(question),
+            "--unavailable",
+            "gpt-6-astra",
+        ]
+    )
 
     assert code == steps.EXIT_CONFIG
+    assert "MODEL=REASON" in capsys.readouterr().err
 
 
 def test_too_few_answers_stops_before_ranking(tmp_path, question, capsys):
@@ -166,3 +177,51 @@ def test_step_without_plan_is_config_error(tmp_path, capsys):
     code, _ = _run(capsys, "rank", "--run-dir", str(tmp_path / "nothing"))
 
     assert code == steps.EXIT_CONFIG
+
+
+def _answered(capsys, run_dir, question, count=None):
+    _, init = _init(capsys, run_dir, question)
+    paths = list(init["replies"].items())
+    for _, path in paths[:count]:
+        _write(path, "answer")
+    return paths
+
+
+def test_late_stage1_reply_does_not_break_the_ranking(tmp_path, question, capsys):
+    run_dir = tmp_path / "run"
+    paths = _answered(capsys, run_dir, question, count=3)
+    _, rank = _run(capsys, "rank", "--run-dir", str(run_dir))
+    for path in rank["replies"].values():
+        _write(path, "FINAL RANKING:\n1. Response A\n2. Response B\n3. Response C\n")
+    late_model, late_path = paths[3]
+    _write(late_path, "late answer")
+
+    _, chair = _run(capsys, "chair", "--run-dir", str(run_dir))
+    _, finish = _run(capsys, "finish", "--run-dir", str(run_dir))
+
+    assert chair["unparsed_rankers"] == []
+    assert len(chair["borda"]) == 3
+    assert finish["errors"][late_model] == "replied after ranking started"
+    assert "late answer" not in (run_dir / "stage3-prompt.md").read_text(encoding="utf-8")
+
+
+def test_init_refuses_a_reused_run_dir(tmp_path, question, capsys):
+    run_dir = tmp_path / "run"
+    _init(capsys, run_dir, question)
+
+    code, _ = _init(capsys, run_dir, question)
+
+    assert code == steps.EXIT_CONFIG
+
+
+@pytest.mark.parametrize("command", ["chair", "finish"])
+def test_chair_and_finish_need_rank_first(tmp_path, question, capsys, command):
+    run_dir = tmp_path / "run"
+    _answered(capsys, run_dir, question)
+
+    capsys.readouterr()
+
+    code = steps.main([command, "--run-dir", str(run_dir)])
+
+    assert code == steps.EXIT_CONFIG
+    assert "run `rank`" in capsys.readouterr().err

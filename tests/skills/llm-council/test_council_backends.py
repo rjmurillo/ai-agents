@@ -7,6 +7,7 @@ argument limit), with the subprocess replaced by a fake. No test reaches a model
 from __future__ import annotations
 
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -68,8 +69,11 @@ def test_long_prompt_goes_through_a_temp_file_that_is_removed(calls, monkeypatch
 
     cmd = calls[0][0]
     assert "--add-dir" in cmd
-    prompt_file = cmd[2].split("Read the file at ", 1)[1].split(" verbatim", 1)[0]
-    assert not Path(prompt_file).exists()
+    prompt_file = Path(cmd[2].split("Read the file at ", 1)[1].split(" verbatim", 1)[0])
+    granted = Path(cmd[cmd.index("--add-dir") + 1])
+    assert granted == prompt_file.parent
+    assert granted != Path(tempfile.gettempdir())
+    assert not granted.exists()
 
 
 def test_copilot_failure_raises(monkeypatch):

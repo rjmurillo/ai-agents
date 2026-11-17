@@ -187,10 +187,36 @@ def _read_text(path: Path, label: str) -> tuple[str, str]:
     return text, ""
 
 
-def _critic_is_stale(repo: Path, critic: Path) -> bool:
-    """True when the critic output predates the reviewed HEAD commit."""
+def _newest_uncommitted_change(repo: Path, skip: tuple[Path, ...]) -> float:
+    """Newest mtime among modified and untracked files, ignoring ``skip`` paths.
+
+    Fixes made during the loop stay uncommitted (the skill does not push
+    mid-loop), so HEAD alone would let a round-1 critic file pass round 2.
+    Run logs and the critic file itself are skipped: they are loop output.
+    """
+    top = _git(repo, "rev-parse", "--show-toplevel")
+    if not top:
+        return 0.0
+    newest = 0.0
+    for entry in _git(repo, "status", "--porcelain", "-z", "--untracked-files=all").split("\0"):
+        if len(entry) < 4:
+            continue
+        path = (Path(top) / entry[3:]).resolve()
+        if any(path == s or s in path.parents for s in skip) or not path.is_file():
+            continue
+        newest = max(newest, path.stat().st_mtime)
+    return newest
+
+
+def _critic_is_stale(repo: Path, critic: Path, log_dir: Path) -> bool:
+    """True when the critic output predates HEAD or an uncommitted change."""
     head_time = _git(repo, "log", "-1", "--format=%ct", "HEAD")
-    return head_time.isdigit() and critic.stat().st_mtime < int(head_time)
+    if not head_time.isdigit():
+        return False
+    newest = max(
+        int(head_time), _newest_uncommitted_change(repo, (critic.resolve(), log_dir.resolve()))
+    )
+    return critic.stat().st_mtime < newest
 
 
 def _emit(payload: dict) -> None:
@@ -223,15 +249,18 @@ def _start(args: argparse.Namespace) -> tuple[Run | None, str]:
     critic = Path(args.critic_findings)
     error = validate_model(args.model)
     critic_text = ""
+    base = Path(args.log_base).resolve() if args.log_base else default_log_base(repo)
+    log_dir = paths.artifact_dir(LOG_SUBDIR, base=base)
     if not error:
         critic_text, error = _read_text(critic, "critic output")
-    if not error and _critic_is_stale(repo, critic):
-        error = "critic output is older than HEAD; rerun the fresh critic on this commit first"
+    if not error and _critic_is_stale(repo, critic, log_dir):
+        error = (
+            "critic output is older than HEAD or an uncommitted change; "
+            "rerun the fresh critic on the current code first"
+        )
     if error:
         return None, error
     branch = _git(repo, "branch", "--show-current")
-    base = Path(args.log_base).resolve() if args.log_base else default_log_base(repo)
-    log_dir = paths.artifact_dir(LOG_SUBDIR, base=base)
     # Key on the branch so rounds before and after the PR opens share one count.
     key = branch or (f"pr-{args.pr}" if args.pr else "local")
     record = {
@@ -328,6 +357,10 @@ def cmd_record(args: argparse.Namespace) -> int:
         verdict, raw = parse_reply(reply)
     except ReplyError as exc:
         return _unavailable(run, "invalid-output", str(exc))
+    if verdict == "CHANGES" and not raw:
+        return _unavailable(
+            run, "invalid-output", "verdict CHANGES with no S<n> [severity] finding lines"
+        )
     kept, dropped = filter_findings(raw)
     marked = [{**f, "outcome": "open"} for f in mark_sol_only(kept, run.critic_text)]
     sol_only = sum(1 for f in marked if f["sol_only"])

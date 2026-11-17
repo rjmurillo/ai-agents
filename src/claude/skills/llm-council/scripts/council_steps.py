@@ -92,6 +92,9 @@ def _emit(payload: dict) -> int:
 def cmd_init(args: argparse.Namespace) -> int:
     """Resolve members, record unavailable ones, and write the Stage 1 prompt."""
     council, chairman = resolve_members(args.mode, args.models, args.cheap, args.chairman)
+    bad = [item for item in args.unavailable if "=" not in item]
+    if bad:
+        raise StepError(f"--unavailable takes MODEL=REASON, got: {', '.join(bad)}")
     unavailable = dict(item.split("=", 1) for item in args.unavailable)
     unknown = sorted(set(unavailable) - {*council, chairman})
     if unknown:
@@ -100,6 +103,8 @@ def cmd_init(args: argparse.Namespace) -> int:
     if not question:
         raise StepError("question file is empty")
     run_dir = Path(args.run_dir)
+    if (run_dir / "plan.json").exists():
+        raise StepError(f"{run_dir} already holds a council run; use a new --run-dir")
     (run_dir / "stage1").mkdir(parents=True, exist_ok=True)
     (run_dir / "stage2").mkdir(parents=True, exist_ok=True)
     plan = {
@@ -136,6 +141,10 @@ def cmd_rank(args: argparse.Namespace) -> int:
         )
         return EXIT_TOO_FEW
     survivors = list(responses)
+    # Freeze the survivors: a Stage 1 reply that lands after this point would
+    # shift the anonymous labels and break every ranking.
+    plan["survivors"] = survivors
+    (run_dir / "plan.json").write_text(json.dumps(plan, indent=2) + "\n", encoding="utf-8")
     question = _read(run_dir / "question.md").strip()
     (run_dir / "stage2-prompt.md").write_text(
         ranker_prompt(question, survivors, responses), encoding="utf-8"
@@ -156,12 +165,23 @@ def _stage2(run_dir: Path, survivors: list[str]):
     return rankings_raw, parsed, aggregate, dict(zip(labels, survivors, strict=True))
 
 
+def _ranked(run_dir: Path) -> tuple[dict, list[str], dict[str, str]]:
+    """Return (plan, frozen survivors, their Stage 1 replies). Needs ``rank`` first."""
+    plan = _plan(run_dir)
+    if "survivors" not in plan:
+        raise StepError("run `rank` before `chair` or `finish`")
+    survivors = plan["survivors"]
+    responses = _replies(run_dir, "stage1", survivors)
+    missing = [m for m in survivors if m not in responses]
+    if missing:
+        raise StepError(f"Stage 1 replies vanished after rank: {', '.join(missing)}")
+    return plan, survivors, responses
+
+
 def cmd_chair(args: argparse.Namespace) -> int:
     """Run the Borda count and write the Stage 3 chairman prompt."""
     run_dir = Path(args.run_dir)
-    plan = _plan(run_dir)
-    responses = _replies(run_dir, "stage1", plan["council"])
-    survivors = list(responses)
+    plan, survivors, responses = _ranked(run_dir)
     rankings_raw, parsed, aggregate, label_map = _stage2(run_dir, survivors)
     question = _read(run_dir / "question.md").strip()
     prompt = chairman_prompt(plan["mode"], question, survivors, responses, rankings_raw)
@@ -180,16 +200,15 @@ def cmd_chair(args: argparse.Namespace) -> int:
 def cmd_finish(args: argparse.Namespace) -> int:
     """Write the council artifact from the run directory."""
     run_dir = Path(args.run_dir)
-    plan = _plan(run_dir)
-    responses = _replies(run_dir, "stage1", plan["council"])
-    survivors = list(responses)
+    plan, survivors, responses = _ranked(run_dir)
     rankings_raw, _, aggregate, label_map = _stage2(run_dir, survivors)
     chair = run_dir / "chairman.md"
     synthesis = _read(chair).strip() if chair.is_file() else ""
     errors = dict(plan["unavailable"])
-    errors.update(
-        {m: "no reply" for m in plan["council"] if m not in responses and m not in errors}
-    )
+    late = set(_replies(run_dir, "stage1", plan["council"])) - set(survivors)
+    for model in plan["council"]:
+        if model not in responses and model not in errors:
+            errors[model] = "replied after ranking started" if model in late else "no reply"
     if not synthesis:
         synthesis = "[Chairman synthesis failed: no reply]"
     run = {

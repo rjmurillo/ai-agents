@@ -95,17 +95,22 @@ stop and report which members were missing.
 
 ### Route 1: T3 Code delegates
 
-1. Call `orchestrator_capabilities` and resolve each member to a catalog model
-   (search by name, such as `astra`, `sol`, `opus`, `sonnet`). A member with no
-   match is unavailable.
-2. Write the question to a file and run `council_steps.py init` with
+1. Call `orchestrator_capabilities` and resolve each member to the catalog
+   model with the same family and version (`gpt-6-sol` may be listed as
+   `gpt-6-sol` or `GPT-6 Sol`). A search by family name finds candidates, but
+   a different version, such as `claude-opus-4.7` for `claude-opus-5.5`, is not
+   the member: treat the member as unavailable.
+2. Write the question to a file and run `council_steps.py init` on a new
+   `--run-dir` with
    `--unavailable MODEL=REASON` for each missing member. It writes the Stage 1
    prompt and prints where each reply goes.
 3. Start one `delegate_task` per member in parallel, each with the Stage 1
    prompt and a read-only brief: do not edit, commit, push, or start
    subagents. Save each reply to the path `init` printed.
-4. Run `council_steps.py rank`. Start one `delegate_task` per survivor with the
-   Stage 2 prompt, and save each reply.
+4. Run `council_steps.py rank` once every councillor has answered or failed.
+   It freezes the survivors; a Stage 1 reply that lands later is listed as late
+   and left out. Start one `delegate_task` per survivor with the Stage 2
+   prompt, and save each reply.
 5. Run `council_steps.py chair`. It runs the Borda count. Start one
    `delegate_task` on the chairman with the Stage 3 prompt, and save its reply.
 6. Run `council_steps.py finish` to write the artifact.
@@ -160,7 +165,7 @@ prints JSON naming the prompt to send and where each reply goes.
 |---|---|
 | `0` | Step done |
 | `1` | Fewer councillors answered than the minimum |
-| `2` | Config error: missing file, empty question, or an `--unavailable` model that is not a member |
+| `2` | Config error: missing file, empty question, a reused run directory, `chair` before `rank`, or a bad `--unavailable` value |
 
 `council_core.py` and `council_backends.py` are shared modules, never run
 alone.

@@ -44,7 +44,7 @@ review-model-unavailable WARN path.
 
 - **After the critic.** The fresh critic reviews first and stays as it is.
   Save its output to a file. `sol_loop.py` refuses a missing critic file, or
-  one older than `HEAD`.
+  one older than `HEAD` or any uncommitted change.
 - **Sol only.** Never substitute a Gemini, Grok, Claude, or mixed "Fusion"
   model. `sol_loop.py` refuses any id that is not `gpt-<version>-sol`.
 - **2 rounds at most.** Round 1 is full. Round 2 checks only open findings and
@@ -52,7 +52,9 @@ review-model-unavailable WARN path.
   human.
 - **Kept findings are defects.** Each needs a file, a line, and a repro (a
   failing test, a command, or concrete inputs). Nits, including style, are
-  dropped.
+  dropped. A label other than blocker, should, or nit is dropped as
+  `unknown-severity`, and a `CHANGES` verdict with no finding lines takes
+  the WARN path.
 - **One reviewer.** Sol must not start subagents or other reviewers.
 - **Agent side only.** Never add a CI job or workflow step that calls Sol.
 

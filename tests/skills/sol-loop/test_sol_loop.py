@@ -2,106 +2,22 @@
 
 No test reaches a model: the agent calls Sol, and these tests drive the
 deterministic steps around that call through ``main(argv)``. Covers ordering
-after the fresh critic (including a stale critic file), the 2-round cap read
-from the run log, recording a reply with dropped findings, the Sol-only log,
-the unavailable WARN path, ledger outcomes, totals, and the quiet skips.
+after the fresh critic, the 2-round cap read from the run log, recording a
+reply with dropped findings, the Sol-only log, the unavailable WARN path,
+ledger outcomes, totals, and the quiet skips. Git-backed staleness checks are
+in ``test_sol_loop_staleness.py``.
 """
 
 from __future__ import annotations
 
 import json
-import os
-import shutil
-import subprocess
 import sys
-import time
 from pathlib import Path
 
 import pytest
 
-TESTS_SKILLS_DIR = str(Path(__file__).resolve().parents[1])
-if TESTS_SKILLS_DIR not in sys.path:
-    sys.path.insert(0, TESTS_SKILLS_DIR)
-
-from claude_skills_import import import_skill_script
-
-mod = import_skill_script(
-    ".claude/skills/sol-loop/scripts/sol_loop.py", module_name="sol_loop_under_test"
-)
-
-CRITIC_TEXT = (
-    "## Critical Findings\n1. `src/app/a.py:10` drops the error.\n\nVerdict: NEEDS_REVISION\n"
-)
-SOL = "gpt-6.1-sol"
-REPLY = (
-    "VERDICT: CHANGES\n"
-    "S1 [should] src/app/a.py:12 swallows the error. "
-    "Repro: call f(None) and no error is raised. Fix: re-raise.\n"
-    "S2 [blocker] src/app/b.py:5 KeyError on empty input. "
-    "Repro: pytest tests/test_b.py::test_empty. Fix: guard.\n"
-    "S3 [nit] src/app/b.py:9 rename x. Repro: n/a. Fix: rename.\n"
-    "S4 [should] src/app/c.py:3 wrong default. Fix: use 0.\n"
-)
-_needs_git = pytest.mark.skipif(shutil.which("git") is None, reason="git CLI not installed")
-
-
-@pytest.fixture(autouse=True)
-def _clean_env(monkeypatch):
-    for name in ("AI_AGENTS_ARTIFACT_ROOT", "AI_AGENTS_SOL_PASS"):
-        monkeypatch.delenv(name, raising=False)
-
-
-@pytest.fixture
-def critic_file(tmp_path):
-    path = tmp_path / "critic.md"
-    path.write_text(CRITIC_TEXT, encoding="utf-8")
-    return path
-
-
-def _reply(tmp_path, text=REPLY):
-    path = tmp_path / "reply.txt"
-    path.write_text(text, encoding="utf-8")
-    return path
-
-
-def _argv(command, tmp_path, critic, *extra, author="anthropic", repo=None):
-    return [
-        command,
-        "--repo",
-        str(repo or tmp_path),
-        "--log-base",
-        str(tmp_path),
-        "--critic-findings",
-        str(critic),
-        "--model",
-        SOL,
-        "--author-family",
-        author,
-        *extra,
-    ]
-
-
-def _gate(tmp_path, critic, *extra, **kw):
-    return mod.main(_argv("gate", tmp_path, critic, "--route", "t3", *extra, **kw))
-
-
-def _record(tmp_path, critic, reply, *extra, **kw):
-    return mod.main(_argv("record", tmp_path, critic, "--reply", str(reply), *extra, **kw))
-
-
-def _log_dir(tmp_path):
-    return tmp_path / ".project-toolkit" / "metrics" / "sol-loop"
-
-
-def _logs(tmp_path):
-    return [
-        json.loads(p.read_text(encoding="utf-8")) for p in sorted(_log_dir(tmp_path).glob("*.json"))
-    ]
-
-
-def _out(capsys):
-    return json.loads(capsys.readouterr().out)
-
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _sol_loop_helpers import SOL, _argv, _gate, _log_dir, _logs, _out, _record, _reply, mod
 
 # Ordering after the fresh critic
 
@@ -131,43 +47,6 @@ def test_non_utf8_critic_output_is_config_error(tmp_path):
 def test_record_also_requires_critic_output(tmp_path):
     assert _record(tmp_path, tmp_path / "missing.md", _reply(tmp_path)) == mod.EXIT_CONFIG
     assert not _log_dir(tmp_path).exists()
-
-
-def _git_repo(path: Path) -> None:
-    path.mkdir()
-    identity = ["-c", "user.name=Test", "-c", "user.email=test@example.com"]
-    for args in (["init", "-q"], [*identity, "commit", "-q", "--allow-empty", "-m", "init"]):
-        subprocess.run(["git", *args], cwd=path, check=True, capture_output=True)
-
-
-def _touch_after_head(path: Path) -> None:
-    """Set mtime past HEAD's whole-second commit time, so the order is certain."""
-    later = time.time() + 5
-    os.utime(path, (later, later))
-
-
-@_needs_git
-def test_gate_refuses_critic_output_older_than_head(tmp_path, critic_file, capsys):
-    repo = tmp_path / "repo"
-    _git_repo(repo)
-    os.utime(critic_file, (1_000_000, 1_000_000))
-
-    code = _gate(tmp_path, critic_file, repo=repo)
-
-    assert code == mod.EXIT_CONFIG
-    assert "older than HEAD" in capsys.readouterr().err
-
-
-@_needs_git
-def test_gate_proceeds_when_critic_output_is_newer_than_head(tmp_path, critic_file, capsys):
-    repo = tmp_path / "repo"
-    _git_repo(repo)
-    _touch_after_head(critic_file)
-
-    code = _gate(tmp_path, critic_file, repo=repo)
-
-    assert code == mod.EXIT_OK
-    assert _out(capsys)["verdict"] == "PROCEED"
 
 
 # Two-round cap read from the run log
@@ -213,21 +92,6 @@ def test_unavailable_and_skipped_runs_do_not_use_a_round(
     _gate(tmp_path, critic_file)
 
     assert _out(capsys)["round"] == 1
-
-
-@_needs_git
-def test_round_count_is_per_branch_even_when_pr_number_appears(tmp_path, critic_file, capsys):
-    repo = tmp_path / "repo"
-    _git_repo(repo)
-    _touch_after_head(critic_file)
-    _record(tmp_path, critic_file, _reply(tmp_path), repo=repo)
-    _record(tmp_path, critic_file, _reply(tmp_path), "--pr", "7", repo=repo)
-    capsys.readouterr()
-
-    code = _gate(tmp_path, critic_file, "--pr", "7", repo=repo)
-
-    assert code == mod.EXIT_ESCALATE
-    assert len({log["key"] for log in _logs(tmp_path)}) == 1
 
 
 def test_round_count_without_branch_is_per_pr(tmp_path, critic_file, capsys):
@@ -347,6 +211,16 @@ def test_empty_reply_takes_warn_path(tmp_path, critic_file, capsys):
 
     assert code == mod.EXIT_UNAVAILABLE
     assert _logs(tmp_path)[0]["status"] == "unavailable"
+
+
+def test_changes_verdict_with_no_finding_lines_takes_warn_path(tmp_path, critic_file, capsys):
+    code = _record(
+        tmp_path, critic_file, _reply(tmp_path, "VERDICT: CHANGES\n1) the cache is wrong\n")
+    )
+
+    assert code == mod.EXIT_UNAVAILABLE
+    assert _out(capsys)["reason"] == "review-model-unavailable"
+    assert _logs(tmp_path)[0]["failure_class"] == "invalid-output"
 
 
 def test_unavailable_warn_prints_when_log_write_fails(tmp_path, critic_file, capsys):

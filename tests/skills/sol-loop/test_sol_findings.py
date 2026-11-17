@@ -117,8 +117,9 @@ def test_prose_lines_are_not_findings():
     ("override", "reason"),
     [
         ({"severity": "nit"}, "nit"),
-        ({"severity": "style"}, "nit"),
-        ({"severity": ""}, "nit"),
+        ({"severity": "style"}, "unknown-severity"),
+        ({"severity": ""}, "unknown-severity"),
+        ({"severity": "p1"}, "unknown-severity"),
         ({"file": ""}, "missing-file"),
         ({"file": None}, "missing-file"),
         ({"line": None}, "missing-line"),
@@ -186,3 +187,22 @@ def test_overlap_against_realistic_critic_text():
     marked = rules.mark_sol_only([_finding(file="src/app/a.py", line=11), _finding()], CRITIC_TEXT)
 
     assert [f["sol_only"] for f in marked] == [False, True]
+
+
+@pytest.mark.parametrize("label", ["P1", "P2", "major", "High"])
+def test_non_brief_severity_is_parsed_then_dropped_by_name(label):
+    _, findings = rules.parse_reply(f"VERDICT: CHANGES\nS1 [{label}] a.py:3 bug. Repro: run x.\n")
+
+    kept, dropped = rules.filter_findings(findings)
+
+    assert (len(findings), kept) == (1, [])
+    assert dropped[0]["reason"] == "unknown-severity"
+
+
+@pytest.mark.parametrize("prefix", ["1. ", "2) ", "- ", "* "])
+def test_list_markers_before_the_id_are_accepted(prefix):
+    _, findings = rules.parse_reply(
+        f"VERDICT: CHANGES\n{prefix}S1 [should] a.py:3 bug. Repro: run x.\n"
+    )
+
+    assert [(f["id"], f["file"], f["line"]) for f in findings] == [("S1", "a.py", 3)]
