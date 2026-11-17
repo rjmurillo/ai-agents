@@ -72,10 +72,10 @@ Flags:
 **Scope a PR gate to changed files.** A repository-wide scan fails on old debt. Pass only the files your branch changed. This form keeps paths with spaces intact:
 
 ```bash
-git diff -z --name-only --diff-filter=d origin/main...HEAD | xargs -0 -r uv run python .claude/skills/orphan-ref-validator/scripts/scan.py --targets
+git diff -z --name-only --diff-filter=d origin/main...HEAD | while IFS= read -r -d '' f; do printf './%s\0' "$f"; done | xargs -0 -r uv run python .claude/skills/orphan-ref-validator/scripts/scan.py --targets
 ```
 
-A path that starts with `-` is still read as an option, so rename such a file before you scan. A changed file that already had orphans still fails the scan, even on lines your PR did not touch. Record that old debt with `--baseline`, described next, so only new orphans fail.
+The loop adds a `./` prefix to each path, so a file name that starts with `-` is never read as an option. A changed file that already had orphans still fails the scan, even on lines your PR did not touch. Record that old debt with `--baseline`, described next, so only new orphans fail.
 
 **Baseline known debt.** Save a full scan as JSON and pass it with `--baseline`. Baseline keys are positional (`target_file:line:kind:referenced_entity`), so regenerate the baseline after you edit a baselined file. Treat it as debt to pay down.
 

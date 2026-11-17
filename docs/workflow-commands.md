@@ -153,8 +153,8 @@ Code review in two stages: a spec-compliance gate, then review axes picked by th
 
 1. Reads the diff against the base branch
 2. Runs the Stage 1 spec-compliance gate. A `CRITICAL_FAIL` there stops the review
-3. Picks Stage 2 axes from the changed paths and diff effects. `analyst` always runs, plus a correctness pass. `--deep` runs every canonical axis
-4. Merges every axis verdict into one final verdict, and writes a SHA-bound marker commit on a PASS
+3. Picks Stage 2 axes from the changed paths and diff effects. `analyst` always runs, plus a correctness pass. Ask for a deep or full review to run every canonical axis
+4. Merges every axis verdict into one final verdict, and writes a SHA-bound marker commit on a PASS, or on a WARN where every WARN was acknowledged
 
 **Axes:** 11 canonical axes (`analyst`, `architect`, `qa`, `security`, `devops`, `roadmap`, `reliability`, `observability`, `agent-safety`, `decision-rigor`, `code-quality`), plus 4 local skill axes (`code-qualities-assessment`, `doc-accuracy`, `golden-principles`, `taste-lints`). The [`review`](skills/review.md) page has the details.
 
