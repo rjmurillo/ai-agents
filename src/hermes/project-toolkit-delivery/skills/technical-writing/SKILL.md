@@ -1,7 +1,7 @@
 ---
 name: technical-writing
 version: 1.0.0
-description: Write, edit, or audit user-facing docs pages such as tutorials, how-tos, concepts, reference, troubleshooting, and rule pages. Applies site conventions and one stylebook, then tests the page. Do NOT use for endpoint API guides (use api-doc-authoring) or claim checks alone (use doc-accuracy).
+description: Write, edit, or audit docs pages (tutorials, how-tos, concepts, reference, troubleshooting, rule pages) in the site's conventions and one stylebook, then test them. Do NOT use for endpoint API guides (use api-doc-authoring) or claim checks (use doc-accuracy).
 license: MIT
 user-invocable: true
 ---
