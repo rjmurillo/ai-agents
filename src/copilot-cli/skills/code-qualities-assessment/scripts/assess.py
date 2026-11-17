@@ -16,7 +16,7 @@ changed file at its base revision too and gates on the change, so inherited
 debt in a file you only touched does not fail the run.
 
 Exit codes:
-  0: Gate passed
+  0: Policy satisfied, including an explicitly admitted regression
   10: Regression mode: a comparable quality regressed, or scored evidence was lost
   11: A file is below configured thresholds (absolute mode, or a new file in
       regression mode, which has no base to compare against)
@@ -24,6 +24,7 @@ Exit codes:
 """
 
 import argparse
+import ast
 import json
 import math
 import re
@@ -57,6 +58,18 @@ _LANGUAGE_BY_SUFFIX = {
 # #4364 in a new form. Real degradations move whole points (10.0 -> 3.3 in the
 # same harness), so half a point separates noise from signal.
 _DEFAULT_REGRESSION_TOLERANCE = 0.5
+
+# This one repository-specific admission is inert without the matching config.
+_CSHARP_PARSER_DEPENDENCY_ADMISSION = {
+    "issue": 7406,
+    "file": "src/claude/skills/code-qualities-assessment/scripts/assess.py",
+    "imports": ["tree_sitter", "tree_sitter_c_sharp"],
+    "baseScore": 10.0,
+    "headScore": 8.0,
+    "authorizedBy": "rjmurillo",
+    "authorizedOn": "2026-11-16",
+    "authorization": "Maintainer instruction: waiver, full send.",
+}
 
 # Single-line comment prefixes, used to exclude comment lines from the
 # lines-of-code count. Block comments are intentionally not stripped: this is an
@@ -920,6 +933,53 @@ class FileComparison:
     base_file_path: str | None = None
     change_status: str = "M"
     absolute_gate_reason: str | None = None
+    csharp_parser_dependency_admission: dict[str, Any] | None = None
+
+
+def _python_external_imports(path: Path) -> set[str]:
+    """Read import roots through Python's parser, including nested imports."""
+    roots: set[str] = set()
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, SyntaxError) as exc:
+        raise ValueError(f"Cannot verify parser dependency admission for {path}: {exc}") from exc
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            roots.update(alias.name.split(".", 1)[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            roots.add(
+                node.module.split(".", 1)[0] if node.module and node.level == 0 else ".relative"
+            )
+    return roots - _PY_STDLIB_MODULES
+
+
+def _apply_csharp_parser_dependency_admission(
+    comparisons: list[FileComparison], config: dict[str, Any]
+) -> None:
+    """Admit only the authorized #7406 transition, without changing its evidence."""
+    if "csharpParserDependencyAdmission" not in config:
+        return
+    admission = config["csharpParserDependencyAdmission"]
+    if admission != _CSHARP_PARSER_DEPENDENCY_ADMISSION:
+        raise ValueError("Invalid csharpParserDependencyAdmission: scope or authorization differs")
+    for comparison in comparisons:
+        if (
+            Path(comparison.file_path).as_posix() != admission["file"]
+            or comparison.is_new_file
+            or comparison.change_status != "M"
+            or comparison.absolute_gate_reason is not None
+            or "coupling" not in comparison.regressions
+        ):
+            continue
+        coupling = next(d for d in comparison.deltas if d.quality == "coupling")
+        if (coupling.base, coupling.head, coupling.delta, coupling.status) != (
+            10.0,
+            8.0,
+            -2.0,
+            "compared",
+        ) or _python_external_imports(Path(comparison.file_path)) != set(admission["imports"]):
+            continue
+        comparison.csharp_parser_dependency_admission = dict(admission)
 
 
 def _delta_for(quality: str, base: QualityScore, head: QualityScore) -> QualityDelta:
@@ -1112,7 +1172,7 @@ def check_regression(
     """Gate on change, not on inherited debt.
 
     Returns:
-        0:  no comparable quality regressed and no new file failed absolutely
+        0:  no unadmitted regression and no new file failed absolutely
         10: a comparable quality regressed, or scored evidence was lost
         11: no regression, but a new authored file is below absolute thresholds
     """
@@ -1125,7 +1185,16 @@ def check_regression(
                 f"{delta.base} -> {delta.head} (delta {delta.delta})",
                 file=sys.stderr,
             )
-            degraded = True
+            if quality == "coupling" and comparison.csharp_parser_dependency_admission:
+                approval = comparison.csharp_parser_dependency_admission
+                print(
+                    f"ADMITTED: issue #{approval['issue']}, authorized by "
+                    f"{approval['authorizedBy']} on {approval['authorizedOn']}: "
+                    f"{approval['authorization']} Raw coupling regression remains reported.",
+                    file=sys.stderr,
+                )
+            else:
+                degraded = True
         for quality in comparison.evidence_loss:
             print(
                 f"❌ {comparison.file_path}: {quality} was scored at base and is "
@@ -1947,6 +2016,7 @@ def main(argv: list[str] | None = None) -> int:
             args.regression_tolerance,
             changed_files,
         )
+        _apply_csharp_parser_dependency_admission(comparisons, config)
     except (RuntimeError, ValueError) as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1

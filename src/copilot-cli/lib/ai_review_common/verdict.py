@@ -338,6 +338,59 @@ def _has_inventoried_docs(payload: dict[str, object]) -> bool:
     )
 
 
+def _code_quality_admission_verdict(comparisons: object) -> str:
+    """Keep an admitted raw regression visible as WARN, never PASS."""
+    if not isinstance(comparisons, list):
+        return "UNKNOWN"
+    admitted = False
+    for comparison in comparisons:
+        if not isinstance(comparison, dict):
+            return "UNKNOWN"
+        approval = comparison.get("csharp_parser_dependency_admission")
+        if approval is None:
+            if comparison.get("regressions") or comparison.get("evidence_loss"):
+                return "FAIL"
+            continue
+        if not _is_parser_dependency_admission(comparison, approval):
+            return "UNKNOWN"
+        admitted = True
+    return "WARN" if admitted else "PASS"
+
+
+def _is_parser_dependency_admission(comparison: dict[str, object], approval: object) -> bool:
+    if not isinstance(approval, dict):
+        return False
+    file_path = comparison.get("file_path")
+    if not isinstance(file_path, str):
+        return False
+    deltas = comparison.get("deltas")
+    return (
+        approval.get("issue") == 7406
+        and approval.get("file") == "src/claude/skills/code-qualities-assessment/scripts/assess.py"
+        and file_path.replace("\\", "/") == approval["file"]
+        and approval.get("imports") == ["tree_sitter", "tree_sitter_c_sharp"]
+        and approval.get("baseScore") == 10.0
+        and approval.get("headScore") == 8.0
+        and approval.get("authorizedBy") == "rjmurillo"
+        and approval.get("authorizedOn") == "2026-11-16"
+        and approval.get("authorization") == "Maintainer instruction: waiver, full send."
+        and comparison.get("regressions") == ["coupling"]
+        and comparison.get("evidence_loss") == []
+        and comparison.get("is_new_file") is False
+        and comparison.get("change_status") == "M"
+        and comparison.get("absolute_gate_reason") is None
+        and isinstance(deltas, list)
+        and {
+            "quality": "coupling",
+            "base": 10.0,
+            "head": 8.0,
+            "delta": -2.0,
+            "status": "compared",
+        }
+        in deltas
+    )
+
+
 def adapt_local_axis_verdict(
     axis: str,
     output: str,
@@ -380,7 +433,9 @@ def adapt_local_axis_verdict(
             return "UNKNOWN"
         # A clean exit over zero files is silence, not a pass: in regression
         # mode assess.py emits `files: []` for a deletion-only diff.
-        return "PASS" if _has_assessed_files(files, summary) else "UNKNOWN"
+        if not _has_assessed_files(files, summary):
+            return "UNKNOWN"
+        return _code_quality_admission_verdict(payload.get("comparisons", []))
 
     if axis == "doc-accuracy":
         gate_verdict: object | None = None

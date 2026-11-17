@@ -217,6 +217,8 @@ def test_shipped_csharp_parser_runs_from_consumer_directory(
         cwd=tmp_path,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
         timeout=30,
     )
@@ -232,6 +234,8 @@ def test_shipped_csharp_parser_runs_from_consumer_directory(
         cwd=tmp_path,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
         timeout=30,
     )
