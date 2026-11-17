@@ -8,6 +8,8 @@ This page shows the exact text to type to start an agent or a skill on each host
 - Know the name of the agent or skill you want. Browse [Agents](agents/README.md) or [Skills](skills/README.md).
 - Check whether the skill is a front door. The **Front door** column in [Skills](skills/README.md) shows a command such as `/spec` for front-door skills, and `match` for skills the agent loads on its own.
 
+Examples on these pages use PR `123` and issue `42`. Replace them with your own numbers.
+
 ## Call a skill
 
 ### Claude Code
@@ -90,7 +92,7 @@ Not every agent ships to every host. Each agent page has a **Where it runs** tab
 
 You do not have to pick. Two front doors route the work for you:
 
-- `/autoplan` picks one skill, lifecycle command, or agent chain for a request and runs it. See [`autoplan`](skills/autoplan.md).
+- `autoplan` picks one skill, lifecycle command, or agent chain for a request and runs it. See [`autoplan`](skills/autoplan.md). Its `SKILL.md` does not set `user-invocable: true`, so on hosts other than Claude Code, name it in your prompt.
 - The `orchestrator` agent splits a multi-step job across several agents and merges the results. See [`orchestrator`](agents/orchestrator.md).
 
 ```text

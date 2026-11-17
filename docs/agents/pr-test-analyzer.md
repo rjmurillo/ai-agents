@@ -88,7 +88,7 @@ The agent runs after the `implementer` and QA gates. A `[COMPLETE]` response end
 A multi-step prompt:
 
 ```text
-pr-test-analyzer: review PR 7415, list findings rated 7 or higher, then give me the test names to hand to implementer.
+pr-test-analyzer: review PR 123, list findings rated 7 or higher, then give me the test names to hand to implementer.
 ```
 
 ## Where it runs

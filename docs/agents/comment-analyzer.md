@@ -17,6 +17,9 @@ The `comment-analyzer` agent checks code comments against the code they describe
 
 ## Quick start
 
+> [!NOTE]
+> In Claude Code, this agent's GitHub tools need a GitHub MCP server, which the plugin does not provide. Without one, the agent still runs but cannot read pull requests or issues. See [GitHub MCP prerequisite](../installation.md#github-mcp-prerequisite).
+
 In Claude Code, start your prompt with the agent name:
 
 ```text

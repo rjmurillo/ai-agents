@@ -17,6 +17,9 @@ The `code-reviewer` agent is a read-only reviewer. It checks code changes for co
 
 ## Quick start
 
+> [!NOTE]
+> In Claude Code, this agent's GitHub tools need a GitHub MCP server, which the plugin does not provide. Without one, the agent still runs but cannot read pull requests or issues. See [GitHub MCP prerequisite](../installation.md#github-mcp-prerequisite).
+
 In Claude Code, start your prompt with the agent name:
 
 ```text
@@ -72,7 +75,7 @@ Handoffs: implementation fixes go to `implementer`, test gaps to `qa` or `pr-tes
 A multi-step prompt:
 
 ```text
-code-reviewer: review PR 7415, list only blocking findings with file:line, and tell me which agent should take each one.
+code-reviewer: review PR 123, list only blocking findings with file:line, and tell me which agent should take each one.
 ```
 
 ## Where it runs

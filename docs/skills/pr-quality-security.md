@@ -15,6 +15,7 @@ Scans your uncommitted and branch changes for vulnerabilities, secret exposure, 
 
 - You want all six axes and one merged verdict: use [`pr-quality-all`](pr-quality-all.md) instead.
 - You want the full pre-merge review: use [`review`](review.md) instead.
+- You want a fast, scriptable command injection scan of staged files: use [`security-scan`](security-scan.md) instead.
 
 ## Quick start
 

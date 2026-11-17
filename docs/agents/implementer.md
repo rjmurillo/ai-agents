@@ -18,6 +18,9 @@ The `implementer` agent writes production-quality code from an approved plan. It
 
 ## Quick start
 
+> [!WARNING]
+> This agent commits as it works. Create a feature branch before you start, so the commits do not land on your default branch.
+
 In Claude Code, start your prompt with the agent name:
 
 ```text

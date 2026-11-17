@@ -19,19 +19,19 @@ The `merge-resolver` agent resolves git merge conflicts by reading commit histor
 In Claude Code, start your prompt with the agent name:
 
 ```text
-merge-resolver: resolve the conflicts on PR 7415 against main
+merge-resolver: resolve the conflicts on PR 123 against main
 ```
 
 In GitHub Copilot CLI:
 
 ```bash
-copilot --agent merge-resolver --prompt "resolve the conflicts on PR 7415 against main"
+copilot --agent merge-resolver --prompt "resolve the conflicts on PR 123 against main"
 ```
 
 In VS Code or Visual Studio Copilot Chat:
 
 ```text
-@merge-resolver resolve the conflicts on PR 7415 against main
+@merge-resolver resolve the conflicts on PR 123 against main
 ```
 
 ## What you get
@@ -69,7 +69,7 @@ Constraints: session files from main are immutable audit records, lock files tak
 A multi-step prompt:
 
 ```text
-merge-resolver: fetch PR 7415 metadata, list every conflicted file by class, resolve them, verify no conflict markers remain, and report confidence per file.
+merge-resolver: fetch PR 123 metadata, list every conflicted file by class, resolve them, verify no conflict markers remain, and report confidence per file.
 ```
 
 ## Where it runs

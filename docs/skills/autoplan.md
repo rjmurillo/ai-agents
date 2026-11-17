@@ -16,11 +16,19 @@ Routes a request that names no skill to the right skill, lifecycle command, or a
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:autoplan`. The agent loads it when your request matches. To ask for it by name, say:
+This skill is the toolkit's router for requests that name no skill. In Claude Code, after a plugin install, run:
+
+```text
+/project-toolkit:autoplan fix the flaky retry test in tests/test_sync_job.py
+```
+
+On other hosts, name it in your prompt:
 
 ```text
 Use the autoplan skill to fix the flaky retry test in tests/test_sync_job.py.
 ```
+
+The agent also loads it on its own when your request names no skill.
 
 Autoplan reads your repository's stack first, then classifies the request by intent and size. It runs the chosen route with defaults applied. It ends with a final gate summary.
 

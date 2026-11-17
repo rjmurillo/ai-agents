@@ -74,7 +74,7 @@ The agent cannot delegate. It returns the recommendation with confidence, assign
 A multi-step prompt:
 
 ```text
-issue-feature-review: review issue 7102 using only the issue body and repository files, label every unknown, and give the recommendation with the next agent to run.
+issue-feature-review: review issue 42 using only the issue body and repository files, label every unknown, and give the recommendation with the next agent to run.
 ```
 
 ## Where it runs

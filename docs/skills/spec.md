@@ -13,13 +13,14 @@ Turns a problem into testable requirements with acceptance criteria. Two gates r
 - You want requirements sequenced into milestones: use [`plan`](plan.md).
 - You want code: use [`build`](build.md).
 - You want the REQ, DESIGN, and TASK files emitted directly: use [`spec-generator`](spec-generator.md). This skill invokes it.
+- You want a PRD or explainer written for people to read, not testable requirements: use the [`explainer`](../agents/explainer.md) agent.
 
 ## Quick start
 
 In Claude Code, after a plugin install, run:
 
 ```text
-/project-toolkit:spec 482
+/project-toolkit:spec Add rate limiting to the API
 ```
 
 In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/spec`. The argument can be a problem statement or an issue number. With no argument, the skill asks what problem to solve and does not proceed without one.

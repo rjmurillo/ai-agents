@@ -13,8 +13,12 @@ The `orchestrator` agent coordinates specialist agents end to end. It classifies
 - You know the one agent you need: call that agent directly, such as [`implementer`](implementer.md) or [`analyst`](analyst.md).
 - You have a request that names no skill and want the front-door router: use the [`autoplan`](../skills/autoplan.md) skill instead. It routes to the orchestrator for multi-agent work. The orchestrator never calls `autoplan`.
 - You want code written: the orchestrator delegates that to [`implementer`](implementer.md).
+- You want to run each lifecycle step yourself and see every gate: run [`spec`](../skills/spec.md), [`plan`](../skills/plan.md), and [`build`](../skills/build.md) in order instead.
 
 ## Quick start
+
+> [!WARNING]
+> The orchestrator can hand work to [`implementer`](implementer.md), which commits as it works. Create a feature branch before you start, so the commits do not land on your default branch.
 
 In Claude Code, start your prompt with the agent name:
 
@@ -92,7 +96,7 @@ Tools: `Read`, `Grep`, `Glob`, `Bash`, `TodoWrite`, and `Task` for delegation, p
 A multi-step prompt:
 
 ```text
-orchestrator: take issue 7102 from triage to merge-ready. Run issue-feature-review, then milestone-planner, critic as a plan gate, implementer, qa, and security if auth files change. Synthesize one result and list unresolved items.
+orchestrator: take issue 42 from triage to merge-ready. Run issue-feature-review, then milestone-planner, critic as a plan gate, implementer, qa, and security if auth files change. Synthesize one result and list unresolved items.
 ```
 
 ## Where it runs

@@ -23,19 +23,19 @@ There is no calendar entry and no every-session run.
 In Claude Code, start your prompt with the agent name:
 
 ```text
-retrospective: analyze the PR 7361 retry bug, find the root cause with Five Whys, and extract learnings
+retrospective: analyze the PR 123 retry bug, find the root cause with Five Whys, and extract learnings
 ```
 
 In GitHub Copilot CLI:
 
 ```bash
-copilot --agent retrospective --prompt "analyze the PR 7361 retry bug, find the root cause with Five Whys, and extract learnings"
+copilot --agent retrospective --prompt "analyze the PR 123 retry bug, find the root cause with Five Whys, and extract learnings"
 ```
 
 In VS Code or Visual Studio Copilot Chat:
 
 ```text
-@retrospective analyze the PR 7361 retry bug, find the root cause with Five Whys, and extract learnings
+@retrospective analyze the PR 123 retry bug, find the root cause with Five Whys, and extract learnings
 ```
 
 ## What you get
@@ -89,7 +89,7 @@ The agent runs the `prose-self-check` skill on prose artifacts. It cannot delega
 A multi-step prompt:
 
 ```text
-retrospective: analyze why main went red after PR 7360, build the execution trace, run Five Whys, score each learning for atomicity, and return the Findings for the owner table with Blockers first.
+retrospective: analyze why main went red after PR 123, build the execution trace, run Five Whys, score each learning for atomicity, and return the Findings for the owner table with Blockers first.
 ```
 
 ## Where it runs

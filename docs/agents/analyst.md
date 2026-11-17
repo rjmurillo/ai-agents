@@ -18,6 +18,9 @@ The `analyst` agent investigates before you implement. It surfaces root causes, 
 
 ## Quick start
 
+> [!NOTE]
+> In Claude Code, this agent's GitHub tools need a GitHub MCP server, which the plugin does not provide. Without one, the agent still runs but cannot read pull requests or issues. See [GitHub MCP prerequisite](../installation.md#github-mcp-prerequisite).
+
 In Claude Code, start your prompt with the agent name:
 
 ```text
@@ -77,7 +80,7 @@ Handoffs: `architect` for design decisions, `milestone-planner` for planning, `i
 A multi-step prompt:
 
 ```text
-analyst: investigate PR 7360. Read the PR with pull_request_read, rank the top 3 hypotheses for the failing check, tag each finding with its evidence level, and list what the orchestrator must run for me.
+analyst: investigate PR 123. Read the PR with pull_request_read, rank the top 3 hypotheses for the failing check, tag each finding with its evidence level, and list what the orchestrator must run for me.
 ```
 
 ## Where it runs

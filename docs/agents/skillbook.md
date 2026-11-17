@@ -19,19 +19,19 @@ The `skillbook` agent turns a learning into an atomic skill entry in your memory
 In Claude Code, start your prompt with the agent name:
 
 ```text
-skillbook: persist this learning: always list every reviewer on a PR before replying, because a single-bot view missed a human review in PR 7361
+skillbook: persist this learning: always list every reviewer on a PR before replying, because a single-bot view missed a human review in PR 123
 ```
 
 In GitHub Copilot CLI:
 
 ```bash
-copilot --agent skillbook --prompt "persist this learning: always list every reviewer on a PR before replying, because a single-bot view missed a human review in PR 7361"
+copilot --agent skillbook --prompt "persist this learning: always list every reviewer on a PR before replying, because a single-bot view missed a human review in PR 123"
 ```
 
 In VS Code or Visual Studio Copilot Chat:
 
 ```text
-@skillbook persist this learning: always list every reviewer on a PR before replying, because a single-bot view missed a human review in PR 7361
+@skillbook persist this learning: always list every reviewer on a PR before replying, because a single-bot view missed a human review in PR 123
 ```
 
 ## What you get

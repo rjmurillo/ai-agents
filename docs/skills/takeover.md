@@ -18,7 +18,7 @@ Finishes another contributor's PR, branch, or agent thread while keeping their c
 In Claude Code, after a plugin install, run:
 
 ```text
-/project-toolkit:takeover take over PR 1887 and finish the retry fix
+/project-toolkit:takeover take over PR 123 and finish the retry fix
 ```
 
 In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/takeover`. The skill takes no fixed argument. Name the source in your request: a PR, a branch, or a thread.

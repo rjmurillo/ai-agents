@@ -19,10 +19,10 @@ Turns a spec into milestones and atomic tasks. You get dependency ordering, a ri
 In Claude Code, after a plugin install, run:
 
 ```text
-/project-toolkit:plan 482
+/project-toolkit:plan 42
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/plan`. The argument can be spec output or an issue number.
+In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/plan`. The argument can be spec output or an issue number, such as `42`.
 
 With no argument, it looks for recent spec output in the conversation. If it finds none, it asks what to plan.
 

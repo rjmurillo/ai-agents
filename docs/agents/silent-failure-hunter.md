@@ -69,7 +69,7 @@ Each of these needs documentation and preserved diagnostics. Without them the fi
 A multi-step prompt:
 
 ```text
-silent-failure-hunter: audit PR 7361, list every CRITICAL finding with the hidden failures it masks, then give me the corrected code for each so implementer can apply it.
+silent-failure-hunter: audit PR 123, list every CRITICAL finding with the hidden failures it masks, then give me the corrected code for each so implementer can apply it.
 ```
 
 ## Where it runs

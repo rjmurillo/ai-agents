@@ -14,6 +14,7 @@ The `explainer` agent writes PRDs, explainers, and technical specifications that
 - You need a PRD broken into milestones: use [`milestone-planner`](milestone-planner.md) instead.
 - You need a spec validated: use [`critic`](critic.md) instead.
 - You need the feature built: use [`implementer`](implementer.md) instead.
+- You want testable requirements with acceptance criteria, gated before planning: use the [`spec`](../skills/spec.md) skill instead.
 
 ## Quick start
 

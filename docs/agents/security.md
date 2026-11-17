@@ -16,25 +16,29 @@ The `security` agent reviews changes with a defense-first mindset. It threat-mod
 - You want fixes applied: use [`implementer`](implementer.md) instead.
 - You want a pattern scan for command injection: use the [`security-scan`](../skills/security-scan.md) skill instead.
 - You want to decide whether a security review is warranted: use the [`security-detection`](../skills/security-detection.md) skill instead.
+- You want a STRIDE threat model of a system you describe, in your current session: use the [`threat-modeling`](../skills/threat-modeling.md) skill instead.
 
 ## Quick start
+
+> [!NOTE]
+> In Claude Code, this agent's GitHub tools need a GitHub MCP server, which the plugin does not provide. Without one, the agent still runs but cannot read pull requests or issues. See [GitHub MCP prerequisite](../installation.md#github-mcp-prerequisite).
 
 In Claude Code, start your prompt with the agent name:
 
 ```text
-security: review PR 7361 for security issues, with focus on any shell command construction
+security: review PR 123 for security issues, with focus on any shell command construction
 ```
 
 In GitHub Copilot CLI:
 
 ```bash
-copilot --agent security --prompt "review PR 7361 for security issues, with focus on any shell command construction"
+copilot --agent security --prompt "review PR 123 for security issues, with focus on any shell command construction"
 ```
 
 In VS Code or Visual Studio Copilot Chat:
 
 ```text
-@security review PR 7361 for security issues, with focus on any shell command construction
+@security review PR 123 for security issues, with focus on any shell command construction
 ```
 
 ## What you get
@@ -89,7 +93,7 @@ External actions, such as disclosure, secret rotation, blocking deploys, or vend
 A multi-step prompt:
 
 ```text
-security: run post-implementation verification for the token-refresh change on PR 7361, check each planned control against the diff, list unmet PIV items I must run, and write PIV-token-refresh.md with a verdict.
+security: run post-implementation verification for the token-refresh change on PR 123, check each planned control against the diff, list unmet PIV items I must run, and write PIV-token-refresh.md with a verdict.
 ```
 
 ## Where it runs

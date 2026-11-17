@@ -20,7 +20,7 @@ A skill runs in the current conversation. It does not get a new context window. 
 
 Skills start in one of two ways:
 
-- **By slash command.** Front-door skills, such as `/spec` and `/review`, start when you type their name. Their `SKILL.md` sets `user-invocable: true`, and they work as commands in Claude Code and GitHub Copilot CLI.
+- **By slash command.** Front-door skills, such as `spec` and `review`, start when you type their name. Their `SKILL.md` sets `user-invocable: true`. Copilot CLI takes the short form, `/spec`. Claude Code takes `/project-toolkit:spec` after a plugin install.
 - **By match.** The host shows the agent each skill's name and description. When your request matches, the agent loads the full skill. You can also name the skill in your request to make sure it loads. In Claude Code, any plugin skill also starts with `/project-toolkit:<name>`.
 
 Browse them in [Skills](skills/README.md).
@@ -43,7 +43,7 @@ Agents use skills, and skills call agents.
 - The `orchestrator` agent can route a lifecycle request through the `spec` skill, then through agents like `milestone-planner`, `critic`, `implementer`, and `qa`.
 - The `/autoplan` skill reads a request that names no skill and picks the destination: a skill, a lifecycle command, or an agent chain.
 
-If you are not sure which to use, start with `/autoplan`. It makes the choice and tells you what it picked.
+If you are not sure which to use, start with `autoplan` (in Claude Code, `/project-toolkit:autoplan`). It makes the choice and tells you what it picked.
 
 ## The lifecycle
 

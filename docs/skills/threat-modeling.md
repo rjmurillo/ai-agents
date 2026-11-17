@@ -14,6 +14,7 @@ Builds a structured threat model for a feature, component, or system. It uses th
 - You want a risk review of one diff or snippet: use [`security-review`](security-review.md).
 - You want to detect security-critical file changes in a PR: use [`security-detection`](security-detection.md).
 - You want general project risks, not security threats: use [`pre-mortem`](pre-mortem.md).
+- You want an agent to threat-model a pull request and return a risk verdict: use the [`security`](../agents/security.md) agent instead.
 
 ## Quick start
 

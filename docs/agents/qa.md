@@ -14,25 +14,26 @@ The `qa` agent verifies that an implementation works for real users, not only th
 - You want the tests or fixes written: use [`implementer`](implementer.md) instead. The `qa` agent cannot change implementation code.
 - You want test coverage gaps ranked on a PR: use [`pr-test-analyzer`](pr-test-analyzer.md) instead.
 - You want a run of the proof gates as a workflow: use the [`test`](../skills/test.md) skill instead.
+- You want a quick PASS, WARN, or CRITICAL_FAIL verdict on test coverage in your local diff: use the [`pr-quality-qa`](../skills/pr-quality-qa.md) skill instead.
 
 ## Quick start
 
 In Claude Code, start your prompt with the agent name:
 
 ```text
-qa: verify the dry-run feature for close_pr.py against the acceptance criteria in issue 7102
+qa: verify the dry-run feature for close_pr.py against the acceptance criteria in issue 42
 ```
 
 In GitHub Copilot CLI:
 
 ```bash
-copilot --agent qa --prompt "verify the dry-run feature for close_pr.py against the acceptance criteria in issue 7102"
+copilot --agent qa --prompt "verify the dry-run feature for close_pr.py against the acceptance criteria in issue 42"
 ```
 
 In VS Code or Visual Studio Copilot Chat:
 
 ```text
-@qa verify the dry-run feature for close_pr.py against the acceptance criteria in issue 7102
+@qa verify the dry-run feature for close_pr.py against the acceptance criteria in issue 42
 ```
 
 ## What you get

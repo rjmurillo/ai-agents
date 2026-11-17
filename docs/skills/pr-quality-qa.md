@@ -15,6 +15,7 @@ Judges your local diff on test coverage, error handling, and whether the tests w
 
 - You want all six axes and one merged verdict: use [`pr-quality-all`](pr-quality-all.md) instead.
 - You want the tests written for you: use [`test`](test.md) instead.
+- You want a test strategy and verification against acceptance criteria: use the [`qa`](../agents/qa.md) agent instead.
 
 ## Quick start
 

@@ -15,6 +15,7 @@ Scans Python, PowerShell, Bash, and C# files for command injection (CWE-78) patt
 - You want deep data-flow analysis or SARIF output: use [`codeql-scan`](codeql-scan.md).
 - You want design-level STRIDE analysis: use [`threat-modeling`](threat-modeling.md).
 - You want to check path traversal (CWE-22). CodeQL covers it for Python and GitHub Actions in CI. This scanner does not.
+- You want a broader review of your local diff for vulnerabilities and exposed secrets: use [`pr-quality-security`](pr-quality-security.md) instead.
 
 ## Quick start
 
