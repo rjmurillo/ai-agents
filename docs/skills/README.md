@@ -1,6 +1,6 @@
 # Skills
 
-A skill is a packaged workflow: steps, checks, and often scripts, for one kind of task. You can start a skill with a slash command, or let the agent load it when your request matches what it does.
+A skill is a packaged workflow: steps, checks, and often scripts, for one kind of task. You can start a skill with a slash command, name it in your request, or let the agent load it when your request matches what it does.
 
 Each page below covers one skill: when to use it, what to copy and paste, what you get, and the arguments and scripts advanced users reach for.
 
@@ -28,7 +28,7 @@ Claude Code puts plugin skills under the plugin's name, so you type the `project
 The **Slash command** column tells you how the skill is meant to start:
 
 - A command such as `/spec` marks a skill you start by typing it. Its `SKILL.md` sets `user-invocable: true`. Copilot CLI takes it as shown. Claude Code takes it as `/project-toolkit:spec` after a plugin install.
-- `by name` marks a skill that starts only when you ask for it. The router never picks it, because it makes changes you should start on purpose. Say `Use the <name> skill to ...`, or in Claude Code type `/project-toolkit:<name>`.
+- `by name` marks a skill with explicit-only routing: the `autoplan` router never picks it, so you start it by name. Say `Use the <name> skill to ...`, or in Claude Code type `/project-toolkit:<name>`.
 - `match` marks a skill the agent loads on its own when your request matches. To ask for it on any host, say `Use the <name> skill to ...`. In Claude Code you can also type `/project-toolkit:<name>`.
 
 ## Lifecycle

@@ -6,7 +6,7 @@ This page shows the exact text to type to start an agent or a skill on each host
 
 - Install the toolkit on your host. See [Install the toolkit on your host and check it loaded](training/install-on-every-host.md).
 - Know the name of the agent or skill you want. Browse [Agents](agents/README.md) or [Skills](skills/README.md).
-- Check whether the skill has a short slash command. The **Slash command** column in [Skills](skills/README.md) shows a command such as `/spec`, or `match` for skills the agent loads on its own.
+- Check whether the skill has a short slash command. The **Slash command** column in [Skills](skills/README.md) shows a command such as `/spec`, `match` for skills the agent loads on its own, or `by name` for skills you must start yourself.
 
 Examples on these pages use PR `123` and issue `42`. Replace them with your own numbers.
 
@@ -43,6 +43,10 @@ Most skills have no short slash command. The agent reads each skill's descriptio
 ```text
 Use the threat-modeling skill to threat-model the upload endpoint in src/api/upload.py.
 ```
+
+### Skills you start by name
+
+A few skills have explicit-only routing, shown as `by name` in [Skills](skills/README.md). The `autoplan` router never picks them, so name them in your request, or in Claude Code type `/project-toolkit:<name>`.
 
 This works on every host, including Codex, Cursor, and Muse.
 

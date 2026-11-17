@@ -83,7 +83,7 @@ The skill reads `.editorconfig` (all languages), `.stylecop.json` or `stylecop.j
 
 ### Suppression
 
-Add an inline comment to skip one rule. The scanner reads only `#` comments, so this works in languages such as Python, YAML, and PowerShell:
+Add an inline comment on the line before the code, or on the same line, to skip one rule. The scanner reads only `#` comments, so this works in languages such as Python, YAML, and PowerShell:
 
 ```text
 # style-enforcement: ignore STYLE-001

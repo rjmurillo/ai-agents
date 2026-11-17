@@ -58,7 +58,7 @@ The agent sorts each conflicted file into one of three classes:
 
 | Class | Files | Handling |
 | --- | --- | --- |
-| Auto-resolvable | `.agents/*` (modify/modify only), `.serena/*`, `templates/*`, lock files, generated `src/copilot-cli/*` and `src/vs-code-agents/*`. Claude Code also adds `.claude/skills/*`, `.claude/agents/*`, and `src/claude/*`. Copilot CLI and VS Code add all of `.claude/*`. | Accept the base branch version |
+| Auto-resolvable | `.agents/*` (modify/modify only), `.serena/*`, `templates/*`, lock files, generated `src/copilot-cli/*` and `src/vs-code-agents/*`. Claude Code, Codex, Cursor, and Muse also add `.claude/skills/*`, `.claude/agents/*`, and `src/claude/*`. Copilot CLI and VS Code add all of `.claude/*`. | Accept the base branch version |
 | Rename, never content-merge | Add/add conflicts in `.project-toolkit/sessions/*`, `.project-toolkit/qa/*`, `.project-toolkit/retrospective/*` | Keep both files. Accept base at the original name, rename the head version with a suffix, and update references. |
 | Manual | Source code, configuration with semantic meaning, tests, documentation with substantive changes | Analyze intent, then resolve |
 

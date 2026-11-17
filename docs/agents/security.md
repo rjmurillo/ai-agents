@@ -67,7 +67,7 @@ Reports are capped: each finding is one sentence, a severity, a CVSS or risk sco
 
 ## Advanced use
 
-The agent has no shell on any surface. It reads a pinned snapshot through the GitHub read tools (`pull_request_read` with `get_diff`, `get_commit`, `list_commits`, `get_file_contents`, `search_code`, and `issue_read`; on Copilot CLI, also the code scanning, secret scanning, and Dependabot alert tools), or it reads a diff artifact you supply. An artifact must be a complete snapshot: `git diff HEAD` plus the content of every untracked file the change adds. The agent does not assess a partial changeset. It does not delegate the review to another agent, a hook, or a skill.
+The agent has no shell on any surface. It reads a pinned snapshot through the GitHub read tools (`pull_request_read` with `get_diff`, `get_commit`, `list_commits`, `get_file_contents`, `search_code`, and `issue_read`; on Copilot CLI and VS Code, also the code scanning, secret scanning, and Dependabot alert tools), or it reads a diff artifact you supply. An artifact must be a complete snapshot: `git diff HEAD` plus the content of every untracked file the change adds. The agent does not assess a partial changeset. It does not delegate the review to another agent, a hook, or a skill.
 
 Because it cannot run commands, the agent asks you or the implementer to run CI-equivalent security checks, such as hook configuration validation and secret scans, and it treats a missing result as an unmet PIV item. It never reports a check as passed that it did not see.
 
