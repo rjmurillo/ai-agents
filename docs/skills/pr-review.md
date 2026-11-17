@@ -22,7 +22,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:pr-review 1234
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/pr-review 1234`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/pr-review 1234`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /pr-review skill to ...`.
 
 To preview without changing anything, add `--dry-run`. The skill prints its planned actions as JSON and exits.
 

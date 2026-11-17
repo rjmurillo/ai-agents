@@ -44,9 +44,9 @@ On Copilot CLI, a timeout fails open on every event, including a policy PreToolU
 
 The skill orders its sources. When two disagree, the earlier one wins for authored behavior, and the conflicting probe stays on record as versioned evidence:
 
-1. `references/official-hook-contracts.md`: official sources, pinned commits, exact event sets, output fields, docs gaps.
+1. [`references/official-hook-contracts.md`](../../src/claude/skills/agent-harness-reference/references/official-hook-contracts.md): official sources, pinned commits, exact event sets, output fields, docs gaps.
 2. The skill file itself: repository decisions derived from those contracts.
-3. `references/probe-evidence.md`: version-scoped runtime observations.
+3. [`references/probe-evidence.md`](../../src/claude/skills/agent-harness-reference/references/probe-evidence.md): version-scoped runtime observations.
 4. ADR-068 and ADR-071: dispatcher and runtime verification choices.
 5. Serena memories: retrieval aids only. They never override the sources above.
 

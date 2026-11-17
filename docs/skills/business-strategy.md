@@ -22,7 +22,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:business-strategy 20 trials started, 1 paid. Why?
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/business-strategy`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/business-strategy`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /business-strategy skill to ...`.
 
 State the symptom in one sentence with a number. The skill walks the decision tree, picks the earliest broken funnel stage, and reads only the one reference that applies.
 

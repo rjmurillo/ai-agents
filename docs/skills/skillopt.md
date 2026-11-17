@@ -22,7 +22,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:skillopt optimize the skill at .claude/skills/pr-review/SKILL.md using eval.json
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/skillopt`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/skillopt`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /skillopt skill to ...`.
 
 The skill checks four preconditions: a target file, a scored eval set with a held-out `sel` split, a named canonical owner, and two isolated runners. The author of the candidate must not see the `sel` tasks, verifiers, or results. If your harness cannot give you two isolated runners, do not run this skill.
 
@@ -68,7 +68,7 @@ Subcommands: `budget`, `apply`, `run`, `gate`, `pair-gate`, `efficiency-gate`, `
 
 **Finding targets.** `mine_sessions.py` (`sources`, `rank`, `tasks`, `collect`, `merge`) ranks skills by usage and a weak correction signal. A correction nominates a candidate; confirm the defect in the target and in two sessions first. Session data stays local.
 
-**Descriptions.** Output-quality rollouts do not measure activation, so score a description change on trigger rate. Read `references/description-optimization.md` first.
+**Descriptions.** Output-quality rollouts do not measure activation, so score a description change on trigger rate. Read [`references/description-optimization.md`](../../src/claude/skills/skillopt/references/description-optimization.md) first.
 
 The gate compares incumbent against candidate. It never measures skill against no skill; that baseline lives in [`skill-bootstrap`](skill-bootstrap.md) (`bootstrap_eval.py score`). The method is from arXiv:2605.23904.
 

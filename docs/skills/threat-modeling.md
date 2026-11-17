@@ -66,7 +66,7 @@ The validator checks that every component has at least one threat, every trust b
 
 Update a threat model when features are added, the architecture changes, or an incident occurs. The source recommends a quarterly review. Search Serena memory for prior models before you start, and store a summary memory afterward. Write to Serena only from the checkout where the server started.
 
-Deeper material is in [`advanced-analysis.md`](../../src/claude/skills/threat-modeling/references/advanced-analysis.md) (attack trees and kill chains), [`stride-methodology.md`](../../src/claude/skills/threat-modeling/references/stride-methodology.md), and [`risk-rating-guide.md`](../../src/claude/skills/threat-modeling/references/risk-rating-guide.md). The document template ships at `templates/threat-model-template.md` in the skill.
+Deeper material is in [`advanced-analysis.md`](../../src/claude/skills/threat-modeling/references/advanced-analysis.md) (attack trees and kill chains), [`stride-methodology.md`](../../src/claude/skills/threat-modeling/references/stride-methodology.md), and [`risk-rating-guide.md`](../../src/claude/skills/threat-modeling/references/risk-rating-guide.md). The document template ships at [`templates/threat-model-template.md`](../../src/claude/skills/threat-modeling/templates/threat-model-template.md) in the skill.
 
 ## Where it runs
 

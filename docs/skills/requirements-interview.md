@@ -21,7 +21,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:requirements-interview add rate limiting to the public API
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/requirements-interview`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/requirements-interview`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /requirements-interview skill to ...`.
 
 The skill restates your problem in one sentence and asks you to confirm it. Then it asks numbered questions, one decision each, with a recommended answer and its source. If the codebase can answer a question, the skill answers it and cites the file.
 

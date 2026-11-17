@@ -21,7 +21,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:checkpoint before-schema-migration
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/checkpoint before-schema-migration`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/checkpoint before-schema-migration`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /checkpoint skill to ...`.
 
 The label is optional. The skill writes the checkpoint file, then reports the path and whether it linked the file from a session log.
 
@@ -42,10 +42,10 @@ The label is optional. The skill writes the checkpoint file, then reports the pa
 The work runs in three phases:
 
 1. Build the checkpoint path: timestamp, active session log, label, slug, and a collision-safe path.
-2. Build and redact the body. The redactor is `scripts/redact_secrets.py` from the upstream `rjmurillo/ai-agents` repository. It ships in no plugin root, and the skill runs the body through it before any write.
+2. Build and redact the body. The redactor is [`scripts/redact_secrets.py`](../../scripts/redact_secrets.py) from the upstream `rjmurillo/ai-agents` repository. It ships in no plugin root, and the skill runs the body through it before any write.
 3. Write the redacted file to a path that does not exist, append metadata to the session log, and validate the JSON.
 
-Those phases expand into eight steps in `references/steps.md`. Read it before you change how the skill writes anything. The order of redaction and validate-before-edit is the part that matters.
+Those phases expand into eight steps in [`references/steps.md`](../../src/claude/skills/checkpoint/references/steps.md). Read it before you change how the skill writes anything. The order of redaction and validate-before-edit is the part that matters.
 
 If the redactor fails, the skill does not write unredacted text. When you later commit a checkpoint file, the commit message follows the repository convention.
 

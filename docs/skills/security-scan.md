@@ -55,7 +55,7 @@ uv run python .claude/skills/security-scan/scripts/scan_vulnerabilities.py --git
 | `files` | Files to scan. |
 | `--git-staged` | Scan git staged files. |
 | `--directory`, `-d` | Scan all supported files in a directory. |
-| `--cwe` | Filter by CWE number. Only 78 is supported. `--cwe 22` is accepted but produces no findings, and the flag may be removed after 2026-08-01. |
+| `--cwe` | Filter by CWE number. Only 78 is supported. `--cwe 22` is accepted for backward compatibility but produces no findings. The script's `--help` text says the CWE-22 flag may be removed after 2026-08-01. The flag still works as of 2026-11-17. |
 | `--format`, `-f` | `console` or `json`. |
 | `--output`, `-o` | Output file. Default is stdout. A rejected path is never written. |
 

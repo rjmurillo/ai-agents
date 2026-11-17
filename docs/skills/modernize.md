@@ -22,7 +22,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:modernize https://github.com/OWNER/REPO/pull/123
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/modernize`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/modernize`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /modernize skill to ...`.
 
 The skill reads the PR, inspects what changed on the base branch since the PR diverged, and picks a disposition. It rebases locally only when the goal is still useful. It does not push without your explicit yes.
 

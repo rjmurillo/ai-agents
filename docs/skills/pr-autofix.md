@@ -23,7 +23,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:pr-autofix 1234
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/pr-autofix`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/pr-autofix`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /pr-autofix skill to ...`.
 
 The argument is a pull request or a mode. With no argument the skill triages every open PR. For each PR it classifies a tier, checks the live state, acts, and reports. It stops and hands the PR to a human when it cannot prove the PR is safe to act on.
 
@@ -62,7 +62,7 @@ The merge path depends on state:
 | `UNSTABLE` with documented non-required failures | `merge_pr.py --strategy squash` |
 
 > [!WARNING]
-> After every merge the skill lands, it reads `references/post-merge-cleanup.md` before it removes the PR worktree or deletes the local branch.
+> After every merge the skill lands, it reads [`references/post-merge-cleanup.md`](../../src/claude/skills/pr-autofix/references/post-merge-cleanup.md) before it removes the PR worktree or deletes the local branch.
 
 ## Advanced use
 

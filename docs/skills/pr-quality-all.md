@@ -3,7 +3,7 @@
 Runs all six PR quality axes (security, QA, analyst, architect, DevOps, roadmap) against your working changes. It merges the six verdicts into one answer about whether the branch is safe to push.
 
 > [!NOTE]
-> The axes take their criteria from `.github/prompts/`. Their JSON output schema is `.agents/schemas/pr-quality-gate-output.schema.json`. The skill also cites `.claude/lib/ai_review_common/verdict.py` for its merge rules. These files live in the `rjmurillo/ai-agents` repository. The skill is written for contributors to that repository.
+> The axes take their criteria from `.github/prompts/`. Their JSON output schema is [`.agents/schemas/pr-quality-gate-output.schema.json`](../../.agents/schemas/pr-quality-gate-output.schema.json). The skill also cites [`.claude/lib/ai_review_common/verdict.py`](../../.claude/lib/ai_review_common/verdict.py) for its merge rules. These files live in the `rjmurillo/ai-agents` repository. The skill is written for contributors to that repository.
 
 ## When to use it
 
@@ -23,7 +23,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:pr-quality-all main
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/pr-quality-all`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/pr-quality-all`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /pr-quality-all skill to ...`.
 
 Pass the branch you merge into. With no argument, the skill uses `main`. It runs each axis on the same diff and prints one table and a final verdict.
 
@@ -63,7 +63,7 @@ How a run works:
 4. It parses each axis's `VERDICT:` line. An axis with no parseable verdict is `UNKNOWN`, never `PASS`.
 5. It merges the six tokens.
 
-Merge rules (canonical source: `merge_verdicts` in `.claude/lib/ai_review_common/verdict.py`):
+Merge rules (canonical source: `merge_verdicts` in [`.claude/lib/ai_review_common/verdict.py`](../../.claude/lib/ai_review_common/verdict.py)):
 
 | Tokens present | Final verdict |
 | --- | --- |

@@ -76,7 +76,7 @@ The six phases:
 
 Your trigger picks the phases: a full audit runs 1 to 6, `verify code examples` runs 1 to 3, `audit docs vs code` runs 1 to 4, and `check doc consistency` runs 1, 2, and 5. Use `--phases` to select phases and `--format json|gate|summary|markdown` to pick the output.
 
-`--diff-base REF` limits the run to files changed since `HEAD` forked from `REF`, and only claims on changed lines block. See `references/diff-scoping.md`.
+`--diff-base REF` limits the run to files changed since `HEAD` forked from `REF`, and only claims on changed lines block. See [`references/diff-scoping.md`](../../src/claude/skills/doc-accuracy/references/diff-scoping.md).
 
 `pr_snapshot.py` captures an immutable head and base snapshot of a pull request for review. Its flags include `--owner`, `--repo`, `--pull-request`, `--output-dir`, `--check-stale`, `--identity-file`, and `--run-scanner`. Exit `0` is ok, `1` is a verification or stale result, `2` config, `3` external, `4` auth.
 

@@ -81,7 +81,7 @@ Quality standards: cyclomatic complexity of 10 or less, methods of 60 lines or l
 
 Security flagging: the agent runs CWE-22, CWE-78, authorization, and secret-handling checks before coding and before handoff. It stops and returns `SECURITY_FLAG` when a change would weaken or bypass a safeguard, widen a trust boundary, handle credential values, or add path, command, auth, or secret-handling mechanisms. When a change only touches a sensitive surface, it finishes the work and flags it in the handoff.
 
-Project documents: when `.agents/AGENT-INSTRUCTIONS.md` exists, the agent reads the root `AGENTS.md`, that file, `.agents/CLAUDE.md`, and the binding ADRs before it writes code. In a consumer install without that scaffold, it skips the scaffold gates and still reads the root `AGENTS.md` and `CLAUDE.md` when they exist. It stops with `[BLOCKED] Conflicting requirements` when two files disagree.
+Project documents: when [`.agents/AGENT-INSTRUCTIONS.md`](../../.agents/AGENT-INSTRUCTIONS.md) exists, the agent reads the root [`AGENTS.md`](../../AGENTS.md), that file, [`.agents/CLAUDE.md`](../../.agents/CLAUDE.md), and the binding ADRs before it writes code. In a consumer install without that scaffold, it skips the scaffold gates and still reads the root [`AGENTS.md`](../../AGENTS.md) and [`CLAUDE.md`](../../CLAUDE.md) when they exist. It stops with `[BLOCKED] Conflicting requirements` when two files disagree.
 
 It commits each verified atomic unit right away. A placeholder such as `TODO` or an empty body counts as unfinished work.
 

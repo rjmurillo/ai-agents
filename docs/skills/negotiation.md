@@ -65,7 +65,7 @@ Apply the phases in order. Skipping a step is the most common failure mode.
 - The PCP framing, the comfort and discomfort signal table, and the BATNA worksheet can be swapped through a sibling reference.
 - When you wire the skill into an agentic system, set `model_tier: opus` (or an equivalent senior tier) in the agent template.
 
-The full set of ten crystallized skills, with implementation patterns and evidence citations, is in the `references/skills.md` file. The skill has no scripts.
+The full set of ten crystallized skills, with implementation patterns and evidence citations, is in the [`references/skills.md`](../../src/claude/skills/negotiation/references/skills.md) file. The skill has no scripts.
 
 ### Chaining
 

@@ -22,7 +22,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:domain-design Design the schema for tracking which sites finished fetching each month
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/domain-design`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/domain-design`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /domain-design skill to ...`.
 
 The skill walks six steps: name the business question, derive state, derive operations, derive the schema, derive boundaries, and validate against three to five use cases. At the end you get a design plus the exit code and report from `evaluate_design.py`.
 

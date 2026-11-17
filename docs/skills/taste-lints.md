@@ -47,7 +47,7 @@ The four rules:
 | `complexity` | Functions over cyclomatic complexity 10 need decomposition. | per violation |
 | `skill-size` | Skills over 500 lines need progressive disclosure. | per violation |
 
-Naming exceptions: a YAML stem may hold dot-separated kebab-case segments (`ci.pr.yml`), a leading dot is valid (`.coderabbit.yaml`), and `__init__.py` and `__main__.py` are exempt from `snake_case`. A suggested name that cannot start with a letter gets an `item` prefix, so `1config.yml` becomes `item-1config.yml`.
+Naming exceptions: a YAML stem may hold dot-separated kebab-case segments (`ci.pr.yml`), a leading dot is valid ([`.coderabbit.yaml`](../../.coderabbit.yaml)), and `__init__.py` and `__main__.py` are exempt from `snake_case`. A suggested name that cannot start with a letter gets an `item` prefix, so `1config.yml` becomes `item-1config.yml`.
 
 ## Advanced use
 

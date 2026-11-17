@@ -29,7 +29,7 @@ The agent checks prerequisites, runs the install commands, then runs the smoke p
 
 ## What you get
 
-A working `.venv/` and installed git hooks, plus a smoke probe result. The probe runs `lefthook version`, `lefthook check-install`, and a pytest collect-only on `tests/test_paths.py`, then compares the lefthook version to the pin in `pyproject.toml`. The skill also covers the MCP layer, editor and LSP behavior, a table of known traps, and a smoke checklist.
+A working `.venv/` and installed git hooks, plus a smoke probe result. The probe runs `lefthook version`, `lefthook check-install`, and a pytest collect-only on [`tests/test_paths.py`](../../tests/test_paths.py), then compares the lefthook version to the pin in [`pyproject.toml`](../../pyproject.toml). The skill also covers the MCP layer, editor and LSP behavior, a table of known traps, and a smoke checklist.
 
 ## Advanced use
 

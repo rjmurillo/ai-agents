@@ -22,7 +22,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:dx-review
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/dx-review`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/dx-review`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /dx-review skill to ...`.
 
 The skill reads the README and project metadata to find the product, docs, install command, and quickstart. It asks you when critical information is missing. It then walks eight audit steps and ends with a scorecard.
 

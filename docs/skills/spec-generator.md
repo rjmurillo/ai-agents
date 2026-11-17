@@ -21,7 +21,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:spec-generator formalize the password reset feature in docs/prd-password-reset.md
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/spec-generator`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/spec-generator`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /spec-generator skill to ...`.
 
 The skill reads the bundled schema, writes the files, and runs the validator on each one. At the end you see an artifact table and the validator result for every file.
 

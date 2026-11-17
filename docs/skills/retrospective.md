@@ -24,7 +24,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:retrospective the CI outage on 2026-11-09
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/retrospective the CI outage on 2026-11-09`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/retrospective the CI outage on 2026-11-09`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /retrospective skill to ...`.
 
 The argument is the scope. A bare `/retrospective` asks you for one. Use `list` to see pending skeletons, or `fill <YYYY-MM-DD>` to fill one.
 

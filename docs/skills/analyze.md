@@ -23,7 +23,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:analyze architecture review of the auth system
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/analyze`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/analyze`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /analyze skill to ...`.
 
 The skill runs its script at once and follows the script's required actions. It does not explore first. At step 1 it delegates exploration to Explore agents, then you continue step by step to a final synthesis.
 
@@ -69,7 +69,7 @@ Give exactly one of `--thoughts` or `--thoughts-file`. The script exits 0 after 
 > [!WARNING]
 > Use `--thoughts-file`, not `--thoughts`, for request-derived text. The shell expands `$(...)` and backticks inside a double-quoted `--thoughts "..."` value before the script runs. Write the text to a file with the Write tool, then pass the path.
 
-Before step 1, the skill records the live default-branch revision with `scripts/validation/live_revision_grounding.py` and carries `grounded_sha` and `finding_status` into each finding that depends on repository state. A finding marked `STALE` or `UNVERIFIED` is never the sole basis for an issue. That helper lives in the upstream checkout only. A consumer install follows the manual fallback in the [`github`](github.md) skill.
+Before step 1, the skill records the live default-branch revision with [`scripts/validation/live_revision_grounding.py`](../../scripts/validation/live_revision_grounding.py) and carries `grounded_sha` and `finding_status` into each finding that depends on repository state. A finding marked `STALE` or `UNVERIFIED` is never the sole basis for an issue. That helper lives in the upstream checkout only. A consumer install follows the manual fallback in the [`github`](github.md) skill.
 
 When deep analysis meets conditions such as low test coverage, hard-to-test seams, retries, or schema evolution, the skill loads [`software-engineering-library`](software-engineering-library.md) and opens the matching reference before it recommends a fix. [`autoplan`](autoplan.md) routes bug and error triage requests here before `build`.
 

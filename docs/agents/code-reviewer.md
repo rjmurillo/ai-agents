@@ -48,7 +48,7 @@ The exact shape comes from the `review` skill's technical-review contract, which
 
 The agent is advisory and read-only. It never edits files, stages changes, approves a pull request, or merges. It runs in fresh context apart from the implementer, and it inherits each host's default model. Every host projection lists only read and search tools.
 
-Contract lookup: the agent tries `skills/review/resources/technical-review.md` under the plugin root, then `.claude/skills/review/resources/technical-review.md`, then `skills/review/resources/technical-review.md`, and then installed plugin cache locations. If the change under review modifies `technical-review.md` itself, the agent loads the base revision instead. A change never reviews itself under rules it rewrote.
+Contract lookup: the agent tries `skills/review/resources/technical-review.md` under the plugin root, then [`.claude/skills/review/resources/technical-review.md`](../../.claude/skills/review/resources/technical-review.md), then `skills/review/resources/technical-review.md`, and then installed plugin cache locations. If the change under review modifies `technical-review.md` itself, the agent loads the base revision instead. A change never reviews itself under rules it rewrote.
 
 Fallback rules when the contract is unavailable:
 

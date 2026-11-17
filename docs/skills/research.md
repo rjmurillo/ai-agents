@@ -21,7 +21,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:research Topic: prompt caching strategies for long agent sessions. Context: we are sizing a cost reduction for the orchestrator.
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/research`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/research`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /research skill to ...`.
 
 Topic and context are both required. An optional `URLs:` line gives comma-separated source URLs. If you give no topic, the skill asks for one. The skill then researches, drafts the analysis, maps applicability, writes a memory, and drafts an issue body.
 
@@ -47,7 +47,7 @@ Quality gates that block the run: core principles, frameworks, and 3 examples in
 
 **Claim gate.** The analysis, the memory, and the issue body each get their own draft and ledger. The skill lists claims that rest on outside sources and checks them with the `ai-agents-external-claims` skill. It runs the `claim_ledger.py` validator on the ledger and the draft, and writes the final artifact only after exit `0`. It then re-runs the validator on the final file to prove the copy is the checked text. If browsing is unavailable, it narrows or removes the claim and records the gap.
 
-**Issues.** The skill does not publish an issue on its own. An agent that found the work does not select it, so the owner decides. If your request asked for filing, it confirms with you, then runs `new_issue.py` with `--source human`. It never passes `--source agent`. A non-zero exit from that script is not a plain failure, because it creates before it labels: read `references/degraded-mode.md` before you retry, or you may duplicate the issue.
+**Issues.** The skill does not publish an issue on its own. An agent that found the work does not select it, so the owner decides. If your request asked for filing, it confirms with you, then runs `new_issue.py` with `--source human`. It never passes `--source agent`. A non-zero exit from that script is not a plain failure, because it creates before it labels: read [`references/degraded-mode.md`](../../src/claude/skills/research/references/degraded-mode.md) before you retry, or you may duplicate the issue.
 
 **Search bound.** If three tool calls surface nothing useful, it switches to first-principles reasoning and documents what it tried.
 

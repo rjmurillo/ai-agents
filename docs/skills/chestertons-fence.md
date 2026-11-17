@@ -21,7 +21,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:chestertons-fence "src/validators/schema.py" "remove unused validation"
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/chestertons-fence "src/validators/schema.py" "remove unused validation"`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/chestertons-fence "src/validators/schema.py" "remove unused validation"`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /chestertons-fence skill to ...`.
 
 The first argument is the target. The second describes the change you plan. The skill returns an investigation report with a recommended decision.
 

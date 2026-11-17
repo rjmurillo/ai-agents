@@ -54,7 +54,7 @@ Rollback:
 | Phase 3, not pushed | `git reset --hard origin/main` |
 | Phase 4, pushed | Close the draft PR in Azure DevOps and delete the remote branch |
 
-Read `references/troubleshooting.md` for package and build errors.
+Read [`references/troubleshooting.md`](../../src/claude/skills/windows-image-updater/references/troubleshooting.md) for package and build errors.
 
 ## Where it runs
 

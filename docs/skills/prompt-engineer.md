@@ -42,7 +42,7 @@ Phases:
 | 3 Execute | Apply the approved before and after changes |
 | 4 Integrate | Check cross-section coherence and anti-patterns, then present the final prompt |
 
-The skill always reads `references/prompt-engineering-single-turn.md`. It reads `references/prompt-engineering-multi-turn.md` only when the prompt involves multi-turn flows or sub-agent orchestration. `references/workflow.md` holds the phase detail and the card template.
+The skill always reads [`references/prompt-engineering-single-turn.md`](../../src/claude/skills/prompt-engineer/references/prompt-engineering-single-turn.md). It reads [`references/prompt-engineering-multi-turn.md`](../../src/claude/skills/prompt-engineer/references/prompt-engineering-multi-turn.md) only when the prompt involves multi-turn flows or sub-agent orchestration. [`references/workflow.md`](../../src/claude/skills/prompt-engineer/references/workflow.md) holds the phase detail and the card template.
 
 Principles it follows: quote the reference's trigger condition before you pick a technique, ask open verification questions ("what behavior will this produce?"), and preserve what already works. It rewrites problems, not the whole prompt.
 

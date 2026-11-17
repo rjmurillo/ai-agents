@@ -21,7 +21,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:takeover take over PR 123 and finish the retry fix
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/takeover`. The skill takes no fixed argument. Name the source in your request: a PR, a branch, or a thread.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/takeover`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /takeover skill to ...`. The skill takes no fixed argument. Name the source in your request: a PR, a branch, or a thread.
 
 ## What you get
 
@@ -44,7 +44,7 @@ A continuation of the work, normally as a replacement PR. The original commits a
 5. **Verify.** Reproduce the original failure and run realistic workflows. Green mocked tests do not prove the user experience works. State what remains unverified.
 6. **Finish.** When the finish includes a PR, use [`push-pr`](push-pr.md) to file a replacement. Push to the existing branch only on an explicit in-place or stacked request. Then follow checks with the [`github`](github.md) skill and answer review threads with [`pr-comment-responder`](pr-comment-responder.md). Stop when required checks pass and every thread is answered, or when a blocker needs you. Merge or close the original PR only when authorized.
 
-**Extending.** `references/upstream-sync.md` maps new upstream steps to local skills.
+**Extending.** [`references/upstream-sync.md`](../../src/claude/skills/takeover/references/upstream-sync.md) maps new upstream steps to local skills.
 
 ## Where it runs
 

@@ -21,19 +21,19 @@ The `janitor` agent removes tech debt from a codebase. It deletes unused code, s
 In Claude Code, start your prompt with the agent name:
 
 ```text
-janitor: remove unused helpers and dead imports under src/claude/lib/
+janitor: remove unused helpers and dead imports under src/billing/
 ```
 
 In GitHub Copilot CLI:
 
 ```bash
-copilot --agent janitor --prompt "remove unused helpers and dead imports under src/claude/lib/"
+copilot --agent janitor --prompt "remove unused helpers and dead imports under src/billing/"
 ```
 
 In VS Code or Visual Studio Copilot Chat:
 
 ```text
-@janitor remove unused helpers and dead imports under src/claude/lib/
+@janitor remove unused helpers and dead imports under src/billing/
 ```
 
 ## What you get
@@ -55,7 +55,7 @@ It hands off to other agents:
 A multi-step prompt:
 
 ```text
-janitor: measure which exports in src/claude/lib/ have no callers, delete them one module at a time, run the tests after each deletion, and report lines removed per module.
+janitor: measure which exports in src/billing/ have no callers, delete them one module at a time, run the tests after each deletion, and report lines removed per module.
 ```
 
 ## Where it runs

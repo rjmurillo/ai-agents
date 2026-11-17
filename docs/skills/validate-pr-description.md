@@ -20,7 +20,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:validate-pr-description "feat(auth): add token refresh" pr-body.md
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/validate-pr-description "feat(auth): add token refresh" pr-body.md`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/validate-pr-description "feat(auth): add token refresh" pr-body.md`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /validate-pr-description skill to ...`.
 
 The first argument is the title. The second is a path to the body file. If you give neither, the skill asks for both. It does not guess them from your branch or last commit.
 
@@ -50,7 +50,7 @@ Flags: `--title` (required), `--body`, `--body-file`, `--fail-on-violation`. Exi
 
 ### File mentions against the diff
 
-In a checkout that ships `scripts/validation/pr_description.py`, the skill also runs its local mode. This is the same file-mention check the required `Validate PR` check runs.
+In a checkout that ships [`scripts/validation/pr_description.py`](../../scripts/validation/pr_description.py), the skill also runs its local mode. This is the same file-mention check the required `Validate PR` check runs.
 
 ```bash
 uv run python scripts/validation/pr_description.py --help

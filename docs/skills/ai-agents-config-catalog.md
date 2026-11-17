@@ -38,8 +38,8 @@ A catalog organized by axis type: git hook configuration, removed and stale flag
 | Subcommand | Does |
 | --- | --- |
 | `locate <id or name>` | Prints `file:line` for each file attributed to the flag. `locate --list` prints the known ids |
-| `markers` | Lists pytest markers from `pyproject.toml` |
-| `retired` | Confirms retired flags are absent from `CONTRIBUTING.md` and `scripts/validation/pre_pr.py` |
+| `markers` | Lists pytest markers from [`pyproject.toml`](../../pyproject.toml) |
+| `retired` | Confirms retired flags are absent from [`CONTRIBUTING.md`](../../CONTRIBUTING.md) and [`scripts/validation/pre_pr.py`](../../scripts/validation/pre_pr.py) |
 
 Exit codes: 0 ok, 1 findings or a missing file, 2 bad arguments or unreadable config, 3 external failure. Exit 1 from `locate` means the flag moved or died, so fix the catalog first. Use `instruments.py` to list or run the linked checks.
 

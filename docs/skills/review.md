@@ -23,7 +23,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:review 1234
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/review 1234`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/review 1234`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /review skill to ...`.
 
 With no argument, `review` reviews the current branch against the base branch. It reads the base from `gh pr view --json baseRefName` and falls back to `main`.
 

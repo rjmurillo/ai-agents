@@ -22,7 +22,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:skillforge SkillForge: create a skill for automated code review
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/skillforge`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/skillforge`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /skillforge skill to ...`.
 
 The skill triages first. It scores your input against installed skills and routes to `USE_EXISTING`, `IMPROVE_EXISTING`, `CREATE_NEW`, `COMPOSE`, or `CLARIFY`. It creates a new skill only when no existing skill covers the need.
 
@@ -69,7 +69,7 @@ uv run python .claude/skills/skillforge/scripts/skill_modularity_audit.py "$SKIL
 uv run python .claude/skills/skillforge/scripts/package_skill.py "$SKILL" ./dist
 ```
 
-Other scripts: `init_skill.py` (scaffold, `--path`, `--dry-run`), `triage_skill_request.py` (`--json`, `--verbose`; exits `2` if the skill index is missing), and `discover_skills.py` (builds the index; `--extra-root`, `--output`, `--json`). Validators enforce a path guard: the skill directory must sit under the current directory or under `--root`. Read `references/scripts-and-validation.md` before you act on an exit code.
+Other scripts: `init_skill.py` (scaffold, `--path`, `--dry-run`), `triage_skill_request.py` (`--json`, `--verbose`; exits `2` if the skill index is missing), and `discover_skills.py` (builds the index; `--extra-root`, `--output`, `--json`). Validators enforce a path guard: the skill directory must sit under the current directory or under `--root`. Read [`references/scripts-and-validation.md`](../../src/claude/skills/skillforge/references/scripts-and-validation.md) before you act on an exit code.
 
 Checklist limits: name is hyphen-case and 64 characters or fewer, description is 1024 characters or fewer, `SKILL.md` stays under 500 lines, and the skill defines 3 to 5 trigger phrases. Start with least-privilege tools (`Read`, `Glob`, `Grep`, `Write`, `Edit`) and add others only when the skill needs them. Write only what the model cannot already know.
 

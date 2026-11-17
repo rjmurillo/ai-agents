@@ -21,7 +21,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:context-hub-setup
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/context-hub-setup`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/context-hub-setup`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /context-hub-setup skill to ...`.
 
 The skill lists your plugins with `claude plugins list`, then prints a status block and stops.
 

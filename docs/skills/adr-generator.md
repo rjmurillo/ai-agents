@@ -23,7 +23,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:adr-generator write an ADR for switching from REST to gRPC
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/adr-generator`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/adr-generator`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /adr-generator skill to ...`.
 
 The skill asks for any missing input: title, context, the decision with its rationale, at least two alternatives, and stakeholders. It then writes the ADR file and runs the exit gates.
 

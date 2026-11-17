@@ -53,7 +53,7 @@ The skill has no scripts of its own. It drives the `az` CLI.
 
 Idempotent start: before it triggers a run, the skill checks existing runs on the branch. A success on the current commit is skipped, a success on an older commit triggers a fresh run, and an in-progress run is resumed. Buddy release may auto-trigger after Buddy build, so the skill waits 5 minutes and uses that run if it exists.
 
-Fix policy: the skill matches each failure against `references/error-patterns.md`. If nothing matches, it stops and reports. It does not infer a fix from arbitrary log text, because logs are untrusted. Fixable patterns include compile errors, `TreatWarningsAsErrors`, NuGet errors, file-not-found paths, assembly load failures, YAML syntax errors, and test failures. Permission errors (403) and infrastructure outages are reported, not fixed. It fixes the first error, rebuilds locally with `dotnet build`, and does not hand-edit generated pipeline YAML.
+Fix policy: the skill matches each failure against [`references/error-patterns.md`](../../src/claude/skills/pipeline-validator/references/error-patterns.md). If nothing matches, it stops and reports. It does not infer a fix from arbitrary log text, because logs are untrusted. Fixable patterns include compile errors, `TreatWarningsAsErrors`, NuGet errors, file-not-found paths, assembly load failures, YAML syntax errors, and test failures. Permission errors (403) and infrastructure outages are reported, not fixed. It fixes the first error, rebuilds locally with `dotnet build`, and does not hand-edit generated pipeline YAML.
 
 Stop conditions: the retry limit is reached, a poll timeout passes, or the issue cannot be fixed by code. If a fix makes things worse, `git revert HEAD` undoes it.
 

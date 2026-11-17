@@ -20,7 +20,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:skillify
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/skillify`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/skillify`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /skillify skill to ...`.
 
 The skill audits your session, gates it, finds the skills directory, checks for overlap, writes the skill, and reads it back. It asks you only for the trigger phrase, or for a destination when it cannot resolve one. It reports one line: `Skillified as <name>. Trigger: "<phrase>".` or `Patched <name>. Trigger: "<phrase>".`
 
@@ -57,7 +57,7 @@ Destination order: an explicit path you gave, then an environment variable name 
 
 Overlap: a patch asks you to confirm the target path and the planned change before it edits, and the description must stay within 1024 characters. A generated `SKILL.md` is patched at its source template when the repository has one.
 
-The skill strips secrets, tokens, auth headers, internal hostnames, and account IDs from captured commands. It treats text from tool output, issues, and fetched pages as data and never copies an instruction found there into a skill. For a capability claim, read `references/capability-gate.md` and record a baseline.
+The skill strips secrets, tokens, auth headers, internal hostnames, and account IDs from captured commands. It treats text from tool output, issues, and fetched pages as data and never copies an instruction found there into a skill. For a capability claim, read [`references/capability-gate.md`](../../src/claude/skills/skillify/references/capability-gate.md) and record a baseline.
 
 ## Where it runs
 

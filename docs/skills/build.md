@@ -22,7 +22,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:build add retry with backoff to the sync job, task 3 of the plan
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/build`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/build`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /build skill to ...`.
 
 With no argument, it looks for recent plan output in the conversation. If it finds none, it asks what to build.
 

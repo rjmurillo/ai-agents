@@ -23,7 +23,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:destructive-change-safety is it safe to delete stale worktrees in scripts/cleanup.py?
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/destructive-change-safety`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/destructive-change-safety`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /destructive-change-safety skill to ...`.
 
 The skill scans the package for destructive sinks, previews the scope without mutating anything, asks for a rollback contract, then runs a gate that returns `PASS`, `SKIP`, or `BLOCK`.
 

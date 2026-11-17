@@ -22,7 +22,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:api-doc-authoring
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/api-doc-authoring`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/api-doc-authoring`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /api-doc-authoring skill to ...`.
 
 Then describe the API and the goal, for example "document the orders API so a developer can place an order and check it". The skill names the use case, writes the smallest working request and its response, lists likely failures with cause and action, and runs the examples. You end with a doc whose examples have evidence behind them.
 
@@ -53,7 +53,7 @@ uv run python .claude/skills/api-doc-authoring/scripts/api_examples.py run docs/
 uv run python .claude/skills/api-doc-authoring/scripts/api_examples.py list docs/orders.md --touching /orders
 ```
 
-An executable example is a fenced `http` block whose info string carries an id and the expected status, for example `http example=create-order expect=201`. Read `references/example-verification.md` for the syntax and the evidence contract.
+An executable example is a fenced `http` block whose info string carries an id and the expected status, for example `http example=create-order expect=201`. Read [`references/example-verification.md`](../../src/claude/skills/api-doc-authoring/references/example-verification.md) for the syntax and the evidence contract.
 
 `run` refuses a non-loopback host unless you pass `--allow-remote`, because a doc example can create or delete data. It sends only to the base URL host and returns redirects as replies without following them. The evidence file is owner-only and refuses a symlink, a non-regular file, or a path outside the working directory. Windows refuses `--evidence`, so run without it there and save the stdout report.
 

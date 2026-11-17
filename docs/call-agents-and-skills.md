@@ -30,11 +30,13 @@ Claude Code accepts a slash command for every plugin skill, not only the ones wi
 
 ### GitHub Copilot CLI
 
-Copilot CLI uses the short form for skills whose `SKILL.md` sets `user-invocable: true`:
+Name the skill in your prompt, with a slash before its name. GitHub's [Copilot CLI skills docs](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/create-skills) use this form:
 
 ```text
-/spec Add rate limiting to the API
+Use the /spec skill to add rate limiting to the API.
 ```
+
+Run `/skills list` to see the skills Copilot CLI loaded.
 
 ### Skills the agent loads on match
 

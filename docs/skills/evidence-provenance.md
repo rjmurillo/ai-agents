@@ -22,7 +22,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:evidence-provenance count the independent confirmations for the retry fix: the new test, the reviewer comment, and the CI run
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/evidence-provenance`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/evidence-provenance`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /evidence-provenance skill to ...`.
 
 The skill records each item with its lineage, classifies the record, and tells you how many independent loops you can cite.
 

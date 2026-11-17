@@ -23,7 +23,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:analysis-provenance .config/markdownlint.json
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/analysis-provenance .config/markdownlint.json`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/analysis-provenance .config/markdownlint.json`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /analysis-provenance skill to ...`.
 
 The skill reports a category, a confidence, the evidence behind it, and a recommendation.
 
@@ -56,7 +56,7 @@ For an `UPSTREAM` result, adjust local configuration, look for an override optio
 
 ## Advanced use
 
-The script resolves the target, then checks dependency directories (`node_modules`, `.venv`, `vendor`, `.gitmodules`), `package.json`, and the first 20 lines of the file for generated markers and copyright notices. It weighs those signals and returns a category with evidence.
+The script resolves the target, then checks dependency directories (`node_modules`, `.venv`, `vendor`, `.gitmodules`), [`package.json`](../../package.json), and the first 20 lines of the file for generated markers and copyright notices. It weighs those signals and returns a category with evidence.
 
 Run it from the root of a checkout of this repository:
 

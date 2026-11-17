@@ -56,7 +56,7 @@ Design review frontmatter carries `status`, `priority`, `blocking`, `reviewer`, 
 | `BLOCKED` | Major issues, cannot proceed | true |
 | `REJECTED` | The design is flawed at its base | true |
 
-CI enforces this: `scripts/validation/pre_pr.py` checks the required frontmatter fields, and the `synthesis-panel-gate.yml` workflow blocks PRs whose verdict is `NEEDS_CHANGES`, `FAIL`, or `REJECTED`.
+CI enforces this: [`scripts/validation/pre_pr.py`](../../scripts/validation/pre_pr.py) checks the required frontmatter fields, and the `synthesis-panel-gate.yml` workflow blocks PRs whose verdict is `NEEDS_CHANGES`, `FAIL`, or `REJECTED`.
 
 ## Advanced use
 

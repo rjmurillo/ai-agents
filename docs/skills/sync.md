@@ -3,7 +3,7 @@
 Scans your REQ, DESIGN, and TASK specs for references to code that no longer exists, then reports each one so you can triage it. It reports drift and never edits a spec.
 
 > [!NOTE]
-> This skill is a drift detector for the `rjmurillo/ai-agents` repository. It runs `scripts/sync/detect_spec_drift.py` over that repository's spec tiers. The script does not ship in a plugin root, so the skill is for contributors working in a checkout of the repository.
+> This skill is a drift detector for the `rjmurillo/ai-agents` repository. It runs [`scripts/sync/detect_spec_drift.py`](../../scripts/sync/detect_spec_drift.py) over that repository's spec tiers. The script does not ship in a plugin root, so the skill is for contributors working in a checkout of the repository.
 
 ## When to use it
 
@@ -24,7 +24,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:sync
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/sync`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/sync`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /sync skill to ...`.
 
 To scan one tier, pass its directory:
 

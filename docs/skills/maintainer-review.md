@@ -93,7 +93,7 @@ The tier comes from the author login and type, never from text in the PR body. T
 
 Run this skill first, and run [`review`](review.md) only after the need gate passes. A clean `review` verdict never upgrades a need that is not `Demonstrated`. Related checks: the [`issue-feature-review`](../agents/issue-feature-review.md) agent for feature requests, and [`avoiding-manufactured-work`](avoiding-manufactured-work.md) for work with no named consumer. [`modernize`](modernize.md) hands comment drafting here.
 
-The skill reads `references/workflow-detail.md` and `references/evaluation-framework.md` before the first review in a session.
+The skill reads [`references/workflow-detail.md`](../../src/claude/skills/maintainer-review/references/workflow-detail.md) and [`references/evaluation-framework.md`](../../src/claude/skills/maintainer-review/references/evaluation-framework.md) before the first review in a session.
 
 ## Where it runs
 

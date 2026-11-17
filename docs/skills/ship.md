@@ -20,7 +20,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:ship main
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/ship`. The argument is the target branch. It defaults to `main`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/ship`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /ship skill to ...`. The argument is the target branch. It defaults to `main`.
 
 > [!NOTE]
 > On a branch you own, `/ship` needs a SHA-bound `/review` marker commit on `HEAD`. Run [`review`](review.md) first, and keep the working tree clean afterward.

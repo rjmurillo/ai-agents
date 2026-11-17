@@ -34,7 +34,7 @@ An accepted or retired idea with a complete artifact set. A result is accepted w
 
 The lifecycle phases are: hunch, search, and contradiction log; spike with an empirical probe; capability gate and eval baseline; ADR and debate; ship as a gate or skill with calibration; monitor; adopt or retire with a record. Write the predicted outcome before you run a measurement, because a prediction made after the data is a description, not a test.
 
-`instruments.py` lists and runs linked checks: a retro counter, a `file:line` claim check, `scripts/validation/check_citation_freshness.py`, and the drift check.
+`instruments.py` lists and runs linked checks: a retro counter, a `file:line` claim check, [`scripts/validation/check_citation_freshness.py`](../../scripts/validation/check_citation_freshness.py), and the drift check.
 
 Run the dispatcher from the root of a checkout of this repository:
 

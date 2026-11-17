@@ -26,7 +26,7 @@ Use the code-qualities-assessment skill to assess src/services/auth.py.
 The skill runs `assess.py` on the target and returns a markdown report with five scores and remediation links for low scores.
 
 > [!NOTE]
-> `assess.py` scores source code only. Rules, skills, and agents are assessed by hand against the same qualities, using `references/executable-nl-artifacts.md`.
+> `assess.py` scores source code only. Rules, skills, and agents are assessed by hand against the same qualities, using [`references/executable-nl-artifacts.md`](../../src/claude/skills/code-qualities-assessment/references/executable-nl-artifacts.md).
 
 ## What you get
 
@@ -79,7 +79,7 @@ Gate modes answer two different questions:
 
 Scores are size-derived, so growth alone can lower cohesion. Read the named delta before you act on an exit 10.
 
-Set thresholds in `.qualityrc.json`. The config accepts `thresholds` per quality, `context` overrides, `minConfidence`, and `ignore` globs. Lower-confidence misses warn only in absolute mode.
+Set thresholds in [`.qualityrc.json`](../../.qualityrc.json). The config accepts `thresholds` per quality, `context` overrides, `minConfidence`, and `ignore` globs. Lower-confidence misses warn only in absolute mode.
 
 [`review`](review.md) runs this skill as one of its four local quality axes.
 

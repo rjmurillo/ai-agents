@@ -23,7 +23,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:spec Add rate limiting to the API
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/spec`. The argument can be a problem statement or an issue number. With no argument, the skill asks what problem to solve and does not proceed without one.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/spec`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /spec skill to ...`. The argument can be a problem statement or an issue number. With no argument, the skill asks what problem to solve and does not proceed without one.
 
 First it asks six forcing questions. Answer them with specifics, because later steps read your answers verbatim.
 
@@ -55,7 +55,7 @@ A structured requirements document that mirrors the PRD schema. Sections include
 
 While the architecture is still open, a reframing check runs with Q2. End the Q2 answer with one of: `Reframing: skipped (<reason>)`, `Reframing: automation only`, or `Reframing: capability invention, check: <falsifiable signal>`. The pass criteria and kill criteria live in the `spec-generator` skill's `references/spec-step0-gates.md`.
 
-**Step 0.5: memory-first gate.** Searches prior art before new spec work. It halts when the question is already answered. Read `references/step-0-5-memory-gate.md` before running it, because the halt conditions are the point.
+**Step 0.5: memory-first gate.** Searches prior art before new spec work. It halts when the question is already answered. Read [`references/step-0-5-memory-gate.md`](../../src/claude/skills/spec/references/step-0-5-memory-gate.md) before running it, because the halt conditions are the point.
 
 **Evaluation axes.** Problem clarity, requirement testability, completeness, traceability (REQ to DESIGN to TASK), and feasibility.
 

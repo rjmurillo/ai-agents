@@ -20,7 +20,7 @@ A skill runs in the current conversation. It does not get a new context window. 
 
 Skills start in one of two ways:
 
-- **By slash command.** Some skills, such as `spec` and `review`, start when you type their name. Their `SKILL.md` sets `user-invocable: true`. Copilot CLI takes the short form, `/spec`. Claude Code takes `/project-toolkit:spec` after a plugin install.
+- **By slash command.** Some skills, such as `spec` and `review`, start when you type their name. Their `SKILL.md` sets `user-invocable: true`. Claude Code takes `/project-toolkit:spec` after a plugin install. In Copilot CLI, you name it with a slash in your prompt, such as `Use the /spec skill to ...`.
 - **By match.** The host shows the agent each skill's name and description. When your request matches, the agent loads the full skill. You can also name the skill in your request to make sure it loads. In Claude Code, any plugin skill also starts with `/project-toolkit:<name>`.
 
 Browse them in [Skills](skills/README.md).

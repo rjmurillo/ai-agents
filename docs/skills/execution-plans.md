@@ -33,7 +33,7 @@ A Markdown plan file under `.project-toolkit/plans/`. The folder shows the plan'
 | `completed/` | Plans that finished. |
 | `abandoned/` | Plans that stopped, with the rationale. |
 
-Each plan has these sections, taken from `.project-toolkit/plans/TEMPLATE.md`:
+Each plan has these sections, taken from [`.project-toolkit/plans/TEMPLATE.md`](../../.project-toolkit/plans/TEMPLATE.md):
 
 | Section | Purpose |
 | --- | --- |
@@ -44,7 +44,7 @@ Each plan has these sections, taken from `.project-toolkit/plans/TEMPLATE.md`:
 | Blockers | Current impediments. |
 | Related | Links to issues, PRs, and ADRs. |
 
-The skill also reads and writes `.project-toolkit/debt/tech-debt-registry.md`, which lists known technical debt items. It creates missing directories when the first plan is written.
+The skill also reads and writes [`.project-toolkit/debt/tech-debt-registry.md`](../../.project-toolkit/debt/tech-debt-registry.md), which lists known technical debt items. It creates missing directories when the first plan is written.
 
 ## Advanced use
 

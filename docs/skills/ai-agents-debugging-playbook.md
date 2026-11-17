@@ -32,7 +32,7 @@ A named cause for the failure, a fix applied on the canonical surface only, and 
 
 ## Advanced use
 
-The first question for any CI red is whether the same job fails on main. If it does, it is not your branch. The skill asks three questions before any fix: does it reproduce on main, is the gate working or broken, and, for a drift red, which tree is canonical. Do not edit until you can answer the last one from `AGENTS.md` or the generator docstring.
+The first question for any CI red is whether the same job fails on main. If it does, it is not your branch. The skill asks three questions before any fix: does it reproduce on main, is the gate working or broken, and, for a drift red, which tree is canonical. Do not edit until you can answer the last one from [`AGENTS.md`](../../AGENTS.md) or the generator docstring.
 
 `first_command.py` covers the shared-checkout rows:
 

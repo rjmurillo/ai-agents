@@ -67,7 +67,7 @@ Rules the agent keeps:
 - It asks specific questions, never "Can you provide more details?"
 - It recommends `PROCEED` when evidence supports it and does not default to `DEFER`.
 
-The output format mirrors `.github/prompts/issue-feature-review.md` so on-demand reviewers return the same shape.
+The output format mirrors [`.github/prompts/issue-feature-review.md`](../../.github/prompts/issue-feature-review.md) so on-demand reviewers return the same shape.
 
 The agent cannot delegate. It returns the recommendation with confidence, assignment suggestions, and a path to related research. When an orchestrator delegated the task, it adds a next step: `PROCEED` goes to `milestone-planner`, `NEEDS_RESEARCH` goes to `analyst`, a strategic conflict goes to `architect`, and `REQUEST_EVIDENCE` waits for the submitter.
 

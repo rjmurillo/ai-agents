@@ -23,7 +23,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:context-optimizer analyze skill placement for .claude/skills/github
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/context-optimizer`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/context-optimizer`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /context-optimizer skill to ...`.
 
 The skill runs the analyzer and returns a JSON classification: `Skill`, `PassiveContext`, or `Hybrid`, with a confidence and the reasoning.
 
@@ -41,7 +41,7 @@ Classification thresholds: `Skill` when the skill score beats the passive score 
 
 ## Advanced use
 
-The first question is not "skill or passive context". It is: does the model already know this? Passive context earns its slot only for what the model cannot know: repository gotchas, local conventions that contradict the default, and APIs newer than the training cutoff. Generic engineering knowledge belongs in progressive disclosure or nowhere. Read `references/model-context-doctrine.md` before you argue about always-on content.
+The first question is not "skill or passive context". It is: does the model already know this? Passive context earns its slot only for what the model cannot know: repository gotchas, local conventions that contradict the default, and APIs newer than the training cutoff. Generic engineering knowledge belongs in progressive disclosure or nowhere. Read [`references/model-context-doctrine.md`](../../src/claude/skills/context-optimizer/references/model-context-doctrine.md) before you argue about always-on content.
 
 From the root of a checkout of this repository:
 

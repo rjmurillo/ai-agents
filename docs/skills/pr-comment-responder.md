@@ -23,7 +23,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:pr-comment-responder PR 1234
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/pr-comment-responder PR 1234`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/pr-comment-responder PR 1234`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /pr-comment-responder skill to ...`.
 
 The skill reads the PR number from your prompt. It accepts `PR 1234`, `PR #1234`, `pull request 1234`, `#1234`, or a `github.com/owner/repo/pull/1234` URL. It does not ask for a number you already gave.
 
@@ -40,7 +40,7 @@ The skill reads the PR number from your prompt. It accepts `PR 1234`, `PR #1234`
 | `[DUPLICATE]` | Another comment covers it. |
 | `[DEFERRED] Refs #<issue>` | Tracked in a real issue. `Refs #0` does not count. |
 
-The table in `references/gates.md` is the only definition of these statuses.
+The table in [`references/gates.md`](../../src/claude/skills/pr-comment-responder/references/gates.md) is the only definition of these statuses.
 
 The run ends only when every comment has a status, CI checks pass, all threads are resolved, commits are pushed, and no new comments arrived after a 45-second wait.
 
@@ -72,7 +72,7 @@ Reviewer priority breaks ties inside a domain: P0 `cursor[bot]`, P1 humans, P2 n
 | 8 | Verify every status, wait 45 seconds, confirm CI and threads. |
 | 9 | Update the memory before you report completion. |
 
-Phase 4.5 covers Copilot follow-up PRs. Read `references/bots.md` first.
+Phase 4.5 covers Copilot follow-up PRs. Read [`references/bots.md`](../../src/claude/skills/pr-comment-responder/references/bots.md) first.
 
 ### Rules the skill enforces
 
@@ -86,7 +86,7 @@ Phase 4.5 covers Copilot follow-up PRs. Read `references/bots.md` first.
 
 ### Transport
 
-The caller passes `Transport: gh` or `Transport: gh_unusable`. With `gh_unusable`, the skill uses MCP operations step by step, per `references/workflow.md`. A transport failure is an unknown, not a verdict.
+The caller passes `Transport: gh` or `Transport: gh_unusable`. With `gh_unusable`, the skill uses MCP operations step by step, per [`references/workflow.md`](../../src/claude/skills/pr-comment-responder/references/workflow.md). A transport failure is an unknown, not a verdict.
 
 ### Scripts
 

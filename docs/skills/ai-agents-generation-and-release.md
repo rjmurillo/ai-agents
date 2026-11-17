@@ -29,11 +29,11 @@ The agent finds the canonical source for your file, regenerates, runs the drift 
 
 ## What you get
 
-A canonical edit and its regenerated output, committed together so the drift gates stay green. Plugin manifests stay free of a `version` field. The skill points to `RELEASING.md` for the npm release procedure.
+A canonical edit and its regenerated output, committed together so the drift gates stay green. Plugin manifests stay free of a `version` field. The skill points to [`RELEASING.md`](../../RELEASING.md) for the npm release procedure.
 
 ## Advanced use
 
-Run the generators with `uv run python build/scripts/build_all.py` (and `build/generate_agents.py`), then the drift gates, before you push. Never hand-edit a generated tree; the next regeneration overwrites the edit.
+Run the generators with `uv run python build/scripts/build_all.py` (and [`build/generate_agents.py`](../../build/generate_agents.py)), then the drift gates, before you push. Never hand-edit a generated tree; the next regeneration overwrites the edit.
 
 `generator_inventory.py` is read-only, prints JSON with an `examined` count, and has four subcommands:
 

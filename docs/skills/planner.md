@@ -82,7 +82,7 @@ You need an approved plan file that passed review, and a cleared context window.
 | 3 | Milestone Execution | Delegate to agents and run tests. Repeats until all milestones finish. |
 | 4 | Post-Implementation QR | Quality review of the implemented code. |
 | 5 | Issue Resolution | Conditional. Present issues and collect fixes, then loop back to step 4. |
-| 6 | Documentation | Technical-writer pass for `CLAUDE.md` and `README.md`. |
+| 6 | Documentation | Technical-writer pass for [`CLAUDE.md`](../../CLAUDE.md) and [`README.md`](../../README.md). |
 | 7 | Retrospective | Present the execution summary. |
 
 On resume, step 1 reconciles the plan file against work already done.
@@ -114,7 +114,7 @@ uv run python .claude/skills/planner/scripts/executor.py --plan-file plans/featu
 
 [`autoplan`](autoplan.md) routes execution, review, or resume of a planner-written plan file here. The [`plan`](plan.md) skill owns lifecycle decomposition of a spec into milestones and tasks. Use this skill when that work needs forced reflection pauses, a formal review pass, or delegated execution. Use [`execution-plans`](execution-plans.md) to log progress on a plan artifact.
 
-Supporting files ship with the skill: `resources/plan-format.md` (plan template), `resources/diff-format.md`, `resources/temporal-contamination.md`, and `resources/default-conventions.md`.
+Supporting files ship with the skill: [`resources/plan-format.md`](../../src/claude/skills/planner/resources/plan-format.md) (plan template), [`resources/diff-format.md`](../../src/claude/skills/planner/resources/diff-format.md), [`resources/temporal-contamination.md`](../../src/claude/skills/planner/resources/temporal-contamination.md), and [`resources/default-conventions.md`](../../src/claude/skills/planner/resources/default-conventions.md).
 
 ## Where it runs
 

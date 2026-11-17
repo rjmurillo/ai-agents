@@ -82,7 +82,7 @@ uv run python .claude/skills/validation-authority/scripts/validation_record.py -
 | 1 | The record has defects. The output names the blocking targets. |
 | 2 | Configuration error: unreadable file, invalid JSON, the sibling `build` trigger could not load, or pytest is not installed. |
 
-The script reports every field and coverage defect in one run. For `relocation-no-semantic-change`, it runs `pytest --collect-only -q` over the moved files and compares real test ids with the record. That collection imports test modules, `conftest.py` files, and installed pytest plugins, so run it only on a checkout you trust. The record file lives in a scratch directory, and the PR body carries its summary.
+The script reports every field and coverage defect in one run. For `relocation-no-semantic-change`, it runs `pytest --collect-only -q` over the moved files and compares real test ids with the record. That collection imports test modules, [`conftest.py`](../../conftest.py) files, and installed pytest plugins, so run it only on a checkout you trust. The record file lives in a scratch directory, and the PR body carries its summary.
 
 ## Where it runs
 

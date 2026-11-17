@@ -88,7 +88,7 @@ Valid rule names are `script-language`, `skill-frontmatter`, `agent-definition`,
 
 ### Chaining and configuration
 
-[`review`](review.md) invokes this skill as one of its four local quality axes. The principle text lives in `.agents/governance/golden-principles.md`. A vendored install without that file loses the canonical text, but the bundled scanner still applies its built-in checks for GP-001 and GP-003 through GP-006 to your files.
+[`review`](review.md) invokes this skill as one of its four local quality axes. The principle text lives in [`.agents/governance/golden-principles.md`](../../.agents/governance/golden-principles.md). A vendored install without that file loses the canonical text, but the bundled scanner still applies its built-in checks for GP-001 and GP-003 through GP-006 to your files.
 
 ## Where it runs
 

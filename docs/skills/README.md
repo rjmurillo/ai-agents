@@ -12,14 +12,14 @@ These skills cover the path from an idea to a merged pull request. Most people n
 
 | You want to | Claude Code (plugin install) | GitHub Copilot CLI |
 | --- | --- | --- |
-| Not pick a skill at all. Describe the task and let the toolkit route it | `/project-toolkit:autoplan` | `Use the autoplan skill to ...` |
-| Turn an idea into testable requirements | `/project-toolkit:spec` | `/spec` |
-| Break a spec into milestones and tasks | `/project-toolkit:plan` | `/plan` |
-| Write the code, test-first | `/project-toolkit:build` | `/build` |
-| Prove the change works | `/project-toolkit:test` | `/test` |
-| Review the branch before merge | `/project-toolkit:review` | `/review` |
-| Run pre-flight checks and open the pull request | `/project-toolkit:ship` | `/ship` |
-| Answer review comments on a pull request | `/project-toolkit:pr-comment-responder` | `/pr-comment-responder` |
+| Not pick a skill at all. Describe the task and let the toolkit route it | `/project-toolkit:autoplan` | `Use the /autoplan skill to ...` |
+| Turn an idea into testable requirements | `/project-toolkit:spec` | `Use the /spec skill to ...` |
+| Break a spec into milestones and tasks | `/project-toolkit:plan` | `Use the /plan skill to ...` |
+| Write the code, test-first | `/project-toolkit:build` | `Use the /build skill to ...` |
+| Prove the change works | `/project-toolkit:test` | `Use the /test skill to ...` |
+| Review the branch before merge | `/project-toolkit:review` | `Use the /review skill to ...` |
+| Run pre-flight checks and open the pull request | `/project-toolkit:ship` | `Use the /ship skill to ...` |
+| Answer review comments on a pull request | `/project-toolkit:pr-comment-responder` | `Use the /pr-comment-responder skill to ...` |
 
 Claude Code puts plugin skills under the plugin's name, so you type the `project-toolkit:` prefix. In a Claude Code session inside a checkout of `rjmurillo/ai-agents`, the short form such as `/spec` also works. [Call agents and skills](../call-agents-and-skills.md) has the details.
 
@@ -27,7 +27,7 @@ Claude Code puts plugin skills under the plugin's name, so you type the `project
 
 The **Slash command** column tells you how the skill is meant to start:
 
-- A command such as `/spec` marks a skill you start by typing it. Its `SKILL.md` sets `user-invocable: true`. Copilot CLI takes it as shown. Claude Code takes it as `/project-toolkit:spec` after a plugin install.
+- A command such as `/spec` marks a skill you start by typing it. Its `SKILL.md` sets `user-invocable: true`. Claude Code takes it as `/project-toolkit:spec` after a plugin install. In Copilot CLI, name it with a slash in your prompt: `Use the /spec skill to ...`.
 - `by name` marks a skill with explicit-only routing: the `autoplan` router never picks it, so you start it by name. Say `Use the <name> skill to ...`, or in Claude Code type `/project-toolkit:<name>`.
 - `match` marks a skill the agent loads on its own when your request matches. To ask for it on any host, say `Use the <name> skill to ...`. In Claude Code you can also type `/project-toolkit:<name>`.
 

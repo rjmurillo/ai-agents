@@ -21,7 +21,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:skill-doctor
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/skill-doctor`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/skill-doctor`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /skill-doctor skill to ...`.
 
 The skill asks two questions. First, which conversations to grade: this repository, all conversations, or chosen projects. Second, which skills to evaluate: project and global skills, or project skills only. It then collects, scores, and renders the report. Collection and rendering run locally.
 

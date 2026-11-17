@@ -20,7 +20,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:push-pr
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/push-pr`. The skill takes no argument. It reads `git status`, `git diff HEAD`, and the current branch.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/push-pr`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /push-pr skill to ...`. The skill takes no argument. It reads `git status`, `git diff HEAD`, and the current branch.
 
 If you are on `main`, it creates a branch first. Branch names use a conventional type and a 3 to 5 word description, such as `fix/parser-log-enrichment`. It never pushes to `main`.
 
@@ -37,7 +37,7 @@ The body must include an `## Acceptance criteria` heading with `- [ ]` or `* [ ]
 **Process.** The skill follows these steps:
 
 1. Create a branch if on `main`.
-2. Read `.github/PULL_REQUEST_TEMPLATE.md`.
+2. Read [`.github/PULL_REQUEST_TEMPLATE.md`](../../.github/PULL_REQUEST_TEMPLATE.md).
 3. Run the secure path allocator, `new_pr.py --prepare-body-file`. It returns a unique body file under `.project-toolkit/scratch/`. Copy the returned path exactly. Do not store it in a shell variable, because each tool call runs a fresh shell. Edit that file to fill the template, then delete the `<!-- replace with PR body -->` marker line. A body that still holds the marker is rejected.
 4. Run `new_pr.py --preflight` with the title and body file. It checks the title format and the body file. It makes no network call and creates nothing.
 5. Run `scripts/validation/pr_description.py --body-file ... --base origin/main` before pushing. Exit `1` means a CRITICAL finding, usually a file named in the body that the diff does not touch. Commit it or edit the body, then re-run. Exit `2` means the check could not run. Commit first, because local mode reads committed `HEAD` only. A plugin install does not ship this validator. In that case, say the step was not run and compare the paths in the body to `git diff --name-only origin/main...HEAD` by hand.

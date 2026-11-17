@@ -45,7 +45,7 @@ A change to `accepted` must carry debate-log evidence in the same change. A hand
 
 ## Advanced use
 
-The panel size follows the repository rule in `AGENTS.md`. The full six-agent panel runs when the ADR change touches executable enforcement or a rule other gates read. A prose-only or metadata-only edit takes a reduced panel of `architect` and `critic`. Any edit that is not frontmatter-only still needs the staged debate log.
+The panel size follows the repository rule in [`AGENTS.md`](../../AGENTS.md). The full six-agent panel runs when the ADR change touches executable enforcement or a rule other gates read. A prose-only or metadata-only edit takes a reduced panel of `architect` and `critic`. Any edit that is not frontmatter-only still needs the staged debate log.
 
 | Agent | Focus |
 | --- | --- |

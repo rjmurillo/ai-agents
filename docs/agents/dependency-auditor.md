@@ -65,7 +65,7 @@ Partial scan failures still exit 0 or 1 based on findings.
 
 ## Advanced use
 
-The agent walks the repository root for markers: `*.sln`, `*.csproj`, `package.json`, `pyproject.toml`, `requirements*.txt`, and `Cargo.toml`. It skips an ecosystem silently when no manifest or lockfile exists. It fails only on a scan error inside a detected ecosystem, and one ecosystem failing does not abort the others.
+The agent walks the repository root for markers: `*.sln`, `*.csproj`, [`package.json`](../../package.json), [`pyproject.toml`](../../pyproject.toml), `requirements*.txt`, and `Cargo.toml`. It skips an ecosystem silently when no manifest or lockfile exists. It fails only on a scan error inside a detected ecosystem, and one ecosystem failing does not abort the others.
 
 | Ecosystem | Commands |
 | --- | --- |

@@ -21,7 +21,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:pr-babysit 1234 --until ready
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/pr-babysit 1234 --until ready`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/pr-babysit 1234 --until ready`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /pr-babysit skill to ...`.
 
 The argument is a PR number or URL. `--until` is `ready` (default), `green`, or `any-change`.
 

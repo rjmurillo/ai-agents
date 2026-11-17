@@ -22,7 +22,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:test the retry logic in the upload client
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/test the retry logic in the upload client`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/test the retry logic in the upload client`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /test skill to ...`.
 
 With no argument, `test` tests the current branch diff against the base branch. It first classifies the diff by file type. It runs only the gates that apply, so no agent runs on a dimension the diff cannot touch.
 

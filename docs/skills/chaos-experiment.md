@@ -23,7 +23,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:chaos-experiment Design a chaos experiment for our API gateway failover
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/chaos-experiment`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/chaos-experiment`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /chaos-experiment skill to ...`.
 
 The skill walks you through six phases and writes an experiment document.
 

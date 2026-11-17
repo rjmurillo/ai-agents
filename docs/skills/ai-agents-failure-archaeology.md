@@ -32,7 +32,7 @@ The matching incident with its symptom, root cause, evidence path, and fix, or a
 
 ## Advanced use
 
-If the tables do not answer, search retros by keyword (`grep -rli "<term>" .project-toolkit/retrospective/`) and do not rely on the retro `INDEX.md`, which lists only part of the corpus. New incidents map to the failure-mode catalog in `.agents/governance/FAILURE-MODES.md`.
+If the tables do not answer, search retros by keyword (`grep -rli "<term>" .project-toolkit/retrospective/`) and do not rely on the retro `INDEX.md`, which lists only part of the corpus. New incidents map to the failure-mode catalog in [`.agents/governance/FAILURE-MODES.md`](../../.agents/governance/FAILURE-MODES.md).
 
 `corpus_index.py` counts retros, reports which ones `INDEX.md` omits, lists failure modes, and counts memory files. `--shas SHA [SHA ...]` also reports whether short SHAs resolve locally. Exit 1 means `INDEX.md` omits retros, which is the normal state.
 

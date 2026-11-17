@@ -38,7 +38,7 @@ Yes. Run these two commands inside Copilot CLI. No restart is needed. See [insta
 
 ### Are the lifecycle skills available in Copilot CLI?
 
-Yes. The six lifecycle skills (`spec`, `plan`, `build`, `test`, `review`, `ship`) ship in both bundles, along with agents, the session protocol, and review gates. In Claude Code you run them as slash commands (`/spec` to `/ship`). In Copilot CLI, GitHub's [skills docs](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/create-skills) say to name the skill with a forward slash in your prompt, for example `Use /plan to break this feature into milestones`. [when-to-use.md](when-to-use.md) maps task shapes to lifecycle phases.
+Yes. The six lifecycle skills (`spec`, `plan`, `build`, `test`, `review`, `ship`) ship in both bundles, along with agents, the session protocol, and review gates. In Claude Code you run them as slash commands: `/project-toolkit:spec` to `/project-toolkit:ship` after a marketplace install, or `/spec` to `/ship` in a checkout of this repository. In Copilot CLI, GitHub's [skills docs](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/create-skills) say to name the skill with a forward slash in your prompt, for example `Use /plan to break this feature into milestones`. [Call agents and skills](call-agents-and-skills.md) has the syntax for every host, and [when-to-use.md](when-to-use.md) maps task shapes to lifecycle phases.
 
 ## Requirements and cost
 

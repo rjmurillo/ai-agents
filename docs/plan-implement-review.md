@@ -171,7 +171,7 @@ Six lifecycle skills cover the path from idea to pull request: spec, plan, build
 
 ### The flow in Copilot CLI
 
-The same six skills ship in the Copilot bundle. Each sets `user-invocable: true`, so Copilot CLI runs it by its short name, such as `/spec` ([ADR-064](../.project-toolkit/architecture/ADR-064-commands-to-skills-migration.md)). You can also select agents by name. The README lists three ways: the `--agent` flag, `/agent`, or the agent's name in your prompt. Run `/agent` to see the installed agents and pick one, such as the milestone-planner, the implementer, or the critic.
+The same six skills ship in the Copilot bundle. In Copilot CLI, name the skill with a slash in your prompt, such as `Use the /spec skill to ...` ([Copilot CLI skills docs](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/create-skills)). You can also select agents by name. The README lists three ways: the `--agent` flag, `/agent`, or the agent's name in your prompt. Run `/agent` to see the installed agents and pick one, such as the milestone-planner, the implementer, or the critic.
 
 Or start with the orchestrator and let it route. This uses the name-in-prompt form from the README:
 

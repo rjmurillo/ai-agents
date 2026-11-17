@@ -22,7 +22,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:plan 42
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/plan`. The argument can be spec output or an issue number, such as `42`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/plan`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /plan skill to ...`. The argument can be spec output or an issue number, such as `42`.
 
 With no argument, it looks for recent spec output in the conversation. If it finds none, it asks what to plan.
 

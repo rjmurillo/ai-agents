@@ -24,7 +24,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:skill-bootstrap
 ```
 
-In GitHub Copilot CLI, or in a Claude Code session inside a checkout of this repository, drop the prefix: `/skill-bootstrap`.
+In a Claude Code session inside a checkout of this repository, drop the prefix: `/skill-bootstrap`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /skill-bootstrap skill to ...`.
 
 Installing the skill does nothing by itself. An explicit request starts a run. The skill snapshots the repository, asks you to pick a mode and one to three outcomes, mines candidates, and authors skills only where evidence supports them.
 
@@ -36,7 +36,7 @@ Installing the skill does nothing by itself. An explicit request starts a run. T
 
 A skill is an `instrument` (a script), a `scaffold` (prose), or `both`. Anything computable from repository state must ship as a script.
 
-Exit code `0` means success and `1` means findings that need action, for every script. `references/scripts.md` holds the exit `2` and `3` table for each.
+Exit code `0` means success and `1` means findings that need action, for every script. [`references/scripts.md`](../../src/claude/skills/skill-bootstrap/references/scripts.md) holds the exit `2` and `3` table for each.
 
 ## Advanced use
 
