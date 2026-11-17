@@ -96,7 +96,10 @@ from agent_tools import (  # noqa: E402
 )
 from agent_tools import is_readonly_tool as is_readonly_tool  # noqa: E402  re-export
 from atomic_write import publish_bytes_preserving_mode  # noqa: E402
-from generate_agents_common import read_yaml_frontmatter, restore_shared_reference_roots  # noqa: E402
+from generate_agents_common import (  # noqa: E402
+    read_yaml_frontmatter,
+    restore_shared_reference_roots,
+)
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
 from yaml_loader import ConfigError, load_platform_config, validate_relative_path  # noqa: E402
 

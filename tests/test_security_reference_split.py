@@ -19,6 +19,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.build_scripts.split_reference_helpers import expected_path_form
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 REFERENCE_DIR = REPO_ROOT / "src" / "claude" / "skills" / "security-scan" / "references"
 LOADING_HEADING = "## Reference Loading"
@@ -40,12 +42,7 @@ SECURITY_PATHS = (
 
 
 def _expected_path_form(path: Path) -> str:
-    """Claude Code and Cursor get the bare Claude root, Copilot CLI its own, the rest both."""
-    if path.parts[:2] in {(".claude", "agents"), ("src", "claude"), ("src", "cursor")}:
-        return CLAUDE_PATH_FORM
-    if ".github" in path.parts or "copilot-cli" in path.parts:
-        return COPILOT_PATH_FORM
-    return SHARED_PATH_FORM
+    return expected_path_form(path, CLAUDE_PATH_FORM, COPILOT_PATH_FORM, SHARED_PATH_FORM)
 
 
 # reference -> (load condition phrase in Reference Loading, text a stub keeps nearby)

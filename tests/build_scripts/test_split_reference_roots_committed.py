@@ -134,7 +134,13 @@ def test_fallback_host_agents_carry_no_bare_claude_reference_root(tree: str) -> 
     clauses = [path.name for path in files if "In a checkout that loads" in path.read_text("utf-8")]
 
     assert offenders == []
-    assert len(shared) == 5, shared
+    assert sorted(name.split(".")[0] for name in shared) == [
+        "architect",
+        "critic",
+        "implementer",
+        "orchestrator",
+        "qa",
+    ]
     assert clauses == []
 
 

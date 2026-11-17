@@ -530,11 +530,11 @@ def convert_memory_prefix(body: str, prefix: str) -> str:
 # variables and the ``.claude`` checkout default.
 #
 # A host that rewrites a bare token in an agent body gets that token instead.
-# Claude Code rewrites the bare Claude token to an absolute path (ADR-121,
-# evidence row 4). Cursor does the same for a plugin agent body (probe of
-# 2026-11-16), so its copy keeps the Claude token (``keepClaudeReferenceRoot``
-# in ``agent_tree_copy.py``). The Copilot CLI render uses the bare Copilot
-# token. That Copilot choice is unproven: ADR-121 records its probe as
+# Claude Code rewrites the bare Claude token to an absolute path in a plugin
+# agent body only (ADR-121 evidence row 4, probe of 2026-11-16). Cursor does
+# the same for a plugin agent body (same probe), so its copy keeps the Claude
+# token (``keepClaudeReferenceRoot`` in ``agent_tree_copy.py``). The Copilot CLI
+# render uses the bare Copilot token. That Copilot choice is unproven: ADR-121 records its probe as
 # UNAVAILABLE, and the documented variable reaches plugin hooks only. Codex and
 # Muse Code rewrite no token and set no plugin-root variable (same probe), so
 # their copies keep the shared form, as main does. The probe
