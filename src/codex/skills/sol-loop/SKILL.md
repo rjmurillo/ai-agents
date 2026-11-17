@@ -45,8 +45,9 @@ review-model-unavailable WARN path.
 ## Rules
 
 - **After the critic.** The fresh critic reviews first and stays as it is.
-  Save its output to a file. `gate` refuses a missing critic file, or one
-  older than `HEAD` or any uncommitted change, before Sol starts.
+  Save its output to a file outside the checkout, so Sol cannot read it.
+  `gate` refuses a missing critic file, or one older than `HEAD`, the last
+  checkout, or any uncommitted change, before Sol starts.
 - **Sol only.** Never substitute a Gemini, Grok, Claude, or mixed "Fusion"
   model. `sol_loop.py` refuses any id that is not `gpt-<version>-sol`.
 - **2 rounds at most.** Round 1 is full. Round 2 checks only open findings and
@@ -71,12 +72,16 @@ from the root of the checkout under review with the plugin locator:
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/sol-loop/scripts/sol_loop.py gate --route t3 --critic-findings CRITIC_FILE --model SOL_MODEL --author-family anthropic --pr PR_NUMBER; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
+When no plugin root holds `lib/ptk_run.py` (for example Codex, or a plain
+checkout), run `python3 "<folder that holds this SKILL.md>/scripts/sol_loop.py"`
+with the same arguments. The script finds its own plugin's `lib/`.
+
 Swap `gate` and its flags for the other steps:
 
 | Step | When | Extra flags | Exit codes |
 |------|------|-------------|------------|
 | `gate` | Before each round | `--route t3\|native\|cli\|none` | `0` proceed or skip (read `verdict`), `1` round cap hit, `2` config error |
-| `record` | After Sol replies | `--reply REPLY_FILE` | `0` logged, `1` round cap hit, `2` config error or log not written, `3` reply had no verdict (WARN) |
+| `record` | After Sol replies | `--reply REPLY_FILE --reviewed-head SHA` | `0` logged, `1` round cap hit, `2` config error or log not written, `3` reply had no verdict (WARN) |
 | `review` | CLI route: runs Sol, then records | `--brief-file BRIEF` | as `record`, plus `3` when the CLI call fails (WARN) and `2` when no CLI is installed |
 | `unavailable` | Sol was started and failed | `--failure-class CLASS --detail TEXT` | `3` WARN logged (even if the critic file is unreadable), `2` refused model id |
 | `outcome` | After you answer a finding | `--run LOG --id S1 --outcome fixed\|disagree\|declined --evidence TEXT` | `0` updated, `2` bad log or id |
@@ -93,7 +98,8 @@ Imported by `sol_loop.py`, never run alone:
   file, line, or repro, and marks `sol_only` against the critic's locations.
 - `sol_cli.py` runs the last-resort CLI route, read-only, and classifies a
   failed call.
-- `sol_git.py` checks the critic file against `HEAD` and uncommitted changes.
+- `sol_git.py` checks the critic file against `HEAD`, the last checkout, and
+  uncommitted changes, including deletions and renames.
 - `sol_ledger.py` reads, writes, and totals the run logs.
 
 ## Process
@@ -171,6 +177,7 @@ See: git diff <base> [-- <paths>]; git status --short (read untracked).
 Read surrounding code. Find bugs, broken callers, mismatch with intent.
 Skip style. Hold to the smallest change. Flag code, tests, or guards the
 intent does not need. Other paths, rare cases, small perf, extra compat: nits.
+Security, data loss, and trust boundaries: judge by impact, never by rarity.
 blocker = intended case wrong. should = real bug callers will hit, in intent. nit = rest.
 Every blocker or should needs a file, a line, and a repro. One without all three is discarded.
 Reply:
@@ -178,13 +185,17 @@ VERDICT: APPROVE or CHANGES
 S1 [blocker|should|nit] <file>:<line> <claim>. Repro: <test, command, or inputs>. Fix: <suggestion>
 ```
 
-Save Sol's reply to a file and run `record`. A reply with no `VERDICT:` line is
+Save Sol's reply to a file and run `record` with `--reviewed-head` set to the
+`head_sha` that `gate` printed. If HEAD moved since, the log keeps the
+reviewed SHA and adds `head_at_record`. A reply with no `VERDICT:` line is
 `invalid-output`: `record` takes the WARN path itself.
 
 ### Phase 3: Answer findings
 
 Check each kept finding and its severity yourself. Another path, a rare case,
-or a small cost is a nit, whatever label it came with.
+or a small cost is a nit, whatever label it came with. A security, data-loss,
+or trust-boundary defect is never a nit for being rare: judge its impact and
+whether a caller can reach it.
 
 - **Agree**: make the smallest fix. Prefer deleting or narrowing over a new
   lock, cache, helper, or option. Add one focused test that fails without the
@@ -236,8 +247,9 @@ Each file holds the branch, PR, head SHA, round, model, author family, verdict,
 failure class, and each kept finding with its id, severity, `sol_only` flag,
 and outcome. Dropped findings carry a reason. A finding is `sol_only` unless
 the critic cited the same file within 3 lines of it, or inside a cited range.
-Ties go to overlap, so `sol_only` is a lower bound. A citation of a file with
-no extension, such as `Makefile:12`, is not recognized.
+Ties go to overlap. A critic citation with no `path:line` or `#L` anchor is
+not matched, so a finding it covers still counts as `sol_only`. Read the count
+as an estimate, not a bound.
 
 `summarize` totals runs by status, kept and dropped findings, Sol-only and
 overlap counts, and the outcome of each Sol-only finding. Sol-only findings

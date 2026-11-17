@@ -5,21 +5,22 @@ The model call is replaced by a fake, so no test reaches a model or the gh CLI.
 
 from __future__ import annotations
 
+import importlib.util
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
-TESTS_SKILLS_DIR = str(Path(__file__).resolve().parents[1])
-if TESTS_SKILLS_DIR not in sys.path:
-    sys.path.insert(0, TESTS_SKILLS_DIR)
-
-from claude_skills_import import import_skill_script
-
-council = import_skill_script(
-    ".claude/skills/llm-council/scripts/council.py", module_name="council_cli_t"
+_SUPPORT_SPEC = importlib.util.spec_from_file_location(
+    "llm_council_support", Path(__file__).with_name("_support.py")
 )
+if _SUPPORT_SPEC is None or _SUPPORT_SPEC.loader is None:
+    raise ImportError("llm-council _support.py is missing")
+support = importlib.util.module_from_spec(_SUPPORT_SPEC)
+_SUPPORT_SPEC.loader.exec_module(support)
+
+council = support.load_script("council.py", "council_cli_t")
 
 RANKING = (
     "Looks fine.\n\nFINAL RANKING:\n1. Response A\n2. Response B\n3. Response C\n4. Response D\n"
@@ -153,3 +154,79 @@ def test_help_runs_as_a_script():
 
     assert proc.returncode == 0, proc.stderr
     assert "--min-responses" in proc.stdout
+
+
+# --min-responses floor and member slug collisions
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "-5"])
+def test_min_responses_below_one_exits_2_before_any_model_call(
+    tmp_path, monkeypatch, capsys, value
+):
+    fake, calls = _fake()
+    monkeypatch.setattr(council, "call_model", fake)
+    out = tmp_path / "run.md"
+
+    code = council.main(["q", "--min-responses", value, "--out", str(out), "--quiet"])
+
+    assert code == 2
+    assert f"--min-responses must be at least 1, got {value}" in capsys.readouterr().err
+    assert calls == []
+    assert not out.exists()
+
+
+def test_min_responses_of_one_is_accepted(tmp_path, monkeypatch):
+    fake, _ = _fake(fail=("gpt-6-sol", "claude-opus-5.5", "claude-sonnet-5"))
+    monkeypatch.setattr(council, "call_model", fake)
+
+    code = council.main(
+        [
+            "q",
+            "--min-responses",
+            "1",
+            "--mode",
+            "design",
+            "--out",
+            str(tmp_path / "r.md"),
+            "--quiet",
+        ]
+    )
+
+    assert code == 0
+
+
+def test_colliding_member_slugs_exit_2_naming_both_ids(tmp_path, monkeypatch, capsys):
+    fake, calls = _fake()
+    monkeypatch.setattr(council, "call_model", fake)
+    out = tmp_path / "run.md"
+
+    code = council.main(
+        ["q", "--models", "openai/gpt-4.1,openai_gpt-4.1", "--out", str(out), "--quiet"]
+    )
+
+    assert code == 2
+    err = capsys.readouterr().err
+    assert "'openai/gpt-4.1'" in err
+    assert "'openai_gpt-4.1'" in err
+    assert calls == []
+    assert not out.exists()
+
+
+def test_distinct_member_slugs_are_accepted(tmp_path, monkeypatch):
+    fake, _ = _fake()
+    monkeypatch.setattr(council, "call_model", fake)
+
+    code = council.main(
+        [
+            "q",
+            "--models",
+            "claude-opus-5.5,gpt-6-sol",
+            "--chairman",
+            "gpt-6-astra",
+            "--out",
+            str(tmp_path / "r.md"),
+            "--quiet",
+        ]
+    )
+
+    assert code == 0

@@ -28,19 +28,25 @@ if str(_HERE) not in sys.path:
 from council_core import member_slug  # noqa: E402
 
 EXIT_OK, EXIT_CONFIG = 0, 2
-_SCORE = re.compile(r"^\s*\**\s*SCORE\s*\**\s*:\s*\**\s*(\d+(?:\.\d+)?)\s*/\s*10\b", re.I | re.M)
+# The whole line must be the score: optional Markdown emphasis markers, "SCORE:",
+# a number, "/10", then optional closing markers. "8/10.5" and "8/10 (ok)" do not match.
+_SCORE = re.compile(
+    r"^[ \t]*[*_]*[ \t]*SCORE[ \t]*[*_]*[ \t]*:[ \t]*[*_]*[ \t]*(\d+(?:\.\d+)?)"
+    r"[ \t]*/[ \t]*10[ \t]*[*_]*[ \t\r]*$",
+    re.I | re.M,
+)
 _ROUND = re.compile(r"^round-(\d+)$")
 
 
 def parse_score(text: str) -> str:
-    """Return the last ``SCORE: N/10`` as ``N/10``, or "" when absent or out of range."""
+    """Return the last ``SCORE: N/10`` line as a normalized ``N/10``, or "" when absent or invalid."""
     matches = _SCORE.findall(text)
     if not matches:
         return ""
     value = float(matches[-1])
     if not 0 <= value <= 10:
         return ""
-    return f"{matches[-1]}/10"
+    return f"{value:g}/10"
 
 
 def numbered_rounds(review_dir: Path) -> list[tuple[int, Path]]:

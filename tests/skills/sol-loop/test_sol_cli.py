@@ -13,8 +13,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _sol_loop_helpers import SOL, _argv, _logs, _out, mod
 
 cli = sys.modules["sol_cli"]
@@ -227,3 +225,95 @@ def test_review_refuses_a_non_sol_model(tmp_path, critic_file, monkeypatch):
     argv[argv.index("--model") + 1] = "claude-opus-5-5"
 
     assert mod.main(argv) == mod.EXIT_CONFIG
+
+
+# Launch and output-decoding failures
+
+
+def _runner_run(monkeypatch, behave):
+    """Patch ``subprocess.run`` for codex and droid only; git calls run for real."""
+    real_run = subprocess.run
+
+    def fake(cmd, **kwargs):
+        if cmd[0] in cli.RUNNERS:
+            return behave(cmd, **kwargs)
+        return real_run(cmd, **kwargs)
+
+    monkeypatch.setattr(cli.subprocess, "run", fake)
+
+
+def _review(tmp_path, critic_file):
+    return mod.main(_argv("review", tmp_path, critic_file, "--brief-file", str(_brief(tmp_path))))
+
+
+def _launch_fails(cmd, **kwargs):
+    raise OSError(8, "Exec format error: bad interpreter")
+
+
+def _invalid_utf8_reply(cmd, **kwargs):
+    Path(cmd[cmd.index("-o") + 1]).write_bytes(b"VERDICT: \xff\xfe\n")
+    return Proc(0)
+
+
+def test_run_sol_reports_a_launcher_that_cannot_start(on_path, monkeypatch, tmp_path):
+    on_path("codex")
+    _runner_run(monkeypatch, _launch_fails)
+
+    result = cli.run_sol("codex", SOL, "b", tmp_path)
+
+    assert (result.ok, result.failure_class) == (False, "unknown")
+    assert result.detail.startswith("codex: launch failed: ")
+
+
+def test_review_with_an_unlaunchable_cli_takes_the_warn_path(
+    tmp_path, critic_file, on_path, monkeypatch, capsys
+):
+    on_path("codex")
+    _runner_run(monkeypatch, _launch_fails)
+
+    code = _review(tmp_path, critic_file)
+
+    out = _out(capsys)
+    log = _logs(tmp_path)[0]
+    assert code == mod.EXIT_UNAVAILABLE
+    assert out["reason"] == "review-model-unavailable"
+    assert "launch failed" in out["detail"]
+    assert (log["status"], log["failure_class"]) == ("unavailable", "unknown")
+
+
+def test_run_sol_reports_a_codex_reply_that_is_not_utf8(on_path, monkeypatch, tmp_path):
+    on_path("codex")
+    _runner_run(monkeypatch, _invalid_utf8_reply)
+
+    result = cli.run_sol("codex", SOL, "b", tmp_path)
+
+    assert (result.ok, result.failure_class) == (False, "invalid-output")
+    assert "not valid UTF-8" in result.detail
+
+
+def test_review_with_a_non_utf8_codex_reply_takes_the_warn_path(
+    tmp_path, critic_file, on_path, monkeypatch, capsys
+):
+    on_path("codex")
+    _runner_run(monkeypatch, _invalid_utf8_reply)
+
+    code = _review(tmp_path, critic_file)
+
+    log = _logs(tmp_path)[0]
+    assert code == mod.EXIT_UNAVAILABLE
+    assert (log["status"], log["failure_class"]) == ("unavailable", "invalid-output")
+
+
+def test_review_with_a_valid_codex_reply_still_records(
+    tmp_path, critic_file, on_path, monkeypatch, capsys
+):
+    on_path("codex")
+
+    def good(cmd, **kwargs):
+        Path(cmd[cmd.index("-o") + 1]).write_text("VERDICT: APPROVE\n", encoding="utf-8")
+        return Proc(0)
+
+    _runner_run(monkeypatch, good)
+
+    assert _review(tmp_path, critic_file) == mod.EXIT_OK
+    assert _logs(tmp_path)[0]["status"] == "ok"

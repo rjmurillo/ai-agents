@@ -5,20 +5,22 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
-import sys
+import time
+import types
 from pathlib import Path
 
 import pytest
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _sol_loop_helpers import (
     _argv,
+    _commit_file,
     _gate,
     _git_repo,
+    _git_run,
     _logs,
     _out,
     _record,
     _reply,
+    _set_mtime,
     _touch_after_head,
     mod,
 )
@@ -94,6 +96,181 @@ def test_untracked_run_logs_in_the_repo_do_not_make_the_critic_stale(tmp_path, c
 
     assert code == mod.EXIT_OK
     assert _out(capsys)["round"] == 2
+
+
+@_needs_git
+@pytest.mark.parametrize(
+    ("rel", "remove_dir"), [("app.py", False), ("pkg/mod.py", False), ("pkg/mod.py", True)]
+)
+def test_gate_refuses_critic_older_than_a_deleted_tracked_file(
+    tmp_path, critic_file, capsys, rel, remove_dir
+):
+    repo = tmp_path / "repo"
+    _git_repo(repo)
+    victim = _commit_file(repo, rel)
+    _touch_after_head(critic_file)
+    victim.unlink()
+    if remove_dir:
+        victim.parent.rmdir()
+    # Deleting a file updates its nearest existing parent directory.
+    bumped = victim.parent if victim.parent.is_dir() else repo
+    _set_mtime(bumped, critic_file.stat().st_mtime + 5)
+
+    code = _gate(tmp_path, critic_file, repo=repo)
+
+    assert code == mod.EXIT_CONFIG
+    assert "uncommitted change" in capsys.readouterr().err
+
+
+@_needs_git
+def test_gate_proceeds_when_the_file_was_deleted_before_the_critic(tmp_path, critic_file, capsys):
+    repo = tmp_path / "repo"
+    _git_repo(repo)
+    victim = _commit_file(repo, "app.py")
+    _touch_after_head(critic_file)
+    victim.unlink()
+    _set_mtime(repo, critic_file.stat().st_mtime - 100)
+
+    code = _gate(tmp_path, critic_file, repo=repo)
+
+    assert code == mod.EXIT_OK
+    assert _out(capsys)["verdict"] == "PROCEED"
+
+
+def _rename_with_old_mtime(repo, critic_file, mode, bumped):
+    """Move pkg/a.py to other/b.py keeping its old mtime; bump one directory's mtime."""
+    source = _commit_file(repo, "pkg/a.py")
+    _set_mtime(source, 1_000_000)
+    (repo / "other").mkdir()
+    _touch_after_head(critic_file)
+    critic_time = critic_file.stat().st_mtime
+    if mode == "git mv":
+        _git_run(repo, "mv", "pkg/a.py", "other/b.py")
+    else:
+        source.rename(repo / "other" / "b.py")
+    for directory in (repo, repo / "pkg", repo / "other"):
+        _set_mtime(directory, critic_time - 100)
+    if bumped:
+        _set_mtime(repo / bumped, critic_time + 5)
+
+
+@_needs_git
+# A plain mv shows as a delete plus an untracked file, so only the source directory is
+# a trace there; a staged rename also counts the destination directory.
+@pytest.mark.parametrize(
+    ("mode", "bumped"), [("git mv", "pkg"), ("git mv", "other"), ("mv", "pkg")]
+)
+def test_gate_refuses_critic_older_than_a_rename_that_kept_its_old_mtime(
+    tmp_path, critic_file, capsys, mode, bumped
+):
+    repo = tmp_path / "repo"
+    _git_repo(repo)
+    _rename_with_old_mtime(repo, critic_file, mode, bumped)
+
+    code = _gate(tmp_path, critic_file, repo=repo)
+
+    assert code == mod.EXIT_CONFIG
+    assert "uncommitted change" in capsys.readouterr().err
+
+
+@_needs_git
+@pytest.mark.parametrize("mode", ["git mv", "mv"])
+def test_gate_proceeds_when_the_rename_predates_the_critic(tmp_path, critic_file, capsys, mode):
+    repo = tmp_path / "repo"
+    _git_repo(repo)
+    _rename_with_old_mtime(repo, critic_file, mode, bumped="")
+
+    code = _gate(tmp_path, critic_file, repo=repo)
+
+    assert code == mod.EXIT_OK
+    assert _out(capsys)["verdict"] == "PROCEED"
+
+
+def _checkout_older_commit(repo):
+    """Commit A then B with old dates, then check A out; HEAD moves now, to an old commit."""
+    _commit_file(repo, "a.py", when="2020-01-01T00:00:00Z")
+    first = _git_run(repo, "rev-parse", "HEAD")
+    _commit_file(repo, "b.py", when="2020-01-02T00:00:00Z")
+    _git_run(repo, "checkout", "-q", "--detach", first)
+
+
+@_needs_git
+def test_gate_refuses_a_critic_written_before_a_checkout_of_an_older_commit(
+    tmp_path, critic_file, capsys
+):
+    repo = tmp_path / "repo"
+    _git_repo(repo)
+    _commit_file(repo, "a.py", when="2020-01-01T00:00:00Z")
+    first = _git_run(repo, "rev-parse", "HEAD")
+    _commit_file(repo, "b.py", when="2020-01-02T00:00:00Z")
+    _set_mtime(critic_file, time.time() - 100)  # after both commit times, before the checkout
+    _git_run(repo, "checkout", "-q", "--detach", first)
+
+    code = _gate(tmp_path, critic_file, repo=repo)
+
+    assert code == mod.EXIT_CONFIG
+    assert "older than HEAD" in capsys.readouterr().err
+
+
+@_needs_git
+def test_gate_proceeds_when_the_critic_is_written_after_the_checkout(tmp_path, critic_file, capsys):
+    repo = tmp_path / "repo"
+    _git_repo(repo)
+    _checkout_older_commit(repo)
+    _touch_after_head(critic_file)
+
+    code = _gate(tmp_path, critic_file, repo=repo)
+
+    assert code == mod.EXIT_OK
+    assert _out(capsys)["verdict"] == "PROCEED"
+
+
+def _review_with_brief_in_repo(tmp_path, critic_file, monkeypatch, *, source_change):
+    """Run ``review`` with the brief inside the checkout and newer than the critic."""
+    repo = tmp_path / "repo"
+    _git_repo(repo)
+    _touch_after_head(critic_file)
+    later = critic_file.stat().st_mtime + 5
+    brief = repo / "brief.md"
+    brief.write_text("Review only.\n", encoding="utf-8")
+    _set_mtime(brief, later)
+    if source_change:
+        fix = repo / "app.py"
+        fix.write_text("x = 2\n", encoding="utf-8")
+        _set_mtime(fix, later + 5)
+    calls = []
+
+    def fake_run_sol(runner, model, text, cwd, timeout):
+        calls.append(runner)
+        return types.SimpleNamespace(ok=True, text="VERDICT: APPROVE\n")
+
+    monkeypatch.setattr(mod, "available_runner", lambda: "codex")
+    monkeypatch.setattr(mod, "run_sol", fake_run_sol)
+    argv = _argv("review", tmp_path, critic_file, "--brief-file", str(brief), repo=repo)
+    return mod.main(argv), calls
+
+
+@_needs_git
+def test_review_brief_inside_the_checkout_does_not_make_the_critic_stale(
+    tmp_path, critic_file, monkeypatch
+):
+    code, calls = _review_with_brief_in_repo(
+        tmp_path, critic_file, monkeypatch, source_change=False
+    )
+
+    assert code == mod.EXIT_OK
+    assert calls == ["codex"]
+
+
+@_needs_git
+def test_review_still_refuses_a_source_change_made_after_the_critic(
+    tmp_path, critic_file, monkeypatch, capsys
+):
+    code, calls = _review_with_brief_in_repo(tmp_path, critic_file, monkeypatch, source_change=True)
+
+    assert code == mod.EXIT_CONFIG
+    assert calls == []
+    assert "uncommitted change" in capsys.readouterr().err
 
 
 def test_committed_first_run_records_a_fixed_sol_only_catch():

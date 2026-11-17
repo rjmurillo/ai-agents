@@ -2,16 +2,9 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import pytest
 
-TESTS_SKILLS_DIR = str(Path(__file__).resolve().parents[1])
-if TESTS_SKILLS_DIR not in sys.path:
-    sys.path.insert(0, TESTS_SKILLS_DIR)
-
-from claude_skills_import import import_skill_script
+from tests.skills.claude_skills_import import import_skill_script
 
 rules = import_skill_script(
     ".claude/skills/sol-loop/scripts/sol_findings.py", module_name="sol_loop_findings_under_test"

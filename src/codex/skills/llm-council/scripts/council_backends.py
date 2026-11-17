@@ -12,18 +12,21 @@ Copilot CLI, then to GitHub Models REST:
 - ``github-models``: open-weight models through https://models.github.ai REST.
   Free tier; uses the ``gh auth token``.
 
-Security: model output from earlier stages reaches later prompts, so every CLI
-call runs without write, shell, network, or MCP tools:
+Security: model output from earlier stages reaches later prompts, so each CLI
+call is restricted as far as its harness allows:
 
 - ``claude``: ``--tools ""`` and ``--strict-mcp-config`` with no MCP config.
-- ``codex``: ``-s read-only``, ``--ignore-user-config`` (no user MCP servers),
-  and ``--disable apps`` (no account app connectors).
-- ``copilot``: keeps ``--allow-all-tools`` so a permission prompt cannot wedge
-  it; deny rules (which win over every allow) remove shell, write, url, and
-  memory; built-in MCP servers and every server in the user's
-  ``mcp-config.json`` are disabled. Only reading the one prompt file stays.
-  MCP servers that an installed Copilot plugin adds are not listed there and
-  are not disabled.
+- ``codex``: ``-s read-only`` blocks writes but does not block reads outside
+  the temp directory, so the call is not tool-free. ``--ignore-user-config``
+  (no user MCP servers) and ``--disable apps`` (no account app connectors)
+  narrow it further. Nothing here blocks network access.
+- ``copilot``: ``--available-tools view`` hides every tool except ``view``,
+  which also hides MCP servers that installed Copilot plugins add. The deny
+  rules (which win over every allow) remove shell, write, url, and memory, and
+  built-in MCP servers plus every server in the user's ``mcp-config.json`` are
+  disabled; these stay as a second layer. ``--allow-all-tools`` stays so a
+  permission prompt cannot wedge the run. Copilot runs in an empty temp
+  directory, never the caller's working directory.
 """
 
 from __future__ import annotations
@@ -44,10 +47,19 @@ API_HOST = "models.github.ai"
 API_PATH = "/inference/chat/completions"
 API = f"https://{API_HOST}{API_PATH}"
 
-# Strip the "AI Credits / Tokens / Changes" footer Copilot CLI emits.
-_COPILOT_FOOTER = re.compile(
-    r"\n*(Changes\s+[+-]?\d|AI Credits\s+\d|Tokens\s+[\u2191\u2193])", re.M
+# One line of the metadata block Copilot CLI prints after the answer, for
+# example "Changes    +0 -0", "AI Credits 0 (12s)", a "Tokens" line led by an
+# arrow, and "Resume     copilot --resume=<id>". Only a trailing run of these
+# lines (and blanks) is stripped, never a match inside the answer.
+_COPILOT_FOOTER_LINE = re.compile(
+    r"^\s*(?:Changes\s+[+-]\d+(?:\s+[+-]\d+)?\s*$"
+    r"|AI Credits\s+\d"
+    r"|Tokens\s+[\u2191\u2193]"
+    r"|Resume\s+copilot --resume)"
 )
+# The tool list Copilot prints before the answer when --available-tools is set:
+# " \u25cf Disabled tools: a, b,\n   c, d\n\n".
+_COPILOT_DISABLED_TOOLS = re.compile(r"\A\s*\u25cf\s*Disabled tools:[^\n]*(?:\n {3}[^\n]*)*\n*")
 # Strip the "Read foo.txt" tool preamble Copilot prints when the prompt is fed
 # through a file (the trampoline below).
 _COPILOT_TOOL_PREAMBLE = re.compile(
@@ -104,6 +116,18 @@ def gh_token() -> str:
     return r.stdout.strip()
 
 
+def _github_models_text(raw: bytes) -> str:
+    """The first choice's message text, or RuntimeError when the body has another shape."""
+    try:
+        content = json.loads(raw)["choices"][0]["message"]["content"]
+    except (ValueError, KeyError, IndexError, TypeError) as exc:
+        detail = f"{type(exc).__name__}: {str(exc)[:100]}"
+        raise RuntimeError(f"GitHub Models returned a malformed reply: {detail}") from exc
+    if not isinstance(content, str) or not content.strip():
+        raise RuntimeError("GitHub Models returned a malformed reply: empty or non-string content")
+    return content
+
+
 def call_github_models(
     token: str, model: str, prompt: str, max_tokens: int = 2048, timeout: int = 180
 ) -> str:
@@ -129,12 +153,12 @@ def call_github_models(
         raw = resp.read()
     finally:
         conn.close()
-    if resp.status >= 400:
+    if not 200 <= resp.status < 300:
         # Surface the API error body: 401/403 = auth, 429 = rate limit,
         # 404 = unknown model id. Generic codes alone are not actionable.
         detail = raw.decode("utf-8", errors="replace")[:500]
         raise RuntimeError(f"GitHub Models {resp.status} {resp.reason}: {detail}")
-    return json.loads(raw)["choices"][0]["message"]["content"]
+    return _github_models_text(raw)
 
 
 def native_cli(model: str) -> str:
@@ -157,7 +181,7 @@ def claude_cli_model(model: str) -> str:
 
 def call_claude(model: str, prompt: str, timeout: int = 300) -> str:
     """One Claude Code turn with no tools; the prompt goes on stdin."""
-    with tempfile.TemporaryDirectory(prefix="council-claude-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="council-claude-", ignore_cleanup_errors=True) as tmp:
         proc = subprocess.run(
             [
                 "claude",
@@ -183,8 +207,11 @@ def call_claude(model: str, prompt: str, timeout: int = 300) -> str:
 
 
 def call_codex(model: str, prompt: str, timeout: int = 300) -> str:
-    """One read-only Codex turn in an empty directory; the prompt goes on stdin."""
-    with tempfile.TemporaryDirectory(prefix="council-codex-") as tmp:
+    """One Codex turn with ``-s read-only`` in an empty directory; the prompt goes on stdin.
+
+    ``-s read-only`` blocks writes. It does not block reads outside the temp directory.
+    """
+    with tempfile.TemporaryDirectory(prefix="council-codex-", ignore_cleanup_errors=True) as tmp:
         out = Path(tmp) / "last.txt"
         proc = subprocess.run(
             [
@@ -213,16 +240,30 @@ def call_codex(model: str, prompt: str, timeout: int = 300) -> str:
             errors="replace",
             timeout=timeout,
         )
-        text = out.read_text(encoding="utf-8") if out.is_file() else ""
+        text = out.read_text(encoding="utf-8", errors="replace") if out.is_file() else ""
     if proc.returncode != 0 or not text.strip():
         raise RuntimeError(f"codex rc={proc.returncode}: {(proc.stderr or proc.stdout)[-400:]}")
     return text.strip()
 
 
-def _copilot(args: list[str], timeout: int) -> subprocess.CompletedProcess:
-    """One ``copilot -p`` run; ``args`` start with the prompt text."""
+def _copilot(args: list[str], timeout: int, cwd: str) -> subprocess.CompletedProcess[str]:
+    """One ``copilot -p`` run in ``cwd``; ``args`` start with the prompt text.
+
+    ``--available-tools view`` hides every other tool. ``cwd`` is always an
+    empty or private temp directory, because Copilot's default file access
+    covers the working directory.
+    """
     return subprocess.run(
-        ["copilot", "--allow-all-tools", "--no-color", "-p", *args],
+        [
+            "copilot",
+            "--allow-all-tools",
+            "--no-color",
+            "--available-tools",
+            "view",
+            "-p",
+            *args,
+        ],
+        cwd=cwd,
         stdin=subprocess.DEVNULL,
         capture_output=True,
         text=True,
@@ -232,7 +273,7 @@ def _copilot(args: list[str], timeout: int) -> subprocess.CompletedProcess:
     )
 
 
-def _copilot_via_file(model: str, prompt: str, timeout: int) -> subprocess.CompletedProcess:
+def _copilot_via_file(model: str, prompt: str, timeout: int) -> subprocess.CompletedProcess[str]:
     """Write a long prompt to a private temp file and tell Copilot to read it.
 
     Copilot CLI exposes no stdin or file flag for the prompt itself, so this
@@ -240,7 +281,9 @@ def _copilot_via_file(model: str, prompt: str, timeout: int) -> subprocess.Compl
     own owner-only directory, and only that directory is granted with
     ``--add-dir``, never the shared temp root.
     """
-    with tempfile.TemporaryDirectory(prefix="council-prompt-") as prompt_dir:
+    with tempfile.TemporaryDirectory(
+        prefix="council-prompt-", ignore_cleanup_errors=True
+    ) as prompt_dir:
         prompt_path = Path(prompt_dir) / "prompt.txt"
         prompt_path.write_text(prompt, encoding="utf-8")
         cmd_prompt = (
@@ -250,7 +293,16 @@ def _copilot_via_file(model: str, prompt: str, timeout: int) -> subprocess.Compl
         return _copilot(
             [cmd_prompt, "--model", model, *copilot_read_only_args(), "--add-dir", prompt_dir],
             timeout,
+            prompt_dir,
         )
+
+
+def _strip_copilot_footer(text: str) -> str:
+    """Drop the trailing metadata block: blank lines and footer lines, from the end up."""
+    lines = text.split("\n")
+    while lines and (not lines[-1].strip() or _COPILOT_FOOTER_LINE.match(lines[-1])):
+        lines.pop()
+    return "\n".join(lines)
 
 
 def call_copilot(model: str, prompt: str, timeout: int = 240) -> str:
@@ -258,15 +310,17 @@ def call_copilot(model: str, prompt: str, timeout: int = 240) -> str:
     if len(prompt) > _COPILOT_ARG_LIMIT:
         proc = _copilot_via_file(model, prompt, timeout)
     else:
-        proc = _copilot([prompt, "--model", model, *copilot_read_only_args()], timeout)
+        with tempfile.TemporaryDirectory(
+            prefix="council-copilot-", ignore_cleanup_errors=True
+        ) as empty_dir:
+            proc = _copilot(
+                [prompt, "--model", model, *copilot_read_only_args()], timeout, empty_dir
+            )
     if proc.returncode != 0:
         raise RuntimeError(f"copilot rc={proc.returncode}: {(proc.stderr or proc.stdout)[:400]}")
-    out = _COPILOT_TOOL_PREAMBLE.sub("", proc.stdout)
-    # Cut at the FIRST footer match so a multi-line footer block goes whole.
-    footer = _COPILOT_FOOTER.search(out)
-    if footer:
-        out = out[: footer.start()]
-    return out.strip()
+    out = _COPILOT_DISABLED_TOOLS.sub("", proc.stdout, count=1)
+    out = _COPILOT_TOOL_PREAMBLE.sub("", out)
+    return _strip_copilot_footer(out).strip()
 
 
 def backend_for(model: str) -> str:

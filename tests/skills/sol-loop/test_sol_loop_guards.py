@@ -17,12 +17,9 @@ from pathlib import Path
 import pytest
 import yaml
 
-TESTS_SKILLS_DIR = str(Path(__file__).resolve().parents[1])
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
-if TESTS_SKILLS_DIR not in sys.path:
-    sys.path.insert(0, TESTS_SKILLS_DIR)
+from tests.skills.claude_skills_import import import_skill_script
 
-from claude_skills_import import import_skill_script
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 mod = import_skill_script(
     ".claude/skills/sol-loop/scripts/sol_loop.py", module_name="sol_loop_guards_under_test"

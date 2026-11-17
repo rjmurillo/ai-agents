@@ -206,6 +206,24 @@ def member_slug(model: str) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]", "_", model)
 
 
+def slug_collision(members: list[str]) -> str:
+    """Error text naming two different ids that share one reply file, or "" when none do."""
+    seen: dict[str, str] = {}
+    for member in members:
+        slug = member_slug(member)
+        first = seen.setdefault(slug, member)
+        if first != member:
+            return (
+                f"member ids '{first}' and '{member}' share the reply file '{slug}.md'; rename one"
+            )
+    return ""
+
+
+def min_responses_error(value: int) -> str:
+    """Error text when --min-responses is below 1, else "". Zero survivors cannot be ranked."""
+    return "" if value >= 1 else f"--min-responses must be at least 1, got {value}"
+
+
 def stage1_prompt(question: str) -> str:
     return COUNCILLOR_PROMPT + "\n\n" + question
 

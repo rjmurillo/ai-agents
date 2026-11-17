@@ -78,6 +78,7 @@ from sol_git import (  # noqa: E402
     _git,
     _repo_relative,
     default_log_base,
+    resolve_commit,
 )
 from sol_ledger import (  # noqa: E402
     OUTCOMES,
@@ -186,13 +187,18 @@ def _base_record(args: argparse.Namespace, repo: Path, log_dir: Path, critic_tex
 
 
 def _start(
-    args: argparse.Namespace, *, check_fresh: bool, require_critic: bool = True
+    args: argparse.Namespace,
+    *,
+    check_fresh: bool,
+    require_critic: bool = True,
+    skip_paths: tuple[Path, ...] = (),
 ) -> tuple[Run | None, str]:
     """Validate shared inputs and build the run record. Returns (run, error).
 
     Only ``gate`` checks critic freshness: it runs before Sol starts, so it is
     the step that enforces "after the critic". ``record`` and ``unavailable``
     run after Sol answered or failed, when edits in the checkout are expected.
+    ``skip_paths`` are loop-owned files (the review brief) that never count as changes.
     """
     repo = Path(args.repo).resolve()
     critic = Path(args.critic_findings)
@@ -202,7 +208,7 @@ def _start(
     if not error:
         critic_text, critic_error = _read_text(critic, "critic output")
         error = critic_error if require_critic else ""
-    if not error and check_fresh and _critic_is_stale(repo, critic, log_dir):
+    if not error and check_fresh and _critic_is_stale(repo, critic, log_dir, skip_paths):
         error = (
             "critic output is older than HEAD or an uncommitted change; "
             "rerun the fresh critic on the current code first"
@@ -254,6 +260,7 @@ def cmd_gate(args: argparse.Namespace) -> int:
         return run.finish("escalated", {"verdict": "ESCALATE", "reason": reason}, EXIT_ESCALATE)
     payload = {
         "verdict": "PROCEED",
+        "head_sha": run.record["head_sha"],
         "round": run.record["round"],
         "frozen": run.record["round"] >= 2,
         "author_family_flag": "unknown author family; overlap may be same-family"
@@ -287,9 +294,11 @@ def cmd_unavailable(args: argparse.Namespace) -> int:
     return _unavailable(run, args.failure_class, args.detail)
 
 
-def _started(args: argparse.Namespace, *, check_fresh: bool) -> tuple[Run | None, int]:
+def _started(
+    args: argparse.Namespace, *, check_fresh: bool, skip_paths: tuple[Path, ...] = ()
+) -> tuple[Run | None, int]:
     """Start a round that will produce a reply. Returns (run, exit code if it must stop)."""
-    run, error = _start(args, check_fresh=check_fresh)
+    run, error = _start(args, check_fresh=check_fresh, skip_paths=skip_paths)
     if run is None:
         print(f"sol_loop: {error}", file=sys.stderr)
         return None, EXIT_CONFIG
@@ -301,11 +310,31 @@ def _started(args: argparse.Namespace, *, check_fresh: bool) -> tuple[Run | None
     return run, EXIT_OK
 
 
+def _apply_reviewed_head(run: Run, args: argparse.Namespace) -> str:
+    """Log the revision Sol reviewed. Returns an error message, "" when fine.
+
+    Sol may review a commit while HEAD moves on; ``head_sha`` then names the
+    reviewed commit and ``head_at_record`` the HEAD when the record was written.
+    """
+    if not args.reviewed_head:
+        return ""
+    reviewed = resolve_commit(Path(args.repo).resolve(), args.reviewed_head.strip())
+    if not reviewed:
+        return f"--reviewed-head {args.reviewed_head!r} is not a commit in {args.repo}"
+    if reviewed != run.record["head_sha"]:
+        run.record.update(head_at_record=run.record["head_sha"], head_sha=reviewed)
+    return ""
+
+
 def cmd_record(args: argparse.Namespace) -> int:
     """Parse Sol's reply for this round and write the ledger."""
     run, code = _started(args, check_fresh=False)
     if run is None:
         return code
+    error = _apply_reviewed_head(run, args)
+    if error:
+        print(f"sol_loop: {error}", file=sys.stderr)
+        return EXIT_CONFIG
     reply, error = _read_text(Path(args.reply), "Sol reply")
     if error:
         return _unavailable(run, "invalid-output", error)
@@ -317,7 +346,7 @@ def cmd_review(args: argparse.Namespace) -> int:
 
     This step starts Sol, so it checks critic freshness like ``gate``.
     """
-    run, code = _started(args, check_fresh=True)
+    run, code = _started(args, check_fresh=True, skip_paths=(Path(args.brief_file),))
     if run is None:
         return code
     brief, error = _read_text(Path(args.brief_file), "brief")
@@ -357,7 +386,9 @@ def _record_reply(run: Run, args: argparse.Namespace, reply: str) -> int:
         "sol_only": sol_only,
         "overlap": len(marked) - sol_only,
     }
-    payload = {"verdict": verdict, "findings": marked, "counts": counts}
+    payload: dict[str, object] = {"verdict": verdict, "findings": marked, "counts": counts}
+    if "head_at_record" in run.record:
+        payload["head_moved"] = True
     return run.finish(
         "ok", payload, EXIT_OK, verdict=verdict, findings=marked, dropped=dropped, counts=counts
     )
@@ -419,6 +450,9 @@ def build_parser() -> argparse.ArgumentParser:
     record = sub.add_parser("record", help="parse Sol's reply and write the ledger")
     _add_shared(record)
     record.add_argument("--reply", required=True, help="file holding Sol's reply text")
+    record.add_argument(
+        "--reviewed-head", default="", help="commit Sol reviewed, when HEAD moved since"
+    )
     review = sub.add_parser(
         "review", help="last resort: run Sol through codex or droid, then record"
     )

@@ -6,23 +6,21 @@ argument limit), with the subprocess replaced by a fake. No test reaches a model
 
 from __future__ import annotations
 
-import sys
+import importlib.util
 import tempfile
 from pathlib import Path
 
 import pytest
 
-TESTS_SKILLS_DIR = str(Path(__file__).resolve().parents[1])
-SCRIPTS_DIR = str(Path(__file__).resolve().parents[3] / ".claude/skills/llm-council/scripts")
-for entry in (TESTS_SKILLS_DIR, SCRIPTS_DIR):
-    if entry not in sys.path:
-        sys.path.insert(0, entry)
-
-from claude_skills_import import import_skill_script
-
-backends = import_skill_script(
-    ".claude/skills/llm-council/scripts/council_backends.py", module_name="council_backends_t"
+_SUPPORT_SPEC = importlib.util.spec_from_file_location(
+    "llm_council_support", Path(__file__).with_name("_support.py")
 )
+if _SUPPORT_SPEC is None or _SUPPORT_SPEC.loader is None:
+    raise ImportError("llm-council _support.py is missing")
+support = importlib.util.module_from_spec(_SUPPORT_SPEC)
+_SUPPORT_SPEC.loader.exec_module(support)
+
+backends = support.load_script("council_backends.py", "council_backends_t")
 
 
 @pytest.fixture(autouse=True)
@@ -96,13 +94,69 @@ def test_arg_limit_threshold_reasonable():
     assert 1000 < backends._COPILOT_ARG_LIMIT < 30000
 
 
-def test_strip_multiline_footer():
-    raw = "Real response here.\n\n\nAI Credits 21.8 (15s)\nTokens ↑ 34.8k"
+def _copilot_reply(stdout: str, monkeypatch) -> str:
+    monkeypatch.setattr(backends.subprocess, "run", lambda cmd, **kw: Completed(stdout))
+    return backends.call_copilot("gpt-6-sol", "q")
 
-    match = backends._COPILOT_FOOTER.search(raw)
 
-    stripped = raw[: match.start()].strip()
-    assert stripped == "Real response here."
+REAL_FOOTER = "\n\nChanges    +0 -0\nAI Credits 0 (12s)\nResume     copilot --resume=68947a59-aaaa"
+
+
+@pytest.mark.parametrize(
+    "footer",
+    [
+        REAL_FOOTER,
+        "\n\nChanges    +0 -0\nAI Credits 0 (12s)",
+        "\n\nChanges    +3 -1\nAI Credits 21.8 (15s)\nTokens \u2191 34.8k \u2193 1.2k",
+        "\n\n\nAI Credits 21.8 (15s)\nTokens \u2193 9\n\n",
+    ],
+)
+def test_real_footer_is_stripped(monkeypatch, footer):
+    assert _copilot_reply("Real response here." + footer, monkeypatch) == "Real response here."
+
+
+def test_footer_lookalike_inside_the_answer_is_preserved(monkeypatch):
+    answer = "Summary\nChanges +12 lines require migration.\nFinding: old clients fail."
+
+    assert _copilot_reply(answer, monkeypatch) == answer
+
+
+def test_footer_lookalike_inside_the_answer_survives_a_real_footer(monkeypatch):
+    answer = "Summary\nChanges +12 lines require migration.\nFinding: old clients fail."
+
+    assert _copilot_reply(answer + REAL_FOOTER, monkeypatch) == answer
+
+
+def test_mid_text_ai_credits_line_followed_by_prose_is_preserved(monkeypatch):
+    answer = "Cost note\nAI Credits 5\nare billed per request.\nDone."
+
+    assert _copilot_reply(answer + REAL_FOOTER, monkeypatch) == answer
+
+
+def test_answer_that_ends_with_changes_prose_keeps_it(monkeypatch):
+    assert _copilot_reply("Result\nChanges +12 lines", monkeypatch) == "Result\nChanges +12 lines"
+
+
+def test_disabled_tools_block_is_stripped(monkeypatch):
+    stdout = (
+        " \u25cf Disabled tools: 1password-authenticate, bash,\n"
+        "   beads-beads_claim, context-mode-ctx_execute,\n"
+        "   write_agent\n\nThe answer.\n  indented line stays"
+    )
+
+    assert _copilot_reply(stdout, monkeypatch) == "The answer.\n  indented line stays"
+
+
+def test_disabled_tools_block_and_footer_together(monkeypatch):
+    stdout = " \u25cf Disabled tools: bash,\n   write_agent\n\nThe answer." + REAL_FOOTER
+
+    assert _copilot_reply(stdout, monkeypatch) == "The answer."
+
+
+def test_disabled_tools_text_in_the_middle_of_an_answer_is_preserved(monkeypatch):
+    answer = "Intro\n \u25cf Disabled tools: bash\nOutro"
+
+    assert _copilot_reply(answer, monkeypatch) == answer
 
 
 def test_strip_read_preamble():
@@ -288,3 +342,56 @@ def test_github_models_error_surfaces_status_and_body(monkeypatch):
 
     with pytest.raises(RuntimeError, match="GitHub Models 429 Too Many Requests: slow down"):
         backends.call_github_models("tok", "openai/gpt-4.1", "q")
+
+
+# GitHub Models reply validation
+
+
+def _models_reply(monkeypatch, status, body, reason="OK"):
+    FakeConnection.seen = []
+    FakeConnection.next_response = FakeResponse(status, body, reason=reason)
+    monkeypatch.setattr(backends.http.client, "HTTPSConnection", FakeConnection)
+    return backends.call_github_models("tok", "openai/gpt-4.1", "q")
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        b"not json",
+        b"",
+        b"\xff\xfe",
+        b"[]",
+        b'"text"',
+        b"7",
+        b"null",
+        b"{}",
+        b'{"choices": []}',
+        b'{"choices": {}}',
+        b'{"choices": "abc"}',
+        b'{"choices": [null]}',
+        b'{"choices": [{}]}',
+        b'{"choices": [{"message": {}}]}',
+        b'{"choices": [{"message": null}]}',
+        b'{"choices": [{"message": {"content": null}}]}',
+        b'{"choices": [{"message": {"content": 42}}]}',
+        b'{"choices": [{"message": {"content": ["a"]}}]}',
+        b'{"choices": [{"message": {"content": ""}}]}',
+        b'{"choices": [{"message": {"content": "  \\n"}}]}',
+    ],
+)
+def test_github_models_malformed_body_raises_runtime_error(monkeypatch, body):
+    with pytest.raises(RuntimeError, match="GitHub Models returned a malformed reply"):
+        _models_reply(monkeypatch, 200, body)
+
+
+@pytest.mark.parametrize("status", [199, 301, 302, 304, 399])
+def test_github_models_rejects_status_outside_2xx(monkeypatch, status):
+    with pytest.raises(RuntimeError, match=f"GitHub Models {status} Found: moved"):
+        _models_reply(monkeypatch, status, b"moved", reason="Found")
+
+
+@pytest.mark.parametrize("status", [200, 201, 299])
+def test_github_models_accepts_2xx(monkeypatch, status):
+    body = b'{"choices": [{"message": {"content": "hi"}}]}'
+
+    assert _models_reply(monkeypatch, status, body) == "hi"

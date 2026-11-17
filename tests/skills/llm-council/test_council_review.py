@@ -2,20 +2,20 @@
 
 from __future__ import annotations
 
-import sys
+import importlib.util
 from pathlib import Path
 
 import pytest
 
-TESTS_SKILLS_DIR = str(Path(__file__).resolve().parents[1])
-if TESTS_SKILLS_DIR not in sys.path:
-    sys.path.insert(0, TESTS_SKILLS_DIR)
-
-from claude_skills_import import import_skill_script
-
-review = import_skill_script(
-    ".claude/skills/llm-council/scripts/council_review.py", module_name="council_review_t"
+_SUPPORT_SPEC = importlib.util.spec_from_file_location(
+    "llm_council_support", Path(__file__).with_name("_support.py")
 )
+if _SUPPORT_SPEC is None or _SUPPORT_SPEC.loader is None:
+    raise ImportError("llm-council _support.py is missing")
+support = importlib.util.module_from_spec(_SUPPORT_SPEC)
+_SUPPORT_SPEC.loader.exec_module(support)
+
+review = support.load_script("council_review.py", "council_review_t")
 
 MEMBERS = ["claude-opus-5.5", "gpt-6-sol", "claude-sonnet-5"]
 
@@ -30,6 +30,27 @@ MEMBERS = ["claude-opus-5.5", "gpt-6-sol", "claude-sonnet-5"]
         ("SCORE: 11/10", ""),
         ("I would give it a 7", ""),
         ("", ""),
+        # whole-line score, normalized value
+        ("SCORE: 007/10", "7/10"),
+        ("SCORE: 8.0000/10", "8/10"),
+        ("SCORE: 8.50/10", "8.5/10"),
+        ("SCORE: 10/10", "10/10"),
+        ("SCORE: 0/10", "0/10"),
+        ("**SCORE: 9/10**", "9/10"),
+        ("__SCORE: 9/10__", "9/10"),
+        ("  *SCORE:* 6/10  \r\n", "6/10"),
+        ("SCORE: 6/10 **", "6/10"),
+        # not a whole-line score
+        ("SCORE: 8/10.5", ""),
+        ("SCORE: 8/100", ""),
+        ("SCORE: 8/10 (strong)", ""),
+        ("SCORE: 8/10.", ""),
+        ("Overall SCORE: 8/10", ""),
+        ("SCORE: 8/10 and SCORE: 7/10", ""),
+        ("SCORE: -1/10", ""),
+        ("SCORE: 10.5/10", ""),
+        # the last valid line wins, an invalid later line does not replace it
+        ("SCORE: 4/10\nSCORE: 8/10.5", "4/10"),
     ],
 )
 def test_parse_score(text, expected):

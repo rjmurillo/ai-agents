@@ -6,20 +6,20 @@ borda, routing), plus prompt and artifact checks for the shared module.
 
 from __future__ import annotations
 
-import sys
+import importlib.util
 from pathlib import Path
 
 import pytest
 
-TESTS_SKILLS_DIR = str(Path(__file__).resolve().parents[1])
-if TESTS_SKILLS_DIR not in sys.path:
-    sys.path.insert(0, TESTS_SKILLS_DIR)
-
-from claude_skills_import import import_skill_script
-
-core = import_skill_script(
-    ".claude/skills/llm-council/scripts/council_core.py", module_name="council_core"
+_SUPPORT_SPEC = importlib.util.spec_from_file_location(
+    "llm_council_support", Path(__file__).with_name("_support.py")
 )
+if _SUPPORT_SPEC is None or _SUPPORT_SPEC.loader is None:
+    raise ImportError("llm-council _support.py is missing")
+support = importlib.util.module_from_spec(_SUPPORT_SPEC)
+_SUPPORT_SPEC.loader.exec_module(support)
+
+core = support.load_script("council_core.py", "council_core")
 
 L3 = ["Response A", "Response B", "Response C"]
 L4 = [*L3, "Response D"]
@@ -202,3 +202,38 @@ def test_render_artifact_sections():
         "### Ranker `m1`",
     ):
         assert part in md
+
+
+# slug_collision and min_responses_error
+
+
+def test_slug_collision_names_both_ids():
+    message = core.slug_collision(["openai/gpt-4.1", "gpt-6-sol", "openai_gpt-4.1"])
+
+    assert "'openai/gpt-4.1'" in message
+    assert "'openai_gpt-4.1'" in message
+    assert "openai_gpt-4.1.md" in message
+
+
+@pytest.mark.parametrize(
+    "members",
+    [
+        [],
+        ["gpt-6-sol"],
+        ["gpt-6-sol", "claude-opus-5.5"],
+        ["openai/gpt-4.1", "openai/gpt-4.2"],
+        ["gpt-6-sol", "gpt-6-sol"],
+    ],
+)
+def test_slug_collision_is_empty_for_distinct_or_repeated_ids(members):
+    assert core.slug_collision(members) == ""
+
+
+@pytest.mark.parametrize("value", [0, -1, -100])
+def test_min_responses_below_one_is_an_error(value):
+    assert f"got {value}" in core.min_responses_error(value)
+
+
+@pytest.mark.parametrize("value", [1, 2, 99])
+def test_min_responses_of_one_or_more_is_valid(value):
+    assert core.min_responses_error(value) == ""

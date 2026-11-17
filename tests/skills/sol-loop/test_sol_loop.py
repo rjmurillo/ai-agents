@@ -11,12 +11,9 @@ in ``test_sol_loop_staleness.py``.
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
 import pytest
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _sol_loop_helpers import SOL, _argv, _gate, _log_dir, _logs, _out, _record, _reply, mod
 
 # Ordering after the fresh critic

@@ -157,6 +157,17 @@ def run_sol(
             return CliResult(
                 ok=False, failure_class="timeout", detail=f"{runner}: no result in {timeout}s"
             )
+        except OSError as exc:
+            # which() finds the launcher, but its interpreter or exec bit can be missing.
+            return CliResult(
+                ok=False, failure_class="unknown", detail=f"{runner}: launch failed: {exc}"
+            )
+        except UnicodeDecodeError as exc:
+            return CliResult(
+                ok=False,
+                failure_class="invalid-output",
+                detail=f"{runner}: reply is not valid UTF-8: {exc}",
+            )
     if proc.returncode != 0:
         message = _turn_failed(proc.stdout) or (proc.stderr or proc.stdout).strip()[-500:]
         return CliResult(

@@ -5,15 +5,10 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import sys
 import time
 from pathlib import Path
 
-TESTS_SKILLS_DIR = str(Path(__file__).resolve().parents[1])
-if TESTS_SKILLS_DIR not in sys.path:
-    sys.path.insert(0, TESTS_SKILLS_DIR)
-
-from claude_skills_import import import_skill_script
+from tests.skills.claude_skills_import import import_skill_script
 
 mod = import_skill_script(
     ".claude/skills/sol-loop/scripts/sol_loop.py", module_name="sol_loop_under_test"
@@ -90,3 +85,40 @@ def _touch_after_head(path: Path) -> None:
     """Set mtime past HEAD's whole-second commit time, so the order is certain."""
     later = time.time() + 5
     os.utime(path, (later, later))
+
+
+def _git_run(repo: Path, *args: str, when: str = "") -> str:
+    """Run git in ``repo``; ``when`` pins author and committer dates (ISO 8601)."""
+    env = {**os.environ}
+    if when:
+        env.update(GIT_AUTHOR_DATE=when, GIT_COMMITTER_DATE=when)
+    identity = ["-c", "user.name=Test", "-c", "user.email=test@example.com"]
+    proc = subprocess.run(
+        ["git", *identity, *args],
+        cwd=repo,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    return proc.stdout.strip()
+
+
+def _commit_file(repo: Path, name: str, text: str = "x = 1\n", when: str = "") -> Path:
+    """Write ``name`` under ``repo`` and commit it, so it is a tracked file."""
+    path = repo / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    _git_run(repo, "add", name)
+    _git_run(repo, "commit", "-q", "-m", f"add {name}", when=when)
+    return path
+
+
+def _head(repo: Path) -> str:
+    return _git_run(repo, "rev-parse", "HEAD")
+
+
+def _set_mtime(path: Path, when: float) -> None:
+    os.utime(path, (when, when))

@@ -6,21 +6,22 @@ writing the replies a delegate would return.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import sys
 from pathlib import Path
 
 import pytest
 
-TESTS_SKILLS_DIR = str(Path(__file__).resolve().parents[1])
-if TESTS_SKILLS_DIR not in sys.path:
-    sys.path.insert(0, TESTS_SKILLS_DIR)
-
-from claude_skills_import import import_skill_script
-
-steps = import_skill_script(
-    ".claude/skills/llm-council/scripts/council_steps.py", module_name="council_steps_t"
+_SUPPORT_SPEC = importlib.util.spec_from_file_location(
+    "llm_council_support", Path(__file__).with_name("_support.py")
 )
+if _SUPPORT_SPEC is None or _SUPPORT_SPEC.loader is None:
+    raise ImportError("llm-council _support.py is missing")
+support = importlib.util.module_from_spec(_SUPPORT_SPEC)
+_SUPPORT_SPEC.loader.exec_module(support)
+
+steps = support.load_script("council_steps.py", "council_steps_t")
 core = sys.modules["council_core"]
 
 
@@ -267,3 +268,50 @@ def test_unavailable_chairman_is_reported_not_replaced(tmp_path, question, capsy
 
     assert chair["chairman_unavailable"] == "not in this harness"
     assert finish["synthesis"] == "[Chairman unavailable: not in this harness]"
+
+
+# --min-responses floor and member slug collisions
+
+
+def _init_args(run_dir, question):
+    return ["init", "--run-dir", str(run_dir), "--question-file", str(question)]
+
+
+@pytest.mark.parametrize("value", ["0", "-1"])
+def test_init_rejects_min_responses_below_one(tmp_path, question, capsys, value):
+    run_dir = tmp_path / "run"
+
+    code = steps.main([*_init_args(run_dir, question), "--min-responses", value])
+
+    assert code == steps.EXIT_CONFIG == 2
+    assert f"--min-responses must be at least 1, got {value}" in capsys.readouterr().err
+    assert not run_dir.exists()
+
+
+def test_init_accepts_min_responses_of_one(tmp_path, question, capsys):
+    code, _ = _init(capsys, tmp_path / "run", question, "--min-responses", "1")
+
+    assert code == 0
+    plan = json.loads((tmp_path / "run" / "plan.json").read_text(encoding="utf-8"))
+    assert plan["min_responses"] == 1
+
+
+def test_init_rejects_members_whose_reply_files_collide(tmp_path, question, capsys):
+    run_dir = tmp_path / "run"
+
+    code = steps.main([*_init_args(run_dir, question), "--models", "openai/gpt-4.1,openai_gpt-4.1"])
+
+    assert code == 2
+    err = capsys.readouterr().err
+    assert "'openai/gpt-4.1'" in err
+    assert "'openai_gpt-4.1'" in err
+    assert not run_dir.exists()
+
+
+def test_init_accepts_members_with_distinct_reply_files(tmp_path, question, capsys):
+    code, init = _init(
+        capsys, tmp_path / "run", question, "--models", "openai/gpt-4.1,openai/gpt-4.2"
+    )
+
+    assert code == 0
+    assert len(set(init["replies"].values())) == 2

@@ -148,10 +148,14 @@ harness:
   `copilot -p --model <id>`. Charges Copilot AI Credits.
 - Open-weight `--cheap` members: GitHub Models REST (needs `gh auth login`).
 
-Every call is read-only. Copilot keeps `--allow-all-tools` so a permission
-prompt cannot wedge it, and deny rules (which win over every allow) remove
-shell, write, url, and memory, plus the built-in MCP servers. Use this route
-when neither route above can reach the council, or for scheduled runs.
+No call can write. Copilot keeps `--allow-all-tools` so a permission prompt
+cannot wedge it. `--available-tools view` hides every other tool, including
+MCP servers that plugins add. Deny rules (which win over every allow) also
+remove shell, write, url, memory, and the built-in and user MCP servers.
+Copilot runs in an empty directory. Codex `-s read-only` blocks writes but not
+reads, so a member steered by an earlier reply could read files outside its
+temp directory. Use this route when neither route above can reach the council,
+or for scheduled runs.
 
 Delegates on routes 1 and 2 can use tools. The councillor prompt still says to
 answer from knowledge only; keep their briefs read-only.
@@ -191,11 +195,19 @@ example:
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/llm-council/scripts/council.py "QUESTION" --mode design; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
+When no plugin root holds `lib/ptk_run.py` (for example Codex, or a plain
+checkout), run the script beside this SKILL.md directly. Each script finds its
+own plugin's `lib/`:
+
+```bash
+python3 "<folder that holds this SKILL.md>/scripts/council.py" "QUESTION" --mode design
+```
+
 ### `council.py`
 
 Arguments: `QUESTION`, `--mode`, `--models`, `--chairman`, `--cheap`,
-`--out`, `--quiet`, `--min-responses` (default 3, clamped to the council
-size). The default output is `<artifact root>/council/runs/<timestamp>.md`.
+`--out`, `--quiet`, `--min-responses` (default 3, at least 1, clamped to the
+council size). The default output is `<artifact root>/council/runs/<timestamp>.md`.
 Stderr shows progress; stdout prints the chairman synthesis.
 
 | Exit | Meaning |
@@ -289,7 +301,8 @@ bridging work.
   suspect.
 - **GitHub Models rate limits** after 3 or more councils in 5 minutes.
 - **Copilot CLI wedges** on a permission prompt. The script passes
-  `--allow-all-tools` to avoid it, and its deny rules keep the call read-only.
+  `--allow-all-tools` to avoid it; `--available-tools view` and its deny rules
+  keep the call from writing.
   If a run hangs, check `pgrep -af 'copilot -p'`.
 
 ## Verification
