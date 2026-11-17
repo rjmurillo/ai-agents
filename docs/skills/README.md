@@ -130,6 +130,7 @@ Each axis reviews your local diff and returns PASS, WARN, or CRITICAL_FAIL. Run 
 | [`cva-analysis`](cva-analysis.md) | match | Find the right abstraction with commonality and variability analysis |
 | [`golden-principles`](golden-principles.md) | match | Scan for golden principle violations with fixes an agent can apply |
 | [`quality-grades`](quality-grades.md) | match | Grade each domain and layer from A to F |
+| [`sol-loop`](sol-loop.md) | `/sol-loop` | Get a GPT Sol second review after the critic, in at most 2 rounds |
 | [`style-enforcement`](style-enforcement.md) | match | Check code against `.editorconfig` and StyleCop rules |
 | [`taste-lints`](taste-lints.md) | match | Run taste lints such as file size limits |
 
@@ -155,6 +156,7 @@ Each axis reviews your local diff and returns PASS, WARN, or CRITICAL_FAIL. Run 
 | [`cynefin-classifier`](cynefin-classifier.md) | match | Classify a problem as clear, complicated, complex, or chaotic |
 | [`decision-critic`](decision-critic.md) | match | Stress-test the reasoning behind one decision |
 | [`execution-plans`](execution-plans.md) | match | Keep a versioned plan with progress and a decision log |
+| [`llm-council`](llm-council.md) | `/llm-council` | Ask several models one hard question and get a ranked verdict |
 | [`negotiation`](negotiation.md) | match | Analyze an offer and draft a counter-proposal |
 | [`panning-for-gold`](panning-for-gold.md) | match | Sort a transcript or brain dump into threads worth keeping |
 | [`planner`](planner.md) | match | Draft and run a plan one numbered step at a time |
