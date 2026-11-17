@@ -78,11 +78,46 @@ def _turn_failed(events_text: str) -> str:
     return ""
 
 
-def _run(cmd: list[str], brief: str | None, cwd: Path, timeout: int) -> subprocess.CompletedProcess:
+def _codex(
+    model: str, brief: str, cwd: Path, timeout: int, out: Path
+) -> subprocess.CompletedProcess:
+    """One read-only ``codex exec`` turn; the brief goes on stdin."""
     return subprocess.run(
-        cmd,
+        [
+            "codex",
+            "exec",
+            "-m",
+            model,
+            "-s",
+            "read-only",
+            "--ephemeral",
+            "--skip-git-repo-check",
+            "--ignore-user-config",
+            "--disable",
+            "apps",
+            "--json",
+            "-C",
+            str(cwd),
+            "-o",
+            str(out),
+            "-",
+        ],
         input=brief,
-        stdin=None if brief is not None else subprocess.DEVNULL,
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=timeout,
+        check=False,
+    )
+
+
+def _droid(model: str, brief_file: Path, cwd: Path, timeout: int) -> subprocess.CompletedProcess:
+    """One read-only ``droid exec`` turn limited to file-reading tools."""
+    return subprocess.run(
+        ["droid", "exec", "-m", model, "-f", str(brief_file), "--only-tools", DROID_READ_TOOLS],
+        stdin=subprocess.DEVNULL,
         cwd=cwd,
         capture_output=True,
         text=True,
@@ -97,17 +132,13 @@ def _call(
     runner: str, model: str, brief: str, cwd: Path, timeout: int, tmp: Path
 ) -> tuple[subprocess.CompletedProcess, str]:
     """Run one CLI. Returns (process, reply text)."""
-    exe = shutil.which(runner) or runner
     if runner == "codex":
         out = tmp / "last.txt"
-        cmd = [exe, "exec", "-m", model, "-s", "read-only", "--ephemeral", "--skip-git-repo-check"]
-        cmd += ["--ignore-user-config", "--disable", "apps"]
-        proc = _run([*cmd, "--json", "-C", str(cwd), "-o", str(out), "-"], brief, cwd, timeout)
+        proc = _codex(model, brief, cwd, timeout, out)
         return proc, out.read_text(encoding="utf-8") if out.is_file() else ""
     brief_file = tmp / "brief.md"
     brief_file.write_text(brief, encoding="utf-8")
-    cmd = [exe, "exec", "-m", model, "-f", str(brief_file), "--only-tools", DROID_READ_TOOLS]
-    proc = _run(cmd, None, cwd, timeout)
+    proc = _droid(model, brief_file, cwd, timeout)
     return proc, proc.stdout
 
 

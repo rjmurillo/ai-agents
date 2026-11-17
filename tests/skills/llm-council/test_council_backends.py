@@ -65,7 +65,8 @@ def test_short_prompt_goes_on_the_command_line(calls):
     backends.call_copilot("gpt-6-sol", "hello")
 
     cmd = calls[0][0]
-    assert cmd[:3] == ["copilot", "-p", "hello"]
+    assert cmd[0] == "copilot"
+    assert cmd[cmd.index("-p") + 1] == "hello"
     assert cmd[cmd.index("--model") + 1] == "gpt-6-sol"
 
 
@@ -76,7 +77,8 @@ def test_long_prompt_goes_through_a_temp_file_that_is_removed(calls, monkeypatch
 
     cmd = calls[0][0]
     assert "--add-dir" in cmd
-    prompt_file = Path(cmd[2].split("Read the file at ", 1)[1].split(" verbatim", 1)[0])
+    trampoline = cmd[cmd.index("-p") + 1]
+    prompt_file = Path(trampoline.split("Read the file at ", 1)[1].split(" verbatim", 1)[0])
     granted = Path(cmd[cmd.index("--add-dir") + 1])
     assert granted == prompt_file.parent
     assert granted != Path(tempfile.gettempdir())
@@ -232,3 +234,57 @@ def test_unreadable_copilot_mcp_config_adds_no_servers(tmp_path, content):
     (home / "mcp-config.json").write_text(content, encoding="utf-8")
 
     assert backends._copilot_user_mcp_servers() == []
+
+
+class FakeResponse:
+    def __init__(self, status, body, reason="OK"):
+        self.status, self.reason, self._body = status, reason, body
+
+    def read(self):
+        return self._body
+
+
+class FakeConnection:
+    seen: list = []
+
+    def __init__(self, host, timeout=None, context=None):
+        FakeConnection.seen.append({"host": host, "timeout": timeout, "context": context})
+        self.response = FakeConnection.next_response
+
+    def request(self, method, path, body=None, headers=None):
+        FakeConnection.seen[-1].update(method=method, path=path, headers=headers)
+
+    def getresponse(self):
+        return self.response
+
+    def close(self):
+        FakeConnection.seen[-1]["closed"] = True
+
+
+def test_github_models_posts_to_the_fixed_host_with_tls(monkeypatch):
+    FakeConnection.seen = []
+    FakeConnection.next_response = FakeResponse(
+        200, b'{"choices": [{"message": {"content": "hi"}}]}'
+    )
+    monkeypatch.setattr(backends.http.client, "HTTPSConnection", FakeConnection)
+
+    assert backends.call_github_models("tok", "openai/gpt-4.1", "q") == "hi"
+
+    seen = FakeConnection.seen[0]
+    assert (seen["host"], seen["method"], seen["path"]) == (
+        "models.github.ai",
+        "POST",
+        "/inference/chat/completions",
+    )
+    assert seen["context"] is not None
+    assert seen["headers"]["Authorization"] == "Bearer tok"
+    assert seen["closed"] is True
+
+
+def test_github_models_error_surfaces_status_and_body(monkeypatch):
+    FakeConnection.seen = []
+    FakeConnection.next_response = FakeResponse(429, b"slow down", reason="Too Many Requests")
+    monkeypatch.setattr(backends.http.client, "HTTPSConnection", FakeConnection)
+
+    with pytest.raises(RuntimeError, match="GitHub Models 429 Too Many Requests: slow down"):
+        backends.call_github_models("tok", "openai/gpt-4.1", "q")

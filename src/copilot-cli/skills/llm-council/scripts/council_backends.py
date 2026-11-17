@@ -33,21 +33,26 @@ import json
 import os
 import re
 import shutil
+import ssl
 import subprocess
 import tempfile
-import urllib.error
-import urllib.request
 from pathlib import Path
 
 from council_core import is_copilot_model
 
-API = "https://models.github.ai/inference/chat/completions"
+API_HOST = "models.github.ai"
+API_PATH = "/inference/chat/completions"
+API = f"https://{API_HOST}{API_PATH}"
 
 # Strip the "AI Credits / Tokens / Changes" footer Copilot CLI emits.
-_COPILOT_FOOTER = re.compile(r"\n*(Changes\s+[+-]?\d|AI Credits\s+\d|Tokens\s+[↑↓])", re.M)
+_COPILOT_FOOTER = re.compile(
+    r"\n*(Changes\s+[+-]?\d|AI Credits\s+\d|Tokens\s+[\u2191\u2193])", re.M
+)
 # Strip the "Read foo.txt" tool preamble Copilot prints when the prompt is fed
 # through a file (the trampoline below).
-_COPILOT_TOOL_PREAMBLE = re.compile(r"^\s*●\s+Read\s+\S+\s*\n(?:\s*[│└─].*\n)*", re.M)
+_COPILOT_TOOL_PREAMBLE = re.compile(
+    r"^\s*\u25cf\s+Read\s+\S+\s*\n(?:\s*[\u2502\u2514\u2500].*\n)*", re.M
+)
 
 # Above this size the prompt goes through a temp file instead of the -p
 # argument. Windows CreateProcess caps a command line at 32,767 characters,
@@ -102,6 +107,7 @@ def gh_token() -> str:
 def call_github_models(
     token: str, model: str, prompt: str, max_tokens: int = 2048, timeout: int = 180
 ) -> str:
+    """POST one chat completion to GitHub Models over HTTPS to a fixed host."""
     body = json.dumps(
         {
             "model": model,
@@ -114,34 +120,21 @@ def call_github_models(
         "Content-Type": "application/json",
         "Accept": "application/json",
     }
-    req = urllib.request.Request(API, data=body, headers=headers)
+    conn = http.client.HTTPSConnection(
+        API_HOST, timeout=timeout, context=ssl.create_default_context()
+    )
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            data = json.loads(r.read())
-        return data["choices"][0]["message"]["content"]
-    except urllib.error.HTTPError as e:
+        conn.request("POST", API_PATH, body=body, headers=headers)
+        resp = conn.getresponse()
+        raw = resp.read()
+    finally:
+        conn.close()
+    if resp.status >= 400:
         # Surface the API error body: 401/403 = auth, 429 = rate limit,
         # 404 = unknown model id. Generic codes alone are not actionable.
-        detail = ""
-        try:
-            detail = e.read().decode("utf-8", errors="replace")[:500]
-        except (OSError, http.client.HTTPException):
-            detail = ""
-        raise RuntimeError(f"GitHub Models {e.code} {e.reason}: {detail}") from e
-
-
-def _run(cmd: list[str], timeout: int, stdin_text: str | None = None, cwd: str | None = None):
-    return subprocess.run(
-        cmd,
-        input=stdin_text,
-        stdin=None if stdin_text is not None else subprocess.DEVNULL,
-        cwd=cwd,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=timeout,
-    )
+        detail = raw.decode("utf-8", errors="replace")[:500]
+        raise RuntimeError(f"GitHub Models {resp.status} {resp.reason}: {detail}")
+    return json.loads(raw)["choices"][0]["message"]["content"]
 
 
 def native_cli(model: str) -> str:
@@ -165,16 +158,24 @@ def claude_cli_model(model: str) -> str:
 def call_claude(model: str, prompt: str, timeout: int = 300) -> str:
     """One Claude Code turn with no tools; the prompt goes on stdin."""
     with tempfile.TemporaryDirectory(prefix="council-claude-") as tmp:
-        cmd = [
-            "claude",
-            "-p",
-            "--model",
-            claude_cli_model(model),
-            "--tools",
-            "",
-            "--strict-mcp-config",
-        ]
-        proc = _run(cmd, timeout, stdin_text=prompt, cwd=tmp)
+        proc = subprocess.run(
+            [
+                "claude",
+                "-p",
+                "--model",
+                claude_cli_model(model),
+                "--tools",
+                "",
+                "--strict-mcp-config",
+            ],
+            input=prompt,
+            cwd=tmp,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+        )
     if proc.returncode != 0 or not proc.stdout.strip():
         detail = ((proc.stderr or proc.stdout).strip() or "empty reply")[:400]
         raise RuntimeError(f"claude rc={proc.returncode}: {detail}")
@@ -185,22 +186,50 @@ def call_codex(model: str, prompt: str, timeout: int = 300) -> str:
     """One read-only Codex turn in an empty directory; the prompt goes on stdin."""
     with tempfile.TemporaryDirectory(prefix="council-codex-") as tmp:
         out = Path(tmp) / "last.txt"
-        cmd = [
-            "codex",
-            "exec",
-            "-m",
-            model,
-            "-s",
-            "read-only",
-            "--ephemeral",
-            "--skip-git-repo-check",
-        ]
-        cmd += ["--ignore-user-config", "--disable", "apps"]
-        proc = _run([*cmd, "-C", tmp, "-o", str(out), "-"], timeout, stdin_text=prompt, cwd=tmp)
+        proc = subprocess.run(
+            [
+                "codex",
+                "exec",
+                "-m",
+                model,
+                "-s",
+                "read-only",
+                "--ephemeral",
+                "--skip-git-repo-check",
+                "--ignore-user-config",
+                "--disable",
+                "apps",
+                "-C",
+                tmp,
+                "-o",
+                str(out),
+                "-",
+            ],
+            input=prompt,
+            cwd=tmp,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+        )
         text = out.read_text(encoding="utf-8") if out.is_file() else ""
     if proc.returncode != 0 or not text.strip():
         raise RuntimeError(f"codex rc={proc.returncode}: {(proc.stderr or proc.stdout)[-400:]}")
     return text.strip()
+
+
+def _copilot(args: list[str], timeout: int) -> subprocess.CompletedProcess:
+    """One ``copilot -p`` run; ``args`` start with the prompt text."""
+    return subprocess.run(
+        ["copilot", "--allow-all-tools", "--no-color", "-p", *args],
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=timeout,
+    )
 
 
 def _copilot_via_file(model: str, prompt: str, timeout: int) -> subprocess.CompletedProcess:
@@ -218,8 +247,10 @@ def _copilot_via_file(model: str, prompt: str, timeout: int) -> subprocess.Compl
             f"Read the file at {prompt_path} verbatim, then respond to the instructions it contains. "
             "Output ONLY the final response: no preamble, no tool-call narration, no 'Read file' headers."
         )
-        args = ["copilot", "-p", cmd_prompt, "--model", model, "--allow-all-tools", "--no-color"]
-        return _run([*args, *copilot_read_only_args(), "--add-dir", prompt_dir], timeout)
+        return _copilot(
+            [cmd_prompt, "--model", model, *copilot_read_only_args(), "--add-dir", prompt_dir],
+            timeout,
+        )
 
 
 def call_copilot(model: str, prompt: str, timeout: int = 240) -> str:
@@ -227,8 +258,7 @@ def call_copilot(model: str, prompt: str, timeout: int = 240) -> str:
     if len(prompt) > _COPILOT_ARG_LIMIT:
         proc = _copilot_via_file(model, prompt, timeout)
     else:
-        args = ["copilot", "-p", prompt, "--model", model, "--allow-all-tools", "--no-color"]
-        proc = _run([*args, *copilot_read_only_args()], timeout)
+        proc = _copilot([prompt, "--model", model, *copilot_read_only_args()], timeout)
     if proc.returncode != 0:
         raise RuntimeError(f"copilot rc={proc.returncode}: {(proc.stderr or proc.stdout)[:400]}")
     out = _COPILOT_TOOL_PREAMBLE.sub("", proc.stdout)
