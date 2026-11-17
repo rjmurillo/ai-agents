@@ -16,7 +16,7 @@ Finds and repairs malformed closing fences in markdown. It fixes a closing fence
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:fix-markdown-fences`. The agent loads it when your request matches. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:fix-markdown-fences`. The agent loads it when your request matches. To ask for it by name, say:
 
 ```text
 Use the fix-markdown-fences skill to check docs/ for malformed code fences and show me the defects before you change anything.

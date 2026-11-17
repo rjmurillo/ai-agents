@@ -46,7 +46,7 @@ Each command chains to the next. Output from one phase feeds into the next autom
 
 Transforms a problem statement into testable requirements with acceptance criteria.
 
-```bash
+```text
 /spec <problem-statement-or-issue-number>
 ```
 
@@ -68,7 +68,7 @@ Transforms a problem statement into testable requirements with acceptance criter
 
 Decomposes specs into milestones with dependencies and risk mitigations.
 
-```bash
+```text
 /plan <spec-output-or-issue-number>
 ```
 
@@ -91,7 +91,7 @@ Decomposes specs into milestones with dependencies and risk mitigations.
 
 Implements changes in thin vertical slices with TDD and atomic commits.
 
-```bash
+```text
 /build <plan-step-or-task-description>
 ```
 
@@ -113,7 +113,7 @@ Implements changes in thin vertical slices with TDD and atomic commits.
 
 Multi-dimensional quality validation across 6 gates: functional, non-functional, security, DevOps, DX, and observability.
 
-```bash
+```text
 /test <component-or-failure-description>
 ```
 
@@ -145,7 +145,7 @@ Multi-dimensional quality validation across 6 gates: functional, non-functional,
 
 Five-axis code review across architecture, security, quality, tests, and standards.
 
-```bash
+```text
 /review <branch-or-pr-number>
 ```
 
@@ -175,7 +175,7 @@ Five-axis code review across architecture, security, quality, tests, and standar
 
 Pre-flight validation, CI check, and PR creation.
 
-```bash
+```text
 /ship <target-branch>
 ```
 

@@ -14,10 +14,10 @@ Guides you through rebasing, cherry-picking, bisecting, worktrees, and reflog re
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:git-advanced-workflows`. The agent loads it when your request matches. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:git-advanced-workflows`. The agent loads it when your request matches. To ask for it by name, say:
 
 ```text
-Use the git-advanced-workflows skill to squash the fixup commits on feature/user-auth and push with a pinned lease.
+Use the git-advanced-workflows skill to squash the fixup commits on feature/user-auth, a branch only I use, and push with a pinned lease.
 ```
 
 The agent checks `git status` and the recent log, creates a `backup-<timestamp>` branch, runs the workflow, and verifies the result. You end with a clean tree and a history that matches what you asked for.

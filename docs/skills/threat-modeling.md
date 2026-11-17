@@ -18,7 +18,7 @@ Builds a structured threat model for a feature, component, or system. It uses th
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:threat-modeling`. The agent loads it when your request matches, and [`review`](review.md) invokes it when a change adds attack surface to an agent path. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:threat-modeling`. The agent loads it when your request matches, and [`review`](review.md) invokes it when a change adds attack surface to an agent path. To ask for it by name, say:
 
 ```text
 Use the threat-modeling skill to build a STRIDE threat model for the authentication service in src/auth.

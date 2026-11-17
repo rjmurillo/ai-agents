@@ -17,7 +17,7 @@ Runs health, size, and speed checks on the memory stores. It counts tokens, vali
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:memory-maintenance`. The agent loads it when your request matches, and [`curating-memories`](curating-memories.md) routes store checks here. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:memory-maintenance`. The agent loads it when your request matches, and [`curating-memories`](curating-memories.md) routes store checks here. To ask for it by name, say:
 
 ```text
 Use the memory-maintenance skill to run a health check on the memory tiers and count tokens in .serena/memories/memory-index.md.

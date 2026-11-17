@@ -19,7 +19,7 @@ Lists every configuration axis in this repository: env vars, commit markers, fro
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In a Claude Code session inside this repository you can still type `/ai-agents-config-catalog`. The agent loads it when your request
+This skill has no short slash command, so the agent usually loads it for you. In a Claude Code session inside this repository you can still type `/ai-agents-config-catalog`. The agent loads it when your request
 matches. To ask for it by name, say:
 
 ```text
@@ -51,8 +51,10 @@ uv run python .claude/skills/ai-agents-config-catalog/scripts/flag_locator.py --
 uv run python .claude/skills/ai-agents-config-catalog/scripts/flag_locator.py --repo . markers
 uv run python .claude/skills/ai-agents-config-catalog/scripts/flag_locator.py --repo . retired
 uv run python .claude/skills/ai-agents-config-catalog/scripts/instruments.py --repo . list
-uv run python .claude/skills/ai-agents-config-catalog/scripts/instruments.py --repo . run <id>
+uv run python .claude/skills/ai-agents-config-catalog/scripts/instruments.py --repo . run flag-locate
 ```
+
+Replace `flag-locate` with any instrument id. The ids are `flag-locate`, `pytest-markers`, `retired-flags`, `hook-counts`, `manifest-version`, `lefthook-validate`, `qa-investigation-eligible`, `qa-docs-only-eligible`, `drift-allowlist`, `drift-self-check`. `list` prints each one with the question it answers.
 
 ## Where it runs
 

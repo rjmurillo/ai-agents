@@ -17,7 +17,7 @@ Collects what your project memory, library docs, repository docs, and the web al
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:context-gather`. The agent loads it when your request matches. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:context-gather`. The agent loads it when your request matches. To ask for it by name, say:
 
 ```text
 Use the context-gather skill to gather context on pytest fixtures before I plan the test refactor.

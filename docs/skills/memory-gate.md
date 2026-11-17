@@ -15,7 +15,7 @@ Forces a memory search before you change something that already exists. You reco
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:memory-gate`. The agent loads it when your request matches, and [`spec`](spec.md) routes to it in Step 0. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:memory-gate`. The agent loads it when your request matches, and [`spec`](spec.md) routes to it in Step 0. To ask for it by name, say:
 
 ```text
 Use the memory-gate skill to check memory for why the retry limit in scripts/sync.py exists before I change it.

@@ -17,7 +17,7 @@ Walks you through designing Service Level Objectives (SLOs): the user journeys t
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:slo-designer`. The agent loads it when your request matches. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:slo-designer`. The agent loads it when your request matches. To ask for it by name, say:
 
 ```text
 Use the slo-designer skill to design availability and latency SLOs for our checkout API.
@@ -25,7 +25,7 @@ Use the slo-designer skill to design availability and latency SLOs for our check
 
 The skill asks about the service, its top user journeys, current metrics, infrastructure, and target levels. At the end you get an SLO document with SLIs, targets, error budgets, an alerting strategy, and an implementation checklist.
 
-To calculate one error budget without a conversation:
+To calculate one error budget without a conversation, run this from the root of a checkout of `rjmurillo/ai-agents`:
 
 ```bash
 uv run python .claude/skills/slo-designer/scripts/calculate_error_budget.py --target 99.9 --period monthly

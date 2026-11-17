@@ -20,7 +20,7 @@ Stress-tests a decision before you commit to it. It pulls out the claims and ass
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:decision-critic`. The agent loads it when your request matches. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:decision-critic`. The agent loads it when your request matches. To ask for it by name, say:
 
 ```text
 Use the decision-critic skill to stress-test our decision to replace the queue worker with a managed service. Constraints: two engineers, ship in six weeks.
@@ -73,8 +73,11 @@ The SKILL.md also lists an exit code `2` for failed or incomplete analysis. The 
 Example:
 
 ```bash
-uv run python .claude/skills/decision-critic/scripts/decision-critic.py --step-number 1 --total-steps 7 --decision "Adopt X" --thoughts "Initial claim"
+uv run python .claude/skills/decision-critic/scripts/decision-critic.py --step-number 1 --total-steps 7 --decision 'Adopt X' --thoughts 'Initial claim'
 ```
+
+> [!WARNING]
+> The shell expands `$(...)` and backticks inside a double-quoted `--thoughts` value before the script runs. Use single quotes, as shown, and never paste request text you did not write into this argument.
 
 ### Rewrite-regression halt
 

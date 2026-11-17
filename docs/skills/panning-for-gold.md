@@ -16,7 +16,7 @@ Turns a raw voice transcript or brain dump into a ranked inventory of threads an
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:panning-for-gold`. The agent loads it when your request matches. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:panning-for-gold`. The agent loads it when your request matches. To ask for it by name, say:
 
 ```text
 Use the panning-for-gold skill to triage .panning/transcripts/2026-standup-ramble.txt and produce a gold-found file.

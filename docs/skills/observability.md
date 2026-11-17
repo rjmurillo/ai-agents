@@ -19,7 +19,7 @@ Queries and analyzes agent JSONL event logs. You use it to find errors and slow 
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:observability`. The agent loads it when your request matches. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:observability`. The agent loads it when your request matches. To ask for it by name, say:
 
 ```text
 Use the observability skill to find tool calls slower than 500 ms in .project-toolkit/logs/sess-001.jsonl and summarize the errors.

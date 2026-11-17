@@ -16,7 +16,7 @@ Reviews a diff or snippet for vulnerabilities inside your current session. It th
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:security-review`. The agent loads it when your request matches, and [`autoplan`](autoplan.md) routes diff vulnerability requests here. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:security-review`. The agent loads it when your request matches, and [`autoplan`](autoplan.md) routes diff vulnerability requests here. To ask for it by name, say:
 
 ```text
 Use the security-review skill to review the diff in scripts/sync_artifacts.py for command injection and path traversal.

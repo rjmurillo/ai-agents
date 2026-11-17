@@ -18,7 +18,7 @@ Attributes why a pull request in this repository is blocked, why a required chec
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In a Claude Code session inside this repository you can still type `/repository-pr-recovery`. The agent loads it when your request
+This skill has no short slash command, so the agent usually loads it for you. In a Claude Code session inside this repository you can still type `/repository-pr-recovery`. The agent loads it when your request
 matches. To ask for it by name, say:
 
 ```text
@@ -45,7 +45,7 @@ A report with the blocker, attribution, revision, evidence URL, owner, and next 
 
 ```bash
 uv run python .claude/skills/repository-pr-recovery/scripts/required_check_producer_join.py --repo . --pr 123
-uv run python .claude/skills/repository-pr-recovery/scripts/required_check_producer_join.py --repo . --sha <head-sha> --base main
+uv run python .claude/skills/repository-pr-recovery/scripts/required_check_producer_join.py --repo . --sha "$(git rev-parse HEAD)" --base main
 ```
 
 Each required context reads `produced-by-the-required-app`, `produced-by-another-app`, or `missing`. Exit 0 means all produced, 1 a finding, 2 bad arguments, 3 a failed or incomplete read. It does not read legacy commit statuses or merge queues.
@@ -58,8 +58,10 @@ Run the dispatcher from the root of a checkout of this repository:
 
 ```bash
 uv run python .claude/skills/repository-pr-recovery/scripts/instruments.py --repo . list
-uv run python .claude/skills/repository-pr-recovery/scripts/instruments.py --repo . run <id>
+uv run python .claude/skills/repository-pr-recovery/scripts/instruments.py --repo . run why-pr-blocked
 ```
+
+Replace `why-pr-blocked` with any instrument id. The ids are `why-pr-blocked`, `triage-red-check`, `check-logs`, `review-threads`, `required-context-conditions`, `producer-join`, `drift-self-check`. `list` prints each one with the question it answers.
 
 ## Where it runs
 

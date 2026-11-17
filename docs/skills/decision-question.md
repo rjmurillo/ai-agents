@@ -15,7 +15,7 @@ Decides whether the agent should ask you to choose, and if so builds the smalles
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:decision-question`. The [`autoplan`](autoplan.md) skill loads it when it finds a decision only you can make. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:decision-question`. The [`autoplan`](autoplan.md) skill loads it when it finds a decision only you can make. To ask for it by name, say:
 
 ```text
 Use the decision-question skill to decide whether I need to choose between a schema migration and a compatibility view, and brief me if so.

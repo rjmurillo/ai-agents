@@ -32,12 +32,12 @@ The skill runs the analyzer and returns a JSON classification: `Skill`, `Passive
 | Script | Output | Exit codes |
 | --- | --- | --- |
 | `analyze_skill_placement.py` | JSON with `classification`, `confidence`, `reasoning`, and `recommendations` | `0` success, `1` error |
-| `compress_markdown_content.py` | Compressed markdown report (JSON on stdout by default) | `0` success, `1` error, `2` config, `3` external |
-| `extract_and_index.py` | Detail files plus a compact pipe-delimited index | `0` success, `1` error, `2` config, `3` external |
+| `compress_markdown_content.py` | Compressed markdown report (JSON on stdout by default) | `0` done, `1` input not found, `2` invalid level, `3` output write failed, `4` tiktoken not installed |
+| `extract_and_index.py` | Detail files plus a compact pipe-delimited index | `0` success, `1` error, `2` config, `3` external, `4` tiktoken not installed |
 | `distill_artifact.py` | A cached markdown digest of a log or diff with line citations; no model call | `0` success, `2` config, `3` external |
 | `test_skill_passive_compliance.py` | Compliance report against the decision framework | `0` pass, `1` violations |
 
-Classification thresholds: `Skill` when the skill score beats the passive score by more than 3, `PassiveContext` in the reverse case, and `Hybrid` when they sit within 3 of each other.
+Classification thresholds: `Skill` when the skill score beats the passive score by 3 or more, `PassiveContext` when the passive score wins by 3 or more, and `Hybrid` when the gap is under 3.
 
 ## Advanced use
 

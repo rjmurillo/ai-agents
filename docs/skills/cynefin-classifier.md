@@ -16,7 +16,7 @@ Classifies a problem into a Cynefin domain (Clear, Complicated, Complex, Chaotic
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:cynefin-classifier`. The agent loads it when your request matches. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:cynefin-classifier`. The agent loads it when your request matches. To ask for it by name, say:
 
 ```text
 Use the cynefin-classifier skill to classify this problem: tests pass locally but fail randomly in CI.

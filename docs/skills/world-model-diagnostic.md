@@ -18,7 +18,7 @@ Runs a 20-minute structured audit that maps your team to a world-model paradigm 
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:world-model-diagnostic`. The agent loads it when your request matches. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:world-model-diagnostic`. The agent loads it when your request matches. To ask for it by name, say:
 
 ```text
 Use the world-model-diagnostic skill to audit where our support organization automates judgment, and recommend what to build first.

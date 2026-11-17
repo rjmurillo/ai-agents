@@ -14,7 +14,7 @@ Scans specs, ADRs, eval fixtures, plugin manifests, and rules for references to 
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:orphan-ref-validator`. The [`test`](test.md) lifecycle invokes it, and the agent loads it when your request matches. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:orphan-ref-validator`. The [`test`](test.md) lifecycle invokes it, and the agent loads it when your request matches. To ask for it by name, say:
 
 ```text
 Use the orphan-ref-validator skill to scan the files changed on this branch for references to skills or scripts that do not exist.
@@ -69,7 +69,13 @@ Flags:
 | `--output` | `json` or `human` |
 | `--log-level` | Python logging level |
 
-**Scope a PR gate to changed files.** A repository-wide scan fails on old debt. Pass only the files your branch changed, for example `--targets $(git diff --name-only origin/main...HEAD)`. A PR that adds no new orphan exits `0`.
+**Scope a PR gate to changed files.** A repository-wide scan fails on old debt. Pass only the files your branch changed. This form keeps paths with spaces intact:
+
+```bash
+git diff -z --name-only origin/main...HEAD | xargs -0 uv run python .claude/skills/orphan-ref-validator/scripts/scan.py --targets
+```
+
+A path that starts with `-` is still read as an option, so rename such a file before you scan. A PR that adds no new orphan exits `0`.
 
 **Baseline known debt.** Save a full scan as JSON and pass it with `--baseline`. Baseline keys are positional (`target_file:line:kind:referenced_entity`), so regenerate the baseline after you edit a baselined file. Treat it as debt to pay down.
 

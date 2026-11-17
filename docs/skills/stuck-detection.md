@@ -16,7 +16,7 @@ Detects when an agent repeats the same topics, or retries the same failing comma
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:stuck-detection`. The agent loads it when your request matches. In the ai-agents repository, [`ai-agents-debugging-playbook`](ai-agents-debugging-playbook.md) triggers it after three read-only commands find no cause. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:stuck-detection`. The agent loads it when your request matches. In the ai-agents repository, [`ai-agents-debugging-playbook`](ai-agents-debugging-playbook.md) triggers it after three read-only commands find no cause. To ask for it by name, say:
 
 ```text
 Use the stuck-detection skill to check whether the last ten tool calls in events.json are a failure loop.

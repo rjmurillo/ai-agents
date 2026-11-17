@@ -19,7 +19,7 @@ Verifies that hooks, installed dispatch, and agent behavior work for a consumer 
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In a Claude Code session inside this repository you can still type `/repository-consumer-proof`. The agent loads it when your request
+This skill has no short slash command, so the agent usually loads it for you. In a Claude Code session inside this repository you can still type `/repository-consumer-proof`. The agent loads it when your request
 matches. To ask for it by name, say:
 
 ```text
@@ -49,8 +49,10 @@ Run the dispatcher from the root of a checkout of this repository:
 ```bash
 uv run python .claude/skills/repository-consumer-proof/scripts/artifact_owner.py --repo . .claude/hooks
 uv run python .claude/skills/repository-consumer-proof/scripts/instruments.py --repo . list
-uv run python .claude/skills/repository-consumer-proof/scripts/instruments.py --repo . run <id>
+uv run python .claude/skills/repository-consumer-proof/scripts/instruments.py --repo . run generated-output-check
 ```
+
+Replace `generated-output-check` with any instrument id. The ids are `generated-output-check`, `installed-dispatcher`, `hook-runtime-contract`, `runtime-parity-dry-run`, `artifact-owner`, `drift-self-check`. `list` prints each one with the question it answers.
 
 ## Where it runs
 

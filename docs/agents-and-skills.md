@@ -20,7 +20,7 @@ A skill runs in the current conversation. It does not get a new context window. 
 
 Skills start in one of two ways:
 
-- **By slash command.** Front-door skills, such as `spec` and `review`, start when you type their name. Their `SKILL.md` sets `user-invocable: true`. Copilot CLI takes the short form, `/spec`. Claude Code takes `/project-toolkit:spec` after a plugin install.
+- **By slash command.** Some skills, such as `spec` and `review`, start when you type their name. Their `SKILL.md` sets `user-invocable: true`. Copilot CLI takes the short form, `/spec`. Claude Code takes `/project-toolkit:spec` after a plugin install.
 - **By match.** The host shows the agent each skill's name and description. When your request matches, the agent loads the full skill. You can also name the skill in your request to make sure it loads. In Claude Code, any plugin skill also starts with `/project-toolkit:<name>`.
 
 Browse them in [Skills](skills/README.md).
@@ -41,7 +41,7 @@ Agents use skills, and skills call agents.
 
 - The `review` skill picks review axes for your branch, then hands them to agents such as `analyst` and `security`.
 - The `orchestrator` agent can route a lifecycle request through the `spec` skill, then through agents like `milestone-planner`, `critic`, `implementer`, and `qa`.
-- The `/autoplan` skill reads a request that names no skill and picks the destination: a skill, a lifecycle command, or an agent chain.
+- The `autoplan` skill reads a request that names no skill and picks the destination: a skill, a lifecycle command, or an agent chain.
 
 If you are not sure which to use, start with `autoplan` (in Claude Code, `/project-toolkit:autoplan`). It makes the choice and tells you what it picked.
 
@@ -53,11 +53,11 @@ Six skills form the path from an idea to a pull request:
 /spec -> /plan -> /build -> /test -> /review -> /ship
 ```
 
-Each one calls the agents it needs. You can run them in order, skip the ones a small change does not need, or let `/autoplan` decide. See [Lifecycle commands](workflow-commands.md) and the walk-through in [Take one change from /spec to /ship](training/lifecycle-and-autoplan.md).
+Each one calls the agents it needs. You can run them in order, skip the ones a small change does not need, or let `autoplan` decide. See [Lifecycle commands](workflow-commands.md) and the walk-through in [Take one change from /spec to /ship](training/lifecycle-and-autoplan.md).
 
 ## Shipped and repository-only skills
 
-Most skills ship in the `project-toolkit` plugin and work in any repository. A few skills, named `ai-agents-*` and `repository-*`, live only in a checkout of `rjmurillo/ai-agents`. They help people who maintain the toolkit itself. The [Skills](skills/README.md) index lists them in their own section.
+Most skills ship in the `project-toolkit` plugin and work in any repository. The skills that exist only under `.claude/skills/` in a checkout of `rjmurillo/ai-agents` do not ship. These are the `repository-*` skills and every `ai-agents-*` skill except `ai-agents-external-claims`, which ships in the plugin. They help people who maintain the toolkit itself. The [Skills](skills/README.md) index lists them in their own section.
 
 ## Where they come from
 

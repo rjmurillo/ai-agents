@@ -58,7 +58,7 @@ The agent sorts each conflicted file into one of three classes:
 
 | Class | Files | Handling |
 | --- | --- | --- |
-| Auto-resolvable | `.agents/*` (modify/modify only), `.serena/*`, `templates/*`, lock files, `.claude/*`, generated `src/copilot-cli/*` and `src/vs-code-agents/*` | Accept the base branch version |
+| Auto-resolvable | `.agents/*` (modify/modify only), `.serena/*`, `templates/*`, lock files, `.claude/skills/*`, `.claude/agents/*`, `src/claude/*`, generated `src/copilot-cli/*` and `src/vs-code-agents/*` | Accept the base branch version |
 | Rename, never content-merge | Add/add conflicts in `.project-toolkit/sessions/*`, `.project-toolkit/qa/*`, `.project-toolkit/retrospective/*` | Keep both files. Accept base at the original name, rename the head version with a suffix, and update references. |
 | Manual | Source code, configuration with semantic meaning, tests, documentation with substantive changes | Analyze intent, then resolve |
 

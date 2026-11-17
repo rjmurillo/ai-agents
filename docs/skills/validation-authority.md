@@ -25,7 +25,7 @@ In Claude Code, after a plugin install, run:
 /project-toolkit:validation-authority markdownlint fails MD013 on docs/generated/api.md
 ```
 
-This skill is not a front door, so the agent usually loads it on its own when a validator fails. On other hosts, ask for it by name:
+This skill has no short slash command, so the agent usually loads it on its own when a validator fails. On other hosts, ask for it by name:
 
 ```text
 Use the validation-authority skill to fix the markdownlint MD013 failure on docs/generated/api.md.

@@ -16,7 +16,7 @@ Runs custom lints for file size, naming conventions, function complexity, and sk
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:taste-lints`. The agent loads it when your request matches. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:taste-lints`. The agent loads it when your request matches. To ask for it by name, say:
 
 ```text
 Use the taste-lints skill to lint the files I changed against origin/main.

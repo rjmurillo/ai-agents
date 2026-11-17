@@ -17,7 +17,7 @@ Gives you the recorded hook contract for Claude Code and GitHub Copilot CLI: eve
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:agent-harness-reference`. The agent loads it when your request matches. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:agent-harness-reference`. The agent loads it when your request matches. To ask for it by name, say:
 
 ```text
 Use the agent-harness-reference skill to tell me what a Copilot CLI PreToolUse deny decision looks like and how it differs from Claude Code.

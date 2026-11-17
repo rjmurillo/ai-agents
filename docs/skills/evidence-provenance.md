@@ -91,7 +91,7 @@ The script trusts the lineage fields it receives, so a fabricated premise list d
 
 - [`review`](review.md): invokes this skill and owns review verdicts.
 - [`validation-authority`](validation-authority.md): picks the validator that governs a change.
-- [`analysis-provenance`](analysis-provenance.md): the companion skill for analysis lineage.
+- [`analysis-provenance`](analysis-provenance.md): finds who owns a validator or linter (upstream, local, or vendored) before you change it.
 - Source: [`SKILL.md`](../../src/claude/skills/evidence-provenance/SKILL.md)
 - Reference: [`lineage-model.md`](../../src/claude/skills/evidence-provenance/references/lineage-model.md)
 - How to call skills on each host: [Call agents and skills](../call-agents-and-skills.md)

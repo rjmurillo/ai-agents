@@ -16,7 +16,7 @@ Drops documentation starters into a project: a README, an architecture doc, an A
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:codebase-documenter`. The agent loads it when your request matches. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:codebase-documenter`. The agent loads it when your request matches. To ask for it by name, say:
 
 ```text
 Use the codebase-documenter skill to scaffold a README and an ARCHITECTURE doc for this repository.

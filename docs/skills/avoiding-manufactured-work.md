@@ -11,11 +11,11 @@ Checks whether follow-up work has a real consumer. It also sorts any finding tha
 ## When not to use it
 
 - You need to decide whether the work should exist before you start it: use the `front-gate-before-pipeline` pattern, which fires before work begins. This skill fires after work looks done.
-- You want to verify claims about the toolkit itself: use [`ai-agents-external-claims`](ai-agents-external-claims.md).
+- You want to check a vendor or third-party claim against its primary source: use [`ai-agents-external-claims`](ai-agents-external-claims.md). That skill routes here when a deliverable has no consumer.
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:avoiding-manufactured-work`. The agent loads it when your request matches. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:avoiding-manufactured-work`. The agent loads it when your request matches. To ask for it by name, say:
 
 ```text
 Use the avoiding-manufactured-work skill to check whether the follow-up issue I drafted for the retry logic has a consumer.

@@ -18,7 +18,7 @@ Maps a recurring failure in this repository to a first command, a discriminating
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In a Claude Code session inside this repository you can still type `/ai-agents-debugging-playbook`. The agent loads it when your request
+This skill has no short slash command, so the agent usually loads it for you. In a Claude Code session inside this repository you can still type `/ai-agents-debugging-playbook`. The agent loads it when your request
 matches. To ask for it by name, say:
 
 ```text
@@ -33,7 +33,7 @@ A named cause for the failure, a fix applied on the canonical surface only, and 
 
 ## Advanced use
 
-The first question for any CI red is whether the same job fails on main. If it does, it is not your branch. The skill asks three questions before any fix: does it reproduce on main, is the gate working or broken, and which cause does the experiment show.
+The first question for any CI red is whether the same job fails on main. If it does, it is not your branch. The skill asks three questions before any fix: does it reproduce on main, is the gate working or broken, and, for a drift red, which tree is canonical. Do not edit until you can answer the last one from `AGENTS.md` or the generator docstring.
 
 `first_command.py` covers the shared-checkout rows:
 
@@ -50,8 +50,10 @@ Run the dispatcher from the root of a checkout of this repository:
 uv run python .claude/skills/ai-agents-debugging-playbook/scripts/first_command.py --repo . stash
 uv run python .claude/skills/ai-agents-debugging-playbook/scripts/first_command.py --repo . lag --base origin/main
 uv run python .claude/skills/ai-agents-debugging-playbook/scripts/instruments.py --repo . list
-uv run python .claude/skills/ai-agents-debugging-playbook/scripts/instruments.py --repo . run <id>
+uv run python .claude/skills/ai-agents-debugging-playbook/scripts/instruments.py --repo . run first-command-stash
 ```
+
+Replace `first-command-stash` with any instrument id. The ids are `first-command-stash`, `first-command-lag`, `plugin-version-bump`, `dash-scan`, `spec-id-uniqueness`, `python-syntax`, `drift-ci`, `drift-self-check`. `list` prints each one with the question it answers.
 
 ## Where it runs
 

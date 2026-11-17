@@ -16,7 +16,7 @@ Checks a list of changed files against known security-critical patterns. It tell
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:security-detection`. The agent loads it when your request matches, and [`autoplan`](autoplan.md) routes "did I touch security-critical files" questions here. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:security-detection`. The agent loads it when your request matches, and [`autoplan`](autoplan.md) routes "did I touch security-critical files" questions here. To ask for it by name, say:
 
 ```text
 Use the security-detection skill to check my staged files and tell me whether the security agent needs to review them.
@@ -35,7 +35,7 @@ CRITICAL: Security agent review REQUIRED
 
 Matching files:
   [CRITICAL] .github/workflows/deploy.yml
-  [HIGH] src/Controllers/AuthController.cs
+  [CRITICAL] src/Controllers/AuthController.cs
 ```
 
 When nothing matches, it prints `No infrastructure/security files detected.`

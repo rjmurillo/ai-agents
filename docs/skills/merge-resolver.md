@@ -15,7 +15,7 @@ Resolves merge conflicts on a PR or branch by reading git history and commit int
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:merge-resolver`. The agent loads it when your request matches. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:merge-resolver`. The agent loads it when your request matches. To ask for it by name, say:
 
 ```text
 Use the merge-resolver skill to resolve the conflicts on PR 123 (branch fix/my-feature) against main.

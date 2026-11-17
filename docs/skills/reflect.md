@@ -15,7 +15,7 @@ Captures learnings from the current conversation and stores them as skill memory
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:reflect`. The agent loads it when your request matches, and [`autoplan`](autoplan.md) routes a received correction or lesson here. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:reflect`. The agent loads it when your request matches, and [`autoplan`](autoplan.md) routes a received correction or lesson here. To ask for it by name, say:
 
 ```text
 Use the reflect skill to capture what we learned about the pr-review skill in this session.

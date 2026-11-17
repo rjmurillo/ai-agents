@@ -17,7 +17,7 @@ Grades each product domain in your repository from A to F across six architectur
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:quality-grades`. The agent loads it when your request matches. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:quality-grades`. The agent loads it when your request matches. To ask for it by name, say:
 
 ```text
 Use the quality-grades skill to grade every domain in this repo and write the report to quality-grades.md.
@@ -73,13 +73,16 @@ Exit codes for `grade_domains.py`: `0` means the report was generated. `2` means
 uv run python .claude/skills/quality-grades/scripts/grade_domains.py --domains security memory --format json --output grades.json
 ```
 
-`check_grade_changes.py` reads a JSON grades file from `grade_domains.py`, flags domains whose score falls below a threshold, and opens a GitHub issue when domains degrade or hit critical. Flags: `--grades-file` (required) and `--threshold` (default 60). Exit `0` means no degradation. Exit `1` means a script error or degradation was detected.
+`check_grade_changes.py` reads a JSON grades file from `grade_domains.py`, flags domains whose score falls below a threshold, and opens a GitHub issue when a domain's trend is degrading or its score falls below the threshold. Flags: `--grades-file` (required) and `--threshold` (default 60). Exit `0` means no degradation. Exit `1` means a script error or degradation was detected.
+
+> [!WARNING]
+> `check_grade_changes.py` runs `gh issue create` against the repository that `gh` resolves from your current directory. It has no dry-run mode. Run it only in the repository where you want the issue filed.
 
 ```bash
 uv run python .claude/skills/quality-grades/scripts/check_grade_changes.py --grades-file grades.json
 ```
 
-Run the grader from the repository root so layout detection works. The docs layer scans `docs/` and `.agents/`. If your repository has no `.agents/` directory, the docs layer is graded on whatever documentation exists instead of failing. Address `critical` gaps first, then rerun to track movement.
+Run the grader from the repository root so layout detection works. The docs layer scans `docs/`, `.agents/`, and `.project-toolkit/`. If your repository has no `.agents/` directory, the docs layer is graded on whatever documentation exists instead of failing. Address `critical` gaps first, then rerun to track movement.
 
 The [`quality-auditor`](../agents/quality-auditor.md) agent covers the same repo-wide A to F grading as an agent.
 

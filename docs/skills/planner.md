@@ -16,7 +16,7 @@ Runs a plan-and-execute workflow one numbered step at a time. It drafts a plan w
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:planner`. The agent loads it when your request matches. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:planner`. The agent loads it when your request matches. To ask for it by name, say:
 
 ```text
 Use the planner skill to execute the plan at plans/auth-migration.md.
@@ -64,9 +64,12 @@ uv run python .claude/skills/planner/scripts/planner.py --help
 Exit code `0` means step guidance printed. Exit code `1` means the step number or total steps are below 1.
 
 ```bash
-uv run python .claude/skills/planner/scripts/planner.py --step-number 1 --total-steps 4 --thoughts "Design auth system"
-uv run python .claude/skills/planner/scripts/planner.py --phase review --step-number 1 --total-steps 2 --thoughts "Plan at plans/auth.md"
+uv run python .claude/skills/planner/scripts/planner.py --step-number 1 --total-steps 4 --thoughts 'Design auth system'
+uv run python .claude/skills/planner/scripts/planner.py --phase review --step-number 1 --total-steps 2 --thoughts 'Plan at plans/auth.md'
 ```
+
+> [!WARNING]
+> The shell expands `$(...)` and backticks inside a double-quoted `--thoughts` value before the script runs. Use single quotes, as shown, and never paste request text you did not write into this argument.
 
 ### Execution workflow
 
@@ -98,7 +101,7 @@ uv run python .claude/skills/planner/scripts/executor.py --help
 Exit code `0` means step guidance printed. Exit code `1` means the step number is outside 1 to 7.
 
 ```bash
-uv run python .claude/skills/planner/scripts/executor.py --plan-file plans/feature.md --step-number 1 --total-steps 7 --thoughts "Execute the feature plan"
+uv run python .claude/skills/planner/scripts/executor.py --plan-file plans/feature.md --step-number 1 --total-steps 7 --thoughts 'Execute the feature plan'
 ```
 
 ### Habits that avoid wasted work

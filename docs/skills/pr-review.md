@@ -28,7 +28,7 @@ To preview without changing anything, add `--dry-run`. The skill prints its plan
 
 ## What you get
 
-- Every review thread gets a reply and is resolved. A reply alone does not resolve a thread.
+- Every review thread gets a reply. A reply alone does not resolve a thread. Only bot-authored or explicitly approved threads are resolved, never in bulk while a human thread is open. A question stays open until the reviewer answers. See [`pr-comment-responder`](pr-comment-responder.md).
 - A summary table with one row per PR, in the format set by `pr-review-config.yaml`.
 - A completion-gate verdict per PR, run once.
 
@@ -49,7 +49,7 @@ After a failure, the skill does not re-run the gate for a different answer. It f
 
 | Argument | Description | Default |
 | --- | --- | --- |
-| `PR_NUMBERS` | PR numbers, or `all-open` | Required |
+| `PR_NUMBERS` | One or more PR numbers, such as `12 15`, or `all-open` | Required |
 | `--parallel` | Use git worktrees so PRs run in parallel | `false` |
 | `--cleanup` | Remove worktrees when done | `true` |
 | `--dry-run` | Preview planned actions as JSON, no changes | `false` |

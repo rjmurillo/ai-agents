@@ -8,7 +8,7 @@ The `janitor` agent removes tech debt from a codebase. It deletes unused code, s
 - You want dead code paths, duplicate logic, or commented-out code removed.
 - You want nested conditionals flattened or single-use helpers inlined.
 - You want obsolete, duplicate, or flaky tests cleaned up.
-- You want stale comments, boilerplate, and broken links removed from docs.
+- You want stale comments and boilerplate removed, and stale references and links in docs updated.
 
 ## When not to use it
 

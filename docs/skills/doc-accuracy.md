@@ -18,7 +18,7 @@ Checks documentation against the code, treating the code as the truth. It finds 
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:doc-accuracy`. The [`review`](review.md) skill invokes it as one of its quality axes, and the agent loads it when your request matches. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:doc-accuracy`. The [`review`](review.md) skill invokes it as one of its quality axes, and the agent loads it when your request matches. To ask for it by name, say:
 
 ```text
 Use the doc-accuracy skill to check the docs in this repository against the code, and report anything at high severity or above.

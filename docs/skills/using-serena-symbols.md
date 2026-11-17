@@ -17,7 +17,7 @@ Shows how to use Serena's language-server tools to find symbols, trace reference
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:using-serena-symbols`. The agent loads it when your request matches, and [`context-hub-setup`](context-hub-setup.md) lists it as required once Serena is installed. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:using-serena-symbols`. The agent loads it when your request matches, and [`context-hub-setup`](context-hub-setup.md) lists it as required once Serena is installed. To ask for it by name, say:
 
 ```text
 Use the using-serena-symbols skill to find every caller of AuthService.validate_token in src/services/auth.py.

@@ -19,7 +19,7 @@ Runs the generation and release machinery of this repository: the generators in 
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In a Claude Code session inside this repository you can still type `/ai-agents-generation-and-release`. The agent loads it when your request
+This skill has no short slash command, so the agent usually loads it for you. In a Claude Code session inside this repository you can still type `/ai-agents-generation-and-release`. The agent loads it when your request
 matches. To ask for it by name, say:
 
 ```text
@@ -54,8 +54,10 @@ uv run python .claude/skills/ai-agents-generation-and-release/scripts/generator_
 uv run python .claude/skills/ai-agents-generation-and-release/scripts/generator_inventory.py --repo . path .claude/agents
 uv run python .claude/skills/ai-agents-generation-and-release/scripts/generator_inventory.py --repo . gates
 uv run python .claude/skills/ai-agents-generation-and-release/scripts/instruments.py --repo . list
-uv run python .claude/skills/ai-agents-generation-and-release/scripts/instruments.py --repo . run <id>
+uv run python .claude/skills/ai-agents-generation-and-release/scripts/instruments.py --repo . run generators
 ```
+
+Replace `generators` with any instrument id. The ids are `generators`, `path`, `skills`, `gates`, `build-all-check`, `version-field`, `manifest-parity`, `drift-self-check`. `list` prints each one with the question it answers.
 
 ## Where it runs
 

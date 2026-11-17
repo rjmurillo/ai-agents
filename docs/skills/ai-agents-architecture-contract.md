@@ -19,7 +19,7 @@ Gives you the design decisions of this repository as a contract. You check it be
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In a Claude Code session inside this repository you can still type `/ai-agents-architecture-contract`. The agent loads it when your request
+This skill has no short slash command, so the agent usually loads it for you. In a Claude Code session inside this repository you can still type `/ai-agents-architecture-contract`. The agent loads it when your request
 matches. To ask for it by name, say:
 
 ```text
@@ -56,9 +56,11 @@ Run the dispatcher from the root of a checkout of this repository:
 
 ```bash
 uv run python .claude/skills/ai-agents-architecture-contract/scripts/instruments.py --repo . list
-uv run python .claude/skills/ai-agents-architecture-contract/scripts/instruments.py --repo . run <id>
+uv run python .claude/skills/ai-agents-architecture-contract/scripts/instruments.py --repo . run adr-status
 uv run python .claude/skills/ai-agents-architecture-contract/scripts/contract_probe.py --help
 ```
+
+Replace `adr-status` with any instrument id. The ids are `adr-status`, `guard-lines`, `hook-counts`, `generator-path`, `version-gate`, `claims`, `drift-self-check`. `list` prints each one with the question it answers.
 
 ## Where it runs
 

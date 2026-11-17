@@ -19,7 +19,7 @@ Proves that a pull request in this repository is complete after review, recovery
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In a Claude Code session inside this repository you can still type `/repository-completion-proof`. The agent loads it when your request
+This skill has no short slash command, so the agent usually loads it for you. In a Claude Code session inside this repository you can still type `/repository-completion-proof`. The agent loads it when your request
 matches. To ask for it by name, say:
 
 ```text
@@ -42,8 +42,10 @@ Run the dispatcher from the root of a checkout of this repository:
 
 ```bash
 uv run python .claude/skills/repository-completion-proof/scripts/instruments.py --repo . list
-uv run python .claude/skills/repository-completion-proof/scripts/instruments.py --repo . run <id>
+uv run python .claude/skills/repository-completion-proof/scripts/instruments.py --repo . run verify-config
 ```
+
+Replace `verify-config` with any instrument id. The ids are `verify-config`, `merged-state`, `settled-zero`, `completion-gate`, `resolution-shas`, `suppressed-findings`, `merge-ready`, `live-state`, `drift-self-check`. `list` prints each one with the question it answers.
 
 ## Where it runs
 

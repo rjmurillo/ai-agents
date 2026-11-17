@@ -18,7 +18,7 @@ Describes how a hunch becomes an accepted result in this repository: the evidenc
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In a Claude Code session inside this repository you can still type `/ai-agents-research-methodology`. The agent loads it when your request
+This skill has no short slash command, so the agent usually loads it for you. In a Claude Code session inside this repository you can still type `/ai-agents-research-methodology`. The agent loads it when your request
 matches. To ask for it by name, say:
 
 ```text
@@ -41,8 +41,10 @@ Run the dispatcher from the root of a checkout of this repository:
 
 ```bash
 uv run python .claude/skills/ai-agents-research-methodology/scripts/instruments.py --repo . list
-uv run python .claude/skills/ai-agents-research-methodology/scripts/instruments.py --repo . run <id>
+uv run python .claude/skills/ai-agents-research-methodology/scripts/instruments.py --repo . run corpus-index
 ```
+
+Replace `corpus-index` with any instrument id. The ids are `corpus-index`, `path-claims`, `citation-freshness`, `drift-self-check`. `list` prints each one with the question it answers.
 
 ## Where it runs
 

@@ -18,7 +18,7 @@ Skip it for pure data or config files and one-line acknowledgements.
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:prose-self-check`. The agent loads it when your request matches, and [`spec-generator`](spec-generator.md) runs it before it emits a prose artifact. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:prose-self-check`. The agent loads it when your request matches, and [`spec-generator`](spec-generator.md) runs it before it emits a prose artifact. To ask for it by name, say:
 
 ```text
 Use the prose-self-check skill on docs/adr/ADR-120-retry-policy.md before I open the PR.

@@ -19,7 +19,7 @@ Routes a design or code-risk question to the one or two book-derived references 
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:software-engineering-library`. The agent loads it when your request matches. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:software-engineering-library`. The agent loads it when your request matches. To ask for it by name, say:
 
 ```text
 Use the software-engineering-library skill to review the dependency direction between the api and storage layers in src/.

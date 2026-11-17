@@ -25,14 +25,14 @@ Claude Code puts plugin skills under the plugin's name, so you type the `project
 
 ## How to read the tables
 
-The **Front door** column tells you how the skill is meant to start:
+The **Slash command** column tells you how the skill is meant to start:
 
-- A command such as `/spec` marks a front-door skill. You type it to start a task. Copilot CLI takes it as shown. Claude Code takes it as `/project-toolkit:spec` after a plugin install.
+- A command such as `/spec` marks a skill you start by typing it. Its `SKILL.md` sets `user-invocable: true`. Copilot CLI takes it as shown. Claude Code takes it as `/project-toolkit:spec` after a plugin install.
 - `match` marks a skill the agent loads on its own when your request matches. To ask for it on any host, say `Use the <name> skill to ...`. In Claude Code you can also type `/project-toolkit:<name>`.
 
 ## Lifecycle
 
-| Skill | Front door | Use it to |
+| Skill | Slash command | Use it to |
 | --- | --- | --- |
 | [`autoplan`](autoplan.md) | match | Route any request to the right skill or agent chain |
 | [`build`](build.md) | `/build` | Implement a planned change in thin, test-first slices |
@@ -45,7 +45,7 @@ The **Front door** column tells you how the skill is meant to start:
 
 ## Pull requests and GitHub
 
-| Skill | Front door | Use it to |
+| Skill | Slash command | Use it to |
 | --- | --- | --- |
 | [`git-advanced-workflows`](git-advanced-workflows.md) | match | Rebase, cherry-pick, bisect, and recover with reflog |
 | [`github`](github.md) | match | Do PR, issue, label, and merge work through tested scripts |
@@ -65,7 +65,7 @@ The **Front door** column tells you how the skill is meant to start:
 
 Each axis reviews your local diff and returns PASS, WARN, or CRITICAL_FAIL. Run them all with `/pr-quality-all`.
 
-| Skill | Front door | Use it to |
+| Skill | Slash command | Use it to |
 | --- | --- | --- |
 | [`pr-quality-all`](pr-quality-all.md) | `/pr-quality-all` | Run all six axes against your working diff |
 | [`pr-quality-analyst`](pr-quality-analyst.md) | `/pr-quality-analyst` | Judge code quality, blast radius, and upkeep cost |
@@ -77,7 +77,7 @@ Each axis reviews your local diff and returns PASS, WARN, or CRITICAL_FAIL. Run 
 
 ## Memory and context
 
-| Skill | Front door | Use it to |
+| Skill | Slash command | Use it to |
 | --- | --- | --- |
 | [`checkpoint`](checkpoint.md) | `/checkpoint` | Save a redacted snapshot of decisions and next steps |
 | [`context-gather`](context-gather.md) | match | Collect memory, library docs, and web sources before you plan |
@@ -97,7 +97,7 @@ Each axis reviews your local diff and returns PASS, WARN, or CRITICAL_FAIL. Run 
 
 ## Security
 
-| Skill | Front door | Use it to |
+| Skill | Slash command | Use it to |
 | --- | --- | --- |
 | [`codeql-scan`](codeql-scan.md) | match | Run CodeQL scans and get SARIF output |
 | [`security-detection`](security-detection.md) | match | Spot changed files that need a security review |
@@ -107,7 +107,7 @@ Each axis reviews your local diff and returns PASS, WARN, or CRITICAL_FAIL. Run 
 
 ## Safety and evidence
 
-| Skill | Front door | Use it to |
+| Skill | Slash command | Use it to |
 | --- | --- | --- |
 | [`ai-agents-external-claims`](ai-agents-external-claims.md) | match | Check vendor and third-party claims against primary sources |
 | [`analysis-provenance`](analysis-provenance.md) | `/analysis-provenance` | Find who owns a validator or linter before you change it |
@@ -122,7 +122,7 @@ Each axis reviews your local diff and returns PASS, WARN, or CRITICAL_FAIL. Run 
 
 ## Code quality
 
-| Skill | Front door | Use it to |
+| Skill | Slash command | Use it to |
 | --- | --- | --- |
 | [`analyze`](analyze.md) | `/analyze` | Analyze a codebase and get ranked findings with file and line |
 | [`code-qualities-assessment`](code-qualities-assessment.md) | match | Score maintainability on cohesion, coupling, and three more qualities |
@@ -134,7 +134,7 @@ Each axis reviews your local diff and returns PASS, WARN, or CRITICAL_FAIL. Run 
 
 ## Architecture and design
 
-| Skill | Front door | Use it to |
+| Skill | Slash command | Use it to |
 | --- | --- | --- |
 | [`adr-generator`](adr-generator.md) | `/adr-generator` | Write an Architecture Decision Record |
 | [`adr-review`](adr-review.md) | match | Run a multi-agent debate on an ADR until the agents agree |
@@ -147,7 +147,7 @@ Each axis reviews your local diff and returns PASS, WARN, or CRITICAL_FAIL. Run 
 
 ## Planning and decisions
 
-| Skill | Front door | Use it to |
+| Skill | Slash command | Use it to |
 | --- | --- | --- |
 | [`business-strategy`](business-strategy.md) | `/business-strategy` | Match a founder problem to the right business framework |
 | [`buy-vs-build-framework`](buy-vs-build-framework.md) | match | Decide whether to build, buy, partner, or wait |
@@ -166,7 +166,7 @@ Each axis reviews your local diff and returns PASS, WARN, or CRITICAL_FAIL. Run 
 
 ## Documentation and research
 
-| Skill | Front door | Use it to |
+| Skill | Slash command | Use it to |
 | --- | --- | --- |
 | [`api-doc-authoring`](api-doc-authoring.md) | `/api-doc-authoring` | Write API docs around a developer task, with tested examples |
 | [`codebase-documenter`](codebase-documenter.md) | match | Scaffold README, architecture, and API docs from templates |
@@ -178,7 +178,7 @@ Each axis reviews your local diff and returns PASS, WARN, or CRITICAL_FAIL. Run 
 
 ## Skill and agent authoring
 
-| Skill | Front door | Use it to |
+| Skill | Slash command | Use it to |
 | --- | --- | --- |
 | [`agent-harness-reference`](agent-harness-reference.md) | match | Look up hook contracts for Claude Code and Copilot CLI |
 | [`benchmark-models`](benchmark-models.md) | match | Run one prompt through several models side by side |
@@ -194,7 +194,7 @@ Each axis reviews your local diff and returns PASS, WARN, or CRITICAL_FAIL. Run 
 
 ## CI and pipelines
 
-| Skill | Front door | Use it to |
+| Skill | Slash command | Use it to |
 | --- | --- | --- |
 | [`pipeline-validator`](pipeline-validator.md) | match | Trigger and watch Azure DevOps validation pipelines |
 | [`windows-image-updater`](windows-image-updater.md) | match | Move OneBranch pipelines to a newer Windows container image |

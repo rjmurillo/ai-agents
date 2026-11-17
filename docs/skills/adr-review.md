@@ -16,7 +16,7 @@ Runs a structured debate among up to six agents on an Architecture Decision Reco
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:adr-review`. The agent loads it when your request matches, and when an ADR file changes. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:adr-review`. The agent loads it when your request matches, and when an ADR file changes. To ask for it by name, say:
 
 ```text
 Use the adr-review skill to review .project-toolkit/architecture/ADR-005-api-versioning.md.

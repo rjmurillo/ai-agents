@@ -15,7 +15,7 @@ Checks your code against the style rules in `.editorconfig`, `StyleCop.json`, an
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:style-enforcement`. The agent loads it when your request matches. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:style-enforcement`. The agent loads it when your request matches. To ask for it by name, say:
 
 ```text
 Use the style-enforcement skill to check my staged files against .editorconfig.
@@ -83,11 +83,10 @@ The skill reads `.editorconfig` (all languages), `.stylecop.json` or `stylecop.j
 
 ### Suppression
 
-Add an inline comment to skip one rule:
+Add an inline comment on the line before the code to skip one rule. For rule `STYLE-001` in C#, the comment is:
 
-```csharp
+```text
 // style-enforcement: ignore STYLE-001
-var data = GetData();
 ```
 
 Without an `.editorconfig` there are no rules to enforce. Run your formatter first, then run this check. Do not check generated files.

@@ -18,7 +18,7 @@ Classifies a change in this repository, lists the gates that class triggers, and
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In a Claude Code session inside this repository you can still type `/ai-agents-change-control`. The agent loads it when your request
+This skill has no short slash command, so the agent usually loads it for you. In a Claude Code session inside this repository you can still type `/ai-agents-change-control`. The agent loads it when your request
 matches. To ask for it by name, say:
 
 ```text
@@ -49,8 +49,10 @@ Run the dispatcher from the root of a checkout of this repository:
 
 ```bash
 uv run python .claude/skills/ai-agents-change-control/scripts/instruments.py --repo . list
-uv run python .claude/skills/ai-agents-change-control/scripts/instruments.py --repo . run <id>
+uv run python .claude/skills/ai-agents-change-control/scripts/instruments.py --repo . run classify-change
 ```
+
+Replace `classify-change` with any instrument id. The ids are `classify-change`, `investigation-allowlist`, `drift-agents`, `drift-build-all`, `plugin-version-absent`, `dash-check`, `citation-freshness`, `drift-self-check`. `list` prints each one with the question it answers.
 
 ## Where it runs
 

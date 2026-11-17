@@ -55,7 +55,7 @@ Run the scripts from the root of a checkout of this repository:
 
 ```bash
 uv run python .claude/skills/retrospective/scripts/run_retrospective.py --scope 2026-11-09 --since "1 day ago" --learning "Pin actions to a SHA"
-uv run python .claude/skills/retrospective/scripts/extract_evidence.py --scope 2026-11-09 --journal ~/.copilot/session-state/<id>/events.jsonl
+uv run python .claude/skills/retrospective/scripts/extract_evidence.py --scope 2026-11-09 --journal "$HOME/.copilot/session-state/$SESSION_ID/events.jsonl"
 uv run python .claude/skills/retrospective/scripts/score_atomicity.py "Run pre_pr.py before every push" --json
 ```
 

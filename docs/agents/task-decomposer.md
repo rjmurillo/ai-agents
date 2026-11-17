@@ -41,10 +41,10 @@ A file at `.project-toolkit/planning/TASKS-[feature-name].md` with:
 - The source PRD.
 - A summary table of task counts by complexity.
 - Milestones, each with a goal and its tasks.
-- A Mermaid dependency graph.
+- A dependency graph of the tasks.
 - A risk table.
 
-Each task has an ID (`TASK-NNN`), a type (Feature, Bug, Chore, or Spike), a complexity, a description, acceptance criteria as checkboxes, dependencies, affected files, and notes.
+Each task has an ID (`TASK-NNN`), a type (Feature, Bug, Chore, or Spike), a complexity, a description, acceptance criteria as checkboxes, dependencies, and affected files.
 
 | Size | Guideline |
 | --- | --- |

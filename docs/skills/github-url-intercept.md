@@ -15,7 +15,7 @@ Routes any `github.com` URL in your prompt to a script or `gh api` call instead 
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:github-url-intercept`. The harness loads it when a `github.com` URL appears in your prompt. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:github-url-intercept`. The harness loads it when a `github.com` URL appears in your prompt. To ask for it by name, say:
 
 ```text
 Use the github-url-intercept skill to summarize https://github.com/owner/repo/pull/123.
@@ -25,7 +25,7 @@ The agent parses the URL, picks a script or `gh api` call, and answers from the 
 
 ## What you get
 
-Structured JSON from the matching call, and an answer built from it. Scripts return an envelope with `success: true` on a good call.
+Structured JSON from the matching call, and an answer built from it. Scripts return an envelope with `"Success": true` on a good call.
 
 | URL shape | Route |
 | --- | --- |

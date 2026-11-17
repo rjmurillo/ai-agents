@@ -19,7 +19,7 @@ Walks you through recreating the dev environment for this repository from a fres
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In a Claude Code session inside this repository you can still type `/ai-agents-build-and-env`. The agent loads it when your request
+This skill has no short slash command, so the agent usually loads it for you. In a Claude Code session inside this repository you can still type `/ai-agents-build-and-env`. The agent loads it when your request
 matches. To ask for it by name, say:
 
 ```text

@@ -16,7 +16,7 @@ Lists three ranked open research programs for this repository. Each has current-
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In a Claude Code session inside this repository you can still type `/ai-agents-research-frontier`. The agent loads it when your request
+This skill has no short slash command, so the agent usually loads it for you. In a Claude Code session inside this repository you can still type `/ai-agents-research-frontier`. The agent loads it when your request
 matches. To ask for it by name, say:
 
 ```text
@@ -39,8 +39,10 @@ Run the dispatcher from the root of a checkout of this repository:
 
 ```bash
 uv run python .claude/skills/ai-agents-research-frontier/scripts/instruments.py --repo . list
-uv run python .claude/skills/ai-agents-research-frontier/scripts/instruments.py --repo . run <id>
+uv run python .claude/skills/ai-agents-research-frontier/scripts/instruments.py --repo . run corpus-counts
 ```
+
+Replace `corpus-counts` with any instrument id. The ids are `corpus-counts`, `corpus-index`, `drift-self-check`. `list` prints each one with the question it answers.
 
 ## Where it runs
 

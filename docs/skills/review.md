@@ -38,7 +38,7 @@ You get a findings table with one row per axis, a final verdict line, and an opt
 | Correctness row | An always-on `correctness` row from the code-review pass. |
 | CodeQL status line | Printed under the table when the `security` axis ran. |
 | Flagged notes | In round 2 or 3 only: findings that do not count toward the verdict. |
-| Marker commit | An empty commit on top of the reviewed tip, written only when the review passes. |
+| Marker commit | An empty commit on top of the reviewed tip, written only on a PASS, or a WARN where every WARN was acknowledged. |
 
 How the verdict forms:
 
@@ -80,7 +80,7 @@ uv run python .claude/skills/review/scripts/validate_findings_scope.py --help
 | Script | Purpose | Exit codes |
 | --- | --- | --- |
 | `select_axes.py` | Picks axes. Flags: `--changed-path`, `--effect`, `--pin`, `--deep`, `--references-dir`. Prints JSON. | `0` selection printed, `2` unknown pinned axis or no references directory |
-| `validate_review_marker.py` | Checks the SHA-bound marker. Flags: `--ref`, `--base-ref`, `--require-axis`, `--digest REPORT_FILE`, `--repo-root`. | `0` valid, `1` missing, stale, or bad, `2` config error |
+| `validate_review_marker.py` | Checks the SHA-bound marker. Flags: `--ref`, `--base-ref`, `--require-axis`, `--digest REPORT_FILE`, `--repo-root`, `--references-dir`. | `0` valid, `1` missing, stale, or bad, `2` config error |
 | `review_depth_tier.py` | Reads a diff on stdin and prints a depth tier as JSON. Flag: `--exclude GLOB`. | `0` tier printed, `2` no diff headers |
 | `validate_findings_scope.py` | Marks findings outside the PR diff. Flags: `--worktree`, `--base-branch`, `--text`, `--emit-adjusted-text`, `--frozen`. | `0` all in scope, `1` some out of scope, `2` no input |
 

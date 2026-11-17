@@ -6,7 +6,7 @@ This page shows the exact text to type to start an agent or a skill on each host
 
 - Install the toolkit on your host. See [Install the toolkit on your host and check it loaded](training/install-on-every-host.md).
 - Know the name of the agent or skill you want. Browse [Agents](agents/README.md) or [Skills](skills/README.md).
-- Check whether the skill is a front door. The **Front door** column in [Skills](skills/README.md) shows a command such as `/spec` for front-door skills, and `match` for skills the agent loads on its own.
+- Check whether the skill has a short slash command. The **Slash command** column in [Skills](skills/README.md) shows a command such as `/spec`, or `match` for skills the agent loads on its own.
 
 Examples on these pages use PR `123` and issue `42`. Replace them with your own numbers.
 
@@ -26,11 +26,11 @@ Inside a checkout of `rjmurillo/ai-agents`, the skills also load from the reposi
 /spec Add rate limiting to the API
 ```
 
-Claude Code accepts a slash command for every plugin skill, not only the front doors. For example, `/project-toolkit:threat-modeling` starts the `threat-modeling` skill.
+Claude Code accepts a slash command for every plugin skill, not only the ones with a short slash command. For example, `/project-toolkit:threat-modeling` starts the `threat-modeling` skill.
 
 ### GitHub Copilot CLI
 
-Copilot CLI uses the short form for front-door skills:
+Copilot CLI uses the short form for skills whose `SKILL.md` sets `user-invocable: true`:
 
 ```text
 /spec Add rate limiting to the API
@@ -38,7 +38,7 @@ Copilot CLI uses the short form for front-door skills:
 
 ### Skills the agent loads on match
 
-Most skills are not front doors. The agent reads each skill's description and loads the skill when your request matches. To be sure it loads, name it in your request:
+Most skills have no short slash command. The agent reads each skill's description and loads the skill when your request matches. To be sure it loads, name it in your request:
 
 ```text
 Use the threat-modeling skill to threat-model the upload endpoint in src/api/upload.py.
@@ -120,7 +120,7 @@ uv run python .claude/skills/security-scan/scripts/scan_vulnerabilities.py --dir
 ```text
 === Security Vulnerability Scan ===
 
-Files scanned: 6
+Files scanned: N
 No vulnerabilities found.
 ```
 

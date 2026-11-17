@@ -17,7 +17,7 @@ Finds project risks before they happen. You imagine the project has already fail
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:pre-mortem`. The agent loads it when your request matches. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:pre-mortem`. The agent loads it when your request matches. To ask for it by name, say:
 
 ```text
 Use the pre-mortem skill to run a pre-mortem on our plan to migrate the billing service to the new queue by end of Q2.

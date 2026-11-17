@@ -11,7 +11,7 @@ The `qa` agent verifies that an implementation works for real users, not only th
 
 ## When not to use it
 
-- You want the tests or fixes written: use [`implementer`](implementer.md) instead. The `qa` agent cannot change implementation code.
+- You want implementation code written or fixed: use [`implementer`](implementer.md) instead.
 - You want test coverage gaps ranked on a PR: use [`pr-test-analyzer`](pr-test-analyzer.md) instead.
 - You want a run of the proof gates as a workflow: use the [`test`](../skills/test.md) skill instead.
 - You want a quick PASS, WARN, or CRITICAL_FAIL verdict on test coverage in your local diff: use the [`pr-quality-qa`](../skills/pr-quality-qa.md) skill instead.

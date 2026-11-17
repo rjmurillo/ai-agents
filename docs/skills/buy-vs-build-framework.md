@@ -19,7 +19,7 @@ Guides a strategic sourcing decision: build, buy, partner, or defer. It runs a f
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:buy-vs-build-framework`. The agent loads it when your request matches. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:buy-vs-build-framework`. The agent loads it when your request matches. To ask for it by name, say:
 
 ```text
 Use the buy-vs-build-framework skill to decide whether we build or buy an identity provider, with a 5 year TCO.
@@ -74,7 +74,7 @@ uv run python .claude/skills/buy-vs-build-framework/scripts/check_reassessment_t
 
 `score_vendor.py` takes `--vendor-data`, a JSON file. Exit 0 is a pass (score over 70), 100 is a yellow flag (50 to 70), 101 is a red flag (under 50), 1 is a rejected path, and 2 is a missing or invalid file.
 
-`check_reassessment_triggers.py` takes `--adr-file` and `--current-state`, a JSON file. Exit 0 means assumptions hold, 2 means minor drift (under 20%), 3 means major drift (over 20%), and 1 means a missing file or invalid JSON.
+`check_reassessment_triggers.py` takes `--adr-file` and `--current-state`, a JSON file. Exit 3 means full re-evaluation: drift over 20%, or 3 or more triggers fired. Exit 2 means monitor closely: drift over 10%, or at least 1 trigger fired. Exit 0 means assumptions hold. Exit 1 means a missing file or invalid JSON.
 
 Run `--help` on each script for the JSON shapes.
 

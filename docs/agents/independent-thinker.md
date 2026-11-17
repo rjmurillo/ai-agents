@@ -36,7 +36,7 @@ In VS Code or Visual Studio Copilot Chat:
 
 ## What you get
 
-One of two Markdown layouts.
+One of three Markdown layouts.
 
 The assumption challenge:
 
@@ -57,6 +57,17 @@ The alternative analysis:
 ## Alternatives
 ## Comparison Matrix
 ## Verdict
+```
+
+The topic analysis:
+
+```text
+## Analysis of [Topic]
+### Evidence Review
+### Alternative Perspectives
+### Uncertainty Areas
+### Assessment
+### Recommendation
 ```
 
 Every challenge cites evidence or reasoning. The uncertainty level is High, Medium, or Low, with a reason. The agent states its confidence explicitly and uses measured language.

@@ -15,7 +15,7 @@ Extracts an episode record from a completed session log. Later sessions can repl
 
 ## Quick start
 
-This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:memory-reflexion`. The [`memory`](memory.md) router loads it when your request matches. To ask for it by name, say:
+This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:memory-reflexion`. The [`memory`](memory.md) router loads it when your request matches. To ask for it by name, say:
 
 ```text
 Use the memory-reflexion skill to extract an episode from the finished session log at .project-toolkit/sessions/2026-11-01-session-04.json.
