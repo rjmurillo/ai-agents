@@ -11,18 +11,21 @@ log measures whether that holds here.
 ## When it runs
 
 After the critic's readiness review, on the agent side. It is never a CI job and
-never a required check. Save the critic's output to a file first; the script
-refuses to run without it.
+never a required check. Save the critic's output to a file first. The script
+refuses to run without it, and refuses a critic file older than HEAD, because
+that critic reviewed an earlier commit.
 
-Run the script from this skill's directory:
+Run it from the root of the checkout under review, so `--repo` defaults to
+that checkout:
 
 ```bash
-( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/review/scripts/sol_pass.py run --critic-findings CRITIC_OUTPUT_FILE --round 1 --pr PR_NUMBER; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/review/scripts/sol_pass.py run --critic-findings CRITIC_OUTPUT_FILE --pr PR_NUMBER; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
-Pass `--round 2` for the second round. Round 2 counts only defects the diff
-introduced, per `frozen-finding-contract.md`. There is no round 3: the script
-exits 1 and the open findings go to a human.
+The script counts the completed Sol rounds already in the run log for that PR
+(for the branch, without `--pr`). Round 2 counts only defects the diff
+introduced, per `frozen-finding-contract.md`. A third run makes no model call:
+it exits 1 and the open findings go to a human.
 
 ## Contract
 
@@ -32,11 +35,12 @@ exits 1 and the open findings go to a human.
 | Independence | Sol does not see the critic's findings. They are used only afterward, to mark overlap. |
 | Findings | Each needs a file, a line, and a repro. A finding missing one, or a style nit, is dropped and logged as dropped. |
 | Unavailable | `WARN` with reason `review-model-unavailable` and "Review model unavailable, deferring to human." No second call. No fallback to a same-family reviewer. |
-| Rounds | At most 2. |
+| Rounds | At most 2 completed Sol reviews per PR, counted from the run log. |
 
 Exit codes: `0` pass ran or was switched off, `1` round cap hit (escalate),
-`2` config error (no critic output, refused model, bad round), `3` Sol
-unavailable (WARN, defer to a human).
+`2` config error (no, empty, unreadable, or stale critic output; refused
+model; run log not written), `3` Sol unavailable (WARN, defer to a human). A
+WARN is printed even when the log write fails.
 
 A Sol `WARN` with findings is advisory input for the author and the human
 reviewer. It does not join the `/review` verdict merge and writes no marker.
@@ -52,7 +56,10 @@ ends, so set that variable to a lasting directory to keep the logs.
 Each file holds the PR, branch, head SHA, round, model, status (`ok`,
 `skipped`, `unavailable`, `escalated`), failure class, every kept finding with
 a `sol_only` flag, every dropped finding with its reason, and counts. A finding
-is `sol_only` unless the critic cited the same file within 3 lines of it.
+is `sol_only` unless the critic cited the same file (a shorter path suffix
+counts) at a line or range within 3 lines of it. Ties go to overlap, so the
+`sol_only` count is a lower bound. A critic citation of a file with no
+extension, such as `Makefile:12`, is not recognized.
 
 Total the logs:
 

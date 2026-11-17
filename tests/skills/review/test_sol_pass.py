@@ -1,14 +1,18 @@
 """Tests for the cross-family Sol pass that runs after the fresh critic.
 
 The reviewer call is injected, so no test reaches a model. Covers ordering
-after the critic, the 2-round cap, dropping findings without a file, line, or
-repro, the Sol-only log, the unavailable WARN path with no fallback, the model
-allowlist, the off switch, and conformance with the review model policy.
+after the critic (including a stale critic file), the 2-round cap counted from
+the run log, dropping findings without a file, line, or repro, the Sol-only
+log, the unavailable WARN path with no fallback, the model allowlist, the off
+switch, exit codes on bad input, and conformance with the review model policy.
 """
 
 from __future__ import annotations
 
 import json
+import os
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -28,6 +32,7 @@ mod = import_skill_script(
 CRITIC_TEXT = (
     "## Critical Findings\n1. `src/app/a.py:10` drops the error.\n\nVerdict: NEEDS_REVISION\n"
 )
+_needs_git = pytest.mark.skipif(shutil.which("git") is None, reason="git CLI not installed")
 
 
 class FakeRunner:
@@ -38,9 +43,8 @@ class FakeRunner:
         self.calls: list[dict] = []
 
     def __call__(self, model, prompt, schema_path, cwd, timeout):
-        self.calls.append(
-            {"model": model, "prompt": prompt, "schema": json.loads(schema_path.read_text())}
-        )
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        self.calls.append({"model": model, "prompt": prompt, "schema": schema, "cwd": cwd})
         return self.result
 
 
@@ -79,9 +83,14 @@ def _run(tmp_path, runner, *extra):
     return mod.main(argv, runner=runner)
 
 
+def _log_dir(tmp_path):
+    return tmp_path / ".project-toolkit" / "metrics" / "sol-pass"
+
+
 def _logs(tmp_path):
-    log_dir = tmp_path / ".project-toolkit" / "metrics" / "sol-pass"
-    return [json.loads(p.read_text()) for p in sorted(log_dir.glob("*.json"))]
+    return [
+        json.loads(p.read_text(encoding="utf-8")) for p in sorted(_log_dir(tmp_path).glob("*.json"))
+    ]
 
 
 # Ordering after the critic
@@ -94,7 +103,8 @@ def test_refuses_to_run_without_critic_output(tmp_path, capsys):
 
     assert code == mod.EXIT_CONFIG
     assert runner.calls == []
-    assert "after the fresh critic" in capsys.readouterr().err
+    assert "cannot read critic output" in capsys.readouterr().err
+    assert not _log_dir(tmp_path).exists()
 
 
 def test_refuses_to_run_with_empty_critic_output(tmp_path):
@@ -102,9 +112,16 @@ def test_refuses_to_run_with_empty_critic_output(tmp_path):
     empty.write_text("  \n", encoding="utf-8")
     runner = FakeRunner(_ok([]))
 
-    code = _run(tmp_path, runner, "--critic-findings", str(empty))
+    assert _run(tmp_path, runner, "--critic-findings", str(empty)) == mod.EXIT_CONFIG
+    assert runner.calls == []
 
-    assert code == mod.EXIT_CONFIG
+
+def test_non_utf8_critic_output_is_a_config_error_not_a_crash(tmp_path):
+    binary = tmp_path / "critic.md"
+    binary.write_bytes(b"\xff\xfe\x00bad")
+    runner = FakeRunner(_ok([]))
+
+    assert _run(tmp_path, runner, "--critic-findings", str(binary)) == mod.EXIT_CONFIG
     assert runner.calls == []
 
 
@@ -112,6 +129,61 @@ def test_critic_findings_flag_is_required():
     with pytest.raises(SystemExit) as exc:
         mod.build_parser().parse_args(["run"])
     assert exc.value.code == 2
+
+
+def _git_repo(path: Path) -> None:
+    path.mkdir()
+    for args in (["init", "-q"], ["commit", "-q", "--allow-empty", "-m", "init"]):
+        subprocess.run(["git", *args], cwd=path, check=True, capture_output=True)
+
+
+@_needs_git
+def test_refuses_critic_output_older_than_head(tmp_path, critic_file, capsys):
+    repo = tmp_path / "repo"
+    _git_repo(repo)
+    os.utime(critic_file, (1_000_000, 1_000_000))
+    runner = FakeRunner(_ok([]))
+
+    code = mod.main(
+        [
+            "run",
+            "--repo",
+            str(repo),
+            "--log-base",
+            str(tmp_path),
+            "--critic-findings",
+            str(critic_file),
+        ],
+        runner=runner,
+    )
+
+    assert code == mod.EXIT_CONFIG
+    assert runner.calls == []
+    assert "older than HEAD" in capsys.readouterr().err
+
+
+@_needs_git
+def test_accepts_critic_output_newer_than_head(tmp_path, critic_file):
+    repo = tmp_path / "repo"
+    _git_repo(repo)
+    runner = FakeRunner(_ok([]))
+
+    code = mod.main(
+        [
+            "run",
+            "--repo",
+            str(repo),
+            "--log-base",
+            str(tmp_path),
+            "--critic-findings",
+            str(critic_file),
+        ],
+        runner=runner,
+    )
+
+    assert code == mod.EXIT_OK
+    assert len(runner.calls) == 1
+    assert runner.calls[0]["cwd"] == repo.resolve()
 
 
 def test_sol_never_sees_the_critic_findings(tmp_path, critic_file):
@@ -130,47 +202,72 @@ def test_orchestrator_routes_sol_pass_after_readiness_critic():
         text = (PROJECT_ROOT / rendered).read_text(encoding="utf-8")
         line = next(ln for ln in text.splitlines() if "critic (readiness)" in ln)
         assert line.index("critic (readiness)") < line.index("sol pass"), rendered
+        assert "resources/cross-family-pass.md" in line, rendered
+    assert (PROJECT_ROOT / "src/claude/skills/review/resources/cross-family-pass.md").is_file()
 
 
-# Two-round cap
+# Two-round cap, counted from the run log
 
 
-def test_round_three_escalates_without_a_model_call(tmp_path, critic_file, capsys):
-    runner = FakeRunner(_ok([_finding()]))
+def test_third_run_for_same_pr_escalates_without_a_model_call(tmp_path, critic_file, capsys):
+    runner = FakeRunner(_ok([]))
+    first = _run(tmp_path, runner, "--critic-findings", str(critic_file), "--pr", "7")
+    second = _run(tmp_path, runner, "--critic-findings", str(critic_file), "--pr", "7")
+    capsys.readouterr()
 
-    code = _run(tmp_path, runner, "--critic-findings", str(critic_file), "--round", "3")
+    third = _run(tmp_path, runner, "--critic-findings", str(critic_file), "--pr", "7")
 
-    assert code == mod.EXIT_ESCALATE
-    assert runner.calls == []
+    assert (first, second, third) == (mod.EXIT_OK, mod.EXIT_OK, mod.EXIT_ESCALATE)
+    assert len(runner.calls) == 2
     assert json.loads(capsys.readouterr().out)["verdict"] == "ESCALATE"
-    assert _logs(tmp_path)[0]["status"] == "escalated"
+    assert [log["status"] for log in _logs(tmp_path)].count("escalated") == 1
 
 
-def test_round_two_runs_with_frozen_contract(tmp_path, critic_file):
+def test_round_two_uses_frozen_contract_and_round_one_does_not(tmp_path, critic_file):
     runner = FakeRunner(_ok([]))
 
-    code = _run(tmp_path, runner, "--critic-findings", str(critic_file), "--round", "2")
-
-    assert code == mod.EXIT_OK
-    assert "This is round 2" in runner.calls[0]["prompt"]
-
-
-def test_round_one_has_no_frozen_contract(tmp_path, critic_file):
-    runner = FakeRunner(_ok([]))
-
-    _run(tmp_path, runner, "--critic-findings", str(critic_file))
+    _run(tmp_path, runner, "--critic-findings", str(critic_file), "--pr", "7")
+    _run(tmp_path, runner, "--critic-findings", str(critic_file), "--pr", "7")
 
     assert "This is round 2" not in runner.calls[0]["prompt"]
+    assert "This is round 2" in runner.calls[1]["prompt"]
+    assert sorted(log["round"] for log in _logs(tmp_path)) == [1, 2]
 
 
-def test_round_zero_is_a_config_error(tmp_path, critic_file):
+def test_round_count_is_per_pr(tmp_path, critic_file):
+    runner = FakeRunner(_ok([]))
+    for _ in range(2):
+        _run(tmp_path, runner, "--critic-findings", str(critic_file), "--pr", "7")
+
+    code = _run(tmp_path, runner, "--critic-findings", str(critic_file), "--pr", "8")
+
+    assert code == mod.EXIT_OK
+    assert len(runner.calls) == 3
+
+
+def test_unavailable_and_skipped_runs_do_not_use_a_round(tmp_path, critic_file, monkeypatch):
+    _run(
+        tmp_path,
+        FakeRunner(mod.RunResult(ok=False, failure_class="timeout")),
+        "--critic-findings",
+        str(critic_file),
+        "--pr",
+        "7",
+    )
+    _run(
+        tmp_path,
+        FakeRunner(_ok([])),
+        "--critic-findings",
+        str(critic_file),
+        "--pr",
+        "7",
+        "--disable",
+    )
     runner = FakeRunner(_ok([]))
 
-    assert (
-        _run(tmp_path, runner, "--critic-findings", str(critic_file), "--round", "0")
-        == mod.EXIT_CONFIG
-    )
-    assert runner.calls == []
+    _run(tmp_path, runner, "--critic-findings", str(critic_file), "--pr", "7")
+
+    assert "This is round 2" not in runner.calls[0]["prompt"]
 
 
 def test_max_rounds_is_two():
@@ -192,7 +289,11 @@ def test_max_rounds_is_two():
         ({"repro": ""}, "missing-repro"),
         ({"repro": "   "}, "missing-repro"),
         ({"category": "Style"}, "style-nit"),
+        ({"category": "style-nit"}, "style-nit"),
         ({"category": "naming"}, "style-nit"),
+        ({"category": "Cosmetic"}, "style-nit"),
+        ({"category": "readability"}, "style-nit"),
+        ({"category": "formatting"}, "style-nit"),
     ],
 )
 def test_drops_incomplete_or_style_findings(override, reason):
@@ -209,8 +310,9 @@ def test_drops_non_object_findings():
     assert dropped[0]["reason"] == "not-an-object"
 
 
-def test_keeps_complete_finding():
-    kept, dropped = mod.filter_findings([_finding()])
+@pytest.mark.parametrize("category", ["correctness", "security", "data-loss", ""])
+def test_keeps_complete_defect_finding(category):
+    kept, dropped = mod.filter_findings([_finding(category=category)])
 
     assert dropped == []
     assert kept[0]["file"] == "src/app/b.py"
@@ -243,34 +345,37 @@ def test_logs_sol_only_and_overlap(tmp_path, critic_file, capsys):
     logs = _logs(tmp_path)
     assert len(logs) == 1
     log = logs[0]
-    assert log["status"] == "ok"
-    assert log["pr"] == "123"
+    assert (log["status"], log["pr"], log["key"], log["round"]) == ("ok", "123", "pr-123", 1)
     assert log["model"] == mod.DEFAULT_SOL_MODEL
-    assert log["counts"]["sol_only"] == 1
-    assert log["counts"]["overlap"] == 1
-    by_file = {f["file"]: f["sol_only"] for f in log["findings"]}
-    assert by_file == {"src/app/a.py": False, "src/app/b.py": True}
+    assert (log["counts"]["sol_only"], log["counts"]["overlap"]) == (1, 1)
+    assert {f["file"]: f["sol_only"] for f in log["findings"]} == {
+        "src/app/a.py": False,
+        "src/app/b.py": True,
+    }
     assert len(log["critic_sha256"]) == 64
 
 
-def test_overlap_window_boundary():
-    findings = [_finding(file="src/app/a.py", line=13), _finding(file="src/app/a.py", line=14)]
+@pytest.mark.parametrize(
+    ("critic", "file", "line", "sol_only"),
+    [
+        ("src/app/a.py:10", "src/app/a.py", 13, False),
+        ("src/app/a.py:10", "src/app/a.py", 14, True),
+        ("foo.py:10-40", "foo.py", 30, False),
+        ("foo.py:10-40", "foo.py", 44, True),
+        ("see app/a.py:10", "a.py", 10, False),
+        ("./src/x.py:5", "src/x.py", 5, False),
+        (".claude/x.py:5", "claude/x.py", 5, True),
+        ("src/other.py:10", "src/app/a.py", 10, True),
+    ],
+)
+def test_overlap_rule(critic, file, line, sol_only):
+    marked = mod.mark_sol_only([_finding(file=file, line=line)], critic)
 
-    marked = mod.mark_sol_only(findings, CRITIC_TEXT)
-
-    assert [f["sol_only"] for f in marked] == [False, True]
-
-
-def test_overlap_matches_path_suffix():
-    marked = mod.mark_sol_only([_finding(file="a.py", line=10)], "see app/a.py:10")
-
-    assert marked[0]["sol_only"] is False
+    assert marked[0]["sol_only"] is sol_only
 
 
 def test_empty_result_passes_and_still_logs(tmp_path, critic_file, capsys):
-    runner = FakeRunner(_ok([]))
-
-    _run(tmp_path, runner, "--critic-findings", str(critic_file))
+    _run(tmp_path, FakeRunner(_ok([])), "--critic-findings", str(critic_file))
 
     assert json.loads(capsys.readouterr().out)["verdict"] == "PASS"
     assert _logs(tmp_path)[0]["counts"]["kept"] == 0
@@ -279,8 +384,8 @@ def test_empty_result_passes_and_still_logs(tmp_path, critic_file, capsys):
 def test_each_run_gets_its_own_log_file(tmp_path, critic_file):
     runner = FakeRunner(_ok([]))
 
-    _run(tmp_path, runner, "--critic-findings", str(critic_file))
-    _run(tmp_path, runner, "--critic-findings", str(critic_file))
+    _run(tmp_path, runner, "--critic-findings", str(critic_file), "--pr", "1")
+    _run(tmp_path, runner, "--critic-findings", str(critic_file), "--pr", "2")
 
     assert len(_logs(tmp_path)) == 2
 
@@ -297,41 +402,65 @@ def test_artifact_root_override_redirects_log(tmp_path, critic_file, monkeypatch
     assert len(list((durable / "metrics" / "sol-pass").glob("*.json"))) == 1
 
 
+def test_log_write_failure_exits_2_after_printing_verdict(tmp_path, critic_file, capsys):
+    blocker = tmp_path / ".project-toolkit"
+    blocker.write_text("not a directory", encoding="utf-8")
+
+    code = _run(tmp_path, FakeRunner(_ok([_finding()])), "--critic-findings", str(critic_file))
+
+    captured = capsys.readouterr()
+    assert code == mod.EXIT_CONFIG
+    assert json.loads(captured.out)["verdict"] == "WARN"
+    assert "run log not written" in captured.err
+
+
+def test_log_write_failure_still_prints_unavailable_warn(tmp_path, critic_file, capsys):
+    (tmp_path / ".project-toolkit").write_text("not a directory", encoding="utf-8")
+    runner = FakeRunner(mod.RunResult(ok=False, failure_class="timeout"))
+
+    code = _run(tmp_path, runner, "--critic-findings", str(critic_file))
+
+    out = json.loads(capsys.readouterr().out)
+    assert code == mod.EXIT_UNAVAILABLE
+    assert out["reason"] == "review-model-unavailable"
+    assert out["log"] is None
+
+
 def test_summarize_totals_runs(tmp_path, critic_file, capsys):
-    _run(
-        tmp_path,
-        FakeRunner(_ok([_finding(), _finding(file="src/app/a.py", line=10)])),
-        "--critic-findings",
-        str(critic_file),
-    )
+    two = _ok([_finding(), _finding(file="src/app/a.py", line=10)])
+    _run(tmp_path, FakeRunner(two), "--critic-findings", str(critic_file))
     _run(
         tmp_path,
         FakeRunner(mod.RunResult(ok=False, failure_class="timeout")),
         "--critic-findings",
         str(critic_file),
     )
-    (tmp_path / ".project-toolkit" / "metrics" / "sol-pass" / "broken.json").write_text(
-        "{", encoding="utf-8"
-    )
+    (_log_dir(tmp_path) / "broken.json").write_text("{", encoding="utf-8")
     capsys.readouterr()
 
     code = mod.main(["summarize", "--repo", str(tmp_path), "--log-base", str(tmp_path)])
 
     totals = json.loads(capsys.readouterr().out)
     assert code == mod.EXIT_OK
-    assert totals["runs"] == 2
-    assert totals["ok"] == 1
-    assert totals["unavailable"] == 1
-    assert totals["sol_only"] == 1
-    assert totals["overlap"] == 1
-    assert totals["unreadable"] == 1
+    assert (totals["runs"], totals["ok"], totals["unavailable"]) == (2, 1, 1)
+    assert (totals["sol_only"], totals["overlap"], totals["unreadable"]) == (1, 1, 1)
 
 
 # Unavailable path: WARN, no same-family fallback
 
 
 @pytest.mark.parametrize(
-    "failure", ["timeout", "rate-limit", "quota", "5xx", "not-installed", "model-unsupported"]
+    "failure",
+    [
+        "timeout",
+        "rate-limit",
+        "quota",
+        "5xx",
+        "auth",
+        "unknown",
+        "not-installed",
+        "model-unsupported",
+    ],
 )
 def test_unavailable_warns_and_makes_one_call(tmp_path, critic_file, capsys, failure):
     runner = FakeRunner(mod.RunResult(ok=False, failure_class=failure, detail="boom"))
@@ -340,23 +469,22 @@ def test_unavailable_warns_and_makes_one_call(tmp_path, critic_file, capsys, fai
 
     out = json.loads(capsys.readouterr().out)
     assert code == mod.EXIT_UNAVAILABLE
-    assert out["verdict"] == "WARN"
-    assert out["reason"] == "review-model-unavailable"
+    assert (out["verdict"], out["reason"]) == ("WARN", "review-model-unavailable")
     assert out["message"].startswith("Review model unavailable, deferring to human.")
     assert f"Failure: {failure}" in out["message"]
-    assert len(runner.calls) == 1
-    assert runner.calls[0]["model"] == mod.DEFAULT_SOL_MODEL
+    assert [call["model"] for call in runner.calls] == [mod.DEFAULT_SOL_MODEL]
     log = _logs(tmp_path)[0]
-    assert log["status"] == "unavailable"
-    assert log["failure_class"] == failure
-    assert log["findings"] == []
+    assert (log["status"], log["failure_class"], log["findings"]) == ("unavailable", failure, [])
 
 
 @pytest.mark.parametrize("text", ["not json", '{"findings": "x"}', "[]"])
 def test_malformed_output_is_unavailable(tmp_path, critic_file, capsys, text):
-    runner = FakeRunner(mod.RunResult(ok=True, text=text))
-
-    code = _run(tmp_path, runner, "--critic-findings", str(critic_file))
+    code = _run(
+        tmp_path,
+        FakeRunner(mod.RunResult(ok=True, text=text)),
+        "--critic-findings",
+        str(critic_file),
+    )
 
     assert code == mod.EXIT_UNAVAILABLE
     assert json.loads(capsys.readouterr().out)["reason"] == "review-model-unavailable"
@@ -368,8 +496,7 @@ def test_codex_runner_reports_not_installed(monkeypatch, tmp_path):
 
     result = mod.codex_runner("gpt-6.1-sol", "p", tmp_path / "s.json", tmp_path, 5)
 
-    assert result.ok is False
-    assert result.failure_class == "not-installed"
+    assert (result.ok, result.failure_class) == (False, "not-installed")
 
 
 @pytest.mark.parametrize(
@@ -377,19 +504,22 @@ def test_codex_runner_reports_not_installed(monkeypatch, tmp_path):
     [
         ("The 'x' model is not supported when using Codex", "model-unsupported"),
         ("rate limit exceeded", "rate-limit"),
-        ("HTTP 429", "rate-limit"),
+        ("HTTP 429 Too Many Requests", "rate-limit"),
+        ("request id 4290ab: connection reset", "unknown"),
         ("You hit your usage limit", "quota"),
-        ("upstream connect error", "5xx"),
+        ("401 Unauthorized: not logged in", "auth"),
+        ("HTTP 503 service unavailable", "5xx"),
+        ("upstream connect error", "unknown"),
     ],
 )
 def test_failure_classification(message, expected):
-    assert mod._classify_failure(message) == expected
+    assert mod.classify_failure(message) == expected
 
 
 def test_failure_message_reads_turn_failed_event():
     events = '{"type":"thread.started"}\n{"type":"turn.failed","error":{"message":"model gone"}}\n'
 
-    assert mod._failure_message(events, "stderr noise") == "model gone"
+    assert mod.failure_message(events, "stderr noise") == "model gone"
 
 
 # Model allowlist: Sol only
@@ -457,6 +587,24 @@ def test_disable_flag_skips(tmp_path, critic_file):
 
     assert _run(tmp_path, runner, "--critic-findings", str(critic_file), "--disable") == mod.EXIT_OK
     assert runner.calls == []
+
+
+# Bootstrap
+
+
+def test_bootstrap_ignores_plugin_root_without_paths_module(tmp_path):
+    script = PROJECT_ROOT / "src/claude/skills/review/scripts/sol_pass.py"
+    env = {**os.environ, "CLAUDE_PLUGIN_ROOT": str(tmp_path), "COPILOT_PLUGIN_ROOT": str(tmp_path)}
+
+    proc = subprocess.run(
+        [sys.executable, str(script), "--help"],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert proc.returncode == 0, proc.stderr
 
 
 # Conformance with the review model policy
