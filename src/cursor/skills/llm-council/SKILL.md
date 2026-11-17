@@ -30,13 +30,6 @@ Three-stage cross-vendor deliberation:
    aggregates the rankings.
 3. A chairman reads Stage 1 and Stage 2 and writes the verdict.
 
-Adapted from `thevgavini/ghcp-llm-council` (MIT License, Copyright (c) 2026
-Vivekananda Gavini and ghcp-llm-council contributors,
-<https://github.com/thevgavini/ghcp-llm-council>). The T3 Code delegate route
-follows `t3dotgg/tstack` `council` (MIT License, Copyright (c) 2026 Theo
-Browne, <https://github.com/t3dotgg/tstack>). Full license texts are in this
-plugin's third-party notices.
-
 ## Triggers
 
 `ask the council`, `council take on X`, `what do the models say`,

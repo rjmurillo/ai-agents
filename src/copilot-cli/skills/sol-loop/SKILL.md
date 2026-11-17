@@ -30,13 +30,6 @@ it. Sol is a second model family, so it tends to find different bugs than the
 critic. Make the smallest changes that answer Sol. Fight scope creep and push
 back when a finding is wrong.
 
-Adapted from `t3dotgg/tstack` `sol-loop` (MIT License, Copyright (c) 2026
-Theo Browne, <https://github.com/t3dotgg/tstack>). The full license text is in
-this plugin's third-party notices. This port changes four things: at most 2
-rounds, every kept finding needs a file, a line, and a repro, Sol-only
-findings are logged against the critic, and a failed Sol round takes the
-review-model-unavailable WARN path.
-
 ## Triggers
 
 `sol loop`, `run a Sol review`, `cross-family review after the critic`,
