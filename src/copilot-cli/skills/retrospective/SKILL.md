@@ -1,8 +1,10 @@
 ---
 name: retrospective
 version: 0.1.0
-description: Extract learnings from a session or task through structured retrospective frameworks. Gathers evidence, runs Five Whys and fishbone diagnosis, scores atomicity, and writes a canonical retrospective artifact. Use to turn execution experience into institutional knowledge. Use when you say "run a retrospective", "retro fill", or "extract learnings from this session". Do NOT use for in-conversation correction capture (use the reflect skill).
+description: Extract learnings from a session or task through structured retrospective frameworks. Gathers evidence, runs Five Whys and fishbone diagnosis, scores atomicity, and writes a canonical retrospective artifact. Use to turn execution experience into institutional knowledge. Use when you say "run a retrospective", "retro fill", "list pending retros", or "extract learnings from this session". Do NOT use for in-conversation correction capture (use the reflect skill).
 license: MIT
+argument-hint: "[fill <YYYY-MM-DD> | list | <scope>]"
+user-invocable: true
 metadata:
   domains: [retrospective, learning-extraction, root-cause-analysis, continuous-improvement]
   capability:
@@ -12,10 +14,10 @@ metadata:
   outputs: [retrospective-markdown-file]
   adr: ADR-008, ADR-017, ADR-106
   routing:
-    role: nested-helper
-    invoker: retro
-    trigger: retro hands off to retrospective to run the analysis once the skeleton is filled
-    user-facing: false
+    role: conditional-adjunct
+    invoker: checkpoint
+    trigger: checkpoint redirects writing a retrospective here
+    user-facing: true
 ---
 
 # Retrospective
@@ -28,7 +30,14 @@ causes, decides actions, scores atomicity, and persists learnings. The long-form
 live verbatim in `references/`; this file is the orchestration contract.
 
 This skill owns the long-form rubrics the retrospective agent loads from `references/`.
-It is callable from `Skill("retrospective")` and from `/retro fill <date>`.
+It is callable from `Skill("retrospective")` and from `/retrospective fill <date>`.
+
+**Argument dispatch.** The request is the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message). When its first word is exactly
+`fill` or `list`, follow references/skeleton-fill.md instead of treating it as a
+scope. It lists pending skeletons, or fills one dated skeleton by running the
+Phase 0..5 workflow below on that file. Any other argument is the scope.
+A bare `/retrospective` with no arguments asks for that scope; it does not list
+skeletons, which the retired `/retro` did. Use `/retrospective list` for that.
 The Stop hook that once invoked it automatically was deleted, so a
 retrospective is written when someone asks for one.
 
@@ -37,7 +46,7 @@ retrospective is written when someone asks for one.
 | Trigger Phrase | Operation |
 |----------------|-----------|
 | `run a retrospective` | Full Phase 0..5 workflow over the given scope |
-| `retro fill` | Fill an unfilled auto-retro skeleton for a date |
+| `retro fill` | Fill a dated auto-retro skeleton, or list pending ones; arguments and procedure in references/skeleton-fill.md |
 | `extract learnings from this session` | Phase 0..4 over the current session |
 | `diagnose this failure` | Phase 0..2 root-cause analysis, then stop |
 | `what did we learn` | Phase 4 atomicity-scored learning extraction |
@@ -201,8 +210,8 @@ Before the retrospective is complete, confirm:
   or file issues; it lists delta items for the owner in the artifact.
 - Memory and GitHub are integration points. A failed memory call degrades to a documented
   fallback (write the artifact, note the memory write failed), never a silent context loss.
-- Keep entry points thin. The Stop hook and `/retro fill` parse inputs and call this skill;
-  they do not re-implement the workflow.
+- Keep the fill entry point thin. `references/skeleton-fill.md` parses the arguments and
+  resolves the file; the Phase 0..5 workflow above does the analysis.
 
 ---
 
@@ -228,5 +237,7 @@ Before the retrospective is complete, confirm:
   (candidate list, delegation request, termination rules, artifact block).
 - [handoff-example.md](references/handoff-example.md): a filled example of the agent's
   structured handoff block.
+- [skeleton-fill.md](references/skeleton-fill.md): the `fill` and `list` operations for
+  auto-retro skeletons, including the untrusted-data rules for their filenames and bodies.
 - `.claude/agents/retrospective.md`: the agent that loads these references. The references
   are the canonical home of the rubrics; the agent keeps only the gates and load conditions.

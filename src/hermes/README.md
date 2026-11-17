@@ -96,7 +96,6 @@ Project Toolkit skills for memory, context, decisions, requirements, strategy, a
 - `prose-self-check`
 - `reflect`
 - `requirements-interview`
-- `retro`
 - `retrospective`
 - `skill-bootstrap`
 - `skillforge`

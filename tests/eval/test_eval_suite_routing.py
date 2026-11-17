@@ -373,7 +373,6 @@ CONVERTED_COMMAND_SKILLS = [
     "pr-review",
     "push-pr",
     "research",
-    "retro",
     "ship",
     "spec",
     "sync",

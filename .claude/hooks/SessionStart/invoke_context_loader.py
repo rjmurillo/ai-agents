@@ -331,7 +331,7 @@ def _skeleton_dates(filenames: list[str]) -> list[str]:
     """Extract leading ``YYYY-MM-DD`` dates from skeleton filenames (Issue #2079).
 
     Auto-retro skeletons are named ``YYYY-MM-DD-auto-retro.md``. The fill
-    reminder needs the date argument for ``/retro fill <date>``. Filenames
+    reminder needs the date argument for ``/retrospective fill <date>``. Filenames
     without a leading date are skipped. Order is preserved; duplicates removed.
     """
     seen: set[str] = set()
@@ -453,7 +453,7 @@ def main() -> None:
         output_parts.append(
             f"## ⏳ {pending_count} retro(s) need completion\n\n"
             f"Unfilled skeletons (last {PENDING_RETRO_MAX_AGE_DAYS} days): {listed}\n\n"
-            f"Run `/retro fill {fill_hint}` to populate one skeleton and clear it."
+            f"Run `/retrospective fill {fill_hint}` to populate one skeleton and clear it."
             f"{other_dates}"
         )
         loaded_files.append(f"pending-retros:{pending_count}")
