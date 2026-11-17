@@ -40,7 +40,7 @@ Note: Context compaction does NOT exempt this session from the above. Treat ever
 
 ## Reference Loading
 
-Orchestrator references live under `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/autoplan/references/`. They serve this agent; the `autoplan` skill is the front-door router. Read one only when its condition holds. If the path does not resolve (a harness with no skill tree, such as the VS Code agent list), apply the rules in this file and state that the reference was unavailable.
+Orchestrator references live under `${COPILOT_PLUGIN_ROOT}/skills/autoplan/references/`. In a checkout that loads this agent with no plugin root, read `.claude/skills/autoplan/references/` instead. They serve this agent; the `autoplan` skill is the front-door router. Read one only when its condition holds. If the path does not resolve (a harness with no skill tree, such as the VS Code agent list), apply the rules in this file and state that the reference was unavailable.
 
 - `orchestrator-analyst-handoff.md`, when you delegate an investigation that needs shell, git, build, or web evidence; `orchestrator-anti-patterns.md`, when you review a routing plan for mistakes.
 - `orchestrator-resume-and-drift.md`, when you resume from a handoff and need the state record fields, or when drift or context loss is detected; `orchestrator-hook-feedback.md`, when a hook blocks a tool.

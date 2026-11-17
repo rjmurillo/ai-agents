@@ -41,6 +41,11 @@ Stanza keys (all under ``artifacts.agents``):
                       line that hands work to one is reworded for Cursor. Each
                       ``from`` must occur exactly once in its file, and each
                       ``file`` must exist, so a stale entry fails the build.
+``keepClaudeReferenceRoot`` when true, keep the bare Claude plugin-root token the
+                      source renders on split-agent reference paths. Cursor
+                      replaces that token in a plugin agent body (probe of
+                      2026-11-16). Otherwise the copy gets the shared fallback
+                      root, because Codex and Muse Code replace no token.
 
 ``readonly`` is derived, never guessed: an agent without a ``tools`` list gets
 no ``readonly`` key (it is unrestricted in Claude too). Cursor documents no
@@ -91,13 +96,17 @@ from agent_tools import (  # noqa: E402
 )
 from agent_tools import is_readonly_tool as is_readonly_tool  # noqa: E402  re-export
 from atomic_write import publish_bytes_preserving_mode  # noqa: E402
-from generate_agents_common import read_yaml_frontmatter  # noqa: E402
+from generate_agents_common import (  # noqa: E402
+    read_yaml_frontmatter,
+    restore_shared_reference_roots,
+)
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
 from yaml_loader import ConfigError, load_platform_config, validate_relative_path  # noqa: E402
 
 T = TypeVar("T")
 KEEP_KEY = "frontmatterKeep"
 REPLACE_KEY = "bodyReplace"
+KEEP_ROOT_KEY = "keepClaudeReferenceRoot"
 _READONLY_KEY = "readonly"
 _READONLY_SKIP_REASON = "tools list restricts it beyond what readonly can express"
 _SOURCE_SUFFIX = ".md"
@@ -143,6 +152,7 @@ class RenderSpec:
     output_format: str = FORMAT_MARKDOWN
     appendix: str = ""
     no_subagents_note: bool = False
+    keep_claude_reference_root: bool = False
 
 
 def _as_copy_error(call: Callable[[], T]) -> T:
@@ -178,6 +188,10 @@ def render_parsed(
     kept = {key: loaded[key] for key in spec.keep if key in loaded}
     if spec.derive_readonly and derive_readonly(loaded):
         kept[_READONLY_KEY] = True
+    # The source is a Claude Code render. Its bare Claude plugin-root reference
+    # paths resolve only on a host that replaces that token in an agent body.
+    if not spec.keep_claude_reference_root:
+        body = restore_shared_reference_roots(body)
     if body_edits:
         body = apply_body_replacements(body, body_edits, source)
     is_codex = spec.output_format == FORMAT_CODEX_TOML
@@ -335,6 +349,7 @@ def generate_agent_copies(
         options.fmt,
         not_installed_paragraph(sorted(src.stem for src in restricted)) if restricted else "",
         options.no_subagents_note,
+        stanza.get(KEEP_ROOT_KEY) is True,
     )
     result = AgentCopyResult(inputs=len(sources))
     expected: set[str] = set()
