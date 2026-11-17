@@ -27,10 +27,11 @@
       ],
       "forbidden_response_patterns": [
         "\\bimport\\b[^\\n]*@astrojs/starlight",
-        "\\bimport\\b[^\\n]*@components/"
+        "\\bimport\\b[^\\n]*@components/",
+        "(?:wrap|put|place|use)[^.\\n]{0,40}<(?:Aside|TabItem|Tabs)\\b"
       ],
       "expected_gate": "technical-writing-site-recon",
-      "rationale": "The skill recons the target first and loads a site profile only on a match. A response that imports Astro or Starlight components for a plain Markdown repo is the failure this scenario catches; naming a component in order to reject it is not."
+      "rationale": "The skill recons the target first and loads a site profile only on a match. A response that imports Astro or Starlight components, or tells the author to wrap or put content in them, fails on a plain Markdown repo; naming a component in order to reject it does not."
     },
     {
       "id": "S3",

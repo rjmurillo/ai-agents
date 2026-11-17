@@ -133,6 +133,136 @@
       "rationale": "Negative control: editing docstrings is code work and must not route to technical-writing."
     },
     {
+      "id": "lt-technical-writing-doc-page",
+      "family": "long-tail-single-domain",
+      "request": "Write a documentation page for the retry option.",
+      "expect": {
+        "kind": "specialist",
+        "route": "technical-writing",
+        "routes_absent": [
+          "orchestrator"
+        ]
+      },
+      "rationale": "Positive technical-writing activation through the `write a documentation page` intent."
+    },
+    {
+      "id": "lt-technical-writing-integration",
+      "family": "long-tail-single-domain",
+      "request": "Write integration documentation for the Redis hosting package.",
+      "expect": {
+        "kind": "specialist",
+        "route": "technical-writing",
+        "routes_absent": [
+          "orchestrator"
+        ]
+      },
+      "rationale": "Positive technical-writing activation through the `write integration documentation` intent."
+    },
+    {
+      "id": "lt-technical-writing-rule-page",
+      "family": "long-tail-single-domain",
+      "request": "Write rule documentation for analyzer Moq1203.",
+      "expect": {
+        "kind": "specialist",
+        "route": "technical-writing",
+        "routes_absent": [
+          "orchestrator"
+        ]
+      },
+      "rationale": "Positive technical-writing activation through the `write rule documentation` intent."
+    },
+    {
+      "id": "lt-technical-writing-docs-prose",
+      "family": "long-tail-single-domain",
+      "request": "Tighten the docs prose on the install page.",
+      "expect": {
+        "kind": "specialist",
+        "route": "technical-writing",
+        "routes_absent": [
+          "orchestrator"
+        ]
+      },
+      "rationale": "Positive technical-writing activation through the `docs prose` intent."
+    },
+    {
+      "id": "lt-technical-writing-stylebook",
+      "family": "long-tail-single-domain",
+      "request": "Which stylebook should these how-to pages follow?",
+      "expect": {
+        "kind": "specialist",
+        "route": "technical-writing",
+        "routes_absent": [
+          "orchestrator"
+        ]
+      },
+      "rationale": "Positive technical-writing activation through the `stylebook` intent."
+    },
+    {
+      "id": "lt-technical-writing-audit-docstring-negative",
+      "family": "negative-noise",
+      "request": "Audit documentation strings in parser.py.",
+      "expect": {
+        "kind": "none",
+        "route": null,
+        "routes_absent": [
+          "technical-writing"
+        ]
+      },
+      "rationale": "Negative control from round-3 review: code work that shares a docs word must not route to technical-writing."
+    },
+    {
+      "id": "lt-technical-writing-doc-page-404-negative",
+      "family": "negative-noise",
+      "request": "The documentation page link 404s, fix the router.",
+      "expect": {
+        "kind": "none",
+        "route": null,
+        "routes_absent": [
+          "technical-writing"
+        ]
+      },
+      "rationale": "Negative control from round-3 review: code work that shares a docs word must not route to technical-writing."
+    },
+    {
+      "id": "lt-technical-writing-doc-page-xss-negative",
+      "family": "negative-noise",
+      "request": "Audit the documentation page renderer for XSS.",
+      "expect": {
+        "kind": "none",
+        "route": null,
+        "routes_absent": [
+          "technical-writing"
+        ]
+      },
+      "rationale": "Negative control from round-3 review: code work that shares a docs word must not route to technical-writing."
+    },
+    {
+      "id": "lt-technical-writing-integration-test-negative",
+      "family": "negative-noise",
+      "request": "Fix the integration test, documentation unchanged.",
+      "expect": {
+        "kind": "none",
+        "route": null,
+        "routes_absent": [
+          "technical-writing"
+        ]
+      },
+      "rationale": "Negative control from round-3 review: code work that shares a docs word must not route to technical-writing."
+    },
+    {
+      "id": "lt-technical-writing-lint-style-negative",
+      "family": "negative-noise",
+      "request": "Add a docs style guide check to the linter script.",
+      "expect": {
+        "kind": "none",
+        "route": null,
+        "routes_absent": [
+          "technical-writing"
+        ]
+      },
+      "rationale": "Negative control from round-3 review: code work that shares a docs word must not route to technical-writing."
+    },
+    {
       "id": "lt-skillify-this",
       "family": "long-tail-single-domain",
       "request": "skillify this",

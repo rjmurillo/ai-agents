@@ -16,13 +16,11 @@ metadata:
     user-facing: true
     intents:
       - write a tutorial
-      - documentation page
-      - audit documentation
+      - write a documentation page
+      - write integration documentation
+      - write rule documentation
       - docs prose
-      - docs style guide
       - stylebook
-      - integration documentation
-      - rule documentation
 ---
 
 # Technical Writing
@@ -46,7 +44,7 @@ own these:
 
 ## Triggers
 
-`write a documentation page for X`, `write a tutorial`, `audit documentation`,
+`write a documentation page for X`, `write a tutorial`, `audit this docs page`,
 `tighten the docs prose`, `which stylebook should these docs use`
 
 ## When It Applies
