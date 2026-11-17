@@ -11,7 +11,9 @@ are historical and still fillable.
 
 ## Arguments
 
-`$ARGUMENTS` carries the operation and the date, for example `fill 2026-06-03`.
+The request carries the operation and the date, for example `fill 2026-06-03`.
+It is the skill's argument string where the host passes one. Under Copilot CLI the
+skill takes no arguments, so read it from the user's message.
 
 | Input | Operation |
 |-------|-----------|

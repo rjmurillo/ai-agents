@@ -32,8 +32,8 @@ live verbatim in `references/`; this file is the orchestration contract.
 This skill owns the long-form rubrics the retrospective agent loads from `references/`.
 It is callable from `Skill("retrospective")` and from `/retrospective fill <date>`.
 
-**Argument dispatch.** When the first word of `$ARGUMENTS` is exactly `fill` or
-`list`, follow references/skeleton-fill.md instead of treating the arguments as a
+**Argument dispatch.** The request is the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message). When its first word is exactly
+`fill` or `list`, follow references/skeleton-fill.md instead of treating it as a
 scope. It lists pending skeletons, or fills one dated skeleton by running the
 Phase 0..5 workflow below on that file. Any other argument is the scope.
 A bare `/retrospective` with no arguments asks for that scope; it does not list

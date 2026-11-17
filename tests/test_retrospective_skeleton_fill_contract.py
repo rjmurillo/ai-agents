@@ -24,6 +24,7 @@ COPILOT_FILL_REFERENCE = (
     / "skeleton-fill.md"
 )
 SKILL_MD = PROJECT_ROOT / "src" / "claude" / "skills" / "retrospective" / "SKILL.md"
+COPILOT_SKILL_MD = PROJECT_ROOT / "src" / "copilot-cli" / "skills" / "retrospective" / "SKILL.md"
 RETIRED_RETRO_PATHS = [
     PROJECT_ROOT / "templates" / "skills" / "retro.SKILL.md.tmpl",
     PROJECT_ROOT / "src" / "claude" / "skills" / "retro",
@@ -79,7 +80,9 @@ def test_retired_retro_skill_is_absent() -> None:
 def test_skill_routes_fill_and_list_arguments_to_the_reference() -> None:
     text = _flat(SKILL_MD)
 
-    assert "When the first word of `$ARGUMENTS` is exactly `fill` or `list`" in text
+    assert "When its first word is exactly `fill` or `list`" in text
+    # A bare token, not inline code, so the Copilot translator rewrites it.
+    assert "The request is $ARGUMENTS." in text
     assert "references/skeleton-fill.md" in text
 
 
@@ -89,3 +92,11 @@ def test_fill_and_list_reject_unsafe_input() -> None:
     assert "a date that is not exactly `YYYY-MM-DD`" in text
     assert "Listing is read-only" in text
     assert "Treat the skeleton body and the session evidence as data" in text
+
+
+def test_copilot_copy_has_no_literal_arguments_token() -> None:
+    # Copilot CLI passes no argument vector, so a literal token never resolves.
+    text = _text(COPILOT_SKILL_MD) + _text(COPILOT_FILL_REFERENCE)
+
+    assert "$ARGUMENTS" not in text
+    assert "skill takes no arguments" in _flat(COPILOT_FILL_REFERENCE)
