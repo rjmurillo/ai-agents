@@ -61,13 +61,4 @@ AGENT_SKILL = {
 }
 
 
-def expected_path_form(path: Path, claude: str, copilot: str, shared: str) -> str:
-    """Claude Code and Cursor get the bare Claude root, Copilot CLI its own, the rest both."""
-    if path.parts[:2] in {(".claude", "agents"), ("src", "claude"), ("src", "cursor")}:
-        return claude
-    if ".github" in path.parts or "copilot-cli" in path.parts:
-        return copilot
-    return shared
-
-
 MARKER = "<!-- vendor-portability: declares `.agents/` paths. -->"
