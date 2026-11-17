@@ -241,6 +241,28 @@ def owned_targets(repo_root: Path) -> set[Path]:
     return {repo_root / "src" / "claude" / "agents" / f"{stem}.md" for stem in discover(repo_root)}
 
 
+# A private copy of SPLIT_REFERENCE_SKILLS in build/generate_agents_common.py, kept
+# here so this module gains no import; test_split_reference_roots.py pins parity.
+_SPLIT_REFERENCE_SKILLS = tuple(
+    "adr-review decision-critic build autoplan test security-scan".split()
+)
+_SHARED_ROOT = "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+_MARKER_END = re.compile(r"(<!-- vendor-portability:.*?)(\s*-->)", re.DOTALL)
+
+
+def _rewrite_claude_reference_roots(text: str) -> str:
+    """Render split-agent reference paths to the bare Claude token, plus the checkout clause."""
+    for skill in _SPLIT_REFERENCE_SKILLS:
+        suffix, local = f"/skills/{skill}/references/", f".claude/skills/{skill}/references"
+        shared, bare = _SHARED_ROOT + suffix, "${CLAUDE_PLUGIN_ROOT}" + suffix
+        if f"`{shared}`." in text:
+            clause = f" In a checkout that loads this agent with no plugin root, read `{local}/`"
+            text = text.replace(f"`{shared}`.", f"`{bare}`.{clause} instead.")
+            text = _MARKER_END.sub(rf"\g<1> Checkout fallback path: {local}.\g<2>", text, count=1)
+        text = text.replace(shared, bare)
+    return text
+
+
 def _try_render(
     tmpl_path: Path,
     partials_dir: Path,
@@ -256,12 +278,14 @@ def _try_render(
     Different than canonical: when ``table`` is given (the Claude variant
     only), ``- $mcp:<server>`` frontmatter list items expand into MCP wildcard grants
     for every prefix variant of the server. An unknown name, or a bare MCP wildcard, is a
-    configuration error, exit 2, the same floor a missing partial gets.
+    configuration error, exit 2, the same floor a missing partial gets. The Claude
+    variant also renders split-agent reference paths with the bare Claude root.
     """
     try:
         rendered = str(render(tmpl_path, partials_dir))
         if table is not None:
             rendered = agent_capabilities.expand_frontmatter(rendered, table)
+            rendered = _rewrite_claude_reference_roots(rendered)
         return rendered
     except (
         TemplateGrammarError,
@@ -279,7 +303,9 @@ def _try_render(
 
 
 def render_claude(tmpl_path: Path, partials_dir: Path, table: dict[str, object]) -> str:
-    """Render a Claude template, then expand its ``$mcp:`` references.
+    """Render a Claude template, expand its ``$mcp:`` references, and set its reference root.
+
+    Split-agent reference paths get the bare Claude plugin-root token.
 
     Raises the grammar errors :func:`render` raises, plus
     ``agent_capabilities.CapabilityError`` for an unknown server.
@@ -287,7 +313,7 @@ def render_claude(tmpl_path: Path, partials_dir: Path, table: dict[str, object])
     expanded: str = agent_capabilities.expand_frontmatter(
         str(render(tmpl_path, partials_dir)), table
     )
-    return expanded
+    return _rewrite_claude_reference_roots(expanded)
 
 
 def _report_discover_errors(repo_root: Path, result: CompileResult) -> None:
