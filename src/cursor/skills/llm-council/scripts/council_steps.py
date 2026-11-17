@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from pathlib import Path
 
@@ -40,6 +39,7 @@ from council_core import (  # noqa: E402
     borda,
     chairman_prompt,
     labels_for,
+    member_slug,
     parse_ranking,
     ranker_prompt,
     render_artifact,
@@ -52,10 +52,6 @@ EXIT_OK, EXIT_TOO_FEW, EXIT_CONFIG = 0, 1, 2
 
 class StepError(ValueError):
     """A run directory is missing something this step needs."""
-
-
-def _slug(model: str) -> str:
-    return re.sub(r"[^A-Za-z0-9_.-]", "_", model)
 
 
 def _read(path: Path) -> str:
@@ -76,7 +72,7 @@ def _replies(run_dir: Path, stage: str, members: list[str]) -> dict[str, str]:
     """Non-empty replies in ``stage`` for ``members``, in member order."""
     out = {}
     for model in members:
-        path = run_dir / stage / f"{_slug(model)}.md"
+        path = run_dir / stage / f"{member_slug(model)}.md"
         if path.is_file():
             text = _read(path).strip()
             if text:
@@ -118,7 +114,7 @@ def cmd_init(args: argparse.Namespace) -> int:
     (run_dir / "question.md").write_text(question + "\n", encoding="utf-8")
     (run_dir / "stage1-prompt.md").write_text(stage1_prompt(question), encoding="utf-8")
     start = [m for m in council if m not in unavailable]
-    replies = {m: str(run_dir / "stage1" / f"{_slug(m)}.md") for m in start}
+    replies = {m: str(run_dir / "stage1" / f"{member_slug(m)}.md") for m in start}
     return _emit(
         {
             "start": start,
@@ -151,7 +147,7 @@ def cmd_rank(args: argparse.Namespace) -> int:
     (run_dir / "stage2-prompt.md").write_text(
         ranker_prompt(question, survivors, responses), encoding="utf-8"
     )
-    replies = {m: str(run_dir / "stage2" / f"{_slug(m)}.md") for m in survivors}
+    replies = {m: str(run_dir / "stage2" / f"{member_slug(m)}.md") for m in survivors}
     return _emit(
         {"rankers": survivors, "prompt": str(run_dir / "stage2-prompt.md"), "replies": replies}
     )

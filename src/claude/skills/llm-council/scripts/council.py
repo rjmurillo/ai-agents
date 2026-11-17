@@ -59,7 +59,7 @@ if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
 import paths  # noqa: E402
-from council_backends import call_model, gh_token  # noqa: E402
+from council_backends import backend_for, call_model, gh_token  # noqa: E402
 from council_core import (  # noqa: E402
     CHEAP_CHAIRMAN,
     DEFAULT_CHAIRMAN,
@@ -67,7 +67,6 @@ from council_core import (  # noqa: E402
     MODES,
     borda,
     chairman_prompt,
-    is_copilot_model,
     labels_for,
     parse_ranking,
     ranker_prompt,
@@ -110,7 +109,7 @@ def _fetch_token(council: list[str], chairman: str, log: Log) -> str | None:
 
     A Copilot-only council must not fail for users who never ran `gh auth login`.
     """
-    if all(is_copilot_model(m) for m in [*council, chairman]):
+    if all(backend_for(m) != "github-models" for m in [*council, chairman]):
         return None
     try:
         return gh_token()
@@ -212,10 +211,8 @@ def _out_path(out: str | None) -> Path:
 def _announce(council: list[str], chairman: str, mode: str, out_path: Path, log: Log) -> None:
     log(f"[council] {len(council)} councillors:")
     for model in council:
-        log(f"          - {model}  ({'copilot' if is_copilot_model(model) else 'github-models'})")
-    log(
-        f"[council] chairman: {chairman}  ({'copilot' if is_copilot_model(chairman) else 'github-models'})"
-    )
+        log(f"          - {model}  ({backend_for(model)})")
+    log(f"[council] chairman: {chairman}  ({backend_for(chairman)})")
     log(f"[council] mode: {mode}    artifact: {out_path}")
 
 

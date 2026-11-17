@@ -201,6 +201,11 @@ def resolve_members(
     return council, chairman or (CHEAP_CHAIRMAN if cheap else CHAIRMEN_BY_MODE[mode])
 
 
+def member_slug(model: str) -> str:
+    """File-name-safe form of a member id, for reply files in a run directory."""
+    return re.sub(r"[^A-Za-z0-9_.-]", "_", model)
+
+
 def stage1_prompt(question: str) -> str:
     return COUNCILLOR_PROMPT + "\n\n" + question
 

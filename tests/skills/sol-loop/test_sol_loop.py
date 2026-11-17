@@ -329,10 +329,10 @@ def test_summarize_totals_runs_and_sol_only_outcomes(tmp_path, critic_file, caps
 
 def test_summarize_reads_the_committed_first_run():
     root = Path(__file__).resolve().parents[3]
-    runs, unreadable = mod.load_runs(root / ".project-toolkit" / "metrics" / "sol-loop")
+    totals = mod.summarize(root / ".project-toolkit" / "metrics" / "sol-loop")
 
-    assert unreadable == 0
-    assert len(runs) >= 1
+    assert totals["unreadable"] == 0
+    assert totals["runs"] >= 1
 
 
 # Skips come before validation; the WARN does not depend on the critic file

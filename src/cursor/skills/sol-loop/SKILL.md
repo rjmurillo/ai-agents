@@ -73,8 +73,9 @@ Swap `gate` and its flags for the other steps:
 
 | Step | When | Extra flags | Exit codes |
 |------|------|-------------|------------|
-| `gate` | Before each round | `--route t3\|native\|none` | `0` proceed or skip (read `verdict`), `1` round cap hit, `2` config error |
+| `gate` | Before each round | `--route t3\|native\|cli\|none` | `0` proceed or skip (read `verdict`), `1` round cap hit, `2` config error |
 | `record` | After Sol replies | `--reply REPLY_FILE` | `0` logged, `1` round cap hit, `2` config error or log not written, `3` reply had no verdict (WARN) |
+| `review` | CLI route: runs Sol, then records | `--brief-file BRIEF` | as `record`, plus `3` when the CLI call fails (WARN) and `2` when no CLI is installed |
 | `unavailable` | Sol was started and failed | `--failure-class CLASS --detail TEXT` | `3` WARN logged (even if the critic file is unreadable), `2` refused model id |
 | `outcome` | After you answer a finding | `--run LOG --id S1 --outcome fixed\|disagree\|declined --evidence TEXT` | `0` updated, `2` bad log or id |
 | `summarize` | Any time | none | `0` totals printed |
@@ -82,11 +83,16 @@ Swap `gate` and its flags for the other steps:
 `gate`, `record`, and `unavailable` share `--critic-findings`, `--model`,
 `--author-family`, `--pr`, and `--repo`.
 
-### `sol_findings.py`
+### Modules
 
-Imported by `sol_loop.py`, never run alone. It parses Sol's reply, drops nits
-and findings without a file, line, or repro, and marks `sol_only` against the
-critic's cited locations.
+Imported by `sol_loop.py`, never run alone:
+
+- `sol_findings.py` parses Sol's reply, drops nits and findings without a
+  file, line, or repro, and marks `sol_only` against the critic's locations.
+- `sol_cli.py` runs the last-resort CLI route, read-only, and classifies a
+  failed call.
+- `sol_git.py` checks the critic file against `HEAD` and uncommitted changes.
+- `sol_ledger.py` reads, writes, and totals the run logs.
 
 ## Process
 
@@ -119,7 +125,7 @@ same family. `unknown` runs, and the log flags it.
 
 ### Phase 2: Start Sol
 
-Pick the route, then run `gate`:
+Use the first route the harness supports, then run `gate` with it:
 
 - **T3 Code**: call `orchestrator_capabilities` and pick the latest
   `gpt-<version>-sol` on the `codex` provider, unless the user named a
@@ -127,9 +133,17 @@ Pick the route, then run `gate`:
   (`role: "review"`, `mode: "async"`). Save the `taskId`, and use a new
   `clientRequestId` per round. Do not use `t3_thread_send`,
   `create_threads`, or `t3_thread_launch` for review. `--route t3`.
-- **Native**: in Codex, `spawn_agent` with a Sol model; in Copilot CLI, a
-  task on a Sol model. In Claude Code, only a custom subagent set up to run
+- **The harness's own subagent**: a harness that already runs several model
+  families delegates to Sol with its own tool. Copilot CLI: the `task` tool
+  with a Sol `model`. Factory Droid, OpenCode: a subagent definition whose
+  `model:` is Sol. Hermes: its subagent delegation on Sol. Codex:
+  `spawn_agent` on Sol. In Claude Code, only a custom subagent set up to run
   Sol counts. Keep its id. `--route native`.
+- **A native CLI (last resort)**: write the brief to a file and run
+  `sol_loop.py review --brief-file BRIEF`. It calls
+  `codex exec -m <sol> -s read-only`, or `droid exec -m <sol>` (read-only by
+  default) when Codex is absent, then records the reply itself.
+  `--route cli`; `gate` skips quietly when neither CLI is installed.
 - **No route**: `gate --route none` prints `SKIPPED` and writes no log. Say
   "sol-loop skipped: no Sol route" in one line and stop. This is the quiet
   default for a harness that cannot reach Sol: no WARN, no run file.

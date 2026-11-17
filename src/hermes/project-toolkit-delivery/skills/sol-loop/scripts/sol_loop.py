@@ -65,6 +65,7 @@ _HERE = Path(__file__).absolute().parent
 if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
+from sol_cli import DEFAULT_TIMEOUT_SECONDS, available_runner, run_sol  # noqa: E402
 from sol_findings import (  # noqa: E402
     OVERLAP_LINE_WINDOW,
     ReplyError,
@@ -78,6 +79,12 @@ from sol_git import (  # noqa: E402
     _repo_relative,
     default_log_base,
 )
+from sol_ledger import (  # noqa: E402
+    OUTCOMES,
+    prior_rounds,
+    summarize,
+    write_run_log,
+)
 
 SOL_MODEL_PATTERN = re.compile(r"^gpt-\d+(?:\.\d+)?-sol$")
 MAX_ROUNDS = 2
@@ -85,7 +92,7 @@ UNAVAILABLE_REASON = "review-model-unavailable"
 LOG_SUBDIR = "metrics/sol-loop"
 SCHEMA_VERSION = 2
 OFF_VALUES = frozenset({"0", "off", "false", "no", "disabled"})
-ROUTES = ("t3", "native", "none")
+ROUTES = ("t3", "native", "cli", "none")
 AUTHOR_FAMILIES = ("anthropic", "openai", "unknown")
 FAILURE_CLASSES = (
     "timeout",
@@ -98,7 +105,6 @@ FAILURE_CLASSES = (
     "cancelled",
     "unknown",
 )
-OUTCOMES = ("fixed", "disagree", "declined")
 
 EXIT_OK, EXIT_ESCALATE, EXIT_CONFIG, EXIT_UNAVAILABLE = 0, 1, 2, 3
 
@@ -111,47 +117,6 @@ def validate_model(model: str) -> str | None:
         f"model {model!r} refused: sol-loop accepts only a GPT Sol id such as "
         "gpt-6.1-sol. Gemini, Grok, Claude, and mixed Fusion ids are not allowed."
     )
-
-
-def load_runs(log_dir: Path) -> tuple[list[tuple[Path, dict]], int]:
-    """Read every run file in ``log_dir``. Returns (path, record) pairs and the unreadable count."""
-    records: list[tuple[Path, dict]] = []
-    unreadable = 0
-    for path in sorted(log_dir.glob("*.json")) if log_dir.is_dir() else []:
-        try:
-            record = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-            record = None
-        if isinstance(record, dict):
-            records.append((path, record))
-        else:
-            unreadable += 1
-    return records, unreadable
-
-
-def prior_rounds(log_dir: Path, key: str) -> int:
-    """Count completed Sol rounds already logged for this branch."""
-    records, _ = load_runs(log_dir)
-    return sum(1 for _, r in records if r.get("key") == key and r.get("status") == "ok")
-
-
-def write_run_log(record: dict, log_dir: Path) -> Path | None:
-    """Write one run record as its own JSON file. Returns None when the write fails."""
-    stamp = record["timestamp"].replace(":", "").replace("-", "")
-    label = re.sub(r"[^A-Za-z0-9_.-]", "-", record["key"])
-    stem = f"{stamp}-{label}-r{record['round']}-{record['status']}"
-    try:
-        log_dir.mkdir(parents=True, exist_ok=True)
-        for suffix in range(1000):
-            target = log_dir / (f"{stem}-{suffix}.json" if suffix else f"{stem}.json")
-            if not target.exists():
-                target.write_text(
-                    json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-                )
-                return target
-    except OSError as exc:
-        print(f"sol_loop: run log not written to {log_dir}: {exc}", file=sys.stderr)
-    return None
 
 
 def _read_text(path: Path, label: str) -> tuple[str, str]:
@@ -264,8 +229,13 @@ def _skip_reason(args: argparse.Namespace) -> str:
 
 def cmd_gate(args: argparse.Namespace) -> int:
     """Decide whether a Sol round may start."""
-    if args.route == "none":
-        _emit({"verdict": "SKIPPED", "reason": "no Sol route in this harness", "log": None})
+    if args.route == "none" or (args.route == "cli" and not available_runner()):
+        reason = (
+            "no Sol route in this harness"
+            if args.route == "none"
+            else "no codex or droid CLI on PATH"
+        )
+        _emit({"verdict": "SKIPPED", "reason": reason, "log": None})
         return EXIT_OK
     skip = _skip_reason(args)
     if skip:
@@ -317,18 +287,58 @@ def cmd_unavailable(args: argparse.Namespace) -> int:
     return _unavailable(run, args.failure_class, args.detail)
 
 
-def cmd_record(args: argparse.Namespace) -> int:
-    """Parse Sol's reply for this round and write the ledger."""
-    run, error = _start(args, check_fresh=False)
+def _started(args: argparse.Namespace, *, check_fresh: bool) -> tuple[Run | None, int]:
+    """Start a round that will produce a reply. Returns (run, exit code if it must stop)."""
+    run, error = _start(args, check_fresh=check_fresh)
     if run is None:
         print(f"sol_loop: {error}", file=sys.stderr)
-        return EXIT_CONFIG
+        return None, EXIT_CONFIG
     if run.record["round"] > MAX_ROUNDS:
         reason = f"{MAX_ROUNDS} Sol rounds already logged for {run.record['key']}"
-        return run.finish("escalated", {"verdict": "ESCALATE", "reason": reason}, EXIT_ESCALATE)
+        return None, run.finish(
+            "escalated", {"verdict": "ESCALATE", "reason": reason}, EXIT_ESCALATE
+        )
+    return run, EXIT_OK
+
+
+def cmd_record(args: argparse.Namespace) -> int:
+    """Parse Sol's reply for this round and write the ledger."""
+    run, code = _started(args, check_fresh=False)
+    if run is None:
+        return code
     reply, error = _read_text(Path(args.reply), "Sol reply")
     if error:
         return _unavailable(run, "invalid-output", error)
+    return _record_reply(run, args, reply)
+
+
+def cmd_review(args: argparse.Namespace) -> int:
+    """Last-resort route: run Sol through a native CLI, then record the reply.
+
+    This step starts Sol, so it checks critic freshness like ``gate``.
+    """
+    run, code = _started(args, check_fresh=True)
+    if run is None:
+        return code
+    brief, error = _read_text(Path(args.brief_file), "brief")
+    if error:
+        print(f"sol_loop: {error}", file=sys.stderr)
+        return EXIT_CONFIG
+    runner = available_runner()
+    if not runner:
+        print(
+            "sol_loop: no codex or droid CLI on PATH; use gate --route cli first", file=sys.stderr
+        )
+        return EXIT_CONFIG
+    run.record["runner"] = runner
+    result = run_sol(runner, args.model, brief, Path(args.repo).resolve(), args.timeout)
+    if not result.ok:
+        return _unavailable(run, result.failure_class, result.detail)
+    return _record_reply(run, args, result.text)
+
+
+def _record_reply(run: Run, args: argparse.Namespace, reply: str) -> int:
+    """Parse one reply into the ledger, or take the WARN path when it is not a review."""
     try:
         verdict, raw = parse_reply(reply)
     except ReplyError as exc:
@@ -375,25 +385,6 @@ def cmd_outcome(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
-def summarize(log_dir: Path) -> dict:
-    """Total every run file in ``log_dir``."""
-    records, unreadable = load_runs(log_dir)
-    runs = [r for _, r in records]
-    totals: dict = {"runs": len(runs), "unreadable": unreadable}
-    for status in ("ok", "skipped", "unavailable", "escalated"):
-        totals[status] = sum(1 for r in runs if r.get("status") == status)
-    for key in ("kept", "dropped", "sol_only", "overlap"):
-        totals[key] = sum(int((r.get("counts") or {}).get(key) or 0) for r in runs)
-    sol_only = [
-        f for r in runs for f in r.get("findings", []) if isinstance(f, dict) and f.get("sol_only")
-    ]
-    totals["sol_only_outcomes"] = {
-        outcome: sum(1 for f in sol_only if f.get("outcome", "open") == outcome)
-        for outcome in (*OUTCOMES, "open")
-    }
-    return totals
-
-
 def cmd_summarize(args: argparse.Namespace) -> int:
     repo = Path(args.repo).resolve()
     base = Path(args.log_base).resolve() if args.log_base else default_log_base(repo)
@@ -428,6 +419,12 @@ def build_parser() -> argparse.ArgumentParser:
     record = sub.add_parser("record", help="parse Sol's reply and write the ledger")
     _add_shared(record)
     record.add_argument("--reply", required=True, help="file holding Sol's reply text")
+    review = sub.add_parser(
+        "review", help="last resort: run Sol through codex or droid, then record"
+    )
+    _add_shared(review)
+    review.add_argument("--brief-file", required=True, help="file holding the round brief")
+    review.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT_SECONDS)
     unavailable = sub.add_parser("unavailable", help="log a started Sol round that failed")
     _add_shared(unavailable)
     unavailable.add_argument("--failure-class", required=True, choices=FAILURE_CLASSES)
@@ -448,6 +445,7 @@ def build_parser() -> argparse.ArgumentParser:
 COMMANDS = {
     "gate": cmd_gate,
     "record": cmd_record,
+    "review": cmd_review,
     "unavailable": cmd_unavailable,
     "outcome": cmd_outcome,
     "summarize": cmd_summarize,

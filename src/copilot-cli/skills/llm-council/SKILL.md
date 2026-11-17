@@ -87,7 +87,8 @@ replaces the chairman. If the user names members, use those.
 
 ## Process
 
-Pick the first route the harness supports. Every route uses the same members,
+Use the first route the harness supports: T3 Code first, then the harness's
+own subagents, then each member's own CLI. Every route uses the same members,
 prompts, and Borda count. **If a member is unavailable, report it. Never
 substitute another model for it.** Run with the members you can reach only
 while at least 3 remain (or the whole council, if it is smaller); otherwise
@@ -120,21 +121,64 @@ stop and report which members were missing.
 Do not wait idle: read each reply as it arrives. A timeout, error, or empty
 reply is a missing answer, not a vote.
 
-### Route 2: harness subagents
+### Route 2: the harness's own subagents
 
-Outside T3, use the harness's own subagent tool (Codex `spawn_agent`, a
-Copilot CLI task, a Claude Code subagent) with a model per member, and the same
-`council_steps.py` steps. A member the harness cannot run is unavailable.
+Outside T3, a harness that already runs several model families delegates with
+its own subagent tool, one subagent per member, with the same
+`council_steps.py` steps:
 
-### Route 3: script
+- **Copilot CLI**: the `task` tool, which takes a `model` per call.
+- **Factory Droid, OpenCode**: a subagent (droid or agent) definition whose
+  `model:` names the member.
+- **Hermes**: its subagent delegation with a model per subagent.
 
-`council.py` runs all three stages itself through Copilot CLI
-(`copilot -p --model <id>`, charges Copilot AI Credits) and GitHub Models REST
-(free tier, needs `gh auth login`). Use it when the harness has no subagent
-route, or for scheduled runs.
+A single-family harness reaches only its own family this way: a Claude Code
+subagent runs Claude members, a Codex `spawn_agent` runs GPT members. A member
+the harness cannot run moves to route 3, alone and on the same model. If route
+3 cannot reach it either, it is unavailable.
+
+### Route 3: each member's own CLI (last resort)
+
+`council.py` runs all three stages itself, calling each member's own vendor
+harness:
+
+- Claude members: `claude -p --model <id> --tools ""`, prompt on stdin.
+- GPT members: `codex exec -m <id> -s read-only -`, prompt on stdin.
+- Other Copilot catalog ids, or a member whose CLI is not installed:
+  `copilot -p --model <id>`. Charges Copilot AI Credits.
+- Open-weight `--cheap` members: GitHub Models REST (needs `gh auth login`).
+
+Every call is read-only. Copilot keeps `--allow-all-tools` so a permission
+prompt cannot wedge it, and deny rules (which win over every allow) remove
+shell, write, url, and memory, plus the built-in MCP servers. Use this route
+when neither route above can reach the council, or for scheduled runs.
 
 Delegates on routes 1 and 2 can use tools. The councillor prompt still says to
 answer from knowledge only; keep their briefs read-only.
+
+## Review loop mode
+
+For a code review, run the members as scored reviewers instead of the three
+stages (after `t3dotgg/tstack` `council`). Default members are the `review`
+mode council; use members the user names instead.
+
+1. Before the first round, answer open PR comments, fix known issues, and run
+   the relevant checks, so reviewers see current code. Skip fixes to code the
+   user wants to replace.
+2. Start one delegate per member through the routes above, read-only, with the
+   change and its context. Each ends its reply with one line `SCORE: N/10`.
+   Save each reply as `<review-dir>/round-<n>/<member>.md`.
+3. Do not wait idle: check each result against the code as it arrives. Do not
+   edit files while a delegate still reviews the same checkout. A delegate the
+   user marked non-blocking is not waited for, and a late result is feedback
+   whose score is not recorded.
+4. Fix what you agree with, then start a fresh round. Each full review pass is
+   one round. Continue until every delegate is satisfied. Fight scope creep:
+   decline what the change does not need.
+5. Run `council_review.py table` and put the section in the PR description,
+   before the model and harness line. Edit the open PR's description; do not
+   post a comment. With no PR, put it in the final reply. A delegate with no
+   score shows `no score`; never invent one.
 
 ## Scripts
 
@@ -168,6 +212,16 @@ prints JSON naming the prompt to send and where each reply goes.
 | `0` | Step done |
 | `1` | Fewer councillors answered than the minimum |
 | `2` | Config error: missing file, empty question, a reused run directory, `chair` before `rank`, or a bad `--unavailable` value |
+
+### `council_review.py`
+
+`table --review-dir DIR --members m1,m2,m3` prints the `## Council review`
+section from `DIR/round-<n>/<member>.md`, reading each `SCORE: N/10`.
+
+| Exit | Meaning |
+|---|---|
+| `0` | Table printed |
+| `2` | No `round-<n>` directories, no members, or an unreadable directory |
 
 `council_core.py` and `council_backends.py` are shared modules, never run
 alone.
@@ -233,8 +287,8 @@ bridging work.
   suspect.
 - **GitHub Models rate limits** after 3 or more councils in 5 minutes.
 - **Copilot CLI wedges** on a permission prompt. The script passes
-  `--allow-all-tools` to avoid it, which also means the CLI does not stop a
-  councillor from using tools. If a run hangs, check `pgrep -af 'copilot -p'`.
+  `--allow-all-tools` to avoid it, and its deny rules keep the call read-only.
+  If a run hangs, check `pgrep -af 'copilot -p'`.
 
 ## Verification
 
