@@ -31,7 +31,7 @@ A disposition for each finding, with the evidence behind it.
 | Disposition | When | Reply contains |
 | --- | --- | --- |
 | Confirmed | Your check matches the claim | The fixture and its output, or the file and line you read, then the fix |
-| Declined (refuted) | The claim about the code was false | The exact claim, the file and line, the commit checked (the PR head), the command, and its output. Then resolve the thread if it is bot-authored or the reviewer approved, per [`pr-comment-responder`](pr-comment-responder.md) |
+| Declined (refuted) | The claim about the code was false | The exact claim, the file and line, the commit checked (the PR head), the command, and its output. Then resolve the thread if it is bot-authored or explicitly approved, per [`pr-comment-responder`](pr-comment-responder.md) |
 | Unreproduced | Nothing settles it | What you tried, and what would settle it. Leave the thread open |
 
 ## Advanced use

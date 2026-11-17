@@ -67,8 +67,7 @@ uv run python .claude/skills/decision-critic/scripts/decision-critic.py --help
 | --- | --- |
 | `0` | Step guidance printed. |
 | `1` | Step number outside 1 to 7, or `--decision` missing at step 1. |
-
-The script exits only `0` or `1`.
+| `2` | The arguments were rejected: a required flag is missing or a value is not an integer. `--help` does not list this code. |
 
 Example:
 

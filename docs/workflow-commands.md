@@ -152,20 +152,13 @@ Code review in two stages: a spec-compliance gate, then review axes picked by th
 **What it does:**
 
 1. Reads the diff against the base branch
-2. Runs five review axes sequentially, each dispatching a specialized agent or skill
-3. Categorizes findings as Critical, Important, or Suggestion
+2. Runs the Stage 1 spec-compliance gate. A `CRITICAL_FAIL` there stops the review
+3. Picks Stage 2 axes from the changed paths and diff effects. `analyst` always runs, plus a correctness pass. `--deep` runs every canonical axis
+4. Merges every axis verdict into one final verdict, and writes a SHA-bound marker commit on a PASS
 
-**Axes:**
+**Axes:** 11 canonical axes (`analyst`, `architect`, `qa`, `security`, `devops`, `roadmap`, `reliability`, `observability`, `agent-safety`, `decision-rigor`, `code-quality`), plus 4 local skill axes (`code-qualities-assessment`, `doc-accuracy`, `golden-principles`, `taste-lints`). The [`review`](skills/review.md) page has the details.
 
-| Axis | Agent/Skill | Focus |
-|------|-------------|-------|
-| Architecture | architect | Patterns, boundaries, ADR conformance, coupling |
-| Security | security + security-scan | CWE references, OWASP, least privilege |
-| Quality | code-qualities-assessment | Cohesion, coupling, encapsulation, testability, DRY |
-| Tests | qa | Coverage for every new code path, failure paths |
-| Standards | golden-principles + taste-lints | Naming, style, consistency |
-
-**Output:** Per-finding format with location (file:line), severity, and fix recommendation.
+**Output:** A table with one verdict row per axis, a final verdict (`PASS`, `WARN`, `CRITICAL_FAIL`, or `UNKNOWN`), and findings with severity, location (file:line), and a recommendation.
 
 **When to use:** After `/test`, before shipping. Also useful for reviewing any diff or PR.
 
