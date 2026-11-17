@@ -25,11 +25,8 @@
         "how to fix",
         "suppress"
       ],
-      "forbidden_response_patterns": [
-        "\\bimport\\s+[\\w$*{},\\s]*?\\bfrom\\s+[\"']@(?:astrojs/starlight|components/)"
-      ],
       "expected_gate": "technical-writing-site-recon",
-      "rationale": "The skill recons the target first and loads a site profile only on a match. An import statement that pulls an Astro or Starlight component (`import ... from '@astrojs/starlight...'` or `from '@components/...'`) is the clear failure on a plain Markdown repo, so the grader caps it. Prose advice, including naming a component or package to reject it, is left to the judge. tests/eval/test_technical_writing_s2_patterns.py pins both sides."
+      "rationale": "The skill recons the target first and loads a site profile only on a match. Astro, Starlight, or AppHost advice on a plain Markdown repo is the failure this scenario looks for. The judge scores it: a pattern cannot tell component advice from naming a component to reject it, so S2 sets no forbidden_response_patterns. tests/eval/test_technical_writing_s2_patterns.py pins that choice."
     },
     {
       "id": "S3",

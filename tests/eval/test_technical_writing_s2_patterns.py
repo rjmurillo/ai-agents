@@ -1,9 +1,11 @@
-"""Scenario S2 caps a component import, never a correct rejection.
+"""Scenario S2 is graded by the judge alone, with no forbidden patterns.
 
-S2 asks for an analyzer rule page outline on a plain Markdown repository. Per
-the owner's decision, its forbidden patterns match only an import statement
-that pulls an Astro or Starlight component module. Prose that names a
-component or package, including to reject it, is left to the judge.
+S2 asks for an analyzer rule page outline on a plain Markdown repository. Two
+review cycles showed that a forbidden-claim pattern either caps a correct
+rejection ("Don't import X from '@astrojs/starlight/components'") or misses a
+hedged real import, because the grader excuses a match only when "not" or
+"never" sits right before it. The owner chose judge-only grading for S2. This
+test keeps a pattern from returning without that decision being revisited.
 """
 
 from __future__ import annotations
@@ -31,34 +33,16 @@ def s2() -> dict[str, Any]:
     return next(s for s in data["scenarios"] if s["id"] == "S2")
 
 
-@pytest.mark.parametrize(
-    "response",
-    [
-        "Don't import @astrojs/starlight components.",
-        "Avoid any import of @astrojs/starlight components.",
-        "No import from @components/ belongs on a plain Markdown page.",
-        "Do not import { Aside } from '@astrojs/starlight/components'.",
-        "Never import X from '@components/Foo.astro'.",
-        "Use GitHub alerts instead of <Aside> from '@astrojs/starlight/components'.",
-        "This repo does not use MDX, so imports from '@astrojs/starlight' will not render.",
-        "Don't use <Aside>.",
-        "- <Aside> is Starlight-only; use a blockquote.",
-        'Use a blockquote instead of <Aside type="tip">.',
-    ],
-)
-def test_correct_rejection_is_not_capped(s2: dict[str, Any], response: str) -> None:
-    assert eval_mod._forbidden_claim_hits(s2, response) == []
+def test_s2_sets_no_forbidden_patterns(s2: dict[str, Any]) -> None:
+    assert "forbidden_response_patterns" not in s2
 
 
 @pytest.mark.parametrize(
     "response",
     [
+        "Don't import { Aside } from '@astrojs/starlight/components'.",
         "import { Aside } from '@astrojs/starlight/components';",
-        'import { Tabs, TabItem } from "@astrojs/starlight/components";',
-        "import {\n  Tabs,\n  TabItem,\n} from '@astrojs/starlight/components';",
-        "import OsAwareTabs from '@components/OsAwareTabs.astro';",
-        "Add this line: `import { Aside } from '@astrojs/starlight/components';`",
     ],
 )
-def test_component_import_is_capped(s2: dict[str, Any], response: str) -> None:
-    assert eval_mod._forbidden_claim_hits(s2, response)
+def test_s2_caps_nothing_so_the_judge_decides(s2: dict[str, Any], response: str) -> None:
+    assert eval_mod._forbidden_claim_hits(s2, response) == []
