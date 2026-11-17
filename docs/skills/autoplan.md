@@ -50,7 +50,7 @@ Decisions fall into three classes. Mechanical decisions have one defensible answ
 
 ## Advanced use
 
-**Phases.** Phase 0 recon reads the target repository's own signals (`CONTRIBUTING*`, [`AGENTS.md`](../../AGENTS.md), [`CLAUDE.md`](../../CLAUDE.md), build manifests, test layout) so plans match the detected stack. For an issue URL, it also checks for an in-flight pull request with `check_existing_pr_for_issue.py` from the `github` skill. Only exit `0` clears new work; exit `1` means an open PR claims the issue, and exits `2` to `4` stop and report.
+**Phases.** Phase 0 recon reads the target repository's own signals (`CONTRIBUTING*`, `AGENTS.md`, `CLAUDE.md`, build manifests, test layout) so plans match the detected stack. For an issue URL, it also checks for an in-flight pull request with `check_existing_pr_for_issue.py` from the `github` skill. Only exit `0` clears new work; exit `1` means an open PR claims the issue, and exits `2` to `4` stop and report.
 
 **Size tiers.** Phase 1 picks the smallest honest tier:
 

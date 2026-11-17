@@ -48,7 +48,7 @@ uv run python .claude/skills/memory/scripts/improve_memory_graph_density.py --dr
 ```
 
 > [!WARNING]
-> `invoke_memory_cross_reference.py` rewrites memory files and has no dry-run mode. It always exits `0`, even when a step fails, so read the `Errors` array in its JSON output. A density dry run previews only one of its three steps, the related-links step. Run it only after a density dry run, then review its edits with `git diff --stat .serena/memories`.
+> `invoke_memory_cross_reference.py` rewrites memory files and has no dry-run mode. It exits `0` even when a step fails, so read the `Errors` array in its JSON output. It exits `1` only when it finds no project root or the memories path is outside the project. A density dry run previews only one of its three steps, the related-links step. Run it only after a density dry run, then review its edits with `git diff --stat .serena/memories`.
 
 | Script | Flags from `--help` |
 | --- | --- |

@@ -4,7 +4,7 @@ Drops documentation starters into a project: a README, an architecture doc, an A
 
 ## When to use it
 
-- A repository has no [`README.md`](../../README.md), `ARCHITECTURE.md`, or API reference and you need a skeleton.
+- A repository has no `README.md`, `ARCHITECTURE.md`, or API reference and you need a skeleton.
 - A team has no tech writer and wants documented standards next to the templates.
 - You need a starting point for code comment conventions in a polyglot project.
 - Trigger phrases: `scaffold project documentation`, `bootstrap docs for new codebase`, `add starter README`, `set up documentation standards`, `document this codebase from scratch`.
@@ -28,7 +28,7 @@ The skill confirms the target directory, asks before it overwrites any existing 
 
 | Template | Output location (default) | Purpose |
 | --- | --- | --- |
-| `README.template.md` | [`README.md`](../../README.md) | Why, quick start, structure, common tasks, troubleshooting |
+| `README.template.md` | `README.md` | Why, quick start, structure, common tasks, troubleshooting |
 | `ARCHITECTURE.template.md` | `ARCHITECTURE.md` | System overview, components, data flow, decisions, failure modes |
 | `API.template.md` | `docs/API.md` | API reference per endpoint with conventions and examples |
 | `CODE_COMMENTS.template.md` | `docs/standards/CODE_COMMENTS.md` | Docstring and inline comment standards across languages |

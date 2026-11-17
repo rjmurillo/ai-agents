@@ -77,7 +77,7 @@ Within one tier, combine the changes if you can. Otherwise prefer the better-tes
 
 ### Auto-resolved paths
 
-The script accepts the target branch version for paths such as `.project-toolkit/*`, `.agents/*`, `.serena/*`, `templates/*`, `src/claude/*`, `.claude/agents/*`, `.github/agents/*`, `.github/prompts/*`, and the lock files [`package-lock.json`](../../package-lock.json), `yarn.lock`, and `pnpm-lock.yaml`. Plugin manifests (`*/.claude-plugin/plugin.json`) get a special rule. When the sides differ only in `version`, the script resolves it. Any other difference blocks auto-resolution.
+The script accepts the target branch version for paths such as `.project-toolkit/*`, `.agents/*`, `.serena/*`, `templates/*`, `src/claude/*`, `.claude/agents/*`, `.github/agents/*`, `.github/prompts/*`, and the lock files `package-lock.json`, `yarn.lock`, and `pnpm-lock.yaml`. Plugin manifests (`*/.claude-plugin/plugin.json`) get a special rule. When the sides differ only in `version`, the script resolves it. Any other difference blocks auto-resolution.
 
 > [!WARNING]
 > An add/add conflict on an append-only record (session logs, QA reports, retrospectives) is never auto-resolved. The file lands in `files_blocked` and the run exits 1. Keep both files: accept the base version at the original name and rename your branch's version with a distinguishing suffix. Never merge the contents of two such records into one file.

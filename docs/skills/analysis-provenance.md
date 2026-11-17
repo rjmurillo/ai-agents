@@ -56,7 +56,7 @@ For an `UPSTREAM` result, adjust local configuration, look for an override optio
 
 ## Advanced use
 
-The script resolves the target, then checks dependency directories (`node_modules`, `.venv`, `vendor`, `.gitmodules`), [`package.json`](../../package.json), and the first 20 lines of the file for generated markers and copyright notices. It weighs those signals and returns a category with evidence.
+The script resolves the target, then checks dependency directories (`node_modules`, `.venv`, `vendor`, `.gitmodules`), `package.json`, and the first 20 lines of the file for generated markers and copyright notices. It weighs those signals and returns a category with evidence.
 
 Run it from the root of a checkout of this repository:
 

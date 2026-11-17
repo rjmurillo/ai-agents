@@ -82,7 +82,7 @@ You need an approved plan file that passed review, and a cleared context window.
 | 3 | Milestone Execution | Delegate to agents and run tests. Repeats until all milestones finish. |
 | 4 | Post-Implementation QR | Quality review of the implemented code. |
 | 5 | Issue Resolution | Conditional. Present issues and collect fixes, then loop back to step 4. |
-| 6 | Documentation | Technical-writer pass for [`CLAUDE.md`](../../CLAUDE.md) and [`README.md`](../../README.md). |
+| 6 | Documentation | Technical-writer pass for `CLAUDE.md` and `README.md`. |
 | 7 | Retrospective | Present the execution summary. |
 
 On resume, step 1 reconciles the plan file against work already done.

@@ -104,7 +104,7 @@ The skill never dismisses a review. A nonzero exit is an unknown, never a verdic
 
 ### Force-push safety
 
-Before any push, `git rev-parse "refs/heads/$BRANCH"` must match the PR's expected `head.sha`. A force-push needs explicit user authorization and an SHA-pinned lease: `--force-with-lease="refs/heads/${BRANCH}:${EXPECTED_REMOTE_SHA}"` with `FORCE_PUSH_OK=1`. A bare `--force-with-lease` is not allowed. It reads a tracking ref that any `git fetch` can advance. The skill never passes `--no-verify`.
+Before any push, `git rev-parse "refs/heads/$BRANCH"` must match the PR's expected `head.sha`. A force-push needs explicit user authorization and an SHA-pinned lease: `--force-with-lease="refs/heads/${BRANCH}:${EXPECTED_REMOTE_SHA}"` with `FORCE_PUSH_OK=1`. A bare `--force-with-lease` is not allowed. It reads a tracking ref that any `git fetch` can advance. The skill never skips git hooks.
 
 ### Completion gate
 
