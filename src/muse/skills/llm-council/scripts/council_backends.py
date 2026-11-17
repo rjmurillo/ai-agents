@@ -13,16 +13,24 @@ Copilot CLI, then to GitHub Models REST:
   Free tier; uses the ``gh auth token``.
 
 Security: model output from earlier stages reaches later prompts, so every CLI
-call runs without write, shell, or network tools. Copilot keeps
-``--allow-all-tools`` so a permission prompt cannot wedge it, and deny rules
-(which win over every allow) remove shell, write, url, and memory, plus the
-built-in MCP servers. Only reading the one prompt file stays allowed.
+call runs without write, shell, network, or MCP tools:
+
+- ``claude``: ``--tools ""`` and ``--strict-mcp-config`` with no MCP config.
+- ``codex``: ``-s read-only``, ``--ignore-user-config`` (no user MCP servers),
+  and ``--disable apps`` (no account app connectors).
+- ``copilot``: keeps ``--allow-all-tools`` so a permission prompt cannot wedge
+  it; deny rules (which win over every allow) remove shell, write, url, and
+  memory; built-in MCP servers and every server in the user's
+  ``mcp-config.json`` are disabled. Only reading the one prompt file stays.
+  MCP servers that an installed Copilot plugin adds are not listed there and
+  are not disabled.
 """
 
 from __future__ import annotations
 
 import http.client
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -57,6 +65,26 @@ COPILOT_READ_ONLY = (
     "memory",
     "--disable-builtin-mcps",
 )
+
+
+def _copilot_user_mcp_servers() -> list[str]:
+    """Server names in the user's Copilot MCP config, or [] when it is unreadable."""
+    home = Path(os.environ.get("COPILOT_HOME") or Path.home() / ".copilot")
+    try:
+        servers = json.loads((home / "mcp-config.json").read_text(encoding="utf-8")).get(
+            "mcpServers"
+        )
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, AttributeError):
+        return []
+    return sorted(servers) if isinstance(servers, dict) else []
+
+
+def copilot_read_only_args() -> list[str]:
+    """Deny rules plus one disable and one deny per user MCP server."""
+    args = list(COPILOT_READ_ONLY)
+    for name in _copilot_user_mcp_servers():
+        args += ["--disable-mcp-server", name, "--deny-tool", name]
+    return args
 
 
 def gh_token() -> str:
@@ -137,10 +165,19 @@ def claude_cli_model(model: str) -> str:
 def call_claude(model: str, prompt: str, timeout: int = 300) -> str:
     """One Claude Code turn with no tools; the prompt goes on stdin."""
     with tempfile.TemporaryDirectory(prefix="council-claude-") as tmp:
-        cmd = ["claude", "-p", "--model", claude_cli_model(model), "--tools", ""]
+        cmd = [
+            "claude",
+            "-p",
+            "--model",
+            claude_cli_model(model),
+            "--tools",
+            "",
+            "--strict-mcp-config",
+        ]
         proc = _run(cmd, timeout, stdin_text=prompt, cwd=tmp)
-    if proc.returncode != 0:
-        raise RuntimeError(f"claude rc={proc.returncode}: {(proc.stderr or proc.stdout)[:400]}")
+    if proc.returncode != 0 or not proc.stdout.strip():
+        detail = ((proc.stderr or proc.stdout).strip() or "empty reply")[:400]
+        raise RuntimeError(f"claude rc={proc.returncode}: {detail}")
     return proc.stdout.strip()
 
 
@@ -158,6 +195,7 @@ def call_codex(model: str, prompt: str, timeout: int = 300) -> str:
             "--ephemeral",
             "--skip-git-repo-check",
         ]
+        cmd += ["--ignore-user-config", "--disable", "apps"]
         proc = _run([*cmd, "-C", tmp, "-o", str(out), "-"], timeout, stdin_text=prompt, cwd=tmp)
         text = out.read_text(encoding="utf-8") if out.is_file() else ""
     if proc.returncode != 0 or not text.strip():
@@ -181,7 +219,7 @@ def _copilot_via_file(model: str, prompt: str, timeout: int) -> subprocess.Compl
             "Output ONLY the final response: no preamble, no tool-call narration, no 'Read file' headers."
         )
         args = ["copilot", "-p", cmd_prompt, "--model", model, "--allow-all-tools", "--no-color"]
-        return _run([*args, *COPILOT_READ_ONLY, "--add-dir", prompt_dir], timeout)
+        return _run([*args, *copilot_read_only_args(), "--add-dir", prompt_dir], timeout)
 
 
 def call_copilot(model: str, prompt: str, timeout: int = 240) -> str:
@@ -190,7 +228,7 @@ def call_copilot(model: str, prompt: str, timeout: int = 240) -> str:
         proc = _copilot_via_file(model, prompt, timeout)
     else:
         args = ["copilot", "-p", prompt, "--model", model, "--allow-all-tools", "--no-color"]
-        proc = _run([*args, *COPILOT_READ_ONLY], timeout)
+        proc = _run([*args, *copilot_read_only_args()], timeout)
     if proc.returncode != 0:
         raise RuntimeError(f"copilot rc={proc.returncode}: {(proc.stderr or proc.stdout)[:400]}")
     out = _COPILOT_TOOL_PREAMBLE.sub("", proc.stdout)

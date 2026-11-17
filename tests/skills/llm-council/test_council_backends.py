@@ -26,9 +26,10 @@ backends = import_skill_script(
 
 
 @pytest.fixture(autouse=True)
-def _no_cli_on_path(monkeypatch):
-    """Hide every vendor CLI so no test can reach a real model."""
+def _no_cli_on_path(monkeypatch, tmp_path):
+    """Hide every vendor CLI and the real Copilot MCP config."""
     monkeypatch.setattr(backends.shutil, "which", lambda name: None)
+    monkeypatch.setenv("COPILOT_HOME", str(tmp_path / "copilot-home"))
 
 
 class Completed:
@@ -157,7 +158,15 @@ def test_claude_call_has_no_tools_and_uses_stdin(calls):
     assert backends.call_claude("claude-opus-5.5", "the question") == "ok\ufffd"
 
     cmd, kwargs = calls[0]
-    assert cmd == ["claude", "-p", "--model", "claude-opus-5-5", "--tools", ""]
+    assert cmd == [
+        "claude",
+        "-p",
+        "--model",
+        "claude-opus-5-5",
+        "--tools",
+        "",
+        "--strict-mcp-config",
+    ]
     assert kwargs["input"] == "the question"
 
 
@@ -174,6 +183,8 @@ def test_codex_call_is_read_only_and_uses_stdin(monkeypatch):
     assert backends.call_codex("gpt-6-sol", "the question") == "answer"
     cmd, kwargs = seen[0]
     assert cmd[cmd.index("-s") + 1] == "read-only"
+    assert "--ignore-user-config" in cmd
+    assert cmd[cmd.index("--disable") + 1] == "apps"
     assert cmd[-1] == "-"
     assert kwargs["input"] == "the question"
 
@@ -189,3 +200,35 @@ def test_copilot_calls_deny_shell_write_url_memory_and_mcp(calls, monkeypatch, l
     denied = {cmd[i + 1] for i, arg in enumerate(cmd) if arg == "--deny-tool"}
     assert denied == {"shell", "write", "url", "memory"}
     assert "--disable-builtin-mcps" in cmd
+
+
+def test_empty_claude_reply_raises(monkeypatch):
+    monkeypatch.setattr(backends.subprocess, "run", lambda cmd, **kw: Completed(stdout="  \n"))
+
+    with pytest.raises(RuntimeError, match="empty reply"):
+        backends.call_claude("claude-opus-5.5", "q")
+
+
+def test_copilot_disables_and_denies_each_user_mcp_server(calls, tmp_path, monkeypatch):
+    home = tmp_path / "copilot-home"
+    home.mkdir()
+    (home / "mcp-config.json").write_text(
+        '{"mcpServers": {"beads": {}, "ado": {}}}', encoding="utf-8"
+    )
+
+    backends.call_copilot("gpt-6-sol", "question")
+
+    cmd = calls[0][0]
+    disabled = {cmd[i + 1] for i, arg in enumerate(cmd) if arg == "--disable-mcp-server"}
+    denied = {cmd[i + 1] for i, arg in enumerate(cmd) if arg == "--deny-tool"}
+    assert disabled == {"beads", "ado"}
+    assert {"beads", "ado", "shell", "write", "url", "memory"} <= denied
+
+
+@pytest.mark.parametrize("content", ["not json", '{"mcpServers": []}', "[]"])
+def test_unreadable_copilot_mcp_config_adds_no_servers(tmp_path, content):
+    home = tmp_path / "copilot-home"
+    home.mkdir()
+    (home / "mcp-config.json").write_text(content, encoding="utf-8")
+
+    assert backends._copilot_user_mcp_servers() == []

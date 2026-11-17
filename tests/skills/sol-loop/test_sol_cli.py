@@ -79,6 +79,8 @@ def test_codex_call_is_read_only_and_reads_the_brief_on_stdin(on_path, monkeypat
     assert result.ok
     assert cmd[1:3] == ["exec", "-m"] and cmd[3] == SOL
     assert cmd[cmd.index("-s") + 1] == "read-only"
+    assert "--ignore-user-config" in cmd
+    assert cmd[cmd.index("--disable") + 1] == "apps"
     assert cmd[-1] == "-"
     assert kwargs["input"] == "the brief"
     assert (kwargs["encoding"], kwargs["errors"]) == ("utf-8", "replace")
@@ -95,6 +97,7 @@ def test_droid_call_has_no_autonomy_flag(on_path, monkeypatch, tmp_path):
     assert cmd[1:4] == ["exec", "-m", SOL]
     assert "--auto" not in cmd
     assert "-f" in cmd
+    assert cmd[cmd.index("--only-tools") + 1] == "Read,Grep,Glob,LS"
 
 
 # Failures
@@ -110,6 +113,9 @@ def test_droid_call_has_no_autonomy_flag(on_path, monkeypatch, tmp_path):
         ("401 Unauthorized: not logged in", "auth"),
         ("HTTP 503 service unavailable", "5xx"),
         ("request id 4290ab: connection reset", "unknown"),
+        ("used 512 tokens before the connection dropped", "unknown"),
+        ("error at line 503 of the patch", "unknown"),
+        ("HTTP status 502 bad gateway", "5xx"),
     ],
 )
 def test_failure_classification(message, expected):

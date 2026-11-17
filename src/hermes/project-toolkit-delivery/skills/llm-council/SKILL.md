@@ -151,7 +151,9 @@ mode council; use members the user names instead.
    user wants to replace.
 2. Start one delegate per member through the routes above, read-only, with the
    change and its context. Each ends its reply with one line `SCORE: N/10`.
-   Save each reply as `<review-dir>/round-<n>/<member>.md`.
+   Save each reply as `<review-dir>/round-<n>/<member>.md`, where `<member>` is
+   the member id with any character other than letters, digits, `.`, `_`, or
+   `-` replaced by `_` (so `openai/gpt-4.1` is `openai_gpt-4.1.md`).
 3. Do not wait idle: check each result against the code as it arrives. Do not
    edit files while a delegate still reviews the same checkout. A delegate the
    user marked non-blocking is not waited for, and a late result is feedback

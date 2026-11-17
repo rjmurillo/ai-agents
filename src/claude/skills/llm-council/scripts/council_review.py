@@ -43,14 +43,19 @@ def parse_score(text: str) -> str:
     return f"{matches[-1]}/10"
 
 
-def round_dirs(review_dir: Path) -> list[Path]:
-    """Round directories in numeric order."""
+def numbered_rounds(review_dir: Path) -> list[tuple[int, Path]]:
+    """(round number, directory) pairs in numeric order."""
     found = [
         (int(m.group(1)), p)
         for p in review_dir.iterdir()
         if p.is_dir() and (m := _ROUND.match(p.name))
     ]
-    return [p for _, p in sorted(found)]
+    return sorted(found)
+
+
+def round_dirs(review_dir: Path) -> list[Path]:
+    """Round directories in numeric order."""
+    return [p for _, p in numbered_rounds(review_dir)]
 
 
 def score_for(round_dir: Path, member: str) -> str:
@@ -63,10 +68,10 @@ def score_for(round_dir: Path, member: str) -> str:
 
 
 def render_table(review_dir: Path, members: list[str]) -> str:
-    rounds = round_dirs(review_dir)
-    header = "| Delegate | " + " | ".join(f"Round {i}" for i in range(1, len(rounds) + 1)) + " |"
+    rounds = numbered_rounds(review_dir)
+    header = "| Delegate | " + " | ".join(f"Round {n}" for n, _ in rounds) + " |"
     rule = "| --- |" + " --- |" * len(rounds)
-    rows = [f"| {m} | " + " | ".join(score_for(r, m) for r in rounds) + " |" for m in members]
+    rows = [f"| {m} | " + " | ".join(score_for(r, m) for _, r in rounds) + " |" for m in members]
     return (
         "\n".join(["## Council review", "", f"Rounds: {len(rounds)}", "", header, rule, *rows])
         + "\n"

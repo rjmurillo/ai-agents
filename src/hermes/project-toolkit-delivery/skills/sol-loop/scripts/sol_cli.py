@@ -3,10 +3,12 @@
 Used only when the harness has neither T3 ``delegate_task`` nor a native Sol
 subagent. Tries ``codex exec`` first, then ``droid exec``:
 
-- ``codex exec -m <model> -s read-only --ephemeral --skip-git-repo-check -C <repo> -o <file> -``
-  reads the brief on stdin and writes Sol's last message to ``<file>``.
-- ``droid exec -m <model> -f <brief>`` runs read-only when no ``--auto`` level
-  is given, and prints the reply on stdout.
+- ``codex exec -m <model> -s read-only --ignore-user-config --disable apps ... -``
+  reads the brief on stdin and writes Sol's last message to a file. The two
+  extra flags drop user MCP servers and account app connectors.
+- ``droid exec -m <model> -f <brief> --only-tools Read,Grep,Glob,LS`` runs
+  read-only (no ``--auto`` level) with file-reading tools only, and prints the
+  reply on stdout.
 
 A failed call returns a failure class; the caller takes the
 review-model-unavailable WARN path. No other model is ever tried.
@@ -23,6 +25,7 @@ import tempfile
 from pathlib import Path
 
 RUNNERS = ("codex", "droid")
+DROID_READ_TOOLS = "Read,Grep,Glob,LS"
 DEFAULT_TIMEOUT_SECONDS = 900
 
 _FAILURE_RULES = (
@@ -33,7 +36,14 @@ _FAILURE_RULES = (
     (re.compile(r"\b(?:401|403)\b|unauthori[sz]ed|not logged in|login required", re.I), "auth"),
     (re.compile(r"rate.?limit|\b429\b", re.I), "rate-limit"),
     (re.compile(r"quota|usage limit|\b402\b|payment required", re.I), "quota"),
-    (re.compile(r"\b5\d\d\b|server error|service unavailable|overloaded", re.I), "5xx"),
+    (
+        re.compile(
+            r"\b(?:http(?:/[\d.]+)?|status(?: code)?|code)\s*[:=]?\s*5\d\d\b|server error|service unavailable"
+            r"|bad gateway|gateway timeout|overloaded",
+            re.I,
+        ),
+        "5xx",
+    ),
 )
 
 
@@ -91,11 +101,13 @@ def _call(
     if runner == "codex":
         out = tmp / "last.txt"
         cmd = [exe, "exec", "-m", model, "-s", "read-only", "--ephemeral", "--skip-git-repo-check"]
+        cmd += ["--ignore-user-config", "--disable", "apps"]
         proc = _run([*cmd, "--json", "-C", str(cwd), "-o", str(out), "-"], brief, cwd, timeout)
         return proc, out.read_text(encoding="utf-8") if out.is_file() else ""
     brief_file = tmp / "brief.md"
     brief_file.write_text(brief, encoding="utf-8")
-    proc = _run([exe, "exec", "-m", model, "-f", str(brief_file)], None, cwd, timeout)
+    cmd = [exe, "exec", "-m", model, "-f", str(brief_file), "--only-tools", DROID_READ_TOOLS]
+    proc = _run(cmd, None, cwd, timeout)
     return proc, proc.stdout
 
 

@@ -77,3 +77,30 @@ def test_no_rounds_is_config_error(tmp_path, capsys):
 
 def test_missing_review_dir_is_config_error(tmp_path):
     assert review.main(["table", "--review-dir", str(tmp_path / "nope"), "--members", "a"]) == 2
+
+
+def test_table_keeps_round_numbers_from_directory_names(tmp_path, capsys):
+    _write(tmp_path, 1, "gpt-6-sol", "SCORE: 6/10")
+    _write(tmp_path, 3, "gpt-6-sol", "SCORE: 9/10")
+
+    review.main(["table", "--review-dir", str(tmp_path), "--members", "gpt-6-sol"])
+
+    out = capsys.readouterr().out
+    assert "| Delegate | Round 1 | Round 3 |" in out
+    assert "| gpt-6-sol | 6/10 | 9/10 |" in out
+
+
+def test_no_members_is_config_error(tmp_path, capsys):
+    (tmp_path / "round-1").mkdir()
+
+    assert review.main(["table", "--review-dir", str(tmp_path), "--members", ","]) == 2
+    assert "no members" in capsys.readouterr().err
+
+
+def test_member_file_name_replaces_slashes(tmp_path, capsys):
+    _write(tmp_path, 1, "openai/gpt-4.1", "SCORE: 7/10")
+
+    review.main(["table", "--review-dir", str(tmp_path), "--members", "openai/gpt-4.1"])
+
+    assert (tmp_path / "round-1" / "openai_gpt-4.1.md").is_file()
+    assert "| openai/gpt-4.1 | 7/10 |" in capsys.readouterr().out
