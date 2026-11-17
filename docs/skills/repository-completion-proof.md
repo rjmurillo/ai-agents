@@ -42,10 +42,10 @@ Run the dispatcher from the root of a checkout of this repository:
 
 ```bash
 uv run python .claude/skills/repository-completion-proof/scripts/instruments.py --repo . list
-uv run python .claude/skills/repository-completion-proof/scripts/instruments.py --repo . run verify-config
+uv run python .claude/skills/repository-completion-proof/scripts/instruments.py --repo . run drift-self-check
 ```
 
-Replace `verify-config` with any instrument id. The ids are `verify-config`, `merged-state`, `settled-zero`, `completion-gate`, `resolution-shas`, `suppressed-findings`, `merge-ready`, `live-state`, `drift-self-check`. `list` prints each one with the question it answers.
+Replace `drift-self-check` with any instrument id. The ids are `verify-config`, `merged-state`, `settled-zero`, `completion-gate`, `resolution-shas`, `suppressed-findings`, `merge-ready`, `live-state`, `drift-self-check`. `list` prints each one with the question it answers. Some instruments need more arguments after `--`; `list` shows each one's command.
 
 ## Where it runs
 

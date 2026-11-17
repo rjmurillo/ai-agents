@@ -58,10 +58,10 @@ Run the dispatcher from the root of a checkout of this repository:
 
 ```bash
 uv run python .claude/skills/repository-pr-recovery/scripts/instruments.py --repo . list
-uv run python .claude/skills/repository-pr-recovery/scripts/instruments.py --repo . run why-pr-blocked
+uv run python .claude/skills/repository-pr-recovery/scripts/instruments.py --repo . run drift-self-check
 ```
 
-Replace `why-pr-blocked` with any instrument id. The ids are `why-pr-blocked`, `triage-red-check`, `check-logs`, `review-threads`, `required-context-conditions`, `producer-join`, `drift-self-check`. `list` prints each one with the question it answers.
+Replace `drift-self-check` with any instrument id. The ids are `why-pr-blocked`, `triage-red-check`, `check-logs`, `review-threads`, `required-context-conditions`, `producer-join`, `drift-self-check`. `list` prints each one with the question it answers. Some instruments need more arguments after `--`; `list` shows each one's command.
 
 ## Where it runs
 

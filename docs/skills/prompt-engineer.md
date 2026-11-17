@@ -16,7 +16,7 @@ Improves a system prompt for an agent using documented prompt engineering patter
 
 ## Quick start
 
-This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:prompt-engineer`. The agent loads it when your request matches. To ask for it by name, say:
+Start this skill yourself. Its routing is explicit-only, so the `autoplan` router never picks it for you. In Claude Code, type `/project-toolkit:prompt-engineer`. On any host, ask for it by name:
 
 ```text
 Use the prompt-engineer skill to improve the system prompt in .claude/agents/triage.md.

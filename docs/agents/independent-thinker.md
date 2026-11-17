@@ -36,7 +36,7 @@ In VS Code or Visual Studio Copilot Chat:
 
 ## What you get
 
-One of three Markdown layouts.
+One of three Markdown layouts. The third, the topic analysis, is in the Claude Code version only.
 
 The assumption challenge:
 

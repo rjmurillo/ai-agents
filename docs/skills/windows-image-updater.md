@@ -15,7 +15,7 @@ Migrates the Windows container image in OneBranch pipeline repositories, such as
 
 ## Quick start
 
-This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:windows-image-updater`. Invoke it explicitly. To ask for it by name, say:
+Start this skill yourself. Its routing is explicit-only, so the `autoplan` router never picks it for you. In Claude Code, type `/project-toolkit:windows-image-updater`. On any host, ask for it by name:
 
 ```text
 Use the windows-image-updater skill to migrate the Windows container image in this repository from ltsc2019 to ltsc2022.

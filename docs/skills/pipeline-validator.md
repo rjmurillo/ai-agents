@@ -17,7 +17,7 @@ Runs the Azure DevOps pipelines for your current repo and branch in order (PR bu
 
 ## Quick start
 
-This skill has no short slash command, so the agent usually loads it for you. In Claude Code you can still type `/project-toolkit:pipeline-validator`. Invoke it explicitly. To ask for it by name, say:
+Start this skill yourself. Its routing is explicit-only, so the `autoplan` router never picks it for you. In Claude Code, type `/project-toolkit:pipeline-validator`. On any host, ask for it by name:
 
 ```text
 Use the pipeline-validator skill to validate the Azure DevOps pipelines for my current branch.

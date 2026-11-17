@@ -83,10 +83,10 @@ The skill reads `.editorconfig` (all languages), `.stylecop.json` or `stylecop.j
 
 ### Suppression
 
-Add an inline comment on the line before the code to skip one rule. For rule `STYLE-001` in C#, the comment is:
+Add an inline comment to skip one rule. The scanner reads only `#` comments, so this works in languages such as Python, YAML, and PowerShell:
 
 ```text
-// style-enforcement: ignore STYLE-001
+# style-enforcement: ignore STYLE-001
 ```
 
 Without an `.editorconfig` there are no rules to enforce. Run your formatter first, then run this check. Do not check generated files.

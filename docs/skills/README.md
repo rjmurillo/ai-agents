@@ -28,6 +28,7 @@ Claude Code puts plugin skills under the plugin's name, so you type the `project
 The **Slash command** column tells you how the skill is meant to start:
 
 - A command such as `/spec` marks a skill you start by typing it. Its `SKILL.md` sets `user-invocable: true`. Copilot CLI takes it as shown. Claude Code takes it as `/project-toolkit:spec` after a plugin install.
+- `by name` marks a skill that starts only when you ask for it. The router never picks it, because it makes changes you should start on purpose. Say `Use the <name> skill to ...`, or in Claude Code type `/project-toolkit:<name>`.
 - `match` marks a skill the agent loads on its own when your request matches. To ask for it on any host, say `Use the <name> skill to ...`. In Claude Code you can also type `/project-toolkit:<name>`.
 
 ## Lifecycle
@@ -50,8 +51,8 @@ The **Slash command** column tells you how the skill is meant to start:
 | [`git-advanced-workflows`](git-advanced-workflows.md) | match | Rebase, cherry-pick, bisect, and recover with reflog |
 | [`github`](github.md) | match | Do PR, issue, label, and merge work through tested scripts |
 | [`github-url-intercept`](github-url-intercept.md) | match | Read a pasted GitHub URL through the API, not a web page |
-| [`maintainer-review`](maintainer-review.md) | match | Decide to merge, request changes, supersede, or close |
-| [`merge-resolver`](merge-resolver.md) | match | Resolve merge conflicts from history and commit intent |
+| [`maintainer-review`](maintainer-review.md) | by name | Decide to merge, request changes, supersede, or close |
+| [`merge-resolver`](merge-resolver.md) | by name | Resolve merge conflicts from history and commit intent |
 | [`modernize`](modernize.md) | `/modernize` | Check an old PR still belongs, then rebase, rework, or close it |
 | [`pr-autofix`](pr-autofix.md) | `/pr-autofix` | Fix open PRs: review threads, CI failures, and auto-merge |
 | [`pr-babysit`](pr-babysit.md) | `/pr-babysit` | Watch one PR through CI and review until it is ready |
@@ -183,8 +184,8 @@ Each axis reviews your local diff and returns PASS, WARN, or CRITICAL_FAIL. Run 
 | [`agent-harness-reference`](agent-harness-reference.md) | match | Look up hook contracts for Claude Code and Copilot CLI |
 | [`benchmark-models`](benchmark-models.md) | match | Run one prompt through several models side by side |
 | [`context-optimizer`](context-optimizer.md) | `/context-optimizer` | Decide where skill content should live and compress it |
-| [`metrics`](metrics.md) | match | Measure agent usage from git history |
-| [`prompt-engineer`](prompt-engineer.md) | match | Improve a system prompt with proven patterns |
+| [`metrics`](metrics.md) | by name | Measure agent usage from git history |
+| [`prompt-engineer`](prompt-engineer.md) | by name | Improve a system prompt with proven patterns |
 | [`skill-bootstrap`](skill-bootstrap.md) | `/skill-bootstrap` | Mine a repository's history to write its first project skills |
 | [`skill-doctor`](skill-doctor.md) | `/skill-doctor` | Score how skills performed in recent sessions and draft fixes |
 | [`skillforge`](skillforge.md) | `/skillforge` | Find, improve, or create the right skill for a goal |
@@ -196,8 +197,8 @@ Each axis reviews your local diff and returns PASS, WARN, or CRITICAL_FAIL. Run 
 
 | Skill | Slash command | Use it to |
 | --- | --- | --- |
-| [`pipeline-validator`](pipeline-validator.md) | match | Trigger and watch Azure DevOps validation pipelines |
-| [`windows-image-updater`](windows-image-updater.md) | match | Move OneBranch pipelines to a newer Windows container image |
+| [`pipeline-validator`](pipeline-validator.md) | by name | Trigger and watch Azure DevOps validation pipelines |
+| [`windows-image-updater`](windows-image-updater.md) | by name | Move OneBranch pipelines to a newer Windows container image |
 
 ## Repository maintenance (this repository only)
 

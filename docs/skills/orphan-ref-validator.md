@@ -72,7 +72,7 @@ Flags:
 **Scope a PR gate to changed files.** A repository-wide scan fails on old debt. Pass only the files your branch changed. This form keeps paths with spaces intact:
 
 ```bash
-git diff -z --name-only origin/main...HEAD | xargs -0 uv run python .claude/skills/orphan-ref-validator/scripts/scan.py --targets
+git diff -z --name-only --diff-filter=d origin/main...HEAD | xargs -0 -r uv run python .claude/skills/orphan-ref-validator/scripts/scan.py --targets
 ```
 
 A path that starts with `-` is still read as an option, so rename such a file before you scan. A PR that adds no new orphan exits `0`.

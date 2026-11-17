@@ -51,10 +51,10 @@ uv run python .claude/skills/ai-agents-config-catalog/scripts/flag_locator.py --
 uv run python .claude/skills/ai-agents-config-catalog/scripts/flag_locator.py --repo . markers
 uv run python .claude/skills/ai-agents-config-catalog/scripts/flag_locator.py --repo . retired
 uv run python .claude/skills/ai-agents-config-catalog/scripts/instruments.py --repo . list
-uv run python .claude/skills/ai-agents-config-catalog/scripts/instruments.py --repo . run flag-locate
+uv run python .claude/skills/ai-agents-config-catalog/scripts/instruments.py --repo . run pytest-markers
 ```
 
-Replace `flag-locate` with any instrument id. The ids are `flag-locate`, `pytest-markers`, `retired-flags`, `hook-counts`, `manifest-version`, `lefthook-validate`, `qa-investigation-eligible`, `qa-docs-only-eligible`, `drift-allowlist`, `drift-self-check`. `list` prints each one with the question it answers.
+Replace `pytest-markers` with any instrument id. The ids are `flag-locate`, `pytest-markers`, `retired-flags`, `hook-counts`, `manifest-version`, `lefthook-validate`, `qa-investigation-eligible`, `qa-docs-only-eligible`, `drift-allowlist`, `drift-self-check`. `list` prints each one with the question it answers. Some instruments need more arguments after `--`; `list` shows each one's command.
 
 ## Where it runs
 
