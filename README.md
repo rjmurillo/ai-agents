@@ -37,7 +37,7 @@ Built for platform teams, engineering managers, and organizations that want AI-a
 - You need Gemini CLI or Codex CLI. This README documents Claude Code, GitHub Copilot CLI, and VS Code Copilot Chat only.
 - You want a tmux-driven pipeline across many CLIs. [AgentMux](https://github.com/markuswondrak/AgentMux) is an option there.
 
-More answers: [FAQ](docs/faq.md). Copilot CLI install: [docs/installation.md](docs/installation.md#github-copilot-cli). Which lifecycle phases fit which task: [docs/when-to-use.md](docs/when-to-use.md). Every agent: [docs/agent-catalog.md](docs/agent-catalog.md).
+More answers: [FAQ](docs/faq.md). Copilot CLI install: [docs/installation.md](docs/installation.md#github-copilot-cli). Which lifecycle phases fit which task: [docs/when-to-use.md](docs/when-to-use.md). Every agent: [docs/agents/README.md](docs/agents/README.md). Every skill: [docs/skills/README.md](docs/skills/README.md).
 
 ---
 
@@ -559,8 +559,11 @@ This project uses a **template-based generation system**. To modify agents:
 |----------|-------------|
 | [docs/getting-started.md](docs/getting-started.md) | Step-by-step setup guide |
 | [docs/faq.md](docs/faq.md) | Short answers on install, platforms, agent count, review gates, and requirements |
-| [docs/agent-catalog.md](docs/agent-catalog.md) | All agents with capabilities and examples |
-| [docs/skill-reference.md](docs/skill-reference.md) | Selected skills with usage descriptions. The authoritative list is the [skills directory](src/claude/skills/) |
+| [docs/agents/README.md](docs/agents/README.md) | One page per agent: when to use it, a prompt to copy, and what you get back |
+| [docs/skills/README.md](docs/skills/README.md) | One page per skill: when to use it, what to type, outputs, and scripts |
+| [docs/agents-and-skills.md](docs/agents-and-skills.md) | How agents and skills differ and work together |
+| [docs/call-agents-and-skills.md](docs/call-agents-and-skills.md) | The exact syntax to call an agent or skill on each host |
+| [docs/agent-catalog.md](docs/agent-catalog.md) | Generated table of every agent template, with role and size |
 | [docs/architecture.md](docs/architecture.md) | Plugin structure, template system, design decisions |
 | [docs/customization.md](docs/customization.md) | How to extend and customize agents, skills, and hooks |
 | [docs/installation.md](docs/installation.md) | Complete installation guide |

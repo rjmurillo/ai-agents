@@ -1,0 +1,103 @@
+# code-qualities-assessment
+
+Scores code on five design qualities: cohesion, coupling, encapsulation, testability, and non-redundancy. You get a report with scores from 1 to 10, remediation guidance, and a pass or fail gate for CI.
+
+## When to use it
+
+- You want to assess maintainability or score cohesion, coupling, or testability on specific code.
+- You need refactoring priorities or a quality baseline.
+- You want a CI gate that flags quality regressions in changed files.
+- You say `assess code quality`, `evaluate maintainability`, `check code qualities`, `testability review`, or `run quality assessment`.
+
+## When not to use it
+
+- You want a full pre-merge review: use [`review`](review.md) instead.
+- You want repository-wide domain grading: use [`quality-grades`](quality-grades.md) instead.
+- You want a broad investigation, a security assessment, or an architecture review: use [`analyze`](analyze.md) instead.
+
+## Quick start
+
+This skill is not a front door, so you rarely start it yourself. In Claude Code you can still type `/project-toolkit:code-qualities-assessment`. The agent loads it when your request matches. To ask for it by name, say:
+
+```text
+Use the code-qualities-assessment skill to assess src/services/auth.py.
+```
+
+The skill runs `assess.py` on the target and returns a markdown report with five scores and remediation links for low scores.
+
+> [!NOTE]
+> `assess.py` scores source code only. Rules, skills, and agents are assessed by hand against the same qualities, using `references/executable-nl-artifacts.md`.
+
+## What you get
+
+| Quality | Question |
+| --- | --- |
+| Cohesion | How related are the responsibilities? |
+| Coupling | How dependent is it on other code? |
+| Encapsulation | How well are internals hidden? |
+| Testability | How easily can you verify it in isolation? |
+| Non-redundancy | How unique is each piece of knowledge? |
+
+A score of 10 is the best and 1 to 3 is poor. The report comes as markdown, JSON, or HTML. Full language support covers Python, TypeScript and JavaScript, C#, Java, and Go. Ruby, Rust, PHP, and Kotlin get heuristic support.
+
+## Advanced use
+
+Run the script from the root of a checkout of this repository:
+
+```bash
+uv run python .claude/skills/code-qualities-assessment/scripts/assess.py --target src --changed-only --base origin/main --format json
+```
+
+| Flag | Meaning |
+| --- | --- |
+| `--target` | Required. File, directory, or glob. |
+| `--context` | Force `production`, `test`, or `generated` thresholds for every file. Omit it so each file uses its own category. |
+| `--changed-only` | Assess only changed files. With `--base`, files changed from that revision. |
+| `--base` | Base revision for `--changed-only`, such as `origin/main`. |
+| `--gate-mode` | `auto` (default), `regression`, or `absolute`. |
+| `--regression-tolerance` | Score drop tolerated before a quality counts as regressed. Default 0.5. |
+| `--format` | `markdown`, `json`, or `html`. |
+| `--config` | Path to a config file. |
+| `--output` | Output file path. Default is stdout. |
+| `--use-serena` | `auto`, `yes`, or `no`. |
+
+Gate modes answer two different questions:
+
+| Mode | Question | Selected when |
+| --- | --- | --- |
+| `regression` | Did this change make anything worse? | `--gate-mode regression`, or `auto` with both `--changed-only` and `--base` |
+| `absolute` | Is the code above the configured thresholds? | `--gate-mode absolute`, or `auto` otherwise |
+
+`--gate-mode regression` needs both `--changed-only` and `--base`. It exits 1 without them and never falls back to absolute thresholds. Each changed file is scored at the merge base and at head, and qualities are compared one by one. A file new in the change is gated absolutely.
+
+| Exit code | Meaning |
+| --- | --- |
+| 0 | Gate passed, or nothing changed in regression mode |
+| 1 | Invalid target, config error, or no files to assess |
+| 10 | Regression: a quality regressed or scored evidence was lost |
+| 11 | A file is below the configured thresholds |
+
+Scores are size-derived, so growth alone can lower cohesion. Read the named delta before you act on an exit 10.
+
+Set thresholds in `.qualityrc.json`. The config accepts `thresholds` per quality, `context` overrides, `minConfidence`, and `ignore` globs. Lower-confidence misses warn only in absolute mode.
+
+[`review`](review.md) runs this skill as one of its four local quality axes.
+
+## Where it runs
+
+| Host | Available |
+| --- | --- |
+| Claude Code | Yes |
+| GitHub Copilot CLI | Yes |
+| Codex | Yes |
+| Cursor | Yes |
+| Muse | Yes |
+
+## Related
+
+- [`analyze`](analyze.md): broad multi-file investigation.
+- [`review`](review.md): the full pre-merge review that calls this skill.
+- [`quality-grades`](quality-grades.md): repository-wide domain grading.
+- Source: [`SKILL.md`](../../src/claude/skills/code-qualities-assessment/SKILL.md)
+- References: [`calibration-examples.md`](../../src/claude/skills/code-qualities-assessment/references/calibration-examples.md), [`refactoring-patterns.md`](../../src/claude/skills/code-qualities-assessment/references/refactoring-patterns.md)
+- How to call skills on each host: [Call agents and skills](../call-agents-and-skills.md)

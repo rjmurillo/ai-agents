@@ -238,5 +238,5 @@ If a check fails, start here:
 ## Next
 
 - Install the toolkit on another host: [docs/installation.md](../installation.md).
-- Learn the skills that replaced the commands: [docs/skill-reference.md](../skill-reference.md).
+- Learn the skills that replaced the commands: [docs/skills/README.md](../skills/README.md).
 - Write your own skill: [docs/SKILL-AUTHORING.md](../SKILL-AUTHORING.md).

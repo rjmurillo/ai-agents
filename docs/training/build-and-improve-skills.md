@@ -275,4 +275,4 @@ Reference sources this page relies on:
 - [skillopt SKILL.md](../../.claude/skills/skillopt/SKILL.md): the full loop, including the budget, patch, and null-control steps.
 - [skillify SKILL.md](../../.claude/skills/skillify/SKILL.md): destination rules and the capability gate.
 - [SKILL-AUTHORING.md](../SKILL-AUTHORING.md): frontmatter, validation rules, and the authoring checklist.
-- [skill-reference.md](../skill-reference.md): the catalog of skills.
+- [Skills](../skills/README.md): one reference page per skill.

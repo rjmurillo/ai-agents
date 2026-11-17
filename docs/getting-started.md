@@ -196,8 +196,9 @@ Each agent produces structured output specific to its role:
 ## What Next
 
 - Understand the 7-phase pipeline in [Step 2: Understand the Workflow](#step-2-understand-the-workflow)
-- Browse the agents in the [Agent Catalog](agent-catalog.md)
-- See the skills in the [Skill Reference](skill-reference.md), which covers selected skills (the [skills directory](../src/claude/skills/) lists all of them)
+- Browse the agents in [Agents](agents/README.md), one page per agent
+- Browse the skills in [Skills](skills/README.md), one page per skill
+- Learn the syntax for your host in [Call agents and skills](call-agents-and-skills.md)
 - Understand the system design in [Architecture](architecture.md)
 - Learn how to extend and customize in [Customization](customization.md)
 - Review the full [Installation Guide](installation.md) for advanced setup options
