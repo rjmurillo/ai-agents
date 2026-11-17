@@ -116,7 +116,9 @@ bun run --cwd ./src/frontend test:unit:contracts
 bun run --cwd ./src/frontend playwright test tests/e2e/<relevant-spec>.spec.ts
 ```
 
-Install the Aspire CLI from <https://aspire.dev/get-started/install-cli/>.
+Install the Aspire CLI only after the user confirms, from
+<https://aspire.dev/get-started/install-cli/>. Never pipe a remote install script
+to a shell without that confirmation.
 Pick the channel that matches what you document:
 
 | Channel | Use for | Installer option |
@@ -126,7 +128,8 @@ Pick the channel that matches what you document:
 | Staging | Prereleases from the release branch | `--quality staging` or `-Quality 'staging'` |
 | PR build | One unmerged PR in `microsoft/aspire` | Download the CLI from that PR's build artifacts |
 
-Run the site with `aspire run`. Add integration packages with `aspire add <package>`,
+Run the site with `aspire run`. It does not exit on its own, so an agent starts
+it as a background process and stops it when testing ends. Add integration packages with `aspire add <package>`,
 not `dotnet add package`. Find the `frontend` endpoint in the CLI output or the
 dashboard, then use `playwright-cli open <frontend-url>`, `playwright-cli snapshot`,
 and `playwright-cli click <ref>` instead of Playwright MCP tools.

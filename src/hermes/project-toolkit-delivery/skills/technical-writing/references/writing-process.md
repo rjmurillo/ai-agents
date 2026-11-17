@@ -14,7 +14,8 @@
 
 - Write the whole page before polishing any part of it.
 - Lead with the result or the task. Put background after the reader knows why it matters.
-- Run every code sample and command now, not at the end.
+- Run every safe code sample and command now, not at the end. See the gate in
+  [testing your documentation](testing-your-documentation.md).
 - When a fact is missing, ask the maintainer or leave a visible gap in your
   report. Do not ship placeholder text in the page.
 

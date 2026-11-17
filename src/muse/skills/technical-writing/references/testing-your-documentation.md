@@ -10,7 +10,7 @@ not only that the Markdown renders.
    repository with plain Markdown, render it the way the host shows it.
 2. **Check every edited link.** Run the site's link checker when it has one.
    Otherwise open each internal target and confirm it exists.
-3. **Run every code sample and command** you added or changed, in the stated
+3. **Run every safe code sample and command** you added or changed, in the stated
    environment. Copy the output you show from a real run, not from memory.
 4. **Run the repository's docs gates**: markdown lint, spell check, sample
    compilation, snippet tests, and any docs CI job.
@@ -19,6 +19,16 @@ not only that the Markdown renders.
 6. **Run a fresh-reader pass**: give the page, and nothing else, to a reader
    with no context (a fresh subagent works). Ask them to follow it and report
    where they had to guess. Fix each guess.
+
+## Samples you must not run unasked
+
+Run samples in a scratch directory. Ask the user first, or mark the sample
+`NOT RUN` with the reason, when it would:
+
+- install software or pipe a remote script to a shell;
+- use credentials, tokens, or a signed-in account;
+- create, change, or delete cloud resources or anything that bills;
+- delete data or change state outside the workspace.
 
 ## Pick the smallest proof
 

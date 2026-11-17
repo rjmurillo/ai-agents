@@ -68,4 +68,5 @@ Check a draft for these before you finish and rewrite each hit.
 
 The `prose-self-check` skill ships `prose_lint.py`, which flags several of these
 patterns. Run it on the draft, then read the page yourself: a scanner catches
-words, not a buried point or a missing step.
+words, not a buried point or a missing step. When that skill is not installed,
+record the lint as `UNAVAILABLE` and do the manual read.

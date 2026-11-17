@@ -18,11 +18,12 @@ None of the owners named here endorses or reviewed this skill.
   and [content-types.md](content-types.md). Advice that conflicted with the
   aspire.dev prose rules (opening hooks, signposting, title-case headings) was dropped.
 - **aspire.dev doc-writer.** Generic rules became [prose-patterns.md](prose-patterns.md),
-  [common-documentation-issues.md](common-documentation-issues.md) (which absorbed
-  cross-referencing), and [testing-your-documentation.md](testing-your-documentation.md). The SKILL.md
+  [common-documentation-issues.md](common-documentation-issues.md),
+  [cross-referencing.md](cross-referencing.md), and
+  [testing-your-documentation.md](testing-your-documentation.md). The SKILL.md
   body, `integration-documentation.md`, and `terminal-recordings.md` moved under
   [site-profiles/aspire-dev/](site-profiles/aspire-dev/). The aspire-only rules from
-  the other references sit at the end of its site-conventions file.
+  the other references are in its `site-specific-rules.md`.
   Em and en dashes were replaced, a code-block title separator became `<em-dash>`,
   and pipe-to-shell installer commands became a link to the official install page.
 - **agent-stylebooks.** Each `SKILL.md` body became `stylebooks/<name>.md` with its

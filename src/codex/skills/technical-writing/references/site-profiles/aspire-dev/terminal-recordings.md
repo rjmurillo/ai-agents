@@ -44,14 +44,17 @@ over screen capture, input injection, and content assertions.
 
 ## Installation
 
-```bash
-# Install as a global tool
-dotnet tool install -g Hex1b.Tool
+Ask the user before you install a tool. Prefer the local tool manifest, and pin
+the version the user approves.
 
-# Or as a local tool (requires a tool manifest)
+```bash
+# Local tool (preferred; requires a tool manifest)
 dotnet new tool-manifest   # if no manifest exists yet
-dotnet tool install --local Hex1b.Tool
+dotnet tool install --local Hex1b.Tool --version <version>
 dotnet tool restore        # to restore from an existing manifest
+
+# Global tool, only when the user asks for it
+dotnet tool install -g Hex1b.Tool --version <version>
 ```
 
 ## Concepts
@@ -302,6 +305,9 @@ dotnet hex1b terminal attach <id>
 ```
 
 ## How to Set Up the Agent Skill File
+
+Run this only when the user asks for it: it writes, and with `--force` overwrites,
+an agent skill file in the target repository. Documentation work never needs it.
 
 Generate this skill file for a repository so AI agents know how to use the CLI.
 

@@ -10,8 +10,9 @@ artifacts:
     sourceDir: "src/claude/skills"
     outputDir: "src/hermes"
     # Budget under the Hermes cap of 400 files, counting lib/ and plugin.json.
-    # 381 makes room for skillforge's judging module (_conformance_judging.py).
-    packMaxFiles: 381
+    # 381 made room for skillforge's judging module (_conformance_judging.py).
+    # 383 makes room for technical-writing in the delivery pack (ADR-115 Decision 6).
+    packMaxFiles: 383
     # hermes-agent commit whose plugin_guard and install limits this table was
     # measured against. The guard test and the smoke test install this commit.
     hermesCommit: "63d0b94120027d487c9a5235b9ec64b696af1b26"
