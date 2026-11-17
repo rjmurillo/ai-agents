@@ -78,7 +78,7 @@ medical approval, W3C status, NASA publication approval, or ASD-STE100 complianc
 - Primary source: <https://www.cdc.gov/ccindex/tool/index.html>
 - Classification: A (open/source-grounded).
 - Accessed: 2026-08-19.
-- Method: independently written instructions; see [SOURCE.md](SOURCE.md) for the complete
+- Method: independently written instructions; see the source notes below for the complete
   source and reuse audit.
 - Affiliation: community interpretation; not an official CDC or HHS skill.
 
@@ -206,7 +206,7 @@ medical approval, W3C status, NASA publication approval, or ASD-STE100 complianc
 - Primary source: <https://sti.nasa.gov/for-sti-publishers/>
 - Classification: B (reference only).
 - Accessed: 2026-08-19.
-- Method: independently written instructions; see [SOURCE.md](SOURCE.md) for the complete
+- Method: independently written instructions; see the source notes below for the complete
   source and reuse audit.
 - Affiliation: community interpretation; not an official NASA skill or publication standard.
 
@@ -238,7 +238,7 @@ medical approval, W3C status, NASA publication approval, or ASD-STE100 complianc
 - Primary source: <https://service-manual.nhs.uk/content>
 - Classification: B (reference only).
 - Accessed: 2026-08-19.
-- Method: independently written instructions; see [SOURCE.md](SOURCE.md) for the complete
+- Method: independently written instructions; see the source notes below for the complete
   source and reuse audit.
 - Affiliation: community interpretation; not an official NHS or NHS England skill.
 
@@ -283,7 +283,7 @@ medical approval, W3C status, NASA publication approval, or ASD-STE100 complianc
 - Primary source: <https://www.sec.gov/pdf/handbook.pdf>
 - Classification: A (open/source-grounded).
 - Accessed: 2026-08-19.
-- Method: independently written instructions; see [SOURCE.md](SOURCE.md) for the complete
+- Method: independently written instructions; see the source notes below for the complete
   source and reuse audit.
 - Affiliation: community interpretation; not an official SEC skill or legal advice.
 
@@ -311,7 +311,7 @@ medical approval, W3C status, NASA publication approval, or ASD-STE100 complianc
 - Primary source: <https://www.w3.org/guide/manual-of-style/>
 - Classification: B (reference only).
 - Accessed: 2026-08-19.
-- Method: independently written instructions; see [SOURCE.md](SOURCE.md) for the complete
+- Method: independently written instructions; see the source notes below for the complete
   source and reuse audit.
 - Affiliation: community interpretation; not an official W3C skill or Technical Report.
 
