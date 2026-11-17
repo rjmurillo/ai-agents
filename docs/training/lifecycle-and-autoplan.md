@@ -118,7 +118,7 @@ Other docs cover the same ground. We link them and do not repeat them:
    ```
 
    ```text
-   186:1. Runs 5 pre-flight checks (pipeline, security, review, tests, standards)
+   179:1. Runs 5 pre-flight checks (pipeline, security, review, tests, standards)
    85:Task(subagent_type="devops"): You are a release engineer. Run all 4 pre-flight checks below, branching by the `host`, `mode`, and `pr` set in Mode Detection. Report pass/fail for each with specific evidence. Any failure blocks shipping.
    147:1. Run all 4 pre-flight checks, branching by `host`, `mode`, and `pr`.
    ```
