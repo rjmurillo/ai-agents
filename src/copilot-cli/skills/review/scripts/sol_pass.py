@@ -167,6 +167,8 @@ def codex_runner(model: str, prompt: str, schema_path: Path, cwd: Path, timeout:
                 stdin=subprocess.DEVNULL,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=timeout,
                 check=False,
             )
@@ -193,7 +195,15 @@ def validate_model(model: str) -> str | None:
 
 def _git(cwd: Path, *args: str) -> str:
     try:
-        proc = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=False)
+        proc = subprocess.run(
+            ["git", *args],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
     except FileNotFoundError:
         return ""
     return proc.stdout.strip() if proc.returncode == 0 else ""

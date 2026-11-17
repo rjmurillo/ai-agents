@@ -2,9 +2,10 @@
 
 The reviewer call is injected, so no test reaches a model. Covers ordering
 after the critic (including a stale critic file), the 2-round cap counted from
-the run log, dropping findings without a file, line, or repro, the Sol-only
-log, the unavailable WARN path with no fallback, the model allowlist, the off
-switch, exit codes on bad input, and conformance with the review model policy.
+the run log, dropped findings in the log, the Sol-only log, the unavailable
+WARN path with no fallback, and exit codes on bad input. The finding rules are
+in ``test_sol_findings.py``; the model allowlist, off switch, bootstrap, and
+policy conformance are in ``test_sol_pass_guards.py``.
 """
 
 from __future__ import annotations
@@ -277,47 +278,6 @@ def test_max_rounds_is_two():
 # Findings need file, line, and repro; style nits dropped
 
 
-@pytest.mark.parametrize(
-    ("override", "reason"),
-    [
-        ({"file": ""}, "missing-file"),
-        ({"file": None}, "missing-file"),
-        ({"line": None}, "missing-line"),
-        ({"line": 0}, "missing-line"),
-        ({"line": "12"}, "missing-line"),
-        ({"line": True}, "missing-line"),
-        ({"repro": ""}, "missing-repro"),
-        ({"repro": "   "}, "missing-repro"),
-        ({"category": "Style"}, "style-nit"),
-        ({"category": "style-nit"}, "style-nit"),
-        ({"category": "naming"}, "style-nit"),
-        ({"category": "Cosmetic"}, "style-nit"),
-        ({"category": "readability"}, "style-nit"),
-        ({"category": "formatting"}, "style-nit"),
-    ],
-)
-def test_drops_incomplete_or_style_findings(override, reason):
-    kept, dropped = mod.filter_findings([_finding(**override)])
-
-    assert kept == []
-    assert dropped[0]["reason"] == reason
-
-
-def test_drops_non_object_findings():
-    kept, dropped = mod.filter_findings(["src/a.py:1 bad"])
-
-    assert kept == []
-    assert dropped[0]["reason"] == "not-an-object"
-
-
-@pytest.mark.parametrize("category", ["correctness", "security", "data-loss", ""])
-def test_keeps_complete_defect_finding(category):
-    kept, dropped = mod.filter_findings([_finding(category=category)])
-
-    assert dropped == []
-    assert kept[0]["file"] == "src/app/b.py"
-
-
 def test_dropped_findings_are_logged_not_reported(tmp_path, critic_file, capsys):
     runner = FakeRunner(_ok([_finding(repro=""), _finding()]))
 
@@ -353,25 +313,6 @@ def test_logs_sol_only_and_overlap(tmp_path, critic_file, capsys):
         "src/app/b.py": True,
     }
     assert len(log["critic_sha256"]) == 64
-
-
-@pytest.mark.parametrize(
-    ("critic", "file", "line", "sol_only"),
-    [
-        ("src/app/a.py:10", "src/app/a.py", 13, False),
-        ("src/app/a.py:10", "src/app/a.py", 14, True),
-        ("foo.py:10-40", "foo.py", 30, False),
-        ("foo.py:10-40", "foo.py", 44, True),
-        ("see app/a.py:10", "a.py", 10, False),
-        ("./src/x.py:5", "src/x.py", 5, False),
-        (".claude/x.py:5", "claude/x.py", 5, True),
-        ("src/other.py:10", "src/app/a.py", 10, True),
-    ],
-)
-def test_overlap_rule(critic, file, line, sol_only):
-    marked = mod.mark_sol_only([_finding(file=file, line=line)], critic)
-
-    assert marked[0]["sol_only"] is sol_only
 
 
 def test_empty_result_passes_and_still_logs(tmp_path, critic_file, capsys):
@@ -497,131 +438,3 @@ def test_codex_runner_reports_not_installed(monkeypatch, tmp_path):
     result = mod.codex_runner("gpt-6.1-sol", "p", tmp_path / "s.json", tmp_path, 5)
 
     assert (result.ok, result.failure_class) == (False, "not-installed")
-
-
-@pytest.mark.parametrize(
-    ("message", "expected"),
-    [
-        ("The 'x' model is not supported when using Codex", "model-unsupported"),
-        ("rate limit exceeded", "rate-limit"),
-        ("HTTP 429 Too Many Requests", "rate-limit"),
-        ("request id 4290ab: connection reset", "unknown"),
-        ("You hit your usage limit", "quota"),
-        ("401 Unauthorized: not logged in", "auth"),
-        ("HTTP 503 service unavailable", "5xx"),
-        ("upstream connect error", "unknown"),
-    ],
-)
-def test_failure_classification(message, expected):
-    assert mod.classify_failure(message) == expected
-
-
-def test_failure_message_reads_turn_failed_event():
-    events = '{"type":"thread.started"}\n{"type":"turn.failed","error":{"message":"model gone"}}\n'
-
-    assert mod.failure_message(events, "stderr noise") == "model gone"
-
-
-# Model allowlist: Sol only
-
-
-@pytest.mark.parametrize(
-    "model",
-    [
-        "gemini-4-argon",
-        "gemini-4-carbon",
-        "grok-4.7",
-        "xai/grok-4.7",
-        "claude-opus-5-5",
-        "claude-sonnet-5-5",
-        "opus",
-        "gpt-6-astra",
-        "gpt-6.1-sol-mini",
-        "gpt-6.1-sol; echo injected",
-    ],
-)
-def test_rejects_non_sol_models_before_any_call(tmp_path, critic_file, model):
-    runner = FakeRunner(_ok([]))
-
-    code = _run(tmp_path, runner, "--critic-findings", str(critic_file), "--model", model)
-
-    assert code == mod.EXIT_CONFIG
-    assert runner.calls == []
-
-
-def test_blank_model_id_is_refused():
-    assert mod.validate_model("") is not None
-
-
-@pytest.mark.parametrize("model", ["gpt-6.1-sol", "gpt-6-sol", "gpt-5.6-sol", "gpt-7-sol"])
-def test_accepts_sol_models(model):
-    assert mod.validate_model(model) is None
-
-
-def test_env_model_override_is_also_guarded(tmp_path, critic_file, monkeypatch):
-    monkeypatch.setenv("AI_AGENTS_SOL_MODEL", "gemini-4-argon")
-    runner = FakeRunner(_ok([]))
-
-    assert _run(tmp_path, runner, "--critic-findings", str(critic_file)) == mod.EXIT_CONFIG
-    assert runner.calls == []
-
-
-# Off switch
-
-
-@pytest.mark.parametrize("value", ["off", "0", "false", "OFF"])
-def test_env_off_switch_skips_and_logs(tmp_path, critic_file, monkeypatch, capsys, value):
-    monkeypatch.setenv("AI_AGENTS_SOL_PASS", value)
-    runner = FakeRunner(_ok([_finding()]))
-
-    code = _run(tmp_path, runner, "--critic-findings", str(critic_file))
-
-    assert code == mod.EXIT_OK
-    assert runner.calls == []
-    assert json.loads(capsys.readouterr().out)["verdict"] == "SKIPPED"
-    assert _logs(tmp_path)[0]["status"] == "skipped"
-
-
-def test_disable_flag_skips(tmp_path, critic_file):
-    runner = FakeRunner(_ok([_finding()]))
-
-    assert _run(tmp_path, runner, "--critic-findings", str(critic_file), "--disable") == mod.EXIT_OK
-    assert runner.calls == []
-
-
-# Bootstrap
-
-
-def test_bootstrap_ignores_plugin_root_without_paths_module(tmp_path):
-    script = PROJECT_ROOT / "src/claude/skills/review/scripts/sol_pass.py"
-    env = {**os.environ, "CLAUDE_PLUGIN_ROOT": str(tmp_path), "COPILOT_PLUGIN_ROOT": str(tmp_path)}
-
-    proc = subprocess.run(
-        [sys.executable, str(script), "--help"],
-        env=env,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert proc.returncode == 0, proc.stderr
-
-
-# Conformance with the review model policy
-
-
-def test_policy_reason_message_and_classes_match():
-    policy = (PROJECT_ROOT / ".agents/governance/AI-REVIEW-MODEL-POLICY.md").read_text(
-        encoding="utf-8"
-    )
-
-    assert f"`{mod.UNAVAILABLE_REASON}`" in policy
-    assert "Review model unavailable, deferring to human." in policy
-    for failure_class in ("timeout", "5xx", "rate-limit", "invalid-output", "quota"):
-        assert f"`{failure_class}`" in policy
-
-
-def test_schema_requires_file_line_repro():
-    required = mod.FINDINGS_SCHEMA["properties"]["findings"]["items"]["required"]
-
-    assert {"file", "line", "repro"} <= set(required)
