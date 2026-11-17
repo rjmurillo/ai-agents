@@ -348,6 +348,7 @@ def test_record_stores_repo_relative_paths(tmp_path, critic_file, capsys):
         ("C:\\work\\repo\\pkg\\mod.py:3", "pkg/mod.py"),
         ("`c:/Work/Repo/pkg/mod.py:3`", "pkg/mod.py"),
         ("[mod.py:3](/C:/work/repo/pkg/mod.py:3)", "pkg/mod.py"),
+        ("/C:/work/repo/pkg/mod.py:3", "pkg/mod.py"),
         ("D:\\other\\mod.py:3", "D:\\other\\mod.py"),
     ],
 )
