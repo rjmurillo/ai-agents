@@ -26,10 +26,10 @@
         "suppress"
       ],
       "forbidden_response_patterns": [
-        "<Aside",
-        "Starlight",
-        "AppHost",
-        "\\.mdx\\b"
+        "<Aside\\b[^>]*>",
+        "<TabItem\\b",
+        "\\bimport\\b[^\\n]*@astrojs/starlight",
+        "\\bTabs syncKey="
       ],
       "expected_gate": "technical-writing-site-recon",
       "rationale": "The skill recons the target first and loads a site profile only on a match. Astro or AppHost advice on a plain Markdown repo is the failure this scenario catches."

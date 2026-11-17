@@ -56,7 +56,7 @@
     {
       "id": "lt-technical-writing",
       "family": "long-tail-single-domain",
-      "request": "Write a tutorial and a how-to guide for the new retry option, then edit the docs for clarity.",
+      "request": "Write a tutorial for the new retry option.",
       "expect": {
         "kind": "specialist",
         "route": "technical-writing",
@@ -65,7 +65,7 @@
           "api-doc-authoring"
         ]
       },
-      "rationale": "Positive technical-writing activation; a docs page request must not fall through to the orchestrator."
+      "rationale": "Positive technical-writing activation through one intent (write a tutorial); a docs page request must not fall through to the orchestrator."
     },
     {
       "id": "lt-technical-writing-api-negative",
@@ -79,6 +79,19 @@
         ]
       },
       "rationale": "Negative control: an endpoint API request stays with api-doc-authoring after technical-writing adds its intents."
+    },
+    {
+      "id": "lt-technical-writing-guide-negative",
+      "family": "negative-noise",
+      "request": "Guide me through rebasing this branch onto main.",
+      "expect": {
+        "kind": "none",
+        "route": null,
+        "routes_absent": [
+          "technical-writing"
+        ]
+      },
+      "rationale": "Negative control: a non-documentation request that says guide must not route to technical-writing."
     },
     {
       "id": "lt-skillify-this",

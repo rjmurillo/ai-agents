@@ -16,13 +16,12 @@ metadata:
     trigger: autoplan's long-tail resolver matches a documentation page writing, editing, or audit request
     user-facing: true
     intents:
-      - technical writing
+      - technical writer
       - documentation page
-      - docs page
+      - write a docs page
       - write a tutorial
-      - how-to guide
-      - user guide
-      - edit the docs
+      - write a guide
+      - edit documentation
       - docs style guide
       - integration documentation
       - rule documentation
@@ -49,7 +48,7 @@ own these:
 
 ## Triggers
 
-`write a docs page for X`, `edit the docs for clarity`, `write a tutorial`,
+`write a docs page for X`, `edit documentation for clarity`, `write a tutorial`,
 `audit this documentation page`, `what style guide should these docs use`
 
 ## When It Applies

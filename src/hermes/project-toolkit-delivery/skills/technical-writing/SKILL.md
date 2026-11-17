@@ -27,7 +27,7 @@ own these:
 
 ## Triggers
 
-`write a docs page for X`, `edit the docs for clarity`, `write a tutorial`,
+`write a docs page for X`, `edit documentation for clarity`, `write a tutorial`,
 `audit this documentation page`, `what style guide should these docs use`
 
 ## When It Applies

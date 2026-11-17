@@ -7,15 +7,9 @@ style system, not the owner's official guide (see [provenance](provenance.md)).
 
 ## Precedence
 
-When rules disagree, apply them in this order:
-
-1. The target repository's own style guide, contributing guide, and the
-   conventions visible in its existing pages.
-2. A site profile under [site-profiles/](site-profiles/), when the target matches one.
-3. The primary stylebook.
-4. This skill's base rules: [prose patterns](prose-patterns.md) and
-   [common documentation issues](common-documentation-issues.md).
-5. The secondary stylebook, only for the constraint you named.
+Apply the Unified Precedence list in the skill's `SKILL.md`. It ranks the
+target repository, a site profile, the primary stylebook, the base rules, and
+the secondary stylebook, in that order.
 
 Never let a stylebook change a fact. Every stylebook starts by protecting the
 source material; that rule outranks voice and tone.
