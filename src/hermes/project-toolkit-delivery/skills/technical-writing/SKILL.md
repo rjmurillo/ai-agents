@@ -27,8 +27,8 @@ own these:
 
 ## Triggers
 
-`write a documentation page for X`, `write a tutorial`, `audit this docs page`,
-`tighten the docs prose`, `which stylebook should these docs use`
+`write a documentation page for X`, `write a tutorial`, `edit the docs prose`,
+`pick a stylebook for these docs`. For an audit, name the skill: `/technical-writing audit docs/x.md`.
 
 ## When It Applies
 

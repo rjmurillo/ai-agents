@@ -13,15 +13,16 @@ metadata:
   routing:
     role: front-door
     invoker: autoplan
-    trigger: autoplan's long-tail resolver matches a documentation page writing, editing, or audit request
+    trigger: autoplan's long-tail resolver matches a request to write a documentation page or tutorial, edit docs prose, or pick a stylebook
     user-facing: true
     intents:
       - write a tutorial
       - write a documentation page
       - write integration documentation
       - write rule documentation
-      - docs prose
-      - stylebook
+      - edit docs prose
+      - pick a stylebook
+      - choose a stylebook
 ---
 
 # Technical Writing
@@ -45,8 +46,8 @@ own these:
 
 ## Triggers
 
-`write a documentation page for X`, `write a tutorial`, `audit this docs page`,
-`tighten the docs prose`, `which stylebook should these docs use`
+`write a documentation page for X`, `write a tutorial`, `edit the docs prose`,
+`pick a stylebook for these docs`. For an audit, name the skill: `/technical-writing audit docs/x.md`.
 
 ## When It Applies
 

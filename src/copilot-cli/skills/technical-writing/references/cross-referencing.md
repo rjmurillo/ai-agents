@@ -4,7 +4,7 @@
 
 - Use the link form the site already uses: root-relative paths, relative file
   links, or a cross-reference syntax such as DocFX `xref`. Match the neighbors.
-- Write link text that names the destination: "see [Configure retries](...)", not "click here".
+- Write link text that names the destination: `see [Configure retries](retries.md)`, not `click here`.
 - Link a concept on its first mention in a section where the reader may need it.
   Do not link every mention.
 
