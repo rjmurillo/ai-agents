@@ -1325,17 +1325,19 @@ def _extract_identifiers(code: str, lang: str = "") -> list[str]:
 # A marker with no SDK name is reported (INVALID_SDK_MARKER_CLAIM) so a typo
 # cannot hide real errors.
 #
-# Fail closed: a marker is honored only when ``<!--`` starts at column 0 of a
-# line outside a top-level fenced code block. In CommonMark a line that starts
-# at column 0 ends any list item or blockquote, so a column-0 marker can sit
-# only inside a top-level fence. Fences are therefore tracked at top level
-# alone, and a line inside an open fence is never stripped or reinterpreted.
-# A marker with leading whitespace or a ``>`` prefix, or in a list-item,
-# blockquote, or indented code block, is never honored.
+# Fail closed, with no fence state. A marker is honored only when (a) its line
+# starts with ``<!--`` at column 0, and (b) no EARLIER line contains a run of
+# three backticks or three tildes anywhere on the line. Every fenced code
+# block's opening line contains such a run, so a marker with none before it
+# cannot be inside a fence. Tracking fences instead (top level only, or with
+# container prefixes) inverts after a list item, blockquote, or HTML block that
+# holds a fence-like line, and then honors a marker inside a later real fence.
+# The cost: a marker placed below any code fence is not honored. Put it right
+# after the H1.
 _EXTERNAL_SDK_MARKER_RE = re.compile(
     r"<!--\s*doc-accuracy:\s*external-sdk(?=\s|-->)(?P<body>.*?)-->"
 )
-_FENCE_RE = re.compile(r" {0,3}(?P<run>`{3,}|~{3,})(?P<info>.*)$")
+_FENCE_LIKE_RUNS = ("```", "~~~")
 INVALID_SDK_MARKER_CLAIM = "invalid_external_sdk_marker"
 
 
@@ -1355,35 +1357,21 @@ def _parse_sdk_marker_body(body: str) -> tuple[str, str]:
 def _find_external_sdk_markers(lines: list[str]) -> list[tuple[int, str, str]]:
     """Find honored markers as ``(1-based line, sdk name, reason)`` tuples.
 
-    Only top-level fences are tracked. An opener is up to three spaces, a run
-    of three or more backticks or tildes, and an info string (no backtick for a
-    backtick fence). While a fence is open, the only line that matters is its
-    closer: up to three spaces, the same character, a run at least as long as
-    the opener, then only whitespace. ``sdk name`` is "" for a marker that
-    names no SDK. A marker split across lines is not recognized.
+    A marker counts only when ``<!--`` starts at column 0 and no earlier line
+    contains three backticks or three tildes (see the module comment above).
+    Scanning stops at the first line holding such a run. A marker after that
+    line is ignored, whether well formed or nameless, because it may be example
+    text inside a fence. ``sdk name`` is "" for a nameless marker, which the
+    caller reports. A marker split across lines is not recognized.
     """
     markers: list[tuple[int, str, str]] = []
-    fence: str | None = None
     for number, line in enumerate(lines, start=1):
-        fence_match = _FENCE_RE.match(line)
-        if fence is not None:
-            if (
-                fence_match
-                and not fence_match.group("info").strip()
-                and fence_match.group("run")[0] == fence[0]
-                and len(fence_match.group("run")) >= len(fence)
-            ):
-                fence = None
-            continue
-        if fence_match and not (
-            fence_match.group("run")[0] == "`" and "`" in fence_match.group("info")
-        ):
-            fence = fence_match.group("run")
-            continue
         marker = _EXTERNAL_SDK_MARKER_RE.match(line)
         if marker:
             name, reason = _parse_sdk_marker_body(marker.group("body"))
             markers.append((number, name, reason))
+        if any(run in line for run in _FENCE_LIKE_RUNS):
+            break
     return markers
 
 

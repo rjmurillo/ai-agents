@@ -128,10 +128,9 @@ name. Declare the file with one HTML comment:
 ```
 
 - `<name>` is required. A missing `<reason>` stays valid and records "".
-- Honored only when `<!--` starts at column 0 of a line outside a top-level
-  fenced code block. Leading spaces, a `>` prefix, or a list-item, blockquote,
-  or indented code block means it is never honored. The first valid marker
-  wins.
+- Put it right after the H1. It is honored only when `<!--` starts at column 0
+  and no earlier line contains three backticks or tildes. A marker below any
+  code fence is ignored. The first valid marker wins.
 - It silences `unresolved_symbol` for that file only. Other checks still run.
 - A marker with no name suppresses nothing and yields a high
   `invalid_external_sdk_marker` finding at its line.
