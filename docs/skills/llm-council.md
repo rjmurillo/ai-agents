@@ -115,6 +115,7 @@ Put the `## Council review` section in the PR description. A member with no read
 | Codex | Yes |
 | Cursor | Yes |
 | Muse | Yes |
+| Hermes | Yes |
 
 ## Related
 

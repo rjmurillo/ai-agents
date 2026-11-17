@@ -86,7 +86,7 @@ uv run python .claude/skills/sol-loop/scripts/sol_loop.py gate --route cli --cri
 | Step | When | Flags beyond the shared set | Exit codes |
 | --- | --- | --- | --- |
 | `gate` | Before each round | `--route t3\|native\|cli\|none` (required) | `0` proceed or skip (read `verdict`), `1` round cap hit, `2` config error |
-| `record` | After Sol replies | `--reply` (required), `--reviewed-head` | `0` logged, `1` round cap hit, `2` config error or log not written, `3` no verdict in the reply (WARN) |
+| `record` | After Sol replies | `--reply` (required), `--reviewed-head` | `0` logged, `1` round cap hit, `2` config error or log not written, `3` WARN: no verdict, `CHANGES` with no finding lines, or an unreadable reply file |
 | `review` | CLI route: runs Sol, then records | `--brief-file` (required), `--timeout` (default 900 seconds) | As `record`, plus `3` when the CLI call fails (WARN) and `2` when no CLI is installed |
 | `unavailable` | Sol started and failed | `--failure-class` (required), `--detail` | `3` WARN logged, `2` refused model id |
 | `outcome` | After you answer a finding | `--run`, `--id`, `--outcome`, `--evidence` | `0` updated, `2` bad log or id |
@@ -121,6 +121,7 @@ Set `AI_AGENTS_SOL_PASS=off`. Also accepted: `0`, `false`, `no`, `disabled`. `ga
 | Codex | Yes |
 | Cursor | Yes |
 | Muse | Yes |
+| Hermes | Yes |
 
 ## Related
 
