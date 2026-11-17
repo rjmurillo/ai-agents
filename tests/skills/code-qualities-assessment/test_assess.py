@@ -1697,7 +1697,9 @@ def parser_admission_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> di
 
 def _run_parser_admission(config: dict[str, Any], tmp_path: Path) -> int:
     config_path = _write(tmp_path, ".qualityrc.json", json.dumps(config))
-    return main([*_regression_argv(), "--config", str(config_path)])
+    result = main([*_regression_argv(), "--config", str(config_path)])
+    assert isinstance(result, int)
+    return result
 
 
 def test_parser_admission_keeps_raw_regression_and_authorization(

@@ -437,7 +437,9 @@ def cq_payload(files: list[dict]) -> str:
 
 
 def cq_admission_payload() -> dict:
-    config = json.loads((Path(__file__).resolve().parents[1] / ".qualityrc.json").read_text())
+    config = json.loads(
+        (Path(__file__).resolve().parents[1] / ".qualityrc.json").read_text(encoding="utf-8")
+    )
     approval = config["csharpParserDependencyAdmission"]
     payload = json.loads(cq_payload([cq_file(approval["file"])]))
     payload["comparisons"] = [
