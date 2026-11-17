@@ -177,7 +177,7 @@ def test_resolving_example_in_marked_file_passes(
         (" Aspire SDK -- reason -- more ", ("Aspire SDK", "reason -- more")),
         (" Aspire --", ("Aspire", "")),
         ("", ("", "")),
-        (" -- reason", ("", "")),
+        (" -- reason", ("", "reason")),
         ("   ", ("", "")),
     ],
 )
@@ -201,11 +201,14 @@ def test_find_markers_reports_every_honored_marker_with_line_and_reason() -> Non
 @pytest.mark.parametrize(
     "hidden",
     [
-        pytest.param(f"1. Step\n\n    ```text\n{MARKER}\n    ```\n", id="list-item-fence"),
-        pytest.param(f"- Step\n\n  ```text\n{MARKER}\n  ```\n", id="two-space-list-fence"),
-        pytest.param(f"- ```text\n{MARKER}\n  ```\n", id="fence-on-list-marker-line"),
+        pytest.param(f"1. Step\n\n    ```text\n    {MARKER}\n    ```\n", id="list-item-fence"),
+        pytest.param(f"- Step\n\n  ```text\n  {MARKER}\n  ```\n", id="two-space-list-fence"),
+        pytest.param(f"- ```text\n  {MARKER}\n  ```\n", id="fence-on-list-marker-line"),
         pytest.param(f"> ```text\n> {MARKER}\n> ```\n", id="blockquote-fence"),
-        pytest.param(f"> ```text\n{MARKER}\n> ```\n", id="blockquote-fence-lazy-line"),
+        pytest.param(f"```text\n> ```\n{MARKER}\n```\n", id="quoted-backticks-inside-fence"),
+        pytest.param(f"```text\n    ```\n{MARKER}\n```\n", id="indented-backticks-inside-fence"),
+        pytest.param(f"```markdown\n- ```\n{MARKER}\n```\n", id="list-backticks-inside-fence"),
+        pytest.param(f"    ```\n\n```text\n{MARKER}\n```\n", id="indented-code-then-real-fence"),
         pytest.param(f"    {MARKER}\n", id="indented-code-block"),
         pytest.param(f" {MARKER}\n", id="leading-space-marker"),
         pytest.param(f"\t{MARKER}\n", id="leading-tab-marker"),
@@ -223,8 +226,8 @@ def test_marker_in_nested_or_prefixed_context_is_never_honored(
     assert _by_category(findings, "invalid_external_sdk_marker") == []
 
 
-def test_inline_code_scan_is_linear_on_backtick_runs() -> None:
-    line = "x " + "`" * 5000
+def test_marker_scan_is_linear_on_a_100k_space_marker_body() -> None:
+    line = "<!-- doc-accuracy: external-sdk" + " " * 100_000 + "x"
 
     start = time.perf_counter()
     result = mod._find_external_sdk_markers([line])
@@ -232,6 +235,34 @@ def test_inline_code_scan_is_linear_on_backtick_runs() -> None:
 
     assert result == []
     assert elapsed < 1.0
+
+
+@pytest.mark.parametrize(
+    "line", ["`" * 100_000, "```" + "`" * 100_000 + "x", " " * 100_000 + "```"]
+)
+def test_fence_scan_is_linear_on_a_100k_char_fence_like_line(line: str) -> None:
+    start = time.perf_counter()
+    mod._find_external_sdk_markers([line, "<!-- doc-accuracy: external-sdk A -->"])
+    elapsed = time.perf_counter() - start
+
+    assert elapsed < 1.0
+
+
+def test_parse_marker_body_is_linear_on_100k_spaces() -> None:
+    start = time.perf_counter()
+    assert mod._parse_sdk_marker_body("A" + " " * 100_000 + "-- r") == ("A", "r")
+    assert time.perf_counter() - start < 1.0
+
+
+def test_marker_keyword_prefix_is_not_a_marker(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    doc = f"# A\n<!-- doc-accuracy: external-sdk-foo -->\n\n{FOREIGN_FENCE}"
+    code, findings = _scan(tmp_path, capsys, doc)
+
+    assert code == 10
+    assert _by_category(findings, "unresolved_symbol")
+    assert _by_category(findings, "invalid_external_sdk_marker") == []
 
 
 def test_two_valid_markers_first_wins_without_error(
