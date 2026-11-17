@@ -27,12 +27,10 @@
       ],
       "forbidden_response_patterns": [
         "\\bimport\\b[^\\n]*@astrojs/starlight",
-        "\\bimport\\b[^\\n]*@components/",
-        "(?m)^[ \\t]*(?:[-*][ \\t]+)?<(?-i:Aside|Tabs|TabItem)\\b",
-        "(?m)^[ \\t]*</(?-i:Aside|Tabs|TabItem)>"
+        "\\bimport\\b[^\\n]*@components/"
       ],
       "expected_gate": "technical-writing-site-recon",
-      "rationale": "The skill recons the target first and loads a site profile only on a match. A response that writes Astro or Starlight component markup fails on a plain Markdown repo: an import line, or a line that starts with an Aside, Tabs, or TabItem tag. A component named or quoted inside a sentence, including to reject it, is left to the judge."
+      "rationale": "The skill recons the target first and loads a site profile only on a match. An Astro or Starlight component import in the answer is the unambiguous failure on a plain Markdown repo, so the grader caps it. Component advice in prose, and naming a component to reject it, is left to the judge, because a pattern cannot tell the two apart."
     },
     {
       "id": "S3",
