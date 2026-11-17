@@ -33,7 +33,7 @@ One coherent change that holds the canonical sources and every generated artifac
 
 ## Advanced use
 
-The phases are: load the settled contract, classify the source hook, change canonical sources, test before generation, regenerate all mirrors, test shipped artifacts, and refresh knowledge only when the runtime differs. Phase 3 and 5 run pytest suites under `tests/build_scripts/` and `tests/e2e/`. Regenerate with `uv run python build/scripts/build_all.py`.
+The phases are: load the settled contract, classify the source hook, change canonical sources, test before generation, regenerate all mirrors, test shipped artifacts, and refresh knowledge only when the runtime differs. The test phases run the pytest suites under `tests/build_scripts/` and `tests/e2e/`. Regenerate with `uv run python build/scripts/build_all.py`.
 
 `hook_inventory.py` has three subcommands: `counts` (events and registrations per hook manifest), `phase-tests` (checks that the pytest paths named in `SKILL.md` exist), and `qualifiers` (checks the repository qualifier). Exit codes: 0 ok, 1 findings, 2 bad arguments, 3 external failure.
 
