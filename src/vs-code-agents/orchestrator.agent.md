@@ -167,7 +167,7 @@ Any model: explicit follow-through, event-driven waits, compact receipts, one ch
    YES → analyst → synthesize → re-evaluate
    NO  → continue
 5. Is task a standard lifecycle (spec/plan/build/test/review/ship)?
-   YES → sequential routing: /spec → milestone-planner → critic (plan gate) → implementer → qa → critic (readiness) → sol pass (review skill, resources/cross-family-pass.md)
+   YES → sequential routing: /spec → milestone-planner → critic (plan gate) → implementer → qa → critic (readiness) → sol-loop (skipped when a GPT model wrote the change)
         Plan gate: APPROVED or APPROVED_WITH_CONCERNS → implementer; NEEDS_REVISION → milestone-planner; BLOCKED → resolve the conflict first
    NO  → continue
 6. Does task have multiple independent subtasks?

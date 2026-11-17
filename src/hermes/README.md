@@ -51,6 +51,7 @@ Project Toolkit skills for GitHub pull request work, build, test, and quality ga
 - `reviewer-findings`
 - `security-review`
 - `slo-designer`
+- `sol-loop`
 - `steering-matcher`
 - `style-enforcement`
 - `sync`

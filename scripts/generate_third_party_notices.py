@@ -132,6 +132,16 @@ FORKED_COMPONENTS: dict[str, dict[str, str]] = {
         ),
         "license_blank_line_prefix": "",
     },
+    "tstack sol-loop": {
+        "license": "MIT",
+        "url": "https://github.com/t3dotgg/tstack",
+        "author": "Theo Browne",
+        "local_path": "src/claude/skills/sol-loop",
+        "license_text": (
+            "MIT License\n\nCopyright (c) 2026 Theo Browne\n\n" + _MIT_PERMISSION_TEXT
+        ),
+        "license_blank_line_prefix": "",
+    },
 }
 
 # Runtime dependencies declared in requirements.txt files within shipped paths.
