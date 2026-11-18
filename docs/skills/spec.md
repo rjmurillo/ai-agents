@@ -55,7 +55,7 @@ A structured requirements document that mirrors the PRD schema. Sections include
 
 While the architecture is still open, a reframing check runs with Q2. End the Q2 answer with one of: `Reframing: skipped (<reason>)`, `Reframing: automation only`, or `Reframing: capability invention, check: <falsifiable signal>`. The pass criteria and kill criteria live in the `spec-generator` skill's `references/spec-step0-gates.md`.
 
-**Step 0.5: memory-first gate.** Searches prior art before new spec work. It halts when the blast-radius count meets the mode threshold, or when a risky change type (such as removing an ADR constraint) has no prior record. Finding that prior work already answers the question does not halt it. Read [`references/step-0-5-memory-gate.md`](../../src/claude/skills/spec/references/step-0-5-memory-gate.md) before running it, because the halt conditions are the point.
+**Step 0.5: memory-first gate.** Searches prior art before new spec work. It halts when the blast-radius count meets the mode threshold, or when a risky change type (such as removing an ADR constraint) has no prior record. Check 9e can also halt a Tier 5 spec that contradicts the elicited operating model. Finding that prior work already answers the question does not halt it. Read [`references/step-0-5-memory-gate.md`](../../src/claude/skills/spec/references/step-0-5-memory-gate.md) before running it, because the halt conditions are the point.
 
 **Evaluation axes.** Problem clarity, requirement testability, completeness, traceability (REQ to DESIGN to TASK), and feasibility.
 

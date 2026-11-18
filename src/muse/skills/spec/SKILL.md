@@ -77,8 +77,9 @@ Runs after Step 0 and before Step 1. It searches prior art before any new spec
 work, halts when the blast-radius count meets the mode threshold or a risky
 change type has no prior record, and runs the Check 9 series over the result.
 The gate in full, including its halt criteria, halt block format, metrics tally
-and every check, is in `references/step-0-5-memory-gate.md`. Read it before running the gate: the halt
-conditions are the point, and a summary of them is not the gate.
+and every check, is in `references/step-0-5-memory-gate.md`. Read it before
+running the gate: the halt conditions are the point, and a summary of them is
+not the gate.
 
 ## Evaluation Axes
 
