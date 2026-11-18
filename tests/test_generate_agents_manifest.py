@@ -26,7 +26,6 @@ _BUILD_DIR = Path(__file__).resolve().parent.parent / "build"
 sys.path.insert(0, str(_BUILD_DIR))
 
 from generate_agents import generate_agents  # noqa: E402
-from model_pin_manifest import DEFAULT_MODEL  # noqa: E402
 
 from tests.test_generate_agents import _create_test_structure  # noqa: E402
 
@@ -63,7 +62,7 @@ def _write_keep_pin_manifest(
         '"decision": "KEEP_PIN", '
         '"fixtures_sha": "abc123", '
         '"artifact": "evals/test-agent-spike/sweep.json", '
-        f'"default_model": "{DEFAULT_MODEL}", '
+        '"default_model": "gpt-6.1-sol", '
         f'"date": "{utc_today.isoformat()}"'
         "}]}",
         encoding="utf-8",
@@ -78,10 +77,10 @@ def _write_keep_pin_manifest(
                 "decision": "KEEP_PIN",
                 "winner": "claude-opus-4-6",
                 "fixtures_sha": "abc123",
-                "default_model": DEFAULT_MODEL,
+                "default_model": "gpt-6.1-sol",
                 "models": [
                     {"model_id": "claude-opus-4-6"},
-                    {"model_id": DEFAULT_MODEL},
+                    {"model_id": "gpt-6.1-sol"},
                 ],
                 "n_shared_fixtures": 8,
                 "recall_delta": 0.05,
