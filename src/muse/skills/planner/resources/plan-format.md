@@ -135,7 +135,7 @@ Log (async)
 
 **Acceptance Criteria**:
 
-- [Testable: "Returns 429 after 3 failed attempts" - QR can verify pass/fail]
+- [Testable: "Returns 429 after 3 failed attempts" - a reviewer can verify pass/fail]
 - [Avoid vague: "Works correctly" or "Handles errors properly"]
 
 **Code Changes** (for non-trivial logic, use unified diff format):

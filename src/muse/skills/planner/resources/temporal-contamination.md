@@ -1,6 +1,6 @@
 # Temporal Contamination in Code Comments
 
-This document defines terminology for identifying comments that leak information about code history, change processes, or planning artifacts. @agent-quality-reviewer embeds this specification, and planner review step 1 points @agent-comment-analyzer to it.
+This document defines terminology for identifying comments that leak information about code history, change processes, or planning artifacts. No agent embeds this specification. Planner review step 1 points @agent-comment-analyzer to it, and executor step 4 points @agent-code-reviewer to it.
 
 ## The Core Principle
 

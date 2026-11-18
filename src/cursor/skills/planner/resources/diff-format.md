@@ -103,7 +103,7 @@ Comments in `+` lines explain **WHY**, not **WHAT**. These comments:
 - Use concrete terms without hidden baselines
 - Must pass temporal contamination review (see `temporal-contamination.md`)
 
-**Important**: Comments written during planning often contain temporal contamination -- change-relative language, baseline references, or location directives. @agent-comment-analyzer flags these, and the plan author fixes them, before @agent-developer transcribes them.
+**Important**: Comments written during planning often contain temporal contamination -- change-relative language, baseline references, or location directives. @agent-comment-analyzer flags these, and the plan author fixes them, before @agent-implementer transcribes them.
 
 <example type="CORRECT" category="why_comment">
 ```diff
