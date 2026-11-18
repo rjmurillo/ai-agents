@@ -154,7 +154,27 @@ Admission keys on path, scores, and imports, not on content.
 A revert and reintroduction re-admits the transition, as Reversibility already states.
 `.mts` and `.cts` files stay unmapped, as before this change.
 
-PANEL_POSITIONS_PENDING
+| Agent | Position | Evidence |
+|---|---|---|
+| Critic | Revise, then accept. | Five of six edits applied verbatim. The title rename was declined; Context names item 8 instead. |
+| Independent-thinker | Revise, then accept. | Its item 8 text on the admission table and record chaining was applied verbatim. |
+
+The critic noted the quote did not appear on the issue.
+It now appears verbatim in issue #7435 comment 6994828821.
+The independent-thinker noted the scanner's own coupling now sits at the 7.0 floor.
+The next parser import drops it to 6.0, below "reasonable". The amendment records this as a known cost.
+
+| Agent | Position | Evidence |
+|---|---|---|
+| Analyst | Revise, then accept. | Every factual claim verified against code and tests. One count corrected from two files to three. |
+| High-level-advisor | Revise, then accept. | The revisit trigger moved to "before a third record lands", so it can fire. |
+
+The high-level-advisor also proposed that siblings fitting item 8 need no further amendment.
+That edit was declined: it pre-admits later transitions, which item 7 forbids.
+Each sibling keeps its own maintainer admission decision.
+
+All six panel agents accept the amendment as revised.
+These votes are not GitHub approvals or merge permission.
 
 ## Decision Boundaries
 
