@@ -32,20 +32,29 @@ def test_opus_5_5_is_priced_in_both_harness_spellings() -> None:
     assert MODEL_PRICING_RATES_USD_PER_1K_TOKENS["claude-opus-5.5"] == expected
 
 
+def test_copilot_5_5_tiers_are_priced_in_both_harness_spellings() -> None:
+    """Sonnet 5.5 lists at $2/$10 and Haiku 5.5 at $0.10/$0.50 (prompts up to 100K)."""
+    expected = {
+        "sonnet": {"input": 0.002, "output": 0.010},
+        "haiku": {"input": 0.0001, "output": 0.0005},
+    }
+
+    for family, rate in expected.items():
+        assert MODEL_PRICING_RATES_USD_PER_1K_TOKENS[f"claude-{family}-5-5"] == rate, family
+        assert MODEL_PRICING_RATES_USD_PER_1K_TOKENS[f"claude-{family}-5.5"] == rate, family
+
+
 def test_gpt6_routing_candidates_are_priced_as_verified() -> None:
-    """GPT-6 Astra/Sol/Luna rates match developers.openai.com/api/docs/models."""
-    assert MODEL_PRICING_RATES_USD_PER_1K_TOKENS["gpt-6-astra"] == {
-        "input": 0.010,
-        "output": 0.050,
+    """GPT-6 Astra/Sol/Luna rates match developers.openai.com/api/docs/pricing."""
+    expected = {
+        "gpt-6-astra": {"input": 0.010, "output": 0.050},
+        "gpt-6-sol": {"input": 0.002, "output": 0.010},
+        "gpt-6.1-sol": {"input": 0.002, "output": 0.010},
+        "gpt-6-luna": {"input": 0.0001, "output": 0.0005},
     }
-    assert MODEL_PRICING_RATES_USD_PER_1K_TOKENS["gpt-6-sol"] == {
-        "input": 0.002,
-        "output": 0.010,
-    }
-    assert MODEL_PRICING_RATES_USD_PER_1K_TOKENS["gpt-6-luna"] == {
-        "input": 0.0001,
-        "output": 0.0005,
-    }
+
+    for model_id, rate in expected.items():
+        assert MODEL_PRICING_RATES_USD_PER_1K_TOKENS[model_id] == rate, model_id
 
 
 def test_spellings_of_one_model_share_one_rate() -> None:
