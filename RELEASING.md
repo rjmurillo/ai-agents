@@ -2,47 +2,70 @@
 
 ## One-time setup
 
-### 1. Link npm scope to GitHub repo (required for provenance)
+The workflow authenticates to npm in one of two ways. Trusted publishing (OIDC)
+needs no stored secret. A granular access token in the `npm` environment is the
+fallback. The first publish must use the token, because npm can only link a
+trusted publisher to a package that already exists. npm/cli#8544 tracks that
+limit.
 
-Go to [npmjs.com/settings/rjmurillo/packages](https://www.npmjs.com/settings/rjmurillo/packages),
-find `@rjmurillo/ai-agents`, and link it to the `rjmurillo/ai-agents` GitHub repository.
-This must happen before the first publish with `--provenance`.
-
-### 2. Enable 2FA on npm account
-
-npm requires 2FA for publishing scoped packages with provenance.
-Enable it at [npmjs.com/settings/~/tfa](https://www.npmjs.com/settings/~/tfa).
-
-### 3. Configure GitHub environment
+### 1. Configure the GitHub environment
 
 Create a GitHub environment named `npm` at
-`Settings > Environments > New environment`. No secrets are required
-when using OIDC. If OIDC is not available, add `NPM_TOKEN` as an
-environment secret (automation token from npm).
+`Settings > Environments > New environment`. The `publish.yml` publish job runs
+in it and requests `id-token: write`.
 
-### 4. Verify OIDC
+### 2. Enable 2FA on the npm account
 
-OIDC provenance uses GitHub Actions' built-in `id-token: write` permission.
-When OIDC is active, the Actions runtime exchanges a short-lived token with
-npm. This replaces the need for a long-lived `NPM_TOKEN` secret for
-authentication. The `publish.yml` workflow already requests `id-token: write`
-on the publish job.
+Enable it at [npmjs.com/settings/~/tfa](https://www.npmjs.com/settings/~/tfa).
 
-The workflow still references `NPM_TOKEN` as a fallback. If OIDC is active,
-the token is ignored. If OIDC is unavailable (self-hosted runners, forks),
-set `NPM_TOKEN` in the `npm` environment for token-based auth.
+### 3. First publish: bootstrap with a short-lived token
+
+Do this right before the first real publish, when the promotion gate is ready
+to promote. Do not publish from a laptop. npm generates provenance only from a
+supported cloud CI runner, and a local publish skips the promotion gate.
+
+1. On npmjs.com, open your profile picture > Access Tokens > Generate New Token.
+   - Check Bypass two-factor authentication. CI cannot answer an OTP prompt.
+   - Under Packages and scopes, set Permissions to Read and write (publish and
+     stage). Choose Only select packages and scopes, then the `@rjmurillo` scope.
+   - Set Expiration to a custom date one or two days out.
+2. Add the token as the environment secret `NPM_TOKEN` in the `npm`
+   environment. Paste it there and nowhere else.
+3. Run the standard release below.
+4. Delete the `NPM_TOKEN` secret, then revoke the token on npmjs.com.
+
+### 4. Every later publish: trusted publishing
+
+Set this up right before the next release run. A new trusted publisher config
+expires if it does not complete a publish within 2 days.
+
+On npmjs.com, open Packages > `@rjmurillo/ai-agents` > Settings > Trusted
+publishing, choose GitHub Actions, and enter:
+
+| Field | Value |
+|---|---|
+| Organization or user | `rjmurillo` |
+| Repository | `ai-agents` |
+| Workflow filename | `publish.yml` |
+| Environment name | `npm` |
+| Allowed actions | `npm publish` (checked) |
+
+Configs created after 2026-09-03 allow only `npm stage publish` by default.
+The workflow runs `npm publish`, so check that action.
+
+Trusted publishing needs npm 11.5.1 or later. The publish job installs Node
+`lts/*`, which bundles a newer npm. npm generates provenance on its own when it
+publishes through OIDC from a public repository.
+
+After one trusted publish succeeds, open the package's Settings > Publishing
+access and choose Require two-factor authentication and disallow tokens.
+
+The workflow still passes `NODE_AUTH_TOKEN` from `secrets.NPM_TOKEN`. npm tries
+the OIDC exchange first and uses its token when the exchange succeeds. When the
+exchange fails, npm falls back to `NODE_AUTH_TOKEN`, which is empty once the
+secret is deleted.
 
 ## Publishing a release
-
-### First publish
-
-```bash
-cd packages/ai-agents-cli
-npm publish --provenance --access public
-```
-
-The `--access public` flag is required on first publish for scoped packages.
-Subsequent publishes inherit the access level.
 
 ### Standard release (from CI)
 
@@ -169,8 +192,8 @@ linking back to this repository's publish workflow.
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| `ENEEDAUTH` | Missing npm token or OIDC not configured | Add `NPM_TOKEN` to `npm` environment, or verify OIDC setup |
-| `E403 Forbidden` | 2FA not enabled or scope not linked | Enable 2FA, link scope to repo in npm UI |
+| `ENEEDAUTH` | No trusted publisher matched and no `NPM_TOKEN` | First publish: follow setup step 3. Later: check the trusted publisher fields in setup step 4 |
+| `E403 Forbidden` | Token lacks write access, or 2FA blocks a token without bypass | Recreate the token per setup step 3 |
 | OIDC provenance error | `id-token: write` missing | `publish.yml` contains `id-token: write` on publish job |
 | Tag/version mismatch | `release-tag` does not match the `package.json` version | Use the tag `vX.Y.Z` for the version on the candidate commit |
 | `a real publish needs release-tag` | `dry-run` is `false` and `release-tag` is empty | Set `release-tag` to `vX.Y.Z` |

@@ -75,30 +75,43 @@ def test_release_path_drops_closed_issue_cites():
 
 
 def test_release_path_scopes_dispatch_to_ci_and_names_first_publish():
-    """RELEASING.md keeps a one-time local first publish, so dispatch is the only live CI route."""
+    """Issue 7368: the First publish goes through dispatch too, with a bootstrap token."""
     section = _release_section()
     assert "only live CI publish route" in section
     assert "First publish" in section
 
 
-def test_promotion_gate_sentence_names_dispatch_not_first_publish():
-    """The gate sentence must not read as if the local First publish is gated.
+def test_first_publish_is_not_described_as_local():
+    """Issue 7368: a local first publish cannot carry provenance and skips the gate.
 
-    RELEASING.md runs the First publish as a plain local `npm publish`, with no
-    promotion gate. A pronoun after the First publish sentence would bind to it.
+    The skill must route the First publish through the dispatch run and its
+    bootstrap token, matching RELEASING.md setup step 3.
     """
     section = _release_section()
     bullet = next(line for line in section.splitlines() if "only live CI publish route" in line)
+    first_publish = next(s for s in re.split(r"(?<=\.)\s+", bullet) if "First publish" in s)
+    assert "runs locally" not in first_publish, first_publish
+    assert "dispatch" in first_publish, first_publish
+    assert "NPM_TOKEN" in first_publish, first_publish
+
+
+def test_promotion_gate_sentence_names_dispatch():
+    """The gate sentence must name the dispatch run, not lean on a pronoun."""
+    section = _release_section()
+    bullet = next(line for line in section.splitlines() if "only live CI publish route" in line)
     sentences = [s.strip() for s in re.split(r"(?<=\.)\s+", bullet.lstrip("- ")) if s.strip()]
-    gate_index = next(
-        i for i, s in enumerate(sentences) if "promotion gate" in s and "runs no" not in s
-    )
-    gate_sentence = sentences[gate_index]
+    gate_sentence = next(s for s in sentences if "promotion gate" in s)
     assert "dispatch" in gate_sentence, gate_sentence
     assert not gate_sentence.startswith("It "), gate_sentence
-    assert "First publish" not in sentences[gate_index - 1], sentences[gate_index - 1]
-    first_publish = next(s for s in sentences if "First publish" in s)
-    assert "no promotion gate" in first_publish, first_publish
+
+
+def test_releasing_md_first_publish_uses_ci_not_local():
+    """Issue 7368: RELEASING.md must not tell the owner to publish from a laptop."""
+    releasing = (Path(__file__).resolve().parents[3] / "RELEASING.md").read_text(encoding="utf-8")
+    assert "npm publish --provenance --access public\n```" not in releasing
+    assert "### 3. First publish: bootstrap with a short-lived token" in releasing
+    assert "Workflow filename | `publish.yml`" in releasing
+    assert "Environment name | `npm`" in releasing
 
 
 def test_provenance_marks_release_row_reverified():
