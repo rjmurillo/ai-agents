@@ -27,24 +27,19 @@ import build_all  # noqa: E402
 import generate_skills  # noqa: E402
 import skill_mirror_prune  # noqa: E402
 import skill_support_mirror  # noqa: E402
-from _skill_mirror_helpers import (  # noqa: E402
-    ALL_SHAPES as _ALL_SHAPES,
-)
-from _skill_mirror_helpers import (  # noqa: E402
-    NEEDS_SYMLINKS as _NEEDS_SYMLINKS,
-)
 from _skill_mirror_helpers import SHAPES, make_symlink  # noqa: E402
 from _skill_mirror_helpers import build as _build  # noqa: E402
 from _skill_mirror_helpers import built_repo as _built_repo  # noqa: E402
 from _skill_mirror_helpers import config as _config  # noqa: E402
 from _skill_mirror_helpers import mirror as _mirror  # noqa: E402
 from _skill_mirror_helpers import seed as _seed  # noqa: E402
+from skill_copy_compare import mirror_owned_rels  # noqa: E402
 
 _NEEDS_SYMLINKS = pytest.mark.skipif(
     sys.platform == "win32", reason="creating symlinks needs elevated rights on Windows"
 )
 _ALL_SHAPES = pytest.mark.parametrize("shape", sorted(SHAPES))
-from skill_copy_compare import mirror_owned_rels  # noqa: E402
+
 
 # --- removal ---------------------------------------------------------------
 

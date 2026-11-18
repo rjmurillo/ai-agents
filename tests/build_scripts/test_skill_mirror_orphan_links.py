@@ -20,9 +20,6 @@ for _extra_path in (_TEST_DIR, _REPO_ROOT / "build" / "scripts"):
 import generate_skills  # noqa: E402
 import skill_mirror_prune  # noqa: E402
 import skill_support_mirror  # noqa: E402
-from _skill_mirror_helpers import (  # noqa: E402
-    NEEDS_SYMLINKS as _NEEDS_SYMLINKS,
-)
 from _skill_mirror_helpers import build as _build  # noqa: E402
 from _skill_mirror_helpers import built_repo as _built_repo  # noqa: E402
 from _skill_mirror_helpers import make_symlink  # noqa: E402
