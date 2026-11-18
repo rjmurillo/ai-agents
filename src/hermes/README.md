@@ -58,6 +58,7 @@ Project Toolkit skills for GitHub pull request work, build, test, and quality ga
 - `sync`
 - `takeover`
 - `taste-lints`
+- `technical-writing`
 - `test`
 - `threat-modeling`
 - `validate-pr-description`
