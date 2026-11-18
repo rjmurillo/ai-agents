@@ -157,7 +157,7 @@ Other docs cover the same ground. We link them and do not repeat them:
 
    For this exercise, mark each one out-of-scope with a one-line reason, because your edit changes only `docs/workflow-commands.md`. The search may also find the pull request that already made this fix on `main`. That is expected, since this exercise replays that fix. It does not stop the spec.
 
-   These answers fit this change and pass the gate:
+   These answers fit this change and pass the First Principles gate:
 
    ```text
    Q1: The spec-compliance review on PR #7418 flags `docs/workflow-commands.md:179`, and the ship skill in `.claude/skills/ship/SKILL.md` defines a different count.
@@ -262,16 +262,18 @@ Other docs cover the same ground. We link them and do not repeat them:
       git rev-parse HEAD
       git ls-remote origin <branch>
     The two commands must report the same SHA.
+
     exit 0
     ```
 
-    We captured this on a throwaway branch of commit `81025e191` with only the step 9 edit. The `...` stands for the other rows the `RESULT` line counts. Your counts and rows can differ, because some advisory checks read your machine. Any run that prints `No validation blocked the gate` and exits 0 is a pass. So is `RESULT: All validations passed`. An `[ADVISORY]` row is a finding the policy lets through: read it, but it does not block. The review marker skip is expected, because you have not run `/review` yet. Every run prints the push check. Ignore it here, because `/ship` pushes in step 12.
+    We captured this on a throwaway branch of commit `81025e191` with only the step 9 edit. The `...` stands for the other rows the `RESULT` line counts. Your counts and rows can differ, because some advisory checks read your machine. Any run that prints `No validation blocked the gate` and exits 0 is a pass. So is `RESULT: All validations passed`. An `[ADVISORY]` row is a finding the policy lets through: read it, but it does not block. The review marker skip is expected, because you have not run `/review` yet. Every passing run prints the push check. Ignore it here, because `/ship` pushes in step 12.
 
-    A run that blocks prints `RESULT: <n> validation(s) blocked the gate`, lists each gate that blocked, and exits 1, 2, or 3. Act on each one by its state:
+    A run that blocks prints `RESULT: <n> validation(s) blocked the gate`, lists each gate that blocked, and exits 1, 2, 3, or 4. Act on each one by its state:
 
     - `FAIL`: fix the violation it names and commit the fix.
     - `BLOCKED`: install or sign in to the dependency it names.
     - `UNKNOWN`: its output was unreadable. Rerun and read that gate's output.
+    - `SKIP`: a required check did not run. Read its reason and supply what it names.
 
     Then rerun `pre_pr.py`.
 
@@ -401,7 +403,7 @@ If it fails, look here first:
 - **`python3` prints a PyYAML error.** Bare `python3` often lacks PyYAML, and the resolver exits 2 with `error: missing required module: yaml (PyYAML). Read skill descriptions directly instead of running this resolver.` Use `uv run python` from the repository root. With no Python, read each skill's `description` field and pick the closest match ([Phase 2c](../../src/claude/skills/autoplan/SKILL.md#phase-2c-resolver-ambiguity-from-a-home-repo-run)).
 - **The resolver returns `none` for a request you expected to match.** It only matches front-door skills that list `intents`. A table row in `SKILL.md` can route a request the resolver does not match. Read [Phase 2](../../src/claude/skills/autoplan/SKILL.md#phase-2-route) before you decide the router is wrong.
 - **`/spec` stops at the First Principles gate.** A hedged or empty answer blocks it. Name a real person or system, a real workaround, and a real signal. If you cannot, the change may not be worth making yet.
-- **`/spec` halts at the memory gate.** It prints a fenced `step0_5-halt` block with five `key: value` lines. With `trigger: H11`, too many found items were marked blast-radius. Rerun `/spec` with the same answers. Mark the items your edit does not change out-of-scope, or name them in Q1, Q3, or Q4. Triggers `H6` to `H10` cover larger changes: removing an ADR constraint, bypassing a protocol, deleting over 100 lines, refactoring complex code, or changing a validator, linter, or hook. Each fires when the search finds no prior record for that change. The block's `deferral` line says how to unblock it.
+- **`/spec` halts at the memory gate.** It prints a fenced `step0_5-halt` block with five `key: value` lines. With `trigger: H11`, too many found items were marked blast-radius. Rerun `/spec`, and either mark the items your edit does not change out-of-scope or name them in Q1, Q3, or Q4. Triggers `H6` to `H9` fire when the spec removes an ADR constraint, bypasses a protocol, deletes over 100 lines, or refactors complex code, and the memory search finds no record about it. `H10` fires when the spec changes a validator, linter, hook, or shared infrastructure and cites no prior art for it. The block's `deferral` line says how to unblock it.
 - **`/plan` asks for a spec.** Run `/spec` first, or say you accept an ungated plan.
 - **A `/build` exit gate fails.** Fix the cause in your diff and rerun that gate. Do not add suppression comments or change baselines.
 - **`/test` returns `CRITICAL_FAIL`.** A gate failed or could not run. Fix it, then rerun `/test`.
