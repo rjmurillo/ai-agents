@@ -10,6 +10,8 @@ Each of these counts as one dependency:
 - `export ... from` re-exports, including `export *` and `export type { T } from`.
 - `require("...")` calls.
 - Dynamic `import("...")` expressions.
+- Type-position imports such as `typeof import("m")` and `import("m").T`.
+  They name a module just as `import type` does, so they count the same way.
 
 Comments, strings, template literals, and `export { a }` with no source add nothing.
 

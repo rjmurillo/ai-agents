@@ -39,6 +39,8 @@ def _dependencies(source: str, suffix: str) -> int:
         'const x = require("a");',
         'function load() { return require("a"); }',
         'const m = await import("a");',
+        'type M = typeof import("a");',
+        'let value: import("a").T;',
         'import {\n  a,\n  b,\n} from "a";',
     ],
 )

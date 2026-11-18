@@ -73,7 +73,7 @@ Gate modes answer two different questions:
 | Exit code | Meaning |
 | --- | --- |
 | 0 | Gate passed, or nothing changed in regression mode. It can also carry one explicitly admitted regression, listed under `csharp_parser_dependency_admission` or `typescript_parser_dependency_admission`; the review adapter reports that as WARN. The scanner accepts only the fixed records for rjmurillo/ai-agents issues #7406 and #7435; any other config value fails with exit 1. |
-| 1 | Invalid target, config error, or no files to assess. For C# it also means the parser package is missing, the parser failed to start, or the pinned grammar could not parse a file |
+| 1 | Invalid target, config error, or no files to assess. For C# and TypeScript it also means the parser package is missing, the parser failed to start, or the pinned grammar could not parse a file |
 | 10 | Regression: a quality regressed or scored evidence was lost |
 | 11 | A file is below the configured thresholds |
 
