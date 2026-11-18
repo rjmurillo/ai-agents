@@ -60,6 +60,12 @@ the target checkout before you apply them. Use Glob, Grep, and Read only.
 | Issue-link gate | a workflow, script, or contributor rule that fails a PR with no closing keyword or issue reference (grep `.github/workflows/`, repository scripts, `CONTRIBUTING.md`, and `AGENTS.md` for `Closes`, `closing keyword`, `issue link`) | Check 2 as a requirement |
 | Template gate | a workflow or script that parses PR body sections (grep for the template's heading text) | Check 3 failures as gate failures |
 
+A gate is something that fails the PR: a workflow, or a script a workflow or
+hook runs. Prose that only mentions a keyword is not a gate. Neither is a file
+this toolkit installed (skills, rules, agents, and their scripts under
+`.claude/`, `.codex/`, `.github/instructions/`, or a plugin root), including
+this skill's own validator.
+
 Record what you searched and what you found. A signal you did not search for is
 unknown, not absent.
 

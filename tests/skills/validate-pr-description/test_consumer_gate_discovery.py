@@ -150,3 +150,11 @@ def test_negative_control_detects_old_wording() -> None:
 def test_check_row_rejects_missing_phase() -> None:
     with pytest.raises(AssertionError, match="Phase 2: Run the checks"):
         _check_row("## Process\n\nNo checks here.\n", 2)
+
+
+def test_toolkit_files_are_not_consumer_gates(skill_text: str) -> None:
+    """Grepping for `Closes` must not count the toolkit's own vendored files."""
+    body = _flat(_section(skill_text, "Phase 1b: Discover the target repository's metadata gates"))
+    assert "A gate is something that fails the PR" in body
+    assert "Prose that only mentions a keyword is not a gate." in body
+    assert "including this skill's own validator" in body
