@@ -88,7 +88,8 @@ def _redirects(path: Path) -> bool:
     entry that vanished or is unreadable is not known to be safe.
     """
     try:
-        return is_redirecting(path.lstat())
+        redirects: bool = is_redirecting(path.lstat())
+        return redirects
     except OSError as exc:
         raise SkillSupportSyncError(f"{path}: cannot examine for links, refused: {exc}") from exc
 
@@ -151,7 +152,8 @@ def _protection_reason(path: Path) -> str | None:
     the ``OSError`` through and this turns it into a refusal.
     """
     try:
-        return regen_detect_reason_strict(path)
+        reason: str | None = regen_detect_reason_strict(path)
+        return reason
     except OSError as exc:
         raise SkillSupportSyncError(
             f"{path}: cannot read to check for a NO-REGEN marker, refusing to prune: {exc}"
