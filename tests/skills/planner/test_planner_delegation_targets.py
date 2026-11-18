@@ -44,7 +44,7 @@ PLAN_FORMAT = SRC_PLANNER / "resources" / "plan-format.md"
 # quality-reviewer abbreviation and sync targets that went with them.
 RETIRED_AGENT_RE = re.compile(
     r"@agent-(?:developer|debugger|quality-reviewer)\b"
-    r"|agents/(?:developer|quality-reviewer)\.md|\bQR\b"
+    r"|agents/(?:developer|quality-reviewer)\.md|\bQR\b|\bDeveloper\b|Quality Reviewer"
 )
 # A removed agent name, its abbreviation, and the modes it never had.
 REMOVED_WRITER_RE = re.compile(

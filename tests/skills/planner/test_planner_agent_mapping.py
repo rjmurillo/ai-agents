@@ -23,17 +23,22 @@ AGENT_TEMPLATES = REPO_ROOT / "templates" / "agents"
 SCRIPTS = REPO_ROOT / "src" / "claude" / "skills" / "planner" / "scripts"
 PLANNER_TEMPLATE = REPO_ROOT / "templates" / "skills" / "planner.SKILL.md.tmpl"
 PLANNER_DOCS_PAGE = REPO_ROOT / "docs" / "skills" / "planner.md"
-PLANNER_ROOTS = (
-    "src/claude/skills/planner",
-    ".claude/skills/planner",
-    "src/copilot-cli/skills/planner",
-    "src/codex/skills/planner",
-    "src/cursor/skills/planner",
-    "src/muse/skills/planner",
+# Every on-disk planner tree, found by glob so a new mirror cannot go unchecked.
+PLANNER_ROOTS = tuple(
+    sorted(
+        path.relative_to(REPO_ROOT).as_posix()
+        for path in (
+            *REPO_ROOT.glob("src/*/skills/planner"),
+            *REPO_ROOT.glob("src/*/*/skills/planner"),
+            REPO_ROOT / ".claude" / "skills" / "planner",
+        )
+        if path.is_dir()
+    )
 )
 DELEGATION_MARKER = "**Delegation on each host.**"
 NOT_INSTALLED_FALLBACK = "no `X` agent is installed, run the step yourself in this session"
 AGENT_REF_RE = re.compile(r"@agent-([a-z][a-z0-9]*(?:-[a-z0-9]+)*)")
+CRITIC_VERDICT_ROW_RE = re.compile(r"^\| \*\*([A-Z_]+)\*\* \|", re.MULTILINE)
 
 
 def _load(name: str) -> ModuleType:
@@ -83,10 +88,33 @@ def test_review_step_2_delegates_plan_review_to_critic() -> None:
     assert "<mode>" not in text
 
 
-def test_critic_still_returns_the_verdicts_the_planner_routes_on() -> None:
+def critic_verdicts() -> set[str]:
+    """Every verdict token in the critic agent's verdict table."""
     critic = (AGENT_TEMPLATES / "critic.shared.md").read_text(encoding="utf-8")
-    for verdict in ("**APPROVED**", "**APPROVED_WITH_CONCERNS**", "**NEEDS_REVISION**"):
-        assert verdict in critic
+    return set(CRITIC_VERDICT_ROW_RE.findall(critic))
+
+
+def test_planner_roots_are_found_on_disk() -> None:
+    assert "src/claude/skills/planner" in PLANNER_ROOTS
+    assert len(PLANNER_ROOTS) >= 6
+
+
+def test_critic_verdict_table_is_found() -> None:
+    assert {"APPROVED", "NEEDS_REVISION"} <= critic_verdicts()
+
+
+def test_review_step_2_routes_every_critic_verdict() -> None:
+    text = squash(_planner_outputs()["review step 2"])
+    routing = text.split("After the critic returns its verdict:", 1)[1]
+    missing = {v for v in critic_verdicts() if not re.search(rf"\b{v}\b", routing)}
+    assert not missing, f"review step 2 has no next step for: {sorted(missing)}"
+
+
+def test_reconciliation_names_files_and_maps_findings_to_a_result() -> None:
+    text = squash(_executor_outputs()["execution step 2"])
+    assert "Files: [the milestone's file paths" in text
+    assert "No blocking finding: SATISFIED" in text
+    assert "Return: SATISFIED" not in text
 
 
 def test_review_step_2_brief_carries_its_criteria_and_resource() -> None:
