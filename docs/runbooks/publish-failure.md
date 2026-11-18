@@ -46,7 +46,7 @@ Match the failure to the troubleshooting table in
 
 | Failed job or message | Fix |
 |---|---|
-| `ENEEDAUTH` or `E403 Forbidden` | Check OIDC, the `npm` environment, 2FA, and the scope link, as RELEASING.md describes |
+| `ENEEDAUTH` or `E403 Forbidden` | First publish: check the `NPM_TOKEN` secret in the `npm` environment. Later: check the trusted publisher fields. RELEASING.md setup steps 3 and 4 list both |
 | Tag and version mismatch | Set `release-tag` to `vX.Y.Z` for the version in `packages/ai-agents-cli/package.json` |
 | Promotion gate `block` | Fix each unresolved or expired finding in the manifest on a branch, merge it, then dispatch the workflow again |
 | "Attach manifest to release" fails | The publish already succeeded. Check npm with step 4 above and do not publish again. Attach the manifest to the release by hand |
