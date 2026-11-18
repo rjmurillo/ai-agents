@@ -78,6 +78,17 @@ Removing the configuration restores the ordinary coupling rejection.
 Removing the admission implementation and adapter support reverses the policy change.
 No data migration or installed-plugin mutation is required.
 
+After this decision's pull request merges, main contains both parser imports.
+The admission then matches only when the comparison merge base predates them.
+Examples: a stacked branch, a cherry-pick, a revert and reintroduction, or an old `--base`.
+A follow-up pull request removes the admission once no open branch predates the merge.
+Check that with `git branch -r --no-contains <merge commit>` before removal.
+It deletes the `.qualityrc.json` record and the scanner admission code and output.
+It deletes the review adapter branch and the admission tests.
+It deletes the admission text from the skill template, reference, and docs page.
+It regenerates every plugin copy and marks this record deprecated.
+The raw parser and its fail-closed behavior stay.
+
 ## Impact on Dependent Components
 
 | Component | Required change |

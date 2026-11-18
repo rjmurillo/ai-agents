@@ -2,11 +2,11 @@
 
 ## Summary
 
-- **Rounds**: 2 of 10.
+- **Rounds**: 3 of 10. Round 3 is a reduced-panel amendment.
 - **Prior debate log**: None.
 - **Outcome**: Consensus.
 - **Final Status**: accepted.
-- **Date**: 2026-11-16.
+- **Date**: 2026-11-16. Amended 2026-11-18.
 
 ## Round 1 Summary
 
@@ -63,6 +63,38 @@ The executable admission contract remained unchanged.
 | Security | Accept. | `d2d1d352-8b2c-4056-b486-7d73e14b030e` |
 | Analyst | Accept. | Carried unchanged from Round 1. |
 | High-level advisor | Accept. | Carried unchanged from Round 1. |
+
+## Round 3 Summary (Reversibility amendment, 2026-11-18)
+
+### Trigger
+
+Review axes on PR #7412 found no retirement step for the admission.
+The amendment adds removal text under `### Reversibility`.
+It changes no executable enforcement, so a reduced panel ran.
+
+### Key Issues Addressed
+
+- The first draft said the admission could never match again. That was false.
+- The scanner compares against the merge base, so an older base still matches.
+- The first draft's removal list left out tests, docs, the template, and copies.
+- The follow-up had no checkable trigger.
+
+### Changes Made
+
+- The text now says the admission matches only when the merge base predates the merge.
+- It lists the removal scope, including the skill template and every plugin copy.
+- It names a `git branch -r --no-contains` check before removal.
+- It marks the record deprecated after removal.
+
+### Agent Positions
+
+| Agent | Position | Evidence |
+|---|---|---|
+| Architect | Accept. | Accepted the revised text in the re-vote. |
+| Critic | Accept. | Its two required edits were applied verbatim. |
+
+The panel reached consensus on the amendment.
+These votes are not GitHub approvals or merge permission.
 
 ## Decision Boundaries
 
