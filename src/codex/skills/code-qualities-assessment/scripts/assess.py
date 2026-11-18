@@ -990,7 +990,12 @@ def _admission_mismatch_reason(comparison: FileComparison, admission: dict[str, 
 
 
 def _configured_parser_admissions(config: dict[str, Any]) -> list[dict[str, Any]]:
-    """Return the configured admissions, each identical to one built-in record."""
+    """Return the built-in records the config names.
+
+    Each config entry must equal one built-in record. The built-in record is
+    returned, never the config entry, so ``7`` in config cannot reach the JSON
+    in place of ``7.0``.
+    """
     if "csharpParserDependencyAdmission" in config:
         raise ValueError(
             "csharpParserDependencyAdmission was replaced by the "
@@ -1009,7 +1014,10 @@ def _configured_parser_admissions(config: dict[str, Any]) -> list[dict[str, Any]
             "Invalid parserDependencyAdmissions: each entry must equal one built-in "
             "record, listed once"
         )
-    return records
+    return [
+        next(builtin for builtin in _PARSER_DEPENDENCY_ADMISSIONS if builtin == record)
+        for record in records
+    ]
 
 
 def _apply_parser_dependency_admissions(

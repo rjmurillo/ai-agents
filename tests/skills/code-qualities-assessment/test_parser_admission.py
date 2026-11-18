@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 from collections.abc import Callable
 from pathlib import Path
@@ -41,7 +42,7 @@ def parser_admission_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> di
     _repo_with_change(tmp_path, monkeypatch, _FOCUSED, _PARSER_IMPORTS + _FOCUSED, _PARSER_SCANNER)
     return {
         "thresholds": {},
-        "parserDependencyAdmissions": [dict(_CSHARP_ADMISSION), dict(_PYTHON_ADMISSION)],
+        "parserDependencyAdmissions": copy.deepcopy([_CSHARP_ADMISSION, _PYTHON_ADMISSION]),
     }
 
 
@@ -89,6 +90,7 @@ def test_parser_admission_keeps_raw_regression_and_authorization(
     assert adapt_local_axis_verdict("code-qualities-assessment", captured.out, rc) == "WARN"
 
 
+@pytest.mark.parametrize("record", [0, 1], ids=["csharp", "python"])
 @pytest.mark.parametrize(
     ("field", "value"),
     [
@@ -96,7 +98,7 @@ def test_parser_admission_keeps_raw_regression_and_authorization(
         ("file", "other.py"),
         ("imports", ["tree_sitter"]),
         ("baseScore", 9.0),
-        ("headScore", 7.0),
+        ("headScore", 6.0),
         ("authorizedBy", ""),
         ("authorizedOn", ""),
         ("authorization", ""),
@@ -106,13 +108,24 @@ def test_parser_admission_rejects_broader_or_unauthorized_config(
     parser_admission_repo: dict[str, Any],
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
+    record: int,
     field: str,
     value: object,
 ) -> None:
-    parser_admission_repo["parserDependencyAdmissions"][0][field] = value
+    parser_admission_repo["parserDependencyAdmissions"][record][field] = value
 
     assert _run_parser_admission(parser_admission_repo, tmp_path) == 1
     assert "ERROR:" in capsys.readouterr().err
+
+
+def test_parser_admission_reports_the_built_in_record_not_the_config_spelling(
+    parser_admission_repo: dict[str, Any], tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    parser_admission_repo["parserDependencyAdmissions"][0]["headScore"] = 8
+
+    assert _run_parser_admission(parser_admission_repo, tmp_path) == 0
+    comparison = json.loads(capsys.readouterr().out)["comparisons"][0]
+    assert isinstance(comparison["parser_dependency_admission"]["headScore"], float)
 
 
 @pytest.mark.parametrize(

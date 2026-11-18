@@ -369,12 +369,15 @@ _PARSER_DEPENDENCY_ADMISSIONS: tuple[dict[str, object], ...] = (
 
 def _is_admitted_parser_comparison(comparison: dict[str, object]) -> bool:
     """Return True only for the exact admitted scanner transition a record names."""
-    admission = comparison.get("parser_dependency_admission")
-    if admission not in _PARSER_DEPENDENCY_ADMISSIONS:
+    reported = comparison.get("parser_dependency_admission")
+    admission = next(
+        (record for record in _PARSER_DEPENDENCY_ADMISSIONS if record == reported), None
+    )
+    if admission is None:
         return False
-    assert isinstance(admission, dict)
     base, head = admission["baseScore"], admission["headScore"]
-    assert isinstance(base, float) and isinstance(head, float)
+    if not isinstance(base, float) or not isinstance(head, float):
+        return False
     file_path = comparison.get("file_path")
     deltas = comparison.get("deltas")
     admitted_delta = {

@@ -597,8 +597,17 @@ class TestAdaptLocalAxisVerdict:
             (Path(__file__).resolve().parents[1] / ".qualityrc.json").read_text(encoding="utf-8")
         )
 
-        assert list(_PARSER_DEPENDENCY_ADMISSIONS) == list(module._PARSER_DEPENDENCY_ADMISSIONS)
-        assert config["parserDependencyAdmissions"] == list(_PARSER_DEPENDENCY_ADMISSIONS)
+        adapter = json.dumps(list(_PARSER_DEPENDENCY_ADMISSIONS))
+        assert json.dumps(list(module._PARSER_DEPENDENCY_ADMISSIONS)) == adapter
+        assert json.dumps(config["parserDependencyAdmissions"]) == adapter
+
+    def test_parser_admission_adapter_rejects_an_int_score_without_raising(self):
+        payload = cq_admission_payload()
+        payload["comparisons"][0]["parser_dependency_admission"]["headScore"] = 8
+
+        assert (
+            adapt_local_axis_verdict("code-qualities-assessment", json.dumps(payload), 0) == "WARN"
+        )
 
     def test_code_quality_pass_requires_an_assessed_file(self):
         payload = cq_payload([cq_file()])
