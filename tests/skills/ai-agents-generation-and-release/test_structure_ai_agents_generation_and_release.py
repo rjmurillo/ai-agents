@@ -74,44 +74,38 @@ def test_release_path_drops_closed_issue_cites():
     assert "ADR-113 Resolved Question 2" in section
 
 
-def test_release_path_scopes_dispatch_to_ci_and_names_first_publish():
-    """Issue 7368: the First publish goes through dispatch too, with a bootstrap token."""
-    section = _release_section()
-    assert "only live CI publish route" in section
-    assert "First publish" in section
+def test_release_bullet_routes_first_publish_through_gated_dispatch():
+    """Issue 7368: the First publish runs in the gated dispatch run, not locally.
 
-
-def test_first_publish_is_not_described_as_local():
-    """Issue 7368: a local first publish cannot carry provenance and skips the gate.
-
-    The skill must route the First publish through the dispatch run and its
-    bootstrap token, matching RELEASING.md setup step 3.
+    A local publish cannot carry provenance and skips the gate. The gate sentence
+    must also name the dispatch run instead of leaning on a pronoun.
     """
-    section = _release_section()
-    bullet = next(line for line in section.splitlines() if "only live CI publish route" in line)
-    first_publish = next(s for s in re.split(r"(?<=\.)\s+", bullet) if "First publish" in s)
-    assert "runs locally" not in first_publish, first_publish
-    assert "dispatch" in first_publish, first_publish
-    assert "NPM_TOKEN" in first_publish, first_publish
-
-
-def test_promotion_gate_sentence_names_dispatch():
-    """The gate sentence must name the dispatch run, not lean on a pronoun."""
     section = _release_section()
     bullet = next(line for line in section.splitlines() if "only live CI publish route" in line)
     sentences = [s.strip() for s in re.split(r"(?<=\.)\s+", bullet.lstrip("- ")) if s.strip()]
     gate_sentence = next(s for s in sentences if "promotion gate" in s)
     assert "dispatch" in gate_sentence, gate_sentence
     assert not gate_sentence.startswith("It "), gate_sentence
+    first_publish = next(s for s in sentences if "First publish" in s)
+    assert "runs locally" not in first_publish, first_publish
+    assert "dispatch" in first_publish, first_publish
+    assert "NPM_TOKEN" in first_publish, first_publish
 
 
 def test_releasing_md_first_publish_uses_ci_not_local():
     """Issue 7368: RELEASING.md must not tell the owner to publish from a laptop."""
     releasing = (Path(__file__).resolve().parents[3] / "RELEASING.md").read_text(encoding="utf-8")
-    assert "npm publish --provenance --access public\n```" not in releasing
+    fenced = re.findall(r"```[a-z]*\n(.*?)```", releasing, flags=re.S)
+    assert not any("npm publish" in block for block in fenced), fenced
     assert "### 3. First publish: bootstrap with a short-lived token" in releasing
-    assert "Workflow filename | `publish.yml`" in releasing
-    assert "Environment name | `npm`" in releasing
+    for row in (
+        "Organization or user | `rjmurillo`",
+        "Repository | `ai-agents`",
+        "Workflow filename | `publish.yml`",
+        "Environment name | `npm`",
+        "Allowed actions | `npm publish`",
+    ):
+        assert row in releasing, row
 
 
 def test_provenance_marks_release_row_reverified():

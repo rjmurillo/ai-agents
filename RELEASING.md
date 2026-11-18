@@ -12,7 +12,9 @@ limit.
 
 Create a GitHub environment named `npm` at
 `Settings > Environments > New environment`. The `publish.yml` publish job runs
-in it and requests `id-token: write`.
+in it and requests `id-token: write`. Under Deployment branches and tags, allow
+only `main`. A dispatch from any other branch runs that branch's copy of
+`publish.yml`, so this setting is what keeps `NPM_TOKEN` away from it.
 
 ### 2. Enable 2FA on the npm account
 
@@ -32,7 +34,8 @@ supported cloud CI runner, and a local publish skips the promotion gate.
 2. Add the token as the environment secret `NPM_TOKEN` in the `npm`
    environment. Paste it there and nowhere else.
 3. Run the standard release below.
-4. Delete the `NPM_TOKEN` secret, then revoke the token on npmjs.com.
+4. Delete the `NPM_TOKEN` secret, then revoke the token on npmjs.com. Do this
+   even when the publish fails. Make a new token for the next attempt.
 
 ### 4. Every later publish: trusted publishing
 
@@ -53,8 +56,8 @@ publishing, choose GitHub Actions, and enter:
 Configs created after 2026-09-03 allow only `npm stage publish` by default.
 The workflow runs `npm publish`, so check that action.
 
-Trusted publishing needs npm 11.5.1 or later. The publish job installs Node
-`lts/*`, which bundles a newer npm. npm generates provenance on its own when it
+Trusted publishing needs npm 11.5.1 or later and Node 22.14.0 or later. The
+publish job installs Node `lts/*`, which meets both. npm generates provenance on its own when it
 publishes through OIDC from a public repository.
 
 After one trusted publish succeeds, open the package's Settings > Publishing
@@ -193,7 +196,7 @@ linking back to this repository's publish workflow.
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | `ENEEDAUTH` | No trusted publisher matched and no `NPM_TOKEN` | First publish: follow setup step 3. Later: check the trusted publisher fields in setup step 4 |
-| `E403 Forbidden` | Token lacks write access, or 2FA blocks a token without bypass | Recreate the token per setup step 3 |
+| `E403 Forbidden` | First publish: the token lacks write access or 2FA bypass. Later: the trusted publisher does not allow `npm publish` | Recreate the token per setup step 3, or fix Allowed actions per setup step 4 |
 | OIDC provenance error | `id-token: write` missing | `publish.yml` contains `id-token: write` on publish job |
 | Tag/version mismatch | `release-tag` does not match the `package.json` version | Use the tag `vX.Y.Z` for the version on the candidate commit |
 | `a real publish needs release-tag` | `dry-run` is `false` and `release-tag` is empty | Set `release-tag` to `vX.Y.Z` |
