@@ -140,8 +140,21 @@ def base_ref_candidates(base_branch: str) -> list[str]:
     return [f"origin/{base_branch}", base_branch]
 
 
+class _GitCommandError(Exception):
+    """Raised when git itself fails, as opposed to a ref being absent."""
+
+
+# ``git rev-parse --verify --quiet`` exits 1 when the ref is absent. Any other
+# nonzero code (128 for "not a git repository") is a git failure, which keeps
+# the documented graceful-degrade path instead of blaming the base argument.
+_REV_PARSE_REF_ABSENT = 1
+
+
 def resolve_base_ref(worktree: str, base_branch: str) -> str | None:
-    """Return the first candidate ref that names a commit, else *None*."""
+    """Return the first candidate ref that names a commit, else *None*.
+
+    Raises :class:`_GitCommandError` when git cannot run in *worktree*.
+    """
     for candidate in base_ref_candidates(base_branch):
         result = subprocess.run(
             ["git", "-C", worktree, "rev-parse", "--verify", "--quiet", f"{candidate}^{{commit}}"],
@@ -153,6 +166,8 @@ def resolve_base_ref(worktree: str, base_branch: str) -> str | None:
         )
         if result.returncode == 0:
             return candidate
+        if result.returncode != _REV_PARSE_REF_ABSENT:
+            raise _GitCommandError(result.stderr.strip())
     return None
 
 
@@ -182,7 +197,7 @@ def get_diff_files(worktree: str, base_branch: str) -> list[str] | None:
         if result.returncode != 0:
             return None
         return [line.strip() for line in result.stdout.splitlines() if line.strip()]
-    except (OSError, subprocess.TimeoutExpired):
+    except (OSError, subprocess.TimeoutExpired, _GitCommandError):
         return None
 
 

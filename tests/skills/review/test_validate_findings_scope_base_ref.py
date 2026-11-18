@@ -37,6 +37,7 @@ mod = import_skill_script(
 )
 
 SCRIPT = Path(PROJECT_ROOT) / ".claude/skills/review/scripts/validate_findings_scope.py"
+IN_SCOPE = "VERDICT: PASS\n- severity: LOW\n  location: changed.py:1\n"
 OUT_OF_SCOPE = "VERDICT: CRITICAL_FAIL\n- severity: CRITICAL\n  location: unrelated.py:1\n"
 
 
@@ -93,7 +94,9 @@ def repo_without_remote(tmp_path: Path) -> Path:
     return work
 
 
-def _run_cli(worktree: Path, base: str) -> subprocess.CompletedProcess[str]:
+def _run_cli(
+    worktree: Path, base: str, text: str = OUT_OF_SCOPE
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [
             sys.executable,
@@ -103,7 +106,7 @@ def _run_cli(worktree: Path, base: str) -> subprocess.CompletedProcess[str]:
             "--base-branch",
             base,
             "--text",
-            OUT_OF_SCOPE,
+            text,
         ],
         capture_output=True,
         text=True,
@@ -186,3 +189,28 @@ class TestCliExitCodes:
         )
 
         assert rc == 2
+
+
+class TestGitFailureStillDegrades:
+    """A git failure is not a bad base argument: it keeps the exit-0 degrade path."""
+
+    def test_non_repository_worktree_returns_none(self, tmp_path: Path) -> None:
+        assert mod.get_diff_files(str(tmp_path), "main") is None
+
+    def test_non_repository_worktree_exits_zero_with_warning(self, tmp_path: Path) -> None:
+        result = _run_cli(tmp_path, "main")
+
+        assert result.returncode == 0
+        assert "skipping scope check" in result.stderr
+        assert "did not resolve" not in result.stderr
+
+
+class TestInScopeEndToEnd:
+    def test_in_scope_finding_with_remote_prefixed_base_exits_zero(
+        self, repo_with_origin: Path
+    ) -> None:
+        result = _run_cli(repo_with_origin, "origin/master", IN_SCOPE)
+
+        assert result.returncode == 0, result.stderr
+        assert "skipping scope check" not in result.stderr
+        assert "OUT-OF-SCOPE" not in result.stderr
