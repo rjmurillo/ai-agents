@@ -178,6 +178,7 @@ Each axis reviews your local diff and returns PASS, WARN, or CRITICAL_FAIL. Run 
 | [`fix-markdown-fences`](fix-markdown-fences.md) | match | Repair broken Markdown code fences |
 | [`orphan-ref-validator`](orphan-ref-validator.md) | match | Find specs and plans that name skills or scripts that do not exist |
 | [`research`](research.md) | `/research` | Research a topic in depth and map it onto your project |
+| [`technical-writing`](technical-writing.md) | `/technical-writing` | Write, edit, or audit docs pages in the site's conventions and one stylebook |
 
 ## Skill and agent authoring
 
