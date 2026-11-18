@@ -78,7 +78,7 @@ The agents follow a 7-phase pipeline. Each phase has a defined input, a command 
 | 4 | Implement | `/build` | TDD vertical slices, atomic commits, code-quality self-check | Committed code plus passing tests | After `/plan` output exists |
 | 5 | QA | `/test` | Six quality gates: functional, non-functional, security, DevOps, DX, observability | Gate verdicts table with PASS/WARN/CRITICAL_FAIL per gate | After `/build` completes a slice |
 | 6 | Review | `/review` | Spec-compliance gate, then review axes picked by risk (see [`review`](skills/review.md)) | A verdict per axis and a final verdict (PASS, WARN, CRITICAL_FAIL, or UNKNOWN), with file:line findings | After `/test` passes |
-| 7 | Ship | `/ship` | Pre-flight checks (pipeline, security, review, tests, standards) then PR creation | Ship report plus PR link | After `/review` has no unresolved Critical findings |
+| 7 | Ship | `/ship` | Pre-flight checks (pipeline, security, review, tests) then PR creation | Ship report plus PR link | After `/review` has no unresolved Critical findings |
 
 ### Day Shift and Night Shift
 

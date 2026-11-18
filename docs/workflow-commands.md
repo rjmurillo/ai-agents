@@ -176,7 +176,7 @@ Default target is `main` unless specified.
 
 **What it does:**
 
-1. Runs 5 pre-flight checks (pipeline, security, review, tests, standards)
+1. Runs 4 pre-flight checks (pipeline, security, review, tests)
 2. If any check fails: reports what failed, why, and how to fix. Stops.
 3. If all pass: validates PR description and creates the PR
 
@@ -188,7 +188,6 @@ Default target is `main` unless specified.
 | Security | No new CWE findings, no secrets in diff | Yes |
 | Review | /review run, no unresolved Critical findings | Yes |
 | Tests | All tests green, no unjustified skips | Yes |
-| Standards | Golden principles and taste lints pass | Yes |
 
 **Output:** Ship report with per-check PASS/FAIL, PR link if created, and follow-up items.
 

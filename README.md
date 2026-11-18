@@ -345,7 +345,7 @@ Six lifecycle skills that map to the development lifecycle. Claude Code runs the
 | Plan how to build it | `/plan` | Milestones, atomic tasks (S/M/L), dependency graph, risk register |
 | Build incrementally | `/build` | TDD slices, atomic commits, code quality scoring |
 | Prove it works | `/test` | 6 quality gates (functional, non-functional, security, DevOps, DX, observability) |
-| Review before merge | `/review` | 5-axis review (architecture, security, quality, tests, standards) |
+| Review before merge | `/review` | Spec-compliance gate, then review axes picked by risk |
 | Ship to production | `/ship` | Pre-flight checks, PR creation, ship report |
 
 Each command chains to the next. Output from `/spec` feeds into `/plan`, which feeds into `/build`, and so on. You can also jump in at any point for smaller tasks.

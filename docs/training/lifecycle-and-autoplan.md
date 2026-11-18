@@ -110,7 +110,19 @@ Other docs cover the same ground. We link them and do not repeat them:
 
 **Part 2: take one change through the lifecycle.**
 
-5. **Pick the change and cut a branch.** We use a real defect. `docs/workflow-commands.md` says `/ship` runs five pre-flight checks. The [ship skill](../../.claude/skills/ship/SKILL.md) defines four: pipeline, security, reviewed, and tests. Confirm both claims:
+5. **Pick the change and cut a branch.** We use a real defect that `main` has since fixed. `docs/workflow-commands.md` said `/ship` runs five pre-flight checks. The [ship skill](../../.claude/skills/ship/SKILL.md) defines four: pipeline, security, reviewed, and tests. To keep every command and output on this page exact, cut your branch from commit `81025e191`. That `main` commit still has the defect. Never commit to `main`.
+
+   ```bash
+   git fetch origin
+   git switch -c docs/fix-preflight-count 81025e1912dea575fb9123294c4efa76e6948506
+   git branch --show-current
+   ```
+
+   ```text
+   docs/fix-preflight-count
+   ```
+
+   Confirm both claims on your branch:
 
    ```bash
    grep -n "pre-flight checks (pipeline" docs/workflow-commands.md
@@ -119,25 +131,11 @@ Other docs cover the same ground. We link them and do not repeat them:
 
    ```text
    179:1. Runs 5 pre-flight checks (pipeline, security, review, tests, standards)
-   85:Task(subagent_type="devops"): You are a release engineer. Run all 4 pre-flight checks below, branching by the `host`, `mode`, and `pr` set in Mode Detection. Report pass/fail for each with specific evidence. Any failure blocks shipping.
+   85:Delegate to `devops` (Claude Code Task, Copilot CLI task, Codex spawn_agent, Muse Code subagent_spawn, else inline): You are a release engineer. Run all 4 pre-flight checks below, branching by the `host`, `mode`, and `pr` set in Mode Detection. Report pass/fail for each with specific evidence. Any failure blocks shipping.
    147:1. Run all 4 pre-flight checks, branching by `host`, `mode`, and `pr`.
    ```
 
-   If the first command prints nothing, someone already fixed this. Pick another doc claim that disagrees with a skill and use it in place of ours. Every step below stays the same.
-
    `docs/getting-started.md` repeats the same five-check list. In `/spec`, decide whether it is in scope. We keep it out and note it in the pull request.
-
-   Cut a branch from current `main`. Never commit to `main`.
-
-   ```bash
-   git fetch origin
-   git switch -c docs/fix-preflight-count origin/main
-   git branch --show-current
-   ```
-
-   ```text
-   docs/fix-preflight-count
-   ```
 
 6. **Ask /autoplan which way to go (optional).** Type the request with no skill name:
 
@@ -179,7 +177,7 @@ Other docs cover the same ground. We link them and do not repeat them:
 
    The [build skill](../../.claude/skills/build/SKILL.md) works in thin slices, test first, with atomic commits. A doc change has no unit test, so your check is the `grep` from step 5. Four exit gates must come back clean: code qualities, taste lints, the documentation gate, and the orphan reference check. A failed gate stays failed. See [Mandatory Exit Gates](../../.claude/skills/build/SKILL.md#mandatory-exit-gates).
 
-   The finished diff should look like this. We applied the edit by hand on a throwaway branch of `main` to capture the output. Your agent may word it differently.
+   The finished diff should look like this. We applied the edit by hand on a throwaway branch of commit `81025e191` to capture the output. Your agent may word it differently.
 
    ```bash
    git diff --stat
@@ -299,6 +297,8 @@ Other docs cover the same ground. We link them and do not repeat them:
 
     On a branch you own, you want `RESULT: SHIPPED` and a link. `VALIDATED` is what a contributor gets on someone else's branch: checks ran, and nothing was created or merged.
 
+    Your pull request repeats a fix that `main` already has. After you read the report, close the pull request without merging it.
+
     Then stop. [ADR-105](../../.project-toolkit/architecture/ADR-105-terminal-state-completion-contract.md) says a task is terminal when every requested deliverable meets its contract and no blocker remains. For this page, we read `RESULT: SHIPPED` with a pull request link as that point. Put follow-up ideas in the `NEXT:` field. Do not keep polishing.
 
 ## Check your result
@@ -340,6 +340,7 @@ If it fails, look here first:
 - **`/review` stops after Stage 1.** The diff does not meet your acceptance criteria. Fix the unmet criterion and rerun `/review`.
 - **`validate_review_marker.py` prints `[FAIL]`.** HEAD is not a marker, or a code commit landed after it. Rerun `/review`.
 - **`/ship` returns `BLOCKED`.** The report names the failing check. Fix it on the branch and rerun.
+- **GitHub reports a merge conflict on your pull request.** Your edit differs from the fix `main` already has. CI may not run on a conflicted pull request, so the pipeline check can fail. This is expected on the practice branch. Close the pull request without merging it.
 
 ## Next
 
