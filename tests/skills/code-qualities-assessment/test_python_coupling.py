@@ -183,7 +183,13 @@ def test_python_parse_error_at_base_names_the_revision(
     _init_repo(tmp_path)
     _commit(tmp_path, "legacy.py", "def f(:\n    pass\n", "broken base")
     base_sha = subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=tmp_path, capture_output=True, text=True, check=True
+        ["git", "rev-parse", "HEAD"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=True,
     ).stdout.strip()
     _run_git(tmp_path, "checkout", "-b", "feature")
     _commit(tmp_path, "legacy.py", "def f():\n    pass\n", "fixed head")
