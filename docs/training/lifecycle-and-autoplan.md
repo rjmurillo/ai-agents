@@ -153,10 +153,6 @@ Other docs cover the same ground. We link them and do not repeat them:
 
    The [spec skill](../../src/claude/skills/spec/SKILL.md) runs a blocking First Principles gate first. It asks six questions: who asked, what the workaround is, who is blocked, the narrowest fix, the evidence, and whether it still makes sense at 10x. Answer each in plain words. The gate checks answers for hedge phrases, and a failed check can stop the spec.
 
-   A memory gate runs next. It searches memory, Git history, and past pull requests for prior work on the files you named. It then lists the files, skills, and other names it found that your Q1, Q3, and Q4 answers do not name. In an interactive session, it asks you to mark each one in-scope, out-of-scope, or blast-radius (connected, and your change may affect it). Two or more blast-radius marks stop the spec. With no person present, the agent marks every unnamed item blast-radius itself, and three or more stop the spec.
-
-   For this exercise, mark each one out-of-scope with a one-line reason, because your edit changes only `docs/workflow-commands.md`. The search may also find the pull request that already made this fix on `main`. That is expected, since this exercise replays that fix. It does not stop the spec.
-
    These answers fit this change and pass the First Principles gate:
 
    ```text
@@ -170,7 +166,11 @@ Other docs cover the same ground. We link them and do not repeat them:
 
    Q2 ends with a reframing note because the skill asks for one there. The gate halts on words such as `probably`, `eventually`, or `would be nice`. It also halts when Q3 names a general group, such as "developers", instead of one person, team, or file.
 
-   It produces a requirements document: problem statement, numbered acceptance criteria, out-of-scope items, and open questions. The spec generator writes durable files to these paths:
+   A memory gate runs after the First Principles gate passes. It searches memory, Git history, and past pull requests for prior work on the files and names in your Q3 and Q4 answers. It then lists the files, skills, and other names it found that your Q1, Q3, and Q4 answers do not name. In an interactive session, it asks you to mark each one in-scope, out-of-scope, or blast-radius (connected, and your change may affect it). Two or more blast-radius marks stop the spec. With no person present, the agent marks every unnamed item blast-radius itself, and three or more stop the spec.
+
+   For this exercise, mark each one out-of-scope with a one-line reason, because your edit changes only `docs/workflow-commands.md`. The search may also find the pull request that already made this fix on `main`. That is expected, since this exercise replays that fix. It does not stop the spec.
+
+   With both gates passed, `/spec` produces a requirements document: problem statement, numbered acceptance criteria, out-of-scope items, and open questions. The spec generator writes durable files to these paths:
 
    - `.project-toolkit/specs/requirements/REQ-NNN-<title>.md`
    - `.project-toolkit/specs/design/DESIGN-NNN-<title>.md`
