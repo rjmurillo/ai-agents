@@ -132,7 +132,7 @@ class TestGetDiffFiles:
     def test_unresolvable_base_raises_instead_of_returning_none(
         self, repo_with_origin: Path, base: str
     ) -> None:
-        with pytest.raises(mod.BaseRefError) as excinfo:
+        with pytest.raises(LookupError) as excinfo:
             mod.get_diff_files(str(repo_with_origin), base)
         assert repr(base) in str(excinfo.value)
 

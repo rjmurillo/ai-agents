@@ -115,10 +115,6 @@ def _strip_line_suffix(location: str) -> str:
     return re.sub(r":\d+(-\d+)?$", "", location)
 
 
-class BaseRefError(Exception):
-    """``--base-branch`` names no commit, so the scope check cannot run."""
-
-
 # ``git rev-parse --verify --quiet`` exits 1 when a ref is absent. Any other
 # nonzero code (128 for "not a git repository") is a git failure, which keeps
 # the graceful-degrade path instead of blaming the base argument.
@@ -136,7 +132,7 @@ def get_diff_files(worktree: str, base_branch: str) -> list[str] | None:
 
     Returns *None* when git is unavailable or fails so callers can degrade
     gracefully (exit 0 with a warning rather than blocking a review entirely
-    on a git error). Raises :class:`BaseRefError` when no candidate names a
+    on a git error). Raises :class:`LookupError` when no candidate names a
     commit: that is a caller error, and treating it as an unavailable diff
     would report a check that never ran as passed.
     """
@@ -171,7 +167,7 @@ def get_diff_files(worktree: str, base_branch: str) -> list[str] | None:
                 return None
         else:
             tried = ", ".join(candidates) or "(none)"
-            raise BaseRefError(f"base branch {base_branch!r} did not resolve; tried: {tried}")
+            raise LookupError(f"base branch {base_branch!r} did not resolve; tried: {tried}")
         result = subprocess.run(
             ["git", "-C", worktree, "diff", "--name-only", f"{base_ref}...HEAD"],
             capture_output=True,
@@ -434,7 +430,7 @@ def main(argv: list[str] | None = None) -> int:
     worktree = str(Path(args.worktree).resolve())
     try:
         diff_files = get_diff_files(worktree, args.base_branch)
-    except BaseRefError as exc:
+    except LookupError as exc:
         print(
             f"validate_findings_scope: {exc} in {worktree}; scope check did not run. "
             "Pass a branch name such as main or a ref such as origin/main.",
