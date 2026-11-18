@@ -184,7 +184,7 @@ Default target is `main` unless specified.
 
 | Check | What | Blocking |
 |-------|------|----------|
-| Pipeline | CI checks green, no suppressed failures | Yes |
+| Pipeline | CI checks green, no suppressed failures. With no pull request yet, the check waits and runs after `/ship` opens one. | Yes |
 | Security | No new CWE findings, no secrets in diff | Yes |
 | Reviewed | HEAD is a `/review` PASS marker commit for the code under it. On someone else's branch, a logged `/review` result is enough. | Yes, on your own branch |
 | Tests | All tests green, no unjustified skips | Yes |

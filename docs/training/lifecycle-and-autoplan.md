@@ -153,6 +153,19 @@ Other docs cover the same ground. We link them and do not repeat them:
 
    The [spec skill](../../src/claude/skills/spec/SKILL.md) runs a blocking First Principles gate first. It asks six questions: who asked, what the workaround is, who is blocked, the narrowest fix, the evidence, and whether it still makes sense at 10x. Answer each in plain words. The gate checks answers for hedge phrases, and a failed check can stop the spec. A memory gate then searches prior work and halts if the question is already answered.
 
+   These answers fit this change and pass the gate:
+
+   ```text
+   Q1: The spec-compliance review on PR #7418 flags `docs/workflow-commands.md:179`, and the ship skill in `.claude/skills/ship/SKILL.md` defines a different count.
+   Q2: Readers open `.claude/skills/ship/SKILL.md` and count the checks by hand. Reframing: skipped (narrow edit).
+   Q3: The `/ship` section of `docs/workflow-commands.md` at commit `81025e191`, which lists a Standards check that the ship skill does not run.
+   Q4: Change line 179 to say 4 checks and delete the Standards row. Under one hour.
+   Q5: Line 179 of `docs/workflow-commands.md` reads "Runs 5 pre-flight checks", and line 85 of `.claude/skills/ship/SKILL.md` reads "Run all 4 pre-flight checks".
+   Q6: Yes. The fix removes a wrong claim and adds nothing to maintain.
+   ```
+
+   The gate halts on words such as `probably`, `eventually`, or `would be nice`. It also halts when Q3 names a general group, such as "developers", instead of one person, team, or file.
+
    It produces a requirements document: problem statement, numbered acceptance criteria, out-of-scope items, and open questions. The spec generator writes durable files to these paths:
 
    - `.project-toolkit/specs/requirements/REQ-NNN-<title>.md`
@@ -168,6 +181,16 @@ Other docs cover the same ground. We link them and do not repeat them:
    ```
 
    The [plan skill](../../src/claude/skills/plan/SKILL.md) reads the spec. It returns milestones with exit criteria, atomic tasks sized S, M, or L, a dependency graph, a risk register, and deferred items. The `execution-plans` skill saves the plan under `.project-toolkit/plans/active/<slug>.md`. With no spec, `/plan` sends you back to `/spec`.
+
+   `/ship` stops on uncommitted files, and the spec and plan files are not ignored by Git. Check for them, then commit them:
+
+   ```bash
+   git status --short .project-toolkit/
+   git add .project-toolkit/
+   git commit -m "docs(spec): add spec and plan for the pre-flight count fix"
+   ```
+
+   If the first command prints nothing, there is nothing to commit. Skip the other two commands.
 
 9. **/build: make the change.**
 
@@ -202,7 +225,7 @@ Other docs cover the same ground. We link them and do not repeat them:
     /test
     ```
 
-    The [test skill](../../src/claude/skills/test/SKILL.md) has six gates: functional, non-functional, security, DevOps, developer experience, and observability. It classifies the diff first and prints `PR TYPE: [type]. Running gates: [list].`. A diff of only `*.md` files is type DOCS, which runs Gate 5 only. Each gate prints `VERDICT: PASS`, `WARN`, or `CRITICAL_FAIL`. Gate 5 can also print `ERROR`. The overall verdict is `CRITICAL_FAIL` if any gate fails or reports `ERROR`.
+    The [test skill](../../src/claude/skills/test/SKILL.md) has six gates: functional, non-functional, security, DevOps, developer experience, and observability. It classifies the diff first and prints `PR TYPE: [type]. Running gates: [list].`. A diff of only `*.md` files is type DOCS, which runs Gate 5 only. For this change, expect `PR TYPE: DOCS.` with Gate 5 alone in the list. Each gate prints `VERDICT: PASS`, `WARN`, or `CRITICAL_FAIL`. Gate 5 can also print `ERROR`. The overall verdict is `CRITICAL_FAIL` if any gate fails or reports `ERROR`.
 
     Run the Markdown check yourself too. It auto-fixes files, so run `git status --short` after it. If it lists a change, commit it before `/review`, because `/ship` fails on a dirty tree.
 
@@ -228,7 +251,7 @@ Other docs cover the same ground. We link them and do not repeat them:
     /review
     ```
 
-    The [review skill](../../src/claude/skills/review/SKILL.md) runs a Stage-1 spec-compliance gate first. If it returns `CRITICAL_FAIL`, the review stops and the other axes show `SKIPPED`. Otherwise it picks Stage-2 axes by risk, and `analyst` always runs. It prints one row per axis and a `FINAL VERDICT`. Each finding has a severity (Critical, Important, or Suggestion), a `file:line` location, and a one-sentence fix.
+    The [review skill](../../src/claude/skills/review/SKILL.md) runs a Stage-1 spec-compliance gate first. If it returns `CRITICAL_FAIL`, the review stops and the other axes show `SKIPPED`. Otherwise it picks Stage-2 axes by risk, and `analyst` always runs. It prints one row per axis and a `FINAL VERDICT`. For this change, expect a `spec-compliance` row and an `analyst` row marked `always-on`, one row per other axis marked `selected` or `skipped` with a reason, and a `correctness` row. The run ends with `**FINAL VERDICT**: PASS`. Each finding has a severity (Critical, Important, or Suggestion), a `file:line` location, and a one-sentence fix.
 
     On a PASS, the skill writes a marker: an empty commit on top of the code you reviewed. The message holds the report and two trailers. This is the shape of a marker written by an earlier `/review` run in this repository. That commit may not exist in your clone:
 
@@ -245,7 +268,7 @@ Other docs cover the same ground. We link them and do not repeat them:
     Review-Artifact: sha256:3add82e37792ca2e07b1c1047dbdd21d326647540bb9777ac0fd93d314386f45
     ```
 
-    Your SHAs and axis list will differ. A new code commit on top of the marker makes it stale. A clean merge of `origin/main` on top does not. Check it:
+    Your SHAs and axis list will differ. That marker predates the `correctness` pass. Your list includes `correctness` and every axis the run selected. A new code commit on top of the marker makes it stale. A clean merge of `origin/main` on top does not. Check it:
 
     ```bash
     uv run python .claude/skills/review/scripts/validate_review_marker.py --ref HEAD
@@ -297,7 +320,7 @@ Other docs cover the same ground. We link them and do not repeat them:
     NEXT: [monitoring, follow-up items]
     ```
 
-    On a branch you own, you want `RESULT: SHIPPED` and a link. `VALIDATED` is what a contributor gets on someone else's branch: checks ran, and nothing was created or merged.
+    You created this branch, so `/ship` runs as the owner, and you want `RESULT: SHIPPED` and a link. The skill switches to contributor mode only when you push onto a branch whose open pull request someone else wrote. That mode ends with `VALIDATED`: checks ran, and nothing was created or merged.
 
     Your pull request repeats a fix that `main` already has. After you read the report, close it without merging: select **Close pull request** at the bottom of the pull request page on GitHub.
 
@@ -305,13 +328,26 @@ Other docs cover the same ground. We link them and do not repeat them:
 
 ## Check your result
 
-Part 1 passes when the five resolver calls print the `kind` values `none`, `specialist`, `explicit`, `orchestrator`, and `none`, and each exits 0:
+Part 1 passes when the five resolver calls print the `kind` values `none`, `specialist`, `explicit`, `orchestrator`, and `none`, and each exits 0. Rerun all five:
 
 ```bash
-uv run python .claude/skills/autoplan/scripts/resolve_route.py --request "audit our CLI for developer friction" > /dev/null; echo "exit $?"
+for r in "add retry to the webhook sender" "audit our CLI for developer friction" "use the review skill on my diff" "coordinate multiple agents across the repo to migrate every service" "/autoplan add a retry to the sync job"; do
+  out=$(uv run python .claude/skills/autoplan/scripts/resolve_route.py --request "$r"); rc=$?
+  printf '%s\n' "$out" | grep -o '"kind": "[a-z]*"'
+  echo "exit $rc"
+done
 ```
 
 ```text
+"kind": "none"
+exit 0
+"kind": "specialist"
+exit 0
+"kind": "explicit"
+exit 0
+"kind": "orchestrator"
+exit 0
+"kind": "none"
 exit 0
 ```
 
