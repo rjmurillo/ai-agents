@@ -19,10 +19,11 @@
 #
 # Auth (RELEASING.md, One-time setup): the publish job runs in the `npm`
 # environment, whose deployment branches allow only main (ADR-101). That keeps
-# both NPM_TOKEN and the npm trusted publisher (OIDC) claim away from any other
-# branch's copy of this file. The first publish uses a short-lived NPM_TOKEN
-# environment secret, because npm links a trusted publisher only to a package
-# that already exists. Later publishes use trusted publishing with no secret.
+# NPM_TOKEN, an environment secret, away from any other branch's copy of this
+# file. It keeps the OIDC route away too once the npm trusted publisher names
+# environment npm (RELEASING.md step 4). The first publish uses a short-lived
+# NPM_TOKEN, because npm links a trusted publisher only to a package that
+# already exists. Later publishes use trusted publishing with no secret.
 
 name: npm Publish
 

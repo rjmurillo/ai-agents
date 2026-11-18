@@ -260,11 +260,11 @@ def test_the_secret_is_read_only_by_the_publish_steps(workflow: dict[str, Any]) 
 def test_only_the_publish_job_runs_in_the_branch_locked_npm_environment(
     workflow: dict[str, Any],
 ) -> None:
-    """Issue 7368 and ADR-101: the npm environment, locked to main, gates the token and OIDC.
+    """Issue 7368 and ADR-101: main's publish job must stay in the npm environment.
 
-    Dropping the stanza would hand NPM_TOKEN and the trusted publisher claim to
-    any branch's copy of publish.yml, because the branch rule lives on the
-    environment.
+    NPM_TOKEN is an environment secret, and the trusted publisher names
+    environment npm (RELEASING.md step 4). Without the stanza, main's own
+    publish job loses both the token and the OIDC claim npm expects.
     """
     holders = {name: job.get("environment") for name, job in _jobs(workflow).items()}
     assert holders.pop("publish") == "npm"

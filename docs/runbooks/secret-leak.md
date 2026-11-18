@@ -34,8 +34,9 @@ GitHub token, an npm token, or a model provider API key.
    secret at repository level. `publish.yml` and `adr101-publisher.yml` still
    name those two environments. On 2026-11-18 the `npm` environment existed
    with deployment branches limited to `main` and no secrets. Check the live
-   list before you rely on the table. An environment created by hand, or by the first workflow run that
-   names it, has no required reviewers until an admin adds them. On 2026-11-05
+   list before you rely on the table. An environment created by hand, or by
+   the first workflow run that names it, has no required reviewers until an
+   admin adds them. On 2026-11-05
    the four `agent-*` environments had required reviewers and `bot-secrets` and
    `copilot` had none.
 
