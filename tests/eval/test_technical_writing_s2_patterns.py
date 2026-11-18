@@ -3,10 +3,10 @@
 S2 asks for an analyzer rule page outline on a plain Markdown repository. Two
 review cycles showed that a forbidden-claim pattern either caps a correct
 rejection ("Don't import X from '@astrojs/starlight/components'") or misses a
-hedged real import. The grader excuses a match only when a hedge such as "if"
-or "cannot" opens its clause, or when "not" or "never" sits right before it;
-"Don't" triggers neither. The owner chose judge-only grading for S2. This test
-keeps a pattern from returning without that decision being revisited.
+hedged real import. The grader's excusal heuristics (`_is_hedged` and
+`_is_negated` in scripts/eval/eval-rule-activation.py) do not cover every
+rejection: "Don't" triggers neither. The owner chose judge-only grading for S2.
+This test keeps a pattern from returning without that decision being revisited.
 """
 
 from __future__ import annotations
