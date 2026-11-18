@@ -88,7 +88,7 @@ def get_planning_step_guidance(step_number: int, total_steps: int) -> dict:
                 "  - Context lines: 2-3 lines copied VERBATIM from actual file",
                 "    (FORBIDDEN: '...', '[existing code]', summaries, placeholders)",
                 "  - If you haven't read the target file, read it now to extract",
-                "    real anchors that Developer can match against",
+                "    real anchors that the implementer can match against",
                 "",
                 "Milestone-type specific criteria:",
                 "  - Test milestones: specify scenario count, assertion types, edge",
@@ -382,7 +382,7 @@ def get_planning_step_guidance(step_number: int, total_steps: int) -> dict:
             "</planning_context_check>",
             "",
             "<developer_walkthrough>",
-            "Walk through the plan as if you were Developer:",
+            "Walk through the plan as if you were the implementer:",
             "  - Can you implement each milestone from the spec alone?",
             "  - Are requirements specific enough to avoid interpretation?",
             "",
@@ -469,7 +469,7 @@ def get_review_step_guidance(step_number: int, total_steps: int) -> dict:
                 "      8. Pay extra attention to milestones with uncertainty flags",
                 "    </task>",
                 "    <expected_output>",
-                "      Verdict: APPROVED | APPROVED_WITH_CONCERNS | NEEDS_REVISION",
+                "      Verdict: APPROVED | APPROVED_WITH_CONCERNS | NEEDS_REVISION | BLOCKED",
                 "    </expected_output>",
                 "  </delegation>",
                 "",
@@ -481,7 +481,10 @@ def get_review_step_guidance(step_number: int, total_steps: int) -> dict:
                 "  - APPROVED or APPROVED_WITH_CONCERNS: Invoke step 3 to complete review\n"
                 "  - NEEDS_REVISION: Address issues in plan, then restart review from step 1:\n"
                 "    python3 planner.py --phase review --step-number 1 --total-steps 2 \\\n"
-                '      --thoughts "Addressed plan review feedback: [summary of changes]"'
+                '      --thoughts "Addressed plan review feedback: [summary of changes]"\n'
+                "  - BLOCKED: Stop. Report the blocker (missing dependency, misaligned\n"
+                "    objective, or feasibility concern) to the user. Do not execute the plan\n"
+                "    until the user resolves it, then restart planning."
             ),
         }
 
