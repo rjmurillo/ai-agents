@@ -33,7 +33,8 @@ MODEL_PRICING_RATES_USD_PER_1K_TOKENS: dict[str, dict[str, float]] = {
     "claude-sonnet-4-20250514": {"input": 0.003, "output": 0.015},
     # Verified rates from platform.claude.com/docs/en/about-claude/pricing
     # (retrieved 2026-09-24, every row in this table re-read from that page on
-    # that date). Rates are per-1K tokens = base MTok rate / 1000. Sonnet 4.6:
+    # that date, except the Sonnet 5.5 and Haiku 5.5 rows dated below).
+    # Rates are per-1K tokens = base MTok rate / 1000. Sonnet 4.6:
     # $3/$15 per MTok. Opus 5, 4.6, and 4.8: $5/$25 per MTok. Haiku 4.5:
     # $1/$5 per MTok. Sonnet 5: $2/$10 per MTok. Opus 5.5: $4/$20 per MTok.
     # Rows cover the live pins enumerated in issue #2840, claude-opus-5
