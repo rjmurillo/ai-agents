@@ -147,6 +147,8 @@ def resolve_base_ref(worktree: str, base_branch: str) -> str | None:
             ["git", "-C", worktree, "rev-parse", "--verify", "--quiet", f"{candidate}^{{commit}}"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=30,
         )
         if result.returncode == 0:
@@ -173,6 +175,8 @@ def get_diff_files(worktree: str, base_branch: str) -> list[str] | None:
             ["git", "-C", worktree, "diff", "--name-only", f"{base_ref}...HEAD"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=30,
         )
         if result.returncode != 0:

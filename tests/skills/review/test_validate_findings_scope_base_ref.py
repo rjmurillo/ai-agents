@@ -49,7 +49,14 @@ def _git(args: list[str], cwd: Path) -> None:
         "GIT_COMMITTER_EMAIL": "scope-test@example.com",
     }
     result = subprocess.run(
-        ["git", *args], cwd=cwd, capture_output=True, text=True, env=env, check=False
+        ["git", *args],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+        check=False,
     )
     assert result.returncode == 0, f"git {' '.join(args)} failed: {result.stderr}"
 
@@ -100,6 +107,8 @@ def _run_cli(worktree: Path, base: str) -> subprocess.CompletedProcess[str]:
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
 
