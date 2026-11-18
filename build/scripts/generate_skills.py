@@ -53,22 +53,25 @@ sys.path.insert(0, str(_SCRIPT_DIR))
 import skill_templates  # noqa: E402
 from hermes_packs import generate_hermes_packs  # noqa: E402
 from lib_mirror import lib_owned_support_files  # noqa: E402
-from skill_distribution import SkillDistributionError, repo_local_names  # noqa: E402
+from skill_mirror_prune import prune_mirror_orphans  # noqa: E402
 
 # _copy_skill_tree, GenerateSkillsError, SkillSupportSyncError,
-# _iter_skill_sources, _DEFAULT_EXCLUDES, and prune_stale_claude_skill_support
-# live in skill_support_mirror.py (split for the taste-lint file-size ceiling,
-# ADR-109 B3's support-file follow-up), re-exported here so every existing
-# caller and test that reaches them through generate_skills.<name> keeps
-# working unchanged.
+# _iter_skill_sources, _DEFAULT_EXCLUDES, prune_stale_claude_skill_support,
+# SkillDistributionError and repo_local_names (the last two imported there from
+# skill_distribution) live in skill_support_mirror.py (split for the taste-lint
+# file-size ceiling, ADR-109 B3's support-file follow-up), re-exported here so
+# every existing caller and test that reaches them through generate_skills.<name>
+# keeps working unchanged.
 from skill_support_mirror import (  # noqa: E402,F401
     _DEFAULT_EXCLUDES,
     GenerateSkillsError,
+    SkillDistributionError,
     SkillSupportSyncError,
     _copy_skill_tree,
     _iter_skill_sources,
     prune_repo_local_vendor_copies,
     prune_stale_claude_skill_support,
+    repo_local_names,
 )
 from yaml_loader import ConfigError, load_platform_config, validate_relative_path  # noqa: E402
 
@@ -122,13 +125,16 @@ def _copy_skills(
     translate: bool,
     frontmatter_drop: frozenset[str],
     frontmatter_keep: frozenset[str] | None = None,
-) -> tuple[int, int]:
-    """Copy each skill tree into ``output_dir``; return ``(written, skipped)``.
+) -> tuple[int, int, int]:
+    """Copy each skill tree into ``output_dir``; return ``(written, skipped, pruned)``.
 
     ``translate`` selects the Copilot SKILL.md translation branch of
     ``_copy_skill_tree``. ``check`` writes nothing and counts every mismatched
-    file into ``written`` instead (issue #6558). Raises :class:`GenerateSkillsError` when a
-    translation refuses a skill (ADR-111's frontmatter-drop guard).
+    file into ``written`` instead (issue #6558). ``pruned`` counts mirror files
+    with no source counterpart, removed (or, under ``check``/``what_if``, only
+    reported) by :func:`skill_mirror_prune.prune_mirror_orphans`. Raises
+    :class:`GenerateSkillsError` when a translation refuses a skill (ADR-111's
+    frontmatter-drop guard).
     """
     # ADR-109 B3: the plugin tree src/claude/skills/<name>/SKILL.md was just
     # rendered by skill_templates.compile_all (the caller's compile step), so
@@ -139,12 +145,22 @@ def _copy_skills(
     templated = skill_templates.discover(repo_root)
     total_written = 0
     total_skipped = 0
+    total_pruned = 0
     for src in skills:
         print(f"Processing: {src.name}")
         plugin_skill_md = (
             repo_root / "src" / "claude" / "skills" / src.name / "SKILL.md"
             if src.name in templated
             else None
+        )
+        # Prune first: its link guard raises before the copy can write through
+        # a symlinked directory in the mirror (CWE-59).
+        total_pruned += prune_mirror_orphans(
+            src,
+            output_dir / src.name,
+            skip_filenames=lib_owned_support_files(src.name),
+            what_if=what_if,
+            check=check,
         )
         written, skipped = _copy_skill_tree(
             src,
@@ -159,7 +175,7 @@ def _copy_skills(
         )
         total_written += written
         total_skipped += skipped
-    return total_written, total_skipped
+    return total_written, total_skipped, total_pruned
 
 
 def generate_skills(
@@ -313,7 +329,7 @@ def generate_skills(
     is_copilot = str(cfg.get("provider", "")) == "copilot-cli"
     print(f"Found {len(skills)} skill(s)")
     try:
-        total_written, total_skipped = _copy_skills(
+        total_written, total_skipped, total_pruned = _copy_skills(
             skills,
             output_dir,
             repo_root,
@@ -326,8 +342,11 @@ def generate_skills(
     except GenerateSkillsError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
-    if validate and total_written:
-        print(f"Skill mirror files drifted from their source: {total_written}")
+    if validate and (total_written or total_pruned):
+        print(
+            f"Skill mirror files drifted from their source: {total_written}; "
+            f"orphans with no source file: {total_pruned}"
+        )
         return 1
     duration = time.monotonic() - start_time
 
@@ -339,6 +358,7 @@ def generate_skills(
         return 0
     print(f"Skills processed: {len(skills)}")
     print(f"Files written: {total_written}")
+    print(f"Orphan mirror files removed: {total_pruned}")
     if total_skipped:
         print(f"Files skipped (NO-REGEN): {total_skipped}")
     return 0

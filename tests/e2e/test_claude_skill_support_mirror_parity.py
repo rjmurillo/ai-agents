@@ -92,8 +92,9 @@ def test_every_skill_support_file_has_a_twin_in_the_claude_plugin_tree() -> None
 def test_no_extra_support_files_in_the_claude_plugin_tree() -> None:
     """Every non-SKILL.md file under src/claude/skills/<name>/ has a source
     counterpart under .claude/skills/<name>/; a stale mirror left behind by
-    a deleted source file is exactly what
-    ``generate_skills._prune_stale_support_files`` exists to catch.
+    a deleted source file is exactly what this test catches. Since ADR-119 no
+    generator prunes this tree (``prune_stale_claude_skill_support`` removes
+    only repo-local copies), so this test is the guard.
     """
     extra: list[str] = []
 

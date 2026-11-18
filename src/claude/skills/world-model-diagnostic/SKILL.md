@@ -13,6 +13,7 @@ metadata:
       - world model diagnostic
       - world model paradigm
       - agent assumptions failing
+      - world model failing
       - automate judgment audit
       - boundary layer audit
 ---
