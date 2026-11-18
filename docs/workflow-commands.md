@@ -186,7 +186,7 @@ Default target is `main` unless specified.
 |-------|------|----------|
 | Pipeline | CI checks green, no suppressed failures | Yes |
 | Security | No new CWE findings, no secrets in diff | Yes |
-| Review | HEAD is a `/review` PASS marker commit for the code under it. On someone else's branch, a logged `/review` result is enough. | Yes, on your own branch |
+| Reviewed | HEAD is a `/review` PASS marker commit for the code under it. On someone else's branch, a logged `/review` result is enough. | Yes, on your own branch |
 | Tests | All tests green, no unjustified skips | Yes |
 
 **Output:** Ship report with per-check PASS/FAIL, PR link if created, and follow-up items.

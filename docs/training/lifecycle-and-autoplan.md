@@ -177,11 +177,13 @@ Other docs cover the same ground. We link them and do not repeat them:
 
    The [build skill](../../src/claude/skills/build/SKILL.md) works in thin slices, test first, with atomic commits. A doc change has no unit test, so your check is the `grep` from step 5. Four exit gates must come back clean: code qualities, taste lints, the documentation gate, and the orphan reference check. A failed gate stays failed. See [Mandatory Exit Gates](../../src/claude/skills/build/SKILL.md#mandatory-exit-gates).
 
-   The finished diff should look like this. We applied the edit by hand on a throwaway branch of commit `81025e191` to capture the output. Keep your edit identical to it. `main` already has this exact fix, so different wording conflicts with `main` when you ship.
+   The build commits for you. The message follows `type(scope): description`, for example `docs(workflow-commands): match /ship pre-flight count to the skill`.
+
+   After the commit, compare your branch with the commit you started from:
 
    ```bash
-   git diff --stat
-   git diff | grep -E '^[+-][^+-]'
+   git diff --stat 81025e191 -- docs/workflow-commands.md
+   git diff 81025e191 -- docs/workflow-commands.md | grep -E '^[+-][^+-]'
    ```
 
    ```text
@@ -192,7 +194,7 @@ Other docs cover the same ground. We link them and do not repeat them:
    -| Standards | Golden principles and taste lints pass | Yes |
    ```
 
-   The build commits for you. The message follows `type(scope): description`, for example `docs(workflow-commands): match /ship pre-flight count to the skill`.
+   We captured this output by making the edit by hand on a throwaway branch of commit `81025e191`. Your change must match it line for line. `main` already has this exact fix, so different wording conflicts with `main` when you ship. If your lines differ, edit the file to match and commit the fix.
 
 10. **/test, then /review.** Run the test gates:
 
@@ -297,7 +299,7 @@ Other docs cover the same ground. We link them and do not repeat them:
 
     On a branch you own, you want `RESULT: SHIPPED` and a link. `VALIDATED` is what a contributor gets on someone else's branch: checks ran, and nothing was created or merged.
 
-    Your pull request repeats a fix that `main` already has. After you read the report, close the pull request without merging it.
+    Your pull request repeats a fix that `main` already has. After you read the report, close it without merging: select **Close pull request** at the bottom of the pull request page on GitHub.
 
     Then stop. [ADR-105](../../.project-toolkit/architecture/ADR-105-terminal-state-completion-contract.md) says a task is terminal when every requested deliverable meets its contract and no blocker remains. For this page, we read `RESULT: SHIPPED` with a pull request link as that point. Put follow-up ideas in the `NEXT:` field. Do not keep polishing.
 
