@@ -434,11 +434,16 @@ def test_one_request_token_cannot_fill_two_intent_positions() -> None:
     assert not _ordered("alpha beta", "alpha beta beta")
 
 
-def test_tokens_spread_across_clauses_do_not_match() -> None:
+def test_tokens_spread_wider_than_the_cap_do_not_match() -> None:
     assert not _ordered(
         "Write integration tests for the Redis client and update the documentation.",
         "write integration documentation",
     )
+
+
+def test_a_short_gap_across_and_still_matches() -> None:
+    # The matcher has no notion of clauses; only the span cap rejects a match.
+    assert _ordered("Write the tests and the documentation.", "write documentation")
 
 
 def test_stop_words_between_tokens_do_not_count_against_the_window() -> None:

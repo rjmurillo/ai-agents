@@ -306,14 +306,14 @@
       "family": "negative-noise",
       "request": "Write integration tests for the Redis client and update the documentation.",
       "expect": {"kind": "none", "route": null, "routes_absent": ["technical-writing"]},
-      "rationale": "Negative control: write, integration and documentation sit in different clauses, so the ordered-window matcher must not fire the `write integration documentation` intent."
+      "rationale": "Negative control: write, integration and documentation sit further apart than the span cap allows, so the ordered-window matcher must not fire the `write integration documentation` intent."
     },
     {
       "id": "lt-technical-writing-cross-clause-unit-negative",
       "family": "negative-noise",
       "request": "Write a unit test for the rule engine and its documentation.",
       "expect": {"kind": "none", "route": null, "routes_absent": ["technical-writing"]},
-      "rationale": "Negative control: write, rule and documentation sit in different clauses, so the ordered-window matcher must not fire the `write rule documentation` intent."
+      "rationale": "Negative control: write, rule and documentation sit further apart than the span cap allows, so the ordered-window matcher must not fire the `write rule documentation` intent."
     },
     {
       "id": "lt-skillify-this",

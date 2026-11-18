@@ -59,9 +59,9 @@ Matching:
    tokens in the same order and the matched span, first to last matched
    request token, is at most ``len(intent_tokens) + 2`` request tokens.
    Stop words are already gone, so they never count against the window.
-   Tokens scattered across clauses do not match; tokens that sit next to
-   each other still do ("Fix the api guide parser crash" matches
-   ``api guide``). The scan reads at most ``len + 2`` tokens from each
+   Tokens spread wider than the cap do not match. The matcher has no notion
+   of clauses, so a short gap across "and" still matches, as do adjacent
+   tokens. The scan reads at most ``len + 2`` tokens from each
    position holding the intent's first token, so it is linear in the
    request length.
 3. A skill's score is its count of matching intents. The tie-break is the
