@@ -151,9 +151,9 @@ Other docs cover the same ground. We link them and do not repeat them:
    /spec docs/workflow-commands.md says /ship runs 5 pre-flight checks. The ship skill defines 4. Make the doc match the skill.
    ```
 
-   The [spec skill](../../src/claude/skills/spec/SKILL.md) runs a blocking First Principles gate first. It asks six questions: who asked, what the workaround is, who is blocked, the narrowest fix, the evidence, and whether it still makes sense at 10x. Answer each in plain words. The gate checks answers for hedge phrases, and a failed check can stop the spec. A memory gate then searches prior work and halts if the question is already answered.
+   The [spec skill](../../src/claude/skills/spec/SKILL.md) runs a blocking First Principles gate first. It asks six questions: who asked, what the workaround is, who is blocked, the narrowest fix, the evidence, and whether it still makes sense at 10x. Answer each in plain words. The gate checks answers for hedge phrases, and a failed check can stop the spec.
 
-   These answers fit this change and pass the gate:
+   These answers fit this change and pass the First Principles gate:
 
    ```text
    Q1: The spec-compliance review on PR #7418 flags `docs/workflow-commands.md:179`, and the ship skill in `.claude/skills/ship/SKILL.md` defines a different count.
@@ -166,7 +166,11 @@ Other docs cover the same ground. We link them and do not repeat them:
 
    Q2 ends with a reframing note because the skill asks for one there. The gate halts on words such as `probably`, `eventually`, or `would be nice`. It also halts when Q3 names a general group, such as "developers", instead of one person, team, or file.
 
-   It produces a requirements document: problem statement, numbered acceptance criteria, out-of-scope items, and open questions. The spec generator writes durable files to these paths:
+   A memory gate runs after the First Principles gate passes. It searches memory, Git history, and past pull requests for prior work on the files and names in your Q3 and Q4 answers. It then lists the files, skills, and other names it found that your Q1, Q3, and Q4 answers do not name. In an interactive session, it asks you to mark each one in-scope, out-of-scope, or blast-radius (connected, and your change may affect it). Two or more blast-radius marks stop the spec. With no person present, the agent marks every unnamed item blast-radius itself, and three or more stop the spec.
+
+   For this exercise, mark each one out-of-scope with a one-line reason, because your edit changes only `docs/workflow-commands.md`. The search may also find the pull request that already made this fix on `main`. That is expected, since this exercise replays that fix. It does not stop the spec.
+
+   With both gates passed, `/spec` produces a requirements document: problem statement, numbered acceptance criteria, out-of-scope items, and open questions. The spec generator writes durable files to these paths:
 
    - `.project-toolkit/specs/requirements/REQ-NNN-<title>.md`
    - `.project-toolkit/specs/design/DESIGN-NNN-<title>.md`
@@ -239,11 +243,40 @@ Other docs cover the same ground. We link them and do not repeat them:
     exit 0
     ```
 
-    Then run the full repo gate. It takes a few minutes. Fix every BLOCKING finding and commit the fix:
+    Then run the full repo gate. It takes a few minutes:
 
     ```bash
     uv run python scripts/validation/pre_pr.py
+    echo "exit $?"
     ```
+
+    A run with nothing blocking ends like this:
+
+    ```text
+    RESULT: No validation blocked the gate, but 4 of 120 did not prove their contract (ADVISORY: 2, SKIP: 2)
+    ...
+      [SKIP] validate_review_marker reason=policy.exempt scope=SHA-bound /review marker on HEAD
+      Licensed by the pre-PR policy; see .project-toolkit/devops/SHIFT-LEFT.md
+
+    Pre-PR checks passed with 2 advisory finding(s), not blocking. Verify the push landed before opening a PR:
+      git rev-parse HEAD
+      git ls-remote origin <branch>
+    The two commands must report the same SHA.
+
+    exit 0
+    ```
+
+    We captured this on a throwaway branch of commit `81025e191` with only the step 9 edit. The `...` stands for the other rows the `RESULT` line counts. Your counts and rows can differ, because some advisory checks read your machine. Any run that prints `No validation blocked the gate` and exits 0 is a pass. So is `RESULT: All validations passed`. An `[ADVISORY]` row is a finding the policy lets through: read it, but it does not block. The review marker skip is expected, because you have not run `/review` yet. A passing run started from your shell prints the push check. Ignore it here, because `/ship` pushes in step 12.
+
+    A run that blocks prints `RESULT: <n> validation(s) blocked the gate`, lists each gate that blocked, and exits 1, 3, or 4. Act on each one by its state:
+
+    - `FAIL`: fix the violation it names and commit the fix.
+    - `BLOCKED`: install or sign in to the dependency it names.
+    - `UNKNOWN`: its output was unreadable. Rerun and read that gate's output.
+
+    A `SKIP` row never blocks this gate.
+
+    Then rerun `pre_pr.py`.
 
     Now review:
 
@@ -371,7 +404,7 @@ If it fails, look here first:
 - **`python3` prints a PyYAML error.** Bare `python3` often lacks PyYAML, and the resolver exits 2 with `error: missing required module: yaml (PyYAML). Read skill descriptions directly instead of running this resolver.` Use `uv run python` from the repository root. With no Python, read each skill's `description` field and pick the closest match ([Phase 2c](../../src/claude/skills/autoplan/SKILL.md#phase-2c-resolver-ambiguity-from-a-home-repo-run)).
 - **The resolver returns `none` for a request you expected to match.** It only matches front-door skills that list `intents`. A table row in `SKILL.md` can route a request the resolver does not match. Read [Phase 2](../../src/claude/skills/autoplan/SKILL.md#phase-2-route) before you decide the router is wrong.
 - **`/spec` stops at the First Principles gate.** A hedged or empty answer blocks it. Name a real person or system, a real workaround, and a real signal. If you cannot, the change may not be worth making yet.
-- **`/spec` halts at the memory gate.** The search found the question already answered. Read the answer it cites.
+- **`/spec` halts at the memory gate.** It prints a fenced `step0_5-halt` block with five `key: value` lines. With `trigger: H11`, too many found items were marked blast-radius. Rerun `/spec`, and either mark the items your edit does not change out-of-scope or name them in Q1, Q3, or Q4. Triggers `H6` to `H9` fire when the spec removes an ADR constraint, bypasses a protocol, deletes over 100 lines, or refactors complex code, and the memory search finds no record about it. `H10` fires when the spec changes a validator, linter, hook, or shared infrastructure and cites no prior art for it. The block's `deferral` line says how to unblock it.
 - **`/plan` asks for a spec.** Run `/spec` first, or say you accept an ungated plan.
 - **A `/build` exit gate fails.** Fix the cause in your diff and rerun that gate. Do not add suppression comments or change baselines.
 - **`/test` returns `CRITICAL_FAIL`.** A gate failed or could not run. Fix it, then rerun `/test`.
