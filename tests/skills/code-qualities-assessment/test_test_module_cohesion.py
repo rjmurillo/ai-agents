@@ -7,6 +7,7 @@ focused suite of related cases scored 1.0 and failed the absolute gate.
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -120,3 +121,49 @@ def test_authored_file_losing_cohesion_still_reports_evidence_loss(tmp_path: Pat
     comparison = _mod.compare_assessments(base, head, 0.5)
 
     assert comparison.evidence_loss == ["cohesion"]
+
+
+def _git(repo: Path, *args: str) -> None:
+    subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+
+
+def test_regression_gate_passes_authored_file_renamed_under_tests(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _git(tmp_path, "init")
+    _git(tmp_path, "checkout", "-b", "main")
+    _git(tmp_path, "config", "user.email", "test@example.com")
+    _git(tmp_path, "config", "user.name", "Test")
+    _place(tmp_path, "src/parser_suite.py")
+    _git(tmp_path, "add", ".")
+    _git(tmp_path, "commit", "-m", "base")
+    _git(tmp_path, "checkout", "-b", "feature")
+    (tmp_path / "tests").mkdir()
+    _git(tmp_path, "mv", "src/parser_suite.py", "tests/test_parser.py")
+    _git(tmp_path, "commit", "-m", "move under tests")
+    monkeypatch.chdir(tmp_path)
+    missing = tmp_path / "absent.qualityrc.json"
+    assert not missing.exists()
+
+    rc = _mod.main(
+        [
+            "--target",
+            ".",
+            "--changed-only",
+            "--base",
+            "main",
+            "--config",
+            str(missing),
+            "--format",
+            "json",
+        ]
+    )
+
+    assert rc == 0, capsys.readouterr().err
