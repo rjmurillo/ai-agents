@@ -157,10 +157,11 @@ def test_invalid_csharp_fails_cli_instead_of_reporting_no_dependencies(
     assert result == 1
     assert "C#" in output.err
     assert "syntax" in output.err.lower()
+    assert target.name in output.err
     assert not output.out
 
 
-@pytest.mark.parametrize("error_type", [OSError, ValueError, TypeError])
+@pytest.mark.parametrize("error_type", [OSError, ValueError, TypeError, RuntimeError])
 def test_broken_csharp_parser_fails_cli_without_a_success_report(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -171,18 +172,21 @@ def test_broken_csharp_parser_fails_cli_without_a_success_report(
     monkeypatch.chdir(tmp_path)
     target = tmp_path / "Imports.cs"
     target.write_text("using System.IO;\n", encoding="utf-8")
+    report = tmp_path / "report.json"
 
     def broken_parser(_language: object) -> None:
         raise error_type("Parser initialization failed")
 
     monkeypatch.setattr(importlib.import_module("tree_sitter"), "Parser", broken_parser)
 
-    result = _mod.main(["--target", str(target), "--format", "json"])
+    result = _mod.main(["--target", str(target), "--format", "json", "--output", str(report)])
     output = capsys.readouterr()
 
     assert result == 1
     assert "Parser initialization failed" in output.err
+    assert target.name in output.err
     assert not output.out
+    assert not report.exists()
 
 
 @pytest.mark.parametrize(

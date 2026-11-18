@@ -1344,7 +1344,9 @@ def _count_csharp_imports(source: str) -> int:
             raise CSharpParserError("Cannot count C# dependencies: the source has syntax errors")
         query = Query(language, "(using_directive) @dependency")
         return len(QueryCursor(query).captures(tree.root_node).get("dependency", []))
-    except (ImportError, OSError, TypeError, ValueError) as exc:
+    except CSharpParserError:
+        raise
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
         raise CSharpParserError(
             f"C# dependency parsing failed: {exc}. "
             "Install the parser packages in the scanner's Python environment: "
@@ -1886,8 +1888,8 @@ def _assess_files(
     for file_path in files:
         try:
             assessments.append(assess_file(file_path, context, use_serena))
-        except CSharpParserError:
-            raise
+        except CSharpParserError as exc:
+            raise CSharpParserError(f"{file_path}: {exc}") from exc
         except Exception as e:
             print(f"Error assessing {file_path}: {e}", file=sys.stderr)
             assessments.append(_unreadable_assessment(file_path, f"assessment failed: {e}"))

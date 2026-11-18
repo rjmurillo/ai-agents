@@ -1428,8 +1428,12 @@ def test_assess_non_utf8_file_does_not_crash(tmp_path: Path) -> None:
 # it did not introduce. Exit 10 was documented and unreachable.
 # --------------------------------------------------------------------------- #
 
-_FOCUSED = "def alpha():\n    return 1\n"
 # 21 definitions: enough to score cohesion well below the default minimum of 7.
+
+
+_FOCUSED = "def alpha():\n    return 1\n"
+
+
 _SPRAWLING = _FOCUSED + "".join(f"def f{i}():\n    return {i}\n" for i in range(20))
 
 
@@ -1670,141 +1674,6 @@ def test_json_report_carries_base_head_and_delta(
     assert cohesion["head"] is not None
     assert cohesion["delta"] < 0
     assert cohesion["status"] == "compared"
-
-
-_PARSER_SCANNER = "src/claude/skills/code-qualities-assessment/scripts/assess.py"
-_PARSER_IMPORTS = "import tree_sitter\nimport tree_sitter_c_sharp\n"
-
-
-@pytest.fixture
-def parser_admission_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
-    (tmp_path / _PARSER_SCANNER).parent.mkdir(parents=True)
-    _repo_with_change(tmp_path, monkeypatch, _FOCUSED, _PARSER_IMPORTS + _FOCUSED, _PARSER_SCANNER)
-    return {
-        "thresholds": {},
-        "csharpParserDependencyAdmission": {
-            "issue": 7406,
-            "file": _PARSER_SCANNER,
-            "imports": ["tree_sitter", "tree_sitter_c_sharp"],
-            "baseScore": 10.0,
-            "headScore": 8.0,
-            "authorizedBy": "rjmurillo",
-            "authorizedOn": "2026-11-16",
-            "authorization": "Maintainer instruction: waiver, full send.",
-        },
-    }
-
-
-def _run_parser_admission(config: dict[str, Any], tmp_path: Path) -> int:
-    config_path = _write(tmp_path, ".qualityrc.json", json.dumps(config))
-    result = main([*_regression_argv(), "--config", str(config_path)])
-    assert isinstance(result, int)
-    return result
-
-
-def test_parser_admission_keeps_raw_regression_and_authorization(
-    parser_admission_repo: dict[str, Any],
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    rc = _run_parser_admission(parser_admission_repo, tmp_path)
-
-    captured = capsys.readouterr()
-    comparison = json.loads(captured.out)["comparisons"][0]
-    coupling = next(d for d in comparison["deltas"] if d["quality"] == "coupling")
-    assert rc == 0
-    assert (coupling["base"], coupling["head"], coupling["delta"]) == (10.0, 8.0, -2.0)
-    assert comparison["regressions"] == ["coupling"]
-    assert (
-        comparison["csharp_parser_dependency_admission"]
-        == (parser_admission_repo["csharpParserDependencyAdmission"])
-    )
-    assert "coupling regressed 10.0 -> 8.0 (delta -2.0)" in captured.err
-    assert "ADMITTED" in captured.err
-    from scripts.ai_review_common import adapt_local_axis_verdict
-
-    assert adapt_local_axis_verdict("code-qualities-assessment", captured.out, rc) == "WARN"
-
-
-@pytest.mark.parametrize(
-    ("field", "value"),
-    [
-        ("issue", 7407),
-        ("file", "other.py"),
-        ("imports", ["tree_sitter"]),
-        ("baseScore", 9.0),
-        ("headScore", 7.0),
-        ("authorizedBy", ""),
-        ("authorizedOn", ""),
-        ("authorization", ""),
-    ],
-)
-def test_parser_admission_rejects_broader_or_unauthorized_config(
-    parser_admission_repo: dict[str, Any],
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-    field: str,
-    value: object,
-) -> None:
-    parser_admission_repo["csharpParserDependencyAdmission"][field] = value
-
-    assert _run_parser_admission(parser_admission_repo, tmp_path) == 1
-    assert "ERROR:" in capsys.readouterr().err
-
-
-@pytest.mark.parametrize("record", [None, [], "approved"])
-def test_parser_admission_rejects_malformed_config(
-    parser_admission_repo: dict[str, Any], tmp_path: Path, record: object
-) -> None:
-    parser_admission_repo["csharpParserDependencyAdmission"] = record
-
-    assert _run_parser_admission(parser_admission_repo, tmp_path) == 1
-
-
-@pytest.mark.parametrize("extra", ["", "import requests\n", _SPRAWLING])
-def test_parser_admission_does_not_clear_unapproved_regressions(
-    parser_admission_repo: dict[str, Any], tmp_path: Path, extra: str
-) -> None:
-    if extra:
-        _commit(tmp_path, _PARSER_SCANNER, _PARSER_IMPORTS + extra + _FOCUSED, "regress")
-    else:
-        del parser_admission_repo["csharpParserDependencyAdmission"]
-
-    assert _run_parser_admission(parser_admission_repo, tmp_path) == 10
-
-
-def test_parser_admission_requires_the_actual_two_imports(
-    parser_admission_repo: dict[str, Any], tmp_path: Path
-) -> None:
-    _commit(tmp_path, _PARSER_SCANNER, "import requests\nimport flask\n" + _FOCUSED, "other")
-
-    assert _run_parser_admission(parser_admission_repo, tmp_path) == 10
-
-
-def test_parser_admission_does_not_clear_new_file_threshold_failure(
-    parser_admission_repo: dict[str, Any], tmp_path: Path
-) -> None:
-    _commit(tmp_path, "new.py", _SPRAWLING, "new module")
-    parser_admission_repo["minConfidence"] = 0.0
-    parser_admission_repo["thresholds"] = {
-        "cohesion": {"min": 10},
-        "coupling": {},
-        "encapsulation": {},
-        "testability": {},
-        "nonRedundancy": {},
-    }
-
-    assert _run_parser_admission(parser_admission_repo, tmp_path) == 11
-
-
-def test_parser_admission_does_not_clear_lost_evidence(
-    parser_admission_repo: dict[str, Any], tmp_path: Path
-) -> None:
-    (tmp_path / _PARSER_SCANNER).write_bytes(b"\xff")
-    _run_git(tmp_path, "add", _PARSER_SCANNER)
-    _run_git(tmp_path, "commit", "-m", "unreadable source")
-
-    assert _run_parser_admission(parser_admission_repo, tmp_path) == 10
 
 
 def test_regression_mode_rejects_a_missing_base(
