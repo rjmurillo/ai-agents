@@ -260,3 +260,30 @@ def test_a_relative_target_under_a_symlinked_ancestor_is_refused(
         skill_mirror_prune.prune_mirror_orphans(source, Path("out/skills/alpha"))
 
     assert orphan.is_file()
+
+
+def test_the_walk_never_descends_into_a_junction_at_an_owned_file_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A redirecting directory at an owned FILE path is left for the copy, not walked.
+
+    ``_symlink_problem`` returns ``None`` there (the copy replaces a link at an
+    owned file path), so dropping the entry from ``dirnames`` is the only thing
+    that keeps ``os.walk`` from reaching through it to delete files on the far
+    side. Without that prune the unowned file below is unlinked.
+    """
+    source = _built_repo(tmp_path)
+    (source / "references" / "old.md").unlink()
+    mirror = _mirror(tmp_path)
+    owned_file = mirror / "references" / "keep.md"
+    owned_file.unlink()
+    owned_file.mkdir()
+    beyond = owned_file / "beyond.md"
+    beyond.write_text("lives on the far side of the junction\n", encoding="utf-8")
+    _flag_as_junctions(monkeypatch, owned_file)
+
+    count = skill_mirror_prune.prune_mirror_orphans(source, mirror)
+
+    assert beyond.is_file(), "the walk must not reach through the junction"
+    assert count == 1, "only the stale old.md is pruned"
+    assert not (mirror / "references" / "old.md").exists()

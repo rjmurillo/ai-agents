@@ -275,8 +275,9 @@ def prune_mirror_orphans(
     or reported. Raises :class:`SkillSupportSyncError` before any file is
     deleted when the walk finds a symlink or junction, a linked ``target`` or
     ancestor, an unreadable source directory, or an orphan whose NO-REGEN marker
-    cannot be read; a path that becomes a link, or an unlink that fails, during
-    removal also raises, and the orphans removed before it stay removed.
+    cannot be read; a path that becomes a link, cannot be examined (``lstat``
+    fails in ``_redirects``), or fails to unlink during removal also raises, and
+    the orphans removed before it stay removed.
     """
     if not (target.is_dir() or target.is_symlink()):
         return 0
