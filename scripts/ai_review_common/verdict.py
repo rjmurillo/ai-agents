@@ -380,7 +380,54 @@ def adapt_local_axis_verdict(
             return "UNKNOWN"
         # A clean exit over zero files is silence, not a pass: in regression
         # mode assess.py emits `files: []` for a deletion-only diff.
-        return "PASS" if _has_assessed_files(files, summary) else "UNKNOWN"
+        if not _has_assessed_files(files, summary):
+            return "UNKNOWN"
+        comparisons = payload.get("comparisons", [])
+        if not isinstance(comparisons, list):
+            return "UNKNOWN"
+        verdicts = ["PASS"]
+        for comparison in comparisons:
+            if not isinstance(comparison, dict):
+                return "UNKNOWN"
+            if comparison.get("csharp_parser_dependency_admission") is None:
+                if comparison.get("regressions") or comparison.get("evidence_loss"):
+                    return "FAIL"
+                continue
+            match comparison:
+                case {
+                    "file_path": str() as file_path,
+                    "regressions": ["coupling"],
+                    "evidence_loss": [],
+                    "is_new_file": False,
+                    "change_status": "M",
+                    "deltas": list() as deltas,
+                    "csharp_parser_dependency_admission": {
+                        "issue": 7406,
+                        "file": str() as source,
+                        "imports": ["tree_sitter", "tree_sitter_c_sharp"],
+                        "baseScore": 10.0,
+                        "headScore": 8.0,
+                        "authorizedBy": "rjmurillo",
+                        "authorizedOn": "2026-11-16",
+                        "authorization": "Maintainer instruction: waiver, full send.",
+                    },
+                } if (
+                    file_path.replace("\\", "/") == source
+                    and source == "src/claude/skills/code-qualities-assessment/scripts/assess.py"
+                    and comparison.get("absolute_gate_reason") is None
+                    and {
+                        "quality": "coupling",
+                        "base": 10.0,
+                        "head": 8.0,
+                        "delta": -2.0,
+                        "status": "compared",
+                    }
+                    in deltas
+                ):
+                    verdicts.append("WARN")
+                case _:
+                    return "UNKNOWN"
+        return merge_verdicts(verdicts)
 
     if axis == "doc-accuracy":
         gate_verdict: object | None = None

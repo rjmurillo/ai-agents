@@ -1,6 +1,16 @@
 {
-  "_comment": "assess.py reads thresholds[\"coupling\"].get(\"min\") (_thresholds_for and check_thresholds in .claude/skills/code-qualities-assessment/scripts/assess.py); a config that leaves coupling.min unset has its coupling gate skipped rather than gated incorrectly (see the comment beside that read). This file leaves coupling empty, so no coupling gate fires. assess.py never reads a \"warn\" field for any quality, only each quality's \"min\", so the warn keys this file used to carry were inert and are gone; coupling.max was never read either. minConfidence (0.5) makes a quality advisory when its score confidence is lower: cohesion is a size and definition proxy at confidence 0.4, so it prints a warning and never fails the absolute gate. The regression gate still compares cohesion against the merge base.",
+  "_comment": "assess.py reads thresholds[\"coupling\"].get(\"min\") (_thresholds_for and check_thresholds in .claude/skills/code-qualities-assessment/scripts/assess.py); a config that leaves coupling.min unset has its coupling gate skipped rather than gated incorrectly (see the comment beside that read). This file leaves coupling empty, so no coupling gate fires. assess.py never reads a \"warn\" field for any quality, only each quality's \"min\", so the warn keys this file used to carry were inert and are gone; coupling.max was never read either. minConfidence (0.5) makes a quality advisory when its score confidence is lower: cohesion is a size and definition proxy at confidence 0.4, so it prints a warning and never fails the absolute gate. The regression gate still compares cohesion against the merge base. The csharpParserDependencyAdmission record admits one scanner transition under ADR-122.",
   "minConfidence": 0.5,
+  "csharpParserDependencyAdmission": {
+    "issue": 7406,
+    "file": "src/claude/skills/code-qualities-assessment/scripts/assess.py",
+    "imports": ["tree_sitter", "tree_sitter_c_sharp"],
+    "baseScore": 10.0,
+    "headScore": 8.0,
+    "authorizedBy": "rjmurillo",
+    "authorizedOn": "2026-11-16",
+    "authorization": "Maintainer instruction: waiver, full send."
+  },
   "thresholds": {
     "cohesion": {
       "min": 7
