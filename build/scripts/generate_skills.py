@@ -151,6 +151,15 @@ def _copy_skills(
             if src.name in templated
             else None
         )
+        # Prune first: its link guard raises before the copy can write through
+        # a symlinked directory in the mirror (CWE-59).
+        total_pruned += prune_mirror_orphans(
+            src,
+            output_dir / src.name,
+            skip_filenames=lib_owned_support_files(src.name),
+            what_if=what_if,
+            check=check,
+        )
         written, skipped = _copy_skill_tree(
             src,
             output_dir / src.name,
@@ -164,13 +173,6 @@ def _copy_skills(
         )
         total_written += written
         total_skipped += skipped
-        total_pruned += prune_mirror_orphans(
-            src,
-            output_dir / src.name,
-            skip_filenames=lib_owned_support_files(src.name),
-            what_if=what_if,
-            check=check,
-        )
     return total_written, total_skipped, total_pruned
 
 
@@ -354,7 +356,7 @@ def generate_skills(
         return 0
     print(f"Skills processed: {len(skills)}")
     print(f"Files written: {total_written}")
-    print(f"Orphan mirror files {'would be removed' if what_if else 'removed'}: {total_pruned}")
+    print(f"Orphan mirror files removed: {total_pruned}")
     if total_skipped:
         print(f"Files skipped (NO-REGEN): {total_skipped}")
     return 0

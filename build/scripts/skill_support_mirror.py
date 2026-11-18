@@ -377,7 +377,17 @@ def _is_kept_sidecar(path: Path) -> bool:
 
 
 def _require_unlinked_target(target: Path) -> None:
-    """Raise when ``target`` or an ancestor below the repository root is a symlink."""
+    """Raise when ``target`` or an ancestor below the repository root is a symlink.
+
+    Outside any checkout (``find_repo_root`` returns ``None``) only ``target``
+    itself is checked: there is no root to confine ancestors to, the same
+    stance as ``atomic_write._confine_to_repo`` ("a path outside any checkout
+    has no root to confine to and is left to the caller"). Skipping is safe
+    because ``build_all`` and ``generate_skills`` only reach this with a path
+    under the repository they run in, and the prune still walks with
+    ``followlinks=False`` and unlinks only regular files, so it never deletes
+    through a link.
+    """
     if target.is_symlink():
         raise SkillSupportSyncError(f"{target}: symlinked mirror skill directory refused")
     root = find_repo_root(target)
@@ -388,18 +398,43 @@ def _require_unlinked_target(target: Path) -> None:
         raise SkillSupportSyncError(problem)
 
 
-def _is_orphan_file(path: Path, rel: Path, owned: frozenset[Path]) -> bool:
+def _folded(rel: Path) -> str:
+    return rel.as_posix().casefold()
+
+
+def _is_orphan_file(
+    path: Path, rel: Path, owned: frozenset[Path], owned_folded: frozenset[str]
+) -> bool:
     """Return whether the regular file ``path`` is an unprotected orphan.
 
-    Bytecode and owned paths are not orphans. A ``NO-REGEN`` file or the
-    ``.noregen`` sidecar of an existing file is kept with a notice.
+    Bytecode and owned paths are not orphans. A path that differs from an owned
+    path only by case is kept with a notice and left to the copy: on a
+    case-insensitive filesystem (macOS APFS default) a case-only rename makes
+    the old name and the new name one file, so deleting the "orphan" would
+    remove the only copy. The cost is that on a case-sensitive filesystem a
+    stale case variant survives until removed by hand. A ``NO-REGEN`` file or
+    the ``.noregen`` sidecar of an existing file is also kept with a notice.
     """
     if rel in owned or is_bytecode_artifact(rel):
+        return False
+    if _folded(rel) in owned_folded:
+        print(f"  NOTICE: kept {path} (differs from a source path only by case)")
         return False
     if regen_detect_reason(path) is not None or _is_kept_sidecar(path):
         print(f"  NOTICE: kept {path} (NO-REGEN, no source counterpart)")
         return False
     return True
+
+
+def _symlink_problem(
+    path: Path, rel: Path, owned: frozenset[Path], owned_dirs: set[Path]
+) -> str | None:
+    """Return why the symlink ``path`` is refused, or ``None`` when the copy replaces it."""
+    if rel in owned_dirs:
+        return f"{path}: symlink at an owned directory path refused (CWE-59)"
+    if rel not in owned:
+        return f"{path}: symlink with no source counterpart refused"
+    return None
 
 
 def _find_mirror_orphans(target: Path, owned: frozenset[Path]) -> list[Path]:
@@ -408,12 +443,15 @@ def _find_mirror_orphans(target: Path, owned: frozenset[Path]) -> list[Path]:
     Walks without following links and finishes before the caller deletes
     anything. A symlink at a path the source does not own is an error, not an
     orphan: it may point outside the mirror (CWE-22/59), so nothing is removed
-    until a human looks. A symlink at an owned path is left for the copy, which
-    replaces it. Bytecode, a ``NO-REGEN`` file, and a ``.noregen`` sidecar of an
-    existing file are never orphans.
+    until a human looks. A symlink at an owned directory path is an error too:
+    the copy would write through it to wherever it points (CWE-59), and
+    ``--check`` would compare through it. A symlink at an owned file path is
+    left for the copy, which replaces the link itself. Bytecode, a ``NO-REGEN``
+    file, and a ``.noregen`` sidecar of an existing file are never orphans.
     """
     _require_unlinked_target(target)
     owned_dirs = {parent for rel in owned for parent in rel.parents}
+    owned_folded = frozenset(_folded(rel) for rel in owned)
     orphans: list[Path] = []
     links: list[str] = []
     for dirpath, dirnames, filenames in os.walk(target, followlinks=False):
@@ -421,9 +459,10 @@ def _find_mirror_orphans(target: Path, owned: frozenset[Path]) -> list[Path]:
             path = Path(dirpath) / name
             rel = path.relative_to(target)
             if path.is_symlink():
-                if rel not in owned and rel not in owned_dirs:
-                    links.append(f"{path}: symlink with no source counterpart refused")
-            elif name in filenames and _is_orphan_file(path, rel, owned):
+                problem = _symlink_problem(path, rel, owned, owned_dirs)
+                if problem is not None:
+                    links.append(problem)
+            elif name in filenames and _is_orphan_file(path, rel, owned, owned_folded):
                 orphans.append(path)
     if links:
         raise SkillSupportSyncError("; ".join(links))
