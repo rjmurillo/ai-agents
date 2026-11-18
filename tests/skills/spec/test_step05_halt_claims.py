@@ -65,7 +65,10 @@ def test_step05_prose_names_real_triggers(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
     assert "blast-radius" in text, f"{path.name} does not name the H11 blast-radius trigger"
     assert "no prior record" in text, (
-        f"{path.name} does not name the H6 to H10 prior-record triggers"
+        f"{path.name} does not name the H6 to H9 prior-record triggers"
+    )
+    assert "no prior record or citation" in text, (
+        f"{path.name} does not name the H10 missing-citation trigger"
     )
 
 
