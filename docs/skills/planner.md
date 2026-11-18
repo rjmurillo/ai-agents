@@ -82,10 +82,12 @@ You need an approved plan file that passed review, and a cleared context window.
 | 3 | Milestone Execution | Delegate to agents and run tests. Repeats until all milestones finish. |
 | 4 | Post-Implementation QR | Quality review of the implemented code. |
 | 5 | Issue Resolution | Conditional. Present issues and collect fixes, then loop back to step 4. |
-| 6 | Documentation | Docs pass for `CLAUDE.md` and `README.md` with the `technical-writing` skill. Docstrings go to the implementer agent. |
+| 6 | Documentation | The coordinator edits `CLAUDE.md` index entries directly. A new `README.md` or ARCHITECTURE scaffold uses the `codebase-documenter` skill. An edit to an existing `README.md` uses the `technical-writing` skill. Docstrings go to the implementer agent, and the comment-analyzer agent checks transcribed comments. |
 | 7 | Retrospective | Present the execution summary. |
 
 On resume, step 1 reconciles the plan file against work already done.
+
+A milestone whose files are all `*.md` or `*.rst` goes to a docs skill, not an agent. The coordinator, or a general-purpose subagent it starts, loads the skill and follows it. A new README or ARCHITECTURE scaffold uses `codebase-documenter`. An edit to an existing docs page, including an existing README, uses `technical-writing`. Agent prompts and `SKILL.md` files stay with the implementer agent.
 
 ```bash
 uv run python .claude/skills/planner/scripts/executor.py --help
