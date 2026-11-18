@@ -117,8 +117,10 @@ legacy:
   # that motivated this issue). The opus/sonnet entries stay so
   # check_model_pins.py's load_tier_map() can still validate a source unit's
   # bare-alias cost rationale (ADR-080 rule 3).
+  # Issue #7425: Copilot CLI retired claude-opus-4.6 and fell back to another
+  # model, so the opus entry tracks an id the CLI catalog still lists.
   model_tiers:
-    opus: "claude-opus-4.6"
+    opus: "claude-opus-5.5"
     sonnet: "claude-sonnet-4.6"
     haiku: "claude-haiku-4.5"
   handoffSyntax: "/agent"

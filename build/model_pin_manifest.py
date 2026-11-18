@@ -96,7 +96,7 @@ MANIFEST_MAX_AGE_DAYS = 180
 _CANONICAL_MAJOR_MINOR_RE = re.compile(r"^claude-(opus|sonnet|haiku)-(\d{1,2})(?:[.-](\d{1,2}))?$")
 
 # The two known target shapes a platform's own ``model_tiers`` map spells its
-# tier defaults in today. See templates/platforms/copilot-cli.yaml:109-112
+# tier defaults in today. See templates/platforms/copilot-cli.yaml:123-126
 # (dot form) and templates/platforms/vscode.yaml:20-23 (display form, shared
 # by visual-studio.yaml). Matching against these rather than hardcoding a
 # per-platform-name template means a platform YAML's spelling stays the one
@@ -369,8 +369,8 @@ def format_model_id_for_platform(model_id: str, platform_tiers: Mapping[str, obj
     ``_normalize_id`` treats as canonical), but each platform's
     ``model_tiers`` map spells its OWN default id differently, for example:
 
-        templates/platforms/copilot-cli.yaml:109-112 (dot form):
-            opus: "claude-opus-4.6"
+        templates/platforms/copilot-cli.yaml:123-126 (dot form):
+            opus: "claude-opus-5.5"
         templates/platforms/vscode.yaml:20-23 (display form, shared by
         visual-studio.yaml):
             opus: "Claude Opus 4.6 (copilot)"
