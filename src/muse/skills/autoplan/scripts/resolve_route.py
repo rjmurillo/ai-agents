@@ -56,17 +56,14 @@ Matching:
    A possessive ``'s`` (apostrophe U+0027, U+2018, U+2019, or U+02BC) is dropped before
    splitting, so ``agent's`` yields ``agent`` and no stray ``s`` token.
 2. An intent matches when its folded tokens appear in the folded request
-   tokens in the same order (an ordered subsequence) and the matched span,
-   from the first matched request token to the last, is at most
-   ``len(intent_tokens) + 2`` request tokens. Stop words are already gone, so
-   they never count against the window. Tokens spread across clauses, such as
-   ``write``, ``integration`` and ``documentation`` in "Write integration
-   tests for the Redis client and update the documentation", do not match.
-   The scan tries each request position that holds the intent's first token
-   and reads at most ``len + 2`` tokens from it, so it is linear in the
-   request length. Tokens that sit next to each other still match, in or out
-   of context ("Fix the api guide parser crash" matches ``api guide``);
-   ordering cannot reject those.
+   tokens in the same order and the matched span, first to last matched
+   request token, is at most ``len(intent_tokens) + 2`` request tokens.
+   Stop words are already gone, so they never count against the window.
+   Tokens scattered across clauses do not match; tokens that sit next to
+   each other still do ("Fix the api guide parser crash" matches
+   ``api guide``). The scan reads at most ``len + 2`` tokens from each
+   position holding the intent's first token, so it is linear in the
+   request length.
 3. A skill's score is its count of matching intents. The tie-break is the
    total token count of those matching intents.
 
@@ -244,24 +241,17 @@ def _matches_ordered(request_tokens: tuple[str, ...], intent_tokens: tuple[str, 
 
     The span runs from the first to the last matched request token and may
     not exceed ``len(intent_tokens) + _SPAN_SLACK``. Each request position
-    holding the first intent token is tried as a start, and the greedy scan
-    from it stops at the cap, so the cost is O(len(request) * cap).
+    holding the first intent token is tried as a start, and the scan from it
+    stops at the cap, so the cost is O(len(request) * cap).
     """
     if not intent_tokens:
         return False
     cap = len(intent_tokens) + _SPAN_SLACK
-    first = intent_tokens[0]
     for start, token in enumerate(request_tokens):
-        if token != first:
-            continue
-        matched = 1
-        for token_after in request_tokens[start + 1 : start + cap]:
-            if matched == len(intent_tokens):
-                break
-            if token_after == intent_tokens[matched]:
-                matched += 1
-        if matched == len(intent_tokens):
-            return True
+        if token == intent_tokens[0]:
+            window = iter(request_tokens[start + 1 : start + cap])
+            if all(wanted in window for wanted in intent_tokens[1:]):
+                return True
     return False
 
 
