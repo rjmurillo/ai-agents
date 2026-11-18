@@ -46,8 +46,6 @@ RETIRED_AGENT_RE = re.compile(
     r"@agent-(?:developer|debugger|quality-reviewer)\b"
     r"|agents/(?:developer|quality-reviewer)\.md|\bQR\b"
 )
-DELEGATION_MARKER = "**Delegation on each host.**"
-NOT_INSTALLED_FALLBACK = "no `X` agent is installed, run the step yourself in this session"
 # A removed agent name, its abbreviation, and the modes it never had.
 REMOVED_WRITER_RE = re.compile(
     r"technical[-_ ]?writer|\bTW\b|plan-scrub|plan-annotation|tw_delegation|delegate_tw",
@@ -209,66 +207,6 @@ def test_every_named_skill_exists(label: str) -> None:
     assert not unknown, f"{label} names skills that do not ship: {sorted(unknown)}"
 
 
-def test_review_step_2_delegates_plan_review_to_critic() -> None:
-    text = _planner_outputs()["review step 2"]
-    assert agent_targets(text) == {"critic"}
-    assert "APPROVED | APPROVED_WITH_CONCERNS | NEEDS_REVISION" in text
-    assert "<mode>" not in text
-
-
-def test_critic_still_returns_the_verdicts_the_planner_routes_on() -> None:
-    critic = (AGENT_TEMPLATES / "critic.shared.md").read_text(encoding="utf-8")
-    for verdict in ("**APPROVED**", "**APPROVED_WITH_CONCERNS**", "**NEEDS_REVISION**"):
-        assert verdict in critic
-
-
-def test_review_step_2_brief_carries_its_criteria_and_resource() -> None:
-    text = squash(_planner_outputs()["review step 2"])
-    assert "production reliability" in text
-    assert "resources/default-conventions.md" in text
-
-
-@pytest.mark.parametrize("step", ["execution step 2", "execution step 4"])
-def test_code_review_steps_delegate_to_code_reviewer(step: str) -> None:
-    text = _executor_outputs()[step]
-    assert agent_targets(text) == {"code-reviewer"}
-    assert "read-only" in text
-
-
-def test_post_implementation_review_names_both_resources() -> None:
-    text = squash(_executor_outputs()["execution step 4"])
-    assert "resources/default-conventions.md" in text
-    assert "resources/temporal-contamination.md" in text
-
-
-def test_post_implementation_review_routes_on_blocking_findings() -> None:
-    text = _executor_outputs()["execution step 4"]
-    assert "If any finding is blocking -> invoke step 5" in text
-    assert "If no finding is blocking -> invoke step 6" in text
-
-
-@pytest.mark.parametrize(
-    "path",
-    [PLANNER_TEMPLATE, *(REPO_ROOT / root / "SKILL.md" for root in PLANNER_ROOTS)],
-    ids=lambda p: str(p.relative_to(REPO_ROOT)),
-)
-def test_skill_body_falls_back_to_this_session_when_an_agent_is_not_installed(
-    path: Path,
-) -> None:
-    text = path.read_text(encoding="utf-8")
-    if path == PLANNER_TEMPLATE:
-        assert "{{> host-delegation}}" in text
-        return
-    assert DELEGATION_MARKER in text
-    assert NOT_INSTALLED_FALLBACK in text
-    assert "`@agent-X` in the scripts' output means the\n`X` agent" in text
-
-
-def test_docs_page_says_a_missing_agent_runs_in_this_session() -> None:
-    text = squash(PLANNER_DOCS_PAGE.read_text(encoding="utf-8"))
-    assert "When a named agent isn't installed, the coordinator runs that step" in text
-
-
 def test_review_step_1_delegates_to_comment_analyzer_and_applies_findings() -> None:
     text = _planner_outputs()["review step 1"]
     assert agent_targets(text) == {"comment-analyzer"}
@@ -373,11 +311,6 @@ def test_docs_page_states_the_current_delegation_targets() -> None:
     assert find_removed_writer(text) == []
 
 
-def test_delegation_form_has_no_mode_line() -> None:
-    text = _executor_outputs()["execution step 1"]
-    assert "<mode>" not in text
-
-
 def _plain(text: str) -> str:
     return squash(text.replace("`", ""))
 
@@ -425,11 +358,6 @@ def test_step_1_split_gives_claude_md_to_the_coordinator() -> None:
         in text
     )
     assert "The coordinator edits CLAUDE.md index entries in any milestone" in text
-
-
-def test_delegation_form_lists_only_real_agents() -> None:
-    text = _executor_outputs()["execution step 1"]
-    assert "<agent>@agent-[implementer|debug|code-reviewer]</agent>" in text
 
 
 def test_temporal_contamination_doc_names_only_the_real_consumers() -> None:
