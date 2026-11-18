@@ -102,10 +102,10 @@ skill carries versioned id 'claude-opus-4-6'; skills and commands may not pin a 
 **1. No `model:` line (default).** Use this unless you have a cost reason not to.
 
 **2. A bare rolling alias that prices below the harness default, with a
-`model-rationale:` line.** The default is `claude-sonnet-4-6`, so `haiku` is
+`model-rationale:` line.** The default is `gpt-6.1-sol`, so `haiku` is
 the only alias that qualifies today. `opus` and `sonnet` do not price below the
 default and fail the check with `cost rationale on 'sonnet' but it does not
-price below the default 'claude-sonnet-4-6'`.
+price below the default 'gpt-6.1-sol'`.
 
 ```yaml
 model: haiku
@@ -120,9 +120,9 @@ Prices come from `MODEL_PRICING_RATES_USD_PER_1K_TOKENS` in
 
 | Alias | Resolves to | Cost (Input/Output per MTok) | Allowed in a skill? |
 |-------|-------------|------------------------------|---------------------|
-| `opus` | `claude-opus-4.6` | $5 / $25 | No: does not price below the default |
-| `sonnet` | `claude-sonnet-4.6` | $3 / $15 | No: it is the default, so not below it |
-| `haiku` | `claude-haiku-4.5` | $1 / $5 | Yes, with `model-rationale` |
+| `opus` | `claude-opus-5.5` | $4 / $20 | No: prices above the $2 / $10 default |
+| `sonnet` | `claude-sonnet-5.5` | $2 / $10 | No: it ties the default, so not below it |
+| `haiku` | `claude-haiku-5.5` | $0.10 / $0.50 | Yes, with `model-rationale` |
 
 ### When to Pin the Cost Alias
 

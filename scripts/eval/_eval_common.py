@@ -32,8 +32,8 @@ MODEL_PRICING_RATES_USD_PER_1K_TOKENS: dict[str, dict[str, float]] = {
     # id (HTTP 404) and MUST NOT be used as a default (issue #2858).
     "claude-sonnet-4-20250514": {"input": 0.003, "output": 0.015},
     # Verified rates from platform.claude.com/docs/en/about-claude/pricing
-    # (retrieved 2026-09-24, every row in this table re-read from that page on
-    # that date, except the Sonnet 5.5 and Haiku 5.5 rows dated below).
+    # (retrieved 2026-11-18, every Claude row in this table re-read from that
+    # page on that date).
     # Rates are per-1K tokens = base MTok rate / 1000. Sonnet 4.6:
     # $3/$15 per MTok. Opus 5, 4.6, and 4.8: $5/$25 per MTok. Haiku 4.5:
     # $1/$5 per MTok. Sonnet 5: $2/$10 per MTok. Opus 5.5: $4/$20 per MTok.
@@ -51,22 +51,24 @@ MODEL_PRICING_RATES_USD_PER_1K_TOKENS: dict[str, dict[str, float]] = {
     "claude-opus-5-5": {"input": 0.004, "output": 0.020},
     "claude-opus-5.5": {"input": 0.004, "output": 0.020},
     "claude-haiku-4-5": {"input": 0.001, "output": 0.005},
-    # Sonnet 5.5 and Haiku 5.5, read from the same pricing page on 2026-11-18
-    # (issue #7425). Sonnet 5.5: $2/$10 per MTok. Haiku 5.5: $0.10/$0.50 per
-    # MTok for prompts up to 100K tokens; the page lists $0.50/$2.50 above
-    # that, which this one-rate table does not model. Both harness spellings,
-    # as for Opus 5.5: templates/platforms/copilot-cli.yaml names the dotted
-    # ids as its sonnet and haiku tiers.
+    # Sonnet 5.5 and Haiku 5.5 (issue #7425). Sonnet 5.5: $2/$10 per MTok.
+    # Haiku 5.5: $0.10/$0.50 per MTok for prompts up to 100K tokens; the page
+    # lists $0.50/$2.50 above that, which this one-rate table does not model.
+    # Both harness spellings, as for Opus 5.5: templates/platforms/copilot-cli.yaml
+    # names the dotted ids as its sonnet and haiku tiers.
     "claude-sonnet-5-5": {"input": 0.002, "output": 0.010},
     "claude-sonnet-5.5": {"input": 0.002, "output": 0.010},
     "claude-haiku-5-5": {"input": 0.0001, "output": 0.0005},
     "claude-haiku-5.5": {"input": 0.0001, "output": 0.0005},
-    # GPT-6 rates from developers.openai.com/api/docs/models, re-read
-    # 2026-09-24: Astra $10/$50, Sol $2/$10, Luna $0.10/$0.50 per MTok. These
-    # ids are billed per token through the openai provider (OPENAI_API_KEY).
+    # GPT-6 rates from developers.openai.com/api/docs/pricing (standard,
+    # short context), re-read 2026-11-18: Astra $10/$50, Sol and 6.1 Sol
+    # $2/$10, Luna $0.10/$0.50 per MTok. These ids are billed per token
+    # through the openai provider (OPENAI_API_KEY). gpt-6.1-sol is the ADR-080
+    # harness default in scripts/validation/check_model_pins.py.
     # No GPT-5.6 row: that page publishes no GPT-5.6 rate to verify against.
     "gpt-6-astra": {"input": 0.010, "output": 0.050},
     "gpt-6-sol": {"input": 0.002, "output": 0.010},
+    "gpt-6.1-sol": {"input": 0.002, "output": 0.010},
     "gpt-6-luna": {"input": 0.0001, "output": 0.0005},
     # No row for gpt-5.6-sol on purpose (issue #3905). That id is reachable
     # only through the copilot-cli provider, which meters premium requests
@@ -75,7 +77,7 @@ MODEL_PRICING_RATES_USD_PER_1K_TOKENS: dict[str, dict[str, float]] = {
     # which is the failure issue #3786 records. Its cost basis is tracked in
     # PR #4005.
 }
-PRICING_RATE_AS_OF = "2026-09-24"
+PRICING_RATE_AS_OF = "2026-11-18"
 
 # Providers that meter requests against an account allowance instead of
 # charging a published per-token USD rate. Every subscription cell bills this

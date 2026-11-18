@@ -317,10 +317,10 @@ class TestResolveManifestModel:
     def test_default_model_matches_via_dot_hyphen_normalization(self, tmp_path: Path) -> None:
         """default_model comparison normalizes dots and hyphens, matching
         check_model_pins.py's _normalize_id. DEFAULT_MODEL is
-        "claude-sonnet-4-6"; recording it with a dot before the final
-        digit ("claude-sonnet-4.6") must still compare equal."""
-        assert DEFAULT_MODEL == "claude-sonnet-4-6"
-        dotted = "claude-sonnet-4.6"
+        "gpt-6.1-sol"; recording it with a hyphen in place of the dot
+        ("gpt-6-1-sol") must still compare equal."""
+        assert DEFAULT_MODEL == "gpt-6.1-sol"
+        dotted = "gpt-6-1-sol"
         manifest = {_UNIT: _keep_pin_entry(tmp_path, default_model=dotted)}
         result = resolve_manifest_model(manifest, _UNIT, tmp_path, today=_TODAY)
         assert result == "claude-opus-4-6"

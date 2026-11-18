@@ -56,10 +56,10 @@ from typing import TYPE_CHECKING, cast
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
-# Mirrors scripts/validation/check_model_pins.py:62 (DEFAULT_MODEL) verbatim.
+# Mirrors scripts/validation/check_model_pins.py:65 (DEFAULT_MODEL) verbatim.
 # The harness-inherited default a manifest entry's own default_model field
 # must match; see resolve_manifest_model.
-DEFAULT_MODEL = "claude-sonnet-4-6"
+DEFAULT_MODEL = "gpt-6.1-sol"
 
 # Mirrors scripts/validation/check_model_pins.py:71
 # (MANIFEST_MAX_AGE_DAYS = 180) verbatim. Kept as a separate constant, not an

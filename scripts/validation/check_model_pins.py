@@ -59,7 +59,10 @@ from _eval_common import (  # noqa: E402  (path set above)
 # The harness-inherited default. Rolling-alias cost rationales must price below
 # this model, and manifest evidence is only valid while it was measured against
 # this default. Kept as a constant with a pointer to the eval default.
-DEFAULT_MODEL = "claude-sonnet-4-6"
+# Issue #7425: the default is a frontier model. At $2 input per MTok, the
+# sonnet tier ties it, opus prices above it, and only haiku prices below it, so
+# only `haiku` can take the rule 3 cost exception.
+DEFAULT_MODEL = "gpt-6.1-sol"
 
 ROLLING_ALIASES = ("sonnet", "opus", "haiku")
 
@@ -172,7 +175,11 @@ def _find_model_tiers(node: object) -> dict[object, object] | None:
 
 
 def _input_price(model_id: str) -> float | None:
-    rate = MODEL_PRICING_RATES_USD_PER_1K_TOKENS.get(_normalize_id(model_id))
+    # Exact id first: a GPT id such as gpt-6.1-sol keeps its dot in the table,
+    # and collapsing it to gpt-6-1-sol names no row (issue #7425).
+    rate = MODEL_PRICING_RATES_USD_PER_1K_TOKENS.get(model_id)
+    if rate is None:
+        rate = MODEL_PRICING_RATES_USD_PER_1K_TOKENS.get(_normalize_id(model_id))
     if not isinstance(rate, dict):
         return None
     price = rate.get("input")
