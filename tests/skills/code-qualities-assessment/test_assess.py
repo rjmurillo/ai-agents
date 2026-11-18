@@ -1428,12 +1428,8 @@ def test_assess_non_utf8_file_does_not_crash(tmp_path: Path) -> None:
 # it did not introduce. Exit 10 was documented and unreachable.
 # --------------------------------------------------------------------------- #
 
-# 21 definitions: enough to score cohesion well below the default minimum of 7.
-
-
 _FOCUSED = "def alpha():\n    return 1\n"
-
-
+# 21 definitions: enough to score cohesion well below the default minimum of 7.
 _SPRAWLING = _FOCUSED + "".join(f"def f{i}():\n    return {i}\n" for i in range(20))
 
 

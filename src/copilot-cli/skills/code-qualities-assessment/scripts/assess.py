@@ -953,6 +953,22 @@ def _python_external_imports(path: Path) -> set[str]:
     return roots - _PY_STDLIB_MODULES
 
 
+def _admission_mismatch_reason(comparison: FileComparison, admission: dict[str, Any]) -> str | None:
+    """Return why *comparison* is outside the admitted transition, or None if it matches."""
+    if comparison.is_new_file or comparison.change_status != "M":
+        return f"change status is {comparison.change_status}, not a modified file"
+    if comparison.absolute_gate_reason is not None:
+        return f"absolute gate applies: {comparison.absolute_gate_reason}"
+    coupling = next(d for d in comparison.deltas if d.quality == "coupling")
+    observed = (coupling.base, coupling.head, coupling.delta, coupling.status)
+    if observed != (10.0, 8.0, -2.0, "compared"):
+        return f"coupling transition {observed} differs from 10.0 -> 8.0"
+    imports = _python_external_imports(Path(comparison.file_path))
+    if imports != set(admission["imports"]):
+        return f"external imports {sorted(imports)} differ from the admitted set"
+    return None
+
+
 def _apply_csharp_parser_dependency_admission(
     comparisons: list[FileComparison], config: dict[str, Any]
 ) -> None:
@@ -965,19 +981,12 @@ def _apply_csharp_parser_dependency_admission(
     for comparison in comparisons:
         if (
             Path(comparison.file_path).as_posix() != admission["file"]
-            or comparison.is_new_file
-            or comparison.change_status != "M"
-            or comparison.absolute_gate_reason is not None
             or "coupling" not in comparison.regressions
         ):
             continue
-        coupling = next(d for d in comparison.deltas if d.quality == "coupling")
-        if (coupling.base, coupling.head, coupling.delta, coupling.status) != (
-            10.0,
-            8.0,
-            -2.0,
-            "compared",
-        ) or _python_external_imports(Path(comparison.file_path)) != set(admission["imports"]):
+        reason = _admission_mismatch_reason(comparison, admission)
+        if reason is not None:
+            print(f"NOT ADMITTED: {comparison.file_path}: {reason}", file=sys.stderr)
             continue
         comparison.csharp_parser_dependency_admission = dict(admission)
 
@@ -1161,6 +1170,9 @@ def _assess_base_bytes(
         return assess_content(path, raw.decode("utf-8"), resolver)
     except UnicodeDecodeError as exc:
         return _unreadable_assessment(path, f"decode failed at base: {exc}")
+    except CSharpParserError as exc:
+        where = f"{path} at {revision}" if revision is not None else str(path)
+        raise CSharpParserError(f"{where}: {exc}") from exc
 
 
 def check_regression(
@@ -1341,7 +1353,13 @@ def _count_csharp_imports(source: str) -> int:
         language = Language(tree_sitter_c_sharp.language())
         tree = Parser(language).parse(source.encode("utf-8"))
         if tree.root_node.has_error:
-            raise CSharpParserError("Cannot count C# dependencies: the source has syntax errors")
+            raise CSharpParserError(
+                "Cannot count C# dependencies: the pinned C# grammar "
+                "(tree-sitter-c-sharp==0.23.5) could not parse this file. "
+                "The file has a syntax error, or it is valid C# that the grammar "
+                "does not support (for example a signature split across #if/#else, "
+                "or C# 14 extension blocks)"
+            )
         query = Query(language, "(using_directive) @dependency")
         return len(QueryCursor(query).captures(tree.root_node).get("dependency", []))
     except CSharpParserError:

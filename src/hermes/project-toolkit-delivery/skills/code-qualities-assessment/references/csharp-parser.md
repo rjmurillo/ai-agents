@@ -10,8 +10,19 @@ Install these packages into the Python environment that runs the scanner:
 Run `python3 -m pip install tree-sitter==0.26.1 tree-sitter-c-sharp==0.23.5`.
 
 The scanner imports these packages only when assessing C# source.
-Missing packages or C# syntax errors exit 1 without a passing report.
+Missing packages, parser startup failures, and C# the grammar cannot parse exit 1 without a report.
 The scanner never installs packages or falls back to regex.
+
+## Grammar limits
+
+The scanner pins `tree-sitter-c-sharp==0.23.5`.
+Some valid C# does not parse with that grammar.
+Known cases: a method signature split across `#if`/`#else`/`#endif`,
+C# 14 `extension(string s) { ... }` blocks, and C# 14 `c?.X = 1`.
+A file the grammar cannot parse fails the scan with exit 1.
+The error names the file and says the file may be valid C#.
+The scanner does not guess a count for such a file.
+Fix the file's syntax, or wait for a grammar release that supports the feature.
 
 The repository can explicitly admit the parser's two dependencies through
 `csharpParserDependencyAdmission` in its quality configuration.

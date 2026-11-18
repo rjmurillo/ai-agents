@@ -124,6 +124,29 @@ def test_parser_admission_does_not_clear_unapproved_regressions(
     assert _run_parser_admission(parser_admission_repo, tmp_path) == 10
 
 
+@pytest.mark.parametrize(
+    ("head_imports", "reason"),
+    [
+        (_PARSER_IMPORTS + "import requests\n", "coupling transition"),
+        ("import requests\nimport flask\n", "external imports"),
+    ],
+)
+def test_parser_admission_reports_why_a_mismatch_is_not_admitted(
+    parser_admission_repo: dict[str, Any],
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    head_imports: str,
+    reason: str,
+) -> None:
+    _commit(tmp_path, _PARSER_SCANNER, head_imports + _FOCUSED, "mismatch")
+
+    assert _run_parser_admission(parser_admission_repo, tmp_path) == 10
+    err = capsys.readouterr().err
+    assert f"NOT ADMITTED: {_PARSER_SCANNER}: " in err
+    assert reason in err
+    assert "ADMITTED: issue" not in err
+
+
 def test_parser_admission_requires_the_actual_two_imports(
     parser_admission_repo: dict[str, Any], tmp_path: Path
 ) -> None:

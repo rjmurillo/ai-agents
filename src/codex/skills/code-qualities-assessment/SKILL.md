@@ -112,7 +112,7 @@ The skill runs automated assessment via `scripts/assess.py`:
 5. **Gate Enforcement (CI mode)**
    - Regression mode compares each changed file against its base revision
    - Absolute mode compares every assessed file against configured thresholds
-   - Exit code: 0=pass, 10=regressed, 11=below thresholds
+   - Exit code: 0=pass (or an admitted regression, see Exit Codes), 10=regressed, 11=below thresholds
 
 ---
 
@@ -193,10 +193,10 @@ The JSON report carries `gate_mode` and a `comparisons` array with per-quality
 
 | Code | Meaning |
 |------|---------|
-| 0 | Gate passed |
+| 0 | Gate passed. It can also carry one explicitly admitted regression, recorded under `csharp_parser_dependency_admission` in the JSON; the review adapter reports that as WARN, never PASS |
 | 10 | Regression mode: a comparable quality regressed, or scored evidence was lost |
 | 11 | Below configured thresholds (absolute mode, or a new file in regression mode); below-threshold qualities at or above `minConfidence`; lower-confidence misses warn only |
-| 1 | Script error (invalid args, unresolvable base, file not found) |
+| 1 | Script error (invalid args, unresolvable base, file not found, missing C# parser package, C# parser startup failure, or C# the pinned grammar cannot parse) |
 
 ---
 
@@ -384,7 +384,8 @@ class User:
 python3 scripts/assess.py --target . --changed-only --base origin/main \
   --format json --output quality.json
 
-# Exit code 0  = nothing this change touched got worse, pass
+# Exit code 0  = nothing this change touched got worse, pass (an admitted regression
+#                also exits 0; see csharp_parser_dependency_admission, reported as WARN)
 # Exit code 10 = a comparable quality regressed, fail PR
 # Exit code 11 = a file added by this change is below thresholds, fail PR
 ```

@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 
+from .test_assess import _commit, _init_repo, _regression_argv, _run_git
+
 _SCRIPT = (
     Path(__file__).resolve().parents[3]
     / ".claude"
@@ -158,6 +160,50 @@ def test_invalid_csharp_fails_cli_instead_of_reporting_no_dependencies(
     assert "C#" in output.err
     assert "syntax" in output.err.lower()
     assert target.name in output.err
+    assert not output.out
+
+
+_SPLIT_SIGNATURE = (
+    "using System;\nclass A {\n#if A\n    public void M(int a,\n#else\n"
+    "    public void M(long a,\n#endif\n        int b) { }\n}\n"
+)
+
+
+def test_valid_csharp_the_grammar_cannot_parse_fails_with_a_grammar_message(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A method signature split across #if/#else is valid C# that the pinned grammar
+    rejects. The scan stays fail closed, and the message names the grammar, not the source."""
+    monkeypatch.chdir(tmp_path)
+    target = tmp_path / "Split.cs"
+    target.write_text(_SPLIT_SIGNATURE, encoding="utf-8")
+
+    result = _mod.main(["--target", str(target), "--format", "json"])
+    output = capsys.readouterr()
+
+    assert result == 1
+    assert "tree-sitter-c-sharp==0.23.5" in output.err
+    assert "could not parse" in output.err
+    assert "valid C# that the grammar does not support" in output.err
+    assert target.name in output.err
+    assert not output.out
+
+
+def test_unparseable_base_csharp_blob_fails_regression_mode_with_path_and_revision(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _init_repo(tmp_path)
+    _commit(tmp_path, "Base.cs", "using System.IO\n", "base is invalid")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    _commit(tmp_path, "Base.cs", "using System;\n", "head is valid")
+    monkeypatch.chdir(tmp_path)
+
+    result = _mod.main(_regression_argv())
+    output = capsys.readouterr()
+
+    assert result == 1
+    assert "Base.cs at " in output.err
+    assert "could not parse" in output.err
     assert not output.out
 
 
