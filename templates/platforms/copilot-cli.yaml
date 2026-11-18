@@ -118,7 +118,8 @@ legacy:
   # check_model_pins.py's load_tier_map() can still validate a source unit's
   # bare-alias cost rationale (ADR-080 rule 3).
   # Issue #7425: the smoke account could not use claude-opus-4.6, and the
-  # CLI model catalog no longer lists it, so opus names claude-opus-5.5.
+  # CLI model catalog no longer lists it, so opus names the newest listed
+  # Opus id, claude-opus-5.5.
   model_tiers:
     opus: "claude-opus-5.5"
     sonnet: "claude-sonnet-4.6"
