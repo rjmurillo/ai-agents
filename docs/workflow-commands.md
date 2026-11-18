@@ -176,9 +176,9 @@ Default target is `main` unless specified.
 
 **What it does:**
 
-1. Runs 4 pre-flight checks (pipeline, security, review, tests)
+1. Runs 4 pre-flight checks (pipeline, security, reviewed, tests)
 2. If any check fails: reports what failed, why, and how to fix. Stops.
-3. If all pass: validates PR description and creates the PR
+3. If all pass: validates PR description and creates the PR. A deferred Pipeline check then runs on the new PR.
 
 **Pre-flight checks:**
 

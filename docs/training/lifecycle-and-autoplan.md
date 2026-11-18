@@ -164,7 +164,7 @@ Other docs cover the same ground. We link them and do not repeat them:
    Q6: Yes. The fix removes a wrong claim and adds nothing to maintain.
    ```
 
-   The gate halts on words such as `probably`, `eventually`, or `would be nice`. It also halts when Q3 names a general group, such as "developers", instead of one person, team, or file.
+   Q2 ends with a reframing note because the skill asks for one there. The gate halts on words such as `probably`, `eventually`, or `would be nice`. It also halts when Q3 names a general group, such as "developers", instead of one person, team, or file.
 
    It produces a requirements document: problem statement, numbered acceptance criteria, out-of-scope items, and open questions. The spec generator writes durable files to these paths:
 
@@ -213,7 +213,7 @@ Other docs cover the same ground. We link them and do not repeat them:
     docs/workflow-commands.md | 3 +--
     1 file changed, 1 insertion(+), 2 deletions(-)
    -1. Runs 5 pre-flight checks (pipeline, security, review, tests, standards)
-   +1. Runs 4 pre-flight checks (pipeline, security, review, tests)
+   +1. Runs 4 pre-flight checks (pipeline, security, reviewed, tests)
    -| Standards | Golden principles and taste lints pass | Yes |
    ```
 
@@ -225,7 +225,7 @@ Other docs cover the same ground. We link them and do not repeat them:
     /test
     ```
 
-    The [test skill](../../src/claude/skills/test/SKILL.md) has six gates: functional, non-functional, security, DevOps, developer experience, and observability. It classifies the diff first and prints `PR TYPE: [type]. Running gates: [list].`. A diff of only `*.md` files is type DOCS, which runs Gate 5 only. For this change, expect `PR TYPE: DOCS.` with Gate 5 alone in the list. Each gate prints `VERDICT: PASS`, `WARN`, or `CRITICAL_FAIL`. Gate 5 can also print `ERROR`. The overall verdict is `CRITICAL_FAIL` if any gate fails or reports `ERROR`.
+    The [test skill](../../src/claude/skills/test/SKILL.md) has six gates: functional, non-functional, security, DevOps, developer experience, and observability. It classifies the diff first and prints `PR TYPE: [type]. Running gates: [list].`. A diff of only `*.md` files is type DOCS, which runs Gate 5 only. Your branch starts from commit `81025e191`, and `/test` compares it with today's `origin/main`. It also sees the files `main` changed since then, so expect type MIXED and more gates than Gate 5. Read the verdicts that name `docs/workflow-commands.md`. Each gate prints `VERDICT: PASS`, `WARN`, or `CRITICAL_FAIL`. Gate 5 can also print `ERROR`. The overall verdict is `CRITICAL_FAIL` if any gate fails or reports `ERROR`.
 
     Run the Markdown check yourself too. It auto-fixes files, so run `git status --short` after it. If it lists a change, commit it before `/review`, because `/ship` fails on a dirty tree.
 
@@ -251,7 +251,7 @@ Other docs cover the same ground. We link them and do not repeat them:
     /review
     ```
 
-    The [review skill](../../src/claude/skills/review/SKILL.md) runs a Stage-1 spec-compliance gate first. If it returns `CRITICAL_FAIL`, the review stops and the other axes show `SKIPPED`. Otherwise it picks Stage-2 axes by risk, and `analyst` always runs. It prints one row per axis and a `FINAL VERDICT`. For this change, expect a `spec-compliance` row and an `analyst` row marked `always-on`, one row per other axis marked `selected` or `skipped` with a reason, and a `correctness` row. The run ends with `**FINAL VERDICT**: PASS`. Each finding has a severity (Critical, Important, or Suggestion), a `file:line` location, and a one-sentence fix.
+    The [review skill](../../src/claude/skills/review/SKILL.md) runs a Stage-1 spec-compliance gate first. If it returns `CRITICAL_FAIL`, the review stops and the other axes show `SKIPPED`. Otherwise it picks Stage-2 axes by risk, and `analyst` always runs. It prints one row per axis and a `FINAL VERDICT`. For this change, expect `spec-compliance`, `analyst`, and `correctness` rows marked `always-on`, then one row per other axis marked `selected` or `skipped` with a reason. Only the axes that ran go into the marker. The run should end with `**FINAL VERDICT**: PASS`. On `WARN`, fix the findings and rerun `/review`. Each finding has a severity (Critical, Important, or Suggestion), a `file:line` location, and a one-sentence fix.
 
     On a PASS, the skill writes a marker: an empty commit on top of the code you reviewed. The message holds the report and two trailers. This is the shape of a marker written by an earlier `/review` run in this repository. That commit may not exist in your clone:
 
@@ -320,7 +320,7 @@ Other docs cover the same ground. We link them and do not repeat them:
     NEXT: [monitoring, follow-up items]
     ```
 
-    You created this branch, so `/ship` runs as the owner, and you want `RESULT: SHIPPED` and a link. The skill switches to contributor mode only when you push onto a branch whose open pull request someone else wrote. That mode ends with `VALIDATED`: checks ran, and nothing was created or merged.
+    You created this branch, so `/ship` runs as the owner. Expect `PR-AT-PREFLIGHT: none`, `Pipeline: DEFERRED->PASS`, `Reviewed: PASS`, and `RESULT: SHIPPED` with a link. The skill switches to contributor mode only when you push onto a branch whose open pull request someone else wrote. That mode ends with `VALIDATED`: checks ran, and nothing was created or merged.
 
     Your pull request repeats a fix that `main` already has. After you read the report, close it without merging: select **Close pull request** at the bottom of the pull request page on GitHub.
 
