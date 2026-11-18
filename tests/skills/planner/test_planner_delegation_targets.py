@@ -7,7 +7,8 @@ template, and the hand-maintained references, so a regression in any of them
 fails.
 
 `KNOWN_MISSING_AGENTS` lists delegation targets that planner still names and
-that do not exist today. They predate this issue and are tracked apart from it.
+that do not exist today. They predate #7421 and stay in the set until a separate
+decision maps or removes each one.
 `test_known_missing_agents_are_still_missing` fails when one of them starts to
 exist, so the exemption cannot go stale.
 """
@@ -30,6 +31,7 @@ PLANNER_ROOTS = (
     "src/copilot-cli/skills/planner",
 )
 PLANNER_TEMPLATE = REPO_ROOT / "templates" / "skills" / "planner.SKILL.md.tmpl"
+PLANNER_DOCS_PAGE = REPO_ROOT / "docs" / "skills" / "planner.md"
 SCRIPTS = REPO_ROOT / "src" / "claude" / "skills" / "planner" / "scripts"
 
 # Names planner still delegates to that no template or skill defines. Out of
@@ -40,6 +42,10 @@ KNOWN_MISSING_AGENTS = frozenset({"developer", "debugger", "quality-reviewer"})
 REMOVED_WRITER_RE = re.compile(
     r"technical[-_ ]?writer|\bTW\b|plan-scrub|plan-annotation|tw_delegation|delegate_tw",
     re.IGNORECASE,
+)
+# One wording for who runs a skill, used in every executor site that names one.
+SKILL_RUNNER_PHRASE = (
+    "the coordinator, or a general-purpose subagent it starts, loads the skill and follows it"
 )
 AGENT_REF_RE = re.compile(r"@agent-([a-z][a-z0-9]*(?:-[a-z0-9]+)*)")
 SKILL_TAG_RE = re.compile(r"<skill>([a-z][a-z0-9-]*)</skill>")
@@ -88,7 +94,8 @@ def _executor_outputs() -> dict[str, str]:
 
 def _planner_files() -> dict[str, str]:
     files = {
-        str(PLANNER_TEMPLATE.relative_to(REPO_ROOT)): PLANNER_TEMPLATE.read_text(encoding="utf-8")
+        str(path.relative_to(REPO_ROOT)): path.read_text(encoding="utf-8")
+        for path in (PLANNER_TEMPLATE, PLANNER_DOCS_PAGE)
     }
     for root in PLANNER_ROOTS:
         base = REPO_ROOT / root
@@ -100,6 +107,11 @@ def _planner_files() -> dict[str, str]:
 
 def _corpus() -> dict[str, str]:
     return {**_planner_outputs(), **_executor_outputs(), **_planner_files()}
+
+
+def squash(text: str) -> str:
+    """Collapse line breaks and runs of spaces so a phrase can span emitted lines."""
+    return " ".join(text.split())
 
 
 def find_removed_writer(text: str) -> list[str]:
@@ -169,16 +181,55 @@ def test_review_step_1_delegates_to_comment_analyzer_and_applies_findings() -> N
     assert "apply the findings to the plan file yourself" in text.lower()
 
 
+def test_review_step_1_says_snippets_are_proposed_code() -> None:
+    text = squash(_planner_outputs()["review step 1"])
+    assert "They do not exist in the repository yet" in text
+    assert "review the snippet text itself" in text
+
+
 def test_documentation_milestone_loads_technical_writing_skill() -> None:
     text = _executor_outputs()["execution step 1"]
     assert "technical-writing" in skill_targets(text)
     assert "<skill>technical-writing</skill>" in text
 
 
+def test_step_1_splits_docs_skills_and_keeps_prompts_with_implementer() -> None:
+    text = squash(_executor_outputs()["execution step 1"])
+    assert skill_targets(text) == {"technical-writing", "codebase-documenter"}
+    assert "New README or ARCHITECTURE scaffold: codebase-documenter skill" in text
+    assert "Edits to existing docs pages, including an existing README: technical-writing" in text
+    assert (
+        "Agent prompts and SKILL.md files: out of scope for both skills; @agent-implementer" in text
+    )
+
+
 def test_step_6_splits_docs_docstrings_and_comment_checks_by_owner() -> None:
     text = _executor_outputs()["execution step 6"]
-    assert "technical-writing" in skill_targets(text)
+    assert skill_targets(text) == {"technical-writing", "codebase-documenter"}
     assert agent_targets(text) == {"implementer", "comment-analyzer"}
+
+
+def test_step_6_coordinator_edits_claude_md_index_without_doc_accuracy() -> None:
+    text = squash(_executor_outputs()["execution step 6"])
+    assert "CLAUDE.md index entries: the coordinator edits them directly" in text
+    assert "doc-accuracy" not in skill_targets(text)
+
+
+@pytest.mark.parametrize("label", ["execution step 1", "execution step 6"])
+def test_skill_runner_wording_is_the_same_everywhere(label: str) -> None:
+    assert SKILL_RUNNER_PHRASE in squash(_executor_outputs()[label])
+
+
+def test_step_1_names_the_runner_for_the_delegation_form_and_the_parallel_limit() -> None:
+    assert squash(_executor_outputs()["execution step 1"]).count(SKILL_RUNNER_PHRASE) == 2
+
+
+def test_docs_page_states_the_current_delegation_targets() -> None:
+    text = PLANNER_DOCS_PAGE.read_text(encoding="utf-8")
+    assert "comment-analyzer" in text
+    assert "`technical-writing`" in text
+    assert "`codebase-documenter`" in text
+    assert find_removed_writer(text) == []
 
 
 def test_executor_mode_line_lists_only_quality_reviewer_modes() -> None:
@@ -213,6 +264,16 @@ def test_negative_control_removed_writer_is_detected(stale: str) -> None:
 )
 def test_negative_control_current_targets_are_not_flagged(current: str) -> None:
     assert find_removed_writer(current) == []
+
+
+def test_negative_control_stale_docs_page_is_detected() -> None:
+    stale = "Step 1 delegates to the technical-writer agent in `plan-annotation` mode."
+    assert find_removed_writer(stale)
+
+
+def test_negative_control_runner_phrase_is_absent_from_old_wording() -> None:
+    old = "A documentation milestone names a skill, not an agent."
+    assert SKILL_RUNNER_PHRASE not in squash(old)
 
 
 def test_negative_control_old_agent_is_reported_missing() -> None:
