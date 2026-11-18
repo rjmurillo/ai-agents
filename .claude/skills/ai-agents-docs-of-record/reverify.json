@@ -29,12 +29,12 @@
     {
       "id": "R6",
       "kind": "path_exists",
-      "path": "src/claude/skills/retro/SKILL.md"
+      "path": "src/claude/skills/retrospective/references/skeleton-fill.md"
     },
     {
       "id": "R7",
       "kind": "contains",
-      "path": "src/claude/skills/retro/SKILL.md",
+      "path": "src/claude/skills/retrospective/references/skeleton-fill.md",
       "text": "RETRO-STATE"
     },
     {

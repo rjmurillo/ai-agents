@@ -26,6 +26,7 @@ Project Toolkit skills for GitHub pull request work, build, test, and quality ga
 - `github`
 - `github-url-intercept`
 - `golden-principles`
+- `llm-council`
 - `maintainer-review`
 - `merge-resolver`
 - `metrics`
@@ -51,11 +52,13 @@ Project Toolkit skills for GitHub pull request work, build, test, and quality ga
 - `reviewer-findings`
 - `security-review`
 - `slo-designer`
+- `sol-loop`
 - `steering-matcher`
 - `style-enforcement`
 - `sync`
 - `takeover`
 - `taste-lints`
+- `technical-writing`
 - `test`
 - `threat-modeling`
 - `validate-pr-description`
@@ -96,7 +99,6 @@ Project Toolkit skills for memory, context, decisions, requirements, strategy, a
 - `prose-self-check`
 - `reflect`
 - `requirements-interview`
-- `retro`
 - `retrospective`
 - `skill-bootstrap`
 - `skillforge`

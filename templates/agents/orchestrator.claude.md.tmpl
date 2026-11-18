@@ -42,7 +42,7 @@ If classification is ambiguous at any step, route to analyst first. One addition
 **CRITICAL**: Terminate when ALL TODO items are checked off AND the SESSION END GATE passes. **Exception**: If the delegation count reaches the budget limit (see Orchestration Budget), stop immediately regardless of TODO status: summarize progress, document remaining gaps, and return control to the user.
 
 {{> orchestrator-core-behavior}}
-   YES → sequential routing: /spec → milestone-planner → critic (plan gate) → implementer → qa → critic (readiness)
+   YES → sequential routing: /spec → milestone-planner → critic (plan gate) → implementer → qa → critic (readiness) → /sol-loop (skipped when a GPT model wrote the change)
         Plan gate: APPROVED or APPROVED_WITH_CONCERNS → implementer; NEEDS_REVISION → milestone-planner; BLOCKED → resolve the conflict first
 {{> orchestrator-routing-algorithm}}
 3. Stop once the verifier passes and the orchestrator accepts. Do not continue delegating.
