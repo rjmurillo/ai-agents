@@ -22,6 +22,7 @@ from scripts.ai_review_common import (
     get_verdict_exit_code,
     merge_verdicts,
 )
+from scripts.ai_review_common.verdict import _PARSER_DEPENDENCY_ADMISSIONS
 
 # ---------------------------------------------------------------------------
 # Verdict parsing
@@ -440,7 +441,7 @@ def cq_admission_payload() -> dict:
     config = json.loads(
         (Path(__file__).resolve().parents[1] / ".qualityrc.json").read_text(encoding="utf-8")
     )
-    approval = config["csharpParserDependencyAdmission"]
+    approval = config["parserDependencyAdmissions"][0]
     payload = json.loads(cq_payload([cq_file(approval["file"])]))
     payload["comparisons"] = [
         {
@@ -459,7 +460,7 @@ def cq_admission_payload() -> dict:
                     "status": "compared",
                 }
             ],
-            "csharp_parser_dependency_admission": approval,
+            "parser_dependency_admission": approval,
         }
     ]
     return payload
@@ -487,7 +488,7 @@ class TestAdaptLocalAxisVerdict:
     )
     def test_parser_admission_adapter_rejects_wrong_authority_or_scope(self, field, value):
         payload = cq_admission_payload()
-        payload["comparisons"][0]["csharp_parser_dependency_admission"][field] = value
+        payload["comparisons"][0]["parser_dependency_admission"][field] = value
 
         assert (
             adapt_local_axis_verdict("code-qualities-assessment", json.dumps(payload), 0)
@@ -506,8 +507,8 @@ class TestAdaptLocalAxisVerdict:
             ("absolute_gate_reason", "base_unscored"),
             ("deltas", None),
             ("deltas", []),
-            ("csharp_parser_dependency_admission", "approved"),
-            ("csharp_parser_dependency_admission", {}),
+            ("parser_dependency_admission", "approved"),
+            ("parser_dependency_admission", {}),
         ],
     )
     def test_parser_admission_adapter_rejects_invalid_comparison(self, field, value):
@@ -551,6 +552,53 @@ class TestAdaptLocalAxisVerdict:
         assert (
             adapt_local_axis_verdict("code-qualities-assessment", json.dumps(payload), 0) == verdict
         )
+
+    def test_parser_admission_adapter_warns_on_the_python_grammar_transition(self):
+        config = json.loads(
+            (Path(__file__).resolve().parents[1] / ".qualityrc.json").read_text(encoding="utf-8")
+        )
+        payload = cq_admission_payload()
+        comparison = payload["comparisons"][0]
+        comparison["parser_dependency_admission"] = config["parserDependencyAdmissions"][1]
+        comparison["deltas"] = [
+            {"quality": "coupling", "base": 8.0, "head": 7.0, "delta": -1.0, "status": "compared"}
+        ]
+
+        assert (
+            adapt_local_axis_verdict("code-qualities-assessment", json.dumps(payload), 0) == "WARN"
+        )
+
+    def test_parser_admission_adapter_rejects_a_record_paired_with_another_transition(self):
+        config = json.loads(
+            (Path(__file__).resolve().parents[1] / ".qualityrc.json").read_text(encoding="utf-8")
+        )
+        payload = cq_admission_payload()
+        payload["comparisons"][0]["parser_dependency_admission"] = config[
+            "parserDependencyAdmissions"
+        ][1]
+
+        assert (
+            adapt_local_axis_verdict("code-qualities-assessment", json.dumps(payload), 0)
+            == "UNKNOWN"
+        )
+
+    def test_parser_admission_records_match_the_scanner_and_config(self):
+        import importlib.util
+
+        scanner = (
+            Path(__file__).resolve().parents[1]
+            / "src/claude/skills/code-qualities-assessment/scripts/assess.py"
+        )
+        spec = importlib.util.spec_from_file_location("assess_records", scanner)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        config = json.loads(
+            (Path(__file__).resolve().parents[1] / ".qualityrc.json").read_text(encoding="utf-8")
+        )
+
+        assert list(_PARSER_DEPENDENCY_ADMISSIONS) == list(module._PARSER_DEPENDENCY_ADMISSIONS)
+        assert config["parserDependencyAdmissions"] == list(_PARSER_DEPENDENCY_ADMISSIONS)
 
     def test_code_quality_pass_requires_an_assessed_file(self):
         payload = cq_payload([cq_file()])

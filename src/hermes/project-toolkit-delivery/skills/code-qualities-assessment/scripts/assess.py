@@ -59,17 +59,32 @@ _LANGUAGE_BY_SUFFIX = {
 # same harness), so half a point separates noise from signal.
 _DEFAULT_REGRESSION_TOLERANCE = 0.5
 
-# This one repository-specific admission is inert without the matching config.
-_CSHARP_PARSER_DEPENDENCY_ADMISSION = {
-    "issue": 7406,
-    "file": "src/claude/skills/code-qualities-assessment/scripts/assess.py",
-    "imports": ["tree_sitter", "tree_sitter_c_sharp"],
-    "baseScore": 10.0,
-    "headScore": 8.0,
-    "authorizedBy": "rjmurillo",
-    "authorizedOn": "2026-11-16",
-    "authorization": "Maintainer instruction: waiver, full send.",
-}
+# Repository-specific parser dependency admissions (ADR-122). Each record admits
+# one scanner coupling transition caused by a pinned grammar import. A record is
+# inert without an identical entry in the config's parserDependencyAdmissions.
+_PARSER_SCANNER_FILE = "src/claude/skills/code-qualities-assessment/scripts/assess.py"
+_PARSER_DEPENDENCY_ADMISSIONS: tuple[dict[str, Any], ...] = (
+    {
+        "issue": 7406,
+        "file": _PARSER_SCANNER_FILE,
+        "imports": ["tree_sitter", "tree_sitter_c_sharp"],
+        "baseScore": 10.0,
+        "headScore": 8.0,
+        "authorizedBy": "rjmurillo",
+        "authorizedOn": "2026-11-16",
+        "authorization": "Maintainer instruction: waiver, full send.",
+    },
+    {
+        "issue": 7436,
+        "file": _PARSER_SCANNER_FILE,
+        "imports": ["tree_sitter", "tree_sitter_c_sharp", "tree_sitter_python"],
+        "baseScore": 8.0,
+        "headScore": 7.0,
+        "authorizedBy": "rjmurillo",
+        "authorizedOn": "2026-11-18",
+        "authorization": "Maintainer instruction: LGTM. Ship. Package add approved.",
+    },
+)
 
 # Single-line comment prefixes, used to exclude comment lines from the
 # lines-of-code count. Block comments are intentionally not stripped: this is an
@@ -166,7 +181,6 @@ def classify_file_category(file_path: Path, content: str | None = None) -> str:
 
 # Per-language import / dependency line patterns for the coupling heuristic.
 _IMPORT_PATTERNS = {
-    "python": re.compile(r"^\s*(?:import\s+\S|from\s+\S+\s+import\s+)"),
     "javascript": re.compile(r"^\s*import\s+|\brequire\s*\("),
     "typescript": re.compile(r"^\s*import\s+|\brequire\s*\("),
     "java": re.compile(r"^\s*import\s+[A-Za-z_]"),
@@ -179,12 +193,15 @@ _IMPORT_PATTERNS = {
 # Extracts the quoted import path from a line the Go import pattern matched.
 _GO_IMPORT_PATH = re.compile(r'"([^"]+)"')
 
-# Splits a matched Python import line into the module names it binds. The
-# ``import`` form lists comma-separated dotted names, each with an optional
-# ``as`` alias. The ``from`` form names one source module, relative if it
-# starts with a dot.
-_PY_PLAIN_IMPORT = re.compile(r"^\s*import\s+(.+)$")
-_PY_FROM_IMPORT = re.compile(r"^\s*from\s+(\S+)\s+import\s+")
+# Python dependency statements in the pinned tree-sitter-python grammar. A
+# ``from __future__`` statement has its own node type.
+_PY_DEPENDENCY_QUERY = (
+    "[(import_statement) (import_from_statement) (future_import_statement)] @dependency"
+)
+
+# Languages whose coupling is counted from a syntax tree over the original
+# source. Every other language is matched line by line after comment filtering.
+_SYNTAX_TREE_LANGUAGES = frozenset({"csharp", "python"})
 
 # Top-level standard-library module names. ``sys.stdlib_module_names`` exists
 # from Python 3.10, the plugin's syntax floor. An older interpreter gets an
@@ -933,7 +950,7 @@ class FileComparison:
     base_file_path: str | None = None
     change_status: str = "M"
     absolute_gate_reason: str | None = None
-    csharp_parser_dependency_admission: dict[str, Any] | None = None
+    parser_dependency_admission: dict[str, Any] | None = None
 
 
 def _python_external_imports(path: Path) -> set[str]:
@@ -962,35 +979,61 @@ def _admission_mismatch_reason(comparison: FileComparison, admission: dict[str, 
     coupling = next((d for d in comparison.deltas if d.quality == "coupling"), None)
     if coupling is None:
         return "no coupling delta recorded"
+    base, head = admission["baseScore"], admission["headScore"]
     observed = (coupling.base, coupling.head, coupling.delta, coupling.status)
-    if observed != (10.0, 8.0, -2.0, "compared"):
-        return f"coupling transition {observed} differs from 10.0 -> 8.0"
+    if observed != (base, head, round(head - base, 1), "compared"):
+        return f"coupling transition {observed} differs from {base} -> {head}"
     imports = _python_external_imports(Path(comparison.file_path))
     if imports != set(admission["imports"]):
         return f"external imports {sorted(imports)} differ from the admitted set"
     return None
 
 
-def _apply_csharp_parser_dependency_admission(
+def _configured_parser_admissions(config: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return the configured admissions, each identical to one built-in record."""
+    if "csharpParserDependencyAdmission" in config:
+        raise ValueError(
+            "csharpParserDependencyAdmission was replaced by the "
+            "parserDependencyAdmissions list (ADR-122)"
+        )
+    if "parserDependencyAdmissions" not in config:
+        return []
+    records = config["parserDependencyAdmissions"]
+    if (
+        not isinstance(records, list)
+        or not records
+        or any(record not in _PARSER_DEPENDENCY_ADMISSIONS for record in records)
+        or any(records.count(record) > 1 for record in records)
+    ):
+        raise ValueError(
+            "Invalid parserDependencyAdmissions: each entry must equal one built-in "
+            "record, listed once"
+        )
+    return records
+
+
+def _apply_parser_dependency_admissions(
     comparisons: list[FileComparison], config: dict[str, Any]
 ) -> None:
-    """Admit only the authorized #7406 transition, without changing its evidence."""
-    if "csharpParserDependencyAdmission" not in config:
-        return
-    admission = config["csharpParserDependencyAdmission"]
-    if admission != _CSHARP_PARSER_DEPENDENCY_ADMISSION:
-        raise ValueError("Invalid csharpParserDependencyAdmission: scope or authorization differs")
+    """Admit only authorized scanner transitions, without changing their evidence."""
+    admissions = _configured_parser_admissions(config)
     for comparison in comparisons:
-        if (
-            Path(comparison.file_path).as_posix() != admission["file"]
-            or "coupling" not in comparison.regressions
-        ):
+        candidates = [
+            admission
+            for admission in admissions
+            if Path(comparison.file_path).as_posix() == admission["file"]
+        ]
+        if not candidates or "coupling" not in comparison.regressions:
             continue
-        reason = _admission_mismatch_reason(comparison, admission)
-        if reason is not None:
-            print(f"NOT ADMITTED: {comparison.file_path}: {reason}", file=sys.stderr)
-            continue
-        comparison.csharp_parser_dependency_admission = dict(admission)
+        reasons = []
+        for admission in candidates:
+            reason = _admission_mismatch_reason(comparison, admission)
+            if reason is None:
+                comparison.parser_dependency_admission = dict(admission)
+                break
+            reasons.append(f"issue #{admission['issue']}: {reason}")
+        else:
+            print(f"NOT ADMITTED: {comparison.file_path}: {'; '.join(reasons)}", file=sys.stderr)
 
 
 def _delta_for(quality: str, base: QualityScore, head: QualityScore) -> QualityDelta:
@@ -1181,9 +1224,9 @@ def _assess_base_bytes(
         return assess_content(path, raw.decode("utf-8"), resolver)
     except UnicodeDecodeError as exc:
         return _unreadable_assessment(path, f"decode failed at base: {exc}")
-    except CSharpParserError as exc:
+    except ParserDependencyError as exc:
         where = f"{path} at {revision}" if revision is not None else str(path)
-        raise CSharpParserError(f"{where}: {exc}") from exc
+        raise type(exc)(f"{where}: {exc}") from exc
 
 
 def check_regression(
@@ -1208,8 +1251,8 @@ def check_regression(
                 f"{delta.base} -> {delta.head} (delta {delta.delta})",
                 file=sys.stderr,
             )
-            if quality == "coupling" and comparison.csharp_parser_dependency_admission:
-                approval = comparison.csharp_parser_dependency_admission
+            if quality == "coupling" and comparison.parser_dependency_admission:
+                approval = comparison.parser_dependency_admission
                 print(
                     f"ADMITTED: issue #{approval['issue']}, authorized by "
                     f"{approval['authorizedBy']} on {approval['authorizedOn']}: "
@@ -1335,37 +1378,90 @@ def _is_go_standard_import(import_path: str, module_path: str | None) -> bool:
     return "." not in import_path.split("/", 1)[0]
 
 
-def _is_python_standard_import(line: str) -> bool:
-    """Classify a matched Python import line as standard library only.
+def _python_statement_modules(node: Any) -> list[str]:
+    """Return the module names one Python dependency statement binds.
 
-    Relative imports are first-party. A line that binds several modules
-    (``import os, requests``) is standard only when every module is, so one
-    third-party name keeps the whole line scored. Statements joined by ``;``
-    are checked one by one, and any non-import statement keeps the line scored.
+    A relative ``from`` module keeps its leading dots, so it reads as first-party.
     """
-    code = line.split("#", 1)[0]
-    modules: list[str] = []
-    for statement in code.split(";"):
-        if not statement.strip():
-            continue
-        from_match = _PY_FROM_IMPORT.match(statement)
-        if from_match:
-            modules.append(from_match.group(1))
-            continue
-        plain_match = _PY_PLAIN_IMPORT.match(statement)
-        if not plain_match:
-            return False
-        modules.extend(part.split()[0] for part in plain_match.group(1).split(",") if part.split())
-    if not modules:
-        return False
-    return all(
+    if node.type == "future_import_statement":
+        return ["__future__"]
+    if node.type == "import_from_statement":
+        return [node.child_by_field_name("module_name").text.decode("utf-8")]
+    modules = []
+    for name in node.children_by_field_name("name"):
+        if name.type == "aliased_import":
+            name = name.child_by_field_name("name")
+        modules.append(name.text.decode("utf-8"))
+    return modules
+
+
+def _is_python_standard_statement(modules: list[str]) -> bool:
+    """Classify one statement as standard library only.
+
+    A statement that binds several modules (``import os, requests``) is
+    standard only when every module is, so one third-party name keeps the whole
+    statement scored. Relative imports are first-party.
+    """
+    return bool(modules) and all(
         not module.startswith(".") and module.split(".", 1)[0] in _PY_STDLIB_MODULES
         for module in modules
     )
 
 
-class CSharpParserError(RuntimeError):
+class ParserDependencyError(RuntimeError):
+    """A language's dependencies cannot be measured reliably."""
+
+
+class CSharpParserError(ParserDependencyError):
     """C# dependencies cannot be measured reliably."""
+
+
+class PythonParserError(ParserDependencyError):
+    """Python dependencies cannot be measured reliably."""
+
+
+def _count_python_imports(source: str) -> tuple[int, int]:
+    """Count Python dependency statements from a syntax tree.
+
+    Returns the statement count and how many of those are standard library
+    only. Imports nested in functions, classes, and ``try`` blocks count;
+    text in strings and comments does not.
+    """
+    try:
+        import tree_sitter_python
+        from tree_sitter import Language, Parser, Query, QueryCursor
+
+        language = Language(tree_sitter_python.language())
+        tree = Parser(language).parse(source.encode("utf-8"))
+        if tree.root_node.has_error:
+            raise PythonParserError(
+                "Cannot count Python dependencies: the pinned Python grammar "
+                "(tree-sitter-python==0.25.0) could not parse this file. "
+                "The file has a syntax error, or it uses syntax the grammar "
+                "does not support (for example Python 3.15 lazy imports)"
+            )
+        query = Query(language, _PY_DEPENDENCY_QUERY)
+        statements = QueryCursor(query).captures(tree.root_node).get("dependency", [])
+        standard = sum(
+            1
+            for node in statements
+            if _is_python_standard_statement(_python_statement_modules(node))
+        )
+        return len(statements), standard
+    except PythonParserError:
+        raise
+    except ImportError as exc:
+        raise PythonParserError(
+            f"Python parser packages are missing: {exc}. Install "
+            "tree-sitter==0.26.1 and tree-sitter-python==0.25.0 into a virtual "
+            "environment that runs the scanner, not the system Python "
+            "(see references/python-parser.md)"
+        ) from exc
+    except Exception as exc:
+        raise PythonParserError(
+            f"Python parser failed to start or run: {type(exc).__name__}: {exc}. "
+            "Check the pinned versions (tree-sitter==0.26.1, tree-sitter-python==0.25.0)"
+        ) from exc
 
 
 def _count_csharp_imports(source: str) -> int:
@@ -1415,15 +1511,19 @@ def _score_coupling(
     0.0 so the threshold gate does not fail a file scored only by that
     untuned heuristic (matches the file-header contract).
 
-    C# receives original source lines for syntax-tree parsing. Other languages
-    receive filtered code lines. Go and Python standard-library imports are
-    reported but not scored: they are stable utilities, not application or
-    third-party coupling (issues #7047 and #7354).
+    C# and Python receive original source lines for syntax-tree parsing. Other
+    languages receive filtered code lines. Go and Python standard-library
+    imports are reported but not scored: they are stable utilities, not
+    application or third-party coupling (issues #7047 and #7354).
     """
     pattern = _IMPORT_PATTERNS.get(language) if language else None
     standard_count = 0
     if language == "csharp":
         import_count = _count_csharp_imports("\n".join(code_lines))
+        confidence = 0.6
+        tuned = True
+    elif language == "python":
+        import_count, standard_count = _count_python_imports("\n".join(code_lines))
         confidence = 0.6
         tuned = True
     elif pattern is not None:
@@ -1435,8 +1535,6 @@ def _score_coupling(
                 match = _GO_IMPORT_PATH.search(line)
                 if match and _is_go_standard_import(match.group(1), module_path):
                     standard_count += 1
-        elif language == "python":
-            standard_count = sum(1 for line in import_lines if _is_python_standard_import(line))
         confidence = 0.6
         tuned = True
     else:
@@ -1639,7 +1737,9 @@ def assess_content(
             else _score_cohesion(language, code_lines, loc)
         ),
         coupling=_score_coupling(
-            language, lines if language == "csharp" else code_lines, resolve_go_module
+            language,
+            lines if language in _SYNTAX_TREE_LANGUAGES else code_lines,
+            resolve_go_module,
         ),
         encapsulation=_score_encapsulation(language, code_lines),
         testability=_score_testability(language, code_lines),
@@ -1936,15 +2036,15 @@ def _assess_files(
     the survivor as evidence the whole change was assessed. This is the same
     treatment an unreadable file already gets at the decode site.
 
-    A C# parser failure is the exception: it is deliberately fatal (exit 1), so
-    no C# score is guessed.
+    A C# or Python parser failure is the exception: it is deliberately fatal
+    (exit 1), so no dependency count is guessed.
     """
     assessments: list[FileAssessment] = []
     for file_path in files:
         try:
             assessments.append(assess_file(file_path, context, use_serena))
-        except CSharpParserError as exc:
-            raise CSharpParserError(f"{file_path}: {exc}") from exc
+        except ParserDependencyError as exc:
+            raise type(exc)(f"{file_path}: {exc}") from exc
         except Exception as e:
             print(f"Error assessing {file_path}: {e}", file=sys.stderr)
             assessments.append(_unreadable_assessment(file_path, f"assessment failed: {e}"))
@@ -2073,7 +2173,7 @@ def main(argv: list[str] | None = None) -> int:
             args.regression_tolerance,
             changed_files,
         )
-        _apply_csharp_parser_dependency_admission(comparisons, config)
+        _apply_parser_dependency_admissions(comparisons, config)
     except (RuntimeError, ValueError) as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1

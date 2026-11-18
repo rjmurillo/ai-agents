@@ -28,6 +28,30 @@ _PARSER_SCANNER = "src/claude/skills/code-qualities-assessment/scripts/assess.py
 
 _PARSER_IMPORTS = "import tree_sitter\nimport tree_sitter_c_sharp\n"
 
+_PYTHON_PARSER_IMPORTS = _PARSER_IMPORTS + "import tree_sitter_python\n"
+
+_CSHARP_ADMISSION = {
+    "issue": 7406,
+    "file": _PARSER_SCANNER,
+    "imports": ["tree_sitter", "tree_sitter_c_sharp"],
+    "baseScore": 10.0,
+    "headScore": 8.0,
+    "authorizedBy": "rjmurillo",
+    "authorizedOn": "2026-11-16",
+    "authorization": "Maintainer instruction: waiver, full send.",
+}
+
+_PYTHON_ADMISSION = {
+    "issue": 7436,
+    "file": _PARSER_SCANNER,
+    "imports": ["tree_sitter", "tree_sitter_c_sharp", "tree_sitter_python"],
+    "baseScore": 8.0,
+    "headScore": 7.0,
+    "authorizedBy": "rjmurillo",
+    "authorizedOn": "2026-11-18",
+    "authorization": "Maintainer instruction: LGTM. Ship. Package add approved.",
+}
+
 
 @pytest.fixture
 def parser_admission_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
@@ -35,16 +59,7 @@ def parser_admission_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> di
     _repo_with_change(tmp_path, monkeypatch, _FOCUSED, _PARSER_IMPORTS + _FOCUSED, _PARSER_SCANNER)
     return {
         "thresholds": {},
-        "csharpParserDependencyAdmission": {
-            "issue": 7406,
-            "file": _PARSER_SCANNER,
-            "imports": ["tree_sitter", "tree_sitter_c_sharp"],
-            "baseScore": 10.0,
-            "headScore": 8.0,
-            "authorizedBy": "rjmurillo",
-            "authorizedOn": "2026-11-16",
-            "authorization": "Maintainer instruction: waiver, full send.",
-        },
+        "parserDependencyAdmissions": [dict(_CSHARP_ADMISSION), dict(_PYTHON_ADMISSION)],
     }
 
 
@@ -68,10 +83,7 @@ def test_parser_admission_keeps_raw_regression_and_authorization(
     assert rc == 0
     assert (coupling["base"], coupling["head"], coupling["delta"]) == (10.0, 8.0, -2.0)
     assert comparison["regressions"] == ["coupling"]
-    assert (
-        comparison["csharp_parser_dependency_admission"]
-        == (parser_admission_repo["csharpParserDependencyAdmission"])
-    )
+    assert comparison["parser_dependency_admission"] == _CSHARP_ADMISSION
     assert "coupling regressed 10.0 -> 8.0 (delta -2.0)" in captured.err
     assert "ADMITTED" in captured.err
     assert adapt_local_axis_verdict("code-qualities-assessment", captured.out, rc) == "WARN"
@@ -97,19 +109,71 @@ def test_parser_admission_rejects_broader_or_unauthorized_config(
     field: str,
     value: object,
 ) -> None:
-    parser_admission_repo["csharpParserDependencyAdmission"][field] = value
+    parser_admission_repo["parserDependencyAdmissions"][0][field] = value
 
     assert _run_parser_admission(parser_admission_repo, tmp_path) == 1
     assert "ERROR:" in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("record", [None, [], "approved"])
+@pytest.mark.parametrize(
+    "records",
+    [
+        None,
+        [],
+        "approved",
+        _CSHARP_ADMISSION,
+        [_CSHARP_ADMISSION, _CSHARP_ADMISSION],
+        [_CSHARP_ADMISSION, "approved"],
+    ],
+)
 def test_parser_admission_rejects_malformed_config(
-    parser_admission_repo: dict[str, Any], tmp_path: Path, record: object
+    parser_admission_repo: dict[str, Any], tmp_path: Path, records: object
 ) -> None:
-    parser_admission_repo["csharpParserDependencyAdmission"] = record
+    parser_admission_repo["parserDependencyAdmissions"] = records
 
     assert _run_parser_admission(parser_admission_repo, tmp_path) == 1
+
+
+def test_parser_admission_rejects_the_retired_single_record_key(
+    parser_admission_repo: dict[str, Any],
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    parser_admission_repo["csharpParserDependencyAdmission"] = dict(_CSHARP_ADMISSION)
+
+    assert _run_parser_admission(parser_admission_repo, tmp_path) == 1
+    assert "parserDependencyAdmissions" in capsys.readouterr().err
+
+
+def test_parser_admission_admits_the_python_grammar_transition(
+    parser_admission_repo: dict[str, Any],
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _run_git(tmp_path, "branch", "-f", "main")
+    _commit(tmp_path, _PARSER_SCANNER, _PYTHON_PARSER_IMPORTS + _FOCUSED, "python grammar")
+
+    rc = _run_parser_admission(parser_admission_repo, tmp_path)
+
+    captured = capsys.readouterr()
+    comparison = json.loads(captured.out)["comparisons"][0]
+    coupling = next(d for d in comparison["deltas"] if d["quality"] == "coupling")
+    assert rc == 0
+    assert (coupling["base"], coupling["head"], coupling["delta"]) == (8.0, 7.0, -1.0)
+    assert comparison["parser_dependency_admission"] == _PYTHON_ADMISSION
+    assert "ADMITTED: issue #7436" in captured.err
+    assert adapt_local_axis_verdict("code-qualities-assessment", captured.out, rc) == "WARN"
+
+
+def test_parser_admission_needs_the_matching_record_configured(
+    parser_admission_repo: dict[str, Any], tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _run_git(tmp_path, "branch", "-f", "main")
+    _commit(tmp_path, _PARSER_SCANNER, _PYTHON_PARSER_IMPORTS + _FOCUSED, "python grammar")
+    parser_admission_repo["parserDependencyAdmissions"] = [dict(_CSHARP_ADMISSION)]
+
+    assert _run_parser_admission(parser_admission_repo, tmp_path) == 10
+    assert "NOT ADMITTED" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize("extra", ["", "import requests\n", _SPRAWLING])
@@ -119,7 +183,7 @@ def test_parser_admission_does_not_clear_unapproved_regressions(
     if extra:
         _commit(tmp_path, _PARSER_SCANNER, _PARSER_IMPORTS + extra + _FOCUSED, "regress")
     else:
-        del parser_admission_repo["csharpParserDependencyAdmission"]
+        del parser_admission_repo["parserDependencyAdmissions"]
 
     assert _run_parser_admission(parser_admission_repo, tmp_path) == 10
 
@@ -171,7 +235,7 @@ def _comparison(**overrides: Any) -> Any:
 def test_admission_mismatch_reason_names_each_non_matching_shape(
     parser_admission_repo: dict[str, Any], overrides: dict[str, Any], reason: str
 ) -> None:
-    admission = parser_admission_repo["csharpParserDependencyAdmission"]
+    admission = parser_admission_repo["parserDependencyAdmissions"][0]
 
     assert reason in _mod._admission_mismatch_reason(_comparison(**overrides), admission)
 

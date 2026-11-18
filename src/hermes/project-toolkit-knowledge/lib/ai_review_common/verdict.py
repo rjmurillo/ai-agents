@@ -338,6 +338,65 @@ def _has_inventoried_docs(payload: dict[str, object]) -> bool:
     )
 
 
+# The parser dependency admissions assess.py accepts (ADR-122). This shipped
+# library cannot import the skill script, so the records are repeated here and
+# a test pins both copies equal. A comparison carrying any other record is
+# UNKNOWN, never WARN.
+_PARSER_SCANNER = "src/claude/skills/code-qualities-assessment/scripts/assess.py"
+_PARSER_DEPENDENCY_ADMISSIONS: tuple[dict[str, object], ...] = (
+    {
+        "issue": 7406,
+        "file": _PARSER_SCANNER,
+        "imports": ["tree_sitter", "tree_sitter_c_sharp"],
+        "baseScore": 10.0,
+        "headScore": 8.0,
+        "authorizedBy": "rjmurillo",
+        "authorizedOn": "2026-11-16",
+        "authorization": "Maintainer instruction: waiver, full send.",
+    },
+    {
+        "issue": 7436,
+        "file": _PARSER_SCANNER,
+        "imports": ["tree_sitter", "tree_sitter_c_sharp", "tree_sitter_python"],
+        "baseScore": 8.0,
+        "headScore": 7.0,
+        "authorizedBy": "rjmurillo",
+        "authorizedOn": "2026-11-18",
+        "authorization": "Maintainer instruction: LGTM. Ship. Package add approved.",
+    },
+)
+
+
+def _is_admitted_parser_comparison(comparison: dict[str, object]) -> bool:
+    """Return True only for the exact admitted scanner transition a record names."""
+    admission = comparison.get("parser_dependency_admission")
+    if admission not in _PARSER_DEPENDENCY_ADMISSIONS:
+        return False
+    assert isinstance(admission, dict)
+    base, head = admission["baseScore"], admission["headScore"]
+    assert isinstance(base, float) and isinstance(head, float)
+    file_path = comparison.get("file_path")
+    deltas = comparison.get("deltas")
+    admitted_delta = {
+        "quality": "coupling",
+        "base": base,
+        "head": head,
+        "delta": round(head - base, 1),
+        "status": "compared",
+    }
+    return (
+        isinstance(file_path, str)
+        and file_path.replace("\\", "/") == admission["file"]
+        and comparison.get("regressions") == ["coupling"]
+        and comparison.get("evidence_loss") == []
+        and comparison.get("is_new_file") is False
+        and comparison.get("change_status") == "M"
+        and comparison.get("absolute_gate_reason") is None
+        and isinstance(deltas, list)
+        and admitted_delta in deltas
+    )
+
+
 def adapt_local_axis_verdict(
     axis: str,
     output: str,
@@ -389,44 +448,13 @@ def adapt_local_axis_verdict(
         for comparison in comparisons:
             if not isinstance(comparison, dict):
                 return "UNKNOWN"
-            if comparison.get("csharp_parser_dependency_admission") is None:
+            if comparison.get("parser_dependency_admission") is None:
                 if comparison.get("regressions") or comparison.get("evidence_loss"):
                     return "FAIL"
                 continue
-            match comparison:
-                case {
-                    "file_path": str() as file_path,
-                    "regressions": ["coupling"],
-                    "evidence_loss": [],
-                    "is_new_file": False,
-                    "change_status": "M",
-                    "deltas": list() as deltas,
-                    "csharp_parser_dependency_admission": {
-                        "issue": 7406,
-                        "file": str() as source,
-                        "imports": ["tree_sitter", "tree_sitter_c_sharp"],
-                        "baseScore": 10.0,
-                        "headScore": 8.0,
-                        "authorizedBy": "rjmurillo",
-                        "authorizedOn": "2026-11-16",
-                        "authorization": "Maintainer instruction: waiver, full send.",
-                    },
-                } if (
-                    file_path.replace("\\", "/") == source
-                    and source == "src/claude/skills/code-qualities-assessment/scripts/assess.py"
-                    and comparison.get("absolute_gate_reason") is None
-                    and {
-                        "quality": "coupling",
-                        "base": 10.0,
-                        "head": 8.0,
-                        "delta": -2.0,
-                        "status": "compared",
-                    }
-                    in deltas
-                ):
-                    verdicts.append("WARN")
-                case _:
-                    return "UNKNOWN"
+            if not _is_admitted_parser_comparison(comparison):
+                return "UNKNOWN"
+            verdicts.append("WARN")
         return merge_verdicts(verdicts)
 
     if axis == "doc-accuracy":

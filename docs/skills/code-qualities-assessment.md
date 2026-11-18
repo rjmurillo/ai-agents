@@ -38,7 +38,7 @@ The skill runs `assess.py` on the target and returns a markdown report with five
 | Testability | How easily can you verify it in isolation? |
 | Non-redundancy | How unique is each piece of knowledge? |
 
-A score of 10 is the best and 1 to 3 is poor. The report comes as markdown, JSON, or HTML. Full language support covers Python, TypeScript and JavaScript, C#, Java, and Go. C# needs `tree-sitter==0.26.1` and `tree-sitter-c-sharp==0.23.5` in the scanner's Python environment; see the [C# parser reference](../../src/claude/skills/code-qualities-assessment/references/csharp-parser.md). Ruby, Rust, PHP, and Kotlin get heuristic support.
+A score of 10 is the best and 1 to 3 is poor. The report comes as markdown, JSON, or HTML. Full language support covers Python, TypeScript and JavaScript, C#, Java, and Go. C# needs `tree-sitter==0.26.1` and `tree-sitter-c-sharp==0.23.5` in the scanner's Python environment; see the [C# parser reference](../../src/claude/skills/code-qualities-assessment/references/csharp-parser.md). Python needs `tree-sitter==0.26.1` and `tree-sitter-python==0.25.0`; see the [Python parser reference](../../src/claude/skills/code-qualities-assessment/references/python-parser.md). Ruby, Rust, PHP, and Kotlin get heuristic support.
 
 ## Advanced use
 
@@ -72,8 +72,8 @@ Gate modes answer two different questions:
 
 | Exit code | Meaning |
 | --- | --- |
-| 0 | Gate passed, or nothing changed in regression mode. It can also carry one explicitly admitted regression, listed under `csharp_parser_dependency_admission`; the review adapter reports that as WARN. The scanner accepts only the fixed record for rjmurillo/ai-agents issue #7406; any other config value fails with exit 1. |
-| 1 | Invalid target, config error, or no files to assess. For C# it also means the parser package is missing, the parser failed to start, or the pinned grammar could not parse a file |
+| 0 | Gate passed, or nothing changed in regression mode. It can also carry one explicitly admitted regression, listed under `parser_dependency_admission`; the review adapter reports that as WARN. The scanner accepts only its fixed records, for rjmurillo/ai-agents issues #7406 (C#) and #7436 (Python); any other config value fails with exit 1. |
+| 1 | Invalid target, config error, or no files to assess. For C# or Python it also means a parser package is missing, the parser failed to start, or the pinned grammar could not parse a file |
 | 10 | Regression: a quality regressed or scored evidence was lost |
 | 11 | A file is below the configured thresholds |
 
@@ -99,5 +99,5 @@ Set thresholds in `.qualityrc.json`. The config accepts `thresholds` per quality
 - [`review`](review.md): the full pre-merge review that calls this skill.
 - [`quality-grades`](quality-grades.md): repository-wide domain grading.
 - Source: [`SKILL.md`](../../src/claude/skills/code-qualities-assessment/SKILL.md)
-- References: [`calibration-examples.md`](../../src/claude/skills/code-qualities-assessment/references/calibration-examples.md), [`refactoring-patterns.md`](../../src/claude/skills/code-qualities-assessment/references/refactoring-patterns.md), [`csharp-parser.md`](../../src/claude/skills/code-qualities-assessment/references/csharp-parser.md)
+- References: [`calibration-examples.md`](../../src/claude/skills/code-qualities-assessment/references/calibration-examples.md), [`refactoring-patterns.md`](../../src/claude/skills/code-qualities-assessment/references/refactoring-patterns.md), [`csharp-parser.md`](../../src/claude/skills/code-qualities-assessment/references/csharp-parser.md), [`python-parser.md`](../../src/claude/skills/code-qualities-assessment/references/python-parser.md)
 - How to call skills on each host: [Call agents and skills](../call-agents-and-skills.md)
