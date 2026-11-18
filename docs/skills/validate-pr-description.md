@@ -1,6 +1,6 @@
 # validate-pr-description
 
-Checks a PR title and body before you submit. It tests three things this repository's gates read: the conventional-commit title, the issue-linking keyword, and the template sections. You get a result per check, so you fix it with one edit instead of one CI round.
+Checks a PR title and body before you submit. It always checks the conventional-commit title. It checks the issue-linking keyword and the template sections only when the target repository has a tracking issue, a PR template, or a gate that requires them. You get a result per check, so you fix it with one edit instead of one CI round.
 
 ## When to use it
 
@@ -28,13 +28,15 @@ The first argument is the title. The second is a path to the body file. If you g
 
 A report per check, not one verdict. Each failure shows the offending text and a corrected form.
 
-| # | Check | Rule |
-| --- | --- | --- |
-| 1 | Conventional commit title | `<type>(<scope>)?: <description>`. Type is one of `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`, `build`, `revert`. |
-| 2 | Issue-linking keyword | The body has `Closes #N`, `Fixes #N`, `Resolves #N`, or a past-tense variant. |
-| 3 | Template compliance | Summary is not empty, Changes has at least one item, and Type of Change has a marked checkbox. |
+| # | Check | Applies when | Rule |
+| --- | --- | --- | --- |
+| 1 | Conventional commit title | Always | `<type>(<scope>)?: <description>`. Type is one of `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`, `build`, `revert`. |
+| 2 | Issue-linking keyword | A tracking issue exists, or the repository has an issue-link gate | The body has `Closes #N`, `Fixes #N`, `Resolves #N`, a past-tense variant, or `Refs #N`. |
+| 3 | Template compliance | The repository has a PR template | Every section the template asks you to fill is populated. |
 
-The report also says which path ran: the repository's validator, or a manual pass. They are different levels of evidence.
+Before checks 2 and 3, the skill searches your checkout for a PR template and for workflows or scripts that enforce issue links or template sections. A check with nothing to enforce it reports `NOT APPLICABLE` with what was searched. The skill never asks you to open an issue just so a keyword has a target.
+
+The report also says which path ran: the repository's validator, or a manual pass. They are different levels of evidence. In a repository other than this one, the plugin's validator script reflects this repository's template, so the skill relabels its keyword and template warnings `NOT APPLICABLE` when your repository has no matching template or gate.
 
 ## Advanced use
 
