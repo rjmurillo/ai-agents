@@ -32,7 +32,9 @@ PLANNER_ROOTS = (
 )
 PLANNER_TEMPLATE = REPO_ROOT / "templates" / "skills" / "planner.SKILL.md.tmpl"
 PLANNER_DOCS_PAGE = REPO_ROOT / "docs" / "skills" / "planner.md"
-SCRIPTS = REPO_ROOT / "src" / "claude" / "skills" / "planner" / "scripts"
+COMMENT_ANALYZER = AGENT_TEMPLATES / "comment-analyzer.shared.md"
+SRC_PLANNER = REPO_ROOT / "src" / "claude" / "skills" / "planner"
+SCRIPTS = SRC_PLANNER / "scripts"
 
 # Names planner still delegates to that no template or skill defines. Out of
 # scope for #7421; each needs its own mapping decision.
@@ -181,10 +183,36 @@ def test_review_step_1_delegates_to_comment_analyzer_and_applies_findings() -> N
     assert "apply the findings to the plan file yourself" in text.lower()
 
 
-def test_review_step_1_says_snippets_are_proposed_code() -> None:
+def test_review_step_1_names_the_plan_file_as_the_artifact_under_review() -> None:
     text = squash(_planner_outputs()["review step 1"])
-    assert "They do not exist in the repository yet" in text
-    assert "review the snippet text itself" in text
+    assert "The plan file is the artifact under review" in text
+    assert "proposed code that does not exist in the repository yet" in text
+    assert "cite the plan file path and line in each finding" in text
+    assert "do not flag a symbol the plan introduces as missing from the repository" in text
+
+
+def test_review_step_1_does_not_forbid_reading_the_cited_location() -> None:
+    # comment-analyzer's Tool Use Directive requires reading the code at the cited
+    # location. The brief makes the plan file that location instead of banning reads.
+    text = squash(_planner_outputs()["review step 1"])
+    assert "do not read code at a file location" not in text
+
+
+def test_review_step_1_second_pass_targets_findings_past_the_top_10() -> None:
+    text = squash(_planner_outputs()["review step 1"])
+    assert (
+        "NEEDS_DECOMPOSITION, apply the top 10 findings, then delegate again for the "
+        "findings past the top 10."
+    ) in text
+    assert "remaining snippets" not in text
+
+
+def test_comment_analyzer_still_returns_the_top_10_the_planner_brief_assumes() -> None:
+    source = squash(COMMENT_ANALYZER.read_text(encoding="utf-8"))
+    assert (
+        "[NEEDS_DECOMPOSITION]**: more than 10 findings apply. Return the top 10 by impact"
+        in source
+    )
 
 
 def test_documentation_milestone_loads_technical_writing_skill() -> None:
@@ -255,6 +283,22 @@ def test_docs_page_states_the_current_delegation_targets() -> None:
 def test_executor_mode_line_lists_only_quality_reviewer_modes() -> None:
     text = _executor_outputs()["execution step 1"]
     assert "<mode>[For QR: plan-review|post-implementation|reconciliation]</mode>" in text
+
+
+def test_temporal_contamination_doc_names_only_the_real_consumers() -> None:
+    text = squash(
+        (SRC_PLANNER / "resources" / "temporal-contamination.md").read_text(encoding="utf-8")
+    )
+    assert (
+        "@agent-quality-reviewer embeds this specification, and planner review step 1 "
+        "points @agent-comment-analyzer to it."
+    ) in text
+    assert "Both @agent-comment-analyzer and @agent-quality-reviewer reference" not in text
+
+
+def test_comment_analyzer_does_not_embed_temporal_contamination() -> None:
+    # The planner doc may say only that review step 1 points the agent at the file.
+    assert "temporal" not in COMMENT_ANALYZER.read_text(encoding="utf-8").lower()
 
 
 # Negative controls: each helper must catch the defect it guards against.
