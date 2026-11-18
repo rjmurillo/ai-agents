@@ -166,3 +166,10 @@ def test_issue_link_gate_row_excludes_prose_rules(skill_text: str) -> None:
     row = next(line for line in body.splitlines() if line.startswith("| Issue-link gate |"))
     assert "contributor rule" not in row
     assert "never the gate itself" in row
+
+
+def test_intro_states_each_check_condition(skill_text: str) -> None:
+    """The opening must match Phase 2: a tracking issue alone enables check 2."""
+    intro = _flat(skill_text.split("## Triggers", 1)[0])
+    assert "The keyword check applies when a tracking issue exists" in intro
+    assert "apply only when discovery finds the template or gate" not in intro

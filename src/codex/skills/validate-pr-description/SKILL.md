@@ -23,10 +23,11 @@ metadata:
 # Validate PR Description
 
 Check a PR title and body against the conventional-commit title, plus the
-issue-linking and template rules the target repository actually enforces. Catch
+issue-linking and template rules that apply in the target repository. Catch
 them before submission, where the fix costs one edit instead of one CI round.
-The title check always applies. The other two apply only when discovery finds
-the template or gate that requires them.
+The title check always applies. The keyword check applies when a tracking issue
+exists or a gate requires a link. The template check applies when the
+repository has a PR template.
 
 Migrated from `.claude/commands/validate-pr-description.md` under ADR-064, which
 makes skills the single user-invocable surface. `user-invocable: true` is what
