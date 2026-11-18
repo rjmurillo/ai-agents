@@ -37,6 +37,8 @@ The scanner pins `tree-sitter-python==0.25.0`.
 It parses Python 3.14 syntax, including PEP 695 type parameters, PEP 701 f-strings,
 PEP 758 unparenthesized `except` lists, template strings, `match`, and `except*`.
 Known gap: Python 3.15 `lazy import` statements do not parse.
+The grammar also accepts some invalid Python, such as a Python 2 `print "x"` statement.
+Exit 1 therefore means the grammar rejected the file, not that the file is invalid Python.
 A file the grammar cannot parse fails the scan with exit 1.
 The error names the file and the pinned grammar.
 The scanner does not guess a count for such a file.

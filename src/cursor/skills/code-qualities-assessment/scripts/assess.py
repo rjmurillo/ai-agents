@@ -1394,7 +1394,13 @@ def _python_statement_modules(node: Any) -> list[str]:
     if node.type == "future_import_statement":
         return ["__future__"]
     if node.type == "import_from_statement":
-        return [node.child_by_field_name("module_name").text.decode("utf-8")]
+        module = node.child_by_field_name("module_name")
+        if module is None:
+            raise PythonParserError(
+                f"Cannot count Python dependencies: a from-import at line "
+                f"{node.start_point[0] + 1} has no module name in the parse tree"
+            )
+        return [module.text.decode("utf-8")]
     modules = []
     for name in node.children_by_field_name("name"):
         if name.type == "aliased_import":

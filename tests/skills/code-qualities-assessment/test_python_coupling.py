@@ -194,3 +194,19 @@ def test_python_parse_error_at_base_names_the_revision(
 
     assert result == 1
     assert f"legacy.py at {base_sha}" in err
+
+
+class _FromImportWithoutModule:
+    """A parse-tree node shape the grammar should never produce."""
+
+    type = "import_from_statement"
+    start_point = (4, 0)
+
+    def child_by_field_name(self, name: str) -> None:
+        return None
+
+
+def test_from_import_without_a_module_fails_closed() -> None:
+    """An unexpected node shape raises the parser error, so the scan exits 1."""
+    with pytest.raises(_mod.PythonParserError, match="line 5"):
+        _mod._python_statement_modules(_FromImportWithoutModule())
