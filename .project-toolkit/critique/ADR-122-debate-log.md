@@ -127,6 +127,33 @@ The panel reached consensus on the amendment.
 The ruling itself was the maintainer's decision, not a panel vote.
 These votes are not GitHub approvals or merge permission.
 
+## Round 5 Summary (PowerShell parser amendment, 2026-11-18)
+
+### Trigger
+
+Issue #7437 measured `tree-sitter-powershell==0.26.4` against pwsh 7.6.10's shipped modules.
+The grammar marked 8 of 63 valid files with error nodes; PowerShell's parser marked none.
+The maintainer then chose PowerShell's own parser through a `pwsh` subprocess.
+This was a reduced panel (architect and critic), because item 7 is direction, not enforcement.
+
+### Changes Made
+
+1. Item 7 now names the Tree-sitter approach for JavaScript, TypeScript, and Python only.
+2. Item 7 records the PowerShell parser choice, its reason, and its evidence.
+3. Item 7 states that #7434, #7435, and #7436 each still need their own admission.
+4. Consequences now name the `pwsh` requirement, exit 1 cases, cost, and path resolution.
+
+### Agent Positions
+
+| Agent | Position | Evidence |
+|---|---|---|
+| Architect | Accept with required edits, applied. | Ran the scanner on itself: coupling stayed 8.0. Probed `using` resolution in pwsh 7.6.10. |
+| Critic | Accept with required edits, applied. | Checked the 8 of 63 figure against the #7437 comment. Required the decision on the issue. |
+
+Both agents asked to remove item 7's self-contradiction and to add the runtime consequence.
+The architect's optional notes on an unpinned pwsh version and per-file cost stay notes.
+The parser choice itself was the maintainer's decision, not a panel vote.
+
 ## Decision Boundaries
 
 The admission preserves raw scores, counts, regressions, and the original diagnostic.

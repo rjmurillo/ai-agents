@@ -49,7 +49,15 @@ _LANGUAGE_BY_SUFFIX = {
     ".cs": "csharp",
     ".java": "java",
     ".go": "go",
+    ".ps1": "powershell",
+    ".psm1": "powershell",
+    ".psd1": "powershell",
 }
+
+# Languages whose coupling counter parses the original source. Filtering comment
+# lines first would drop C# directives split by comments and PowerShell's
+# `#Requires` statements, which are comments to a line filter.
+_PARSED_SOURCE_LANGUAGES = frozenset({"csharp", "powershell"})
 
 # Every score here is size-derived, so adding one small function to a healthy
 # module moves a quality by a few tenths with nothing wrong. Measured: adding one
@@ -81,6 +89,7 @@ _LINE_COMMENT_PREFIXES = {
     "csharp": ("//",),
     "java": ("//",),
     "go": ("//",),
+    "powershell": ("#",),
 }
 
 # Repo-root-anchored prefixes of build outputs (ADR-109, ADR-119). Under
@@ -1181,9 +1190,9 @@ def _assess_base_bytes(
         return assess_content(path, raw.decode("utf-8"), resolver)
     except UnicodeDecodeError as exc:
         return _unreadable_assessment(path, f"decode failed at base: {exc}")
-    except CSharpParserError as exc:
+    except DependencyParserError as exc:
         where = f"{path} at {revision}" if revision is not None else str(path)
-        raise CSharpParserError(f"{where}: {exc}") from exc
+        raise type(exc)(f"{where}: {exc}") from exc
 
 
 def check_regression(
@@ -1364,8 +1373,54 @@ def _is_python_standard_import(line: str) -> bool:
     )
 
 
-class CSharpParserError(RuntimeError):
+class DependencyParserError(RuntimeError):
+    """A parsed language's dependencies cannot be measured reliably (exit 1)."""
+
+
+class CSharpParserError(DependencyParserError):
     """C# dependencies cannot be measured reliably."""
+
+
+class PowerShellParserError(DependencyParserError):
+    """PowerShell dependencies cannot be measured reliably."""
+
+
+_PWSH_TIMEOUT_SECONDS = 60
+
+# Parse errors that report a reference this machine cannot resolve, not invalid
+# syntax. `using module Name` and `using assembly X` are looked up at parse
+# time, so these depend on the scanning machine and never fail the scan.
+_PWSH_RESOLUTION_ERROR_IDS = ("ModuleNotFoundDuringParse", "ErrorLoadingAssembly")
+
+# Runs inside pwsh. Reads base64 UTF-8 source from stdin so no console code
+# page can alter it, parses it without executing it, and prints one JSON line.
+# Counted forms: Import-Module and ipmo calls (module-qualified or not), using
+# module/namespace/assembly statements, and #Requires lines naming -Modules.
+_PWSH_COUNT_SCRIPT = r"""
+$ErrorActionPreference = 'Stop'
+$encoded = [Console]::In.ReadToEnd().Trim()
+$source = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($encoded))
+$tokens = $null
+$errors = $null
+$ast = [System.Management.Automation.Language.Parser]::ParseInput($source, [ref]$tokens, [ref]$errors)
+$importNames = @('import-module', 'ipmo')
+$imports = @($ast.FindAll({
+    param($node)
+    if ($node -isnot [System.Management.Automation.Language.CommandAst]) { return $false }
+    $name = "$($node.GetCommandName())".Split('\')[-1].ToLowerInvariant()
+    return $importNames -contains $name
+}, $true)).Count
+$usingKinds = @('Module', 'Namespace', 'Assembly')
+$usings = @($ast.UsingStatements | Where-Object { $usingKinds -contains "$($_.UsingStatementKind)" }).Count
+$requires = @($tokens | Where-Object {
+    $_.Kind -eq 'Comment' -and $_.Text -match '^#requires\b.*-modules\b'
+}).Count
+$parseErrors = @($errors | ForEach-Object {
+    [pscustomobject]@{ id = $_.ErrorId; line = $_.Extent.StartLineNumber; message = $_.Message }
+})
+[pscustomobject]@{ count = $imports + $usings + $requires; errors = $parseErrors } |
+    ConvertTo-Json -Compress -Depth 3 -EscapeHandling EscapeNonAscii
+"""
 
 
 def _count_csharp_imports(source: str) -> int:
@@ -1402,6 +1457,92 @@ def _count_csharp_imports(source: str) -> int:
         ) from exc
 
 
+def _run_pwsh_counter(source: str) -> dict[str, Any]:
+    """Run PowerShell's own parser over *source* and return its JSON result.
+
+    pwsh runs from an empty temporary directory, so a relative `using module`
+    or `using assembly` path never resolves against the scanned repository.
+    The source travels as stdin data, never as a command argument (CWE-78).
+    """
+    import base64
+    import shutil
+    import subprocess
+    import tempfile
+
+    pwsh = shutil.which("pwsh")
+    if pwsh is None:
+        raise PowerShellParserError(
+            "PowerShell 7 (pwsh) is not on PATH. It is required to count "
+            "PowerShell dependencies (see references/powershell-parser.md)"
+        )
+    command = base64.b64encode(_PWSH_COUNT_SCRIPT.encode("utf-16-le")).decode("ascii")
+    payload = base64.b64encode(source.encode("utf-8")).decode("ascii")
+    argv = [pwsh, "-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", command]
+    try:
+        with tempfile.TemporaryDirectory() as empty_dir:
+            result = subprocess.run(
+                argv,
+                input=payload,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                timeout=_PWSH_TIMEOUT_SECONDS,
+                cwd=empty_dir,
+                check=False,
+            )
+    except subprocess.TimeoutExpired as exc:
+        raise PowerShellParserError(
+            f"PowerShell parser timed out after {_PWSH_TIMEOUT_SECONDS} seconds"
+        ) from exc
+    except OSError as exc:
+        raise PowerShellParserError(f"PowerShell parser failed to start: {exc}") from exc
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()[-500:]
+        raise PowerShellParserError(
+            f"PowerShell parser exited {result.returncode}: {detail or 'no output'}"
+        )
+    try:
+        parsed = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise PowerShellParserError(
+            f"PowerShell parser returned unreadable output: {result.stdout[:200]!r}"
+        ) from exc
+    if not isinstance(parsed, dict):
+        raise PowerShellParserError(f"PowerShell parser returned {type(parsed).__name__}")
+    return parsed
+
+
+def _count_powershell_imports(source: str) -> int:
+    """Count dependency statements from PowerShell's syntax tree, not regex.
+
+    Strings and comments do not count, except `#Requires -Modules`, which
+    PowerShell itself treats as a statement. A syntax error is fatal: no count
+    is guessed. Unresolvable module or assembly references are not errors.
+    """
+    parsed = _run_pwsh_counter(source)
+    errors = parsed.get("errors")
+    errors = [errors] if isinstance(errors, dict) else errors
+    if not isinstance(errors, list):
+        raise PowerShellParserError(f"PowerShell parser returned errors as {errors!r}")
+    syntax_errors = [
+        error
+        for error in errors
+        if not (isinstance(error, dict) and error.get("id") in _PWSH_RESOLUTION_ERROR_IDS)
+    ]
+    if syntax_errors:
+        first = syntax_errors[0]
+        where = f"line {first.get('line')}: " if isinstance(first, dict) else ""
+        message = first.get("message") if isinstance(first, dict) else first
+        raise PowerShellParserError(
+            f"Cannot count PowerShell dependencies: PowerShell reports "
+            f"{len(syntax_errors)} syntax error(s), first at {where}{message}"
+        )
+    count = parsed.get("count")
+    if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+        raise PowerShellParserError(f"PowerShell parser returned count {count!r}")
+    return count
+
+
 def _score_coupling(
     language: str | None,
     code_lines: list[str],
@@ -1415,15 +1556,16 @@ def _score_coupling(
     0.0 so the threshold gate does not fail a file scored only by that
     untuned heuristic (matches the file-header contract).
 
-    C# receives original source lines for syntax-tree parsing. Other languages
-    receive filtered code lines. Go and Python standard-library imports are
+    C# and PowerShell receive original source lines for syntax-tree parsing.
+    Other languages receive filtered code lines. Go and Python standard-library imports are
     reported but not scored: they are stable utilities, not application or
     third-party coupling (issues #7047 and #7354).
     """
     pattern = _IMPORT_PATTERNS.get(language) if language else None
     standard_count = 0
-    if language == "csharp":
-        import_count = _count_csharp_imports("\n".join(code_lines))
+    if language in _PARSED_SOURCE_LANGUAGES:
+        counter = _count_csharp_imports if language == "csharp" else _count_powershell_imports
+        import_count = counter("\n".join(code_lines))
         confidence = 0.6
         tuned = True
     elif pattern is not None:
@@ -1639,7 +1781,9 @@ def assess_content(
             else _score_cohesion(language, code_lines, loc)
         ),
         coupling=_score_coupling(
-            language, lines if language == "csharp" else code_lines, resolve_go_module
+            language,
+            lines if language in _PARSED_SOURCE_LANGUAGES else code_lines,
+            resolve_go_module,
         ),
         encapsulation=_score_encapsulation(language, code_lines),
         testability=_score_testability(language, code_lines),
@@ -1936,15 +2080,15 @@ def _assess_files(
     the survivor as evidence the whole change was assessed. This is the same
     treatment an unreadable file already gets at the decode site.
 
-    A C# parser failure is the exception: it is deliberately fatal (exit 1), so
-    no C# score is guessed.
+    A C# or PowerShell parser failure is the exception: it is deliberately
+    fatal (exit 1), so no dependency count is guessed.
     """
     assessments: list[FileAssessment] = []
     for file_path in files:
         try:
             assessments.append(assess_file(file_path, context, use_serena))
-        except CSharpParserError as exc:
-            raise CSharpParserError(f"{file_path}: {exc}") from exc
+        except DependencyParserError as exc:
+            raise type(exc)(f"{file_path}: {exc}") from exc
         except Exception as e:
             print(f"Error assessing {file_path}: {e}", file=sys.stderr)
             assessments.append(_unreadable_assessment(file_path, f"assessment failed: {e}"))

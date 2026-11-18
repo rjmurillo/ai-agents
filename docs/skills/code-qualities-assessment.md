@@ -38,7 +38,7 @@ The skill runs `assess.py` on the target and returns a markdown report with five
 | Testability | How easily can you verify it in isolation? |
 | Non-redundancy | How unique is each piece of knowledge? |
 
-A score of 10 is the best and 1 to 3 is poor. The report comes as markdown, JSON, or HTML. Full language support covers Python, TypeScript and JavaScript, C#, Java, and Go. C# needs `tree-sitter==0.26.1` and `tree-sitter-c-sharp==0.23.5` in the scanner's Python environment; see the [C# parser reference](../../src/claude/skills/code-qualities-assessment/references/csharp-parser.md). Ruby, Rust, PHP, and Kotlin get heuristic support.
+A score of 10 is the best and 1 to 3 is poor. The report comes as markdown, JSON, or HTML. Full language support covers Python, TypeScript and JavaScript, C#, Java, and Go. C# needs `tree-sitter==0.26.1` and `tree-sitter-c-sharp==0.23.5` in the scanner's Python environment; see the [C# parser reference](../../src/claude/skills/code-qualities-assessment/references/csharp-parser.md). PowerShell (`.ps1`, `.psm1`, `.psd1`) gets coupling and non-redundancy scores and needs PowerShell 7 (`pwsh`) on PATH; see the [PowerShell parser reference](../../src/claude/skills/code-qualities-assessment/references/powershell-parser.md). Ruby, Rust, PHP, and Kotlin get heuristic support.
 
 ## Advanced use
 
@@ -99,5 +99,5 @@ Set thresholds in `.qualityrc.json`. The config accepts `thresholds` per quality
 - [`review`](review.md): the full pre-merge review that calls this skill.
 - [`quality-grades`](quality-grades.md): repository-wide domain grading.
 - Source: [`SKILL.md`](../../src/claude/skills/code-qualities-assessment/SKILL.md)
-- References: [`calibration-examples.md`](../../src/claude/skills/code-qualities-assessment/references/calibration-examples.md), [`refactoring-patterns.md`](../../src/claude/skills/code-qualities-assessment/references/refactoring-patterns.md), [`csharp-parser.md`](../../src/claude/skills/code-qualities-assessment/references/csharp-parser.md)
+- References: [`calibration-examples.md`](../../src/claude/skills/code-qualities-assessment/references/calibration-examples.md), [`refactoring-patterns.md`](../../src/claude/skills/code-qualities-assessment/references/refactoring-patterns.md), [`csharp-parser.md`](../../src/claude/skills/code-qualities-assessment/references/csharp-parser.md), [`powershell-parser.md`](../../src/claude/skills/code-qualities-assessment/references/powershell-parser.md)
 - How to call skills on each host: [Call agents and skills](../call-agents-and-skills.md)
