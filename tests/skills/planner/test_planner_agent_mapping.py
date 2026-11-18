@@ -194,3 +194,22 @@ def test_delegation_form_has_no_mode_line() -> None:
 def test_delegation_form_lists_only_real_agents() -> None:
     text = _executor_outputs()["execution step 1"]
     assert "<agent>@agent-[implementer|debug|qa|code-reviewer]</agent>" in text
+
+
+def test_qa_reconciliation_runs_sequentially() -> None:
+    text = squash(_executor_outputs()["execution step 1"])
+    assert "@agent-qa: ALWAYS sequential" in text
+
+
+def test_issue_resolution_sorts_by_the_review_dispositions() -> None:
+    text = squash(_executor_outputs()["execution step 5"])
+    assert "blocking -> non-blocking -> polish" in text
+    assert "critical -> high" not in text
+    assert "production-reliability | project-conformance" not in text
+
+
+def test_plan_review_brief_defines_its_terms() -> None:
+    text = squash(_planner_outputs()["review step 2"])
+    assert "CONTEXT FILTER" not in text
+    assert "actionability test" not in text
+    assert "it names the file or milestone, the change, and the reason" in text
