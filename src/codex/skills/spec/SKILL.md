@@ -77,10 +77,10 @@ End the Q2 answer with one sentence recording the outcome: `Reframing: skipped (
 **Bound the search.** If three tool calls have not surfaced anything useful, stop searching and switch to first-principles reasoning. Document what you tried (which tool, what query, what came back) so the user can extend the search if the answer matters more than your time budget suggests.
 
 Runs after Step 0 and before Step 1. It searches prior art before any new spec
-work, halts when the search shows the question is already answered, and runs the
-Check 9 series over the result. The gate in full, including its halt criteria,
-halt block format, metrics tally and every check, is in
-`references/step-0-5-memory-gate.md`. Read it before running the gate: the halt
+work, halts when the blast-radius count meets the mode threshold or a risky
+change type has no prior record, and runs the Check 9 series over the result.
+The gate in full, including its halt criteria, halt block format, metrics tally
+and every check, is in `references/step-0-5-memory-gate.md`. Read it before running the gate: the halt
 conditions are the point, and a summary of them is not the gate.
 
 ## Evaluation Axes
@@ -166,7 +166,7 @@ and an installed-plugin run cannot disagree.
 | Avoid | Why | Instead |
 |-------|-----|---------|
 | Skipping Step 0 because the problem seems obvious | Every retro citing wasted spec work in the last six months traces to a question this gate forces upfront | Answer the six questions, even quickly |
-| Treating Step 0.5 as a formality | Its job is to halt when the question is already answered, and a skim cannot halt | Read the halt criteria in the reference and apply them |
+| Treating Step 0.5 as a formality | Its job is to halt on a blast-radius overrun or a risky change with no prior record, and a skim cannot halt | Read the halt criteria in the reference and apply them |
 | Acceptance criteria that restate the user story | A criterion nobody can fail is not a criterion | Write each one so a reader can say pass or fail from evidence |
 | Speculative requirements | YAGNI: a requirement for a need nobody has yet becomes waste plus a constraint | Specify what is needed now, and record the rest under Deferred |
 | Collapsing the output to acceptance criteria alone | Downstream plan and build read the ontology, data model and failure modes, not just the criteria | Mirror the full PRD schema |
