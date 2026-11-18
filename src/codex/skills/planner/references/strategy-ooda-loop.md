@@ -34,7 +34,7 @@ The planner's two-phase workflow (planning, then execution) maps to OODA. Use th
 | Confirm preconditions | Observe | Gather problem statement, constraints, existing code |
 | Steps 1-N: iterative planning | Orient | Analyze dependencies, risks, decompose milestones |
 | Write plan to file | Decide | Commit to milestone order, scope, and approach |
-| Review phase (TW + QR) | Act + Observe | Execute review, observe findings, iterate if needed |
+| Review phase (comment review + QR) | Act + Observe | Execute review, observe findings, iterate if needed |
 
 ### Execution Phase as OODA
 
@@ -51,6 +51,6 @@ The planner's two-phase workflow (planning, then execution) maps to OODA. Use th
 | Anti-Pattern | Problem | Fix |
 |--------------|---------|-----|
 | Analysis paralysis | Stuck in Orient during planning | Time-box planning steps, accept imperfect info |
-| Skipping review phase | No Orient after planning Act | Always run TW + QR before execution |
+| Skipping review phase | No Orient after planning Act | Always run comment review + QR before execution |
 | No re-observation | Plan becomes stale during execution | Reconciliation step forces re-observation |
 | One-pass execution | No iteration on quality | Post-implementation QR loops back through issues |

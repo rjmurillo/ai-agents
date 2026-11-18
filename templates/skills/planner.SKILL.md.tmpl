@@ -1,6 +1,6 @@
 ---
 name: planner
-description: Script-guided plan-and-execute workflow run one numbered step at a time. planner.py drafts a plan through forced reflection pauses, then runs a technical-writer and quality-reviewer review of the plan file; executor.py delegates each milestone of an approved plan file to specialized agents and, on resume, reconciles the file against completed work. Use when you say "run the planner workflow", "review the plan file at plans/X.md", "execute the plan at plans/X.md", "pick up where the plan left off", or "resume execution". Do NOT use to decompose a spec into milestones and tasks in the lifecycle chain (use plan), or to log progress on a plan artifact (use execution-plans).
+description: Script-guided plan-and-execute workflow run one numbered step at a time. planner.py drafts a plan through forced reflection pauses, then runs a comment-analyzer and quality-reviewer review of the plan file; executor.py delegates each milestone of an approved plan file to specialized agents and, on resume, reconciles the file against completed work. Use when you say "run the planner workflow", "review the plan file at plans/X.md", "execute the plan at plans/X.md", "pick up where the plan left off", or "resume execution". Do NOT use to decompose a spec into milestones and tasks in the lifecycle chain (use plan), or to log progress on a plan artifact (use execution-plans).
 license: MIT
 metadata:
   routing:
@@ -20,7 +20,7 @@ step; the caller passes the step number and its thoughts on every call, and
 nothing is saved between calls:
 
 1. **Planning workflow** (planner.py): Draft a plan through forced reflection
-   pauses, then run the technical-writer and quality-reviewer review of the
+   pauses, then run the comment-analyzer and quality-reviewer review of the
    plan file
 2. **Execution workflow** (executor.py): Execute an approved plan file through
    delegation. On resume, step 1 reconciles the plan file against work already
@@ -103,7 +103,7 @@ Skip the planner skill when the task is:
 After planning:
 
 - [ ] Plan file written to specified path
-- [ ] Review phase completed (both TW and QR steps)
+- [ ] Review phase completed (both comment review and QR steps)
 - [ ] Review verdict is PASS or PASS_WITH_CONCERNS
 
 After execution:
@@ -127,7 +127,7 @@ Write plan to file
     |
     v
 REVIEW PHASE (steps 1-2)
-    |-- Step 1: @agent-technical-writer (plan-annotation)
+    |-- Step 1: @agent-comment-analyzer (comment review)
     |-- Step 2: @agent-quality-reviewer (plan-review)
     v
 APPROVED --> Execution workflow
@@ -182,8 +182,8 @@ marker:
 
 The review phase ensures:
 
-- Temporally contaminated comments are fixed (via @agent-technical-writer)
-- Code snippets have WHY comments (via @agent-technical-writer)
+- Temporally contaminated comments are fixed (found by @agent-comment-analyzer)
+- Code snippets have WHY comments (gaps found by @agent-comment-analyzer)
 - Plan is validated for production risks (via @agent-quality-reviewer)
 - Documentation needs are identified
 
@@ -199,9 +199,12 @@ python3 scripts/planner.py \
   --thoughts "Plan written to [path/to/plan.md]"
 ```
 
-### Review Step 1: Technical Writer
+### Review Step 1: Comment Review
 
-Delegate to @agent-technical-writer with mode: `plan-annotation`
+Delegate to @agent-comment-analyzer. It is read-only and returns findings.
+Apply the findings to the plan file yourself: fix or remove contaminated
+comments, add WHY comments from the Decision Log, enrich plan prose, and add a
+documentation milestone if missing.
 
 ### Review Step 2: Quality Reviewer
 
@@ -276,7 +279,7 @@ python3 scripts/executor.py \
 | 3    | Milestone Execution    | Delegate to agents, run tests (repeat)        |
 | 4    | Post-Implementation QR | Quality review of implemented code            |
 | 5    | Issue Resolution       | (conditional) Present issues, collect fixes   |
-| 6    | Documentation          | TW pass for CLAUDE.md, README.md              |
+| 6    | Documentation          | Docs pass for CLAUDE.md, README.md            |
 | 7    | Retrospective          | Present execution summary                     |
 
 Note: Step 3 may be re-invoked multiple times until all milestones complete.
@@ -329,7 +332,7 @@ python3 scripts/planner.py --phase review --step-number 1 --total-steps 2 \
 
 # Continue review
 python3 scripts/planner.py --phase review --step-number 2 --total-steps 2 \
-  --thoughts "TW done, ready for QR"
+  --thoughts "Comment review done, ready for QR"
 
 # === EXECUTION WORKFLOW ===
 

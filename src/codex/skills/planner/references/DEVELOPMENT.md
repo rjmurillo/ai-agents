@@ -11,7 +11,7 @@ Planning skill with resources that must stay synced with agent prompts.
 | `SKILL.md`                            | Planning workflow, phases                      | Using the planner skill                      |
 | `scripts/planner.py`                  | Step-by-step planning orchestration            | Debugging planner behavior                   |
 | `resources/plan-format.md`            | Plan template (injected by script)             | Editing plan structure                       |
-| `resources/temporal-contamination.md` | Detection heuristic for contaminated comments  | Updating TW/QR temporal contamination logic  |
+| `resources/temporal-contamination.md` | Detection heuristic for contaminated comments  | Updating comment review/QR temporal contamination logic  |
 | `resources/diff-format.md`            | Unified diff spec for code changes             | Updating Developer diff consumption logic    |
 | `resources/default-conventions.md`    | Default structural conventions (4-tier system) | Updating QR RULE 2 or planner decision audit |
 
@@ -35,10 +35,9 @@ Authoritative source for temporal contamination detection. Full content embedded
 
 | Synced To                    | Embedded Section           |
 | ---------------------------- | -------------------------- |
-| `agents/technical-writer.md` | `<temporal_contamination>` |
 | `agents/quality-reviewer.md` | `<temporal_contamination>` |
 
-**When updating**: Modify `resources/temporal-contamination.md` first, then copy content into both `<temporal_contamination>` sections.
+**When updating**: Modify `resources/temporal-contamination.md` first, then copy content into the `<temporal_contamination>` section.
 
 ### diff-format.md
 
