@@ -465,6 +465,78 @@ def cq_admission_payload() -> dict:
     return payload
 
 
+def cq_typescript_admission_payload() -> dict:
+    config = json.loads(
+        (Path(__file__).resolve().parents[1] / ".qualityrc.json").read_text(encoding="utf-8")
+    )
+    payload = cq_admission_payload()
+    comparison = payload["comparisons"][0]
+    comparison["csharp_parser_dependency_admission"] = None
+    comparison["typescript_parser_dependency_admission"] = config[
+        "typescriptParserDependencyAdmission"
+    ]
+    comparison["deltas"][0].update(base=8.0, head=7.0, delta=-1.0)
+    return payload
+
+
+def _cq_verdict(payload: dict, exit_code: int = 0) -> str:
+    return adapt_local_axis_verdict("code-qualities-assessment", json.dumps(payload), exit_code)
+
+
+class TestTypeScriptParserAdmissionVerdict:
+    @pytest.mark.parametrize(("exit_code", "verdict"), [(0, "WARN"), (10, "FAIL"), (11, "FAIL")])
+    def test_typescript_admission_never_becomes_a_raw_pass(self, exit_code, verdict):
+        assert _cq_verdict(cq_typescript_admission_payload(), exit_code) == verdict
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("issue", 7406),
+            ("imports", ["tree_sitter", "tree_sitter_c_sharp"]),
+            ("baseScore", 10.0),
+            ("headScore", 8.0),
+            ("authorizedOn", "2026-11-16"),
+            ("authorization", "Maintainer instruction: waiver, full send."),
+        ],
+    )
+    def test_typescript_admission_rejects_wrong_authority_or_scope(self, field, value):
+        payload = cq_typescript_admission_payload()
+        payload["comparisons"][0]["typescript_parser_dependency_admission"][field] = value
+
+        assert _cq_verdict(payload) == "UNKNOWN"
+
+    @pytest.mark.parametrize(
+        ("base", "head", "delta"), [(10.0, 8.0, -2.0), (10.0, 7.0, -3.0), (8.0, 6.0, -2.0)]
+    )
+    def test_typescript_record_admits_only_its_own_transition(self, base, head, delta):
+        payload = cq_typescript_admission_payload()
+        payload["comparisons"][0]["deltas"][0].update(base=base, head=head, delta=delta)
+
+        assert _cq_verdict(payload) == "UNKNOWN"
+
+    def test_csharp_record_does_not_admit_the_typescript_transition(self):
+        payload = cq_admission_payload()
+        payload["comparisons"][0]["deltas"][0].update(base=8.0, head=7.0, delta=-1.0)
+
+        assert _cq_verdict(payload) == "UNKNOWN"
+
+    def test_two_admission_records_on_one_comparison_are_unknown(self):
+        payload = cq_typescript_admission_payload()
+        csharp = cq_admission_payload()["comparisons"][0]["csharp_parser_dependency_admission"]
+        payload["comparisons"][0]["csharp_parser_dependency_admission"] = csharp
+
+        assert _cq_verdict(payload) == "UNKNOWN"
+
+    def test_a_record_under_the_other_field_is_unknown(self):
+        payload = cq_typescript_admission_payload()
+        comparison = payload["comparisons"][0]
+        comparison["csharp_parser_dependency_admission"] = comparison.pop(
+            "typescript_parser_dependency_admission"
+        )
+
+        assert _cq_verdict(payload) == "UNKNOWN"
+
+
 class TestAdaptLocalAxisVerdict:
     @pytest.mark.parametrize(("exit_code", "verdict"), [(0, "WARN"), (10, "FAIL"), (11, "FAIL")])
     def test_parser_admission_never_becomes_a_raw_pass(self, exit_code, verdict):

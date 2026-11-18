@@ -251,6 +251,68 @@ def _is_unscorable_by_design(entry: dict[str, object]) -> bool:
     return not _is_scored(entry) and entry.get("scoring_failed") is False
 
 
+_PARSER_SCANNER = "src/claude/skills/code-qualities-assessment/scripts/assess.py"
+
+# The only coupling transitions the review adapter may report as WARN
+# (ADR-122). Each JSON field must carry exactly its fixed record.
+_PARSER_DEPENDENCY_ADMISSIONS: dict[str, dict[str, object]] = {
+    "csharp_parser_dependency_admission": {
+        "issue": 7406,
+        "file": _PARSER_SCANNER,
+        "imports": ["tree_sitter", "tree_sitter_c_sharp"],
+        "baseScore": 10.0,
+        "headScore": 8.0,
+        "authorizedBy": "rjmurillo",
+        "authorizedOn": "2026-11-16",
+        "authorization": "Maintainer instruction: waiver, full send.",
+    },
+    "typescript_parser_dependency_admission": {
+        "issue": 7435,
+        "file": _PARSER_SCANNER,
+        "imports": ["tree_sitter", "tree_sitter_c_sharp", "tree_sitter_typescript"],
+        "baseScore": 8.0,
+        "headScore": 7.0,
+        "authorizedBy": "rjmurillo",
+        "authorizedOn": "2026-11-18",
+        "authorization": (
+            "Maintainer instruction: LGTM. Ship. agent- environment is optional. "
+            "Package add approved"
+        ),
+    },
+}
+
+
+def _is_admitted_parser_transition(comparison: dict[str, object], field: str) -> bool:
+    """Return True only for the exact scanner transition the *field* record admits."""
+    record = _PARSER_DEPENDENCY_ADMISSIONS[field]
+    if comparison.get(field) != record:
+        return False
+    base, head = record["baseScore"], record["headScore"]
+    assert isinstance(base, float) and isinstance(head, float)
+    match comparison:
+        case {
+            "file_path": str() as file_path,
+            "regressions": ["coupling"],
+            "evidence_loss": [],
+            "is_new_file": False,
+            "change_status": "M",
+            "deltas": list() as deltas,
+        }:
+            return (
+                file_path.replace("\\", "/") == _PARSER_SCANNER
+                and comparison.get("absolute_gate_reason") is None
+                and {
+                    "quality": "coupling",
+                    "base": base,
+                    "head": head,
+                    "delta": round(head - base, 4),
+                    "status": "compared",
+                }
+                in deltas
+            )
+    return False
+
+
 def _has_assessed_files(files: list[object], summary: dict[str, object]) -> bool:
     """Return True when the assessment actually evaluated at least one file.
 
@@ -389,44 +451,18 @@ def adapt_local_axis_verdict(
         for comparison in comparisons:
             if not isinstance(comparison, dict):
                 return "UNKNOWN"
-            if comparison.get("csharp_parser_dependency_admission") is None:
+            admitted = [
+                field
+                for field in _PARSER_DEPENDENCY_ADMISSIONS
+                if comparison.get(field) is not None
+            ]
+            if not admitted:
                 if comparison.get("regressions") or comparison.get("evidence_loss"):
                     return "FAIL"
                 continue
-            match comparison:
-                case {
-                    "file_path": str() as file_path,
-                    "regressions": ["coupling"],
-                    "evidence_loss": [],
-                    "is_new_file": False,
-                    "change_status": "M",
-                    "deltas": list() as deltas,
-                    "csharp_parser_dependency_admission": {
-                        "issue": 7406,
-                        "file": str() as source,
-                        "imports": ["tree_sitter", "tree_sitter_c_sharp"],
-                        "baseScore": 10.0,
-                        "headScore": 8.0,
-                        "authorizedBy": "rjmurillo",
-                        "authorizedOn": "2026-11-16",
-                        "authorization": "Maintainer instruction: waiver, full send.",
-                    },
-                } if (
-                    file_path.replace("\\", "/") == source
-                    and source == "src/claude/skills/code-qualities-assessment/scripts/assess.py"
-                    and comparison.get("absolute_gate_reason") is None
-                    and {
-                        "quality": "coupling",
-                        "base": 10.0,
-                        "head": 8.0,
-                        "delta": -2.0,
-                        "status": "compared",
-                    }
-                    in deltas
-                ):
-                    verdicts.append("WARN")
-                case _:
-                    return "UNKNOWN"
+            if len(admitted) != 1 or not _is_admitted_parser_transition(comparison, admitted[0]):
+                return "UNKNOWN"
+            verdicts.append("WARN")
         return merge_verdicts(verdicts)
 
     if axis == "doc-accuracy":

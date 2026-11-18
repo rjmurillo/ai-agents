@@ -14,8 +14,10 @@ artifacts:
     # 395 adds room for technical-writing's 29 files in the delivery pack
     # (ADR-115 Decision 6).
     # 396 adds room for code-qualities-assessment's references/csharp-parser.md
-    # (issue #7406), leaving 4 under the cap.
-    packMaxFiles: 396
+    # (issue #7406).
+    # 397 adds room for references/typescript-parser.md (issue #7435),
+    # leaving 3 under the cap.
+    packMaxFiles: 397
     # hermes-agent commit whose plugin_guard and install limits this table was
     # measured against. The guard test and the smoke test install this commit.
     hermesCommit: "63d0b94120027d487c9a5235b9ec64b696af1b26"

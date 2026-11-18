@@ -127,6 +127,25 @@ The panel reached consensus on the amendment.
 The ruling itself was the maintainer's decision, not a panel vote.
 These votes are not GitHub approvals or merge permission.
 
+## Round 5 Summary (TypeScript admission, 2026-11-18)
+
+### Trigger
+
+Issue #7435 adds the TypeScript parser under item 7.
+The scanner's own coupling moves from 8.0 to 7.0, which the C# record does not admit.
+The maintainer approved the package add and its own admission on 2026-11-18.
+The amendment changes executable enforcement in the scanner and review adapter.
+
+### Changes Made
+
+- Status records the amendment.
+- Decision item 8 adds the fixed TypeScript record and its exact transition.
+- Item 8 states that each record admits only its own transition.
+
+### Agent Positions
+
+PANEL_POSITIONS_PENDING
+
 ## Decision Boundaries
 
 The admission preserves raw scores, counts, regressions, and the original diagnostic.

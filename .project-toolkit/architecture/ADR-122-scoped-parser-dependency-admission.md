@@ -18,6 +18,7 @@ Accepted. The panel reached consensus after the scope-evidence correction.
 The debate appears in `.project-toolkit/critique/ADR-122-debate-log.md`.
 Publication still requires ordinary review, hooks, and protected CI.
 On 2026-11-18, an amendment recorded the parser dependencies as permanent design.
+A later 2026-11-18 amendment added item 8, the TypeScript admission for issue #7435.
 
 ## Context
 
@@ -53,6 +54,15 @@ They are not a temporary waiver, and no time bound applies.
    Each language is follow-on work in its own change.
    This record admits only the C# transition; it does not pre-admit later ones.
    A later parser import can trip the coupling gate; it needs its own admission decision.
+8. Admit the TypeScript parser transition from issue #7435 as its own record.
+   Add one fixed `typescriptParserDependencyAdmission` record beside the C# record.
+   It requires base 8.0, head 7.0, and a comparable delta of -1.0.
+   Python's AST must identify exactly `tree_sitter`, `tree_sitter_c_sharp`, and `tree_sitter_typescript`.
+   The maintainer authorized it on 2026-11-18: "LGTM. Ship. agent- environment is optional. Package add approved".
+   Items 2 through 5 apply to it unchanged, with its own scores and imports.
+   Each record admits only its own transition; neither admits the other's.
+   The review adapter keeps its own copy of both records and fails closed on any other.
+   `tree-sitter-typescript` joins item 6 as a permanent scanner dependency.
 
 ## Prior Art Investigation
 
