@@ -8,7 +8,14 @@ them writes.
 from __future__ import annotations
 
 import stat
+import sys
 from pathlib import Path
+
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+
+from binplace_manifest import is_bytecode_artifact  # noqa: E402
 
 SKILL_MD = Path("SKILL.md")
 
@@ -64,3 +71,26 @@ def tree_sources(source: Path, plugin_skill_md: Path | None) -> list[Path]:
     if plugin_skill_md is not None and plugin_skill_md.is_file() and not absent_skill_md.exists():
         paths.append(absent_skill_md)
     return paths
+
+
+def mirror_owned_rels(
+    source: Path, skip_filenames: frozenset[Path] = frozenset()
+) -> frozenset[Path]:
+    """Return every skill-relative path the mirror of ``source`` may hold.
+
+    The set comes from the same enumeration the copy loop walks
+    (:func:`tree_sources`, minus directories and bytecode), so the copy and the
+    orphan check cannot disagree about what counts as owned. Two kinds of path
+    have no ``source`` file yet belong in the mirror: ``SKILL.md`` (a new
+    templated skill has none until binplace writes it; the mirror renders it
+    from the plugin tree) and ``skip_filenames`` (files another generator
+    renders into the mirror, such as ``lib_mirror.lib_owned_support_files``).
+    """
+    owned = {SKILL_MD, *skip_filenames}
+    for path in tree_sources(source, None):
+        if path.is_dir():
+            continue
+        rel = path.relative_to(source)
+        if not is_bytecode_artifact(rel):
+            owned.add(rel)
+    return frozenset(owned)

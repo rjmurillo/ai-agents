@@ -11,6 +11,10 @@ every public and private name it still needs from here and re-exports them,
 so every existing caller and test that reaches them through
 ``generate_skills.<name>`` keeps working unchanged.
 
+:func:`prune_mirror_orphans` is the other half of the copy: it removes a mirror
+file whose source counterpart is gone, so a deleted or renamed support file
+does not keep shipping.
+
 A shipped skill's support files are hand-maintained in
 ``src/claude/skills/<name>/``, and ``.claude/skills/<name>`` is a symlink to
 that directory, so no Claude-side copy exists to sync. ``SKILL.md`` is
@@ -20,6 +24,7 @@ writes it.
 
 from __future__ import annotations
 
+import os
 import stat
 import sys
 from pathlib import Path
@@ -29,8 +34,10 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 from atomic_write import (  # noqa: E402
+    find_repo_root,
     publish_bytes_atomically,
     publish_bytes_preserving_mode,
+    reject_symlinked_ancestors,
 )
 from binplace_manifest import is_bytecode_artifact  # noqa: E402
 from copilot_support_translation import (  # noqa: E402
@@ -38,7 +45,12 @@ from copilot_support_translation import (  # noqa: E402
     translated_text,
 )
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
-from skill_copy_compare import copy_matches, text_matches, tree_sources  # noqa: E402
+from skill_copy_compare import (  # noqa: E402
+    copy_matches,
+    mirror_owned_rels,
+    text_matches,
+    tree_sources,
+)
 from skill_distribution import SkillDistributionError, repo_local_names  # noqa: E402
 from skill_md_rewrite import GenerateSkillsError, rewrite_skill_md  # noqa: E402
 
@@ -237,7 +249,11 @@ def _copy_skill_tree(
 
 
 def _prune_empty_dirs(root: Path) -> None:
-    """Remove now-empty directories left behind by :func:`_prune_stale_support_files`."""
+    """Remove every empty directory under ``root`` (used for vendor-copy removal).
+
+    Orphan pruning uses :func:`_remove_orphan`, which removes only the
+    directories its own deletion emptied.
+    """
     if not root.is_dir():
         return
     for directory in sorted((p for p in root.rglob("*") if p.is_dir()), reverse=True):
@@ -260,7 +276,7 @@ def prune_repo_local_vendor_copies(
     callers' ``tree_root``) with the flag. It touches only ``tree_root/<name>``
     for the given names, so a shipped skill is never affected. A symlinked
     skill directory, or a symlink anywhere inside it, is refused as an error
-    (CWE-22/59) and left in place, like :func:`_iter_support_relpaths`.
+    (CWE-22/59) and left in place, like :func:`_vendor_copy_files`.
 
     ``check`` and ``what_if`` delete nothing: each file that would go is
     reported and counted. Returns ``(files removed or reported, errors)``.
@@ -348,3 +364,111 @@ def prune_stale_claude_skill_support(
         what_if=what_if,
     )
     return (0, removed, 0, errors + prune_errors)
+
+
+_SIDECAR_SUFFIX = ".noregen"
+
+
+def _is_kept_sidecar(path: Path) -> bool:
+    """Return whether ``path`` is the ``.noregen`` sidecar of a file that exists."""
+    if not path.name.endswith(_SIDECAR_SUFFIX):
+        return False
+    return path.with_name(path.name[: -len(_SIDECAR_SUFFIX)]).exists()
+
+
+def _find_mirror_orphans(target: Path, owned: frozenset[Path]) -> list[Path]:
+    """Return the files under ``target`` that the source does not own.
+
+    Walks without following links and finishes before the caller deletes
+    anything. A symlink at a path the source does not own is an error, not an
+    orphan: it may point outside the mirror (CWE-22/59), so nothing is removed
+    until a human looks. A symlink at an owned path is left for the copy, which
+    replaces it. Bytecode, a ``NO-REGEN`` file, and a ``.noregen`` sidecar of an
+    existing file are never orphans.
+    """
+    if target.is_symlink():
+        raise SkillSupportSyncError(f"{target}: symlinked mirror skill directory refused")
+    root = find_repo_root(target)
+    if root is not None:
+        problem = reject_symlinked_ancestors(root, "mirror skill directory", target / "x")
+        if problem is not None:
+            raise SkillSupportSyncError(problem)
+    owned_dirs = {parent for rel in owned for parent in rel.parents}
+    orphans: list[Path] = []
+    links: list[str] = []
+    for dirpath, dirnames, filenames in os.walk(target, followlinks=False):
+        for name in sorted([*dirnames, *filenames]):
+            path = Path(dirpath) / name
+            rel = path.relative_to(target)
+            if path.is_symlink():
+                if rel not in owned and rel not in owned_dirs:
+                    links.append(f"{path}: symlink with no source counterpart refused")
+                continue
+            if name in dirnames or rel in owned or is_bytecode_artifact(rel):
+                continue
+            if regen_detect_reason(path) is not None or _is_kept_sidecar(path):
+                print(f"  NOTICE: kept {path} (NO-REGEN, no source counterpart)")
+                continue
+            orphans.append(path)
+    if links:
+        raise SkillSupportSyncError("; ".join(links))
+    return orphans
+
+
+def _remove_orphan(path: Path, target: Path) -> None:
+    """Delete one orphan file, then each parent directory it emptied below ``target``."""
+    if path.is_symlink():
+        raise SkillSupportSyncError(f"{path}: became a symlink before removal, refused")
+    try:
+        path.unlink()
+    except OSError as exc:
+        raise SkillSupportSyncError(f"{path}: could not remove orphan mirror file: {exc}") from exc
+    for parent in path.parents:
+        if parent == target:
+            return
+        try:
+            parent.rmdir()
+        except OSError:
+            return
+
+
+def prune_mirror_orphans(
+    source: Path,
+    target: Path,
+    *,
+    skip_filenames: frozenset[Path] = frozenset(),
+    what_if: bool = False,
+    check: bool = False,
+) -> int:
+    """Remove files in the mirror skill directory ``target`` that ``source`` lacks.
+
+    :func:`_copy_skill_tree` only walks source files forward, so a support file
+    deleted or renamed in ``src/claude/skills/<name>/`` left its old copy in
+    every mirror tree, and the staleness gate passed.
+
+    Ownership: a mirror file is owned when :func:`skill_copy_compare.mirror_owned_rels`
+    lists it, that is every non-bytecode source file, ``SKILL.md``, and
+    ``skip_filenames``. Everything else under ``target`` is an orphan. Only
+    ``target`` is ever touched, and only its regular files: a symlink, a
+    symlinked ``target`` or ancestor, or a file that is protected by NO-REGEN
+    is never deleted. Directories this call empties are removed; others stay.
+
+    ``check`` and ``what_if`` delete nothing and report each orphan (``check``
+    as DRIFT, which wins when both are set). Returns the orphan count, removed
+    or reported. Raises :class:`SkillSupportSyncError` for anything unsafe,
+    before any file is deleted.
+    """
+    if not (target.is_dir() or target.is_symlink()):
+        return 0
+    orphans = _find_mirror_orphans(target, mirror_owned_rels(source, skip_filenames))
+    for path in orphans:
+        if check:
+            print(f"  DRIFT: {path} has no counterpart in {source}")
+        elif what_if:
+            print(f"  Would remove: {path} (no counterpart in {source})")
+    if check or what_if:
+        return len(orphans)
+    for path in orphans:
+        print(f"  Removed orphan: {path}")
+        _remove_orphan(path, target)
+    return len(orphans)
