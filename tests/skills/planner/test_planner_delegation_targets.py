@@ -35,6 +35,7 @@ PLANNER_DOCS_PAGE = REPO_ROOT / "docs" / "skills" / "planner.md"
 COMMENT_ANALYZER = AGENT_TEMPLATES / "comment-analyzer.shared.md"
 SRC_PLANNER = REPO_ROOT / "src" / "claude" / "skills" / "planner"
 SCRIPTS = SRC_PLANNER / "scripts"
+PLAN_FORMAT = SRC_PLANNER / "resources" / "plan-format.md"
 
 # Names planner still delegates to that no template or skill defines. Out of
 # scope for #7421; each needs its own mapping decision.
@@ -49,6 +50,12 @@ REMOVED_WRITER_RE = re.compile(
 SKILL_RUNNER_PHRASE = (
     "the coordinator, or a general-purpose subagent it starts, loads the skill and follows it"
 )
+# A new README that must hold project content is scaffolded, then filled. Every
+# site that states the docs split uses this wording (backticks stripped).
+POPULATED_README_RE = re.compile(
+    r"codebase-documenter scaffold, then (?:the )?technical-writing skill fills it"
+)
+
 AGENT_REF_RE = re.compile(r"@agent-([a-z][a-z0-9]*(?:-[a-z0-9]+)*)")
 SKILL_TAG_RE = re.compile(r"<skill>([a-z][a-z0-9-]*)</skill>")
 SKILL_PROSE_RE = re.compile(r"\b([a-z][a-z0-9]*(?:-[a-z0-9]+)+) skill\b")
@@ -283,6 +290,51 @@ def test_docs_page_states_the_current_delegation_targets() -> None:
 def test_executor_mode_line_lists_only_quality_reviewer_modes() -> None:
     text = _executor_outputs()["execution step 1"]
     assert "<mode>[For QR: plan-review|post-implementation|reconciliation]</mode>" in text
+
+
+def _plain(text: str) -> str:
+    return squash(text.replace("`", ""))
+
+
+@pytest.mark.parametrize(
+    "label",
+    ["execution step 1", "execution step 6", "plan-format.md", "docs page"],
+)
+def test_populated_new_readme_is_scaffolded_then_filled_by_technical_writing(label: str) -> None:
+    sources = {
+        "execution step 1": _executor_outputs()["execution step 1"],
+        "execution step 6": _executor_outputs()["execution step 6"],
+        "plan-format.md": PLAN_FORMAT.read_text(encoding="utf-8"),
+        "docs page": PLANNER_DOCS_PAGE.read_text(encoding="utf-8"),
+    }
+    assert POPULATED_README_RE.search(_plain(sources[label])), label
+
+
+def test_step_1_says_the_scaffold_alone_stops_at_placeholders() -> None:
+    text = squash(_executor_outputs()["execution step 1"])
+    assert "It stops at placeholders" in text
+    assert "only when the scaffold is the deliverable" in text
+
+
+def test_step_6_skip_does_not_apply_to_claude_md_skill_md_or_agent_prompts() -> None:
+    text = squash(_executor_outputs()["execution step 6"])
+    assert "none touched CLAUDE.md, SKILL.md, or agent prompts" in text
+    assert "Do not skip when any milestone touched CLAUDE.md, SKILL.md, or agent prompts" in text
+    assert "@agent-implementer edits SKILL.md and agent prompts" in text
+
+
+def test_mixed_milestones_send_skill_md_and_agent_prompts_to_implementer() -> None:
+    text = squash(_executor_outputs()["execution step 1"])
+    assert (
+        "SKILL.md files and agent prompts in a mixed milestone go to @agent-implementer, "
+        "not a docs skill"
+    ) in text
+    assert "then the matching docs skill (docs pages) after code completes" in text
+
+
+def test_delegation_form_lists_implementer_as_an_agent() -> None:
+    text = _executor_outputs()["execution step 1"]
+    assert "<agent>@agent-[developer|debugger|quality-reviewer|implementer]</agent>" in text
 
 
 def test_temporal_contamination_doc_names_only_the_real_consumers() -> None:
