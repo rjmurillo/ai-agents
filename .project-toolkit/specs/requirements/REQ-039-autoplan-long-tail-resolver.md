@@ -84,8 +84,10 @@ skill. "No row matches" and "needs several agents" take the same route.
 - **High-traffic table**: the routing table in the `autoplan` skill body.
 - **Long-tail resolver**: `scripts/resolve_route.py` in the `autoplan` skill.
 - **Intent**: a short phrase in `metadata.routing.intents`. It matches when
-  its words appear in the request in the same order, within a span of at
-  most the intent's word count plus two request words.
+  its tokens appear in the request tokens in the same order, within a span
+  of at most the intent's token count plus two request tokens. Tokens are
+  the words left after stop-word removal, so stop words count in neither
+  the intent nor the span.
 - **Eligible skill**: a `front-door` skill with intents, other than the router.
 - **Qualified name**: `<namespace>:<skill>`, for example
   `project-toolkit:autoplan`.
