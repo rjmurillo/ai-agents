@@ -62,9 +62,9 @@ The debate runs in five phases: Phase 0 searches related issues and pull request
 
 ### Review guidance from Zimmermann
 
-Phases 1 and 2 use Olaf Zimmermann's article [How to review Architectural Decision Records (ADRs), and how not to](https://www.ozimmer.ch/practices/2023/04/05/ADRReview.html) (2023). The same guidance helps when you review an ADR yourself or read a debate log. The skill's [reference file](../../src/claude/skills/adr-review/references/zimmermann-review-guidance.md) holds the full adaptation.
+Phases 1 and 2 use Olaf Zimmermann's article ["How to review Architectural Decision Records (ADRs)"](https://www.ozimmer.ch/practices/2023/04/05/ADRReview.html), subtitled "and how not to" (2023, updated 2026). The same guidance helps when you review an ADR yourself or read a debate log. The skill's [reference file](../../src/claude/skills/adr-review/references/zimmermann-review-guidance.md) holds the full adaptation.
 
-**Pick the review perspective first.** The article names at least three reviewer roles. Rigor rises with each one, and a mismatch between the review you asked for and the one you got causes friction.
+**Pick the review perspective first.** The article names at least three reviewer roles. Rigor rises with each one, and a mismatch between the review you asked for and the one you got can cause surprises and tension.
 
 | Perspective | Ask for it when |
 | --- | --- |
@@ -72,7 +72,7 @@ Phases 1 and 2 use Olaf Zimmermann's article [How to review Architectural Decisi
 | Official stakeholder | You want to confirm the decision will work and can win agreement. |
 | Formal design authority | You can defend an agreed decision and need formal approval. |
 
-The reference file maps this skill's debate to the stakeholder perspective by default. It has `high-level-advisor` act as the design authority when a conflict needs a ruling.
+The reference file maps this skill's debate to the stakeholder perspective by default, with `high-level-advisor` as the design authority when needed. In Phase 2, conflicts between agents go to `high-level-advisor` for a ruling.
 
 **Phase 1: the seven questions.** Every agent must answer each one:
 
@@ -95,17 +95,17 @@ The article adds two checks. Look for subjective words, ambiguity, and loopholes
 | Siding or Dead End | Drifts off the decision, then stops with no advice. |
 | Self Promotion | Pushes the reviewer's own work or favored option without objective reasons. |
 | Power Game | Rank or past experience in place of technical argument. |
-| Offended Reaction | Defends a position the ADR rejected, subjectively. Variant: "Hate To Say I Told You So." |
+| Offended Reaction | Subjectively defends a position the ADR's rationale criticizes. Variant: "Hate To Say I Told You So." |
 | Groundhog Day | Repeats the same point across rounds. |
 
 **How to write findings.** The article gives 14 practices in four themes. The reference file lists them as guidance; no debate phase checks them.
 
 - Scope: review only what is ready and asked for. Rank findings by importance. The article suggests H/M/L or 1/2/3; this skill uses P0, P1, and P2. Record what you reviewed and its version.
 - Content: tie each finding to a quality such as consistency or completeness. Judge the decision by the context it was made in. Be concrete: "evaluate the performance of O1 in more depth" beats "O1 needs work."
-- Style: ask questions and suggest options, not commands. Report what you saw, not guesses about root causes. Say what works as well as what does not. Stay polite.
+- Style: ask questions and suggest options, not commands. Report what you saw, not guesses about root causes. Be as factual and thorough as the ADR itself. Say what works as well as what does not. Stay polite.
 - Actionability: pair each finding with a recommendation. Mark comments FYI or action required. Offer an example for missing content. Reread your comments: could you fix the ADR from them alone?
 
-The article also notes that longer documents tend to draw fewer comments, so send one ADR at a time, not a whole log. It closes with a reviewer pledge, whose last line is "Review like you want to be reviewed." A 2026 update to the article points to its follow-up, [Ten Common Mistakes in Architectural Decision Records](https://ozimmer.ch/practices/2026/09/12/ADRMistakes.html).
+A footnote reports that longer review subjects tend to draw fewer comments. Choose how much of the ADR log to share, and split a large log. The article also proposes a reviewer pledge, whose last line is "Review like you want to be reviewed." Its 2026 update offers a reusable ADR review prompt template that addresses [Ten Common Mistakes in Architectural Decision Records (ADRs)](https://www.ozimmer.ch/practices/2026/09/12/ADRMistakes.html).
 
 ### Deleting an ADR
 
@@ -151,5 +151,5 @@ When the skill was auto-triggered by a file change, `HasChanges` is `true`. On a
 - [`buy-vs-build-framework`](buy-vs-build-framework.md): sends its final decision here for multi-agent consensus.
 - Source: [`SKILL.md`](../../src/claude/skills/adr-review/SKILL.md)
 - References: [`debate-protocol.md`](../../src/claude/skills/adr-review/references/debate-protocol.md), [`zimmermann-review-guidance.md`](../../src/claude/skills/adr-review/references/zimmermann-review-guidance.md)
-- Source article: Olaf Zimmermann, [How to review Architectural Decision Records (ADRs), and how not to](https://www.ozimmer.ch/practices/2023/04/05/ADRReview.html), and its companion on [creating ADRs](https://ozimmer.ch/practices/2023/04/03/ADRCreation.html)
+- Source article: Olaf Zimmermann, ["How to review Architectural Decision Records (ADRs)"](https://www.ozimmer.ch/practices/2023/04/05/ADRReview.html), subtitled "and how not to", and its companion on [creating ADRs](https://www.ozimmer.ch/practices/2023/04/03/ADRCreation.html)
 - How to call skills on each host: [Call agents and skills](../call-agents-and-skills.md)
