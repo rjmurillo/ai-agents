@@ -1420,6 +1420,91 @@ class PythonParserError(ParserDependencyError):
     """Python dependencies cannot be measured reliably."""
 
 
+@dataclass(frozen=True)
+class _Grammar:
+    """One pinned Tree-sitter grammar and how its failures are reported."""
+
+    language: str
+    error: type[ParserDependencyError]
+    package: str
+    reference: str
+    unparsable: str
+    query: str
+
+
+_CSHARP_GRAMMAR = _Grammar(
+    language="C#",
+    error=CSharpParserError,
+    package="tree-sitter-c-sharp==0.23.5",
+    reference="references/csharp-parser.md",
+    unparsable=(
+        "The file has a syntax error, or it is valid C# that the grammar "
+        "does not support (for example a signature split across #if/#else, "
+        "or C# 14 extension blocks)"
+    ),
+    query="(using_directive) @dependency",
+)
+
+_PYTHON_GRAMMAR = _Grammar(
+    language="Python",
+    error=PythonParserError,
+    package="tree-sitter-python==0.25.0",
+    reference="references/python-parser.md",
+    unparsable=(
+        "The file has a syntax error, or it uses syntax the grammar "
+        "does not support (for example Python 3.15 lazy imports)"
+    ),
+    query=_PY_DEPENDENCY_QUERY,
+)
+
+
+def _load_csharp_grammar() -> Any:
+    import tree_sitter_c_sharp
+
+    return tree_sitter_c_sharp
+
+
+def _load_python_grammar() -> Any:
+    import tree_sitter_python
+
+    return tree_sitter_python
+
+
+def _dependency_nodes(grammar: _Grammar, load: Callable[[], Any], source: str) -> list[Any]:
+    """Return the dependency nodes in *source*, or raise the grammar's error.
+
+    Each grammar package is imported by its own loader, and ``tree_sitter``
+    once here, so the scanner's own coupling counts each package once.
+    """
+    pins = f"tree-sitter==0.26.1 and {grammar.package}"
+    try:
+        module = load()
+        from tree_sitter import Language, Parser, Query, QueryCursor
+
+        language = Language(module.language())
+        tree = Parser(language).parse(source.encode("utf-8"))
+        has_error = tree.root_node.has_error
+        nodes = QueryCursor(Query(language, grammar.query)).captures(tree.root_node)
+    except ImportError as exc:
+        raise grammar.error(
+            f"{grammar.language} parser packages are missing: {exc}. Install {pins} "
+            "into a virtual environment that runs the scanner, not the system Python "
+            f"(see {grammar.reference})"
+        ) from exc
+    except Exception as exc:
+        raise grammar.error(
+            f"{grammar.language} parser failed to start or run: "
+            f"{type(exc).__name__}: {exc}. Check the pinned versions ({pins})"
+        ) from exc
+    if has_error:
+        raise grammar.error(
+            f"Cannot count {grammar.language} dependencies: the pinned "
+            f"{grammar.language} grammar ({grammar.package}) could not parse this "
+            f"file. {grammar.unparsable}"
+        )
+    return nodes.get("dependency", [])
+
+
 def _count_python_imports(source: str) -> tuple[int, int]:
     """Count Python dependency statements from a syntax tree.
 
@@ -1427,75 +1512,16 @@ def _count_python_imports(source: str) -> tuple[int, int]:
     only. Imports nested in functions, classes, and ``try`` blocks count;
     text in strings and comments does not.
     """
-    try:
-        import tree_sitter_python
-        from tree_sitter import Language, Parser, Query, QueryCursor
-
-        language = Language(tree_sitter_python.language())
-        tree = Parser(language).parse(source.encode("utf-8"))
-        if tree.root_node.has_error:
-            raise PythonParserError(
-                "Cannot count Python dependencies: the pinned Python grammar "
-                "(tree-sitter-python==0.25.0) could not parse this file. "
-                "The file has a syntax error, or it uses syntax the grammar "
-                "does not support (for example Python 3.15 lazy imports)"
-            )
-        query = Query(language, _PY_DEPENDENCY_QUERY)
-        statements = QueryCursor(query).captures(tree.root_node).get("dependency", [])
-        standard = sum(
-            1
-            for node in statements
-            if _is_python_standard_statement(_python_statement_modules(node))
-        )
-        return len(statements), standard
-    except PythonParserError:
-        raise
-    except ImportError as exc:
-        raise PythonParserError(
-            f"Python parser packages are missing: {exc}. Install "
-            "tree-sitter==0.26.1 and tree-sitter-python==0.25.0 into a virtual "
-            "environment that runs the scanner, not the system Python "
-            "(see references/python-parser.md)"
-        ) from exc
-    except Exception as exc:
-        raise PythonParserError(
-            f"Python parser failed to start or run: {type(exc).__name__}: {exc}. "
-            "Check the pinned versions (tree-sitter==0.26.1, tree-sitter-python==0.25.0)"
-        ) from exc
+    statements = _dependency_nodes(_PYTHON_GRAMMAR, _load_python_grammar, source)
+    standard = sum(
+        1 for node in statements if _is_python_standard_statement(_python_statement_modules(node))
+    )
+    return len(statements), standard
 
 
 def _count_csharp_imports(source: str) -> int:
     """Count directive syntax nodes, not resource declarations or literal text."""
-    try:
-        import tree_sitter_c_sharp
-        from tree_sitter import Language, Parser, Query, QueryCursor
-
-        language = Language(tree_sitter_c_sharp.language())
-        tree = Parser(language).parse(source.encode("utf-8"))
-        if tree.root_node.has_error:
-            raise CSharpParserError(
-                "Cannot count C# dependencies: the pinned C# grammar "
-                "(tree-sitter-c-sharp==0.23.5) could not parse this file. "
-                "The file has a syntax error, or it is valid C# that the grammar "
-                "does not support (for example a signature split across #if/#else, "
-                "or C# 14 extension blocks)"
-            )
-        query = Query(language, "(using_directive) @dependency")
-        return len(QueryCursor(query).captures(tree.root_node).get("dependency", []))
-    except CSharpParserError:
-        raise
-    except ImportError as exc:
-        raise CSharpParserError(
-            f"C# parser packages are missing: {exc}. Install "
-            "tree-sitter==0.26.1 and tree-sitter-c-sharp==0.23.5 into a virtual "
-            "environment that runs the scanner, not the system Python "
-            "(see references/csharp-parser.md)"
-        ) from exc
-    except Exception as exc:
-        raise CSharpParserError(
-            f"C# parser failed to start or run: {type(exc).__name__}: {exc}. "
-            "Check the pinned versions (tree-sitter==0.26.1, tree-sitter-c-sharp==0.23.5)"
-        ) from exc
+    return len(_dependency_nodes(_CSHARP_GRAMMAR, _load_csharp_grammar, source))
 
 
 def _score_coupling(

@@ -30,27 +30,9 @@ _PARSER_IMPORTS = "import tree_sitter\nimport tree_sitter_c_sharp\n"
 
 _PYTHON_PARSER_IMPORTS = _PARSER_IMPORTS + "import tree_sitter_python\n"
 
-_CSHARP_ADMISSION = {
-    "issue": 7406,
-    "file": _PARSER_SCANNER,
-    "imports": ["tree_sitter", "tree_sitter_c_sharp"],
-    "baseScore": 10.0,
-    "headScore": 8.0,
-    "authorizedBy": "rjmurillo",
-    "authorizedOn": "2026-11-16",
-    "authorization": "Maintainer instruction: waiver, full send.",
-}
-
-_PYTHON_ADMISSION = {
-    "issue": 7436,
-    "file": _PARSER_SCANNER,
-    "imports": ["tree_sitter", "tree_sitter_c_sharp", "tree_sitter_python"],
-    "baseScore": 8.0,
-    "headScore": 7.0,
-    "authorizedBy": "rjmurillo",
-    "authorizedOn": "2026-11-18",
-    "authorization": "Maintainer instruction: LGTM. Ship. Package add approved.",
-}
+# The built-in records; tests/test_verdict.py pins them equal to the adapter's
+# copy and to this repository's .qualityrc.json.
+_CSHARP_ADMISSION, _PYTHON_ADMISSION = _mod._PARSER_DEPENDENCY_ADMISSIONS
 
 
 @pytest.fixture
@@ -63,6 +45,12 @@ def parser_admission_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> di
     }
 
 
+def _add_python_grammar_on_csharp_base(tmp_path: Path) -> None:
+    """Move the base to the C# parser imports, then add the Python grammar."""
+    _run_git(tmp_path, "branch", "-f", "main")
+    _commit(tmp_path, _PARSER_SCANNER, _PYTHON_PARSER_IMPORTS + _FOCUSED, "python grammar")
+
+
 def _run_parser_admission(config: dict[str, Any], tmp_path: Path) -> int:
     config_path = _write(tmp_path, ".qualityrc.json", json.dumps(config))
     result = main([*_regression_argv(), "--config", str(config_path)])
@@ -70,22 +58,34 @@ def _run_parser_admission(config: dict[str, Any], tmp_path: Path) -> int:
     return result
 
 
+@pytest.mark.parametrize(
+    ("python_grammar", "transition", "admission"),
+    [(False, (10.0, 8.0, -2.0), _CSHARP_ADMISSION), (True, (8.0, 7.0, -1.0), _PYTHON_ADMISSION)],
+    ids=["csharp", "python"],
+)
 def test_parser_admission_keeps_raw_regression_and_authorization(
     parser_admission_repo: dict[str, Any],
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
+    python_grammar: bool,
+    transition: tuple[float, float, float],
+    admission: dict[str, Any],
 ) -> None:
+    if python_grammar:
+        _add_python_grammar_on_csharp_base(tmp_path)
+
     rc = _run_parser_admission(parser_admission_repo, tmp_path)
 
     captured = capsys.readouterr()
     comparison = json.loads(captured.out)["comparisons"][0]
     coupling = next(d for d in comparison["deltas"] if d["quality"] == "coupling")
+    base, head, delta = transition
     assert rc == 0
-    assert (coupling["base"], coupling["head"], coupling["delta"]) == (10.0, 8.0, -2.0)
+    assert (coupling["base"], coupling["head"], coupling["delta"]) == transition
     assert comparison["regressions"] == ["coupling"]
-    assert comparison["parser_dependency_admission"] == _CSHARP_ADMISSION
-    assert "coupling regressed 10.0 -> 8.0 (delta -2.0)" in captured.err
-    assert "ADMITTED" in captured.err
+    assert comparison["parser_dependency_admission"] == admission
+    assert f"coupling regressed {base} -> {head} (delta {delta})" in captured.err
+    assert f"ADMITTED: issue #{admission['issue']}" in captured.err
     assert adapt_local_axis_verdict("code-qualities-assessment", captured.out, rc) == "WARN"
 
 
@@ -145,31 +145,10 @@ def test_parser_admission_rejects_the_retired_single_record_key(
     assert "parserDependencyAdmissions" in capsys.readouterr().err
 
 
-def test_parser_admission_admits_the_python_grammar_transition(
-    parser_admission_repo: dict[str, Any],
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    _run_git(tmp_path, "branch", "-f", "main")
-    _commit(tmp_path, _PARSER_SCANNER, _PYTHON_PARSER_IMPORTS + _FOCUSED, "python grammar")
-
-    rc = _run_parser_admission(parser_admission_repo, tmp_path)
-
-    captured = capsys.readouterr()
-    comparison = json.loads(captured.out)["comparisons"][0]
-    coupling = next(d for d in comparison["deltas"] if d["quality"] == "coupling")
-    assert rc == 0
-    assert (coupling["base"], coupling["head"], coupling["delta"]) == (8.0, 7.0, -1.0)
-    assert comparison["parser_dependency_admission"] == _PYTHON_ADMISSION
-    assert "ADMITTED: issue #7436" in captured.err
-    assert adapt_local_axis_verdict("code-qualities-assessment", captured.out, rc) == "WARN"
-
-
 def test_parser_admission_needs_the_matching_record_configured(
     parser_admission_repo: dict[str, Any], tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    _run_git(tmp_path, "branch", "-f", "main")
-    _commit(tmp_path, _PARSER_SCANNER, _PYTHON_PARSER_IMPORTS + _FOCUSED, "python grammar")
+    _add_python_grammar_on_csharp_base(tmp_path)
     parser_admission_repo["parserDependencyAdmissions"] = [dict(_CSHARP_ADMISSION)]
 
     assert _run_parser_admission(parser_admission_repo, tmp_path) == 10
