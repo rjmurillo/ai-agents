@@ -448,13 +448,13 @@ For JSON configuration:
 For hosting packages:
 
 ```mdx
-<InstallPackage package="Aspire.Hosting.Redis" />
+<InstallPackage packageName="Aspire.Hosting.Redis" />
 ```
 
 For client/library packages:
 
 ```mdx
-<InstallDotNetPackage package="Aspire.StackExchange.Redis" />
+<InstallDotNetPackage packageName="Aspire.StackExchange.Redis" />
 ```
 
 ## AppHost Language Parity (TypeScript and C#)

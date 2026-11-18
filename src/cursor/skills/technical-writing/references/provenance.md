@@ -26,6 +26,8 @@ None of the owners named here endorses or reviewed this skill.
   the other references are in its `site-specific-rules.md`.
   Em and en dashes were replaced, a code-block title separator became `<em-dash>`,
   and pipe-to-shell installer commands became a link to the official install page.
+  The upstream SKILL.md showed `InstallPackage` and `InstallDotNetPackage` with a `package` prop.
+  Both components declare `packageName` at `24fa655`, so the copy here uses `packageName`.
 - **agent-stylebooks.** Each `SKILL.md` body became `stylebooks/<name>.md` with its
   frontmatter description as a "Use for" line. `STYLE-MATRIX.md` is reproduced in
   [stylebook-selection.md](stylebook-selection.md). The per-skill provenance files
