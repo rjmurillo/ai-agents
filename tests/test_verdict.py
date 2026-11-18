@@ -601,7 +601,7 @@ class TestAdaptLocalAxisVerdict:
         assert json.dumps(list(module._PARSER_DEPENDENCY_ADMISSIONS)) == adapter
         assert json.dumps(config["parserDependencyAdmissions"]) == adapter
 
-    def test_parser_admission_adapter_rejects_an_int_score_without_raising(self):
+    def test_parser_admission_adapter_accepts_an_int_score_without_raising(self):
         payload = cq_admission_payload()
         payload["comparisons"][0]["parser_dependency_admission"]["headScore"] = 8
 
