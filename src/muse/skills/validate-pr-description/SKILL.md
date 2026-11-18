@@ -153,7 +153,7 @@ act on.
 | Inferring the title from the branch name or last commit | Validates text that is not the PR's, and reports a pass the PR does not have | Ask for the title and body |
 | Reporting one aggregate verdict | The author cannot tell which check failed | Report per check |
 | Requiring a closing keyword or template sections in every repository | The target may have no tracking issue, template, or gate, so the finding is false | Discover first; report `NOT APPLICABLE` with evidence |
-| Asking the author to open an issue so a keyword has a target | Creates tracking work only to satisfy a rule the repository lacks | Require a link only when an issue exists or a gate demands one |
+| Demanding a new tracking item so a keyword has a target | Creates tracking work only to satisfy a rule the repository lacks | Require a link only when an issue exists or a gate demands one |
 | Recommending `Closes #N` because the PR mentions the issue | A closing keyword acts on merge; an unsupported one closes live work | Verify against the diff, downgrade to `Refs #N` with a reason |
 | Rewriting the body wholesale | The author loses their own wording to a style preference | Name the failing section and the minimal edit |
 | Calling a manual pass a validator pass | Two different levels of evidence read as one | State which ran |
