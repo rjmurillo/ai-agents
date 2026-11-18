@@ -153,7 +153,7 @@ Other docs cover the same ground. We link them and do not repeat them:
 
    The [spec skill](../../src/claude/skills/spec/SKILL.md) runs a blocking First Principles gate first. It asks six questions: who asked, what the workaround is, who is blocked, the narrowest fix, the evidence, and whether it still makes sense at 10x. Answer each in plain words. The gate checks answers for hedge phrases, and a failed check can stop the spec.
 
-   A memory gate runs next. It searches memory, Git history, and past pull requests for prior work on the files you named. It then lists the files and skills it found that your answers do not name. It asks you to mark each one in-scope, out-of-scope, or blast-radius (connected, and your change may affect it). Two or more blast-radius marks stop the spec.
+   A memory gate runs next. It searches memory, Git history, and past pull requests for prior work on the files you named. It then lists the files and skills it found that your Q1, Q3, and Q4 answers do not name. In an interactive session, it asks you to mark each one in-scope, out-of-scope, or blast-radius (connected, and your change may affect it). Two or more blast-radius marks stop the spec. With no person present, the agent marks every unnamed item blast-radius itself, and three or more stop the spec.
 
    For this exercise, mark each one out-of-scope with a one-line reason, because your edit changes only `docs/workflow-commands.md`. The search may also find the pull request that already made this fix on `main`. That is expected, since this exercise replays that fix. It does not stop the spec.
 
@@ -265,9 +265,15 @@ Other docs cover the same ground. We link them and do not repeat them:
     exit 0
     ```
 
-    We captured this on a throwaway branch of commit `81025e191` with only the step 9 edit. Your counts can differ, because some advisory checks read your machine. The review marker skip is expected: you have not run `/review` yet. Skip the push check it prints, because `/ship` pushes in step 12. `RESULT: All validations passed` is also a pass.
+    We captured this on a throwaway branch of commit `81025e191` with only the step 9 edit. The `...` stands for the other rows the `RESULT` line counts. Your counts and rows can differ, because some advisory checks read your machine. Any run that prints `No validation blocked the gate` and exits 0 is a pass. So is `RESULT: All validations passed`. An `[ADVISORY]` row is a finding the policy lets through: read it, but it does not block. The review marker skip is expected, because you have not run `/review` yet. Every run prints the push check. Ignore it here, because `/ship` pushes in step 12.
 
-    A run that blocks prints `RESULT: <n> validation(s) blocked the gate`, lists each failed gate, and exits 1, 2, or 3. Fix each gate it names, commit the fix, and rerun.
+    A run that blocks prints `RESULT: <n> validation(s) blocked the gate`, lists each gate that blocked, and exits 1, 2, or 3. Act on each one by its state:
+
+    - `FAIL`: fix the violation it names and commit the fix.
+    - `BLOCKED`: install or sign in to the dependency it names.
+    - `UNKNOWN`: its output was unreadable. Rerun and read that gate's output.
+
+    Then rerun `pre_pr.py`.
 
     Now review:
 
@@ -395,7 +401,7 @@ If it fails, look here first:
 - **`python3` prints a PyYAML error.** Bare `python3` often lacks PyYAML, and the resolver exits 2 with `error: missing required module: yaml (PyYAML). Read skill descriptions directly instead of running this resolver.` Use `uv run python` from the repository root. With no Python, read each skill's `description` field and pick the closest match ([Phase 2c](../../src/claude/skills/autoplan/SKILL.md#phase-2c-resolver-ambiguity-from-a-home-repo-run)).
 - **The resolver returns `none` for a request you expected to match.** It only matches front-door skills that list `intents`. A table row in `SKILL.md` can route a request the resolver does not match. Read [Phase 2](../../src/claude/skills/autoplan/SKILL.md#phase-2-route) before you decide the router is wrong.
 - **`/spec` stops at the First Principles gate.** A hedged or empty answer blocks it. Name a real person or system, a real workaround, and a real signal. If you cannot, the change may not be worth making yet.
-- **`/spec` halts at the memory gate.** It prints a `step0_5-halt` block. With `trigger: H11`, you marked two or more found items blast-radius. Mark the ones your edit does not change out-of-scope, or name them in Q4, then rerun `/spec`. Triggers `H6` to `H10` mean the spec removes, bypasses, or rewrites something that memory has no record of. The block's `deferral` line says how to unblock it.
+- **`/spec` halts at the memory gate.** It prints a fenced `step0_5-halt` block with five `key: value` lines. With `trigger: H11`, too many found items were marked blast-radius. Rerun `/spec` with the same answers. Mark the items your edit does not change out-of-scope, or name them in Q1, Q3, or Q4. Triggers `H6` to `H10` cover larger changes: removing an ADR constraint, bypassing a protocol, deleting over 100 lines, refactoring complex code, or changing a validator, linter, or hook. Each fires when the search finds no prior record for that change. The block's `deferral` line says how to unblock it.
 - **`/plan` asks for a spec.** Run `/spec` first, or say you accept an ungated plan.
 - **A `/build` exit gate fails.** Fix the cause in your diff and rerun that gate. Do not add suppression comments or change baselines.
 - **`/test` returns `CRITICAL_FAIL`.** A gate failed or could not run. Fix it, then rerun `/test`.
