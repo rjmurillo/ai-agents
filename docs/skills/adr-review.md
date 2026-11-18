@@ -69,7 +69,7 @@ Phases 1 and 2 use Olaf Zimmermann's article ["How to review Architectural Decis
 | Perspective | Ask for it when |
 | --- | --- |
 | Friendly peer or coach | You want early feedback while you still write the ADR. |
-| Official stakeholder | You want to confirm the decision will work and can win agreement. |
+| Official stakeholder | You want to confirm the decision will work and has a chance to win agreement. |
 | Formal design authority | You can defend an agreed decision and need formal approval. |
 
 The reference file maps this skill's debate to the stakeholder perspective by default, with `high-level-advisor` as the design authority when needed. In Phase 2, conflicts between agents go to `high-level-advisor` for a ruling.
@@ -77,7 +77,7 @@ The reference file maps this skill's debate to the stakeholder perspective by de
 **Phase 1: the seven questions.** Every agent must answer each one:
 
 1. Is the problem relevant enough to solve and record in an ADR?
-2. Can the options solve the problem? Are valid options missing?
+2. Do the options have a chance to solve the problem? Are valid options missing?
 3. Are the decision drivers (criteria) mutually exclusive and collectively exhaustive?
 4. If the criteria conflict, are they prioritized?
 5. Does the chosen option solve the problem? Is the rationale sound and convincing?
@@ -102,7 +102,7 @@ The article adds two checks. Look for subjective words, ambiguity, and loopholes
 
 - Scope: review only what is ready and asked for. Rank findings by importance. The article suggests H/M/L or 1/2/3; this skill uses P0, P1, and P2. Record what you reviewed and its version.
 - Content: tie each finding to a quality such as consistency or completeness. Judge the decision by the context it was made in. Be concrete: "evaluate the performance of O1 in more depth" beats "O1 needs work."
-- Style: ask questions and suggest options, not commands. Report what you saw, not guesses about root causes. Be as factual and thorough as the ADR itself. Say what works as well as what does not. Stay polite.
+- Style: ask questions and suggest options, not commands. Report what you saw, not guesses about root causes. Be at least as factual and thorough as the ADR itself. Say what works as well as what does not. Stay polite.
 - Actionability: pair each finding with a recommendation. Mark comments FYI or action required. Offer an example for missing content. Reread your comments: could you fix the ADR from them alone?
 
 A footnote passes on a student's observation that longer review subjects draw fewer comments. Choose how much of the ADR log to share, and split a large log. The article also proposes a reviewer pledge, whose last line is "Review like you want to be reviewed." Its 2026 update offers a reusable ADR review prompt template that addresses [Ten Common Mistakes in Architectural Decision Records (ADRs)](https://www.ozimmer.ch/practices/2026/09/12/ADRMistakes.html).
