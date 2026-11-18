@@ -34,6 +34,30 @@
       "expected_signals": [],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "This asks for a code review of a diff, which the skill's description explicitly routes elsewhere. It names no PR title, no PR body, and no metadata trigger phrase, so validate-pr-description should stay inactive."
+    },
+    {
+      "id": "S4",
+      "desc": "Consumer repository with no PR template, tracking issue, or metadata gate",
+      "input": "I am in a small personal repository. It has no PR template, no workflow that checks PR bodies, and no tracking issue for this change. Title: `fix(shell): quote the PATH export`. Body: `Quotes the PATH export so paths with spaces work.` Validate my PR description. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "conventional",
+        "not applicable",
+        "template"
+      ],
+      "expected_gate": "validate-pr-description-report",
+      "rationale": "The title is valid and the repository has no template, issue, or gate. A response that passes the title and reports the keyword and template checks as not applicable is attributable to the skill's discovery phase. One that demands `Closes #N` or Summary, Changes, and Type of Change sections applies upstream-only gates the consumer lacks."
+    },
+    {
+      "id": "S5",
+      "desc": "Known tracking issue in a repository with no PR template or metadata gate",
+      "input": "My personal repository has no PR template and no workflow that checks PR bodies. This change fixes issue #412. Title: `fix(date): correct the expiry calculation`. Body: `Fixes the expiry calculation.` Validate my PR description. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "#412",
+        "not applicable",
+        "template"
+      ],
+      "expected_gate": "validate-pr-description-report",
+      "rationale": "A tracking issue exists, so check 2 applies even though the repository has no template or gate. The body text `Fixes the expiry calculation.` names no issue number. A response that flags the missing `#412` link and reports only the template check as not applicable is attributable to the skill. One that relabels the keyword check as not applicable because no gate exists drops an applicable finding."
     }
   ]
 }
