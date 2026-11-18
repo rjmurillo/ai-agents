@@ -196,7 +196,7 @@ linking back to this repository's publish workflow.
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | `ENEEDAUTH` | No trusted publisher matched and no `NPM_TOKEN` | First publish: follow setup step 3. Later: check the trusted publisher fields in setup step 4 |
-| `E403 Forbidden` | First publish: the token lacks write access or 2FA bypass. Later: the trusted publisher does not allow `npm publish` | Recreate the token per setup step 3, or fix Allowed actions per setup step 4 |
+| `E403 Forbidden` | First publish: the token lacks write access, or 2FA blocks a token without bypass. Later: the trusted publisher does not allow `npm publish`, or the package disallows tokens and OIDC did not match | First publish: recreate the token per setup step 3. Later: check the trusted publisher fields and Allowed actions in setup step 4 |
 | OIDC provenance error | `id-token: write` missing | `publish.yml` contains `id-token: write` on publish job |
 | Tag/version mismatch | `release-tag` does not match the `package.json` version | Use the tag `vX.Y.Z` for the version on the candidate commit |
 | `a real publish needs release-tag` | `dry-run` is `false` and `release-tag` is empty | Set `release-tag` to `vX.Y.Z` |
