@@ -124,6 +124,9 @@ def test_reconciliation_skips_a_milestone_only_on_proof() -> None:
     assert "Files: [the milestone's file paths" in text
     assert "A criterion you could not check is [FAIL], not [PASS]" in text
     assert "Every criterion [PASS] with evidence: SATISFIED" in text
+    assert "A criterion missing from the report counts as [FAIL]" in text
+    assert "a milestone with no acceptance criteria is NOT_SATISFIED" in text
+    assert "read-only: it reports and writes no files" in text
     assert "No blocking finding" not in text
     assert "Return: SATISFIED" not in text
 
