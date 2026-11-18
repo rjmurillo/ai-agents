@@ -110,10 +110,21 @@ def test_review_step_2_routes_every_critic_verdict() -> None:
     assert not missing, f"review step 2 has no next step for: {sorted(missing)}"
 
 
-def test_reconciliation_names_files_and_maps_findings_to_a_result() -> None:
+@pytest.mark.parametrize("path", [PLANNER_TEMPLATE, PLANNER_DOCS_PAGE], ids=["skill", "docs"])
+def test_page_gives_a_next_step_for_every_critic_verdict(path: Path) -> None:
+    text = path.read_text(encoding="utf-8")
+    missing = {v for v in critic_verdicts() if not re.search(rf"\b{v}\b", text)}
+    assert not missing, f"{path.name} omits critic verdicts: {sorted(missing)}"
+    assert "PASS_WITH_CONCERNS" not in text
+    assert "NEEDS_CHANGES" not in text
+
+
+def test_reconciliation_skips_a_milestone_only_on_proof() -> None:
     text = squash(_executor_outputs()["execution step 2"])
     assert "Files: [the milestone's file paths" in text
-    assert "No blocking finding: SATISFIED" in text
+    assert "A criterion you could not check is [FAIL], not [PASS]" in text
+    assert "Every criterion [PASS] with evidence: SATISFIED" in text
+    assert "No blocking finding" not in text
     assert "Return: SATISFIED" not in text
 
 
@@ -123,11 +134,14 @@ def test_review_step_2_brief_carries_its_criteria_and_resource() -> None:
     assert "resources/default-conventions.md" in text
 
 
-@pytest.mark.parametrize("step", ["execution step 2", "execution step 4"])
-def test_code_review_steps_delegate_to_code_reviewer(step: str) -> None:
-    text = _executor_outputs()[step]
+def test_post_implementation_review_delegates_to_code_reviewer() -> None:
+    text = _executor_outputs()["execution step 4"]
     assert agent_targets(text) == {"code-reviewer"}
     assert "read-only" in text
+
+
+def test_reconciliation_delegates_to_qa() -> None:
+    assert agent_targets(_executor_outputs()["execution step 2"]) == {"qa"}
 
 
 def test_post_implementation_review_names_both_resources() -> None:
@@ -171,4 +185,4 @@ def test_delegation_form_has_no_mode_line() -> None:
 
 def test_delegation_form_lists_only_real_agents() -> None:
     text = _executor_outputs()["execution step 1"]
-    assert "<agent>@agent-[implementer|debug|code-reviewer]</agent>" in text
+    assert "<agent>@agent-[implementer|debug|qa|code-reviewer]</agent>" in text
