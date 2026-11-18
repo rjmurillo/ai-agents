@@ -40,10 +40,10 @@ When breaking a task into milestones, verify each milestone against:
 
 ### Review Phase Application
 
-During comment review + QR review (planner.py review steps 1-2):
+During comment review and plan review (planner.py review steps 1-2):
 
 - **Comment review (Step 1)**: Check that milestone descriptions avoid temporal contamination about "future phases" that imply the current phase has no standalone value.
-- **QR (Step 2)**: Validate that each milestone can be shipped independently. If a milestone depends on subsequent milestones to be useful, flag it.
+- **Plan review (Step 2)**: Validate that each milestone can be shipped independently. If a milestone depends on subsequent milestones to be useful, flag it.
 
 ### Practical Checklist
 
