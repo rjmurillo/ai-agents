@@ -177,7 +177,7 @@ Other docs cover the same ground. We link them and do not repeat them:
 
    The [build skill](../../.claude/skills/build/SKILL.md) works in thin slices, test first, with atomic commits. A doc change has no unit test, so your check is the `grep` from step 5. Four exit gates must come back clean: code qualities, taste lints, the documentation gate, and the orphan reference check. A failed gate stays failed. See [Mandatory Exit Gates](../../.claude/skills/build/SKILL.md#mandatory-exit-gates).
 
-   The finished diff should look like this. We applied the edit by hand on a throwaway branch of commit `81025e191` to capture the output. Your agent may word it differently.
+   The finished diff should look like this. We applied the edit by hand on a throwaway branch of commit `81025e191` to capture the output. Keep your edit identical to it. `main` already has this exact fix, so different wording conflicts with `main` when you ship.
 
    ```bash
    git diff --stat
@@ -340,7 +340,7 @@ If it fails, look here first:
 - **`/review` stops after Stage 1.** The diff does not meet your acceptance criteria. Fix the unmet criterion and rerun `/review`.
 - **`validate_review_marker.py` prints `[FAIL]`.** HEAD is not a marker, or a code commit landed after it. Rerun `/review`.
 - **`/ship` returns `BLOCKED`.** The report names the failing check. Fix it on the branch and rerun.
-- **GitHub reports a merge conflict on your pull request.** Your edit differs from the fix `main` already has. CI may not run on a conflicted pull request, so the pipeline check can fail. This is expected on the practice branch. Close the pull request without merging it.
+- **GitHub reports a merge conflict on your pull request.** Your edit differs from the fix `main` already has, so CI may not run and the pipeline check fails. Change your edit to match the step 9 diff exactly and commit it. Then rerun `/review` and `/ship`.
 
 ## Next
 
