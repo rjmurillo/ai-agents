@@ -25,8 +25,13 @@ from _skill_mirror_helpers import (  # noqa: E402
 )
 from _skill_mirror_helpers import build as _build  # noqa: E402
 from _skill_mirror_helpers import built_repo as _built_repo  # noqa: E402
+from _skill_mirror_helpers import make_symlink  # noqa: E402
 from _skill_mirror_helpers import mirror as _mirror  # noqa: E402
 from _skill_mirror_helpers import seed as _seed  # noqa: E402
+
+_NEEDS_SYMLINKS = pytest.mark.skipif(
+    sys.platform == "win32", reason="creating symlinks needs elevated rights on Windows"
+)
 
 
 def _link_references_outside(tmp_path: Path) -> Path:
@@ -34,10 +39,7 @@ def _link_references_outside(tmp_path: Path) -> Path:
     outside = tmp_path / "outside"
     mirror = _mirror(tmp_path)
     (mirror / "references").rename(outside)
-    try:
-        (mirror / "references").symlink_to(outside, target_is_directory=True)
-    except OSError:
-        pytest.skip("symlinks unavailable")
+    make_symlink(mirror / "references", outside, directory=True)
     (outside / "keep.md").write_text("tampered\n", encoding="utf-8")
     return outside
 
@@ -106,7 +108,7 @@ def test_a_symlinked_ancestor_inside_a_git_repo_is_refused(tmp_path: Path) -> No
     orphan = real / "alpha" / "stray.md"
     orphan.write_text("stray\n", encoding="utf-8")
     (repo / "out").mkdir()
-    (repo / "out" / "skills").symlink_to(real, target_is_directory=True)
+    make_symlink((repo / "out" / "skills"), real, directory=True)
 
     with pytest.raises(skill_support_mirror.SkillSupportSyncError, match="symlinked ancestor"):
         skill_support_mirror.prune_mirror_orphans(source, repo / "out" / "skills" / "alpha")
@@ -130,7 +132,7 @@ def test_outside_a_repo_only_the_target_is_checked_and_the_prune_still_works(
     orphan = real / "alpha" / "stray.md"
     orphan.write_text("stray\n", encoding="utf-8")
     (tmp_path / "out").mkdir()
-    (tmp_path / "out" / "skills").symlink_to(real, target_is_directory=True)
+    make_symlink((tmp_path / "out" / "skills"), real, directory=True)
 
     assert skill_support_mirror.prune_mirror_orphans(source, _mirror(tmp_path)) == 1
     assert not orphan.exists()

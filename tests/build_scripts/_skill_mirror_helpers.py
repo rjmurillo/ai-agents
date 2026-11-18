@@ -16,10 +16,6 @@ for _extra_path in (_TEST_DIR, _REPO_ROOT / "build" / "scripts"):
 import generate_skills  # noqa: E402
 
 SKILL_MD = "---\nname: {name}\ndescription: fixture\n---\n# {name}\n"
-NEEDS_SYMLINKS = pytest.mark.skipif(
-    sys.platform == "win32", reason="creating symlinks needs elevated rights on Windows"
-)
-
 # The four mirror shapes in templates/platforms: copilot-cli translates
 # SKILL.md, codex drops frontmatter keys, cursor and muse keep an allow-list.
 SHAPES = {
@@ -28,7 +24,6 @@ SHAPES = {
     "cursor": "provider: cursor\n    frontmatterKeep: [name, description]\n",
     "muse": "provider: muse\n    frontmatterKeep: [name, description]\n",
 }
-ALL_SHAPES = pytest.mark.parametrize("shape", sorted(SHAPES))
 
 
 def config(repo: Path, shape: str = "copilot-cli") -> Path:
@@ -73,3 +68,11 @@ def built_repo(repo: Path, shape: str = "copilot-cli", name: str = "alpha") -> P
     assert build(repo, shape) == 0
     assert (mirror(repo, name) / "references" / "old.md").is_file()
     return source
+
+
+def make_symlink(link: Path, target: Path, *, directory: bool = False) -> None:
+    """Create ``link`` pointing at ``target``; skip the test when symlinks are unavailable."""
+    try:
+        link.symlink_to(target, target_is_directory=directory)
+    except OSError:
+        pytest.skip("symlinks unavailable")

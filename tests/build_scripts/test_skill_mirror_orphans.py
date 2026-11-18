@@ -33,11 +33,17 @@ from _skill_mirror_helpers import (  # noqa: E402
 from _skill_mirror_helpers import (  # noqa: E402
     NEEDS_SYMLINKS as _NEEDS_SYMLINKS,
 )
+from _skill_mirror_helpers import SHAPES, make_symlink  # noqa: E402
 from _skill_mirror_helpers import build as _build  # noqa: E402
 from _skill_mirror_helpers import built_repo as _built_repo  # noqa: E402
 from _skill_mirror_helpers import config as _config  # noqa: E402
 from _skill_mirror_helpers import mirror as _mirror  # noqa: E402
 from _skill_mirror_helpers import seed as _seed  # noqa: E402
+
+_NEEDS_SYMLINKS = pytest.mark.skipif(
+    sys.platform == "win32", reason="creating symlinks needs elevated rights on Windows"
+)
+_ALL_SHAPES = pytest.mark.parametrize("shape", sorted(SHAPES))
 from skill_copy_compare import mirror_owned_rels  # noqa: E402
 
 # --- removal ---------------------------------------------------------------
@@ -254,7 +260,7 @@ def test_a_symlinked_file_with_no_source_counterpart_is_refused(
     (source / "references" / "old.md").unlink()
     outside = _external(tmp_path)
     link = _mirror(tmp_path) / "references" / "link.md"
-    link.symlink_to(outside / "precious.txt")
+    make_symlink(link, outside / "precious.txt")
 
     assert _build(tmp_path) == 1
 
@@ -270,7 +276,7 @@ def test_a_symlinked_directory_is_neither_followed_nor_deleted(tmp_path: Path) -
     (source / "references" / "old.md").unlink()
     outside = _external(tmp_path)
     link = _mirror(tmp_path) / "linked"
-    link.symlink_to(outside, target_is_directory=True)
+    make_symlink(link, outside, directory=True)
 
     assert _build(tmp_path) == 1
 
@@ -284,7 +290,7 @@ def test_a_symlinked_mirror_skill_directory_is_refused(tmp_path: Path) -> None:
     outside = _external(tmp_path)
     (outside / "stray.md").write_text("stray\n", encoding="utf-8")
     (tmp_path / "out" / "skills").mkdir(parents=True)
-    _mirror(tmp_path).symlink_to(outside, target_is_directory=True)
+    make_symlink(_mirror(tmp_path), outside, directory=True)
 
     with pytest.raises(skill_support_mirror.SkillSupportSyncError, match="symlinked mirror"):
         skill_support_mirror.prune_mirror_orphans(source, _mirror(tmp_path))
@@ -299,7 +305,7 @@ def test_a_symlink_at_an_owned_path_is_left_for_the_copy(tmp_path: Path) -> None
     outside = _external(tmp_path)
     mirror = _mirror(tmp_path)
     (mirror / "references").mkdir(parents=True)
-    (mirror / "references" / "keep.md").symlink_to(outside / "precious.txt")
+    make_symlink((mirror / "references" / "keep.md"), outside / "precious.txt")
 
     assert skill_support_mirror.prune_mirror_orphans(source, mirror) == 0
     assert (outside / "precious.txt").read_text(encoding="utf-8") == "precious\n"
@@ -311,7 +317,7 @@ def test_a_symlink_swapped_in_before_removal_is_refused(tmp_path: Path) -> None:
     target = tmp_path / "mirror"
     target.mkdir()
     link = target / "late.md"
-    link.symlink_to(outside / "precious.txt")
+    make_symlink(link, outside / "precious.txt")
 
     with pytest.raises(skill_support_mirror.SkillSupportSyncError, match="became a symlink"):
         skill_mirror_prune._remove_orphan(link, target)
