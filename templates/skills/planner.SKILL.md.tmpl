@@ -47,7 +47,8 @@ executor run in view, belongs to the `plan` skill, not here.
 
 **Agent names in script output.** `@agent-X` in the scripts' output means the
 `X` agent: `comment-analyzer` and `critic` review the plan, `implementer`
-writes code, `debug` finds the cause of a failure, and `code-reviewer` reviews
+writes code, `debug` finds the cause of a failure, `qa` checks a milestone's
+acceptance criteria during reconciliation, and `code-reviewer` reviews
 implemented code.
 
 {{> host-delegation}}
@@ -221,6 +222,9 @@ resources that define them, so no mode keyword is needed.
 
 - **APPROVED / APPROVED_WITH_CONCERNS**: Ready for execution workflow
 - **NEEDS_REVISION**: Return to planning phase to address issues
+- **BLOCKED**: Stop and report the blocker (missing dependency, misaligned
+  objective, or feasibility concern) to the user. Do not execute the plan
+  until the user resolves it, then restart planning.
 
 ---
 

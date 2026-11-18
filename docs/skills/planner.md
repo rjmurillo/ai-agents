@@ -31,10 +31,10 @@ Each script prints guidance for one step. The agent follows that output, passes 
 
 | Workflow | Script | Ends with |
 | --- | --- | --- |
-| Planning | `planner.py` | A plan file at the path you give, then a review phase with a verdict of `PASS`, `PASS_WITH_CONCERNS`, or `NEEDS_CHANGES`. |
+| Planning | `planner.py` | A plan file at the path you give, then a review phase with a critic verdict of `APPROVED`, `APPROVED_WITH_CONCERNS`, `NEEDS_REVISION`, or `BLOCKED`. |
 | Execution | `executor.py` | All milestones complete, a post-implementation quality review pass, a documentation step, and a retrospective. |
 
-On `PASS` or `PASS_WITH_CONCERNS`, the plan is ready for execution. On `NEEDS_CHANGES`, return to the planning phase.
+On `APPROVED` or `APPROVED_WITH_CONCERNS`, the plan is ready for execution. On `NEEDS_REVISION`, return to the planning phase. On `BLOCKED`, stop and report the blocker to the user before you plan again.
 
 ## Advanced use
 
@@ -46,7 +46,7 @@ You need a plan file path and a clear problem statement before step 1. If you ga
 2. Run step 1 right away and complete the required actions in the output.
 3. Run the next step with your thoughts. Repeat until the output says `STATUS: phase_complete`.
 4. Write the plan to the file.
-5. Run the review phase. Step 1 delegates to the comment-analyzer agent, which returns findings. You apply them to the plan file. Step 2 delegates to the critic agent, which returns APPROVED, APPROVED_WITH_CONCERNS, or NEEDS_REVISION.
+5. Run the review phase. Step 1 delegates to the comment-analyzer agent, which returns findings. You apply them to the plan file. Step 2 delegates to the critic agent, which returns APPROVED, APPROVED_WITH_CONCERNS, NEEDS_REVISION, or BLOCKED.
 
 The review finds temporally contaminated comments, flags code snippets that lack WHY comments, validates the plan for production risks, and identifies documentation needs.
 
@@ -89,7 +89,7 @@ On resume, step 1 reconciles the plan file against work already done.
 
 A milestone whose files are all `*.md` or `*.rst` and that holds docs pages goes to a docs skill, not an agent. The coordinator, or a general-purpose subagent it starts, loads the skill and follows it. A new README or ARCHITECTURE scaffold uses `codebase-documenter`, which stops at placeholders. A new README with project content gets a `codebase-documenter` scaffold, then the `technical-writing` skill fills it. An edit to an existing docs page, including an existing README, uses `technical-writing`. A milestone for agent prompts or `SKILL.md` files goes to the implementer agent instead. The coordinator edits `CLAUDE.md` index entries directly, in any milestone.
 
-The agents the scripts name are `comment-analyzer` and `critic` for plan review, `implementer` for code, `debug` for failures, and `code-reviewer` for post-implementation review. Codex and Muse Code don't install the read-only reviewers `comment-analyzer` and `code-reviewer`, because those hosts can't enforce a read-only tool list. When a named agent isn't installed, the coordinator runs that step in the current session with the same brief and keeps it read-only.
+The agents the scripts name are `comment-analyzer` and `critic` for plan review, `implementer` for code, `debug` for failures, `qa` for reconciliation, and `code-reviewer` for post-implementation review. Codex and Muse Code don't install the read-only reviewers `comment-analyzer` and `code-reviewer`, because those hosts can't enforce a read-only tool list. When a named agent isn't installed, the coordinator runs that step in the current session with the same brief. For a review step, it reports findings and doesn't edit code.
 
 ```bash
 uv run python .claude/skills/planner/scripts/executor.py --help

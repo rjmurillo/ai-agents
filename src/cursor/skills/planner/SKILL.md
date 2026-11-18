@@ -47,7 +47,8 @@ executor run in view, belongs to the `plan` skill, not here.
 
 **Agent names in script output.** `@agent-X` in the scripts' output means the
 `X` agent: `comment-analyzer` and `critic` review the plan, `implementer`
-writes code, `debug` finds the cause of a failure, and `code-reviewer` reviews
+writes code, `debug` finds the cause of a failure, `qa` checks a milestone's
+acceptance criteria during reconciliation, and `code-reviewer` reviews
 implemented code.
 
 **Delegation on each host.** "Delegate to the `X` agent" means the host's subagent tool: Claude Code `Task` with `subagent_type="X"`; Copilot CLI `task` with `agent_type="project-toolkit:X"`; Codex `spawn_agent` with `agent_type="X"`, plus `fork_turns="none"` when the agent reviews or judges work (the default hands it your whole history); Muse Code `subagent_spawn` with `role="X"` and an `objective`, plus `worktree_isolation: true` for an agent that writes files. If the host has no subagent tool, or no `X` agent is installed, run the step yourself in this session.
@@ -221,6 +222,9 @@ resources that define them, so no mode keyword is needed.
 
 - **APPROVED / APPROVED_WITH_CONCERNS**: Ready for execution workflow
 - **NEEDS_REVISION**: Return to planning phase to address issues
+- **BLOCKED**: Stop and report the blocker (missing dependency, misaligned
+  objective, or feasibility concern) to the user. Do not execute the plan
+  until the user resolves it, then restart planning.
 
 ---
 
