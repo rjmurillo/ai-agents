@@ -176,19 +176,18 @@ Default target is `main` unless specified.
 
 **What it does:**
 
-1. Runs 5 pre-flight checks (pipeline, security, review, tests, standards)
+1. Runs 4 pre-flight checks (pipeline, security, reviewed, tests)
 2. If any check fails: reports what failed, why, and how to fix. Stops.
-3. If all pass: validates PR description and creates the PR
+3. If all pass: validates PR description and creates the PR. A deferred Pipeline check then runs on the new PR.
 
 **Pre-flight checks:**
 
 | Check | What | Blocking |
 |-------|------|----------|
-| Pipeline | CI checks green, no suppressed failures | Yes |
+| Pipeline | CI checks green, no suppressed failures. With no pull request yet, the check waits and runs after `/ship` opens one. | Yes |
 | Security | No new CWE findings, no secrets in diff | Yes |
-| Review | /review run, no unresolved Critical findings | Yes |
+| Reviewed | HEAD is a `/review` PASS marker commit for the code under it. On someone else's branch, a logged `/review` result is enough. | Yes, on your own branch |
 | Tests | All tests green, no unjustified skips | Yes |
-| Standards | Golden principles and taste lints pass | Yes |
 
 **Output:** Ship report with per-check PASS/FAIL, PR link if created, and follow-up items.
 
