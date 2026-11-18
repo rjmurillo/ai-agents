@@ -62,7 +62,7 @@ Quality Reviewer excludes these from findings but will challenge unverified beha
 
 ## Invisible Knowledge
 
-This section captures information NOT visible from reading the code. The technical-writing skill uses this for README.md documentation during post-implementation.
+This section captures information NOT visible from reading the code. README.md documentation during post-implementation uses this: a new scaffold goes to the codebase-documenter skill, and an edit to an existing README goes to the technical-writing skill.
 
 ### Architecture
 ```

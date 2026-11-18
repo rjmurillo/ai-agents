@@ -203,6 +203,26 @@ def test_step_1_splits_docs_skills_and_keeps_prompts_with_implementer() -> None:
     )
 
 
+def test_step_1_scopes_the_skill_form_to_docs_page_milestones() -> None:
+    text = squash(_executor_outputs()["execution step 1"])
+    assert "A docs-page milestone (new scaffold or existing page) names a skill" in text
+    assert "A milestone for agent prompts or SKILL.md files uses the <agent> form" in text
+
+
+def test_docs_page_scopes_the_skill_route_to_docs_pages() -> None:
+    text = squash(PLANNER_DOCS_PAGE.read_text(encoding="utf-8"))
+    assert "holds docs pages goes to a docs skill" in text
+    assert "agent prompts or `SKILL.md` files goes to the implementer agent" in text
+
+
+def test_technical_writing_owner_row_covers_only_new_scaffolds() -> None:
+    row = (REPO_ROOT / "templates/skills/technical-writing.SKILL.md.tmpl").read_text(
+        encoding="utf-8"
+    )
+    assert "| New repository README and architecture doc scaffolds | `codebase-documenter` |" in row
+    assert "Edits to an existing README are a docs page edit this skill owns." in row
+
+
 def test_step_6_splits_docs_docstrings_and_comment_checks_by_owner() -> None:
     text = _executor_outputs()["execution step 6"]
     assert skill_targets(text) == {"technical-writing", "codebase-documenter"}
@@ -271,9 +291,11 @@ def test_negative_control_stale_docs_page_is_detected() -> None:
     assert find_removed_writer(stale)
 
 
-def test_negative_control_runner_phrase_is_absent_from_old_wording() -> None:
-    old = "A documentation milestone names a skill, not an agent."
-    assert SKILL_RUNNER_PHRASE not in squash(old)
+def test_negative_control_runner_check_fails_on_old_wording() -> None:
+    real = squash(_executor_outputs()["execution step 1"])
+    old = real.replace(SKILL_RUNNER_PHRASE, "the delegate loads the skill")
+    assert real.count(SKILL_RUNNER_PHRASE) == 2
+    assert old.count(SKILL_RUNNER_PHRASE) == 0
 
 
 def test_negative_control_old_agent_is_reported_missing() -> None:

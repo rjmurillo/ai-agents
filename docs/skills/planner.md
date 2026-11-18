@@ -87,7 +87,7 @@ You need an approved plan file that passed review, and a cleared context window.
 
 On resume, step 1 reconciles the plan file against work already done.
 
-A milestone whose files are all `*.md` or `*.rst` goes to a docs skill, not an agent. The coordinator, or a general-purpose subagent it starts, loads the skill and follows it. A new README or ARCHITECTURE scaffold uses `codebase-documenter`. An edit to an existing docs page, including an existing README, uses `technical-writing`. Agent prompts and `SKILL.md` files stay with the implementer agent.
+A milestone whose files are all `*.md` or `*.rst` and that holds docs pages goes to a docs skill, not an agent. The coordinator, or a general-purpose subagent it starts, loads the skill and follows it. A new README or ARCHITECTURE scaffold uses `codebase-documenter`. An edit to an existing docs page, including an existing README, uses `technical-writing`. A milestone for agent prompts or `SKILL.md` files goes to the implementer agent instead.
 
 ```bash
 uv run python .claude/skills/planner/scripts/executor.py --help

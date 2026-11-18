@@ -23,7 +23,7 @@ own these:
 | AI-vernacular scan of prose | `prose-self-check` | Its lint is the automated first pass in step 4. |
 | PRDs and specifications | `explainer` agent | Hand off. |
 | Architecture decision records | `adr-generator` | Hand off. |
-| Repository README and architecture docs | `codebase-documenter` | Hand off. |
+| New repository README and architecture doc scaffolds | `codebase-documenter` | Hand off. Edits to an existing README are a docs page edit this skill owns. |
 
 ## Triggers
 
