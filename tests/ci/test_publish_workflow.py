@@ -257,6 +257,20 @@ def test_the_secret_is_read_only_by_the_publish_steps(workflow: dict[str, Any]) 
             assert str(step["name"]).startswith("Publish")
 
 
+def test_only_the_publish_job_runs_in_the_branch_locked_npm_environment(
+    workflow: dict[str, Any],
+) -> None:
+    """Issue 7368 and ADR-101: the npm environment, locked to main, gates the token and OIDC.
+
+    Dropping the stanza would hand NPM_TOKEN and the trusted publisher claim to
+    any branch's copy of publish.yml, because the branch rule lives on the
+    environment.
+    """
+    holders = {name: job.get("environment") for name, job in _jobs(workflow).items()}
+    assert holders.pop("publish") == "npm"
+    assert not any(holders.values()), holders
+
+
 def test_no_job_triggers_on_a_pull_request_or_checks_out_a_head_ref() -> None:
     text = PUBLISH.read_text(encoding="utf-8")
     for forbidden in ("pull_request_target", "github.head_ref", "github.event.pull_request"):

@@ -17,10 +17,12 @@
 # binds the build evidence to that digest; the publish job downloads that exact
 # file and checks the digest again, directly before npm publish.
 #
-# Prerequisites:
-#   1. Link @rjmurillo/ai-agents scope to this GitHub repo in npm UI (one-time).
-#   2. npm 2FA enabled on the publishing account.
-#   3. See RELEASING.md for full auth setup and rollback procedures.
+# Auth (RELEASING.md, One-time setup): the publish job runs in the `npm`
+# environment, whose deployment branches allow only main (ADR-101). That keeps
+# both NPM_TOKEN and the npm trusted publisher (OIDC) claim away from any other
+# branch's copy of this file. The first publish uses a short-lived NPM_TOKEN
+# environment secret, because npm links a trusted publisher only to a package
+# that already exists. Later publishes use trusted publishing with no secret.
 
 name: npm Publish
 

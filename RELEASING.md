@@ -8,13 +8,17 @@ fallback. The first publish must use the token, because npm can only link a
 trusted publisher to a package that already exists. npm/cli#8544 tracks that
 limit.
 
-### 1. Configure the GitHub environment
+### 1. Check the GitHub environment
 
-Create a GitHub environment named `npm` at
-`Settings > Environments > New environment`. The `publish.yml` publish job runs
-in it and requests `id-token: write`. Under Deployment branches and tags, allow
-only `main`. A dispatch from any other branch runs that branch's copy of
-`publish.yml`, so this setting is what keeps `NPM_TOKEN` away from it.
+The `publish.yml` publish job runs in the GitHub environment `npm` and requests
+`id-token: write`. On 2026-11-18 the `npm` environment existed, and its
+deployment branches allowed only `main`. Nothing else is required.
+
+Keep that branch rule. A dispatch from any other branch runs that branch's copy
+of `publish.yml`, so the rule is what keeps `NPM_TOKEN` and the OIDC publish
+claim away from it (ADR-101). If the environment is ever deleted, the next run
+recreates it with no rule. Restore the rule at Settings > Environments > `npm`
+> Deployment branches and tags.
 
 ### 2. Enable 2FA on the npm account
 
