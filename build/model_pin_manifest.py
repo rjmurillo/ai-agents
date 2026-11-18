@@ -61,7 +61,7 @@ if TYPE_CHECKING:
 # must match; see resolve_manifest_model.
 DEFAULT_MODEL = "gpt-6.1-sol"
 
-# Mirrors scripts/validation/check_model_pins.py:71
+# Mirrors scripts/validation/check_model_pins.py:74
 # (MANIFEST_MAX_AGE_DAYS = 180) verbatim. Kept as a separate constant, not an
 # import, per the reuse decision above.
 MANIFEST_MAX_AGE_DAYS = 180

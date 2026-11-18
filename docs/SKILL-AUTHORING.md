@@ -122,7 +122,7 @@ Prices come from `MODEL_PRICING_RATES_USD_PER_1K_TOKENS` in
 |-------|-------------|------------------------------|---------------------|
 | `opus` | `claude-opus-5.5` | $4 / $20 | No: prices above the $2 / $10 default |
 | `sonnet` | `claude-sonnet-5.5` | $2 / $10 | No: it ties the default, so not below it |
-| `haiku` | `claude-haiku-5.5` | $0.10 / $0.50 | Yes, with `model-rationale` |
+| `haiku` | `claude-haiku-5.5` | $0.10 / $0.50 (prompts up to 100K tokens) | Yes, with `model-rationale` |
 
 ### When to Pin the Cost Alias
 

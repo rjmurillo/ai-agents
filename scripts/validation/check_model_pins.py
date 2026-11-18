@@ -58,10 +58,10 @@ from _eval_common import (  # noqa: E402  (path set above)
 
 # The harness-inherited default. Rolling-alias cost rationales must price below
 # this model, and manifest evidence is only valid while it was measured against
-# this default. Kept as a constant with a pointer to the eval default.
-# Issue #7425: the default is a frontier model. At $2 input per MTok, the
-# sonnet tier ties it, opus prices above it, and only haiku prices below it, so
-# only `haiku` can take the rule 3 cost exception.
+# this default. A KEEP_PIN sweep must pass --default-model with this value.
+# Issue #7425: the default is a frontier model. At $2 input per MTok, sonnet
+# ties it, opus prices above it, and only haiku prices below it. The eval
+# scripts keep their own claude-sonnet-4-6 default for model runs.
 DEFAULT_MODEL = "gpt-6.1-sol"
 
 ROLLING_ALIASES = ("sonnet", "opus", "haiku")
