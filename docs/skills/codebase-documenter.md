@@ -12,6 +12,7 @@ Drops documentation starters into a project: a README, an architecture doc, an A
 ## When not to use it
 
 - Docs exist and you want to check accuracy, find missing docstrings, or audit drift: use [`doc-accuracy`](doc-accuracy.md) instead.
+- You want to edit an existing `README.md` or docs page, or fill a new scaffold with project content (diagrams, tradeoffs, invariants): use [`technical-writing`](technical-writing.md) instead.
 - You want narrative prose for an existing component: use the [`explainer`](../agents/explainer.md) agent instead.
 
 ## Quick start
@@ -58,6 +59,7 @@ Chaining: [`world-model-diagnostic`](world-model-diagnostic.md) points here for 
 - [`doc-accuracy`](doc-accuracy.md): verifies the docs after you fill them in.
 - [`world-model-diagnostic`](world-model-diagnostic.md): invokes this skill for a documentation pass.
 - [`explainer`](../agents/explainer.md): writes narrative prose for a component.
+- [`technical-writing`](technical-writing.md): edits an existing README or docs page and fills a scaffold with project content.
 - Source: [`SKILL.md`](../../src/claude/skills/codebase-documenter/SKILL.md)
 - Voice and structure: [`documentation_guidelines.md`](../../src/claude/skills/codebase-documenter/references/documentation_guidelines.md)
 - Diagrams and callouts: [`visual_aids_guide.md`](../../src/claude/skills/codebase-documenter/references/visual_aids_guide.md)
