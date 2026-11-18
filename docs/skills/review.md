@@ -82,7 +82,7 @@ uv run python .claude/skills/review/scripts/validate_findings_scope.py --help
 | `select_axes.py` | Picks axes. Flags: `--changed-path`, `--effect`, `--pin`, `--deep`, `--references-dir`. Prints JSON. | `0` selection printed, `2` unknown pinned axis or no references directory |
 | `validate_review_marker.py` | Checks the SHA-bound marker. Flags: `--ref`, `--base-ref`, `--require-axis`, `--digest REPORT_FILE`, `--repo-root`, `--references-dir`. | `0` valid, `1` missing, stale, or bad, `2` config error |
 | `review_depth_tier.py` | Reads a diff on stdin and prints a depth tier as JSON. Flag: `--exclude GLOB`. | `0` tier printed, `2` no diff headers |
-| `validate_findings_scope.py` | Marks findings outside the PR diff. Flags: `--worktree`, `--base-branch`, `--text`, `--emit-adjusted-text`, `--frozen`. | `0` all in scope, `1` some out of scope, `2` no input |
+| `validate_findings_scope.py` | Marks findings outside the PR diff. Flags: `--worktree`, `--base-branch` (`main` or `origin/main`), `--text`, `--emit-adjusted-text`, `--frozen`. | `0` all in scope, or diff empty or unavailable, `1` some out of scope, `2` no input, or `--base-branch` names no commit (scope check did not run) |
 
 The skill also ships `codeql_local_scan.py`, `codeql_prestep.py`, and `codeql_scanner_guard.py` for the CodeQL pre-step of the `security` axis.
 
