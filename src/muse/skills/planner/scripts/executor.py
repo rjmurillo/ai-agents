@@ -7,8 +7,8 @@ Seven-phase execution workflow with JIT prompt injection:
   Step 1: Execution Planning (analyze plan, detect reconciliation)
   Step 2: Reconciliation (conditional, validate existing code)
   Step 3: Milestone Execution (delegate to agents, run tests)
-  Step 4: Post-Implementation QR (quality review)
-  Step 5: QR Issue Resolution (conditional, fix issues)
+  Step 4: Post-Implementation Review (code review)
+  Step 5: Review Issue Resolution (conditional, fix issues)
   Step 6: Documentation (docs pass)
   Step 7: Retrospective (present summary)
 
@@ -60,9 +60,9 @@ def get_step_1_guidance(plan_file: str, thoughts: str) -> dict:
         "You coordinate and validate. You delegate code work to specialized agents.",
         "",
         "If you find yourself about to:",
-        "  - Write a function -> STOP. Delegate to @agent-developer",
-        "  - Fix a bug -> STOP. Delegate to @agent-debugger then @agent-developer",
-        "  - Modify any source file -> STOP. Delegate to @agent-developer",
+        "  - Write a function -> STOP. Delegate to @agent-implementer",
+        "  - Fix a bug -> STOP. Delegate to @agent-debug then @agent-implementer",
+        "  - Modify any source file -> STOP. Delegate to @agent-implementer",
         "",
         "The ONLY code you touch: trivial fixes under 5 lines (missing imports,",
         "typos) where delegation overhead exceeds fix complexity.",
@@ -123,7 +123,7 @@ def get_step_1_guidance(plan_file: str, thoughts: str) -> dict:
         "  | Milestone Type | Recognition Signal              | Delegate To                     |",
         "  |----------------|--------------------------------|---------------------------------|",
         "  | Documentation  | ALL files are *.md or *.rst    | A docs skill (split below)      |",
-        "  | Code           | ANY file is source code        | @agent-developer                |",
+        "  | Code           | ANY file is source code        | @agent-implementer              |",
         "",
         "Documentation split (all-*.md/*.rst milestones):",
         "  - New README or ARCHITECTURE scaffold: codebase-documenter skill. It stops",
@@ -138,7 +138,7 @@ def get_step_1_guidance(plan_file: str, thoughts: str) -> dict:
         "  - CLAUDE.md index entries: out of scope for both skills; the",
         "    coordinator edits them directly",
         "",
-        "Mixed milestones: Split delegation -- @agent-developer first (code),",
+        "Mixed milestones: Split delegation -- @agent-implementer first (code),",
         "then the matching docs skill (docs pages) after code completes.",
         "SKILL.md files and agent prompts in a mixed milestone go to",
         "@agent-implementer, not a docs skill. The coordinator edits CLAUDE.md",
@@ -151,8 +151,7 @@ def get_step_1_guidance(plan_file: str, thoughts: str) -> dict:
         "EVERY delegation MUST use this structure:",
         "",
         "  <delegation>",
-        "    <agent>@agent-[developer|debugger|quality-reviewer|implementer]</agent>",
-        "    <mode>[For QR: plan-review|post-implementation|reconciliation]</mode>",
+        "    <agent>@agent-[implementer|debug|qa|code-reviewer]</agent>",
         "    <plan_source>[Absolute path to plan file]</plan_source>",
         "    <milestone>[Milestone number and name]</milestone>",
         "    <files>[Exact file paths from milestone]</files>",
@@ -164,7 +163,7 @@ def get_step_1_guidance(plan_file: str, thoughts: str) -> dict:
         "  </delegation>",
         "",
         "A docs-page milestone (new scaffold or existing page) names a skill, not an",
-        "agent. Use <skill> in place of <agent> and <mode>. A skill has no agent to",
+        "agent. Use <skill> in place of <agent>. A skill has no agent to",
         "receive the delegation:",
         "the coordinator, or a general-purpose subagent it starts, loads the skill and follows it.",
         "",
@@ -183,9 +182,11 @@ def get_step_1_guidance(plan_file: str, thoughts: str) -> dict:
         "  </parallel_batch>",
         "",
         "Agent limits:",
-        "  - @agent-developer: Maximum 4 parallel",
-        "  - @agent-debugger: Maximum 2 parallel",
-        "  - @agent-quality-reviewer: ALWAYS sequential",
+        "  - @agent-implementer: Maximum 4 parallel",
+        "  - @agent-debug: Maximum 2 parallel",
+        "  - @agent-code-reviewer: ALWAYS sequential",
+        "  - @agent-qa: ALWAYS sequential (reconciliation shares one",
+        "    working-tree snapshot, so parallel runs could undo each other)",
         "  - docs skills (the coordinator, or a general-purpose subagent it starts,",
         "    loads the skill and follows it): Can parallel across independent modules",
         "",
@@ -226,18 +227,41 @@ def get_step_2_guidance(plan_file: str) -> dict:
             "",
             "<reconciliation_protocol>",
             "",
-            "Delegate to @agent-quality-reviewer for each milestone:",
+            "Before the first delegation, snapshot the working tree. Run",
+            "`git stash create` (it changes nothing; empty output means a clean",
+            "tree, so use HEAD) and keep the SHA, then keep the output of",
+            "`git ls-files --others --exclude-standard`. Delegate to @agent-qa for",
+            "each milestone. qa has write tools, so the brief tells it to report only:",
             "",
-            "  Task for @agent-quality-reviewer:",
-            "  Mode: reconciliation",
+            "  Task for @agent-qa:",
             "  Plan Source: [plan_file.md]",
             "  Milestone: [N]",
+            "  Files: [the milestone's file paths, as they are now]",
             "",
-            "  Check if the acceptance criteria for Milestone [N] are ALREADY",
+            "  Check whether the acceptance criteria for Milestone [N] are ALREADY",
             "  satisfied in the current codebase. Validate REQUIREMENTS, not just",
-            "  code presence.",
+            "  code presence. Report every criterion as [PASS] or [FAIL] with",
+            "  evidence: file:line, or the command you ran and its output. A",
+            "  criterion you could not check is [FAIL], not [PASS]. Report only:",
+            "  do not create, edit, or delete any file, including tests and QA",
+            "  documents.",
             "",
-            "  Return: SATISFIED | NOT_SATISFIED | PARTIALLY_SATISFIED",
+            "  After qa returns, undo only what qa wrote, so uncommitted work from",
+            "  before reconciliation survives:",
+            "    - `git diff --name-only <snapshot>` lists tracked files qa changed.",
+            "      Restore each with `git restore --source <snapshot> --worktree --`",
+            "      followed by the path.",
+            "    - Run `git ls-files --others --exclude-standard` again. Remove each",
+            "      untracked file that was not in the first list.",
+            "  Then record a result.",
+            "",
+            "  Record the result yourself from that report. Execution is the",
+            "  default, so skip a milestone only on proof. A criterion missing",
+            "  from the report counts as [FAIL], and a milestone with no",
+            "  acceptance criteria is NOT_SATISFIED:",
+            "    - Every criterion [PASS] with evidence: SATISFIED",
+            "    - No criterion [PASS]: NOT_SATISFIED",
+            "    - Otherwise: PARTIALLY_SATISFIED",
             "",
             "---",
             "",
@@ -288,9 +312,9 @@ def get_step_3_guidance(plan_file: str) -> dict:
             "",
             "  | Severity | Signals                          | Action                  |",
             "  |----------|----------------------------------|-------------------------|",
-            "  | Critical | Segfault, data corruption        | STOP, @agent-debugger   |",
-            "  | High     | Test failures, missing deps      | @agent-debugger         |",
-            "  | Medium   | Type errors, lint failures       | Auto-fix, then debugger |",
+            "  | Critical | Segfault, data corruption        | STOP, @agent-debug      |",
+            "  | High     | Test failures, missing deps      | @agent-debug            |",
+            "  | Medium   | Type errors, lint failures       | Auto-fix, then debug    |",
             "  | Low      | Warnings, style issues           | Note and continue       |",
             "",
             "Escalation triggers -- STOP and report when:",
@@ -301,7 +325,7 @@ def get_step_3_guidance(plan_file: str) -> dict:
             "",
             "Context anchor mismatch protocol:",
             "",
-            "When @agent-developer reports context lines don't match actual code:",
+            "When @agent-implementer reports context lines don't match actual code:",
             "",
             "  | Mismatch Type               | Action                         |",
             "  |-----------------------------|--------------------------------|",
@@ -331,7 +355,7 @@ def get_step_3_guidance(plan_file: str) -> dict:
             "Pass criteria: 100% tests pass, zero linter warnings.",
             "",
             "Self-consistency check (for milestones with >3 files):",
-            "  1. Developer's implementation notes claim: [what was implemented]",
+            "  1. Implementer's notes claim: [what was implemented]",
             "  2. Test results demonstrate: [what behavior was verified]",
             "  3. Acceptance criteria state: [what was required]",
             "",
@@ -347,25 +371,25 @@ def get_step_3_guidance(plan_file: str) -> dict:
             "When ALL milestones are complete, invoke step 4 for quality review:\n"
             f'  python3 executor.py --plan-file "{plan_file}" --step-number 4 '
             '--total-steps 7 --thoughts "All milestones complete. '
-            'Modified files: [list]. Ready for QR."'
+            'Modified files: [list]. Ready for review."'
         ),
     }
 
 
 def get_step_4_guidance(plan_file: str) -> dict:
-    """Step 4: Post-Implementation QR - quality review."""
+    """Step 4: Post-Implementation Review - code review of the implemented work."""
     return {
         "actions": [
-            "POST-IMPLEMENTATION QUALITY REVIEW",
+            "POST-IMPLEMENTATION REVIEW",
             "",
             f"Plan file: {plan_file}",
             "",
-            "Delegate to @agent-quality-reviewer for comprehensive review.",
+            "Delegate to @agent-code-reviewer for a full review (read-only:",
+            "it returns findings and does not edit code).",
             "",
-            "<qr_delegation>",
+            "<review_delegation>",
             "",
-            "  Task for @agent-quality-reviewer:",
-            "  Mode: post-implementation",
+            "  Task for @agent-code-reviewer:",
             "  Plan Source: [plan_file.md]",
             "  Files Modified: [list]",
             "  Reconciled Milestones: [list milestones that were SATISFIED]",
@@ -380,29 +404,35 @@ def get_step_4_guidance(plan_file: str) -> dict:
             "    - No unauthorized deviations",
             "    - Edge cases handled",
             "    - Performance requirements met",
+            "    - Production reliability: failure paths, data integrity, resource use",
+            "    - Project conformance: the repository's documented conventions; where",
+            "      they are silent, the planner skill's resources/default-conventions.md",
+            "    - Comments free of temporal contamination (planner skill",
+            "      resources/temporal-contamination.md defines it)",
             "",
-            "</qr_delegation>",
+            "</review_delegation>",
             "",
-            "Expected output: PASS or issues list sorted by severity.",
+            "Expected output: findings marked blocking, non-blocking, or polish,",
+            "and a final VERDICT line.",
         ],
         "next": (
-            "After QR completes:\n\n"
-            "If QR returns ISSUES -> invoke step 5:\n"
+            "After the review completes:\n\n"
+            "If any finding is blocking -> invoke step 5:\n"
             f'  python3 executor.py --plan-file "{plan_file}" --step-number 5 '
-            '--total-steps 7 --thoughts "QR found N issues: [summary]"'
+            '--total-steps 7 --thoughts "Review found N blocking issues: [summary]"'
             "\n\n"
-            "If QR returns PASS -> invoke step 6:\n"
+            "If no finding is blocking -> invoke step 6:\n"
             f'  python3 executor.py --plan-file "{plan_file}" --step-number 6 '
-            '--total-steps 7 --thoughts "QR passed. Proceeding to documentation."'
+            '--total-steps 7 --thoughts "Review passed. Proceeding to documentation."'
         ),
     }
 
 
 def get_step_5_guidance(plan_file: str) -> dict:
-    """Step 5: QR Issue Resolution - present issues, collect decisions, fix."""
+    """Step 5: Review Issue Resolution - present issues, collect decisions, fix."""
     return {
         "actions": [
-            "QR ISSUE RESOLUTION",
+            "REVIEW ISSUE RESOLUTION",
             "",
             f"Plan file: {plan_file}",
             "",
@@ -412,12 +442,12 @@ def get_step_5_guidance(plan_file: str) -> dict:
             "",
             "Phase 1: Collect Decisions",
             "",
-            "Sort findings by severity (critical -> high -> medium -> low).",
-            "For EACH issue, present:",
+            "Sort findings by disposition (blocking -> non-blocking -> polish),",
+            "the labels the step 4 review uses. For EACH issue, present:",
             "",
-            "  ## Issue [N] of [Total] ([severity])",
+            "  ## Issue [N] of [Total] ([disposition])",
             "",
-            "  **Category**: [production-reliability | project-conformance | structural-quality]",
+            "  **Impact**: [the observable impact the reviewer named]",
             "  **File**: [affected file path]",
             "  **Location**: [function/line if applicable]",
             "",
@@ -428,7 +458,7 @@ def get_step_5_guidance(plan_file: str) -> dict:
             "  [Specific code/behavior that demonstrates the issue]",
             "",
             "Then ask with the host ask tool (Claude Code: AskUserQuestion; Muse Code or Codex Plan mode: request_user_input; else a chat question), offering:",
-            "  - **Fix**: Delegate to @agent-developer to resolve",
+            "  - **Fix**: Delegate to @agent-implementer to resolve",
             "  - **Skip**: Accept the issue as-is",
             "  - **Alternative**: User provides different approach",
             "",
@@ -442,7 +472,7 @@ def get_step_5_guidance(plan_file: str) -> dict:
             "",
             "  1. Summarize the decisions",
             "  2. Execute fixes:",
-            "     - 'Fix' decisions: Delegate to @agent-developer",
+            "     - 'Fix' decisions: Delegate to @agent-implementer",
             "     - 'Skip' decisions: Record in retrospective as accepted risk",
             "     - 'Alternative' decisions: Apply user's specified approach",
             "  3. Parallelize where possible (different files, no dependencies)",
@@ -453,9 +483,9 @@ def get_step_5_guidance(plan_file: str) -> dict:
             "After ALL fixes are applied, return to step 4 for re-validation:\n\n"
             f'  python3 executor.py --plan-file "{plan_file}" --step-number 4 '
             '--total-steps 7 --thoughts "Applied fixes for issues X, Y, Z. '
-            'Re-running QR."'
+            'Re-running the review."'
             "\n\n"
-            "This creates a validation loop until QR passes."
+            "This creates a validation loop until no blocking finding remains."
         ),
     }
 
@@ -666,8 +696,8 @@ def main():
         1: "Execution Planning",
         2: "Reconciliation",
         3: "Milestone Execution",
-        4: "Post-Implementation QR",
-        5: "QR Issue Resolution",
+        4: "Post-Implementation Review",
+        5: "Review Issue Resolution",
         6: "Documentation",
         7: "Retrospective",
     }

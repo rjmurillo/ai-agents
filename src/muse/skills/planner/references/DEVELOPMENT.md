@@ -2,62 +2,54 @@
 
 ## Overview
 
-Planning skill with resources that must stay synced with agent prompts.
+Planning skill with resources that the scripts and `SKILL.md` name by path.
 
 ## Index
 
-| File/Directory                        | Contents                                       | Read When                                    |
-| ------------------------------------- | ---------------------------------------------- | -------------------------------------------- |
-| `SKILL.md`                            | Planning workflow, phases                      | Using the planner skill                      |
-| `scripts/planner.py`                  | Step-by-step planning orchestration            | Debugging planner behavior                   |
-| `resources/plan-format.md`            | Plan template (injected by script)             | Editing plan structure                       |
-| `resources/temporal-contamination.md` | Detection heuristic for contaminated comments  | Updating comment review/QR temporal contamination logic  |
-| `resources/diff-format.md`            | Unified diff spec for code changes             | Updating Developer diff consumption logic    |
-| `resources/default-conventions.md`    | Default structural conventions (4-tier system) | Updating QR RULE 2 or planner decision audit |
+| File/Directory                        | Contents                                       | Read When                                          |
+| ------------------------------------- | ---------------------------------------------- | -------------------------------------------------- |
+| `SKILL.md`                            | Planning workflow, phases                      | Using the planner skill                            |
+| `scripts/planner.py`                  | Step-by-step planning orchestration            | Debugging planner behavior                         |
+| `resources/plan-format.md`            | Plan template (injected by script)             | Editing plan structure                             |
+| `resources/temporal-contamination.md` | Detection heuristic for contaminated comments  | Updating the temporal contamination rules          |
+| `resources/diff-format.md`            | Unified diff spec for code changes             | Updating how plans write code changes              |
+| `resources/default-conventions.md`    | Default structural conventions (4-tier system) | Updating review criteria or planner decision audit |
 
-## Resource Sync Requirements
+## How Resources Reach Agents
 
-Resources are **authoritative sources**.
+Resources are **authoritative sources**. No agent prompt embeds a copy of any of them.
 
-- **SKILL.md** references resources directly (main Claude can read files)
-- **Agent prompts** embed resources 1:1 (sub-agents cannot access files reliably)
+- **SKILL.md** lists the resources, and the coordinator reads them directly.
+- **The scripts** name a resource by path in the brief they print, and the agent reads the file.
+
+Editing a resource takes effect on the next run. There is no copy to keep in sync.
 
 ### plan-format.md
 
-Plan template injected by `scripts/planner.py` at planning phase completion.
-
-**No agent sync required** - the script reads and outputs the format directly, so editing
-this file takes effect immediately without updating any agent prompts.
+Plan template injected by `scripts/planner.py` at planning phase completion. The script reads the file and prints its content.
 
 ### temporal-contamination.md
 
-Authoritative source for temporal contamination detection. Full content embedded 1:1.
+Authoritative source for temporal contamination detection. Two briefs name it:
 
-| Synced To                    | Embedded Section           |
-| ---------------------------- | -------------------------- |
-| `agents/quality-reviewer.md` | `<temporal_contamination>` |
-
-**When updating**: Modify `resources/temporal-contamination.md` first, then copy content into the `<temporal_contamination>` section.
+| Script        | Step                                | Agent                     |
+| ------------- | ----------------------------------- | ------------------------- |
+| `planner.py`  | Review step 1 (comment review)      | `@agent-comment-analyzer` |
+| `executor.py` | Step 4 (post-implementation review) | `@agent-code-reviewer`    |
 
 ### diff-format.md
 
-Authoritative source for unified diff format. Full content embedded 1:1.
-
-| Synced To             | Embedded Section |
-| --------------------- | ---------------- |
-| `agents/developer.md` | `<diff_format>`  |
-
-**When updating**: Modify `resources/diff-format.md` first, then copy content into `<diff_format>` section.
+Authoritative source for the unified diff format that plan milestones use for code changes. `SKILL.md` lists it under Resources. The implementer applies the diffs from the plan file.
 
 ### default-conventions.md
 
-Authoritative source for default structural conventions (the four-tier decision backing system). Embedded in QR for RULE 2 enforcement; referenced by planner for decision audit.
+Authoritative source for default structural conventions (the four-tier decision backing system). Three places name it:
 
-| Synced To                    | Embedded Section        |
-| ---------------------------- | ----------------------- |
-| `agents/quality-reviewer.md` | `<default_conventions>` |
-
-**When updating**: Modify `resources/default-conventions.md` first, then update the `<default_conventions>` section in QR. The planner.py decision audit references this resource by path.
+| Script        | Step                                | Agent or use                 |
+| ------------- | ----------------------------------- | ---------------------------- |
+| `planner.py`  | Review step 2 (plan review)         | `@agent-critic`              |
+| `executor.py` | Step 4 (post-implementation review) | `@agent-code-reviewer`       |
+| `planner.py`  | Planning decision audit             | Cited as `default-conventions domain` |
 
 **Four-tier priority hierarchy** (higher overrides lower):
 
@@ -66,19 +58,12 @@ Authoritative source for default structural conventions (the four-tier decision 
 3. default-derived: conventions in this resource
 4. assumption: no backing found (requires user confirmation)
 
-## Sync Verification
+## Reference Check
 
-After modifying a resource, verify sync:
+After renaming or moving a resource, confirm the scripts still name it:
 
 ```bash
-# Check temporal-contamination.md references
-grep -l "temporal.contamination\|four detection questions\|change-relative\|baseline reference" agents/*.md
-
-# Check diff-format.md references
-grep -l "context lines\|AUTHORITATIVE\|APPROXIMATE\|context anchor" agents/*.md
-
-# Check default-conventions.md references
-grep -l "default_conventions\|domain: god-object\|domain: test-organization" agents/*.md
+grep -n "temporal-contamination.md\|default-conventions.md" scripts/*.py
 ```
 
-If grep finds files not listed in sync tables above, update this document.
+`tests/skills/planner/test_planner_delegation_targets.py` checks that every `@agent-*` name in the planner output exists as an agent template.

@@ -6,11 +6,10 @@ the removed agent never had. Every check here reads the planner scripts, the
 template, and the hand-maintained references, so a regression in any of them
 fails.
 
-`KNOWN_MISSING_AGENTS` lists delegation targets that planner still names and
-that do not exist today. They predate #7421 and stay in the set until a separate
-decision maps or removes each one.
-`test_known_missing_agents_are_still_missing` fails when one of them starts to
-exist, so the exemption cannot go stale.
+Planner also named three agents no template defines: `developer`, `debugger`
+and `quality-reviewer`. They now map to `implementer`, `debug`, and `critic`
+(plan review) or `code-reviewer` (reconciliation and post-implementation
+review). No exemption remains: every `@agent-*` the planner names must exist.
 """
 
 from __future__ import annotations
@@ -41,10 +40,12 @@ SRC_PLANNER = REPO_ROOT / "src" / "claude" / "skills" / "planner"
 SCRIPTS = SRC_PLANNER / "scripts"
 PLAN_FORMAT = SRC_PLANNER / "resources" / "plan-format.md"
 
-# Names planner still delegates to that no template or skill defines. Out of
-# scope for #7421; each needs its own mapping decision.
-KNOWN_MISSING_AGENTS = frozenset({"developer", "debugger", "quality-reviewer"})
-
+# Agent names planner used before they were mapped to real agents, and the
+# quality-reviewer abbreviation and sync targets that went with them.
+RETIRED_AGENT_RE = re.compile(
+    r"@agent-(?:developer|debugger|quality-reviewer)\b"
+    r"|agents/(?:developer|quality-reviewer)\.md|\bQR\b|\bDeveloper\b|Quality Reviewer"
+)
 # A removed agent name, its abbreviation, and the modes it never had.
 REMOVED_WRITER_RE = re.compile(
     r"technical[-_ ]?writer|\bTW\b|plan-scrub|plan-annotation|tw_delegation|delegate_tw",
@@ -189,22 +190,21 @@ def test_no_removed_technical_writer_reference(label: str) -> None:
 
 
 @pytest.mark.parametrize("label", sorted(CORPUS))
-def test_every_named_agent_exists_or_is_known_missing(label: str) -> None:
-    unknown = missing_agents(CORPUS[label]) - KNOWN_MISSING_AGENTS
+def test_every_named_agent_exists(label: str) -> None:
+    unknown = missing_agents(CORPUS[label])
     assert not unknown, f"{label} names agents with no template: {sorted(unknown)}"
+
+
+@pytest.mark.parametrize("label", sorted(CORPUS))
+def test_no_retired_agent_name_remains(label: str) -> None:
+    found = [m.group(0) for m in RETIRED_AGENT_RE.finditer(CORPUS[label])]
+    assert found == [], label
 
 
 @pytest.mark.parametrize("label", sorted(CORPUS))
 def test_every_named_skill_exists(label: str) -> None:
     unknown = missing_skills(CORPUS[label])
     assert not unknown, f"{label} names skills that do not ship: {sorted(unknown)}"
-
-
-def test_known_missing_agents_are_still_missing() -> None:
-    now_present = {
-        n for n in KNOWN_MISSING_AGENTS if (AGENT_TEMPLATES / f"{n}.shared.md").is_file()
-    }
-    assert not now_present, f"remove from KNOWN_MISSING_AGENTS: {sorted(now_present)}"
 
 
 def test_review_step_1_delegates_to_comment_analyzer_and_applies_findings() -> None:
@@ -311,11 +311,6 @@ def test_docs_page_states_the_current_delegation_targets() -> None:
     assert find_removed_writer(text) == []
 
 
-def test_executor_mode_line_lists_only_quality_reviewer_modes() -> None:
-    text = _executor_outputs()["execution step 1"]
-    assert "<mode>[For QR: plan-review|post-implementation|reconciliation]</mode>" in text
-
-
 def _plain(text: str) -> str:
     return squash(text.replace("`", ""))
 
@@ -365,18 +360,13 @@ def test_step_1_split_gives_claude_md_to_the_coordinator() -> None:
     assert "The coordinator edits CLAUDE.md index entries in any milestone" in text
 
 
-def test_delegation_form_lists_implementer_as_an_agent() -> None:
-    text = _executor_outputs()["execution step 1"]
-    assert "<agent>@agent-[developer|debugger|quality-reviewer|implementer]</agent>" in text
-
-
 def test_temporal_contamination_doc_names_only_the_real_consumers() -> None:
     text = squash(
         (SRC_PLANNER / "resources" / "temporal-contamination.md").read_text(encoding="utf-8")
     )
     assert (
-        "@agent-quality-reviewer embeds this specification, and planner review step 1 "
-        "points @agent-comment-analyzer to it."
+        "No agent embeds this specification. Planner review step 1 points "
+        "@agent-comment-analyzer to it, and executor step 4 points @agent-code-reviewer to it."
     ) in text
     assert "Both @agent-comment-analyzer and @agent-quality-reviewer reference" not in text
 

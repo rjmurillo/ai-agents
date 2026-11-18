@@ -11,7 +11,7 @@ Write your plan using this structure:
 
 ## Planning Context
 
-This section is consumed VERBATIM by downstream agents (Comment Analyzer, Quality Reviewer).
+This section is consumed VERBATIM by downstream agents (comment-analyzer, critic).
 Quality matters: vague entries here produce poor annotations and missed risks.
 
 ### Decision Log
@@ -58,7 +58,7 @@ The plan author uses this to add "why not X" context to code comments.
 
 **Anchor requirement**: If mitigation claims existing code behavior ("no change needed", "already handles X"), cite the file:line + brief excerpt that proves the claim. Skip anchors for hypothetical risks or external unknowns.
 
-Quality Reviewer excludes these from findings but will challenge unverified behavioral claims.
+The plan reviewer (critic) excludes these from findings but will challenge unverified behavioral claims.
 
 ## Invisible Knowledge
 
@@ -135,7 +135,7 @@ Log (async)
 
 **Acceptance Criteria**:
 
-- [Testable: "Returns 429 after 3 failed attempts" - QR can verify pass/fail]
+- [Testable: "Returns 429 after 3 failed attempts" - a reviewer can verify pass/fail]
 - [Avoid vague: "Works correctly" or "Handles errors properly"]
 
 **Code Changes** (for non-trivial logic, use unified diff format):
@@ -149,7 +149,7 @@ See `resources/diff-format.md` for specification.
    # Context lines (unchanged) serve as location anchors
    existing_code()
 
-+  # WHY comment explaining rationale - transcribed verbatim by Developer
++  # WHY comment explaining rationale - transcribed verbatim by the implementer
 +  new_code()
 
    # More context to anchor the insertion point
