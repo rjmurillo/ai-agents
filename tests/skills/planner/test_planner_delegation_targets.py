@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import importlib.util
 import re
+from collections.abc import Iterable
 from pathlib import Path
 from types import ModuleType
 
@@ -29,6 +30,9 @@ PLANNER_ROOTS = (
     "src/claude/skills/planner",
     ".claude/skills/planner",
     "src/copilot-cli/skills/planner",
+    "src/codex/skills/planner",
+    "src/cursor/skills/planner",
+    "src/muse/skills/planner",
 )
 PLANNER_TEMPLATE = REPO_ROOT / "templates" / "skills" / "planner.SKILL.md.tmpl"
 PLANNER_DOCS_PAGE = REPO_ROOT / "docs" / "skills" / "planner.md"
@@ -154,6 +158,26 @@ def missing_skills(text: str) -> set[str]:
     return {
         name for name in skill_targets(text) if not (SHIPPED_SKILLS / name / "SKILL.md").is_file()
     }
+
+
+def discover_planner_roots() -> set[str]:
+    """Every on-disk planner skill directory, as a repo-relative POSIX path.
+
+    Covers `src/<plugin>/skills`, a pack nested one level deeper such as
+    `src/hermes/<pack>/skills`, and the dogfood copy under `.claude/skills`.
+    `.claude/skills/planner` is a symlink, so the check is `is_dir()`, which follows it.
+    """
+    candidates = [
+        *REPO_ROOT.glob("src/*/skills/planner"),
+        *REPO_ROOT.glob("src/*/*/skills/planner"),
+        REPO_ROOT / ".claude" / "skills" / "planner",
+    ]
+    return {path.relative_to(REPO_ROOT).as_posix() for path in candidates if path.is_dir()}
+
+
+def unconfigured_planner_roots(configured: Iterable[str]) -> set[str]:
+    """On-disk planner trees that `configured` does not scan."""
+    return discover_planner_roots() - set(configured)
 
 
 CORPUS = _corpus()
@@ -353,7 +377,33 @@ def test_comment_analyzer_does_not_embed_temporal_contamination() -> None:
     assert "temporal" not in COMMENT_ANALYZER.read_text(encoding="utf-8").lower()
 
 
+# Converse guard: PLANNER_ROOTS is a configured set, so every on-disk planner tree
+# must be in it, or a stale delegation in an unscanned mirror passes unseen.
+def test_planner_roots_cover_every_planner_skill_on_disk() -> None:
+    missing = unconfigured_planner_roots(PLANNER_ROOTS)
+    assert not missing, f"PLANNER_ROOTS omits on-disk planner trees: {sorted(missing)}"
+
+
+def test_every_configured_planner_root_is_a_directory() -> None:
+    absent = [root for root in PLANNER_ROOTS if not (REPO_ROOT / root).is_dir()]
+    assert not absent, f"PLANNER_ROOTS names missing directories: {absent}"
+
+
 # Negative controls: each helper must catch the defect it guards against.
+def test_negative_control_discovery_finds_every_known_planner_tree() -> None:
+    assert {
+        "src/claude/skills/planner",
+        ".claude/skills/planner",
+        "src/copilot-cli/skills/planner",
+        "src/codex/skills/planner",
+        "src/cursor/skills/planner",
+        "src/muse/skills/planner",
+    } <= discover_planner_roots()
+
+
+def test_negative_control_a_dropped_root_is_reported() -> None:
+    reduced = [root for root in PLANNER_ROOTS if root != "src/muse/skills/planner"]
+    assert unconfigured_planner_roots(reduced) == {"src/muse/skills/planner"}
 
 
 @pytest.mark.parametrize(
