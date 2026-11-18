@@ -153,7 +153,7 @@ Other docs cover the same ground. We link them and do not repeat them:
 
    The [spec skill](../../src/claude/skills/spec/SKILL.md) runs a blocking First Principles gate first. It asks six questions: who asked, what the workaround is, who is blocked, the narrowest fix, the evidence, and whether it still makes sense at 10x. Answer each in plain words. The gate checks answers for hedge phrases, and a failed check can stop the spec.
 
-   A memory gate runs next. It searches memory, Git history, and past pull requests for prior work on the files you named. It then lists the files and skills it found that your Q1, Q3, and Q4 answers do not name. In an interactive session, it asks you to mark each one in-scope, out-of-scope, or blast-radius (connected, and your change may affect it). Two or more blast-radius marks stop the spec. With no person present, the agent marks every unnamed item blast-radius itself, and three or more stop the spec.
+   A memory gate runs next. It searches memory, Git history, and past pull requests for prior work on the files you named. It then lists the files, skills, and other names it found that your Q1, Q3, and Q4 answers do not name. In an interactive session, it asks you to mark each one in-scope, out-of-scope, or blast-radius (connected, and your change may affect it). Two or more blast-radius marks stop the spec. With no person present, the agent marks every unnamed item blast-radius itself, and three or more stop the spec.
 
    For this exercise, mark each one out-of-scope with a one-line reason, because your edit changes only `docs/workflow-commands.md`. The search may also find the pull request that already made this fix on `main`. That is expected, since this exercise replays that fix. It does not stop the spec.
 
@@ -266,14 +266,15 @@ Other docs cover the same ground. We link them and do not repeat them:
     exit 0
     ```
 
-    We captured this on a throwaway branch of commit `81025e191` with only the step 9 edit. The `...` stands for the other rows the `RESULT` line counts. Your counts and rows can differ, because some advisory checks read your machine. Any run that prints `No validation blocked the gate` and exits 0 is a pass. So is `RESULT: All validations passed`. An `[ADVISORY]` row is a finding the policy lets through: read it, but it does not block. The review marker skip is expected, because you have not run `/review` yet. Every passing run prints the push check. Ignore it here, because `/ship` pushes in step 12.
+    We captured this on a throwaway branch of commit `81025e191` with only the step 9 edit. The `...` stands for the other rows the `RESULT` line counts. Your counts and rows can differ, because some advisory checks read your machine. Any run that prints `No validation blocked the gate` and exits 0 is a pass. So is `RESULT: All validations passed`. An `[ADVISORY]` row is a finding the policy lets through: read it, but it does not block. The review marker skip is expected, because you have not run `/review` yet. A passing run started from your shell prints the push check. Ignore it here, because `/ship` pushes in step 12.
 
-    A run that blocks prints `RESULT: <n> validation(s) blocked the gate`, lists each gate that blocked, and exits 1, 2, 3, or 4. Act on each one by its state:
+    A run that blocks prints `RESULT: <n> validation(s) blocked the gate`, lists each gate that blocked, and exits 1, 3, or 4. Act on each one by its state:
 
     - `FAIL`: fix the violation it names and commit the fix.
     - `BLOCKED`: install or sign in to the dependency it names.
     - `UNKNOWN`: its output was unreadable. Rerun and read that gate's output.
-    - `SKIP`: a required check did not run. Read its reason and supply what it names.
+
+    A `SKIP` row never blocks this gate.
 
     Then rerun `pre_pr.py`.
 
