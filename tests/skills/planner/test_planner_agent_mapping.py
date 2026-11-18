@@ -128,7 +128,10 @@ def test_reconciliation_skips_a_milestone_only_on_proof() -> None:
     assert "a milestone with no acceptance criteria is NOT_SATISFIED" in text
     assert "read-only" not in text
     assert "do not create, edit, or delete any file" in text
-    assert "Discard every file qa created or changed" in text
+    assert "git stash create" in text
+    assert "git restore --source <snapshot> --worktree" in text
+    assert "Remove each untracked file that was not in the first list" in text
+    assert "git status --porcelain" not in text
     assert "No blocking finding" not in text
     assert "Return: SATISFIED" not in text
 
