@@ -93,10 +93,43 @@ def test_inapplicable_checks_report_not_applicable(skill_text: str) -> None:
     assert "Never ask the author to open an issue" in phase2
 
 
+def _flat(text: str) -> str:
+    return " ".join(text.split())
+
+
 def test_plugin_validator_warnings_are_relabelled_in_consumers(skill_text: str) -> None:
-    phase2 = _section(skill_text, "Phase 2: Run the checks")
+    phase2 = _flat(_section(skill_text, "Phase 2: Run the checks"))
     assert "plugin's copy, not a gate of that repository" in phase2
     assert "Its title result always stands." in phase2
+
+
+def test_keyword_warning_stands_when_tracking_issue_exists(skill_text: str) -> None:
+    """A known tracking issue keeps check 2 live even with no template or gate."""
+    phase2 = _flat(_section(skill_text, "Phase 2: Run the checks"))
+    assert "A keyword WARN stands when a tracking issue or an issue-link gate exists" in phase2
+    assert "`NOT APPLICABLE` only when neither does" in phase2
+    # The pre-review wording relabelled both WARNs on template or gate alone.
+    assert (
+        "relabel them `NOT APPLICABLE` when discovery found no matching template or gate"
+        not in phase2
+    )
+
+
+def test_validator_exit_code_is_not_read_as_a_gate(skill_text: str) -> None:
+    phase2 = _flat(_section(skill_text, "Phase 2: Run the checks"))
+    assert "read the per-check output, not the exit code" in phase2
+
+
+def test_discovery_names_how_a_tracking_issue_is_found(skill_text: str) -> None:
+    body = _section(skill_text, "Phase 1b: Discover the target repository's metadata gates")
+    row = next(line for line in body.splitlines() if line.startswith("| Tracking issue |"))
+    assert "author names one" in row
+    assert "branch name" in row
+    assert row.rstrip().endswith("| Check 2 |")
+
+
+def test_keyword_rule_accepts_cross_repository_references(skill_text: str) -> None:
+    assert "`owner/repo#N`" in _check_row(skill_text, 2)
 
 
 def test_no_unconditional_upstream_gate_claims(skill_text: str) -> None:

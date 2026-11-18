@@ -55,6 +55,7 @@ the target checkout before you apply them. Use Glob, Grep, and Read only.
 
 | Signal | Where to look | Enables |
 |--------|---------------|---------|
+| Tracking issue | the author names one, or the title, body, or branch name references an issue number | Check 2 |
 | PR template | `.github/pull_request_template.md`, `.github/PULL_REQUEST_TEMPLATE.md`, `.github/PULL_REQUEST_TEMPLATE/*.md`, `docs/`, or the repository root, any case | Check 3, against that template's own headings |
 | Issue-link gate | a workflow, script, or contributor rule that fails a PR with no closing keyword or issue reference (grep `.github/workflows/`, repository scripts, `CONTRIBUTING.md`, and `AGENTS.md` for `Closes`, `closing keyword`, `issue link`) | Check 2 as a requirement |
 | Template gate | a workflow or script that parses PR body sections (grep for the template's heading text) | Check 3 failures as gate failures |
@@ -67,7 +68,7 @@ unknown, not absent.
 | # | Check | Applies when | Rule | Failure meaning |
 |---|-------|--------------|------|-----------------|
 | 1 | Conventional commit title | Always | `<type>(<scope>)?: <description>`, type one of `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`, `build`, `revert` | Release tooling cannot classify the change |
-| 2 | Issue-linking keyword | A tracking issue exists, or discovery found an issue-link gate | body holds `Closes #N`, `Fixes #N`, `Resolves #N`, a past-tense variant, or `Refs #N` | The issue stays open after merge; with a gate, the PR fails it |
+| 2 | Issue-linking keyword | A tracking issue exists, or discovery found an issue-link gate | body holds `Closes #N`, `Fixes #N`, `Resolves #N`, a past-tense variant, or `Refs #N`; `owner/repo#N` for an issue in another repository | The issue stays open after merge; with a gate, the PR fails it |
 | 3 | Template compliance | Discovery found a PR template | Every section the template asks the author to fill is populated: prose sections non-empty, list sections hold an item, checkbox groups hold a mark | A reviewer or the discovered template gate sees an empty section |
 
 When a check does not apply, report it `NOT APPLICABLE` with the discovery
@@ -78,9 +79,14 @@ the repository's own gate demands one; then report that gate by path.
 Prefer the repository's own validator when it ships one, because it is the same
 code the gate runs. The locator below finds the plugin's script in a plugin
 install and in the upstream checkout. In a consumer repository it is the
-plugin's copy, not a gate of that repository: its keyword and template WARNs
-match the plugin's upstream template, so relabel them `NOT APPLICABLE` when
-discovery found no matching template or gate. Its title result always stands.
+plugin's copy, not a gate of that repository, so judge each of its WARNs by
+that check's own "Applies when" condition. A keyword WARN stands when a
+tracking issue or an issue-link gate exists, and is `NOT APPLICABLE` only when
+neither does. Its template WARN reads the plugin's upstream sections, so
+discard it: with no PR template, check 3 is `NOT APPLICABLE`; with one, run
+check 3 against that template's headings yourself. Its title result always
+stands. Under `--fail-on-violation` its exit 1 can come from those WARNs, so
+read the per-check output, not the exit code.
 
 ```bash
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/validate_pr_description.py --title "[title]" --body-file "[path-to-body.md]"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )

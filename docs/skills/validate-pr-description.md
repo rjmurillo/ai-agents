@@ -31,12 +31,12 @@ A report per check, not one verdict. Each failure shows the offending text and a
 | # | Check | Applies when | Rule |
 | --- | --- | --- | --- |
 | 1 | Conventional commit title | Always | `<type>(<scope>)?: <description>`. Type is one of `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`, `build`, `revert`. |
-| 2 | Issue-linking keyword | A tracking issue exists, or the repository has an issue-link gate | The body has `Closes #N`, `Fixes #N`, `Resolves #N`, a past-tense variant, or `Refs #N`. |
+| 2 | Issue-linking keyword | A tracking issue exists, or the repository has an issue-link gate | The body has `Closes #N`, `Fixes #N`, `Resolves #N`, a past-tense variant, or `Refs #N`. Use `owner/repo#N` for an issue in another repository. |
 | 3 | Template compliance | The repository has a PR template | Every section the template asks you to fill is populated. |
 
-Before checks 2 and 3, the skill searches your checkout for a PR template and for workflows or scripts that enforce issue links or template sections. A check with nothing to enforce it reports `NOT APPLICABLE` with what was searched. The skill never asks you to open an issue just so a keyword has a target.
+Before checks 2 and 3, the skill searches your checkout for a PR template and for workflows or scripts that enforce issue links or template sections. It learns of a tracking issue when you name one or when the title, body, or branch name references one. A check whose "Applies when" condition is not met reports `NOT APPLICABLE` with what was searched. The skill never asks you to open an issue just so a keyword has a target.
 
-The report also says which path ran: the repository's validator, or a manual pass. They are different levels of evidence. In a repository other than this one, the plugin's validator script reflects this repository's template, so the skill relabels its keyword and template warnings `NOT APPLICABLE` when your repository has no matching template or gate.
+The report also says which path ran: the repository's validator, or a manual pass. They are different levels of evidence. In a repository other than this one, the plugin's validator script reflects this repository's template. The skill keeps its keyword warning when a tracking issue or an issue-link gate exists, and drops it otherwise. It discards the script's template warning and checks your own template's headings instead.
 
 ## Advanced use
 
@@ -48,7 +48,7 @@ When the plugin's `validate_pr_description.py` is present, the skill runs it. Ru
 uv run python .claude/skills/github/scripts/pr/validate_pr_description.py --help
 ```
 
-Flags: `--title` (required), `--body`, `--body-file`, `--fail-on-violation`. Exit `0` means all checks pass or warn. Exit `1` means a failure with `--fail-on-violation`. Exit `2` is a usage or environment error.
+Flags: `--title` (required), `--body`, `--body-file`, `--fail-on-violation`. Exit `0` means all checks pass or warn. Exit `1` means a failure with `--fail-on-violation`. That flag also turns keyword and template warnings into failures, so in another repository exit `1` can come from checks the skill reports `NOT APPLICABLE`. Exit `2` is a usage or environment error.
 
 ### File mentions against the diff
 
