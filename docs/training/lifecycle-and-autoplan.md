@@ -30,7 +30,7 @@ Other docs cover the same ground. We link them and do not repeat them:
 
 1. **Know what the router does.** `/autoplan` is the front door. You give it a request that names no skill. It picks one destination: a skill, a lifecycle command, or an agent chain. It runs that route and ends with one summary block: the route taken, the decisions it made for you, any open question, and the evidence.
 
-   The first match wins. The full rules are in [Precedence](../../.claude/skills/autoplan/SKILL.md#precedence).
+   The first match wins. The full rules are in [Precedence](../../src/claude/skills/autoplan/SKILL.md#precedence).
 
    1. You named an installed skill or command. The router steps aside.
    2. The request matches a row in the routing table.
@@ -40,7 +40,7 @@ Other docs cover the same ground. We link them and do not repeat them:
 
    The router never routes to itself. The orchestrator never calls the router back. [ADR-078](../../.project-toolkit/architecture/ADR-078-autoplan-orchestrator-router-boundary.md) states the rule: autoplan routes, orchestrator coordinates specialists.
 
-2. **Size the work.** For a feature, bug, or ship request, the router picks the smallest honest tier ([Phase 1](../../.claude/skills/autoplan/SKILL.md#phase-1-classify)).
+2. **Size the work.** For a feature, bug, or ship request, the router picks the smallest honest tier ([Phase 1](../../src/claude/skills/autoplan/SKILL.md#phase-1-classify)).
 
    | Tier | Signal | Chain |
    |------|--------|-------|
@@ -106,11 +106,11 @@ Other docs cover the same ground. We link them and do not repeat them:
 
    The router drops its own name and resolves the rest. The fifth kind, `ambiguous`, lists candidates and asks you to pick. We have no stable request that triggers it, so this page does not show one.
 
-4. **Name a skill to skip the router.** Type the skill or its slash command, such as `/review` or `/spec Add a retry to the webhook sender`. Nothing reroutes you. Your choice beats every table row. Do not name a skill to dodge a question the router would stop and ask you. Those stops are on purpose: architecture, new ADRs, breaking changes, security posture, and anything external or irreversible ([Phase 3](../../.claude/skills/autoplan/SKILL.md#phase-3-execute-with-defaults)).
+4. **Name a skill to skip the router.** Type the skill or its slash command, such as `/review` or `/spec Add a retry to the webhook sender`. Nothing reroutes you. Your choice beats every table row. Do not name a skill to dodge a question the router would stop and ask you. Those stops are on purpose: architecture, new ADRs, breaking changes, security posture, and anything external or irreversible ([Phase 3](../../src/claude/skills/autoplan/SKILL.md#phase-3-execute-with-defaults)).
 
 **Part 2: take one change through the lifecycle.**
 
-5. **Pick the change and cut a branch.** We use a real defect that `main` has since fixed. `docs/workflow-commands.md` said `/ship` runs five pre-flight checks. The [ship skill](../../.claude/skills/ship/SKILL.md) defines four: pipeline, security, reviewed, and tests. To keep every command and output on this page exact, cut your branch from commit `81025e191`. That `main` commit still has the defect. Never commit to `main`.
+5. **Pick the change and cut a branch.** We use a real defect that `main` has since fixed. `docs/workflow-commands.md` said `/ship` runs five pre-flight checks. The [ship skill](../../src/claude/skills/ship/SKILL.md) defines four: pipeline, security, reviewed, and tests. To keep every command and output on this page exact, cut your branch from commit `81025e191`. That `main` commit still has the defect. Never commit to `main`.
 
    ```bash
    git fetch origin
@@ -151,7 +151,7 @@ Other docs cover the same ground. We link them and do not repeat them:
    /spec docs/workflow-commands.md says /ship runs 5 pre-flight checks. The ship skill defines 4. Make the doc match the skill.
    ```
 
-   The [spec skill](../../.claude/skills/spec/SKILL.md) runs a blocking First Principles gate first. It asks six questions: who asked, what the workaround is, who is blocked, the narrowest fix, the evidence, and whether it still makes sense at 10x. Answer each in plain words. The gate checks answers for hedge phrases, and a failed check can stop the spec. A memory gate then searches prior work and halts if the question is already answered.
+   The [spec skill](../../src/claude/skills/spec/SKILL.md) runs a blocking First Principles gate first. It asks six questions: who asked, what the workaround is, who is blocked, the narrowest fix, the evidence, and whether it still makes sense at 10x. Answer each in plain words. The gate checks answers for hedge phrases, and a failed check can stop the spec. A memory gate then searches prior work and halts if the question is already answered.
 
    It produces a requirements document: problem statement, numbered acceptance criteria, out-of-scope items, and open questions. The spec generator writes durable files to these paths:
 
@@ -159,7 +159,7 @@ Other docs cover the same ground. We link them and do not repeat them:
    - `.project-toolkit/specs/design/DESIGN-NNN-<title>.md`
    - `.project-toolkit/specs/tasks/TASK-NNN-<title>.md`
 
-   The skill's [Output section](../../.claude/skills/spec/SKILL.md#output) lists every section. For this change, write acceptance criteria you can test with `grep`: the doc says 4, and it lists the same four checks as the skill.
+   The skill's [Output section](../../src/claude/skills/spec/SKILL.md#output) lists every section. For this change, write acceptance criteria you can test with `grep`: the doc says 4, and it lists the same four checks as the skill.
 
 8. **/plan: split the work.**
 
@@ -167,7 +167,7 @@ Other docs cover the same ground. We link them and do not repeat them:
    /plan
    ```
 
-   The [plan skill](../../.claude/skills/plan/SKILL.md) reads the spec. It returns milestones with exit criteria, atomic tasks sized S, M, or L, a dependency graph, a risk register, and deferred items. The `execution-plans` skill saves the plan under `.project-toolkit/plans/active/<slug>.md`. With no spec, `/plan` sends you back to `/spec`.
+   The [plan skill](../../src/claude/skills/plan/SKILL.md) reads the spec. It returns milestones with exit criteria, atomic tasks sized S, M, or L, a dependency graph, a risk register, and deferred items. The `execution-plans` skill saves the plan under `.project-toolkit/plans/active/<slug>.md`. With no spec, `/plan` sends you back to `/spec`.
 
 9. **/build: make the change.**
 
@@ -175,7 +175,7 @@ Other docs cover the same ground. We link them and do not repeat them:
    /build Fix the pre-flight count in docs/workflow-commands.md
    ```
 
-   The [build skill](../../.claude/skills/build/SKILL.md) works in thin slices, test first, with atomic commits. A doc change has no unit test, so your check is the `grep` from step 5. Four exit gates must come back clean: code qualities, taste lints, the documentation gate, and the orphan reference check. A failed gate stays failed. See [Mandatory Exit Gates](../../.claude/skills/build/SKILL.md#mandatory-exit-gates).
+   The [build skill](../../src/claude/skills/build/SKILL.md) works in thin slices, test first, with atomic commits. A doc change has no unit test, so your check is the `grep` from step 5. Four exit gates must come back clean: code qualities, taste lints, the documentation gate, and the orphan reference check. A failed gate stays failed. See [Mandatory Exit Gates](../../src/claude/skills/build/SKILL.md#mandatory-exit-gates).
 
    The finished diff should look like this. We applied the edit by hand on a throwaway branch of commit `81025e191` to capture the output. Keep your edit identical to it. `main` already has this exact fix, so different wording conflicts with `main` when you ship.
 
@@ -200,7 +200,7 @@ Other docs cover the same ground. We link them and do not repeat them:
     /test
     ```
 
-    The [test skill](../../.claude/skills/test/SKILL.md) has six gates: functional, non-functional, security, DevOps, developer experience, and observability. It classifies the diff first and prints `PR TYPE: [type]. Running gates: [list].`. A diff of only `*.md` files is type DOCS, which runs Gate 5 only. Each gate prints `VERDICT: PASS`, `WARN`, or `CRITICAL_FAIL`. Gate 5 can also print `ERROR`. The overall verdict is `CRITICAL_FAIL` if any gate fails or reports `ERROR`.
+    The [test skill](../../src/claude/skills/test/SKILL.md) has six gates: functional, non-functional, security, DevOps, developer experience, and observability. It classifies the diff first and prints `PR TYPE: [type]. Running gates: [list].`. A diff of only `*.md` files is type DOCS, which runs Gate 5 only. Each gate prints `VERDICT: PASS`, `WARN`, or `CRITICAL_FAIL`. Gate 5 can also print `ERROR`. The overall verdict is `CRITICAL_FAIL` if any gate fails or reports `ERROR`.
 
     Run the Markdown check yourself too. It auto-fixes files, so run `git status --short` after it. If it lists a change, commit it before `/review`, because `/ship` fails on a dirty tree.
 
@@ -226,7 +226,7 @@ Other docs cover the same ground. We link them and do not repeat them:
     /review
     ```
 
-    The [review skill](../../.claude/skills/review/SKILL.md) runs a Stage-1 spec-compliance gate first. If it returns `CRITICAL_FAIL`, the review stops and the other axes show `SKIPPED`. Otherwise it picks Stage-2 axes by risk, and `analyst` always runs. It prints one row per axis and a `FINAL VERDICT`. Each finding has a severity (Critical, Important, or Suggestion), a `file:line` location, and a one-sentence fix.
+    The [review skill](../../src/claude/skills/review/SKILL.md) runs a Stage-1 spec-compliance gate first. If it returns `CRITICAL_FAIL`, the review stops and the other axes show `SKIPPED`. Otherwise it picks Stage-2 axes by risk, and `analyst` always runs. It prints one row per axis and a `FINAL VERDICT`. Each finding has a severity (Critical, Important, or Suggestion), a `file:line` location, and a one-sentence fix.
 
     On a PASS, the skill writes a marker: an empty commit on top of the code you reviewed. The message holds the report and two trailers. This is the shape of a marker written by an earlier `/review` run in this repository. That commit may not exist in your clone:
 
@@ -265,8 +265,8 @@ Other docs cover the same ground. We link them and do not repeat them:
 
     | Phase | Can you drop it? | Why |
     |-------|------------------|-----|
-    | `/spec` | Yes, for a Trivial or Standard change. | [Phase 1](../../.claude/skills/autoplan/SKILL.md#phase-1-classify) starts the Feature tier at `/spec`. Keep it for a new capability, a new module, or unclear requirements. |
-    | `/plan` | Yes, for a Trivial or Standard change. | Only the Feature tier includes it. With no `/spec` output, `/plan` sends you back to `/spec` ([plan skill](../../.claude/skills/plan/SKILL.md)). |
+    | `/spec` | Yes, for a Trivial or Standard change. | [Phase 1](../../src/claude/skills/autoplan/SKILL.md#phase-1-classify) starts the Feature tier at `/spec`. Keep it for a new capability, a new module, or unclear requirements. |
+    | `/plan` | Yes, for a Trivial or Standard change. | Only the Feature tier includes it. With no `/spec` output, `/plan` sends you back to `/spec` ([plan skill](../../src/claude/skills/plan/SKILL.md)). |
     | `/build` | No, for a code change. | Its four exit gates are hard preconditions for done. |
     | `/test` | Not the phase. Some gates skip themselves. | A DOCS diff runs Gate 5 only. A code diff runs all six gates. |
     | `/review` | No, before `/ship` on your own branch. | The `/ship` reviewed check needs the marker. |
@@ -278,7 +278,7 @@ Other docs cover the same ground. We link them and do not repeat them:
     /ship
     ```
 
-    The [ship skill](../../.claude/skills/ship/SKILL.md) detects your host and mode, then runs four pre-flight checks: pipeline, security, reviewed, and tests. Any failure blocks the ship. With no pull request yet, the pipeline check is deferred, then checked again once the pull request exists. It ends with a report in this shape:
+    The [ship skill](../../src/claude/skills/ship/SKILL.md) detects your host and mode, then runs four pre-flight checks: pipeline, security, reviewed, and tests. Any failure blocks the ship. With no pull request yet, the pipeline check is deferred, then checked again once the pull request exists. It ends with a report in this shape:
 
     ```text
     HOST: github|ado
@@ -330,8 +330,8 @@ git branch --show-current
 
 If it fails, look here first:
 
-- **`python3` prints a PyYAML error.** Bare `python3` often lacks PyYAML, and the resolver exits 2 with `error: missing required module: yaml (PyYAML). Read skill descriptions directly instead of running this resolver.` Use `uv run python` from the repository root. With no Python, read each skill's `description` field and pick the closest match ([Phase 2c](../../.claude/skills/autoplan/SKILL.md#phase-2c-resolver-ambiguity-from-a-home-repo-run)).
-- **The resolver returns `none` for a request you expected to match.** It only matches front-door skills that list `intents`. A table row in `SKILL.md` can route a request the resolver does not match. Read [Phase 2](../../.claude/skills/autoplan/SKILL.md#phase-2-route) before you decide the router is wrong.
+- **`python3` prints a PyYAML error.** Bare `python3` often lacks PyYAML, and the resolver exits 2 with `error: missing required module: yaml (PyYAML). Read skill descriptions directly instead of running this resolver.` Use `uv run python` from the repository root. With no Python, read each skill's `description` field and pick the closest match ([Phase 2c](../../src/claude/skills/autoplan/SKILL.md#phase-2c-resolver-ambiguity-from-a-home-repo-run)).
+- **The resolver returns `none` for a request you expected to match.** It only matches front-door skills that list `intents`. A table row in `SKILL.md` can route a request the resolver does not match. Read [Phase 2](../../src/claude/skills/autoplan/SKILL.md#phase-2-route) before you decide the router is wrong.
 - **`/spec` stops at the First Principles gate.** A hedged or empty answer blocks it. Name a real person or system, a real workaround, and a real signal. If you cannot, the change may not be worth making yet.
 - **`/spec` halts at the memory gate.** The search found the question already answered. Read the answer it cites.
 - **`/plan` asks for a spec.** Run `/spec` first, or say you accept an ungated plan.
@@ -344,11 +344,11 @@ If it fails, look here first:
 
 ## Next
 
-The next page in reading order is the review and PR feedback loop (`review-and-pr-feedback.md`, #7206). It has no page yet. See the [training index](README.md) for pages that have landed.
+The next page in reading order is [Review a branch with /review and answer a review thread](review-and-pr-feedback.md). See the [training index](README.md) for every page.
 
 Reference sources this page relies on:
 
-- Skills: [autoplan](../../.claude/skills/autoplan/SKILL.md), [spec](../../.claude/skills/spec/SKILL.md), [plan](../../.claude/skills/plan/SKILL.md), [build](../../.claude/skills/build/SKILL.md), [test](../../.claude/skills/test/SKILL.md), [review](../../.claude/skills/review/SKILL.md), and [ship](../../.claude/skills/ship/SKILL.md).
+- Skills: [autoplan](../../src/claude/skills/autoplan/SKILL.md), [spec](../../src/claude/skills/spec/SKILL.md), [plan](../../src/claude/skills/plan/SKILL.md), [build](../../src/claude/skills/build/SKILL.md), [test](../../src/claude/skills/test/SKILL.md), [review](../../src/claude/skills/review/SKILL.md), and [ship](../../src/claude/skills/ship/SKILL.md).
 - Decisions: [ADR-078](../../.project-toolkit/architecture/ADR-078-autoplan-orchestrator-router-boundary.md) and [ADR-105](../../.project-toolkit/architecture/ADR-105-terminal-state-completion-contract.md).
-- Scripts: [`resolve_route.py`](../../.claude/skills/autoplan/scripts/resolve_route.py) and [`validate_review_marker.py`](../../.claude/skills/review/scripts/validate_review_marker.py).
+- Scripts: [`resolve_route.py`](../../src/claude/skills/autoplan/scripts/resolve_route.py) and [`validate_review_marker.py`](../../src/claude/skills/review/scripts/validate_review_marker.py).
 - Related docs: [lifecycle commands](../workflow-commands.md), [autonomous issue development](../autonomous-issue-development.md), and [orchestrator routing algorithm](../orchestrator-routing-algorithm.md).
