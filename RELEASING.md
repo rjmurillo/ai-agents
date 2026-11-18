@@ -112,7 +112,8 @@ creates the `v*` tag ruleset (issue #5636). Pushing a tag does not publish.
 Go to [Actions > npm Publish > Run workflow](https://github.com/rjmurillo/ai-agents/actions/workflows/publish.yml)
 and select `dry-run: true` (the default). This builds and validates the package, runs
 the gate advisory, and runs `npm publish --dry-run` without publishing. Run it from
-`main`: the `npm` environment refuses a run from any other branch.
+`main`. The first job refuses any other branch, and the `npm` environment's
+branch rule is the second lock.
 
 ## Writing release notes
 
