@@ -9,7 +9,7 @@ Seven-phase execution workflow with JIT prompt injection:
   Step 3: Milestone Execution (delegate to agents, run tests)
   Step 4: Post-Implementation QR (quality review)
   Step 5: QR Issue Resolution (conditional, fix issues)
-  Step 6: Documentation (TW pass)
+  Step 6: Documentation (docs pass)
   Step 7: Retrospective (present summary)
 
 Usage:
@@ -120,13 +120,13 @@ def get_step_1_guidance(plan_file: str, thoughts: str) -> dict:
         "",
         "Before delegating ANY milestone, identify its type from file extensions:",
         "",
-        "  | Milestone Type | Recognition Signal              | Delegate To             |",
-        "  |----------------|--------------------------------|-------------------------|",
-        "  | Documentation  | ALL files are *.md or *.rst    | @agent-technical-writer |",
-        "  | Code           | ANY file is source code        | @agent-developer        |",
+        "  | Milestone Type | Recognition Signal              | Delegate To                     |",
+        "  |----------------|--------------------------------|---------------------------------|",
+        "  | Documentation  | ALL files are *.md or *.rst    | technical-writing skill (load)  |",
+        "  | Code           | ANY file is source code        | @agent-developer                |",
         "",
         "Mixed milestones: Split delegation -- @agent-developer first (code),",
-        "then @agent-technical-writer (docs) after code completes.",
+        "then the technical-writing skill (docs) after code completes.",
         "",
         "</milestone_type_detection>",
         "",
@@ -135,8 +135,8 @@ def get_step_1_guidance(plan_file: str, thoughts: str) -> dict:
         "EVERY delegation MUST use this structure:",
         "",
         "  <delegation>",
-        "    <agent>@agent-[developer|debugger|technical-writer|quality-reviewer]</agent>",
-        "    <mode>[For TW/QR: plan-scrub|post-implementation|plan-review|reconciliation]</mode>",
+        "    <agent>@agent-[developer|debugger|quality-reviewer]</agent>",
+        "    <mode>[For QR: plan-review|post-implementation|reconciliation]</mode>",
         "    <plan_source>[Absolute path to plan file]</plan_source>",
         "    <milestone>[Milestone number and name]</milestone>",
         "    <files>[Exact file paths from milestone]</files>",
@@ -146,6 +146,11 @@ def get_step_1_guidance(plan_file: str, thoughts: str) -> dict:
         "      - [Criterion 2 from plan]",
         "    </acceptance_criteria>",
         "  </delegation>",
+        "",
+        "A documentation milestone names a skill, not an agent. Use <skill> in place",
+        "of <agent> and <mode>; the delegate loads the skill before it writes:",
+        "",
+        "    <skill>technical-writing</skill>",
         "",
         "For parallel delegations, wrap multiple blocks:",
         "",
@@ -160,7 +165,7 @@ def get_step_1_guidance(plan_file: str, thoughts: str) -> dict:
         "  - @agent-developer: Maximum 4 parallel",
         "  - @agent-debugger: Maximum 2 parallel",
         "  - @agent-quality-reviewer: ALWAYS sequential",
-        "  - @agent-technical-writer: Can parallel across independent modules",
+        "  - technical-writing skill: Can parallel across independent modules",
         "",
         "</delegation_format>",
     ]
@@ -434,35 +439,39 @@ def get_step_5_guidance(plan_file: str) -> dict:
 
 
 def get_step_6_guidance(plan_file: str) -> dict:
-    """Step 6: Documentation - TW pass for CLAUDE.md, README.md."""
+    """Step 6: Documentation - docs pass for CLAUDE.md, README.md."""
     return {
         "actions": [
             "POST-IMPLEMENTATION DOCUMENTATION",
             "",
             f"Plan file: {plan_file}",
             "",
-            "Delegate to @agent-technical-writer for documentation updates.",
+            "Delegate documentation updates by owner. Each owner has a different scope.",
             "",
-            "<tw_delegation>",
+            "<docs_delegation>",
             "",
             "Skip condition: If ALL milestones contained only documentation files",
-            "(*.md/*.rst), TW already handled this during milestone execution.",
-            "Proceed directly to step 7.",
+            "(*.md/*.rst), the technical-writing skill already handled this during",
+            "milestone execution. Proceed directly to step 7.",
             "",
             "For code-primary plans:",
             "",
-            "  Task for @agent-technical-writer:",
-            "  Mode: post-implementation",
-            "  Plan Source: [plan_file.md]",
-            "  Files Modified: [list]",
-            "",
-            "  Requirements:",
+            "  Docs pages: load the technical-writing skill, then:",
+            "    Plan Source: [plan_file.md]",
+            "    Files Modified: [list]",
             "    - Create/update CLAUDE.md index entries",
             "    - Create README.md if architectural complexity warrants",
-            "    - Add module-level docstrings where missing",
-            "    - Verify transcribed comments are accurate",
+            "    For a new README or ARCHITECTURE scaffold, load codebase-documenter",
+            "    instead; technical-writing hands that work off.",
             "",
-            "</tw_delegation>",
+            "  Task for @agent-implementer:",
+            "    - Add module-level docstrings where missing",
+            "",
+            "  Task for @agent-comment-analyzer (read-only, returns findings):",
+            "    - Verify transcribed comments are accurate",
+            "    - Apply its findings through @agent-implementer",
+            "",
+            "</docs_delegation>",
             "",
             "<final_checklist>",
             "",

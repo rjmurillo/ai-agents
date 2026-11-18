@@ -11,7 +11,7 @@ Write your plan using this structure:
 
 ## Planning Context
 
-This section is consumed VERBATIM by downstream agents (Technical Writer, Quality Reviewer).
+This section is consumed VERBATIM by downstream agents (Comment Analyzer, Quality Reviewer).
 Quality matters: vague entries here produce poor annotations and missed risks.
 
 ### Decision Log
@@ -33,7 +33,7 @@ Include BOTH architectural decisions AND implementation-level micro-decisions:
 - Architectural: "Event sourcing over CRUD | Need audit trail + replay capability -> CRUD would require separate audit log -> event sourcing provides both natively"
 - Implementation: "Mutex over channel | Single-writer case -> channel coordination adds complexity without benefit -> mutex is simpler with equivalent safety"
 
-Technical Writer sources ALL code comments from this table. If a micro-decision isn't here, TW cannot document it.
+The plan author sources ALL code comments from this table. If a micro-decision isn't here, the comment review cannot confirm its rationale.
 
 ### Rejected Alternatives
 
@@ -41,7 +41,7 @@ Technical Writer sources ALL code comments from this table. If a micro-decision 
 | -------------------- | ------------------------------------------------------------------- |
 | [Approach not taken] | [Concrete reason: performance, complexity, doesn't fit constraints] |
 
-Technical Writer uses this to add "why not X" context to code comments.
+The plan author uses this to add "why not X" context to code comments.
 
 ### Constraints & Assumptions
 
@@ -62,7 +62,7 @@ Quality Reviewer excludes these from findings but will challenge unverified beha
 
 ## Invisible Knowledge
 
-This section captures information NOT visible from reading the code. Technical Writer uses this for README.md documentation during post-implementation.
+This section captures information NOT visible from reading the code. The technical-writing skill uses this for README.md documentation during post-implementation.
 
 ### Architecture
 ```
@@ -127,7 +127,7 @@ Log (async)
 
 **Files**: [exact paths - e.g., src/auth/handler.py, not "auth files"]
 
-**Flags** (if applicable): [needs TW rationale, needs error handling review, needs conformance check]
+**Flags** (if applicable): [needs WHY rationale, needs error handling review, needs conformance check]
 
 **Requirements**:
 
