@@ -45,7 +45,7 @@ The scanner does not guess a count for such a file.
 
 The repository can admit the TypeScript parser's coupling change through
 `typescriptParserDependencyAdmission` in its quality configuration.
-This admission applies only to rjmurillo/ai-agents#7435's scanner transition.
+This admission applies only to the scanner's fixed TypeScript parser transition.
 The raw coupling score remains `8.0 -> 7.0`, with its regression diagnostic.
 Exit 0 means admitted, not a raw pass; the review adapter returns `WARN`.
 Other regressions, evidence loss, and new-file threshold failures still block.

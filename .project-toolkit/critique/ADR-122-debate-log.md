@@ -174,6 +174,10 @@ That edit was declined: it pre-admits later transitions, which item 7 forbids.
 Each sibling keeps its own maintainer admission decision.
 
 All six panel agents accept the amendment as revised.
+
+A PR review then noted that item 8 did not order exit codes before records.
+Item 8 now states that exits 10 and 11 report `FAIL` before any record is read.
+This matches `adapt_local_axis_verdict` and changes no enforcement.
 These votes are not GitHub approvals or merge permission.
 
 ## Decision Boundaries

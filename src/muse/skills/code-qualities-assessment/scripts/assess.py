@@ -1477,7 +1477,10 @@ _CSHARP_GRAMMAR = _DependencyGrammar(
 _TYPESCRIPT_DEPENDENCY_QUERY = """
 (import_statement) @dependency
 (export_statement source: (_)) @dependency
-(call_expression function: (identifier) @_callee (#eq? @_callee "require")) @dependency
+(call_expression
+  function: (identifier) @_callee
+  arguments: (arguments)
+  (#eq? @_callee "require")) @dependency
 (call_expression function: (import)) @dependency
 """
 

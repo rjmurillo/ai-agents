@@ -298,17 +298,22 @@ def _is_admitted_parser_transition(comparison: dict[str, object], field: str) ->
             "change_status": "M",
             "deltas": list() as deltas,
         }:
+            # The scanner emits one delta per quality, so a second coupling
+            # delta is a conflicting payload, never an admitted one.
+            coupling = [d for d in deltas if isinstance(d, dict) and d.get("quality") == "coupling"]
             return (
                 file_path.replace("\\", "/") == _PARSER_SCANNER
                 and comparison.get("absolute_gate_reason") is None
-                and {
-                    "quality": "coupling",
-                    "base": base,
-                    "head": head,
-                    "delta": round(head - base, 4),
-                    "status": "compared",
-                }
-                in deltas
+                and coupling
+                == [
+                    {
+                        "quality": "coupling",
+                        "base": base,
+                        "head": head,
+                        "delta": round(head - base, 4),
+                        "status": "compared",
+                    }
+                ]
             )
     return False
 

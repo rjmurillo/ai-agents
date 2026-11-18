@@ -520,6 +520,13 @@ class TestTypeScriptParserAdmissionVerdict:
 
         assert _cq_verdict(payload) == "UNKNOWN"
 
+    def test_a_conflicting_second_coupling_delta_is_unknown(self):
+        payload = cq_typescript_admission_payload()
+        deltas = payload["comparisons"][0]["deltas"]
+        deltas.append({**deltas[0], "head": 6.0, "delta": -2.0})
+
+        assert _cq_verdict(payload) == "UNKNOWN"
+
     def test_two_admission_records_on_one_comparison_are_unknown(self):
         payload = cq_typescript_admission_payload()
         csharp = cq_admission_payload()["comparisons"][0]["csharp_parser_dependency_admission"]

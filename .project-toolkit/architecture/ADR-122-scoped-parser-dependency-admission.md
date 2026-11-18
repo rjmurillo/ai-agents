@@ -66,7 +66,8 @@ Item 8 extends this decision to the TypeScript parser (issue #7435).
    Items 1, 3, 4, and 5 apply to it. Item 2 applies with this record's scores and imports.
    Each record admits only its own transition; neither admits the other's.
    The review adapter keeps its own copy of both records.
-   When a comparison carries any record, the adapter reports `WARN` only if exactly one record is present and valid.
+   Exits 10 and 11 report `FAIL` before any record is read.
+   On exit 0, a comparison that carries any record reports `WARN` only if exactly one record is present and valid.
    Otherwise it reports `UNKNOWN`.
    `tree-sitter-typescript` joins item 6 as a permanent scanner dependency.
 

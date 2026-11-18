@@ -57,6 +57,7 @@ def test_each_typescript_dependency_form_counts_once(statement: str, suffix: str
         "export const a = 1;",
         'load("a");',
         'require.resolve("a");',
+        "function require(parts: TemplateStringsArray) { return parts[0]; }\nrequire`a`;",
         "const text = \"import x from 'y'; require('z')\";",
         "const text = `\nimport a from 'b';\nrequire('c');\n`;",
         '/*\nimport x from "y";\nrequire("z");\n*/',
