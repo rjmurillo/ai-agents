@@ -50,7 +50,8 @@ def _upstream_only_claims(text: str) -> list[str]:
 
 @pytest.fixture(params=[TEMPLATE, RENDERED], ids=["template", "rendered"])
 def skill_text(request: pytest.FixtureRequest) -> str:
-    return request.param.read_text(encoding="utf-8")
+    path: Path = request.param
+    return path.read_text(encoding="utf-8")
 
 
 def test_discovery_phase_precedes_checks(skill_text: str) -> None:

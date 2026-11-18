@@ -56,7 +56,7 @@ the target checkout before you apply them. Use Glob, Grep, and Read only.
 | Signal | Where to look | Enables |
 |--------|---------------|---------|
 | PR template | `.github/pull_request_template.md`, `.github/PULL_REQUEST_TEMPLATE.md`, `.github/PULL_REQUEST_TEMPLATE/*.md`, `docs/`, or the repository root, any case | Check 3, against that template's own headings |
-| Issue-link gate | a workflow, script, or contributor rule that fails a PR with no closing keyword or issue reference (grep `.github/workflows/`, `scripts/`, `CONTRIBUTING.md`, `AGENTS.md` for `Closes`, `closing keyword`, `issue link`) | Check 2 as a requirement |
+| Issue-link gate | a workflow, script, or contributor rule that fails a PR with no closing keyword or issue reference (grep `.github/workflows/`, repository scripts, `CONTRIBUTING.md`, and `AGENTS.md` for `Closes`, `closing keyword`, `issue link`) | Check 2 as a requirement |
 | Template gate | a workflow or script that parses PR body sections (grep for the template's heading text) | Check 3 failures as gate failures |
 
 Record what you searched and what you found. A signal you did not search for is
@@ -71,8 +71,7 @@ unknown, not absent.
 | 3 | Template compliance | Discovery found a PR template | Every section the template asks the author to fill is populated: prose sections non-empty, list sections hold an item, checkbox groups hold a mark | A reviewer or the discovered template gate sees an empty section |
 
 When a check does not apply, report it `NOT APPLICABLE` with the discovery
-evidence, such as `no PR template or issue-link gate found in .github/ or
-scripts/`. Never ask the author to open an issue or add a keyword just to pass
+evidence, such as `no PR template or issue-link gate found under .github/`. Never ask the author to open an issue or add a keyword just to pass
 check 2. A direct bug fix with no tracking issue needs no closing keyword unless
 the repository's own gate demands one; then report that gate by path.
 
