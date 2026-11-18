@@ -1368,9 +1368,9 @@ def _count_csharp_imports(source: str) -> int:
         raise
     except ImportError as exc:
         raise CSharpParserError(
-            f"C# parser packages are missing: {exc}. Install them into the scanner's "
-            "Python environment: python -m pip install "
-            "tree-sitter==0.26.1 tree-sitter-c-sharp==0.23.5 "
+            f"C# parser packages are missing: {exc}. Install "
+            "tree-sitter==0.26.1 and tree-sitter-c-sharp==0.23.5 into a virtual "
+            "environment that runs the scanner, not the system Python "
             "(see references/csharp-parser.md)"
         ) from exc
     except Exception as exc:
