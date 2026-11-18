@@ -467,7 +467,7 @@ fileExtension: .agent.md
 
 frontmatter:
   # Copilot CLI model: use CLI model identifiers (not VS Code display names)
-  model: "claude-opus-4.6"
+  model: "claude-opus-5.5"
   includeNameField: true
 
 handoffSyntax: "/agent"
@@ -477,7 +477,7 @@ handoffSyntax: "/agent"
 
 | Feature | VS Code | Copilot CLI |
 |---------|---------|-------------|
-| Model field | `Claude Opus 4.6 (copilot)` | `claude-opus-4.6` |
+| Model field | `Claude Opus 4.6 (copilot)` | `claude-opus-5.5` |
 | Name field | Not included | Required |
 | Handoff syntax | `#runSubagent` | `/agent` |
 | Tools prefix | `tools_vscode` | `tools_copilot` |

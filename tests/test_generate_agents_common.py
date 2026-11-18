@@ -457,7 +457,7 @@ class TestConvertFrontmatterForPlatform:
             "date": datetime.now(timezone.utc).date().isoformat(),
             "fixtures_sha": "abc123",
             "artifact": artifact,
-            "default_model": "claude-sonnet-4-6",
+            "default_model": "gpt-6.1-sol",
         }
         entry.update(entry_overrides)
         if repo_root is not None and isinstance(entry.get("artifact"), str) and entry["artifact"]:
@@ -470,7 +470,7 @@ class TestConvertFrontmatterForPlatform:
             default_model = entry.get("default_model")
             unit = entry.get("unit")
             winner_id = model if isinstance(model, str) else "claude-opus-4-6"
-            default_id = default_model if isinstance(default_model, str) else "claude-sonnet-4-6"
+            default_id = default_model if isinstance(default_model, str) else "gpt-6.1-sol"
             # Matches build/generate_agents.py:303's agent_name derivation
             # verbatim; see model_pin_sweep_evidence.py:_agent_name_from_unit.
             agent = Path(str(unit)).stem.replace(".shared", "")

@@ -117,10 +117,14 @@ legacy:
   # that motivated this issue). The opus/sonnet entries stay so
   # check_model_pins.py's load_tier_map() can still validate a source unit's
   # bare-alias cost rationale (ADR-080 rule 3).
+  # Issue #7425: the smoke account could not use claude-opus-4.6, and the
+  # CLI model catalog no longer lists it. Each tier names the newest id the
+  # catalog lists for that family. Every id needs a pricing row in
+  # scripts/eval/_eval_common.py, or the bare-alias check fails closed.
   model_tiers:
-    opus: "claude-opus-4.6"
-    sonnet: "claude-sonnet-4.6"
-    haiku: "claude-haiku-4.5"
+    opus: "claude-opus-5.5"
+    sonnet: "claude-sonnet-5.5"
+    haiku: "claude-haiku-5.5"
   handoffSyntax: "/agent"
   toolSyntax: "path"
   memoryPrefix: "serena/"
