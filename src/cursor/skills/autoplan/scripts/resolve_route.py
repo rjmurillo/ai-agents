@@ -53,7 +53,7 @@ Matching:
    ``boxes`` to ``box``); it is deliberately narrow because REQ-039 asks for
    a deterministic, testable heuristic, not a stemmer, and Q6 defers scored
    recall improvements to the eval in issue #5389.
-   A possessive ``'s`` (straight or curly apostrophe) is dropped before
+   A possessive ``'s`` (apostrophe U+0027, U+2018, U+2019, or U+02BC) is dropped before
    splitting, so ``agent's`` yields ``agent`` and no stray ``s`` token.
 2. An intent matches when its folded tokens appear in the folded request
    tokens in the same order (an ordered subsequence) and the matched span,
@@ -111,9 +111,9 @@ _FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 
 _WORD_RE = re.compile(r"[a-z0-9]+")
 
-# A possessive "'s" (straight or curly apostrophe) ends a word. Dropping it
+# A possessive "'s" (U+0027, U+2018, U+2019, or U+02BC) ends a word. Dropping it
 # keeps "agent's" from yielding a stray "s" token.
-_POSSESSIVE_RE = re.compile(r"['’]s\b")
+_POSSESSIVE_RE = re.compile(r"['‘’ʼ]s\b")
 
 # Extra request tokens an intent's span may cover beyond its own length.
 _SPAN_SLACK = 2

@@ -450,7 +450,7 @@ def test_empty_intent_never_matches() -> None:
     assert not _ordered("anything at all", "the of")
 
 
-@pytest.mark.parametrize("apostrophe", ["'", "’"])
+@pytest.mark.parametrize("apostrophe", ["'", "\u2018", "\u2019", "\u02bc"])
 def test_possessive_s_is_dropped_without_a_stray_token(apostrophe: str) -> None:
     assert resolver._tokenize(f"the agent{apostrophe}s assumptions") == ("agent", "assumption")
 
@@ -478,3 +478,9 @@ def test_cross_clause_requests_do_not_route_to_technical_writing(request_text: s
     result = resolver.resolve(request_text, _real_roots())
     assert result["route"] != f"{REAL_NAMESPACE}:technical-writing"
     assert result["kind"] == "none"
+
+
+def test_window_cap_counts_tokens_after_stop_word_removal() -> None:
+    """`is this delete safe` is two tokens (`delete`, `safe`), so the cap is four."""
+    assert _ordered("delete x y safe", "is this delete safe")
+    assert not _ordered("delete x y z safe", "is this delete safe")
