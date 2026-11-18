@@ -30,6 +30,7 @@ Use this skill when:
 Use a different skill when:
 
 - Documentation already exists and you want to verify accuracy, detect missing XML docs / docstrings / JSDoc, or audit README / CLAUDE.md drift. Use `doc-accuracy` for verification, missing-doc detection, and structural sync.
+- You want to edit an existing `README.md` or docs page, or fill a new scaffold with project content (diagrams, tradeoffs, invariants). Use the `technical-writing` skill.
 - You want narrative prose generated for an existing component. Use the `explainer` agent.
 
 ## Boundaries
