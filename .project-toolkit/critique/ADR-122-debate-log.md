@@ -144,6 +144,16 @@ The amendment changes executable enforcement in the scanner and review adapter.
 
 ### Agent Positions
 
+| Agent | Position | Evidence |
+|---|---|---|
+| Architect | Revise, then accept. | Item 8 matched the code. Its seven edits to stale C#-only lines were applied. |
+| Security | Accept. | No admission bypass found. Parse failures exit 1. The package is pinned and hashed in `uv.lock`. |
+
+Security raised two low findings, recorded and not acted on here.
+Admission keys on path, scores, and imports, not on content.
+A revert and reintroduction re-admits the transition, as Reversibility already states.
+`.mts` and `.cts` files stay unmapped, as before this change.
+
 PANEL_POSITIONS_PENDING
 
 ## Decision Boundaries
