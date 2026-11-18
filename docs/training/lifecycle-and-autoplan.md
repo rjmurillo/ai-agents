@@ -110,7 +110,7 @@ Other docs cover the same ground. We link them and do not repeat them:
 
 **Part 2: take one change through the lifecycle.**
 
-5. **Pick the change and cut a branch.** We use a real defect that `main` has since fixed. `docs/workflow-commands.md` said `/ship` runs five pre-flight checks. The [ship skill](../../src/claude/skills/ship/SKILL.md) defines four: pipeline, security, reviewed, and tests. To keep every command and output on this page exact, cut your branch from commit `81025e191`. That `main` commit still has the defect. Never commit to `main`.
+5. **Pick the change and cut a branch.** We use a real defect that `main` has since fixed. `docs/workflow-commands.md` said `/ship` runs five pre-flight checks. The [ship skill](../../src/claude/skills/ship/SKILL.md) defines four: pipeline, security, reviewed, and tests. To keep every command and output on this page exact, cut your branch from commit `81025e191`. That `main` commit still has the defect. Steps 6 to 12 load the skills from your checkout, so they run as they were at that commit. If a skill acts differently from its page on `main`, the pin is the cause, not your setup. Never commit to `main`.
 
    ```bash
    git fetch origin
