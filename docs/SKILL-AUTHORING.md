@@ -372,9 +372,9 @@ scalar there.
 A `front-door` skill may declare `intents`: phrases the autoplan long-tail
 resolver (`.claude/skills/autoplan/scripts/resolve_route.py`) matches
 against a request that misses the high-traffic table. An intent matches
-when every one of its words appears in the request (lowercased, stop words
-dropped, a trailing `s` folded). Write two to six phrases naming the
-skill's core question:
+when its words appear in order within a span of its word count plus two
+(lowercased, stop words dropped, trailing `s` and possessive `'s` folded).
+Write two to six phrases naming the skill's core question:
 
 ```yaml
     intents:

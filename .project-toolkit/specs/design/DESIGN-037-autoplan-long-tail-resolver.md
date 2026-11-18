@@ -63,8 +63,11 @@ manifest exists.
 1. Lowercase the request and split it into word tokens. Drop a short list of
    stop words. Fold one trailing `s` on both sides (tokens longer than three
    characters), so `libraries` and `library` do not match but `packages` and
-   `package` do.
-2. An intent matches when every one of its tokens appears in the request.
+   `package` do. Drop a possessive `'s` first, so `agent's` yields `agent`.
+2. An intent matches when its tokens appear in the request in the same
+   order and the matched span is at most `len(intent tokens) + 2` request
+   tokens (stop words already removed). Words scattered across clauses do
+   not match. Adjacent words still match.
 3. A skill's score is its count of matching intents. The tie-break is the
    total token count of those intents.
 
