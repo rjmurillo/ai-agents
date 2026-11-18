@@ -46,9 +46,9 @@ You need a plan file path and a clear problem statement before step 1. If you ga
 2. Run step 1 right away and complete the required actions in the output.
 3. Run the next step with your thoughts. Repeat until the output says `STATUS: phase_complete`.
 4. Write the plan to the file.
-5. Run the review phase. Step 1 delegates to the technical-writer agent in `plan-annotation` mode. Step 2 delegates to the quality-reviewer agent in `plan-review` mode.
+5. Run the review phase. Step 1 delegates to the comment-analyzer agent, which returns findings. You apply them to the plan file. Step 2 delegates to the quality-reviewer agent in `plan-review` mode.
 
-The review fixes temporally contaminated comments, adds WHY comments to code snippets, validates the plan for production risks, and identifies documentation needs.
+The review finds temporally contaminated comments, flags code snippets that lack WHY comments, validates the plan for production risks, and identifies documentation needs.
 
 ```bash
 uv run python .claude/skills/planner/scripts/planner.py --help
@@ -82,10 +82,12 @@ You need an approved plan file that passed review, and a cleared context window.
 | 3 | Milestone Execution | Delegate to agents and run tests. Repeats until all milestones finish. |
 | 4 | Post-Implementation QR | Quality review of the implemented code. |
 | 5 | Issue Resolution | Conditional. Present issues and collect fixes, then loop back to step 4. |
-| 6 | Documentation | Technical-writer pass for `CLAUDE.md` and `README.md`. |
+| 6 | Documentation | The coordinator edits `CLAUDE.md` index entries directly. A new `README.md` or ARCHITECTURE scaffold uses the `codebase-documenter` skill. A new README with project content gets a `codebase-documenter` scaffold, then the `technical-writing` skill fills it. An edit to an existing `README.md` or docs page uses the `technical-writing` skill. Docstrings go to the implementer agent, and the comment-analyzer agent checks transcribed comments. |
 | 7 | Retrospective | Present the execution summary. |
 
 On resume, step 1 reconciles the plan file against work already done.
+
+A milestone whose files are all `*.md` or `*.rst` and that holds docs pages goes to a docs skill, not an agent. The coordinator, or a general-purpose subagent it starts, loads the skill and follows it. A new README or ARCHITECTURE scaffold uses `codebase-documenter`, which stops at placeholders. A new README with project content gets a `codebase-documenter` scaffold, then the `technical-writing` skill fills it. An edit to an existing docs page, including an existing README, uses `technical-writing`. A milestone for agent prompts or `SKILL.md` files goes to the implementer agent instead. The coordinator edits `CLAUDE.md` index entries directly, in any milestone.
 
 ```bash
 uv run python .claude/skills/planner/scripts/executor.py --help
