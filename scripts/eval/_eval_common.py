@@ -50,6 +50,16 @@ MODEL_PRICING_RATES_USD_PER_1K_TOKENS: dict[str, dict[str, float]] = {
     "claude-opus-5-5": {"input": 0.004, "output": 0.020},
     "claude-opus-5.5": {"input": 0.004, "output": 0.020},
     "claude-haiku-4-5": {"input": 0.001, "output": 0.005},
+    # Sonnet 5.5 and Haiku 5.5, read from the same pricing page on 2026-11-18
+    # (issue #7425). Sonnet 5.5: $2/$10 per MTok. Haiku 5.5: $0.10/$0.50 per
+    # MTok for prompts up to 100K tokens; the page lists $0.50/$2.50 above
+    # that, which this one-rate table does not model. Both harness spellings,
+    # as for Opus 5.5: templates/platforms/copilot-cli.yaml names the dotted
+    # ids as its sonnet and haiku tiers.
+    "claude-sonnet-5-5": {"input": 0.002, "output": 0.010},
+    "claude-sonnet-5.5": {"input": 0.002, "output": 0.010},
+    "claude-haiku-5-5": {"input": 0.0001, "output": 0.0005},
+    "claude-haiku-5.5": {"input": 0.0001, "output": 0.0005},
     # GPT-6 rates from developers.openai.com/api/docs/models, re-read
     # 2026-09-24: Astra $10/$50, Sol $2/$10, Luna $0.10/$0.50 per MTok. These
     # ids are billed per token through the openai provider (OPENAI_API_KEY).

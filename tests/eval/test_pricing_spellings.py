@@ -32,6 +32,22 @@ def test_opus_5_5_is_priced_in_both_harness_spellings() -> None:
     assert MODEL_PRICING_RATES_USD_PER_1K_TOKENS["claude-opus-5.5"] == expected
 
 
+def test_sonnet_5_5_is_priced_in_both_harness_spellings() -> None:
+    """Sonnet 5.5 lists at $2 input and $10 output per million tokens."""
+    expected = {"input": 0.002, "output": 0.010}
+
+    assert MODEL_PRICING_RATES_USD_PER_1K_TOKENS["claude-sonnet-5-5"] == expected
+    assert MODEL_PRICING_RATES_USD_PER_1K_TOKENS["claude-sonnet-5.5"] == expected
+
+
+def test_haiku_5_5_is_priced_at_its_base_tier_in_both_harness_spellings() -> None:
+    """Haiku 5.5 lists at $0.10 input and $0.50 output for prompts up to 100K tokens."""
+    expected = {"input": 0.0001, "output": 0.0005}
+
+    assert MODEL_PRICING_RATES_USD_PER_1K_TOKENS["claude-haiku-5-5"] == expected
+    assert MODEL_PRICING_RATES_USD_PER_1K_TOKENS["claude-haiku-5.5"] == expected
+
+
 def test_gpt6_routing_candidates_are_priced_as_verified() -> None:
     """GPT-6 Astra/Sol/Luna rates match developers.openai.com/api/docs/models."""
     assert MODEL_PRICING_RATES_USD_PER_1K_TOKENS["gpt-6-astra"] == {

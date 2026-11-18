@@ -293,6 +293,24 @@ def test_alias_prices_below_default_helper(tmp_path: Path) -> None:
     assert cmp.alias_prices_below_default("sonnet", tiers, "claude-sonnet-4-6") is False
 
 
+def test_shipped_copilot_tier_ids_are_all_priced() -> None:
+    """Each shipped Copilot tier id needs a rate, or its alias rationale fails closed."""
+    tiers = cmp.load_tier_map()
+
+    assert set(tiers) == {"opus", "sonnet", "haiku"}
+    unpriced = sorted(
+        f"{alias}={model}" for alias, model in tiers.items() if cmp._input_price(model) is None
+    )
+    assert not unpriced, f"Copilot tier ids with no pricing row: {unpriced}"
+
+
+def test_shipped_haiku_tier_keeps_the_bare_alias_cost_rationale() -> None:
+    """Bare `model: haiku` skills pass only while haiku prices below the default (#7425)."""
+    tiers = cmp.load_tier_map()
+
+    assert cmp.alias_prices_below_default("haiku", tiers, cmp.DEFAULT_MODEL) is True
+
+
 # ---------------------------------------------------------------------------
 # Nested pins (issue #2840): a pin below the top level is invisible to the flat
 # frontmatter view, ships to customers in the mirrors, and rots on retirement.
