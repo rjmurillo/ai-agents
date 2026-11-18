@@ -376,6 +376,32 @@ def _is_kept_sidecar(path: Path) -> bool:
     return path.with_name(path.name[: -len(_SIDECAR_SUFFIX)]).exists()
 
 
+def _require_unlinked_target(target: Path) -> None:
+    """Raise when ``target`` or an ancestor below the repository root is a symlink."""
+    if target.is_symlink():
+        raise SkillSupportSyncError(f"{target}: symlinked mirror skill directory refused")
+    root = find_repo_root(target)
+    if root is None:
+        return
+    problem = reject_symlinked_ancestors(root, "mirror skill directory", target / "x")
+    if problem is not None:
+        raise SkillSupportSyncError(problem)
+
+
+def _is_orphan_file(path: Path, rel: Path, owned: frozenset[Path]) -> bool:
+    """Return whether the regular file ``path`` is an unprotected orphan.
+
+    Bytecode and owned paths are not orphans. A ``NO-REGEN`` file or the
+    ``.noregen`` sidecar of an existing file is kept with a notice.
+    """
+    if rel in owned or is_bytecode_artifact(rel):
+        return False
+    if regen_detect_reason(path) is not None or _is_kept_sidecar(path):
+        print(f"  NOTICE: kept {path} (NO-REGEN, no source counterpart)")
+        return False
+    return True
+
+
 def _find_mirror_orphans(target: Path, owned: frozenset[Path]) -> list[Path]:
     """Return the files under ``target`` that the source does not own.
 
@@ -386,13 +412,7 @@ def _find_mirror_orphans(target: Path, owned: frozenset[Path]) -> list[Path]:
     replaces it. Bytecode, a ``NO-REGEN`` file, and a ``.noregen`` sidecar of an
     existing file are never orphans.
     """
-    if target.is_symlink():
-        raise SkillSupportSyncError(f"{target}: symlinked mirror skill directory refused")
-    root = find_repo_root(target)
-    if root is not None:
-        problem = reject_symlinked_ancestors(root, "mirror skill directory", target / "x")
-        if problem is not None:
-            raise SkillSupportSyncError(problem)
+    _require_unlinked_target(target)
     owned_dirs = {parent for rel in owned for parent in rel.parents}
     orphans: list[Path] = []
     links: list[str] = []
@@ -403,13 +423,8 @@ def _find_mirror_orphans(target: Path, owned: frozenset[Path]) -> list[Path]:
             if path.is_symlink():
                 if rel not in owned and rel not in owned_dirs:
                     links.append(f"{path}: symlink with no source counterpart refused")
-                continue
-            if name in dirnames or rel in owned or is_bytecode_artifact(rel):
-                continue
-            if regen_detect_reason(path) is not None or _is_kept_sidecar(path):
-                print(f"  NOTICE: kept {path} (NO-REGEN, no source counterpart)")
-                continue
-            orphans.append(path)
+            elif name in filenames and _is_orphan_file(path, rel, owned):
+                orphans.append(path)
     if links:
         raise SkillSupportSyncError("; ".join(links))
     return orphans
