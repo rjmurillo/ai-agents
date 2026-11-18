@@ -126,7 +126,9 @@ def test_reconciliation_skips_a_milestone_only_on_proof() -> None:
     assert "Every criterion [PASS] with evidence: SATISFIED" in text
     assert "A criterion missing from the report counts as [FAIL]" in text
     assert "a milestone with no acceptance criteria is NOT_SATISFIED" in text
-    assert "read-only: it reports and writes no files" in text
+    assert "read-only" not in text
+    assert "do not create, edit, or delete any file" in text
+    assert "Discard every file qa created or changed" in text
     assert "No blocking finding" not in text
     assert "Return: SATISFIED" not in text
 
