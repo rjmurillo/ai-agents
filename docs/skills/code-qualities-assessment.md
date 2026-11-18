@@ -77,7 +77,7 @@ Gate modes answer two different questions:
 | 10 | Regression: a quality regressed or scored evidence was lost |
 | 11 | A file is below the configured thresholds |
 
-Scores are size-derived, so growth alone can lower cohesion. Read the named delta before you act on an exit 10.
+Scores are size-derived, so growth alone can lower cohesion. Read the named delta before you act on an exit 10. Test modules (a `tests` directory in the path or a `test_` file name) get no cohesion score, and the Markdown report shows it as `unscored (n/a)`, because each test case counts as a definition (issue #7410). Other test naming, such as Go `*_test.go`, TypeScript `*.test.ts`, or a singular `test/` directory, is still classified as authored and still gets a cohesion score.
 
 Set thresholds in `.qualityrc.json`. The config accepts `thresholds` per quality, `context` overrides, `minConfidence`, and `ignore` globs. Lower-confidence misses warn only in absolute mode.
 

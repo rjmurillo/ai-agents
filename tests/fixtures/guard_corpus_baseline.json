@@ -246,12 +246,6 @@
         0
       ]
     ],
-    "review/scripts/validate_findings_scope.py": [
-      [
-        "result = subprocess.run(",
-        0
-      ]
-    ],
     "security-scan/scripts/scan_vulnerabilities.py": [
       [
         "result = subprocess.run(",

@@ -468,7 +468,7 @@ class TestCLISubprocess:
     def test_script_exists_and_is_executable(self) -> None:
         assert SCRIPT_PATH.is_file(), f"script not found: {SCRIPT_PATH}"
 
-    def test_exit_0_on_empty_text(self) -> None:
+    def test_exit_2_on_unresolvable_base(self) -> None:
         result = subprocess.run(
             [sys.executable, str(SCRIPT_PATH), "--base-branch", "nonexistent-branch-xyz"],
             input="No findings. Verdict: PASS\n",
@@ -477,8 +477,9 @@ class TestCLISubprocess:
             encoding="utf-8",
             errors="replace",
         )
-        # git diff will fail for a nonexistent branch -> graceful degrade -> exit 0
-        assert result.returncode == 0
+        # Issue #7399: an unresolvable base is a caller error, not a passed check.
+        assert result.returncode == 2
+        assert "scope check did not run" in result.stderr
 
     def test_help_exits_zero(self) -> None:
         result = subprocess.run(

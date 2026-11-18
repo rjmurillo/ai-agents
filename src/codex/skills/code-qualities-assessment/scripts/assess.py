@@ -1012,6 +1012,15 @@ def _delta_for(quality: str, base: QualityScore, head: QualityScore) -> QualityD
     return QualityDelta(quality, None, None, None, "not_scored")
 
 
+def _unscored_by_category(field: str, head: FileAssessment) -> bool:
+    """Return True when *head*'s category leaves *field* unscored by design.
+
+    A file that moves into a category the scanner does not score for that
+    quality (an authored module renamed under ``tests/``) lost no evidence.
+    """
+    return head.category == "generated" or (field == "cohesion" and head.category == "test")
+
+
 def compare_assessments(
     base: FileAssessment | None,
     head: FileAssessment,
@@ -1047,7 +1056,7 @@ def compare_assessments(
         deltas.append(delta)
         if delta.status == "compared" and delta.delta is not None and delta.delta < -tolerance:
             regressions.append(field)
-        elif delta.status == "evidence_lost" and head.category != "generated":
+        elif delta.status == "evidence_lost" and not _unscored_by_category(field, head):
             evidence_loss.append(field)
     return FileComparison(
         head.file_path,
@@ -1254,6 +1263,19 @@ def _score_cohesion(language: str | None, code_lines: list[str], loc: int) -> Qu
         ),
     ]
     return QualityScore(value=round(score, 1), confidence=confidence, reasons=reasons)
+
+
+# A test module defines one function per case, so the size+definition proxy
+# reads a focused suite as many unrelated responsibilities. Measured on issue
+# #7410: a 273-line module of 30 related tests scored 1.0 and failed the gate.
+_TEST_COHESION_REASON = (
+    "Not scored for test modules: each test case counts as a definition, so the "
+    "size+definition proxy penalizes cohesive suites (issue #7410)"
+)
+
+
+def _unscored_test_cohesion() -> QualityScore:
+    return QualityScore(value=10.0, confidence=0.0, reasons=[_TEST_COHESION_REASON])
 
 
 def _parse_go_module(raw: bytes) -> str | None:
@@ -1611,7 +1633,11 @@ def assess_content(
     return FileAssessment(
         file_path=str(file_path),
         category=category,
-        cohesion=_score_cohesion(language, code_lines, loc),
+        cohesion=(
+            _unscored_test_cohesion()
+            if category == "test"
+            else _score_cohesion(language, code_lines, loc)
+        ),
         coupling=_score_coupling(
             language, lines if language == "csharp" else code_lines, resolve_go_module
         ),

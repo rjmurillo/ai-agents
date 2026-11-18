@@ -61,6 +61,12 @@ quality. A quality whose score confidence is below it prints a warning on stderr
 and cannot fail the absolute gate (exit 11). Cohesion is a size and definition
 proxy at confidence 0.4, so `0.5` stops it from failing normal new files. The
 regression gate (exit 10) still compares cohesion against the merge base.
+Test modules (a path under `tests/` or a `test_` file name) get no cohesion
+score: each test case counts as a definition, so the proxy would read a focused
+suite as a god object (issue #7410). Only those two patterns mark a test
+module. Go `*_test.go`, TypeScript `*.test.ts`, and C# test files under a
+singular `test/` directory are still classified as authored and still get a
+cohesion score.
 
 Files under `src/claude/`, `src/copilot-cli/`, `src/vs-code-agents/`,
 `.claude/hooks/`, and `.github/instructions/` are classified as generated
