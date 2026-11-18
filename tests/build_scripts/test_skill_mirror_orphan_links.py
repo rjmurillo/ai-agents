@@ -72,7 +72,7 @@ def test_owned_directory_link_error_names_the_path(tmp_path: Path) -> None:
     _link_references_outside(tmp_path)
 
     with pytest.raises(skill_support_mirror.SkillSupportSyncError, match="references.*CWE-59"):
-        skill_support_mirror.prune_mirror_orphans(source, _mirror(tmp_path))
+        skill_mirror_prune.prune_mirror_orphans(source, _mirror(tmp_path))
 
 
 @_NEEDS_SYMLINKS
@@ -108,7 +108,7 @@ def test_a_symlinked_ancestor_inside_a_git_repo_is_refused(tmp_path: Path) -> No
     make_symlink((repo / "out" / "skills"), real, directory=True)
 
     with pytest.raises(skill_support_mirror.SkillSupportSyncError, match="symlinked ancestor"):
-        skill_support_mirror.prune_mirror_orphans(source, repo / "out" / "skills" / "alpha")
+        skill_mirror_prune.prune_mirror_orphans(source, repo / "out" / "skills" / "alpha")
 
     assert orphan.is_file()
 
@@ -131,7 +131,7 @@ def test_outside_a_repo_only_the_target_is_checked_and_the_prune_still_works(
     (tmp_path / "out").mkdir()
     make_symlink((tmp_path / "out" / "skills"), real, directory=True)
 
-    assert skill_support_mirror.prune_mirror_orphans(source, _mirror(tmp_path)) == 1
+    assert skill_mirror_prune.prune_mirror_orphans(source, _mirror(tmp_path)) == 1
     assert not orphan.exists()
 
 
@@ -146,7 +146,7 @@ def test_a_case_only_difference_from_an_owned_path_is_kept(
     variant = mirror / "references" / "Foo.md"
     variant.write_text("foo\n", encoding="utf-8")
 
-    assert skill_support_mirror.prune_mirror_orphans(source, mirror) == 0
+    assert skill_mirror_prune.prune_mirror_orphans(source, mirror) == 0
 
     assert variant.is_file()
     assert "differs from a source path only by case" in capsys.readouterr().out
@@ -159,5 +159,5 @@ def test_a_name_that_differs_by_more_than_case_is_still_pruned(tmp_path: Path) -
     other = mirror / "references" / "Keep2.md"
     other.write_text("x\n", encoding="utf-8")
 
-    assert skill_support_mirror.prune_mirror_orphans(source, mirror) == 1
+    assert skill_mirror_prune.prune_mirror_orphans(source, mirror) == 1
     assert not other.exists()

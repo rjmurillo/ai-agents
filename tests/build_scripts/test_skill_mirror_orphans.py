@@ -4,7 +4,7 @@
 support file deleted or renamed in ``src/claude/skills/<name>/`` left its old
 copy in every mirror tree (copilot-cli, codex, cursor, muse), and
 ``build_all.py --check`` passed, so stale reference text shipped. These tests
-cover :func:`skill_support_mirror.prune_mirror_orphans` and its wiring in
+cover :func:`skill_mirror_prune.prune_mirror_orphans` and its wiring in
 ``generate_skills``: removal, ownership, ``--check`` (exit 2 through
 ``build_all``), and the refusal to delete a symlink or anything outside the
 owned mirror skill directory.
@@ -33,7 +33,7 @@ from _skill_mirror_helpers import built_repo as _built_repo  # noqa: E402
 from _skill_mirror_helpers import config as _config  # noqa: E402
 from _skill_mirror_helpers import mirror as _mirror  # noqa: E402
 from _skill_mirror_helpers import seed as _seed  # noqa: E402
-from skill_copy_compare import mirror_owned_rels  # noqa: E402
+from skill_mirror_prune import mirror_owned_rels  # noqa: E402
 
 _NEEDS_SYMLINKS = pytest.mark.skipif(
     sys.platform == "win32", reason="creating symlinks needs elevated rights on Windows"
@@ -165,7 +165,7 @@ def test_owned_set_is_the_copy_enumeration_plus_skill_md_and_skips(tmp_path: Pat
 def test_a_skill_with_no_mirror_directory_is_a_noop(tmp_path: Path) -> None:
     source = _seed(tmp_path)
 
-    assert skill_support_mirror.prune_mirror_orphans(source, tmp_path / "absent") == 0
+    assert skill_mirror_prune.prune_mirror_orphans(source, tmp_path / "absent") == 0
 
 
 # --- --check ----------------------------------------------------------------
@@ -209,7 +209,7 @@ def test_check_wins_over_what_if(tmp_path: Path, capsys: pytest.CaptureFixture[s
     source = _built_repo(tmp_path)
     (source / "references" / "old.md").unlink()
 
-    count = skill_support_mirror.prune_mirror_orphans(
+    count = skill_mirror_prune.prune_mirror_orphans(
         source, _mirror(tmp_path), what_if=True, check=True
     )
 
@@ -288,7 +288,7 @@ def test_a_symlinked_mirror_skill_directory_is_refused(tmp_path: Path) -> None:
     make_symlink(_mirror(tmp_path), outside, directory=True)
 
     with pytest.raises(skill_support_mirror.SkillSupportSyncError, match="symlinked mirror"):
-        skill_support_mirror.prune_mirror_orphans(source, _mirror(tmp_path))
+        skill_mirror_prune.prune_mirror_orphans(source, _mirror(tmp_path))
 
     assert (outside / "stray.md").is_file()
     assert (outside / "precious.txt").is_file()
@@ -302,7 +302,7 @@ def test_a_symlink_at_an_owned_path_is_left_for_the_copy(tmp_path: Path) -> None
     (mirror / "references").mkdir(parents=True)
     make_symlink((mirror / "references" / "keep.md"), outside / "precious.txt")
 
-    assert skill_support_mirror.prune_mirror_orphans(source, mirror) == 0
+    assert skill_mirror_prune.prune_mirror_orphans(source, mirror) == 0
     assert (outside / "precious.txt").read_text(encoding="utf-8") == "precious\n"
 
 
@@ -332,7 +332,7 @@ def test_an_unlink_failure_raises_and_names_the_file(
     monkeypatch.setattr(Path, "unlink", _deny)
 
     with pytest.raises(skill_support_mirror.SkillSupportSyncError, match="old.md.*denied"):
-        skill_support_mirror.prune_mirror_orphans(source, _mirror(tmp_path))
+        skill_mirror_prune.prune_mirror_orphans(source, _mirror(tmp_path))
 
 
 def test_only_the_mirror_skill_directory_is_touched(tmp_path: Path) -> None:

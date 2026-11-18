@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Remove mirror skill files that have no counterpart in the source skill.
 
-Split out of ``skill_support_mirror.py`` (taste-lint file-size ceiling), which
-re-exports :class:`SkillSupportSyncError` and :func:`prune_mirror_orphans`.
+Companion to ``skill_support_mirror.py``, whose :class:`SkillSupportSyncError`
+this module raises.
 ``_copy_skill_tree`` walks source files forward only, so a support file deleted
 or renamed in ``src/claude/skills/<name>/`` used to leave its old copy in every
 mirror tree. This module is the reverse walk.
@@ -21,20 +21,32 @@ if str(_SCRIPT_DIR) not in sys.path:
 from atomic_write import find_repo_root, reject_symlinked_ancestors  # noqa: E402
 from binplace_manifest import is_bytecode_artifact  # noqa: E402
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
-from skill_copy_compare import mirror_owned_rels  # noqa: E402
-from skill_md_rewrite import GenerateSkillsError  # noqa: E402
+from skill_copy_compare import SKILL_MD, tree_sources  # noqa: E402
+from skill_support_mirror import SkillSupportSyncError  # noqa: E402
 
 
-class SkillSupportSyncError(GenerateSkillsError):
-    """A skill's support-file mirror hit a condition it refuses to handle.
+def mirror_owned_rels(
+    source: Path, skip_filenames: frozenset[Path] = frozenset()
+) -> frozenset[Path]:
+    """Return every skill-relative path the mirror of ``source`` may hold.
 
-    Raised for a symlink found anywhere under a skill directory (CWE-22/59:
-    a linked file or directory could point outside the skill, and this
-    mirror copies byte-for-byte with no containment check of its own beyond
-    refusing to follow the link at all) or for a stale target file this
-    mirror cannot safely remove (an ``OSError`` from the removal itself,
-    e.g. a permission problem).
+    The set comes from the same enumeration the copy loop walks
+    (:func:`skill_copy_compare.tree_sources`, minus directories and bytecode),
+    so the copy and the orphan check cannot disagree about what counts as
+    owned. Two kinds of path have no ``source`` file yet belong in the mirror:
+    ``SKILL.md`` (a new templated skill has none until binplace writes it; the
+    mirror renders it from the plugin tree) and ``skip_filenames`` (files
+    another generator renders into the mirror, such as
+    ``lib_mirror.lib_owned_support_files``).
     """
+    owned = {SKILL_MD, *skip_filenames}
+    for path in tree_sources(source, None):
+        if path.is_dir():
+            continue
+        rel = path.relative_to(source)
+        if not is_bytecode_artifact(rel):
+            owned.add(rel)
+    return frozenset(owned)
 
 
 _SIDECAR_SUFFIX = ".noregen"
@@ -171,7 +183,7 @@ def prune_mirror_orphans(
     deleted or renamed in ``src/claude/skills/<name>/`` left its old copy in
     every mirror tree, and the staleness gate passed.
 
-    Ownership: a mirror file is owned when :func:`skill_copy_compare.mirror_owned_rels`
+    Ownership: a mirror file is owned when :func:`mirror_owned_rels`
     lists it, that is every non-bytecode source file, ``SKILL.md``, and
     ``skip_filenames``. Everything else under ``target`` is an orphan. Only
     ``target`` is ever touched, and only its regular files: a symlink, a

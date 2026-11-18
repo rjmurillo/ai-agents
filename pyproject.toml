@@ -602,7 +602,7 @@ module = [
     "scripts.eval._copilot_wire",
     "scripts.eval._recorded_captures",
     "scripts.generate_adr_index",
-    "scripts.skill_mirror_prune",
+    "scripts.skill_support_mirror",
     "scripts.validate_agent_matrix_refs",
     "scripts.validate_workflows",
     "scripts.validation.check_adr_lifecycle",

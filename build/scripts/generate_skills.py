@@ -53,23 +53,25 @@ sys.path.insert(0, str(_SCRIPT_DIR))
 import skill_templates  # noqa: E402
 from hermes_packs import generate_hermes_packs  # noqa: E402
 from lib_mirror import lib_owned_support_files  # noqa: E402
-from skill_distribution import SkillDistributionError, repo_local_names  # noqa: E402
+from skill_mirror_prune import prune_mirror_orphans  # noqa: E402
 
 # _copy_skill_tree, GenerateSkillsError, SkillSupportSyncError,
-# _iter_skill_sources, _DEFAULT_EXCLUDES, and prune_stale_claude_skill_support
-# live in skill_support_mirror.py (split for the taste-lint file-size ceiling,
-# ADR-109 B3's support-file follow-up), re-exported here so every existing
-# caller and test that reaches them through generate_skills.<name> keeps
-# working unchanged.
+# _iter_skill_sources, _DEFAULT_EXCLUDES, prune_stale_claude_skill_support,
+# SkillDistributionError and repo_local_names (the last two imported there from
+# skill_distribution) live in skill_support_mirror.py (split for the taste-lint
+# file-size ceiling, ADR-109 B3's support-file follow-up), re-exported here so
+# every existing caller and test that reaches them through generate_skills.<name>
+# keeps working unchanged.
 from skill_support_mirror import (  # noqa: E402,F401
     _DEFAULT_EXCLUDES,
     GenerateSkillsError,
+    SkillDistributionError,
     SkillSupportSyncError,
     _copy_skill_tree,
     _iter_skill_sources,
-    prune_mirror_orphans,
     prune_repo_local_vendor_copies,
     prune_stale_claude_skill_support,
+    repo_local_names,
 )
 from yaml_loader import ConfigError, load_platform_config, validate_relative_path  # noqa: E402
 
@@ -130,7 +132,7 @@ def _copy_skills(
     ``_copy_skill_tree``. ``check`` writes nothing and counts every mismatched
     file into ``written`` instead (issue #6558). ``pruned`` counts mirror files
     with no source counterpart, removed (or, under ``check``/``what_if``, only
-    reported) by :func:`skill_support_mirror.prune_mirror_orphans`. Raises
+    reported) by :func:`skill_mirror_prune.prune_mirror_orphans`. Raises
     :class:`GenerateSkillsError` when a translation refuses a skill (ADR-111's
     frontmatter-drop guard).
     """

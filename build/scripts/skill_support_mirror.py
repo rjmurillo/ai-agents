@@ -11,10 +11,6 @@ every public and private name it still needs from here and re-exports them,
 so every existing caller and test that reaches them through
 ``generate_skills.<name>`` keeps working unchanged.
 
-:func:`skill_mirror_prune.prune_mirror_orphans` (re-exported here) is the other
-half of the copy: it removes a mirror file whose source counterpart is gone, so
-a deleted or renamed support file does not keep shipping.
-
 A shipped skill's support files are hand-maintained in
 ``src/claude/skills/<name>/``, and ``.claude/skills/<name>`` is a symlink to
 that directory, so no Claude-side copy exists to sync. ``SKILL.md`` is
@@ -45,7 +41,6 @@ from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
 from skill_copy_compare import copy_matches, text_matches, tree_sources  # noqa: E402
 from skill_distribution import SkillDistributionError, repo_local_names  # noqa: E402
 from skill_md_rewrite import GenerateSkillsError, rewrite_skill_md  # noqa: E402
-from skill_mirror_prune import SkillSupportSyncError, prune_mirror_orphans  # noqa: E402,F401
 
 _DEFAULT_EXCLUDES = ("AGENTS.md", "CLAUDE.md")
 
@@ -53,6 +48,18 @@ _DEFAULT_EXCLUDES = ("AGENTS.md", "CLAUDE.md")
 # links to it; a repo-local skill lives only in .claude/skills/<name>/.
 _CLAUDE_INSTALL_REL = Path(".claude") / "skills"
 _CLAUDE_PLUGIN_REL = Path("src") / "claude" / "skills"
+
+
+class SkillSupportSyncError(GenerateSkillsError):
+    """A skill's support-file mirror hit a condition it refuses to handle.
+
+    Raised for a symlink found anywhere under a skill directory (CWE-22/59:
+    a linked file or directory could point outside the skill, and this
+    mirror copies byte-for-byte with no containment check of its own beyond
+    refusing to follow the link at all) or for a stale target file this
+    mirror cannot safely remove (an ``OSError`` from the removal itself,
+    e.g. a permission problem).
+    """
 
 
 def _iter_skill_sources(
@@ -232,8 +239,8 @@ def _copy_skill_tree(
 def _prune_empty_dirs(root: Path) -> None:
     """Remove every empty directory under ``root`` (used for vendor-copy removal).
 
-    Orphan pruning uses :func:`_remove_orphan`, which removes only the
-    directories its own deletion emptied.
+    Orphan pruning (``skill_mirror_prune``) removes only the directories its
+    own deletion emptied.
     """
     if not root.is_dir():
         return
