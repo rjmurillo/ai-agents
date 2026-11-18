@@ -13,7 +13,7 @@ artifacts:
     # 381 made room for skillforge's judging module (_conformance_judging.py).
     # 395 adds room for technical-writing's 29 files in the delivery pack
     # (ADR-115 Decision 6), leaving 5 under the cap.
-    packMaxFiles: 395
+    packMaxFiles: 396
     # hermes-agent commit whose plugin_guard and install limits this table was
     # measured against. The guard test and the smoke test install this commit.
     hermesCommit: "63d0b94120027d487c9a5235b9ec64b696af1b26"
