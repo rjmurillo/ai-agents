@@ -116,18 +116,6 @@ def _run_cli(
     )
 
 
-class TestBaseRefCandidates:
-    def test_bare_name_tries_origin_first_then_as_given(self) -> None:
-        assert mod.base_ref_candidates("main") == ["origin/main", "main"]
-
-    def test_remote_prefixed_name_falls_back_to_the_given_ref(self) -> None:
-        assert mod.base_ref_candidates("origin/main") == ["origin/origin/main", "origin/main"]
-
-    @pytest.mark.parametrize("value", ["", "-x", "--output=/tmp/pwn"])
-    def test_empty_or_option_shaped_value_has_no_candidates(self, value: str) -> None:
-        assert mod.base_ref_candidates(value) == []
-
-
 class TestGetDiffFiles:
     @pytest.mark.parametrize("base", ["master", "origin/master"])
     def test_bare_and_remote_prefixed_base_diff_the_same_files(
@@ -135,19 +123,18 @@ class TestGetDiffFiles:
     ) -> None:
         assert mod.get_diff_files(str(repo_with_origin), base) == ["changed.py"]
 
-    def test_remote_prefixed_base_resolves_to_the_named_ref(self, repo_with_origin: Path) -> None:
-        assert mod.resolve_base_ref(str(repo_with_origin), "origin/master") == "origin/master"
-
     def test_local_only_base_resolves_without_a_remote(self, repo_without_remote: Path) -> None:
         assert mod.get_diff_files(str(repo_without_remote), "trunk") == ["changed.py"]
 
-    @pytest.mark.parametrize("base", ["no-such-branch", "origin/no-such-branch", "-x"])
+    @pytest.mark.parametrize(
+        "base", ["no-such-branch", "origin/no-such-branch", "", "-x", "--output=/tmp/pwn"]
+    )
     def test_unresolvable_base_raises_instead_of_returning_none(
         self, repo_with_origin: Path, base: str
     ) -> None:
         with pytest.raises(mod.BaseRefError) as excinfo:
             mod.get_diff_files(str(repo_with_origin), base)
-        assert excinfo.value.base_branch == base
+        assert repr(base) in str(excinfo.value)
 
 
 class TestCliExitCodes:

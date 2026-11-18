@@ -116,76 +116,62 @@ def _strip_line_suffix(location: str) -> str:
 
 
 class BaseRefError(Exception):
-    """Raised when no candidate for ``--base-branch`` names a commit."""
-
-    def __init__(self, base_branch: str, candidates: list[str]) -> None:
-        self.base_branch = base_branch
-        self.candidates = candidates
-        super().__init__(
-            f"base branch {base_branch!r} did not resolve; tried: {', '.join(candidates) or '(none)'}"
-        )
+    """``--base-branch`` names no commit, so the scope check cannot run."""
 
 
-def base_ref_candidates(base_branch: str) -> list[str]:
-    """Return the refs to try for *base_branch*, most specific first.
-
-    ``main`` tries ``origin/main`` then ``main``. ``origin/main`` tries
-    ``origin/origin/main`` then ``origin/main``, so the documented
-    remote-prefixed form resolves to the ref the caller named. An empty value
-    or one starting with ``-`` yields no candidates, because git would read
-    it as an option.
-    """
-    if not base_branch or base_branch.startswith("-"):
-        return []
-    return [f"origin/{base_branch}", base_branch]
-
-
-class _GitCommandError(Exception):
-    """Raised when git itself fails, as opposed to a ref being absent."""
-
-
-# ``git rev-parse --verify --quiet`` exits 1 when the ref is absent. Any other
+# ``git rev-parse --verify --quiet`` exits 1 when a ref is absent. Any other
 # nonzero code (128 for "not a git repository") is a git failure, which keeps
-# the documented graceful-degrade path instead of blaming the base argument.
+# the graceful-degrade path instead of blaming the base argument.
 _REV_PARSE_REF_ABSENT = 1
-
-
-def resolve_base_ref(worktree: str, base_branch: str) -> str | None:
-    """Return the first candidate ref that names a commit, else *None*.
-
-    Raises :class:`_GitCommandError` when git cannot run in *worktree*.
-    """
-    for candidate in base_ref_candidates(base_branch):
-        result = subprocess.run(
-            ["git", "-C", worktree, "rev-parse", "--verify", "--quiet", f"{candidate}^{{commit}}"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=30,
-        )
-        if result.returncode == 0:
-            return candidate
-        if result.returncode != _REV_PARSE_REF_ABSENT:
-            raise _GitCommandError(result.stderr.strip())
-    return None
 
 
 def get_diff_files(worktree: str, base_branch: str) -> list[str] | None:
     """Return the list of files changed in the PR diff.
 
-    Returns *None* when git is unavailable or the diff command fails so
-    callers can degrade gracefully (exit 0 with a warning rather than
-    blocking a review entirely on a git error). Raises :class:`BaseRefError`
-    when *base_branch* names no commit: that is a caller error, and treating
-    it as an unavailable diff would report a check that never ran as passed.
+    *base_branch* may be bare (``main``) or remote-prefixed (``origin/main``).
+    It tries ``origin/<base>`` first, then the value as given, and diffs
+    against the first that names a commit (issue #7399). A value that is
+    empty or starts with ``-`` is never passed to git, which would read it
+    as an option.
+
+    Returns *None* when git is unavailable or fails so callers can degrade
+    gracefully (exit 0 with a warning rather than blocking a review entirely
+    on a git error). Raises :class:`BaseRefError` when no candidate names a
+    commit: that is a caller error, and treating it as an unavailable diff
+    would report a check that never ran as passed.
     """
     if not shutil.which("git"):
         return None
+    candidates = (
+        []
+        if not base_branch or base_branch.startswith("-")
+        else [f"origin/{base_branch}", base_branch]
+    )
     try:
-        base_ref = resolve_base_ref(worktree, base_branch)
-        if base_ref is None:
-            raise BaseRefError(base_branch, base_ref_candidates(base_branch))
+        for base_ref in candidates:
+            probe = subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    worktree,
+                    "rev-parse",
+                    "--verify",
+                    "--quiet",
+                    f"{base_ref}^{{commit}}",
+                ],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=30,
+            )
+            if probe.returncode == 0:
+                break
+            if probe.returncode != _REV_PARSE_REF_ABSENT:
+                return None
+        else:
+            tried = ", ".join(candidates) or "(none)"
+            raise BaseRefError(f"base branch {base_branch!r} did not resolve; tried: {tried}")
         result = subprocess.run(
             ["git", "-C", worktree, "diff", "--name-only", f"{base_ref}...HEAD"],
             capture_output=True,
@@ -197,7 +183,7 @@ def get_diff_files(worktree: str, base_branch: str) -> list[str] | None:
         if result.returncode != 0:
             return None
         return [line.strip() for line in result.stdout.splitlines() if line.strip()]
-    except (OSError, subprocess.TimeoutExpired, _GitCommandError):
+    except (OSError, subprocess.TimeoutExpired):
         return None
 
 
