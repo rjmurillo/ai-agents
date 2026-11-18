@@ -207,7 +207,9 @@ def test_unparseable_base_csharp_blob_fails_regression_mode_with_path_and_revisi
     assert not output.out
 
 
-@pytest.mark.parametrize("error_type", [OSError, ValueError, TypeError, RuntimeError])
+@pytest.mark.parametrize(
+    "error_type", [OSError, ValueError, TypeError, RuntimeError, AttributeError, KeyError]
+)
 def test_broken_csharp_parser_fails_cli_without_a_success_report(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -5,9 +5,17 @@ It counts namespace, alias, static, and global directives.
 Resource declarations, comments, and strings do not add dependencies.
 Other languages and quality scores retain their existing heuristics.
 
-Install these packages into the Python environment that runs the scanner:
+Install these packages into the Python environment that runs the scanner.
+System Pythons on Debian, Ubuntu, and Homebrew refuse a bare pip install (PEP 668).
+Use a virtual environment:
 
-Run `python3 -m pip install tree-sitter==0.26.1 tree-sitter-c-sharp==0.23.5`.
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install tree-sitter==0.26.1 tree-sitter-c-sharp==0.23.5
+```
+
+With uv, run `uv pip install tree-sitter==0.26.1 tree-sitter-c-sharp==0.23.5`.
+Then run the scanner with that environment's Python.
 
 The scanner imports these packages only when assessing C# source.
 Missing packages, parser startup failures, and C# the grammar cannot parse exit 1 without a report.

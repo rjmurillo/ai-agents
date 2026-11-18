@@ -959,7 +959,9 @@ def _admission_mismatch_reason(comparison: FileComparison, admission: dict[str, 
         return f"change status is {comparison.change_status}, not a modified file"
     if comparison.absolute_gate_reason is not None:
         return f"absolute gate applies: {comparison.absolute_gate_reason}"
-    coupling = next(d for d in comparison.deltas if d.quality == "coupling")
+    coupling = next((d for d in comparison.deltas if d.quality == "coupling"), None)
+    if coupling is None:
+        return "no coupling delta recorded"
     observed = (coupling.base, coupling.head, coupling.delta, coupling.status)
     if observed != (10.0, 8.0, -2.0, "compared"):
         return f"coupling transition {observed} differs from 10.0 -> 8.0"
@@ -1364,11 +1366,17 @@ def _count_csharp_imports(source: str) -> int:
         return len(QueryCursor(query).captures(tree.root_node).get("dependency", []))
     except CSharpParserError:
         raise
-    except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+    except ImportError as exc:
         raise CSharpParserError(
-            f"C# dependency parsing failed: {exc}. "
-            "Install the parser packages in the scanner's Python environment: "
-            "python -m pip install tree-sitter==0.26.1 tree-sitter-c-sharp==0.23.5"
+            f"C# parser packages are missing: {exc}. Install them into the scanner's "
+            "Python environment: python -m pip install "
+            "tree-sitter==0.26.1 tree-sitter-c-sharp==0.23.5 "
+            "(see references/csharp-parser.md)"
+        ) from exc
+    except Exception as exc:
+        raise CSharpParserError(
+            f"C# parser failed to start or run: {type(exc).__name__}: {exc}. "
+            "Check the pinned versions (tree-sitter==0.26.1, tree-sitter-c-sharp==0.23.5)"
         ) from exc
 
 
@@ -1901,6 +1909,9 @@ def _assess_files(
     five files still looked internally consistent, and a consumer could read
     the survivor as evidence the whole change was assessed. This is the same
     treatment an unreadable file already gets at the decode site.
+
+    A C# parser failure is the exception: it is deliberately fatal (exit 1), so
+    no C# score is guessed.
     """
     assessments: list[FileAssessment] = []
     for file_path in files:

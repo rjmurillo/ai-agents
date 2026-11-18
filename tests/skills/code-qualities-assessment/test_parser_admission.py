@@ -129,6 +129,7 @@ def test_parser_admission_does_not_clear_unapproved_regressions(
     [
         (_PARSER_IMPORTS + "import requests\n", "coupling transition"),
         ("import requests\nimport flask\n", "external imports"),
+        ("from . import x\nimport tree_sitter\n", "external imports"),
     ],
 )
 def test_parser_admission_reports_why_a_mismatch_is_not_admitted(
@@ -145,6 +146,34 @@ def test_parser_admission_reports_why_a_mismatch_is_not_admitted(
     assert f"NOT ADMITTED: {_PARSER_SCANNER}: " in err
     assert reason in err
     assert "ADMITTED: issue" not in err
+
+
+def _comparison(**overrides: Any) -> Any:
+    fields: dict[str, Any] = {
+        "file_path": _PARSER_SCANNER,
+        "is_new_file": False,
+        "deltas": [_mod.QualityDelta("coupling", 10.0, 8.0, -2.0, "compared")],
+        "regressions": ["coupling"],
+        "evidence_loss": [],
+    }
+    fields.update(overrides)
+    return _mod.FileComparison(**fields)
+
+
+@pytest.mark.parametrize(
+    ("overrides", "reason"),
+    [
+        ({"change_status": "R"}, "change status is R"),
+        ({"absolute_gate_reason": "below floor"}, "absolute gate applies: below floor"),
+        ({"deltas": []}, "no coupling delta recorded"),
+    ],
+)
+def test_admission_mismatch_reason_names_each_non_matching_shape(
+    parser_admission_repo: dict[str, Any], overrides: dict[str, Any], reason: str
+) -> None:
+    admission = parser_admission_repo["csharpParserDependencyAdmission"]
+
+    assert reason in _mod._admission_mismatch_reason(_comparison(**overrides), admission)
 
 
 def test_parser_admission_requires_the_actual_two_imports(
