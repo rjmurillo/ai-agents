@@ -46,7 +46,7 @@ The skill has no scripts. Its depth lives in references under [`references/`](..
 | `writing-process.md` | Plan, draft, fact-check, edit, and test steps, plus how to write for each kind of reader |
 | `content-types.md` | Outlines for tutorials, how-tos, concepts, reference, troubleshooting, rule pages, user guides, and posts |
 | `stylebook-selection.md` | The style matrix and a default stylebook for each kind of target |
-| `stylebooks/` | 16 stylebooks, from `microsoft-writing-style` to `w3c-technical-reports` |
+| `stylebooks/` | 16 stylebooks, such as `microsoft-writing-style`, `google-developer-docs`, and `w3c-technical-reports` |
 | `prose-patterns.md`, `common-documentation-issues.md`, `cross-referencing.md` | The base checks every draft and audit uses |
 | `testing-your-documentation.md` | Build, link, sample, and fresh-reader checks, and which samples must not run without asking |
 | `site-profiles/aspire-dev/` | aspire.dev conventions, loaded only when the target is aspire.dev |
@@ -72,7 +72,7 @@ The skill does not run a sample that installs software, uses credentials, touche
 ## Related
 
 - [`api-doc-authoring`](api-doc-authoring.md): API guides built around endpoints.
-- [`doc-accuracy`](doc-accuracy.md): checks docs against the code. Its external-sdk marker exempts the aspire.dev profile's Aspire SDK examples.
+- [`doc-accuracy`](doc-accuracy.md): checks docs against the code. Its external-sdk marker exempts the aspire.dev profile's `site-conventions.md`, whose C# examples document the Aspire SDK.
 - [`prose-self-check`](prose-self-check.md): the automated prose lint this skill runs.
 - Source: [`SKILL.md`](../../src/claude/skills/technical-writing/SKILL.md)
 - How to call skills on each host: [Call agents and skills](../call-agents-and-skills.md)
