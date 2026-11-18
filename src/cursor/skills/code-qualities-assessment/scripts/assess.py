@@ -16,7 +16,7 @@ changed file at its base revision too and gates on the change, so inherited
 debt in a file you only touched does not fail the run.
 
 Exit codes:
-  0: Gate passed
+  0: Policy satisfied, including an explicitly admitted regression
   10: Regression mode: a comparable quality regressed, or scored evidence was lost
   11: A file is below configured thresholds (absolute mode, or a new file in
       regression mode, which has no base to compare against)
@@ -24,6 +24,7 @@ Exit codes:
 """
 
 import argparse
+import ast
 import json
 import math
 import re
@@ -57,6 +58,18 @@ _LANGUAGE_BY_SUFFIX = {
 # #4364 in a new form. Real degradations move whole points (10.0 -> 3.3 in the
 # same harness), so half a point separates noise from signal.
 _DEFAULT_REGRESSION_TOLERANCE = 0.5
+
+# This one repository-specific admission is inert without the matching config.
+_CSHARP_PARSER_DEPENDENCY_ADMISSION = {
+    "issue": 7406,
+    "file": "src/claude/skills/code-qualities-assessment/scripts/assess.py",
+    "imports": ["tree_sitter", "tree_sitter_c_sharp"],
+    "baseScore": 10.0,
+    "headScore": 8.0,
+    "authorizedBy": "rjmurillo",
+    "authorizedOn": "2026-11-16",
+    "authorization": "Maintainer instruction: waiver, full send.",
+}
 
 # Single-line comment prefixes, used to exclude comment lines from the
 # lines-of-code count. Block comments are intentionally not stripped: this is an
@@ -156,7 +169,6 @@ _IMPORT_PATTERNS = {
     "python": re.compile(r"^\s*(?:import\s+\S|from\s+\S+\s+import\s+)"),
     "javascript": re.compile(r"^\s*import\s+|\brequire\s*\("),
     "typescript": re.compile(r"^\s*import\s+|\brequire\s*\("),
-    "csharp": re.compile(r"^\s*using\s+[A-Za-z_]"),
     "java": re.compile(r"^\s*import\s+[A-Za-z_]"),
     "go": re.compile(
         r'^\s*import\s+(?:(?:[A-Za-z_]\w*|\.)\s+)?"[^"]+"\s*(?://.*)?$'
@@ -921,6 +933,64 @@ class FileComparison:
     base_file_path: str | None = None
     change_status: str = "M"
     absolute_gate_reason: str | None = None
+    csharp_parser_dependency_admission: dict[str, Any] | None = None
+
+
+def _python_external_imports(path: Path) -> set[str]:
+    """Read import roots through Python's parser, including nested imports."""
+    roots: set[str] = set()
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, SyntaxError) as exc:
+        raise ValueError(f"Cannot verify parser dependency admission for {path}: {exc}") from exc
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            roots.update(alias.name.split(".", 1)[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            roots.add(
+                node.module.split(".", 1)[0] if node.module and node.level == 0 else ".relative"
+            )
+    return roots - _PY_STDLIB_MODULES
+
+
+def _admission_mismatch_reason(comparison: FileComparison, admission: dict[str, Any]) -> str | None:
+    """Return why *comparison* is outside the admitted transition, or None if it matches."""
+    if comparison.is_new_file or comparison.change_status != "M":
+        return f"change status is {comparison.change_status}, not a modified file"
+    if comparison.absolute_gate_reason is not None:
+        return f"absolute gate applies: {comparison.absolute_gate_reason}"
+    coupling = next((d for d in comparison.deltas if d.quality == "coupling"), None)
+    if coupling is None:
+        return "no coupling delta recorded"
+    observed = (coupling.base, coupling.head, coupling.delta, coupling.status)
+    if observed != (10.0, 8.0, -2.0, "compared"):
+        return f"coupling transition {observed} differs from 10.0 -> 8.0"
+    imports = _python_external_imports(Path(comparison.file_path))
+    if imports != set(admission["imports"]):
+        return f"external imports {sorted(imports)} differ from the admitted set"
+    return None
+
+
+def _apply_csharp_parser_dependency_admission(
+    comparisons: list[FileComparison], config: dict[str, Any]
+) -> None:
+    """Admit only the authorized #7406 transition, without changing its evidence."""
+    if "csharpParserDependencyAdmission" not in config:
+        return
+    admission = config["csharpParserDependencyAdmission"]
+    if admission != _CSHARP_PARSER_DEPENDENCY_ADMISSION:
+        raise ValueError("Invalid csharpParserDependencyAdmission: scope or authorization differs")
+    for comparison in comparisons:
+        if (
+            Path(comparison.file_path).as_posix() != admission["file"]
+            or "coupling" not in comparison.regressions
+        ):
+            continue
+        reason = _admission_mismatch_reason(comparison, admission)
+        if reason is not None:
+            print(f"NOT ADMITTED: {comparison.file_path}: {reason}", file=sys.stderr)
+            continue
+        comparison.csharp_parser_dependency_admission = dict(admission)
 
 
 def _delta_for(quality: str, base: QualityScore, head: QualityScore) -> QualityDelta:
@@ -1102,6 +1172,9 @@ def _assess_base_bytes(
         return assess_content(path, raw.decode("utf-8"), resolver)
     except UnicodeDecodeError as exc:
         return _unreadable_assessment(path, f"decode failed at base: {exc}")
+    except CSharpParserError as exc:
+        where = f"{path} at {revision}" if revision is not None else str(path)
+        raise CSharpParserError(f"{where}: {exc}") from exc
 
 
 def check_regression(
@@ -1113,7 +1186,7 @@ def check_regression(
     """Gate on change, not on inherited debt.
 
     Returns:
-        0:  no comparable quality regressed and no new file failed absolutely
+        0:  no unadmitted regression and no new file failed absolutely
         10: a comparable quality regressed, or scored evidence was lost
         11: no regression, but a new authored file is below absolute thresholds
     """
@@ -1126,7 +1199,16 @@ def check_regression(
                 f"{delta.base} -> {delta.head} (delta {delta.delta})",
                 file=sys.stderr,
             )
-            degraded = True
+            if quality == "coupling" and comparison.csharp_parser_dependency_admission:
+                approval = comparison.csharp_parser_dependency_admission
+                print(
+                    f"ADMITTED: issue #{approval['issue']}, authorized by "
+                    f"{approval['authorizedBy']} on {approval['authorizedOn']}: "
+                    f"{approval['authorization']} Raw coupling regression remains reported.",
+                    file=sys.stderr,
+                )
+            else:
+                degraded = True
         for quality in comparison.evidence_loss:
             print(
                 f"❌ {comparison.file_path}: {quality} was scored at base and is "
@@ -1260,6 +1342,44 @@ def _is_python_standard_import(line: str) -> bool:
     )
 
 
+class CSharpParserError(RuntimeError):
+    """C# dependencies cannot be measured reliably."""
+
+
+def _count_csharp_imports(source: str) -> int:
+    """Count directive syntax nodes, not resource declarations or literal text."""
+    try:
+        import tree_sitter_c_sharp
+        from tree_sitter import Language, Parser, Query, QueryCursor
+
+        language = Language(tree_sitter_c_sharp.language())
+        tree = Parser(language).parse(source.encode("utf-8"))
+        if tree.root_node.has_error:
+            raise CSharpParserError(
+                "Cannot count C# dependencies: the pinned C# grammar "
+                "(tree-sitter-c-sharp==0.23.5) could not parse this file. "
+                "The file has a syntax error, or it is valid C# that the grammar "
+                "does not support (for example a signature split across #if/#else, "
+                "or C# 14 extension blocks)"
+            )
+        query = Query(language, "(using_directive) @dependency")
+        return len(QueryCursor(query).captures(tree.root_node).get("dependency", []))
+    except CSharpParserError:
+        raise
+    except ImportError as exc:
+        raise CSharpParserError(
+            f"C# parser packages are missing: {exc}. Install "
+            "tree-sitter==0.26.1 and tree-sitter-c-sharp==0.23.5 into a virtual "
+            "environment that runs the scanner, not the system Python "
+            "(see references/csharp-parser.md)"
+        ) from exc
+    except Exception as exc:
+        raise CSharpParserError(
+            f"C# parser failed to start or run: {type(exc).__name__}: {exc}. "
+            "Check the pinned versions (tree-sitter==0.26.1, tree-sitter-c-sharp==0.23.5)"
+        ) from exc
+
+
 def _score_coupling(
     language: str | None,
     code_lines: list[str],
@@ -1273,13 +1393,18 @@ def _score_coupling(
     0.0 so the threshold gate does not fail a file scored only by that
     untuned heuristic (matches the file-header contract).
 
-    Go and Python standard-library imports are reported but not scored: they
-    are stable utilities, not application or third-party coupling (issues
-    #7047 and #7354).
+    C# receives original source lines for syntax-tree parsing. Other languages
+    receive filtered code lines. Go and Python standard-library imports are
+    reported but not scored: they are stable utilities, not application or
+    third-party coupling (issues #7047 and #7354).
     """
     pattern = _IMPORT_PATTERNS.get(language) if language else None
     standard_count = 0
-    if pattern is not None:
+    if language == "csharp":
+        import_count = _count_csharp_imports("\n".join(code_lines))
+        confidence = 0.6
+        tuned = True
+    elif pattern is not None:
         import_lines = [line for line in code_lines if pattern.search(line)]
         import_count = len(import_lines)
         if language == "go":
@@ -1487,7 +1612,9 @@ def assess_content(
         file_path=str(file_path),
         category=category,
         cohesion=_score_cohesion(language, code_lines, loc),
-        coupling=_score_coupling(language, code_lines, resolve_go_module),
+        coupling=_score_coupling(
+            language, lines if language == "csharp" else code_lines, resolve_go_module
+        ),
         encapsulation=_score_encapsulation(language, code_lines),
         testability=_score_testability(language, code_lines),
         non_redundancy=_score_non_redundancy(lines, language is not None),
@@ -1782,11 +1909,16 @@ def _assess_files(
     five files still looked internally consistent, and a consumer could read
     the survivor as evidence the whole change was assessed. This is the same
     treatment an unreadable file already gets at the decode site.
+
+    A C# parser failure is the exception: it is deliberately fatal (exit 1), so
+    no C# score is guessed.
     """
     assessments: list[FileAssessment] = []
     for file_path in files:
         try:
             assessments.append(assess_file(file_path, context, use_serena))
+        except CSharpParserError as exc:
+            raise CSharpParserError(f"{file_path}: {exc}") from exc
         except Exception as e:
             print(f"Error assessing {file_path}: {e}", file=sys.stderr)
             assessments.append(_unreadable_assessment(file_path, f"assessment failed: {e}"))
@@ -1906,8 +2038,8 @@ def main(argv: list[str] | None = None) -> int:
         print("No files to assess", file=sys.stderr)
         return 1
 
-    assessments = _assess_files(files, args.context, args.use_serena == "yes")
     try:
+        assessments = _assess_files(files, args.context, args.use_serena == "yes")
         comparisons, new_file_assessments = _build_regression_inputs(
             assessments,
             gate_mode,
@@ -1915,6 +2047,7 @@ def main(argv: list[str] | None = None) -> int:
             args.regression_tolerance,
             changed_files,
         )
+        _apply_csharp_parser_dependency_admission(comparisons, config)
     except (RuntimeError, ValueError) as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1
