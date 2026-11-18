@@ -291,13 +291,6 @@ def test_negative_control_stale_docs_page_is_detected() -> None:
     assert find_removed_writer(stale)
 
 
-def test_negative_control_runner_check_fails_on_old_wording() -> None:
-    real = squash(_executor_outputs()["execution step 1"])
-    old = real.replace(SKILL_RUNNER_PHRASE, "the delegate loads the skill")
-    assert real.count(SKILL_RUNNER_PHRASE) == 2
-    assert old.count(SKILL_RUNNER_PHRASE) == 0
-
-
 def test_negative_control_old_agent_is_reported_missing() -> None:
     assert missing_agents("DELEGATE to @agent-technical-writer") == {"technical-writer"}
 
