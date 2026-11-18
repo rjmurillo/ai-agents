@@ -356,6 +356,15 @@ def test_mixed_milestones_send_skill_md_and_agent_prompts_to_implementer() -> No
     assert "then the matching docs skill (docs pages) after code completes" in text
 
 
+def test_step_1_split_gives_claude_md_to_the_coordinator() -> None:
+    text = squash(_executor_outputs()["execution step 1"])
+    assert (
+        "CLAUDE.md index entries: out of scope for both skills; the coordinator edits them directly"
+        in text
+    )
+    assert "The coordinator edits CLAUDE.md index entries in any milestone" in text
+
+
 def test_delegation_form_lists_implementer_as_an_agent() -> None:
     text = _executor_outputs()["execution step 1"]
     assert "<agent>@agent-[developer|debugger|quality-reviewer|implementer]</agent>" in text
