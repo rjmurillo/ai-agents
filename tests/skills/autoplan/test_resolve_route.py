@@ -426,6 +426,14 @@ def test_out_of_order_tokens_do_not_match() -> None:
     assert not _ordered("beta then alpha", "alpha beta")
 
 
+def test_wrong_order_inside_the_window_does_not_match() -> None:
+    assert not _ordered("alpha gamma beta", "alpha beta gamma")
+
+
+def test_one_request_token_cannot_fill_two_intent_positions() -> None:
+    assert not _ordered("alpha beta", "alpha beta beta")
+
+
 def test_tokens_spread_across_clauses_do_not_match() -> None:
     assert not _ordered(
         "Write integration tests for the Redis client and update the documentation.",
