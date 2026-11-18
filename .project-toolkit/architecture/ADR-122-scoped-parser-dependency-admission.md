@@ -1,7 +1,7 @@
 ---
 id: ADR-122
 status: accepted
-date: 2026-11-16
+date: 2026-11-18
 decision-makers:
   - rjmurillo
 supersedes: []
@@ -17,6 +17,7 @@ implemented: true
 Accepted. The panel reached consensus after the scope-evidence correction.
 The debate appears in `.project-toolkit/critique/ADR-122-debate-log.md`.
 Publication still requires ordinary review, hooks, and protected CI.
+On 2026-11-18, an amendment recorded the parser dependencies as permanent design.
 
 ## Context
 
@@ -26,6 +27,8 @@ On 2026-11-16, its two external imports lowered scanner coupling from 10.0 to 8.
 The unchanged regression tolerance rejects this transition with exit 10.
 The maintainer authorized a scoped policy change: "waiver, full send."
 That instruction grants neither GitHub approval nor permission to bypass protections.
+On 2026-11-18, the maintainer ruled that the parser dependencies are permanent design.
+They are not a temporary waiver, and no time bound applies.
 
 ## Decision
 
@@ -44,6 +47,12 @@ That instruction grants neither GitHub approval nor permission to bypass protect
 5. Keep other regressions, evidence loss, and new-file threshold failures blocking.
    Do not change global thresholds, formulas, tolerances, or required review axes.
    Do not extend admission to another repository or another quality.
+6. Keep `tree-sitter` and `tree-sitter-c-sharp` as permanent scanner dependencies.
+   No sunset date, retirement issue, or removal step applies to them.
+7. Use the same parser approach for JavaScript, TypeScript, Python, and PowerShell.
+   Each language is follow-on work in its own change.
+   This record admits only the C# transition; it does not pre-admit later ones.
+   A later parser import can trip the coupling gate; it needs its own admission decision.
 
 ## Prior Art Investigation
 
@@ -62,13 +71,21 @@ This decision represents the maintainer's specific parser-dependency authorizati
 | Keep the branch blocked. | Preserve existing admission policy. | Reject the authorized parser implementation. | Not selected. |
 | Increase global tolerance. | Avoid new admission code. | Permit unrelated dependency regressions. | Rejected. |
 | Add a generic exception framework. | Support future policy exceptions. | Add capabilities without a present requirement. | Rejected. |
+| Exclude declared parser packages from coupling. | No special case for this or later parser transitions. | Hides real dependencies that this record keeps visible in the score. | Rejected. |
 | Add the fixed admission. | Preserve raw evidence and scoped authorization. | Maintain an explicit special case. | Selected. |
 
 ## Consequences
 
 The admission adds policy code and tests for one dependency decision.
 Scanner JSON and stderr retain the raw failure evidence.
-Consumers without the exact configuration retain their existing gate behavior.
+Consumers without the exact configuration keep their existing admission behavior.
+Every shipped copy of the scanner now needs both parser packages to score C#.
+Without them, any scan that includes a C# file exits 1 and scores no file.
+The review adapter then reports `UNKNOWN` for that axis.
+C# that the pinned grammar cannot parse also exits 1.
+`references/csharp-parser.md` gives the install command and the grammar limits.
+The parser imports run inside one function, not at module load.
+ADR-121 rule 2 scans only module-load imports, so no allowance entry applies.
 The record grants no GitHub review approval.
 When the comparison base already contains these dependencies, this admission is inactive.
 
@@ -78,16 +95,11 @@ Removing the configuration restores the ordinary coupling rejection.
 Removing the admission implementation and adapter support reverses the policy change.
 No data migration or installed-plugin mutation is required.
 
+No removal is planned, because the parser dependencies are permanent design.
 After this decision's pull request merges, main contains both parser imports.
-The admission then matches only when the comparison merge base predates them.
+The record then matches only when the comparison merge base predates them.
 Examples: a stacked branch, a cherry-pick, a revert and reintroduction, or an old `--base`.
-A follow-up pull request removes the admission once no open branch predates the merge.
-Check that with `git branch -r --no-contains <merge commit>` before removal.
-It deletes the `.qualityrc.json` record and the scanner admission code and output.
-It deletes the review adapter branch and the admission tests.
-It deletes the admission text from the skill template, reference, and docs page.
-It regenerates every plugin copy and marks this record deprecated.
-The raw parser and its fail-closed behavior stay.
+The record and its admission code stay. No follow-up pull request removes them.
 
 ## Impact on Dependent Components
 

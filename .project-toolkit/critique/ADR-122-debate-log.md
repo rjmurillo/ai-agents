@@ -2,7 +2,7 @@
 
 ## Summary
 
-- **Rounds**: 3 of 10. Round 3 is a reduced-panel amendment.
+- **Rounds**: 4 of 10. Rounds 3 and 4 are reduced-panel amendments.
 - **Prior debate log**: None.
 - **Outcome**: Consensus.
 - **Final Status**: accepted.
@@ -94,6 +94,37 @@ It changes no executable enforcement, so a reduced panel ran.
 | Critic | Accept. | Its two required edits were applied verbatim. |
 
 The panel reached consensus on the amendment.
+These votes are not GitHub approvals or merge permission.
+
+## Round 4 Summary (Permanence ruling, 2026-11-18)
+
+### Trigger
+
+On 2026-11-18, the maintainer ruled the parser dependencies permanent design.
+No sunset, retirement issue, or fixed date applies.
+The ruling replaces the Round 3 retirement plan.
+JavaScript, TypeScript, Python, and PowerShell get the same parser approach later.
+The amendment changes no executable enforcement, so a reduced panel ran.
+
+### Changes Made
+
+- Status and Context record the ruling and state that no time bound applies.
+- Decision items 6 and 7 record permanence and the follow-on languages.
+- Item 7 says a later parser import needs its own admission decision.
+- Rationale adds the rejected option to exclude parser packages from coupling.
+- Consequences state the install need, exit 1 for any scan with C#, and `UNKNOWN`.
+- Consequences state that ADR-121 rule 2 scans only module-load imports.
+- Reversibility drops the Round 3 removal steps and their trigger.
+
+### Agent Positions
+
+| Agent | Position | Evidence |
+|---|---|---|
+| Architect | Accept. | Its two required edits were applied verbatim. Factual claims checked against code. |
+| Critic | Accept. | Its four required edits were applied verbatim. |
+
+The panel reached consensus on the amendment.
+The ruling itself was the maintainer's decision, not a panel vote.
 These votes are not GitHub approvals or merge permission.
 
 ## Decision Boundaries
