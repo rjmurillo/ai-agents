@@ -53,7 +53,7 @@ the target checkout before you apply them. Use Glob, Grep, and Read only.
 |--------|---------------|---------|
 | Tracking issue | the author names one, or the title, body, or branch name references an issue number | Check 2 |
 | PR template | `.github/pull_request_template.md`, `.github/PULL_REQUEST_TEMPLATE.md`, `.github/PULL_REQUEST_TEMPLATE/*.md`, `docs/`, or the repository root, any case | Check 3, against that template's own headings |
-| Issue-link gate | a workflow, script, or contributor rule that fails a PR with no closing keyword or issue reference (grep `.github/workflows/`, repository scripts, `CONTRIBUTING.md`, and `AGENTS.md` for `Closes`, `closing keyword`, `issue link`) | Check 2 as a requirement |
+| Issue-link gate | a workflow, or a script a workflow or hook runs, that fails a PR with no closing keyword or issue reference (grep `.github/workflows/` and repository scripts for `Closes`, `closing keyword`, `issue link`; `CONTRIBUTING.md` and `AGENTS.md` are hints that may name one, never the gate itself) | Check 2 as a requirement |
 | Template gate | a workflow or script that parses PR body sections (grep for the template's heading text) | Check 3 failures as gate failures |
 
 A gate is something that fails the PR: a workflow, or a script a workflow or

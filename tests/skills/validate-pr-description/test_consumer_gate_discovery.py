@@ -158,3 +158,11 @@ def test_toolkit_files_are_not_consumer_gates(skill_text: str) -> None:
     assert "A gate is something that fails the PR" in body
     assert "Prose that only mentions a keyword is not a gate." in body
     assert "including this skill's own validator" in body
+
+
+def test_issue_link_gate_row_excludes_prose_rules(skill_text: str) -> None:
+    """The gate row must agree with the paragraph that prose is not a gate."""
+    body = _section(skill_text, "Phase 1b: Discover the target repository's metadata gates")
+    row = next(line for line in body.splitlines() if line.startswith("| Issue-link gate |"))
+    assert "contributor rule" not in row
+    assert "never the gate itself" in row
