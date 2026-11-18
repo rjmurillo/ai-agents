@@ -90,7 +90,7 @@ The article adds two checks. Look for subjective words, ambiguity, and loopholes
 
 | Anti-pattern | Sign in a review |
 | --- | --- |
-| Pass Through | Few or no real findings. Variant: Over-Friendliness, all praise and shallow. |
+| Pass Through | Few or no real findings. Variant: Over-Friendliness, all comments positive and some shallow. |
 | Copy Edit | Only wording and grammar, no content. |
 | Siding or Dead End | Drifts off the decision, then stops with no advice. |
 | Self Promotion | Pushes the reviewer's own work or favored option without objective reasons. |
@@ -105,7 +105,7 @@ The article adds two checks. Look for subjective words, ambiguity, and loopholes
 - Style: ask questions and suggest options, not commands. Report what you saw, not guesses about root causes. Be as factual and thorough as the ADR itself. Say what works as well as what does not. Stay polite.
 - Actionability: pair each finding with a recommendation. Mark comments FYI or action required. Offer an example for missing content. Reread your comments: could you fix the ADR from them alone?
 
-A footnote reports that longer review subjects tend to draw fewer comments. Choose how much of the ADR log to share, and split a large log. The article also proposes a reviewer pledge, whose last line is "Review like you want to be reviewed." Its 2026 update offers a reusable ADR review prompt template that addresses [Ten Common Mistakes in Architectural Decision Records (ADRs)](https://www.ozimmer.ch/practices/2026/09/12/ADRMistakes.html).
+A footnote passes on a student's observation that longer review subjects draw fewer comments. Choose how much of the ADR log to share, and split a large log. The article also proposes a reviewer pledge, whose last line is "Review like you want to be reviewed." Its 2026 update offers a reusable ADR review prompt template that addresses [Ten Common Mistakes in Architectural Decision Records (ADRs)](https://www.ozimmer.ch/practices/2026/09/12/ADRMistakes.html).
 
 ### Deleting an ADR
 

@@ -1,6 +1,6 @@
 # ADR Review Guidance (Zimmermann)
 
-Review practices, anti-patterns, and checklists adapted from Olaf Zimmermann's "How to Review ADRs", subtitled "and How Not To" (2023, updated 2025).
+Review practices, anti-patterns, and checklists adapted from Olaf Zimmermann's "How to Review ADRs", subtitled "and How Not To" (2023, updated 2026).
 
 ## Three Review Perspectives
 
@@ -44,7 +44,7 @@ Choose reviewers based on review goals. Rigor increases with audience breadth. T
 
 | # | Anti-Pattern | Problem | Detection Signal |
 |---|-------------|---------|-----------------|
-| 1 | **Pass Through** | Few or no comments; document barely skimmed. Variant: **Over-Friendliness**, all comments positive and shallow | Agent produces no substantive findings |
+| 1 | **Pass Through** | Few or no comments; document barely skimmed. Variant: **Over-Friendliness**, all comments positive and some shallow | Agent produces no substantive findings |
 | 2 | **Copy Edit** | Focuses solely on wording/grammar, ignoring content | Findings are all editorial, none architectural |
 | 3 | **Siding/Dead End** | Comments switch topic unexpectedly, deviate from ADR content, stop without advice | Agent response drifts from the decision at hand |
 | 4 | **Self Promotion** | Comments mostly recommend reviewer's own work or preferred solution | Agent pushes specific technology without objective rationale |
@@ -91,6 +91,6 @@ Done well, ADRs also produce: productivity increase (traceable community assets)
 
 ## Sources
 
-- Zimmermann, O. (2023, updated 2025). "How to Review ADRs", subtitled "and How Not To." <https://www.ozimmer.ch/practices/2023/04/05/ADRReview.html>
+- Zimmermann, O. (2023, updated 2026). "How to Review ADRs", subtitled "and How Not To." <https://www.ozimmer.ch/practices/2023/04/05/ADRReview.html>
 - Zimmermann, O. (2023). "How to Create ADRs", subtitled "and How Not To." <https://www.ozimmer.ch/practices/2023/04/03/ADRCreation.html>
 - Craske, A. "How To Make Architecture Reviews That Feel Like Peer Reviews." <https://medium.com/qe-unit/how-to-make-architecture-reviews-that-feel-like-peer-reviews-ca1316b4f17d>
