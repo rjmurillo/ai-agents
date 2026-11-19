@@ -61,6 +61,13 @@ for _path in (_PROJECT_ROOT, _SCRIPT_DIR):
 # copy makes mypy see the file under two module names.
 from checks_common import _resolve_default_base_ref  # noqa: E402
 
+from scripts.validation.check_agent_skill_docs_rows import (  # noqa: E402
+    HEADING as _HEADING,
+)
+from scripts.validation.check_agent_skill_docs_rows import (  # noqa: E402
+    headings as _headings,
+)
+from scripts.validation.check_agent_skill_docs_rows import readme_rows  # noqa: E402
 from scripts.validation.evidence import (  # noqa: E402
     REASON_ADVISORY_FINDINGS,
     REASON_BASE_REF_UNRESOLVED,
@@ -87,13 +94,6 @@ SECTIONS = (
 _BLOCKING = "validate_agent_skill_docs"
 _FRESHNESS = "validate_skill_page_freshness"
 _SCOPE = "docs/skills, docs/agents"
-# Local page only: optional ./, fragment, and title. Not a URL.
-# Same pattern as src/claude/skills/skillforge/scripts/_docs_page.py.
-_ROW_LINK = re.compile(
-    r"\]\(\s*<?(?:\./)?([A-Za-z0-9_.-]+)\.md(?:#[^>\s)]*)?>?"
-    r"(?:\s+(?:\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|\([^)\n]*\)))?\s*\)"
-)
-_HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
 _QUOTED = re.compile(r'"([^"\n]+)"|`([^`\n]+)`')
 _BACKTICK_PATH = re.compile(r"`([^`\s]*/[^`\s]*)`")
 
@@ -138,51 +138,6 @@ def agent_names(repo_root: Path) -> set[str]:
 
 def _page_names(docs_dir: Path) -> set[str]:
     return {p.stem for p in docs_dir.glob("*.md") if p.name != "README.md"}
-
-
-def readme_rows(readme_text: str) -> set[str]:
-    """Return page names linked from Markdown table rows."""
-    rows: set[str] = set()
-    for line in readme_text.splitlines():
-        if line.lstrip().startswith("|"):
-            rows.update(_ROW_LINK.findall(line))
-    return rows
-
-
-def _fence_run(stripped: str) -> tuple[str, int, str] | None:
-    """Return fence character, length, and the remainder of the line."""
-    if not stripped or stripped[0] not in "`~":
-        return None
-    char = stripped[0]
-    length = 1
-    while length < len(stripped) and stripped[length] == char:
-        length += 1
-    if length < 3:
-        return None
-    return char, length, stripped[length:]
-
-
-def _headings(text: str) -> list[re.Match[str]]:
-    """Return heading matches outside fenced code blocks.
-
-    A fence closes on the same character, at least as long as the opening
-    run, with no info string. A shorter inner fence stays inside.
-    """
-    found: list[re.Match[str]] = []
-    fence: tuple[str, int] | None = None
-    for line in text.splitlines():
-        stripped = line.lstrip()
-        run = _fence_run(stripped)
-        if run is not None:
-            char, length, rest = run
-            if fence is None:
-                fence = (char, length)
-            elif char == fence[0] and length >= fence[1] and rest.strip() == "":
-                fence = None
-            continue
-        if fence is None and (match := _HEADING.match(line)):
-            found.append(match)
-    return found
 
 
 def section_problem(page_text: str) -> str | None:

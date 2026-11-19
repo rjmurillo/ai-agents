@@ -3,18 +3,21 @@
 A repository that keeps hand-written skill pages under docs/skills/ (with a
 README.md that lists them in tables) wants one page and one row per skill.
 This module writes both, but only when the new skill lands directly in a
-folder named ``skills`` inside a git checkout that has docs/skills/README.md.
-When that checkout contains ``src/claude/skills``, only that tree and
-``.claude/skills`` qualify. A mirrored tree does not, because the docs gate
-does not inventory it. A checkout without ``src/claude/skills`` keeps the
-broader skills-folder rule. Anywhere else this module does nothing.
+folder named skills inside a git checkout that has docs/skills/README.md.
+When this file sits in the checkout that owns the docs gate, and that
+checkout contains one of the skill trees the gate inventories, only those
+trees qualify. A mirrored tree does not. A checkout the gate does not
+inventory keeps the broader skills-folder rule. Anywhere else this module
+does nothing.
 
-Stdlib only.
+Stdlib only. The docs gate import is optional and fails soft.
 """
 
 from __future__ import annotations
 
+import importlib
 import re
+import sys
 from pathlib import Path
 
 DOCS_README = Path("docs") / "skills" / "README.md"
@@ -32,12 +35,15 @@ PAGE_SECTIONS = (
 
 ROW_TEMPLATE = "| [`{name}`]({name}.md) | TODO | TODO: what a reader uses it to do |\n"
 # Local page only: optional ./, fragment, and title. Not a URL.
-# Same pattern as scripts/validation/check_agent_skill_docs.py.
+# Same pattern as the docs gate row helper.
 _ROW_LINK = re.compile(
     r"\]\(\s*<?(?:\./)?([A-Za-z0-9_.-]+)\.md(?:#[^>\s)]*)?>?"
     r"(?:\s+(?:\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|\([^)\n]*\)))?\s*\)"
 )
-_CANONICAL_SKILL_PARENTS = ("src/claude/skills", ".claude/skills")
+_GATE_MODULE = "scripts.validation.check_agent_skill_docs"
+_GATE_FILE = "check_agent_skill_docs.py"
+_TREES: tuple[str, ...] | None = None
+_TREES_KNOWN = False
 
 
 def page_text(name: str, title: str) -> str:
@@ -53,12 +59,48 @@ def _git_root(start: Path) -> Path | None:
     return None
 
 
+def _gate_repo() -> Path | None:
+    """Return the checkout that contains the docs gate, if this file is in one."""
+    here = Path(__file__).resolve()
+    for directory in here.parents:
+        candidate = directory.joinpath("scripts", "validation", _GATE_FILE)
+        if candidate.is_file():
+            return directory
+    return None
+
+
+def _inventory_trees() -> tuple[str, ...] | None:
+    """Return the docs gate skill trees, or None when that gate cannot load."""
+    global _TREES, _TREES_KNOWN
+    if _TREES_KNOWN:
+        return _TREES
+    _TREES_KNOWN = True
+    repo = _gate_repo()
+    if repo is None:
+        return None
+    repo_text = str(repo)
+    added = repo_text not in sys.path
+    if added:
+        sys.path.insert(0, repo_text)
+    try:
+        module = importlib.import_module(_GATE_MODULE)
+    except ImportError:
+        return None
+    finally:
+        if added and repo_text in sys.path:
+            sys.path.remove(repo_text)
+    trees = getattr(module, "SKILL_TREES", None)
+    if isinstance(trees, tuple) and trees and all(isinstance(item, str) and item for item in trees):
+        _TREES = trees
+    return _TREES
+
+
 def find_docs_readme(skill_parent: Path) -> Path | None:
     """Return docs/skills/README.md when this parent may receive a page.
 
     The parent must be named skills and sit in a git checkout that has the
-    docs README. When that checkout contains src/claude/skills, only
-    src/claude/skills and .claude/skills qualify.
+    docs README. When the docs gate inventories skill trees and this checkout
+    contains one of them, the parent must be one of those trees.
     """
     parent = skill_parent.resolve()
     if parent.name != SKILL_FOLDER_NAME:
@@ -69,13 +111,20 @@ def find_docs_readme(skill_parent: Path) -> Path | None:
     readme = root / DOCS_README
     if not readme.is_file():
         return None
-    if (root / "src" / "claude" / "skills").is_dir():
-        try:
-            relative = parent.relative_to(root).as_posix()
-        except ValueError:
-            return None
-        if relative not in _CANONICAL_SKILL_PARENTS:
-            return None
+    trees = _inventory_trees()
+    gate_root = _gate_repo()
+    inventoried = trees is not None and (
+        (gate_root is not None and root == gate_root)
+        or any((root / tree).is_dir() for tree in trees)
+    )
+    if not inventoried or trees is None:
+        return readme
+    try:
+        relative = parent.relative_to(root).as_posix()
+    except ValueError:
+        return None
+    if relative not in trees:
+        return None
     return readme
 
 
