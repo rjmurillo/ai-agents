@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "recorded_at": "2026-11-19T17:18:47.202065+00:00",
+  "recorded_at": "2026-11-19T17:54:17.167094+00:00",
   "corpus_sha256": "16a09c88e778f5ec023835680246165528af3a842f0eeb8dd52bdfb7c17f58ee",
   "validator_sha256": {
-    "check_doc_date_drift.py": "297812f50262adb46cd6eb4679e4091a114e3b23e920eadb4d48661fd60eac77",
-    "doc_date_claims.py": "4b438f4a2958da188f673204da06d60a816d15721f81e79deaa438cfddd2ed15",
-    "doc_date_adr.py": "1c573540878064f5d9ccc8b12c0246e7d6cd3cf9c6e0eb153ea00bb73eb6afc0"
+    "check_doc_date_drift.py": "ceddc2522aad432fc179c863735f86291f7249c3b61caffdd1413ce89382d800",
+    "doc_date_claims.py": "52469cdb78c666bd5756ee09a37dec50983696de0cbd26a74a8324ff4c73c6cd",
+    "doc_date_adr.py": "ec48396ef0de9901f47f752f3fb2dde7ac5702a8f38faf3fc4cfc8227838b718"
   },
   "summary": {
     "caught": 8,

@@ -120,6 +120,10 @@ class TestVersionClaims:
         found = claims.claims_for_line("> Tested with Copilot CLI 1.0.109")
         assert [c.value for c in found if c.rule == "version-drift"] == ["1.0.109"]
 
+    def test_a_version_inside_an_html_comment_is_not_a_claim(self) -> None:
+        line = "See notes. <!-- Tested with Copilot CLI 1.0.100 -->"
+        assert [c for c in claims.claims_for_line(line) if c.rule == "version-drift"] == []
+
 
 class TestHeaderDates:
     def test_reads_last_and_next_with_line_numbers(self) -> None:

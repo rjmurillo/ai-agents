@@ -46,6 +46,21 @@ class TestPr6925Repro:
         commit_head(root, {DOC: _header("2026-10-24", "2026-11-07")})
         assert drift(root) == []
 
+    def test_a_later_section_does_not_invalidate_an_earlier_schedule(self, tmp_path: Path) -> None:
+        before = (
+            "# Cost\n\n## Storage\n\n**Last Updated**: 2026-11-01\n"
+            "**Next Review**: 2026-12-01\n\n## Compute\n\n"
+            "**Last Updated**: 2026-11-01\n**Next Review**: 2027-01-15\n"
+        )
+        after = before.replace(
+            "## Compute\n\n**Last Updated**: 2026-11-01",
+            "## Compute\n\n**Last Updated**: 2026-12-15",
+            1,
+        )
+        root = make_repo(tmp_path, {DOC: before})
+        commit_head(root, {DOC: after})
+        assert drift(root) == []
+
 
 class TestForms:
     @pytest.mark.parametrize(

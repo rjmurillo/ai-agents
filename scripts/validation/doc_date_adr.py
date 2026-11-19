@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 import sys
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 # The per-file mypy gate sets MYPYPATH to this directory. One file under two
@@ -81,8 +81,12 @@ def adr_problem(
         dates = (
             claims.dates_on_line(text) if decision_level or heading or _MARKER.search(text) else []
         )
-        if dates:
-            dated.extend((d.value, number) for d in dates if not d.month_only)
+        # A later deadline is not the day the record changed. One extra day
+        # covers a commit timestamp that falls on the previous UTC day.
+        latest = commit_date + timedelta(days=1)
+        kept = [d.value for d in dates if not d.month_only and d.value <= latest]
+        if kept:
+            dated.extend((value, number) for value in kept)
         elif decision_level and text.strip() and not heading:
             undated.append(number)
     candidates = dated or [(commit_date, n) for n in undated]

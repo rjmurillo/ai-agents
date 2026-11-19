@@ -249,11 +249,14 @@ def _drift_finding(
         return None
     other_added = other_line in ctx.added_by_path.get(other_path, ())
     if other_added and mine < theirs:
-        return None  # the symmetric pair reports the older line
+        return None  # the newer added line reports this pair
+    subject = "URL or title" if claim.rule == dc.RULE_SUBJECT else "tool"
+    if mine < theirs:
+        detail = f"The same {subject} reads {claim.value} here and {other_value} elsewhere."
+        return Finding(path, number, other_path, other_line, claim.rule, other_value, detail)
     other_lines = ctx.head_files.lines(other_path)
     if dc.has_reasoned_ignore(other_lines, other_line, other_lines[other_line - 1]):
         return None
-    subject = "URL or title" if claim.rule == dc.RULE_SUBJECT else "tool"
     detail = f"The same {subject} reads {other_value} here and {claim.value} elsewhere."
     return Finding(other_path, other_line, path, number, claim.rule, claim.value, detail)
 

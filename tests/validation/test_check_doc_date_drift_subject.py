@@ -125,6 +125,15 @@ class TestVersionDrift:
     SKILL = "templates/skills/copilot.SKILL.md.tmpl"
     REF = "src/claude/skills/copilot/references/x.md"
 
+    def test_adding_an_older_version_flags_the_new_line(self, tmp_path: Path) -> None:
+        root = make_repo(tmp_path, {self.REF: "Tested with Copilot CLI 1.0.109\n"})
+        commit_head(root, {self.SKILL: "# Copilot\n\nTested with Copilot CLI 1.0.100\n"})
+        (finding,) = drift(root)
+        assert finding.rule == "version-drift"
+        assert where(finding) == (self.SKILL, 3)
+        assert finding.suggested == "1.0.109"
+        assert (finding.other_path, finding.other_line) == (self.REF, 1)
+
     def test_the_same_tool_with_a_different_version_is_flagged(self, tmp_path: Path) -> None:
         root = make_repo(tmp_path, {self.REF: "Tested with Copilot CLI 1.0.100\n"})
         commit_head(root, {self.SKILL: "# Copilot\n\nTested with Copilot CLI 1.0.109\n"})

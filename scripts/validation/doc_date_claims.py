@@ -40,7 +40,6 @@ AS_OF_WINDOW_LINES = 3
 _MIN_TITLE_CHARS = 8
 _MAX_NAME_WORDS = 2
 
-_HTML_COMMENT = re.compile(r"<!--.*?-->")
 _URL = re.compile(r"https?://[^\s<>\"'`\]]+", re.IGNORECASE)
 _SCHEME = re.compile(r"^[a-z][a-z0-9+.-]*://", re.IGNORECASE)
 _TITLE = re.compile(r"[\"“]([^\"“”\n]+)[\"”]")
@@ -211,9 +210,31 @@ def _version_claims(text: str) -> list[Claim]:
     return found + _word_version_claims(text)
 
 
+def _blank_html_comments(text: str) -> str:
+    """Replace each finished HTML comment on this line with a space.
+
+    A date inside a comment is not a claim. The scan is per line, so a comment
+    that never closes stays visible, matching a search for both ends.
+    """
+    pieces: list[str] = []
+    cursor = 0
+    while True:
+        start = text.find("<!--", cursor)
+        if start < 0:
+            pieces.append(text[cursor:])
+            return "".join(pieces)
+        end = text.find("-->", start + 4)
+        if end < 0:
+            pieces.append(text[cursor:])
+            return "".join(pieces)
+        pieces.append(text[cursor:start])
+        pieces.append(" ")
+        cursor = end + 3
+
+
 def claims_for_line(text: str) -> list[Claim]:
     """Return every subject-year and name-version claim the line makes, deduplicated."""
-    cleaned = _HTML_COMMENT.sub(" ", text)
+    cleaned = _blank_html_comments(text)
     urls = [normalize_url(_trim_url(url)) for url in _URL.findall(cleaned)]
     without_urls = _URL.sub(" ", cleaned)
     titles = [_normalize_title(t) for t in _TITLE.findall(without_urls)]
@@ -315,6 +336,12 @@ def _pair(dates: list[HeaderDate], section: str) -> tuple[HeaderDate | None, lis
     return (max(lasts, key=lambda d: d.value) if lasts else None), nexts
 
 
+def _nearest_preceding_last(lasts: list[HeaderDate], review: HeaderDate) -> HeaderDate | None:
+    """Return the Last Updated closest above this Next Review, if one exists."""
+    earlier = [item for item in lasts if item.line < review.line]
+    return max(earlier, key=lambda item: item.line) if earlier else None
+
+
 def _prior_interval(base_dates: list[HeaderDate], section: str) -> int | None:
     """Return the base version's Next minus Last in days, or None when unreadable."""
     last, nexts = _pair(base_dates, section)
@@ -331,10 +358,16 @@ def header_problems(
 ) -> list[HeaderProblem]:
     """Return inconsistent pairs where the diff added one of the pair's lines."""
     problems = []
-    for section in ("frontmatter", "body"):
-        last, nexts = _pair(dates, section)
-        if last is None:
-            continue
+    groups: list[tuple[str, HeaderDate, list[HeaderDate]]] = []
+    front_last, front_nexts = _pair(dates, "frontmatter")
+    if front_last is not None:
+        groups.append(("frontmatter", front_last, front_nexts))
+    body_lasts = [item for item in dates if item.section == "body" and item.kind == "last"]
+    for review in (item for item in dates if item.section == "body" and item.kind == "next"):
+        body_last = _nearest_preceding_last(body_lasts, review)
+        if body_last is not None:
+            groups.append(("body", body_last, [review]))
+    for section, last, nexts in groups:
         suggested = suggest_next_review(
             max(last.value, head_date), _prior_interval(base_dates, section)
         )
