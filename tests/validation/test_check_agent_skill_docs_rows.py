@@ -69,3 +69,34 @@ def test_heading_inside_a_longer_fence_is_ignored(tmp_path):
     )
 
     assert gate.find_page_findings(repo).findings == []
+
+
+def test_exit_code_scan_skips_headings_inside_fences():
+    sample = "\n".join(
+        [
+            "# Tool",
+            "",
+            "```markdown",
+            "## Exit Codes",
+            "- 9: sample only",
+            "```",
+            "",
+            "## Exit Codes",
+            "",
+            "- 0: success",
+            "",
+            "```text",
+            "# not a heading",
+            "```",
+            "",
+            "## Next",
+            "- unrelated",
+        ]
+    )
+
+    assert gate.exit_code_lines(sample) == [
+        "- 0: success",
+        "```text",
+        "# not a heading",
+        "```",
+    ]

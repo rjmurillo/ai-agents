@@ -62,12 +62,12 @@ for _path in (_PROJECT_ROOT, _SCRIPT_DIR):
 from checks_common import _resolve_default_base_ref  # noqa: E402
 
 from scripts.validation.check_agent_skill_docs_rows import (  # noqa: E402
-    HEADING as _HEADING,
-)
-from scripts.validation.check_agent_skill_docs_rows import (  # noqa: E402
     headings as _headings,
 )
-from scripts.validation.check_agent_skill_docs_rows import readme_rows  # noqa: E402
+from scripts.validation.check_agent_skill_docs_rows import (  # noqa: E402
+    live_headings,
+    readme_rows,
+)
 from scripts.validation.evidence import (  # noqa: E402
     REASON_ADVISORY_FINDINGS,
     REASON_BASE_REF_UNRESOLVED,
@@ -236,8 +236,9 @@ def exit_code_lines(text: str) -> list[str]:
     """Return the non-blank lines under any ``Exit Codes`` heading."""
     lines: list[str] = []
     level = 0
-    for line in text.splitlines():
-        match = _HEADING.match(line)
+    live = live_headings(text)
+    for index, line in enumerate(text.splitlines()):
+        match = live.get(index)
         if match:
             depth = len(match.group(1))
             if "exit code" in match.group(2).lower():

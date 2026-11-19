@@ -41,11 +41,11 @@ def _fence_run(stripped: str) -> tuple[str, int, str] | None:
     return char, length, stripped[length:]
 
 
-def headings(text: str) -> list[re.Match[str]]:
-    """Return heading matches outside fenced code blocks."""
-    found: list[re.Match[str]] = []
+def live_headings(text: str) -> dict[int, re.Match[str]]:
+    """Return heading matches outside fenced code blocks, keyed by line index."""
+    found: dict[int, re.Match[str]] = {}
     fence: tuple[str, int] | None = None
-    for line in text.splitlines():
+    for index, line in enumerate(text.splitlines()):
         stripped = line.lstrip()
         run = _fence_run(stripped)
         if run is not None:
@@ -56,5 +56,10 @@ def headings(text: str) -> list[re.Match[str]]:
                 fence = None
             continue
         if fence is None and (match := HEADING.match(line)):
-            found.append(match)
+            found[index] = match
     return found
+
+
+def headings(text: str) -> list[re.Match[str]]:
+    """Return heading matches outside fenced code blocks."""
+    return list(live_headings(text).values())
