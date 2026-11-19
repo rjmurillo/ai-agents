@@ -434,9 +434,12 @@ def main():
         print(f"Dry run: would create {skill_dir} with SKILL.md, references/, scripts/, assets/")
         readme = _docs_page().find_docs_readme(parent)
         if readme is not None:
-            print(
-                f"Dry run: would write {readme.parent / (args.name + '.md')} and a row in {readme}"
-            )
+            page = readme.parent / f"{args.name}.md"
+            print(f"Dry run: would write {page}")
+            if args.docs_section:
+                print(f"Dry run: would add a row under '## {args.docs_section}' in {readme}")
+            else:
+                print(f"Dry run: would leave {readme} unchanged")
         sys.exit(0)
 
     # Create scaffold

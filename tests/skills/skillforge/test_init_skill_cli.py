@@ -93,10 +93,7 @@ def _docs_repo(tmp_path: Path) -> Path:
 
 
 def _gate():
-    validation = Path(__file__).resolve().parents[3] / "scripts" / "validation"
-    if str(validation) not in sys.path:
-        sys.path.insert(0, str(validation))
-    import check_agent_skill_docs
+    from scripts.validation import check_agent_skill_docs
 
     return check_agent_skill_docs
 
@@ -181,12 +178,31 @@ def test_repository_without_docs_readme_gets_no_page(tmp_path: Path) -> None:
 
 def test_dry_run_names_the_docs_page_and_writes_nothing(tmp_path: Path) -> None:
     repo = _docs_repo(tmp_path)
+    readme = repo / "docs" / "skills" / "README.md"
+    before = readme.read_text(encoding="utf-8")
 
     result = run("my-skill", "--path", str(repo / "src" / "claude" / "skills"), "--dry-run")
 
     assert result.returncode == 0
     assert "my-skill.md" in result.stdout
+    assert f"would leave {readme} unchanged" in result.stdout
+    assert "would add a row" not in result.stdout
     assert not (repo / "docs" / "skills" / "my-skill.md").exists()
+    assert readme.read_text(encoding="utf-8") == before
+
+    selected = run(
+        "my-skill",
+        "--path",
+        str(repo / "src" / "claude" / "skills"),
+        "--docs-section",
+        "Code quality",
+        "--dry-run",
+    )
+
+    assert selected.returncode == 0
+    assert "would add a row under '## Code quality'" in selected.stdout
+    assert not (repo / "docs" / "skills" / "my-skill.md").exists()
+    assert readme.read_text(encoding="utf-8") == before
 
 
 def test_skill_outside_the_skill_folders_gets_no_page(tmp_path: Path) -> None:
