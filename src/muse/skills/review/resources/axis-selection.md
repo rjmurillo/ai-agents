@@ -109,6 +109,17 @@ legal file adds nothing to their selection.
 A path like `LICENSE-extra.bin` or `licenses/MIT` matches no whole basename
 above and still fails closed.
 
+## Doc-accuracy for prose beside code
+
+Two rules route `doc-accuracy` beyond the `docs-and-instructions` row, because
+prose can drift from the code changed beside it (`doc_accuracy.py --same-pr`):
+
+- **Combination.** Any changed prose path it reads (`.md`, `.mdx`, `.tmpl`,
+  `.json`, `.yaml`, `.yml`) plus any changed code path selects it, with the reason
+  `prose-and-code`. A `.tmpl` or `.yaml` file matches no risk row alone.
+- **Effect.** The `comments-or-docstrings` effect selects it too. It names no
+  path, so the scanner filter asks whether it reads any changed path.
+
 ## Local axes are limited by their scanner
 
 A local axis is one scanner, and a scanner reads only the files its own source
@@ -122,7 +133,7 @@ and its skip reason says so.
 |---|---|
 | `code-qualities-assessment` | the suffixes in `assess.py`'s language map, matched case-insensitively. Includes PowerShell `.ps1`, `.psm1`, `.psd1`; no `.ps1xml`, shell, Rust, or Ruby. |
 | `taste-lints` | the suffixes in `taste_lints.py`'s scannable set, matched case-sensitively. No TypeScript, JavaScript, C#, Go, Rust, Ruby, or Java. |
-| `doc-accuracy` | the Markdown its `DOC_GLOBS` inventories, matched case-sensitively. |
+| `doc-accuracy` | the files `doc_accuracy.py --same-pr` reads, matched case-sensitively: `.md`, `.mdx`, `.tmpl`, `.json`, `.yaml`, `.yml`, and Python (`.py`) for docstrings and comments. `/review` always runs it with `--same-pr`, so a Python-only diff is a real scan, not an empty one. |
 | `golden-principles` | what `scan_principles._is_applicable` accepts, which compares `SKILL.md`, `CLAUDE.md`, and its suffixes literally rather than lowercased. |
 
 Two consequences worth knowing. A `.rs` or `.rb` change selects no local axis
@@ -139,8 +150,8 @@ the same reason otherwise. A PowerShell-only change therefore skips
 UNKNOWN that no review can clear. Every canonical axis still runs. A
 fail-closed run narrows the same way, deep or not (issue #7031). Failing
 closed on an unclassified path, an unknown effect, or a missing prompt does
-not make the verified path list untrustworthy, and no effect routes a local
-axis. Without the narrowing, a change whose only unclassified path was
+not make the verified path list untrustworthy, and only the
+`comments-or-docstrings` effect routes a local axis. Without the narrowing, a change whose only unclassified path was
 `src/cursor/rules/python.mdc` ran `golden-principles` over zero files and
 could never reach PASS. A run with no usable path keeps all four local axes.
 A `--pin` also overrides the narrowing: a caller who names the axis gets it.
@@ -206,19 +217,19 @@ nothing in the diff to review.
 
 ## Diff-effect mapping
 
-| Effect | Canonical axes |
-|--------|----------------|
-| `error-handling` | `reliability`, `qa` |
-| `type-change`, `public-api` | `architect` |
-| `integration-point` | `reliability` |
-| `new-code-path` | `observability` |
-| `dependency-change` | `security`, `devops` |
-| `agent-behavior` | `agent-safety` |
-| `decision-record` | `decision-rigor` |
-| `comments-or-docstrings` | `code-quality` |
-| `command-execution` | `security` |
-| `untrusted-input` | `security` |
-| `artifact-or-rollback` | `devops`, `security` |
+| Effect | Canonical axes | Local axes |
+|--------|----------------|------------|
+| `error-handling` | `reliability`, `qa` |  |
+| `type-change`, `public-api` | `architect` |  |
+| `integration-point` | `reliability` |  |
+| `new-code-path` | `observability` |  |
+| `dependency-change` | `security`, `devops` |  |
+| `agent-behavior` | `agent-safety` |  |
+| `decision-record` | `decision-rigor` |  |
+| `comments-or-docstrings` | `code-quality` | `doc-accuracy` |
+| `command-execution` | `security` |  |
+| `untrusted-input` | `security` |  |
+| `artifact-or-rollback` | `devops`, `security` |  |
 
 The last three cover the issue rows "Auth, secrets, execution, or untrusted
 input" and "CI, deployment, artifacts, or rollback". Their `auth`, `secrets`,

@@ -105,7 +105,10 @@ not installed, record the pass as `UNAVAILABLE` and rely on the manual check.
 
 Follow [testing your documentation](references/testing-your-documentation.md):
 build or preview, check links, run samples, run the site's gates, and do a
-fresh-reader pass. Report each check as `VERIFIED`, `FAILED`, `NOT RUN`, or `UNAVAILABLE`.
+fresh-reader pass. Run the repository's link check with no file arguments so it
+also catches inbound links broken by renames, and run `prose_lint.py` with
+`--docs-style` from the `prose-self-check` skill on every page you edited.
+Report each check as `VERIFIED`, `FAILED`, `NOT RUN`, or `UNAVAILABLE`.
 
 ## Audit Mode
 

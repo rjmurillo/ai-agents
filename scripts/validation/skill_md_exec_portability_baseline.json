@@ -78,6 +78,7 @@
     ".claude/skills/spec-generator/references/spec-prior-art-schema.md": 1,
     ".claude/skills/spec-generator/references/spec-step0-gates.md": 1,
     ".claude/skills/sync/SKILL.md": 3,
+    ".claude/skills/technical-writing/references/testing-your-documentation.md": 1,
     ".claude/skills/validate-pr-description/SKILL.md": 2,
     "src/copilot-cli/skills/adr-generator/SKILL.md": 2,
     "src/copilot-cli/skills/checkpoint/SKILL.md": 1,
@@ -89,6 +90,7 @@
     "src/copilot-cli/skills/spec-generator/references/spec-prior-art-schema.md": 1,
     "src/copilot-cli/skills/spec-generator/references/spec-step0-gates.md": 1,
     "src/copilot-cli/skills/sync/SKILL.md": 3,
+    "src/copilot-cli/skills/technical-writing/references/testing-your-documentation.md": 1,
     "src/copilot-cli/skills/validate-pr-description/SKILL.md": 2
   }
 }

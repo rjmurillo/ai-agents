@@ -979,6 +979,47 @@ class TestAdaptLocalAxisVerdict:
         payload = '{"gate_result": {"verdict": "PASS"}, "assessment": {"documentation_files": []}}'
         assert adapt_local_axis_verdict("doc-accuracy", payload, 0) == "UNKNOWN"
 
+    def test_doc_accuracy_clean_same_pr_scan_with_no_markdown_passes(self):
+        """A finished same-PR scan with nothing to inventory is a real pass.
+
+        Zero scanned files counts. A changed Markdown path the inventory
+        omitted stays UNKNOWN, and a boolean scanned_files is not a count.
+        """
+        for scanned in (0, 1):
+            payload = json.dumps(
+                {
+                    "gate_result": {"verdict": "PASS"},
+                    "assessment": {
+                        "documentation_files": [],
+                        "changed_files": ["src/app.py"],
+                    },
+                    "same_pr": {"findings": {"examined": {"scanned_files": scanned}}},
+                }
+            )
+            assert adapt_local_axis_verdict("doc-accuracy", payload, 0) == "PASS"
+        missing = json.dumps(
+            {
+                "gate_result": {"verdict": "PASS"},
+                "assessment": {
+                    "documentation_files": [],
+                    "changed_files": ["docs/guide.md"],
+                },
+                "same_pr": {"findings": {"examined": {"scanned_files": 0}}},
+            }
+        )
+        assert adapt_local_axis_verdict("doc-accuracy", missing, 0) == "UNKNOWN"
+        flagged = json.dumps(
+            {
+                "gate_result": {"verdict": "PASS"},
+                "assessment": {
+                    "documentation_files": [],
+                    "changed_files": ["src/app.py"],
+                },
+                "same_pr": {"findings": {"examined": {"scanned_files": True}}},
+            }
+        )
+        assert adapt_local_axis_verdict("doc-accuracy", flagged, 0) == "UNKNOWN"
+
     def test_doc_accuracy_pass_without_an_assessment_block_is_unknown(self):
         payload = '{"gate_result": {"verdict": "PASS"}}'
         assert adapt_local_axis_verdict("doc-accuracy", payload, 0) == "UNKNOWN"

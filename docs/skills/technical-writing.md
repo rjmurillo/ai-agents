@@ -48,7 +48,7 @@ The skill has no scripts. Its depth lives in references under [`references/`](..
 | `stylebook-selection.md` | The style matrix and a default stylebook for each kind of target |
 | `stylebooks/` | 16 stylebooks, such as `microsoft-writing-style`, `google-developer-docs`, and `w3c-technical-reports` |
 | `prose-patterns.md`, `common-documentation-issues.md`, `cross-referencing.md` | The base checks every draft and audit uses |
-| `testing-your-documentation.md` | Build, link, sample, and fresh-reader checks, and which samples must not run without asking |
+| `testing-your-documentation.md` | Build, link, sample, date and version drift, and fresh-reader checks, and which samples must not run without asking |
 | `site-profiles/aspire-dev/` | aspire.dev conventions, loaded only when the target is aspire.dev |
 | `provenance.md` | Sources, pinned revisions, changes, and license texts |
 

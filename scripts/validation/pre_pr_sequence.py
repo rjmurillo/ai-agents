@@ -52,6 +52,7 @@ from check_agent_tree_frontmatter import validate_agent_tree_frontmatter
 from check_agents_write_targets import validate_agents_write_targets
 from check_bypass_allowlist import validate_bypass_allowlist
 from check_citation_freshness import validate_citation_freshness
+from check_doc_date_drift import validate_doc_date_drift
 from check_doc_interpreter_portability import validate_doc_interpreter_portability
 from check_duplicate_test_helpers import validate_duplicate_test_helpers
 from check_equivalence_predicates import validate_equivalence_predicates
@@ -61,6 +62,7 @@ from check_host_marketplaces import validate_host_marketplaces
 from check_in_root_worktrees import validate_in_root_worktrees
 from check_index_line_endings import validate_index_line_endings
 from check_io_portability import validate_io_portability
+from check_md_links import validate_md_links
 from check_measurement_anchoring import validate_measurement_anchoring
 from check_nested_tests import validate_no_nested_tests
 from check_promotion_exceptions import validate_promotion_exceptions
@@ -137,6 +139,7 @@ from checks_spec import (
     validate_build_gates,
     validate_canonical_citations,
     validate_commands_retired,
+    validate_doc_accuracy_same_pr,
     validate_model_pins,
     validate_orchestrator_citations,
     validate_retired_ownership_claims,
@@ -403,6 +406,7 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # text says ADR-NNN targets that number (issue #5197). Unwired, this gate
     # cannot stop the rot that produced the ADR-033 repairs it protects.
     _Gate("ADR Link Resolution", _root_only(validate_adr_links)),
+    _Gate("Markdown Link Resolution", _root_only(validate_md_links)),
     # Fails when a workflow's `# ADR-NNN Exception:` marker cites an ADR that does
     # not exist or that a later record retired (issue #5199). ADR-055 prescribed a
     # marker nothing read, and the retired spellings outlived their records.
@@ -449,6 +453,12 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # one commit; unanchored, a later reader cannot tell "still true" from
     # "was true once" (issue #5771).
     _Gate("Measurement Anchoring (added lines)", _root_only(validate_measurement_anchoring)),
+    # Warns when a line ADDED since the base ref leaves a date or version out of
+    # step: Last Updated against Next Review, one URL or tool with two years or
+    # versions in a skill tree, or an as-of date older than a date added beside
+    # it. PR #7428 bumped one citation and left two stale; PR #6925 bumped Last
+    # Updated and left Next Review behind. Advisory: it returns a typed outcome.
+    _Gate("Doc Date Drift (advisory, added lines)", _root_only(validate_doc_date_drift)),
     # Fails when a Python line ADDED since the base ref decodes text with the
     # platform locale (subprocess text mode or read_text/write_text/open with no
     # encoding) or creates a test symlink with no Windows skip. Cursor Bugbot
@@ -631,6 +641,10 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # references locally; warn mode never blocks (enforcement stays in CI), but a
     # config error (exit 2) still fails.
     _Gate("Model Pin Governance (warn)", _root_only(validate_model_pins)),
+    # Advisory: prose that drifts from code changed in the same diff
+    # (doc_accuracy.py --same-pr, phase 1 only). Findings print, never block.
+    # Measured 2026-11-19 on this branch vs origin/main (34 changed files): 5.4s wall.
+    _Gate("Doc Accuracy Same-PR (advisory)", _root_only(validate_doc_accuracy_same_pr)),
     # Advisory warning when every tracking issue on an active execution plan is
     # closed, so stale plans do not silently refill .project-toolkit/plans/active/.
     # Issue #3426.
