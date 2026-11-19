@@ -1,60 +1,51 @@
 # Documentation link and style replay
 
-Richard supplied these historical review findings and clean reviews on 2026-11-19.
-The corpus pins each reviewed snapshot to its full commit SHA.
+This corpus replays Richard's past documentation review findings.
+The runner uses current checks against isolated historical checkouts.
+Each checkout lives under `~/worktrees/ai-agents/` and is removed afterward.
 
-## Score
+## Result
 
-2026-11-19: caught 12 of 12 in-scope positives, 0 FP on 12 negatives, 2 manual with reasons.
+caught 12 of 12 in-scope positives, 0 FP on 12 negatives, 2 manual with reasons
 
-The score counts individual defects, matching file, class, and lines within three.
-Cases with multiple destinations also require the matching target.
-Every finding on a negative counts, including style advisories.
+The saved result records revisions, merge bases, findings, and checker hashes.
+The score counts individual defects, including the historical heading rename.
 
 ## Cases
 
-| Case | Evidence | Mode | Expected defects |
-| --- | --- | --- | --- |
-| C5-01 | PR #7235 base, routing diagram links | Tree | Three missing targets. |
-| C5-02 | PR #7235 base, workflow command anchors | Tree | Two missing anchors. |
-| C5-03 | Snapshot ae5acffcb3, skill reference links | Tree | Six missing targets. |
-| Rename | PR #5640, CLAUDE lifecycle heading rename | Pre-PR | One broken inbound anchor. |
-| Negatives | Twelve clean reviews listed in the corpus | Pre-PR | Zero findings. |
+- C5-01 contains three broken relative paths before PR #7235.
+- C5-02 contains two broken cross-file anchors before PR #7235.
+- C5-03 contains six known broken targets at `ae5acffcb3`.
+- PR #5640 removed the `lifecycle-commands` heading from `CLAUDE.md`.
+- C5-04 needs manual review because valid destinations can have misleading labels.
+- C5-05 needs portability review because repository existence cannot prove plugin distribution.
+- Twelve negative cases come from clean documentation reviews.
 
-`git log -S '## Lifecycle commands' -- CLAUDE.md` identifies the rename commit.
-That commit belongs to PR #5640.
-The replay checks that PR's pinned head, including its unchanged inbound source.
-Unit tests also cover synthetic heading renames and target moves.
+The corpus records exact paths, defect classes, and source lines.
+Matches allow three lines of movement and require matching targets when recorded.
+Every finding on a negative counts, including style advisories.
+Style findings count only on changed lines under `docs/`.
+Link regressions include unchanged sources pointing into renamed targets.
 
-## Manual cases
-
-- C5-04: A valid destination cannot prove its label describes the target section.
-- C5-05: Plugin distribution boundaries require portability review beyond repository link existence.
-
-Each manual case carries its reason in `corpus.json`.
-Both snapshots still run through the checks.
-
-## Reproduce
-
-Run from the repository root with authenticated GitHub access:
+## Run
 
 ```console
 uv run python scripts/eval/docs_review_links_replay.py
 ```
 
-Use `--case C5-01` for one case, with `--output` for exploratory results.
-The default output is `results/<UTC-date>.json` beside the corpus.
-The runner fetches each PR head into an isolated ref.
-It reads `baseRefOid` through the repository's GitHub context helper.
-Each temporary worktree lives under `~/worktrees/ai-agents/`.
-The comparison base is the snapshot's merge base with `baseRefOid`.
-The runner removes its worktree and ref after each case, including failures.
+The runner fetches each PR head and reads its base through the GitHub skill.
+It computes the merge base before invoking the authoring checks.
+Tree cases use `check_md_links.py --tree`, which includes baseline debt.
+Other cases use pre-PR comparison and `prose_lint.py --docs-style --json`.
 
-The result records SHAs, commands, findings, matches, and checker input hashes.
-Tree mode reports baseline debt so known broken links remain measurable.
-Pre-PR mode excludes existing defects and checks new breakages across the tree.
-This includes unchanged sources whose targets moved or lost headings.
-Style scoring includes only added lines under `docs/`.
-The remaining prose rules remain outside this eval's scope.
-Three negative PRs exercise style checks on changed documentation files (2026-11-19).
-The other negatives still exercise link detection across the scoped tree.
+Partial runs require `--case` and an explicit `--output` path.
+Full results belong in `results/<date>.json`.
+Temporary refs are removed even when replay fails.
+Historical CRLF checkout differences are checked before disposable worktree removal.
+
+## Limits
+
+External URLs and renderer-specific anchors remain outside this check.
+Generated mirrors and files outside the documented source scope remain excluded.
+The two manual cases remain visible in the denominator accounting.
+This fixed corpus measures these historical cases, without estimating future recall.

@@ -54,3 +54,27 @@ def test_match_cannot_reuse_a_different_target_at_the_same_line() -> None:
     actual = [{**expected, "target": "different.md"}]
 
     assert not replay.matched(expected, actual)
+
+
+def test_partial_replay_cannot_replace_the_full_result() -> None:
+    with pytest.raises(SystemExit) as error:
+        replay.main(["--case", "C5-01"])
+    assert error.value.code == 2
+
+
+def test_failed_replay_cleans_owned_worktree_and_ref(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[tuple[str, ...]] = []
+
+    def fake_git(*args: str, **kwargs: object) -> str:
+        calls.append(args)
+        return "revision" if args[0] in {"rev-parse", "merge-base"} else ""
+
+    def fail_findings(*args: object) -> tuple:
+        raise RuntimeError("checker failed")
+
+    monkeypatch.setattr(replay, "git", fake_git)
+    monkeypatch.setattr(replay, "findings", fail_findings)
+    with pytest.raises(RuntimeError, match="checker failed"):
+        replay.replay({"id": "example", "pr": 1}, {"base_sha": "base"}, "owned")
+    assert any(call[:3] == ("worktree", "remove", "--force") for call in calls)
+    assert calls[-1] == ("update-ref", "-d", "refs/docs-review-links/owned/example")

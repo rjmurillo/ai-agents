@@ -12,6 +12,7 @@ import sys
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any, cast
 
 ROOT = Path(__file__).resolve().parents[2]
 CORPUS = ROOT / "evals/docs-review-catch-rate/links/corpus.json"
@@ -44,7 +45,7 @@ def git(*args: str, cwd: Path = ROOT) -> str:
     return command(["git", *args], cwd)
 
 
-def metadata(pr: int) -> dict:
+def metadata(pr: int) -> dict[str, Any]:
     """Use the repository GitHub helper, including its baseRefOid query."""
     payload = json.loads(
         command(
@@ -63,7 +64,7 @@ def metadata(pr: int) -> dict:
     )
     if not payload.get("Success"):
         raise RuntimeError(f"PR {pr}: {payload.get('Error')}")
-    return payload["Data"]
+    return cast("dict[str, Any]", payload["Data"])
 
 
 def changed_lines(worktree: Path, base: str) -> dict[str, set[int]]:
@@ -83,7 +84,7 @@ def changed_lines(worktree: Path, base: str) -> dict[str, set[int]]:
     return lines
 
 
-def findings(worktree: Path, base: str, mode: str) -> tuple[list[dict], list[str]]:
+def findings(worktree: Path, base: str, mode: str) -> tuple[list[dict[str, Any]], list[str]]:
     """Invoke the same CLIs authors run, then restrict style to added lines."""
     args = [sys.executable, "-B", str(CHECK), "--repo-root", str(worktree), "--base-ref", base]
     if mode == "tree":
@@ -101,7 +102,7 @@ def findings(worktree: Path, base: str, mode: str) -> tuple[list[dict], list[str
                     "target": match[4],
                 }
             )
-    commands = ["check_md_links.py " + " ".join(args[2:])]
+    commands = [" ".join(args)]
     if mode == "tree":
         return found, commands
     changed = changed_lines(worktree, base)
@@ -134,7 +135,7 @@ def findings(worktree: Path, base: str, mode: str) -> tuple[list[dict], list[str
     return found, commands
 
 
-def matched(expected: dict, actual: list[dict]) -> bool:
+def matched(expected: dict[str, Any], actual: list[dict[str, Any]]) -> bool:
     """Match path, class, and a line window of three."""
     return any(
         hit["file"] == expected["file"]
@@ -145,7 +146,7 @@ def matched(expected: dict, actual: list[dict]) -> bool:
     )
 
 
-def replay(case: dict, info: dict, prefix: str) -> dict:
+def replay(case: dict[str, Any], info: dict[str, Any], prefix: str) -> dict[str, Any]:
     """Fetch, replay in an isolated worktree, and clean up owned resources."""
     ref = f"refs/docs-review-links/{prefix}/{case['id']}"
     path = Path.home() / "worktrees/ai-agents" / f"docs-link-replay-{prefix}-{case['id']}"
@@ -192,6 +193,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--case", action="append", default=[])
     parser.add_argument("--output", type=Path)
     args = parser.parse_args(argv)
+    if args.case and args.output is None:
+        parser.error("partial replays require --output to preserve the full result")
     if not Path.cwd().resolve().is_relative_to(ROOT):
         parser.error("run from this repository")
     corpus = json.loads(CORPUS.read_text(encoding="utf-8"))
@@ -199,7 +202,7 @@ def main(argv: list[str] | None = None) -> int:
     if not selected or set(args.case) - {case["id"] for case in selected}:
         parser.error("unknown case")
     results = []
-    context: dict[int, dict] = {}
+    context: dict[int, dict[str, Any]] = {}
     prefix = uuid.uuid4().hex[:10]
     for case in selected:
         if case["pr"] not in context:
@@ -245,7 +248,10 @@ def main(argv: list[str] | None = None) -> int:
         "cases": results,
     }
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(artifact, indent=2) + "\n", encoding="utf-8")
+    header = json.dumps({k: v for k, v in artifact.items() if k != "cases"}, indent=2)
+    rows = ",\n".join("    " + json.dumps(row) for row in results)
+    rendered = header[:-2] + ',\n  "cases": [\n' + rows + "\n  ]\n}\n"
+    output.write_text(rendered, encoding="utf-8")
     print(score)
     return 0 if artifact["passed"] else 1
 

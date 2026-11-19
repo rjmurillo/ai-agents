@@ -348,7 +348,7 @@ def _read_at_ref(root: Path, ref: str, file: str) -> str:
     result = _run_git(root, ["show", f"{ref}:{file}"])
     if result.returncode:
         raise ValueError(f"cannot read {file} at {ref}: {result.stderr.strip()}")
-    return result.stdout
+    return str(result.stdout)
 
 
 def run(
