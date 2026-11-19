@@ -32,7 +32,7 @@ Manual reasons:
 - C4-09: Run counts depend on nested calls and require behavioral review.
 - C4-10: The contradiction sits in unchanged review rules outside this diff.
 - C4-11: The preflight behavior needs review of an unchanged prose reference.
-- C4-12: The deleted scan heading needs a reviewer to assess remaining references.
+- C4-12: The remaining references are prose, not Markdown links, so this stays manual.
 - C4-14: The legal-only routing claim requires classifier behavior review.
 
 Receipt: `results/2026-11-19.json`.
