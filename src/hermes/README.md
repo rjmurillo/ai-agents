@@ -3,7 +3,8 @@
 Each folder below is a portable Agent Plugins v1 package for Hermes.
 A pack holds the skills listed under it and one copy of `lib/`.
 No skill links to a script, reference, or other support file in another pack by path.
-Some skills name a skill or script from another pack, so install every pack for the full set.
+Some skills name a skill or script from another pack.
+Install every pack for the full set.
 
 ## project-toolkit-delivery
 

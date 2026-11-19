@@ -273,10 +273,11 @@ def force_for_verdict(
     """Return whether ``pack_name`` installs with ``--force`` under guard ``verdict``.
 
     ``high_findings`` holds the pack's high and critical findings as
-    ``(pattern_id, file, line, sha256 of that line)``. A ``safe`` pack installs without ``--force``. A
-    ``caution`` pack gets ``--force`` only when every one of its high findings is in
-    :data:`FORCE_ALLOWED_FINDINGS` for that pack. Every other case fails the smoke,
-    so a new finding cannot be installed past the guard without a review.
+    ``(pattern_id, file, line, sha256 of that line)``. A ``safe`` pack installs
+    without ``--force``. A ``caution`` pack gets ``--force`` only when every one
+    of its high findings is in :data:`FORCE_ALLOWED_FINDINGS` for that pack.
+    Every other case fails the smoke, so a new finding cannot be installed past
+    the guard without a review.
     """
     if verdict == "safe":
         return False
