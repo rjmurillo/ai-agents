@@ -298,3 +298,16 @@ def test_range_boundaries_move_even_when_an_anchor_stays_inside(tmp_path: Path) 
 
     assert code == 1, output
     assert f"suggested citation {TARGET}:2-5" in output
+
+
+def test_rewording_the_citing_line_retains_an_existing_bare_citation(tmp_path: Path) -> None:
+    """Reworded prose must not hide drift in a citation kept verbatim."""
+    name = TARGET.rsplit("/", 1)[-1]
+    root = _repo_with_doc(tmp_path, f"The `magic_token` helper lives at {name}:3-4.\n")
+    _commit_file(root, TARGET, INSERTED_ABOVE)
+    _commit_file(root, DOC, f"The existing `magic_token` helper lives at {name}:3-4.\n")
+
+    code, output = _run_reverse(root)
+
+    assert code == 1, output
+    assert f"suggested citation {TARGET}:6-7" in output
