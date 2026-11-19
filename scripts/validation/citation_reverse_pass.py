@@ -27,7 +27,8 @@ A slashless name (``name.py:3``) counts here when exactly one file
 tracked at the merge base has that basename and that file changed; the
 forward gate reads slashless names only for repository-root files. That
 covers the PR #5812 shape behind PR #6584, a bare name added in the same
-change that rewrote the cited file. Citations the forward gate already
+change that rewrote the cited file. A line the branch added was written
+against HEAD, so it is judged at HEAD only, with no merge-base comparison. Citations the forward gate already
 checks (an added line whose path it resolves) are skipped, so nothing is
 reported twice. Exemptions and the reasoned ignore marker are the forward
 gate's own, imported, not copied.
@@ -391,6 +392,13 @@ def _scan(
             anchors = _citation_anchors(
                 cite.label, text, segment, citing_lines, line_number, markdown
             )
+            if line_number in added:
+                # Written against HEAD, so HEAD alone is the reference.
+                finding, _lines = _judge(
+                    cite, cite.target, anchors, trees.head_tracked, trees.head_files
+                )
+                findings.extend([finding] if finding is not None else [])
+                continue
             base_finding, base_lines = _judge(
                 cite, cite.target, anchors, trees.base_tracked, trees.base_files
             )

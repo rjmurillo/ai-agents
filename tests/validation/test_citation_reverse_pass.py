@@ -176,8 +176,30 @@ class TestBareBasename:
         forward_code, forward_out = _run(root, capsys)
 
         assert code == 1, out
-        assert f"suggested citation {TARGET}:6" in out
+        assert "first appears at line 6" in out
         assert forward_code == 0, forward_out
+
+    def test_bare_name_added_correct_at_head_is_not_judged_at_the_base(
+        self, tmp_path: Path
+    ) -> None:
+        # The author fixes a bare cite in the branch that moved the lines;
+        # the new numbers are right at HEAD. At the merge base, lines 6-7
+        # hold other distinctive text that the same insertion moved, so a
+        # base comparison would wrongly call the corrected cite stale.
+        bare = TARGET.rsplit("/", 1)[1]
+        base_content = TARGET_CONTENT + "\nALPHA_VALUE = 10\nBETA_VALUE = 20\n"
+        root = _repo(tmp_path)
+        _git(root, "checkout", "-q", "main")
+        _commit_file(root, TARGET, base_content)
+        _commit_file(root, DOC, f"See {bare}:3-4 for the helper.\n")
+        _git(root, "checkout", "-q", "-B", "feature")
+        _commit_file(root, TARGET, "# one\n# two\n# three\n" + base_content)
+        _commit_file(root, DOC, f"See {bare}:6-7 for the helper.\n")
+
+        code, out = _run_reverse(root)
+
+        assert code == 0, out
+        assert "examined 1 inbound citation" in out
 
     def test_ambiguous_bare_name_is_skipped(self, tmp_path: Path) -> None:
         root = _repo(tmp_path)
