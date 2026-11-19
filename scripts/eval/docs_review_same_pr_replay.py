@@ -115,15 +115,13 @@ def replay(case: dict[str, Any], run_id: str, worktree_root: Path, output: Path)
         ]
         expected = case.get("expected", [])
         caught = [any(matches(e, f) for f in findings) for e in expected]
-        return {
+        row = {
             "id": case["id"],
             "pr": pr,
             "sha": sha,
             "baseRefOid": base_oid,
             "merge_base": base,
             "scope": case["scope"],
-            "why": case.get("why"),
-            "manual_claims": case.get("manual_claims", []),
             "expected": expected,
             "caught": caught,
             "findings_count": len(findings),
@@ -138,6 +136,12 @@ def replay(case: dict[str, Any], run_id: str, worktree_root: Path, output: Path)
                 if any(matches(item, finding) for item in expected)
             ],
         }
+        # Empty fields stay off the receipt so it remains under the 500 line ceiling.
+        if case.get("why"):
+            row["why"] = case["why"]
+        if case.get("manual_claims"):
+            row["manual_claims"] = case["manual_claims"]
+        return row
     finally:
         if added:
             # The check writes outside this detached checkout. No author files change.
@@ -173,7 +177,7 @@ def main() -> int:
     positives = [r for r in results if r["scope"] == "automatic"]
     negatives = [r for r in results if r["scope"] == "negative"]
     manual = [r for r in results if r["scope"] == "manual"]
-    manual_count = len(manual) + sum(len(r["manual_claims"]) for r in results)
+    manual_count = len(manual) + sum(len(r.get("manual_claims", [])) for r in results)
     total = sum(len(r["caught"]) for r in positives)
     caught = sum(sum(r["caught"]) for r in positives)
     fp = sum(r["findings_count"] for r in negatives)
