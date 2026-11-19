@@ -167,7 +167,7 @@ def test_python_json_rejects_a_snippet_with_empty_stdout(tmp_path: Path) -> None
 _DELIVERY = "project-toolkit-delivery"
 _KNOWLEDGE = "project-toolkit-knowledge"
 _QUALITY = "project-toolkit-quality"
-_NEW_FINDING = ("inline_shell_exec", "skills/new-skill/SKILL.md", 3, "0123456789abcdef")
+_NEW_FINDING = ("inline_shell_exec", "skills/new-skill/SKILL.md", 3, "0" * 64)
 
 
 def _one_reviewed(pack: str) -> tuple[str, str, int, str]:
@@ -244,9 +244,9 @@ def test_force_never_passes_a_verdict_worse_than_caution(verdict: str, pack: str
 def test_every_reviewed_finding_hashes_the_line_it_names(pack: str) -> None:
     root = Path(__file__).resolve().parents[2] / "src" / "hermes" / pack
     for _, rel, line, digest in hr.FORCE_ALLOWED_FINDINGS[pack]:
-        text = (root / rel).read_text(encoding="utf-8").splitlines()[line - 1]
+        text = (root / rel).read_text(encoding="utf-8-sig").split("\n")[line - 1]
 
-        assert hashlib.sha256(text.encode("utf-8")).hexdigest()[:16] == digest, (rel, line)
+        assert hashlib.sha256(text.encode("utf-8")).hexdigest() == digest, (rel, line)
 
 
 _FAKE_GUARD = """
@@ -271,7 +271,10 @@ def test_guard_snippet_reports_verdict_and_line_hashed_high_findings(tmp_path: P
     (fake / "tools" / "plugin_guard.py").write_text(_FAKE_GUARD, encoding="utf-8")
     pack = tmp_path / "pack"
     (pack / "skills" / "a").mkdir(parents=True)
-    (pack / "skills" / "a" / "SKILL.md").write_text("one\n!`git status`\n", encoding="utf-8")
+    # A BOM and a form feed: the guard strips the first and does not split on the second.
+    (pack / "skills" / "a" / "SKILL.md").write_text(
+        "\ufeffone\f!`x`\n!`git status`\n", encoding="utf-8"
+    )
     # python -I ignores PYTHONPATH, so the fake guard goes on sys.path in the snippet.
     snippet = f"import sys\nsys.path.insert(0, {str(fake)!r})\n{hr.GUARD_SNIPPET}"
 
@@ -279,7 +282,7 @@ def test_guard_snippet_reports_verdict_and_line_hashed_high_findings(tmp_path: P
         Path(sys.executable), snippet, {"PATH": "/usr/bin:/bin"}, cwd=tmp_path, argv=[str(pack)]
     )
 
-    digest = hashlib.sha256(b"!`git status`").hexdigest()[:16]
+    digest = hashlib.sha256(b"!`git status`").hexdigest()
     assert parsed == {
         str(pack): {
             "verdict": "dangerous",

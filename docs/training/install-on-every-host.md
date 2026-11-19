@@ -302,7 +302,7 @@ Hermes scans each pack before it installs it. At the pinned hermes-agent commit 
    hermes plugins install rjmurillo/ai-agents/src/hermes/project-toolkit-delivery
    ```
 
-   In our non-interactive run each printed `Decision: BLOCKED` and `Use --force to override.` We did not test an interactive terminal. The knowledge pack has 2 `HIGH` findings in `skillforge`. The delivery pack has 10 `HIGH` findings in `build`, `plan`, `github`, `pr-review`, and `push-pr`. We reviewed each one. They are prose, a regular expression, and read-only `git` context lines, not code that runs on install. The rest are `LOW` or `MEDIUM` and point at reference prose and ordinary calls such as `subprocess.run`.
+   In our non-interactive run at the pinned commit (2026-11-19), knowledge printed `Decision: BLOCKED` with 144 findings and delivery with 278, each followed by `Use --force to override.` We did not test an interactive terminal. The knowledge pack has 2 `HIGH` findings in `skillforge`. The delivery pack has 10 `HIGH` findings in `build`, `plan`, `github`, `pr-review`, and `push-pr`. We reviewed each one. They are prose, a regular expression, and read-only `git` context lines, not code that runs on install. The `git` lines in `pr-review` and `push-pr` (``!`git status` ``, ``!`git diff HEAD` ``, and two more) run only if you turn on `skills.inline_shell`, which is off by default. Then Hermes runs each through `bash` when the skill loads, with the installed skill folder as the working directory, and puts the output into the model's context. The rest are `LOW` or `MEDIUM` and point at reference prose and ordinary calls such as `subprocess.run`.
 
 3. If you accept the findings, install over the block and enable each pack:
 

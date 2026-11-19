@@ -83,3 +83,26 @@ These narrow claims and change no rule, so no further round ran.
 ## Outcome
 
 Outcome: Consensus in round 2, four Accept and two Disagree-and-Commit, no P0 or P1 open. Dissent recorded: the critic and security seats commit with the Hermes CI leg still missing, so the force allow list is checked only by a local smoke. The ADR stays `proposed`.
+
+## Follow-up after the outcome
+
+Recorded 2026-11-19 after consensus. These apply fixes the security seat proposed for its own P2 items and narrow claims; no rule changed, so no further round ran.
+
+- Security F3 (P2): the smoke hashed a line found with `utf-8` and `splitlines()`, while the pinned guard numbers lines with `read_text(encoding="utf-8-sig").split("\n")` (`tools/skills_guard.py` at `63d0b94`). A form feed or other separator could bind a hash to a different line than the guard flagged. The smoke now splits exactly as the guard does. A unit test with a byte-order mark and a form feed fails when `splitlines()` returns.
+- Security F4 (P2): entries stored 16 hex digits of the hash. They now store the full SHA-256. The Smoke bullet says so.
+- Security F5 (P2): the install guide now says the reviewed `git` context lines run only when `skills.inline_shell` is on (default off, `hermes_cli/config_defaults.py` at `63d0b94`), through `bash` in the installed skill folder, with output placed in the model's context.
+- The guide's `Decision: BLOCKED` sentence is now measured: a no-force install at the pin blocked knowledge (144 findings) and delivery (278), and installed quality.
+- The generated `src/hermes/README.md` said skills in one pack never refer to skills in another. It now says no skill points at a script, reference, or other support file in another pack, and that some skills name a skill there.
+- The guard's own `match` text sits in the hashed line for 11 of the 12 reviewed findings. The twelfth, `invisible_unicode`, reports a description as its match; its hashed line holds the byte-order mark.
+
+### P2 items left open
+
+- Reviewed entries stay in `FORCE_ALLOWED_FINDINGS` after their finding disappears (independent-thinker).
+- Knowledge's growth rate, 333 to 386 files in 30 days, is not in the ADR (independent-thinker).
+- `spec` fills two sections from `threat-modeling` and `slo-designer`, a cross-pack mention the Split bullet does not list (analyst).
+- The D10 decision has no record outside the integration session and the commit messages (critic, analyst).
+- `stuck-detection` keeps a stale exclusion reason in `templates/platforms/hermes.yaml` and the generated `src/hermes/README.md`.
+
+### LLM council on the split choice
+
+A council (GPT-6 Astra, Claude Opus 5.5, GPT-6 Sol, Claude Sonnet 5; chairman GPT-6 Astra) compared this split with the 17-skill alternative. All four answered. The verdict chose this split, because the other moves two skills `/test` calls and leaves 48 free files against 102. The strongest objection it named: this split's pack boundary is less coherent than a "review" theme. It also noted that knowledge's 13 free files bound shared `lib/` growth for both splits alike. The question gave the councillors the facts above; they did not read the repository.

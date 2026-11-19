@@ -30,8 +30,10 @@ INSTALL_TIMEOUT_SECONDS = 300
 QUICK_TIMEOUT_SECONDS = 120
 
 # A reviewed high finding: (``pattern_id``, file inside the pack, 1-based line,
-# first 16 hex digits of the SHA-256 of that line's text). A finding that moves,
-# whose line changes, or that is new does not match, so it needs a fresh review.
+# SHA-256 hex of that line's text). Lines are numbered the way the pinned guard
+# numbers them: ``read_text(encoding="utf-8-sig").split("\n")`` in
+# ``tools/skills_guard.py``. A finding that moves, whose line changes, or that is
+# new does not match, so it needs a fresh review.
 ReviewedFinding = tuple[str, str, int, str]
 
 # High guard findings that were read and accepted, per pack (ADR-115 Decision 6).
@@ -51,16 +53,66 @@ _GH_ISSUE = "skills/github/scripts/issue/check_existing_pr_for_issue.py"
 FORCE_ALLOWED_FINDINGS: dict[str, frozenset[ReviewedFinding]] = {
     "project-toolkit-delivery": frozenset(
         {
-            ("context_exfil", "skills/build/SKILL.md", 26, "044b7a3d3ee253b9"),
-            ("context_exfil", "skills/plan/SKILL.md", 38, "f9568df509fac046"),
-            ("inline_shell_exec", "skills/github/fix-ci.md", 137, "25f389554f53cba4"),
-            ("inline_shell_exec", _GH_ISSUE, 122, "45947c367269d02c"),
-            ("inline_shell_exec", _GH_ISSUE, 124, "cd329b23957bfa20"),
-            ("inline_shell_exec", "skills/pr-review/SKILL.md", 77, "b6d90e26d7b0c71c"),
-            ("inline_shell_exec", "skills/pr-review/SKILL.md", 78, "2ea4295d4bd6c37d"),
-            ("inline_shell_exec", "skills/push-pr/SKILL.md", 30, "3bf15d66448dee25"),
-            ("inline_shell_exec", "skills/push-pr/SKILL.md", 31, "bb91750fc659d56f"),
-            ("inline_shell_exec", "skills/push-pr/SKILL.md", 32, "b6d90e26d7b0c71c"),
+            (
+                "context_exfil",
+                "skills/build/SKILL.md",
+                26,
+                "044b7a3d3ee253b9b88f48fae33d24cf00de3ec6aef3582e05d6b7a096354b81",
+            ),
+            (
+                "context_exfil",
+                "skills/plan/SKILL.md",
+                38,
+                "f9568df509fac0462cd7e194a57a4dd984e89bf27f500cf35d4ab0d98533f89e",
+            ),
+            (
+                "inline_shell_exec",
+                "skills/github/fix-ci.md",
+                137,
+                "25f389554f53cba49b5ade78b0f47887a2477ac49ffe9f01f6503f5c6e251526",
+            ),
+            (
+                "inline_shell_exec",
+                _GH_ISSUE,
+                122,
+                "45947c367269d02c1b8ef3be1be51524705fa86d5aaa36b81e9562d0a552c2c9",
+            ),
+            (
+                "inline_shell_exec",
+                _GH_ISSUE,
+                124,
+                "cd329b23957bfa205df0b31ae3ef439979beaa018506e767a4fcbbb6320b74e0",
+            ),
+            (
+                "inline_shell_exec",
+                "skills/pr-review/SKILL.md",
+                77,
+                "b6d90e26d7b0c71c7cec3facc4d6df85ec16906a41768c0ba638f968cfaf44c5",
+            ),
+            (
+                "inline_shell_exec",
+                "skills/pr-review/SKILL.md",
+                78,
+                "2ea4295d4bd6c37d574dba6e003064e4e7cbe0de207cd71034c0c885dcdd5860",
+            ),
+            (
+                "inline_shell_exec",
+                "skills/push-pr/SKILL.md",
+                30,
+                "3bf15d66448dee25466cf8e62241abc4aded65669586a53e2b8c741654e0f47e",
+            ),
+            (
+                "inline_shell_exec",
+                "skills/push-pr/SKILL.md",
+                31,
+                "bb91750fc659d56fc8c4ca22cb1cf2e484ddce69f3ba3cbea3f2e24f0a8953ac",
+            ),
+            (
+                "inline_shell_exec",
+                "skills/push-pr/SKILL.md",
+                32,
+                "b6d90e26d7b0c71c7cec3facc4d6df85ec16906a41768c0ba638f968cfaf44c5",
+            ),
         }
     ),
     "project-toolkit-knowledge": frozenset(
@@ -69,13 +121,13 @@ FORCE_ALLOWED_FINDINGS: dict[str, frozenset[ReviewedFinding]] = {
                 "invisible_unicode",
                 "skills/skillforge/scripts/_conformance_parse.py",
                 323,
-                "ad52dc0382dc78c2",
+                "ad52dc0382dc78c25e2fa1c5647ea1c2e37bdad5479c7609db76fd47fbb8681d",
             ),
             (
                 "python_os_environ",
                 "skills/skillforge/references/script-design-rules.md",
                 232,
-                "06908eb0196006f1",
+                "06908eb0196006f16571a90e2a5d615884e0cd0655167c6a09a6b1779f1c79f4",
             ),
         }
     ),
@@ -103,9 +155,9 @@ for p in sys.argv[1:]:
         digest = "unreadable"
         if isinstance(f.line, int) and f.line >= 1 and isinstance(f.file, str):
             try:
-                lines = (Path(p) / f.file).read_text(encoding="utf-8").splitlines()
+                lines = (Path(p) / f.file).read_text(encoding="utf-8-sig").split("\\n")
                 text = lines[f.line - 1]
-                digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+                digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
             except (OSError, UnicodeDecodeError, IndexError):
                 pass
         high.add((f.pattern_id, f.file, f.line, digest))
