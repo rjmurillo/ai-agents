@@ -521,6 +521,7 @@ def test_syntax_error_after_using_statements_still_fails_closed() -> None:
         assess_content(Path("Script.ps1"), "using namespace System.Text\n\nfunction f( {\n")
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need Developer Mode on Windows")
 def test_symlinked_pwsh_runs_by_its_path_entry(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -542,6 +543,7 @@ def test_symlinked_pwsh_runs_by_its_path_entry(
     assert calls[0]["argv"][0] == str(link)
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need Developer Mode on Windows")
 def test_symlink_into_the_scanned_directory_is_refused(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
