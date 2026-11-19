@@ -134,24 +134,23 @@ def _token_hit(anchor: str, text: str) -> bool:
 def _range_misses_distinctive_anchors(
     anchors: list[str], lines: list[str], start: int, end: int
 ) -> bool:
-    """Return whether every rare anchor named on the line sits outside the range.
+    """Return whether rare anchors named on the line miss the cited range.
 
-    A shared glob can match the wrong block while the names that identify
-    the block sit just past the cited end. An anchor is rare when it occurs
-    on one or two lines of the file. One rare anchor inside the range is
-    enough to keep the citation.
+    A rare anchor occurs on one or two lines. It votes inside only when
+    every hit is inside the range. A hit on both sides does not vote.
+    Two outside votes, and no inside vote, fail the citation.
     """
     if not anchors or not lines or start < 1 or end > len(lines):
         return False
-    ranged = "\n".join(lines[start - 1 : end])
     inside = 0
     outside = 0
     for anchor in anchors:
         hits = [number for number, text in enumerate(lines, 1) if _token_hit(anchor, text)]
         if not 1 <= len(hits) <= 2:
             continue
-        if _token_hit(anchor, ranged) or any(start <= number <= end for number in hits):
+        in_range = [number for number in hits if start <= number <= end]
+        if in_range and len(in_range) == len(hits):
             inside += 1
-        else:
+        elif not in_range:
             outside += 1
     return outside >= 2 and inside == 0
