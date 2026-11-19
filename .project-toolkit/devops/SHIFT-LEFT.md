@@ -399,6 +399,7 @@ a security gate.
 | pre-commit | `taste-advisory` | glob | Taste lint report, blocks only if the lint cannot run | - | no | Required: Validate PR, step Run taste-lint error-count ratchet (count form) |
 | pre-commit | `security-suppressions-staged` | glob | Security suppression markers in staged changes | pre-merge-commit | yes | Required: Run Python Tests, step Check security suppressions in diff (pull request, issue 4061) |
 | pre-commit | `subprocess-encoding` | glob | Subprocess encoding convention | - | no | Required: Run Python Tests, step Run subprocess encoding count ratchet (whole tree), count form |
+| pre-commit | `structured-cardinality-policy` | glob | Prose count claims in staged JSON and YAML files | - | no | None found |
 | pre-commit | `generate-mcp-config` | glob | Regenerates MCP config (writes) | - | no | Not mapped to one step. Required: Validate Generated Files requires job Build-all Staleness, step Build-all staleness check (REQ-003-005), which runs build_all.py --check |
 | pre-commit | `stage-mcp-config` | glob | Stages regenerated MCP config | - | no | Not applicable, git staging |
 | pre-commit | `generate-agents` | glob | Regenerates agent files (writes) | - | no | Not mapped to one step. Required: Validate Generated Files requires job Build-all Staleness, step Build-all staleness check (REQ-003-005), which runs build_all.py --check |
