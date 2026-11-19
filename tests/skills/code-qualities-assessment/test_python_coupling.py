@@ -108,7 +108,7 @@ def test_python_spacing_around_dots_keeps_the_stdlib_exemption(source: str) -> N
 )
 def test_python_relative_module_keeps_its_dots(source: str, module: str) -> None:
     """A relative module is named by its dots plus its identifiers."""
-    statement = _mod._dependency_nodes(_mod._PYTHON_GRAMMAR, _mod._load_python_grammar, source)[0]
+    statement = _mod._dependency_nodes(source, _mod._PYTHON_GRAMMAR)[0]
 
     assert _mod._python_statement_modules(statement) == [module]
 

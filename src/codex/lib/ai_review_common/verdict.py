@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any
 
 _VERDICT_PATTERN = re.compile(r"VERDICT:\s*([A-Z_]+)")
 
@@ -252,6 +251,91 @@ def _is_unscorable_by_design(entry: dict[str, object]) -> bool:
     return not _is_scored(entry) and entry.get("scoring_failed") is False
 
 
+_PARSER_SCANNER = "src/claude/skills/code-qualities-assessment/scripts/assess.py"
+
+# The only coupling transitions the review adapter may report as WARN
+# (ADR-122). Each JSON field must carry exactly its fixed record.
+_PARSER_DEPENDENCY_ADMISSIONS: dict[str, dict[str, object]] = {
+    "csharp_parser_dependency_admission": {
+        "issue": 7406,
+        "file": _PARSER_SCANNER,
+        "imports": ["tree_sitter", "tree_sitter_c_sharp"],
+        "baseScore": 10.0,
+        "headScore": 8.0,
+        "authorizedBy": "rjmurillo",
+        "authorizedOn": "2026-11-16",
+        "authorization": "Maintainer instruction: waiver, full send.",
+    },
+    "typescript_parser_dependency_admission": {
+        "issue": 7435,
+        "file": _PARSER_SCANNER,
+        "imports": ["tree_sitter", "tree_sitter_c_sharp", "tree_sitter_typescript"],
+        "baseScore": 8.0,
+        "headScore": 7.0,
+        "authorizedBy": "rjmurillo",
+        "authorizedOn": "2026-11-18",
+        "authorization": (
+            "Maintainer instruction: LGTM. Ship. agent- environment is optional. "
+            "Package add approved"
+        ),
+    },
+    "python_parser_dependency_admission": {
+        "issue": 7436,
+        "file": _PARSER_SCANNER,
+        "imports": [
+            "tree_sitter",
+            "tree_sitter_c_sharp",
+            "tree_sitter_python",
+            "tree_sitter_typescript",
+        ],
+        "baseScore": 7.0,
+        "headScore": 6.0,
+        "authorizedBy": "rjmurillo",
+        "authorizedOn": "2026-11-18",
+        "authorization": (
+            "Maintainer instruction: LGTM. Ship. agent- environment is optional. "
+            "Package add approved"
+        ),
+    },
+}
+
+
+def _is_admitted_parser_transition(comparison: dict[str, object], field: str) -> bool:
+    """Return True only for the exact scanner transition the *field* record admits."""
+    record = _PARSER_DEPENDENCY_ADMISSIONS[field]
+    if comparison.get(field) != record:
+        return False
+    base, head = record["baseScore"], record["headScore"]
+    assert isinstance(base, float) and isinstance(head, float)
+    match comparison:
+        case {
+            "file_path": str() as file_path,
+            "regressions": ["coupling"],
+            "evidence_loss": [],
+            "is_new_file": False,
+            "change_status": "M",
+            "deltas": list() as deltas,
+        }:
+            # The scanner emits one delta per quality, so a second coupling
+            # delta is a conflicting payload, never an admitted one.
+            coupling = [d for d in deltas if isinstance(d, dict) and d.get("quality") == "coupling"]
+            return (
+                file_path.replace("\\", "/") == _PARSER_SCANNER
+                and comparison.get("absolute_gate_reason") is None
+                and coupling
+                == [
+                    {
+                        "quality": "coupling",
+                        "base": base,
+                        "head": head,
+                        "delta": round(head - base, 4),
+                        "status": "compared",
+                    }
+                ]
+            )
+    return False
+
+
 def _has_assessed_files(files: list[object], summary: dict[str, object]) -> bool:
     """Return True when the assessment actually evaluated at least one file.
 
@@ -339,66 +423,6 @@ def _has_inventoried_docs(payload: dict[str, object]) -> bool:
     )
 
 
-# The parser dependency admissions assess.py accepts (ADR-122). This shipped
-# library cannot import the skill script, so the records are repeated here and
-# a test pins both copies equal. A comparison carrying any other record is
-# UNKNOWN, never WARN.
-_PARSER_SCANNER = "src/claude/skills/code-qualities-assessment/scripts/assess.py"
-_PARSER_DEPENDENCY_ADMISSIONS: tuple[dict[str, Any], ...] = (
-    {
-        "issue": 7406,
-        "file": _PARSER_SCANNER,
-        "imports": ["tree_sitter", "tree_sitter_c_sharp"],
-        "baseScore": 10.0,
-        "headScore": 8.0,
-        "authorizedBy": "rjmurillo",
-        "authorizedOn": "2026-11-16",
-        "authorization": "Maintainer instruction: waiver, full send.",
-    },
-    {
-        "issue": 7436,
-        "file": _PARSER_SCANNER,
-        "imports": ["tree_sitter", "tree_sitter_c_sharp", "tree_sitter_python"],
-        "baseScore": 8.0,
-        "headScore": 7.0,
-        "authorizedBy": "rjmurillo",
-        "authorizedOn": "2026-11-18",
-        "authorization": "Maintainer instruction: LGTM. Ship. Package add approved.",
-    },
-)
-
-
-def _is_admitted_parser_comparison(comparison: dict[str, object]) -> bool:
-    """Return True only for the exact admitted scanner transition a record names."""
-    reported = comparison.get("parser_dependency_admission")
-    admission = next(
-        (record for record in _PARSER_DEPENDENCY_ADMISSIONS if record == reported), None
-    )
-    if admission is None:
-        return False
-    base, head = admission["baseScore"], admission["headScore"]
-    file_path = comparison.get("file_path")
-    deltas = comparison.get("deltas")
-    admitted_delta = {
-        "quality": "coupling",
-        "base": base,
-        "head": head,
-        "delta": round(head - base, 1),
-        "status": "compared",
-    }
-    return (
-        isinstance(file_path, str)
-        and file_path.replace("\\", "/") == admission["file"]
-        and comparison.get("regressions") == ["coupling"]
-        and comparison.get("evidence_loss") == []
-        and comparison.get("is_new_file") is False
-        and comparison.get("change_status") == "M"
-        and comparison.get("absolute_gate_reason") is None
-        and isinstance(deltas, list)
-        and admitted_delta in deltas
-    )
-
-
 def adapt_local_axis_verdict(
     axis: str,
     output: str,
@@ -450,11 +474,16 @@ def adapt_local_axis_verdict(
         for comparison in comparisons:
             if not isinstance(comparison, dict):
                 return "UNKNOWN"
-            if comparison.get("parser_dependency_admission") is None:
+            admitted = [
+                field
+                for field in _PARSER_DEPENDENCY_ADMISSIONS
+                if comparison.get(field) is not None
+            ]
+            if not admitted:
                 if comparison.get("regressions") or comparison.get("evidence_loss"):
                     return "FAIL"
                 continue
-            if not _is_admitted_parser_comparison(comparison):
+            if len(admitted) != 1 or not _is_admitted_parser_transition(comparison, admitted[0]):
                 return "UNKNOWN"
             verdicts.append("WARN")
         return merge_verdicts(verdicts)

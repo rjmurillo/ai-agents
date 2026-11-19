@@ -49,12 +49,12 @@ Fix the file's syntax, or wait for a grammar release that supports the feature.
 ## Dependency admission
 
 Each grammar import lowers the scanner's own coupling score by one point.
-A repository can admit that drop through `parserDependencyAdmissions` in its quality configuration.
-The list holds records the scanner has built in; any other entry exits 1.
-Each record names an issue, the scanner file, its exact external imports,
-the base and head coupling scores, and the maintainer authorization.
-The Python record covers rjmurillo/ai-agents#7436's transition, `8.0 -> 7.0`.
-JSON keeps the raw regression and records the matched entry under `parser_dependency_admission`.
+The repository can admit the Python parser's dependencies through
+`pythonParserDependencyAdmission` in its quality configuration.
+This admission applies only to rjmurillo/ai-agents#7436's scanner transition.
+The raw coupling score remains `7.0 -> 6.0`, with its regression diagnostic.
+The base already holds the C# and TypeScript parser imports.
+JSON keeps the raw regression and records the fixed record under `python_parser_dependency_admission`.
 Exit 0 means admitted, not a raw pass; the review adapter returns `WARN`.
 Other regressions, evidence loss, and new-file threshold failures still block.
-An admission becomes inactive once the comparison base includes its imports.
+The admission becomes inactive once the comparison base includes these dependencies.

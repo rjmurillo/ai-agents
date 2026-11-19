@@ -8,13 +8,26 @@ fallback. The first publish must use the token, because npm can only link a
 trusted publisher to a package that already exists. npm/cli#8544 tracks that
 limit.
 
-### 1. Configure the GitHub environment
+### 1. Check the GitHub environment
 
-Create a GitHub environment named `npm` at
-`Settings > Environments > New environment`. The `publish.yml` publish job runs
-in it and requests `id-token: write`. Under Deployment branches and tags, allow
-only `main`. A dispatch from any other branch runs that branch's copy of
-`publish.yml`, so this setting is what keeps `NPM_TOKEN` away from it.
+The `publish.yml` publish job runs in the GitHub environment `npm` and requests
+`id-token: write`. On 2026-11-18 the `npm` environment existed, and its
+deployment branches allowed only `main`. No environment change is required.
+
+Keep that branch rule. A dispatch from any other branch runs that branch's copy
+of `publish.yml`, so the rule is what keeps `NPM_TOKEN` and the OIDC publish
+claim away from it (ADR-101). If the environment is ever deleted, the next run
+recreates it with no rule. Restore the rule at Settings > Environments > `npm`
+> Deployment branches and tags.
+
+Before every real publish, confirm the rule is still in place:
+
+```bash
+gh api repos/rjmurillo/ai-agents/environments/npm/deployment-branch-policies \
+  --jq '[.branch_policies[].name]'
+```
+
+It must print `["main"]`. Any other output means stop and restore the rule.
 
 ### 2. Enable 2FA on the npm account
 
@@ -98,7 +111,9 @@ creates the `v*` tag ruleset (issue #5636). Pushing a tag does not publish.
 
 Go to [Actions > npm Publish > Run workflow](https://github.com/rjmurillo/ai-agents/actions/workflows/publish.yml)
 and select `dry-run: true` (the default). This builds and validates the package, runs
-the gate advisory, and runs `npm publish --dry-run` without publishing.
+the gate advisory, and runs `npm publish --dry-run` without publishing. Run it from
+`main`. The first job refuses any other branch, and the `npm` environment's
+branch rule is the second lock.
 
 ## Writing release notes
 
