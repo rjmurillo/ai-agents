@@ -32,13 +32,20 @@ So a relative `using module ./X.psm1` or `using assembly ./X.dll` path resolves 
 
 PowerShell resolves `using module` and `using assembly` while it parses.
 A module or assembly this machine lacks is not an error, and the statement still counts.
-Parsing does not run the code of a referenced module or assembly.
+In tests with pwsh 7.6.10, parsing ran no code from a referenced module or assembly.
+Absolute paths and module names on `PSModulePath` still resolve on the scanning machine.
+
+On Windows a UNC target would open a network connection to that host.
+So a Windows scan refuses a file that has a `using module` or `using assembly` statement and a network path.
+The scanner finds `pwsh` only in absolute PATH entries.
+It refuses a `pwsh` inside the scanned directory, and on Windows anything but `pwsh.exe`.
 
 ## Failures
 
 These stop the scan with exit 1 and no report:
 
-- `pwsh` is not on PATH, or it cannot start.
+- `pwsh` is not on an absolute PATH entry, or it cannot start.
+- On Windows, a `using module` or `using assembly` file also holds a network path.
 - `pwsh` times out, exits non-zero, or returns output the scanner cannot read.
 - PowerShell reports a syntax error in the file. The message names the file and line.
 

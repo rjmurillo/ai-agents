@@ -1457,6 +1457,54 @@ def _count_csharp_imports(source: str) -> int:
         ) from exc
 
 
+# PowerShell resolves `using module` and `using assembly` targets while it
+# parses. On Windows a UNC target opens an SMB connection, which can send the
+# scanning user's credentials to the named host (CWE-829). No PowerShell API
+# parses without resolving, so a Windows scan refuses source that pairs such a
+# statement with a network path, and fails closed instead.
+_PWSH_USING_RESOLVED = re.compile(r"\busing\s+(?:module|assembly)\b", re.IGNORECASE)
+_PWSH_NETWORK_PATH = re.compile(r"(?:\\\\|//)[A-Za-z0-9][\w.$-]*[\\/]")
+
+
+def _refuse_network_resolution(source: str) -> None:
+    """Fail closed on Windows when parsing could reach a network share."""
+    if sys.platform != "win32":
+        return
+    if _PWSH_USING_RESOLVED.search(source) and _PWSH_NETWORK_PATH.search(source):
+        raise PowerShellParserError(
+            "Refusing to parse: a using module or using assembly statement appears "
+            "with a network path. PowerShell resolves those targets while parsing, "
+            "and on Windows a UNC path can send credentials to that host"
+        )
+
+
+def _find_pwsh() -> str:
+    """Return an absolute pwsh path found only on absolute PATH entries (CWE-427).
+
+    Relative PATH entries resolve against the scanned checkout, where a planted
+    `pwsh` could run in place of PowerShell.
+    """
+    import os
+    import shutil
+
+    entries = os.environ.get("PATH", "").split(os.pathsep)
+    search_path = os.pathsep.join(entry for entry in entries if entry and os.path.isabs(entry))
+    found = shutil.which("pwsh", path=search_path) if search_path else None
+    if found is None:
+        raise PowerShellParserError(
+            "PowerShell 7 (pwsh) is not on PATH. It is required to count "
+            "PowerShell dependencies (see references/powershell-parser.md)"
+        )
+    pwsh = Path(found).resolve()
+    if sys.platform == "win32" and pwsh.suffix.lower() != ".exe":
+        raise PowerShellParserError(f"Refusing to run {pwsh}: pwsh on Windows must be pwsh.exe")
+    if pwsh.is_relative_to(Path.cwd().resolve()):
+        raise PowerShellParserError(
+            f"Refusing to run {pwsh}: it is inside the scanned directory, not an installed pwsh"
+        )
+    return str(pwsh)
+
+
 def _run_pwsh_counter(source: str) -> dict[str, Any]:
     """Run PowerShell's own parser over *source* and return its JSON result.
 
@@ -1465,16 +1513,11 @@ def _run_pwsh_counter(source: str) -> dict[str, Any]:
     The source travels as stdin data, never as a command argument (CWE-78).
     """
     import base64
-    import shutil
     import subprocess
     import tempfile
 
-    pwsh = shutil.which("pwsh")
-    if pwsh is None:
-        raise PowerShellParserError(
-            "PowerShell 7 (pwsh) is not on PATH. It is required to count "
-            "PowerShell dependencies (see references/powershell-parser.md)"
-        )
+    _refuse_network_resolution(source)
+    pwsh = _find_pwsh()
     command = base64.b64encode(_PWSH_COUNT_SCRIPT.encode("utf-16-le")).decode("ascii")
     payload = base64.b64encode(source.encode("utf-8")).decode("ascii")
     argv = [pwsh, "-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", command]
@@ -1486,6 +1529,7 @@ def _run_pwsh_counter(source: str) -> dict[str, Any]:
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
+                errors="replace",
                 timeout=_PWSH_TIMEOUT_SECONDS,
                 cwd=empty_dir,
                 check=False,

