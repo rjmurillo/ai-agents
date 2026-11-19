@@ -24,11 +24,7 @@ if str(_SCRIPT_DIR) not in sys.path:
 
 import yaml  # noqa: E402
 from skill_routing_model import RESERVED_INVOKERS, ROLES, SkillDecl  # noqa: E402
-from skill_routing_resolver_evidence import (  # noqa: E402
-    FrontDoor,
-    intent_reachable,
-    load_resolver,
-)
+from skill_routing_resolver_evidence import intents_reached  # noqa: E402
 
 
 @dataclass(frozen=True)
@@ -129,39 +125,6 @@ def _invoker_text(invoker: str, skill_text: dict[str, str], agent_text: dict[str
     return "\n".join(parts)
 
 
-def _mapping(value: object) -> dict[str, object]:
-    """Return `value` when it is a mapping, else an empty one."""
-    return value if isinstance(value, dict) else {}
-
-
-def _front_doors(skills: list[SkillDecl], skill_templates: dict[str, Path]) -> dict[str, FrontDoor]:
-    """Read intents, description, and distribution for each front-door skill."""
-    doors: dict[str, FrontDoor] = {}
-    for skill in skills:
-        path = skill_templates.get(skill.name)
-        if skill.role != "front-door" or path is None:
-            continue
-        match = _FRONTMATTER.match(path.read_text(encoding="utf-8", errors="replace"))
-        try:
-            front = yaml.safe_load(match.group(1)) if match else {}
-        except yaml.YAMLError:
-            continue  # the gate already reports the parse defect
-        front = _mapping(front)
-        metadata = _mapping(front.get("metadata"))
-        routing = _mapping(metadata.get("routing"))
-        intents = routing.get("intents")
-        description = front.get("description")
-        doors[skill.name] = FrontDoor(
-            name=skill.name,
-            shipped=metadata.get("distribution") != "repo-local",
-            intents=tuple(i for i in intents if isinstance(i, str))
-            if isinstance(intents, list)
-            else (),
-            description=description if isinstance(description, str) else "",
-        )
-    return doors
-
-
 def _unresolved_skills(
     skills: list[SkillDecl], skill_text: dict[str, str], agent_text: dict[str, str]
 ) -> tuple[list[str], list[str]]:
@@ -204,14 +167,15 @@ def compute_evidence(
     checked, unresolved = _unresolved_skills(skills, skill_text, agent_text)
     inbound_zero = _inbound_zero_skills(skills, skill_text, agent_text)
     scenario_covered = [skill.name for skill in skills if (repo_root / skill.scenario).is_file()]
-    doors = _front_doors(skills, skill_templates)
-    resolver = load_resolver(repo_root)
-    invokers = {skill.name: skill.invoker for skill in skills}
-    reached = [
-        name
-        for name in unresolved
-        if invokers.get(name) == "autoplan" and intent_reachable(resolver, doors.get(name))
-    ]
+    autoplan_doors = {
+        skill.name: skill_templates[skill.name]
+        for skill in skills
+        if skill.name in unresolved
+        and skill.role == "front-door"
+        and skill.invoker == "autoplan"
+        and skill.name in skill_templates
+    }
+    reached = intents_reached(repo_root, autoplan_doors)
     return Evidence(
         unresolved=tuple(sorted(set(unresolved) - set(reached))),
         inbound_zero=tuple(sorted(inbound_zero)),

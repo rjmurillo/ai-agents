@@ -66,6 +66,7 @@ import os
 import re
 import sys
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Protocol, cast
@@ -113,16 +114,14 @@ class ConfigError(Exception):
     """An input problem that must fail the run as exit 2."""
 
 
+@dataclass(frozen=True, slots=True)
 class Skill:
     """The slice of one skill this gate reads."""
 
-    def __init__(
-        self, name: str, description: str, has_intents: bool, front_door: bool = False
-    ) -> None:
-        self.name = name
-        self.description = description
-        self.has_intents = has_intents
-        self.front_door = front_door
+    name: str
+    description: str
+    has_intents: bool
+    front_door: bool = False
 
 
 def extract_phrases(description: str) -> list[str]:

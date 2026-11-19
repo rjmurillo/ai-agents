@@ -12,6 +12,8 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _VALIDATION = _REPO_ROOT / "scripts" / "validation"
 if str(_VALIDATION) not in sys.path:
@@ -131,3 +133,67 @@ def test_load_resolver_loads_the_shipped_resolver_from_the_repository() -> None:
     module, roots = resolver
     assert callable(module.resolve)
     assert roots
+
+
+# --- read_front_door ---------------------------------------------------------
+
+
+def _template(tmp_path: Path, frontmatter: str) -> Path:
+    path = tmp_path / "x.SKILL.md.tmpl"
+    path.write_text(f"---\n{frontmatter}\n---\n\n# X\n", encoding="utf-8")
+    return path
+
+
+def test_read_front_door_reads_intents_description_and_distribution(tmp_path: Path) -> None:
+    template = _template(
+        tmp_path,
+        "name: x\ndescription: Use for x.\nmetadata:\n  distribution: repo-local\n"
+        "  routing:\n    intents:\n      - do the thing\n      - 7\n",
+    )
+
+    door = evidence.read_front_door("x", template)
+
+    assert door == evidence.FrontDoor("x", False, ("do the thing",), "Use for x.")
+
+
+def test_read_front_door_defaults_a_bare_skill_to_shipped_with_no_intents(tmp_path: Path) -> None:
+    door = evidence.read_front_door("x", _template(tmp_path, "name: x"))
+
+    assert door == evidence.FrontDoor("x", True, (), "")
+
+
+def test_read_front_door_returns_none_for_unparseable_frontmatter(tmp_path: Path) -> None:
+    assert evidence.read_front_door("x", _template(tmp_path, "name: [unclosed")) is None
+
+
+# --- intents_reached ---------------------------------------------------------
+
+
+def test_intents_reached_skips_loading_the_resolver_with_no_candidates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fail(repo_root: Path) -> None:
+        raise AssertionError("resolver loaded with nothing to check")
+
+    monkeypatch.setattr(evidence, "load_resolver", fail)
+
+    assert evidence.intents_reached(tmp_path, {}) == set()
+
+
+def test_intents_reached_credits_only_skills_whose_intent_routes_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    reached_path = _template(tmp_path, "name: a\nmetadata:\n  routing:\n    intents: [run a]")
+    shadowed = tmp_path / "b.SKILL.md.tmpl"
+    shadowed.write_text(
+        "---\nname: b\nmetadata:\n  routing:\n    intents: [run b]\n---\n", encoding="utf-8"
+    )
+    routes = {
+        "run a": _specialist("project-toolkit:a"),
+        "run b": _specialist("project-toolkit:b", "project-toolkit:c"),
+    }
+    monkeypatch.setattr(evidence, "load_resolver", lambda repo_root: _fake_resolver(routes))
+
+    reached = evidence.intents_reached(tmp_path, {"a": reached_path, "b": shadowed})
+
+    assert reached == {"a"}

@@ -17,15 +17,20 @@ gate's exit code.
 from __future__ import annotations
 
 import importlib.util
+import re
 import sys
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
+
+import yaml
 
 CATALOG_DIR = "src/claude/skills"
 RESOLVER_PATH = f"{CATALOG_DIR}/autoplan/scripts/resolve_route.py"
 
 _ROUTED_KINDS = frozenset({"specialist", "explicit"})
+_FRONTMATTER = re.compile(r"\A---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 
 
 @dataclass(frozen=True)
@@ -80,3 +85,45 @@ def intent_reachable(
     if resolver is None or door is None:
         return False
     return any(_routes_to(resolver, intent, door.name) for intent in door.intents)
+
+
+def _mapping(value: object) -> dict[str, object]:
+    """Return `value` when it is a mapping, else an empty one."""
+    return value if isinstance(value, dict) else {}
+
+
+def read_front_door(name: str, template: Path) -> FrontDoor | None:
+    """Read one skill template's intents, description, and distribution.
+
+    Returns None when the frontmatter does not parse; the routing gate already
+    reports that defect.
+    """
+    match = _FRONTMATTER.match(template.read_text(encoding="utf-8", errors="replace"))
+    try:
+        front = yaml.safe_load(match.group(1)) if match else {}
+    except yaml.YAMLError:
+        return None
+    front = _mapping(front)
+    metadata = _mapping(front.get("metadata"))
+    intents = _mapping(metadata.get("routing")).get("intents")
+    description = front.get("description")
+    return FrontDoor(
+        name=name,
+        shipped=metadata.get("distribution") != "repo-local",
+        intents=tuple(i for i in intents if isinstance(i, str))
+        if isinstance(intents, list)
+        else (),
+        description=description if isinstance(description, str) else "",
+    )
+
+
+def intents_reached(repo_root: Path, templates: Mapping[str, Path]) -> set[str]:
+    """Return the skills in `templates` whose own intents resolve to them alone."""
+    if not templates:
+        return set()
+    resolver = load_resolver(repo_root)
+    return {
+        name
+        for name, template in templates.items()
+        if intent_reachable(resolver, read_front_door(name, template))
+    }
