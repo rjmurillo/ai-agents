@@ -1,5 +1,35 @@
 # Agent readiness handoff
 
+## Resume Evidence (2026-11-18)
+
+The D7 scanner repair is committed at `5c5e843cbc41fcd6ca1f8596337037ac17d1cab1` (2026-11-18).
+Bare calls and known-method parameter checks remain visible.
+Member names cannot hide unresolved constructors with identical names.
+Cross-fence declarations resolve only within the same language.
+On 2026-11-18, scanner regression passed all 277 tests.
+On 2026-11-18, closure and surface-parity regression passed all 232 tests.
+On 2026-11-18, Ruff, mypy, formatting, and committed build parity passed.
+On 2026-11-18, taste examined both repair files without findings.
+On 2026-11-18, command-injection scanning examined both repair files without findings.
+On 2026-11-18, duplication passed across 3614 Python files.
+The duplicate baseline remains unchanged during this resume.
+On 2026-11-18, full scanning examined 6794 documents and extracted 30812 claims.
+It reported 791 high findings and exited ten.
+Those findings remain visible and lack complete triage.
+
+On 2026-11-18, preflight passed 115 gates before the D7 commit.
+Its generated-staleness failure cleared after the commit.
+The merge-tree ratchet still reports conflicts against current upstream main.
+Its base is `ae5acffcb3b9f9e00e4898d5bb0b0f9681a757d5` (2026-11-18).
+On 2026-11-18, read-only merge analysis identified nine conflicting paths.
+They comprise four authored paths and five generated copies.
+Authored conflicts affect both memory-placement specifications, `close_pr.py`, and workflow-coalescing tests.
+The operator authorized current-main integration and one additional conflict-resolution agent.
+The fourteen final-review slots remain reserved.
+No open PR exists for this branch, verified on 2026-11-18.
+No push, review marker, or external write occurred during this resume.
+The existing fourteen final-review slots remain unused.
+
 ## Status
 
 The user authorized repository-side repairs, commits, PR creation, and merge.
@@ -38,16 +68,16 @@ The interrupted full documentation assessment provides no current acceptance.
 - **Remote**: rjmurillo/ai-agents
 - **Branch**: fix/agent-readiness-signals
 - **Worktree**: ~/src/GitHub/rjmurillo/ai-agents4
-- **Source checkpoint**: 90dc8551fe005c7520ed180d1f0d761135fe9ac7 (2026-11-11T07:55:21-08:00)
-- **Timestamp**: 2026-11-11T15:53:01Z
+- **Source checkpoint**: 5c5e843cbc41fcd6ca1f8596337037ac17d1cab1 (2026-11-18T22:30:13-08:00)
+- **Timestamp**: 2026-11-19T06:30:13Z
 - **Objective**: Ship repository-side readiness repairs without adding client telemetry.
 - **Non-goals**: Hosted infrastructure, package releases, and security configuration changes.
 - **Risk tier**: shared-repository
 - **Acceptance**: New checks detect violations and pass the complete repository corpus.
-- **Phase**: Approved D3 repairs committed; final gates remain unverified.
-- **Next action**: Complete full documentation assessment and final-tip validation.
-- **Validation run**: On 2026-11-11, combined suites passed 542 tests with one optional Pi skip.
-- **Residual risks**: Full documentation, final review, and remote CI remain unverified.
+- **Phase**: D7 repair committed; full scanning reports unresolved findings.
+- **Next action**: Complete authorized main integration and classify full-scan residue.
+- **Validation run**: On 2026-11-18, scanner regression passed all 277 tests.
+- **Residual risks**: Upstream conflicts block preflight; full documentation and final reviews lack acceptance.
 - **Escalation owner**: Repository owner.
 
 ## Decisions Made
