@@ -163,6 +163,7 @@ from checks_tooling import (
     validate_planning_artifacts,
     validate_rule_scope_declarations,
     validate_session_end,
+    validate_skill_artifact_flow_declarations,
     validate_skill_routing_roles_declarations,
     validate_workflow_yaml,
     validate_yaml_style,
@@ -764,6 +765,14 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate(
         "Skill Routing Roles (metadata.routing)",
         _root_only(validate_skill_routing_roles_declarations),
+    ),
+    # Refuses a malformed typed `inputs`/`outputs` declaration, an unresolved
+    # or doubly produced artifact, and lifecycle skills whose declared data
+    # does not connect in LIFECYCLE_ORDER or disagrees with their Handoff
+    # line (ADR-123).
+    _Gate(
+        "Skill Artifact Flow (metadata.inputs/outputs)",
+        _root_only(validate_skill_artifact_flow_declarations),
     ),
     # Non-regression ratchet on path-local effective context (SPEC-4880,
     # issue #4880): the nested AGENTS.md/CLAUDE.md bytes a harness loads for

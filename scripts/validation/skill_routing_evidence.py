@@ -5,6 +5,9 @@ inbound-zero ("does any skill or agent text mention it?"), and scenario
 coverage are reported, never refused: a route is prose, and a common-word
 skill name makes an exact-token match an upper bound rather than proof.
 Scored routing accuracy is not measured here; issue #5389 owns it.
+
+The resolver-backed layers (intent reachability and phrase misses) live in
+`skill_routing_resolver_evidence.py` and are report-only as well.
 """
 
 from __future__ import annotations
@@ -21,6 +24,13 @@ if str(_SCRIPT_DIR) not in sys.path:
 
 import yaml  # noqa: E402
 from skill_routing_model import RESERVED_INVOKERS, ROLES, SkillDecl  # noqa: E402
+from skill_routing_resolver_evidence import (  # noqa: E402
+    FrontDoor,
+    PhraseReport,
+    intent_reachable,
+    load_resolver,
+    phrase_report,
+)
 
 
 @dataclass(frozen=True)
@@ -31,6 +41,8 @@ class Evidence:
     inbound_zero: tuple[str, ...]
     scenario_covered: tuple[str, ...]
     checked: tuple[str, ...]
+    intent_reached: tuple[str, ...] = ()
+    phrases: PhraseReport = PhraseReport(False, 0, (), (), 0)
 
 
 _REACHABLE_ROLES = frozenset({"front-door", "lifecycle", "conditional-adjunct", "nested-helper"})
@@ -120,6 +132,39 @@ def _invoker_text(invoker: str, skill_text: dict[str, str], agent_text: dict[str
     return "\n".join(parts)
 
 
+def _mapping(value: object) -> dict[str, object]:
+    """Return `value` when it is a mapping, else an empty one."""
+    return value if isinstance(value, dict) else {}
+
+
+def _front_doors(skills: list[SkillDecl], skill_templates: dict[str, Path]) -> dict[str, FrontDoor]:
+    """Read intents, description, and distribution for each front-door skill."""
+    doors: dict[str, FrontDoor] = {}
+    for skill in skills:
+        path = skill_templates.get(skill.name)
+        if skill.role != "front-door" or path is None:
+            continue
+        match = _FRONTMATTER.match(path.read_text(encoding="utf-8", errors="replace"))
+        try:
+            front = yaml.safe_load(match.group(1)) if match else {}
+        except yaml.YAMLError:
+            continue  # the gate already reports the parse defect
+        front = _mapping(front)
+        metadata = _mapping(front.get("metadata"))
+        routing = _mapping(metadata.get("routing"))
+        intents = routing.get("intents")
+        description = front.get("description")
+        doors[skill.name] = FrontDoor(
+            name=skill.name,
+            shipped=metadata.get("distribution") != "repo-local",
+            intents=tuple(i for i in intents if isinstance(i, str))
+            if isinstance(intents, list)
+            else (),
+            description=description if isinstance(description, str) else "",
+        )
+    return doors
+
+
 def _unresolved_skills(
     skills: list[SkillDecl], skill_text: dict[str, str], agent_text: dict[str, str]
 ) -> tuple[list[str], list[str]]:
@@ -162,11 +207,21 @@ def compute_evidence(
     checked, unresolved = _unresolved_skills(skills, skill_text, agent_text)
     inbound_zero = _inbound_zero_skills(skills, skill_text, agent_text)
     scenario_covered = [skill.name for skill in skills if (repo_root / skill.scenario).is_file()]
+    doors = _front_doors(skills, skill_templates)
+    resolver = load_resolver(repo_root)
+    invokers = {skill.name: skill.invoker for skill in skills}
+    reached = [
+        name
+        for name in unresolved
+        if invokers.get(name) == "autoplan" and intent_reachable(resolver, doors.get(name))
+    ]
     return Evidence(
-        unresolved=tuple(sorted(unresolved)),
+        unresolved=tuple(sorted(set(unresolved) - set(reached))),
         inbound_zero=tuple(sorted(inbound_zero)),
         scenario_covered=tuple(sorted(scenario_covered)),
         checked=tuple(sorted(checked)),
+        intent_reached=tuple(sorted(reached)),
+        phrases=phrase_report(resolver, list(doors.values())),
     )
 
 
@@ -182,13 +237,31 @@ def render(skills: list[SkillDecl], evidence: Evidence, fmt: str) -> str:
     lines = [f"skills: {total}", f"classified: {classified}/{total}"]
     lines.extend(f"role {role}: {count}" for role, count in sorted(by_role.items()))
     lines.append(f"structurally reachable: {reachable}/{checked}")
+    lines.append(f"reached by intents: {len(evidence.intent_reached)}")
+    lines.extend(f"reached by intents {name}" for name in evidence.intent_reached)
     lines.append(f"unresolved: {len(evidence.unresolved)}")
     lines.extend(f"unresolved {name}" for name in evidence.unresolved)
     lines.append(f"scenario coverage: {len(evidence.scenario_covered)}/{total}")
     lines.append(f"inbound-zero: {len(evidence.inbound_zero)}")
     lines.extend(f"inbound-zero {name}" for name in evidence.inbound_zero)
+    lines.extend(_phrase_lines(evidence.phrases))
     lines.append("scored accuracy: not measured")
     return "\n".join(lines)
+
+
+def _phrase_lines(report: PhraseReport) -> list[str]:
+    """Render the phrase layer, or say it was not measured."""
+    if not report.measured:
+        return ["phrase report: not measured (resolver or rendered catalog absent)"]
+    lines = [
+        f"phrases examined: {report.examined}",
+        f"phrase misses: {len(report.misses)}",
+        *(f"phrase miss {name}: {phrase}" for name, phrase in report.misses),
+        f"front doors without a 'Use when you say' clause: {len(report.no_lead)}",
+        *(f"no lead-in {name}" for name in report.no_lead),
+        f"shipped front doors without intents: {report.without_intents}",
+    ]
+    return lines
 
 
 def _render_json(
@@ -215,7 +288,15 @@ def _render_json(
             "scenario_covered": len(evidence.scenario_covered),
         },
         "unresolved": list(evidence.unresolved),
+        "intent_reached": list(evidence.intent_reached),
         "inbound_zero": list(evidence.inbound_zero),
+        "phrases": {
+            "measured": evidence.phrases.measured,
+            "examined": evidence.phrases.examined,
+            "misses": [list(miss) for miss in evidence.phrases.misses],
+            "no_lead": list(evidence.phrases.no_lead),
+            "without_intents": evidence.phrases.without_intents,
+        },
         "scored_accuracy": "not measured",
     }
     return json.dumps(payload, indent=2, sort_keys=True)

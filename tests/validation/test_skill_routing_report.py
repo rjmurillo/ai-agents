@@ -294,8 +294,39 @@ def test_json_report_is_valid_json_with_expected_shape(tree: Path) -> None:
     skills, _findings, evidence = gate.survey(tree)
     payload = json.loads(gate.render(skills, evidence, "json"))
 
-    assert set(payload) == {"skills", "counts", "unresolved", "inbound_zero", "scored_accuracy"}
+    assert set(payload) == {
+        "skills",
+        "counts",
+        "unresolved",
+        "intent_reached",
+        "inbound_zero",
+        "phrases",
+        "scored_accuracy",
+    }
     assert payload["counts"]["total"] == 4
+
+
+def test_resolver_layers_report_not_measured_without_a_rendered_catalog(tree: Path) -> None:
+    _report_catalog(tree)
+
+    skills, _findings, evidence = gate.survey(tree)
+    text = gate.render(skills, evidence, "text")
+    payload = json.loads(gate.render(skills, evidence, "json"))
+
+    assert "phrase report: not measured" in text
+    assert payload["phrases"]["measured"] is False
+    assert payload["intent_reached"] == []
+
+
+def test_real_repository_reaches_intent_routed_front_doors() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+
+    skills, _findings, evidence = gate.survey(repo_root)
+    reached = set(evidence.intent_reached)
+
+    assert evidence.phrases.measured is True
+    assert {"pr-review", "takeover", "domain-design"} <= reached
+    assert reached.isdisjoint(evidence.unresolved)
 
 
 def test_report_is_byte_identical_across_runs(tree: Path) -> None:

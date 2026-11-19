@@ -287,6 +287,10 @@ Run this check only at decision points: starting a heavy action, switching tasks
 
 If any answer is "no" or "not sure," adjust before proceeding.
 
+## Handoff
+
+Writes: `test-gate-report`. Next: `/review`.
+
 ## Verification
 
 - [ ] PR type classified before any gate ran, and the skipped gates named

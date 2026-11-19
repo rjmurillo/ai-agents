@@ -9,8 +9,8 @@ metadata:
   capability:
     kind: specialized-implementation
     status: active
-  inputs: [decision-description, context, alternatives]
-  outputs: [adr-markdown-file]
+  inputs: [{artifact: decision-description, source: user}, {artifact: decision-context, source: user}, {artifact: decision-alternatives, source: user}]
+  outputs: [{artifact: adr}]
   routing:
     role: front-door
     invoker: autoplan

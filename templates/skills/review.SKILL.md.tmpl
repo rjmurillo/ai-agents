@@ -7,6 +7,8 @@ allowed-tools: Task, Skill, Read, Glob, Grep, Bash(*)
 user-invocable: true
 license: MIT
 metadata:
+  inputs: [{artifact: implementation-change}, {artifact: requirements-spec, required: false}]
+  outputs: [{artifact: review-marker}]
   capability:
     kind: orchestrator
     owns: [technical-review]
@@ -158,6 +160,10 @@ Followed by per-axis findings in detail. Each finding:
 
 Label each finding from its own value, never its axis verdict: `resources/finding-severity.md`. Display only.
 
+## Handoff
+
+Writes: `review-marker`. Next: `/ship`.
+
 ## Write the SHA-bound PASS marker
 
 On a **PASS** final verdict (or a WARN where every WARN was acknowledged), write a
@@ -180,10 +186,8 @@ A re-run after PASS writes another marker, which is safe.
 
 ## Principles
 
-- **Deep review is the strict superset of CI**. In deep review, `/review` surfaces every CI finding first.
 - **Drift fails closed**. If `.claude/skills/review/references/` and `.github/prompts/` diverge, pre-push blocks. CI re-checks.
 - **UNKNOWN is information**. A skill that did not evaluate is not a silent PASS. Loops, not files: `evidence-provenance`.
-- **Vendored survival**. `/review` works in a `.claude/`-only checkout. No axis or skill references `.agents/` or `.github/`.
 - **Voice**. Read `resources/writing-style.md` before writing findings (glossing, completeness scores).
 
 ## Verification

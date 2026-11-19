@@ -13,6 +13,7 @@ metadata:
       - diagnose skill usage from sessions
       - grade my agent setup
       - run skill-doctor
+      - diagnose skill usage
 ---
 # skill-doctor
 

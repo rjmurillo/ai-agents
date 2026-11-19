@@ -10,8 +10,8 @@ metadata:
   capability:
     kind: orchestrator
     status: active
-  inputs: [scope-description, session-log, git-history]
-  outputs: [retrospective-markdown-file]
+  inputs: [{artifact: retrospective-scope, source: user}, {artifact: session-log, source: repo}, {artifact: git-history, source: repo}]
+  outputs: [{artifact: retrospective, path: retrospective/}]
   adr: ADR-008, ADR-017, ADR-106
   routing:
     role: conditional-adjunct

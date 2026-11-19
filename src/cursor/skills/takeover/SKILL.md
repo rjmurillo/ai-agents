@@ -16,6 +16,7 @@ metadata:
       - take over an agent thread
       - finish someone else's PR
       - continue an abandoned PR
+      - takeover
 ---
 # Takeover
 

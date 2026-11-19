@@ -11,6 +11,7 @@ allowed-tools:
   - Bash
   - Task
 metadata:
+  capability: {kind: specialized-implementation, owns: [codebase-analysis], status: active}
   routing:
     role: front-door
     invoker: autoplan

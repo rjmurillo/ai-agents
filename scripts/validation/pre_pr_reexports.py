@@ -70,6 +70,7 @@ from checks_tooling import (
     validate_instruction_bytes,
     validate_nl_structural_debt_ratchet,
     validate_rule_scope_declarations,
+    validate_skill_artifact_flow_declarations,
     validate_skill_routing_roles_declarations,
 )
 
@@ -114,6 +115,7 @@ __all__ = [
     "validate_serena_memory_worktree_scope",
     "validate_skill_description_budget",
     "validate_skill_memory_references",
+    "validate_skill_artifact_flow_declarations",
     "validate_skill_routing_roles_declarations",
     "validate_skill_shell_placeholders",
     "validate_skill_skip_clauses",

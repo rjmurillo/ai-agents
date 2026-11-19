@@ -7,6 +7,8 @@ allowed-tools: Task, Skill, Read, Write, Glob, Grep
 argument-hint: spec-output-or-issue-number
 user-invocable: true
 metadata:
+  capability: {kind: orchestrator, owns: [implementation-planning], status: active}
+  inputs: [{artifact: requirements-spec, required: false}]
   routing:
     role: front-door
     invoker: autoplan
@@ -111,6 +113,10 @@ No em dashes or en dashes in anything this skill writes.
 {{> confusion-protocol}}
 
 {{> claude-model-patches}}
+
+## Handoff
+
+Writes: `execution-plan`. Next: `/build`.
 
 ## Verification
 

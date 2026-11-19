@@ -1,7 +1,7 @@
 ---
 name: pr-review
 version: 1.0.0
-description: Respond to review comments on one or more pull requests, then run the completion gate for a verdict. Runs pr-comment-responder per PR. Use when you say `pr-review 1234`, `pr-review 12 15 --parallel`, or `respond to review comments and tell me if it can merge`. Do NOT use to fix a red check with no review comments (use pr-autofix), or to work one PR's threads with no gate verdict (use pr-comment-responder).
+description: Respond to review comments on one or more pull requests, then run the completion gate for a verdict. Runs pr-comment-responder per PR. Use when you say `/pr-review 1234`, `/pr-review 12 15 --parallel`, or `respond to review comments and tell me if it can merge`. Do NOT use to fix a red check with no review comments (use pr-autofix), or to work one PR's threads with no gate verdict (use pr-comment-responder).
 license: MIT
 metadata:
   capability:
@@ -9,10 +9,14 @@ metadata:
     depends-on: [review-conversation, review-thread-closure]
     status: active
   routing:
-    role: conditional-adjunct
-    invoker: pr-autofix
-    trigger: pr-autofix redirects an interactive reply to one PR's review comments here
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan routes a request to answer PR review comments and get a merge verdict
     user-facing: true
+    intents:
+      - respond to review comments
+      - tell me if it can merge
+      - completion gate verdict
 ---
 
 # PR Review
@@ -335,9 +339,6 @@ See `related_memories` in config for Serena memories to consult during PR review
   is the verdict, so the gate needs no code change to learn a new check.
 - **A different harness.** The `scripts` map is keyed by harness, so a new host
   gets its own section rather than a branch in this prose.
-- **A different trusted ref.** `--trusted-ref` accepts any remote-tracking ref
-  under `refs/remotes/*`. It refuses `HEAD` and local branches on purpose: the
-  checked-out PR can move those.
 - **Consumer-owned criteria.** The shipped config's commands are rooted in this
   repository. An installed consumer replaces `completion_criteria` with their own
   and keeps the dispatcher, which is the part that carries the trust boundary.

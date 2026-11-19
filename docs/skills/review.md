@@ -47,6 +47,8 @@ How the verdict forms:
 - Otherwise any `WARN` or `PARTIAL` gives `WARN`, then any `UNKNOWN`, `DID_NOT_RUN`, or unrecognized token gives `UNKNOWN`. All `PASS` gives `PASS`.
 - `UNKNOWN` never hides a real finding. `WARN` plus `UNKNOWN` merges to `WARN`.
 
+Hand-off (ADR-123): Writes `review-marker`. Next: [`ship`](ship.md). `metadata.inputs` and `metadata.outputs` in the skill's frontmatter declare the same data.
+
 ## Advanced use
 
 ### Stages

@@ -7,6 +7,8 @@ allowed-tools: Task, Skill, Read, Write, Glob, Grep
 argument-hint: spec-output-or-issue-number
 user-invocable: true
 metadata:
+  capability: {kind: orchestrator, owns: [implementation-planning], status: active}
+  inputs: [{artifact: requirements-spec, required: false}]
   routing:
     role: front-door
     invoker: autoplan
@@ -254,6 +256,10 @@ Run this check only at decision points: starting a heavy action, switching tasks
 - If I am about to call Bash, is there a dedicated tool that would do this better?
 
 If any answer is "no" or "not sure," adjust before proceeding.
+
+## Handoff
+
+Writes: `execution-plan`. Next: `/build`.
 
 ## Verification
 

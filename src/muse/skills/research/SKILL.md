@@ -6,6 +6,7 @@ license: MIT
 metadata:
   capability:
     kind: specialized-implementation
+    owns: [external-research-synthesis]
     depends-on:
       - untrusted-content-handling
     status: active

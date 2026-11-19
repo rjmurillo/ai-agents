@@ -4,6 +4,7 @@ version: 1.0.1
 description: Transform feature descriptions into 3-tier specifications (Requirements, Design, Tasks) using EARS syntax, with schema-validated frontmatter on every emitted file. Reads the canonical spec schema before writing and rejects any out-of-range enum value. Use when you say "generate spec", "formalize requirements", or "create requirements/design/tasks". Do NOT use to decide what to build or to run the gates that precede it (use spec, which invokes this to write the artifacts).
 license: MIT
 metadata:
+  outputs: [{artifact: requirements-spec, path: specs/requirements/}, {artifact: design-spec, path: specs/design/}, {artifact: task-spec, path: specs/tasks/}]
   capability:
     kind: specialized-implementation
     depends-on:
