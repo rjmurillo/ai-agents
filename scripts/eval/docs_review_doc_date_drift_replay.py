@@ -17,6 +17,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -33,6 +34,41 @@ if str(ROOT) not in sys.path:
 from scripts.validation.check_doc_date_drift import find_doc_date_drift  # noqa: E402
 
 CORPUS = ROOT / "evals/docs-review-catch-rate/doc_date_drift/corpus.json"
+_SHA = re.compile(r"^[0-9a-f]{40}$")
+_PR = re.compile(r"^[1-9][0-9]{0,9}$")
+_REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+
+
+def _sha(value: object, label: str) -> str:
+    """Return a full lowercase commit id, or raise ValueError."""
+    text = str(value)
+    if _SHA.fullmatch(text) is None:
+        raise ValueError(f"{label} is not a 40-character commit SHA")
+    return text
+
+
+def _pull_number(value: object) -> str:
+    """Return a decimal pull number, or raise ValueError."""
+    text = str(value)
+    if _PR.fullmatch(text) is None:
+        raise ValueError("pr is not a pull number")
+    return text
+
+
+def _repository(value: str) -> str:
+    """Return an owner/name repository, or raise ValueError."""
+    if _REPOSITORY.fullmatch(value) is None:
+        raise ValueError("repository is not owner/name")
+    return value
+
+
+def _contained(path: Path, parent: Path) -> Path:
+    """Return the resolved path when it stays inside the resolved parent."""
+    resolved = path.resolve()
+    root = parent.resolve()
+    if root != resolved and root not in resolved.parents:
+        raise ValueError(f"path {resolved} is outside {root}")
+    return resolved
 
 
 def plain_env(source: dict[str, str] | None = None) -> dict[str, str]:
@@ -58,6 +94,7 @@ def _gh_accepts_color_never() -> bool:
             timeout=30,
             env=plain_env(),
             check=False,
+            shell=False,
         )
     except (OSError, subprocess.TimeoutExpired):
         return False
@@ -82,6 +119,8 @@ def command(root: Path, args: list[str]) -> str:
         errors="replace",
         timeout=180,
         env=plain_env(),
+        check=False,
+        shell=False,
     )
     if result.returncode:
         raise RuntimeError(f"{args[0]} failed ({result.returncode}): {result.stderr[-2000:]}")
@@ -128,35 +167,43 @@ def score(cases: list[dict[str, Any]], rows: list[dict[str, Any]]) -> dict[str, 
 
 def replay(root: Path, repository: str, case: dict[str, Any]) -> dict[str, Any]:
     """Run the current gate at one historical HEAD and clean up its checkout."""
+    number = _pull_number(case["pr"])
+    repo_name = _repository(repository)
+    sha = _sha(case["sha"], "sha")
+    base_oid = _sha(case["baseRefOid"], "baseRefOid")
     metadata = json.loads(
         command(
             root,
-            ["gh", "pr", "view", str(case["pr"]), "--repo", repository, "--json", "baseRefOid"],
+            ["gh", "pr", "view", number, "--repo", repo_name, "--json", "baseRefOid"],
         )
     )
-    if metadata["baseRefOid"] != case["baseRefOid"]:
+    if metadata["baseRefOid"] != base_oid:
         raise ValueError(f"{case['id']}: baseRefOid changed; inspect before repinning.")
     ref = f"refs/doc-date-drift-replay/{uuid.uuid4().hex}"
-    worktree_parent = Path.home() / "worktrees" / "ai-agents"
+    worktree_parent = (Path.home() / "worktrees" / "ai-agents").resolve()
     worktree_parent.mkdir(parents=True, exist_ok=True)
-    worktree = Path(tempfile.mkdtemp(prefix="doc-date-replay-", dir=worktree_parent))
+    worktree = _contained(
+        Path(tempfile.mkdtemp(prefix="doc-date-replay-", dir=worktree_parent)), worktree_parent
+    )
     registered = False
     try:
         command(
             root,
-            ["git", "fetch", "--quiet", "--no-tags", "origin", f"pull/{case['pr']}/head:{ref}"],
+            ["git", "fetch", "--quiet", "--no-tags", "origin", f"pull/{number}/head:{ref}"],
         )
-        for sha in (case["sha"], case["baseRefOid"]):
+        for pinned in (sha, base_oid):
             known = subprocess.run(
-                ["git", "cat-file", "-e", f"{sha}^{{commit}}"],
+                ["git", "cat-file", "-e", f"{pinned}^{{commit}}"],
                 cwd=root,
                 capture_output=True,
                 timeout=30,
                 env=plain_env(),
+                check=False,
+                shell=False,
             )
             if known.returncode:
-                command(root, ["git", "fetch", "--quiet", "--no-tags", "origin", sha])
-        base = command(root, ["git", "merge-base", case["sha"], case["baseRefOid"]])
+                command(root, ["git", "fetch", "--quiet", "--no-tags", "origin", pinned])
+        base = _sha(command(root, ["git", "merge-base", sha, base_oid]), "merge-base")
         command(
             root,
             [
@@ -166,7 +213,7 @@ def replay(root: Path, repository: str, case: dict[str, Any]) -> dict[str, Any]:
                 "--quiet",
                 "--detach",
                 str(worktree),
-                case["sha"],
+                sha,
             ],
         )
         registered = True

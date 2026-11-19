@@ -64,6 +64,7 @@ def test_subprocess_env_strips_color_forcing(monkeypatch: pytest.MonkeyPatch) ->
     def fake_run(args: list[str], **kwargs: object) -> object:
         env = kwargs["env"]
         assert isinstance(env, dict)
+        assert kwargs.get("shell") is False
         seen.append((list(args), env))
         return type("Done", (), {"returncode": 0, "stdout": "{}\n", "stderr": ""})()
 
@@ -96,13 +97,57 @@ def test_scan_failure_removes_the_worktree_and_temporary_ref(
 
     def command(_root: Path, args: list[str]) -> str:
         calls.append(args)
-        return '{"baseRefOid": "base"}' if args[0] == "gh" else "merge-base"
+        return '{"baseRefOid": "' + ("b" * 40) + '"}' if args[0] == "gh" else "c" * 40
 
     monkeypatch.setattr(replay, "command", command)
     monkeypatch.setattr(subprocess, "run", lambda *a, **k: type("Known", (), {"returncode": 0})())
     monkeypatch.setattr(replay, "find_doc_date_drift", lambda *a: None)
-    case = {"id": "P", "pr": 1, "sha": "head", "baseRefOid": "base"}
+    head = "a" * 40
+    base = "b" * 40
+    case = {"id": "P", "pr": 1, "sha": head, "baseRefOid": base}
     with pytest.raises(RuntimeError, match="historical tree"):
         replay.replay(tmp_path, "rjmurillo/ai-agents", case)
     assert any(args[:3] == ["git", "worktree", "remove"] for args in calls)
     assert calls[-1][:3] == ["git", "update-ref", "-d"]
+
+
+@pytest.mark.parametrize(
+    ("repository", "case", "match"),
+    [
+        ("rjmurillo/ai-agents", {"pr": 1, "sha": "HEAD", "baseRefOid": "b" * 40}, "sha"),
+        (
+            "rjmurillo/ai-agents",
+            {"pr": "1;rm", "sha": "a" * 40, "baseRefOid": "b" * 40},
+            "pull",
+        ),
+        (
+            "owner name/repo",
+            {"pr": 1, "sha": "a" * 40, "baseRefOid": "b" * 40},
+            "repository",
+        ),
+        (
+            "rjmurillo/ai-agents",
+            {"pr": 1, "sha": "a" * 40, "baseRefOid": "--upload-pack=x"},
+            "base",
+        ),
+    ],
+)
+def test_replay_rejects_refs_before_it_runs_a_command(
+    repository: str, case: dict[str, object], match: str
+) -> None:
+    with pytest.raises(ValueError, match=match):
+        replay.replay(Path("."), repository, case)
+
+
+def test_contained_keeps_a_worktree_inside_its_parent(tmp_path: Path) -> None:
+    parent = tmp_path / "worktrees"
+    parent.mkdir()
+    inside = parent / "doc-date-replay"
+    inside.mkdir()
+    assert replay._contained(inside, parent) == inside.resolve()
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    link = parent / "escape"
+    link.symlink_to(outside, target_is_directory=True)
+    with pytest.raises(ValueError, match="outside"):
+        replay._contained(link, parent)
