@@ -120,7 +120,7 @@ and its skip reason says so.
 
 | Local axis | Reads |
 |---|---|
-| `code-qualities-assessment` | the suffixes in `assess.py`'s language map, matched case-insensitively. No PowerShell, shell, Rust, or Ruby. |
+| `code-qualities-assessment` | the suffixes in `assess.py`'s language map, matched case-insensitively. Includes PowerShell `.ps1`, `.psm1`, `.psd1`; no `.ps1xml`, shell, Rust, or Ruby. |
 | `taste-lints` | the suffixes in `taste_lints.py`'s scannable set, matched case-sensitively. No TypeScript, JavaScript, C#, Go, Rust, Ruby, or Java. |
 | `doc-accuracy` | the Markdown its `DOC_GLOBS` inventories, matched case-sensitively. |
 | `golden-principles` | what `scan_principles._is_applicable` accepts, which compares `SKILL.md`, `CLAUDE.md`, and its suffixes literally rather than lowercased. |
