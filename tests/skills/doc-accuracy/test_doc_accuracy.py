@@ -362,11 +362,13 @@ class TestSourceCoupling:
         """D3: prose substrings must not create source coupling."""
         package = tmp_path / "scripts" / "github_core"
         package.mkdir(parents=True)
-        (package / "output.py").write_text("def write_outputs():\n    return {}\n")
-        (package / "__init__.py").write_text("class GithubClient:\n    pass\n")
-        (tmp_path / "alpha.py").write_text("def main():\n    return 1\n")
-        (tmp_path / "beta.py").write_text("def main():\n    return 2\n")
-        (tmp_path / "README.md").write_text(content)
+        (package / "output.py").write_text(
+            "def write_outputs():\n    return {}\n", encoding="utf-8"
+        )
+        (package / "__init__.py").write_text("class GithubClient:\n    pass\n", encoding="utf-8")
+        (tmp_path / "alpha.py").write_text("def main():\n    return 1\n", encoding="utf-8")
+        (tmp_path / "beta.py").write_text("def main():\n    return 2\n", encoding="utf-8")
+        (tmp_path / "README.md").write_text(content, encoding="utf-8")
 
         result = run_assessment(tmp_path)
 
@@ -397,13 +399,15 @@ class TestSourceCoupling:
     ) -> None:
         """D3: false findings must clear without making real errors pass."""
         (tmp_path / "widget.cs").write_text(
-            "public class ExistingWidget {\n    public void Configure(int timeout) { }\n}\n"
+            "public class ExistingWidget {\n    public void Configure(int timeout) { }\n}\n",
+            encoding="utf-8",
         )
-        (tmp_path / "README.md").write_text(f"```{language}\n{content}\n```\n")
+        (tmp_path / "README.md").write_text(f"```{language}\n{content}\n```\n", encoding="utf-8")
         output = tmp_path / ".doc-accuracy"
 
         assert main(["--target", str(tmp_path), "--output-dir", str(output)]) == exit_code
-        findings = json.loads((output / "compilability-findings.json").read_text())["findings"]
+        report = (output / "compilability-findings.json").read_text(encoding="utf-8")
+        findings = json.loads(report)["findings"]
         if exit_code:
             assert len(findings) == 1
             assert findings[0]["severity"] == (

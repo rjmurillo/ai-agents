@@ -55,6 +55,7 @@ def run_cli(tmp_path: Path, lang: str, code: str) -> tuple[int, set[tuple[str, s
     (tmp_path / "README.md").write_text(f"```{lang}\n{code}\n```\n", encoding="utf-8")
     output = tmp_path / ".doc-accuracy"
     exit_code = mod.main(["--target", str(tmp_path), "--output-dir", str(output)])
-    findings = json.loads((output / "compilability-findings.json").read_text())["findings"]
+    report = (output / "compilability-findings.json").read_text(encoding="utf-8")
+    findings = json.loads(report)["findings"]
     pairs = {(f["category"], f["evidence"].get("symbol", "")) for f in findings}
     return exit_code, pairs

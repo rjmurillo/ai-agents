@@ -241,5 +241,6 @@ def test_cli_resolves_example_names_without_hiding_errors(
     (tmp_path / "README.md").write_text(f"```{lang}\n{code}\n```\n", encoding="utf-8")
     output = tmp_path / ".doc-accuracy"
     assert mod.main(["--target", str(tmp_path), "--output-dir", str(output)]) == exit_code
-    findings = json.loads((output / "compilability-findings.json").read_text())["findings"]
+    report = (output / "compilability-findings.json").read_text(encoding="utf-8")
+    findings = json.loads(report)["findings"]
     assert {finding["category"] for finding in findings} == ({category} if category else set())
