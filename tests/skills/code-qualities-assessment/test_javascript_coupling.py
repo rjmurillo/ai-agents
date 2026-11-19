@@ -111,10 +111,14 @@ def test_flow_annotated_javascript_parses() -> None:
 
 
 def test_javascript_adds_no_parser_import_to_the_scanner() -> None:
-    """Reusing the TSX grammar keeps the scanner's own coupling unchanged."""
+    """Reusing the TSX grammar adds no grammar package of its own.
+
+    The set holds the C#, TypeScript, and Python (issue #7436) grammars only.
+    """
     assert _mod._python_external_imports(_SCRIPT) == {
         "tree_sitter",
         "tree_sitter_c_sharp",
+        "tree_sitter_python",
         "tree_sitter_typescript",
     }
 
@@ -142,7 +146,10 @@ def test_missing_javascript_parser_fails_cli_without_affecting_python(
     assert "install" in output.err.lower()
     assert javascript.name in output.err
     assert not output.out
-    assert _mod.main(["--target", str(python), "--format", "json"]) == 0
+    # Python shares tree_sitter (issue #7436), so only a missing TypeScript
+    # grammar leaves Python scoring intact.
+    python_exit = 0 if module_name == "tree_sitter_typescript" else 1
+    assert _mod.main(["--target", str(python), "--format", "json"]) == python_exit
 
 
 @pytest.mark.parametrize(

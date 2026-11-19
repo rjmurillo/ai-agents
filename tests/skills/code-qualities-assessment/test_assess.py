@@ -693,36 +693,37 @@ def test_python_first_party_and_relative_imports_still_count(tmp_path: Path) -> 
 
 
 @pytest.mark.parametrize(
-    ("line", "expected"),
+    ("source", "statements", "standard"),
     [
-        ("import os", True),
-        ("import os.path", True),
-        ("import os, sys", True),
-        ("import numpy as np", False),
-        ("import os, requests", False),
-        ("import os as operating_system, json as j", True),
-        ("from collections.abc import Callable", True),
-        ("from __future__ import annotations", True),
-        ("from os import path  # comment mentioning requests", True),
-        ("    import subprocess", True),
-        ("from requests import get", False),
-        ("from requests.adapters import HTTPAdapter", False),
-        ("from . import sibling", False),
-        ("from .json import thing", False),
-        ("import jsonschema", False),
-        ("import logging_extra", False),
-        ("from os import path; import requests", False),
-        ("import os; import requests", False),
-        ("import os; from requests import get", False),
-        ("import os; import sys", True),
-        ("from os import path; import json;", True),
-        ("import os; x = 1", False),
+        ("import os", 1, 1),
+        ("import os.path", 1, 1),
+        ("import os, sys", 1, 1),
+        ("import numpy as np", 1, 0),
+        ("import os, requests", 1, 0),
+        ("import os as operating_system, json as j", 1, 1),
+        ("from collections.abc import Callable", 1, 1),
+        ("from __future__ import annotations", 1, 1),
+        ("from os import path  # comment mentioning requests", 1, 1),
+        ("if True:\n    import subprocess", 1, 1),
+        ("from requests import get", 1, 0),
+        ("from requests.adapters import HTTPAdapter", 1, 0),
+        ("from . import sibling", 1, 0),
+        ("from .json import thing", 1, 0),
+        ("import jsonschema", 1, 0),
+        ("import logging_extra", 1, 0),
+        ("from os import path; import requests", 2, 1),
+        ("import os; import requests", 2, 1),
+        ("import os; from requests import get", 2, 1),
+        ("import os; import sys", 2, 2),
+        ("from os import path; import json;", 2, 2),
+        ("import os; x = 1", 1, 1),
     ],
 )
-def test_python_standard_import_classification(line: str, expected: bool) -> None:
-    """Classify on the top-level module name: a segment-aware match, so a
-    third-party name that shares a prefix with a standard module is scored."""
-    assert _mod._is_python_standard_import(line) is expected
+def test_python_standard_import_classification(source: str, statements: int, standard: int) -> None:
+    """Classify each statement on its top-level module names: a segment-aware
+    match, so a third-party name that shares a prefix with a standard module is
+    scored, and one third-party name keeps a multi-module statement scored."""
+    assert _mod._count_python_imports(source) == (statements, standard)
 
 
 def test_python_stdlib_exemption_needs_stdlib_names(

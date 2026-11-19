@@ -120,7 +120,7 @@ def test_csharp_counts_syntax_nodes_not_source_lines(source: str, expected: int)
     assert coupling.value == 10.0 - expected
 
 
-@pytest.mark.parametrize("module_name", ["tree_sitter", "tree_sitter_c_sharp"])
+@pytest.mark.parametrize("module_name", ["tree_sitter_c_sharp"])
 def test_missing_csharp_parser_fails_cli_without_affecting_python(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

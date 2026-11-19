@@ -144,7 +144,10 @@ def test_missing_typescript_parser_fails_cli_without_affecting_python(
     assert "tree-sitter-typescript==0.23.2" in err
     assert "install" in err.lower()
     assert "references/typescript-parser.md" in err
-    assert _mod.main(["--target", str(python), "--format", "json"]) == 0
+    # Python shares tree_sitter (issue #7436), so only a missing TypeScript
+    # grammar leaves Python scoring intact.
+    python_exit = 0 if module_name == "tree_sitter_typescript" else 1
+    assert _mod.main(["--target", str(python), "--format", "json"]) == python_exit
 
 
 @pytest.mark.parametrize(

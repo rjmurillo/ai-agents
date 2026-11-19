@@ -88,6 +88,24 @@ _TYPESCRIPT_PARSER_DEPENDENCY_ADMISSION = {
     ),
 }
 
+_PYTHON_PARSER_DEPENDENCY_ADMISSION = {
+    "issue": 7436,
+    "file": "src/claude/skills/code-qualities-assessment/scripts/assess.py",
+    "imports": [
+        "tree_sitter",
+        "tree_sitter_c_sharp",
+        "tree_sitter_python",
+        "tree_sitter_typescript",
+    ],
+    "baseScore": 7.0,
+    "headScore": 6.0,
+    "authorizedBy": "rjmurillo",
+    "authorizedOn": "2026-11-18",
+    "authorization": (
+        "Maintainer instruction: LGTM. Ship. agent- environment is optional. Package add approved"
+    ),
+}
+
 # Config key -> (fixed record, FileComparison field that carries it to JSON).
 _PARSER_DEPENDENCY_ADMISSIONS = {
     "csharpParserDependencyAdmission": (
@@ -98,12 +116,18 @@ _PARSER_DEPENDENCY_ADMISSIONS = {
         _TYPESCRIPT_PARSER_DEPENDENCY_ADMISSION,
         "typescript_parser_dependency_admission",
     ),
+    "pythonParserDependencyAdmission": (
+        _PYTHON_PARSER_DEPENDENCY_ADMISSION,
+        "python_parser_dependency_admission",
+    ),
 }
 
 # Coupling for these languages is counted from a syntax tree over raw source.
 # Filtering comment lines first would drop PowerShell's `#Requires` statements,
 # which are comments to a line filter.
-_PARSED_COUPLING_LANGUAGES = frozenset({"csharp", "javascript", "typescript", "powershell"})
+_PARSED_COUPLING_LANGUAGES = frozenset(
+    {"csharp", "javascript", "python", "typescript", "powershell"}
+)
 
 # Single-line comment prefixes, used to exclude comment lines from the
 # lines-of-code count. Block comments are intentionally not stripped: this is an
@@ -201,7 +225,6 @@ def classify_file_category(file_path: Path, content: str | None = None) -> str:
 
 # Per-language import / dependency line patterns for the coupling heuristic.
 _IMPORT_PATTERNS = {
-    "python": re.compile(r"^\s*(?:import\s+\S|from\s+\S+\s+import\s+)"),
     "java": re.compile(r"^\s*import\s+[A-Za-z_]"),
     "go": re.compile(
         r'^\s*import\s+(?:(?:[A-Za-z_]\w*|\.)\s+)?"[^"]+"\s*(?://.*)?$'
@@ -212,12 +235,11 @@ _IMPORT_PATTERNS = {
 # Extracts the quoted import path from a line the Go import pattern matched.
 _GO_IMPORT_PATH = re.compile(r'"([^"]+)"')
 
-# Splits a matched Python import line into the module names it binds. The
-# ``import`` form lists comma-separated dotted names, each with an optional
-# ``as`` alias. The ``from`` form names one source module, relative if it
-# starts with a dot.
-_PY_PLAIN_IMPORT = re.compile(r"^\s*import\s+(.+)$")
-_PY_FROM_IMPORT = re.compile(r"^\s*from\s+(\S+)\s+import\s+")
+# Python dependency statements in the pinned tree-sitter-python grammar. A
+# ``from __future__`` statement has its own node type.
+_PY_DEPENDENCY_QUERY = (
+    "[(import_statement) (import_from_statement) (future_import_statement)] @dependency"
+)
 
 # Top-level standard-library module names. ``sys.stdlib_module_names`` exists
 # from Python 3.10, the plugin's syntax floor. An older interpreter gets an
@@ -968,11 +990,14 @@ class FileComparison:
     absolute_gate_reason: str | None = None
     csharp_parser_dependency_admission: dict[str, Any] | None = None
     typescript_parser_dependency_admission: dict[str, Any] | None = None
+    python_parser_dependency_admission: dict[str, Any] | None = None
 
     def parser_dependency_admission(self) -> dict[str, Any] | None:
         """Return the admission record attached to this comparison, if any."""
         return (
-            self.csharp_parser_dependency_admission or self.typescript_parser_dependency_admission
+            self.csharp_parser_dependency_admission
+            or self.typescript_parser_dependency_admission
+            or self.python_parser_dependency_admission
         )
 
 
@@ -1391,30 +1416,52 @@ def _is_go_standard_import(import_path: str, module_path: str | None) -> bool:
     return "." not in import_path.split("/", 1)[0]
 
 
-def _is_python_standard_import(line: str) -> bool:
-    """Classify a matched Python import line as standard library only.
+def _python_module_name(node: Any) -> str:
+    """Return the module a ``dotted_name`` or ``relative_import`` node names.
 
-    Relative imports are first-party. A line that binds several modules
-    (``import os, requests``) is standard only when every module is, so one
-    third-party name keeps the whole line scored. Statements joined by ``;``
-    are checked one by one, and any non-import statement keeps the line scored.
+    The name is built from identifier children, because node text keeps any
+    spaces, comments, or line continuations around the dots (``os .path``).
+    A relative module keeps one leading dot per level, so it reads as
+    first-party.
     """
-    code = line.split("#", 1)[0]
-    modules: list[str] = []
-    for statement in code.split(";"):
-        if not statement.strip():
-            continue
-        from_match = _PY_FROM_IMPORT.match(statement)
-        if from_match:
-            modules.append(from_match.group(1))
-            continue
-        plain_match = _PY_PLAIN_IMPORT.match(statement)
-        if not plain_match:
-            return False
-        modules.extend(part.split()[0] for part in plain_match.group(1).split(",") if part.split())
-    if not modules:
-        return False
-    return all(
+    if node.type == "relative_import":
+        prefix = next(child for child in node.children if child.type == "import_prefix")
+        dots = "." * prefix.text.decode("utf-8").count(".")
+        names = [_python_module_name(c) for c in node.children if c.type == "dotted_name"]
+        return str(dots + "".join(names))
+    return ".".join(
+        child.text.decode("utf-8") for child in node.children if child.type == "identifier"
+    )
+
+
+def _python_statement_modules(node: Any) -> list[str]:
+    """Return the module names one Python dependency statement binds."""
+    if node.type == "future_import_statement":
+        return ["__future__"]
+    if node.type == "import_from_statement":
+        module = node.child_by_field_name("module_name")
+        if module is None:
+            raise PythonParserError(
+                f"Cannot count Python dependencies: a from-import at line "
+                f"{node.start_point[0] + 1} has no module name in the parse tree"
+            )
+        return [_python_module_name(module)]
+    modules = []
+    for name in node.children_by_field_name("name"):
+        if name.type == "aliased_import":
+            name = name.child_by_field_name("name")
+        modules.append(_python_module_name(name))
+    return modules
+
+
+def _is_python_standard_statement(modules: list[str]) -> bool:
+    """Classify one statement as standard library only.
+
+    A statement that binds several modules (``import os, requests``) is
+    standard only when every module is, so one third-party name keeps the whole
+    statement scored. Relative imports are first-party.
+    """
+    return bool(modules) and all(
         not module.startswith(".") and module.split(".", 1)[0] in _PY_STDLIB_MODULES
         for module in modules
     )
@@ -1528,6 +1575,10 @@ class JavaScriptParserError(ParserError):
     """JavaScript dependencies cannot be measured reliably."""
 
 
+class PythonParserError(ParserError):
+    """Python dependencies cannot be measured reliably."""
+
+
 @dataclass(frozen=True)
 class _DependencyGrammar:
     """One pinned Tree-sitter grammar and the messages its failures print."""
@@ -1545,6 +1596,12 @@ def _csharp_grammar() -> object:
     import tree_sitter_c_sharp
 
     return tree_sitter_c_sharp.language()
+
+
+def _python_grammar() -> object:
+    import tree_sitter_python
+
+    return tree_sitter_python.language()
 
 
 def _typescript_grammar(function_name: str) -> object:
@@ -1567,6 +1624,21 @@ _CSHARP_GRAMMAR = _DependencyGrammar(
     error=CSharpParserError,
     load=_csharp_grammar,
     query="(using_directive) @dependency",
+)
+
+_PYTHON_GRAMMAR = _DependencyGrammar(
+    language_name="Python",
+    packages="tree-sitter==0.26.1 and tree-sitter-python==0.25.0",
+    reference="references/python-parser.md",
+    unsupported_syntax=(
+        "Cannot count Python dependencies: the pinned Python grammar "
+        "(tree-sitter-python==0.25.0) could not parse this file. "
+        "The file has a syntax error, or it uses syntax the grammar "
+        "does not support (for example Python 3.15 lazy imports)"
+    ),
+    error=PythonParserError,
+    load=_python_grammar,
+    query=_PY_DEPENDENCY_QUERY,
 )
 
 # Import and re-export statements with a source, require("...") calls, and
@@ -1628,6 +1700,11 @@ _JAVASCRIPT_GRAMMAR = _DependencyGrammar(
 
 def _count_dependency_nodes(source: str, grammar: _DependencyGrammar) -> int:
     """Count dependency syntax nodes, never comments, strings, or lookalike text."""
+    return len(_dependency_nodes(source, grammar))
+
+
+def _dependency_nodes(source: str, grammar: _DependencyGrammar) -> list[Any]:
+    """Return the dependency syntax nodes, never comments, strings, or lookalike text."""
     try:
         from tree_sitter import Language, Parser, Query, QueryCursor
 
@@ -1636,7 +1713,8 @@ def _count_dependency_nodes(source: str, grammar: _DependencyGrammar) -> int:
         if tree.root_node.has_error:
             raise grammar.error(grammar.unsupported_syntax)
         query = Query(language, grammar.query)
-        return len(QueryCursor(query).captures(tree.root_node).get("dependency", []))
+        nodes: list[Any] = QueryCursor(query).captures(tree.root_node).get("dependency", [])
+        return nodes
     except ParserError:
         raise
     except ImportError as exc:
@@ -1655,6 +1733,28 @@ def _count_dependency_nodes(source: str, grammar: _DependencyGrammar) -> int:
 def _count_csharp_imports(source: str) -> int:
     """Count directive syntax nodes, not resource declarations or literal text."""
     return _count_dependency_nodes(source, _CSHARP_GRAMMAR)
+
+
+def _count_python_imports(source: str) -> tuple[int, int]:
+    """Count Python dependency statements from a syntax tree.
+
+    Returns the statement count and how many of those are standard library
+    only. Imports nested in functions, classes, and ``try`` blocks count;
+    text in strings and comments does not.
+    """
+    statements = _dependency_nodes(source, _PYTHON_GRAMMAR)
+    try:
+        # A list, not a generator: PEP 479 would turn StopIteration into RuntimeError.
+        modules = [_python_statement_modules(node) for node in statements]
+    except (AttributeError, StopIteration) as exc:
+        # A node shape the pinned grammar should never produce: fail closed
+        # rather than let the generic handler mark the file unscored.
+        raise PythonParserError(
+            f"Cannot count Python dependencies: unexpected parse-tree shape "
+            f"({type(exc).__name__}). Check the pinned grammar (tree-sitter-python==0.25.0)"
+        ) from exc
+    standard = sum(1 for names in modules if _is_python_standard_statement(names))
+    return len(statements), standard
 
 
 def _count_javascript_imports(source: str) -> int:
@@ -1801,15 +1901,19 @@ def _score_coupling(
     0.0 so the threshold gate does not fail a file scored only by that
     untuned heuristic (matches the file-header contract).
 
-    C#, TypeScript, JavaScript, and PowerShell receive original source lines for
-    syntax-tree parsing; *suffix* picks the TypeScript or TSX grammar. Other
-    languages receive filtered code lines. Go and Python standard-library imports are
+    C#, TypeScript, JavaScript, Python, and PowerShell receive original source
+    lines for syntax-tree parsing; *suffix* picks the TypeScript or TSX grammar.
+    Other languages receive filtered code lines. Go and Python standard-library imports are
     reported but not scored: they are stable utilities, not application or
     third-party coupling (issues #7047 and #7354).
     """
     pattern = _IMPORT_PATTERNS.get(language) if language else None
     standard_count = 0
-    if language in _PARSED_COUPLING_LANGUAGES:
+    if language == "python":
+        import_count, standard_count = _count_python_imports("\n".join(code_lines))
+        confidence = 0.6
+        tuned = True
+    elif language in _PARSED_COUPLING_LANGUAGES:
         counters: dict[str, Callable[[str], int]] = {
             "csharp": _count_csharp_imports,
             "javascript": _count_javascript_imports,
@@ -1828,8 +1932,6 @@ def _score_coupling(
                 match = _GO_IMPORT_PATH.search(line)
                 if match and _is_go_standard_import(match.group(1), module_path):
                     standard_count += 1
-        elif language == "python":
-            standard_count = sum(1 for line in import_lines if _is_python_standard_import(line))
         confidence = 0.6
         tuned = True
     else:
@@ -2332,8 +2434,8 @@ def _assess_files(
     the survivor as evidence the whole change was assessed. This is the same
     treatment an unreadable file already gets at the decode site.
 
-    A C#, TypeScript, JavaScript, or PowerShell parser failure is the exception: it
-    is deliberately fatal (exit 1), so no parsed-language score is guessed.
+    A C#, TypeScript, JavaScript, Python, or PowerShell parser failure is the
+    exception: it is deliberately fatal (exit 1), so no parsed-language score is guessed.
     """
     assessments: list[FileAssessment] = []
     for file_path in files:

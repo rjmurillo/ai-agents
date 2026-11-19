@@ -2,11 +2,11 @@
 
 ## Summary
 
-- **Rounds**: 4 of 10. Rounds 3 and 4 are reduced-panel amendments.
+- **Rounds**: 6 of 10. Rounds 3 and 4 are reduced-panel amendments. Rounds 5 and 6 are full-panel amendments.
 - **Prior debate log**: None.
 - **Outcome**: Consensus.
 - **Final Status**: accepted.
-- **Date**: 2026-11-16. Amended 2026-11-18.
+- **Date**: 2026-11-16. Amended 2026-11-18 (Rounds 3 to 6).
 
 ## Round 1 Summary
 
@@ -180,7 +180,56 @@ Item 8 now states that exits 10 and 11 report `FAIL` before any record is read.
 This matches `adapt_local_axis_verdict` and changes no enforcement.
 These votes are not GitHub approvals or merge permission.
 
-## Round 6 Summary (PowerShell parser amendment, 2026-11-18)
+## Round 6 Summary (Python admission, 2026-11-18)
+
+### Trigger
+
+Issue #7436 adds the Python parser under item 7.
+After item 8, the scanner's own coupling moves from 7.0 to 6.0, which no earlier record admits.
+The maintainer approved the package add and its own admission on 2026-11-18.
+The quote appears verbatim in issue #7436 comment 6995934831.
+The amendment changes executable enforcement in the scanner and review adapter.
+
+### Changes Made
+
+- Status and Context name item 9.
+- Item 9 adds the fixed Python record: base 7.0, head 6.0, four exact imports.
+- Item 8's two-record wording now covers every record.
+- Consequences record that item 9 reached the third-record revisit trigger.
+- The new trigger is a drifted record copy or a grammar that needs another record shape.
+- Consequences add Python fail-closed scans, the `UNKNOWN` review result, and the 6.0 coupling floor.
+
+### Agent Positions
+
+| Agent | Position | Evidence |
+|---|---|---|
+| Architect | Revise, then accept. | Item 9 matched the code. Its three edits to stale two-record text and the trigger were applied. |
+| Security | Accept. | No admission bypass. The package is pinned and hashed. |
+
+Security noted two malformed node shapes that left a file unscored instead of exiting 1.
+Both now raise the Python parser error, with a test.
+
+| Agent | Position | Evidence |
+|---|---|---|
+| Critic | Revise, then accept. | The quote is verbatim. Its edit attributing the record shape to the coordinator was applied. |
+| Independent-thinker | Revise, then accept. | The fifth-record trigger would certainly fire, so it was replaced. The Python reference now names the TypeScript package. |
+
+The independent-thinker and the architect noted that no test compared the adapter's records with the scanner's.
+A direct field-for-field test now does, and it fails when either copy drifts.
+
+| Agent | Position | Evidence |
+|---|---|---|
+| Analyst | Accept. | Verified scores, imports, record equality, exit paths, and import placement against code. |
+| High-level-advisor | Revise, then accept. | Required this Round 6 entry and the corrected round count. |
+
+The high-level-advisor noted that JavaScript and PowerShell take the scanner to 5.0, then 4.0.
+Those two records cannot both chain from 6.0, so they merge one at a time.
+These are recorded as follow-ups, not changes here.
+
+All six panel agents accept the amendment as revised.
+These votes are not GitHub approvals or merge permission.
+
+## Round 7 Summary (PowerShell parser amendment, 2026-11-18)
 
 ### Trigger
 

@@ -544,6 +544,62 @@ class TestTypeScriptParserAdmissionVerdict:
         assert _cq_verdict(payload) == "UNKNOWN"
 
 
+def cq_python_admission_payload() -> dict:
+    config = json.loads(
+        (Path(__file__).resolve().parents[1] / ".qualityrc.json").read_text(encoding="utf-8")
+    )
+    payload = cq_typescript_admission_payload()
+    comparison = payload["comparisons"][0]
+    comparison["typescript_parser_dependency_admission"] = None
+    comparison["python_parser_dependency_admission"] = config["pythonParserDependencyAdmission"]
+    comparison["deltas"][0].update(base=7.0, head=6.0, delta=-1.0)
+    return payload
+
+
+class TestPythonParserAdmissionVerdict:
+    def test_adapter_records_equal_the_scanner_records(self):
+        """The adapter's copies must match the scanner's records field for field."""
+        import importlib.util
+
+        from scripts.ai_review_common.verdict import _PARSER_DEPENDENCY_ADMISSIONS
+
+        scanner = (
+            Path(__file__).resolve().parents[1]
+            / "src/claude/skills/code-qualities-assessment/scripts/assess.py"
+        )
+        spec = importlib.util.spec_from_file_location("assess_records", scanner)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        scanner_records = {
+            field: record for record, field in module._PARSER_DEPENDENCY_ADMISSIONS.values()
+        }
+
+        assert json.dumps(scanner_records, sort_keys=True) == json.dumps(
+            _PARSER_DEPENDENCY_ADMISSIONS, sort_keys=True
+        )
+
+    @pytest.mark.parametrize(("exit_code", "verdict"), [(0, "WARN"), (10, "FAIL"), (11, "FAIL")])
+    def test_python_admission_never_becomes_a_raw_pass(self, exit_code, verdict):
+        assert _cq_verdict(cq_python_admission_payload(), exit_code) == verdict
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [("issue", 7435), ("baseScore", 8.0), ("headScore", 7.0), ("authorizedOn", "")],
+    )
+    def test_python_admission_rejects_wrong_authority_or_scope(self, field, value):
+        payload = cq_python_admission_payload()
+        payload["comparisons"][0]["python_parser_dependency_admission"][field] = value
+
+        assert _cq_verdict(payload) == "UNKNOWN"
+
+    def test_typescript_record_does_not_admit_the_python_transition(self):
+        payload = cq_typescript_admission_payload()
+        payload["comparisons"][0]["deltas"][0].update(base=7.0, head=6.0, delta=-1.0)
+
+        assert _cq_verdict(payload) == "UNKNOWN"
+
+
 class TestAdaptLocalAxisVerdict:
     @pytest.mark.parametrize(("exit_code", "verdict"), [(0, "WARN"), (10, "FAIL"), (11, "FAIL")])
     def test_parser_admission_never_becomes_a_raw_pass(self, exit_code, verdict):

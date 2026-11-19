@@ -16,9 +16,9 @@ artifacts:
     # 396 adds room for code-qualities-assessment's references/csharp-parser.md
     # (issue #7406).
     # 397 adds room for references/typescript-parser.md (issue #7435).
-    # 398 adds room for references/powershell-parser.md (issue #7437),
-    # leaving 2 under the cap.
-    packMaxFiles: 398
+    # 398 adds references/python-parser.md (issue #7436).
+    # 399 adds references/powershell-parser.md (issue #7437), leaving 1 under the cap.
+    packMaxFiles: 399
     # hermes-agent commit whose plugin_guard and install limits this table was
     # measured against. The guard test and the smoke test install this commit.
     hermesCommit: "63d0b94120027d487c9a5235b9ec64b696af1b26"

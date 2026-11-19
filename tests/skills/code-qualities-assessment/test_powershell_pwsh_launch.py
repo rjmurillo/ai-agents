@@ -175,3 +175,27 @@ def test_symlink_into_the_scanned_directory_is_refused(
         assess_content(Path("Script.ps1"), "Import-Module A\n")
 
     assert calls == []
+
+
+@pytest.mark.parametrize(
+    ("name", "source"),
+    [
+        ("app.js", 'import a from "a";\n'),
+        ("app.ts", 'import a from "a";\n'),
+        ("app.py", "import requests\n"),
+        ("App.cs", "using System.IO;\n"),
+    ],
+)
+def test_other_parsed_languages_never_reach_pwsh(
+    monkeypatch: pytest.MonkeyPatch, name: str, source: str
+) -> None:
+    """Each parsed language keeps its own counter; only PowerShell starts pwsh."""
+
+    def no_pwsh(_source: str) -> dict[str, Any]:
+        raise AssertionError(f"{name} was routed to the PowerShell parser")
+
+    monkeypatch.setattr(_mod, "_run_pwsh_counter", no_pwsh)
+
+    coupling = assess_content(Path(name), source).coupling
+
+    assert coupling.reasons[0] == "1 import/dependency statements"

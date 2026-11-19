@@ -19,7 +19,8 @@ The debate appears in `.project-toolkit/critique/ADR-122-debate-log.md`.
 Publication still requires ordinary review, hooks, and protected CI.
 On 2026-11-18, an amendment recorded the parser dependencies as permanent design.
 A later 2026-11-18 amendment added item 8, the TypeScript admission for issue #7435.
-A further 2026-11-18 amendment recorded PowerShell's subprocess parser in item 7.
+A third 2026-11-18 amendment added item 9, the Python admission for issue #7436.
+A fourth 2026-11-18 amendment recorded PowerShell's subprocess parser in item 7.
 
 ## Context
 
@@ -32,6 +33,7 @@ That instruction grants neither GitHub approval nor permission to bypass protect
 On 2026-11-18, the maintainer ruled that the parser dependencies are permanent design.
 They are not a temporary waiver, and no time bound applies.
 Item 8 extends this decision to the TypeScript parser (issue #7435).
+Item 9 extends it to the Python parser (issue #7436).
 
 ## Decision
 
@@ -54,7 +56,7 @@ Item 8 extends this decision to the TypeScript parser (issue #7435).
    No sunset date, retirement issue, or removal step applies to them.
 7. Use the same Tree-sitter approach for JavaScript, TypeScript, and Python.
    Each language is follow-on work in its own change.
-   The C# record admits only the C# transition; item 8 admits TypeScript separately.
+   The C# record admits only the C# transition; item 8 admits TypeScript and item 9 Python separately.
    A later parser import can trip the coupling gate; it needs its own admission decision.
    Issues #7434, #7435, and #7436 follow that approach, and each needs its own admission.
    PowerShell uses its own parser instead. The maintainer chose it for #7437 on 2026-11-18.
@@ -71,12 +73,27 @@ Item 8 extends this decision to the TypeScript parser (issue #7435).
    The maintainer authorized it on 2026-11-18, quoted verbatim in a comment on issue #7435:
    "LGTM. Ship. agent- environment is optional. Package add approved".
    Items 1, 3, 4, and 5 apply to it. Item 2 applies with this record's scores and imports.
-   Each record admits only its own transition; neither admits the other's.
-   The review adapter keeps its own copy of both records.
+   Each record admits only its own transition; no record admits another's.
+   The review adapter keeps its own copy of every record.
    Exits 10 and 11 report `FAIL` before any record is read.
    On exit 0, a comparison that carries any record reports `WARN` only if exactly one record is present and valid.
    Otherwise it reports `UNKNOWN`.
    `tree-sitter-typescript` joins item 6 as a permanent scanner dependency.
+9. Admit the Python parser transition from issue #7436 as its own record.
+   Add one fixed `pythonParserDependencyAdmission` record to the scanner's admission table.
+   It chains after item 8: it requires base 7.0, head 6.0, and a comparable delta of -1.0.
+   Python's AST must identify exactly `tree_sitter`, `tree_sitter_c_sharp`,
+   `tree_sitter_python`, and `tree_sitter_typescript`.
+   The maintainer authorized it on 2026-11-18, quoted verbatim in issue #7436 comment 6995934831:
+   "LGTM. Ship. agent- environment is optional. Package add approved".
+   Items 1, 3, 4, and 5 apply to it. Item 2 applies with this record's scores and imports.
+   Item 8's rules on exit codes, one record per comparison, and the adapter copy apply unchanged.
+   `tree-sitter-python` joins item 6 as a permanent scanner dependency.
+   This is the third record, which the Consequences named as the revisit trigger.
+   A shared record list was weighed as option A in issue #7436 comment 6991092132.
+   On 2026-11-18, the coordinator of the four Tree-sitter issues kept one record per grammar.
+   Issue #7436 comment 6995934831 records that choice.
+   That keeps each sibling rebase mechanical: append one record in the item 8 shape.
 
 ## Prior Art Investigation
 
@@ -102,9 +119,13 @@ This decision represents the maintainer's specific parser-dependency authorizati
 
 Each admission adds policy code and tests for one dependency decision.
 Each later language adds one record in three files: the scanner, the review adapter, and `.qualityrc.json`.
-Revisit the rejected generic framework if a record copy drifts, or before a third record lands.
+Item 9 is the third record, which reached the earlier revisit trigger; item 9 records the outcome.
+Revisit the rejected generic framework if a record copy drifts, or if a grammar needs a record shape other than item 8's.
+A fifth record is already planned under item 7, so a record count is no longer a useful trigger.
 The scanner's own coupling reaches 7.0, the floor of a "reasonable" import count.
 The next parser import drops it to 6.0; that admission must accept the lower score.
+Item 9 is that admission: the scanner now scores 6.0, below the default `coupling.min` of 7.
+A consumer config on that default fails the scanner itself; this repository sets no coupling minimum.
 Scanner JSON and stderr retain the raw failure evidence.
 Consumers without the exact configuration keep their existing admission behavior.
 Every shipped copy of the scanner now needs both parser packages to score C#.
@@ -115,6 +136,14 @@ C# that the pinned grammar cannot parse also exits 1.
 Scoring TypeScript needs `tree-sitter` and `tree-sitter-typescript`.
 Without them, a scan that includes a `.ts` or `.tsx` file exits 1.
 `references/typescript-parser.md` gives the install command and the grammar limits.
+Scoring Python needs `tree-sitter` and `tree-sitter-python`.
+Without them, a scan that includes a `.py` file exits 1.
+The `/review` skill launches the scanner with the ambient `python3`.
+Without the packages there, its code-quality axis reports `UNKNOWN` for Python changes.
+`merge_verdicts` never turns `UNKNOWN` into `PASS`, so that consumer gets no review `PASS` on Python changes.
+Python the pinned grammar cannot parse also exits 1; the replaced regex never failed a scan.
+Python counting is per statement, not per line, so statements joined by `;` count separately.
+`references/python-parser.md` gives the install command and the grammar limits.
 Any scan that includes a PowerShell file needs `pwsh` 7 or later on PATH.
 Without it, or on a PowerShell syntax error or a 60 second timeout, the scan exits 1.
 Each PowerShell file costs one `pwsh` process, about 0.65 seconds.
@@ -135,9 +164,9 @@ Removing the admission implementation and adapter support reverses the policy ch
 No data migration or installed-plugin mutation is required.
 
 No removal is planned, because the parser dependencies are permanent design.
-After the TypeScript change merges, main contains all three parser imports.
+After the Python change merges, main contains all four parser imports.
 Each record matches only when the merge base sits exactly one parser step behind.
-A base older than both parsers gives 10.0 to 7.0, which no record admits and which stays blocked.
+A base two or more parser steps behind, such as 8.0 to 6.0, matches no record and stays blocked.
 Examples: a stacked branch, a cherry-pick, a revert and reintroduction, or an old `--base`.
 The record and its admission code stay. No follow-up pull request removes them.
 
