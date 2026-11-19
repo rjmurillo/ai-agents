@@ -29,7 +29,11 @@ from skill_routing_resolver_evidence import intents_reached  # noqa: E402
 
 @dataclass(frozen=True)
 class Evidence:
-    """The three reported (non-refusing) evidence layers, sorted by name."""
+    """The four reported (non-refusing) evidence layers plus the checked set, sorted by name.
+
+    Layers: `unresolved`, `inbound_zero`, `scenario_covered`, `intent_reached`.
+    `checked` is the examined set, not a layer.
+    """
 
     unresolved: tuple[str, ...]
     inbound_zero: tuple[str, ...]
@@ -162,7 +166,7 @@ def compute_evidence(
     skill_templates: dict[str, Path],
     agent_templates: dict[str, Path],
 ) -> Evidence:
-    """Return the three reported evidence layers, sorted for determinism."""
+    """Return the four reported evidence layers and the checked set, sorted for determinism."""
     skill_text, agent_text = _canonical_texts(repo_root, skill_templates, agent_templates)
     checked, unresolved = _unresolved_skills(skills, skill_text, agent_text)
     inbound_zero = _inbound_zero_skills(skills, skill_text, agent_text)

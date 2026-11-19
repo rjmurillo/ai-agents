@@ -53,25 +53,37 @@ class Output:
     path: str | None
 
 
+class SubsetParserUnavailableError(RuntimeError):
+    """Skillforge's stdlib frontmatter parser is missing or fails to import."""
+
+
 def _load_subset_parser() -> ModuleType:
     """Import skillforge's parser without leaving its directory or siblings behind.
 
     The parser imports `_path_guard` from its own directory. Leaving that
     directory on sys.path, or `_path_guard` in sys.modules, would make a later
     import of another tree's skillforge scripts pick up this copy.
+
+    Raises SubsetParserUnavailableError when the parser file is absent or its import
+    fails, so a caller can map the failure to its own config exit.
     """
+    parser_file = _SUBSET_PARSER_DIR / "_conformance_parse.py"
+    if not parser_file.is_file():
+        raise SubsetParserUnavailableError(f"skillforge parser not found: {parser_file}")
     saved_path = list(sys.path)
     saved_modules = set(sys.modules)
     sys.path.insert(0, str(_SUBSET_PARSER_DIR))
     try:
-        spec = importlib.util.spec_from_file_location(
-            "_artifact_flow_subset_parser", _SUBSET_PARSER_DIR / "_conformance_parse.py"
-        )
+        spec = importlib.util.spec_from_file_location("_artifact_flow_subset_parser", parser_file)
         if spec is None or spec.loader is None:
-            raise ImportError(f"cannot load {_SUBSET_PARSER_DIR / '_conformance_parse.py'}")
+            raise SubsetParserUnavailableError(f"cannot load {parser_file}")
         module = importlib.util.module_from_spec(spec)
         sys.modules[spec.name] = module
-        spec.loader.exec_module(module)
+        try:
+            spec.loader.exec_module(module)
+        except Exception as exc:
+            sys.modules.pop(spec.name, None)
+            raise SubsetParserUnavailableError(f"cannot import {parser_file}: {exc}") from exc
         return module
     finally:
         sys.path[:] = saved_path
@@ -81,17 +93,25 @@ def _load_subset_parser() -> ModuleType:
                 del sys.modules[added]
 
 
-subset_parser = _load_subset_parser()
+_parser_cache: list[ModuleType] = []
+
+
+def subset_parser() -> ModuleType:
+    """Return skillforge's parser, loading it on first use."""
+    if not _parser_cache:
+        _parser_cache.append(_load_subset_parser())
+    return _parser_cache[0]
 
 
 def subset_defect(rel: str, text: str) -> str | None:
     """Return why skillforge's stdlib parser cannot read the frontmatter, or None."""
-    raw, _body, error = subset_parser.split_frontmatter(text)
+    parser = subset_parser()
+    raw, _body, error = parser.split_frontmatter(text)
     if raw is None:
         return None if error is None else f"{rel}: {error}"
     try:
-        subset_parser.parse_frontmatter(raw)
-    except (subset_parser.UnsupportedError, subset_parser.ParseError) as exc:
+        parser.parse_frontmatter(raw)
+    except (parser.UnsupportedError, parser.ParseError) as exc:
         return (
             f"{rel}: skillforge's stdlib frontmatter parser refuses this template ({exc}); "
             "use block mappings, and key lists by name instead of listing mappings"

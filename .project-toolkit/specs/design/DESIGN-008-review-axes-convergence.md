@@ -30,7 +30,8 @@ date: 2026-05-09
 > retired. The ADR-109 amendment of that date deleted
 > `generate_pr_quality_prompts.py`, the `pr-quality-gate-{role}.md` prompts,
 > and their drift checks. The `pr-quality` skill reads the canonical axis files
-> directly, so no derived copy exists to drift.
+> directly, so no derived prompt copy exists. `build_all.py --check` gates the
+> plugin mirrors of those files.
 
 ## Requirements Addressed
 

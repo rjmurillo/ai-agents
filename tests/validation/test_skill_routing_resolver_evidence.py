@@ -41,10 +41,8 @@ def _door(
     name: str,
     *,
     intents: tuple[str, ...] = ("do the thing",),
-    description: str = "Use when you say `do the thing`.",
-    shipped: bool = True,
 ) -> evidence.FrontDoor:
-    return evidence.FrontDoor(name, shipped, intents, description)
+    return evidence.FrontDoor(name, intents)
 
 
 # --- intent_reachable -------------------------------------------------------
@@ -135,6 +133,22 @@ def test_load_resolver_loads_the_shipped_resolver_from_the_repository() -> None:
     assert roots
 
 
+def test_a_resolver_that_raises_propagates_out_of_intents_reached(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    template = _template(tmp_path, "name: a\nmetadata:\n  routing:\n    intents: [run a]")
+
+    def resolve(request: str, roots: list[object]) -> dict[str, object]:
+        raise RuntimeError("resolver broke")
+
+    monkeypatch.setattr(
+        evidence, "load_resolver", lambda repo_root: (SimpleNamespace(resolve=resolve), [])
+    )
+
+    with pytest.raises(RuntimeError, match="resolver broke"):
+        evidence.intents_reached(tmp_path, {"a": template})
+
+
 # --- read_front_door ---------------------------------------------------------
 
 
@@ -144,22 +158,21 @@ def _template(tmp_path: Path, frontmatter: str) -> Path:
     return path
 
 
-def test_read_front_door_reads_intents_description_and_distribution(tmp_path: Path) -> None:
+def test_read_front_door_reads_string_intents_only(tmp_path: Path) -> None:
     template = _template(
         tmp_path,
-        "name: x\ndescription: Use for x.\nmetadata:\n  distribution: repo-local\n"
-        "  routing:\n    intents:\n      - do the thing\n      - 7\n",
+        "name: x\nmetadata:\n  routing:\n    intents:\n      - do the thing\n      - 7\n",
     )
 
     door = evidence.read_front_door("x", template)
 
-    assert door == evidence.FrontDoor("x", False, ("do the thing",), "Use for x.")
+    assert door == evidence.FrontDoor("x", ("do the thing",))
 
 
-def test_read_front_door_defaults_a_bare_skill_to_shipped_with_no_intents(tmp_path: Path) -> None:
+def test_read_front_door_defaults_a_bare_skill_to_no_intents(tmp_path: Path) -> None:
     door = evidence.read_front_door("x", _template(tmp_path, "name: x"))
 
-    assert door == evidence.FrontDoor("x", True, (), "")
+    assert door == evidence.FrontDoor("x", ())
 
 
 def test_read_front_door_returns_none_for_unparseable_frontmatter(tmp_path: Path) -> None:

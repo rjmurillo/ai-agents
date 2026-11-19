@@ -441,7 +441,6 @@ def test_historical_records_are_out_of_scope(path: str) -> None:
         "src/copilot-cli/skills/reflect/SKILL.md",
         "src/vs-code-agents/retrospective.agent.md",
         ".github/instructions/python.instructions.md",
-        ".github/prompts/pr-quality-gate-architect.md",
     ],
 )
 def test_generated_mirrors_are_out_of_scope(path: str) -> None:
@@ -450,8 +449,9 @@ def test_generated_mirrors_are_out_of_scope(path: str) -> None:
 
 
 def test_hand_maintained_github_prompt_is_in_scope() -> None:
-    """Only generated PR quality prompts are excluded under `.github/prompts`."""
+    """Nothing under `.github/prompts` is excluded, whatever its name."""
     assert is_in_scope(".github/prompts/drift-alert-issue.md")
+    assert is_in_scope(".github/prompts/pr-quality-gate-architect.md")
 
 
 @pytest.mark.parametrize(

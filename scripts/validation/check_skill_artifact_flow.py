@@ -59,6 +59,7 @@ from skill_artifact_schema import (  # noqa: E402
     SOURCES,
     Input,
     Output,
+    SubsetParserUnavailableError,
     parse_inputs,
     parse_outputs,
     subset_defect,
@@ -134,7 +135,10 @@ def _read_skill(path: Path, rel: str) -> tuple[SkillFlow | None, list[str]]:
     """Read one template, returning its flow or the defects that prevented it."""
     name = path.name.removesuffix(TEMPLATE_SUFFIX)
     text = path.read_text(encoding="utf-8")
-    subset = subset_defect(rel, text)
+    try:
+        subset = subset_defect(rel, text)
+    except SubsetParserUnavailableError as exc:
+        raise TreeError(str(exc)) from exc
     try:
         front, body = _split(text)
     except (yaml.YAMLError, ValueError) as exc:

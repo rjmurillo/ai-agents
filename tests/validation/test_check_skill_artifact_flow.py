@@ -399,3 +399,67 @@ def test_a_skill_may_read_an_artifact_it_also_produces(
     code, _, err = _run(corpus, capsys)
 
     assert code == 0, err
+
+
+# --- lazy subset parser -----------------------------------------------------
+
+
+def test_a_missing_subset_parser_exits_2_naming_the_parser(
+    corpus: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import skill_artifact_schema as schema
+
+    absent = tmp_path / "no-skillforge"
+    monkeypatch.setattr(schema, "_SUBSET_PARSER_DIR", absent)
+    monkeypatch.setattr(schema, "_parser_cache", [])
+    assert not absent.exists()
+
+    code, _, err = _run(corpus, capsys)
+
+    assert code == 2
+    assert "skillforge parser not found" in err
+
+
+def test_a_subset_parser_that_fails_to_import_exits_2(
+    corpus: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import skill_artifact_schema as schema
+
+    broken = tmp_path / "broken-skillforge"
+    broken.mkdir()
+    (broken / "_conformance_parse.py").write_text("raise RuntimeError('boom')\n", encoding="utf-8")
+    monkeypatch.setattr(schema, "_SUBSET_PARSER_DIR", broken)
+    monkeypatch.setattr(schema, "_parser_cache", [])
+
+    code, _, err = _run(corpus, capsys)
+
+    assert code == 2
+    assert "boom" in err
+
+
+def test_importing_the_schema_module_does_not_load_the_parser(tmp_path: Path) -> None:
+    import subprocess
+    import sys
+
+    probe = (
+        "import sys; sys.path.insert(0, 'scripts/validation'); "
+        "import skill_artifact_schema as s; "
+        "assert s._parser_cache == [], 'parser loaded at import'"
+    )
+    result = subprocess.run(
+        [sys.executable, "-I", "-c", probe],
+        cwd=_REPO_ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr

@@ -208,8 +208,6 @@ def classify_file_category(file_path: Path, content: str | None = None) -> str:
     parts = _repo_relative_parts(file_path)
     if any(parts[: len(segment)] == segment for segment in _GENERATED_PATH_SEGMENTS):
         return "generated"
-    if file_path.name.startswith("pr-quality-gate-") and ".github" in parts:
-        return "generated"
     if content is None:
         try:
             content = file_path.read_text(encoding="utf-8")

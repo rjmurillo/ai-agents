@@ -80,6 +80,7 @@ __all__ = [
     "SKILL_BYTE_HEADROOM",
     "SKILL_BYTE_LIMIT",
     "SOURCES",
+    "added_failures",
     "lint_text",
     "main",
     "new_failures",
@@ -192,13 +193,35 @@ def lint_text(text: str) -> list[Result]:
     return evaluate(doc)
 
 
+def added_failures(before: list[Result], after: list[Result]) -> list[Result]:
+    """Return MUST failures in `after` that `before` does not have.
+
+    A FAIL counts when the incumbent did not FAIL the rule. A MUST rule that is
+    NOT_EVALUATED counts when the incumbent PASSed it, because the standalone
+    linter treats that state as failing (`failed`). An incumbent that was
+    itself NOT_EVALUATED or failing already carried the problem.
+    """
+    failing_before = {r.rule.id for r in before if r.status == "FAIL"}
+    passing_before = {r.rule.id for r in before if r.status == "PASS"}
+    added = []
+    for result in after:
+        if result.status == "FAIL" and result.rule.id not in failing_before:
+            added.append(result)
+        elif (
+            result.status == "NOT_EVALUATED"
+            and result.rule.level == "MUST"
+            and result.rule.id in passing_before
+        ):
+            added.append(result)
+    return added
+
+
 def new_failures(incumbent: str, candidate: str) -> list[Result]:
     """Return MUST failures the candidate has and the incumbent does not.
 
     An optimizer may keep a failure it inherited; it may not add one.
     """
-    before = {r.rule.id for r in lint_text(incumbent) if r.status == "FAIL"}
-    return [r for r in lint_text(candidate) if r.status == "FAIL" and r.rule.id not in before]
+    return added_failures(lint_text(incumbent), lint_text(candidate))
 
 
 def failed(results: list[Result], strict: bool) -> bool:

@@ -64,10 +64,6 @@ class TestMirrorSourceMapping:
                 "src/hermes/project-toolkit-knowledge/lib/github_core/api.py",
                 ".claude/lib/github_core/api.py",
             ),
-            (
-                ".github/prompts/pr-quality-gate-security.md",
-                ".claude/skills/review/references/security.md",
-            ),
         ],
     )
     def test_known_mirrors_resolve_to_their_source(self, output: str, expected: str) -> None:
@@ -81,6 +77,7 @@ class TestMirrorSourceMapping:
             "scripts/ai_review_common/retry.py",
             "tests/test_ai_review.py",
             "docs/README.md",
+            ".github/prompts/pr-quality-gate-security.md",
             "src/hermes/README.md",
             "src/hermes/project-toolkit-delivery/plugin.json",
             "src/hermes/other-dir/skills/github/SKILL.md",

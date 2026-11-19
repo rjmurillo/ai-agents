@@ -17,7 +17,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 AUTOFIX = REPO_ROOT / ".claude" / "skills" / "pr-autofix" / "SKILL.md"
 REVIEW = REPO_ROOT / ".claude" / "skills" / "pr-review" / "SKILL.md"
 CONFIG = REPO_ROOT / ".claude" / "skills" / "pr-review" / "pr-review-config.yaml"
-PROMPT = REPO_ROOT / ".github" / "prompts" / "pr-review.prompt.md"
 COPILOT_AUTOFIX = REPO_ROOT / "src" / "copilot-cli" / "skills" / "pr-autofix" / "SKILL.md"
 COPILOT_REVIEW = REPO_ROOT / "src" / "copilot-cli" / "skills" / "pr-review" / "SKILL.md"
 
@@ -87,7 +86,7 @@ class TestReviewPreflightWiring:
         verdicts = {v["transport"] for v in config["transport_preflight"]["verdicts"]}
         assert verdicts == {"gh", "gh_unusable"}
 
-    @pytest.mark.parametrize("path", [REVIEW, PROMPT, COPILOT_REVIEW])
+    @pytest.mark.parametrize("path", [REVIEW, COPILOT_REVIEW])
     def test_every_consumer_runs_the_preflight_before_step_1(self, path):
         body = path.read_text(encoding="utf-8")
         assert "transport_preflight" in body, f"{path.name} never runs the preflight"
@@ -269,7 +268,6 @@ class TestMcpGrantsAreEnumerated:
         [
             (".claude/skills/pr-review/SKILL.md", "claude_code"),
             ("src/copilot-cli/skills/pr-review/SKILL.md", "copilot"),
-            (".github/prompts/pr-review.prompt.md", "copilot"),
         ],
         ids=lambda value: value[0],
     )
@@ -403,7 +401,7 @@ class TestMcpGrantsAreEnumerated:
         assert "Tracked as" not in body
         assert "--verify-config-only" in body[body.index("Scope: the dispatcher") :]
 
-    @pytest.mark.parametrize("path", [REVIEW, COPILOT_REVIEW, PROMPT])
+    @pytest.mark.parametrize("path", [REVIEW, COPILOT_REVIEW])
     def test_every_consumer_states_the_verification_runs_first(self, path):
         """A config key no consumer reads is not a gate.
 
@@ -434,20 +432,8 @@ class TestMcpGrantsAreEnumerated:
         """The slash-command validator rejects any wildcard that is not scoped.
 
         A Copilot-spelled `github/*` here is both invalid to that gate and
-        meaningless to Claude. The Copilot surface takes its grant through the
-        prompt's own `tools` list instead.
+        meaningless to Claude.
         """
         for tool in _granted(path):
             if "*" in tool:
                 assert tool.startswith("Bash("), f"{path.name} has an unscoped wildcard: {tool}"
-
-    def test_the_copilot_prompt_grants_the_same_operations_its_own_way(self):
-        """Same set, Copilot's spelling, and no blanket grant there either."""
-        config = yaml.safe_load(PROMPT.read_text(encoding="utf-8").split("---")[1])
-        tools = set(config["tools"])
-
-        assert "github/*" not in tools
-        expected = {f"github/{op}" for op in _MCP_READS | _MCP_REVIEW_WRITES | {_MCP_QUEUE_READ}}
-        assert expected <= tools, f"prompt is missing {sorted(expected - tools)}"
-        forbidden = sorted(f"github/{op}" for op in _MCP_FORBIDDEN if f"github/{op}" in tools)
-        assert not forbidden, f"prompt grants a repository mutation: {forbidden}"

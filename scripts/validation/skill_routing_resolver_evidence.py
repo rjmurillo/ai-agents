@@ -10,8 +10,10 @@ description advertises.
 
 It reads the rendered catalog at `<repo_root>/src/claude/skills`, the tree the
 resolver ships with. When that tree or the resolver is absent (a fixture
-repository, or a downstream install), it credits nothing. It cannot change the
-gate's exit code.
+repository, or a downstream install), it credits nothing. A resolver that is
+present but fails to load, or raises while routing an intent, fails the gate
+loudly: the error propagates, so a broken resolver is never read as "no
+intent reached".
 """
 
 from __future__ import annotations
@@ -35,12 +37,10 @@ _FRONTMATTER = re.compile(r"\A---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 
 @dataclass(frozen=True)
 class FrontDoor:
-    """The facts the two layers need about one front-door skill."""
+    """The facts the intent layer needs about one front-door skill."""
 
     name: str
-    shipped: bool
     intents: tuple[str, ...]
-    description: str
 
 
 def load_resolver(repo_root: Path) -> tuple[ModuleType, list[object]] | None:
@@ -93,7 +93,7 @@ def _mapping(value: object) -> dict[str, object]:
 
 
 def read_front_door(name: str, template: Path) -> FrontDoor | None:
-    """Read one skill template's intents, description, and distribution.
+    """Read one skill template's routing intents.
 
     Returns None when the frontmatter does not parse; the routing gate already
     reports that defect.
@@ -103,18 +103,11 @@ def read_front_door(name: str, template: Path) -> FrontDoor | None:
         front = yaml.safe_load(match.group(1)) if match else {}
     except yaml.YAMLError:
         return None
-    front = _mapping(front)
-    metadata = _mapping(front.get("metadata"))
-    intents = _mapping(metadata.get("routing")).get("intents")
-    description = front.get("description")
-    return FrontDoor(
-        name=name,
-        shipped=metadata.get("distribution") != "repo-local",
-        intents=tuple(i for i in intents if isinstance(i, str))
-        if isinstance(intents, list)
-        else (),
-        description=description if isinstance(description, str) else "",
-    )
+    routing = _mapping(_mapping(_mapping(front).get("metadata")).get("routing"))
+    intents = routing.get("intents")
+    if not isinstance(intents, list):
+        return FrontDoor(name=name, intents=())
+    return FrontDoor(name=name, intents=tuple(i for i in intents if isinstance(i, str)))
 
 
 def intents_reached(repo_root: Path, templates: Mapping[str, Path]) -> set[str]:

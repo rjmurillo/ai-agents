@@ -28,9 +28,12 @@ updated: 2026-11-19
 > [!IMPORTANT]
 > Amended 2026-11-19. REQ-008-02 and REQ-008-03 are retired. The ADR-109
 > amendment of that date deleted the `pr-quality-gate-{role}.md` prompts. It
-> also deleted their generator and every drift check. The `pr-quality` skill now
-> reads `.claude/skills/review/references/{role}.md` directly. The canonical
-> files are the only copy, so nothing can drift. REQ-008-01 still binds.
+> also deleted their generator and every drift check in live code. The
+> `pr-quality` skill now reads `.claude/skills/review/references/{role}.md`
+> directly, so no derived prompt copy exists. `build_all.py --check` gates the
+> plugin mirrors of those files. REQ-008-01 still binds its file and section
+> rules. Its seed and CI-prompt criteria, and the generator and drift-hook
+> references in REQ-008-04 and REQ-008-07, are historical.
 
 ## Context
 

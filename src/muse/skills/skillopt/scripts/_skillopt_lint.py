@@ -59,9 +59,11 @@ def check_candidate(incumbent: str, candidate: str) -> None:
             "is not installed beside skillopt\n"
         )
         return
-    added = lint.new_failures(incumbent, candidate)
-    before_warn = {r.rule.id for r in lint.lint_text(incumbent) if r.status == "WARN"}
-    for result in lint.lint_text(candidate):
+    before = lint.lint_text(incumbent)
+    after = lint.lint_text(candidate)
+    added = lint.added_failures(before, after)
+    before_warn = {r.rule.id for r in before if r.status == "WARN"}
+    for result in after:
         if result.status == "WARN" and result.rule.id not in before_warn:
             for message in result.messages:
                 sys.stderr.write(f"WARNING: {result.rule.id}: {message}\n")

@@ -153,7 +153,7 @@ class TestSibling:
 
     def test_do_not_clause_phrase_is_not_checked(self, repo: Path) -> None:
         skills = _skills(repo)
-        _skill(skills, "widget-maker", "Makes widgets.", ["write widget"])
+        _skill(skills, "widget-maker", 'Makes widgets. Use for "write widget".', ["write widget"])
         _skill(skills, "other", 'Use for things. Do NOT use for "write a widget".')
         assert _run(repo, _baseline(repo)) == gate.EXIT_OK
 
@@ -314,7 +314,9 @@ class TestFrontDoorWithoutIntents:
         assert _run(repo, _baseline(repo)) == gate.EXIT_OK
 
     def test_front_door_without_phrases_passes(self, repo: Path) -> None:
-        _skill(_skills(repo), "plain", "Creates widgets. Use when widgets are needed.")
+        skills = _skills(repo)
+        _skill(skills, "plain", "Creates widgets. Use when widgets are needed.")
+        _skill(skills, "w", 'Use for "write widget".', ["write widget"])
         assert _run(repo, _baseline(repo)) == gate.EXIT_OK
 
     def test_non_front_door_without_intents_passes(self, repo: Path) -> None:
@@ -352,8 +354,57 @@ class TestWriteBaselineWorktreeIdentity:
     def test_writes_default_baseline_from_inside_root(
         self, repo: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        _skill(_skills(repo), "plain", "No phrases here.")
+        _skill(_skills(repo), "plain", 'Use for "frobnicate gadgets".', ["write widget"])
         (repo / gate.BASELINE_RELATIVE).parent.mkdir(parents=True)
         monkeypatch.chdir(repo)
         assert gate.main(["--repo-root", str(repo), "--write-baseline"]) == gate.EXIT_OK
         assert (repo / gate.BASELINE_RELATIVE).is_file()
+
+
+class TestExaminedCount:
+    def test_summary_line_reports_what_was_examined(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        skills = _skills(repo)
+        _skill(skills, "w", 'Use for "write widget" or "make a widget".', ["write widget"])
+        _skill(skills, "plain", "Creates widgets.")
+        baseline = _baseline(repo, sibling={}, own={})
+
+        _run(repo, baseline)
+        out = capsys.readouterr().out
+
+        assert "examined skills=2 phrases=2 " in out
+
+    def test_zero_phrases_exits_config_not_ok(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        _skill(_skills(repo), "plain", "Creates widgets. No quoted phrases.")
+
+        rc = _run(repo, _baseline(repo))
+        captured = capsys.readouterr()
+
+        assert rc == gate.EXIT_CONFIG
+        assert "0 trigger phrases" in captured.err
+        assert "violations=" not in captured.out
+
+    def test_zero_phrases_after_do_not_cut_exits_config(self, repo: Path) -> None:
+        _skill(_skills(repo), "other", 'Use for things. Do NOT use for "write a widget".')
+
+        assert _run(repo, _baseline(repo)) == gate.EXIT_CONFIG
+
+    def test_zero_skills_exits_config(self, repo: Path) -> None:
+        assert _run(repo, _baseline(repo)) == gate.EXIT_CONFIG
+
+    def test_new_violation_line_names_the_skill_md_path(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        _skill(_skills(repo), "w", 'Use for "frobnicate gadgets".', ["write widget"])
+
+        rc = _run(repo, _baseline(repo))
+        out = capsys.readouterr().out
+
+        assert rc == gate.EXIT_VIOLATION
+        fail_lines = [line for line in out.splitlines() if line.startswith("[FAIL] new violation")]
+        assert fail_lines
+        assert all(str(_skills(repo) / "w" / "SKILL.md") in line for line in fail_lines)
+        assert "examined skills=1 phrases=1 " in out

@@ -122,6 +122,7 @@ class Skill:
     description: str
     has_intents: bool
     front_door: bool = False
+    skill_md: Path | None = None
 
 
 def extract_phrases(description: str) -> list[str]:
@@ -187,7 +188,11 @@ def load_skills(skills_dir: Path) -> list[Skill]:
             raise ConfigError(f"{path}: description missing or not a string")
         skills.append(
             Skill(
-                path.parent.name, description, _declares_intents(path, data), _is_front_door(data)
+                path.parent.name,
+                description,
+                _declares_intents(path, data),
+                _is_front_door(data),
+                path,
             )
         )
     if not skills:
@@ -329,12 +334,28 @@ def _fmt(identity: Identity) -> str:
     return f"{check}: {skill}: {phrase!r}"
 
 
-def _report(new: list[Identity], stale: list[Identity], found: int, base: int) -> None:
+def _report(
+    new: list[Identity],
+    stale: list[Identity],
+    counts: tuple[int, int, int, int],
+    paths: dict[str, Path | None],
+) -> None:
+    """Print findings, then one summary line that always names what was examined."""
+    skills, phrases, found, base = counts
     for identity in new:
-        print(f"[FAIL] new violation: {_fmt(identity)}")
+        where = paths.get(identity[1])
+        suffix = f" ({where})" if where is not None else ""
+        print(f"[FAIL] new violation: {_fmt(identity)}{suffix}")
     for identity in stale:
         print(f"[INFO] baseline entry no longer fires, remove it: {_fmt(identity)}")
-    print(f"violations={found} baseline={base} new={len(new)} stale={len(stale)}")
+    print(
+        f"examined skills={skills} phrases={phrases} "
+        f"violations={found} baseline={base} new={len(new)} stale={len(stale)}"
+    )
+
+
+def _count_phrases(skills: list[Skill]) -> int:
+    return sum(len(extract_phrases(skill.description)) for skill in skills)
 
 
 def _run(args: argparse.Namespace) -> int:
@@ -343,7 +364,14 @@ def _run(args: argparse.Namespace) -> int:
     repo_root = Path(args.repo_root).resolve()
     skills_dir = Path(args.skills_dir) if args.skills_dir else repo_root / SKILLS_SUBDIR
     baseline_path = Path(args.baseline) if args.baseline else repo_root / BASELINE_RELATIVE
-    found = find_violations(load_skills(skills_dir), skills_dir)
+    skills = load_skills(skills_dir)
+    phrase_count = _count_phrases(skills)
+    if phrase_count == 0:
+        raise ConfigError(
+            f"examined {len(skills)} skills under {skills_dir} but found 0 trigger phrases; "
+            "the check would examine nothing, so it cannot report success"
+        )
+    found = find_violations(skills, skills_dir)
     if args.write_baseline:
         # ci-scripts MUST 7: a write into the resolved root needs cwd inside it.
         target = baseline_path.resolve()
@@ -357,7 +385,8 @@ def _run(args: argparse.Namespace) -> int:
         return EXIT_OK
     baseline = read_baseline(baseline_path)
     new, stale = sorted(found - baseline), sorted(baseline - found)
-    _report(new, stale, len(found), len(baseline))
+    paths = {skill.name: skill.skill_md for skill in skills}
+    _report(new, stale, (len(skills), phrase_count, len(found), len(baseline)), paths)
     return EXIT_VIOLATION if new else EXIT_OK
 
 

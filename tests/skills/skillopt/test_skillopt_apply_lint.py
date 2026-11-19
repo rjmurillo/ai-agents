@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import _skillopt_lint
+import pytest
 import skillopt
 from skillopt_helpers import Capture, valid_eval, write_json
 
@@ -98,3 +100,34 @@ def test_apply_warns_on_a_new_should_finding_without_refusing(
 
     assert code == 0
     assert "WARNING: fm.description.redirect" in capsys.readouterr().err
+
+
+def test_apply_says_lint_not_run_when_the_linter_is_absent(
+    tmp_path: Path, capsys: Capture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    missing = tmp_path / "no-such-skillforge" / "lint_skill_frontmatter.py"
+    assert not missing.exists()
+    monkeypatch.setattr(_skillopt_lint, "_LINT", missing)
+    patches = [{"op": "append", "text": "More guidance."}]
+
+    code = _apply(tmp_path, _INCUMBENT, patches, "--out", str(tmp_path / "cand.md"))
+
+    assert code == 0
+    assert "NOT RUN" in capsys.readouterr().err
+    assert (tmp_path / "cand.md").is_file()
+
+
+def test_apply_refuses_a_candidate_that_a_must_rule_cannot_evaluate(
+    tmp_path: Path, capsys: Capture
+) -> None:
+    incumbent = _INCUMBENT.replace(
+        "metadata:\n", "metadata:\n  capability:\n    kind: orchestrator\n"
+    )
+    patches = [
+        {"op": "insert_after", "anchor": "    role: front-door", "text": "    extra: {a: b}"}
+    ]
+
+    code = _apply(tmp_path, incumbent, patches, "--out", str(tmp_path / "cand.md"))
+
+    assert code == 2
+    assert "fm.capability.shape" in capsys.readouterr().err

@@ -224,17 +224,31 @@ def intents_role(doc: subset.SkillDoc) -> list[str]:
     ]
 
 
+_RESOLVER_PATH = Path(__file__).resolve().parents[2] / "autoplan" / "scripts" / "resolve_route.py"
+_resolver_cache: list[ModuleType] = []
+
+
 def _resolver() -> ModuleType:
-    """Load autoplan's resolver from this plugin for its tokenizer and matcher."""
-    script = Path(__file__).resolve().parents[2] / "autoplan" / "scripts" / "resolve_route.py"
-    if not script.is_file():
+    """Load autoplan's resolver from this plugin once per process.
+
+    Any failure to find or load it is NotEvaluatedError, never a crash: the
+    linter and `skillopt apply` must report the rule as not evaluated.
+    """
+    if _resolver_cache:
+        return _resolver_cache[0]
+    if not _RESOLVER_PATH.is_file():
         raise NotEvaluatedError("autoplan's resolve_route.py is not installed beside skillforge")
-    spec = importlib.util.spec_from_file_location("_lint_resolve_route", script)
+    spec = importlib.util.spec_from_file_location("_lint_resolve_route", _RESOLVER_PATH)
     if spec is None or spec.loader is None:
         raise NotEvaluatedError("cannot load resolve_route.py")
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
+    try:
+        spec.loader.exec_module(module)
+    except Exception as exc:
+        sys.modules.pop(spec.name, None)
+        raise NotEvaluatedError(f"cannot load resolve_route.py: {exc}") from exc
+    _resolver_cache.append(module)
     return module
 
 
@@ -274,12 +288,17 @@ def phrases_routable(doc: subset.SkillDoc) -> list[str]:
             "users type so they can be checked against the intents"
         ]
     resolver = _resolver()
-    tokenized = [resolver._tokenize(str(intent)) for intent in intents]
-    problems = []
-    for phrase in phrases:
-        request = resolver._tokenize(phrase)
-        if not any(resolver._matches_ordered(request, intent) for intent in tokenized):
-            problems.append(f"trigger phrase {phrase!r} matches none of the skill's own intents")
+    try:
+        tokenized = [resolver._tokenize(str(intent)) for intent in intents]
+        problems = []
+        for phrase in phrases:
+            request = resolver._tokenize(phrase)
+            if not any(resolver._matches_ordered(request, intent) for intent in tokenized):
+                problems.append(
+                    f"trigger phrase {phrase!r} matches none of the skill's own intents"
+                )
+    except AttributeError as exc:
+        raise NotEvaluatedError(f"resolve_route.py no longer exposes {exc.name!r}") from exc
     return problems
 
 

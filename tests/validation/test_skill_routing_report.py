@@ -307,10 +307,22 @@ def test_json_report_is_valid_json_with_expected_shape(tree: Path) -> None:
 
 def test_intent_reachability_credits_nothing_without_a_rendered_catalog(tree: Path) -> None:
     _report_catalog(tree)
+    # An autoplan front door with its own intent, named by no other text, so it
+    # is a candidate for intent credit. The tree has no rendered catalog or
+    # resolver, so the no-catalog guard in `load_resolver` is the only thing
+    # standing between this candidate and a crash on a missing resolver script.
+    _skill(
+        tree,
+        "intent-door",
+        _routing(role="front-door", invoker="autoplan", trigger="t", user_facing=True)
+        + "\n    intents:\n      - ship the intent door",
+        body="Nothing else names this skill.",
+    )
 
     skills, _findings, evidence = gate.survey(tree)
     payload = json.loads(gate.render(skills, evidence, "json"))
 
+    assert "intent-door" in payload["unresolved"]
     assert payload["intent_reached"] == []
 
 

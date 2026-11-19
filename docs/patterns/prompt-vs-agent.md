@@ -9,7 +9,7 @@ This repository uses two distinct file types to define AI behaviors: `.agent.md`
 | Purpose | Defines a runnable agent | Defines a VS Code slash command | Source template for agent generation |
 | Frontmatter | `name:`, `tools:`, `model:` | `description:`, `tools:`, `model:` | `description:`, `tools_vscode:`, `tools_copilot:` |
 | Model format | `claude-opus-4.5` (SDK) | `Claude Opus 4.5 (anthropic)` (display) | Omitted (injected by generator) |
-| Invocation | Called by other agents via `agent` tool | Called by user as slash command (e.g., `/pr-quality:all`) | Not invoked directly |
+| Invocation | Called by other agents via `agent` tool | Called by user as slash command (e.g., `/pr-quality`) | Not invoked directly |
 | Locations | `.github/agents/`, `src/copilot-cli/`, `src/vs-code-agents/` | `.github/prompts/` | `templates/agents/` |
 | Can delegate | Yes, to other agents | Yes, via `agent` tool | N/A |
 
