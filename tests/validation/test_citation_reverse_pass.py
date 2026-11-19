@@ -311,3 +311,186 @@ def test_rewording_the_citing_line_retains_an_existing_bare_citation(tmp_path: P
 
     assert code == 1, output
     assert f"suggested citation {TARGET}:6-7" in output
+
+
+@pytest.mark.parametrize("suffix", ["md", "md.tmpl"])
+def test_template_sources_receive_the_same_anchor_checks(tmp_path: Path, suffix: str) -> None:
+    doc = f"templates/guide.{suffix}"
+    root = _repo_with_doc(tmp_path, ANCHORED, doc)
+    _commit_file(root, TARGET, INSERTED_ABOVE)
+    code, output = _run_reverse(root)
+    assert code == 1, output
+    assert f"{doc}:1" in output
+
+
+def test_edited_bare_citation_blocks_even_when_stale_at_the_base(tmp_path: Path) -> None:
+    """A line the branch edits owns its citation, including inherited drift."""
+    bare = TARGET.rsplit("/", 1)[-1]
+    root = _repo_with_doc(tmp_path, f"The helper `magic_token` lives at {bare}:9.\n")
+    _commit_file(root, TARGET, INSERTED_ABOVE)
+    _commit_file(root, DOC, f"See the helper `magic_token` at {bare}:9.\n")
+
+    code, output = _run_reverse(root)
+
+    assert code == 1, output
+    assert f"{DOC}:1" in output
+
+
+def test_adr_citation_on_an_untouched_line_follows_the_adr_file(tmp_path: Path) -> None:
+    """ADR-NNN:N resolves through the ADR link checker's file number."""
+    adr = ".agents/architecture/ADR-036-example.md"
+    root = _repo(tmp_path)
+    _git(root, "checkout", "-q", "main")
+    _commit_file(root, adr, "# Title\n\n## Not Generated\n\nbody\n")
+    _commit_file(root, DOC, "ADR-036:3 names `Not Generated`.\n")
+    _git(root, "checkout", "-q", "-B", "feature")
+    _commit_file(root, adr, "# Title\n\ninserted\n## Not Generated\n\nbody\n")
+
+    code, output = _run_reverse(root)
+
+    assert code == 1, output
+    assert "suggested citation .agents/architecture/ADR-036-example.md:4" in output
+
+
+def test_added_adr_citation_is_checked_by_the_forward_gate(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    adr = ".agents/architecture/ADR-036-example.md"
+    root = _repo(tmp_path)
+    _git(root, "checkout", "-q", "main")
+    _commit_file(root, adr, "# Title\n\n## Not Generated\n")
+    _git(root, "checkout", "-q", "-B", "feature")
+    _commit_file(root, DOC, "ADR-036:1 names `Not Generated`.\n")
+
+    code, output = _run(root, capsys)
+
+    assert code == 1, output
+    assert f"{DOC}:1" in output
+
+
+def test_recorded_replay_findings_are_historical_but_corpus_is_authored() -> None:
+    from scripts.validation.check_citation_freshness import _is_exempt_citing_file
+
+    prefix = "evals/docs-review-catch-rate/citation_freshness"
+    assert _is_exempt_citing_file(f"{prefix}/results/2026-11-19.json")
+    assert not _is_exempt_citing_file(f"{prefix}/corpus.json")
+    assert not _is_exempt_citing_file(f"{prefix}/README.md")
+
+
+def test_serena_memory_does_not_steal_an_adr_number() -> None:
+    """A historical ADR copy must not make the live number ambiguous."""
+    from scripts.validation.citation_anchors import _citation_aliases
+
+    tracked = {
+        ".agents/architecture/ADR-036-example.md",
+        ".serena/memories/adr/adr-036-platform.md",
+    }
+    aliases = _citation_aliases(tracked)
+    assert aliases["036"] == ".agents/architecture/ADR-036-example.md"
+
+
+def test_bare_colon_binds_to_one_basename_and_leaves_ambiguous_names() -> None:
+    """(:N) follows the previous filename only when that basename is unique."""
+    from scripts.validation.citation_continuations import _expand_continuations
+
+    index = {"util.py": ["lib/util.py"], "notes.md": ["a/notes.md", "b/notes.md"]}
+    expanded = _expand_continuations("See util.py (:3-4), notes.md (:1), and auth.ts:47.", index)
+    assert "lib/util.py:3-4" in expanded
+    assert "a/notes.md" not in expanded
+    assert "auth.ts:47" in expanded
+
+
+def test_citation_beside_an_edit_is_checked_when_its_target_is_unchanged(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A stale cite within three lines of an added line fails at HEAD."""
+    root = _repo(tmp_path)
+    _git(root, "checkout", "-q", "main")
+    _commit_file(root, "docs/notes.md", f"See `{TARGET}:1` (`magic_token`).\n")
+    _git(root, "checkout", "-q", "-B", "feature")
+    _commit_file(root, "docs/notes.md", f"See `{TARGET}:1` (`magic_token`).\n\nAdded nearby.\n")
+
+    code, out = _run(root, capsys)
+
+    assert code == 1, out
+    assert "docs/notes.md:1" in out
+
+
+def test_fresh_citation_beside_an_edit_stays_quiet(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _repo(tmp_path)
+    _git(root, "checkout", "-q", "main")
+    _commit_file(root, "docs/notes.md", f"See `{TARGET}:3` (`magic_token`).\n")
+    _git(root, "checkout", "-q", "-B", "feature")
+    _commit_file(root, "docs/notes.md", f"See `{TARGET}:3` (`magic_token`).\n\nAdded nearby.\n")
+
+    code, out = _run(root, capsys)
+
+    assert code == 0, out
+
+
+def test_two_rare_anchors_outside_a_shared_token_fail(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A common token inside the range does not save two rare names outside it."""
+    cited = "hooks/group.yml"
+    body = "run: shared\nparallel: true\nmemory-size: 1\nrun: shared\nrun: shared\n"
+    root = _repo(tmp_path)
+    _git(root, "checkout", "-q", "main")
+    _commit_file(root, cited, body)
+    _git(root, "checkout", "-q", "-B", "feature")
+    line = f"See `{cited}:1` for `parallel: true`, `memory-size`, and `run`.\n"
+    _commit_file(root, "docs/notes.md", line)
+
+    code, out = _run(root, capsys)
+
+    assert code == 1, out
+    assert "distinctive anchors" in out
+
+
+def test_rare_anchor_inside_the_range_keeps_the_citation(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cited = "hooks/group.yml"
+    body = "run: shared\nparallel: true\nmemory-size: 1\nrun: shared\nrun: shared\n"
+    root = _repo(tmp_path)
+    _git(root, "checkout", "-q", "main")
+    _commit_file(root, cited, body)
+    _git(root, "checkout", "-q", "-B", "feature")
+    line = f"See `{cited}:2-3` for `parallel: true`, `memory-size`, and `run`.\n"
+    _commit_file(root, "docs/notes.md", line)
+
+    code, out = _run(root, capsys)
+
+    assert code == 0, out
+
+
+def test_four_moved_lines_report_a_cluster_when_the_base_cite_was_stale(
+    tmp_path: Path,
+) -> None:
+    """Already-stale text still blocks when this change moved four unique lines."""
+    base = "alpha_line_aaaa\nbeta_line_bbbb\ngamma_line_cccc\ndelta_line_dddd\n"
+    root = _repo(tmp_path)
+    _git(root, "checkout", "-q", "main")
+    _commit_file(root, TARGET, base)
+    _commit_file(root, DOC, f"See `{TARGET}:1-4` (`not_in_file_zzzz`).\n")
+    _git(root, "checkout", "-q", "-B", "feature")
+    _commit_file(root, TARGET, "# pad one\n# pad two\n# pad three\n" + base)
+
+    code, output = _run_reverse(root)
+
+    assert code == 1, output
+    assert f"suggested citation {TARGET}:4-7" in output
+
+
+def test_added_bare_colon_is_checked_against_the_unique_file(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _repo(tmp_path)
+    _commit_file(root, "docs/notes.md", "Open util.py and read (:1) for `magic_token`.\n")
+
+    code, out = _run(root, capsys)
+
+    assert code == 1, out
+    assert "docs/notes.md:1" in out

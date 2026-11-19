@@ -18,6 +18,16 @@ that short is checked for existence and range, not content.
 from __future__ import annotations
 
 import re
+from pathlib import PurePosixPath
+
+from check_adr_links import ADR_BASENAME, adr_number
+from citation_continuations import (  # noqa: F401
+    _basename_index,
+    _expand_continuations,
+    _moved_cluster,
+    _range_misses_distinctive_anchors,
+)
+from stale_script_refs import HISTORICAL_ROOTS
 
 # Text formats this repository actually cites; extend when a real
 # citation to a new format appears rather than enumerating every
@@ -313,3 +323,93 @@ def _same_line_segment(line: str, matches: list[re.Match[str]], index: int) -> s
     else:
         end = _gap_split(line, matches[index].end(), matches[index + 1].start())
     return line[start:end]
+
+
+def _block_positions(block: list[str], lines: list[str]) -> list[int]:
+    """Return every 1-based start where block sits verbatim in lines."""
+    width = len(block)
+    return [i + 1 for i in range(len(lines) - width + 1) if lines[i : i + width] == block]
+
+
+def _unique_move(block: list[str], start: int, base: list[str], head: list[str]) -> int | None:
+    """Return the block's single HEAD position, or None when the move is unproven.
+
+    A cited block counts as moved only when it is distinctive (at least
+    eight non-space characters), occurs exactly once at the merge base and
+    exactly once at HEAD, and the HEAD copy is not at the cited start. A
+    common line such as ``---`` or ``sys.executable,`` proves nothing.
+    """
+    if len("".join(text.strip() for text in block)) < 8:
+        return None
+    at_head = _block_positions(block, head)
+    if len(_block_positions(block, base)) != 1 or len(at_head) != 1:
+        return None
+    return None if at_head[0] == start else at_head[0]
+
+
+def _relocated_range(
+    start: int, end: int, base: list[str], head: list[str]
+) -> tuple[int, int] | None:
+    """Map unique cited boundary lines, including ranges that grew internally.
+
+    Edited or repeated boundaries prove no relocation. A stable first line
+    with only an end moved may reflect an intentional edit within the range.
+    Require both boundaries to move, preserving the policy for in-place edits.
+    """
+    if not (1 <= start <= end <= len(base)):
+        return None
+    first = _unique_move([base[start - 1]], start, base, head)
+    last = _unique_move([base[end - 1]], end, base, head)
+    if first is None or last is None or last < first:
+        return None
+    return first, last
+
+
+# ADR-036:45 and "ADR-101 describes at lines 278-284". The colon form
+# does not allow a space, so "ADR-035: 0 ok" stays an exit code.
+_ADR_CITE = re.compile(
+    r"\bADR-(?P<number>\d+)(?::|\s+(?:[A-Za-z]+\s+){0,6}lines?\s+)"
+    r"(?P<start>\d+)(?:-(?P<end>\d+))?\b",
+    re.IGNORECASE,
+)
+
+
+def _historical(path: str) -> bool:
+    """Return whether path sits under a historical root the gates already exempt."""
+    return path.startswith(HISTORICAL_ROOTS)
+
+
+def _citation_aliases(tracked: set[str]) -> dict[str, str]:
+    """Map a zero-padded ADR number to its file when that number is unique.
+
+    The number parse is ``adr_number`` from the ADR link checker. Serena
+    memories and other historical roots are not ADR records, so they do not
+    compete. A number that still names two files is left unresolved.
+    """
+    candidates: dict[str, set[str]] = {}
+    for path in tracked:
+        if _historical(path):
+            continue
+        pure = PurePosixPath(path)
+        if pure.parent.name not in {"architecture", "adr", "adrs"}:
+            continue
+        if not ADR_BASENAME.match(pure.name):
+            continue
+        number = adr_number(pure.name)
+        if number is None:
+            continue
+        candidates.setdefault(f"{number:03d}", set()).add(path)
+    return {name: next(iter(paths)) for name, paths in candidates.items() if len(paths) == 1}
+
+
+def _expand_adr_citations(text: str, aliases: dict[str, str]) -> str:
+    """Rewrite ADR-NNN line cites as path:line cites the matcher already checks."""
+
+    def adr(match: re.Match[str]) -> str:
+        path = aliases.get(f"{int(match.group('number')):03d}")
+        if path is None:
+            return match.group(0)
+        end = f"-{match.group('end')}" if match.group("end") else ""
+        return f"{path}:{match.group('start')}{end}"
+
+    return _ADR_CITE.sub(adr, text)

@@ -1,0 +1,157 @@
+#!/usr/bin/env python3
+"""Bare ``:N`` continuations and moved-line clusters for citation freshness.
+
+Extracted from ``citation_anchors.py`` at the file-size ceiling. A bare
+colon range binds to the preceding filename when that basename is unique.
+A cited block that was already stale can still be a move when enough of
+its lines each relocated once.
+"""
+
+from __future__ import annotations
+
+import re
+
+from stale_script_refs import HISTORICAL_ROOTS
+
+_FILENAME: re.Pattern[str] | None = None
+# A colon range that is not already the tail of a path citation. ``file.py:12``
+# has a word character before the colon, so it stays with the matcher.
+_BARE_RANGE = re.compile(r"(?<![\w./\\-]):(?P<start>\d+)(?:-(?P<end>\d+))?\b")
+
+
+def _file_pattern() -> re.Pattern[str]:
+    """Return the filename pattern, built after citation_anchors has loaded."""
+    global _FILENAME
+    if _FILENAME is None:
+        from citation_anchors import _EXTENSIONS
+
+        _FILENAME = re.compile(rf"(?<![\w./\\-])(?P<name>[\w.-]+\.(?:{_EXTENSIONS}))\b")
+    return _FILENAME
+
+
+def _basename_index(tracked: set[str]) -> dict[str, list[str]]:
+    """Map a basename to the non-historical tracked files that use it."""
+    index: dict[str, list[str]] = {}
+    for path in tracked:
+        if path.startswith(HISTORICAL_ROOTS):
+            continue
+        index.setdefault(path.rsplit("/", 1)[-1], []).append(path)
+    return index
+
+
+def _resolve_unique_basename(name: str, index: dict[str, list[str]]) -> str | None:
+    """Return the one tracked file named ``name``, or None when it is ambiguous."""
+    candidates = index.get(name, [])
+    if len(candidates) == 1:
+        return candidates[0]
+    return None
+
+
+def _expand_continuations(text: str, index: dict[str, list[str]]) -> str:
+    """Bind a bare ``:N`` to the preceding filename when that name is unique.
+
+    ``detect_agent_drift.py`` later in the paragraph as ``(:57-76)`` is the
+    shape. An illustrative ``auth.ts:47`` is already a path citation and is
+    not rewritten here. Ambiguous basenames stay bare so the gate skips them.
+    """
+    filename = _file_pattern()
+    events: list[tuple[int, int, str, re.Match[str]]] = []
+    for match in filename.finditer(text):
+        events.append((match.start(), match.end(), "file", match))
+    for match in _BARE_RANGE.finditer(text):
+        events.append((match.start(), match.end(), "colon", match))
+    events.sort(key=lambda item: (item[0], 0 if item[2] == "file" else 1))
+    if not events:
+        return text
+    parts: list[str] = []
+    cursor = 0
+    last_name: str | None = None
+    for start, end, kind, match in events:
+        parts.append(text[cursor:start])
+        if kind == "file":
+            last_name = match.group("name")
+            parts.append(text[start:end])
+        else:
+            resolved = _resolve_unique_basename(last_name, index) if last_name else None
+            if resolved is None:
+                parts.append(text[start:end])
+            else:
+                suffix = f"-{match.group('end')}" if match.group("end") else ""
+                parts.append(f"{resolved}:{match.group('start')}{suffix}")
+        cursor = end
+    parts.append(text[cursor:])
+    return "".join(parts)
+
+
+def _moved_cluster(
+    start: int, end: int, base: list[str], head: list[str]
+) -> tuple[int, int] | None:
+    """Return where a stale range's unique lines went, when enough of them moved.
+
+    The ordinary ratchet ignores a citation that was already wrong at the
+    merge base. Four or more cited lines that each occur once at the base
+    and once elsewhere at HEAD are evidence this change moved that text.
+    The suggestion is the densest run of those new positions.
+    """
+    if not (1 <= start <= end <= len(base)) or not head:
+        return None
+    from citation_anchors import _unique_move
+
+    destinations: list[int] = []
+    for number in range(start, end + 1):
+        moved = _unique_move([base[number - 1]], number, base, head)
+        if moved is not None:
+            destinations.append(moved)
+    if len(destinations) < 4:
+        return None
+    destinations.sort()
+    width = max(end - start, 1)
+    best: list[int] = []
+    left = 0
+    for right, dest in enumerate(destinations):
+        while dest - destinations[left] > width:
+            left += 1
+        group = destinations[left : right + 1]
+        if len(group) > len(best):
+            best = group
+    if len(best) < 2:
+        return None
+    return best[0], best[-1]
+
+
+def _token_hit(anchor: str, text: str) -> bool:
+    """Return whether anchor occurs as its own token, not inside a longer name."""
+    normalized_anchor = " ".join(anchor.split())
+    normalized_text = " ".join(text.split())
+    if not normalized_anchor:
+        return False
+    return (
+        re.search(rf"(?<![\w./-]){re.escape(normalized_anchor)}(?![\w./-])", normalized_text)
+        is not None
+    )
+
+
+def _range_misses_distinctive_anchors(
+    anchors: list[str], lines: list[str], start: int, end: int
+) -> bool:
+    """Return whether every rare anchor named on the line sits outside the range.
+
+    A shared glob can match the wrong block while the names that identify
+    the block sit just past the cited end. An anchor is rare when it occurs
+    on one or two lines of the file. One rare anchor inside the range is
+    enough to keep the citation.
+    """
+    if not anchors or not lines or start < 1 or end > len(lines):
+        return False
+    ranged = "\n".join(lines[start - 1 : end])
+    inside = 0
+    outside = 0
+    for anchor in anchors:
+        hits = [number for number, text in enumerate(lines, 1) if _token_hit(anchor, text)]
+        if not 1 <= len(hits) <= 2:
+            continue
+        if _token_hit(anchor, ranged) or any(start <= number <= end for number in hits):
+            inside += 1
+        else:
+            outside += 1
+    return outside >= 2 and inside == 0

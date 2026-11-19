@@ -5,8 +5,8 @@ The forward gate (``check_citation_freshness.py``, issue #5337) checks
 citations on lines ADDED since the base ref. A branch that edits, renames,
 or deletes a file can also break citations elsewhere that point INTO it,
 on lines the branch never touched (PR #6689 and PR #6584 were caught only
-by a post-PR reviewer). This pass finds them: for every file modified,
-retyped, renamed, or deleted in ``base...HEAD``, it greps HEAD for
+by a post-PR reviewer). This pass finds them: for every file added,
+modified, retyped, renamed, copied, or deleted in ``base...HEAD``, it greps HEAD for
 citations that target the file and judges each one twice, once against
 the cited file at the merge base and once at HEAD, with the forward
 gate's own existence, range, and anchor checks.
@@ -18,19 +18,24 @@ drift it caused. A citation already stale at the base is counted and
 printed, never blocking, and no baseline file exists. An anchorless
 citation is also judged by its content: when the base text of the cited
 range is distinctive, unique at the merge base, and sits verbatim at one
-other place at HEAD, the content moved and the citation is stale. Text edited in place is not
-flagged, because the citation may still be right. A finding names the
-corrected citation when it can compute one, keeping the anchor's offset
-inside the cited range.
+other place at HEAD, the content moved and the citation is stale.
+Unique boundary lines also reveal ranges that shifted while growing.
+Text edited in place is not flagged when its boundaries stay fixed.
+A finding names the corrected citation when it can compute one,
+keeping the anchor's offset inside the cited range.
 
 A slashless name (``name.py:3``) counts here when exactly one file
-tracked at the merge base has that basename and that file changed; the
-forward gate reads slashless names only for repository-root files. That
-covers the PR #5812 shape behind PR #6584, a bare name added in the same
-change that rewrote the cited file. A line the branch added was written
-against HEAD, so it is judged at HEAD only, with no merge-base
-comparison. Citations the forward gate already checks (an added line
-whose path it resolves) are skipped, so nothing is reported twice.
+tracked at the merge base or at HEAD has that basename and that file
+changed, including a file this branch added or copied. The forward gate
+reads slashless names only for repository-root files. That covers the
+PR #5812 shape behind PR #6584, a bare name added in the same change
+that rewrote the cited file. ``ADR-NNN:N`` and ``ADR-NNN lines N-M``
+expand to that ADR's file before the same checks. A line the branch
+added or edited owns its citations: a failure at HEAD blocks even when
+the citation was already stale at the merge base. An untouched line
+keeps the base comparison. Citations the forward gate already checks
+(an added line whose path it resolves, ADR forms included) are skipped,
+so nothing is reported twice.
 Exemptions and the reasoned ignore marker are the forward gate's own,
 imported, not copied.
 
@@ -59,7 +64,6 @@ if str(_SCRIPT_DIR) not in sys.path:
 from check_citation_freshness import (  # noqa: E402
     Finding,
     _anchor_finding,
-    _citation_anchors,
     _has_ignore_marker,
     _is_exempt_citing_file,
     _report_findings,
@@ -71,14 +75,23 @@ from citation_anchors import (  # noqa: E402
     _EXTENSIONS,
     _URL,
     _anchor_matches,
+    _basename_index,
+    _citation_aliases,
+    _expand_adr_citations,
+    _expand_continuations,
+    _relocated_range,
     _same_line_segment,
+    _unique_move,
 )
 from citation_head_state import (  # noqa: E402
     HeadReadError,
     _added_lines_since_base,
+    _change_set,
+    _ChangeSet,
     _git,
     _head_tracked_paths,
     _HeadFileCache,
+    _merge_base,
 )
 from citation_scope import string_literal_lines  # noqa: E402
 
@@ -87,15 +100,7 @@ _PREFIX = "[citation-reverse-pass]"
 # A cheap superset of _CITATION for git grep: any known extension followed
 # by ``:digit``. One pattern keeps the grep near 0.4s on this tree; one
 # fixed-string needle per changed file timed out at 60s on a wide base.
-_GREP_PREFILTER = rf"\.({_EXTENSIONS}):[0-9]"
-
-
-@dataclass(frozen=True, slots=True)
-class _ChangeSet:
-    """Base-side paths whose content or name changed, and where renames went."""
-
-    changed: frozenset[str]
-    renamed_to: dict[str, str]
+_GREP_PREFILTER = rf"\.({_EXTENSIONS}):[0-9]|ADR-[0-9]+|:[0-9]"
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,6 +121,7 @@ class _Cite:
     line_number: int
     text: str
     target: str
+    spelling: str
     start: int
     end: int
     ranged: bool
@@ -124,53 +130,6 @@ class _Cite:
     def label(self) -> str:
         suffix = f"-{self.end}" if self.ranged else ""
         return f"{self.target}:{self.start}{suffix}"
-
-
-def _merge_base(repo_root: Path, base_ref: str) -> str | None:
-    exit_code, stdout, _stderr = _git(repo_root, ["merge-base", base_ref, "HEAD"])
-    sha = stdout.strip()
-    return sha if exit_code == 0 and sha else None
-
-
-def _change_set(repo_root: Path, base_ref: str) -> _ChangeSet | None:
-    """Read ``--name-status`` for base...HEAD; added files cite nothing old."""
-    exit_code, stdout, _stderr = _git(
-        repo_root,
-        [
-            "-c",
-            "core.quotePath=false",
-            "diff",
-            "--no-color",
-            "--no-ext-diff",
-            "--no-relative",
-            "--name-status",
-            "-z",
-            "--find-renames",
-            f"{base_ref}...HEAD",
-        ],
-    )
-    if exit_code != 0:
-        return None
-    tokens = stdout.split("\0")
-    changed: set[str] = set()
-    renamed_to: dict[str, str] = {}
-    index = 0
-    while index < len(tokens):
-        status = tokens[index]
-        if not status:
-            index += 1
-            continue
-        if status[0] in "RC":
-            old, new = tokens[index + 1], tokens[index + 2]
-            index += 3
-            if status[0] == "R":
-                changed.add(old)
-                renamed_to[old] = new
-            continue
-        if status[0] in "MTD":
-            changed.add(tokens[index + 1])
-        index += 2
-    return _ChangeSet(frozenset(changed), renamed_to)
 
 
 def _grep_head(repo_root: Path) -> list[tuple[str, int, str]] | None:
@@ -191,14 +150,18 @@ def _grep_head(repo_root: Path) -> list[tuple[str, int, str]] | None:
 
 
 def _resolve_target(
-    cited: str, changes: _ChangeSet, base_tracked: set[str], by_name: dict[str, list[str]]
+    cited: str,
+    changes: _ChangeSet,
+    base_by_name: dict[str, list[str]],
+    head_by_name: dict[str, list[str]],
 ) -> str | None:
-    """Map a cited path to the changed base-side file it names, if any."""
-    if "/" in cited or cited in base_tracked:
+    """Map a cited path to the changed file it names, if any."""
+    if "/" in cited:
         return cited if cited in changes.changed else None
-    candidates = by_name.get(cited, [])
-    if len(candidates) == 1 and candidates[0] in changes.changed:
-        return candidates[0]
+    for by_name in (base_by_name, head_by_name):
+        candidates = by_name.get(cited, [])
+        if len(candidates) == 1 and candidates[0] in changes.changed:
+            return candidates[0]
     return None
 
 
@@ -242,28 +205,6 @@ def _nearest(positions: list[int], target: int) -> int | None:
     return min(positions, key=lambda p: (abs(p - target), p)) if positions else None
 
 
-def _block_positions(block: list[str], lines: list[str]) -> list[int]:
-    """Return every 1-based start where block sits verbatim in lines."""
-    width = len(block)
-    return [i + 1 for i in range(len(lines) - width + 1) if lines[i : i + width] == block]
-
-
-def _unique_move(block: list[str], start: int, base: list[str], head: list[str]) -> int | None:
-    """Return the block's single HEAD position, or None when the move is unproven.
-
-    A cited block counts as moved only when it is distinctive (at least
-    eight non-space characters), occurs exactly once at the merge base and
-    exactly once at HEAD, and the HEAD copy is not at the cited start. A
-    common line such as ``---`` or ``sys.executable,`` proves nothing.
-    """
-    if len("".join(text.strip() for text in block)) < 8:
-        return None
-    at_head = _block_positions(block, head)
-    if len(_block_positions(block, base)) != 1 or len(at_head) != 1:
-        return None
-    return None if at_head[0] == start else at_head[0]
-
-
 def _moved_start(cite: _Cite, anchors: list[str], base: list[str], head: list[str]) -> int | None:
     """Return the cited range's new start at HEAD, or None when unknown."""
     if anchors:
@@ -293,18 +234,25 @@ def _new_finding(
     """Judge one base-valid citation at HEAD; return the finding or None."""
     finding, head_lines = _judge(cite, cite.target, anchors, trees.head_tracked, trees.head_files)
     head_path = changes.renamed_to.get(cite.target, cite.target)
+    relocated = _relocated_range(cite.start, cite.end, base_lines, head_lines or [])
     moved_lines = head_lines
     if head_path != cite.target and head_path in trees.head_tracked:
         moved_lines = trees.head_files.lines(head_path)
     if finding is None:
-        if anchors or head_lines is None or not _content_moved(cite, base_lines, head_lines):
+        if relocated is None and (
+            anchors or head_lines is None or not _content_moved(cite, base_lines, head_lines)
+        ):
             return None
         reason = f"the text at lines {cite.start}-{cite.end} at the merge base moved at HEAD"
         finding = Finding(cite.citing_file, cite.line_number, cite.label, reason)
     reason = finding.reason
     if head_path != cite.target:
         reason += f"; renamed to {head_path}"
-    if moved_lines is not None:
+    if relocated is not None:
+        start, end = relocated
+        suffix = f"-{end}" if cite.ranged else ""
+        reason += f"; suggested citation {head_path}:{start}{suffix}"
+    elif moved_lines is not None:
         start = _moved_start(cite, anchors, base_lines, moved_lines)
         if start is not None and start >= 1:
             reason += _suggestion(cite, head_path, start)
@@ -338,6 +286,7 @@ def _line_cites(
             line_number,
             text,
             target,
+            match.group(0),
             start,
             int(end_group) if end_group else start,
             end_group is not None,
@@ -360,55 +309,61 @@ def _scan(
     tally: _Tally,
 ) -> list[Finding] | None:
     """Grep HEAD for inbound citations and judge each; may raise HeadReadError."""
-    by_name: dict[str, list[str]] = {}
+    from citation_reverse_judge import _judge_one
+
+    base_by_name: dict[str, list[str]] = {}
+    head_by_name: dict[str, list[str]] = {}
     for path in trees.base_tracked:
-        by_name.setdefault(path.rsplit("/", 1)[-1], []).append(path)
+        base_by_name.setdefault(path.rsplit("/", 1)[-1], []).append(path)
+    for path in trees.head_tracked:
+        head_by_name.setdefault(path.rsplit("/", 1)[-1], []).append(path)
+    aliases = _citation_aliases(trees.head_tracked)
+    names = _basename_index(trees.head_tracked)
     hits = _grep_head(repo_root)
     added_map = _added_lines_since_base(repo_root, base_ref)
     if hits is None or added_map is None:
         return None
     resolve_cache: dict[str, str | None] = {}
     findings: list[Finding] = []
+    retained: dict[str, dict[int, str]] = {}
     for citing_file, line_number, text in hits:
-        if _is_exempt_citing_file(citing_file) or not _CITATION.search(text):
+        if _is_exempt_citing_file(citing_file):
             continue
-        for match in _CITATION.finditer(_URL.sub(" ", text)):
+        expanded = _expand_continuations(_expand_adr_citations(_URL.sub(" ", text), aliases), names)
+        if not _CITATION.search(expanded):
+            continue
+        for match in _CITATION.finditer(expanded):
             cited = match.group("path").removeprefix("./")
             if cited not in resolve_cache:
-                resolve_cache[cited] = _resolve_target(cited, changes, trees.base_tracked, by_name)
+                resolve_cache[cited] = _resolve_target(cited, changes, base_by_name, head_by_name)
         added = {number for number, _text in added_map.get(citing_file, [])}
         cites = _line_cites(
-            citing_file, line_number, text, added, resolve_cache, trees.head_tracked
+            citing_file, line_number, expanded, added, resolve_cache, trees.head_tracked
         )
         if not cites:
             continue
         citing_lines = trees.head_files.lines(citing_file)
         if line_number in string_literal_lines(citing_file, citing_lines):
             continue
-        markdown = citing_file.endswith(".md")
+        markdown = citing_file.endswith((".md", ".md.tmpl"))
         if _has_ignore_marker(citing_lines, line_number, text, markdown):
             continue
         for cite, segment in cites:
-            tally.examined += 1
-            anchors = _citation_anchors(
-                cite.label, text, segment, citing_lines, line_number, markdown
+            _judge_one(
+                cite,
+                segment,
+                expanded,
+                citing_lines,
+                line_number,
+                markdown,
+                added,
+                aliases,
+                retained,
+                trees,
+                tally,
+                findings,
+                changes,
             )
-            if line_number in added:
-                # Written against HEAD, so HEAD alone is the reference.
-                finding, _lines = _judge(
-                    cite, cite.target, anchors, trees.head_tracked, trees.head_files
-                )
-                findings.extend([finding] if finding is not None else [])
-                continue
-            base_finding, base_lines = _judge(
-                cite, cite.target, anchors, trees.base_tracked, trees.base_files
-            )
-            if base_finding is not None or base_lines is None:
-                tally.stale_at_base += 1
-                continue
-            finding = _new_finding(cite, anchors, changes, trees, base_lines)
-            if finding is not None:
-                findings.append(finding)
     return findings
 
 

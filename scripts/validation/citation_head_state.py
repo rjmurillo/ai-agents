@@ -14,6 +14,8 @@ from __future__ import annotations
 import re
 import sys
 from collections import Counter
+from dataclasses import dataclass
+from difflib import SequenceMatcher
 from pathlib import Path
 from typing import cast
 
@@ -190,3 +192,75 @@ class _HeadFileCache:
                 lines.pop()
             self._cache[path] = lines
         return self._cache[path]
+
+
+@dataclass(frozen=True, slots=True)
+class _ChangeSet:
+    """Base-side paths whose content or name changed, and where renames went."""
+
+    changed: frozenset[str]
+    renamed_to: dict[str, str]
+
+
+def _merge_base(repo_root: Path, base_ref: str) -> str | None:
+    exit_code, stdout, _stderr = _git(repo_root, ["merge-base", base_ref, "HEAD"])
+    sha = stdout.strip()
+    return sha if exit_code == 0 and sha else None
+
+
+def _change_set(repo_root: Path, base_ref: str) -> _ChangeSet | None:
+    """Read ``--name-status`` for base...HEAD, including added and copied paths."""
+    exit_code, stdout, _stderr = _git(
+        repo_root,
+        [
+            "-c",
+            "core.quotePath=false",
+            "diff",
+            "--no-color",
+            "--no-ext-diff",
+            "--no-relative",
+            "--name-status",
+            "-z",
+            "--find-renames",
+            f"{base_ref}...HEAD",
+        ],
+    )
+    if exit_code != 0:
+        return None
+    tokens = stdout.split("\0")
+    changed: set[str] = set()
+    renamed_to: dict[str, str] = {}
+    index = 0
+    while index < len(tokens):
+        status = tokens[index]
+        if not status:
+            index += 1
+            continue
+        if status[0] in "RC":
+            old, new = tokens[index + 1], tokens[index + 2]
+            index += 3
+            if status[0] == "R":
+                changed.add(old)
+                renamed_to[old] = new
+            # The new path of a rename or copy is a target too: a citation
+            # may already use the destination name.
+            changed.add(new)
+            continue
+        if status[0] in "AMTD":
+            changed.add(tokens[index + 1])
+        index += 2
+    return _ChangeSet(frozenset(changed), renamed_to)
+
+
+def _reworded_line_pairs(base: list[str], head: list[str]) -> dict[int, str]:
+    """Pair a one-line replacement with the base line it replaced.
+
+    A citation token that survives that replacement was not newly authored.
+    Added lines and ambiguous replacements have no pair.
+    """
+    opcodes = SequenceMatcher(None, base, head, autojunk=False).get_opcodes()
+    return {
+        j + 1: base[i]
+        for tag, i, end_i, j, end_j in opcodes
+        if tag == "replace" and end_i - i == 1 and end_j - j == 1
+    }
