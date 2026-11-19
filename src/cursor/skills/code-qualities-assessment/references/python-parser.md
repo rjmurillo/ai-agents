@@ -26,7 +26,7 @@ python3 -m venv .venv
 
 With uv, run `uv pip install tree-sitter==0.26.1 tree-sitter-python==0.25.0`.
 Then run the scanner with that environment's Python.
-To scan C# as well, also install `tree-sitter-c-sharp==0.23.5`.
+To scan C# or TypeScript as well, also install `tree-sitter-c-sharp==0.23.5` or `tree-sitter-typescript==0.23.2`.
 
 The scanner imports these packages only when assessing Python source.
 Missing packages, parser startup failures, and Python the grammar cannot parse exit 1 without a report.
