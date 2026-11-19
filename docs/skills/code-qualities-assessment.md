@@ -38,7 +38,7 @@ The skill runs `assess.py` on the target and returns a markdown report with five
 | Testability | How easily can you verify it in isolation? |
 | Non-redundancy | How unique is each piece of knowledge? |
 
-A score of 10 is the best and 1 to 3 is poor. The report comes as markdown, JSON, or HTML. Full language support covers Python, TypeScript and JavaScript, C#, Java, and Go. C# needs `tree-sitter==0.26.1` and `tree-sitter-c-sharp==0.23.5` in the scanner's Python environment; see the [C# parser reference](../../src/claude/skills/code-qualities-assessment/references/csharp-parser.md). TypeScript needs `tree-sitter==0.26.1` and `tree-sitter-typescript==0.23.2`; see the [TypeScript parser reference](../../src/claude/skills/code-qualities-assessment/references/typescript-parser.md). Ruby, Rust, PHP, and Kotlin get heuristic support.
+A score of 10 is the best and 1 to 3 is poor. The report comes as markdown, JSON, or HTML. Full language support covers Python, TypeScript and JavaScript, C#, Java, and Go. C# needs `tree-sitter==0.26.1` and `tree-sitter-c-sharp==0.23.5` in the scanner's Python environment; see the [C# parser reference](../../src/claude/skills/code-qualities-assessment/references/csharp-parser.md). TypeScript needs `tree-sitter==0.26.1` and `tree-sitter-typescript==0.23.2`; see the [TypeScript parser reference](../../src/claude/skills/code-qualities-assessment/references/typescript-parser.md). JavaScript (`.js`, `.jsx`, `.mjs`, `.cjs`) uses the same TSX grammar and packages. Ruby, Rust, PHP, and Kotlin get heuristic support.
 
 ## Advanced use
 
@@ -73,7 +73,7 @@ Gate modes answer two different questions:
 | Exit code | Meaning |
 | --- | --- |
 | 0 | Gate passed, or nothing changed in regression mode. It can also carry one explicitly admitted regression, listed under `csharp_parser_dependency_admission` or `typescript_parser_dependency_admission`; the review adapter reports that as WARN. The scanner accepts only the fixed records for rjmurillo/ai-agents issues #7406 and #7435; any other config value fails with exit 1. |
-| 1 | Invalid target, config error, or no files to assess. For C# and TypeScript it also means the parser package is missing, the parser failed to start, or the pinned grammar could not parse a file |
+| 1 | Invalid target, config error, or no files to assess. For C#, TypeScript, and JavaScript it also means the parser package is missing, the parser failed to start, or the pinned grammar could not parse a file |
 | 10 | Regression: a quality regressed or scored evidence was lost |
 | 11 | A file is below the configured thresholds |
 

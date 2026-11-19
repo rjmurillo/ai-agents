@@ -2,6 +2,7 @@
 
 import importlib
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -69,6 +70,11 @@ def test_lookalike_text_is_not_a_dependency(source: str, suffix: str) -> None:
     assert _dependencies(source, suffix) == 0
 
 
+# The line regex assess.py used for JavaScript and TypeScript before both moved
+# to syntax trees (issues #7434 and #7435), kept here as the historical baseline.
+_OLD_LINE_REGEX = re.compile(r"^\s*import\s+|\brequire\s*\(")
+
+
 @pytest.mark.parametrize(
     ("source", "expected"),
     [
@@ -80,8 +86,7 @@ def test_lookalike_text_is_not_a_dependency(source: str, suffix: str) -> None:
 )
 def test_syntax_counts_differ_from_the_line_regex(source: str, expected: int) -> None:
     """The old JavaScript regex miscounts each of these TypeScript sources."""
-    regex = _mod._IMPORT_PATTERNS["javascript"]
-    regex_count = sum(1 for line in source.split("\n") if regex.search(line))
+    regex_count = sum(1 for line in source.split("\n") if _OLD_LINE_REGEX.search(line))
 
     assert regex_count != expected
     assert _dependencies(source, ".ts") == expected

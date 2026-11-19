@@ -98,7 +98,7 @@ _PARSER_DEPENDENCY_ADMISSIONS = {
 }
 
 # Coupling for these languages is counted from a syntax tree over raw source.
-_PARSED_COUPLING_LANGUAGES = frozenset({"csharp", "typescript"})
+_PARSED_COUPLING_LANGUAGES = frozenset({"csharp", "javascript", "typescript"})
 
 # Single-line comment prefixes, used to exclude comment lines from the
 # lines-of-code count. Block comments are intentionally not stripped: this is an
@@ -196,7 +196,6 @@ def classify_file_category(file_path: Path, content: str | None = None) -> str:
 # Per-language import / dependency line patterns for the coupling heuristic.
 _IMPORT_PATTERNS = {
     "python": re.compile(r"^\s*(?:import\s+\S|from\s+\S+\s+import\s+)"),
-    "javascript": re.compile(r"^\s*import\s+|\brequire\s*\("),
     "java": re.compile(r"^\s*import\s+[A-Za-z_]"),
     "go": re.compile(
         r'^\s*import\s+(?:(?:[A-Za-z_]\w*|\.)\s+)?"[^"]+"\s*(?://.*)?$'
@@ -1430,6 +1429,10 @@ class TypeScriptParserError(ParserError):
     """TypeScript dependencies cannot be measured reliably."""
 
 
+class JavaScriptParserError(ParserError):
+    """JavaScript dependencies cannot be measured reliably."""
+
+
 @dataclass(frozen=True)
 class _DependencyGrammar:
     """One pinned Tree-sitter grammar and the messages its failures print."""
@@ -1508,6 +1511,25 @@ _TYPESCRIPT_GRAMMARS = {
     for suffix, function_name in ((".ts", "language_typescript"), (".tsx", "language_tsx"))
 }
 
+# JavaScript reuses the TSX grammar and query (issue #7434), so it adds no
+# parser import and no scanner coupling. TSX parses JavaScript, JSX, and Flow
+# annotations. It rejects TypeScript keywords used as identifiers.
+_JAVASCRIPT_GRAMMAR = _DependencyGrammar(
+    language_name="JavaScript",
+    packages=_TYPESCRIPT_PACKAGES,
+    reference="references/typescript-parser.md",
+    unsupported_syntax=(
+        "Cannot count JavaScript dependencies: the pinned TSX grammar "
+        "(tree-sitter-typescript==0.23.2) could not parse this file. "
+        "The file has a syntax error, or it is valid JavaScript that the grammar "
+        "does not support (for example a TypeScript keyword such as `interface` "
+        "used as an identifier)"
+    ),
+    error=JavaScriptParserError,
+    load=partial(_typescript_grammar, "language_tsx"),
+    query=_TYPESCRIPT_DEPENDENCY_QUERY,
+)
+
 
 def _count_dependency_nodes(source: str, grammar: _DependencyGrammar) -> int:
     """Count dependency syntax nodes, never comments, strings, or lookalike text."""
@@ -1540,6 +1562,11 @@ def _count_csharp_imports(source: str) -> int:
     return _count_dependency_nodes(source, _CSHARP_GRAMMAR)
 
 
+def _count_javascript_imports(source: str) -> int:
+    """Count JavaScript dependency nodes with the TSX grammar."""
+    return _count_dependency_nodes(source, _JAVASCRIPT_GRAMMAR)
+
+
 def _count_typescript_imports(source: str, suffix: str) -> int:
     """Count TypeScript dependency nodes with the grammar for *suffix*."""
     return _count_dependency_nodes(source, _TYPESCRIPT_GRAMMARS[suffix])
@@ -1559,7 +1586,7 @@ def _score_coupling(
     0.0 so the threshold gate does not fail a file scored only by that
     untuned heuristic (matches the file-header contract).
 
-    C# and TypeScript receive original source lines for syntax-tree parsing;
+    C#, TypeScript, and JavaScript receive original source lines for syntax-tree parsing;
     *suffix* picks the TypeScript or TSX grammar. Other languages receive
     filtered code lines. Go and Python standard-library imports are
     reported but not scored: they are stable utilities, not application or
@@ -1573,6 +1600,10 @@ def _score_coupling(
         tuned = True
     elif language == "typescript":
         import_count = _count_typescript_imports("\n".join(code_lines), suffix)
+        confidence = 0.6
+        tuned = True
+    elif language == "javascript":
+        import_count = _count_javascript_imports("\n".join(code_lines))
         confidence = 0.6
         tuned = True
     elif pattern is not None:
@@ -2088,7 +2119,7 @@ def _assess_files(
     the survivor as evidence the whole change was assessed. This is the same
     treatment an unreadable file already gets at the decode site.
 
-    A C# or TypeScript parser failure is the exception: it is deliberately
+    A C#, TypeScript, or JavaScript parser failure is the exception: it is deliberately
     fatal (exit 1), so no parsed-language score is guessed.
     """
     assessments: list[FileAssessment] = []
