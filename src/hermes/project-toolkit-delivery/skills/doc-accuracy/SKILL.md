@@ -111,6 +111,26 @@ python3 scripts/doc_accuracy.py --target /path/to/repo --format summary
 With `--diff-base`, only claims on changed lines block. See
 `references/diff-scoping.md`.
 
+### Documenting another product's SDK
+
+Phase 3 checks CamelCase symbols in code examples of supported languages
+against this repository, so vendored docs for a foreign SDK fail on every API
+name. Declare the file with one HTML comment:
+
+```text
+<!-- doc-accuracy: external-sdk <name> -- <reason> -->
+```
+
+- `<name>` is required. A missing `<reason>` stays valid and records "".
+- Put it right after the H1. It is honored only when `<!--` starts at column 0
+  and no earlier line contains three backticks or tildes. A marker below any
+  code fence is ignored. The first valid marker wins.
+- It silences `unresolved_symbol` for that file only. Other checks still run.
+- A missing, `-`-led, or placeholder name suppresses nothing and yields a
+  high `invalid_external_sdk_marker` finding.
+- `claims.json` records `sdk`, `reason`, and `line`. Phase 3 counts suppressed
+  symbols, and `summary` and `markdown` print one exemption line per file.
+
 ---
 
 ## Output Artifacts

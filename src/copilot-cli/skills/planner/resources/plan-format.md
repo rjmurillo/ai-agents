@@ -11,7 +11,7 @@ Write your plan using this structure:
 
 ## Planning Context
 
-This section is consumed VERBATIM by downstream agents (Technical Writer, Quality Reviewer).
+This section is consumed VERBATIM by downstream agents (comment-analyzer, critic).
 Quality matters: vague entries here produce poor annotations and missed risks.
 
 ### Decision Log
@@ -33,7 +33,7 @@ Include BOTH architectural decisions AND implementation-level micro-decisions:
 - Architectural: "Event sourcing over CRUD | Need audit trail + replay capability -> CRUD would require separate audit log -> event sourcing provides both natively"
 - Implementation: "Mutex over channel | Single-writer case -> channel coordination adds complexity without benefit -> mutex is simpler with equivalent safety"
 
-Technical Writer sources ALL code comments from this table. If a micro-decision isn't here, TW cannot document it.
+The plan author sources ALL code comments from this table. If a micro-decision isn't here, the comment review cannot confirm its rationale.
 
 ### Rejected Alternatives
 
@@ -41,7 +41,7 @@ Technical Writer sources ALL code comments from this table. If a micro-decision 
 | -------------------- | ------------------------------------------------------------------- |
 | [Approach not taken] | [Concrete reason: performance, complexity, doesn't fit constraints] |
 
-Technical Writer uses this to add "why not X" context to code comments.
+The plan author uses this to add "why not X" context to code comments.
 
 ### Constraints & Assumptions
 
@@ -58,11 +58,11 @@ Technical Writer uses this to add "why not X" context to code comments.
 
 **Anchor requirement**: If mitigation claims existing code behavior ("no change needed", "already handles X"), cite the file:line + brief excerpt that proves the claim. Skip anchors for hypothetical risks or external unknowns.
 
-Quality Reviewer excludes these from findings but will challenge unverified behavioral claims.
+The plan reviewer (critic) excludes these from findings but will challenge unverified behavioral claims.
 
 ## Invisible Knowledge
 
-This section captures information NOT visible from reading the code. Technical Writer uses this for README.md documentation during post-implementation.
+This section captures information NOT visible from reading the code. README.md documentation during post-implementation uses this: a new README gets a codebase-documenter scaffold, then the technical-writing skill fills it from this section. An edit to an existing README goes to the technical-writing skill.
 
 ### Architecture
 ```
@@ -127,7 +127,7 @@ Log (async)
 
 **Files**: [exact paths - e.g., src/auth/handler.py, not "auth files"]
 
-**Flags** (if applicable): [needs TW rationale, needs error handling review, needs conformance check]
+**Flags** (if applicable): [needs WHY rationale, needs error handling review, needs conformance check]
 
 **Requirements**:
 
@@ -135,7 +135,7 @@ Log (async)
 
 **Acceptance Criteria**:
 
-- [Testable: "Returns 429 after 3 failed attempts" - QR can verify pass/fail]
+- [Testable: "Returns 429 after 3 failed attempts" - a reviewer can verify pass/fail]
 - [Avoid vague: "Works correctly" or "Handles errors properly"]
 
 **Code Changes** (for non-trivial logic, use unified diff format):
@@ -149,7 +149,7 @@ See `resources/diff-format.md` for specification.
    # Context lines (unchanged) serve as location anchors
    existing_code()
 
-+  # WHY comment explaining rationale - transcribed verbatim by Developer
++  # WHY comment explaining rationale - transcribed verbatim by the implementer
 +  new_code()
 
    # More context to anchor the insertion point

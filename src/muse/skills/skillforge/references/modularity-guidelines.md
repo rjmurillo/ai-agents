@@ -79,9 +79,8 @@ Stop at two to three skills. Four or more lost about half the gain.
 ## Audit Command
 
 ```bash
-ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
-python3 "$ROOT/skills/skillforge/scripts/skill_modularity_audit.py" --path "$ROOT/skills" [--json] [--ci]   # every skill under $ROOT/skills
-python3 "$ROOT/skills/skillforge/scripts/skill_modularity_audit.py" skills/my-skill/ --ci   # one skill, gate form
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillforge/scripts/skill_modularity_audit.py --path "$d/skills" [--json] [--ci]; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) # every skill under the plugin root
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillforge/scripts/skill_modularity_audit.py skills/my-skill/ --ci; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) # one skill, gate form
 ```
 
 Without `--ci` the audit exits `0` even for an oversized skill. With `--ci` it

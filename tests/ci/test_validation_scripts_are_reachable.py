@@ -28,7 +28,7 @@ Workflow, hook, and skill documentation can name an entry point. Once a
 executable string literals.
 
 Under that model the scripts (128 under scripts/validation plus 30 under
-build/scripts at the time of this edit) yield three unreachable, real decisions
+build/scripts at the time of this edit) yield five unreachable, real decisions
 recorded in ``_NO_CALLER`` below rather than a bulk exemption.
 
 What this does not do: prove the caller is correct, or that the script would
@@ -104,6 +104,19 @@ _NO_CALLER: dict[str, str] = {
         "render_launcher(), and tests/build_scripts/test_copilot_launcher.py "
         "fails any entry that drifts from that function's output (issue #5521). "
         "Its caller is the test suite."
+    ),
+    "build/scripts/plugin_run_fix.py": (
+        "A migration command a person runs, not a gate. ADR-121 rollout steps 4 and 5 "
+        "run it by hand on a batch of authored files, then commit the result. No "
+        "workflow, hook, or skill calls it, and wiring it would make CI rewrite files. "
+        "Its gate is the plugin-root validator, whose message names it, and "
+        "tests/build_scripts/test_plugin_run_fix.py runs it end to end. Its caller is "
+        "the test suite."
+    ),
+    "build/scripts/plugin_run_rewrite.py": (
+        "The pure text rewrite behind plugin_run_fix.py, imported only by that command, "
+        "so it is reachable only when the command is. tests/build_scripts/"
+        "test_plugin_run_rewrite.py drives it directly."
     ),
 }
 

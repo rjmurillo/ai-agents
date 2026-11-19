@@ -47,6 +47,7 @@ except ImportError:
 try:
     from _constants import (
         ALLOWED_PROPERTIES,
+        COMPATIBILITY_MAX_LENGTH,
         DESCRIPTION_MAX_LENGTH,
         NAME_MAX_LENGTH,
         NAME_REGEX,
@@ -59,6 +60,7 @@ except ImportError:
         "description",
         "license",
         "allowed-tools",
+        "compatibility",
         "metadata",
         "model",
         "context",
@@ -71,7 +73,51 @@ except ImportError:
     REQUIRED_PROPERTIES = {"name", "description"}
     NAME_MAX_LENGTH = 64
     DESCRIPTION_MAX_LENGTH = 1024
-    NAME_REGEX = r"^[a-z][a-z0-9-]*[a-z0-9]$|^[a-z]$"
+    COMPATIBILITY_MAX_LENGTH = 500
+    NAME_REGEX = r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+
+
+def _unquote_scalar(value: str) -> str:
+    """Strip matching YAML quotes from a plain one-line scalar.
+
+    The agentskills.io guidance asks authors to quote values that contain a
+    colon, so the fallback parser must read ``name: "x"`` as ``x``.
+    """
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+        inner = value[1:-1]
+        return inner.replace('\\"', '"') if value[0] == '"' else inner.replace("''", "'")
+    return value
+
+
+_YAML_NULL = {"", "~", "null", "Null", "NULL"}
+_YAML_BOOL = {
+    "true": True,
+    "True": True,
+    "TRUE": True,
+    "false": False,
+    "False": False,
+    "FALSE": False,
+}
+
+
+def _typed_scalar(value: str) -> Any:
+    """Read an inline value with the YAML types a type check needs.
+
+    Without PyYAML, the fallback parser would read ``compatibility: null`` or
+    ``compatibility: [git, docker]`` as text and pass a string check. Return
+    None, a bool, or a list or dict for those unquoted forms, and a string
+    otherwise, so the type checks reject what PyYAML would.
+    """
+    if value in _YAML_NULL:
+        return None
+    if value in _YAML_BOOL:
+        return _YAML_BOOL[value]
+    if value.startswith("[") and value.endswith("]"):
+        return [_unquote_scalar(item.strip()) for item in value[1:-1].split(",") if item.strip()]
+    if value.startswith("{") and value.endswith("}"):
+        pairs = [item.split(":", 1) for item in value[1:-1].split(",") if ":" in item]
+        return {k.strip(): _unquote_scalar(v.strip()) for k, v in pairs}
+    return _unquote_scalar(value)
 
 
 def _parse_frontmatter_fallback(frontmatter_text: str) -> dict[str, Any]:
@@ -87,6 +133,9 @@ def _parse_frontmatter_fallback(frontmatter_text: str) -> dict[str, Any]:
     is_literal = False  # Track literal scalar (|)
 
     for line in lines:
+        # A YAML comment line is not a key.
+        if line.startswith("#"):
+            continue
         # Check for top-level key
         if ":" in line and not line.startswith(" ") and not line.startswith("\t"):
             # Save previous key if exists
@@ -109,12 +158,23 @@ def _parse_frontmatter_fallback(frontmatter_text: str) -> dict[str, Any]:
             else:
                 is_folded = False
                 is_literal = False
-                frontmatter[current_key] = value
+                frontmatter[current_key] = _typed_scalar(value)
                 current_value_lines = []
 
         elif (is_folded or is_literal) and (line.startswith("  ") or line.startswith("\t")):
             # Continuation of folded/literal scalar
             current_value_lines.append(line.strip())
+
+        elif (
+            current_key
+            and line.lstrip().startswith("- ")
+            and isinstance(frontmatter.get(current_key), (list, type(None)))
+        ):
+            # A block sequence item under a bare key, such as an allowed-tools list
+            items = frontmatter.get(current_key)
+            if not isinstance(items, list):
+                items = frontmatter[current_key] = []
+            items.append(_unquote_scalar(line.lstrip()[2:].strip()))
 
         elif line.startswith("  ") and current_key == "metadata":
             # Basic nested parsing for metadata
@@ -139,9 +199,10 @@ def validate_skill(skill_path, root: str | None = None):
     - SKILL.md exists
     - Valid YAML frontmatter
     - Only allowed properties in frontmatter
-    - Required fields present (name, description)
-    - Name format (hyphen-case, ≤64 chars)
+    - Required fields present and non-blank (name, description)
+    - Name format (hyphen-case, ≤64 chars) and equals the parent directory name
     - Description format (≤1024 chars, no angle brackets)
+    - Optional compatibility (string, 1-500 chars)
 
     Args:
         skill_path: Path to the skill directory containing SKILL.md.
@@ -214,36 +275,55 @@ def validate_skill(skill_path, root: str | None = None):
     if not isinstance(name, str):
         return False, f"Name must be a string, got {type(name).__name__}"
     name = name.strip()
-    if name:
-        # Check naming convention (hyphen-case: starts with letter, lowercase with hyphens)
-        if not re.match(NAME_REGEX, name):
-            return False, (
-                f"Name '{name}' should be hyphen-case "
-                "(start with letter, lowercase letters, digits, and hyphens only)"
-            )
-        if "--" in name:
-            return False, f"Name '{name}' cannot contain consecutive hyphens"
-        # Check name length
-        if len(name) > NAME_MAX_LENGTH:
-            return False, (
-                f"Name is too long ({len(name)} characters). "
-                f"Maximum is {NAME_MAX_LENGTH} characters."
-            )
+    if not name:
+        return False, "Name must not be empty"
+    # Check naming convention (lowercase letters, digits, hyphens; no edge hyphens)
+    if not re.match(NAME_REGEX, name):
+        return False, (
+            f"Name '{name}' should be hyphen-case "
+            "(lowercase letters, digits, and hyphens only; no leading or trailing hyphen)"
+        )
+    if "--" in name:
+        return False, f"Name '{name}' cannot contain consecutive hyphens"
+    # Check name length
+    if len(name) > NAME_MAX_LENGTH:
+        return False, (
+            f"Name is too long ({len(name)} characters). Maximum is {NAME_MAX_LENGTH} characters."
+        )
+    # Name must equal the parent directory name (agentskills.io specification)
+    dir_name = skill_path.name or skill_path.resolve().name
+    if name != dir_name:
+        return False, f"Name '{name}' must match its directory name '{dir_name}'"
 
     # Validate description field
     description = frontmatter.get("description", "")
     if not isinstance(description, str):
         return False, f"Description must be a string, got {type(description).__name__}"
     description = description.strip()
-    if description:
-        # Check for angle brackets
-        if "<" in description or ">" in description:
-            return False, "Description cannot contain angle brackets (< or >)"
-        # Check description length
-        if len(description) > DESCRIPTION_MAX_LENGTH:
+    if not description:
+        return False, "Description must not be empty"
+    # Check for angle brackets
+    if "<" in description or ">" in description:
+        return False, "Description cannot contain angle brackets (< or >)"
+    # Check description length (agentskills.io spec: max 1024 characters)
+    if len(description) > DESCRIPTION_MAX_LENGTH:
+        return False, (
+            f"Description is too long ({len(description)} characters). "
+            f"Maximum is {DESCRIPTION_MAX_LENGTH} characters."
+        )
+
+    # Validate optional compatibility field (agentskills.io spec: 1-500 characters)
+    if "compatibility" in frontmatter:
+        compatibility = frontmatter["compatibility"]
+        if not isinstance(compatibility, str):
+            return False, f"Compatibility must be a string, got {type(compatibility).__name__}"
+        compatibility = compatibility.strip()
+        if not compatibility:
+            return False, "Compatibility must not be empty"
+        if len(compatibility) > COMPATIBILITY_MAX_LENGTH:
             return False, (
-                f"Description is too long ({len(description)} characters). "
-                f"Maximum is {DESCRIPTION_MAX_LENGTH} characters."
+                f"Compatibility is too long ({len(compatibility)} characters). "
+                f"Maximum is {COMPATIBILITY_MAX_LENGTH} characters."
             )
 
     return True, "Skill is valid!"
@@ -257,7 +337,10 @@ def main():
         print("\nExamples:")
         print("  python quick_validate.py skills/my-skill")
         print("  python quick_validate.py /other/repo/skills/my-skill --root /other/repo")
-        print("\nExit codes: 0 valid, 1 invalid or bad path.")
+        print(
+            "\nExit codes: 0 valid, 1 invalid, path escapes the root, or path not found,"
+            " 2 usage error (bad or missing arguments, --root not a directory)."
+        )
         sys.exit(0)
 
     parsed = _parse_args(sys.argv[1:])
@@ -269,7 +352,7 @@ def main():
             "  python quick_validate.py /other/repo/skills/my-skill --root /other/repo",
             file=sys.stderr,
         )
-        sys.exit(1)
+        sys.exit(2)
 
     skill_path, root_arg = parsed
 
@@ -280,7 +363,7 @@ def main():
     # c:\) while realpath() resolves symlinks so a descendant symlink cannot escape.
     if root_arg is not None and not Path(root_arg).is_dir():
         print(f"Error: --root is not a directory: {root_arg}", file=sys.stderr)
-        sys.exit(1)
+        sys.exit(2)
     cwd_root = _resolve_root(root_arg)
     resolved = os.path.normcase(os.path.realpath(skill_path))
     if not _is_within(resolved, cwd_root):

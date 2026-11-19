@@ -141,6 +141,6 @@ def test_live_manifest_links_hooks_json_and_hooks_row_skips_it() -> None:
     assert rows["hooks-json"].link is True
     assert rows["hooks-json"].plugin_tree == _REPO_ROOT / "src" / "claude" / "hooks" / "hooks.json"
     assert rows["hooks"].link is False
-    assert binplace_manifest._repo_local_names(_REPO_ROOT, rows["hooks"]) == frozenset(
-        {"hooks.json"}
+    assert binplace_manifest._repo_local_names(_REPO_ROOT, rows["hooks"]) == (
+        frozenset({"hooks.json"}) | rows["hooks"].repo_only
     )

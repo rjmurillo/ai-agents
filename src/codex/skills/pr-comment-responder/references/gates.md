@@ -125,9 +125,8 @@ fences, matching how you retrieved the comments.
 Retrieve with the github skill (preferred), then record:
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 # IMPORTANT: --include-issue-comments captures AI Quality Gate, CodeRabbit summaries, etc.
-COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments)
+COMMENTS=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_review_comments.py --pull-request [number] --include-issue-comments; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) )
 TOTAL_COMMENTS=$(echo "$COMMENTS" | jq '.TotalComments')
 echo "Total comments: $TOTAL_COMMENTS"
 
@@ -562,13 +561,11 @@ fi
 ### Phase 8.2: Conversation Resolution
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 
 # Resolve all threads for a PR
-python3 "$SCRIPTS_DIR/pr/get_pr_review_threads.py" --pull-request [number] --unresolved-only | \
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_review_threads.py --pull-request [number] --unresolved-only; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) | \
   jq -r '.threads[].thread_id' | while read tid; do
-    python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" \
-      --expected-pull-request [number] --thread-id "$tid"
+    ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/resolve_pr_review_thread.py --expected-pull-request [number] --thread-id "$tid"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
   done
 ```
 
@@ -579,7 +576,6 @@ PR. Do not retry a safe skip with a lower-level mutation.
 ### Phase 8.3: Re-check for New Comments
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 sleep 45
 # This re-fetch is the only thing that can see a comment posted since the last
 # pass, so both halves of it have to block on failure. Left unchecked, a
@@ -588,7 +584,7 @@ sleep 45
 # expression expected`, which is a nonzero exit from `[` and reads as false to
 # `if`, so the append check below never fires and the pass continues as though
 # the API reported no new comments.
-RECHECK_PAYLOAD=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments)
+RECHECK_PAYLOAD=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_review_comments.py --pull-request [number] --include-issue-comments; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) )
 RECHECK_STATUS=$?
 if [ "$RECHECK_STATUS" -ne 0 ]; then
   echo "[BLOCKED] Comment re-fetch failed (exit $RECHECK_STATUS)"
@@ -713,8 +709,7 @@ local investigation. The cause frequently lives on main, and each missed
 attribution costs a full investigation.
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
-python3 "$SCRIPTS_DIR/pr/triage_red_check.py" --check-name "[failing check name]" --pull-request [number]
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/triage_red_check.py --check-name "[failing check name]" --pull-request [number]; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 # Exit 0 = GREEN_ON_MAIN: the PR introduced the failure; investigate the PR.
 # Exit 1 = RED_ON_MAIN: inherited from main; cite Data.EvidenceUrl (the main
 #          run) in the thread instead of debugging the PR.
@@ -729,8 +724,7 @@ python3 "$SCRIPTS_DIR/pr/triage_red_check.py" --check-name "[failing check name]
 ```
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
-checks=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request [number])
+checks=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_checks.py --pull-request [number]; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) )
 merge_ref_usable=$(echo "$checks" | jq -r '.Data.MergeRefUsable')
 all_passing=$(echo "$checks" | jq -r '.Data.AllPassing')
 failed_count=$(echo "$checks" | jq '.Data.FailedCount')
@@ -766,9 +760,6 @@ Exit codes:
 | Commits pushed | `git status` shows "up to date with origin" | [ ] |
 
 ```bash
-PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
-SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
-
 # Final verification
 # Re-derive the counts. This fence is a separate shell from Phase 8.1, so
 # $TOTAL and $TERMINAL do not survive into it and the summary would otherwise
@@ -841,7 +832,7 @@ echo "[ ] New comments: None after 45s wait"
 
 # CI check verification using skill. PASS needs both a buildable merge ref and
 # every check passing: a small green set on an unbuildable merge ref is not evidence.
-checks=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request [number])
+checks=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_checks.py --pull-request [number]; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) )
 all_passing=$(echo "$checks" | jq -r '.Data.AllPassing')
 merge_ref_usable=$(echo "$checks" | jq -r '.Data.MergeRefUsable')
 if [ "$all_passing" = "true" ] && [ "$merge_ref_usable" = "true" ]; then

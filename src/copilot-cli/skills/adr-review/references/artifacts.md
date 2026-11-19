@@ -1,5 +1,7 @@
 # Artifact Storage
 
+**Delegation on each host.** "Delegate to the `X` agent" means the host's subagent tool: Claude Code `Task` with `subagent_type="X"`; Copilot CLI `task` with `agent_type="project-toolkit:X"`; Codex `spawn_agent` with `agent_type="X"`, plus `fork_turns="none"` when the agent reviews or judges work (the default hands it your whole history); Muse Code `subagent_spawn` with `role="X"` and an `objective`, plus `worktree_isolation: true` for an agent that writes files. If the host has no subagent tool, or no `X` agent is installed, run the step yourself in this session.
+
 Save debate artifacts to `.project-toolkit/critique/`.
 
 ## Debate Log
@@ -115,16 +117,12 @@ Review this ADR: .project-toolkit/architecture/ADR-005-api-versioning.md
 
 **Orchestrator triggers:**
 
-```python
-# When architect creates/updates ADR
-task(
-    agent_type="project-toolkit:orchestrator",
-    prompt="""
+Delegate to the `orchestrator` agent with this prompt (when architect creates/updates ADR):
+
+```text
 Trigger adr-review skill for: .project-toolkit/architecture/ADR-005-api-versioning.md
 
 Follow debate protocol in .claude/skills/adr-review/SKILL.md
-""",
-)
 ```
 
 <!-- vendor-portability: declared. This doc directs debate artifacts to .project-toolkit/critique/ and accepted ADRs to .project-toolkit/architecture/. In a vendored install without those dirs the agent creates them (or writes to the consumer's chosen artifact root); the paths are write targets, not preconditions. Issue #2050. -->

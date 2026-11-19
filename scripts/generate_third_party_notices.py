@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size  FORKED_COMPONENTS is license data, one entry per vendored skill.
 """Generate THIRD-PARTY-NOTICES.TXT from shipped plugin components.
 
 Scans the plugin source paths defined in .claude-plugin/marketplace.json
@@ -79,6 +80,16 @@ FORKED_COMPONENTS: dict[str, dict[str, str]] = {
         ),
         "license_blank_line_prefix": "",
     },
+    "tstack takeover": {
+        "license": "MIT",
+        "url": "https://github.com/t3dotgg/tstack",
+        "author": "Theo Browne",
+        "local_path": "src/claude/skills/takeover",
+        "license_text": (
+            "MIT License\n\nCopyright (c) 2026 Theo Browne\n\n" + _MIT_PERMISSION_TEXT
+        ),
+        "license_blank_line_prefix": "",
+    },
     "SkillForge": {
         "license": "MIT",
         "url": "https://github.com/tripleyak/SkillForge",
@@ -94,12 +105,64 @@ FORKED_COMPONENTS: dict[str, dict[str, str]] = {
         "license_text": ("MIT License\n\nCopyright (c) 2025 OpenAI\n\n" + _MIT_PERMISSION_TEXT),
         "license_blank_line_prefix": "",
     },
+    "tstack modernize": {
+        "license": "MIT",
+        "url": "https://github.com/t3dotgg/tstack",
+        "author": "Theo Browne",
+        "local_path": "src/claude/skills/modernize",
+        "license_text": (
+            "MIT License\n\nCopyright (c) 2026 Theo Browne\n\n" + _MIT_PERMISSION_TEXT
+        ),
+        "license_blank_line_prefix": "",
+    },
     "gstack": {
         "license": "MIT",
         "url": "https://github.com/garrytan/gstack",
         "author": "Garry Tan",
         "local_path": "src/claude/skills/dx-review",
         "license_text": ("MIT License\n\nCopyright (c) 2026 Garry Tan\n\n" + _MIT_PERMISSION_TEXT),
+        "license_blank_line_prefix": "",
+    },
+    "tstack babysit-pr": {
+        "license": "MIT",
+        "url": "https://github.com/t3dotgg/tstack",
+        "author": "Theo Browne",
+        "local_path": "src/claude/skills/pr-babysit",
+        "license_text": (
+            "MIT License\n\nCopyright (c) 2026 Theo Browne\n\n" + _MIT_PERMISSION_TEXT
+        ),
+        "license_blank_line_prefix": "",
+    },
+    "tstack sol-loop": {
+        "license": "MIT",
+        "url": "https://github.com/t3dotgg/tstack",
+        "author": "Theo Browne",
+        "local_path": "src/claude/skills/sol-loop",
+        "license_text": (
+            "MIT License\n\nCopyright (c) 2026 Theo Browne\n\n" + _MIT_PERMISSION_TEXT
+        ),
+        "license_blank_line_prefix": "",
+    },
+    "tstack council": {
+        "license": "MIT",
+        "url": "https://github.com/t3dotgg/tstack",
+        "author": "Theo Browne",
+        "local_path": "src/claude/skills/llm-council",
+        "license_text": (
+            "MIT License\n\nCopyright (c) 2026 Theo Browne\n\n" + _MIT_PERMISSION_TEXT
+        ),
+        "license_blank_line_prefix": "",
+    },
+    "ghcp-llm-council": {
+        "license": "MIT",
+        "url": "https://github.com/thevgavini/ghcp-llm-council",
+        "author": "Vivekananda Gavini and ghcp-llm-council contributors",
+        "local_path": "src/claude/skills/llm-council",
+        "license_text": (
+            "MIT License\n\n"
+            "Copyright (c) 2026 Vivekananda Gavini and ghcp-llm-council contributors\n\n"
+            + _MIT_PERMISSION_TEXT
+        ),
         "license_blank_line_prefix": "",
     },
 }

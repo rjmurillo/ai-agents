@@ -55,6 +55,8 @@ translation:
 
 ## Process
 
+**Delegation on each host.** "Delegate to the `X` agent" means the host's subagent tool: Claude Code `Task` with `subagent_type="X"`; Copilot CLI `task` with `agent_type="project-toolkit:X"`; Codex `spawn_agent` with `agent_type="X"`, plus `fork_turns="none"` when the agent reviews or judges work (the default hands it your whole history); Muse Code `subagent_spawn` with `role="X"` and an `objective`, plus `worktree_isolation: true` for an agent that writes files. If the host has no subagent tool, or no `X` agent is installed, run the step yourself in this session.
+
 ### Phase 0: Existing-PR check
 
 Before branching for an issue, run `check_existing_pr_for_issue.py --owner <O>
@@ -64,7 +66,7 @@ Only exit `0` clears.
 
 ### Phase 1: Assess complexity
 
-`agent_type: "project-toolkit:analyst"`: Read the engineering complexity tiers reference
+Delegate to the `analyst` agent: Read the engineering complexity tiers reference
 in the `analyze` skill, resolved through
 `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/analyze/references/engineering-complexity-tiers.md`,
 and the task description. Classify as Tier 1-5. Return tier, rationale, and
@@ -93,7 +95,7 @@ failing check first.
 1. **Decide.** Run the trigger with every planned or verified changed path,
    each as its own argument, plus each effect you verified in the diff body.
    Never shell-expand the paths.
-   `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/build/scripts/validation_trigger.py" --changed-path <path> --effect <name>`
+   `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/build/scripts/validation_trigger.py --changed-path <path> --effect <name>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`
    Effects: `pass-fail-semantics`, `severity-change`, `baseline-update`,
    `fixture-redefines-case`, `validator-config`, `vendored-logic`,
    `generated-validator`. Exit `2` on an empty changed-path list or an unknown
@@ -109,7 +111,7 @@ failing check first.
    change location (see that skill's Validation Change Record contract for
    where the record file resolves, `<record-path>` below).
 4. **Check.** Run the record validator:
-   `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/validation-authority/scripts/validation_record.py" --record <record-path> --changed-path <path>`
+   `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/validation-authority/scripts/validation_record.py --record <record-path> --changed-path <path>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`
    (repeat `--changed-path` for every path from step 1). Exit `0`: Phase 3 may
    edit only the location each target's `authority.permitted_change_location`
    names. Exit `1`: stop editing the named targets until the record is
@@ -121,7 +123,7 @@ failing check first.
 
 ### Phase 3: Implement the slices
 
-`agent_type: "project-toolkit:implementer"`: You are a senior engineer. Discover the
+Delegate to the `implementer` agent: You are a senior engineer. Discover the
 project's tech stack, coding patterns, and test conventions by reading the
 codebase. Build in thin vertical slices. Test-first when the project has tests.
 Commit atomically.

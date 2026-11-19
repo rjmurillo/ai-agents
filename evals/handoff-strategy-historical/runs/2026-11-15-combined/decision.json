@@ -1,0 +1,49 @@
+{
+  "batches": [
+    "evals/handoff-strategy-historical/runs/2026-11-15-v3",
+    "evals/handoff-strategy-historical/runs/2026-11-15-v4-fill"
+  ],
+  "tasks_file_sha256": "bad0f411a3a6681037942b45c760fab949dffa3a3ee50d2a35cfde0cce8ab315",
+  "cells": 12,
+  "expected_cells": 12,
+  "missing_cells": [],
+  "decision": {
+    "routing": "retain incumbent",
+    "reasons": [
+      "1 stalled task(s); the rule needs at least 2"
+    ],
+    "outcome": "INCONCLUSIVE",
+    "stall": {
+      "continue_analyst": {
+        "cells": 3,
+        "passes": 3,
+        "regressions": 0,
+        "scope_violations": 0.0,
+        "wall_seconds": 312.79
+      },
+      "handoff_independent_thinker": {
+        "cells": 3,
+        "passes": 3,
+        "regressions": 0,
+        "scope_violations": 0.0,
+        "wall_seconds": 316.85
+      }
+    },
+    "negative_control": {
+      "continue_analyst": {
+        "cells": 3,
+        "passes": 3,
+        "regressions": 0,
+        "scope_violations": 0.0,
+        "wall_seconds": 344.32000000000005
+      },
+      "handoff_independent_thinker": {
+        "cells": 3,
+        "passes": 3,
+        "regressions": 0,
+        "scope_violations": 0.0,
+        "wall_seconds": 242.19
+      }
+    }
+  }
+}

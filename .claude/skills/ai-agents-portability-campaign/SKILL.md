@@ -82,7 +82,7 @@ Read the Claude-to-Copilot event map from `eventRemap` in
 `templates/platforms/copilot-cli.yaml`. Do not copy it here.
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-portability-campaign/scripts/instruments.py" --repo . run event-map
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-portability-campaign/scripts/instruments.py --repo . run event-map; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 It prints the `eventRemap` block. It does not say which events have a
@@ -191,7 +191,7 @@ uv run python build/scripts/build_all.py
 Count hook events and registrations per manifest:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-portability-campaign/scripts/hook_inventory.py" --repo . counts
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-portability-campaign/scripts/hook_inventory.py --repo . counts; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 It reads `.claude/settings.json`, `.claude/hooks/hooks.json`, and
@@ -211,7 +211,7 @@ uv run pytest \
 Check that every pytest path this skill names exists:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-portability-campaign/scripts/hook_inventory.py" --repo . phase-tests
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-portability-campaign/scripts/hook_inventory.py --repo . phase-tests; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 It checks existence in `.claude/skills/ai-agents-portability-campaign/SKILL.md`,
@@ -296,7 +296,7 @@ Reconciled against ADR-097 and HEAD `42e409325` (2026-10-31). Facts and
 checks live in `reverify.json`. Check the shipped references with:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-portability-campaign/scripts/hook_inventory.py" --repo . qualifiers
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-portability-campaign/scripts/hook_inventory.py --repo . qualifiers; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 It lists every tracked file under `src/` and `.claude/skills/autoplan` that
@@ -307,7 +307,7 @@ placed well.
 Drift check:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_drift.py" check --repo . --skills-root .claude/skills --name ai-agents-portability-campaign --require
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_drift.py check --repo . --skills-root .claude/skills --name ai-agents-portability-campaign --require; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Refresh this campaign after a host CLI version change, hook inventory change,

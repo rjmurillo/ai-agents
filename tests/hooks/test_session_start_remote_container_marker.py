@@ -380,12 +380,11 @@ def test_exported_marker_makes_is_remote_container_true(
 
 
 def test_installed_script_matches_template() -> None:
-    """The rendered hook copies are byte-identical to the template (build_all.py ran)."""
+    """The installed copy is byte-identical to the template and ships in no plugin tree."""
     template = (REPO_ROOT / "templates" / "hooks" / "session-start.sh").read_bytes()
-    shipped = (REPO_ROOT / "src" / "claude" / "hooks" / "session-start.sh").read_bytes()
 
     assert INSTALLED_SCRIPT.read_bytes() == template
-    assert shipped == template
+    assert not (REPO_ROOT / "src" / "claude" / "hooks" / "session-start.sh").exists()
     assert MARKER_LINE.encode() in template
 
 

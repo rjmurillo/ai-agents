@@ -1,12 +1,13 @@
 """Pure helpers that decide whether a comment was already posted.
 
-``post_pr_comment_reply.py`` and ``new_pr_review_comment.py`` read the existing
-comments before they post. If the same author already posted an identical body in
+``post_pr_comment_reply.py``, ``new_pr_review_comment.py``, and ``close_pr.py``
+(through ``pr_comment_lookup.py``) read the existing comments before they post.
+If the same author already posted an identical body in
 the same place, the script reports ``SKIP`` and posts nothing, so an agent that
 retries a command never leaves a duplicate (agentskills.io, "Using scripts in
 skills": "Agents may retry commands").
 
-These helpers run no I/O. Each script owns its ``gh api`` call and maps failures
+These helpers run no I/O. Each caller owns its ``gh api`` call and maps failures
 to its own envelope and exit code.
 
 Pagination contract (``.claude/rules/lossless-queue-reads.md``): the read must see
@@ -76,6 +77,20 @@ def first_by_author(comments: list[dict[str, Any]], login: str) -> dict[str, Any
         user = comment.get("user")
         author = user.get("login") if isinstance(user, dict) else None
         if isinstance(author, str) and author.casefold() == wanted:
+            return comment
+    return None
+
+
+def first_bot_comment(comments: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Return the first comment whose author is a bot account (``user.type == "Bot"``).
+
+    Fallback for a token that cannot read its own login (an Actions installation
+    token gets 403 from ``GET /user``). Such a token posts as a bot, so an
+    identical body from a bot is the earlier run of the same command.
+    """
+    for comment in comments:
+        user = comment.get("user")
+        if isinstance(user, dict) and user.get("type") == "Bot":
             return comment
     return None
 

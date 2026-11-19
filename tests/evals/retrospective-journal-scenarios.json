@@ -1,0 +1,52 @@
+{
+  "scenarios": [
+    {
+      "id": "RJ-1",
+      "desc": "A retrospective with a native Copilot journal path passes it to extract_evidence.py as --journal",
+      "input": "Invoke the retrospective skill for today's session. Phase 0 starts now. The user supplied a native Copilot journal at /tmp/copilot-session/events.jsonl. Decide how Phase 0 ingests that file. Verdict JOURNAL_FLAG means extract_evidence.py is invoked with its journal option pointing at that file. Verdict MANUAL_READ means you open and summarize the file yourself.\nKeep the reason under 15 words and name the exact option.",
+      "expected_verdict": "JOURNAL_FLAG",
+      "verdict_options": [
+        "JOURNAL_FLAG",
+        "MANUAL_READ"
+      ],
+      "expected_reason_contains": "--journal",
+      "rationale": "Changed branch: the skill now documents extract_evidence.py --journal <events.jsonl> as the way to gather native Copilot journal evidence."
+    },
+    {
+      "id": "RJ-2",
+      "desc": "A retrospective with no journal path does not invent one",
+      "input": "Invoke the retrospective skill for today's session. Phase 0 starts now. The user gave no journal file and no path of any kind. A session log exists under .project-toolkit/sessions/. Decide whether Phase 0 passes a journal option to extract_evidence.py. Verdict NO_JOURNAL means no journal option is passed. Verdict JOURNAL_FLAG means a journal option is passed with a path you choose.\nKeep the reason under 15 words.",
+      "expected_verdict": "NO_JOURNAL",
+      "verdict_options": [
+        "NO_JOURNAL",
+        "JOURNAL_FLAG"
+      ],
+      "expected_reason_contains": "no journal",
+      "rationale": "Changed branch, negative case: the journal source is explicit. Without a user-supplied path the flag is omitted and no path is guessed."
+    },
+    {
+      "id": "RJ-3",
+      "desc": "Mentioning a Copilot session without a file path still does not invent a journal path",
+      "input": "Invoke the retrospective skill. The user says: 'Run a retro on my Copilot CLI session from this morning.' They named no file and gave no path. Decide whether Phase 0 passes a journal option to extract_evidence.py. Verdict NO_JOURNAL means no journal option is passed and you ask for the path or continue without it. Verdict JOURNAL_FLAG means a journal option is passed with a path you guess.\nKeep the reason under 15 words.",
+      "expected_verdict": "NO_JOURNAL",
+      "verdict_options": [
+        "NO_JOURNAL",
+        "JOURNAL_FLAG"
+      ],
+      "expected_reason_contains": "path",
+      "rationale": "Edge case on the changed branch: the skill says an explicit journal. A topic mention is not an explicit path, so no path is invented."
+    },
+    {
+      "id": "RJ-4",
+      "desc": "Regression: GitHub activity evidence goes through the github skill, never raw gh",
+      "input": "Invoke the retrospective skill for the last week. Phase 0 needs optional GitHub activity (merged PRs and review threads). Decide how to fetch it. Verdict GITHUB_SKILL means use the github skill scripts. Verdict RAW_GH means run the gh command line tool directly.\nKeep the reason under 15 words.",
+      "expected_verdict": "GITHUB_SKILL",
+      "verdict_options": [
+        "GITHUB_SKILL",
+        "RAW_GH"
+      ],
+      "expected_reason_contains": "github skill",
+      "rationale": "The PR rewrote the evidence-source sentence that carries the never-raw-gh rule. This scenario guards that existing behavior."
+    }
+  ]
+}

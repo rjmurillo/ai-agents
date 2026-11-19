@@ -24,7 +24,7 @@ Skill memories integrate with the memory system:
 
 ```bash
 # Search skill sidecar learnings
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "github-observations constraints"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/search_memory.py "github-observations constraints"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Read specific skill sidecar
 Read .serena/memories/github/github-observations.md

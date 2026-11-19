@@ -1,5 +1,6 @@
 ---
 name: pr-comment-responder
+version: 2.0.0
 description: Work the review threads on one pull request. Gathers every comment,
   acknowledges it, triages by domain then reviewer, fixes or replies in-thread, and
   records a terminal status for each thread. Use when you say "respond to PR comments",
@@ -7,6 +8,19 @@ description: Work the review threads on one pull request. Gathers every comment,
   Do NOT use for several PRs at once or a completion-gate verdict (use pr-review), for a
   single known reply (use post_pr_comment_reply.py directly), for a full pre-merge review
   (use review), or to run the local quality gates before pushing (use pr-quality-all).
+license: MIT
+metadata:
+  capability:
+    kind: orchestrator
+    owns: [review-conversation, review-thread-closure]
+    depends-on:
+      - untrusted-content-handling
+    status: active
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan routes requests to respond to PR review threads to pr-comment-responder
+    user-facing: true
 ---
 # PR Comment Responder
 
@@ -87,10 +101,8 @@ one PR with no verdict. Invoke `pr-review` for several PRs or a verdict.
 **ALWAYS extract PR context from prompt first. Never prompt for information already provided.**
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
-
 # Extract PR number and owner/repo from user prompt
-python3 "$SCRIPTS_DIR/utils/extract_github_context.py" --text "[prompt]" --require-pr
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/utils/extract_github_context.py --text "[prompt]" --require-pr; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Supported patterns:
@@ -157,18 +169,12 @@ priority above breaks ties within a domain.
 **Domain-First Processing Workflow:**
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
-
 # Get comments grouped by domain
-comments=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request 908 --group-by-domain --include-issue-comments)
+comments=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_review_comments.py --pull-request 908 --group-by-domain --include-issue-comments; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) )
 
 # Process domains first: Security, Bug, Style, General, then Summary.
 # Within each domain, take P0 cursor[bot], then P1 humans, then P2 bots.
-python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" \
-    --pull-request 908 \
-    --group-by-reviewer-priority \
-    --group-by-domain \
-    --include-issue-comments
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_review_comments.py --pull-request 908 --group-by-reviewer-priority --group-by-domain --include-issue-comments; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Skip summary comments (bot-generated noise)
 # .Summary contains informational summaries only
@@ -211,10 +217,8 @@ different files; rounds 5 and 6 patched per-file and did not collapse the
 cluster (see `.project-toolkit/retrospective/2026-05-08-pr-1897-confident-incorrectness-recurrence.md`).
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/pr-comment-responder/scripts"
-
 # Owner and repo are optional; the script infers them from git when omitted.
-python3 "$SCRIPTS_DIR/cluster_threads.py" --pull-request "$PR_NUMBER"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/pr-comment-responder/scripts/cluster_threads.py --pull-request "$PR_NUMBER"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 The script fetches unresolved threads, clusters them by load-bearing token
@@ -289,14 +293,11 @@ it and how to act on the report.
 Invoke:
 
 ```bash
-PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-${GITHUB_WORKSPACE:-.}/.claude}}"
-SCRIPTS_DIR="$PLUGIN_ROOT/skills/pr-comment-responder/scripts"
-
 # --owner and --repo are optional; inferred from git when omitted.
-uv run python "$SCRIPTS_DIR/cluster_threads.py" --pull-request "$PR_NUMBER"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/pr-comment-responder/scripts/cluster_threads.py --pull-request "$PR_NUMBER"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Offline: cluster threads from a repository-relative JSON file (skips the fetch).
-uv run python "$SCRIPTS_DIR/cluster_threads.py" --pull-request "$PR_NUMBER" --threads-file path/to/threads.json
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/pr-comment-responder/scripts/cluster_threads.py --pull-request "$PR_NUMBER" --threads-file path/to/threads.json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Exit codes (per ADR-035, copied from the script docstring):

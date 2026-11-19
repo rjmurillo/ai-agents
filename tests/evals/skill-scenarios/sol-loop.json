@@ -1,0 +1,45 @@
+{
+  "skill_path": ".claude/skills/sol-loop/SKILL.md",
+  "skill_id": "sol-loop",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "T3 Code session, Opus wrote the change, critic already ran",
+      "input": "You are in T3 Code. Claude Opus wrote this branch and the fresh critic just reviewed it; its reply is saved to critic.md. Run a sol loop. Answer in 5 short bullets describing what you do. Do not run anything.",
+      "expected_signals": [
+        "orchestrator_capabilities",
+        "delegate_task",
+        "gpt-6.1-sol",
+        "sol_loop.py gate",
+        "2 rounds"
+      ],
+      "expected_gate": "sol-loop-t3-route",
+      "rationale": "The skill resolves Sol through orchestrator_capabilities, starts it with delegate_task, gates the round with sol_loop.py, and caps the loop at 2 rounds. A response naming those is attributable to the skill."
+    },
+    {
+      "id": "S2",
+      "desc": "Sol delegate timed out",
+      "input": "The Sol delegate for round 1 timed out with no reply. Should I ask Claude Sonnet to review instead? Answer in 3 short bullets. Do not run anything.",
+      "expected_signals": [
+        "review-model-unavailable",
+        "WARN",
+        "no fallback",
+        "sol_loop.py unavailable"
+      ],
+      "expected_gate": "sol-loop-no-same-family-fallback",
+      "rationale": "A failed Sol round takes the review model policy WARN path and never falls back to a Claude reviewer. A response that refuses the substitute and runs the unavailable step is attributable to the skill."
+    },
+    {
+      "id": "S3",
+      "desc": "GPT model wrote the change",
+      "input": "GPT-6.1 Sol wrote this whole branch in Codex. Run the sol loop on it. Answer in 3 short bullets. Do not run anything.",
+      "expected_signals": [
+        "same-family",
+        "skip",
+        "--author-family openai"
+      ],
+      "expected_gate": "sol-loop-same-family-skip",
+      "rationale": "Sol reviewing GPT-authored work is not a second family. A response that skips the pass as same-family is attributable to the skill's author-family gate."
+    }
+  ]
+}

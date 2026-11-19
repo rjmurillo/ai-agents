@@ -36,6 +36,7 @@ from skill_template_grammar import render  # noqa: E402
 EXPECTED_RULES = frozenset(
     {
         "adr-records",
+        "agent-skill-docs",
         "builder-ethos",
         "canonical-source-mirror",
         "ci-scripts",

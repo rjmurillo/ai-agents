@@ -46,7 +46,7 @@ Each command chains to the next. Output from one phase feeds into the next autom
 
 Transforms a problem statement into testable requirements with acceptance criteria.
 
-```bash
+```text
 /spec <problem-statement-or-issue-number>
 ```
 
@@ -68,7 +68,7 @@ Transforms a problem statement into testable requirements with acceptance criter
 
 Decomposes specs into milestones with dependencies and risk mitigations.
 
-```bash
+```text
 /plan <spec-output-or-issue-number>
 ```
 
@@ -91,7 +91,7 @@ Decomposes specs into milestones with dependencies and risk mitigations.
 
 Implements changes in thin vertical slices with TDD and atomic commits.
 
-```bash
+```text
 /build <plan-step-or-task-description>
 ```
 
@@ -113,7 +113,7 @@ Implements changes in thin vertical slices with TDD and atomic commits.
 
 Multi-dimensional quality validation across 6 gates: functional, non-functional, security, DevOps, DX, and observability.
 
-```bash
+```text
 /test <component-or-failure-description>
 ```
 
@@ -143,29 +143,22 @@ Multi-dimensional quality validation across 6 gates: functional, non-functional,
 
 ### /review -- Review Before Merge
 
-Five-axis code review across architecture, security, quality, tests, and standards.
+Code review in two stages: a spec-compliance gate, then review axes picked by the change's risk from a canonical set. See [`review`](skills/review.md).
 
-```bash
+```text
 /review <branch-or-pr-number>
 ```
 
 **What it does:**
 
 1. Reads the diff against the base branch
-2. Runs five review axes sequentially, each dispatching a specialized agent or skill
-3. Categorizes findings as Critical, Important, or Suggestion
+2. Runs the Stage 1 spec-compliance gate. A `CRITICAL_FAIL` there stops the review
+3. Picks Stage 2 axes from the changed paths and diff effects. `analyst` always runs, plus a correctness pass. Ask for a deep or full review to run every canonical axis
+4. Merges every axis verdict into one final verdict, and writes a SHA-bound marker commit on a PASS, or on a WARN where every WARN was acknowledged
 
-**Axes:**
+**Axes:** 11 canonical axes (`analyst`, `architect`, `qa`, `security`, `devops`, `roadmap`, `reliability`, `observability`, `agent-safety`, `decision-rigor`, `code-quality`), plus 4 local skill axes (`code-qualities-assessment`, `doc-accuracy`, `golden-principles`, `taste-lints`). The [`review`](skills/review.md) page has the details.
 
-| Axis | Agent/Skill | Focus |
-|------|-------------|-------|
-| Architecture | architect | Patterns, boundaries, ADR conformance, coupling |
-| Security | security + security-scan | CWE references, OWASP, least privilege |
-| Quality | code-qualities-assessment | Cohesion, coupling, encapsulation, testability, DRY |
-| Tests | qa | Coverage for every new code path, failure paths |
-| Standards | golden-principles + taste-lints | Naming, style, consistency |
-
-**Output:** Per-finding format with location (file:line), severity, and fix recommendation.
+**Output:** A table with one verdict row per axis, a final verdict (`PASS`, `WARN`, `CRITICAL_FAIL`, or `UNKNOWN`), and findings with severity, location (file:line), and a recommendation.
 
 **When to use:** After `/test`, before shipping. Also useful for reviewing any diff or PR.
 
@@ -183,19 +176,18 @@ Default target is `main` unless specified.
 
 **What it does:**
 
-1. Runs 5 pre-flight checks (pipeline, security, review, tests, standards)
+1. Runs 4 pre-flight checks (pipeline, security, reviewed, tests)
 2. If any check fails: reports what failed, why, and how to fix. Stops.
-3. If all pass: validates PR description and creates the PR
+3. If all pass: validates PR description and creates the PR. A deferred Pipeline check then runs on the new PR.
 
 **Pre-flight checks:**
 
 | Check | What | Blocking |
 |-------|------|----------|
-| Pipeline | CI checks green, no suppressed failures | Yes |
+| Pipeline | CI checks green, no suppressed failures. With no pull request yet, the check waits and runs after `/ship` opens one. | Yes |
 | Security | No new CWE findings, no secrets in diff | Yes |
-| Review | /review run, no unresolved Critical findings | Yes |
+| Reviewed | HEAD is a `/review` PASS marker commit for the code under it. On someone else's branch, a logged `/review` result is enough. | Yes, on your own branch |
 | Tests | All tests green, no unjustified skips | Yes |
-| Standards | Golden principles and taste lints pass | Yes |
 
 **Output:** Ship report with per-check PASS/FAIL, PR link if created, and follow-up items.
 

@@ -1,6 +1,19 @@
 ---
 name: negotiation
+version: 1.0.0
 description: Deal intelligence skill for offer analysis and counter-proposal drafting. Trigger on `review this offer`, `analyze counter`, `value gap`, `draft counter`, `should I walk`. Apply when reviewing any offer (real estate, compensation, vendor, resource allocation) or designing negotiation analysis behavior in agentic systems. Quantifies value gaps and applies the RADAR protocol.
+license: MIT
+metadata:
+  domains: [negotiation, deal-intelligence, behavioral-influence, agent-design]
+  capability:
+    kind: reusable-primitive
+    status: active
+  source: Anthropic Project Deal (Dec 2025), Fisher and Ury, Voss, Navarro, Hughes, Cialdini, Galinsky
+  routing:
+    role: conditional-adjunct
+    invoker: business-strategy
+    trigger: business-strategy routes deal and offer analysis requests to negotiation
+    user-facing: false
 ---
 
 # Negotiation Skill

@@ -1,6 +1,14 @@
 ---
 name: test
+version: 1.0.0
 description: Prove a change works across six gates covering functional, non-functional, security, DevOps, developer experience, and observability quality. Use when you say `prove this works`, `run the test gates`, or `validate this change`, and run it after build. Do NOT use to write the implementation or its first tests (use build), and do NOT use to run pre-flight and open a PR (use ship).
+license: MIT
+metadata:
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan routes lifecycle requests to this skill
+    user-facing: true
 ---
 
 # Test
@@ -61,11 +69,13 @@ Print: `PR TYPE: [type]. Running gates: [list].`
 
 Skip non-applicable gates. Do not waste agent invocations on irrelevant dimensions.
 
+**Delegation on each host.** "Delegate to the `X` agent" means the host's subagent tool: Claude Code `Task` with `subagent_type="X"`; Copilot CLI `task` with `agent_type="project-toolkit:X"`; Codex `spawn_agent` with `agent_type="X"`, plus `fork_turns="none"` when the agent reviews or judges work (the default hands it your whole history); Muse Code `subagent_spawn` with `role="X"` and an `objective`, plus `worktree_isolation: true` for an agent that writes files. If the host has no subagent tool, or no `X` agent is installed, run the step yourself in this session.
+
 ## Gate 1: Functional Testing
 
 Invoke Skill(skill="code-qualities-assessment") for quality baseline.
 
-Task(subagent_type="qa"): You are a senior QA engineer. Your job is to catch issues that will cause production incidents. Be skeptical. Cite specific file:line evidence for every finding. Evaluate:
+Delegate to the `qa` agent: You are a senior QA engineer. Your job is to catch issues that will cause production incidents. Be skeptical. Cite specific file:line evidence for every finding. Evaluate:
 
 1. **Unit coverage** - 100% test coverage. Each method in isolation, dependencies injected.
 2. **Integration coverage** - Contracts between components verified. Cross-module boundaries exercised.
@@ -77,7 +87,7 @@ Output: `VERDICT: PASS|WARN|CRITICAL_FAIL` with findings array.
 
 ## Gate 2: Non-Functional Testing
 
-Task(subagent_type="analyst"): You are a performance and reliability engineer. Focus on failure modes, not the happy path. Use measurable criteria, not subjective judgments. Evaluate:
+Delegate to the `analyst` agent: You are a performance and reliability engineer. Focus on failure modes, not the happy path. Use measurable criteria, not subjective judgments. Evaluate:
 
 1. **Performance** - No N+1 queries, no O(n*m) in hot paths, no blocking calls in async context.
 2. **Scalability** - Will this bottleneck under load? Connection pooling, caching strategy, pagination.
@@ -91,7 +101,7 @@ Output: `VERDICT: PASS|WARN|CRITICAL_FAIL` with findings array.
 
 Invoke Skill(skill="security-scan") for CWE pattern detection.
 
-Task(subagent_type="security"): You are a security auditor performing OWASP Top 10 review. Assume every input is malicious. Reference CWE numbers for every finding. Evaluate:
+Delegate to the `security` agent: You are a security auditor performing OWASP Top 10 review. Assume every input is malicious. Reference CWE numbers for every finding. Evaluate:
 
 1. **Injection** - Shell (CWE-78), XSS (CWE-79), SQL (CWE-89). No string interpolation in queries.
 2. **Authentication** - Session handling, credential storage, token validation.
@@ -103,7 +113,7 @@ Output: `VERDICT: PASS|WARN|CRITICAL_FAIL` with findings array including CWE ref
 
 ## Gate 4: DevOps Testing
 
-Task(subagent_type="devops"): You are a build and release engineer. Focus on pipeline safety, reproducibility, and supply chain security. Evaluate:
+Delegate to the `devops` agent: You are a build and release engineer. Focus on pipeline safety, reproducibility, and supply chain security. Evaluate:
 
 1. **Pipeline impact** - Do changes affect CI/CD? Are workflow files valid YAML?
 2. **Actions security** - Pinned to SHA? Permissions scoped minimally? No secrets in logs?
@@ -112,7 +122,7 @@ Task(subagent_type="devops"): You are a build and release engineer. Focus on pip
 5. **Artifact integrity** - Correct upload/download, retention policy, no sensitive data in artifacts.
 
 If `/build` handed over a provenance/authority record path, re-run it against the current changed paths before this gate's findings:
-`python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/validation-authority/scripts/validation_record.py" --record <record-path> --changed-path <path>` (repeat `--changed-path` for every path in this PR). Exit `1` is `CRITICAL_FAIL`: a target lost its permitted change location or gained an unrecorded one. Exit `2` is also `CRITICAL_FAIL`: fix the record or the invocation and rerun. No record path handed over: skip this step.
+`( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/validation-authority/scripts/validation_record.py --record <record-path> --changed-path <path>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )` (one `--changed-path <path>` per path in this PR, all inside the locator). Exit `1` is `CRITICAL_FAIL`: a target lost its permitted change location or gained an unrecorded one. Exit `2` is also `CRITICAL_FAIL`: fix the record or the invocation and rerun. No record path handed over: skip this step.
 
 Output: `VERDICT: PASS|WARN|CRITICAL_FAIL` with findings array.
 
@@ -126,8 +136,8 @@ Then compose `dx-review`. This gate keeps no DX checklist of its own:
 
 1. **Decide.** Run the trigger with every changed path from Step 0, each as its
    own argument, plus each DX effect you verified in the diff body. Never
-   shell-expand the paths.
-   `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/test/scripts/dx_trigger.py" --changed-path <path> --effect <name>`
+   shell-expand the paths. Write every flag inside the locator.
+   `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/test/scripts/dx_trigger.py --changed-path <path> --effect <name>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`
    Effects: `cli-surface`, `public-api`, `onboarding-flow`, `agent-behavior`,
    `user-task-docs`, `contributor-workflow`. Pass `contributor-workflow` when a
    workflow file changes a `workflow_call` interface. The trigger reuses the `/review`
@@ -155,7 +165,7 @@ Output: `VERDICT: PASS|WARN|CRITICAL_FAIL|ERROR` with findings array.
 
 ## Gate 6: Observability and Monitoring
 
-Task(subagent_type="architect"): You are an SRE reviewing production readiness. If this code fails at 3am, can oncall diagnose it without reading the source? Evaluate:
+Delegate to the `architect` agent: You are an SRE reviewing production readiness. If this code fails at 3am, can oncall diagnose it without reading the source? Evaluate:
 
 1. **Logging** - Are meaningful events logged? Structured logging with correlation IDs?
 2. **Metrics** - Are SLIs defined for new features? Latency, error rate, throughput tracked?

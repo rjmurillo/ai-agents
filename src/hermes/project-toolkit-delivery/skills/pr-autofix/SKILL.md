@@ -1,7 +1,7 @@
 ---
 name: pr-autofix
 version: 1.0.0
-description: Fix PRs autonomously. Triage open PRs by tier, address thread feedback, fix CI failures, and enable auto-merge when the 4-condition Ready-to-Merge gate passes. Use when you say `pr-autofix`, `autofix this pr`, or `monitor open prs`. Do NOT use to answer review comments interactively on one PR (use pr-review), and do NOT use to run the six quality axes over your working changes (use pr-quality-all).
+description: Fix open PRs autonomously. Triage by tier, address thread feedback, fix CI failures, and enable auto-merge when the 4-condition Ready-to-Merge gate passes. Use when you say `pr-autofix`, `autofix this pr`, or `monitor open prs`. Do NOT use to watch one PR (use pr-babysit), to answer one PR's review comments (use pr-review), or to run the quality axes (use pr-quality-all).
 license: MIT
 argument-hint: "[pull-request|mode]"
 size-exception: true
@@ -79,9 +79,7 @@ those failures says anything about the PR. Decide the transport once, before
 triage:
 
 ```bash
-# CLAUDE_PLUGIN_ROOT is set in a vendored install; falls back to .claude in-repo.
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/utils"
-python3 "$SCRIPTS_DIR/check_github_transport.py"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/utils/check_github_transport.py; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Non-POSIX hosts do not run the block above. The authoritative, per-harness

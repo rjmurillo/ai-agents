@@ -40,7 +40,7 @@ You have direct access to:
 - **Write/Edit**: Create/update `.project-toolkit/architecture/` files only
 - **WebSearch**: Research architectural patterns
 - **Memory Router** (ADR-037): Search across `.serena/memories/`
-  - `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "topic"`
+  - `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/search_memory.py "topic"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`
   - Keyword match on memory filenames; no semantic or graph search
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -48,7 +48,7 @@ You have direct access to:
 
 ## Reference Loading
 
-Architect references live under `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/adr-review/references/`. They serve this agent; the `adr-review` skill runs the ADR debate. Read one only when its condition holds. If the path does not resolve (a harness with no skill tree, such as the VS Code agent list), apply the rules in this file and state that the reference was unavailable.
+Architect references live under `${CLAUDE_PLUGIN_ROOT}/skills/adr-review/references/`. In a checkout that loads this agent with no plugin root, read `.claude/skills/adr-review/references/` instead. They serve this agent; the `adr-review` skill runs the ADR debate. Read one only when its condition holds. If the path does not resolve (a harness with no skill tree, such as the VS Code agent list), apply the rules in this file and state that the reference was unavailable.
 
 - `architect-impact-analysis.md`: milestone-planner asks for impact analysis and you are writing the deliverable.
 - `architect-code-organization-review.md`: a PR adds directories or relocates files.
@@ -427,7 +427,7 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 **Before design (retrieve context):**
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "architecture decisions [component/topic]"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/search_memory.py "architecture decisions [component/topic]"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 **After design (store learnings):**

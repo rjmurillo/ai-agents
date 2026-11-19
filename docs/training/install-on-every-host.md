@@ -1,24 +1,25 @@
 # Install the toolkit on your host and check it loaded
 
-<!-- # taste-lint: ignore file-size, nine hosts share one page because the training folder is flat and the index holds one entry per issue. -->
+<!-- # taste-lint: ignore file-size, ten hosts share one page because the training folder is flat and the index holds one entry per issue. -->
 
 ## Goal
 
-Install `project-toolkit` on your AI coding tool and finish with a check that shows it loaded. This page is for new users on any of nine hosts.
+Install `project-toolkit` on your AI coding tool and finish with a check that shows it loaded. This page is for new users on any of ten hosts.
 
-We ran the commands on 2026-11-11 with main at `d34536c95c`. Counts come from the tree at that commit.
+We ran the commands on 2026-11-11 with main at `d34536c95c`. Counts come from the tree at that commit. The Codex agent install step is newer. It ran on 2026-11-11 on the branch that adds it, against codex 0.166.0 and 0.167.0, through `test_codex_agents_install_and_load`.
 
 | Host | Version we ran | Skills | Agents | Route | Ran end to end |
 |------|----------------|--------|--------|-------|----------------|
 | Claude Code | 2.1.319 | 105 | 29 | Marketplace | Yes |
 | GitHub Copilot CLI | 1.0.108 | 104 | 29 | Marketplace | Yes |
 | VS Code and Visual Studio | Not run | None | 29 | Copy files into your repo | No |
-| Codex | 0.167.0 | 105 | None | Marketplace | Yes |
+| Codex | 0.167.0 | 105 | 25, from a script | Marketplace, then `install_agents.py` | Yes |
 | Cursor | Agent CLI 2026.10.14-0f9edde | 105 | 28 | Local plugin directory | Partly |
 | Grok Build | 1.0.77 | 105 | 29 | Marketplace | Yes |
 | Pi | 1.5.0 | 105 | None | `pi install` from git | Yes |
 | Hermes | Agent v0.23.0 | 91, in two packs | None | `hermes plugins install` per pack | Yes |
-| Muse | Not run | 105 | None | Copy skill folders | No |
+| Muse personal agent | Not run | 105 | None | Copy skill folders | No |
+| Muse Code | 1.4.15, at `fc91afcf2` | 105 | 25; a signed-in run spawned all 25 | Copy skill and agent folders | Partly |
 
 "Yes" means the install, check, update, and uninstall commands on this page all ran. A model turn that needs your sign-in is the exception. We mark those "Not run".
 
@@ -133,17 +134,48 @@ Uninstall: delete the `.agent.md` files you copied from `.github/agents/`. Delet
 
    Codex reads `.agents/plugins/marketplace.json` from the repository. It points at the `src/codex` tree ([ADR-115](../../.project-toolkit/architecture/ADR-115-native-plugin-support-per-host.md) Decision 7). No sign-in is needed.
 
+2. Install the agents. A Codex plugin cannot ship agents, so the plugin carries a script that copies them. Run it from the installed plugin folder:
+
+   ```bash
+   cache="${CODEX_HOME:-$HOME/.codex}/plugins/cache/ai-agents/project-toolkit"
+   python3 -I "$cache/$(ls "$cache" | sort -V | tail -n 1)/install_agents.py"
+   ```
+
+   The cache folder is the plugin version. Codex 0.162.1 and 0.167.0 install a manifest with no version field as `1.0.0`, so the folder is normally `1.0.0`. The `sort -V | tail -n 1` part still picks the newest if another folder is there. The script is at `<cache>/<version>/install_agents.py`.
+
+   On Windows the shell lines above do not run. In PowerShell, use `$env:CODEX_HOME` when it is set, otherwise `$env:USERPROFILE\.codex`. List the folders under `<that path>\plugins\cache\ai-agents\project-toolkit`, then run `python -I <that folder>\install_agents.py`. Not verified: the installer on a Windows host.
+
+   With no flag it installs into `.codex/agents/` of the current directory. Use `--project DIR` for another project, or `--user` for `$CODEX_HOME/agents` (`~/.codex/agents` when `CODEX_HOME` is unset). The two flags exclude each other. The script ships 25 agents. It leaves out `analyst`, `code-reviewer`, `comment-analyzer`, and `security`, because Codex agent files cannot limit tools (sandbox_mode, approval_policy, and mcp_servers do not override the parent). Each installed agent says so, and tells the model to do that step itself.
+
+   Things to know:
+
+   - Trust. Codex loads project agents only for trusted projects (measured on codex 0.167.0, 2026-11-11). The script warns when the project is not listed with `trust_level = "trusted"` in `config.toml`. It still installs. A `--user` install needs no trust.
+   - Ownership. The script records a SHA-256 for each file it writes in `.project-toolkit-agents.json` next to the agents. It upgrades or removes a file only while the file still matches that record. If you edit a plain-name agent, a later run treats that file as yours and refuses (exit 1, nothing written) until you resolve it: restore the file, delete it, or rerun with `--namespace PREFIX` so the shipped agent installs beside yours as `PREFIX-<name>`. If you edit a `PREFIX-<name>` copy, a later run keeps your edit and its record, warns, and exits 0.
+   - Conflicts. If a file with the same name exists and the script did not write it, the script prints the conflict, writes nothing, and exits 1. Pass `--namespace PREFIX` (lowercase letters, digits, hyphens) to install that agent as `PREFIX-<name>` instead. The agents' handoffs still name the unprefixed agent, so they reach your own agent, and the script warns about each one.
+   - Cloned repositories. A repository can commit its own `.codex/agents/.project-toolkit-agents.json`, and `--uninstall` deletes the files that file lists. Before you run `--uninstall` (or any install) in a repository you did not create, read that file and run with `--dry-run` first. The script rejects unsafe names, symlinks, and junctions, but it cannot know which listed files you meant to keep.
+   - `--dry-run` prints the plan and writes nothing. `--uninstall` removes the files that still match their record and leaves edited files with a warning.
+   - Spawn reviewers with `fork_turns="none"`, so a reviewer does not inherit the parent's context.
+   - Subagents. Codex cannot enforce the Claude-only `disallowedTools: Agent` line, so the build drops it. Instead, 24 of the 25 shipped bodies carry a `Subagents` section that tells the model not to start subagents. That is a prompt instruction, not a block. A Codex subagent inherits the parent's permissions, which is the bound ADR-115 Decision 3 relies on.
+   - Trust path. The warning checks the exact project path. If Codex trusts a parent folder, the warning can be a false alarm.
+
 Update:
 
 ```bash
 codex plugin marketplace upgrade ai-agents
 ```
 
+Then run the step 2 command again. The upgrade does not touch `.codex/agents/`, so installed agents stay at the old version until you do. The script upgrades only files that still match its record.
+
 Not verified: whether `codex plugin add project-toolkit@ai-agents` run again copies new files into the installed folder. Check the skill count after an upgrade.
 
 Uninstall:
 
 ```bash
+# First remove the agents. Add --user, or --project DIR, to match how you installed.
+# Without a flag the script looks in the current directory's .codex/agents.
+# The script lives in the plugin folder that the next command deletes.
+cache="${CODEX_HOME:-$HOME/.codex}/plugins/cache/ai-agents/project-toolkit"
+python3 -I "$cache/$(ls "$cache" | sort -V | tail -n 1)/install_agents.py" --uninstall
 codex plugin remove project-toolkit@ai-agents
 codex plugin marketplace remove ai-agents
 ```
@@ -289,7 +321,12 @@ hermes plugins remove project-toolkit-knowledge
 
 ### Install on Muse
 
-Not run end to end. Muse is not installed on the machine. We ran the copy steps and one skill script in a scratch home folder. We did not check that Muse loads the skills. Muse support is experimental (ADR-115 Decision 8).
+Muse means two hosts, and both install the same `src/muse/` tree (ADR-115 Decision 8). Muse support is experimental.
+
+- The Muse personal agent reads `~/workspace/custom-skills/`. The steps below are for it.
+- Muse Code, the `muse` CLI, does not read that folder. Use [Install on Muse Code](#install-on-muse-code) instead.
+
+Muse personal agent: not run end to end. No CLI exists for it here. We ran the copy steps and one skill script in a scratch home folder. We did not check that the personal agent loads the skills.
 
 Muse has no plugin manifest in this repository. ADR-115 planned a generated `.muse-plugin/plugin.json`. The tree at `d34536c95c` has none. The install path is a file copy.
 
@@ -300,7 +337,7 @@ Muse has no plugin manifest in this repository. ADR-115 planned a generated `.mu
    cd ai-agents
    ```
 
-2. Copy each skill folder. The loop skips any name Muse already has. It is the loop from [src/muse/README.md](../../src/muse/README.md):
+2. Copy each skill folder. The loop skips any name Muse already has. Unlike the [src/muse/README.md](../../src/muse/README.md) block, it keeps any folder that exists:
 
    ```bash
    mkdir -p ~/workspace/custom-skills
@@ -316,11 +353,56 @@ Muse has no plugin manifest in this repository. ADR-115 planned a generated `.mu
    [ -e ~/workspace/lib ] || cp -R src/muse/lib ~/workspace/lib
    ```
 
-   The README loop does not include this step (tracked in [#7278](https://github.com/rjmurillo/ai-agents/issues/7278)). Without it, skill scripts fail.
+   Without it, skill scripts fail. The [src/muse/README.md](../../src/muse/README.md) block differs from steps 2 and 3: it copies `lib/` too, and it moves any skill folder or `lib/` already there to a backup folder instead of skipping it ([#7278](https://github.com/rjmurillo/ai-agents/issues/7278)).
 
 Update: the step 2 loop never replaces a folder that exists, so running it again does not refresh your copy. Delete the folders named in `src/muse/skills/` from `~/workspace/custom-skills/`, and delete `~/workspace/lib`. Pull the clone and repeat steps 2 and 3.
 
 Uninstall: delete the same folders and `~/workspace/lib`.
+
+### Install on Muse Code
+
+Muse Code 1.4.15 ran on 2026-11-11 with main at `fc91afcf2`. Muse Code loads user skills from `${XDG_CONFIG_HOME:-~/.config}/muse/skills/`. Skill scripts look for `lib/` one level up, at `${XDG_CONFIG_HOME:-~/.config}/muse/lib/`. Muse Code documents `~/.config/muse/agents/` for agents (ADR-115 Decision 8). This install uses `${XDG_CONFIG_HOME:-~/.config}/muse/agents/`, the same root as skills. No run shows that Muse Code reads the `XDG_CONFIG_HOME` form for agents. The personal agent has no documented agent format and gets no agents.
+
+Do not copy these skills into the `skills` folder under `~/.agents`, or under a repository's `.agents` folder. Codex reads those folders too, and its copies differ.
+
+1. Clone the toolkit, as in step 1 above.
+
+2. Copy the skills, `lib/`, and agents. The block moves any file or folder already there to a backup folder. It never deletes one:
+
+   ```bash
+   root="${XDG_CONFIG_HOME:-$HOME/.config}/muse"
+   backup="$root/install-backup-$(date +%Y%m%d%H%M%S)-$$"
+   mkdir -p "$root/skills" "$root/agents"
+   if [ ! -e "$root/lib" ] && [ ! -L "$root/lib" ] \
+     || { mkdir -p "$backup" && mv "$root/lib" "$backup/lib"; }; then
+     cp -R src/muse/lib "$root/lib"
+   else
+     echo "backup failed, kept $root/lib" >&2
+   fi
+   for d in src/muse/skills/*/; do
+     name="$(basename "$d")"
+     if [ -e "$root/skills/$name" ] || [ -L "$root/skills/$name" ]; then
+       mkdir -p "$backup/skills" && mv "$root/skills/$name" "$backup/skills/$name" \
+         || { echo "backup failed, kept $root/skills/$name" >&2; continue; }
+     fi
+     cp -R "$d" "$root/skills/$name"
+   done
+   for f in src/muse/agents/*.md; do
+     name="$(basename "$f")"
+     if [ -e "$root/agents/$name" ] || [ -L "$root/agents/$name" ]; then
+       mkdir -p "$backup/agents" && mv "$root/agents/$name" "$backup/agents/$name" \
+         || { echo "backup failed, kept $root/agents/$name" >&2; continue; }
+       echo "moved $root/agents/$name to $backup/agents/$name"
+     fi
+     cp "$f" "$root/agents/$name"
+   done
+   ```
+
+   On 2026-11-11 the tree shipped 25 agents. It leaves out `analyst`, `code-reviewer`, `comment-analyzer`, and `security`, because their Claude files declare a `tools` list and Muse Code tool names are not documented. Each shipped body names the agents left out. Muse Code cannot spawn an agent with an unrecognized frontmatter key, so only `name` and `description` ship. On 2026-11-12, signed-in `muse exec` runs on 1.4.15 spawned all 25 from `~/.config/muse/agents/`, and each child's session log held its agent body. Muse Code refused a control agent with an extra frontmatter key as `agent_definition_invalid`. The load test is `tests/e2e/test_muse_agents_load.py`, and it needs a Muse login. Muse Code's default sandbox hides `~/.config/muse` from the model's shell, so the model cannot run a skill script from the user folder (`Permission denied`). It can read the skill with its skill tool. Account-wide agents have unrestricted tools and apply to every workspace. The Claude deny on starting subagents does not carry over. 24 agent bodies instead carry a Subagents section that asks the model not to start subagents. That is a prompt instruction, not a block.
+
+Update: pull the clone and run step 2 again. It moves the old copies aside.
+
+Uninstall: move the folders named in `src/muse/skills/` out of `~/.config/muse/skills/`. Move the files named in `src/muse/agents/` out of `~/.config/muse/agents/`. Move `~/.config/muse/lib` out too. Use `$XDG_CONFIG_HOME/muse` in place of `~/.config/muse` when that variable is set.
 
 ## Check your result
 
@@ -465,9 +547,11 @@ The second command prints the number of toolkit skills that Codex puts in its pr
 105
 ```
 
-The `VERSION` is always `1.0.0`. The tree has no version field (ADR-092), so Codex reports a default. Codex gets no agents and no rules. It loads agents only from `.codex/agents/`, and no plugin path carries rules.
+The `VERSION` is always `1.0.0`. The tree has no version field (ADR-092), so Codex reports a default. Codex gets no rules, and registers no plugin component for agents. It loads agents only from `.codex/agents/` or `$CODEX_HOME/agents/`, which step 2 fills, and no plugin path carries rules.
 
-Not run: a Codex model turn that uses a skill.
+To check the agents after step 2, run `codex debug prompt-input hi` and look for each agent name in the `agent_type` list of the `spawn_agent` tool. The list appears only once a custom agent exists.
+
+Not run: a Codex model turn that uses a skill or an agent.
 
 Stale check: the installed folder is named `1.0.0` and never changes. Codex keeps a git snapshot of the marketplace. Read its SHA and compare it with the `git ls-remote` SHA:
 
@@ -682,7 +766,7 @@ usage: get_pr_checks.py [-h] [--owner OWNER] [--repo REPO]
                         [--timeout-seconds TIMEOUT_SECONDS]
 ```
 
-Muse gets skills only. The frontmatter keeps only `name` and `description`, the two fields Muse custom skills use.
+One `src/muse` tree serves two Muse targets. The personal agent gets skills and `lib/` only. Muse Code gets skills, `lib/`, and agents. The skill frontmatter keeps only `name` and `description`. The personal agent steps are in [src/muse/README.md](../../src/muse/README.md). The Muse Code steps are in [Install on Muse Code](#install-on-muse-code): skills and `lib/` under `${XDG_CONFIG_HOME:-$HOME/.config}/muse/`, agents in `muse/agents/`. On 2026-11-12, signed-in `muse exec` runs on 1.4.15 spawned all 25 agents from `muse/agents/` (`tests/e2e/test_muse_agents_load.py` needs a Muse login). On 2026-11-11, Muse Code 1.4.15 `muse skills validate` accepted all 105 `src/muse/skills` directories with no login (`tests/e2e/test_muse_skills_validate.py`).
 
 Not run: asking Muse to list or use a skill.
 
@@ -690,9 +774,69 @@ Stale check: the copy records no SHA. Write down your clone's SHA when you copy,
 
 If it fails:
 
-- `Plugin lib directory not found: <home>/workspace/lib`: you skipped step 3. We hit this after the README loop alone.
+- `Plugin lib directory not found: <home>/workspace/lib`: you skipped step 3.
 - A skill folder already existed: the loop kept your copy. See the update note above.
 - Muse does not list the skills: we could not test this. Check that `~/workspace/custom-skills/` is the folder your Muse build reads.
+
+### Check Muse Code
+
+Count the skills Muse Code loaded from its user folder:
+
+```bash
+muse skills list --source user --json | python3 -c "import json,sys; print(sum(s['path'].startswith('\$CONFIG_DIR/skills') for s in json.load(sys.stdin)['skills']))"
+```
+
+We got `105` in a scratch home with no other skills. Muse Code prints the path with a literal `$CONFIG_DIR` prefix.
+
+Run one skill script from the copy:
+
+```bash
+cd ~ && python3 -I "${XDG_CONFIG_HOME:-$HOME/.config}/muse/skills/github/scripts/pr/get_pr_checks.py" --help
+```
+
+It prints the same usage text as the personal-agent check above.
+
+Count the agent files the install copied:
+
+```bash
+ls "${XDG_CONFIG_HOME:-$HOME/.config}/muse/agents/"*.md | wc -l
+```
+
+It prints `25` in a scratch home with no other agents (2026-11-11). It counts files only. The spawn evidence is in the install step above.
+
+We also ran one signed-in `muse exec` turn. It loaded the `github` skill and ran that script. That run used a copy in a scratch repository's project skill folder, not the user folder.
+
+On 2026-11-12 (Muse Code 1.4.15), a signed-in turn loaded the `github` skill from the user folder with the skill tool. The same turn could not run the script there: Muse Code's default sandbox answered `Permission denied` for anything under `~/.config/muse`. The script command above works from your own shell.
+
+On 2026-11-15 (Muse Code 1.4.20), the limit was still there. A one-step `muse exec` turn ran the script under the default sandbox and printed `[Errno 13] Permission denied`. The same turn with `--disable-sandbox` printed `usage: get_pr_checks.py`. The default sandbox also denied `~/.config/muse/settings.json`, `lib/`, and `agents/`. It still allowed `~/.agents`, `~/.bashrc`, and `/etc/hostname`. Muse Code protects its own config folder from sandboxed shell commands.
+
+Not run: update or uninstall in a real home.
+
+Muse Code trims its skill catalog to 32 KB. In a scratch home with these 105 skills and the 26 built-in and plugin skills, it loaded 131 skills. It shortened 104 descriptions and omitted no skill.
+
+If it fails:
+
+- The count is `0`, and the skills sit in `~/workspace/custom-skills/`: that is the personal-agent folder. Muse Code does not read it. Run the Muse Code step 2.
+- `Plugin lib directory not found`: `lib/` is missing from `${XDG_CONFIG_HOME:-~/.config}/muse/`. Run step 2 again.
+- `muse skills list` shows `skill-shadowed`: another root has a skill with the same name, and Muse Code loaded that one.
+- The agent count is `0`: step 2 did not copy the agents. Run step 2 from the repository root.
+- `[Errno 13] Permission denied` when the agent runs a skill script under `~/.config/muse`: this is Muse Code's default shell sandbox, not a bad install. See the next section.
+
+### Known limit: skill scripts under the default Muse Code sandbox
+
+Muse Code runs shell commands in a sandbox that denies reads under `~/.config/muse`. Every shipped skill script lives there, so the agent cannot run one. The shell returns `[Errno 13] Permission denied`. Skills still load through the skill tool. Only shell commands into the install fail.
+
+Muse Code 1.4.20 has no supported setting that allows a read path for the sandbox. Its [permissions page](https://dev.meta.ai/docs/muse-code/permissions) says Muse Code refuses a permission profile that adds extra file or home-directory paths. We tried a custom profile on 2026-11-15. The 1.4.20 launcher refused each absolute-path read rule with `read cannot be enforced (no live matcher for this rule)`.
+
+The workaround is to start the session with `--disable-sandbox`:
+
+```bash
+muse --disable-sandbox
+```
+
+That flag keeps approval prompts. It also lets the file tools write anywhere on the filesystem and forces full network egress, so use it only on a machine where that is acceptable. `--yolo` removes approval as well, so use it only inside an isolated environment. Neither flag changes the install.
+
+We did not change where the skills install. A folder outside `~/.config/muse` that the sandbox can read, such as `~/.agents`, might work. We did not test that.
 
 ## Next
 

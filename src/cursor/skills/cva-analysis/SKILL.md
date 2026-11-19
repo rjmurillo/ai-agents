@@ -1,6 +1,8 @@
 ---
 name: cva-analysis
+version: 1.0.0
 description: Systematic abstraction discovery using Commonality Variability Analysis. Build matrix of what varies vs what's constant, then let patterns emerge. Prevents wrong abstractions by deferring pattern selection until requirements are analyzed. Use when facing multiple similar requirements and need to discover natural abstractions.
+license: MIT
 metadata:
   tier: 3
   timelessness: 9
@@ -65,6 +67,8 @@ Activate CVA when you encounter:
 - Requirements are still highly uncertain (premature)
 
 ## Process
+
+**Delegation on each host.** "Delegate to the `X` agent" means the host's subagent tool: Claude Code `Task` with `subagent_type="X"`; Copilot CLI `task` with `agent_type="project-toolkit:X"`; Codex `spawn_agent` with `agent_type="X"`, plus `fork_turns="none"` when the agent reviews or judges work (the default hands it your whole history); Muse Code `subagent_spawn` with `role="X"` and an `objective`, plus `worktree_isolation: true` for an agent that writes files. If the host has no subagent tool, or no `X` agent is installed, run the step yourself in this session.
 
 ### Phase 1: Identify Commonalities
 
@@ -272,7 +276,7 @@ Use Abstract Factory pattern with `IPaymentFactory` per method.
 1. **Run validation script**:
 
    ```bash
-   python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/cva-analysis/scripts/validate-cva-matrix.py" cva-matrix.md
+   ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/cva-analysis/scripts/validate-cva-matrix.py cva-matrix.md; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
    ```
 
    - Checks: ≥2 rows, ≥2 columns, all cells filled, patterns suggested
@@ -289,7 +293,7 @@ Use Abstract Factory pattern with `IPaymentFactory` per method.
 
    ```text
    # Hand off ADR stub to architect agent
-   Task(subagent_type="architect", prompt="Create ADR from CVA analysis stub")
+   Delegate to the architect agent: "Create ADR from CVA analysis stub"
    ```
 
 4. **Document reassessment triggers**:
@@ -344,7 +348,7 @@ CVA produces ADR stub with pattern rationale. Architect agent creates formal ADR
 **Handoff Protocol**:
 
 ```text
-Task(subagent_type="architect", prompt="Create ADR from CVA analysis at cva-payment-processing.md")
+Delegate to the architect agent: "Create ADR from CVA analysis at cva-payment-processing.md"
 ```
 
 ### decision-critic Skill
@@ -364,7 +368,7 @@ Challenges whether abstraction is needed at all. Use when CVA is borderline (min
 **Usage**:
 
 ```text
-Task(subagent_type="independent-thinker", prompt="Challenge whether payment abstraction is justified given only 2 current methods")
+Delegate to the independent-thinker agent: "Challenge whether payment abstraction is justified given only 2 current methods"
 ```
 
 ## Verification Checklist
@@ -427,7 +431,7 @@ Check CVA matrix completeness and suggest patterns.
 **Usage**:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/cva-analysis/scripts/validate-cva-matrix.py" cva-matrix.md
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/cva-analysis/scripts/validate-cva-matrix.py cva-matrix.md; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 **Exit Codes**:

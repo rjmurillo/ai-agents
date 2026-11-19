@@ -26,7 +26,7 @@ Apply pit-of-success thinking when designing milestones, interfaces, and migrati
 
 ### Plan Quality Checklist
 
-When reviewing a plan (TW + QR review phase), verify:
+When reviewing a plan (comment review and plan review phase), verify:
 
 1. **Default behavior is correct**: Does each milestone produce a working, deployable state? If a team stops after milestone N, is the system still functional?
 2. **Pretty names for right types**: Are the recommended approaches named clearly? Is the golden path obvious?

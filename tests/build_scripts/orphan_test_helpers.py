@@ -85,15 +85,17 @@ def git(root: Path, *args: str) -> None:
     subprocess.run(cmd, check=True, capture_output=True, env=env)
 
 
-def symlink_or_skip(link: Path, target: str | Path) -> None:
+def symlink_or_skip(link: Path, target: str | Path, *, target_is_directory: bool = False) -> None:
     """Create ``link`` -> ``target``, or skip where the platform denies symlinks.
+
+    ``target_is_directory`` matters on Windows, where a directory link is a different kind.
 
     Windows without Developer Mode raises ``OSError``; some Python builds raise
     ``NotImplementedError``. Follows ``test_sync_slim_agents._symlink_or_skip``.
     """
     link.parent.mkdir(parents=True, exist_ok=True)
     try:
-        link.symlink_to(target)
+        link.symlink_to(target, target_is_directory=target_is_directory)
     except (OSError, NotImplementedError) as exc:
         pytest.skip(f"symlink creation unavailable; issue #4632: {exc}")
 

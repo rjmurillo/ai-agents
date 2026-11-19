@@ -156,7 +156,13 @@ gone and no one finds out. That is the silent-failure anti-pattern.
    exit 0 that hides a disabled hook. Do not add a launcher wrapper that swallows
    its own resolution failure. Treat any change to the launcher shape as
    architecture, the surface that caused the incident; route it through
-   architect review before shipping.
+   architect review before shipping. The shell locator that runs a shipped
+   plugin script (`build/scripts/plugin_run_launcher.py`, ADR-121) is a launcher
+   shape. Write a new Class S command as the locator; it exits 2 with the
+   `ptk_run:` prefix when no root holds the resolver. The nested form
+   `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/..."`
+   stays valid for a command the completion gate runs (Class G) and while sites
+   migrate.
 
 2. **Size the blast radius before you ship.** Ask: if this artifact is wrong, what
    breaks for the customer, and how do they recover? If the answer is "everything"

@@ -17,6 +17,7 @@ class TestClosingCommentOutcome:
     """A failed closing comment must stop the run before the close call (exit 3)."""
 
     _OPEN = _completed(stdout=json.dumps({"state": "OPEN"}))
+    _NO_COMMENTS = _completed(stdout="[[]]")
 
     def _run(self, replies, capsys=None):
         with (
@@ -32,30 +33,42 @@ class TestClosingCommentOutcome:
         return rc, subcommands
 
     def test_comment_failure_exits_3_and_never_closes(self, capsys):
-        rc, subcommands = self._run([self._OPEN, _completed(rc=1, stderr="HTTP 502 bad gateway")])
+        rc, subcommands = self._run(
+            [self._OPEN, self._NO_COMMENTS, _completed(rc=1, stderr="HTTP 502 bad gateway")]
+        )
 
         assert rc == 3
         assert ["pr", "close"] not in subcommands
-        assert subcommands == [["pr", "view"], ["pr", "comment"]]
+        assert subcommands == [["pr", "view"], ["api", "--paginate"], ["pr", "comment"]]
         err = capsys.readouterr().err
         assert "HTTP 502 bad gateway" in err
         assert "NOT closed" in err
 
     def test_comment_failure_prints_no_success_envelope(self, capsys):
-        self._run([self._OPEN, _completed(rc=1, stderr="boom")])
+        self._run([self._OPEN, self._NO_COMMENTS, _completed(rc=1, stderr="boom")])
 
         assert capsys.readouterr().out == ""
 
     def test_comment_success_then_close_success(self, capsys):
-        rc, subcommands = self._run([self._OPEN, _completed(), _completed()])
+        rc, subcommands = self._run([self._OPEN, self._NO_COMMENTS, _completed(), _completed()])
 
         assert rc == 0
-        assert subcommands == [["pr", "view"], ["pr", "comment"], ["pr", "close"]]
+        assert subcommands == [
+            ["pr", "view"],
+            ["api", "--paginate"],
+            ["pr", "comment"],
+            ["pr", "close"],
+        ]
         assert json.loads(capsys.readouterr().out)["action"] == "closed"
 
     def test_comment_success_then_close_failure_exits_3(self, capsys):
         rc, subcommands = self._run(
-            [self._OPEN, _completed(), _completed(rc=1, stderr="permission denied")]
+            [
+                self._OPEN,
+                self._NO_COMMENTS,
+                _completed(),
+                _completed(rc=1, stderr="permission denied"),
+            ]
         )
 
         assert rc == 3

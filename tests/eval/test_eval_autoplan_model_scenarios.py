@@ -184,7 +184,7 @@ def test_layers_are_counted_apart() -> None:
     }
     model = ev.evaluate_model(scenarios, results)
     htd = model["families"]["high-traffic-direct"]
-    assert (htd["scenarios"], htd["exercised"], htd["scored"], htd["passed"]) == (2, 2, 2, 1)
+    assert (htd["scenarios"], htd["exercised"], htd["scored"], htd["passed"]) == (3, 2, 2, 1)
     assert htd["accuracy"] == 0.5
     adj = model["families"]["conditional-adjunct"]
     assert (adj["exercised"], adj["scored"], adj["passed"]) == (2, 0, 0)
@@ -237,6 +237,7 @@ def test_unreachable_route_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:
     assert model["unreachable"] == [
         {"id": "R1", "routes": ["github"]},
         {"id": "R2", "routes": ["github"]},
+        {"id": "R13", "routes": ["github"]},
     ]
     assert model["families"]["high-traffic-direct"]["reachable"] == 0
 
@@ -282,7 +283,7 @@ def test_model_miss_is_advisory_and_exit_stays_zero(
     code = ev.main(["--model-results", str(run)])
     out = capsys.readouterr().out
     assert code == ev.EXIT_OK
-    line = "model family high-traffic-direct: scenarios=2 reachable=2 exercised=2 scored=2"
+    line = "model family high-traffic-direct: scenarios=3 reachable=3 exercised=2 scored=2"
     assert f"{line} passed=1 accuracy=50%" in out
     assert "MODEL-MISS R2 [high-traffic-direct] score=1.00 (advisory)" in out
     assert "not scored: pass --model-results" not in out
@@ -326,7 +327,7 @@ def test_runner_accepts_the_scenario_file_without_a_model() -> None:
         timeout=60,
     )
     assert proc.returncode == 0, proc.stderr
-    assert "autoplan: 12 scenarios" in proc.stdout
+    assert "autoplan: 13 scenarios" in proc.stdout
 
 
 def _runner() -> Any:

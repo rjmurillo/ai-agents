@@ -390,3 +390,110 @@ def test_unparseable_frontmatter_is_skipped_with_a_stderr_warning(
 
     assert result["kind"] == "none"
     assert "skipped" in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------------------
+# Ordered, windowed intent matching and possessive folding (DESIGN-037)
+# ---------------------------------------------------------------------------
+
+
+def _ordered(request: str, intent: str) -> bool:
+    return resolver._matches_ordered(resolver._tokenize(request), resolver._tokenize(intent))
+
+
+@pytest.mark.parametrize(
+    ("request_text", "intent"),
+    [
+        ("update the api guide now", "api guide"),
+        ("write integration docs", "write integration docs"),
+        ("write the integration tests docs", "write integration docs"),
+        ("write integration, then test it and docs", "write integration docs"),
+    ],
+)
+def test_ordered_tokens_inside_the_window_match(request_text: str, intent: str) -> None:
+    assert _ordered(request_text, intent)
+
+
+def test_span_of_length_plus_two_matches_and_plus_three_does_not() -> None:
+    assert _ordered("alpha x y beta", "alpha beta")
+    assert not _ordered("alpha x y z beta", "alpha beta")
+
+
+def test_out_of_order_tokens_do_not_match() -> None:
+    assert not _ordered(
+        "documentation for the write integration", "write integration documentation"
+    )
+    assert not _ordered("beta then alpha", "alpha beta")
+
+
+def test_wrong_order_inside_the_window_does_not_match() -> None:
+    assert not _ordered("alpha gamma beta", "alpha beta gamma")
+
+
+def test_one_request_token_cannot_fill_two_intent_positions() -> None:
+    assert not _ordered("alpha beta", "alpha beta beta")
+
+
+def test_tokens_spread_wider_than_the_cap_do_not_match() -> None:
+    assert not _ordered(
+        "Write integration tests for the Redis client and update the documentation.",
+        "write integration documentation",
+    )
+
+
+def test_a_short_gap_across_and_still_matches() -> None:
+    # The matcher has no notion of clauses; only the span cap rejects a match.
+    assert _ordered("Write the tests and the documentation.", "write documentation")
+
+
+def test_stop_words_between_tokens_do_not_count_against_the_window() -> None:
+    assert _ordered("alpha and the of in a beta", "alpha beta")
+
+
+def test_later_start_is_tried_when_the_first_start_is_too_wide() -> None:
+    assert _ordered("alpha x y z alpha beta", "alpha beta")
+
+
+def test_repeated_token_is_not_reused_for_two_intent_positions() -> None:
+    assert not _ordered("alpha", "alpha alpha")
+    assert _ordered("alpha alpha", "alpha alpha")
+
+
+def test_empty_intent_never_matches() -> None:
+    assert not _ordered("anything at all", "the of")
+
+
+@pytest.mark.parametrize("apostrophe", ["'", "\u2018", "\u2019", "\u02bc"])
+def test_possessive_s_is_dropped_without_a_stray_token(apostrophe: str) -> None:
+    assert resolver._tokenize(f"the agent{apostrophe}s assumptions") == ("agent", "assumption")
+
+
+def test_non_possessive_apostrophe_words_still_split() -> None:
+    assert resolver._tokenize("don't stop") == ("don", "t", "stop")
+
+
+def test_world_model_request_with_possessive_stays_within_the_window() -> None:
+    result = resolver.resolve(
+        "Diagnose why the agent’s assumptions about the world model keep failing.",
+        _real_roots(),
+    )
+    assert result["route"] == f"{REAL_NAMESPACE}:world-model-diagnostic"
+
+
+@pytest.mark.parametrize(
+    "request_text",
+    [
+        "Write integration tests for the Redis client and update the documentation.",
+        "Write a unit test for the rule engine and its documentation.",
+    ],
+)
+def test_cross_clause_requests_do_not_route_to_technical_writing(request_text: str) -> None:
+    result = resolver.resolve(request_text, _real_roots())
+    assert result["route"] != f"{REAL_NAMESPACE}:technical-writing"
+    assert result["kind"] == "none"
+
+
+def test_window_cap_counts_tokens_after_stop_word_removal() -> None:
+    """`is this delete safe` is two tokens (`delete`, `safe`), so the cap is four."""
+    assert _ordered("delete x y safe", "is this delete safe")
+    assert not _ordered("delete x y z safe", "is this delete safe")

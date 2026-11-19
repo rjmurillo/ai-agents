@@ -1,6 +1,7 @@
 ---
 name: style-enforcement
 description: Validate code against style rules from .editorconfig, StyleCop.json, and Directory.Build.props. Use when you say "check style compliance", "validate editorconfig rules", "run style enforcement", "check naming conventions", or "validate line endings". Detects line ending violations, naming convention issues, indentation problems, and charset mismatches across C#, Python, PowerShell, and JavaScript. Do NOT use for taste/style invariants like file size or structured logging (use taste-lints).
+license: MIT
 metadata:
   version: 1.0.0
   routing:
@@ -30,16 +31,16 @@ Validate code files against configured style rules from project configuration fi
 
 ```bash
 # Check all files in current directory
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/style-enforcement/scripts/check_style.py" --target .
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/style-enforcement/scripts/check_style.py --target .; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Check only changed files (CI mode)
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/style-enforcement/scripts/check_style.py" --git-staged
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/style-enforcement/scripts/check_style.py --git-staged; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Check specific files
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/style-enforcement/scripts/check_style.py" src/models/user.cs src/services/auth.cs
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/style-enforcement/scripts/check_style.py src/models/user.cs src/services/auth.cs; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # JSON output for automation
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/style-enforcement/scripts/check_style.py" --target . --format json --output violations.json
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/style-enforcement/scripts/check_style.py --target . --format json --output violations.json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ---
@@ -188,7 +189,7 @@ Example: "Async method 'GetUser' should end with 'Async' suffix"
 ### Basic Usage
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/style-enforcement/scripts/check_style.py" [options] [files...]
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/style-enforcement/scripts/check_style.py [options] [files...]; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ### Parameters
@@ -229,11 +230,13 @@ repos:
     hooks:
       - id: style-enforcement
         name: Style Enforcement
-        entry: python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/style-enforcement/scripts/check_style.py"
-        args: [--git-staged]
+        entry: >-
+          bash -c '( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/style-enforcement/scripts/check_style.py --git-staged; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )'
         language: python
         pass_filenames: false
 ```
+
+pre-commit runs `entry` without a shell, so the locator sits inside `bash -c`. The `--git-staged` flag is part of the locator, so the hook has no `args:` key.
 
 ### GitHub Actions
 
@@ -246,10 +249,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check style
         run: |
-          python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/style-enforcement/scripts/check_style.py" \
-            --target . \
-            --format sarif \
-            --output style-results.sarif
+          ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/style-enforcement/scripts/check_style.py --target . --format sarif --output style-results.sarif; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
       - uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: style-results.sarif
@@ -260,7 +260,7 @@ jobs:
 Before creating a PR, run style enforcement:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/style-enforcement/scripts/check_style.py" --git-staged
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/style-enforcement/scripts/check_style.py --git-staged; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 If exit code is 10, fix violations before proceeding.
@@ -272,7 +272,7 @@ If exit code is 10, fix violations before proceeding.
 ### Example 1: Check Single File
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/style-enforcement/scripts/check_style.py" src/models/User.cs
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/style-enforcement/scripts/check_style.py src/models/User.cs; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 **Output:**
@@ -293,7 +293,7 @@ Exit code: 10 (violations detected)
 ### Example 2: JSON Output for CI
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/style-enforcement/scripts/check_style.py" --target . --format json
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/style-enforcement/scripts/check_style.py --target . --format json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ```json
@@ -320,7 +320,7 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/style-enf
 ### Example 3: SARIF for GitHub Code Scanning
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/style-enforcement/scripts/check_style.py" --target . --format sarif --output results.sarif
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/style-enforcement/scripts/check_style.py --target . --format sarif --output results.sarif; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ---
@@ -397,7 +397,7 @@ Use existing linters instead when:
 After running style check, the gate is `check_style.py`'s exit code, not a self-check:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/style-enforcement/scripts/check_style.py" "$TARGET_PATH"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/style-enforcement/scripts/check_style.py "$TARGET_PATH"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 echo "exit=$?"   # 0 = clean, 10 = violations found, 1 = tool error
 ```
 

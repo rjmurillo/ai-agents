@@ -1,6 +1,27 @@
 ---
 name: destructive-change-safety
+version: 1.0.0
 description: Prove blast radius and recovery before a change that deletes, overwrites, drops, or revokes state. Scans for destructive sinks, traces callers and flags, previews scope without mutating, and blocks on unknown scope, bad cardinality, or no rollback. Use when you say `is this delete safe` or `blast radius`. Do NOT use for read-only changes or security review (use security-scan).
+license: MIT
+metadata:
+  capability:
+    kind: reusable-primitive
+    owns:
+      - destructive-change-safety
+    depends-on:
+      - technical-review
+    status: active
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan's long-tail resolver matches a destructive-change or blast-radius request
+    user-facing: true
+    intents:
+      - destructive change safety
+      - blast radius
+      - is this delete safe
+      - rollback plan
+      - irreversible migration
 ---
 
 # Destructive Change Safety
@@ -25,13 +46,13 @@ pay one scan and nothing more.
 
 ## Process
 
-All commands run `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/destructive-change-safety/scripts/destructive_gate.py`
-with `python3`. Output is one JSON object.
+Each command below is a locator that runs `destructive_gate.py`. Output is
+one JSON object.
 
 ### Phase 1: Identify and trace sinks
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/destructive-change-safety/scripts/destructive_gate.py" scan <dir-or-file> --base . --changed <edited-function> ...
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/destructive-change-safety/scripts/destructive_gate.py scan <dir-or-file> --base . --changed <edited-function> ...; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Scan the whole package the change lives in, not only the edited file, so
@@ -129,7 +150,7 @@ code from this run, not a prediction. Write the evidence file:
 `expected` is the exact count, or an object with a `max` key. Then:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/destructive-change-safety/scripts/destructive_gate.py" gate --evidence <evidence.json> --scan <scan.json>
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/destructive-change-safety/scripts/destructive_gate.py gate --evidence <evidence.json> --scan <scan.json>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 | Verdict | Exit | Meaning |

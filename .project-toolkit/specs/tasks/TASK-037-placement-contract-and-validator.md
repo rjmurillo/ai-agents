@@ -9,7 +9,7 @@ source: GH-5391
 related:
   - DESIGN-026
 created: 2026-09-16
-updated: 2026-09-16
+updated: 2026-11-13
 author: spec
 tags:
   - governance
@@ -95,7 +95,7 @@ The earlier working-tree observation below predates that distribution change.
   already present as uncommitted working-tree changes on
   `feat/5391-placement-contract` as of this writing (verified via
   `git status --short`: `templates/rules/knowledge-persistence.md`,
-  `.serena/memories/README.md`, and all four mirrors show modified). Confirm
+  `.serena/memories/README.md`, and both mirrors show modified). Confirm
   the content matches DESIGN-026's taxonomy shape before committing; do not
   re-author it from scratch.
 - Regenerate mirrors with the one command
@@ -114,8 +114,9 @@ The earlier working-tree observation below predates that distribution change.
   text names the `memory-placement` job), and with PR A's body reading
   `Refs #5391` and PR B's body reading `Closes #5391`. The spec files land
   in PR B first; PR A carries the same commit and merges cleanly after it.
-- Keep each commit within the five-file advisory atomic-commit limit.
-  PR A's template, README, and repository-local mirrors fit within that limit.
+- PR A touches four files (one canonical, two mirrors, one README), within
+  the five-file advisory atomic-commit limit. PR #7242 removed the
+  contributor-only rule from consumer plugin trees.
 
 ## Milestone 1: PR A, placement taxonomy doc extension
 

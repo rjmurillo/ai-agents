@@ -1,6 +1,8 @@
 ---
 name: quality-grades
+version: 1.0.0
 description: Grade each product domain and architectural layer with A-F scoring and gap tracking. Produces markdown or JSON reports showing grades, file counts, gaps, and trends. Use when you ask "grade quality", "audit domain quality", "show quality gaps", "domain quality report", or "run quality grades" across a repo. Use for repo-wide A-F domain grading and trend tracking. Do NOT use for single-file maintainability scoring (use code-qualities-assessment) or a pre-merge review (use review).
+license: MIT
 metadata:
   routing:
     role: front-door
@@ -36,16 +38,16 @@ Grade each product domain and architectural layer. Track gaps over time.
 
 ```python
 # Grade all auto-detected domains
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/quality-grades/scripts/grade_domains.py"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/quality-grades/scripts/grade_domains.py; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Grade specific domains as JSON
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/quality-grades/scripts/grade_domains.py" --domains security memory --format json
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/quality-grades/scripts/grade_domains.py --domains security memory --format json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Write report to file (enables trend tracking)
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/quality-grades/scripts/grade_domains.py" --output quality-grades.md
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/quality-grades/scripts/grade_domains.py --output quality-grades.md; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Show top 10 domains by gap count
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/quality-grades/scripts/grade_domains.py" --top-n 10
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/quality-grades/scripts/grade_domains.py --top-n 10; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ---
@@ -125,8 +127,8 @@ Use `code-qualities-assessment` instead when:
 After execution, run the bundled validator and require exit 0:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/quality-grades/scripts/grade_domains.py" --output quality-grades.md
-echo "exit=$?"   # must be 0; exit 2 means no domains detected (report is empty)
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/quality-grades/scripts/grade_domains.py --output quality-grades.md; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+echo "exit=$?"   # must be 0; exit 2 means no domains detected (report is empty), or a launcher failure when stderr shows a ptk_run: line
 ```
 
 - [ ] `grade_domains.py` exited 0 (non-zero = no domains; the report is not valid)

@@ -193,7 +193,7 @@ uv run python scripts/validate_workflows.py
 
 ### Example 1: Clean Validation
 
-```bash
+```text
 $ uv run python scripts/validate_workflows.py .github/workflows/pytest.yml
 Validating: .github/workflows/pytest.yml
 
@@ -202,7 +202,7 @@ Validating: .github/workflows/pytest.yml
 
 ### Example 2: With Warnings
 
-```bash
+```text
 $ uv run python scripts/validate_workflows.py .github/workflows/large-workflow.yml
 Validating: .github/workflows/large-workflow.yml
 
@@ -214,7 +214,7 @@ Validating: .github/workflows/large-workflow.yml
 
 ### Example 3: With Errors
 
-```bash
+```text
 $ uv run python scripts/validate_workflows.py .github/workflows/bad-workflow.yml
 Validating: .github/workflows/bad-workflow.yml
 

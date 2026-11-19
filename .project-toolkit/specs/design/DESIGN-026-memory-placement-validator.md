@@ -8,7 +8,7 @@ related:
   - REQ-028
   - TASK-037
 created: 2026-09-16
-updated: 2026-10-12
+updated: 2026-11-13
 author: spec
 tags:
   - governance

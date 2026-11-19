@@ -1,6 +1,8 @@
 ---
 name: requirements-interview
+version: 0.2.0
 description: Adversarial requirements interview that walks the design tree to elicit testable requirements before any code is written (the grill-me pattern), or audits an existing multi-section spec for ambiguity with source-anchored questions. Skip any question the codebase can already answer. Use when you say "interview me on this", "grill me on the requirements", "walk the design tree", or "audit this spec for ambiguity".
+license: MIT
 metadata:
   routing:
     role: nested-helper
@@ -76,7 +78,7 @@ the rebuilt document integrates each answer once.
 4. **Run the check.** It rejects any anchor that is not verbatim in the source:
 
    ```bash
-   python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/requirements-interview/scripts/spec_audit.py" check --source <spec.md> --ledger <ledger.json>
+   ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/requirements-interview/scripts/spec_audit.py check --source <spec.md> --ledger <ledger.json>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
    ```
 
    `status: no_material_gaps` returns `NO MATERIAL GAPS`. `status: ask` returns a `batch`
@@ -103,8 +105,8 @@ Script usage, exit codes, ledger schema, question rules, and the verify log:
 Entry point for the ambiguity-audit mode. It prints one JSON object.
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/requirements-interview/scripts/spec_audit.py" check --source <spec.md> --ledger <ledger.json> [--repo-root <dir>] [--max-options N] [--max-questions N]
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/requirements-interview/scripts/spec_audit.py" verify --source <spec.md> --ledger <ledger.json> --log <log.json> --rebuilt <rebuilt.md>
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/requirements-interview/scripts/spec_audit.py check --source <spec.md> --ledger <ledger.json> [--repo-root <dir>] [--max-options N] [--max-questions N]; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/requirements-interview/scripts/spec_audit.py verify --source <spec.md> --ledger <ledger.json> --log <log.json> --rebuilt <rebuilt.md>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Exit codes: `0` ok, `1` invalid ledger, incomplete question, or failed verification,

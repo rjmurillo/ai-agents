@@ -53,8 +53,17 @@ Matching:
    ``boxes`` to ``box``); it is deliberately narrow because REQ-039 asks for
    a deterministic, testable heuristic, not a stemmer, and Q6 defers scored
    recall improvements to the eval in issue #5389.
-2. An intent matches when every one of its folded tokens appears in the
-   folded request token set.
+   A possessive ``'s`` (apostrophe U+0027, U+2018, U+2019, or U+02BC) is dropped before
+   splitting, so ``agent's`` yields ``agent`` and no stray ``s`` token.
+2. An intent matches when its folded tokens appear in the folded request
+   tokens in the same order and the matched span, first to last matched
+   request token, is at most ``len(intent_tokens) + 2`` request tokens.
+   Stop words are already gone, so they never count against the window.
+   Tokens spread wider than the cap do not match. The matcher has no notion
+   of clauses, so a short gap across "and" still matches, as do adjacent
+   tokens. The scan reads at most ``len + 2`` tokens from each
+   position holding the intent's first token, so it is linear in the
+   request length.
 3. A skill's score is its count of matching intents. The tie-break is the
    total token count of those matching intents.
 
@@ -98,6 +107,13 @@ __all__ = ["main", "resolve", "Root", "Skill"]
 _FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 
 _WORD_RE = re.compile(r"[a-z0-9]+")
+
+# A possessive "'s" (U+0027, U+2018, U+2019, or U+02BC) ends a word. Dropping it
+# keeps "agent's" from yielding a stray "s" token.
+_POSSESSIVE_RE = re.compile(r"['‘’ʼ]s\b")
+
+# Extra request tokens an intent's span may cover beyond its own length.
+_SPAN_SLACK = 2
 
 # A short list of English function words dropped before token matching, so
 # they never contribute to an intent match or a false positive.
@@ -215,9 +231,28 @@ def _fold(token: str) -> str:
 
 
 def _tokenize(text: str) -> tuple[str, ...]:
-    """Lowercase, split into words, drop stop words, and fold each token."""
-    words = _WORD_RE.findall(text.lower())
+    """Lowercase, drop possessive ``'s``, split into words, drop stop words, fold."""
+    words = _WORD_RE.findall(_POSSESSIVE_RE.sub("", text.lower()))
     return tuple(_fold(word) for word in words if word not in _STOPWORDS)
+
+
+def _matches_ordered(request_tokens: tuple[str, ...], intent_tokens: tuple[str, ...]) -> bool:
+    """Return True when the intent tokens appear in order within the span cap.
+
+    The span runs from the first to the last matched request token and may
+    not exceed ``len(intent_tokens) + _SPAN_SLACK``. Each request position
+    holding the first intent token is tried as a start, and the scan from it
+    stops at the cap, so the cost is O(len(request) * cap).
+    """
+    if not intent_tokens:
+        return False
+    cap = len(intent_tokens) + _SPAN_SLACK
+    for start, token in enumerate(request_tokens):
+        if token == intent_tokens[0]:
+            window = iter(request_tokens[start + 1 : start + cap])
+            if all(wanted in window for wanted in intent_tokens[1:]):
+                return True
+    return False
 
 
 def _default_namespace(root: Path) -> str:
@@ -388,7 +423,7 @@ def _resolve_specialist(
     request: str, catalog: list[Skill], home_qualified: str
 ) -> dict[str, object]:
     """Score every eligible front-door skill and return the winner, a tie, or none."""
-    request_tokens = frozenset(_tokenize(request))
+    request_tokens = _tokenize(request)
     scored: list[tuple[int, int, Skill, list[str]]] = []
     for skill in catalog:
         if (
@@ -400,7 +435,7 @@ def _resolve_specialist(
         matched = [
             intent
             for intent in skill.intents
-            if (tokens := _tokenize(intent)) and all(t in request_tokens for t in tokens)
+            if _matches_ordered(request_tokens, _tokenize(intent))
         ]
         if matched:
             tiebreak = sum(len(_tokenize(intent)) for intent in matched)

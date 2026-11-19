@@ -105,6 +105,18 @@ def validate_skill_md_exec_portability(repo_root: Path) -> bool:
     )
 
 
+def validate_host_neutral_dispatch(repo_root: Path) -> bool:
+    """Fail when a shipped Codex or Muse file calls a Claude-only tool bare (issue #7226).
+
+    Wraps ``scripts/validation/check_host_neutral_dispatch.py``. Neither host
+    registers ``Task`` or ``AskUserQuestion``, so a skill line naming one with
+    no other host beside it sends the model to a tool that does not exist.
+    """
+    return _run_portability_validator(
+        repo_root, "scripts/validation/check_host_neutral_dispatch.py"
+    )
+
+
 def validate_skill_resolver_anchoring(repo_root: Path) -> bool:
     """Fail when a SKILL.md script-path resolver can select a stale copy.
 
@@ -271,7 +283,9 @@ def validate_hook_template_drift(repo_root: Path) -> bool:
     hooks-and-settings counterpart of :func:`validate_rule_template_drift`
     above: it byte-copies every ``templates/hooks/<name>`` in memory and
     compares the result against the committed ``src/claude/hooks/<name>``
-    (``hooks.json`` included) or ``.claude/settings.json`` for the
+    (``hooks.json`` included), ``.claude/hooks/<name>`` for a name in the
+    ``hooks`` binplace row's ``repo_only`` list (ADR-109 amendment 2026-11-11),
+    or ``.claude/settings.json`` for the
     direct-rendered settings template; it never writes. Exit 0 covers "no
     template exists" and "every render matches". Exit 1 or 2 names the
     drifted or malformed file, printed by the shared runner.

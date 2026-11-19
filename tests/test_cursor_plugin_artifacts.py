@@ -229,6 +229,7 @@ def test_cursor_tree_has_lib_for_skill_scripts() -> None:
         "github_core",
         "hook_utilities",
         "paths.py",
+        "ptk_run.py",
     }
     assert (CURSOR_TREE / "skills" / "review" / "scripts" / "validate_review_marker.py").is_file()
 

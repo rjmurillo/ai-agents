@@ -125,7 +125,9 @@ def test_copy_skill_tree_check_mode_counts_a_stale_codex_skill_md(tmp_path: Path
 def _codex_stanza() -> dict[str, Any]:
     config = yaml.safe_load((REPO_ROOT / "templates/platforms/codex.yaml").read_text())
     assert config["provider"] == "codex"
-    assert set(config["artifacts"]) == {"skills"}, "Codex ships skills only (Decision 7)"
+    assert set(config["artifacts"]) == {"skills", "agents"}, (
+        "Codex ships skills in the plugin and agents through install_agents.py (Decision 7)"
+    )
     return config["artifacts"]["skills"]
 
 

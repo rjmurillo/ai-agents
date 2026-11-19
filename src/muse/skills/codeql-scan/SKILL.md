@@ -1,6 +1,14 @@
 ---
 name: codeql-scan
+version: 1.0.1
 description: Execute CodeQL security scans with language detection, database caching, and SARIF output. Use when performing static security analysis on Python or GitHub Actions code.
+license: MIT
+metadata:
+  routing:
+    role: conditional-adjunct
+    invoker: security-scan
+    trigger: security-scan escalates to codeql-scan for full SAST analysis when it finds issues or high-risk files
+    user-facing: false
 ---
 
 # CodeQL Scan Skill
@@ -14,13 +22,13 @@ Execute CodeQL security scans with automated language detection, database cachin
 /codeql-scan
 
 # Full scan with auto-detected languages
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/codeql-scan/scripts/invoke_codeql_scan.py" --operation full
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/codeql-scan/scripts/invoke_codeql_scan.py --operation full; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Quick scan with cached databases
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/codeql-scan/scripts/invoke_codeql_scan.py" --operation quick
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/codeql-scan/scripts/invoke_codeql_scan.py --operation quick; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Validate configuration only
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/codeql-scan/scripts/invoke_codeql_scan.py" --operation validate
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/codeql-scan/scripts/invoke_codeql_scan.py --operation validate; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ## Triggers
@@ -95,7 +103,7 @@ Run a comprehensive security analysis of the entire codebase.
 2. **Run Scan:**
 
    ```bash
-   python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/codeql-scan/scripts/invoke_codeql_scan.py" --operation full
+   ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/codeql-scan/scripts/invoke_codeql_scan.py --operation full; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
    ```
 
 3. **Review Results:**
@@ -108,7 +116,7 @@ Run a comprehensive security analysis of the entire codebase.
 Use for rapid iteration during development. Only re-scans if source files changed.
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/codeql-scan/scripts/invoke_codeql_scan.py" --operation quick
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/codeql-scan/scripts/invoke_codeql_scan.py --operation quick; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 **Performance comparison:**
@@ -121,7 +129,7 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/codeql-sc
 Verify CodeQL configuration YAML syntax and query packs.
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/codeql-scan/scripts/invoke_codeql_scan.py" --operation validate
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/codeql-scan/scripts/invoke_codeql_scan.py --operation validate; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ## Scripts
@@ -352,7 +360,7 @@ Error: Query execution timed out after 300s
 **Solution:** Reduce scope by scanning a specific language.
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/codeql-scan/scripts/invoke_codeql_scan.py" --operation full --languages python
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/codeql-scan/scripts/invoke_codeql_scan.py --operation full --languages python; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ### Cache Invalidation Issues
@@ -364,7 +372,7 @@ Warning: Using cached database, but source files changed
 **Solution:** Force database rebuild with a full scan.
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/codeql-scan/scripts/invoke_codeql_scan.py" --operation full
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/codeql-scan/scripts/invoke_codeql_scan.py --operation full; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 </details>

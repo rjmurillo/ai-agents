@@ -1,6 +1,15 @@
 ---
 name: maintainer-review
+version: 1.0.0
 description: Make a need-gated maintainer decision (merge, request changes, supersede, close) on one PR or issue and draft a comment, with no remote action. Use for `maintainer decision on this PR`. Do NOT use as the quality gate (use review) or to answer your own PR threads (use pr-comment-responder).
+license: MIT
+metadata:
+  routing:
+    role: explicit-only
+    invoker: user
+    trigger: the repository owner, or an owner-configured pr-opened routine, names this skill with one PR or issue URL
+    user-facing: true
+    rationale: A disposition gate decides whether work should exist at all. It must run only when the owner or an owner-configured routine asks for it by name, never as a side effect of a generic review request, because its output feeds merge and close decisions that only the owner may take.
 ---
 
 # Maintainer Review

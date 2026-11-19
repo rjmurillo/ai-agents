@@ -3,9 +3,16 @@
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
 import pytest
+
+_BUILD_SCRIPTS = Path(__file__).resolve().parents[1] / "build" / "scripts"
+if str(_BUILD_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_BUILD_SCRIPTS))
+
+import plugin_run_launcher  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -48,10 +55,12 @@ def test_quality_auditor_agent_contains_invokable_grading_contract(
     """Each quality-auditor prompt routes to the grading script it tells agents to run."""
     text = path.read_text(encoding="utf-8")
     assert "# Quality Auditor Agent" in text, surface
-    assert (
-        'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}'
-        '/skills/quality-grades/scripts/grade_domains.py"'
-    ) in text, surface
+    targets = {
+        match.script_rel
+        for line in text.splitlines()
+        for match in plugin_run_launcher.find_locators(line)
+    }
+    assert "skills/quality-grades/scripts/grade_domains.py" in targets, surface
 
 
 @pytest.mark.parametrize("surface,path", ORCHESTRATOR_SURFACES.items())

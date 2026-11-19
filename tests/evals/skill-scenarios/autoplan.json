@@ -135,6 +135,17 @@
       "expected_route": ["programming-advisor", "buy-vs-build-framework"],
       "forbidden_routes": ["orchestrator"],
       "rationale": "A strategic build, buy, partner, or defer decision is the one case the table adds buy-vs-build-framework after programming-advisor. A response that routes only to programming-advisor, or to the orchestrator, fails."
+    },
+    {
+      "id": "R13",
+      "family": "high-traffic-direct",
+      "desc": "A cross-cutting request that spans several domains routes to the orchestrator agent",
+      "input": "Add rate limiting to the public API, update the deploy pipeline to roll it out behind a flag, and write the migration notes for operators. Answer in 5 short bullets naming the route you pick. Do not modify any files.",
+      "expected_signals": ["orchestrator"],
+      "expected_gate": "route-orchestrator",
+      "expected_route": ["orchestrator"],
+      "forbidden_routes": ["merge-resolver", "github"],
+      "rationale": "The Phase 2 table maps multi-domain, cross-cutting work to Agent: orchestrator on every host. A response that hands it to one single-domain agent such as merge-resolver, or to the github skill, selected an adjacent route and fails."
     }
   ]
 }

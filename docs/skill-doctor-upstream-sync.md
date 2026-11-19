@@ -53,7 +53,7 @@ There is no renamed `collection_sessions.py` compatibility entry point.
 13. Explicit annotations for dynamic parser data, without disabling strict type checks.
 14. Native path containment, including Windows case-insensitive repository matching.
 15. Explicit UTF-8 Git output decoding and escaped legacy-console diagnostics.
-16. Python 3.10+ requirements and POSIX and PowerShell rendering instructions.
+16. python3 standard-library requirements and POSIX and PowerShell rendering instructions.
 17. Unicode filesystem, read-only SQLite URI, and OS discovery regression tests.
 18. Deterministic inventory handoff to skill-bootstrap, separate from qualitative report scoring.
 19. Copilot context history and exclusion of mixed-repository sessions from project-scoped collection.
@@ -92,6 +92,10 @@ There is no renamed `collection_sessions.py` compatibility entry point.
 52. `audit_batches.py` and `--timeline-supplement`: immutable review assignments with a source digest, atomic all-or-nothing score imports, and an opt-in timeline stratum recorded as non-probability (issue #7248, M2).
 53. `report_audit.py` and `public_export.py`: optional catalog, score, and per-record sections in `report.html`, a scorecard-versus-artifact check, and an allowlist aggregate export that refuses private values (issue #7248, M4).
 54. Report UX rework and branding removal: `report_style.py` holds one light and dark token set, the page reads as header, summary band (grade, evaluation status, totals), findings, candidate cards with Copy and Select all handoff prompts, then collapsible evidence. The Warp footer, `Request access` call to action, `cta_url`, pixel mark, and Warp share-card text are removed; the share card is neutral.
+55. agentskills.io alignment: passing conversations may back `Cut:` candidates only. Corrective suggestions still need a failed conversation. `scorers/efficiency.md` adds a skill-induced waste signal. `references/skill-improvements.md` maps user corrections to Gotchas and checks drafts against the specification limits.
+56. Progressive disclosure: collector flags and the sampling rule moved to `references/collection.md`, and the `report.json` shape moved to `references/report-schema.md`. `SKILL.md` stays under about 5,000 tokens.
+57. Exit codes in `--help`: the module docstrings of `audit_batches.py`, `audit_manifest.py`, `audit_scores.py`, `collect_sessions.py`, and `render_report.py` list each script's exit codes, matching the codes `main` already returns. The three whose parsers set their own description also pass that text as the `--help` epilog. `SKILL.md` says the scripts run on python3, with no minimum version.
+58. ADR-035 exit codes: `collect_sessions.py` exits 2, not 1, when a requested session source is missing or none is found, because that is a configuration error. The `SKILL_ROOT` check in `SKILL.md` exits 2 for the same reason, and `assemble_report.py --help` lists its codes. Script headers say python3 with no minimum version.
 
 Do not replace local files wholesale with the newest upstream tree.
 Do not restore removed local adaptations merely because upstream still includes them.

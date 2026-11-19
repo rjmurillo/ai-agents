@@ -27,6 +27,7 @@ import rule_templates  # noqa: E402
 _PINNED_REPO_ONLY = frozenset(
     {
         "adr-records",
+        "agent-skill-docs",
         "canonical-source-mirror",
         "ci-scripts",
         "claude-agents",

@@ -1,0 +1,80 @@
+{
+  "meta": {
+    "rebuilt_from_checkpoint": true,
+    "split": "heldout",
+    "date": "2026-11-15",
+    "corpus_sha256": "712546c7a245c5e1ff2a6803282c38caf76005c5e7017f492e46815ac57fc258",
+    "arms": {
+      "baseline": {
+        "rows": 102,
+        "output_tokens": 2403036,
+        "prompt_ref": [
+          "not recorded"
+        ],
+        "model": [
+          "not recorded"
+        ],
+        "provider": [
+          "not recorded"
+        ]
+      },
+      "treatment": {
+        "rows": 102,
+        "output_tokens": 2657228,
+        "prompt_ref": [
+          "not recorded"
+        ],
+        "model": [
+          "not recorded"
+        ],
+        "provider": [
+          "not recorded"
+        ]
+      }
+    }
+  },
+  "result": {
+    "paired": {
+      "all": {
+        "both": 9,
+        "baseline_only": 9,
+        "treatment_only": 12,
+        "neither": 132,
+        "same_file_baseline": 46,
+        "same_file_treatment": 61,
+        "n": 162,
+        "mcnemar_p": 0.6636238098144531
+      },
+      "context:diff-local": {
+        "both": 2,
+        "baseline_only": 3,
+        "treatment_only": 4,
+        "neither": 37,
+        "same_file_baseline": 16,
+        "same_file_treatment": 19,
+        "n": 46,
+        "mcnemar_p": 1.0
+      },
+      "context:external-knowledge": {
+        "both": 2,
+        "baseline_only": 2,
+        "treatment_only": 1,
+        "neither": 13,
+        "same_file_baseline": 6,
+        "same_file_treatment": 10,
+        "n": 18,
+        "mcnemar_p": 1.0
+      },
+      "context:repo-context": {
+        "both": 5,
+        "baseline_only": 4,
+        "treatment_only": 7,
+        "neither": 82,
+        "same_file_baseline": 24,
+        "same_file_treatment": 32,
+        "n": 98,
+        "mcnemar_p": 0.548828125
+      }
+    }
+  }
+}

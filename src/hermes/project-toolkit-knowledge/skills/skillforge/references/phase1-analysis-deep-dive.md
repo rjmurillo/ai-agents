@@ -2,6 +2,15 @@
 
 ## 1A: Input Expansion
 
+**Source material intake comes first.** Before expanding requirements, collect
+real project material: runbooks, API specs, schemas, code review comments,
+incident reports, version-control history, and past failure cases. If a
+hands-on session solved the task, capture its steps, corrections, and
+formats (`skillify` does this end to end). Write down what the skill must
+know that the model would not. A skill drafted from model knowledge alone
+comes out generic; flag that risk in the analysis when no material exists.
+Source: [agentskills.io best practices](https://agentskills.io/skill-creation/best-practices).
+
 Transform user's goal into comprehensive requirements:
 
 ```

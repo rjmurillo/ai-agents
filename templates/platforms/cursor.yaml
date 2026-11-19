@@ -27,6 +27,10 @@ artifacts:
     # shipped at all (ADR-115 Decision 3), because Cursor would run it with
     # every tool. An agent with no tools list ships without readonly.
     deriveReadonly: true
+    # Cursor replaces the bare Claude plugin-root token in a plugin agent body with the
+    # plugin root (cursor-agent 2026.11.13 probe, 2026-11-16), so the split-agent
+    # reference paths keep it. Codex and Muse Code replace no token.
+    keepClaudeReferenceRoot: true
     # Cursor ships no `security` agent (its tools list is not read-only, ADR-115
     # Decision 3), so each line below that hands work to one is reworded to say
     # what a Cursor user can do: report the finding to the user and flag it.
@@ -55,10 +59,13 @@ artifacts:
     outputDir: "src/cursor/skills"
     mode: "directory-copy"
     excludeFilenames: ["AGENTS.md", "CLAUDE.md"]
-    # https://cursor.com/docs/context/skills documents these seven SKILL.md keys
-    # and does not say whether other keys (version, license, allowed-tools,
+    # https://cursor.com/docs/context/skills documents the first seven SKILL.md
+    # keys below and does not say whether other keys (allowed-tools,
     # argument-hint, user-invocable, model) are ignored or rejected. An
-    # allow-list ships only the documented ones. The body is copied verbatim.
+    # allow-list ships only the documented ones, plus version and license:
+    # GP-003 requires both in every SKILL.md, and the agentskills.io spec
+    # defines license (ADR-115 Decision 3, amended 2026-11-15). The body is
+    # copied verbatim.
     frontmatterKeep:
       - name
       - description
@@ -67,6 +74,8 @@ artifacts:
       - icon
       - color
       - metadata
+      - version
+      - license
   rules:
     sourceDir: "src/claude/rules"
     outputDir: "src/cursor/rules"

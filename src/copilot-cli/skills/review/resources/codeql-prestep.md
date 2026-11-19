@@ -20,7 +20,7 @@ python3 <codeql_prestep.py> --base-branch "$BASE_BRANCH" [--pull-request N] [--u
 - Pass `--pull-request N` when the reviewed branch has an open pull request. Without it
   the script may run the guarded local scan.
 - Pass `--unattended` when no human is present: a headless `/ship`, a scheduled or fleet
-  run, or any session where nobody reads `AskUserQuestion`. Unattended means Tier 1 only.
+  run, or any session where nobody reads a structured ask (Claude Code: `AskUserQuestion`). Unattended means Tier 1 only.
   The script also treats `CI` or `GITHUB_ACTIONS` in the environment as unattended.
 - It exits 0 with one JSON object on stdout for every outcome, including `SKIPPED` and a
   directory that is not a git repository. Only a usage error (a bad flag value, such as a

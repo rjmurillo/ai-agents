@@ -78,7 +78,7 @@ reviewer can read them. It is advisory: it cannot tell whether the answers are
 true.
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/domain-design/scripts/evaluate_design.py" proposal.json
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/domain-design/scripts/evaluate_design.py proposal.json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 | Field | Meaning |

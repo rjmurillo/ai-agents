@@ -211,7 +211,7 @@ def test_missing_root_directory_exits_nonzero(script: Path, layout: dict[str, Pa
     combined = result.stdout + result.stderr
     assert "--root is not a directory" in combined, combined
     assert "Traceback" not in combined, combined
-    assert result.returncode == 1
+    assert result.returncode == 2
 
 
 @pytest.mark.parametrize("script", _SCRIPTS, ids=_script_id)
@@ -220,7 +220,7 @@ def test_root_that_is_a_file_exits_nonzero(script: Path, layout: dict[str, Path]
     not_a_dir.write_text("x", encoding="utf-8")
     result = _run(script, layout["work"], str(layout["skill"]), "--root", str(not_a_dir))
     assert "--root is not a directory" in result.stdout + result.stderr
-    assert result.returncode == 1
+    assert result.returncode == 2
 
 
 @pytest.mark.parametrize("script", _SCRIPTS, ids=_script_id)
@@ -243,17 +243,17 @@ def test_root_that_is_a_file_exits_nonzero(script: Path, layout: dict[str, Path]
         "no-args",
     ],
 )
-def test_usage_errors_exit_one_with_usage(
+def test_usage_errors_exit_two_with_usage(
     script: Path, tmp_path: Path, bad_args: list[str]
 ) -> None:
     result = _run(script, tmp_path, *bad_args)
     combined = result.stdout + result.stderr
     assert "Usage:" in combined, combined
-    assert result.returncode == 1
+    assert result.returncode == 2
 
 
 @pytest.mark.parametrize("script", _SCRIPTS, ids=_script_id)
-def test_duplicate_root_and_extra_positional_exit_one(
+def test_duplicate_root_and_extra_positional_exit_two(
     script: Path, layout: dict[str, Path]
 ) -> None:
     repo = str(layout["repo"])
@@ -261,7 +261,7 @@ def test_duplicate_root_and_extra_positional_exit_one(
     extra = _run(script, layout["work"], str(layout["skill"]), "second", "--root", repo)
     for result in (dup, extra):
         assert "Usage:" in result.stdout + result.stderr
-        assert result.returncode == 1
+        assert result.returncode == 2
 
 
 @pytest.mark.parametrize("script", _SCRIPTS, ids=_script_id)

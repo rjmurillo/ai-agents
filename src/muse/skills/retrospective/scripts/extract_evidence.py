@@ -2,8 +2,9 @@
 """Gather Phase 0 evidence for a retrospective.
 
 Collects the evidence sources this script currently supports: the recent
-session log under ``.project-toolkit/sessions/`` and the ``git log`` over the
-retrospective period. Each source degrades clearly: a missing or unreadable
+session log under ``.project-toolkit/sessions/``, the ``git log`` over the
+retrospective period, and an optional native Copilot CLI journal named with
+``--journal`` (bounded execution receipts, see ``copilot_journal.py``). Each source degrades clearly: a missing or unreadable
 source is marked absent in the returned ``Evidence`` rather than failing the
 whole gather, per the SKILL.md Inputs contract ("When a source is unavailable,
 degrade gracefully ... mark the missing sections, never substitute invented
@@ -26,6 +27,7 @@ Exit codes (ADR-035):
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import subprocess
@@ -105,6 +107,9 @@ class Evidence:
         git_available: Whether git history was readable.
         commits: One-line commit summaries over the period.
         notes: Human-readable notes about degraded sources.
+        journal: Native Copilot journal receipt report, or None when no
+            journal was requested. Carries ``available``, caps, skipped-record
+            counts, and source attribution.
     """
 
     scope: str
@@ -115,6 +120,7 @@ class Evidence:
     git_available: bool
     commits: list[str]
     notes: list[str] = field(default_factory=list)
+    journal: dict[str, object] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -313,10 +319,36 @@ def gather_git_log(
     return True, commits
 
 
+def gather_journal(project_dir: Path, journal: Path) -> dict[str, object]:
+    """Return the Copilot journal receipt report; failures mean unavailable.
+
+    The helper module loads by file location, like the other sibling scripts,
+    so this stays runnable when the scripts directory is not on ``sys.path``.
+    """
+    module_path = Path(__file__).resolve().parent / "copilot_journal.py"
+    name = f"{__name__}._retrospective_copilot_journal"
+    try:
+        spec = importlib.util.spec_from_file_location(name, module_path)
+        if spec is None or spec.loader is None:
+            raise ImportError(f"cannot load {module_path.name}")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+        return module.extract_receipts(journal, project_dir)
+    except (ImportError, OSError) as exc:
+        return {
+            "path": str(journal),
+            "available": False,
+            "reason": f"journal reader unavailable: {type(exc).__name__}: {exc}",
+            "receipts": [],
+        }
+
+
 def gather_evidence(
     project_dir: Path,
     scope: str,
     since: str | None = None,
+    journal: Path | None = None,
 ) -> Evidence:
     """Gather all Phase 0 evidence, degrading gracefully on missing sources.
 
@@ -324,6 +356,7 @@ def gather_evidence(
         project_dir: Repository root containing ``.agents/`` and ``.git``.
         scope: The retrospective scope label.
         since: Optional ``git log --since`` value to bound the period.
+        journal: Optional explicit native Copilot journal path.
 
     Returns:
         An :class:`Evidence` bundle with per-source availability flags.
@@ -365,6 +398,10 @@ def gather_evidence(
     if not git_available:
         notes.append("git history unavailable (not a repo, git missing, or timed out).")
 
+    journal_report = gather_journal(project_dir, journal) if journal is not None else None
+    if journal_report is not None and not journal_report["available"]:
+        notes.append(f"Copilot journal unavailable: {journal_report['reason']}.")
+
     return Evidence(
         scope=scope,
         session_log_path=session_log_path,
@@ -374,6 +411,7 @@ def gather_evidence(
         git_available=git_available,
         commits=commits,
         notes=notes,
+        journal=journal_report,
     )
 
 
@@ -381,6 +419,7 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s
   %(prog)s --scope 2026-11-09 --since '1 day ago'
+  %(prog)s --journal ~/.copilot/session-state/<id>/events.jsonl
 
 exit codes:
   0  evidence gathered (some sources may be marked absent)
@@ -411,6 +450,14 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="git log --since value bounding the period (e.g. '1 day ago').",
     )
+    parser.add_argument(
+        "--journal",
+        default=None,
+        help=(
+            "Explicit native Copilot events.jsonl path. Read only when given. Receipts are "
+            "reported only if every working directory it records is inside --project-dir."
+        ),
+    )
     return parser
 
 
@@ -425,7 +472,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        evidence = gather_evidence(project_dir, args.scope, args.since)
+        journal = Path(args.journal) if args.journal else None
+        evidence = gather_evidence(project_dir, args.scope, args.since, journal)
     except Exception as exc:
         print(f"ERROR: evidence gather failed: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 3

@@ -57,7 +57,7 @@ Quote the verdict and the evidence path in the PR body. A verdict of `UNVERIFIED
 When the API changes, find the examples that touch it, then re-run them:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/api-doc-authoring/scripts/api_examples.py" list docs/ --touching /orders
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/api-doc-authoring/scripts/api_examples.py list docs/ --touching /orders; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 A failing example is a doc bug or an unannounced contract change. Decide which,

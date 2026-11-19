@@ -56,12 +56,12 @@ from typing import TYPE_CHECKING, cast
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
-# Mirrors scripts/validation/check_model_pins.py:62 (DEFAULT_MODEL) verbatim.
+# Mirrors scripts/validation/check_model_pins.py:65 (DEFAULT_MODEL) verbatim.
 # The harness-inherited default a manifest entry's own default_model field
 # must match; see resolve_manifest_model.
-DEFAULT_MODEL = "claude-sonnet-4-6"
+DEFAULT_MODEL = "gpt-6.1-sol"
 
-# Mirrors scripts/validation/check_model_pins.py:71
+# Mirrors scripts/validation/check_model_pins.py:74
 # (MANIFEST_MAX_AGE_DAYS = 180) verbatim. Kept as a separate constant, not an
 # import, per the reuse decision above.
 MANIFEST_MAX_AGE_DAYS = 180
@@ -96,7 +96,7 @@ MANIFEST_MAX_AGE_DAYS = 180
 _CANONICAL_MAJOR_MINOR_RE = re.compile(r"^claude-(opus|sonnet|haiku)-(\d{1,2})(?:[.-](\d{1,2}))?$")
 
 # The two known target shapes a platform's own ``model_tiers`` map spells its
-# tier defaults in today. See templates/platforms/copilot-cli.yaml:109-112
+# tier defaults in today. See templates/platforms/copilot-cli.yaml:124-127
 # (dot form) and templates/platforms/vscode.yaml:20-23 (display form, shared
 # by visual-studio.yaml). Matching against these rather than hardcoding a
 # per-platform-name template means a platform YAML's spelling stays the one
@@ -369,8 +369,8 @@ def format_model_id_for_platform(model_id: str, platform_tiers: Mapping[str, obj
     ``_normalize_id`` treats as canonical), but each platform's
     ``model_tiers`` map spells its OWN default id differently, for example:
 
-        templates/platforms/copilot-cli.yaml:109-112 (dot form):
-            opus: "claude-opus-4.6"
+        templates/platforms/copilot-cli.yaml:124-127 (dot form):
+            opus: "claude-opus-5.5"
         templates/platforms/vscode.yaml:20-23 (display form, shared by
         visual-studio.yaml):
             opus: "Claude Opus 4.6 (copilot)"

@@ -1,7 +1,7 @@
 ---
 name: skillopt
 version: 1.0.0
-description: Improve a skill, agent file, or prompt through bounded patches and a held-out, per-task acceptance gate. Use when you say `optimize this skill`, `make this skill better`, `compress these skills safely`, `tune this prompt against an eval`, or a skill keeps failing the same way. Refuses unscored improvement claims. Do NOT use to create or route skills (use skillforge) or to decide skill placement or compress markdown without an eval (use context-optimizer).
+description: Improve a skill, agent file, or prompt through bounded patches and a held-out, per-task acceptance gate. Use when you say `optimize this skill`, `make this skill better`, `compress these skills safely`, `tune this prompt against an eval`, or a skill keeps failing the same way. Do NOT use to create or route skills (use skillforge) or to decide skill placement or compress markdown without an eval (use context-optimizer).
 license: MIT
 user-invocable: true
 ---
@@ -81,28 +81,31 @@ Every subcommand takes explicit file paths, so it runs from any working
 directory and needs no clone of the source repository. Pure standard library.
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skillopt/scripts/skillopt.py" --help
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skillopt/scripts/mine_sessions.py" --help
-SKILLOPT_DIR="${SKILLOPT_DIR:-${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skillopt/scripts}"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillopt/scripts/skillopt.py --help; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillopt/scripts/mine_sessions.py --help; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+SKILLOPT_FOUND="$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillopt/scripts/skillopt.py where; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) )" && SKILLOPT_DIR="$SKILLOPT_FOUND"
+: "${SKILLOPT_DIR:?no plugin root holds skillopt.py; set SKILLOPT_DIR to the scripts folder beside this SKILL.md}"
 ```
 
-If neither `COPILOT_PLUGIN_ROOT` nor `CLAUDE_PLUGIN_ROOT` is set (for example
-Codex, or a plain checkout under PowerShell), use the directory that holds
-this SKILL.md. Set `SKILLOPT_DIR` to the `scripts` folder beside it:
+The `where` command prints the scripts folder of the same plugin root the other
+commands use. When no plugin root holds it (for example Codex, or a plain
+checkout under PowerShell), set `SKILLOPT_DIR` first to the `scripts` folder
+beside this SKILL.md, then run the block above; a found root still wins:
 
 ```bash
 SKILLOPT_DIR="<folder that holds this SKILL.md>/scripts"
-python3 "$SKILLOPT_DIR/skillopt.py" --help
+python3 "${SKILLOPT_DIR:?}/skillopt.py" --help
 ```
 
 On Windows PowerShell, no Bash required:
 
 ```powershell
-if (-not $SkillOptDir) {
-    $Root = if ($env:COPILOT_PLUGIN_ROOT) { $env:COPILOT_PLUGIN_ROOT } else { $env:CLAUDE_PLUGIN_ROOT }
-    if (-not $Root) { throw 'Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT, or set $SkillOptDir to the scripts folder beside this SKILL.md' }
-    $SkillOptDir = Join-Path $Root 'skills\skillopt\scripts'
-}
+$Found = @($env:CLAUDE_PLUGIN_ROOT, $env:COPILOT_PLUGIN_ROOT, '.claude') | Where-Object {
+    $_ -and (Test-Path -LiteralPath (Join-Path $_ 'lib/ptk_run.py') -PathType Leaf) -and
+    (Test-Path -LiteralPath (Join-Path $_ 'skills/skillopt/scripts/skillopt.py') -PathType Leaf)
+} | Select-Object -First 1
+if ($Found) { $SkillOptDir = Join-Path $Found 'skills/skillopt/scripts' }
+if (-not $SkillOptDir) { throw 'No plugin root holds lib/ptk_run.py and skillopt.py; set $SkillOptDir to the scripts folder beside this SKILL.md' }
 $SkillOpt = Join-Path $SkillOptDir 'skillopt.py'
 py -3 $SkillOpt --help
 ```
@@ -163,6 +166,10 @@ One optimization step:
 3. **Reflect.** Failures become corrective rules; successes become behaviors
    to preserve. Write at most L_t patches to `patches.json`. Use only `train`
    evidence.
+   Read train traces and train-split reviewer notes, not only outputs. Propose
+   `delete` patches for instructions that cause wasted work or when the gate
+   plateaus. Helper code every rollout rewrites becomes a bundled script; hash
+   the final candidate directory.
 4. **Buffer check.** `skillopt.py buffer-check --buffer rejected.jsonl
    --patches patches.json`. Exit 0 prints `KNOWN-BAD`: discard and reflect
    again. Exit 1 prints `NOVEL`: proceed.
@@ -242,6 +249,7 @@ semantic regression, because `pair-gate` rejects any regression.
    pair report, hashes, `rejected.jsonl`, and one line of evidence per task.
    `skillopt.py report` lays out the evidence, benchmark spread, and case
    signals (`references/eval-set-format.md`, Run report). It explains, never gates.
+   Act on a signal with `references/eval-authoring.md`.
 
 ## Promotion
 
@@ -273,25 +281,12 @@ Contract: `references/slow-section-convention.md`.
 ## Finding targets from sessions
 
 `mine_sessions.py` ranks skills by usage and a weak correction signal from
-local transcripts, and pulls the prompts that triggered a skill:
-
-- `sources` lists each supported source and whether it is available.
-- `rank`, `tasks --skill X`, `collect --out PATH`, `merge`.
-- `--patterns patterns.json` reads a `session-patterns/1` handoff instead of
-  transcripts.
-
-Supported sources: Claude Code transcripts (`~/.claude/projects/**/*.jsonl`)
-and the GitHub Copilot CLI session store (`~/.copilot/session-store.db`),
-both resolved from the user's home directory on Linux, macOS, and Windows.
-Any other harness is unsupported; supply a `session-patterns/1` file
-instead. A missing source is skipped, never an error; `sources` shows which
-ones were found, and a run with no source at all prints a note to stderr. Session
-data stays local; keep extracted prompts out of git unless the user names
-another destination.
-
-A correction nominates a candidate. It is not a gold label. Confirm the
-defect in the target and in two distinct sessions before funding rollouts.
-Workflow: `references/cross-machine-mining.md`.
+local transcripts, and pulls the prompts that triggered a skill. Read
+`references/cross-machine-mining.md` for its subcommands, supported sources,
+and the `session-patterns/1` handoff before you run it. A correction nominates
+a candidate. It is not a gold label. Confirm the defect in the target and in
+two distinct sessions before funding rollouts. Session data stays local; keep
+extracted prompts out of git unless the user names another destination.
 
 ## Description changes
 
@@ -311,6 +306,9 @@ score to make the gate pass.
 
 A harness that cannot run a separate `sel` runner must not run skillopt at
 all, not even to flag. See Precondition 4.
+
+SkillOpt compares incumbent against candidate. It never measures skill against
+no skill. That baseline lives in `skill-bootstrap`'s `bootstrap_eval.py score`.
 
 ## Anti-Patterns
 
@@ -350,6 +348,8 @@ class-level guidance; do not add an incident-named reference.
 ## References
 
 - `references/eval-set-format.md`: eval manifest, patch, and results schemas.
+- `references/eval-authoring.md`: read when you draft tasks and verifiers, lay
+  out a step's artifacts, or act on a report signal.
 - `references/description-optimization.md`: trigger-rate eval for `description` edits.
 - `references/rollout-validity.md`: preflight, grading, and audit rules for rollouts.
 - `references/target-selection.md`: defect confirmation, split timing, anchors, cohorts.

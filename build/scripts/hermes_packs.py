@@ -44,6 +44,7 @@ from frontmatter_key_drop import drop_keys_from_skill_md  # noqa: E402
 from hermes_pack_checks import (  # noqa: E402
     PackFile,
     check_assignment,
+    check_excluded_files,
     check_pack_limits,
     check_references,
     discover_skills,
@@ -95,6 +96,8 @@ def _skill_pack_files(source_root: Path, skill: str, config: HermesConfig) -> di
     skill_dir = source_root / skill
     for path in skill_files(skill_dir):
         rel = path.relative_to(skill_dir).as_posix()
+        if f"{skill}/{rel}" in config.excluded_files:
+            continue
         data = read_bytes_no_redirect(path)
         mode = _git_mode(path)
         if rel == _SKILL_MD:
@@ -140,6 +143,10 @@ def render_index(config: HermesConfig) -> bytes:
     else:
         lines.append("No skill is excluded.")
     lines.append("")
+    if config.excluded_files:
+        lines += ["## Excluded files", "", "These files of a shipped skill ship in no pack.", ""]
+        lines += [f"- `{path}`: {why}" for path, why in sorted(config.excluded_files.items())]
+        lines.append("")
     return "\n".join(lines).encode("utf-8")
 
 
@@ -151,6 +158,7 @@ def plan_tree(repo_root: Path, config: HermesConfig) -> dict[str, PackFile]:
     source_root = repo_root / config.source_dir
     shipped = discover_skills(source_root)
     problems = check_assignment(shipped, config)
+    problems += check_excluded_files(source_root, config)
     refs = find_references(source_root, shipped)
     problems += check_references(config, refs)
     if problems:

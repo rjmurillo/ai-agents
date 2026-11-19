@@ -7,12 +7,16 @@ requires-python = ">=3.14"
 license = {text = "MIT"}
 
 dependencies = [
-    "anthropic==2.4.0",
+    "anthropic==2.8.0",
     "jsonschema>=4.25.1",
     "markdown-it-py>=4.2.0",
     "python-frontmatter==1.3.0",
     "PyYAML==6.0.3",
     "tiktoken>=0.13.0",
+    "tree-sitter==0.26.1",
+    "tree-sitter-c-sharp==0.23.5",
+    "tree-sitter-python==0.25.0",
+    "tree-sitter-typescript==0.23.2",
 ]
 
 [project.optional-dependencies]
@@ -24,7 +28,7 @@ dev = [
     "pip-audit>=2.10.0",
     "ruff>=0.15.16",
     "mypy>=2.1.0",
-    "semgrep==1.183.0",
+    "semgrep==1.185.0",
     "lefthook==2.2.2",
     "packaging>=26.3",
     "pytest-timeout>=2.4.0",
@@ -53,19 +57,19 @@ override-dependencies = [
     # filelock 4.1.1 has six CVE-2026-1129xx findings fixed in 4.2.1.
     "filelock==4.2.1",
     "mcp==1.30.0",
-    # semgrep 1.181.0 pins opentelemetry-api<1.38. 1.45.1 fixes
-    # CVE-2026-114603. The whole family moves together because each package
-    # pins the exact api release.
-    "opentelemetry-api==1.45.1",
-    "opentelemetry-exporter-otlp-proto-common==1.45.1",
-    "opentelemetry-exporter-otlp-proto-http==1.45.1",
-    "opentelemetry-instrumentation==0.66b1",
-    "opentelemetry-instrumentation-requests==0.66b1",
-    "opentelemetry-instrumentation-threading==0.66b1",
-    "opentelemetry-proto==1.45.1",
-    "opentelemetry-sdk==1.45.1",
-    "opentelemetry-semantic-conventions==0.66b1",
-    "opentelemetry-util-http==0.66b1",
+    # 1.45.2 fixes CVE-2026-126360:
+    # https://github.com/open-telemetry/opentelemetry-python/security/advisories/GHSA-mf5v-w3w3-f6cg
+    # SDK 1.45.2 requires semantic-conventions 0.66b2 and API 1.45.2.
+    "opentelemetry-api==1.45.2",
+    "opentelemetry-exporter-otlp-proto-common==1.45.2",
+    "opentelemetry-exporter-otlp-proto-http==1.45.2",
+    "opentelemetry-instrumentation==0.66b2",
+    "opentelemetry-instrumentation-requests==0.66b2",
+    "opentelemetry-instrumentation-threading==0.66b2",
+    "opentelemetry-proto==1.45.2",
+    "opentelemetry-sdk==1.45.2",
+    "opentelemetry-semantic-conventions==0.66b2",
+    "opentelemetry-util-http==0.66b2",
     # semgrep 1.178.0 still pins pyjwt~=2.13.0. 2.15.0 fixes the 2.13.0 CVEs
     # pip-audit reports and GHSA-42vr-xj54-vc7v (issue #6028).
     "pyjwt[crypto]==2.15.0",
@@ -118,6 +122,7 @@ markers = [
     "codex: Real-CLI tests that need the codex CLI and no credential. The CLI smoke selects them on the codex job.",
     "grok: Real-CLI tests that need the grok CLI and no credential. No CI leg selects them yet; they run locally under RUN_CLI_E2E=1.",
     "hermes: Real-CLI tests that need the hermes CLI at the pinned commit and no credential. Run them with RUN_CLI_E2E=1.",
+    "muse: Real-CLI tests that need the muse CLI (Muse Code) and a Muse login. No CI leg selects them; they run locally under RUN_CLI_E2E=1 (ADR-115 Decision 8).",
     "pi: Real-CLI tests that need the pi CLI and no credential. The CLI smoke selects them on the pi job.",
     "cursor: Real-CLI tests that need the cursor-agent CLI and a Cursor login for the host leg. No CI leg selects them; they run locally under RUN_CLI_E2E=1.",
     "windows_path: Tests that exercise Windows path handling and must run on a Windows runner.",
@@ -794,7 +799,7 @@ source_modules = [
     "scripts.ai_review_common",
     "scripts.failure_classifier",
 ]
-forbidden_modules = ["anthropic", "jsonschema", "markdown_it", "frontmatter", "yaml", "tiktoken"]
+forbidden_modules = ["anthropic", "jsonschema", "markdown_it", "frontmatter", "yaml", "tiktoken", "tree_sitter", "tree_sitter_c_sharp", "tree_sitter_python", "tree_sitter_typescript"]
 ignore_imports = [
     # Guarded by `except ImportError`, so the module still loads without
     # PyYAML. import-linter cannot see the guard.
@@ -826,7 +831,7 @@ dev = [
     "pip-audit>=2.10.0",
     "ruff>=0.15.16",
     "mypy>=2.1.0",
-    "semgrep==1.183.0",
+    "semgrep==1.185.0",
     "lefthook==2.2.2",
     "packaging>=26.3",
     "pytest-timeout>=2.4.0",

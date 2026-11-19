@@ -1,6 +1,20 @@
 ---
 name: adr-generator
+version: 1.1.0
 description: Create comprehensive Architectural Decision Records (ADRs). Researches the destination directory to detect existing template conventions, gathers context, determines next ADR number, generates the ADR, validates completeness, and saves. Supports multiple ADR formats (MADR, Nygard, Alexandrian, project canonical). Use when documenting technical decisions, creating new ADR files, or capturing rationale so future readers can revisit a choice. Use when you say "write an ADR", "document this decision", "document these design choices", "record why we chose this", "capture the rationale", or "for future maintainers", or when creating an ADR-like markdown file under docs/decisions/, docs/adr/, docs/architecture/, architecture/decisions/, or .project-toolkit/architecture/. Do NOT use to debate or review an existing ADR (use adr-review).
+license: MIT
+metadata:
+  domains: [architecture, documentation, governance, decision-records]
+  capability:
+    kind: specialized-implementation
+    status: active
+  inputs: [decision-description, context, alternatives]
+  outputs: [adr-markdown-file]
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan routes requests to document a decision to adr-generator
+    user-facing: true
 ---
 
 # ADR Generator
@@ -182,6 +196,8 @@ Write the file to the destination directory determined in Phase G2:
 
 ## Mandatory Exit Gates
 
+**Delegation on each host.** "Delegate to the `X` agent" means the host's subagent tool: Claude Code `Task` with `subagent_type="X"`; Copilot CLI `task` with `agent_type="project-toolkit:X"`; Codex `spawn_agent` with `agent_type="X"`, plus `fork_turns="none"` when the agent reviews or judges work (the default hands it your whole history); Muse Code `subagent_spawn` with `role="X"` and an `objective`, plus `worktree_isolation: true` for an agent that writes files. If the host has no subagent tool, or no `X` agent is installed, run the step yourself in this session.
+
 Run these five gates in order against the saved draft before handing it to
 `adr-review`. They are a measured pilot, not a permanent policy: use one fixed
 ADR cohort before and after the pilot, then retain them only when avoided writer
@@ -208,7 +224,9 @@ invent a correction when evidence is unavailable or a claim remains uncertain.
 3. **Self-consistency.** Compare every Decision item with every other Decision
    item and with Consequences. Record contradictions or the `VERIFIED` result.
 4. **Refuting seat.** Run one seat, not the panel:
-   `Task(subagent_type="analyst", model="haiku", prompt="Refute only the claims ledger against the repository tree. Return factual findings and evidence.")`.
+   delegate to the `analyst` agent with the prompt "Refute only the claims ledger
+   against the repository tree. Return factual findings and evidence." (Claude
+   Code: `model="haiku"`).
    The outcome is `VERIFIED` only when no factual findings remain. Do not invoke
    `adr-review` while this seat reports a factual finding; record unavailable
    evidence as `UNAVAILABLE`, never as a fabricated correction.

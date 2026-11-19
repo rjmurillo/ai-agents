@@ -545,7 +545,9 @@ def _build_hooks(
     """Compile hook templates, then generate Copilot CLI hook config (REQ-003-007, M5-T6).
 
     ADR-109 B4: ``templates/hooks/`` compiles to ``src/claude/hooks/`` and
-    ``src/claude/hooks/hooks.json`` first (``hook_templates.compile_all``), the
+    ``src/claude/hooks/hooks.json`` first (``hook_templates.compile_all``), except
+    the ``hooks`` binplace row's ``repo_only`` entries, which render straight to
+    ``.claude/hooks/`` and never enter the plugin tree (amendment 2026-11-11), the
     same two-step shape :func:`_build_rules` runs for its own class. The
     compile also renders ``.claude/settings.json`` directly (no plugin-tree
     hop; ADR-109 section 3). The compile is repo-global, not
@@ -560,7 +562,8 @@ def _build_hooks(
     ``scriptSource``/``settingsSource`` since ADR-109 B4), which the
     compile above just wrote, so one run renders template, plugin tree,
     and the Copilot mirror together; the binplace step that follows every
-    generator copies ``src/claude/hooks`` to ``.claude/hooks``,
+    generator copies ``src/claude/hooks`` to ``.claude/hooks`` (skipping the
+    repo-only entries),
     ``src/claude/hooks/hooks.json`` linked at ``.claude/hooks/hooks.json``, and
     ``src/copilot-cli/hooks`` to ``.github/hooks``.
 

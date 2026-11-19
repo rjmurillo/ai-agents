@@ -1,6 +1,21 @@
 ---
 name: world-model-diagnostic
+version: 1.0.0
 description: Twenty-minute diagnostic mapping a team to a world-model paradigm (vector DB, structured ontology, signal-fidelity). Use when you say "run the world model diagnostic", "audit our world model", "which world model architecture fits us", or "audit where we automate judgment". Use for AI readiness assessments and boundary-layer audits where automated judgment is safe. Do NOT use for mapping team operating rhythms or decision flows; use work-operating-model instead.
+license: MIT
+metadata:
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan's long-tail resolver matches a world-model or automated-judgment diagnostic
+    user-facing: true
+    intents:
+      - world model diagnostic
+      - world model paradigm
+      - agent assumptions failing
+      - world model failing
+      - automate judgment audit
+      - boundary layer audit
 ---
 
 # World Model Diagnostic

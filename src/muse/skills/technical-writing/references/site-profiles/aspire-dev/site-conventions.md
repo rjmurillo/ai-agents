@@ -1,0 +1,746 @@
+# aspire.dev Site Conventions
+
+<!-- doc-accuracy: external-sdk Aspire -- vendored from microsoft/aspire.dev; the C# examples document the Aspire SDK, not this repository -->
+<!-- # taste-lint: ignore file-size -- vendored aspire.dev doc-writer SKILL.md body, kept whole so it diffs cleanly against upstream. -->
+
+Load this profile only when the target repository is `microsoft/aspire.dev`: it
+has `aspire.config.json` at the root and pages under
+`src/frontend/src/content/docs/`. On any other site these rules are wrong.
+
+Read with this file:
+
+- [Site-specific rules](site-specific-rules.md): links, components, `ApiReference`, testing.
+- [Integration documentation](integration-documentation.md): integration page locations and outlines.
+- [Terminal recordings](terminal-recordings.md): Asciinema and the Hex1b CLI.
+
+`<em-dash>` in a code-block `title` below stands for the U+2014 character.
+aspire.dev joins language and file name with a spaced em dash (252 of 277 spaced
+title separators in `.mdx` pages at `24fa655`, 2026-11-17). Type the real
+character in aspire.dev pages; the placeholder exists because this repository
+bans the character in its own Markdown.
+
+## Documentation Overview
+
+### Site Structure
+
+**Location**: `src/frontend/src/content/docs/`  
+**Audience**: Developers using Aspire for cloud-native application development  
+**Format**: Astro with MDX files  
+**Build System**: Astro (static site generator with Starlight theme)
+
+### Documentation Categories
+
+```
+src/frontend/src/content/docs/
+├── index.mdx                    # Landing page
+├── get-started/                 # Getting started guides
+│   ├── prerequisites.mdx
+│   ├── install-cli.mdx
+│   ├── first-app.mdx
+│   └── ...
+├── app-host/                    # AppHost documentation
+├── architecture/                # Architecture concepts
+├── dashboard/                   # Aspire Dashboard docs
+├── deployment/                  # Deployment guides
+├── diagnostics/                 # Diagnostics and telemetry
+├── extensibility/               # Extensibility guides
+├── fundamentals/                # Core concepts
+├── integrations/                # Integration documentation
+│   ├── ai/                      # AI integrations
+│   ├── caching/                 # Caching integrations
+│   ├── cloud/                   # Cloud integrations
+│   ├── compute/                 # Compute integrations
+│   ├── databases/               # Database integrations
+│   ├── frameworks/              # Framework integrations
+│   ├── messaging/               # Messaging integrations
+│   ├── observability/           # Observability integrations
+│   ├── reverse-proxies/         # Reverse proxy integrations
+│   └── security/                # Security integrations
+├── reference/                   # API reference
+├── testing/                     # Testing guides
+└── whats-new/                   # Release notes
+```
+
+### Localization and Sidebar Labels
+
+When adding, moving, or renaming localized docs pages, keep the sidebar topic config in sync under `src/frontend/config/sidebar/*.topics.ts`. Topic labels and item `translations` should include entries for the supported Starlight locale codes used by the site, such as `pt-BR` and `zh-CN`; do not add obsolete or generic locale keys like `pt` or `pt-PT` unless they are explicitly present in `src/frontend/config/locales.ts`.
+
+Route path segments can be lowercase (`pt-br`, `zh-cn`), but sidebar translation keys follow the locale codes consumed by Starlight. API reference docs under `src/content/docs/reference/api/` are intentionally not localized and should stay excluded from localization/sidebar translation work.
+
+## Astro and MDX Conventions
+
+When calling `bun run dev` or `aspire run` to test documentation in the context of CI/CD, or from an LLM, call `astro telemetry disable` to disable telemetry.
+
+### Frontmatter
+
+Every documentation file requires frontmatter:
+
+```yaml
+---
+title: Page Title
+description: A brief summary of the page content (required for SEO)
+---
+```
+
+Optional frontmatter fields:
+
+- `next: false` - Disable "Next page" link for terminal pages
+- `seoTitle` - Override the page's `og:title` / `twitter:title` only,
+  without touching the visible H1 or sidebar label. Use this **only**
+  when the natural H1 must stay short (commands, terse labels). When
+  set, the value is emitted verbatim: no `· Aspire` suffix is appended.
+- Custom metadata as needed by Starlight theme
+
+#### SEO length targets
+
+The site uses Open Graph metadata to render social cards and feed SEO
+tooling. To keep previews scannable on every social network and to
+avoid the "title too short / description too long" lints that surface
+on Yoast, LinkedIn, and the search-console reports, follow these
+length targets when authoring frontmatter:
+
+| Field         | Composed length target | Hard limit |
+| ------------- | ---------------------: | ---------: |
+| `title`       | 41-51 characters       | 70 characters |
+| `seoTitle`    | 50-60 characters       | 70 characters |
+| `description` | 110-160 characters     | 200 characters (auto-truncated) |
+
+`title` becomes `og:title` composed as `${title} · Aspire`, so the
+target window leaves room for the 9-character suffix. `seoTitle`
+overrides the composition outright: write the full string yourself.
+
+Surface keywords from the article body itself in the description
+(verbs, integration names, API surfaces). The CI guard at
+`tests/unit/seo-lengths.vitest.test.ts` fails when any English page
+strays outside the wider 30-65 / 80-200 character guard ranges, so a
+draft can land slightly off-target and tighten in follow-ups.
+
+### Required Imports
+
+Import Starlight components at the top of your MDX file, or custom components as needed:
+
+```tsx
+import {
+  CardGrid,
+  LinkCard,
+  Steps,
+  Tabs,
+  TabItem,
+  Icon,
+} from "@astrojs/starlight/components";
+import FileTree from "starlight-plugin-icons/components/FileTree.astro";
+```
+
+Additional commonly used imports:
+
+```tsx
+import { Kbd } from "starlight-kbd/components";
+import LearnMore from "@components/LearnMore.astro";
+import OsAwareTabs from "@components/OsAwareTabs.astro";
+import PivotSelector from "@components/PivotSelector.astro";
+import Pivot from "@components/Pivot.astro";
+import ThemeImage from "@components/ThemeImage.astro";
+import InstallPackage from "@components/InstallPackage.astro";
+import InstallDotNetPackage from "@components/InstallDotNetPackage.astro";
+import AsciinemaPlayer from "@components/AsciinemaPlayer.astro";
+import Badge from "@astrojs/starlight/components/Badge.astro";
+import { Image } from "astro:assets";
+```
+
+### Component Usage
+
+Prefer existing components in `src/frontend/src/components/` over bespoke MDX markup when the site already has a reusable pattern for the content. This keeps docs consistent and reduces duplicated styling, accessibility fixes, and behavior logic.
+
+When you introduce or change a custom component that is used by docs pages:
+
+- Keep the public props intentional and typed so MDX authors get statement completion and editor help.
+- Reuse existing aliases such as `@components/*` and `@assets/*` rather than deep relative imports.
+- Prefer moving heavier shared logic into colocated `.ts` helpers when the `.astro` frontmatter becomes large or is duplicated across components.
+- Treat user-visible behavior, accessibility, and responsive behavior as part of the documentation contract, not as optional polish.
+
+### Common Markdown syntax
+
+Use the rendered examples in `src/frontend/src/content/docs/community/contributor-guide.mdx` as the canonical reference for common Markdown syntax. When adding tables, use padded pipes, a separator row with at least three hyphens per cell, and blank lines before and after the table:
+
+```md
+| Feature | Description | Status |
+| ------- | ----------- | ------ |
+| Dashboard | Web-based monitoring | Available |
+```
+
+Do not replace standard Markdown with ad hoc HTML unless a component or layout requirement cannot be expressed clearly in Markdown.
+
+#### Aside (Callouts)
+
+Prefer fenced `:::` callouts for tips, notes, cautions, and warnings. Use the `Aside` component only when a JSX-only composition pattern is required.
+
+```mdx
+:::tip[Pro Tip]
+This is a helpful tip for users.
+:::
+
+:::note
+Important information users should be aware of.
+:::
+
+:::caution
+Proceed with care - this may have unexpected consequences.
+:::
+
+:::danger
+Critical warning - this could cause data loss or security issues.
+:::
+```
+
+#### Steps
+
+Use for sequential instructions:
+
+````mdx
+<Steps>
+
+1. First step with explanation
+
+   ```bash title="Run this command"
+   aspire new aspire-starter
+   ```
+
+2. Second step
+
+3. Third step
+
+</Steps>
+````
+
+#### Tabs/TabItem
+
+Use for language or platform-specific content:
+
+````mdx
+<Tabs syncKey="cli-commands">
+<TabItem label="CLI">
+
+```bash
+aspire run
+```
+````
+
+</TabItem>
+<TabItem label="Visual Studio">
+
+Press F5 to start debugging.
+
+</TabItem>
+</Tabs>
+```
+
+If a heading should appear in the **On this page** table of contents, keep that heading outside the `Tabs` component. Headings placed inside `TabItem` content may be skipped by the generated TOC.
+
+#### OsAwareTabs (Bash and PowerShell)
+
+When the **only** tab options are **Bash** and **PowerShell**, **always** use the `OsAwareTabs` custom component instead of bare `<Tabs>` / `<TabItem>`. `OsAwareTabs` wraps Starlight's synced `Tabs` and adds OS-aware behavior:
+
+- Detects the reader's operating system and defaults the active tab to **PowerShell** on Windows and **Bash** everywhere else.
+- Uses the canonical `seti:shell` and `seti:powershell` icons so the labels render consistently across the site.
+- Persists the reader's choice across pages via the standard Starlight `syncKey`. Use `syncKey="terminal"` so all OS-aware terminal blocks stay in sync.
+- Exposes two named slots, `unix` and `windows`, that contain the Bash and PowerShell content respectively.
+
+````mdx
+import OsAwareTabs from "@components/OsAwareTabs.astro";
+
+<OsAwareTabs syncKey="terminal">
+<div slot="unix">
+
+```bash
+az group create --name my-group --location westus3
+```
+
+</div>
+<div slot="windows">
+
+```powershell
+az group create --name my-group --location westus3
+```
+
+</div>
+</OsAwareTabs>
+````
+
+A few rules to follow:
+
+- Do **not** wrap a Bash + PowerShell pairing in bare `<Tabs syncKey="shell-lang">`: convert it to `OsAwareTabs` instead. This is the canonical pattern used across the dashboard, install-cli, container-networking, and AKS deployment guides.
+- Always set `syncKey="terminal"` unless there is a specific reason to scope the persistence differently. The site-wide convention is a single shared key so a reader who picks PowerShell once continues to see PowerShell on every page that offers the choice.
+- Keep the leading and trailing blank lines around the inner code fences (as shown above). MDX requires the blank lines so the fenced code block is parsed correctly inside the slotted `<div>`.
+- `OsAwareTabs` is **only** for the Bash + PowerShell pairing. Continue to use bare `<Tabs>` / `<TabItem>` for non-OS choices such as C#/TypeScript AppHost samples (`syncKey='aspire-lang'`), CLI vs IDE, deployment targets, or package managers.
+
+#### Pivot/PivotSelector
+
+Use `Pivot` and `PivotSelector` sparingly, only for **key landing-page-style articles** where the choice should persist across page navigations and where sharing the page through a URL should land the reader on a specific variant. Pivots support query string values to set the selected option (for example, `?aspire-lang=typescript`). Examples in use today include the [Build your first Aspire app](/get-started/first-app/) and [Deploy your first Aspire app](/get-started/deploy-first-app/) tutorials.
+
+For most pages, including AppHost C# and TypeScript code samples within a guide, prefer synced `Tabs` / `TabItem` blocks at the snippet level instead. See [AppHost Language Parity (C# and TypeScript)](#apphost-language-parity-typescript-and-c).
+
+```mdx
+<PivotSelector
+  title="Select your programming language"
+  key="lang"
+  options={[
+    { id: "csharp", title: "C#" },
+    { id: "python", title: "Python" },
+  ]}
+/>
+
+<Pivot id="csharp">C# specific content here.</Pivot>
+
+<Pivot id="python">Python specific content here.</Pivot>
+```
+
+If a heading needs to appear in the **On this page** table of contents, keep the heading outside the `Pivot` content and put only the variant-specific body content inside each `Pivot`.
+
+#### On this page and "Overview" headings
+
+When a page shows the **On this page** table of contents (the default behavior unless `tableOfContents: false` is set), do **not** add an `Overview` heading at any level (`##`, `###`, etc.). The docs site already provides an implicit overview link to the top of the page, so an explicit `Overview` heading becomes redundant.
+
+If your opening section is truly introductory, keep it as body copy without an `Overview` heading. If that section has a more specific purpose, use a descriptive heading such as `Key concepts`, `Prerequisites`, or another topic-specific label.
+
+For Aspire AppHost code examples, use synced `Tabs` / `TabItem` blocks with `syncKey='aspire-lang'` at each code snippet. List TypeScript first so `apphost.mts` is the default experience for readers without a saved preference. Do **not** add a page-level `PivotSelector` just to switch AppHost code samples between TypeScript and C#. Readers should be able to switch the language at the specific snippet they are reading.
+
+```mdx
+<Tabs syncKey='aspire-lang'>
+<TabItem id='typescript' label='TypeScript'>
+TypeScript example content here.
+</TabItem>
+
+<TabItem id='csharp' label='C#'>
+C# example content here.
+</TabItem>
+</Tabs>
+```
+
+#### CardGrid and LinkCard
+
+Use for navigation and feature highlights:
+
+```mdx
+<CardGrid>
+  <LinkCard
+    title="Getting Started"
+    description="Build your first Aspire app"
+    href="/get-started/first-app/"
+  />
+  <LinkCard
+    title="Integrations"
+    description="Explore available integrations"
+    href="/integrations/"
+  />
+</CardGrid>
+```
+
+#### Kbd (Keyboard Shortcuts)
+
+Use the `Kbd` component from `starlight-kbd` to display keyboard shortcuts with OS-specific variants. This renders styled `<kbd>` elements and automatically shows the correct shortcut for the reader's operating system.
+
+```mdx
+import { Kbd } from "starlight-kbd/components";
+
+Open the Command Palette (<Kbd windows="Ctrl+Shift+P" mac="Cmd+Shift+P" />)
+```
+
+**Props**:
+
+- `windows`: The shortcut for Windows (also used as the default/Linux fallback)
+- `mac`: The shortcut for macOS
+- `linux`: (optional) The shortcut for Linux, if different from Windows
+
+You can specify just `windows` when the shortcut is the same on all platforms (e.g., `<Kbd windows="F5" />`), or provide OS-specific values when they differ:
+
+```mdx
+Open a terminal (<Kbd windows="Ctrl+`" mac="⌘+`" linux="Ctrl+`" />)
+```
+
+Always prefer the `Kbd` component over the raw HTML `<kbd>` element, even for simple keys that don't vary by OS. This ensures consistent styling and behavior across the site:
+
+```mdx
+Press <Kbd windows="F5" /> to start debugging.
+```
+
+#### LearnMore
+
+Use the `LearnMore` component to add a styled "learn more" link with an open-book icon. It provides a consistent visual pattern for directing readers to related documentation.
+
+```mdx
+import LearnMore from "@components/LearnMore.astro";
+
+<LearnMore>
+  For more information, see [Service Defaults](/fundamentals/service-defaults/).
+</LearnMore>
+```
+
+The component renders an open-book icon alongside the provided content. Place it after a section or code example to point readers to deeper documentation. It works well inside fenced `:::` callouts or after `<Steps>`:
+
+````mdx
+:::tip[Feature flag]
+Enable polyglot support by running:
+
+```bash
+aspire config set features:polyglotSupportEnabled true --global
+```
+
+<LearnMore>
+  For more information, see [aspire config command
+  reference](/reference/cli/commands/aspire-config-set/)
+</LearnMore>
+:::
+````
+
+#### Aspire Custom Components
+
+Use Aspire's custom components when they express a documentation pattern more clearly than raw Markdown or ad hoc HTML. Common examples include `LearnMore`, `PivotSelector`, `Pivot`, `ThemeImage`, `InstallPackage`, `InstallDotNetPackage`, `AsciinemaPlayer`, and the other components in `src/frontend/src/components/`.
+
+Before introducing a new custom component for docs:
+
+- Check whether an existing component already solves the layout or interaction.
+- Prefer extending an existing component when the semantics stay clear.
+- Only add a new component when the pattern will be reused or the behavior is complex enough to justify a shared abstraction.
+
+If you add or change a custom component, also update the relevant tests so documentation behavior stays covered.
+
+### Code Blocks
+
+Always include a descriptive title:
+
+````mdx
+```csharp title="AppHost.cs"
+var builder = DistributedApplication.CreateBuilder(args);
+
+var api = builder.AddProject<Projects.Api>("api");
+
+// After adding all resources, run the app...
+builder.Build().Run();
+```
+````
+
+````mdx
+```typescript title="apphost.mts"
+import { createBuilder } from "./.aspire/modules/aspire.mjs";
+
+const builder = await createBuilder();
+
+const api = await builder.addProject("api", "../Api/Api.csproj");
+
+await builder.build().run();
+```
+````
+
+For JSON configuration:
+
+````mdx
+```json title="JSON <em-dash> appsettings.json"
+{
+  "ConnectionStrings": {
+    "mydb": "Host=localhost;Database=mydb"
+  }
+}
+```
+````
+
+### Package Installation Components
+
+For hosting packages:
+
+```mdx
+<InstallPackage packageName="Aspire.Hosting.Redis" />
+```
+
+For client/library packages:
+
+```mdx
+<InstallDotNetPackage packageName="Aspire.StackExchange.Redis" />
+```
+
+## AppHost Language Parity (TypeScript and C#)
+
+Aspire supports both **TypeScript AppHosts** (`apphost.mts`) and **C# AppHosts** (`AppHost.cs`). Documentation must treat both languages as first-class citizens. **Always show both TypeScript and C# code samples for AppHost code unless the feature is genuinely language-specific or TypeScript support does not exist yet.** Never write AppHost or hosting-integration documentation with a C#-only bias.
+
+### Core Principles
+
+1. **Always show both languages**: Every AppHost-focused example, walkthrough, and AppHost code sample must include both TypeScript and C# variants unless the feature is genuinely language-specific.
+2. **Show implementations, not availability notes**: When a TypeScript AppHost API exists, demonstrate it in a complete TypeScript tab beside the C# example. A note or callout that only names the available TypeScript methods does not satisfy language parity.
+3. **Use neutral framing**: Write prose that applies to both languages. Say "In your AppHost" not "In your C# project". Say "Add a Redis resource" not "Call `builder.AddRedis()`".
+4. **Default to TypeScript**: Put the TypeScript tab first so `apphost.mts` is on the left and selected for readers without a saved preference. Keep C# as an equal peer and preserve the reader's explicit language selection.
+5. **Verify TypeScript APIs exist**: Before writing a TypeScript example, confirm the API exists in the TypeScript AppHost SDK. Do not invent TypeScript samples: if you are unsure whether an API is available, flag it for review.
+
+### AppHost tabs pattern for AppHost content
+
+Use synced `Tabs` for AppHost-specific content that changes between TypeScript and C#. Each AppHost code snippet should provide its own language tabs, list TypeScript first, and use `syncKey='aspire-lang'` so the user's language choice stays synchronized across snippets on the page.
+
+````mdx
+import { Tabs, TabItem } from "@astrojs/starlight/components";
+
+<Tabs syncKey='aspire-lang'>
+<TabItem id='typescript' label='TypeScript'>
+
+```typescript title="apphost.mts"
+import { createBuilder } from "./.aspire/modules/aspire.mjs";
+
+const builder = await createBuilder();
+
+const cache = await builder.addRedis("cache");
+
+const api = await builder.addProject("api", "../Api/Api.csproj");
+await api.withReference(cache);
+
+await builder.build().run();
+```
+
+</TabItem>
+<TabItem id='csharp' label='C#'>
+
+```csharp title="AppHost.cs"
+var builder = DistributedApplication.CreateBuilder(args);
+
+var cache = builder.AddRedis("cache");
+
+builder.AddProject<Projects.Api>("api")
+    .WithReference(cache);
+
+builder.Build().Run();
+```
+
+</TabItem>
+</Tabs>
+````
+
+Use the same synced tabs pattern for more than code blocks when needed. Entire paragraphs, lists, asides, or multi-step sections can live inside the `csharp` and `typescript` tab items when the workflows differ.
+
+Use different `syncKey` values for other concerns such as CLI vs IDE, deployment targets, platform choices, or package managers. For AppHost language tabs, use exactly `syncKey='aspire-lang'`.
+
+If a section heading should appear in the **On this page** table of contents, keep that heading outside `Tabs`. Headings inside `TabItem` content may be skipped by the TOC generator, so the recommended pattern is a shared heading followed by tabs containing only the language-specific body content.
+
+### Conventions
+
+| Aspect           | TypeScript                                                                                                          | C#                                              |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| File title       | `title="apphost.mts"`                                                                                                | `title="AppHost.cs"`                            |
+| Tab wrapper      | Shared `<Tabs syncKey='aspire-lang'>` container                                                                     | Shared `<Tabs syncKey='aspire-lang'>` container |
+| Tab item         | `<TabItem id='typescript' label='TypeScript'>`                                                                      | `<TabItem id='csharp' label='C#'>`              |
+| Builder creation | `import { createBuilder } from './.aspire/modules/aspire.mjs';` then newline for space followed by `await createBuilder();` | `DistributedApplication.CreateBuilder(args)`    |
+| Method casing    | camelCase (`addRedis`)                                                                                              | PascalCase (`AddRedis`)                         |
+| Async pattern    | `await` each builder call                                                                                           | Synchronous fluent calls                        |
+| Build & run      | `await builder.build().run()`                                                                                       | `builder.Build().Run()`                         |
+
+### Prose Guidelines
+
+When writing narrative text around AppHost examples:
+
+- ✅ "Add a Redis resource to your AppHost"
+- ✅ "The following example shows how to configure a PostgreSQL resource"
+- ❌ "Call `builder.AddRedis()` in your _Program.cs_" (C#-specific)
+- ❌ "Add the following C# code to your AppHost" (when both languages should be shown)
+
+When a concept differs between languages (e.g., configuration files, async patterns), explain both within the AppHost language tabs or in language-neutral prose above the tabs.
+
+### When TypeScript Is Not Yet Supported
+
+If a hosting integration does not yet have TypeScript AppHost support, show only the C# example without language tabs and add a note:
+
+```mdx
+<Aside type="note">
+  TypeScript AppHost support for this integration is not yet available.
+</Aside>
+```
+
+Do **not** wrap a single language in a single-language `<Tabs>` component: that creates a misleading UI suggesting another option exists.
+
+Use this exception at the operation level, not as a shortcut for the whole page. If some APIs are exported to TypeScript and others are not, provide synchronized C# and TypeScript tabs for every supported operation and place the limitation beside only the unsupported operation.
+
+## Updating Navigation
+
+After creating documentation, update the sidebar configuration:
+
+### Location
+
+Edit `src/frontend/config/sidebar/sidebar.topics.ts` (or the appropriate topic file)
+
+### Adding Entries
+
+Add entries to the appropriate section in alphabetical order:
+
+```typescript
+{ label: "Technology Name", slug: "integrations/category/technology" }
+```
+
+For collapsed sections with children:
+
+```typescript
+{
+  label: "Technology Name",
+  collapsed: true,
+  items: [
+    { label: "Overview", slug: "integrations/category/technology" },
+    { label: "Advanced", slug: "integrations/category/technology-advanced" },
+  ]
+}
+```
+
+### Update Integration Links
+
+After adding or moving integration documentation:
+
+1. Run `bun run --cwd ./src/frontend update:integrations` when the package catalog
+   needs to be refreshed from NuGet.
+2. Reconcile the exact package IDs and canonical documentation URLs in
+   `src/frontend/src/data/integration-docs.json`.
+3. Run `bun run --cwd ./src/frontend test:unit:structured-data` to verify that the
+   mappings are unique and resolve to real pages.
+
+## Writing Style Guidelines
+
+### Voice and Tone
+
+- Use **second person** ("you") when addressing the reader
+- Use **active voice** ("Create a resource" not "A resource is created")
+- Use **imperative mood** for instructions ("Call the method" not "You should call the method")
+- Be concise but complete
+- Be professional but approachable
+
+### Terminology
+
+Use consistent terminology throughout:
+
+| Preferred   | Avoid                                         |
+| ----------- | --------------------------------------------- |
+| Aspire      | .NET Aspire (except in formal/legal contexts) |
+| AppHost     | App Host, app host                            |
+| resource    | component (for AppHost resources)             |
+| integration | connector, plugin                             |
+
+### Inclusive Language
+
+- Use inclusive, accessible language
+- Avoid assumptions about the reader's background
+- Use gender-neutral pronouns (they/them) or rewrite to avoid pronouns
+- Avoid ableist language (e.g., "blind to", "crippled by")
+- Use people-first language when discussing disabilities
+- Do **not** frame `.NET` as the default and everything else as an exception. Avoid phrases such as `non-.NET`, `other languages`, or wording that treats Python, JavaScript, Go, or container-based apps as secondary scenarios.
+- When a section is really about a capability or execution model, name that directly instead of contrasting it with `.NET`. For example, prefer headings such as `Pass connection information to app resources` or `Run applications directly on the host` over `.NET` vs. `non-.NET` framing.
+- If specific runtimes matter, name them because the product behavior differs for them, not just as a find-and-replace for `non-.NET`. Otherwise, use positive, capability-based language such as `multi-language apps`, `app resources`, `services built from Dockerfiles`, or `apps that consume environment variables directly`.
+
+### International Considerations
+
+- Write dates as "January 15, 2025" not "1/15/25"
+- Specify time zones when referencing specific times
+- Use diverse, international examples
+- Avoid idioms and culturally-specific references
+
+## Icons and Images
+
+### Icon Location
+
+Place icons in `src/frontend/src/assets/icons/`
+
+### Icon Usage
+
+```mdx
+import { Image } from "astro:assets";
+import techIcon from "@assets/icons/technology.svg";
+
+<Image
+  src={techIcon}
+  alt="Technology logo"
+  width={100}
+  height={100}
+  fit="contain"
+  style="float: left; margin-right: 1rem;"
+  data-zoom-off
+/>
+```
+
+For light/dark theme variants:
+
+```mdx
+import ThemeImage from "@components/ThemeImage.astro";
+
+<ThemeImage
+  light={techIconLight}
+  dark={techIconDark}
+  alt="Technology logo"
+  width={100}
+  height={100}
+/>
+```
+
+When an integration logo sets both `width` and `height`, use `fit="contain"` so
+Astro preserves the complete source artwork instead of cropping it to the
+requested aspect ratio. `ThemeImage` applies contained fitting automatically.
+Use `ThemeImage` whenever separate light and dark logo assets exist.
+
+### Terminal Recordings (Asciinema)
+
+For details on terminal recordings, including how to create and embed them, see the [terminal recordings reference](terminal-recordings.md).
+
+## Localization
+
+The aspire.dev site supports multiple languages. When creating new content:
+
+1. Create content in the default (English) location first
+2. Localized versions are managed separately in their respective folders (e.g., `fr/`, `de/`, `ja/`)
+3. Do not manually translate content - follow the project's localization workflow
+
+## Common Patterns
+
+### Prerequisites Notes
+
+```mdx
+<Aside type="note" title="Prerequisites">
+  Before continuing, ensure you have: - [Installed the Aspire
+  CLI](/get-started/install-cli/) - [Completed the
+  prerequisites](/get-started/prerequisites/)
+</Aside>
+```
+
+### Version-Specific Information
+
+Use the shared build-time placeholders whenever current guidance needs to show
+the active Aspire release:
+
+| Placeholder | Use for |
+| ----------- | ------- |
+| `%ASPIRE_VERSION%` | Full current stable version, including patch |
+| `%ASPIRE_VERSION_MAJOR_MINOR%` | Current major/minor display or installer version |
+
+Use these placeholders in package references, `Aspire.AppHost.Sdk`
+declarations, file-based app directives, CLI/AppHost output, and generic
+installation examples that should advance with the release branch. This
+applies to localized documentation as well as English documentation.
+
+Keep a literal version when the exact version is part of the information being
+documented, such as a what's-new page, upgrade comparison, minimum-version
+requirement, compatibility note, historical package pin, or issue reproduction.
+
+```mdx
+<Aside type="caution">This feature requires Aspire version 9.0 or later.</Aside>
+```
+
+### Feature Flags or Experimental Features
+
+```mdx
+<Aside type="danger" title="Experimental">
+  This feature is experimental and may change in future releases.
+</Aside>
+```
+
+## Mermaid Diagrams
+
+The site supports Mermaid diagrams for architecture visualization:
+
+````mdx
+```mermaid
+architecture-beta
+  service api(logos:dotnet)[API service]
+  service frontend(aspire:blazor)[Blazor front end]
+
+  frontend:L --> R:api
+```
+````
+
+Use the `architecture-beta` diagram type for service architecture diagrams.
