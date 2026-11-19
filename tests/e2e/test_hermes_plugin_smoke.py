@@ -66,9 +66,9 @@ class ScriptCase(NamedTuple):
     missing_lib: str
 
 
-# The delivery script resolves lib/ through the github skill's skill_bootstrap.py.
-# The quality script uses the inline ADR-047 bootstrap, so the two cases cover
-# both resolver shapes.
+# One script per pack. The delivery and authoring scripts resolve lib/ through
+# skill_bootstrap.py. The quality and knowledge scripts use the inline ADR-047
+# bootstrap, so the cases cover both resolver shapes.
 SCRIPTS_UNDER_TEST = (
     ScriptCase(
         "delivery",
@@ -81,6 +81,18 @@ SCRIPTS_UNDER_TEST = (
         Path("skills/threat-modeling/scripts/validate_threat_model.py"),
         "usage: validate_threat_model.py",
         "Expected portability helper lib directory not found",
+    ),
+    ScriptCase(
+        "knowledge",
+        Path("skills/chestertons-fence/scripts/investigate.py"),
+        "usage: investigate.py",
+        "Expected portability helper lib directory not found",
+    ),
+    ScriptCase(
+        "authoring",
+        Path("skills/prose-self-check/scripts/prose_lint.py"),
+        "usage: prose_lint.py",
+        "Plugin lib directory not found",
     ),
 )
 NEGATIVE_CONTROL_PACK = "project-toolkit-negctl"
