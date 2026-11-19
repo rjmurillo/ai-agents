@@ -63,6 +63,21 @@ def test_config_or_crash_exit_fails_the_gate(monkeypatch: pytest.MonkeyPatch, co
     assert checks_spec.validate_doc_accuracy_same_pr(REPO_ROOT) is False
 
 
+def test_git_diff_failure_fails_the_gate(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def run(cmd: list[str], *_a: object, **_k: object) -> tuple[int, str, str]:
+        return (1, "", "fatal: bad revision") if cmd[0] == "git" else (0, "", "")
+
+    monkeypatch.setattr(checks_spec, "_run_subprocess", run)
+    monkeypatch.setattr(checks_spec, "_resolve_branch_base_ref", lambda _root: "origin/main")
+
+    assert checks_spec.validate_doc_accuracy_same_pr(REPO_ROOT) is False
+    captured = capsys.readouterr().out
+    assert "fatal: bad revision" in captured
+    assert "0 scannable" not in captured
+
+
 def test_unresolved_base_is_a_skip(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(checks_spec, "_resolve_branch_base_ref", lambda _root: None)
 

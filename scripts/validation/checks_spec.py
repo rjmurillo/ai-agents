@@ -404,17 +404,19 @@ _SAME_PR_CODE_SUFFIXES = (
 )
 
 
-def _branch_changes_code(repo_root: Path, base_ref: str) -> bool:
+def _branch_changes_code(repo_root: Path, base_ref: str) -> bool | None:
     """True when the branch diff touches a scannable file.
 
+    None when git diff fails. False when no scannable file changed.
     Docs-only and structured-data changes can contradict their own counts.
     Source files can carry docstrings and comments.
     """
-    exit_code, stdout, _ = _run_subprocess(
+    exit_code, stdout, stderr = _run_subprocess(
         ["git", "-C", str(repo_root), "diff", "--name-only", f"{base_ref}...HEAD"]
     )
     if exit_code != 0:
-        return False
+        print((stderr or stdout or "git diff failed").strip()[-600:])
+        return None
     return any(
         line.strip().endswith(_SAME_PR_CODE_SUFFIXES) for line in (stdout or "").splitlines()
     )
@@ -435,7 +437,10 @@ def validate_doc_accuracy_same_pr(repo_root: Path) -> bool:
     base_ref = _resolve_branch_base_ref(repo_root)
     if base_ref is None:
         raise MissingScriptSkip("no branch base ref resolved")
-    if not _branch_changes_code(repo_root, base_ref):
+    changed = _branch_changes_code(repo_root, base_ref)
+    if changed is None:
+        return False
+    if not changed:
         print("  same-pr: 0 scannable files changed against the base")
         return True
     import tempfile
