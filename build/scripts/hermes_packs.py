@@ -129,8 +129,9 @@ def render_index(config: HermesConfig) -> bytes:
         "",
         "Each folder below is a portable Agent Plugins v1 package for Hermes.",
         "A pack holds the skills listed under it and one copy of `lib/`.",
-        "No skill points at a script, reference, or other support file in another pack.",
-        "Some skills name a skill from another pack, so install every pack for the full set.",
+        "No skill links to a script, reference, or other support file in another pack by path.",
+        "Some skills name a skill or script from another pack.",
+        "Install every pack for the full set.",
         "",
     ]
     for pack in config.packs:

@@ -26,7 +26,7 @@ _TREES = (
     "src/muse",
     "src/copilot-cli",
     "src/cursor",
-    "src/hermes/project-toolkit-knowledge",
+    "src/hermes/project-toolkit-authoring",
 )
 _SCRIPTS = [_REPO_ROOT / tree / _FORGE / name for tree in _TREES for name in _SCRIPT_NAMES]
 

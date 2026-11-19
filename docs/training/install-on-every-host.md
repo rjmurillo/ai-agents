@@ -17,7 +17,7 @@ We ran the commands on 2026-11-11 with main at `d34536c95c`. Counts come from th
 | Cursor | Agent CLI 2026.10.14-0f9edde | 105 | 28 | Local plugin directory | Partly |
 | Grok Build | 1.0.77 | 105 | 29 | Marketplace | Yes |
 | Pi | 1.5.0 | 105 | None | `pi install` from git | Yes |
-| Hermes | hermes-agent at `63d0b94` | 96, in three packs | None | `hermes plugins install` per pack | Yes |
+| Hermes | hermes-agent at `63d0b94` | 96, in four packs | None | `hermes plugins install` per pack | Yes |
 | Muse personal agent | Not run | 105 | None | Copy skill folders | No |
 | Muse Code | 1.4.15, at `fc91afcf2` | 105 | 25; a signed-in run spawned all 25 | Copy skill and agent folders | Partly |
 
@@ -277,49 +277,57 @@ pi remove git:github.com/rjmurillo/ai-agents
 
 ### Install on Hermes
 
-Hermes caps a plugin at 400 files. The toolkit does not fit in one plugin, so it ships as three packs ([ADR-115](../../.project-toolkit/architecture/ADR-115-native-plugin-support-per-host.md) Decision 6):
+Hermes caps a plugin at 400 files. The toolkit does not fit in one plugin, so it ships as four packs ([ADR-115](../../.project-toolkit/architecture/ADR-115-native-plugin-support-per-host.md) Decision 6):
 
 | Pack | Skills | Holds |
 |------|--------|-------|
 | `project-toolkit-delivery` | 42 | Pull request work, planning, build, test, review gates |
-| `project-toolkit-knowledge` | 40 | Memory, context, decisions, requirements, strategy, documentation |
+| `project-toolkit-knowledge` | 34 | Memory, context, decisions, requirements, strategy, documentation |
 | `project-toolkit-quality` | 14 | Security and reliability engineering, code and documentation standards, metrics, model review |
+| `project-toolkit-authoring` | 6 | Creating, measuring, and tuning skills, context placement, agent prose |
 
-That is 96 skills. Another 14 skills ship in no pack. `skill-doctor` has a file over the 1 MiB limit. Seven are listed as rated dangerous by Hermes, and six more refer to an excluded skill. [src/hermes/README.md](../../src/hermes/README.md) lists each one with its reason. A skill in one pack never refers to a script or reference file in another pack. Some skills name a skill from another pack in their text, so install all three packs for the full toolkit. No sign-in is needed.
+That is 96 skills. Another 14 skills ship in no pack. `skill-doctor` has a file over the 1 MiB limit. Seven are listed as rated dangerous by Hermes, and six more refer to an excluded skill. [src/hermes/README.md](../../src/hermes/README.md) lists each one with its reason. No skill links to a script or reference file in another pack by path. Some skills name a skill or script from another pack in their text. For example, `retrospective` (knowledge) names `distill_artifact.py` from `context-optimizer` (authoring), and `autoplan` (knowledge) names a `github` script (delivery). Install all four packs for the full toolkit. No sign-in is needed.
 
-Hermes scans each pack before it installs it. At the pinned hermes-agent commit (2026-11-19) it rated `project-toolkit-quality` `SAFE`, and the other two `CAUTION`. A `CAUTION` pack needs `--force`.
+Hermes scans each pack before it installs it. At the pinned hermes-agent commit (2026-11-19) it rated `project-toolkit-quality` and `project-toolkit-knowledge` `SAFE`, and the other two `CAUTION`. A `CAUTION` pack needs `--force`.
 
-1. Install the quality pack and enable it:
+1. Install the quality and knowledge packs and enable them:
 
    ```bash
    hermes plugins install rjmurillo/ai-agents/src/hermes/project-toolkit-quality --enable
+   hermes plugins install rjmurillo/ai-agents/src/hermes/project-toolkit-knowledge --enable
    ```
 
-2. Install the knowledge and delivery packs. Run each without extra flags first, and read the findings Hermes prints:
+2. Install the authoring and delivery packs. Run each without extra flags first, and read the findings Hermes prints:
 
    ```bash
-   hermes plugins install rjmurillo/ai-agents/src/hermes/project-toolkit-knowledge
+   hermes plugins install rjmurillo/ai-agents/src/hermes/project-toolkit-authoring
    hermes plugins install rjmurillo/ai-agents/src/hermes/project-toolkit-delivery
    ```
 
-   In our non-interactive run at the pinned commit (2026-11-19), knowledge printed `Decision: BLOCKED` with 144 findings and delivery with 278, each followed by `Use --force to override.` We did not test an interactive terminal. The knowledge pack has 2 `HIGH` findings in `skillforge`. The delivery pack has 10 `HIGH` findings in `build`, `plan`, `github`, `pr-review`, and `push-pr`. We reviewed each one. They are prose, a regular expression, and read-only `git` context lines, not code that runs on install. The `git` lines in `pr-review` and `push-pr` (``!`git status` ``, ``!`git diff HEAD` ``, and two more) run only if you turn on `skills.inline_shell`, which is off by default. Then Hermes runs each through `bash` when the skill loads, with the installed skill folder as the working directory, and puts the output into the model's context. The rest are `LOW` or `MEDIUM` and point at reference prose and ordinary calls such as `subprocess.run`.
+   In our non-interactive run at the pinned commit (2026-11-19), quality and knowledge installed. Authoring printed `Decision: BLOCKED` with 99 findings and delivery with 278, each followed by `Use --force to override.` We did not test an interactive terminal. The authoring pack has 2 `HIGH` findings in `skillforge`. The delivery pack has 10 `HIGH` findings in `build`, `plan`, `github`, `pr-review`, and `push-pr`. We reviewed each one, and none is code that runs on install. In authoring they are a byte-order mark that a parser strips from a `SKILL.md`, and a reference example that drops CI variables from a child process environment. In delivery they are prose, a regular expression, and read-only `git` context lines. The `git` lines in `pr-review` and `push-pr` (``!`git status` ``, ``!`git diff HEAD` ``, and two more) run only if you turn on `skills.inline_shell`, which is off by default. Then Hermes runs each through `bash` when the skill loads, with the installed skill folder as the working directory, and puts the output into the model's context. The rest are `LOW` or `MEDIUM` and point at reference prose and ordinary calls such as `subprocess.run`.
 
 3. If you accept the findings, install over the block and enable each pack:
 
    ```bash
-   hermes plugins install --force --enable rjmurillo/ai-agents/src/hermes/project-toolkit-knowledge
+   hermes plugins install --force --enable rjmurillo/ai-agents/src/hermes/project-toolkit-authoring
    hermes plugins install --force --enable rjmurillo/ai-agents/src/hermes/project-toolkit-delivery
    ```
 
    The repository smoke uses `--force` only for a `CAUTION` pack whose every `HIGH` finding was reviewed, by file, line, and line content (`FORCE_ALLOWED_FINDINGS` in `tests/e2e/hermes_runtime.py`). It never forces a `DANGEROUS` pack.
 
-Update: see "Check Hermes" below. `hermes plugins check-updates` cannot tell for these packs. Reinstall each pack the way steps 1 to 3 do: first without `--force`, so Hermes prints its findings, then with `--force` only if you accept them. `--force` accepts every `CAUTION` finding, including a new one. We traced this order in the pinned Hermes source and did not run it.
+Update: see "Check Hermes" below. `hermes plugins check-updates` cannot tell for these packs. Reinstall each pack over itself. Run the install without `--force` first. For a `CAUTION` pack, Hermes prints its findings and `Decision: BLOCKED`. For a `SAFE` pack, it stops with `Plugin ... already exists`. Then run it again with `--force` and `--enable`. Hermes needs `--force` to replace any installed pack, even a `SAFE` one. For a `CAUTION` pack, do this only if you accept the findings, because `--force` also accepts every `CAUTION` finding, including a new one. We ran this at the pinned commit on 2026-11-19, from a local copy with `--no-enable` in place of `--enable`. Hermes printed `Replacement installed; plugin selection was not changed`.
 
-Moving from two packs: on 2026-11-19, 14 skills moved from the delivery pack to the new quality pack. They are `chaos-experiment`, `codeql-scan`, `destructive-change-safety`, `fix-markdown-fences`, `golden-principles`, `llm-council`, `metrics`, `observability`, `security-review`, `slo-designer`, `sol-loop`, `style-enforcement`, `technical-writing`, and `threat-modeling`. No command moves them for you.
+Moving from two packs: on 2026-11-19, 20 skills moved into two new packs. No command moves them for you.
 
-- If you installed both packs, reinstall delivery (steps 2 and 3), then install quality (step 1). The new delivery pack no longer carries those 14 skills, so skipping quality loses them. We did not run a reinstall over an old copy, so count the skills afterwards (see "Check Hermes"): delivery should show `42`.
-- If you installed only delivery, its other 42 skills keep working after the reinstall. Every skill that `/test` calls and Hermes ships stays in delivery; `security-scan` ships in no pack, as before. To keep the 14 moved skills, install the quality pack.
-- Reinstall delivery before you install quality. Until then your old delivery copy still carries the 14 skills, and we did not test how Hermes handles one skill name in two packs.
+- From delivery to quality, 14 skills: `chaos-experiment`, `codeql-scan`, `destructive-change-safety`, `fix-markdown-fences`, `golden-principles`, `llm-council`, `metrics`, `observability`, `security-review`, `slo-designer`, `sol-loop`, `style-enforcement`, `technical-writing`, and `threat-modeling`.
+- From knowledge to authoring, 6 skills: `context-optimizer`, `prose-self-check`, `skill-bootstrap`, `skillforge`, `skillify`, and `skillopt`.
+
+What to do depends on what you installed:
+
+- Both packs: reinstall delivery and knowledge over the old copies the way the Update step says, with `--force` after you read the findings. Then install quality and authoring with steps 1 to 3. The new delivery and knowledge packs no longer carry the moved skills, so skipping a new pack loses them. We ran this at the pinned commit on 2026-11-19, from local copies, over a two-pack install from `ae5acffcb`. Delivery went from 56 skills to 42 and knowledge from 40 to 34. With all four packs, Hermes listed 96 skills and no name twice. Count yours afterwards (see "Check Hermes").
+- Only delivery: reinstall it the way the Update step says. Its other 42 skills keep working. Every skill that `/test` calls and Hermes ships stays in delivery; `security-scan` ships in no pack, as before. To keep the 14 moved skills, install the quality pack.
+- Only knowledge: reinstall it the way the Update step says. Replacing your old copy needs `--force`, though a fresh knowledge install no longer does. Its other 34 skills keep working. To keep the 6 moved skills, install the authoring pack. Without it, `retrospective` tells the agent to run `distill_artifact.py`, which you do not have.
+- Reinstall delivery and knowledge before you install quality and authoring. Until then your old copies still carry the moved skills. We did not test how Hermes handles one skill name in two packs.
 
 Uninstall:
 
@@ -327,6 +335,7 @@ Uninstall:
 hermes plugins remove project-toolkit-delivery
 hermes plugins remove project-toolkit-knowledge
 hermes plugins remove project-toolkit-quality
+hermes plugins remove project-toolkit-authoring
 ```
 
 ### Install on Muse
@@ -719,6 +728,7 @@ hermes plugins list
 hermes plugins doctor project-toolkit-knowledge
 hermes plugins doctor project-toolkit-delivery
 hermes plugins doctor project-toolkit-quality
+hermes plugins doctor project-toolkit-authoring
 ```
 
 The list shows each pack with status `enabled` and source `user`. Each doctor run prints:
@@ -733,19 +743,20 @@ Then count the skills on disk:
 ls -d "${HERMES_HOME:-$HOME/.hermes}"/plugins/project-toolkit-delivery/skills/*/ | wc -l
 ls -d "${HERMES_HOME:-$HOME/.hermes}"/plugins/project-toolkit-knowledge/skills/*/ | wc -l
 ls -d "${HERMES_HOME:-$HOME/.hermes}"/plugins/project-toolkit-quality/skills/*/ | wc -l
+ls -d "${HERMES_HOME:-$HOME/.hermes}"/plugins/project-toolkit-authoring/skills/*/ | wc -l
 ```
 
-The pack table expects `42`, `40`, and `14`. Our 2026-11-19 smoke at the pinned commit installed all three packs and listed all 96 skills through `skills_list`. It did not run `doctor` or these commands; an earlier two-pack run got `50` and `41`. Hermes gets skills only.
+The pack table expects `42`, `34`, `14`, and `6`. Our 2026-11-19 smoke at the pinned commit installed all four packs and listed all 96 skills through `skills_list`. It did not run `doctor` or these commands; an earlier two-pack run got `50` and `41`. Hermes gets skills only.
 
 Not run: a Hermes model turn that uses a skill. `hermes skills list` showed no plugin skills in our run, so do not use it as your check.
 
-Stale check: Hermes does not tell you. For these packs, `hermes plugins check-updates` reports status `unknown`. The status text says there is provenance drift because the folder has no `.git`, and asks you to reinstall from the recorded source. `hermes plugins update project-toolkit-knowledge` printed `already up to date`. We do not know what it compared, so do not trust it as a freshness check. Read the head SHA with `git ls-remote`, then reinstall each pack over itself:
+Stale check: Hermes does not tell you. For these packs, `hermes plugins check-updates` reports status `unknown`. The status text says there is provenance drift because the folder has no `.git`, and asks you to reinstall from the recorded source. `hermes plugins update project-toolkit-knowledge` printed `already up to date`. We do not know what it compared, so do not trust it as a freshness check. Read the head SHA with `git ls-remote`, then reinstall each pack over itself, as the Update step under "Install on Hermes" says: first without `--force` to read any findings, then:
 
 ```bash
 hermes plugins install --force --enable rjmurillo/ai-agents/src/hermes/project-toolkit-knowledge
 ```
 
-The help says `--ref COMMIT_SHA` installs one exact 40-character commit. Not run: `--force` over an existing pack, and `--ref`.
+Hermes needs `--force` to replace an installed pack, even a `SAFE` one. `--force` also accepts every `CAUTION` finding, so read the findings first. We ran the forced reinstall from a local copy at the pinned commit on 2026-11-19, not from GitHub. The help says `--ref COMMIT_SHA` installs one exact 40-character commit. Not run: `--ref`.
 
 If it fails:
 
