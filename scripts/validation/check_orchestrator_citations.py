@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Verify path-like citations in orchestrator prose resolve to real files.
 
-`.claude/skills/pr-quality-all/SKILL.md` cites the modules that own the verdict
+`.claude/skills/pr-quality/SKILL.md` cites the modules that own the verdict
 merge and emoji mapping logic (for example
 `.claude/lib/ai_review_common/verdict.py:merge_verdicts`). When that logic
 moves, the prose citation goes stale and the next reader follows a dead
@@ -36,7 +36,7 @@ from pathlib import Path
 # Orchestrator prose files this check inspects. Relative to repo root.
 # ADR-064 (issue #5632) moved this surface from a namespaced sub-command to a
 # skill; the citations it guards are unchanged.
-_TARGET_FILES: tuple[str, ...] = (".claude/skills/pr-quality-all/SKILL.md",)
+_TARGET_FILES: tuple[str, ...] = (".claude/skills/pr-quality/SKILL.md",)
 
 # Backtick-wrapped, repo-relative path citation ending in a known source
 # extension, with an optional `:symbol` suffix. Requires at least one path

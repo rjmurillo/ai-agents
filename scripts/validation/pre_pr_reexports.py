@@ -40,7 +40,6 @@ from check_worktree_recipes import validate_worktree_recipes
 from checks_ci_parity import (
     validate_closure_manifest,
     validate_memory_placement,
-    validate_review_axis_drift,
     validate_route_scenario_coverage,
     validate_skill_description_budget,
 )
@@ -108,7 +107,6 @@ __all__ = [
     "validate_push_lock_paths",
     "validate_required_context_conditions",
     "validate_retired_ownership_claims",
-    "validate_review_axis_drift",
     "validate_route_scenario_coverage",
     "validate_rule_activation_coverage",
     "validate_rule_scope_declarations",

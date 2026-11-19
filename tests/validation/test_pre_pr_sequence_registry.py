@@ -104,7 +104,6 @@ EXPECTED_ORDER: tuple[str, ...] = (
     "Hook Contracts",
     "Passive Context Budget",
     "Skillbook Validation",
-    "Review Axis Drift",
     "Skill Description Budget",
     "Import Boundaries",
     "Closure Manifest (advisory)",

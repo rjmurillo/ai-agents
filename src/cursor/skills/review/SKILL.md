@@ -187,7 +187,6 @@ A re-run after PASS writes another marker, which is safe.
 
 ## Principles
 
-- **Drift fails closed**. If `.claude/skills/review/references/` and `.github/prompts/` diverge, pre-push blocks. CI re-checks.
 - **UNKNOWN is information**. A skill that did not evaluate is not a silent PASS. Loops, not files: `evidence-provenance`.
 - **Voice**. Read `resources/writing-style.md` before writing findings (glossing, completeness scores).
 

@@ -89,7 +89,6 @@ from checks_ci_parity import (
     validate_placeholder_identity,
     validate_plugin_frontmatter_self_containment,
     validate_python3_entrypoints,
-    validate_review_axis_drift,
     validate_route_scenario_coverage,
     validate_security_suppressions_diff,
     validate_sha_pinning,
@@ -497,10 +496,9 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Hook Contracts", _root_only(validate_hook_contracts)),
     _Gate("Passive Context Budget", _root_only(validate_passive_context_budget)),
     _Gate("Skillbook Validation", _root_only(validate_skillbook)),
-    # The pre-push `review-axis-drift` job and the aggregate skill description
-    # budget, which pytest asserts in the pre-push test job. Both took seconds to
-    # run and cost a rejected push when pre_pr skipped them (issue #6426).
-    _Gate("Review Axis Drift", _root_only(validate_review_axis_drift)),
+    # The aggregate skill description budget, which pytest asserts in the
+    # pre-push test job. It took seconds to run and cost a rejected push when
+    # pre_pr skipped it (issue #6426).
     _Gate("Skill Description Budget", _root_only(validate_skill_description_budget)),
     # Module boundaries in pyproject.toml [tool.importlinter]. The pytest.yml
     # step and the pre-push import-boundaries job run the same command.
@@ -597,7 +595,7 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # Heuristic; soft warn unless STRICT_CANONICAL_CHECK=1. PR #1887
     # retrospective, Layer 4.
     _Gate("Canonical Citation Check", _root_only(validate_canonical_citations)),
-    # Fails when a backtick path citation in .claude/skills/pr-quality-all/SKILL.md
+    # Fails when a backtick path citation in .claude/skills/pr-quality/SKILL.md
     # points to a file that no longer exists. Issue #1966.
     _Gate("Orchestrator Citation Check", _root_only(validate_orchestrator_citations)),
     # Branch-wide em/en-dash check (issue #1923, REQ-006-AC7). Deferred to the

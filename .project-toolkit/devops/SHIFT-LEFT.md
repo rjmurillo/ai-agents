@@ -430,7 +430,6 @@ a security gate.
 | pre-push | `path-normalization` | unscoped | Documentation path normalization | - | no | Required: Validate Path Normalization, step Validate documentation paths (same script) |
 | pre-push | `planning-artifacts` | unscoped | Planning artifact validation | - | no | CI, not required: validate-planning-artifacts.yml |
 | pre-push | `branch-context-policy` | unscoped | Blocks when the branch contradicts today's session log | pre-commit | no | None found |
-| pre-push | `review-axis-drift` | unscoped | Review axis prompts match their source | - | no | Required: Validate Generated Files, step Review-axes drift check (REQ-008-03) |
 | pre-push | `import-boundaries` | unscoped | import-linter contracts in pyproject.toml | - | no | Required: Run Python Tests, step Check import boundaries (lint-imports) |
 | pre-push | `dash-prohibition` | unscoped | Em and en dash scan of the whole branch | - | no | None found |
 | pre-push | `security-scan` | push range (stdin) | Semgrep on every pushed head | - | yes | None found |
@@ -463,10 +462,9 @@ the commit and the push.
 `_SEQUENCE` (`pre_pr_sequence.py`, 2026-11-05). Five gates carry
 `already_run_by` and skip when the matching unconditional pre-push job passed:
 `count-ratchets`, `python-unreachable-statements`, `dash-prohibition`,
-`path-normalization`, and `planning-artifacts`. The `Review Axis Drift` gate
-runs the same command as the `review-axis-drift` job
-(`generate_pr_quality_prompts.py --dry-run`) and has no `already_run_by`.
-`Colocated Skill Tests` wraps the script behind the pre-commit job
+`path-normalization`, and `planning-artifacts`. The `Review Axis Drift` gate and
+the `review-axis-drift` job were retired on 2026-11-19 with the generated
+review-axis prompts. `Colocated Skill Tests` wraps the script behind the pre-commit job
 `colocated-skill-tests`. Neither repeat is removed by this change.
 
 A required CI check repeats a local job, or a count form of it, when the CI

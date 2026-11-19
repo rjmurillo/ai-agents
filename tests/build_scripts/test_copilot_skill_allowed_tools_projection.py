@@ -199,7 +199,9 @@ def _is_scoped(skill: str) -> bool:
 def test_predicate_covers_the_argument_scoped_skills() -> None:
     scoped = [name for name in _skills_with_allowed_tools() if _is_scoped(name)]
     assert "push-pr" in scoped
-    assert len(scoped) >= 16
+    # A floor, not a pin: it catches a predicate that stops matching. It was 16
+    # until the seven pr-quality skills became one on 2026-11-19 (11 since).
+    assert len(scoped) >= 11
 
 
 @pytest.mark.parametrize("skill", _skills_with_allowed_tools())

@@ -869,7 +869,7 @@ _GENERATED_MIRRORS: tuple[tuple[str, str, tuple[str, str] | None], ...] = (
 _HOOK_MATCHER_SUFFIX_RE = re.compile(r"__(?:(?!__)[A-Za-z0-9_])*[0-9a-f]{6}(?=\.py$)")
 _PROMPT_OUTPUT_PREFIX = ".github/prompts/pr-quality-gate-"
 _PROMPT_SOURCE_PREFIX = ".claude/skills/review/references/"
-# build/scripts/generate_pr_quality_prompts.py:_FILENAME_RE
+# A review reference role file: lowercase stem, .md suffix.
 _PROMPT_ROLE_FILE_RE = re.compile(r"^[a-z][a-z0-9_-]*\.md$")
 # templates/platforms/copilot-cli.yaml:artifacts.skills.excludeFilenames.
 # Reject every configured name before mirror mapping. Even top-level files that

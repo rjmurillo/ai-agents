@@ -18,7 +18,9 @@ TEMPLATE = (ROOT / "templates" / "skills" / "review.SKILL.md.tmpl").read_text(en
 REVIEW = ROOT / "src" / "claude" / "skills" / "review"
 RESOURCE = (REVIEW / "resources" / "codeql-prestep.md").read_text(encoding="utf-8")
 SECURITY = (REVIEW / "references" / "security.md").read_text(encoding="utf-8")
-PROMPT = (ROOT / ".github" / "prompts" / "pr-quality-gate-security.md").read_text(encoding="utf-8")
+PROMPT = (ROOT / ".claude" / "skills" / "review" / "references" / "security.md").read_text(
+    encoding="utf-8"
+)
 SKILL_MD_BYTE_CAP = 24576
 
 OUTCOMES = sorted(pre._TIER1_OUTCOMES | {"CLEAN", "FINDINGS"})

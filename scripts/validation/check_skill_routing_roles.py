@@ -7,8 +7,8 @@ REQ-038 requires each `templates/skills/<name>.SKILL.md.tmpl` to carry a
     metadata:
       routing:
         role: nested-helper
-        invoker: pr-quality-all
-        trigger: pr-quality-all runs the security axis
+        invoker: doc-accuracy
+        trigger: doc-accuracy runs the fence repair
         user-facing: true
 
 DESIGN-036 is the contract this module implements. Six roles exist:

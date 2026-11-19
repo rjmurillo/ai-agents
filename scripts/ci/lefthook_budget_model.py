@@ -68,7 +68,6 @@ CONTAINER_UNCLAMPED_JOBS = frozenset(
         "python-unused-arguments",
         "path-normalization",
         "planning-artifacts",
-        "review-axis-drift",
         "import-boundaries",
         "zero-collection-tests",
         "worktree-gc-report",

@@ -33,8 +33,8 @@ supports, beside the ADR-110 `capability` block:
 metadata:
   routing:
     role: nested-helper
-    invoker: pr-quality-all
-    trigger: pr-quality-all runs the security axis
+    invoker: doc-accuracy
+    trigger: doc-accuracy runs the fence repair
     user-facing: true
 ```
 

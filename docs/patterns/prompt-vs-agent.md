@@ -83,7 +83,7 @@ Toolset references (`$toolset:editor`) are expanded from `templates/toolsets.yam
 
 ## Prompt Files in `.github/prompts/`
 
-These define standalone VS Code slash commands. They do not use the `agent` tool. For example, `.github/prompts/pr-quality.all.prompt.md` runs as `/pr-quality:all` and executes six review agents sequentially against your working directory.
+These define standalone VS Code slash commands. They do not use the `agent` tool.
 
 The `.github/agents/` directory holds `.agent.md` files. VS Code reads both `.agent.md` and `.md` files in that folder as custom agents ([VS Code custom agent file reference](https://code.visualstudio.com/docs/agents/reference/custom-agent-file-reference), retrieved 2026-11-09), so a `.prompt.md` placed there loads as an agent, not as a slash command. Put prompt files in `.github/prompts/`.
 
