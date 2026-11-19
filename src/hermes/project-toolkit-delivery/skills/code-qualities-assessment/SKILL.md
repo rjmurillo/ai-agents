@@ -40,7 +40,7 @@ python3 scripts/assess.py --target src/services/ --format html --output quality-
 |--------|---------|-------|
 | `scripts/assess.py` | Scores target code across the five quality axes. | `python3 scripts/assess.py --target <path> --format markdown` |
 
-Use `--changed-only` for diff-scoped checks and `--format json` for automation. See [C# parser](references/csharp-parser.md) and [TypeScript parser](references/typescript-parser.md) for runtime packages, failures, and dependency admission. PowerShell (`.ps1`, `.psm1`, `.psd1`) gets coupling and non-redundancy scores only; see [PowerShell parser](references/powershell-parser.md) for the `pwsh` requirement and failures.
+Use `--changed-only` for diff-scoped checks and `--format json` for automation. See [C# parser](references/csharp-parser.md) and [TypeScript and JavaScript parser](references/typescript-parser.md) for runtime packages, failures, and dependency admission. PowerShell (`.ps1`, `.psm1`, `.psd1`) gets coupling and non-redundancy scores only; see [PowerShell parser](references/powershell-parser.md) for the `pwsh` requirement and failures.
 
 ---
 
@@ -185,7 +185,7 @@ The JSON report carries `gate_mode` and a `comparisons` array with per-quality
 | 0 | Gate passed. It can also carry one explicitly admitted regression, recorded under `csharp_parser_dependency_admission` or `typescript_parser_dependency_admission` in the JSON; the review adapter reports that as WARN, never PASS. The scanner accepts only the records built into it, which cover its own parser dependencies; any other config value fails with exit 1. |
 | 10 | Regression mode: a comparable quality regressed, or scored evidence was lost |
 | 11 | Below configured thresholds (absolute mode, or a new file in regression mode); below-threshold qualities at or above `minConfidence`; lower-confidence misses warn only |
-| 1 | Script error (invalid args, unresolvable base, file not found, missing C# or TypeScript parser package, parser startup failure, C# or TypeScript the pinned grammar cannot parse, `pwsh` missing from PATH, a PowerShell parser failure or timeout, or PowerShell with a syntax error) |
+| 1 | Script error (invalid args, unresolvable base, file not found, or, for C#, TypeScript, or JavaScript, a missing parser package, a parser startup failure, or source the pinned grammar cannot parse; or, for PowerShell, `pwsh` missing from PATH, a PowerShell parser failure or timeout, or a syntax error) |
 
 ---
 
@@ -461,7 +461,7 @@ For detailed methodology and examples:
 
 | Support Level | Languages |
 |---------------|-----------|
-| Full | Python (.py), TypeScript/JavaScript (.ts, .js, .tsx, .jsx), C# (.cs), Java (.java), Go (.go) |
+| Full | Python (.py), TypeScript/JavaScript (.ts, .tsx, .js, .jsx, .mjs, .cjs), C# (.cs), Java (.java), Go (.go) |
 | Partial (heuristic) | Ruby (.rb), Rust (.rs), PHP (.php), Kotlin (.kt) |
 
 Serena integration improves accuracy when available.
