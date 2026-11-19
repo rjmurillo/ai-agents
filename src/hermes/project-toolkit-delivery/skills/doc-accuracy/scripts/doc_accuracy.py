@@ -1343,6 +1343,276 @@ def _python_example_definitions(code: str) -> set[str]:
     return definitions - imports
 
 
+_PyPos = tuple[int, int]  # (line, character column) in the dedented example
+
+
+class _PyScope:
+    """One Python scope in an example: module, class, function or comprehension.
+
+    A plain class, not a dataclass: on Python 3.10 a dataclass resolves its
+    self-referencing string annotations through ``sys.modules``, which a
+    script loaded by file path may not be registered in.
+    """
+
+    def __init__(self, kind: str, parent: "_PyScope | None") -> None:
+        self.kind = kind
+        self.parent = parent
+        # name -> [(position, class scope when the binding is a class)]
+        self.bindings: dict[str, list[tuple[_PyPos, _PyScope | None]]] = {}
+
+
+_PyDef = ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef
+
+
+def _py_lookup(name: str, scope: _PyScope, pos: _PyPos) -> tuple[_PyPos, "_PyScope | None"] | None:
+    """The binding a read of ``name`` at ``pos`` sees, by Python scope rules.
+
+    A scope that binds the name owns it, so a read before that binding finds
+    nothing rather than falling through. Comprehension targets bind the whole
+    comprehension. Enclosing class bodies are invisible to nested scopes.
+    """
+    current: _PyScope | None = scope
+    nested = False
+    while current is not None:
+        binds = current.bindings.get(name)
+        if binds and not (nested and current.kind == "class"):
+            if current.kind == "comprehension":
+                return binds[0]
+            prior = [bind for bind in binds if bind[0] < pos]
+            return max(prior, key=lambda bind: bind[0]) if prior else None
+        nested = True
+        current = current.parent
+    return None
+
+
+class _PyBindingCollector(ast.NodeVisitor):
+    """Record each name occurrence and whether it resolves within the example.
+
+    Only plain bindings resolve: imports, ``global``/``nonlocal``, ``except``
+    aliases, match captures and keyword names are never recorded, so their
+    occurrences stay unresolved and the name stays checkable.
+    """
+
+    def __init__(self, lines: list[str]) -> None:
+        self.lines = lines
+        self.scope = _PyScope("module", None)
+        # (position, name, check) where check is None for a binding occurrence.
+        self.uses: list[tuple[_PyPos, str, tuple[Any, ...] | None]] = []
+        # A binding takes effect after its statement's value is evaluated.
+        self.effective: _PyPos | None = None
+
+    def _pos(self, lineno: int, byte_col: int) -> _PyPos:
+        line = self.lines[lineno - 1].encode("utf-8")
+        return lineno, len(line[:byte_col].decode("utf-8", "replace"))
+
+    def _end(self, node: ast.expr | ast.stmt) -> _PyPos:
+        return self._pos(cast(int, node.end_lineno), cast(int, node.end_col_offset))
+
+    def _bind(
+        self,
+        name: str,
+        pos: _PyPos,
+        class_scope: _PyScope | None = None,
+        effective: _PyPos | None = None,
+    ) -> None:
+        bind_pos = effective or self.effective or pos
+        self.scope.bindings.setdefault(name, []).append((bind_pos, class_scope))
+        self.uses.append((pos, name, None))
+
+    def _visit_targets(self, targets: list[Any], after: ast.expr | ast.stmt) -> None:
+        outer, self.effective = self.effective, self._end(after)
+        self._visit_all(targets)
+        self.effective = outer
+
+    def visit_Assign(self, node: ast.Assign) -> None:
+        self.visit(node.value)
+        self._visit_targets(node.targets, node)
+
+    def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
+        self._visit_all([node.annotation, node.value])
+        self._visit_targets([node.target], node)
+
+    def visit_NamedExpr(self, node: ast.NamedExpr) -> None:
+        self.visit(node.value)
+        self._visit_targets([node.target], node)
+
+    def _visit_for(self, node: ast.For | ast.AsyncFor) -> None:
+        self.visit(node.iter)
+        self._visit_targets([node.target], node.iter)
+        self._visit_all([*node.body, *node.orelse])
+
+    def visit_For(self, node: ast.For) -> None:
+        self._visit_for(node)
+
+    def visit_AsyncFor(self, node: ast.AsyncFor) -> None:
+        self._visit_for(node)
+
+    def _visit_with(self, node: ast.With | ast.AsyncWith) -> None:
+        for item in node.items:
+            self.visit(item.context_expr)
+            self._visit_targets([item.optional_vars], item.context_expr)
+        self._visit_all(node.body)
+
+    def visit_With(self, node: ast.With) -> None:
+        self._visit_with(node)
+
+    def visit_AsyncWith(self, node: ast.AsyncWith) -> None:
+        self._visit_with(node)
+
+    def visit_Name(self, node: ast.Name) -> None:
+        pos = self._pos(node.lineno, node.col_offset)
+        if isinstance(node.ctx, ast.Store):
+            self._bind(node.id, pos)
+        else:
+            check = ("load", self.scope) if isinstance(node.ctx, ast.Load) else ("never",)
+            self.uses.append((pos, node.id, check))
+
+    def visit_Attribute(self, node: ast.Attribute) -> None:
+        self.visit(node.value)
+        end_line = cast(int, node.end_lineno)
+        line, end = self._pos(end_line, cast(int, node.end_col_offset))
+        owner = node.value
+        check: tuple[Any, ...] = ("never",)
+        if isinstance(owner, ast.Name):
+            owner_pos = self._pos(owner.lineno, owner.col_offset)
+            check = ("attr", self.scope, owner.id, owner_pos)
+        self.uses.append(((line, end - len(node.attr)), node.attr, check))
+
+    def visit_AugAssign(self, node: ast.AugAssign) -> None:
+        if isinstance(node.target, ast.Name):
+            pos = self._pos(node.target.lineno, node.target.col_offset)
+            self.uses.append((pos, node.target.id, ("load", self.scope)))
+        self.visit(node.value)
+        self._visit_targets([node.target], node)
+
+    def _visit_all(self, nodes: list[Any]) -> None:
+        for child in nodes:
+            if child is not None:
+                self.visit(child)
+
+    def _bind_def_name(self, node: _PyDef, class_scope: _PyScope | None = None) -> None:
+        # A class name binds after its body runs; a function name at ``def``.
+        lineno, col = self._pos(node.lineno, node.col_offset)
+        effective = self._end(node) if class_scope else (lineno, col)
+        pattern = rf"\b(?:def|class)\s+({re.escape(node.name)})\b"
+        match = re.compile(pattern).search(self.lines[lineno - 1], col)
+        if match is None:
+            self.scope.bindings.setdefault(node.name, []).append((effective, class_scope))
+            return
+        self._bind(node.name, (lineno, match.start(1)), class_scope, effective)
+
+    def _enter(self, kind: str) -> _PyScope:
+        outer = self.scope
+        self.scope = _PyScope(kind, outer)
+        return outer
+
+    def _visit_arguments(self, args: ast.arguments) -> None:
+        every = [*args.posonlyargs, *args.args, *args.kwonlyargs, args.vararg, args.kwarg]
+        for arg in (a for a in every if a is not None):
+            self._bind(arg.arg, self._pos(arg.lineno, arg.col_offset))
+
+    def _visit_function(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
+        args = node.args
+        self._visit_all([*node.decorator_list, *args.defaults, *args.kw_defaults, node.returns])
+        every = [*args.posonlyargs, *args.args, *args.kwonlyargs, args.vararg, args.kwarg]
+        self._visit_all([a.annotation for a in every if a is not None])
+        self._bind_def_name(node)
+        outer = self._enter("function")
+        self._visit_arguments(args)
+        self._visit_all(node.body)
+        self.scope = outer
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self._visit_function(node)
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        self._visit_function(node)
+
+    def visit_Lambda(self, node: ast.Lambda) -> None:
+        self._visit_all([*node.args.defaults, *node.args.kw_defaults])
+        outer = self._enter("function")
+        self._visit_arguments(node.args)
+        self.visit(node.body)
+        self.scope = outer
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        self._visit_all([*node.decorator_list, *node.bases, *node.keywords])
+        outer = self._enter("class")
+        class_scope = self.scope
+        self._visit_all(node.body)
+        self.scope = outer
+        self._bind_def_name(node, class_scope)
+
+    def _visit_comprehension(self, node: Any) -> None:
+        generators: list[ast.comprehension] = node.generators
+        self.visit(generators[0].iter)
+        outer = self._enter("comprehension")
+        for index, generator in enumerate(generators):
+            self.visit(generator.target)
+            if index:
+                self.visit(generator.iter)
+            self._visit_all(generator.ifs)
+        self._visit_all([getattr(node, field, None) for field in ("elt", "key", "value")])
+        self.scope = outer
+
+    def visit_ListComp(self, node: ast.ListComp) -> None:
+        self._visit_comprehension(node)
+
+    def visit_SetComp(self, node: ast.SetComp) -> None:
+        self._visit_comprehension(node)
+
+    def visit_GeneratorExp(self, node: ast.GeneratorExp) -> None:
+        self._visit_comprehension(node)
+
+    def visit_DictComp(self, node: ast.DictComp) -> None:
+        self._visit_comprehension(node)
+
+
+def _py_use_resolves(check: tuple[Any, ...] | None, name: str, pos: _PyPos) -> bool:
+    """Whether one recorded occurrence resolves inside the example."""
+    if check is None:
+        return True
+    if check[0] == "load":
+        return _py_lookup(name, check[1], pos) is not None
+    if check[0] == "attr":
+        owner = _py_lookup(check[2], check[1], check[3])
+        return owner is not None and owner[1] is not None and name in owner[1].bindings
+    return False
+
+
+def _python_local_names(code: str) -> set[str]:
+    """Names whose every code occurrence binds or resolves within the example.
+
+    A read resolves only to an earlier binding visible from its scope, and a
+    ``Owner.name`` read only when ``Owner`` resolves to a class the example
+    declares whose body binds ``name``. One unresolved occurrence keeps the
+    name checkable, so this never hides a use before binding or out of scope.
+    """
+    source = textwrap.dedent(code)
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError):
+        return set()
+    collector = _PyBindingCollector(source.split("\n"))
+    collector.visit(tree)
+    status: dict[tuple[_PyPos, str], bool] = {}
+    for pos, name, check in collector.uses:
+        key = (pos, name)
+        status[key] = status.get(key, True) and _py_use_resolves(check, name, pos)
+    code_lines = _strip_python_non_code(source).split("\n")
+    resolved: set[str] = set()
+    for name in {name for _, name in status}:
+        word = re.compile(rf"\b{re.escape(name)}\b")
+        occurrences = [
+            (lineno, match.start())
+            for lineno, line in enumerate(code_lines, start=1)
+            for match in word.finditer(line)
+        ]
+        if occurrences and all(status.get((pos, name), False) for pos in occurrences):
+            resolved.add(name)
+    return resolved
+
+
 _PY_PLAIN_IMPORT_RE = re.compile(r"^[ \t]*import[ \t]+([^\n]+)$", re.MULTILINE)
 _PY_IMPORT_PART_RE = re.compile(r"([\w.]+)(?:\s+as\s+(\w+))?$")
 
@@ -1568,6 +1838,142 @@ def _strip_csharp_comments(code: str) -> str:
     )
 
 
+# (start, end) character spans of literal text or comment to blank.
+_Spans = list[tuple[int, int]]
+_CSHARP_STRING_PREFIX_RE = re.compile(r'(\$*)(@?)(\$*)("+)')
+_CSHARP_CHAR_RE = re.compile(r"'(?:\\.[^'\n]{0,8}|[^'\\\n])'")
+_BRACE_RUN_RE = re.compile(r"\{+")
+
+
+def _c_family_code_view(code: str, lang: str) -> str:
+    """Blank C#, TypeScript, and JavaScript literal text and comments.
+
+    Interpolation holes stay visible because they are code. A literal or
+    comment whose terminator is missing stays visible too: blanking hides
+    findings, so the view errs toward keeping text. Column preserving.
+    """
+    chars = list(code)
+    for start, end in _scan_c_family(code, 0, lang, in_hole=False)[1]:
+        for index in range(start, end):
+            if chars[index] != "\n":
+                chars[index] = " "
+    return "".join(chars)
+
+
+def _scan_c_family(code: str, i: int, lang: str, *, in_hole: bool) -> tuple[int, _Spans]:
+    """Scan code from ``i``; inside a hole, stop at its unmatched ``}``."""
+    spans: _Spans = []
+    depth = 0
+    while i < len(code):
+        char = code[i]
+        if code.startswith("//", i):
+            end = code.find("\n", i)
+            end = len(code) if end < 0 else end
+            spans.append((i, end))
+            i = end
+            continue
+        if code.startswith("/*", i):
+            end = code.find("*/", i + 2)
+            if end >= 0:
+                spans.append((i, end + 2))
+                i = end + 2
+                continue
+        literal = _scan_c_family_literal(code, i, lang)
+        if literal is not None:
+            i, literal_spans = literal
+            spans.extend(literal_spans)
+            continue
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            if depth == 0 and in_hole:
+                return i, spans
+            depth = max(depth - 1, 0)
+        i += 1
+    return i, spans
+
+
+def _scan_c_family_literal(code: str, i: int, lang: str) -> tuple[int, _Spans] | None:
+    """Return the end index and blank spans of a literal at ``i``, if terminated."""
+    if lang == "csharp":
+        if code[i] == "'":
+            match = _CSHARP_CHAR_RE.match(code, i)
+            return (match.end(), [(i, match.end())]) if match else None
+        prefix = _CSHARP_STRING_PREFIX_RE.match(code, i)
+        if prefix is None or (prefix[1] and prefix[3]) or i > 0 and code[i - 1] in "$@":
+            return None
+        dollars = len(prefix[1] or prefix[3])
+        quotes = len(prefix[4])
+        if quotes >= 3 and not prefix[2]:
+            return _scan_quoted(code, i, prefix.end(), '"' * quotes, dollars, lang, "raw")
+        mode = "verbatim" if prefix[2] else "regular"
+        return _scan_quoted(code, i, prefix.start(4) + 1, '"', dollars, lang, mode)
+    if code[i] in "\"'":
+        return _scan_quoted(code, i, i + 1, code[i], 0, lang, "regular")
+    if code[i] == "`":
+        return _scan_quoted(code, i, i + 1, "`", 1, lang, "template")
+    return None
+
+
+def _scan_quoted(
+    code: str, start: int, i: int, closer: str, holes: int, lang: str, mode: str
+) -> tuple[int, _Spans] | None:
+    """Scan a quoted body from ``i``; ``holes`` is the brace count opening a hole.
+
+    ``mode`` is ``regular`` (backslash escapes, one line), ``verbatim``
+    (``""`` escapes, multi-line), ``raw`` (no escapes, multi-line), or
+    ``template`` (JavaScript backquote with ``${`` holes).
+    """
+    spans: _Spans = []
+    text_start = start
+    while i < len(code):
+        if mode in ("regular", "template") and code[i] == "\\":
+            i += 2
+            continue
+        if mode == "regular" and code[i] == "\n":
+            return None
+        if code.startswith(closer, i):
+            if mode == "verbatim" and code.startswith('""', i):
+                i += 2
+                continue
+            spans.append((text_start, i + len(closer)))
+            return i + len(closer), spans
+        opener = _hole_opener_length(code, i, holes, mode)
+        if opener < 0:
+            i += -opener
+            continue
+        if opener:
+            spans.append((text_start, i + opener))
+            end, hole_spans = _scan_c_family(code, i + opener, lang, in_hole=True)
+            closing = "}" * (1 if mode == "template" else holes)
+            if not code.startswith(closing, end):
+                return None
+            spans.extend(hole_spans)
+            text_start = end
+            i = end + len(closing)
+            continue
+        i += 1
+    return None
+
+
+def _hole_opener_length(code: str, i: int, holes: int, mode: str) -> int:
+    """Characters opening a hole at ``i``; negative skips literal braces; 0 is text."""
+    if not holes:
+        return 0
+    if mode == "template":
+        return 2 if code.startswith("${", i) else 0
+    if code[i] != "{":
+        return 0
+    run = cast(re.Match[str], _BRACE_RUN_RE.match(code, i)).end() - i
+    if mode != "raw":
+        # ``{{`` is an escaped brace in an ordinary interpolated string.
+        return -2 if run >= 2 else 1
+    if run < holes:
+        return -run
+    # The trailing ``holes`` braces open the hole; any before them are text.
+    return run
+
+
 def _extract_identifiers(
     code: str, lang: str = "", doc_definitions: frozenset[str] | set[str] = frozenset()
 ) -> list[str]:
@@ -1575,14 +1981,17 @@ def _extract_identifiers(
 
     For Python (``lang == "python"``) only code tokens count: strings,
     docstrings and comments are blanked first, names imported from the
-    standard library and declarations within the example are dropped, and
+    standard library, declarations within the example, and names whose every
+    occurrence binds or resolves within the example are dropped, and
     attribute chains on stdlib-imported modules are blanked.
 
     f-string expressions stay visible only on Python 3.12+, where the
     tokenizer splits f-strings. On 3.10 and 3.11 the whole f-string is one
     STRING token and is blanked, which can only miss a symbol, never add a
     false finding. C#, TypeScript, and JavaScript comments are blanked,
-    example-local declarations are dropped. Member calls stay visible for
+    example-local declarations are dropped. Their string literal text stays
+    in the extracted list; Phase 3 drops a name seen only in literals or
+    comments (``_c_family_code_view``). Member calls stay visible for
     parameter checks against known methods. TypeScript object-literal keys
     are data, not named parameters. Other languages keep the
     language-agnostic scan.
@@ -1590,6 +1999,7 @@ def _extract_identifiers(
     ignored_names: set[str] = set(doc_definitions)
     if lang == "python":
         ignored_names.update(_python_example_definitions(code))
+        ignored_names.update(_python_local_names(code))
         code = _strip_python_non_code(code)
         ignored_names.update(_python_stdlib_imported_names(code))
         code = _blank_stdlib_attribute_chains(code)
@@ -1851,7 +2261,10 @@ def run_compilability_check(
 
         content = claim_dict["content"]
         lang = claim_dict.get("language", "")
-        checked_content = _strip_csharp_comments(content) if lang in _DECLARATION_RES else content
+        # Literal text and comments are data; interpolation holes stay code.
+        checked_content = (
+            _c_family_code_view(content, lang) if lang in _DECLARATION_RES else content
+        )
         member_only: set[str] = set()
         if lang in _DECLARATION_RES:
             # Keep bare uses and constructors, even if a member shares the name.
@@ -1916,6 +2329,11 @@ def run_compilability_check(
                             )
             else:
                 if sym_name in member_only:
+                    continue
+                # A name only inside a literal or comment is data, not an API claim.
+                if lang in _DECLARATION_RES and not re.search(
+                    rf"\b{re.escape(sym_name)}\b", checked_content
+                ):
                     continue
                 # Symbol not found in codebase
                 # Only flag CamelCase identifiers (likely type/method names)
