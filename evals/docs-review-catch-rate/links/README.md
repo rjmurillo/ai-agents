@@ -17,6 +17,7 @@ The score counts individual defects, including the historical heading rename.
 - C5-02 contains two broken cross-file anchors before PR #7235.
 - C5-03 contains six known broken targets at `ae5acffcb3`.
 - PR #5640 removed the `lifecycle-commands` heading from `CLAUDE.md`.
+- PR #5640 also passes in staged mode. Only the changed files are passed, and the unchanged inbound link is still reported.
 - C5-04 needs manual review because valid destinations can have misleading labels.
 - C5-05 needs portability review because repository existence cannot prove plugin distribution.
 - Twelve negative cases come from clean documentation reviews.
@@ -37,6 +38,7 @@ The runner fetches each PR head and reads its base through the GitHub skill.
 It computes the merge base before invoking the authoring checks.
 Tree cases use `check_md_links.py --tree`, which includes baseline debt.
 Other cases use pre-PR comparison and `prose_lint.py --docs-style --json`.
+The PR #5640 case also runs once with the changed paths as file arguments.
 
 Partial runs require `--case` and an explicit `--output` path.
 Full results belong in `results/<date>.json`.

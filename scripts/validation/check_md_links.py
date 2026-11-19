@@ -26,8 +26,10 @@ shared baseline reader. An entry the base ref does not carry fails the run, and
 a full-scope run fails on an entry that no longer matches a finding.
 
 Pre-PR mode compares findings with the merge base, including unchanged sources.
-Renaming a heading or moving a target therefore exposes broken inbound links.
+File arguments also report inbound links to a path or heading removed in the
+staged diff, or in ``base...HEAD`` when nothing is staged.
 ``--tree`` reports all debt, including baseline entries, without comparing revisions.
+Paths that are all outside the scope are named on stderr. The exit code stays 0.
 
 EXIT CODES:
   0 - no findings
@@ -58,6 +60,7 @@ from check_adr_links import (  # noqa: E402
     resolve_base_ref,
 )
 from md_anchors import anchors_in  # noqa: E402
+from md_link_inbound import collect_inbound, inbound_kept  # noqa: E402
 from md_link_parse import (  # noqa: E402
     EXTERNAL_SCHEME_RE,
     LINK,
@@ -310,12 +313,14 @@ def find_broken_md_links(
     base_allowances: set[str] | None = None,
     inventory: Inventory | None = None,
     ref: str | None = None,
+    base_ref: str | None = None,
 ) -> tuple[list[Finding], int, int]:
     """Return ``(findings, files_examined, fragment_links_checked)``.
 
     ``files`` narrows the scan to those paths (staged mode), filtered to scope.
     The inventory always covers the whole index so targets resolve fully.
     A full-scope run also reports baseline entries that matched nothing.
+    Named files also pull in inbound links to paths or headings the diff removed.
     """
     inv = inventory if inventory is not None else tracked_inventory(repo_root, ref)
     allowed = baseline if baseline is not None else load_allowlist(repo_root / DEFAULT_BASELINE)
@@ -325,6 +330,25 @@ def find_broken_md_links(
     tally = Tally([])
     for file in candidates:
         scanner.scan_file(file, tally)
+    extra = 0
+    if files is not None and ref is None:
+        hints = collect_inbound(repo_root, base_ref, set(candidates), in_scope)
+        side = Tally([])
+        for name in hints.files:
+            scanner.scan_file(name, side)
+        for finding in side.findings:
+            if inbound_kept(
+                finding.kind,
+                finding.file,
+                finding.target,
+                hints.removed,
+                hints.dropped,
+                inv.known,
+                inv.follow_symlinks,
+            ):
+                tally.findings.append(finding)
+        extra = len(hints.files)
+        tally.fragments_checked += side.fragments_checked
 
     # One baseline entry clears one occurrence. A second copy of the same
     # broken link is a new defect, including in staged mode, where the
@@ -343,7 +367,7 @@ def find_broken_md_links(
         for key in sorted(remaining):
             kind, file, target = key.split(":", 2)
             findings.append(Finding(file, 0, "stale-allowance", f"{kind} {target}"))
-    return findings, len(candidates), tally.fragments_checked
+    return findings, len(candidates) + extra, tally.fragments_checked
 
 
 def _report(findings: list[Finding], examined: int, fragments: int) -> None:
@@ -380,7 +404,7 @@ def run(
             else base_allowances_for_run(repo_root, baseline_path, base_ref, label=LABEL)
         )
         findings, examined, fragments = find_broken_md_links(
-            repo_root, files=files, baseline=allowed, base_allowances=base
+            repo_root, files=files, baseline=allowed, base_allowances=base, base_ref=base_ref
         )
         revision = resolve_base_ref(repo_root) if base_ref == "auto" else base_ref
         if not tree and files is None and revision and revision != "none":
@@ -407,6 +431,10 @@ def run(
     if examined == 0 and files is None:
         print(f"{LABEL}: no in-scope markdown found under {repo_root}", file=sys.stderr)
         return 2
+    if examined == 0 and not findings and files and all(not in_scope(path) for path in files):
+        listed = ", ".join(sorted(set(files)))
+        print(f"{len(set(files))} file(s) outside link-check scope: {listed}", file=sys.stderr)
+        return 0
     _report(findings, examined, fragments)
     return 1 if findings else 0
 

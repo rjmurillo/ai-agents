@@ -84,11 +84,20 @@ def changed_lines(worktree: Path, base: str) -> dict[str, set[int]]:
     return lines
 
 
-def findings(worktree: Path, base: str, mode: str) -> tuple[list[dict[str, Any]], list[str]]:
+def findings(
+    worktree: Path,
+    base: str,
+    mode: str,
+    files: list[str] | None = None,
+    *,
+    links_only: bool = False,
+) -> tuple[list[dict[str, Any]], list[str]]:
     """Invoke the same CLIs authors run, then restrict style to added lines."""
     args = [sys.executable, "-B", str(CHECK), "--repo-root", str(worktree), "--base-ref", base]
     if mode == "tree":
         args.append("--tree")
+    if files:
+        args.extend(files)
     output = command(args, worktree, codes=(0, 1))
     found = []
     for line in output.splitlines():
@@ -103,7 +112,7 @@ def findings(worktree: Path, base: str, mode: str) -> tuple[list[dict[str, Any]]
                 }
             )
     commands = [" ".join(args)]
-    if mode == "tree":
+    if mode == "tree" or links_only:
         return found, commands
     changed = changed_lines(worktree, base)
     if changed:
@@ -160,7 +169,7 @@ def replay(case: dict[str, Any], info: dict[str, Any], prefix: str) -> dict[str,
         added = True
         actual, commands = findings(path, base, case.get("mode", "pre-pr"))
         expected = case.get("expected", [])
-        return {
+        row = {
             "id": case["id"],
             "pr": case["pr"],
             "sha": sha,
@@ -175,6 +184,27 @@ def replay(case: dict[str, Any], info: dict[str, Any], prefix: str) -> dict[str,
             "false_positives": len(actual) if case["scope"] == "negative" else 0,
             "commands": commands,
         }
+        if case.get("also_staged"):
+            raw_names = git("diff", "--name-only", "-z", f"{base}...HEAD", cwd=path)
+            names = [name for name in raw_names.split("\0") if name]
+            staged_actual, staged_commands = findings(path, base, "pre-pr", names, links_only=True)
+            used: set[int] = set()
+            caught_staged = 0
+            for item in expected:
+                for index, hit in enumerate(staged_actual):
+                    if index in used or not matched(item, [hit]):
+                        continue
+                    used.add(index)
+                    caught_staged += 1
+                    break
+            row["staged"] = {
+                "files": len(names),
+                "caught": caught_staged,
+                "expected": len(expected),
+                "other_findings": len(staged_actual) - len(used),
+                "commands": staged_commands,
+            }
+        return row
     finally:
         try:
             if added:
@@ -210,6 +240,13 @@ def main(argv: list[str] | None = None) -> int:
         row = replay(case, context[case["pr"]], prefix)
         results.append(row)
         print(f"{row['id']}: caught={row['caught']}, FP={row['false_positives']}", flush=True)
+        staged = row.get("staged")
+        if staged:
+            print(
+                f"{row['id']} staged: caught={staged['caught']} of {staged['expected']}, "
+                f"other={staged['other_findings']}",
+                flush=True,
+            )
     positives = [row for row in results if row["scope"] == "positive"]
     caught = sum(row["caught"] for row in positives)
     total = sum(len(row["expected"]) for row in positives)
@@ -236,6 +273,7 @@ def main(argv: list[str] | None = None) -> int:
                 CHECK.with_name("check_adr_links.py"),
                 CHECK.with_name("md_anchors.py"),
                 CHECK.with_name("md_link_parse.py"),
+                CHECK.with_name("md_link_inbound.py"),
                 PROSE.with_name("docs_style.py"),
             )
         },
@@ -244,7 +282,16 @@ def main(argv: list[str] | None = None) -> int:
         "false_positives": fp,
         "negatives": negatives,
         "manual": manual,
-        "passed": caught == total and fp == 0 and (negatives == 12 or bool(args.case)),
+        "passed": (
+            caught == total
+            and fp == 0
+            and (negatives == 12 or bool(args.case))
+            and all(
+                row["staged"]["caught"] == row["staged"]["expected"]
+                for row in results
+                if "staged" in row
+            )
+        ),
         "cases": results,
     }
     output.parent.mkdir(parents=True, exist_ok=True)

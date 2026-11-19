@@ -134,6 +134,136 @@ def test_unstaged_deletion_still_reports_a_missing_anchor(
     assert "missing-anchor: b.md#sec" in capsys.readouterr().out
 
 
+def test_staged_rename_reports_the_untouched_inbound_link(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(
+        tmp_path,
+        {"docs/a.md": "# A\n", "docs/c.md": "[a](a.md)\n[nope](missing.md)\n"},
+        commit=True,
+    )
+    _git(repo, "mv", "docs/a.md", "docs/b.md")
+
+    code = check_md_links.main(["--repo-root", str(repo), "--base-ref", "none", "docs/b.md"])
+    out = capsys.readouterr().out
+
+    assert code == 1
+    assert "docs/c.md:1: missing-target: a.md" in out
+    assert "missing.md" not in out
+
+
+def test_staged_delete_reports_the_untouched_inbound_link(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(
+        tmp_path,
+        {"docs/a.md": "# A\n", "docs/c.md": "[a](a.md)\n"},
+        commit=True,
+    )
+    _git(repo, "rm", "docs/a.md")
+
+    code = check_md_links.main(["--repo-root", str(repo), "--base-ref", "none", "docs/a.md"])
+    out = capsys.readouterr().out
+
+    assert code == 1
+    assert "docs/c.md:1: missing-target: a.md" in out
+
+
+def test_staged_heading_rename_reports_the_untouched_inbound_anchor(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(
+        tmp_path,
+        {"docs/a.md": "# Old heading\n", "docs/c.md": "[a](a.md#old-heading)\n"},
+        commit=True,
+    )
+    (repo / "docs/a.md").write_text("# New heading\n", encoding="utf-8")
+    _git(repo, "add", "docs/a.md")
+
+    code = check_md_links.main(["--repo-root", str(repo), "--base-ref", "none", "docs/a.md"])
+    out = capsys.readouterr().out
+
+    assert code == 1
+    assert "docs/c.md:1: missing-anchor: a.md#old-heading" in out
+
+
+def test_staged_rename_is_clean_when_the_inbound_link_is_updated(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(
+        tmp_path,
+        {"docs/a.md": "# A\n", "docs/c.md": "[a](a.md)\n"},
+        commit=True,
+    )
+    _git(repo, "mv", "docs/a.md", "docs/b.md")
+    (repo / "docs/c.md").write_text("[b](b.md)\n", encoding="utf-8")
+
+    code = check_md_links.main(["--repo-root", str(repo), "--base-ref", "none", "docs/b.md"])
+    out = capsys.readouterr().out
+
+    assert code == 0
+    assert "docs/c.md" not in out
+
+
+def test_staged_delete_of_a_non_md_target_reports_the_inbound_link(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(
+        tmp_path,
+        {"docs/pic.png": "x\n", "docs/b.md": "# B\n", "docs/c.md": "[p](pic.png)\n"},
+        commit=True,
+    )
+    _git(repo, "rm", "docs/pic.png")
+    (repo / "docs/b.md").write_text("# B\n\nedit\n", encoding="utf-8")
+    _git(repo, "add", "docs/b.md")
+
+    code = check_md_links.main(["--repo-root", str(repo), "--base-ref", "none", "docs/b.md"])
+    out = capsys.readouterr().out
+
+    assert code == 1
+    assert "docs/c.md:1: missing-target: pic.png" in out
+
+
+def test_committed_heading_change_reports_inbound_when_only_the_target_is_named(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(
+        tmp_path,
+        {"docs/a.md": "# Old heading\n", "docs/c.md": "[a](a.md#old-heading)\n"},
+        commit=True,
+    )
+    base = _git(repo, "rev-parse", "HEAD").strip()
+    (repo / "docs/a.md").write_text("# New heading\n", encoding="utf-8")
+    _git(repo, "add", "docs/a.md")
+    _git(repo, "commit", "-q", "-m", "rename heading")
+
+    code = check_md_links.main(["--repo-root", str(repo), "--base-ref", base, "docs/a.md"])
+    out = capsys.readouterr().out
+
+    assert code == 1
+    assert "docs/c.md:1: missing-anchor: a.md#old-heading" in out
+
+
+def test_paths_outside_scope_are_named_instead_of_a_silent_pass(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(
+        tmp_path,
+        {"README.md": "[x](missing.md)\n", "notes/page.md": "[y](missing.md)\n"},
+        commit=True,
+    )
+
+    code = check_md_links.main(
+        ["--repo-root", str(repo), "--base-ref", "none", "README.md", "notes/page.md"]
+    )
+    captured = capsys.readouterr()
+
+    assert code == 0
+    assert "2 file(s) outside link-check scope: README.md, notes/page.md" in captured.err
+    assert "0 markdown file" not in captured.out
+    assert "violation" not in captured.out
+
+
 def test_parentheses_in_a_filename_or_title_do_not_hide_the_link(tmp_path: Path) -> None:
     missing = make_repo(
         tmp_path,

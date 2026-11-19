@@ -116,6 +116,7 @@
     {
       "id": "rename-5640",
       "pr": 5640,
+      "also_staged": true,
       "sha": "67f302f7e4cf3196b209c04ad5f353be6ee5b9c7",
       "scope": "positive",
       "mode": "pre-pr",
