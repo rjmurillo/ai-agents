@@ -7,6 +7,7 @@ so the real smoke in ``test_hermes_plugin_smoke.py`` is not the only check on th
 
 from __future__ import annotations
 
+import hashlib
 import subprocess
 import sys
 from pathlib import Path
@@ -163,22 +164,129 @@ def test_python_json_rejects_a_snippet_with_empty_stdout(tmp_path: Path) -> None
         hr.python_json(Path(sys.executable), "pass", {"PATH": "/usr/bin:/bin"}, cwd=tmp_path)
 
 
-def test_force_is_allowed_for_a_caution_pack_on_the_allowlist() -> None:
-    assert hr.force_for_verdict("project-toolkit-delivery", "caution") is True
+_DELIVERY = "project-toolkit-delivery"
+_KNOWLEDGE = "project-toolkit-knowledge"
+_QUALITY = "project-toolkit-quality"
+_NEW_FINDING = ("inline_shell_exec", "skills/new-skill/SKILL.md", 3, "0123456789abcdef")
 
 
-def test_a_safe_pack_installs_without_force() -> None:
-    assert hr.force_for_verdict("project-toolkit-delivery", "safe") is False
-    assert hr.force_for_verdict("project-toolkit-knowledge", "safe") is False
+def _one_reviewed(pack: str) -> tuple[str, str, int, str]:
+    return sorted(hr.FORCE_ALLOWED_FINDINGS[pack])[0]
 
 
-@pytest.mark.parametrize("verdict", ["caution", "dangerous", "unknown", ""])
-def test_a_pack_off_the_allowlist_fails_unless_safe(verdict: str) -> None:
-    with pytest.raises(ValueError, match="project-toolkit-knowledge"):
-        hr.force_for_verdict("project-toolkit-knowledge", verdict)
+@pytest.mark.parametrize("pack", [_DELIVERY, _KNOWLEDGE])
+def test_force_is_allowed_when_every_high_finding_was_reviewed(pack: str) -> None:
+    reviewed = hr.FORCE_ALLOWED_FINDINGS[pack]
+
+    assert hr.force_for_verdict(pack, "caution", reviewed) is True
 
 
-@pytest.mark.parametrize("verdict", ["dangerous", "unknown"])
-def test_an_allowlisted_pack_never_gets_force_past_a_worse_verdict(verdict: str) -> None:
-    with pytest.raises(ValueError, match="--force"):
-        hr.force_for_verdict("project-toolkit-delivery", verdict)
+def test_force_is_allowed_for_a_reviewed_subset() -> None:
+    one = frozenset({_one_reviewed(_DELIVERY)})
+
+    assert hr.force_for_verdict(_DELIVERY, "caution", one) is True
+
+
+@pytest.mark.parametrize("pack", [_DELIVERY, _KNOWLEDGE, _QUALITY])
+def test_a_safe_pack_installs_without_force(pack: str) -> None:
+    assert hr.force_for_verdict(pack, "safe", frozenset()) is False
+
+
+@pytest.mark.parametrize("pack", [_DELIVERY, _KNOWLEDGE])
+def test_a_new_high_finding_in_a_reviewed_pack_blocks_force(pack: str) -> None:
+    found = hr.FORCE_ALLOWED_FINDINGS[pack] | {_NEW_FINDING}
+
+    with pytest.raises(ValueError, match="new-skill"):
+        hr.force_for_verdict(pack, "caution", found)
+
+
+@pytest.mark.parametrize("pack", [_DELIVERY, _KNOWLEDGE])
+def test_a_reviewed_finding_that_moved_blocks_force(pack: str) -> None:
+    pid, rel, line, digest = _one_reviewed(pack)
+
+    with pytest.raises(ValueError, match="unreviewed"):
+        hr.force_for_verdict(pack, "caution", frozenset({(pid, rel, line + 1, digest)}))
+
+
+@pytest.mark.parametrize("pack", [_DELIVERY, _KNOWLEDGE])
+def test_a_reviewed_finding_whose_line_changed_blocks_force(pack: str) -> None:
+    pid, rel, line, _ = _one_reviewed(pack)
+
+    with pytest.raises(ValueError, match="unreviewed"):
+        hr.force_for_verdict(pack, "caution", frozenset({(pid, rel, line, "unreadable")}))
+
+
+def test_a_reviewed_finding_does_not_carry_to_another_pack() -> None:
+    delivery_only = hr.FORCE_ALLOWED_FINDINGS[_DELIVERY]
+
+    with pytest.raises(ValueError, match="unreviewed"):
+        hr.force_for_verdict(_KNOWLEDGE, "caution", delivery_only)
+
+
+def test_a_pack_with_no_reviewed_findings_fails_on_caution() -> None:
+    with pytest.raises(ValueError, match=_QUALITY):
+        hr.force_for_verdict(_QUALITY, "caution", frozenset({_NEW_FINDING}))
+
+
+def test_caution_with_no_high_finding_fails() -> None:
+    with pytest.raises(ValueError, match="unreviewed"):
+        hr.force_for_verdict(_DELIVERY, "caution", frozenset())
+
+
+@pytest.mark.parametrize("verdict", ["dangerous", "unknown", ""])
+@pytest.mark.parametrize("pack", [_DELIVERY, _KNOWLEDGE, _QUALITY])
+def test_force_never_passes_a_verdict_worse_than_caution(verdict: str, pack: str) -> None:
+    with pytest.raises(ValueError, match="only caution"):
+        hr.force_for_verdict(pack, verdict, hr.FORCE_ALLOWED_FINDINGS.get(pack, frozenset()))
+
+
+@pytest.mark.parametrize("pack", [_DELIVERY, _KNOWLEDGE])
+def test_every_reviewed_finding_hashes_the_line_it_names(pack: str) -> None:
+    root = Path(__file__).resolve().parents[2] / "src" / "hermes" / pack
+    for _, rel, line, digest in hr.FORCE_ALLOWED_FINDINGS[pack]:
+        text = (root / rel).read_text(encoding="utf-8").splitlines()[line - 1]
+
+        assert hashlib.sha256(text.encode("utf-8")).hexdigest()[:16] == digest, (rel, line)
+
+
+_FAKE_GUARD = """
+from types import SimpleNamespace as NS
+
+def scan_plugin(path, source):
+    findings = [
+        NS(severity="high", pattern_id="inline_shell_exec", file="skills/a/SKILL.md", line=2),
+        NS(severity="high", pattern_id="inline_shell_exec", file="skills/a/SKILL.md", line=2),
+        NS(severity="critical", pattern_id="read_secrets_file", file="skills/b/run.py", line=9),
+        NS(severity="high", pattern_id="x", file="skills/a/SKILL.md", line=0),
+        NS(severity="medium", pattern_id="python_subprocess", file="skills/c/run.py", line=1),
+    ]
+    return NS(verdict="dangerous", findings=findings)
+"""
+
+
+def test_guard_snippet_reports_verdict_and_line_hashed_high_findings(tmp_path: Path) -> None:
+    fake = tmp_path / "fake"
+    (fake / "tools").mkdir(parents=True)
+    (fake / "tools" / "__init__.py").write_text("", encoding="utf-8")
+    (fake / "tools" / "plugin_guard.py").write_text(_FAKE_GUARD, encoding="utf-8")
+    pack = tmp_path / "pack"
+    (pack / "skills" / "a").mkdir(parents=True)
+    (pack / "skills" / "a" / "SKILL.md").write_text("one\n!`git status`\n", encoding="utf-8")
+    # python -I ignores PYTHONPATH, so the fake guard goes on sys.path in the snippet.
+    snippet = f"import sys\nsys.path.insert(0, {str(fake)!r})\n{hr.GUARD_SNIPPET}"
+
+    parsed, _ = hr.python_json(
+        Path(sys.executable), snippet, {"PATH": "/usr/bin:/bin"}, cwd=tmp_path, argv=[str(pack)]
+    )
+
+    digest = hashlib.sha256(b"!`git status`").hexdigest()[:16]
+    assert parsed == {
+        str(pack): {
+            "verdict": "dangerous",
+            "high": [
+                ["inline_shell_exec", "skills/a/SKILL.md", 2, digest],
+                ["read_secrets_file", "skills/b/run.py", 9, "unreadable"],
+                ["x", "skills/a/SKILL.md", 0, "unreadable"],
+            ],
+        }
+    }

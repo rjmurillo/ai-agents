@@ -6,7 +6,7 @@ Skills in one pack never refer to skills in another pack.
 
 ## project-toolkit-delivery
 
-Project Toolkit skills for GitHub pull request work, build, test, and quality gates, security review, and operations.
+Project Toolkit skills for GitHub pull request work, planning, build, test, and review gates.
 
 - `agent-harness-reference`
 - `ai-agents-external-claims`
@@ -14,24 +14,16 @@ Project Toolkit skills for GitHub pull request work, build, test, and quality ga
 - `api-doc-authoring`
 - `benchmark-models`
 - `build`
-- `chaos-experiment`
 - `code-qualities-assessment`
-- `codeql-scan`
-- `destructive-change-safety`
 - `doc-accuracy`
 - `dx-review`
 - `execution-plans`
-- `fix-markdown-fences`
 - `git-advanced-workflows`
 - `github`
 - `github-url-intercept`
-- `golden-principles`
-- `llm-council`
 - `maintainer-review`
 - `merge-resolver`
-- `metrics`
 - `modernize`
-- `observability`
 - `orphan-ref-validator`
 - `pipeline-validator`
 - `plan`
@@ -50,20 +42,33 @@ Project Toolkit skills for GitHub pull request work, build, test, and quality ga
 - `quality-grades`
 - `research`
 - `reviewer-findings`
-- `security-review`
-- `slo-designer`
-- `sol-loop`
 - `steering-matcher`
-- `style-enforcement`
 - `sync`
 - `takeover`
 - `taste-lints`
-- `technical-writing`
 - `test`
-- `threat-modeling`
 - `validate-pr-description`
 - `validation-authority`
 - `windows-image-updater`
+
+## project-toolkit-quality
+
+Project Toolkit skills for security and reliability engineering, code and documentation standards, metrics, and independent model review.
+
+- `chaos-experiment`
+- `codeql-scan`
+- `destructive-change-safety`
+- `fix-markdown-fences`
+- `golden-principles`
+- `llm-council`
+- `metrics`
+- `observability`
+- `security-review`
+- `slo-designer`
+- `sol-loop`
+- `style-enforcement`
+- `technical-writing`
+- `threat-modeling`
 
 ## project-toolkit-knowledge
 
