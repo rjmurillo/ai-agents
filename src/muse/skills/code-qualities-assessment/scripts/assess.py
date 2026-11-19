@@ -1387,15 +1387,22 @@ class PowerShellParserError(DependencyParserError):
 
 _PWSH_TIMEOUT_SECONDS = 60
 
-# Parse errors that report a reference this machine cannot resolve, not invalid
-# syntax. `using module Name` and `using assembly X` are looked up at parse
-# time, so these depend on the scanning machine and never fail the scan.
-_PWSH_RESOLUTION_ERROR_IDS = ("ModuleNotFoundDuringParse", "ErrorLoadingAssembly")
+# PowerShell resolves `using module` and `using assembly` targets while it
+# parses: it reads local files, searches PSModulePath, and on Windows opens an
+# SMB connection for a UNC target, which can send credentials (CWE-829). Every
+# public parse and tokenize API resolves. So the scanner rewrites each ASCII
+# `using`, in any case, to this inert name before pwsh sees the source.
+# PowerShell matches keywords by ASCII case only (tested on pwsh 7.6.10), so no
+# `using` statement survives, and the rewrite keeps line numbers and syntax.
+# The parser then sees each statement as a command with this name.
+_PWSH_USING_SENTINEL = "__ptk_using__"
+_PWSH_USING_KEYWORD = re.compile("using", re.IGNORECASE | re.ASCII)
 
 # Runs inside pwsh. Reads base64 UTF-8 source from stdin so no console code
 # page can alter it, parses it without executing it, and prints one JSON line.
-# Counted forms: Import-Module and ipmo calls (module-qualified or not), using
-# module/namespace/assembly statements, and #Requires lines naming -Modules.
+# Counted forms: Import-Module and ipmo calls (module-qualified or not),
+# neutralized using module/namespace/assembly statements, and #Requires lines
+# naming -Modules.
 _PWSH_COUNT_SCRIPT = r"""
 $ErrorActionPreference = 'Stop'
 $encoded = [Console]::In.ReadToEnd().Trim()
@@ -1410,8 +1417,19 @@ $imports = @($ast.FindAll({
     $name = "$($node.GetCommandName())".Split('\')[-1].ToLowerInvariant()
     return $importNames -contains $name
 }, $true)).Count
-$usingKinds = @('Module', 'Namespace', 'Assembly')
-$usings = @($ast.UsingStatements | Where-Object { $usingKinds -contains "$($_.UsingStatementKind)" }).Count
+$usingKinds = @('module', 'namespace', 'assembly')
+$usings = @($ast.FindAll({
+    param($node)
+    if ($node -isnot [System.Management.Automation.Language.CommandAst]) { return $false }
+    if ($node.InvocationOperator -ne 'Unknown' -or $node.CommandElements.Count -lt 2) { return $false }
+    $name = $node.CommandElements[0]
+    $kind = $node.CommandElements[1]
+    $bareWord = [System.Management.Automation.Language.StringConstantType]::BareWord
+    return ($name -is [System.Management.Automation.Language.StringConstantExpressionAst] -and
+        $name.StringConstantType -eq $bareWord -and $name.Value -ceq '__SENTINEL__' -and
+        $kind -is [System.Management.Automation.Language.StringConstantExpressionAst] -and
+        $kind.StringConstantType -eq $bareWord -and $usingKinds -contains $kind.Value.ToLowerInvariant())
+}, $true)).Count
 $requires = @($tokens | Where-Object {
     $_.Kind -eq 'Comment' -and $_.Text -match '^#requires\b.*-modules\b'
 }).Count
@@ -1420,7 +1438,7 @@ $parseErrors = @($errors | ForEach-Object {
 })
 [pscustomobject]@{ count = $imports + $usings + $requires; errors = $parseErrors } |
     ConvertTo-Json -Compress -Depth 3 -EscapeHandling EscapeNonAscii
-"""
+""".replace("__SENTINEL__", _PWSH_USING_SENTINEL)
 
 
 def _count_csharp_imports(source: str) -> int:
@@ -1457,27 +1475,6 @@ def _count_csharp_imports(source: str) -> int:
         ) from exc
 
 
-# PowerShell resolves `using module` and `using assembly` targets while it
-# parses. On Windows a UNC target opens an SMB connection, which can send the
-# scanning user's credentials to the named host (CWE-829). No PowerShell API
-# parses without resolving, so a Windows scan refuses source that pairs such a
-# statement with a network path, and fails closed instead.
-_PWSH_USING_RESOLVED = re.compile(r"\busing\s+(?:module|assembly)\b", re.IGNORECASE)
-_PWSH_NETWORK_PATH = re.compile(r"(?:\\\\|//)[A-Za-z0-9][\w.$-]*[\\/]")
-
-
-def _refuse_network_resolution(source: str) -> None:
-    """Fail closed on Windows when parsing could reach a network share."""
-    if sys.platform != "win32":
-        return
-    if _PWSH_USING_RESOLVED.search(source) and _PWSH_NETWORK_PATH.search(source):
-        raise PowerShellParserError(
-            "Refusing to parse: a using module or using assembly statement appears "
-            "with a network path. PowerShell resolves those targets while parsing, "
-            "and on Windows a UNC path can send credentials to that host"
-        )
-
-
 def _find_pwsh() -> str:
     """Return an absolute pwsh path found only on absolute PATH entries (CWE-427).
 
@@ -1505,21 +1502,26 @@ def _find_pwsh() -> str:
     return str(pwsh)
 
 
+def _neutralize_using(source: str) -> str:
+    """Rewrite every ASCII `using` so pwsh resolves no module or assembly."""
+    return _PWSH_USING_KEYWORD.sub(_PWSH_USING_SENTINEL, source)
+
+
 def _run_pwsh_counter(source: str) -> dict[str, Any]:
     """Run PowerShell's own parser over *source* and return its JSON result.
 
-    pwsh runs from an empty temporary directory, so a relative `using module`
-    or `using assembly` path never resolves against the scanned repository.
-    The source travels as stdin data, never as a command argument (CWE-78).
+    The source is neutralized first (see _PWSH_USING_SENTINEL), so parsing
+    reads no other file and opens no connection. pwsh also runs from an empty
+    temporary directory. The source travels as stdin data, never as a command
+    argument (CWE-78).
     """
     import base64
     import subprocess
     import tempfile
 
-    _refuse_network_resolution(source)
     pwsh = _find_pwsh()
     command = base64.b64encode(_PWSH_COUNT_SCRIPT.encode("utf-16-le")).decode("ascii")
-    payload = base64.b64encode(source.encode("utf-8")).decode("ascii")
+    payload = base64.b64encode(_neutralize_using(source).encode("utf-8")).decode("ascii")
     argv = [pwsh, "-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", command]
     try:
         with tempfile.TemporaryDirectory() as empty_dir:
@@ -1561,25 +1563,20 @@ def _count_powershell_imports(source: str) -> int:
 
     Strings and comments do not count, except `#Requires -Modules`, which
     PowerShell itself treats as a statement. A syntax error is fatal: no count
-    is guessed. Unresolvable module or assembly references are not errors.
+    is guessed. No module or assembly is resolved, so a missing one is not an error.
     """
     parsed = _run_pwsh_counter(source)
     errors = parsed.get("errors")
     errors = [errors] if isinstance(errors, dict) else errors
     if not isinstance(errors, list):
         raise PowerShellParserError(f"PowerShell parser returned errors as {errors!r}")
-    syntax_errors = [
-        error
-        for error in errors
-        if not (isinstance(error, dict) and error.get("id") in _PWSH_RESOLUTION_ERROR_IDS)
-    ]
-    if syntax_errors:
-        first = syntax_errors[0]
+    if errors:
+        first = errors[0]
         where = f"line {first.get('line')}: " if isinstance(first, dict) else ""
         message = first.get("message") if isinstance(first, dict) else first
         raise PowerShellParserError(
             f"Cannot count PowerShell dependencies: PowerShell reports "
-            f"{len(syntax_errors)} syntax error(s), first at {where}{message}"
+            f"{len(errors)} syntax error(s), first at {where}{message}"
         )
     count = parsed.get("count")
     if isinstance(count, bool) or not isinstance(count, int) or count < 0:

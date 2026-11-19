@@ -28,15 +28,16 @@ The scanner starts one `pwsh` process per PowerShell file, with a 60 second time
 Each call costs about 0.65 seconds on a warm Linux machine.
 The source goes to `pwsh` on stdin as base64 text, never on the command line.
 `pwsh` runs in an empty temporary directory.
-So a relative `using module ./X.psm1` or `using assembly ./X.dll` path resolves nowhere.
 
-PowerShell resolves `using module` and `using assembly` while it parses.
-A module or assembly this machine lacks is not an error, and the statement still counts.
-In tests with pwsh 7.6.10, parsing ran no code from a referenced module or assembly.
-Absolute paths and module names on `PSModulePath` still resolve on the scanning machine.
+PowerShell resolves `using module` and `using assembly` targets while it parses.
+It reads local files, searches `PSModulePath`, and on Windows opens a network share for a UNC path.
+Every public PowerShell parse and tokenize API does this.
+So before `pwsh` sees the source, the scanner rewrites each ASCII `using`, in any case, to `__ptk_using__`.
+PowerShell matches keywords by ASCII case only, so no `using` statement reaches the parser.
+The rewrite keeps line numbers and keeps valid PowerShell valid.
+The parser sees each statement as a command named `__ptk_using__`, and the scanner counts those.
+A `using` statement in the wrong place, or with an unknown kind, is not reported as an error.
 
-On Windows a UNC target would open a network connection to that host.
-So a Windows scan refuses a file that has a `using module` or `using assembly` statement and a network path.
 The scanner finds `pwsh` only in absolute PATH entries.
 It refuses a `pwsh` inside the scanned directory, and on Windows anything but `pwsh.exe`.
 
@@ -45,7 +46,6 @@ It refuses a `pwsh` inside the scanned directory, and on Windows anything but `p
 These stop the scan with exit 1 and no report:
 
 - `pwsh` is not on an absolute PATH entry, or it cannot start.
-- On Windows, a `using module` or `using assembly` file also holds a network path.
 - `pwsh` times out, exits non-zero, or returns output the scanner cannot read.
 - PowerShell reports a syntax error in the file. The message names the file and line.
 

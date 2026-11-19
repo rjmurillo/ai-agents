@@ -94,9 +94,10 @@ C# that the pinned grammar cannot parse also exits 1.
 Any scan that includes a PowerShell file needs `pwsh` 7 or later on PATH.
 Without it, or on a PowerShell syntax error or a 60 second timeout, the scan exits 1.
 Each PowerShell file costs one `pwsh` process, about 0.65 seconds.
-The empty working directory isolates only relative `using` paths.
-Absolute paths and module names on `PSModulePath` still resolve on the scanning machine.
-They change no count, and parsing does not run the module's code.
+PowerShell resolves `using module` and `using assembly` targets while it parses.
+On Windows a UNC target would open a network share and could send credentials.
+So the scanner rewrites every ASCII `using` to an inert command name before parsing.
+The count then comes from those commands, and no target is ever resolved.
 `references/powershell-parser.md` gives the requirement and its limits.
 The parser imports run inside one function, not at module load.
 ADR-121 rule 2 scans only module-load imports, so no allowance entry applies.

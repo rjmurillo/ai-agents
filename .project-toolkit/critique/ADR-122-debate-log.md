@@ -142,6 +142,10 @@ This was a reduced panel (architect and critic), because item 7 is direction, no
 2. Item 7 records the PowerShell parser choice, its reason, and its evidence.
 3. Item 7 states that #7434, #7435, and #7436 each still need their own admission.
 4. Consequences now name the `pwsh` requirement, exit 1 cases, cost, and path resolution.
+5. After the panel, an automated security review flagged parse-time resolution (CWE-829).
+   A Windows UNC regex guard was tried first and was bypassable.
+   The scanner now rewrites every ASCII `using` before parsing, so nothing resolves.
+   Consequences were updated to say so. This narrows behavior and changes no decision.
 
 ### Agent Positions
 
