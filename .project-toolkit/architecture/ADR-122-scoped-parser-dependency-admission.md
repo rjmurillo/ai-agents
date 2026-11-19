@@ -18,6 +18,7 @@ Accepted. The panel reached consensus after the scope-evidence correction.
 The debate appears in `.project-toolkit/critique/ADR-122-debate-log.md`.
 Publication still requires ordinary review, hooks, and protected CI.
 On 2026-11-18, an amendment recorded the parser dependencies as permanent design.
+A later 2026-11-18 amendment added item 8, the TypeScript admission for issue #7435.
 
 ## Context
 
@@ -29,6 +30,7 @@ The maintainer authorized a scoped policy change: "waiver, full send."
 That instruction grants neither GitHub approval nor permission to bypass protections.
 On 2026-11-18, the maintainer ruled that the parser dependencies are permanent design.
 They are not a temporary waiver, and no time bound applies.
+Item 8 extends this decision to the TypeScript parser (issue #7435).
 
 ## Decision
 
@@ -51,8 +53,23 @@ They are not a temporary waiver, and no time bound applies.
    No sunset date, retirement issue, or removal step applies to them.
 7. Use the same parser approach for JavaScript, TypeScript, Python, and PowerShell.
    Each language is follow-on work in its own change.
-   This record admits only the C# transition; it does not pre-admit later ones.
+   The C# record admits only the C# transition; item 8 admits TypeScript separately.
    A later parser import can trip the coupling gate; it needs its own admission decision.
+8. Admit the TypeScript parser transition from issue #7435 as its own record.
+   Add one fixed `typescriptParserDependencyAdmission` record to the scanner's admission table.
+   The table holds only fixed in-code records, so the Rationale rejection of a generic framework still holds.
+   Records chain: each pins the prior head score and import set, so parser changes merge one at a time.
+   It requires base 8.0, head 7.0, and a comparable delta of -1.0.
+   Python's AST must identify exactly `tree_sitter`, `tree_sitter_c_sharp`, and `tree_sitter_typescript`.
+   The maintainer authorized it on 2026-11-18, quoted verbatim in a comment on issue #7435:
+   "LGTM. Ship. agent- environment is optional. Package add approved".
+   Items 1, 3, 4, and 5 apply to it. Item 2 applies with this record's scores and imports.
+   Each record admits only its own transition; neither admits the other's.
+   The review adapter keeps its own copy of both records.
+   Exits 10 and 11 report `FAIL` before any record is read.
+   On exit 0, a comparison that carries any record reports `WARN` only if exactly one record is present and valid.
+   Otherwise it reports `UNKNOWN`.
+   `tree-sitter-typescript` joins item 6 as a permanent scanner dependency.
 
 ## Prior Art Investigation
 
@@ -76,7 +93,11 @@ This decision represents the maintainer's specific parser-dependency authorizati
 
 ## Consequences
 
-The admission adds policy code and tests for one dependency decision.
+Each admission adds policy code and tests for one dependency decision.
+Each later language adds one record in three files: the scanner, the review adapter, and `.qualityrc.json`.
+Revisit the rejected generic framework if a record copy drifts, or before a third record lands.
+The scanner's own coupling reaches 7.0, the floor of a "reasonable" import count.
+The next parser import drops it to 6.0; that admission must accept the lower score.
 Scanner JSON and stderr retain the raw failure evidence.
 Consumers without the exact configuration keep their existing admission behavior.
 Every shipped copy of the scanner now needs both parser packages to score C#.
@@ -84,10 +105,13 @@ Without them, any scan that includes a C# file exits 1 and scores no file.
 The review adapter then reports `UNKNOWN` for that axis.
 C# that the pinned grammar cannot parse also exits 1.
 `references/csharp-parser.md` gives the install command and the grammar limits.
-The parser imports run inside one function, not at module load.
+Scoring TypeScript needs `tree-sitter` and `tree-sitter-typescript`.
+Without them, a scan that includes a `.ts` or `.tsx` file exits 1.
+`references/typescript-parser.md` gives the install command and the grammar limits.
+The parser imports run inside functions, not at module load.
 ADR-121 rule 2 scans only module-load imports, so no allowance entry applies.
 The record grants no GitHub review approval.
-When the comparison base already contains these dependencies, this admission is inactive.
+Each record is inactive once the comparison base already contains its imports.
 
 ### Reversibility
 
@@ -96,8 +120,9 @@ Removing the admission implementation and adapter support reverses the policy ch
 No data migration or installed-plugin mutation is required.
 
 No removal is planned, because the parser dependencies are permanent design.
-After this decision's pull request merges, main contains both parser imports.
-The record then matches only when the comparison merge base predates them.
+After the TypeScript change merges, main contains all three parser imports.
+Each record matches only when the merge base sits exactly one parser step behind.
+A base older than both parsers gives 10.0 to 7.0, which no record admits and which stays blocked.
 Examples: a stacked branch, a cherry-pick, a revert and reintroduction, or an old `--base`.
 The record and its admission code stay. No follow-up pull request removes them.
 
