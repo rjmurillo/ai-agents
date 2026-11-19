@@ -10,7 +10,7 @@ Each of these statements is one dependency:
 
 - An `Import-Module` or `ipmo` call, including `& Import-Module` and `Microsoft.PowerShell.Core\Import-Module`.
 - A `using module`, `using namespace`, or `using assembly` statement.
-- A `#Requires` line that names `-Modules`.
+- A `#Requires` line that PowerShell reads as naming modules, including the `-Module` and `-M` abbreviations.
 
 Strings, here-strings, and ordinary comments do not count.
 Other `#Requires` lines, such as `-Version` or `-PSEdition`, do not count.
@@ -33,12 +33,16 @@ PowerShell resolves `using module` and `using assembly` targets while it parses.
 It reads local files, searches `PSModulePath`, and on Windows opens a network share for a UNC path.
 Every public PowerShell parse and tokenize API does this.
 A `configuration` block also loads DSC resources for `Import-DscResource` while it parses.
-So before `pwsh` sees the source, the scanner rewrites each `using` to `__ptk_using__`.
-It rewrites each `configuration` to `__ptk_configuration__` the same way.
+So before `pwsh` sees the source, the scanner rewrites every `using` in the text to `__ptk_using__`.
+That includes text inside names, so `$using:x` becomes `$__ptk_using__:x`.
+It rewrites every `configuration` to `__ptk_configuration__` the same way, so `Get-Configuration` changes too.
+Those rewritten names still parse and count nothing.
 Both rewrites ignore case, and they also catch Unicode lookalikes such as `uſing`.
 No `using` statement or `configuration` block reaches the parser.
-The rewrite keeps line numbers and keeps valid PowerShell valid.
+The rewrite keeps line numbers.
 The parser sees each statement as a command named `__ptk_using__`, and the scanner counts those.
+It then blanks those statements, keeping newlines, and parses again.
+That keeps a `[CmdletBinding()] param()` block after them legal, and the second parse supplies the syntax errors.
 A `using` statement in the wrong place, or with an unknown kind, is not reported as an error.
 A class that names a type a `using` statement would have imported reports `TypeNotFound`.
 That is a type lookup, not a syntax error, so it does not fail the scan.

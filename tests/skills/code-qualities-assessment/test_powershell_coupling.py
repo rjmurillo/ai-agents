@@ -93,6 +93,10 @@ def test_powershell_suffixes_are_detected(suffix: str) -> None:
         "using assembly System.Xml",
         "#Requires -Modules Pester",
         "#requires -modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.1' }",
+        "#Requires -Module Pester",
+        "#Requires -M Pester",
+        "#requires -Mod Pester, Az",
+        "#Requires -Modules Pester -Version 7.0",
     ],
 )
 def test_each_dependency_form_counts_once(statement: str) -> None:
@@ -485,3 +489,73 @@ def test_dsc_configuration_parses_without_loading_resources() -> None:
     coupling = _coupling(source)
 
     assert coupling.reasons[0] == "1 import/dependency statements"
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            "using namespace System.Text\n[CmdletBinding()]\nparam([string] $Name)\n"
+            "Import-Module Pester\n",
+            2,
+        ),
+        (
+            "using module @{\n    ModuleName = 'Az'\n    ModuleVersion = '1.0'\n}\n"
+            "using namespace System.IO\n[CmdletBinding()]\nparam()\n",
+            2,
+        ),
+        ("#Requires -Modules Pester\nusing module ./Local.psm1\nparam($Path)\n", 2),
+    ],
+)
+def test_param_block_after_using_statements_still_parses(source: str, expected: int) -> None:
+    """Rewritten using statements are blanked before the syntax check, so the header stays legal."""
+    coupling = _coupling(source)
+
+    assert coupling.reasons[0] == f"{expected} import/dependency statements"
+
+
+def test_syntax_error_after_using_statements_still_fails_closed() -> None:
+    require_working_pwsh()
+
+    with pytest.raises(_mod.PowerShellParserError, match="line 3"):
+        assess_content(Path("Script.ps1"), "using namespace System.Text\n\nfunction f( {\n")
+
+
+def test_symlinked_pwsh_runs_by_its_path_entry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Snap links /snap/bin/pwsh to /usr/bin/snap, which dispatches on the name it runs as."""
+    target = tmp_path / "usr" / "bin" / "snap"
+    target.parent.mkdir(parents=True)
+    target.write_text("", encoding="utf-8")
+    link = tmp_path / "snap" / "bin" / "pwsh"
+    link.parent.mkdir(parents=True)
+    link.symlink_to(target)
+    work = tmp_path / "work"
+    work.mkdir()
+    monkeypatch.chdir(work)
+    calls = _fake_pwsh(monkeypatch, stdout='{"count":1,"errors":[]}')
+    monkeypatch.setattr(shutil, "which", lambda _name, path=None: str(link))
+
+    assess_content(Path("Script.ps1"), "Import-Module A\n")
+
+    assert calls[0]["argv"][0] == str(link)
+
+
+def test_symlink_into_the_scanned_directory_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    planted = tmp_path / "work" / "pwsh"
+    planted.parent.mkdir()
+    planted.write_text("", encoding="utf-8")
+    link = tmp_path / "bin" / "pwsh"
+    link.parent.mkdir()
+    link.symlink_to(planted)
+    monkeypatch.chdir(planted.parent)
+    calls = _fake_pwsh(monkeypatch)
+    monkeypatch.setattr(shutil, "which", lambda _name, path=None: str(link))
+
+    with pytest.raises(_mod.PowerShellParserError, match="inside the scanned directory"):
+        assess_content(Path("Script.ps1"), "Import-Module A\n")
+
+    assert calls == []

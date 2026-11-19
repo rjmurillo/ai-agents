@@ -1412,14 +1412,45 @@ _PWSH_TYPE_LOOKUP_ERROR_IDS = ("TypeNotFound",)
 # page can alter it, parses it without executing it, and prints one JSON line.
 # Counted forms: Import-Module and ipmo calls (module-qualified or not),
 # neutralized using module/namespace/assembly statements, and #Requires lines
-# naming -Modules.
+# that PowerShell reads as naming modules (any -Modules abbreviation).
+# The first parse finds the neutralized using statements. They are then blanked,
+# keeping newlines, and the source is parsed again, because a using statement
+# rewritten as a command would end the header where `[CmdletBinding()] param()`
+# is legal. The second parse supplies the syntax errors and other counts.
 _PWSH_COUNT_SCRIPT = r"""
 $ErrorActionPreference = 'Stop'
+function Read-Script([string]$text) {
+    $tokens = $null
+    $errors = $null
+    $ast = [System.Management.Automation.Language.Parser]::ParseInput($text, [ref]$tokens, [ref]$errors)
+    return ,@($ast, $tokens, $errors)
+}
 $encoded = [Console]::In.ReadToEnd().Trim()
 $source = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($encoded))
-$tokens = $null
-$errors = $null
-$ast = [System.Management.Automation.Language.Parser]::ParseInput($source, [ref]$tokens, [ref]$errors)
+$usingKinds = @('module', 'namespace', 'assembly')
+$bareWord = [System.Management.Automation.Language.StringConstantType]::BareWord
+$first = Read-Script $source
+$usingStatements = @($first[0].FindAll({
+    param($node)
+    if ($node -isnot [System.Management.Automation.Language.CommandAst]) { return $false }
+    if ($node.InvocationOperator -ne 'Unknown' -or $node.CommandElements.Count -lt 2) { return $false }
+    $name = $node.CommandElements[0]
+    $kind = $node.CommandElements[1]
+    return ($name -is [System.Management.Automation.Language.StringConstantExpressionAst] -and
+        $name.StringConstantType -eq $bareWord -and $name.Value -ceq '__SENTINEL__' -and
+        $kind -is [System.Management.Automation.Language.StringConstantExpressionAst] -and
+        $kind.StringConstantType -eq $bareWord -and $usingKinds -contains $kind.Value.ToLowerInvariant())
+}, $true))
+$chars = $source.ToCharArray()
+foreach ($statement in $usingStatements) {
+    for ($i = $statement.Extent.StartOffset; $i -lt $statement.Extent.EndOffset; $i++) {
+        if ($chars[$i] -ne "`n" -and $chars[$i] -ne "`r") { $chars[$i] = ' ' }
+    }
+}
+$second = Read-Script (-join $chars)
+$ast = $second[0]
+$tokens = $second[1]
+$errors = $second[2]
 $importNames = @('import-module', 'ipmo')
 $imports = @($ast.FindAll({
     param($node)
@@ -1427,26 +1458,14 @@ $imports = @($ast.FindAll({
     $name = "$($node.GetCommandName())".Split('\')[-1].ToLowerInvariant()
     return $importNames -contains $name
 }, $true)).Count
-$usingKinds = @('module', 'namespace', 'assembly')
-$usings = @($ast.FindAll({
-    param($node)
-    if ($node -isnot [System.Management.Automation.Language.CommandAst]) { return $false }
-    if ($node.InvocationOperator -ne 'Unknown' -or $node.CommandElements.Count -lt 2) { return $false }
-    $name = $node.CommandElements[0]
-    $kind = $node.CommandElements[1]
-    $bareWord = [System.Management.Automation.Language.StringConstantType]::BareWord
-    return ($name -is [System.Management.Automation.Language.StringConstantExpressionAst] -and
-        $name.StringConstantType -eq $bareWord -and $name.Value -ceq '__SENTINEL__' -and
-        $kind -is [System.Management.Automation.Language.StringConstantExpressionAst] -and
-        $kind.StringConstantType -eq $bareWord -and $usingKinds -contains $kind.Value.ToLowerInvariant())
-}, $true)).Count
 $requires = @($tokens | Where-Object {
-    $_.Kind -eq 'Comment' -and $_.Text -match '^#requires\b.*-modules\b'
+    $_.Kind -eq 'Comment' -and $_.Text -match '^#requires\b' -and
+        @((Read-Script $_.Text)[0].ScriptRequirements.RequiredModules).Count -gt 0
 }).Count
 $parseErrors = @($errors | ForEach-Object {
     [pscustomobject]@{ id = $_.ErrorId; line = $_.Extent.StartLineNumber; message = $_.Message }
 })
-[pscustomobject]@{ count = $imports + $usings + $requires; errors = $parseErrors } |
+[pscustomobject]@{ count = $imports + $usingStatements.Count + $requires; errors = $parseErrors } |
     ConvertTo-Json -Compress -Depth 3 -EscapeHandling EscapeNonAscii
 """.replace("__SENTINEL__", _PWSH_USING_SENTINEL)
 
@@ -1502,10 +1521,13 @@ def _find_pwsh() -> str:
             "PowerShell 7 (pwsh) is not on PATH. It is required to count "
             "PowerShell dependencies (see references/powershell-parser.md)"
         )
-    pwsh = Path(found).resolve()
+    # Run the PATH entry itself, not its symlink target: a Snap install links
+    # /snap/bin/pwsh to /usr/bin/snap, which dispatches on the name it is run by.
+    pwsh = Path(found).absolute()
     if sys.platform == "win32" and pwsh.suffix.lower() != ".exe":
         raise PowerShellParserError(f"Refusing to run {pwsh}: pwsh on Windows must be pwsh.exe")
-    if pwsh.is_relative_to(Path.cwd().resolve()):
+    scanned = Path.cwd().resolve()
+    if pwsh.is_relative_to(scanned) or pwsh.resolve().is_relative_to(scanned):
         raise PowerShellParserError(
             f"Refusing to run {pwsh}: it is inside the scanned directory, not an installed pwsh"
         )
