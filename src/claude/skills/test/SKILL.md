@@ -7,9 +7,18 @@ allowed-tools: Task, Skill, Read, Glob, Grep, Bash(*)
 argument-hint: component-or-failure-description
 user-invocable: true
 metadata:
-  capability: {kind: orchestrator, owns: [pre-merge-verification], status: active}
-  inputs: [{artifact: implementation-change}, {artifact: requirements-spec}, {artifact: validation-record, required: false}]
-  outputs: [{artifact: test-gate-report}]
+  capability:
+    kind: orchestrator
+    owns:
+      - pre-merge-verification
+    status: active
+  inputs:
+    implementation-change:
+    requirements-spec:
+    validation-record:
+      required: false
+  outputs:
+    test-gate-report:
   routing:
     role: front-door
     invoker: autoplan

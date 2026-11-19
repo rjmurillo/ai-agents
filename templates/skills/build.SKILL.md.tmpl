@@ -7,9 +7,18 @@ allowed-tools: Task, Skill, Read, Write, Edit, Glob, Grep, Bash(*)
 argument-hint: plan-step-or-task-description
 user-invocable: true
 metadata:
-  capability: {kind: orchestrator, owns: [slice-implementation], status: active}
-  inputs: [{artifact: requirements-spec}, {artifact: execution-plan, required: false}]
-  outputs: [{artifact: implementation-change}, {artifact: validation-record}]
+  capability:
+    kind: orchestrator
+    owns:
+      - slice-implementation
+    status: active
+  inputs:
+    requirements-spec:
+    execution-plan:
+      required: false
+  outputs:
+    implementation-change:
+    validation-record:
   routing:
     role: front-door
     invoker: autoplan

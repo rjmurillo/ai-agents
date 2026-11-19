@@ -9,6 +9,7 @@ the gate's own message, so a test cannot pass for the wrong reason.
 from __future__ import annotations
 
 import json
+import re
 import sys
 from collections.abc import Mapping
 from pathlib import Path
@@ -71,13 +72,65 @@ _DEFAULTS: dict[str, dict[str, object]] = {
 }
 
 
+def _keyed(entries: list[object] | None) -> object:
+    """Convert `_in`/`_out` dicts to the artifact-keyed mapping ADR-123 requires.
+
+    Anything that is not a list of such dicts passes through unchanged, so a
+    negative test can write a malformed shape on purpose.
+    """
+    if not entries or not all(isinstance(e, dict) and "artifact" in e for e in entries):
+        return entries
+    keyed: dict[str, object] = {}
+    for entry in entries:
+        assert isinstance(entry, dict)
+        options = {k: v for k, v in entry.items() if k != "artifact"}
+        keyed[str(entry["artifact"])] = options or None
+    return keyed
+
+
+_PLAIN_KEY = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]*")
+
+
+def _block_yaml(value: object, indent: int) -> list[str]:
+    """Emit block-style YAML inside the subset skillforge's stdlib parser reads.
+
+    Keys that are not plain are double-quoted, which the subset refuses on
+    purpose; a negative test relies on that to exercise invariant 0.
+    """
+    pad = " " * indent
+    lines: list[str] = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            name = key if isinstance(key, str) and _PLAIN_KEY.fullmatch(key) else json.dumps(key)
+            if item is None:
+                lines.append(f"{pad}{name}:")
+            elif isinstance(item, (dict, list)) and item:
+                lines.append(f"{pad}{name}:")
+                lines.extend(_block_yaml(item, indent + 2))
+            else:
+                lines.append(f"{pad}{name}: {_scalar(item)}")
+        return lines
+    assert isinstance(value, list)
+    for item in value:
+        lines.append(f"{pad}- {_scalar(item)}")
+    return lines
+
+
+def _scalar(value: object) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (dict, list)):
+        return json.dumps(value)
+    return json.dumps(str(value)) if isinstance(value, str) else str(value)
+
+
 def _write_skill(
     root: Path,
     name: str,
     *,
     invoker: str = "autoplan",
-    inputs: list[object] | None = None,
-    outputs: list[object] | None = None,
+    inputs: object = None,
+    outputs: object = None,
     repo_local: bool = False,
     handoff: str | None = None,
 ) -> Path:
@@ -88,12 +141,17 @@ def _write_skill(
         f"name: {name}",
         f"description: {json.dumps(f'Use when you say {name}.')}",
         "metadata:",
-        f"  routing: {json.dumps(routing)}",
+        "  routing:",
+        *_block_yaml(routing, 4),
     ]
-    if inputs:
-        lines.append(f"  inputs: {json.dumps(inputs)}")
-    if outputs:
-        lines.append(f"  outputs: {json.dumps(outputs)}")
+    for field, value in (("inputs", _keyed(inputs)), ("outputs", _keyed(outputs))):
+        if not value:
+            continue
+        if isinstance(value, (dict, list)):
+            lines.append(f"  {field}:")
+            lines.extend(_block_yaml(value, 4))
+        else:
+            lines.append(f"  {field}: {_scalar(value)}")
     if repo_local:
         lines.append("  distribution: repo-local")
     lines += ["---", "", f"# {name}", "", "Body text."]
@@ -153,15 +211,22 @@ def test_valid_corpus_credits_each_output_to_its_lifecycle_skill(corpus: Path) -
 # --- entry shape ------------------------------------------------------------
 
 
-def test_bare_string_input_entry_is_rejected(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_legacy_list_shape_is_rejected(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     _corpus(tmp_path, {"build": {"inputs": ["execution-plan"]}})
 
     code, _, err = _run(tmp_path, capsys)
 
     assert code == 1
-    assert "inputs[0] must be a mapping with `artifact`, not str" in err
+    assert "inputs must be a mapping keyed by artifact name, not list" in err
+
+
+def test_scalar_entry_value_is_rejected(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    _corpus(tmp_path, {"build": {"inputs": {"execution-plan": "yes"}}})
+
+    code, _, err = _run(tmp_path, capsys)
+
+    assert code == 1
+    assert "inputs.'execution-plan' must be empty or a mapping, not str" in err
 
 
 def test_unknown_key_in_output_entry_is_rejected(
@@ -172,10 +237,10 @@ def test_unknown_key_in_output_entry_is_rejected(
     code, _, err = _run(tmp_path, capsys)
 
     assert code == 1
-    assert "outputs[0] has unknown key `paths`" in err
+    assert "outputs.'implementation-change' has unknown key 'paths'" in err
 
 
-def test_non_list_outputs_are_rejected(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_scalar_outputs_are_rejected(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     _corpus(tmp_path)
     _write_skill(tmp_path, "scalar-outputs", invoker="harness")
     path = tmp_path / gate.TEMPLATE_DIR / f"scalar-outputs{gate.TEMPLATE_SUFFIX}"
@@ -187,7 +252,7 @@ def test_non_list_outputs_are_rejected(tmp_path: Path, capsys: pytest.CaptureFix
     code, _, err = _run(tmp_path, capsys)
 
     assert code == 1
-    assert "outputs must be a list of mappings, not str" in err
+    assert "outputs must be a mapping keyed by artifact name, not str" in err
 
 
 @pytest.mark.parametrize(
@@ -691,3 +756,105 @@ def test_committed_template_corpus_satisfies_the_gate(
     code, out, err = _run(_REPO_ROOT, capsys)
 
     assert code == 0, f"{out}\n{err}"
+
+
+# --- edge cases from the ADR-123 amendment debate --------------------------
+
+
+def test_mixed_type_option_keys_are_a_defect_not_a_crash(
+    corpus: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = _write_skill(corpus, "extra-skill", invoker="harness")
+    text = path.read_text(encoding="utf-8").replace(
+        "metadata:\n", "metadata:\n  outputs:\n    scratch-note:\n      1: a\n      bar: b\n"
+    )
+    path.write_text(text, encoding="utf-8")
+
+    code, _, err = _run(corpus, capsys)
+
+    assert code == 1
+    assert "has unknown key 1" in err
+    assert "has unknown key 'bar'" in err
+
+
+def test_artifact_is_no_longer_an_option_key(
+    corpus: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write_skill(
+        corpus, "extra-skill", invoker="harness", outputs={"scratch-note": {"artifact": "x"}}
+    )
+
+    code, _, err = _run(corpus, capsys)
+
+    assert code == 1
+    assert "outputs.'scratch-note' has unknown key 'artifact'" in err
+
+
+@pytest.mark.parametrize("word", ["yes", "no", "on", "off"])
+def test_yaml_boolean_artifact_names_are_named_as_such(
+    corpus: Path, capsys: pytest.CaptureFixture[str], word: str
+) -> None:
+    path = _write_skill(corpus, "extra-skill", invoker="harness")
+    text = path.read_text(encoding="utf-8").replace(
+        "metadata:\n", f"metadata:\n  outputs:\n    {word}:\n"
+    )
+    path.write_text(text, encoding="utf-8")
+
+    code, _, err = _run(corpus, capsys)
+
+    assert code == 1
+    assert "is a YAML 1.1 boolean" in err
+
+
+def test_quoted_artifact_key_is_refused_by_the_shipped_subset_parser(
+    corpus: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = _write_skill(corpus, "extra-skill", invoker="harness")
+    text = path.read_text(encoding="utf-8").replace(
+        "metadata:\n", 'metadata:\n  outputs:\n    "scratch-note":\n'
+    )
+    path.write_text(text, encoding="utf-8")
+
+    code, _, err = _run(corpus, capsys)
+
+    assert code == 1
+    assert "skillforge's stdlib frontmatter parser refuses this template" in err
+
+
+@pytest.mark.parametrize(
+    "block",
+    ["  inputs: [{artifact: x}]\n", "  capability: {kind: orchestrator}\n"],
+    ids=["flow-list-of-mappings", "flow-mapping"],
+)
+def test_flow_collections_are_refused_by_the_shipped_subset_parser(
+    corpus: Path, capsys: pytest.CaptureFixture[str], block: str
+) -> None:
+    path = _write_skill(corpus, "extra-skill", invoker="harness")
+    path.write_text(
+        path.read_text(encoding="utf-8").replace("metadata:\n", f"metadata:\n{block}"),
+        encoding="utf-8",
+    )
+
+    code, _, err = _run(corpus, capsys)
+
+    assert code == 1
+    assert "skillforge's stdlib frontmatter parser refuses this template" in err
+
+
+def test_a_skill_may_read_an_artifact_it_also_produces(
+    corpus: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Recorded behavior: a self-produced input resolves through the skill
+    # itself. The lifecycle checks credit it to that skill, so it cannot
+    # satisfy the "earlier lifecycle skill" rule on its own.
+    _write_skill(
+        corpus,
+        "extra-skill",
+        invoker="harness",
+        inputs=[_in("scratch-note")],
+        outputs=[_out("scratch-note")],
+    )
+
+    code, _, err = _run(corpus, capsys)
+
+    assert code == 0, err

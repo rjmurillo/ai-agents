@@ -5,7 +5,13 @@ description: Transform feature descriptions into 3-tier specifications (Requirem
 license: MIT
 user-invocable: true
 metadata:
-  outputs: [{artifact: requirements-spec, path: specs/requirements/}, {artifact: design-spec, path: specs/design/}, {artifact: task-spec, path: specs/tasks/}]
+  outputs:
+    requirements-spec:
+      path: specs/requirements/
+    design-spec:
+      path: specs/design/
+    task-spec:
+      path: specs/tasks/
   capability:
     kind: specialized-implementation
     depends-on:

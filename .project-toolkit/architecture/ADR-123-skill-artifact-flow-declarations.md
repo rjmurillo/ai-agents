@@ -16,6 +16,8 @@ implemented: false
 
 Accepted. The panel reached consensus in round 2, confirmed in round 3.
 The debate appears in `.project-toolkit/critique/ADR-123-debate-log.md`.
+A 2026-11-19 amendment keys declarations by artifact name.
+The amendment debate appears in `.project-toolkit/critique/ADR-123-debate-log-2.md`.
 The maintainer selected the typed `inputs` and `outputs` option.
 
 ## Context
@@ -44,23 +46,34 @@ A query cannot tell which `recommendations` a consumer means.
 
 ### 1. Typed artifact declarations under `metadata`
 
-`metadata.outputs` and `metadata.inputs` become lists of mappings.
+`metadata.outputs` and `metadata.inputs` become mappings keyed by artifact name.
 No new top-level key is added. No manifest is added.
 
 ```yaml
 metadata:
-  inputs: [{artifact: requirements-spec, required: false}, {artifact: change-request, source: user}]
-  outputs: [{artifact: execution-plan, path: plans/active/}]
+  inputs:
+    requirements-spec:
+      required: false
+    change-request:
+      source: user
+  outputs:
+    execution-plan:
+      path: plans/active/
 ```
 
-An output entry has `artifact` and an optional `path`.
-An input entry has `artifact`, an optional `source`, and an optional `required`.
+Each key is an artifact name. Its value is empty, or a mapping of options.
+Write nothing after the colon for an empty entry.
+The stdlib parser reads `~` and `null` as text, not as empty.
+An output's only option is `path`.
+An input's options are `source` and `required`.
 `source` is one of `skill`, `user`, or `repo`. The default is `skill`.
 `required` is a boolean. The default is `true`.
-`artifact` matches `^[a-z][a-z0-9]*(-[a-z0-9]+)*$`.
-Any other key is a defect.
-The gate checks types first: `inputs` and `outputs` are lists of mappings.
-`artifact`, `path`, and `source` are strings, and `required` is a boolean.
+An artifact name matches `^[a-z][a-z0-9]*(-[a-z0-9]+)*$`.
+Any other option is a defect.
+A key appears once, so one skill cannot list one artifact under two sources.
+The gate checks types first: `inputs` and `outputs` are mappings.
+Each value is empty or a mapping.
+`path` and `source` are strings, and `required` is a boolean.
 A wrong type is a defect, not a crash.
 Every pattern applies with `re.fullmatch`, so a trailing newline fails.
 
@@ -150,6 +163,8 @@ A skill outside the lifecycle with no `inputs` or `outputs` is not a defect.
 ### 7. Enforcement
 
 A new gate, `scripts/validation/check_skill_artifact_flow.py`, enforces items 1 to 5.
+It also refuses a template that `skillforge`'s stdlib parser cannot read.
+That parser reads `required: false` as text, so the gate does the type checks.
 It reads `templates/skills/*.SKILL.md.tmpl`, the canonical source.
 It exits 0 on success, 1 on a violation, and 2 on a configuration error.
 It prints the number of skills and declarations it examined.
@@ -192,6 +207,7 @@ That PR classified all skills at once and gave no reason for the cycle.
 | Keep free-form string lists. | No migration. | Nothing can check or query them. | Rejected. |
 | Add `produces` and `consumes` to `capability`. | One block per skill. | Amends ADR-110's closed key set. Mixes policy and data. | Not selected. |
 | Add a manifest of artifacts. | One place to read. | A second registry, which ADR-107 forbids. | Rejected. |
+| Keep lists of mappings and extend `skillforge`'s stdlib parser. | No schema change. | Widens a parser kept small on purpose and shipped to consumers. | Rejected. |
 | Type the existing `inputs` and `outputs`. | Reuses five existing declarations. Queryable with `yq`. | Migrates five skills and adds eight. | Selected. |
 | Generate the Handoff line. | No drift by construction. | Partials take no variables today. | Deferred. |
 | Drop the Handoff line. | No second copy of the data. | The hand-off stays invisible in the body an agent reads. | Rejected. |
@@ -210,7 +226,15 @@ At `ae5acffcb` on 2026-11-19, rendered `review` is 24443 bytes and `ship` is 244
 The `SKILL.md` cap is 24576 bytes.
 Instruction Bytes fixtures F1, F2, and F6 load `review`. F6 had 29 bytes of headroom.
 A PR that grows a fixture must leave 100 bytes free, so `review` cannot grow at all.
-Declarations use flow-style YAML to stay short.
+Declarations stay inside the frontmatter subset that `skillforge` parses without PyYAML.
+That subset has block mappings and flow lists of plain scalars.
+It has no flow mappings and no mappings inside a sequence.
+The parser's docstring calls the subset deliberate, so this record does not widen it.
+At `b8bedf583` on 2026-11-19, flow collections broke conformance on 16 skills.
+Measured by parsing each `src/claude/skills/*/SKILL.md` with `load_skill`: 16 of 110 failed.
+Thirteen were artifact declarations, and three were one-line `capability` blocks.
+`tests/skills/skillforge/test_corpus_frontmatter_subset.py` now guards every shipped skill.
+The keyed shape is also shorter, and YAML key uniqueness bars a repeated artifact.
 `review` and `ship` offset their growth by removing duplicated text in the same change.
 No ceiling is raised.
 

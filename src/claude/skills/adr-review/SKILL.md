@@ -8,8 +8,14 @@ metadata:
   capability:
     kind: orchestrator
     status: active
-  inputs: [{artifact: adr}, {artifact: adr-change-type, source: user}]
-  outputs: [{artifact: adr-debate-log, path: critique/}, {artifact: adr-review-recommendations}]
+  inputs:
+    adr:
+    adr-change-type:
+      source: user
+  outputs:
+    adr-debate-log:
+      path: critique/
+    adr-review-recommendations:
   file_triggers:
     patterns:
       - ".project-toolkit/architecture/ADR-*.md"

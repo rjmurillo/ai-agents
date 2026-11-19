@@ -4,9 +4,18 @@ version: 1.0.0
 description: Prove a change works across six gates covering functional, non-functional, security, DevOps, developer experience, and observability quality. Use when you say `prove this works`, `run the test gates`, or `validate this change`, and run it after build. Do NOT use to write the implementation or its first tests (use build), and do NOT use to run pre-flight and open a PR (use ship).
 license: MIT
 metadata:
-  capability: {kind: orchestrator, owns: [pre-merge-verification], status: active}
-  inputs: [{artifact: implementation-change}, {artifact: requirements-spec}, {artifact: validation-record, required: false}]
-  outputs: [{artifact: test-gate-report}]
+  capability:
+    kind: orchestrator
+    owns:
+      - pre-merge-verification
+    status: active
+  inputs:
+    implementation-change:
+    requirements-spec:
+    validation-record:
+      required: false
+  outputs:
+    test-gate-report:
   routing:
     role: front-door
     invoker: autoplan

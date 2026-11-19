@@ -7,9 +7,17 @@ allowed-tools: Task, Skill, Read, Glob, Grep, Bash(*)
 argument-hint: target-branch
 user-invocable: true
 metadata:
-  capability: {kind: orchestrator, owns: [release-preflight], status: active}
-  inputs: [{artifact: implementation-change}, {artifact: review-marker, required: false}]
-  outputs: [{artifact: pull-request}]
+  capability:
+    kind: orchestrator
+    owns:
+      - release-preflight
+    status: active
+  inputs:
+    implementation-change:
+    review-marker:
+      required: false
+  outputs:
+    pull-request:
   routing:
     role: front-door
     invoker: autoplan

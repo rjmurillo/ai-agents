@@ -7,7 +7,11 @@ allowed-tools: Bash(git:*), Skill
 argument-hint: base-branch
 user-invocable: true
 metadata:
-  capability: {kind: orchestrator, owns: [pr-quality-gating], status: active}
+  capability:
+    kind: orchestrator
+    owns:
+      - pr-quality-gating
+    status: active
   routing:
     role: conditional-adjunct
     invoker: pr-comment-responder

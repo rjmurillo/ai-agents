@@ -7,8 +7,14 @@ allowed-tools: Task, Skill, Read, Write, Glob, Grep
 argument-hint: spec-output-or-issue-number
 user-invocable: true
 metadata:
-  capability: {kind: orchestrator, owns: [implementation-planning], status: active}
-  inputs: [{artifact: requirements-spec, required: false}]
+  capability:
+    kind: orchestrator
+    owns:
+      - implementation-planning
+    status: active
+  inputs:
+    requirements-spec:
+      required: false
   routing:
     role: front-door
     invoker: autoplan

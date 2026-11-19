@@ -4,9 +4,18 @@ version: 1.0.0
 description: Implement a planned change in thin vertical slices, test-first, with atomic commits and four mandatory exit gates. Use when you say `build this`, `implement this slice`, or `write the code for this task`, and run it after plan. Do NOT use to decide what to build (use spec) or to sequence the work (use plan), and do NOT use to review a finished diff (use review).
 license: MIT
 metadata:
-  capability: {kind: orchestrator, owns: [slice-implementation], status: active}
-  inputs: [{artifact: requirements-spec}, {artifact: execution-plan, required: false}]
-  outputs: [{artifact: implementation-change}, {artifact: validation-record}]
+  capability:
+    kind: orchestrator
+    owns:
+      - slice-implementation
+    status: active
+  inputs:
+    requirements-spec:
+    execution-plan:
+      required: false
+  outputs:
+    implementation-change:
+    validation-record:
   routing:
     role: front-door
     invoker: autoplan

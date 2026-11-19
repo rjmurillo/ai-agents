@@ -4,9 +4,17 @@ version: 1.0.0
 description: Run the four pre-flight checks, then create the PR or validate a contributor branch without touching it. Use when you say `ship it`, `ship this branch`, or `run pre-flight and open the PR`, and run it after review. Do NOT use to open a PR without the gates (use push-pr), and do NOT use to run the review axes themselves (use review).
 license: MIT
 metadata:
-  capability: {kind: orchestrator, owns: [release-preflight], status: active}
-  inputs: [{artifact: implementation-change}, {artifact: review-marker, required: false}]
-  outputs: [{artifact: pull-request}]
+  capability:
+    kind: orchestrator
+    owns:
+      - release-preflight
+    status: active
+  inputs:
+    implementation-change:
+    review-marker:
+      required: false
+  outputs:
+    pull-request:
   routing:
     role: front-door
     invoker: autoplan

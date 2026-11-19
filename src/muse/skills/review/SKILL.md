@@ -4,8 +4,12 @@ version: 1.0.0
 description: Review before merge. Stage-1 spec-compliance gate, then risk-selected Stage-2 review axes from the canonical set. analyst always runs, callers can pin extra always-on axes, and explicit deep review runs every canonical axis. Run after /test. Do NOT invoke code-qualities-assessment, doc-accuracy, golden-principles, or taste-lints directly for a full review; review can select them when requested or when deep review is explicit.
 license: MIT
 metadata:
-  inputs: [{artifact: implementation-change}, {artifact: requirements-spec, required: false}]
-  outputs: [{artifact: review-marker}]
+  inputs:
+    implementation-change:
+    requirements-spec:
+      required: false
+  outputs:
+    review-marker:
   capability:
     kind: orchestrator
     owns: [technical-review]

@@ -8,8 +8,17 @@ metadata:
   capability:
     kind: orchestrator
     status: active
-  inputs: [{artifact: skill-request, source: user}, {artifact: user-goal, source: user}, {artifact: domain-hints, source: user}]
-  outputs: [{artifact: skill-package}, {artifact: skill-spec}, {artifact: skillforge-recommendations}]
+  inputs:
+    skill-request:
+      source: user
+    user-goal:
+      source: user
+    domain-hints:
+      source: user
+  outputs:
+    skill-package:
+    skill-spec:
+    skillforge-recommendations:
   routing:
     role: front-door
     invoker: autoplan

@@ -7,8 +7,12 @@ allowed-tools: Task, Skill, Read, Glob, Grep, Bash(*)
 user-invocable: true
 license: MIT
 metadata:
-  inputs: [{artifact: implementation-change}, {artifact: requirements-spec, required: false}]
-  outputs: [{artifact: review-marker}]
+  inputs:
+    implementation-change:
+    requirements-spec:
+      required: false
+  outputs:
+    review-marker:
   capability:
     kind: orchestrator
     owns: [technical-review]
