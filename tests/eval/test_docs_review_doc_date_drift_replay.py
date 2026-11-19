@@ -189,6 +189,9 @@ def test_contained_keeps_a_worktree_inside_its_parent(tmp_path: Path) -> None:
     outside = tmp_path / "elsewhere"
     outside.mkdir()
     link = parent / "escape"
-    link.symlink_to(outside, target_is_directory=True)
+    try:
+        link.symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("This platform cannot create a directory link.")
     with pytest.raises(ValueError, match="outside"):
         replay._contained(link, parent)
