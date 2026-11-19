@@ -74,6 +74,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     "CI Dependency Pins",
     "ADR Lifecycle Frontmatter (ratchet)",
     "ADR Link Resolution",
+    "Markdown Link Resolution",
     "ADR Exception Markers",
     "Skill ADR Bindings (ratchet)",
     "Rule ADR Citations (ratchet)",

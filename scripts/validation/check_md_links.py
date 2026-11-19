@@ -346,6 +346,12 @@ def validate_md_links(repo_root: Path, base_ref: str = "auto") -> bool:
     return run(repo_root, None, base_ref, repo_root / DEFAULT_BASELINE) == 0
 
 
+def validate_staged_md_links(repo_root: Path, files: list[str], base_ref: str = "auto") -> bool:
+    """Staged-file entry point for the pre-commit markdown check."""
+    normalized = [f.replace("\\", "/") for f in files]
+    return run(repo_root, normalized, base_ref, repo_root / DEFAULT_BASELINE) == 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the CLI parser."""
     parser = argparse.ArgumentParser(description="Detect broken relative markdown links.")

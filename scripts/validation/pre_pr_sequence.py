@@ -57,6 +57,7 @@ from check_host_marketplaces import validate_host_marketplaces
 from check_in_root_worktrees import validate_in_root_worktrees
 from check_index_line_endings import validate_index_line_endings
 from check_io_portability import validate_io_portability
+from check_md_links import validate_md_links
 from check_measurement_anchoring import validate_measurement_anchoring
 from check_nested_tests import validate_no_nested_tests
 from check_promotion_exceptions import validate_promotion_exceptions
@@ -399,6 +400,7 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # text says ADR-NNN targets that number (issue #5197). Unwired, this gate
     # cannot stop the rot that produced the ADR-033 repairs it protects.
     _Gate("ADR Link Resolution", _root_only(validate_adr_links)),
+    _Gate("Markdown Link Resolution", _root_only(validate_md_links)),
     # Fails when a workflow's `# ADR-NNN Exception:` marker cites an ADR that does
     # not exist or that a later record retired (issue #5199). ADR-055 prescribed a
     # marker nothing read, and the retired spellings outlived their records.

@@ -46,6 +46,9 @@ def sequence_with_passing_corpus_gates() -> tuple[Any, ...]:
         # mock artifact here, not a real empty corpus: real-filesystem-
         # dependent noise the same way the other corpus gates above are.
         "ADR Link Resolution",
+        # Same blanket `else: stdout = ""` artifact: `git ls-files` returns nothing, so
+        # check_md_links.py finds no in-scope markdown and fails closed with exit 2.
+        "Markdown Link Resolution",
         # `check_index_line_endings.py` captures `git ls-files --eol -z` in
         # bytes, because a pathname is bytes and `errors="replace"` destroys
         # undecodable ones irreversibly (issue #5475). `healthy_git_run`
