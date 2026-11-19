@@ -427,6 +427,15 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # Fails when live docs command a removed script (issue #2916), the
     # PowerShell-to-Python migration regression behind issues #2914 and #2915.
     _Gate("Stale Script References", _root_only(validate_stale_script_refs)),
+    # Every skill and agent needs a docs/ page and a README row, in the sibling
+    # section order. PR #7416 and PR #7424 shipped skills with no page.
+    _Gate(
+        "Agent and Skill Reference Pages (docs/skills, docs/agents)",
+        _root_only(validate_agent_skill_docs),
+    ),
+    # Advisory: a skill's facts changed since the base ref and its page did not
+    # (rule agent-skill-docs MUST 2). pre_pr_policy licenses the FAIL.
+    _Gate("Skill Page Freshness (advisory)", _root_only(validate_skill_page_freshness)),
     # Fails when a line ADDED since the base ref cites a path-and-line
     # location that HEAD contradicts: file untracked, line out of range, or
     # the named anchor content living elsewhere. Automates the manual
@@ -670,15 +679,6 @@ _SEQUENCE: tuple[_Gate, ...] = (
         "Skill Tree Layout (.claude/skills)",
         _root_only(validate_skill_tree_layout),
     ),
-    # Every skill and agent needs a docs/ page and a README row, in the sibling
-    # section order. PR #7416 and PR #7424 shipped skills with no page.
-    _Gate(
-        "Agent and Skill Reference Pages (docs/skills, docs/agents)",
-        _root_only(validate_agent_skill_docs),
-    ),
-    # Advisory: a skill's facts changed since the base ref and its page did not
-    # (rule agent-skill-docs MUST 2). pre_pr_policy licenses the FAIL.
-    _Gate("Skill Page Freshness (advisory)", _root_only(validate_skill_page_freshness)),
     # Vendored installs cannot resolve this repository's issue or PR numbers, and
     # the numbers can collide with the consumer's own issues.
     _Gate(

@@ -215,9 +215,6 @@ def find_page_findings(repo_root: Path) -> Report:
     return Report(examined=len(skills) + len(agents), findings=findings)
 
 
-# Freshness (advisory)
-
-
 def _git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", "-C", str(repo_root), *args],
@@ -369,8 +366,6 @@ def find_stale_pages(repo_root: Path, base_ref: str) -> Report | None:
         return None
     return Report(examined=len(touched), findings=findings)
 
-
-# Reporting and entry points
 
 _PAGE_FIX = (
     "add, rename, or remove the page and its README row in this change, and keep "
