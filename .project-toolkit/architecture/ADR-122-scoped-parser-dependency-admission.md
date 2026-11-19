@@ -20,6 +20,7 @@ Publication still requires ordinary review, hooks, and protected CI.
 On 2026-11-18, an amendment recorded the parser dependencies as permanent design.
 A later 2026-11-18 amendment added item 8, the TypeScript admission for issue #7435.
 A third 2026-11-18 amendment added item 9, the Python admission for issue #7436.
+A fourth 2026-11-18 amendment recorded PowerShell's subprocess parser in item 7.
 
 ## Context
 
@@ -53,10 +54,16 @@ Item 9 extends it to the Python parser (issue #7436).
    Do not extend admission to another repository or another quality.
 6. Keep `tree-sitter` and `tree-sitter-c-sharp` as permanent scanner dependencies.
    No sunset date, retirement issue, or removal step applies to them.
-7. Use the same parser approach for JavaScript, TypeScript, Python, and PowerShell.
+7. Use the same Tree-sitter approach for JavaScript, TypeScript, and Python.
    Each language is follow-on work in its own change.
    The C# record admits only the C# transition; item 8 admits TypeScript and item 9 Python separately.
    A later parser import can trip the coupling gate; it needs its own admission decision.
+   Issues #7434, #7435, and #7436 follow that approach, and each needs its own admission.
+   PowerShell uses its own parser instead. The maintainer chose it for #7437 on 2026-11-18.
+   The scanner runs `pwsh` as a subprocess. It adds no third-party Python import.
+   So the coupling score stays the same and needs no admission.
+   The reason: `tree-sitter-powershell==0.26.4` marked 8 of 63 pwsh 7.6.10 modules with errors.
+   PowerShell's parser marked none of them. Evidence: #7437 comments, 2026-11-18.
 8. Admit the TypeScript parser transition from issue #7435 as its own record.
    Add one fixed `typescriptParserDependencyAdmission` record to the scanner's admission table.
    The table holds only fixed in-code records, so the Rationale rejection of a generic framework still holds.
@@ -137,6 +144,14 @@ Without the packages there, its code-quality axis reports `UNKNOWN` for Python c
 Python the pinned grammar cannot parse also exits 1; the replaced regex never failed a scan.
 Python counting is per statement, not per line, so statements joined by `;` count separately.
 `references/python-parser.md` gives the install command and the grammar limits.
+Any scan that includes a PowerShell file needs `pwsh` 7 or later on PATH.
+Without it, or on a PowerShell syntax error or a 60 second timeout, the scan exits 1.
+Each PowerShell file costs one `pwsh` process, about 0.65 seconds.
+PowerShell resolves `using module` and `using assembly` targets while it parses.
+On Windows a UNC target would open a network share and could send credentials.
+So the scanner rewrites every ASCII `using` to an inert command name before parsing.
+The count then comes from those commands, and no target is ever resolved.
+`references/powershell-parser.md` gives the requirement and its limits.
 The parser imports run inside functions, not at module load.
 ADR-121 rule 2 scans only module-load imports, so no allowance entry applies.
 The record grants no GitHub review approval.

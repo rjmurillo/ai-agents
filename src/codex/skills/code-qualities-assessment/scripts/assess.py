@@ -49,6 +49,9 @@ _LANGUAGE_BY_SUFFIX = {
     ".cs": "csharp",
     ".java": "java",
     ".go": "go",
+    ".ps1": "powershell",
+    ".psm1": "powershell",
+    ".psd1": "powershell",
 }
 
 # Every score here is size-derived, so adding one small function to a healthy
@@ -120,7 +123,11 @@ _PARSER_DEPENDENCY_ADMISSIONS = {
 }
 
 # Coupling for these languages is counted from a syntax tree over raw source.
-_PARSED_COUPLING_LANGUAGES = frozenset({"csharp", "javascript", "python", "typescript"})
+# Filtering comment lines first would drop PowerShell's `#Requires` statements,
+# which are comments to a line filter.
+_PARSED_COUPLING_LANGUAGES = frozenset(
+    {"csharp", "javascript", "python", "typescript", "powershell"}
+)
 
 # Single-line comment prefixes, used to exclude comment lines from the
 # lines-of-code count. Block comments are intentionally not stripped: this is an
@@ -132,6 +139,7 @@ _LINE_COMMENT_PREFIXES = {
     "csharp": ("//",),
     "java": ("//",),
     "go": ("//",),
+    "powershell": ("#",),
 }
 
 # Repo-root-anchored prefixes of build outputs (ADR-109, ADR-119). Under
@@ -1470,6 +1478,170 @@ class CSharpParserError(ParserError):
     """C# dependencies cannot be measured reliably."""
 
 
+class PowerShellParserError(ParserError):
+    """PowerShell dependencies cannot be measured reliably."""
+
+
+_PWSH_TIMEOUT_SECONDS = 60
+
+# PowerShell resolves `using module` and `using assembly` targets while it
+# parses: it reads local files, searches PSModulePath, and on Windows opens an
+# SMB connection for a UNC target, which can send credentials (CWE-829). A
+# `configuration` block loads DSC resources for `Import-DscResource` at parse
+# time too. Every public parse and tokenize API does this. So the scanner
+# rewrites each keyword to an inert command name before pwsh sees the source.
+# PowerShell matches keywords by ASCII case (tested on pwsh 7.6.10); the
+# Unicode-aware match below also rewrites lookalikes such as U+017F, which is
+# harmless. The rewrite keeps line numbers and keeps valid syntax valid. The
+# parser then sees each `using` statement as a command named the sentinel.
+_PWSH_USING_SENTINEL = "__ptk_using__"
+_PWSH_NEUTRALIZED_KEYWORDS = (
+    (re.compile("using", re.IGNORECASE), _PWSH_USING_SENTINEL),
+    (re.compile("configuration", re.IGNORECASE), "__ptk_configuration__"),
+)
+
+# With `using namespace` and `using module` rewritten, a class that names a
+# type those statements would have brought in reports TypeNotFound. That is a
+# lookup on the scanning machine, not a syntax error, so it never fails a scan.
+_PWSH_TYPE_LOOKUP_ERROR_IDS = ("TypeNotFound",)
+
+# Runs inside pwsh. Reads base64 UTF-8 source from stdin so no console code
+# page can alter it, parses it without executing it, and prints one JSON line.
+# Counted forms: Import-Module and ipmo calls (module-qualified or not),
+# neutralized using module/namespace/assembly statements, and #Requires lines
+# that PowerShell reads as naming modules (any -Modules abbreviation).
+# The first parse finds the neutralized using statements. They are then blanked,
+# keeping newlines, and the source is parsed again, because a using statement
+# rewritten as a command would end the header where `[CmdletBinding()] param()`
+# is legal. The second parse supplies the syntax errors and other counts.
+# Runs first. An older pwsh exits 3, which the scanner reports as a failure.
+_PWSH_VERSION_GUARD = r"""
+if ($PSVersionTable.PSVersion.Major -lt 7) {
+    [Console]::Error.WriteLine("PowerShell 7 or later is required; found $($PSVersionTable.PSVersion)")
+    exit 3
+}
+"""
+
+_PWSH_COUNT_SCRIPT = (
+    _PWSH_VERSION_GUARD
+    + r"""
+$ErrorActionPreference = 'Stop'
+function Read-Script([string]$text) {
+    $tokens = $null
+    $errors = $null
+    $ast = [System.Management.Automation.Language.Parser]::ParseInput($text, [ref]$tokens, [ref]$errors)
+    return ,@($ast, $tokens, $errors)
+}
+$encoded = [Console]::In.ReadToEnd().Trim()
+$source = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($encoded))
+$usingKinds = @('module', 'namespace', 'assembly')
+$bareWord = [System.Management.Automation.Language.StringConstantType]::BareWord
+function Test-BareWord($element, [string]$value) {
+    return ($element -is [System.Management.Automation.Language.StringConstantExpressionAst] -and
+        $element.StringConstantType -eq $bareWord -and ($value -eq '' -or $element.Value -ceq $value))
+}
+$first = Read-Script $source
+$sentinelCommands = @($first[0].FindAll({
+    param($node)
+    return ($node -is [System.Management.Automation.Language.CommandAst] -and
+        $node.InvocationOperator -eq 'Unknown' -and (Test-BareWord $node.CommandElements[0] '__SENTINEL__'))
+}, $true))
+# Every rewritten `using` must be a statement PowerShell would accept, because
+# the rewrite hides the errors PowerShell reports for it. Check kind, operand,
+# arity, and placement (top level, before any other statement) here.
+$root = $first[0]
+$topBlocks = @($root.BeginBlock, $root.ProcessBlock, $root.EndBlock, $root.DynamicParamBlock) |
+    Where-Object { $_ }
+$headerEnd = [int]::MaxValue
+if ($root.ParamBlock) { $headerEnd = $root.ParamBlock.Extent.StartOffset }
+foreach ($block in $topBlocks) {
+    # A top-level trap lives in Traps, not Statements, and still ends the header.
+    foreach ($trap in $block.Traps) {
+        if ($trap.Extent.StartOffset -lt $headerEnd) { $headerEnd = $trap.Extent.StartOffset }
+    }
+    foreach ($statement in $block.Statements) {
+        $isUsing = $statement -is [System.Management.Automation.Language.PipelineAst] -and
+            $statement.PipelineElements.Count -eq 1 -and $sentinelCommands -contains $statement.PipelineElements[0]
+        if (-not $isUsing -and $statement.Extent.StartOffset -lt $headerEnd) {
+            $headerEnd = $statement.Extent.StartOffset
+        }
+    }
+}
+$usingStatements = @()
+$usingErrors = @()
+foreach ($command in $sentinelCommands) {
+    $elements = $command.CommandElements
+    $kind = if ($elements.Count -ge 2 -and (Test-BareWord $elements[1] '')) { $elements[1].Value.ToLowerInvariant() } else { '' }
+    $operand = if ($elements.Count -ge 3) { $elements[2] } else { $null }
+    $errorId = $null
+    if ($elements.Count -eq 1 -or $usingKinds -notcontains $kind) {
+        $errorId = 'MissingUsingStatementDirective'
+    } elseif ($elements.Count -eq 2) {
+        $errorId = 'MissingUsingItemName'
+    } elseif ($elements.Count -gt 3 -or $command.Redirections.Count -gt 0) {
+        $errorId = 'MissingStatementTerminator'
+    } elseif (-not ($operand -is [System.Management.Automation.Language.StringConstantExpressionAst] -or
+            ($kind -eq 'module' -and $operand -is [System.Management.Automation.Language.HashtableAst]))) {
+        $errorId = 'InvalidValueForUsingItemName'
+    } elseif (-not ($command.Parent -is [System.Management.Automation.Language.PipelineAst] -and
+            $topBlocks -contains $command.Parent.Parent -and $command.Parent.Parent.Unnamed -and
+            $command.Extent.StartOffset -lt $headerEnd)) {
+        $errorId = 'UsingMustBeAtStartOfScript'
+    }
+    if ($errorId) {
+        $usingErrors += [pscustomobject]@{
+            id = $errorId; line = $command.Extent.StartLineNumber; message = "Invalid using statement ($errorId)."
+        }
+    } else {
+        $usingStatements += $command
+        # Blanking removes the operand, so keep any error PowerShell found inside it,
+        # such as a duplicate key in a `using module` hashtable.
+        foreach ($inner in $first[2]) {
+            $offset = $inner.Extent.StartOffset
+            if ($offset -ge $command.Extent.StartOffset -and $offset -lt $command.Extent.EndOffset) {
+                $usingErrors += [pscustomobject]@{
+                    id = $inner.ErrorId; line = $inner.Extent.StartLineNumber
+                    message = "$($inner.Message) ($($inner.ErrorId))"
+                }
+            }
+        }
+    }
+}
+# Blank each statement, plus trailing blanks and a `;` terminator, keeping newlines.
+$chars = $source.ToCharArray()
+foreach ($statement in $usingStatements) {
+    $end = $statement.Extent.EndOffset
+    $next = $end
+    while ($next -lt $chars.Length -and ($chars[$next] -eq ' ' -or $chars[$next] -eq "`t")) { $next++ }
+    if ($next -lt $chars.Length -and $chars[$next] -eq ';') { $end = $next + 1 }
+    for ($i = $statement.Extent.StartOffset; $i -lt $end; $i++) {
+        if ($chars[$i] -ne "`n" -and $chars[$i] -ne "`r") { $chars[$i] = ' ' }
+    }
+}
+$second = Read-Script (-join $chars)
+$ast = $second[0]
+$tokens = $second[1]
+$errors = $second[2]
+$importNames = @('import-module', 'ipmo')
+$imports = @($ast.FindAll({
+    param($node)
+    if ($node -isnot [System.Management.Automation.Language.CommandAst]) { return $false }
+    $name = "$($node.GetCommandName())".Split('\')[-1].ToLowerInvariant()
+    return $importNames -contains $name
+}, $true)).Count
+$requires = @($tokens | Where-Object {
+    $_.Kind -eq 'Comment' -and $_.Text -match '^#requires\b' -and
+        @((Read-Script $_.Text)[0].ScriptRequirements.RequiredModules).Count -gt 0
+}).Count
+$parseErrors = @($usingErrors) + @($errors | ForEach-Object {
+    [pscustomobject]@{ id = $_.ErrorId; line = $_.Extent.StartLineNumber; message = $_.Message }
+})
+[pscustomobject]@{ count = $imports + $usingStatements.Count + $requires; errors = $parseErrors } |
+    ConvertTo-Json -Compress -Depth 3 -EscapeHandling EscapeNonAscii
+""".replace("__SENTINEL__", _PWSH_USING_SENTINEL)
+)
+
+
 class TypeScriptParserError(ParserError):
     """TypeScript dependencies cannot be measured reliably."""
 
@@ -1670,6 +1842,140 @@ def _count_typescript_imports(source: str, suffix: str) -> int:
     return _count_dependency_nodes(source, _TYPESCRIPT_GRAMMARS[suffix])
 
 
+def _pwsh_rejection(pwsh: Path) -> str | None:
+    """Return why *pwsh* must not run, or None when it is an installed pwsh."""
+    if sys.platform == "win32" and pwsh.suffix.lower() != ".exe":
+        return f"Refusing to run {pwsh}: pwsh on Windows must be pwsh.exe"
+    scanned = Path.cwd().resolve()
+    if pwsh.is_relative_to(scanned) or pwsh.resolve().is_relative_to(scanned):
+        return f"Refusing to run {pwsh}: it is inside the scanned directory, not an installed pwsh"
+    return None
+
+
+def _find_pwsh() -> str:
+    """Return the first eligible pwsh on an absolute PATH entry (CWE-427).
+
+    Relative PATH entries resolve against the scanned checkout, where a planted
+    `pwsh` could run in place of PowerShell. Each entry is searched in order,
+    so an ineligible match (a `pwsh.cmd` shim, or a copy inside the checkout)
+    does not hide a real pwsh in a later entry.
+    """
+    import os
+    import shutil
+
+    name = "pwsh.exe" if sys.platform == "win32" else "pwsh"
+    rejection = None
+    for entry in os.environ.get("PATH", "").split(os.pathsep):
+        if not entry or not os.path.isabs(entry):
+            continue
+        found = shutil.which(name, path=entry)
+        if found is None:
+            continue
+        # Run the PATH entry itself, not its symlink target: a Snap install
+        # links /snap/bin/pwsh to /usr/bin/snap, which dispatches on its name.
+        pwsh = Path(found).absolute()
+        rejection = _pwsh_rejection(pwsh)
+        if rejection is None:
+            return str(pwsh)
+    raise PowerShellParserError(
+        rejection
+        or "PowerShell 7 (pwsh) is not on PATH. It is required to count "
+        "PowerShell dependencies (see references/powershell-parser.md)"
+    )
+
+
+def _neutralize_using(source: str) -> str:
+    """Rewrite each resolving keyword so pwsh loads no module, assembly, or resource."""
+    for keyword, sentinel in _PWSH_NEUTRALIZED_KEYWORDS:
+        source = keyword.sub(sentinel, source)
+    return source
+
+
+def _run_pwsh_counter(source: str) -> dict[str, Any]:
+    """Run PowerShell's own parser over *source* and return its JSON result.
+
+    The source is neutralized first (see _PWSH_USING_SENTINEL), so parsing
+    reads no other file and opens no connection. pwsh also runs from an empty
+    temporary directory. The source travels as stdin data, never as a command
+    argument (CWE-78).
+    """
+    import base64
+    import subprocess
+    import tempfile
+
+    pwsh = _find_pwsh()
+    command = base64.b64encode(_PWSH_COUNT_SCRIPT.encode("utf-16-le")).decode("ascii")
+    payload = base64.b64encode(_neutralize_using(source).encode("utf-8")).decode("ascii")
+    argv = [pwsh, "-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", command]
+    try:
+        # A cleanup failure (Windows can hold the directory briefly) must not
+        # discard a finished parse, so cleanup errors are ignored.
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as empty_dir:
+            result = subprocess.run(
+                argv,
+                input=payload,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=_PWSH_TIMEOUT_SECONDS,
+                cwd=empty_dir,
+                check=False,
+            )
+    except subprocess.TimeoutExpired as exc:
+        raise PowerShellParserError(
+            f"PowerShell parser timed out after {_PWSH_TIMEOUT_SECONDS} seconds"
+        ) from exc
+    except OSError as exc:
+        raise PowerShellParserError(f"PowerShell parser failed to start: {exc}") from exc
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()[-500:]
+        raise PowerShellParserError(
+            f"PowerShell parser exited {result.returncode}: {detail or 'no output'}"
+        )
+    try:
+        parsed = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise PowerShellParserError(
+            f"PowerShell parser returned unreadable output: {result.stdout[:200]!r}"
+        ) from exc
+    if not isinstance(parsed, dict):
+        raise PowerShellParserError(f"PowerShell parser returned {type(parsed).__name__}")
+    return parsed
+
+
+def _count_powershell_imports(source: str) -> int:
+    """Count dependency statements from PowerShell's syntax tree, not regex.
+
+    Strings and comments do not count, except `#Requires -Modules`, which
+    PowerShell itself treats as a statement. A syntax error is fatal: no count
+    is guessed. No module or assembly is resolved, so a missing one is not an
+    error, and neither is a type only that resolution would have supplied.
+    """
+    parsed = _run_pwsh_counter(source)
+    errors = parsed.get("errors")
+    errors = [errors] if isinstance(errors, dict) else errors
+    if not isinstance(errors, list):
+        raise PowerShellParserError(f"PowerShell parser returned errors as {errors!r}")
+    errors = [
+        error
+        for error in errors
+        if not (isinstance(error, dict) and error.get("id") in _PWSH_TYPE_LOOKUP_ERROR_IDS)
+    ]
+    if errors:
+        first = errors[0]
+        where = f"line {first.get('line')}: " if isinstance(first, dict) else ""
+        message = first.get("message") if isinstance(first, dict) else first
+        raise PowerShellParserError(
+            f"Cannot count PowerShell dependencies: PowerShell reports "
+            f"{len(errors)} syntax error(s), first at {where}{message}"
+        )
+    count = parsed.get("count")
+    if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+        raise PowerShellParserError(f"PowerShell parser returned count {count!r}")
+    return count
+
+
 def _score_coupling(
     language: str | None,
     code_lines: list[str],
@@ -1684,28 +1990,26 @@ def _score_coupling(
     0.0 so the threshold gate does not fail a file scored only by that
     untuned heuristic (matches the file-header contract).
 
-    C#, TypeScript, JavaScript, and Python receive original source lines for syntax-tree parsing;
-    *suffix* picks the TypeScript or TSX grammar. Other languages receive
-    filtered code lines. Go and Python standard-library imports are
+    C#, TypeScript, JavaScript, Python, and PowerShell receive original source
+    lines for syntax-tree parsing; *suffix* picks the TypeScript or TSX grammar.
+    Other languages receive filtered code lines. Go and Python standard-library imports are
     reported but not scored: they are stable utilities, not application or
     third-party coupling (issues #7047 and #7354).
     """
     pattern = _IMPORT_PATTERNS.get(language) if language else None
     standard_count = 0
-    if language == "csharp":
-        import_count = _count_csharp_imports("\n".join(code_lines))
-        confidence = 0.6
-        tuned = True
-    elif language == "typescript":
-        import_count = _count_typescript_imports("\n".join(code_lines), suffix)
-        confidence = 0.6
-        tuned = True
-    elif language == "javascript":
-        import_count = _count_javascript_imports("\n".join(code_lines))
-        confidence = 0.6
-        tuned = True
-    elif language == "python":
+    if language == "python":
         import_count, standard_count = _count_python_imports("\n".join(code_lines))
+        confidence = 0.6
+        tuned = True
+    elif language in _PARSED_COUPLING_LANGUAGES:
+        counters: dict[str, Callable[[str], int]] = {
+            "csharp": _count_csharp_imports,
+            "javascript": _count_javascript_imports,
+            "typescript": partial(_count_typescript_imports, suffix=suffix),
+            "powershell": _count_powershell_imports,
+        }
+        import_count = counters[language]("\n".join(code_lines))
         confidence = 0.6
         tuned = True
     elif pattern is not None:
@@ -2219,8 +2523,8 @@ def _assess_files(
     the survivor as evidence the whole change was assessed. This is the same
     treatment an unreadable file already gets at the decode site.
 
-    A C#, TypeScript, JavaScript, or Python parser failure is the exception: it is deliberately
-    fatal (exit 1), so no parsed-language score is guessed.
+    A C#, TypeScript, JavaScript, Python, or PowerShell parser failure is the
+    exception: it is deliberately fatal (exit 1), so no parsed-language score is guessed.
     """
     assessments: list[FileAssessment] = []
     for file_path in files:

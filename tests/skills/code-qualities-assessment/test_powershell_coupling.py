@@ -1,0 +1,459 @@
+"""PowerShell dependency counting through PowerShell's own parser (issue #7437)."""
+
+import importlib.util
+import json
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from tests.pwsh_launcher_probe import _ON_CI, require_working_pwsh
+
+from .test_assess import _commit, _init_repo, _regression_argv, _run_git
+
+_SCRIPT = (
+    Path(__file__).resolve().parents[3]
+    / ".claude"
+    / "skills"
+    / "code-qualities-assessment"
+    / "scripts"
+    / "assess.py"
+)
+_spec = importlib.util.spec_from_file_location("assess", _SCRIPT)
+assert _spec is not None and _spec.loader is not None
+_mod = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_mod)
+assess_content = _mod.assess_content
+
+
+# An absolute path that ends in .exe on every platform. It hangs off the
+# filesystem root, never under the scanned directory or a repo-local TMPDIR.
+FAKE_PWSH = str(Path(Path.cwd().anchor) / "fake-pwsh-bin-7437" / "pwsh.exe")
+PWSH_NAMES = ("pwsh", "pwsh.exe")
+
+
+def _coupling(source: str, name: str = "Script.ps1") -> Any:
+    require_working_pwsh()
+    return assess_content(Path(name), source).coupling
+
+
+def _fake_pwsh(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    stdout: str = '{"count":0,"errors":[]}',
+    returncode: int = 0,
+    stderr: str = "",
+    raises: BaseException | None = None,
+) -> list[dict[str, Any]]:
+    """Replace pwsh with a fake that records each call and returns a fixed result."""
+    calls: list[dict[str, Any]] = []
+    monkeypatch.setenv("PATH", str(Path(FAKE_PWSH).parent))
+    monkeypatch.setattr(
+        shutil, "which", lambda name, path=None: FAKE_PWSH if name in PWSH_NAMES else None
+    )
+
+    def fake_run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        cwd = Path(kwargs["cwd"])
+        calls.append({"argv": argv, "cwd_entries": sorted(cwd.iterdir()), **kwargs})
+        if raises is not None:
+            raise raises
+        return subprocess.CompletedProcess(argv, returncode, stdout, stderr)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    return calls
+
+
+def test_ci_runner_provides_pwsh() -> None:
+    """The real-parser tests below skip without pwsh; on CI that skip must not hide them."""
+    if not _ON_CI:
+        pytest.skip("only CI must provide pwsh; local runs may lack it")
+
+    assert shutil.which("pwsh") is not None
+
+
+@pytest.mark.parametrize("suffix", [".ps1", ".psm1", ".psd1", ".PS1"])
+def test_powershell_suffixes_are_detected(suffix: str) -> None:
+    assert _mod.detect_language(Path(f"Script{suffix}")) == "powershell"
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "Import-Module Pester",
+        "Import-Module -Name Pester -MinimumVersion 5.7.1",
+        "import-module ./Local.psm1",
+        "IMPORT-MODULE Pester",
+        "ipmo Pester",
+        "& Import-Module Pester",
+        "Microsoft.PowerShell.Core\\Import-Module Pester",
+        "$m = Import-Module Pester -PassThru",
+        "if ($true) { Import-Module Pester }",
+        "using module ./Local.psm1",
+        "USING Module ./Local.psm1",
+        "UsInG namespace System.Text",
+        "using module Pester",
+        "using namespace System.Text",
+        "using assembly System.Xml",
+        "#Requires -Modules Pester",
+        "#requires -modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.1' }",
+        "#Requires -Module Pester",
+        "#Requires -M Pester",
+        "#requires -Mod Pester, Az",
+        "#Requires -Modules Pester -Version 7.0",
+    ],
+)
+def test_each_dependency_form_counts_once(statement: str) -> None:
+    """AC1/AC2: Every listed statement form is one dependency, read from the syntax tree."""
+    coupling = _coupling(f"{statement}\n")
+
+    assert coupling.reasons[0] == "1 import/dependency statements"
+    assert coupling.value == 9.0
+    assert coupling.confidence == 0.6
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        '$text = "Import-Module NotADependency"',
+        "$text = 'using module NotADependency'",
+        "$text = @'\nImport-Module NotADependency\nusing namespace Not.One\n'@",
+        "# Import-Module NotADependency",
+        "<#\nImport-Module NotADependency\n#Requires -Modules NotOne\n#>",
+        "#Requires -Version 7.0",
+        "#Requires -PSEdition Core",
+        "Get-Module -ListAvailable",
+        "Import-ModuleHelper Pester",
+        "Invoke-Command -ScriptBlock { $using:Name }",
+        "Export-ModuleMember -Function Get-A, Set-B",
+        "Write-Host 'héllo ✓'",
+    ],
+)
+def test_strings_comments_and_lookalikes_are_not_dependencies(source: str) -> None:
+    """AC1: Literal text, ordinary comments, and other commands add no dependency."""
+    coupling = _coupling(f"{source}\n")
+
+    assert coupling.reasons[0] == "0 import/dependency statements"
+    assert coupling.value == 10.0
+
+
+def test_mixed_statements_count_from_the_tree() -> None:
+    source = (
+        "#Requires -Modules Pester\n"
+        "using module ./Local.psm1\n"
+        "using namespace System.Text\n"
+        "using assembly System.Xml\n"
+        "Import-Module A\n"
+        "ipmo B\n"
+        '$skip = "Import-Module C"\n'
+        "# Import-Module D\n"
+        "Write-Host 'café'\n"
+    )
+
+    coupling = _coupling(source, "Module.psm1")
+
+    assert coupling.reasons[0] == "6 import/dependency statements"
+    assert coupling.value == 4.0
+
+
+def test_unresolvable_references_are_not_syntax_errors() -> None:
+    """A module or assembly this machine lacks still counts and never fails the scan."""
+    coupling = _coupling(
+        "using module NoSuchModuleForIssue7437\nusing assembly NoSuch.Assembly.Issue7437\n"
+    )
+
+    assert coupling.reasons[0] == "2 import/dependency statements"
+
+
+def test_parsing_never_runs_a_referenced_module(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Scanning untrusted source must not execute a module it references."""
+    marker = tmp_path / "executed.txt"
+    module = tmp_path / "Evil.psm1"
+    module.write_text(f"Set-Content -Path '{marker}' -Value ran\nclass Evil {{}}\n", "utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    coupling = _coupling(f"using module {module}\nusing module ./Evil.psm1\n[Evil]::new()\n")
+
+    assert coupling.reasons[0] == "2 import/dependency statements"
+    assert not marker.exists()
+
+
+def test_psd1_manifest_is_assessed() -> None:
+    coupling = _coupling("@{ RootModule = 'Module.psm1'; ModuleVersion = '1.0.0' }\n", "M.psd1")
+
+    assert coupling.reasons[0] == "0 import/dependency statements"
+    assert coupling.confidence == 0.6
+
+
+def test_invalid_powershell_fails_cli_instead_of_reporting_no_dependencies(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """AC2: A syntax error must not become a zero-dependency pass."""
+    require_working_pwsh()
+    monkeypatch.chdir(tmp_path)
+    target = tmp_path / "Invalid.ps1"
+    target.write_text("Import-Module A\nfunction Broken( {\n", encoding="utf-8")
+    report = tmp_path / "report.json"
+
+    result = _mod.main(["--target", str(target), "--format", "json", "--output", str(report)])
+    output = capsys.readouterr()
+
+    assert result == 1
+    assert "PowerShell" in output.err
+    assert "syntax error" in output.err
+    assert "line 2" in output.err
+    assert target.name in output.err
+    assert not output.out
+    assert not report.exists()
+
+
+def test_missing_pwsh_fails_cli_without_affecting_python(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """AC2: A missing parser fails explicitly and never reports a PowerShell score."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(shutil, "which", lambda _name, path=None: None)
+    script = tmp_path / "Script.ps1"
+    script.write_text("Import-Module Pester\n", encoding="utf-8")
+    python = tmp_path / "example.py"
+    python.write_text("def example():\n    return 1\n", encoding="utf-8")
+
+    result = _mod.main(["--target", str(script), "--format", "json"])
+    output = capsys.readouterr()
+
+    assert result == 1
+    assert "pwsh" in output.err
+    assert "not on PATH" in output.err
+    assert script.name in output.err
+    assert not output.out
+    assert _mod.main(["--target", str(python), "--format", "json"]) == 0
+
+
+def test_raw_lines_keep_requires_statements() -> None:
+    """The comment-line filter must not drop #Requires before the parser sees it."""
+    coupling = _coupling("#Requires -Modules A\n#Requires -Modules B\n")
+
+    assert coupling.reasons[0] == "2 import/dependency statements"
+
+
+def test_new_powershell_import_regresses_coupling_in_regression_mode(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The gate compares PowerShell coupling base to head like any tuned language."""
+    require_working_pwsh()
+    _init_repo(tmp_path)
+    _commit(tmp_path, "Tool.ps1", "Write-Output 1\n", "base")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    _commit(tmp_path, "Tool.ps1", "Import-Module A\nImport-Module B\nWrite-Output 1\n", "head")
+    monkeypatch.chdir(tmp_path)
+
+    result = _mod.main(_regression_argv())
+    output = capsys.readouterr()
+
+    assert result == 10
+    assert "Tool.ps1: coupling regressed 10.0 -> 8.0" in output.err
+
+
+def test_unparseable_base_powershell_fails_regression_mode_with_revision(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    require_working_pwsh()
+    _init_repo(tmp_path)
+    _commit(tmp_path, "Tool.ps1", "function Broken( {\n", "base is invalid")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    _commit(tmp_path, "Tool.ps1", "Write-Output 1\n", "head is valid")
+    monkeypatch.chdir(tmp_path)
+
+    result = _mod.main(_regression_argv())
+    output = capsys.readouterr()
+
+    assert result == 1
+    assert "Tool.ps1 at " in output.err
+    assert "syntax error" in output.err
+    assert not output.out
+
+
+@pytest.mark.parametrize(
+    "plugin_parts",
+    [
+        ("claude",),
+        ("copilot-cli",),
+        ("codex",),
+        ("cursor",),
+        ("hermes", "project-toolkit-delivery"),
+        ("muse",),
+    ],
+)
+def test_shipped_powershell_counter_runs_from_consumer_directory(
+    tmp_path: Path, plugin_parts: tuple[str, ...]
+) -> None:
+    """AC3: Every shipped scanner counts PowerShell outside its own plugin directory."""
+    require_working_pwsh()
+    root = Path(__file__).resolve().parents[3]
+    script = root.joinpath(
+        "src", *plugin_parts, "skills", "code-qualities-assessment", "scripts", "assess.py"
+    )
+    target = tmp_path / "Consumer.psm1"
+    target.write_text(
+        "#Requires -Modules Pester\nusing namespace System.Text\n"
+        "$t = 'Import-Module NotOne'\nExport-ModuleMember -Function Get-A, Set-B\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-I", str(script), "--target", str(target), "--format", "json"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+        timeout=120,
+    )
+
+    assert result.returncode == 0, result.stderr
+    coupling = json.loads(result.stdout)["files"][0]["coupling"]
+    assert coupling["value"] == 8.0
+    assert coupling["confidence"] == 0.6
+    assert coupling["reasons"][0] == "2 import/dependency statements"
+
+
+def test_neutralized_source_resolves_no_module_or_assembly() -> None:
+    """Without the rewrite, pwsh reports ErrorLoadingAssembly and ModuleNotFoundDuringParse."""
+    require_working_pwsh()
+    source = "using assembly NoSuch.Assembly.Issue7437\nusing module NoSuchModuleIssue7437\n"
+
+    result = _mod._run_pwsh_counter(source)
+
+    assert result["errors"] == []
+    assert result["count"] == 2
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "& 'using' module Pester",
+        ". using module Pester",
+        "Write-Output using module Pester",
+    ],
+)
+def test_using_text_that_is_not_a_using_statement_does_not_count(source: str) -> None:
+    coupling = _coupling(f"{source}\n")
+
+    assert coupling.reasons[0] == "0 import/dependency statements"
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "using namespace System.Collections.Generic\nclass Stack : List[int] { }\n",
+        "using namespace System.Text\nclass Builder { [StringBuilder] $Buffer }\n",
+    ],
+)
+def test_types_from_a_neutralized_using_do_not_fail_the_scan(source: str) -> None:
+    """Valid classes that rely on using namespace still count instead of failing closed."""
+    coupling = _coupling(source)
+
+    assert coupling.reasons[0] == "1 import/dependency statements"
+
+
+def test_dsc_configuration_parses_without_loading_resources() -> None:
+    """A configuration block would load DSC resources at parse time; it is rewritten first."""
+    source = (
+        "configuration Web {\n"
+        "    Import-DscResource -ModuleName \\\\host\\share\\NoSuchDsc\n"
+        "    Node localhost { }\n"
+        "}\n"
+        "Import-Module Pester\n"
+    )
+
+    coupling = _coupling(source)
+
+    assert coupling.reasons[0] == "1 import/dependency statements"
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            "using namespace System.Text\n[CmdletBinding()]\nparam([string] $Name)\n"
+            "Import-Module Pester\n",
+            2,
+        ),
+        (
+            "using module @{\n    ModuleName = 'Az'\n    ModuleVersion = '1.0'\n}\n"
+            "using namespace System.IO\n[CmdletBinding()]\nparam()\n",
+            2,
+        ),
+        ("#Requires -Modules Pester\nusing module ./Local.psm1\nparam($Path)\n", 2),
+        ("using namespace System;\n[CmdletBinding()]\nparam()\n", 1),
+        ("using namespace System ;\nparam()\nImport-Module A\n", 2),
+    ],
+)
+def test_param_block_after_using_statements_still_parses(source: str, expected: int) -> None:
+    """Rewritten using statements are blanked before the syntax check, so the header stays legal."""
+    coupling = _coupling(source)
+
+    assert coupling.reasons[0] == f"{expected} import/dependency statements"
+
+
+def test_syntax_error_after_using_statements_still_fails_closed() -> None:
+    require_working_pwsh()
+
+    with pytest.raises(_mod.PowerShellParserError, match="line 3"):
+        assess_content(Path("Script.ps1"), "using namespace System.Text\n\nfunction f( {\n")
+
+
+@pytest.mark.parametrize(
+    ("source", "error_id"),
+    [
+        ("using\n", "MissingUsingStatementDirective"),
+        ("using namespace\n", "MissingUsingItemName"),
+        ("using module\n", "MissingUsingItemName"),
+        ("using namespce System\n", "MissingUsingStatementDirective"),
+        ("using namespace $name\n", "InvalidValueForUsingItemName"),
+        ("using namespace A B\n", "MissingStatementTerminator"),
+        ("Write-Output ready\nusing namespace System\n", "UsingMustBeAtStartOfScript"),
+        ("function f { using namespace System }\n", "UsingMustBeAtStartOfScript"),
+        ("begin { using namespace System }\n", "UsingMustBeAtStartOfScript"),
+        ("process { using namespace System }\n", "UsingMustBeAtStartOfScript"),
+        ("trap { continue }\nusing namespace System\n", "UsingMustBeAtStartOfScript"),
+        ("using namespace System > out.txt\n", "MissingStatementTerminator"),
+        (
+            "using module @{ ModuleName = 'A'; ModuleName = 'B' }\n",
+            "DuplicateKeyInHashLiteral",
+        ),
+    ],
+)
+def test_incomplete_using_statement_fails_closed(source: str, error_id: str) -> None:
+    """PowerShell rejects these; the rewrite to a command must not turn them into a count."""
+    require_working_pwsh()
+
+    with pytest.raises(_mod.PowerShellParserError, match=error_id):
+        assess_content(Path("Script.ps1"), source)
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "using namespace System\nWrite-Output ready\n",
+        "using assembly 'x.dll'\n",
+        "using module @{ ModuleName = 'A'; ModuleVersion = '1.0' }\n",
+        "using namespace System\nbegin { }\nprocess { }\n",
+        "using namespace System\ntrap { continue }\n",
+    ],
+)
+def test_valid_using_forms_still_count_once(source: str) -> None:
+    """Negative control for the validity checks: PowerShell accepts each of these."""
+    assert _coupling(source).reasons[0] == "1 import/dependency statements"
+
+
+def test_a_function_named_like_the_sentinel_is_not_a_using_statement() -> None:
+    """The rewrite renames `using` inside names too, so no real command can match it."""
+    source = "function __ptk_using__ { }\n__ptk_using__\n"
+
+    assert _coupling(source).reasons[0] == "0 import/dependency statements"

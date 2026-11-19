@@ -412,10 +412,24 @@ def _is_code_path(path: str) -> bool:
 # dict `_LANGUAGE_BY_SUFFIX`, read through `_LANGUAGE_BY_SUFFIX.get(
 # file_path.suffix.lower())`. The `.lower()` is why this mirror folds case.
 # Divergence: none. Absent on purpose because the canonical map has no entry
-# for them: .ps1, .psm1, .psd1, .ps1xml, .sh, .bash, .rs, .rb. Parity is asserted against the dict
+# for them: .ps1xml, .sh, .bash, .rs, .rb. Parity is asserted against the dict
 # itself in tests/skills/review/test_select_axes_scanner_capability.py.
 _ASSESS_SUFFIXES = frozenset(
-    {".py", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".cs", ".java", ".go"}
+    {
+        ".py",
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs",
+        ".cs",
+        ".java",
+        ".go",
+        ".ps1",
+        ".psm1",
+        ".psd1",
+    }
 )
 # Canonical source: .claude/skills/taste-lints/scripts/taste_lints.py, set
 # `SCANNABLE_EXTENSIONS`, read through `Path(filepath).suffix in
