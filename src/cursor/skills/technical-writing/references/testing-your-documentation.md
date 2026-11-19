@@ -11,11 +11,18 @@ not only that the Markdown renders.
    start it as a background process and stop it when testing ends. For a
    repository with plain Markdown, render it the way the host shows it.
 2. **Check every edited link.** Run the site's link checker when it has one.
-   Otherwise open each internal target and confirm it exists.
+   Otherwise open each internal target and confirm it exists. In the
+   `rjmurillo/ai-agents` repository, run `check_md_links.py` with the files you
+   edited (`uv run python scripts/validation/check_md_links.py FILE ...`). It
+   resolves relative links and cross-file `#anchors`; markdownlint covers
+   same-file anchors and "click here" link text.
 3. **Run every safe code sample and command** you added or changed, in the stated
    environment. Copy the output you show from a real run, not from memory.
 4. **Run the repository's docs gates**: markdown lint, spell check, sample
-   compilation, snippet tests, and any docs CI job.
+   compilation, snippet tests, and any docs CI job. Also run `prose_lint.py`
+   with `--docs-style` (from the `prose-self-check` skill) for advisory checks on
+   heading case, link text, vague openers, real-looking emails, and
+   credential-shaped strings.
 5. **Check navigation**: table of contents, sidebar, index pages, and redirects
    for moved pages.
 6. **Run a fresh-reader pass**: give the page, and nothing else, to a reader

@@ -487,6 +487,27 @@ def scan_prose(text: str, banned: set[str]) -> Scan:
     )
 
 
+def add_docs_style(scan: Scan, text: str) -> Scan:
+    """Return *scan* plus the advisory docs-style findings from `docs_style.py`.
+
+    Every added finding is INFO, so the exit code cannot change. The sibling is
+    imported here, not at module top, so a run without `--docs-style` never
+    loads it.
+    """
+    script_dir = str(Path(__file__).resolve().parent)
+    if script_dir not in sys.path:
+        sys.path.insert(0, script_dir)
+    from docs_style import docs_style_findings
+
+    blanked, _ = _blank_fenced_blocks(text)
+    extra = [
+        Finding(h.line, h.column, h.kind, INFO, h.match, h.note)
+        for h in docs_style_findings(_source_lines(text), blanked)
+    ]
+    merged = sorted(scan.findings + extra, key=lambda f: (f.line, f.column, f.kind))
+    return Scan(merged, scan.examined, scan.total, scan.unterminated_fence_line)
+
+
 def lint_prose(text: str, banned: set[str]) -> list[Finding]:
     """Return every Layer 1 and Layer 2 finding in *text*, in file order."""
     return scan_prose(text, banned).findings
@@ -595,6 +616,7 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s draft.md
   %(prog)s draft.md notes.md --json
+  %(prog)s guide.md --docs-style
 
 exit codes:
   0  no high-severity findings (info findings may remain)
@@ -613,6 +635,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("files", nargs="+", help="Files to check, or - for stdin")
     parser.add_argument("--rules", help="Path to the voice rule (default: auto-discover)")
     parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    parser.add_argument(
+        "--docs-style",
+        action="store_true",
+        help="Also run advisory docs-style checks; findings are info and never fail the run",
+    )
     args = parser.parse_args(argv)
 
     resolved = _resolve_banned_words(args.rules)
@@ -628,6 +655,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Error: cannot read {name}: {exc}", file=sys.stderr)
             return 2
         results[name] = scan_prose(text, banned)
+        if args.docs_style:
+            results[name] = add_docs_style(results[name], text)
 
     if args.json:
         # The warning is the only signal that the banned-word scan was
