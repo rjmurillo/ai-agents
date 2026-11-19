@@ -1,8 +1,8 @@
-# TypeScript Parser
+# TypeScript and JavaScript Parser
 
 TypeScript dependency counting uses Tree-sitter's TypeScript grammars, not line matching.
 `.ts` files use the TypeScript grammar. `.tsx` files use the TSX grammar.
-JavaScript files keep their existing line heuristic.
+JavaScript files (`.js`, `.jsx`, `.mjs`, `.cjs`) also use the TSX grammar; see [JavaScript](#javascript).
 
 Each of these counts as one dependency:
 
@@ -27,8 +27,8 @@ python3 -m venv .venv
 With uv, run `uv pip install tree-sitter==0.26.1 tree-sitter-typescript==0.23.2`.
 Then run the scanner with that environment's Python.
 
-The scanner imports these packages only when assessing TypeScript source.
-Missing packages, parser startup failures, and TypeScript the grammar cannot parse exit 1 without a report.
+The scanner imports these packages only when assessing TypeScript or JavaScript source.
+Missing packages, parser startup failures, and source the grammar cannot parse exit 1 without a report.
 The scanner never installs packages or falls back to regex.
 
 ## Grammar limits
@@ -40,6 +40,19 @@ A `<Type>value` cast is valid only in `.ts`; in a `.tsx` file it fails to parse,
 A file the grammar cannot parse fails the scan with exit 1.
 The error names the file and says the file may be valid TypeScript.
 The scanner does not guess a count for such a file.
+
+## JavaScript
+
+JavaScript uses the same TSX grammar, the same package, and the same dependency forms (issue #7434).
+TSX parses JavaScript, JSX, and Flow-style annotations such as `import type` and `?T`.
+A `require` call counts only when the callee is the bare identifier `require`, so `obj.require("x")` adds nothing.
+The counter matches the name, not its binding, so a local function named `require` still counts.
+
+Reusing the grammar adds no parser import to the scanner, so its own coupling does not change and no admission applies.
+
+Some valid JavaScript does not parse with the TSX grammar.
+TypeScript keywords used as identifiers fail, such as `interface.on("line", f)` in non-strict code.
+Such a file fails the scan with exit 1, and the error says the file may be valid JavaScript.
 
 ## Dependency admission
 
