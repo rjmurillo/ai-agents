@@ -75,6 +75,55 @@ def test_unresolved_python_names_stay_flagged(code: str, expected: set[str]) -> 
     assert unresolved(code, "python") == expected
 
 
+# --- Control flow: only definite bindings resolve later reads -------------------
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "if False:\n    LIMIT = 3\nprint(LIMIT)\n",
+        "if flag:\n    LIMIT = 3\nelif other:\n    LIMIT = 4\nprint(LIMIT)\n",
+        "for item in []:\n    LIMIT = 3\nprint(LIMIT)\n",
+        "while flag:\n    LIMIT = 3\nprint(LIMIT)\n",
+        "for item in items:\n    print(LIMIT)\n    LIMIT = 3\n",
+        "try:\n    LIMIT = 3\nexcept OSError:\n    pass\nprint(LIMIT)\n",
+        "try:\n    pass\nexcept OSError:\n    LIMIT = 3\nprint(LIMIT)\n",
+        "with lock:\n    LIMIT = 3\nprint(LIMIT)\n",
+        "match value:\n    case 1:\n        LIMIT = 3\nprint(LIMIT)\n",
+        "ok = flag and (LIMIT := 3)\nprint(LIMIT)\n",
+        "x = 1 if flag else (LIMIT := 3)\nprint(LIMIT)\n",
+        "if flag:\n    LIMIT = 3\ndef f():\n    return LIMIT\n",
+        "LIMIT = 3\ndel LIMIT\nprint(LIMIT)\n",
+    ],
+)
+def test_non_definite_bindings_leave_reads_flagged(code: str) -> None:
+    assert "LIMIT" in unresolved(code, "python")
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "if flag:\n    LIMIT = 1\nelse:\n    LIMIT = 2\nprint(LIMIT)\n",
+        "if flag:\n    LIMIT = 1\nelse:\n    raise ValueError(flag)\nprint(LIMIT)\n",
+        "if flag:\n    LIMIT = 1\n    print(LIMIT)\n",
+        "try:\n    LIMIT = 1\nexcept OSError:\n    LIMIT = 2\nprint(LIMIT)\n",
+        "try:\n    pass\nfinally:\n    LIMIT = 1\nprint(LIMIT)\n",
+        "try:\n    LIMIT = 1\nexcept OSError:\n    raise\nprint(LIMIT)\n",
+        "for item in items:\n    LIMIT = item\n    print(LIMIT)\n",
+        "with lock:\n    LIMIT = 3\n    print(LIMIT)\n",
+        "if (LIMIT := compute()):\n    pass\nprint(LIMIT)\n",
+        "def f(flag):\n    if flag:\n        return 0\n    LIMIT = 1\n    return LIMIT\n",
+    ],
+)
+def test_definite_bindings_resolve_later_reads(code: str) -> None:
+    assert "LIMIT" not in unresolved(code, "python")
+
+
+def test_conditional_class_member_is_not_a_proven_attribute() -> None:
+    code = "class Config:\n    if flag:\n        LIMIT = 3\n\nvalue = Config.LIMIT\n"
+    assert unresolved(code, "python") == {"LIMIT"}
+
+
 def test_fstring_expression_stays_checkable_beside_a_resolved_name() -> None:
     # Before 3.12 the tokenizer blanks a whole f-string, a documented
     # extraction limit (_extract_identifiers) that only ever misses a name.

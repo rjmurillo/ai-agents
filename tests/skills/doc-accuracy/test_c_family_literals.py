@@ -81,6 +81,39 @@ def test_unterminated_literals_stay_visible_as_code(code: str, lang: str) -> Non
     assert "GhostWidget" in unresolved(code, lang)
 
 
+# --- JavaScript and TypeScript regex literals ------------------------------------
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        'const pattern = /"/; const text = "GhostWidget";\n',
+        "const quote = /['\"]/g; const s = 'GhostWidget';\n",
+        'const slash = /\\/"/; const s = "GhostWidget";\n',
+        'const t = `${/"/.test(s) ? "GhostWidget" : ""}`;\n',
+        'const ok = (s) => /"/.test(s) && "GhostWidget";\n',
+    ],
+)
+def test_regex_quotes_do_not_unbalance_later_literals(code: str) -> None:
+    assert unresolved(code, "typescript") == set()
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        'const pattern = /"/; GhostWidget(); const text = "ok";\n',
+        's.replace(/["/]/g, \'\'); GhostWidget(); const t = "ok";\n',
+        'function f(s) { return /"/.test(s) && GhostWidget(); }\n',
+        'const t = `${/"/.test(s)} ${new GhostWidget()}`;\n',
+        'const half = total / 2; const s = "a/b"; GhostWidget(); const t = "ok";\n',
+        "const re = /GhostWidget/;\n",
+    ],
+)
+def test_code_beside_regex_and_division_stays_flagged(code: str) -> None:
+    # Regex bodies stay visible code, so a name inside one is still checked.
+    assert "GhostWidget" in unresolved(code, "javascript")
+
+
 def test_literal_filter_does_not_cross_into_python() -> None:
     assert unresolved('x = "GhostWidget"\nGhostWidget()\n', "python") == {"GhostWidget"}
 
@@ -119,6 +152,13 @@ def test_code_view_preserves_lengths_and_newlines() -> None:
         ),
         ("csharp", 'widget.Configure("a: b", wrong: 1);', 10, {("phantom_parameter", "")}),
         ("csharp", 'widget.Configure("wrong: 1");', 0, set()),
+        (
+            "javascript",
+            'const p = /"/; GhostWidget(); const t = "ok";',
+            10,
+            {("unresolved_symbol", "GhostWidget")},
+        ),
+        ("javascript", 'const p = /"/; const t = "GhostWidget";', 0, set()),
     ],
 )
 def test_cli_gates_on_code_not_literals(

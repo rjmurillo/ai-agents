@@ -1344,121 +1344,248 @@ def _python_example_definitions(code: str) -> set[str]:
 
 
 _PyPos = tuple[int, int]  # (line, character column) in the dedented example
+_PyDef = ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef
+_PY_DEF_NAME_RE = re.compile(r"\b(?:def|class)\s+(\w+)")
+_WORD_RE = re.compile(r"\w+")
+_PY_NESTED_SCOPES = (ast.Lambda, ast.ListComp, ast.SetComp, ast.GeneratorExp, ast.DictComp)
+_PY_TERMINAL_STATEMENTS = (ast.Return, ast.Raise, ast.Break, ast.Continue)
+# Bindings definitely made so far: name -> class scope when the value is a class.
+_PyDefined = dict[str, "_PyScope | None"]
 
 
 class _PyScope:
     """One Python scope in an example: module, class, function or comprehension.
 
-    A plain class, not a dataclass: on Python 3.10 a dataclass resolves its
-    self-referencing string annotations through ``sys.modules``, which a
-    script loaded by file path may not be registered in.
+    ``local`` holds every name the scope binds anywhere, so a read of a local
+    name never falls through to an enclosing scope. ``defined`` holds the
+    names definitely bound at the current point of the flow analysis.
+    ``outer`` is what enclosing scopes had definitely bound when this scope
+    was created. A plain class, not a dataclass: on Python 3.10 a dataclass
+    resolves its self-referencing string annotations through ``sys.modules``,
+    which a script loaded by file path may not be registered in.
     """
 
-    def __init__(self, kind: str, parent: "_PyScope | None") -> None:
+    def __init__(self, kind: str, parent: "_PyScope | None", local: set[str]) -> None:
         self.kind = kind
-        self.parent = parent
-        # name -> [(position, class scope when the binding is a class)]
-        self.bindings: dict[str, list[tuple[_PyPos, _PyScope | None]]] = {}
+        self.local = local
+        self.never: set[str] = set()
+        self.defined: _PyDefined = {}
+        self.outer: _PyDefined = {}
+        if parent is not None:
+            self.outer = dict(parent.outer)
+            if parent.kind != "class":
+                # Nested scopes never see a class body's names.
+                for name in parent.local | parent.never:
+                    self.outer.pop(name, None)
+                self.outer.update(
+                    (n, v) for n, v in parent.defined.items() if n not in parent.never
+                )
+
+    def lookup(self, name: str) -> tuple[bool, "_PyScope | None"]:
+        """Whether ``name`` is definitely bound here, and its class scope if any."""
+        if name in self.never:
+            return False, None
+        table = self.defined if name in self.local else self.outer
+        return (name in table), table.get(name)
 
 
-_PyDef = ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef
-_PY_DEF_NAME_RE = re.compile(r"\b(?:def|class)\s+(\w+)")
-_WORD_RE = re.compile(r"\w+")
+def _py_scope_locals(nodes: list[Any]) -> tuple[set[str], set[str]]:
+    """Names a scope binds anywhere, and names it declares global or nonlocal.
 
-
-def _py_lookup(name: str, scope: _PyScope, pos: _PyPos) -> tuple[_PyPos, "_PyScope | None"] | None:
-    """The binding a read of ``name`` at ``pos`` sees, by Python scope rules.
-
-    A scope that binds the name owns it, so a read before that binding finds
-    nothing rather than falling through. Comprehension targets bind the whole
-    comprehension. Enclosing class bodies are invisible to nested scopes.
+    Nested function, class, lambda and comprehension bodies are not walked;
+    only a nested definition's own name binds here.
     """
-    current: _PyScope | None = scope
-    nested = False
-    while current is not None:
-        binds = current.bindings.get(name)
-        if binds and not (nested and current.kind == "class"):
-            if current.kind == "comprehension":
-                return binds[0]
-            prior = [bind for bind in binds if bind[0] < pos]
-            return max(prior, key=lambda bind: bind[0]) if prior else None
-        nested = True
-        current = current.parent
-    return None
+    local: set[str] = set()
+    never: set[str] = set()
+    stack = list(nodes)
+    while stack:
+        node = stack.pop()
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            local.add(node.name)
+            continue
+        if isinstance(node, _PY_NESTED_SCOPES):
+            continue
+        if isinstance(node, ast.Name) and not isinstance(node.ctx, ast.Load):
+            local.add(node.id)
+        elif isinstance(node, (ast.Global, ast.Nonlocal)):
+            never.update(node.names)
+        elif isinstance(node, ast.alias):
+            local.add(node.asname or node.name.split(".")[0])
+        elif isinstance(node, ast.ExceptHandler) and node.name:
+            local.add(node.name)
+        elif isinstance(node, (ast.MatchAs, ast.MatchStar)) and node.name:
+            local.add(node.name)
+        elif isinstance(node, ast.MatchMapping) and node.rest:
+            local.add(node.rest)
+        stack.extend(ast.iter_child_nodes(node))
+    return local, never
 
 
 class _PyBindingCollector(ast.NodeVisitor):
     """Record each name occurrence and whether it resolves within the example.
 
-    Only plain bindings resolve: imports, ``global``/``nonlocal``, ``except``
-    aliases, match captures and keyword names are never recorded, so their
-    occurrences stay unresolved and the name stays checkable.
+    A conservative definite-assignment pass. A read resolves only when every
+    path reaching it binds the name: ``if`` needs both branches, ``try``
+    needs the body and every handler, and a binding inside a loop body,
+    ``with`` body or ``match`` case does not survive the statement. A short-
+    circuit or conditional-expression walrus never binds definitely.
+    Imports, ``global``/``nonlocal``, ``except`` aliases and match captures
+    never resolve, so their names stay checkable.
     """
 
-    def __init__(self, lines: list[str]) -> None:
+    def __init__(self, lines: list[str], tree: ast.Module) -> None:
         self.lines = lines
-        self.scope = _PyScope("module", None)
-        # (position, name, check) where check is None for a binding occurrence.
-        self.uses: list[tuple[_PyPos, str, tuple[Any, ...] | None]] = []
-        # A binding takes effect after its statement's value is evaluated.
-        self.effective: _PyPos | None = None
+        local, never = _py_scope_locals(tree.body)
+        self.scope = _PyScope("module", None, local)
+        self.scope.never = never
+        self.uses: list[tuple[_PyPos, str, bool]] = []
+        self.conditional = 0  # depth inside short-circuit or ternary operands
+        self.halted = False  # the last statement left its block
 
     def _pos(self, lineno: int, byte_col: int) -> _PyPos:
         line = self.lines[lineno - 1].encode("utf-8")
         return lineno, len(line[:byte_col].decode("utf-8", "replace"))
 
-    def _end(self, node: ast.expr | ast.stmt) -> _PyPos:
-        return self._pos(cast(int, node.end_lineno), cast(int, node.end_col_offset))
+    def _bind(self, name: str, pos: _PyPos | None, class_scope: "_PyScope | None" = None) -> None:
+        if pos is not None:
+            self.uses.append((pos, name, True))
+        if self.conditional == 0 and name not in self.scope.never:
+            self.scope.defined[name] = class_scope
 
-    def _bind(
-        self,
-        name: str,
-        pos: _PyPos,
-        class_scope: _PyScope | None = None,
-        effective: _PyPos | None = None,
-    ) -> None:
-        bind_pos = effective or self.effective or pos
-        self.scope.bindings.setdefault(name, []).append((bind_pos, class_scope))
-        self.uses.append((pos, name, None))
+    def _visit_all(self, nodes: list[Any]) -> None:
+        for child in nodes:
+            if child is not None:
+                self.visit(child)
 
-    def _visit_targets(self, targets: list[Any], after: ast.expr | ast.stmt) -> None:
-        outer, self.effective = self.effective, self._end(after)
-        self._visit_all(targets)
-        self.effective = outer
+    # --- expressions --------------------------------------------------------
+
+    def visit_Name(self, node: ast.Name) -> None:
+        pos = self._pos(node.lineno, node.col_offset)
+        if isinstance(node.ctx, ast.Store):
+            self._bind(node.id, pos)
+        elif isinstance(node.ctx, ast.Load):
+            self.uses.append((pos, node.id, self.scope.lookup(node.id)[0]))
+        else:
+            self.uses.append((pos, node.id, False))
+            self.scope.defined.pop(node.id, None)
+
+    def visit_Attribute(self, node: ast.Attribute) -> None:
+        self.visit(node.value)
+        line, end = self._pos(cast(int, node.end_lineno), cast(int, node.end_col_offset))
+        resolved = False
+        if isinstance(node.value, ast.Name):
+            found, class_scope = self.scope.lookup(node.value.id)
+            resolved = found and class_scope is not None and node.attr in class_scope.defined
+        self.uses.append(((line, end - len(node.attr)), node.attr, resolved))
+
+    def visit_NamedExpr(self, node: ast.NamedExpr) -> None:
+        self.visit(node.value)
+        self.visit(node.target)
+
+    def visit_BoolOp(self, node: ast.BoolOp) -> None:
+        self.visit(node.values[0])
+        self.conditional += 1
+        self._visit_all(node.values[1:])
+        self.conditional -= 1
+
+    def visit_IfExp(self, node: ast.IfExp) -> None:
+        self.visit(node.test)
+        self.conditional += 1
+        self._visit_all([node.body, node.orelse])
+        self.conditional -= 1
+
+    # --- simple statements ----------------------------------------------------
 
     def visit_Assign(self, node: ast.Assign) -> None:
         self.visit(node.value)
-        self._visit_targets(node.targets, node)
+        self._visit_all(node.targets)
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
         self._visit_all([node.annotation, node.value])
         if node.value is None and isinstance(node.target, ast.Name):
             # ``NAME: int`` declares a type but binds nothing.
             pos = self._pos(node.target.lineno, node.target.col_offset)
-            self.uses.append((pos, node.target.id, ("never",)))
+            self.uses.append((pos, node.target.id, False))
             return
-        self._visit_targets([node.target], node)
+        self.visit(node.target)
 
-    def visit_NamedExpr(self, node: ast.NamedExpr) -> None:
+    def visit_AugAssign(self, node: ast.AugAssign) -> None:
+        if isinstance(node.target, ast.Name):
+            pos = self._pos(node.target.lineno, node.target.col_offset)
+            self.uses.append((pos, node.target.id, self.scope.lookup(node.target.id)[0]))
         self.visit(node.value)
-        self._visit_targets([node.target], node)
+        self.visit(node.target)
 
-    def _visit_for(self, node: ast.For | ast.AsyncFor) -> None:
-        self.visit(node.iter)
-        self._visit_targets([node.target], node.iter)
-        self._visit_all([*node.body, *node.orelse])
+    def generic_visit(self, node: ast.AST) -> None:
+        super().generic_visit(node)
+        if isinstance(node, _PY_TERMINAL_STATEMENTS):
+            self.halted = True
+
+    # --- control flow ---------------------------------------------------------
+
+    def _run_block(self, stmts: list[ast.stmt], start: _PyDefined) -> _PyDefined | None:
+        """Visit ``stmts`` from ``start``; the bindings at exit, or None if none falls out."""
+        self.scope.defined = dict(start)
+        self.halted = False
+        for stmt in stmts:
+            self.visit(stmt)
+            if self.halted:
+                self.halted = False
+                return None
+        return self.scope.defined
+
+    def _merge(self, paths: list[_PyDefined | None], start: _PyDefined) -> None:
+        """Keep only bindings every path that falls through has made."""
+        live = [path for path in paths if path is not None]
+        if not live:
+            self.scope.defined = dict(start)
+            self.halted = True
+            return
+        merged = {
+            name: value for name, value in live[0].items() if all(name in path for path in live[1:])
+        }
+        for name in merged:
+            if any(path[name] is not merged[name] for path in live[1:]):
+                merged[name] = None
+        self.scope.defined = merged
+        self.halted = False
+
+    def visit_If(self, node: ast.If) -> None:
+        self.visit(node.test)
+        start = dict(self.scope.defined)
+        body = self._run_block(node.body, start)
+        orelse = self._run_block(node.orelse, start)
+        self._merge([body, orelse], start)
+
+    def _visit_loop(self, node: ast.For | ast.AsyncFor | ast.While) -> None:
+        # The body may run zero times, so nothing it binds survives the loop.
+        self.visit(node.iter if not isinstance(node, ast.While) else node.test)
+        start = dict(self.scope.defined)
+        if not isinstance(node, ast.While):
+            self.visit(node.target)
+        self._run_block(node.body, self.scope.defined)
+        self._run_block(node.orelse, start)
+        self.scope.defined = start
+        self.halted = False
 
     def visit_For(self, node: ast.For) -> None:
-        self._visit_for(node)
+        self._visit_loop(node)
 
     def visit_AsyncFor(self, node: ast.AsyncFor) -> None:
-        self._visit_for(node)
+        self._visit_loop(node)
+
+    def visit_While(self, node: ast.While) -> None:
+        self._visit_loop(node)
 
     def _visit_with(self, node: ast.With | ast.AsyncWith) -> None:
+        # A context manager may suppress an exception raised in the body.
         for item in node.items:
             self.visit(item.context_expr)
-            self._visit_targets([item.optional_vars], item.context_expr)
-        self._visit_all(node.body)
+            self._visit_all([item.optional_vars])
+        start = dict(self.scope.defined)
+        self._run_block(node.body, start)
+        self.scope.defined = start
+        self.halted = False
 
     def visit_With(self, node: ast.With) -> None:
         self._visit_with(node)
@@ -1466,67 +1593,83 @@ class _PyBindingCollector(ast.NodeVisitor):
     def visit_AsyncWith(self, node: ast.AsyncWith) -> None:
         self._visit_with(node)
 
-    def visit_Name(self, node: ast.Name) -> None:
-        pos = self._pos(node.lineno, node.col_offset)
-        if isinstance(node.ctx, ast.Store):
-            self._bind(node.id, pos)
-        else:
-            check = ("load", self.scope) if isinstance(node.ctx, ast.Load) else ("never",)
-            self.uses.append((pos, node.id, check))
+    def visit_Match(self, node: Any) -> None:
+        self.visit(node.subject)
+        start = dict(self.scope.defined)
+        for case in node.cases:
+            self.scope.defined = dict(start)
+            self._visit_all([case.pattern, case.guard])
+            self._run_block(case.body, self.scope.defined)
+        self.scope.defined = start
+        self.halted = False
 
-    def visit_Attribute(self, node: ast.Attribute) -> None:
-        self.visit(node.value)
-        end_line = cast(int, node.end_lineno)
-        line, end = self._pos(end_line, cast(int, node.end_col_offset))
-        owner = node.value
-        check: tuple[Any, ...] = ("never",)
-        if isinstance(owner, ast.Name):
-            owner_pos = self._pos(owner.lineno, owner.col_offset)
-            check = ("attr", self.scope, owner.id, owner_pos)
-        self.uses.append(((line, end - len(node.attr)), node.attr, check))
-
-    def visit_AugAssign(self, node: ast.AugAssign) -> None:
-        if isinstance(node.target, ast.Name):
-            pos = self._pos(node.target.lineno, node.target.col_offset)
-            self.uses.append((pos, node.target.id, ("load", self.scope)))
-        self.visit(node.value)
-        self._visit_targets([node.target], node)
-
-    def _visit_all(self, nodes: list[Any]) -> None:
-        for child in nodes:
-            if child is not None:
-                self.visit(child)
-
-    def _bind_def_name(self, node: _PyDef, class_scope: _PyScope | None = None) -> None:
-        # A class name binds after its body runs; a function name at ``def``.
-        lineno, col = self._pos(node.lineno, node.col_offset)
-        effective = self._end(node) if class_scope else (lineno, col)
-        match = _PY_DEF_NAME_RE.search(self.lines[lineno - 1], col)
-        if match is None or match[1] != node.name:
-            self.scope.bindings.setdefault(node.name, []).append((effective, class_scope))
+    def _visit_try(self, node: Any) -> None:
+        # An exception can leave the body before any binding in it.
+        start = dict(self.scope.defined)
+        body = self._run_block(node.body, start)
+        if body is not None:
+            body = self._run_block(node.orelse, body)
+        paths = [body]
+        for handler in node.handlers:
+            self.scope.defined = dict(start)
+            self._visit_all([handler.type])
+            paths.append(self._run_block(handler.body, self.scope.defined))
+        self._merge(paths, start)
+        merged, halted = self.scope.defined, self.halted
+        final = self._run_block(node.finalbody, start)
+        if final is None:
+            self.scope.defined, self.halted = merged, True
             return
-        self._bind(node.name, (lineno, match.start(1)), class_scope, effective)
+        self.scope.defined = {**merged, **final}
+        self.halted = halted
 
-    def _enter(self, kind: str) -> _PyScope:
+    def visit_Try(self, node: ast.Try) -> None:
+        self._visit_try(node)
+
+    def visit_TryStar(self, node: Any) -> None:
+        self._visit_try(node)
+
+    # --- scopes ---------------------------------------------------------------
+
+    def _bind_def_name(self, node: _PyDef, class_scope: "_PyScope | None" = None) -> None:
+        lineno, col = self._pos(node.lineno, node.col_offset)
+        match = _PY_DEF_NAME_RE.search(self.lines[lineno - 1], col)
+        found = match is not None and match[1] == node.name
+        pos = (lineno, cast(re.Match[str], match).start(1)) if found else None
+        self._bind(node.name, pos, class_scope)
+
+    def _enter(self, kind: str, local: set[str], never: set[str] | None = None) -> _PyScope:
         outer = self.scope
-        self.scope = _PyScope(kind, outer)
+        self.scope = _PyScope(kind, outer, local)
+        self.scope.never = never or set()
         return outer
 
-    def _visit_arguments(self, args: ast.arguments) -> None:
+    def _leave(self, outer: _PyScope) -> None:
+        self.scope = outer
+        self.halted = False
+
+    def _bind_arguments(self, args: ast.arguments) -> None:
         every = [*args.posonlyargs, *args.args, *args.kwonlyargs, args.vararg, args.kwarg]
-        for arg in (a for a in every if a is not None):
-            self._bind(arg.arg, self._pos(arg.lineno, arg.col_offset))
+        for arg in every:
+            if arg is not None:
+                self._bind(arg.arg, self._pos(arg.lineno, arg.col_offset))
+
+    @staticmethod
+    def _argument_names(args: ast.arguments) -> set[str]:
+        every = [*args.posonlyargs, *args.args, *args.kwonlyargs, args.vararg, args.kwarg]
+        return {arg.arg for arg in every if arg is not None}
 
     def _visit_function(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
         args = node.args
-        self._visit_all([*node.decorator_list, *args.defaults, *args.kw_defaults, node.returns])
         every = [*args.posonlyargs, *args.args, *args.kwonlyargs, args.vararg, args.kwarg]
-        self._visit_all([a.annotation for a in every if a is not None])
+        self._visit_all([*node.decorator_list, *args.defaults, *args.kw_defaults, node.returns])
+        self._visit_all([arg.annotation for arg in every if arg is not None])
         self._bind_def_name(node)
-        outer = self._enter("function")
-        self._visit_arguments(args)
-        self._visit_all(node.body)
-        self.scope = outer
+        local, never = _py_scope_locals(node.body)
+        outer = self._enter("function", local | self._argument_names(args), never)
+        self._bind_arguments(args)
+        self._run_block(node.body, self.scope.defined)
+        self._leave(outer)
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         self._visit_function(node)
@@ -1536,30 +1679,33 @@ class _PyBindingCollector(ast.NodeVisitor):
 
     def visit_Lambda(self, node: ast.Lambda) -> None:
         self._visit_all([*node.args.defaults, *node.args.kw_defaults])
-        outer = self._enter("function")
-        self._visit_arguments(node.args)
+        outer = self._enter("function", self._argument_names(node.args))
+        self._bind_arguments(node.args)
         self.visit(node.body)
-        self.scope = outer
+        self._leave(outer)
 
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
         self._visit_all([*node.decorator_list, *node.bases, *node.keywords])
-        outer = self._enter("class")
+        local, never = _py_scope_locals(node.body)
+        outer = self._enter("class", local, never)
         class_scope = self.scope
-        self._visit_all(node.body)
-        self.scope = outer
+        self._run_block(node.body, {})
+        self._leave(outer)
+        # A class name binds only after its body has run.
         self._bind_def_name(node, class_scope)
 
     def _visit_comprehension(self, node: Any) -> None:
         generators: list[ast.comprehension] = node.generators
         self.visit(generators[0].iter)
-        outer = self._enter("comprehension")
+        local, _ = _py_scope_locals([generator.target for generator in generators])
+        outer = self._enter("comprehension", local)
         for index, generator in enumerate(generators):
             self.visit(generator.target)
             if index:
                 self.visit(generator.iter)
             self._visit_all(generator.ifs)
         self._visit_all([getattr(node, field, None) for field in ("elt", "key", "value")])
-        self.scope = outer
+        self._leave(outer)
 
     def visit_ListComp(self, node: ast.ListComp) -> None:
         self._visit_comprehension(node)
@@ -1574,37 +1720,27 @@ class _PyBindingCollector(ast.NodeVisitor):
         self._visit_comprehension(node)
 
 
-def _py_use_resolves(check: tuple[Any, ...] | None, name: str, pos: _PyPos) -> bool:
-    """Whether one recorded occurrence resolves inside the example."""
-    if check is None:
-        return True
-    if check[0] == "load":
-        return _py_lookup(name, check[1], pos) is not None
-    if check[0] == "attr":
-        owner = _py_lookup(check[2], check[1], check[3])
-        return owner is not None and owner[1] is not None and name in owner[1].bindings
-    return False
-
-
 def _python_local_names(code: str) -> set[str]:
     """Names whose every code occurrence binds or resolves within the example.
 
-    A read resolves only to an earlier binding visible from its scope, and a
-    ``Owner.name`` read only when ``Owner`` resolves to a class the example
-    declares whose body binds ``name``. One unresolved occurrence keeps the
-    name checkable, so this never hides a use before binding or out of scope.
+    A read resolves only to a binding that every path reaching it has made,
+    in a scope visible from the read; ``Owner.name`` resolves only when
+    ``Owner`` is a class the example declares whose body definitely binds
+    ``name``. One unresolved occurrence keeps the name checkable, so this
+    never hides a use before binding, out of scope, or on a path that skips
+    the binding.
     """
     source = textwrap.dedent(code)
     try:
         tree = ast.parse(source)
     except (SyntaxError, ValueError):
         return set()
-    collector = _PyBindingCollector(source.split("\n"))
+    collector = _PyBindingCollector(source.split("\n"), tree)
     collector.visit(tree)
     status: dict[tuple[_PyPos, str], bool] = {}
-    for pos, name, check in collector.uses:
+    for pos, name, resolved in collector.uses:
         key = (pos, name)
-        status[key] = status.get(key, True) and _py_use_resolves(check, name, pos)
+        status[key] = status.get(key, True) and resolved
     occurrences: dict[str, list[_PyPos]] = {}
     for lineno, line in enumerate(_strip_python_non_code(source).split("\n"), start=1):
         for word in _WORD_RE.finditer(line):
@@ -1881,6 +2017,12 @@ def _scan_c_family(code: str, i: int, lang: str, *, in_hole: bool) -> tuple[int,
                 spans.append((i, end + 2))
                 i = end + 2
                 continue
+        regex_end = _scan_js_regex(code, i) if lang != "csharp" else None
+        if regex_end is not None:
+            # A regex body stays visible code; skipping it keeps its quotes
+            # from opening a string that would swallow the code after it.
+            i = regex_end
+            continue
         literal = _scan_c_family_literal(code, i, lang)
         if literal is not None:
             i, literal_spans = literal
@@ -1894,6 +2036,61 @@ def _scan_c_family(code: str, i: int, lang: str, *, in_hole: bool) -> tuple[int,
             depth = max(depth - 1, 0)
         i += 1
     return i, spans
+
+
+# Characters and keywords after which ``/`` starts a regex, not a division.
+_JS_REGEX_PRECEDERS = frozenset("(,=:[!&|?{};+-*%~^")
+_JS_REGEX_KEYWORDS = frozenset(
+    {"return", "typeof", "instanceof", "in", "of", "new", "delete", "void", "throw", "case"}
+    | {"do", "else", "yield", "await"}
+)
+_JS_WORD_BEFORE_RE = re.compile(r"(\w+)\s*$")
+
+
+def _js_regex_allowed(code: str, i: int) -> bool:
+    """Whether a ``/`` at ``i`` begins a regex by the preceding token.
+
+    After an identifier, a number, ``)`` or ``]`` it is a division, as in
+    JavaScript itself. ``<`` and a bare ``>`` are left out so JSX closing
+    tags never open a regex; ``=>`` is kept for arrow function bodies.
+    """
+    before = code[:i].rstrip()
+    if not before:
+        return True
+    last = before[-1]
+    if last in _JS_REGEX_PRECEDERS:
+        return True
+    if last == ">":
+        return before.endswith("=>")
+    word = _JS_WORD_BEFORE_RE.search(before)
+    return word is not None and word[1] in _JS_REGEX_KEYWORDS
+
+
+def _scan_js_regex(code: str, i: int) -> int | None:
+    """End index of a JavaScript regex literal at ``i``, or None.
+
+    Escapes and ``[...]`` classes may hold ``/``. A body that reaches a line
+    end is not a regex, so the ``/`` stays ordinary code.
+    """
+    if code[i] != "/" or code.startswith(("//", "/*"), i) or not _js_regex_allowed(code, i):
+        return None
+    j, in_class = i + 1, False
+    while j < len(code) and code[j] != "\n":
+        char = code[j]
+        if char == "\\":
+            j += 2
+            continue
+        if char == "[":
+            in_class = True
+        elif char == "]":
+            in_class = False
+        elif char == "/" and not in_class:
+            j += 1
+            while j < len(code) and code[j].isalpha():
+                j += 1
+            return j
+        j += 1
+    return None
 
 
 def _scan_c_family_literal(code: str, i: int, lang: str) -> tuple[int, _Spans] | None:
@@ -1975,6 +2172,148 @@ def _hole_opener_length(code: str, i: int, holes: int, mode: str) -> int:
         return -run
     # The trailing ``holes`` braces open the hole; any before them are text.
     return run
+
+
+_COMMON_FRAMEWORK_TYPES = frozenset(
+    {
+        "String",
+        "Int32",
+        "Boolean",
+        "Object",
+        "Array",
+        "List",
+        "Dictionary",
+        "Task",
+        "Action",
+        "Func",
+        "IEnumerable",
+        "IList",
+        "Console",
+        "Exception",
+        "Math",
+        "DateTime",
+        "TimeSpan",
+        "Path",
+        "File",
+        "Directory",
+        "Type",
+        "Attribute",
+        "Nullable",
+        "True",
+        "False",
+        "None",
+        "Error",
+        "Promise",
+    }
+)
+_CSHARP_KEYWORD_TYPES = frozenset(
+    {"string", "int", "long", "short", "byte", "sbyte", "uint", "ulong", "ushort"}
+    | {"bool", "double", "float", "decimal", "char", "object", "dynamic", "nint", "nuint"}
+)
+_TS_KEYWORD_TYPES = frozenset(
+    {"string", "number", "boolean", "bigint", "symbol", "object", "any", "unknown", "void"}
+)
+# Receivers whose members are never repo claims: framework types per language.
+_PROVEN_RECEIVER_TYPES: dict[str, frozenset[str]] = {
+    "csharp": _COMMON_FRAMEWORK_TYPES
+    | _CSHARP_FRAMEWORK_TYPES_EXTRA
+    | _CSHARP_KEYWORD_TYPES
+    | {"System"},
+    "typescript": _COMMON_FRAMEWORK_TYPES | _JS_BUILTIN_TYPES | _TS_KEYWORD_TYPES,
+    "javascript": _COMMON_FRAMEWORK_TYPES | _JS_BUILTIN_TYPES,
+}
+_TYPE_NAME_RE = re.compile(r"[A-Z][a-zA-Z0-9]+")
+_MEMBER_ACCESS_RE = re.compile(r"\??\.\s*([A-Za-z]\w*)")
+_IDENTIFIER_BEFORE_RE = re.compile(r"(\w+)\s*$")
+_NEW_BEFORE_RE = re.compile(r"\bnew\s*$")
+_GROUP_OPENERS = {")": "(", "]": "[", ">": "<"}
+# ``Type name`` declarations (C#) and ``name: Type`` annotations (TypeScript),
+# plus ``name = new Type(`` in both, map a lowercase variable to its type.
+_CSHARP_TYPED_NAME_RE = re.compile(
+    r"\b([A-Za-z_]\w*)(?:\s*<[^<>;{}()]*>)?(?:\s*\[\s*\])?\??\s+([a-z_]\w*)\s*(?=[=;,)])"
+)
+_TS_TYPED_NAME_RE = re.compile(r"\b([a-z_$][\w$]*)\s*\??:\s*([A-Za-z_]\w*)")
+_NEW_ASSIGNED_RE = re.compile(r"\b([a-z_]\w*)\s*=\s*new\s+(?:\w+\s*\.\s*)*([A-Z]\w*)")
+
+
+def _skip_group_back(view: str, end: int) -> int | None:
+    """Index of the opener matching the closer just before ``end``, or None."""
+    closer = view[end - 1]
+    opener = _GROUP_OPENERS[closer]
+    depth = 0
+    for index in range(end - 1, -1, -1):
+        if view[index] == closer:
+            depth += 1
+        elif view[index] == opener:
+            depth -= 1
+            if depth == 0:
+                return index
+    return None
+
+
+def _receiver_root(view: str, dot: int) -> tuple[str, bool]:
+    """The identifier a member chain ending at ``dot`` starts from.
+
+    Walks back over ``a.b(...)[...]<...>.`` links. The flag is True when the
+    root follows ``new`` (a constructed type). An empty root means the
+    receiver is not a plain chain (a literal, a parenthesized expression).
+    """
+    end = dot
+    while True:
+        end = len(view[:end].rstrip())
+        while end and view[end - 1] in _GROUP_OPENERS:
+            if view[end - 1] == ">" and view[:end].endswith("=>"):
+                return "", False
+            opener = _skip_group_back(view, end)
+            if opener is None:
+                return "", False
+            end = len(view[:opener].rstrip())
+        word = _IDENTIFIER_BEFORE_RE.search(view[:end])
+        if word is None:
+            return "", False
+        start = end - len(word[0].rstrip())
+        head = view[:start].rstrip()
+        if head.endswith("."):
+            end = len(head) - 1 - (1 if head.endswith("?.") else 0)
+            continue
+        return word[1], bool(_NEW_BEFORE_RE.search(head))
+
+
+def _receiver_types(view: str, lang: str) -> dict[str, str]:
+    """Lowercase variable name -> declared or constructed type in the example."""
+    typed = (
+        [(name, kind) for kind, name in _CSHARP_TYPED_NAME_RE.findall(view)]
+        if lang == "csharp"
+        else _TS_TYPED_NAME_RE.findall(view)
+    )
+    types = dict(typed)
+    types.update(_NEW_ASSIGNED_RE.findall(view))
+    return types
+
+
+def _proven_member_names(
+    view: str, lang: str, local_types: set[str], unresolved_types: set[str]
+) -> set[str]:
+    """Member names whose every access has a receiver proven not to be repo API.
+
+    A receiver is proven when its chain starts at a type the example
+    declares, a framework type, a variable declared or constructed with one
+    of those, or ``this``/``base`` inside an example that declares a type.
+    A free variable, or one assigned from an unresolved call, proves
+    nothing, so its members stay checkable.
+    """
+    proven_types = (local_types - unresolved_types) | _PROVEN_RECEIVER_TYPES.get(lang, frozenset())
+    variables = _receiver_types(view, lang)
+    proven: dict[str, bool] = {}
+    for match in _MEMBER_ACCESS_RE.finditer(view):
+        root, constructed = _receiver_root(view, match.start())
+        if root in ("this", "base"):
+            ok = bool(local_types - unresolved_types)
+        else:
+            receiver_type = root if constructed else variables.get(root, root)
+            ok = bool(root) and receiver_type in proven_types
+        proven[match[1]] = proven.get(match[1], True) and ok
+    return {name for name, ok in proven.items() if ok}
 
 
 def _extract_identifiers(
@@ -2275,8 +2614,15 @@ def run_compilability_check(
             bare_content = re.sub(r"\.\s*[A-Za-z]\w*", lambda m: " " * len(m[0]), checked_content)
             bare_names = set(re.findall(r"\b([A-Z][a-zA-Z0-9]+)\b", bare_content))
             constructed = set(re.findall(r"\bnew\s+(?:\w+\s*\.\s*)*([A-Z]\w*)", checked_content))
+            # A type named in code but absent from the claim's references was
+            # dropped at extraction as example-local or doc-local.
+            local_types = {word for word in code_words if _TYPE_NAME_RE.fullmatch(word)} - set(
+                claim_dict.get("symbols_referenced", [])
+            )
             member_only = (
-                set(re.findall(r"\.\s*([A-Za-z]\w*)", checked_content)) - bare_names - constructed
+                _proven_member_names(checked_content, lang, local_types, known_names)
+                - bare_names
+                - constructed
             )
 
         # Skip languages without source-symbol extractors (e.g. text/ASCII
@@ -2343,37 +2689,7 @@ def run_compilability_check(
                     continue
 
                 # Skip common framework types
-                framework_types = {
-                    "String",
-                    "Int32",
-                    "Boolean",
-                    "Object",
-                    "Array",
-                    "List",
-                    "Dictionary",
-                    "Task",
-                    "Action",
-                    "Func",
-                    "IEnumerable",
-                    "IList",
-                    "Console",
-                    "Exception",
-                    "Math",
-                    "DateTime",
-                    "TimeSpan",
-                    "Path",
-                    "File",
-                    "Directory",
-                    "Type",
-                    "Attribute",
-                    "Nullable",
-                    "True",
-                    "False",
-                    "None",
-                    "Error",
-                    "Promise",
-                }
-                if sym_name in framework_types:
+                if sym_name in _COMMON_FRAMEWORK_TYPES:
                     continue
 
                 # Python builtins (ImportError, ValueError, ...) and typing

@@ -109,8 +109,11 @@ def test_stdlib_chain_blanking_is_column_preserving() -> None:
             "    public void Process(Order order) { order.Validate(); }\n"
             "}\n"
         ),
-        "var total = order.Items.Count;\nvar text = order.ToString();\n",
-        'if (input.Any(c => c > 0)) { Console.WriteLine("y"); }\n',
+        "class Order { }\nvar order = new Order();\nvar n = order.Items.Count;\n",
+        (
+            "void Check(IEnumerable<int> input) {\n"
+            '    if (input.Any(c => c > 0)) { Console.WriteLine("y"); }\n}\n'
+        ),
         'throw new ArgumentException("bad");\n',
         "// Good: denylist\nvar blocked = new[] { '<' };\n// Poor: bypass\n",
         'record Customer(string Name);\nvar c = new Customer("x");\n',
