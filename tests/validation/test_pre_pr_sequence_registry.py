@@ -81,6 +81,8 @@ EXPECTED_ORDER: tuple[str, ...] = (
     "Design Review Frontmatter",
     "Build Command Exit Gates",
     "Stale Script References",
+    "Agent and Skill Reference Pages (docs/skills, docs/agents)",
+    "Skill Page Freshness (advisory)",
     "Citation Freshness (added lines)",
     "Measurement Anchoring (added lines)",
     "Doc Date Drift (advisory, added lines)",

@@ -10,9 +10,10 @@ applyTo: templates/agents/**,templates/skills/**,src/claude/skills/**,.claude/sk
 
 Each agent and each skill has one hand-written reference page. People read the
 page, not the template, to learn how to start the agent or skill and what it
-returns. No generator writes these pages and no gate compares them to their
-source, so a change that skips the page leaves it wrong with nothing to flag it.
-PR #7416 added `sol-loop` and `llm-council` with no page.
+returns. No generator writes these pages. PR #7416 added `sol-loop` and
+`llm-council` with no page, and PR #7424 added `technical-writing` with no page
+and no README row. The pre-PR gate below now blocks those misses. It cannot
+tell whether a page's wording is still true.
 
 | Source | Page |
 |---|---|
@@ -37,16 +38,31 @@ PR #7416 added `sol-loop` and `llm-council` with no page.
 
 ## Checking
 
-List agents and skills with no page, from the repository root. It reads the
-working tree, so it sees a new skill or page you have not committed yet:
+Run the gate from the repository root. Pre-PR runs it as
+`Agent and Skill Reference Pages (docs/skills, docs/agents)`:
 
 ```bash
-export LC_ALL=C
-comm -13 <(ls docs/skills | sed 's/\.md$//' | sort) \
-  <(find src/claude/skills .claude/skills -mindepth 1 -maxdepth 1 \( -type d -o -type l \) -exec basename {} \; | sort -u)
-comm -13 <(ls docs/agents | sed 's/\.md$//' | sort) \
-  <(ls templates/agents | sed -n 's/\.shared\.md$//p' | sort)
+uv run python scripts/validation/check_agent_skill_docs.py
 ```
 
-Empty output means every agent and skill has a page. It does not prove a page
-is current; rule 2 is a manual check.
+It reads the working tree, so it sees a new skill or page you have not
+committed yet. It fails when an agent or skill has no page, a page has no
+agent or skill, a README table lacks the page's row, a row links a missing
+page, or a page breaks the section order in MUST 3.
+
+For MUST 2, run the advisory freshness check. Pre-PR runs it as
+`Skill Page Freshness (advisory)`, and it never blocks:
+
+```bash
+uv run python scripts/validation/check_agent_skill_docs.py --freshness
+```
+
+It compares each changed skill with the base ref. It warns when a fact
+changed and `docs/skills/<name>.md` did not. Facts are the frontmatter `name`
+and `argument-hint`, quoted trigger phrases in `description`, file names under
+`scripts/`, Exit Codes lines, and backticked paths in `SKILL.md`. A warning
+means read the page. It does not prove the page is wrong, and a clean run does
+not prove the page is current.
+
+To scaffold a new skill with its page, run skillforge's `init_skill.py` with
+`--docs-section "<README heading>"`.
