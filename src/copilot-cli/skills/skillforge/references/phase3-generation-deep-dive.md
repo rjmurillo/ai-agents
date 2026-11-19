@@ -45,7 +45,8 @@
    • In SKILL.md, invoke scripts through the plugin-root locator, never a bare
      .claude/skills path (see ADR-121)
 
-6. Write the reference page (only when the repository has docs/skills/README.md)
+6. Write the reference page (only when the repository has docs/skills/README.md
+   and --path is a folder named skills)
    • init_skill.py writes docs/skills/{skill-name}.md with the seven sibling
      sections: When to use it, When not to use it, Quick start, What you get,
      Advanced use, Where it runs, Related

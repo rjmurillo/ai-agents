@@ -9,7 +9,7 @@ code, or validate a skill that lives in another checkout.
 |--------|---------|
 | `triage_skill_request.py` | Phase 0 triage: classify an input and route to build, improve, or reuse |
 | `discover_skills.py` | Ecosystem scan: enumerate existing skills before creating a new one |
-| `init_skill.py` | Scaffold a new skill directory from the standard structure; with `docs/skills/README.md` present, also its reference page and README row (`--docs-section`) |
+| `init_skill.py` | Scaffold a new skill directory from the standard structure; when `--path` is a `skills` folder and `docs/skills/README.md` exists, also its reference page and README row (`--docs-section`) |
 | `validate-skill.py` | Full validation of a generated skill against SkillForge standards |
 | `quick_validate.py` | Fast structural check of frontmatter and required sections |
 | `skill_modularity_audit.py` | Audit SKILL.md size and flag progressive-disclosure violations |

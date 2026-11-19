@@ -17,13 +17,15 @@ Blocking checks (MUST 1 and 3 of the rule):
   Other ``##`` headings may sit between them.
 
 Advisory check (MUST 2, ``--freshness``): for each skill that existed at the
-base ref, warn when a fact-bearing part of it changed and its page did not.
+fork point (``git merge-base HEAD <base ref>``), warn when a fact-bearing
+part of it changed and its page did not.
 Facts compared: frontmatter ``name`` and ``argument-hint``, quoted trigger
 phrases in ``description``, the file names under ``scripts/``, the lines of
 an ``Exit Codes`` section, and backticked paths in ``SKILL.md``.
 
 The blocking check reads the working tree, so an unstaged page counts. The
-freshness check compares the working tree with the base ref.
+freshness check compares the working tree with the fork point, so commits that
+landed on the base branch after the fork are not blamed on this branch.
 
 CLI::
 
@@ -46,10 +48,15 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
 
-from checks_common import _resolve_default_base_ref
-from evidence import (
+# Package imports, like check_tmp_worktrees.py: pre_pr.py loads evidence as
+# scripts.validation.evidence, and a second copy under a bare name makes its
+# CheckOutcome a different class that the runner rejects.
+from scripts.validation.checks_common import _resolve_default_base_ref  # noqa: E402
+from scripts.validation.evidence import (  # noqa: E402
     REASON_ADVISORY_FINDINGS,
     REASON_BASE_REF_UNRESOLVED,
     REASON_SCRIPT_FAILED,
@@ -57,7 +64,7 @@ from evidence import (
     REASON_VIOLATIONS_FOUND,
     CheckOutcome,
 )
-from skill_frontmatter import parse_frontmatter
+from scripts.validation.skill_frontmatter import parse_frontmatter  # noqa: E402
 
 SKILL_TREES = ("src/claude/skills", ".claude/skills")
 AGENT_TREE = "templates/agents"
@@ -132,10 +139,29 @@ def readme_rows(readme_text: str) -> set[str]:
     return rows
 
 
+def _headings(text: str) -> list[re.Match[str]]:
+    """Return heading matches outside fenced code blocks."""
+    found: list[re.Match[str]] = []
+    fence = ""
+    for line in text.splitlines():
+        stripped = line.lstrip()
+        marker = stripped[:3]
+        if marker in ("```", "~~~"):
+            if not fence:
+                fence = marker
+            elif marker == fence:
+                fence = ""
+            continue
+        if not fence and (match := _HEADING.match(line)):
+            found.append(match)
+    return found
+
+
 def section_problem(page_text: str) -> str | None:
     """Return why the page breaks the sibling section order, or None."""
-    matches = (_HEADING.match(line) for line in page_text.splitlines())
-    present = [m.group(2) for m in matches if m and m.group(1) == "##" and m.group(2) in SECTIONS]
+    present = [
+        m.group(2) for m in _headings(page_text) if m.group(1) == "##" and m.group(2) in SECTIONS
+    ]
     missing = [s for s in SECTIONS if s not in present]
     if missing:
         return f"missing section(s): {', '.join(missing)}"
@@ -255,6 +281,8 @@ def _script_names(repo_root: Path, base_ref: str | None, skill_rel: str) -> set[
     else:
         listing = _git(repo_root, "ls-tree", "-r", "--name-only", base_ref, "--", prefix)
         present = set(listing.stdout.splitlines())
+    if listing.returncode != 0:
+        raise GitReadError(f"git could not list {prefix} at {base_ref or 'the working tree'}")
     return {line[len(prefix) :] for line in present if line.startswith(prefix)}
 
 
@@ -271,17 +299,39 @@ def fact_changes(old: str, new: str) -> list[str]:
     return changes
 
 
-def _stale_finding(repo_root: Path, base_ref: str, name: str, changed: set[str]) -> Finding | None:
+class GitReadError(Exception):
+    """git could not read repository state the freshness check needs."""
+
+
+def _base_skill_dir(repo_root: Path, base: str, name: str) -> str | None:
+    """Return the tree holding ``name``'s SKILL.md at ``base``, or None if absent.
+
+    Checks both trees, so a skill moved between them is still compared.
+    """
+    for tree in SKILL_TREES:
+        rel = f"{tree}/{name}/SKILL.md"
+        listing = _git(repo_root, "ls-tree", "--name-only", base, "--", rel)
+        if listing.returncode != 0:
+            raise GitReadError(f"git ls-tree failed for {rel} at {base}")
+        if listing.stdout.strip() == rel:
+            return f"{tree}/{name}"
+    return None
+
+
+def _stale_finding(repo_root: Path, base: str, name: str, changed: set[str]) -> Finding | None:
     page_rel = f"{DOCS['skills']}/{name}.md"
     if page_rel in changed:
         return None
-    skill_rel = _skill_dir(repo_root, name)
-    old = _git(repo_root, "show", f"{base_ref}:{skill_rel}/SKILL.md")
-    if old.returncode != 0:
+    base_rel = _base_skill_dir(repo_root, base, name)
+    if base_rel is None:
         return None  # New skill: the blocking check owns it.
+    old = _git(repo_root, "show", f"{base}:{base_rel}/SKILL.md")
+    if old.returncode != 0:
+        raise GitReadError(f"git show failed for {base_rel}/SKILL.md at {base}")
+    skill_rel = _skill_dir(repo_root, name)
     new = (repo_root / skill_rel / "SKILL.md").read_text(encoding="utf-8")
     changes = fact_changes(old.stdout, new)
-    before = _script_names(repo_root, base_ref, skill_rel)
+    before = _script_names(repo_root, base, base_rel)
     after = _script_names(repo_root, None, skill_rel)
     if before != after:
         changes.append(f"scripts/ file names ({', '.join(sorted(before ^ after))})")
@@ -291,23 +341,27 @@ def _stale_finding(repo_root: Path, base_ref: str, name: str, changed: set[str])
 
 
 def find_stale_pages(repo_root: Path, base_ref: str) -> Report | None:
-    """Return skills whose facts changed since ``base_ref`` with no page edit.
+    """Return skills whose facts changed since the fork point with no page edit.
 
-    Returns None when git cannot resolve ``base_ref`` or list changes.
+    The fork point is ``git merge-base HEAD base_ref``. Returns None when git
+    cannot find it, list changes, or read a skill at the fork point.
     """
-    if (
-        _git(repo_root, "rev-parse", "--verify", "--quiet", f"{base_ref}^{{commit}}").returncode
-        != 0
-    ):
+    fork = _git(repo_root, "merge-base", "HEAD", base_ref)
+    if fork.returncode != 0 or not fork.stdout.strip():
         return None
-    changed = _changed_paths(repo_root, base_ref)
+    base = fork.stdout.strip()
+    changed = _changed_paths(repo_root, base)
     if changed is None:
         return None
     prefixes = {f"{tree}/{name}/": name for name in skill_names(repo_root) for tree in SKILL_TREES}
     touched = sorted(
         {name for path in changed for prefix, name in prefixes.items() if path.startswith(prefix)}
     )
-    findings = [f for name in touched if (f := _stale_finding(repo_root, base_ref, name, changed))]
+    try:
+        findings = [f for name in touched if (f := _stale_finding(repo_root, base, name, changed))]
+    except GitReadError as exc:
+        print(f"[FAIL] {exc}", file=sys.stderr)
+        return None
     return Report(examined=len(touched), findings=findings)
 
 

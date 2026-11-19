@@ -187,3 +187,60 @@ def test_dry_run_names_the_docs_page_and_writes_nothing(tmp_path: Path) -> None:
     assert result.returncode == 0
     assert "my-skill.md" in result.stdout
     assert not (repo / "docs" / "skills" / "my-skill.md").exists()
+
+
+def test_skill_outside_the_skill_folders_gets_no_page(tmp_path: Path) -> None:
+    repo = _docs_repo(tmp_path)
+    (repo / "scratch").mkdir()
+
+    for skill, parent in (("at-root", repo), ("in-scratch", repo / "scratch")):
+        result = run(skill, "--path", str(parent), "--docs-section", "Code quality")
+
+        assert result.returncode == 0, result.stderr
+    assert sorted(p.name for p in (repo / "docs" / "skills").iterdir()) == ["README.md"]
+    assert (repo / "docs" / "skills" / "README.md").read_text(encoding="utf-8") == _README
+
+
+def test_dot_slash_row_counts_as_existing(tmp_path: Path) -> None:
+    repo = _docs_repo(tmp_path)
+    readme = repo / "docs" / "skills" / "README.md"
+    readme.write_text(
+        _README.replace(
+            "| match | Do alpha |", "| match | Do alpha |\n| [x](./my-skill.md) | match | Old |"
+        ),
+        encoding="utf-8",
+    )
+    before = readme.read_text(encoding="utf-8")
+
+    result = run(
+        "my-skill",
+        "--path",
+        str(repo / "src" / "claude" / "skills"),
+        "--docs-section",
+        "Code quality",
+    )
+
+    assert result.returncode == 0
+    assert "README row exists" in result.stdout
+    assert readme.read_text(encoding="utf-8") == before
+
+
+def test_row_lands_in_alphabetical_order(tmp_path: Path) -> None:
+    repo = _docs_repo(tmp_path)
+    readme = repo / "docs" / "skills" / "README.md"
+    readme.write_text(
+        _README.replace(
+            "| match | Do alpha |", "| match | Do alpha |\n| [`zeta`](zeta.md) | match | Do zeta |"
+        ),
+        encoding="utf-8",
+    )
+
+    result = run(
+        "beta", "--path", str(repo / "src" / "claude" / "skills"), "--docs-section", "Code quality"
+    )
+
+    assert result.returncode == 0
+    rows = [
+        line for line in readme.read_text(encoding="utf-8").splitlines() if line.startswith("| [")
+    ]
+    assert [row.split("`")[1] for row in rows] == ["alpha", "beta", "zeta"]

@@ -20,16 +20,12 @@ Coverage:
 from __future__ import annotations
 
 import subprocess
-import sys
 from pathlib import Path
 
+from scripts.validation import check_agent_skill_docs as gate
+from tests.build_scripts.orphan_test_helpers import symlink_or_skip
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
-
-_VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"
-if str(_VALIDATION_DIR) not in sys.path:
-    sys.path.insert(0, str(_VALIDATION_DIR))
-
-import check_agent_skill_docs as gate
 
 _SECTIONS = (
     "When to use it",
@@ -141,7 +137,11 @@ def test_real_repository_tree_passes():
 def test_symlinked_skill_counts_once(tmp_path):
     repo = _repo(tmp_path)
     _documented_skill(repo, "alpha")
-    (repo / ".claude" / "skills" / "alpha").symlink_to(repo / "src" / "claude" / "skills" / "alpha")
+    symlink_or_skip(
+        repo / ".claude" / "skills" / "alpha",
+        repo / "src" / "claude" / "skills" / "alpha",
+        target_is_directory=True,
+    )
 
     report = gate.find_page_findings(repo)
 
@@ -237,6 +237,19 @@ def test_extra_section_between_siblings_passes(tmp_path):
     extra = (*_SECTIONS[:3], "Examples", *_SECTIONS[3:])
     _page(repo, "skills", "alpha", sections=extra)
     _row(repo, "skills", "alpha")
+
+    assert gate.find_page_findings(repo).findings == []
+
+
+def test_section_name_inside_code_fence_is_ignored(tmp_path):
+    repo = _repo(tmp_path)
+    _skill(repo, "alpha")
+    _row(repo, "skills", "alpha")
+    sample = "```markdown\n## Related\n## When to use it\n```\n"
+    page = repo / "docs" / "skills" / "alpha.md"
+    page.write_text(
+        _page_text("alpha").replace("## Advanced use\n\nText.", "## Advanced use\n\n" + sample)
+    )
 
     assert gate.find_page_findings(repo).findings == []
 
@@ -393,6 +406,52 @@ def test_wording_only_change_is_quiet(tmp_path):
 
     assert report is not None
     assert report.findings == []
+
+
+def _commit(repo: Path, message: str) -> None:
+    _git(repo, "-c", "user.email=t@example.com", "-c", "user.name=t", "add", "-A")
+    _git(repo, "-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-qm", message)
+
+
+def test_change_landed_on_base_after_fork_is_not_blamed(tmp_path):
+    repo, skill = _committed_repo(tmp_path)
+    _git(repo, "branch", "feature")
+    _edit(skill / "SKILL.md", 'argument-hint: "[target]"', 'argument-hint: "[other]"')
+    _commit(repo, "main moves on")
+    _git(repo, "checkout", "-q", "feature")
+    (repo / "notes.txt").write_text("unrelated\n", encoding="utf-8")
+
+    report = gate.find_stale_pages(repo, "main")
+
+    assert report is not None
+    assert report.findings == []
+
+
+def test_page_edited_on_base_after_fork_does_not_hide_branch_change(tmp_path):
+    repo, skill = _committed_repo(tmp_path)
+    _git(repo, "branch", "feature")
+    _edit(repo / "docs" / "skills" / "alpha.md", "## Related\n\nText.", "## Related\n\nMain edit.")
+    _commit(repo, "main edits the page")
+    _git(repo, "checkout", "-q", "feature")
+    _edit(skill / "SKILL.md", "| 1 | Logic error |", "| 1 | Logic error |\n| 2 | Config error |")
+
+    report = gate.find_stale_pages(repo, "main")
+
+    assert report is not None
+    assert _paths(report) == ["docs/skills/alpha.md"]
+
+
+def test_skill_moved_between_trees_is_still_compared(tmp_path):
+    repo, skill = _committed_repo(tmp_path)
+    moved = repo / ".claude" / "skills" / "alpha"
+    skill.rename(moved)
+    _edit(moved / "SKILL.md", "| 1 | Logic error |", "| 1 | Logic error |\n| 2 | Config error |")
+
+    report = gate.find_stale_pages(repo, "HEAD")
+
+    assert report is not None
+    assert _paths(report) == ["docs/skills/alpha.md"]
+    assert "Exit Codes" in report.findings[0].message
 
 
 def test_freshness_bad_base_ref_returns_none(tmp_path):
