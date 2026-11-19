@@ -1624,9 +1624,17 @@ def _count_python_imports(source: str) -> tuple[int, int]:
     text in strings and comments does not.
     """
     statements = _dependency_nodes(source, _PYTHON_GRAMMAR)
-    standard = sum(
-        1 for node in statements if _is_python_standard_statement(_python_statement_modules(node))
-    )
+    try:
+        # A list, not a generator: PEP 479 would turn StopIteration into RuntimeError.
+        modules = [_python_statement_modules(node) for node in statements]
+    except (AttributeError, StopIteration) as exc:
+        # A node shape the pinned grammar should never produce: fail closed
+        # rather than let the generic handler mark the file unscored.
+        raise PythonParserError(
+            f"Cannot count Python dependencies: unexpected parse-tree shape "
+            f"({type(exc).__name__}). Check the pinned grammar (tree-sitter-python==0.25.0)"
+        ) from exc
+    standard = sum(1 for names in modules if _is_python_standard_statement(names))
     return len(statements), standard
 
 

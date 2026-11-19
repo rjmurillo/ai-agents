@@ -247,3 +247,18 @@ def test_from_import_without_a_module_fails_closed() -> None:
     """An unexpected node shape raises the parser error, so the scan exits 1."""
     with pytest.raises(_mod.PythonParserError, match="line 5"):
         _mod._python_statement_modules(_FromImportWithoutModule())
+
+
+@pytest.mark.parametrize("failure", [AttributeError("no name"), StopIteration()])
+def test_unexpected_node_shapes_fail_closed(
+    monkeypatch: pytest.MonkeyPatch, failure: BaseException
+) -> None:
+    """Any malformed statement node raises the parser error, never an unscored file."""
+
+    def malformed(node: object) -> list[str]:
+        raise failure
+
+    monkeypatch.setattr(_mod, "_python_statement_modules", malformed)
+
+    with pytest.raises(_mod.PythonParserError, match="unexpected parse-tree shape"):
+        _mod._count_python_imports("import os\n")
