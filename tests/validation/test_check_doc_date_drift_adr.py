@@ -31,6 +31,28 @@ def test_added_dated_amendment_flags_old_frontmatter(tmp_path: Path, marker: str
     assert findings[0].suggested == "2026-10-23"
 
 
+def test_an_older_decision_citation_uses_the_commit_day(tmp_path: Path) -> None:
+    root = make_repo(tmp_path, {ADR: document("## Decision\nOld choice.\n")})
+    commit_head(root, {ADR: document("## Decision\nRecord the 2024-01-01 choice.\n")})
+    (finding,) = [f for f in drift(root) if f.rule == "adr-date"]
+    assert finding.suggested == "2026-10-24"
+    assert finding.other_line == 7
+
+
+def test_a_month_only_amendment_uses_the_commit_day(tmp_path: Path) -> None:
+    root = make_repo(tmp_path, {ADR: document("## Context\nOriginal.\n")})
+    commit_head(root, {ADR: document("## Context\nOriginal.\nAmended November 2026.\n")})
+    (finding,) = [f for f in drift(root) if f.rule == "adr-date"]
+    assert finding.suggested == "2026-10-24"
+    assert finding.line == 3
+
+
+def test_an_older_context_amendment_does_not_move_the_frontmatter(tmp_path: Path) -> None:
+    root = make_repo(tmp_path, {ADR: document("## Context\nOriginal.\n")})
+    commit_head(root, {ADR: document("## Context\nOriginal.\nAmended 2024-01-01.\n")})
+    assert not [f for f in drift(root) if f.rule == "adr-date"]
+
+
 def test_a_future_decision_deadline_is_not_the_update_date(tmp_path: Path) -> None:
     root = make_repo(tmp_path, {ADR: document("## Decision\nOld choice.\n", "2026-10-24")})
     commit_head(root, {ADR: document("## Decision\nMigrate by 2027-01-01.\n", "2026-10-24")})

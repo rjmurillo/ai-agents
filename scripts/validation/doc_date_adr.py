@@ -63,8 +63,8 @@ def adr_problem(
     )
     if date_line is None or claims.has_reasoned_ignore(lines, date_line, lines[date_line - 1]):
         return None
-    dated: list[tuple[date, int]] = []
-    undated: list[int] = []
+    proving: list[tuple[date, int]] = []
+    fallback: list[int] = []
     decision_level = 0
     for number, text in enumerate(lines, 1):
         if number < body_start or number in fenced:
@@ -83,13 +83,16 @@ def adr_problem(
         )
         # A later deadline is not the day the record changed. One extra day
         # covers a commit timestamp that falls on the previous UTC day.
+        # An older citation does not record this edit. Month-only text has no day.
         latest = commit_date + timedelta(days=1)
         kept = [d.value for d in dates if not d.month_only and d.value <= latest]
-        if kept:
-            dated.extend((value, number) for value in kept)
-        elif decision_level and text.strip() and not heading:
-            undated.append(number)
-    candidates = dated or [(commit_date, n) for n in undated]
+        proves_update = [value for value in kept if value >= updated]
+        decision_edit = decision_level and text.strip() and not heading
+        if proves_update:
+            proving.extend((value, number) for value in proves_update)
+        elif decision_edit or (bool(dates) and not kept):
+            fallback.append(number)
+    candidates = proving or [(commit_date, number) for number in fallback]
     if not candidates:
         return None
     newest, other = max(candidates, key=lambda candidate: candidate[0])
