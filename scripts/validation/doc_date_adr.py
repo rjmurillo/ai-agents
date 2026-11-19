@@ -7,11 +7,24 @@ This helper checks changes against their commit date through the docs gate.
 from __future__ import annotations
 
 import re
+import sys
 from dataclasses import dataclass
 from datetime import date
+from pathlib import Path
 
-from scripts.validation.doc_date_claims import dates_on_line, has_reasoned_ignore
-from scripts.validation.frontmatter_contract import parse_frontmatter
+# The per-file mypy gate sets MYPYPATH to this directory. One file under two
+# names fails the ratchet. Claims stay a bare sibling import. The frontmatter
+# parser stays on the package path so its SafeLoader override still applies.
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _SCRIPT_DIR.parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+
+import doc_date_claims as claims  # noqa: E402
+
+from scripts.validation.frontmatter_contract import parse_frontmatter  # noqa: E402
 
 RULE_ADR = "adr-date"
 _ADR_PATH = re.compile(r"^(?:\.project-toolkit|\.agents)/architecture/ADR-\d+[^/]*\.md$")
@@ -48,7 +61,7 @@ def adr_problem(
     date_line = next(
         (n for n, text in enumerate(lines[: body_start - 1], 1) if _DATE_FIELD.match(text)), None
     )
-    if date_line is None or has_reasoned_ignore(lines, date_line, lines[date_line - 1]):
+    if date_line is None or claims.has_reasoned_ignore(lines, date_line, lines[date_line - 1]):
         return None
     dated: list[tuple[date, int]] = []
     undated: list[int] = []
@@ -63,9 +76,11 @@ def adr_problem(
                 decision_level = level
             elif decision_level and level <= decision_level:
                 decision_level = 0
-        if number not in added or has_reasoned_ignore(lines, number, text):
+        if number not in added or claims.has_reasoned_ignore(lines, number, text):
             continue
-        dates = dates_on_line(text) if decision_level or heading or _MARKER.search(text) else []
+        dates = (
+            claims.dates_on_line(text) if decision_level or heading or _MARKER.search(text) else []
+        )
         if dates:
             dated.extend((d.value, number) for d in dates if not d.month_only)
         elif decision_level and text.strip() and not heading:
