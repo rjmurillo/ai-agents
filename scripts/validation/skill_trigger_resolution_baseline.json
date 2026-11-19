@@ -1,0 +1,93 @@
+{
+  "schema_version": "1",
+  "description": "Skill description trigger phrases that do not route through autoplan as advertised, one entry per check, skill, and phrase. An entry may be removed, never added. Regenerate with: uv run python scripts/validation/check_skill_trigger_resolution.py --write-baseline",
+  "violations": {
+    "own-phrase-unrouted": {
+      "domain-design": [
+        "design this schema"
+      ],
+      "dx-review": [
+        "evaluate developer ergonomics",
+        "run a DX audit",
+        "test the developer experience"
+      ],
+      "programming-advisor": [
+        "do we already have this",
+        "is there a library for this",
+        "is there existing code for X in this repo",
+        "should I build or use existing"
+      ],
+      "skill-doctor": [
+        "diagnose skill usage"
+      ],
+      "world-model-diagnostic": [
+        "audit our world model",
+        "audit where we automate judgment",
+        "which world model architecture fits us"
+      ]
+    },
+    "phrase-routes-to-sibling": {},
+    "front-door-phrases-without-intents": {
+      "agent-harness-reference": [
+        "harness contract"
+      ],
+      "analyze": [
+        "analyze this codebase"
+      ],
+      "autoplan": [
+        "do it"
+      ],
+      "build": [
+        "build this"
+      ],
+      "context-gather": [
+        "gather context before planning"
+      ],
+      "github": [
+        "create a PR"
+      ],
+      "github-url-intercept": [
+        "analyze this PR"
+      ],
+      "memory-search": [
+        "search memory"
+      ],
+      "plan": [
+        "plan how to build this"
+      ],
+      "planner": [
+        "run the planner workflow"
+      ],
+      "pr-comment-responder": [
+        "respond to PR comments"
+      ],
+      "push-pr": [
+        "push and open a PR"
+      ],
+      "quality-grades": [
+        "grade quality"
+      ],
+      "research": [
+        "research this topic"
+      ],
+      "security-detection": [
+        "did I touch security-critical files"
+      ],
+      "security-scan": [
+        "scan for command injection"
+      ],
+      "ship": [
+        "ship it"
+      ],
+      "skillforge": [
+        "create a skill"
+      ],
+      "spec": [
+        "spec this out"
+      ],
+      "test": [
+        "prove this works"
+      ]
+    }
+  }
+}

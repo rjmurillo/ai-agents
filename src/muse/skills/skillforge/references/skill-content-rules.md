@@ -75,6 +75,45 @@ so a trigger phrase listed only in the body never routes.
 To measure whether a description change helps, use `skillopt` and its
 `references/description-optimization.md`.
 
+### Limits and routing contract
+
+Learned on 2026-11-19, when `adr-generator` was never selected for an ADR write.
+The named pre-PR gates exist in the rjmurillo/ai-agents repository. Elsewhere,
+apply the rule by hand.
+
+- **The description corpus has a budget.** Every description is loaded on
+  every turn, so a long one taxes every task. The pre-PR gate
+  `Skill Description Budget` caps the sum per skill root. Write the shortest
+  description that routes. `adr-generator` went from 839 to 435 characters
+  and gained triggers.
+- **Lead with the invocation condition.** Put the trigger situation first, for
+  example "Invoke before you write or edit any ADR file, even when nobody names
+  an ADR." Agents often reach a skill's work through a plan step, not a phrase.
+  Describe that situation, not only the words a user might type.
+- **Every quoted phrase must route.** A phrase in double quotes or backticks,
+  before the first `Do NOT`, is an advertised trigger. If the skill declares
+  `metadata.routing.intents`, each phrase must resolve to this skill through
+  the autoplan resolver. No phrase may resolve to a sibling. A front-door
+  skill that advertises phrases must declare `intents`; a phrase with no
+  intent behind it routes only if a model happens to read it. The pre-PR gate
+  `Skill Trigger Phrase Resolution (ratchet)` checks all three.
+- **Write intents as two or more tokens.** `intents` is legal only on role
+  `front-door`. The resolver drops stop words, then matches intent tokens in
+  order within a window of the intent's length plus two. A bare noun like
+  `adr` also matches "review this ADR" and steals the sibling's request. Use
+  `draft adr` or `amend adr`, and add a negative fixture for the nearest
+  sibling.
+- **Name the boundary both ways.** Each sibling's `Do NOT` clause names the
+  other skill, and both agree on who owns edge cases, such as edits made inside
+  an open review round.
+- **Measure bytes before and after.** The pre-PR gate
+  `Instruction Bytes (per-fixture)` sums always-on files, scoped rules, and
+  routed skills for six task shapes. The autoplan skill is in most of them. A
+  52-byte table row pushed one fixture over its ceiling.
+- **A changed autoplan table row needs a scenario.** Edit or add a scenario
+  in the autoplan model scenarios whose `expected_route` names the row's
+  target. Scenario families are a closed set, and tests pin family counts.
+
 For scripts bundled in a skill, read `references/script-design-rules.md`. It owns
 the rules for prompts, `--help`, streams, exit codes, and `--dry-run`.
 

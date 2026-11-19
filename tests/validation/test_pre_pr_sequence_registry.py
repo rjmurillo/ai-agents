@@ -169,6 +169,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     "External Contract Records (external-contract)",
     "NL Structural Debt Ratchet",
     "Skill Routing Roles (metadata.routing)",
+    "Skill Trigger Phrase Resolution (ratchet)",
     "Path-Local Effective Context Ratchet",
 )
 

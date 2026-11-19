@@ -118,5 +118,191 @@
     "query": "Run a strategic build, buy, partner, or defer evaluation with full TCO analysis for this capability.",
     "candidates": ["buy-vs-build-framework", "programming-advisor"],
     "correct": "buy-vs-build-framework"
+  },
+  {
+    "id": "adr-05-plan-step-implicit",
+    "query": "The approved plan says option B needs an ADR for typed skill inputs and outputs. Go ahead with option B.",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-generator"
+  },
+  {
+    "id": "adr-06-draft-numbered",
+    "query": "Draft ADR-123 for the skill artifact flow decision.",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-generator"
+  },
+  {
+    "id": "adr-07-amend",
+    "query": "Amend ADR-110 to add produces and consumes keys to the capability block.",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-generator"
+  },
+  {
+    "id": "adr-08-apply-debate-findings",
+    "query": "The adr-review panel voted Disagree-and-Commit on ADR-123. Apply the architect's two findings and run the next debate round.",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-review"
+  },
+  {
+    "id": "adr-miss-20260722-adr-057",
+    "query": "I'll implement Deliverable B for #3185: correct ADR-057 to reflect advisory-plus-deferred-CI reality. Let me create a branch and make the edits.",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-generator"
+  },
+  {
+    "id": "adr-miss-20260727-adr-001",
+    "query": "Now writing the ADR on a stacked branch.",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-generator"
+  },
+  {
+    "id": "adr-miss-20261017-adr-119",
+    "query": "Last stragglers are long-timeout tests. Placing ADR-119 and starting the build-scripts unit tests for the new link module.",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-generator"
+  },
+  {
+    "id": "adr-miss-20261029-adr-111",
+    "query": "Meanwhile, the ADR edit. Reading the existing debate log format.",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-generator"
+  },
+  {
+    "id": "adr-miss-20261111-adr-109",
+    "query": "Dispatcher validates only the invoked group, so a shipped dispatch_groups.json with unshipped SessionStart groups stays safe. Drafting the ADR-109 amendment now.",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-generator"
+  },
+  {
+    "id": "adr-miss-20261116-adr-115-config",
+    "query": "Applying the config and ADR edits.",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-generator"
+  },
+  {
+    "id": "adr-miss-20261116-adr-115-panel",
+    "query": "Making the ADR edit, then sending it to the reduced panel (architect and critic).",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-generator"
+  },
+  {
+    "id": "adr-miss-20261116-adr-101",
+    "query": "ADR-104 sets the precedent: a reasoned taste-lint ignore line in the frontmatter. Writing the ADR-101 amendment that way.",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-generator"
+  },
+  {
+    "id": "adr-miss-20261118-adr-122-sunset",
+    "query": "Scanner changes look correct and keep exit 1. Now the ADR-122 sunset item, which needs an ADR edit plus a reduced-panel debate log entry per AGENTS.md.",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-generator"
+  },
+  {
+    "id": "adr-miss-20261118-adr-122-item8",
+    "query": "Now I'll draft the ADR amendment (item 8), then run the review panel on it.",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-generator"
+  },
+  {
+    "id": "adr-miss-20261118-adr-122-item7",
+    "query": "Now the ADR-122 item 7 amendment. Reading the rest of the ADR and the debate log format.",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-generator"
+  },
+  {
+    "id": "adr-miss-20261119-adr-123",
+    "query": "The pr-review/pr-autofix loop dates from the first role classification and was never justified, so I'll fix it. Writing ADR-123 now.",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-generator"
+  },
+  {
+    "id": "adr-miss-20260718-adr-083",
+    "query": "Tracking issue filed. Now the ADR. Writing ADR-083 as the design of record (proposed), incorporating the corrected classification posture.",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-generator"
+  },
+  {
+    "id": "adr-miss-20260728-adr-088",
+    "query": "Mirrors are in parity. Writing ADR-088.",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-generator"
+  },
+  {
+    "id": "adr-miss-20260807-adr-068",
+    "query": "Now the governance blocker: an always-on rule requires an ADR. Writing it.",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-generator"
+  },
+  {
+    "id": "adr-miss-20261031-adr-068",
+    "query": "ADR-084 is unchanged on the new main. Reading the exact rule 2 and rule 5 spans so I can edit them.",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-generator"
+  },
+  {
+    "id": "adr-miss-20261104-adr-068",
+    "query": "Now the edits. ADR-068 first.",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-generator"
+  },
+  {
+    "id": "adr-miss-20261104-adr-059",
+    "query": "33 pass. Before trusting them, a quick mutation check: revert the two key decisions and confirm the tests fail. Then I'll write the ADR-059 amendment.",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-generator"
+  },
+  {
+    "id": "adr-miss-20261111-adr-115",
+    "query": "A Codex agent check can join the existing smoke-codex CI leg. Drafting the ADR edits now.",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-generator"
+  },
+  {
+    "id": "adr-miss-20261118-adr-109",
+    "query": "Writing the ADR-109 note, correcting the ignore comment, and adding the codebase-documenter handoff line.",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-generator"
+  },
+  {
+    "id": "adr-miss-20260718-adr-041",
+    "query": "All artifacts verified real, including the existing debate log. Now drafting the amendment.",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-generator"
+  },
+  {
+    "id": "adr-miss-20260814-adr-040",
+    "query": "Now adding the header pointer to the reconciled doc and handling ADR-040.",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-generator"
+  },
+  {
+    "id": "adr-miss-20260601-adr-057",
+    "query": "All sources confirmed. Apply the 4 citation fixes to ADR-034 and ADR-057.",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-generator"
+  },
+  {
+    "id": "adr-miss-20260814-adr-080",
+    "query": "Now let's fix the ADR-080 heading issue first (line-wrap bug that turned #2840 into an H1 heading).",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-generator"
+  },
+  {
+    "id": "adr-miss-20260801-adr-091",
+    "query": "post-merge-version-bump.yml exists, so both halves are live and implemented: false is wrong. Making both corrections in ADR-091.",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-generator"
+  },
+  {
+    "id": "adr-miss-20260613-adr-073-findings",
+    "query": "The ADR review issue is a P1 wording defect already tied to one line pair, so I'm resolving it in the ADR text rather than opening a deferred follow-up.",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-review"
+  },
+  {
+    "id": "adr-miss-20261110-adr-041-findings",
+    "query": "The panel voted Accept, and security has lifted its Block. Both raised small P2s, which I'm applying now to the ADR wording.",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-review"
   }
 ]

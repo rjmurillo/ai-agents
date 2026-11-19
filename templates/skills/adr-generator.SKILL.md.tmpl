@@ -1,7 +1,7 @@
 ---
 name: adr-generator
 version: 1.1.0
-description: Create comprehensive Architectural Decision Records (ADRs). Researches the destination directory to detect existing template conventions, gathers context, determines next ADR number, generates the ADR, validates completeness, and saves. Supports multiple ADR formats (MADR, Nygard, Alexandrian, project canonical). Use when documenting technical decisions, creating new ADR files, or capturing rationale so future readers can revisit a choice. Use when you say "write an ADR", "document this decision", "document these design choices", "record why we chose this", "capture the rationale", or "for future maintainers", or when creating an ADR-like markdown file under docs/decisions/, docs/adr/, docs/architecture/, architecture/decisions/, or .project-toolkit/architecture/. Do NOT use to debate or review an existing ADR (use adr-review).
+description: Invoke before you write or edit any ADR file, even when nobody names an ADR. Creates or amends Architectural Decision Records, then hands off to adr-review. Use when a plan step needs an ADR, or for "draft ADR-NNN", "amend ADR-NNN", "supersede ADR-NNN", "write an ADR", "document these design choices", or "record why we chose this". Do NOT use to review an ADR or apply findings in an open debate round (use adr-review).
 license: MIT
 user-invocable: true
 metadata:
@@ -16,6 +16,17 @@ metadata:
     invoker: autoplan
     trigger: autoplan routes requests to document a decision to adr-generator
     user-facing: true
+    intents:
+      - write adr
+      - create adr
+      - draft adr
+      - new adr
+      - amend adr
+      - supersede adr
+      - architecture decision record
+      - document decision
+      - document design choices
+      - record why chose
 ---
 
 # ADR Generator
@@ -31,6 +42,13 @@ Create well-structured Architectural Decision Records that document technical de
 | `create an ADR` | Full ADR generation workflow |
 | `generate ADR for` | Full ADR generation workflow |
 | `document these design choices` | Capture rationale for durable architecture or design decisions |
+| draft ADR-NNN, or a plan step that needs a new ADR with no trigger phrase | Full ADR generation workflow |
+| amend ADR-NNN, or supersede ADR-NNN | Amend mode |
+
+**Selection rule.** Invoke this skill before the first write to an ADR file.
+Hand-writing an ADR by copying a sibling record's format skips Phase G2
+numbering, the G3 frontmatter defaults, the G4 checklist, and the G6 index
+refresh. Reading a sibling ADR is not a substitute for this skill.
 
 ---
 
@@ -57,7 +75,11 @@ record why we chose this instruction-file structure for future maintainers
 | New architectural decision needs documenting | Yes |
 | Durable design choices or rationale need capturing for future readers | Yes |
 | Changing an existing system or pattern | Yes (includes Prior Art Investigation) |
+| A plan, spec, or task step says an ADR is needed | Yes, before writing the file |
+| Amending or superseding an existing ADR | Yes, Amend mode |
+| Changing an ADR's status after a review closes | No, `adr-review` sets it |
 | Reviewing or validating an existing ADR | No, use `adr-review` skill |
+| Applying findings inside an open `adr-review` debate round | No, `adr-review` owns those edits |
 | Minor implementation detail, not architectural | No |
 
 ---
@@ -149,7 +171,7 @@ Populate the detected template with gathered content:
 
 **Lifecycle frontmatter (ADR-073, Phase 1)**: when the destination uses this
 repo's canonical template (`.project-toolkit/architecture/ADR-TEMPLATE.md`), emit the
-<!-- vendor-portability: declared. adr-generator reads the canonical ADR template under .project-toolkit/architecture/; a consumer repo without it falls back to the bundled references/adr-template.md. Phase G6 runs build/scripts/generate_adr_index.py to refresh the generated ADR index only in the rjmurillo/ai-agents repository; any other checkout skips the step, even one that holds a script of that name. -->
+<!-- vendor-portability: declared. adr-generator reads the canonical ADR template under .project-toolkit/architecture/ and, in Amend mode, the latest debate log under .project-toolkit/critique/; a consumer repo without it falls back to the bundled references/adr-template.md. Phase G6 runs build/scripts/generate_adr_index.py to refresh the generated ADR index only in the rjmurillo/ai-agents repository; any other checkout skips the step, even one that holds a script of that name. -->
 machine-readable YAML frontmatter block above the `# ADR-NNN:` heading with
 these safe defaults:
 
@@ -194,6 +216,24 @@ Write the file to the destination directory determined in Phase G2:
 | Lowercase kebab-case slug (3-5 words) | `database-selection`, `event-sourcing-pattern` |
 | Status always set to `Proposed` | Changed only after `adr-review` debate |
 | Frontmatter `status: proposed`, `implemented: false`, `explainer: null` | Phase 1 defaults (ADR-073); `explainer` never auto-fetched (CWE-918) |
+
+### Amend Mode
+
+Use Amend mode to change an existing ADR outside an open `adr-review` debate
+round. Examples: an amendment section or a superseding record. Status changes
+belong to `adr-review`, which sets status when a review closes.
+
+1. **G1 Gather**: read the existing ADR and its latest debate log under
+   `.project-toolkit/critique/`. Record what changes, why, and the evidence.
+2. **G2 Research**: keep the existing number and path. A superseding decision
+   is a new ADR: run the full workflow, set `supersedes: [ADR-NNN]` on the new
+   record, and set `superseded-by` on the old one.
+3. **G3 Generate**: edit in place. Date an amendment heading
+   (`## Amendment YYYY-MM-DD`). Update frontmatter `date`. Leave `status`
+   alone unless an `adr-review` consensus or the user set it.
+4. **G4 Validate** and **G5 Save** as for a new ADR.
+5. **G6 Hand Off**: a non-frontmatter edit needs a new debate log. Hand the ADR
+   to `adr-review`, which opens `ADR-NNN-debate-log-2.md` (or the next number).
 
 ## Mandatory Exit Gates
 
@@ -327,8 +367,8 @@ Before delivering, confirm all items in the [quality checklist](references/quali
 
 | Skill | Responsibility |
 |-------|---------------|
-| `adr-generator` | **Creates** a new ADR from scratch (Phases G1-G5) |
-| `adr-review` | **Validates** an existing ADR via 6-agent debate |
+| `adr-generator` | **Creates** a new ADR (Phases G1-G6) or **amends** one (Amend mode) |
+| `adr-review` | **Validates** an ADR via 6-agent debate and applies findings inside its own rounds |
 | `chestertons-fence` | **Investigates** historical context before changing existing systems |
 
 ---

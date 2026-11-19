@@ -41,6 +41,20 @@ render wrong in the index.
    convention belongs in a rule the loader reads by `paths:` rather than in a
    critique artifact nobody opens while drafting.
 
+2. **Create or amend a record through the `adr-generator` skill, before the
+   first write.** This covers a new ADR, an amendment, and a superseding
+   record. It applies when a plan step needs an ADR and nobody said
+   "ADR". Copying a sibling record's format by hand skips the skill's numbering,
+   frontmatter defaults (ADR-073), quality checklist, and index refresh. Two edits
+   belong to `adr-review` instead: applying findings inside an open debate
+   round, and setting status when a review closes.
+
+   Evidence: on 2026-11-19 a session drafted ADR-123 by hand after reading
+   ADR-122 for its format. `adr-generator` was never invoked. A scan that day
+   of 22,812 Claude, Codex, and Copilot session files found 67 sessions that
+   created or edited an ADR. Only 3 invoked `adr-generator` before the first
+   write.
+
 ## References
 
 - `build/scripts/generate_adr_index.py`. Renders the index; owns the strip.
