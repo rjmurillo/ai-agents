@@ -419,6 +419,8 @@ def test_syntax_error_after_using_statements_still_fails_closed() -> None:
         ("using namespace A B\n", "MissingStatementTerminator"),
         ("Write-Output ready\nusing namespace System\n", "UsingMustBeAtStartOfScript"),
         ("function f { using namespace System }\n", "UsingMustBeAtStartOfScript"),
+        ("begin { using namespace System }\n", "UsingMustBeAtStartOfScript"),
+        ("process { using namespace System }\n", "UsingMustBeAtStartOfScript"),
     ],
 )
 def test_incomplete_using_statement_fails_closed(source: str, error_id: str) -> None:
@@ -435,6 +437,7 @@ def test_incomplete_using_statement_fails_closed(source: str, error_id: str) -> 
         "using namespace System\nWrite-Output ready\n",
         "using assembly 'x.dll'\n",
         "using module @{ ModuleName = 'A'; ModuleVersion = '1.0' }\n",
+        "using namespace System\nbegin { }\nprocess { }\n",
     ],
 )
 def test_valid_using_forms_still_count_once(source: str) -> None:

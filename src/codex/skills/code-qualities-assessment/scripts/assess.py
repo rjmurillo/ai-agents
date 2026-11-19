@@ -1580,7 +1580,8 @@ foreach ($command in $sentinelCommands) {
             ($kind -eq 'module' -and $operand -is [System.Management.Automation.Language.HashtableAst]))) {
         $errorId = 'InvalidValueForUsingItemName'
     } elseif (-not ($command.Parent -is [System.Management.Automation.Language.PipelineAst] -and
-            $topBlocks -contains $command.Parent.Parent -and $command.Extent.StartOffset -lt $headerEnd)) {
+            $topBlocks -contains $command.Parent.Parent -and $command.Parent.Parent.Unnamed -and
+            $command.Extent.StartOffset -lt $headerEnd)) {
         $errorId = 'UsingMustBeAtStartOfScript'
     }
     if ($errorId) {
