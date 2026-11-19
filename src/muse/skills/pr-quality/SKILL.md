@@ -33,9 +33,6 @@ Judge your working changes on six quality axes before you push, then merge the
 verdicts into one answer. Each axis applies the criteria file the `review` skill
 owns, so this gate and `/review` judge the same things.
 
-This skill replaced `pr-quality-all` and the six `pr-quality-<axis>` skills on
-2026-11-19. Use `--axis <name>` where you used `pr-quality-<name>`.
-
 ## Triggers
 
 `/pr-quality`, `/pr-quality --axis security`, `run all the quality gates`,

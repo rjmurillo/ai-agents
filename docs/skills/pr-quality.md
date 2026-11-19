@@ -2,8 +2,6 @@
 
 Judges your working changes on six PR quality axes (security, QA, analyst, architect, DevOps, roadmap), or on one axis you name. It merges the verdicts into one answer about whether the branch is safe to push.
 
-This skill replaced `pr-quality-all` and the six `pr-quality-<axis>` skills on 2026-11-19. Where you ran `/pr-quality-security`, run `/pr-quality --axis security`.
-
 > [!NOTE]
 > Each axis reads its criteria from the [`review`](review.md) skill's `references/<axis>.md`, so this gate and `/review` judge the same things. The JSON output schema is [`.agents/schemas/pr-quality-gate-output.schema.json`](../../.agents/schemas/pr-quality-gate-output.schema.json). The skill also cites [`.claude/lib/ai_review_common/verdict.py`](../../src/claude/lib/ai_review_common/verdict.py) for its merge rules. These files live in the `rjmurillo/ai-agents` repository. The skill is written for contributors to that repository.
 
