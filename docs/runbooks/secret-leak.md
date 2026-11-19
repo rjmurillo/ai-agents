@@ -31,10 +31,12 @@ GitHub token, an npm token, or a model provider API key.
    `agent-claude`, `agent-codex`, `agent-copilot`, `agent-droid`,
    `bot-secrets`, and `copilot`. It held no `npm` or `adr101-publisher`
    environment, and no `NPM_TOKEN` or `ADR101_PUBLISHER_APP_PRIVATE_KEY`
-   secret at repository level. `publish.yml:230` and `adr101-publisher.yml:119`
-   still name those two environments. Check the live list before you rely on
-   the table. An environment created by hand, or by the first workflow run that
-   names it, has no required reviewers until an admin adds them. On 2026-11-05
+   secret at repository level. `publish.yml` and `adr101-publisher.yml` still
+   name those two environments. On 2026-11-18 the `npm` environment existed
+   with deployment branches limited to `main` and no secrets. Check the live
+   list before you rely on the table. An environment created by hand, or by
+   the first workflow run that names it, has no required reviewers until an
+   admin adds them. On 2026-11-05
    the four `agent-*` environments had required reviewers and `bot-secrets` and
    `copilot` had none.
 
