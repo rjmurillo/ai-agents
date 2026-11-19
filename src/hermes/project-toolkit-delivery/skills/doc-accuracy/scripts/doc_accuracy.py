@@ -31,6 +31,7 @@ import subprocess
 import sys
 import textwrap
 import tokenize
+import typing
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -502,8 +503,8 @@ def _source_reference_index(
     for symbol in source_symbols:
         symbols.setdefault(symbol.name, set()).add(symbol.file)
         path = Path(symbol.file)
-        module = path.parent.name if path.stem == "__init__" else path.stem
-        references.setdefault(f"{module}.{symbol.name}", set()).add(symbol.file)
+        module_name = path.parent.name if path.stem == "__init__" else path.stem
+        references.setdefault(f"{module_name}.{symbol.name}", set()).add(symbol.file)
     for name, paths in symbols.items():
         # Identical projections remain coupled. Distinct implementations need
         # a qualified reference, rather than guessing from words like "main".
@@ -1342,6 +1343,215 @@ def _python_example_definitions(code: str) -> set[str]:
     return definitions - imports
 
 
+_PY_PLAIN_IMPORT_RE = re.compile(r"^[ \t]*import[ \t]+([^\n]+)$", re.MULTILINE)
+_PY_IMPORT_PART_RE = re.compile(r"([\w.]+)(?:\s+as\s+(\w+))?$")
+
+_TYPING_NAMES = frozenset(typing.__all__)
+
+_DECLARATION_RES: dict[str, re.Pattern[str]] = {
+    "csharp": re.compile(r"\b(?:class|record|interface|struct|enum|delegate)\s+([A-Z]\w*)"),
+    "typescript": re.compile(r"\b(?:interface|class|enum|type|const|function)\s+([A-Z]\w*)"),
+    "javascript": re.compile(r"\b(?:interface|class|enum|type|const|function)\s+([A-Z]\w*)"),
+}
+
+_CSHARP_METHOD_DECL_RE = re.compile(
+    r"^\s*(?:(?:public|private|protected|internal|static|sealed|abstract|virtual"
+    r"|override|async|extern|partial)\s+)*"
+    r"(?!new\b|return\b|if\b|for\b|foreach\b|while\b|switch\b|catch\b|using\b"
+    r"|lock\b|var\b|await\b|else\b|do\b)"
+    r"[A-Za-z_][\w<>\[\],.?]*\s+([A-Z]\w*)\s*\(",
+    re.MULTILINE,
+)
+_CSHARP_RECORD_PARAMS_RE = re.compile(r"\brecord\s+[A-Z]\w*\s*\(([^)]*)\)")
+_CSHARP_RECORD_PROP_RE = re.compile(r"\b[\w<>\[\],.?]+\s+([A-Z]\w*)")
+
+_JS_BUILTIN_TYPES = frozenset(
+    {
+        "Array",
+        "ArrayBuffer",
+        "BigInt",
+        "Boolean",
+        "DataView",
+        "Date",
+        "Error",
+        "EvalError",
+        "Float32Array",
+        "Float64Array",
+        "Function",
+        "Generator",
+        "Int16Array",
+        "Int32Array",
+        "Int8Array",
+        "Intl",
+        "JSON",
+        "Map",
+        "Math",
+        "Number",
+        "Object",
+        "Promise",
+        "Proxy",
+        "RangeError",
+        "ReferenceError",
+        "Reflect",
+        "RegExp",
+        "Set",
+        "String",
+        "Symbol",
+        "SyntaxError",
+        "TypeError",
+        "Uint16Array",
+        "Uint32Array",
+        "Uint8Array",
+        "URIError",
+        "WeakMap",
+        "WeakSet",
+        "AbortController",
+        "Blob",
+        "Document",
+        "Element",
+        "Event",
+        "EventTarget",
+        "FormData",
+        "Headers",
+        "HTMLElement",
+        "Navigator",
+        "Node",
+        "Request",
+        "Response",
+        "Storage",
+        "URL",
+        "URLSearchParams",
+        "Window",
+    }
+)
+
+_CSHARP_FRAMEWORK_TYPES_EXTRA = frozenset(
+    {
+        "AggregateException",
+        "AppDomain",
+        "ArgumentException",
+        "ArgumentNullException",
+        "ArgumentOutOfRangeException",
+        "BitConverter",
+        "CancellationToken",
+        "CancellationTokenSource",
+        "Convert",
+        "DateTimeOffset",
+        "Delegate",
+        "Enum",
+        "Environment",
+        "EventArgs",
+        "FormatException",
+        "GC",
+        "Guid",
+        "HashSet",
+        "IComparable",
+        "IDisposable",
+        "InvalidCastException",
+        "InvalidOperationException",
+        "IOException",
+        "KeyValuePair",
+        "Lazy",
+        "LinkedList",
+        "NotImplementedException",
+        "NotSupportedException",
+        "NullReferenceException",
+        "OperationCanceledException",
+        "OverflowException",
+        "Queue",
+        "Random",
+        "Stack",
+        "StringBuilder",
+        "SystemException",
+        "Thread",
+        "TimeoutException",
+        "Tuple",
+        "UnauthorizedAccessException",
+        "Uri",
+        "Version",
+        "WeakReference",
+    }
+)
+
+
+def _python_stdlib_module_aliases(code: str) -> set[str]:
+    """Bound names of plain ``import x`` lines whose top-level module is stdlib.
+
+    ``import xml.etree.ElementTree as ET`` binds ``ET``; ``import os, sys``
+    binds ``os`` and ``sys``. Non-stdlib modules stay out so their attribute
+    chains remain checkable. ``code`` must already be stripped of strings
+    and comments.
+    """
+    aliases: set[str] = set()
+    for imports in _PY_PLAIN_IMPORT_RE.findall(code):
+        for part in imports.split(","):
+            match = _PY_IMPORT_PART_RE.match(part.strip())
+            if match and match.group(1).split(".")[0] in sys.stdlib_module_names:
+                aliases.add(match.group(2) or match.group(1).split(".")[0])
+    return aliases
+
+
+def _blank_stdlib_attribute_chains(code: str) -> str:
+    """Blank ``alias.attr`` chains for stdlib-imported aliases.
+
+    ``argparse.ArgumentParser`` resolves through the standard library, not
+    the repo, so the attribute name must not reach the identifier scan.
+    Blanking is column-preserving and can only hide a name, never invent one.
+    """
+    aliases = _python_stdlib_module_aliases(code)
+    if not aliases:
+        return code
+    joined = "|".join(sorted((re.escape(a) for a in aliases), key=len, reverse=True))
+    pattern = re.compile(rf"\b(?:{joined})(?:\.\w+)+")
+    return pattern.sub(lambda m: " " * len(m.group(0)), code)
+
+
+def _blank_stdlib_plain_import_lines(code: str) -> str:
+    """Blank the stdlib parts of plain ``import`` lines, preserving columns.
+
+    ``import xml.etree.ElementTree as ET`` contributes no repo symbol, so
+    neither the module path nor the alias may reach the identifier scan.
+    Non-stdlib parts stay visible so their names remain checkable.
+    """
+
+    def repl(match: re.Match[str]) -> str:
+        prefix = match.group(0)[: match.start(1) - match.start(0)]
+        parts: list[str] = []
+        for part in match.group(1).split(","):
+            part_match = _PY_IMPORT_PART_RE.match(part.strip())
+            if part_match and part_match.group(1).split(".")[0] in sys.stdlib_module_names:
+                parts.append(" " * len(part))
+            else:
+                parts.append(part)
+        return prefix + ",".join(parts)
+
+    return _PY_PLAIN_IMPORT_RE.sub(repl, code)
+
+
+def _example_declaration_names(code: str, lang: str) -> set[str]:
+    """Type and member names an example declares itself.
+
+    References to a name the example declares (a class, a record and its
+    positional properties, a method signature) are example-local, not repo
+    symbol references.
+    """
+    if lang == "python":
+        return _python_example_definitions(code)
+    pattern = _DECLARATION_RES.get(lang)
+    if pattern is None:
+        return set()
+    # C#, TypeScript, and JavaScript share the // and /* */ comment syntax.
+    stripped = _CSHARP_COMMENT_TOKENS.sub(lambda m: re.sub(r"[^\r\n]", " ", m[0]), code)
+    names = set(pattern.findall(stripped))
+    for body in re.findall(r"\benum\s+[A-Z]\w*\s*\{([^{}]*)\}", stripped):
+        names.update(re.findall(r"(?:^|,)\s*([A-Za-z]\w*)", body))
+    if lang == "csharp":
+        names.update(_CSHARP_METHOD_DECL_RE.findall(stripped))
+        for params in _CSHARP_RECORD_PARAMS_RE.findall(stripped):
+            names.update(_CSHARP_RECORD_PROP_RE.findall(params))
+    return names
+
+
 _CSHARP_COMMENT_TOKENS = re.compile(
     r"""@"(?:""|[^"])*"|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|//[^\r\n]*|/\*.*?\*/""",
     re.DOTALL,
@@ -1358,33 +1568,69 @@ def _strip_csharp_comments(code: str) -> str:
     )
 
 
-def _extract_identifiers(code: str, lang: str = "") -> list[str]:
+def _extract_identifiers(
+    code: str, lang: str = "", doc_definitions: frozenset[str] | set[str] = frozenset()
+) -> list[str]:
     """Extract potential identifiers from a code snippet.
 
     For Python (``lang == "python"``) only code tokens count: strings,
-    docstrings and comments are blanked first, and names imported from
-    the standard library and declarations within the example are dropped.
+    docstrings and comments are blanked first, names imported from the
+    standard library and declarations within the example are dropped, and
+    attribute chains on stdlib-imported modules are blanked.
 
     f-string expressions stay visible only on Python 3.12+, where the
     tokenizer splits f-strings. On 3.10 and 3.11 the whole f-string is one
     STRING token and is blanked, which can only miss a symbol, never add a
-    false finding. C# comments are blanked without changing string handling.
-    Other languages keep the language-agnostic scan.
+    false finding. C#, TypeScript, and JavaScript comments are blanked,
+    example-local declarations are dropped. Member calls stay visible for
+    parameter checks against known methods. TypeScript object-literal keys
+    are data, not named parameters. Other languages keep the
+    language-agnostic scan.
     """
-    ignored_names: set[str] = set()
+    ignored_names: set[str] = set(doc_definitions)
     if lang == "python":
-        ignored_names = _python_example_definitions(code)
+        ignored_names.update(_python_example_definitions(code))
         code = _strip_python_non_code(code)
         ignored_names.update(_python_stdlib_imported_names(code))
-    elif lang == "csharp":
+        code = _blank_stdlib_attribute_chains(code)
+        code = _blank_stdlib_plain_import_lines(code)
+    elif lang in _DECLARATION_RES:
         code = _strip_csharp_comments(code)
+        ignored_names.update(_example_declaration_names(code, lang))
     # Match CamelCase and snake_case identifiers (3+ chars)
     identifiers = re.findall(r"\b([A-Z][a-zA-Z0-9]+)\b", code)
     # Also match method calls
     identifiers.extend(re.findall(r"\.([A-Za-z]\w+)\s*\(", code))
-    # Named parameters (C# style)
-    identifiers.extend(re.findall(r"(\w+)\s*:", code))
+
+    if lang not in ("typescript", "javascript"):
+        # Named parameters (C# style)
+        identifiers.extend(re.findall(r"(\w+)\s*:", code))
     return sorted(set(identifiers) - ignored_names)
+
+
+def _doc_example_definitions(lines: list[str]) -> dict[str, set[str]]:
+    """Type names declared by any fenced example in the document.
+
+    Only declarations in fences of the same language resolve each other.
+    """
+    definitions: dict[str, set[str]] = {}
+    i = 0
+    while i < len(lines):
+        fence_match = re.match(r"^```(\S*)", lines[i])
+        if not fence_match:
+            i += 1
+            continue
+        lang = _detect_language(fence_match.group(1))
+        i += 1
+        block: list[str] = []
+        while i < len(lines) and not lines[i].startswith("```"):
+            block.append(lines[i])
+            i += 1
+        definitions.setdefault(lang, set()).update(
+            _example_declaration_names("\n".join(block), lang)
+        )
+        i += 1
+    return definitions
 
 
 def _extract_quantitative_claims(line: str) -> list[str]:
@@ -1426,6 +1672,7 @@ def run_claim_extraction(
         lines = [ln[:-1] if ln.endswith("\r") else ln for ln in content.split("\n")]
         mapped_sources = doc_info.get("mapped_source_files", [])
         default_source = mapped_sources[0] if mapped_sources else ""
+        doc_definitions = _doc_example_definitions(lines)
 
         i = 0
         while i < len(lines):
@@ -1447,7 +1694,9 @@ def run_claim_extraction(
                     i += 1
                     continue
 
-                identifiers = _extract_identifiers(code_content, lang)
+                identifiers = _extract_identifiers(
+                    code_content, lang, doc_definitions.get(lang, set())
+                )
                 # Map identifiers to source files
                 mapped = default_source
                 for ident in identifiers:
@@ -1602,7 +1851,16 @@ def run_compilability_check(
 
         content = claim_dict["content"]
         lang = claim_dict.get("language", "")
-        checked_content = _strip_csharp_comments(content) if lang == "csharp" else content
+        checked_content = _strip_csharp_comments(content) if lang in _DECLARATION_RES else content
+        member_only: set[str] = set()
+        if lang in _DECLARATION_RES:
+            # Keep bare uses and constructors, even if a member shares the name.
+            bare_content = re.sub(r"\.\s*[A-Za-z]\w*", lambda m: " " * len(m[0]), checked_content)
+            bare_names = set(re.findall(r"\b([A-Z][a-zA-Z0-9]+)\b", bare_content))
+            constructed = set(re.findall(r"\bnew\s+(?:\w+\s*\.\s*)*([A-Z]\w*)", checked_content))
+            member_only = (
+                set(re.findall(r"\.\s*([A-Za-z]\w*)", checked_content)) - bare_names - constructed
+            )
 
         # Skip languages without source-symbol extractors (e.g. text/ASCII
         # diagrams, PowerShell, bash).  Only languages present in
@@ -1657,6 +1915,8 @@ def run_compilability_check(
                                 )
                             )
             else:
+                if sym_name in member_only:
+                    continue
                 # Symbol not found in codebase
                 # Only flag CamelCase identifiers (likely type/method names)
                 if not re.match(r"^[A-Z][a-zA-Z0-9]+$", sym_name):
@@ -1696,9 +1956,17 @@ def run_compilability_check(
                 if sym_name in framework_types:
                     continue
 
-                # Python builtins (ImportError, ValueError, ...) are never
-                # repo symbols.
-                if lang == "python" and hasattr(builtins, sym_name):
+                # Python builtins (ImportError, ValueError, ...) and typing
+                # names (Any, Optional, ...) are never repo symbols.
+                if lang == "python" and (hasattr(builtins, sym_name) or sym_name in _TYPING_NAMES):
+                    continue
+
+                # JavaScript and TypeScript built-ins are never repo symbols.
+                if lang in ("javascript", "typescript") and sym_name in _JS_BUILTIN_TYPES:
+                    continue
+
+                # Common base class library types beyond the pinned set.
+                if lang == "csharp" and sym_name in _CSHARP_FRAMEWORK_TYPES_EXTRA:
                     continue
 
                 finding_counter += 1
