@@ -127,7 +127,60 @@ The panel reached consensus on the amendment.
 The ruling itself was the maintainer's decision, not a panel vote.
 These votes are not GitHub approvals or merge permission.
 
-## Round 5 Summary (PowerShell parser amendment, 2026-11-18)
+## Round 5 Summary (TypeScript admission, 2026-11-18)
+
+### Trigger
+
+Issue #7435 adds the TypeScript parser under item 7.
+The scanner's own coupling moves from 8.0 to 7.0, which the C# record does not admit.
+The maintainer approved the package add and its own admission on 2026-11-18.
+The amendment changes executable enforcement in the scanner and review adapter.
+
+### Changes Made
+
+- Status records the amendment.
+- Decision item 8 adds the fixed TypeScript record and its exact transition.
+- Item 8 states that each record admits only its own transition.
+
+### Agent Positions
+
+| Agent | Position | Evidence |
+|---|---|---|
+| Architect | Revise, then accept. | Item 8 matched the code. Its seven edits to stale C#-only lines were applied. |
+| Security | Accept. | No admission bypass found. Parse failures exit 1. The package is pinned and hashed in `uv.lock`. |
+
+Security raised two low findings, recorded and not acted on here.
+Admission keys on path, scores, and imports, not on content.
+A revert and reintroduction re-admits the transition, as Reversibility already states.
+`.mts` and `.cts` files stay unmapped, as before this change.
+
+| Agent | Position | Evidence |
+|---|---|---|
+| Critic | Revise, then accept. | Five of six edits applied verbatim. The title rename was declined; Context names item 8 instead. |
+| Independent-thinker | Revise, then accept. | Its item 8 text on the admission table and record chaining was applied verbatim. |
+
+The critic noted the quote did not appear on the issue.
+It now appears verbatim in issue #7435 comment 6994828821.
+The independent-thinker noted the scanner's own coupling now sits at the 7.0 floor.
+The next parser import drops it to 6.0, below "reasonable". The amendment records this as a known cost.
+
+| Agent | Position | Evidence |
+|---|---|---|
+| Analyst | Revise, then accept. | Every factual claim verified against code and tests. One count corrected from two files to three. |
+| High-level-advisor | Revise, then accept. | The revisit trigger moved to "before a third record lands", so it can fire. |
+
+The high-level-advisor also proposed that siblings fitting item 8 need no further amendment.
+That edit was declined: it pre-admits later transitions, which item 7 forbids.
+Each sibling keeps its own maintainer admission decision.
+
+All six panel agents accept the amendment as revised.
+
+A PR review then noted that item 8 did not order exit codes before records.
+Item 8 now states that exits 10 and 11 report `FAIL` before any record is read.
+This matches `adapt_local_axis_verdict` and changes no enforcement.
+These votes are not GitHub approvals or merge permission.
+
+## Round 6 Summary (PowerShell parser amendment, 2026-11-18)
 
 ### Trigger
 

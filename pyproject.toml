@@ -15,6 +15,7 @@ dependencies = [
     "tiktoken>=0.13.0",
     "tree-sitter==0.26.1",
     "tree-sitter-c-sharp==0.23.5",
+    "tree-sitter-typescript==0.23.2",
 ]
 
 [project.optional-dependencies]
@@ -795,7 +796,7 @@ source_modules = [
     "scripts.ai_review_common",
     "scripts.failure_classifier",
 ]
-forbidden_modules = ["anthropic", "jsonschema", "markdown_it", "frontmatter", "yaml", "tiktoken", "tree_sitter", "tree_sitter_c_sharp"]
+forbidden_modules = ["anthropic", "jsonschema", "markdown_it", "frontmatter", "yaml", "tiktoken", "tree_sitter", "tree_sitter_c_sharp", "tree_sitter_typescript"]
 ignore_imports = [
     # Guarded by `except ImportError`, so the module still loads without
     # PyYAML. import-linter cannot see the guard.

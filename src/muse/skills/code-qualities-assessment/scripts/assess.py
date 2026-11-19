@@ -54,11 +54,6 @@ _LANGUAGE_BY_SUFFIX = {
     ".psd1": "powershell",
 }
 
-# Languages whose coupling counter parses the original source. Filtering comment
-# lines first would drop C# directives split by comments and PowerShell's
-# `#Requires` statements, which are comments to a line filter.
-_PARSED_SOURCE_LANGUAGES = frozenset({"csharp", "powershell"})
-
 # Every score here is size-derived, so adding one small function to a healthy
 # module moves a quality by a few tenths with nothing wrong. Measured: adding one
 # 2-line function to a 5-function module drops cohesion 8.7 -> 8.3. A zero
@@ -67,7 +62,8 @@ _PARSED_SOURCE_LANGUAGES = frozenset({"csharp", "powershell"})
 # same harness), so half a point separates noise from signal.
 _DEFAULT_REGRESSION_TOLERANCE = 0.5
 
-# This one repository-specific admission is inert without the matching config.
+# These repository-specific admissions (ADR-122) are inert without the
+# matching config. Each admits exactly one scanner coupling transition.
 _CSHARP_PARSER_DEPENDENCY_ADMISSION = {
     "issue": 7406,
     "file": "src/claude/skills/code-qualities-assessment/scripts/assess.py",
@@ -78,6 +74,36 @@ _CSHARP_PARSER_DEPENDENCY_ADMISSION = {
     "authorizedOn": "2026-11-16",
     "authorization": "Maintainer instruction: waiver, full send.",
 }
+
+_TYPESCRIPT_PARSER_DEPENDENCY_ADMISSION = {
+    "issue": 7435,
+    "file": "src/claude/skills/code-qualities-assessment/scripts/assess.py",
+    "imports": ["tree_sitter", "tree_sitter_c_sharp", "tree_sitter_typescript"],
+    "baseScore": 8.0,
+    "headScore": 7.0,
+    "authorizedBy": "rjmurillo",
+    "authorizedOn": "2026-11-18",
+    "authorization": (
+        "Maintainer instruction: LGTM. Ship. agent- environment is optional. Package add approved"
+    ),
+}
+
+# Config key -> (fixed record, FileComparison field that carries it to JSON).
+_PARSER_DEPENDENCY_ADMISSIONS = {
+    "csharpParserDependencyAdmission": (
+        _CSHARP_PARSER_DEPENDENCY_ADMISSION,
+        "csharp_parser_dependency_admission",
+    ),
+    "typescriptParserDependencyAdmission": (
+        _TYPESCRIPT_PARSER_DEPENDENCY_ADMISSION,
+        "typescript_parser_dependency_admission",
+    ),
+}
+
+# Coupling for these languages is counted from a syntax tree over raw source.
+# Filtering comment lines first would drop PowerShell's `#Requires` statements,
+# which are comments to a line filter.
+_PARSED_COUPLING_LANGUAGES = frozenset({"csharp", "typescript", "powershell"})
 
 # Single-line comment prefixes, used to exclude comment lines from the
 # lines-of-code count. Block comments are intentionally not stripped: this is an
@@ -177,7 +203,6 @@ def classify_file_category(file_path: Path, content: str | None = None) -> str:
 _IMPORT_PATTERNS = {
     "python": re.compile(r"^\s*(?:import\s+\S|from\s+\S+\s+import\s+)"),
     "javascript": re.compile(r"^\s*import\s+|\brequire\s*\("),
-    "typescript": re.compile(r"^\s*import\s+|\brequire\s*\("),
     "java": re.compile(r"^\s*import\s+[A-Za-z_]"),
     "go": re.compile(
         r'^\s*import\s+(?:(?:[A-Za-z_]\w*|\.)\s+)?"[^"]+"\s*(?://.*)?$'
@@ -943,6 +968,13 @@ class FileComparison:
     change_status: str = "M"
     absolute_gate_reason: str | None = None
     csharp_parser_dependency_admission: dict[str, Any] | None = None
+    typescript_parser_dependency_admission: dict[str, Any] | None = None
+
+    def parser_dependency_admission(self) -> dict[str, Any] | None:
+        """Return the admission record attached to this comparison, if any."""
+        return (
+            self.csharp_parser_dependency_admission or self.typescript_parser_dependency_admission
+        )
 
 
 def _python_external_imports(path: Path) -> set[str]:
@@ -971,35 +1003,51 @@ def _admission_mismatch_reason(comparison: FileComparison, admission: dict[str, 
     coupling = next((d for d in comparison.deltas if d.quality == "coupling"), None)
     if coupling is None:
         return "no coupling delta recorded"
+    base, head = admission["baseScore"], admission["headScore"]
     observed = (coupling.base, coupling.head, coupling.delta, coupling.status)
-    if observed != (10.0, 8.0, -2.0, "compared"):
-        return f"coupling transition {observed} differs from 10.0 -> 8.0"
+    if observed != (base, head, round(head - base, 4), "compared"):
+        return f"coupling transition {observed} differs from {base} -> {head}"
     imports = _python_external_imports(Path(comparison.file_path))
     if imports != set(admission["imports"]):
         return f"external imports {sorted(imports)} differ from the admitted set"
     return None
 
 
-def _apply_csharp_parser_dependency_admission(
+def _configured_parser_admissions(config: dict[str, Any]) -> list[tuple[dict[str, Any], str]]:
+    """Return each configured admission, refusing any that differs from its fixed record."""
+    configured = []
+    for key, (record, field) in _PARSER_DEPENDENCY_ADMISSIONS.items():
+        if key not in config:
+            continue
+        if config[key] != record:
+            raise ValueError(f"Invalid {key}: scope or authorization differs")
+        configured.append((record, field))
+    return configured
+
+
+def _apply_parser_dependency_admissions(
     comparisons: list[FileComparison], config: dict[str, Any]
 ) -> None:
-    """Admit only the authorized #7406 transition, without changing its evidence."""
-    if "csharpParserDependencyAdmission" not in config:
-        return
-    admission = config["csharpParserDependencyAdmission"]
-    if admission != _CSHARP_PARSER_DEPENDENCY_ADMISSION:
-        raise ValueError("Invalid csharpParserDependencyAdmission: scope or authorization differs")
+    """Admit only an authorized ADR-122 transition, without changing its evidence."""
+    admissions = _configured_parser_admissions(config)
     for comparison in comparisons:
-        if (
-            Path(comparison.file_path).as_posix() != admission["file"]
-            or "coupling" not in comparison.regressions
-        ):
+        candidates = [
+            (record, field)
+            for record, field in admissions
+            if Path(comparison.file_path).as_posix() == record["file"]
+        ]
+        if not candidates or "coupling" not in comparison.regressions:
             continue
-        reason = _admission_mismatch_reason(comparison, admission)
-        if reason is not None:
-            print(f"NOT ADMITTED: {comparison.file_path}: {reason}", file=sys.stderr)
-            continue
-        comparison.csharp_parser_dependency_admission = dict(admission)
+        reasons: list[str] = []
+        for record, field in candidates:
+            reason = _admission_mismatch_reason(comparison, record)
+            if reason is None:
+                setattr(comparison, field, dict(record))
+                break
+            reasons.append(f"issue #{record['issue']}: {reason}")
+        else:
+            for reason in reasons:
+                print(f"NOT ADMITTED: {comparison.file_path}: {reason}", file=sys.stderr)
 
 
 def _delta_for(quality: str, base: QualityScore, head: QualityScore) -> QualityDelta:
@@ -1190,7 +1238,7 @@ def _assess_base_bytes(
         return assess_content(path, raw.decode("utf-8"), resolver)
     except UnicodeDecodeError as exc:
         return _unreadable_assessment(path, f"decode failed at base: {exc}")
-    except DependencyParserError as exc:
+    except ParserError as exc:
         where = f"{path} at {revision}" if revision is not None else str(path)
         raise type(exc)(f"{where}: {exc}") from exc
 
@@ -1217,8 +1265,8 @@ def check_regression(
                 f"{delta.base} -> {delta.head} (delta {delta.delta})",
                 file=sys.stderr,
             )
-            if quality == "coupling" and comparison.csharp_parser_dependency_admission:
-                approval = comparison.csharp_parser_dependency_admission
+            approval = comparison.parser_dependency_admission()
+            if quality == "coupling" and approval:
                 print(
                     f"ADMITTED: issue #{approval['issue']}, authorized by "
                     f"{approval['authorizedBy']} on {approval['authorizedOn']}: "
@@ -1373,15 +1421,18 @@ def _is_python_standard_import(line: str) -> bool:
     )
 
 
-class DependencyParserError(RuntimeError):
-    """A parsed language's dependencies cannot be measured reliably (exit 1)."""
+class ParserError(RuntimeError):
+    """Dependencies of a parsed language cannot be measured reliably.
+
+    Every subclass is fatal (exit 1): no score is guessed for such a file.
+    """
 
 
-class CSharpParserError(DependencyParserError):
+class CSharpParserError(ParserError):
     """C# dependencies cannot be measured reliably."""
 
 
-class PowerShellParserError(DependencyParserError):
+class PowerShellParserError(ParserError):
     """PowerShell dependencies cannot be measured reliably."""
 
 
@@ -1470,38 +1521,123 @@ $parseErrors = @($errors | ForEach-Object {
 """.replace("__SENTINEL__", _PWSH_USING_SENTINEL)
 
 
-def _count_csharp_imports(source: str) -> int:
-    """Count directive syntax nodes, not resource declarations or literal text."""
+class TypeScriptParserError(ParserError):
+    """TypeScript dependencies cannot be measured reliably."""
+
+
+@dataclass(frozen=True)
+class _DependencyGrammar:
+    """One pinned Tree-sitter grammar and the messages its failures print."""
+
+    language_name: str
+    packages: str
+    reference: str
+    unsupported_syntax: str
+    error: type[ParserError]
+    load: Callable[[], object]
+    query: str
+
+
+def _csharp_grammar() -> object:
+    import tree_sitter_c_sharp
+
+    return tree_sitter_c_sharp.language()
+
+
+def _typescript_grammar(function_name: str) -> object:
+    import tree_sitter_typescript
+
+    return getattr(tree_sitter_typescript, function_name)()
+
+
+_CSHARP_GRAMMAR = _DependencyGrammar(
+    language_name="C#",
+    packages="tree-sitter==0.26.1 and tree-sitter-c-sharp==0.23.5",
+    reference="references/csharp-parser.md",
+    unsupported_syntax=(
+        "Cannot count C# dependencies: the pinned C# grammar "
+        "(tree-sitter-c-sharp==0.23.5) could not parse this file. "
+        "The file has a syntax error, or it is valid C# that the grammar "
+        "does not support (for example a signature split across #if/#else, "
+        "or C# 14 extension blocks)"
+    ),
+    error=CSharpParserError,
+    load=_csharp_grammar,
+    query="(using_directive) @dependency",
+)
+
+# Import and re-export statements with a source, require("...") calls, and
+# dynamic import() calls. `import x = require("y")` is one import_statement.
+# `export { a }` with no source names no module, so it is not a dependency.
+_TYPESCRIPT_DEPENDENCY_QUERY = """
+(import_statement) @dependency
+(export_statement source: (_)) @dependency
+(call_expression
+  function: (identifier) @_callee
+  arguments: (arguments)
+  (#eq? @_callee "require")) @dependency
+(call_expression function: (import)) @dependency
+"""
+
+_TYPESCRIPT_UNSUPPORTED_SYNTAX = (
+    "Cannot count TypeScript dependencies: the pinned TypeScript grammar "
+    "(tree-sitter-typescript==0.23.2) could not parse this file. "
+    "The file has a syntax error, or it is valid TypeScript that the grammar "
+    "does not support (for example `export type * from`, or `in`/`out` "
+    "variance annotations)"
+)
+
+_TYPESCRIPT_PACKAGES = "tree-sitter==0.26.1 and tree-sitter-typescript==0.23.2"
+
+# .tsx needs its own grammar: `<T>value` is a type cast in .ts and JSX in .tsx.
+_TYPESCRIPT_GRAMMARS = {
+    suffix: _DependencyGrammar(
+        language_name="TypeScript",
+        packages=_TYPESCRIPT_PACKAGES,
+        reference="references/typescript-parser.md",
+        unsupported_syntax=_TYPESCRIPT_UNSUPPORTED_SYNTAX,
+        error=TypeScriptParserError,
+        load=partial(_typescript_grammar, function_name),
+        query=_TYPESCRIPT_DEPENDENCY_QUERY,
+    )
+    for suffix, function_name in ((".ts", "language_typescript"), (".tsx", "language_tsx"))
+}
+
+
+def _count_dependency_nodes(source: str, grammar: _DependencyGrammar) -> int:
+    """Count dependency syntax nodes, never comments, strings, or lookalike text."""
     try:
-        import tree_sitter_c_sharp
         from tree_sitter import Language, Parser, Query, QueryCursor
 
-        language = Language(tree_sitter_c_sharp.language())
+        language = Language(grammar.load())
         tree = Parser(language).parse(source.encode("utf-8"))
         if tree.root_node.has_error:
-            raise CSharpParserError(
-                "Cannot count C# dependencies: the pinned C# grammar "
-                "(tree-sitter-c-sharp==0.23.5) could not parse this file. "
-                "The file has a syntax error, or it is valid C# that the grammar "
-                "does not support (for example a signature split across #if/#else, "
-                "or C# 14 extension blocks)"
-            )
-        query = Query(language, "(using_directive) @dependency")
+            raise grammar.error(grammar.unsupported_syntax)
+        query = Query(language, grammar.query)
         return len(QueryCursor(query).captures(tree.root_node).get("dependency", []))
-    except CSharpParserError:
+    except ParserError:
         raise
     except ImportError as exc:
-        raise CSharpParserError(
-            f"C# parser packages are missing: {exc}. Install "
-            "tree-sitter==0.26.1 and tree-sitter-c-sharp==0.23.5 into a virtual "
-            "environment that runs the scanner, not the system Python "
-            "(see references/csharp-parser.md)"
+        raise grammar.error(
+            f"{grammar.language_name} parser packages are missing: {exc}. Install "
+            f"{grammar.packages} into a virtual environment that runs the scanner, "
+            f"not the system Python (see {grammar.reference})"
         ) from exc
     except Exception as exc:
-        raise CSharpParserError(
-            f"C# parser failed to start or run: {type(exc).__name__}: {exc}. "
-            "Check the pinned versions (tree-sitter==0.26.1, tree-sitter-c-sharp==0.23.5)"
+        raise grammar.error(
+            f"{grammar.language_name} parser failed to start or run: "
+            f"{type(exc).__name__}: {exc}. Check the pinned versions ({grammar.packages})"
         ) from exc
+
+
+def _count_csharp_imports(source: str) -> int:
+    """Count directive syntax nodes, not resource declarations or literal text."""
+    return _count_dependency_nodes(source, _CSHARP_GRAMMAR)
+
+
+def _count_typescript_imports(source: str, suffix: str) -> int:
+    """Count TypeScript dependency nodes with the grammar for *suffix*."""
+    return _count_dependency_nodes(source, _TYPESCRIPT_GRAMMARS[suffix])
 
 
 def _find_pwsh() -> str:
@@ -1628,6 +1764,7 @@ def _score_coupling(
     language: str | None,
     code_lines: list[str],
     go_module_resolver: Callable[[], str | None] | None = None,
+    suffix: str = "",
 ) -> QualityScore:
     """Approximate coupling from the number of import/dependency statements.
 
@@ -1637,16 +1774,22 @@ def _score_coupling(
     0.0 so the threshold gate does not fail a file scored only by that
     untuned heuristic (matches the file-header contract).
 
-    C# and PowerShell receive original source lines for syntax-tree parsing.
-    Other languages receive filtered code lines. Go and Python standard-library imports are
+    C#, TypeScript, and PowerShell receive original source lines for
+    syntax-tree parsing; *suffix* picks the TypeScript or TSX grammar. Other
+    languages receive filtered code lines. Go and Python standard-library imports are
     reported but not scored: they are stable utilities, not application or
     third-party coupling (issues #7047 and #7354).
     """
     pattern = _IMPORT_PATTERNS.get(language) if language else None
     standard_count = 0
-    if language in _PARSED_SOURCE_LANGUAGES:
-        counter = _count_csharp_imports if language == "csharp" else _count_powershell_imports
-        import_count = counter("\n".join(code_lines))
+    if language in _PARSED_COUPLING_LANGUAGES:
+        source = "\n".join(code_lines)
+        if language == "typescript":
+            import_count = _count_typescript_imports(source, suffix)
+        elif language == "csharp":
+            import_count = _count_csharp_imports(source)
+        else:
+            import_count = _count_powershell_imports(source)
         confidence = 0.6
         tuned = True
     elif pattern is not None:
@@ -1863,8 +2006,9 @@ def assess_content(
         ),
         coupling=_score_coupling(
             language,
-            lines if language in _PARSED_SOURCE_LANGUAGES else code_lines,
+            lines if language in _PARSED_COUPLING_LANGUAGES else code_lines,
             resolve_go_module,
+            file_path.suffix.lower(),
         ),
         encapsulation=_score_encapsulation(language, code_lines),
         testability=_score_testability(language, code_lines),
@@ -2161,14 +2305,14 @@ def _assess_files(
     the survivor as evidence the whole change was assessed. This is the same
     treatment an unreadable file already gets at the decode site.
 
-    A C# or PowerShell parser failure is the exception: it is deliberately
-    fatal (exit 1), so no dependency count is guessed.
+    A C#, TypeScript, or PowerShell parser failure is the exception: it is
+    deliberately fatal (exit 1), so no parsed-language score is guessed.
     """
     assessments: list[FileAssessment] = []
     for file_path in files:
         try:
             assessments.append(assess_file(file_path, context, use_serena))
-        except DependencyParserError as exc:
+        except ParserError as exc:
             raise type(exc)(f"{file_path}: {exc}") from exc
         except Exception as e:
             print(f"Error assessing {file_path}: {e}", file=sys.stderr)
@@ -2298,7 +2442,7 @@ def main(argv: list[str] | None = None) -> int:
             args.regression_tolerance,
             changed_files,
         )
-        _apply_csharp_parser_dependency_admission(comparisons, config)
+        _apply_parser_dependency_admissions(comparisons, config)
     except (RuntimeError, ValueError) as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1
