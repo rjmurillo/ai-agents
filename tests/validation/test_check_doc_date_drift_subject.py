@@ -52,6 +52,15 @@ class TestPr7428Repro:
         commit_head(root, {DOCS: f"See {URL} (2023).\n"})
         assert drift(root) == []
 
+    def test_one_stale_line_disagreeing_with_two_added_lines_is_one_finding(
+        self, tmp_path: Path
+    ) -> None:
+        root = make_repo(tmp_path, {DOCS: _cite("2025"), REF: _cite("2025")})
+        commit_head(root, {DOCS: _cite("2026") + _cite("2026")})
+        (finding,) = drift(root)
+        assert where(finding) == (REF, 1)
+        assert (finding.other_path, finding.other_line) == (DOCS, 1)
+
     def test_the_same_url_in_another_skills_tree_is_not_searched(self, tmp_path: Path) -> None:
         other = "src/claude/skills/other-skill/references/notes.md"
         root = make_repo(tmp_path, {DOCS: _cite("2025"), other: _cite("2025")})
@@ -73,6 +82,11 @@ class TestPr7428Repro:
         fenced = f"```\n{_cite('2025')}```\n"
         root = make_repo(tmp_path, {REF: fenced})
         commit_head(root, {DOCS: _cite("2026")})
+        assert drift(root) == []
+
+    def test_an_added_year_pair_inside_a_fence_makes_no_claim(self, tmp_path: Path) -> None:
+        root = _pr7428_repo(tmp_path)
+        commit_head(root, {DOCS: f"```\n{_cite('2026')}```\n"})
         assert drift(root) == []
 
     def test_the_ignore_marker_on_the_stale_line_silences_it(self, tmp_path: Path) -> None:

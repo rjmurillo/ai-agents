@@ -13,8 +13,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from scripts.validation import check_doc_date_drift as checker
 from scripts.validation.evidence import CheckOutcome, coerce_outcome, pre_pr_policy
-from tests.validation.doc_date_drift_helpers import checker
 
 GATE = "Doc Date Drift (advisory, added lines)"
 

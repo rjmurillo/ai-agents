@@ -8,9 +8,9 @@ from unittest import mock
 
 import pytest
 
+from scripts.validation import check_doc_date_drift as checker
 from scripts.validation.evidence import EvidenceState, pre_pr_policy
 from tests.validation.doc_date_drift_helpers import (
-    checker,
     cite,
     commit_head,
     make_repo,
@@ -123,6 +123,8 @@ class TestTreeMode:
         out = capsys.readouterr().out
         assert code == 1
         assert "1 finding(s)" in out
+        assert cite("docs/skills/quota.md", 1) in out
+        assert "Suggested value: 2025" in out
 
 
 class TestAdvisoryOutcome:
@@ -165,7 +167,9 @@ class TestAdvisoryOutcome:
 class TestCommitDate:
     def test_the_head_commit_date_is_read_with_git(self, tmp_path: Path) -> None:
         root = make_repo(tmp_path)
-        assert checker.head_commit_date(root).isoformat() == "2026-10-24"
+        commit_date = checker.head_commit_date(root)
+        assert commit_date is not None
+        assert commit_date.isoformat() == "2026-10-24"
 
     def test_a_repository_with_no_commits_returns_none(self, tmp_path: Path) -> None:
         root = tmp_path / "empty"
