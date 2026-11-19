@@ -14,6 +14,14 @@
   "findings": [
     {
       "citing_file": ".agents/governance/FAIL-OPEN-INVENTORY.md",
+      "citing_line": 151,
+      "citation": ".github/scripts/validate_investigation_claims.py:372",
+      "reason": "none of the cited anchors ('check_branch_context', 'return 0', 'SKIP', 'git.merge_in_progress') appear at lines 372-372; 'return 0' first appears at line 349",
+      "gate": "forward",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".agents/governance/FAIL-OPEN-INVENTORY.md",
       "citing_line": 186,
       "citation": ".github/workflows/ai-spec-review.yml:168",
       "reason": "none of the cited anchors ('validate-compliance', 'continue-on-error: true', 'review-spec', 'STATE] spec-report-comment reason=') appear at lines 168-168; 'continue-on-error: true' first appears at line 103",
@@ -93,7 +101,7 @@
       "defect_class": "stale-citation"
     }
   ],
-  "output": "[citation-freshness] examined 2 citation(s) across 36 changed file(s) vs a6849524aba777da8c126ca0948da4b81549c600\n[citation-reverse-pass] examined 18 inbound citation(s) to 50 changed file(s) vs a6849524aba777da8c126ca0948da4b81549c600; 6 already stale at the merge base (not blocking)\n",
+  "output": "[citation-freshness] examined 3 citation(s) across 37 changed file(s) vs a6849524aba777da8c126ca0948da4b81549c600\n[citation-reverse-pass] examined 18 inbound citation(s) to 50 changed file(s) vs a6849524aba777da8c126ca0948da4b81549c600; 6 already stale at the merge base (not blocking)\n",
   "caught": true,
   "false_positives": 0
 }

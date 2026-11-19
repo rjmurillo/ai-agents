@@ -212,8 +212,15 @@ def score(rows: list[dict[str, Any]]) -> dict[str, Any]:
         errors=errors,
         passed=caught == len(positives) and fp == 0 and errors == 0 and len(negatives) == 12,
         score_line=(
-            f"caught {caught} of {len(positives)} in-scope positives, "
-            f"{fp} FP on {len(negatives)} negatives, {len(manual)} manual with reasons"
+            f"caught {caught} of {len(positives)} in-scope past misses, "
+            f"{fp} FP on {len(negatives)} negatives, "
+            + (
+                f"{len(manual)} manual ("
+                + " ".join(f"{item['id']} ({item['why']})" for item in manual)
+                + ")"
+                if manual
+                else "0 manual"
+            )
         ),
     )
 

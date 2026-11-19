@@ -21,6 +21,14 @@
       "defect_class": "stale-citation"
     },
     {
+      "citing_file": ".project-toolkit/audit/2026-09-04-ponytail-audit-over-engineering.md",
+      "citing_line": 147,
+      "citation": "scripts/validation/pre_pr_sequence.py:257",
+      "reason": "none of the cited anchors ('git_hook_policy.py session', 'session-policy', 'Session End Validation') appear at lines 257-257; 'Session End Validation' first appears at line 338",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    },
+    {
       "citing_file": ".project-toolkit/metrics/control-plane-dispositions-v0.7.0.md",
       "citing_line": 324,
       "citation": "scripts/validation/pre_pr_sequence.py:543-554",
@@ -41,6 +49,14 @@
       "citing_line": 119,
       "citation": "scripts/validation/pre_pr_sequence.py:252-254",
       "reason": "the text at lines 252-254 at the merge base moved at HEAD; suggested citation scripts/validation/pre_pr_sequence.py:253-255",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".project-toolkit/specs/requirements/REQ-022-control-plane-disposition-ledger-v070.md",
+      "citing_line": 71,
+      "citation": "scripts/validation/pre_pr_sequence.py:543",
+      "reason": "none of the cited anchors ('4e33c4baa', 'FAST_STAGE_RAN_ENV', 'fast_stage_ran = os.environ.get(FAST_STAGE_RAN_ENV) == \"1') appear at lines 543-543; 'FAST_STAGE_RAN_ENV' first appears at line 194",
       "gate": "reverse",
       "defect_class": "stale-citation"
     },
@@ -109,7 +125,7 @@
       "defect_class": "stale-citation"
     }
   ],
-  "output": "[citation-freshness] examined 1 citation(s) across 18 changed file(s) vs ca616861c2cade76d304c5469b145871aa8b63ba\n[citation-reverse-pass] examined 22 inbound citation(s) to 20 changed file(s) vs ca616861c2cade76d304c5469b145871aa8b63ba; 8 already stale at the merge base (not blocking)\n",
+  "output": "[citation-freshness] examined 1 citation(s) across 18 changed file(s) vs ca616861c2cade76d304c5469b145871aa8b63ba\n[citation-reverse-pass] examined 22 inbound citation(s) to 20 changed file(s) vs ca616861c2cade76d304c5469b145871aa8b63ba; 6 already stale at the merge base (not blocking)\n",
   "caught": true,
   "false_positives": 0
 }

@@ -1,8 +1,8 @@
 # Citation freshness replay
 
-Measured 2026-11-19: caught 9 of 9 in-scope positives, 0 FP on 12 negatives, 2 manual with reasons.
+Measured 2026-11-19: caught 10 of 10 in-scope past misses, 0 FP on 12 negatives, 5 manual with reasons.
 
-The checker revision is 5303955a3506.
+The checker revision is 1fb1f4d34e26.
 Every in-scope positive matched the pinned file, class, and line.
 The twelve negatives produced no findings.
 
@@ -47,6 +47,10 @@ C1-06 catches a stale citation introduced on an added line.
 | C1-07 | 81b88dd3df19 | ADR-036 heading moved from line 45 to 58 | anchors miss line 45 | caught | The ADR alias resolves and line 45 fails. |
 | C1-08 | 94a46b801ace | `generate_adr_index.py:202` is stale | anchors miss line 202 | caught | The bare name resolves to the changed file. |
 | C1-09 | 3d6180a6bf04 | `detect_agent_drift.py:57-76` and line 668 are stale | both ranges fail | caught | Each bare range binds to that one filename. |
+| C1-12 | 278713213864 | Three evidence cites name moved lines | no finding | manual | No quoted anchor; line-only cite cannot be verified without semantics. |
+| C1-13 | 278713213864 | The task cites name those same moved lines | no finding | manual | No quoted anchor; line-only cite cannot be verified without semantics. |
+| C1-14 | 278713213864 | The mechanism cite names the old fast-stage line | anchors miss that line | caught | The quoted assignment's only line moved. |
+| C1-15 | 278713213864 | The checker cite names the old module | no finding | manual | No quoted anchor; line-only cite cannot be verified without semantics. |
 | C1-10 | 4f85dfb9864c | Portability lines 660-666 moved | not checked | manual | Serena memories remain exempt under HISTORICAL_ROOTS. |
 | C1-11 | 66c5478efaec | Prose lines 265-271 moved | not checked | manual | Prose line ranges lack a path:N citation and occur in a historical root. |
 | N01 | 6b9340fac073 | No stale citation | no findings | clean | Negative pull request 7452. |
@@ -64,6 +68,12 @@ C1-06 catches a stale citation introduced on an added line.
 
 ## What stays manual and why
 
+C1-12 stays manual.
+No quoted anchor; line-only cite cannot be verified without semantics.
+C1-13 stays manual.
+No quoted anchor; line-only cite cannot be verified without semantics.
+C1-15 stays manual.
+No quoted anchor; line-only cite cannot be verified without semantics.
 C1-10 stays manual.
 Serena memories remain exempt under HISTORICAL_ROOTS.
 C1-11 stays manual.
@@ -77,6 +87,7 @@ A name found both inside and outside a range does not vote.
 Repeated or edited boundary text can prevent safe relocation suggestions.
 A bare basename counts only when one tracked file has that name.
 A bare `:N` binds to the previous unique filename.
+A quoted line blocks only when that line number changes.
 Prose line ranges with no path stay manual.
 Ten negative cases examine zero citations.
 Only N05 and N10 exercise inbound references.

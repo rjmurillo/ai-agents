@@ -22,7 +22,7 @@
       "defect_class": "stale-citation"
     }
   ],
-  "output": "[citation-freshness] examined 1 citation(s) across 12 changed file(s) vs 910dad83da7df0d1214d091d7d5e97c2870bec56\n[citation-reverse-pass] examined 3 inbound citation(s) to 14 changed file(s) vs 910dad83da7df0d1214d091d7d5e97c2870bec56; 2 already stale at the merge base (not blocking)\n",
+  "output": "[citation-freshness] examined 1 citation(s) across 12 changed file(s) vs 910dad83da7df0d1214d091d7d5e97c2870bec56\n[citation-reverse-pass] examined 4 inbound citation(s) to 14 changed file(s) vs 910dad83da7df0d1214d091d7d5e97c2870bec56; 3 already stale at the merge base (not blocking)\n",
   "caught": false,
   "false_positives": 0
 }

@@ -45,6 +45,14 @@
       "defect_class": "stale-citation"
     },
     {
+      "citing_file": ".claude/skills/ai-agents-architecture-contract/SKILL.md",
+      "citing_line": 44,
+      "citation": "build/scripts/build_all.py:1171",
+      "reason": "none of the cited anchors ('claude/', 'REQ-003-010 VIOLATION', 'ai-agents-failure-archaeology', 'REQ-003-010: enforce .claude/ no-write invariant') appear at lines 1171-1171; 'claude/' first appears at line 48",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    },
+    {
       "citing_file": ".claude/skills/ai-agents-architecture-contract/references/provenance.md",
       "citing_line": 13,
       "citation": "build/scripts/build_all.py:435-443",
@@ -77,7 +85,7 @@
       "defect_class": "stale-citation"
     }
   ],
-  "output": "[citation-freshness] examined 4 citation(s) across 6 changed file(s) vs 8926061a1e8153af98fea52ca16001ecaecdf9a7\n[citation-reverse-pass] examined 22 inbound citation(s) to 9 changed file(s) vs 8926061a1e8153af98fea52ca16001ecaecdf9a7; 13 already stale at the merge base (not blocking)\n",
+  "output": "[citation-freshness] examined 4 citation(s) across 6 changed file(s) vs 8926061a1e8153af98fea52ca16001ecaecdf9a7\n[citation-reverse-pass] examined 24 inbound citation(s) to 9 changed file(s) vs 8926061a1e8153af98fea52ca16001ecaecdf9a7; 14 already stale at the merge base (not blocking)\n",
   "caught": true,
   "false_positives": 0
 }

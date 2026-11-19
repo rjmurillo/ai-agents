@@ -1,24 +1,36 @@
 {
   "schema_version": 1,
-  "date": "2026-11-19T18:17:39.677953+00:00",
-  "checker_sha": "5303955a35068493d6491b6bb93a3352e34d9079",
+  "date": "2026-11-19T21:05:13.200996+00:00",
+  "checker_sha": "1fb1f4d34e26f06c76fe7199c6033b02fbfb540a",
   "checker_files": {
     "citation_scope.py": "e1ab03fc78423f78f7af7eebb8dd2b31c4a527bbf464826985b902c7ea14b119",
-    "citation_reverse_judge.py": "4151b4d796ca762830db28f031930d2014b5742baac280c809c7974af2d8c08e",
+    "citation_reverse_judge.py": "bbc030270f0e35f8c1d797499abe416b88f8aac1a76ce5553f94f4b100a99f50",
     "citation_exemptions.py": "7d32a7d00a311640fc2c61f8054694ddf91db4d55803e2bb0d755648c1d1ed13",
-    "citation_anchors.py": "1c234ef161bf9fad3690340d5135c8a4f149c1f455deb4c0039588ce92eaab65",
-    "citation_head_state.py": "51eb8c2b7b0b71a17088f0b8cd02153302979f65f23405823ac895b637805179",
-    "citation_continuations.py": "72e22a1ed6d1102a0481e6f2cad14f0c496d6b103c526cb0f3b6505d33156661",
-    "citation_reverse_pass.py": "133f929e02db640614ba7e3aaab23c2aaee21e4f6f498c77783255042dc14b13",
-    "check_citation_freshness.py": "15538653acedf0fe81de946a814921b239dfdd301fb0793c1fb308eb09162713"
+    "citation_anchors.py": "5ba08537ed5c1c54ba0218f65d3eda0ba12474d4b08250024b87b51a7687771a",
+    "citation_head_state.py": "ec49cf117ef605329559e616072d2822d08f74ff9f8433205318a6519c01d179",
+    "citation_continuations.py": "d5f217712f7e3a4b2d505e503d3f0846dcbe4c3c65a36f5fc484d969b537bff6",
+    "citation_reverse_pass.py": "43a9ec18e1ff7d4095167dbdcfd85990fea9e577b708d135f73840506a969ea0",
+    "check_citation_freshness.py": "94e63ee4e52008c9791ba973cf3ec6b18dd9a69aa314af84d21958cd933d6746"
   },
-  "corpus_sha256": "28dcbfc230470172704a9975be4aafb489ca43cf9cb74579860e3d1f0b28ab90",
+  "corpus_sha256": "a81771fc5ef4ecf8339fe48a9dc873079b1c0012064d83d355f52ae22954760b",
   "summary": {
-    "caught": 9,
-    "in_scope": 9,
+    "caught": 10,
+    "in_scope": 10,
     "false_positives": 0,
     "negatives": 12,
     "manual": [
+      {
+        "id": "C1-12",
+        "why": "no quoted anchor; line-only cite cannot be verified without semantics."
+      },
+      {
+        "id": "C1-13",
+        "why": "no quoted anchor; line-only cite cannot be verified without semantics."
+      },
+      {
+        "id": "C1-15",
+        "why": "no quoted anchor; line-only cite cannot be verified without semantics."
+      },
       {
         "id": "C1-10",
         "why": "Serena memories remain exempt under HISTORICAL_ROOTS."
@@ -30,7 +42,7 @@
     ],
     "errors": 0,
     "passed": true,
-    "score_line": "caught 9 of 9 in-scope positives, 0 FP on 12 negatives, 2 manual with reasons"
+    "score_line": "caught 10 of 10 in-scope past misses, 0 FP on 12 negatives, 5 manual (C1-12 (no quoted anchor; line-only cite cannot be verified without semantics.) C1-13 (no quoted anchor; line-only cite cannot be verified without semantics.) C1-15 (no quoted anchor; line-only cite cannot be verified without semantics.) C1-10 (Serena memories remain exempt under HISTORICAL_ROOTS.) C1-11 (Prose line ranges lack a path:N citation and occur in a historical root.))"
   },
   "cases": [
     {
@@ -186,6 +198,81 @@
       "caught": true,
       "false_positives": 0,
       "record": "2026-11-19/C1-09.json"
+    },
+    {
+      "id": "C1-12",
+      "pr": 7461,
+      "sha": "2787132138",
+      "fix_sha": "39df73d11bcc173cf7447960b18c1c7e2b783ca1",
+      "kind": "positive",
+      "scope": "manual",
+      "file": ".project-toolkit/specs/requirements/REQ-022-control-plane-disposition-ledger-v070.md",
+      "line": 248,
+      "defect_class": "stale-citation",
+      "defect": "The three evidence cites name lines that no longer hold the fast-stage skip.",
+      "why": "no quoted anchor; line-only cite cannot be verified without semantics.",
+      "resolved_sha": "2787132138",
+      "pr_base": null,
+      "merge_base": "ae5acffcb3b9f9e00e4898d5bb0b0f9681a757d5",
+      "caught": false,
+      "false_positives": 0,
+      "record": "2026-11-19/C1-12.json"
+    },
+    {
+      "id": "C1-13",
+      "pr": 7461,
+      "sha": "2787132138",
+      "fix_sha": "39df73d11bcc173cf7447960b18c1c7e2b783ca1",
+      "kind": "positive",
+      "scope": "manual",
+      "file": ".project-toolkit/specs/tasks/TASK-029-control-plane-disposition-ledger-v070.md",
+      "line": 43,
+      "defect_class": "stale-citation",
+      "defect": "The task cites name the same moved fast-stage lines.",
+      "why": "no quoted anchor; line-only cite cannot be verified without semantics.",
+      "resolved_sha": "2787132138",
+      "pr_base": null,
+      "merge_base": "ae5acffcb3b9f9e00e4898d5bb0b0f9681a757d5",
+      "caught": false,
+      "false_positives": 0,
+      "record": "2026-11-19/C1-13.json"
+    },
+    {
+      "id": "C1-14",
+      "pr": 7461,
+      "sha": "2787132138",
+      "fix_sha": "39df73d11bcc173cf7447960b18c1c7e2b783ca1",
+      "kind": "positive",
+      "scope": "automatic",
+      "file": ".project-toolkit/specs/requirements/REQ-022-control-plane-disposition-ledger-v070.md",
+      "line": 71,
+      "defect_class": "stale-citation",
+      "defect": "The mechanism cite still names the old fast-stage line.",
+      "resolved_sha": "2787132138",
+      "pr_base": null,
+      "merge_base": "ae5acffcb3b9f9e00e4898d5bb0b0f9681a757d5",
+      "caught": true,
+      "false_positives": 0,
+      "record": "2026-11-19/C1-14.json"
+    },
+    {
+      "id": "C1-15",
+      "pr": 7461,
+      "sha": "2787132138",
+      "fix_sha": "39df73d11bcc173cf7447960b18c1c7e2b783ca1",
+      "kind": "positive",
+      "scope": "manual",
+      "file": ".project-toolkit/specs/design/DESIGN-006-em-en-dash-enforcement.md",
+      "line": 192,
+      "defect_class": "stale-citation",
+      "defect": "The dash checker cite still names the old pre_pr module.",
+      "why": "no quoted anchor; line-only cite cannot be verified without semantics.",
+      "resolved_sha": "2787132138",
+      "pr_base": null,
+      "merge_base": "ae5acffcb3b9f9e00e4898d5bb0b0f9681a757d5",
+      "caught": false,
+      "false_positives": 0,
+      "record": "2026-11-19/C1-15.json"
     },
     {
       "id": "C1-10",

@@ -105,6 +105,57 @@
       "defect": "detect_agent_drift.py lines 57-76 and the bare continuation :668 are stale."
     },
     {
+      "id": "C1-12",
+      "pr": 7461,
+      "sha": "2787132138",
+      "fix_sha": "39df73d11bcc173cf7447960b18c1c7e2b783ca1",
+      "kind": "positive",
+      "scope": "manual",
+      "file": ".project-toolkit/specs/requirements/REQ-022-control-plane-disposition-ledger-v070.md",
+      "line": 248,
+      "defect_class": "stale-citation",
+      "defect": "The three evidence cites name lines that no longer hold the fast-stage skip.",
+      "why": "no quoted anchor; line-only cite cannot be verified without semantics."
+    },
+    {
+      "id": "C1-13",
+      "pr": 7461,
+      "sha": "2787132138",
+      "fix_sha": "39df73d11bcc173cf7447960b18c1c7e2b783ca1",
+      "kind": "positive",
+      "scope": "manual",
+      "file": ".project-toolkit/specs/tasks/TASK-029-control-plane-disposition-ledger-v070.md",
+      "line": 43,
+      "defect_class": "stale-citation",
+      "defect": "The task cites name the same moved fast-stage lines.",
+      "why": "no quoted anchor; line-only cite cannot be verified without semantics."
+    },
+    {
+      "id": "C1-14",
+      "pr": 7461,
+      "sha": "2787132138",
+      "fix_sha": "39df73d11bcc173cf7447960b18c1c7e2b783ca1",
+      "kind": "positive",
+      "scope": "automatic",
+      "file": ".project-toolkit/specs/requirements/REQ-022-control-plane-disposition-ledger-v070.md",
+      "line": 71,
+      "defect_class": "stale-citation",
+      "defect": "The mechanism cite still names the old fast-stage line."
+    },
+    {
+      "id": "C1-15",
+      "pr": 7461,
+      "sha": "2787132138",
+      "fix_sha": "39df73d11bcc173cf7447960b18c1c7e2b783ca1",
+      "kind": "positive",
+      "scope": "manual",
+      "file": ".project-toolkit/specs/design/DESIGN-006-em-en-dash-enforcement.md",
+      "line": 192,
+      "defect_class": "stale-citation",
+      "defect": "The dash checker cite still names the old pre_pr module.",
+      "why": "no quoted anchor; line-only cite cannot be verified without semantics."
+    },
+    {
       "id": "C1-10",
       "pr": 5284,
       "sha": "4f85dfb986",

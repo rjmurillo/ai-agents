@@ -159,6 +159,14 @@
     },
     {
       "citing_file": "build/scripts/generate_adr_index.py",
+      "citing_line": 100,
+      "citation": "scripts/validation/check_adr_lifecycle.py:132-133",
+      "reason": "none of the cited anchors ('ADR-091', 'adr-91', '# An id reference inside frontmatter: \"ADR-091\", \"adr-91\", or a bare integer.') appear at lines 132-133; 'ADR-091' first appears at line 29",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": "build/scripts/generate_adr_index.py",
       "citing_line": 593,
       "citation": "build/scripts/generate_adr_index.py:504",
       "reason": "the text at lines 504-504 at the merge base moved at HEAD; suggested citation build/scripts/generate_adr_index.py:456",
@@ -238,6 +246,14 @@
       "defect_class": "stale-citation"
     },
     {
+      "citing_file": "tests/test_adr_063_memory_skill_decomposition.py",
+      "citing_line": 213,
+      "citation": "build/scripts/generate_adr_index.py:563",
+      "reason": "none of the cited anchors ('_extract_title', 'build_record', '_strip_fences(body', '_extract_title(prose, path') appear at lines 563-563; '_extract_title' first appears at line 309",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    },
+    {
       "citing_file": "tests/validation/test_frontmatter_contract.py",
       "citing_line": 147,
       "citation": "build/scripts/generate_adr_index.py:202",
@@ -246,7 +262,7 @@
       "defect_class": "stale-citation"
     }
   ],
-  "output": "[citation-freshness] examined 36 citation(s) across 15 changed file(s) vs 659097d6d66c5e66aab76f9f2258bf2e333ee7b8\n[citation-reverse-pass] examined 48 inbound citation(s) to 17 changed file(s) vs 659097d6d66c5e66aab76f9f2258bf2e333ee7b8; 17 already stale at the merge base (not blocking)\n",
+  "output": "[citation-freshness] examined 36 citation(s) across 15 changed file(s) vs 659097d6d66c5e66aab76f9f2258bf2e333ee7b8\n[citation-reverse-pass] examined 48 inbound citation(s) to 17 changed file(s) vs 659097d6d66c5e66aab76f9f2258bf2e333ee7b8; 15 already stale at the merge base (not blocking)\n",
   "caught": true,
   "false_positives": 0
 }
