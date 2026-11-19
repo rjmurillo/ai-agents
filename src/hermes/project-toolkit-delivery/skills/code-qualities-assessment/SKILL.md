@@ -185,7 +185,7 @@ The JSON report carries `gate_mode` and a `comparisons` array with per-quality
 | 0 | Gate passed. It can also carry one explicitly admitted regression, recorded under `csharp_parser_dependency_admission` or `typescript_parser_dependency_admission` in the JSON; the review adapter reports that as WARN, never PASS. The scanner accepts only the records built into it, which cover its own parser dependencies; any other config value fails with exit 1. |
 | 10 | Regression mode: a comparable quality regressed, or scored evidence was lost |
 | 11 | Below configured thresholds (absolute mode, or a new file in regression mode); below-threshold qualities at or above `minConfidence`; lower-confidence misses warn only |
-| 1 | Script error (invalid args, unresolvable base, file not found, missing C# or TypeScript parser package, parser startup failure, or C#, TypeScript, or JavaScript the pinned grammar cannot parse) |
+| 1 | Script error (invalid args, unresolvable base, file not found, or, for C#, TypeScript, or JavaScript, a missing parser package, a parser startup failure, or source the pinned grammar cannot parse) |
 
 ---
 
