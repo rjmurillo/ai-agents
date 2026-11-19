@@ -7,6 +7,12 @@ scripts/, and assets/ subdirectories pre-populated with starter files.
 
 Usage:
     python init_skill.py <skill-name> [--path <parent-directory>] [--dry-run]
+                         [--docs-section <README heading>]
+
+When the enclosing git repository has docs/skills/README.md, the script also
+writes docs/skills/<skill-name>.md with the seven sibling sections. With
+--docs-section it adds the README row under that heading; without it, it
+prints the row to paste. A repository with no such README is left alone.
 
 Examples:
     python init_skill.py code-reviewer
@@ -242,6 +248,27 @@ Example: create | read | update | delete with shared context
 """
 
 
+DOCS_README = Path("docs") / "skills" / "README.md"
+
+DOCS_PAGE_SECTIONS = (
+    "When to use it",
+    "When not to use it",
+    "Quick start",
+    "What you get",
+    "Advanced use",
+    "Where it runs",
+    "Related",
+)
+
+DOCS_ROW_TEMPLATE = "| [`{name}`]({name}.md) | TODO | TODO: what a reader uses it to do |\n"
+
+
+def docs_page_text(name: str, title: str) -> str:
+    """Return a reference page with the sibling sections in order."""
+    body = "".join(f"## {section}\n\nTODO\n\n" for section in DOCS_PAGE_SECTIONS)
+    return f"# {title}\n\nTODO: one sentence on what `{name}` does for the reader.\n\n{body}"
+
+
 # ---------------------------------------------------------------------------
 # Core logic
 # ---------------------------------------------------------------------------
@@ -305,6 +332,68 @@ def create_skill(name: str, parent_dir: Path) -> Path:
     return skill_dir
 
 
+def find_docs_readme(start: Path) -> Path | None:
+    """Return docs/skills/README.md at the enclosing git root, or None."""
+    for directory in (start, *start.parents):
+        if (directory / ".git").exists():
+            readme = directory / DOCS_README
+            return readme if readme.is_file() else None
+    return None
+
+
+def insert_readme_row(text: str, section: str, row: str) -> str | None:
+    """Return ``text`` with ``row`` after the last row of the table under ``section``.
+
+    Returns None when the heading or its table is missing.
+    """
+    lines = text.splitlines(keepends=True)
+    heading = f"## {section}"
+    try:
+        start = next(i for i, line in enumerate(lines) if line.rstrip() == heading)
+    except StopIteration:
+        return None
+    last_row = None
+    for index in range(start + 1, len(lines)):
+        line = lines[index]
+        if line.startswith("## "):
+            break
+        if line.lstrip().startswith("|"):
+            last_row = index
+        elif last_row is not None:
+            break
+    if last_row is None:
+        return None
+    if not lines[last_row].endswith("\n"):
+        lines[last_row] += "\n"
+    lines.insert(last_row + 1, row)
+    return "".join(lines)
+
+
+def scaffold_docs_page(name: str, readme: Path, section: str | None) -> list[str]:
+    """Write the reference page and README row. Return what was done, for display."""
+    notes: list[str] = []
+    page = readme.parent / f"{name}.md"
+    if page.exists():
+        notes.append(f"Docs page exists, left alone: {page}")
+    else:
+        page.write_text(docs_page_text(name, to_title(name)), encoding="utf-8")
+        notes.append(f"Docs page written: {page}")
+    text = readme.read_text(encoding="utf-8")
+    row = DOCS_ROW_TEMPLATE.format(name=name)
+    if f"]({name}.md)" in text:
+        notes.append(f"README row exists, left alone: {readme}")
+        return notes
+    updated = insert_readme_row(text, section, row) if section else None
+    if updated is None:
+        where = f"heading '## {section}' has no table" if section else "no --docs-section given"
+        notes.append(f"README row not added ({where}). Add this row to a table in {readme}:")
+        notes.append(f"  {row.rstrip()}")
+        return notes
+    readme.write_text(updated, encoding="utf-8")
+    notes.append(f"README row added under '## {section}': {readme}")
+    return notes
+
+
 def print_next_steps(skill_dir: Path, name: str):
     """Print guidance for the user after scaffolding."""
     print(f"""
@@ -352,6 +441,7 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s my-skill
   %(prog)s my-skill --path skills --dry-run
+  %(prog)s my-skill --path src/claude/skills --docs-section "Code quality"
 
 exit codes:
   0  skill created (or previewed with --dry-run)
@@ -376,6 +466,11 @@ def main():
         type=Path,
         default=Path.cwd(),
         help="Parent directory for the new skill (default: current directory)",
+    )
+
+    parser.add_argument(
+        "--docs-section",
+        help="docs/skills/README.md heading whose table gets the new row (repository docs only)",
     )
 
     parser.add_argument(
@@ -404,11 +499,20 @@ def main():
             print(f"Error: Directory already exists: {skill_dir}", file=sys.stderr)
             sys.exit(1)
         print(f"Dry run: would create {skill_dir} with SKILL.md, references/, scripts/, assets/")
+        readme = find_docs_readme(parent)
+        if readme is not None:
+            print(
+                f"Dry run: would write {readme.parent / (args.name + '.md')} and a row in {readme}"
+            )
         sys.exit(0)
 
     # Create scaffold
     skill_dir = create_skill(args.name, parent)
     print_next_steps(skill_dir, args.name)
+    readme = find_docs_readme(parent)
+    if readme is not None:
+        for note in scaffold_docs_page(args.name, readme, args.docs_section):
+            print(note)
 
     sys.exit(0)
 

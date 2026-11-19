@@ -44,6 +44,14 @@
      script-design-rules.md, one per exit code, and run them before finalizing
    • In SKILL.md, invoke scripts through the plugin-root locator, never a bare
      .claude/skills path (see ADR-121)
+
+6. Write the reference page (only when the repository has docs/skills/README.md)
+   • init_skill.py writes docs/skills/{skill-name}.md with the seven sibling
+     sections: When to use it, When not to use it, Quick start, What you get,
+     Advanced use, Where it runs, Related
+   • Pass --docs-section "<README heading>" to add the README table row, or
+     paste the row it prints into the right table
+   • Fill in every TODO on the page and in the row
 ```
 
 ## Quality Checks During Generation
@@ -61,4 +69,5 @@
 | Scripts (if present) | Shebang, docstring with an `Exit codes:` block, argparse, `main(argv)` returning the code, Result pattern |
 | Script tests | One test per exit code, in the repository's test tree, never in the skill directory |
 | Script docs | Scripts section in SKILL.md with usage examples |
+| Docs page (if `docs/skills/README.md` exists) | Page with the seven sibling sections in order, TODOs filled in, and a README table row that links it |
 | Portable exec paths | Script invocations use the plugin-root locator, never a bare `.claude/skills/...` path (issue #2838) |

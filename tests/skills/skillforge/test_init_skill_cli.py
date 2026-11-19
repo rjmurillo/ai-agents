@@ -63,3 +63,127 @@ def test_dry_run_still_rejects_a_missing_parent(tmp_path: Path) -> None:
     result = run("my-skill", "--path", str(tmp_path / "absent"), "--dry-run")
 
     assert result.returncode == 2
+
+
+# Docs page scaffold (rule agent-skill-docs MUST 1 and 3)
+
+_README = """\
+# Skills
+
+## Code quality
+
+| Skill | Slash command | Use it to |
+| --- | --- | --- |
+| [`alpha`](alpha.md) | match | Do alpha |
+
+## Related
+
+- [Agents](../agents/README.md)
+"""
+
+
+def _docs_repo(tmp_path: Path) -> Path:
+    (tmp_path / ".git").mkdir()
+    (tmp_path / "src" / "claude" / "skills").mkdir(parents=True)
+    for kind in ("skills", "agents"):
+        (tmp_path / "docs" / kind).mkdir(parents=True)
+    (tmp_path / "docs" / "skills" / "README.md").write_text(_README, encoding="utf-8")
+    (tmp_path / "docs" / "agents" / "README.md").write_text("# Agents\n", encoding="utf-8")
+    return tmp_path
+
+
+def _gate():
+    validation = Path(__file__).resolve().parents[3] / "scripts" / "validation"
+    if str(validation) not in sys.path:
+        sys.path.insert(0, str(validation))
+    import check_agent_skill_docs
+
+    return check_agent_skill_docs
+
+
+def test_scaffold_writes_page_and_row_that_pass_the_gate(tmp_path: Path) -> None:
+    repo = _docs_repo(tmp_path)
+    page = repo / "docs" / "skills" / "my-skill.md"
+    assert not page.exists()
+
+    result = run(
+        "my-skill",
+        "--path",
+        str(repo / "src" / "claude" / "skills"),
+        "--docs-section",
+        "Code quality",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert page.is_file()
+    readme = (repo / "docs" / "skills" / "README.md").read_text(encoding="utf-8")
+    code_quality = readme.split("## Related")[0]
+    assert "[`my-skill`](my-skill.md)" in code_quality
+    (repo / "docs" / "skills" / "alpha.md").write_text(
+        page.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    (repo / "src" / "claude" / "skills" / "alpha").mkdir()
+    (repo / "src" / "claude" / "skills" / "alpha" / "SKILL.md").write_text(
+        "---\nname: alpha\n---\n", encoding="utf-8"
+    )
+    assert _gate().find_page_findings(repo).findings == []
+
+
+def test_scaffold_without_section_prints_row_and_leaves_readme(tmp_path: Path) -> None:
+    repo = _docs_repo(tmp_path)
+
+    result = run("my-skill", "--path", str(repo / "src" / "claude" / "skills"))
+
+    assert result.returncode == 0
+    assert (repo / "docs" / "skills" / "my-skill.md").is_file()
+    assert (repo / "docs" / "skills" / "README.md").read_text(encoding="utf-8") == _README
+    assert "| [`my-skill`](my-skill.md) |" in result.stdout
+
+
+def test_scaffold_with_unknown_section_prints_row(tmp_path: Path) -> None:
+    repo = _docs_repo(tmp_path)
+
+    result = run(
+        "my-skill", "--path", str(repo / "src" / "claude" / "skills"), "--docs-section", "Nope"
+    )
+
+    assert result.returncode == 0
+    assert "has no table" in result.stdout
+    assert (repo / "docs" / "skills" / "README.md").read_text(encoding="utf-8") == _README
+
+
+def test_scaffold_leaves_an_existing_page_alone(tmp_path: Path) -> None:
+    repo = _docs_repo(tmp_path)
+    page = repo / "docs" / "skills" / "my-skill.md"
+    page.write_text("# Hand written\n", encoding="utf-8")
+
+    result = run(
+        "my-skill",
+        "--path",
+        str(repo / "src" / "claude" / "skills"),
+        "--docs-section",
+        "Code quality",
+    )
+
+    assert result.returncode == 0
+    assert page.read_text(encoding="utf-8") == "# Hand written\n"
+
+
+def test_repository_without_docs_readme_gets_no_page(tmp_path: Path) -> None:
+    (tmp_path / ".git").mkdir()
+
+    result = run("my-skill", "--path", str(tmp_path), "--docs-section", "Code quality")
+
+    assert result.returncode == 0
+    assert not (tmp_path / "docs").exists()
+    assert "Docs page" not in result.stdout
+
+
+def test_dry_run_names_the_docs_page_and_writes_nothing(tmp_path: Path) -> None:
+    repo = _docs_repo(tmp_path)
+
+    result = run("my-skill", "--path", str(repo / "src" / "claude" / "skills"), "--dry-run")
+
+    assert result.returncode == 0
+    assert "my-skill.md" in result.stdout
+    assert not (repo / "docs" / "skills" / "my-skill.md").exists()
