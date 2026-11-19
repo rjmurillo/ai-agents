@@ -24,6 +24,8 @@ not only that the Markdown renders.
 
 ### Check documentation dates and versions
 
+<!-- vendor-portability-exec: the date gate lives in this repository and is absent from a plugin install -->
+
 Run this command from the ai-agents repository after committing documentation changes:
 
 ```bash

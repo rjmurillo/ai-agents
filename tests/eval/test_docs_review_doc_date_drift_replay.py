@@ -1,6 +1,8 @@
 """Verify deterministic replay scoring and cleanup when a historical scan fails."""
 
+import subprocess
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -26,7 +28,7 @@ def test_matching_requires_the_class_and_a_nearby_reported_location() -> None:
 
 
 def test_a_positive_needs_both_expected_locations_and_every_negative_warning_counts() -> None:
-    cases = [
+    cases: list[dict[str, Any]] = [
         {
             "id": "P",
             "kind": "positive",
@@ -38,7 +40,10 @@ def test_a_positive_needs_both_expected_locations_and_every_negative_warning_cou
         },
         {"id": "N", "kind": "negative", "scope": "automatic"},
     ]
-    rows = [{"id": "P", "findings": [finding()]}, {"id": "N", "findings": [finding()]}]
+    rows: list[dict[str, Any]] = [
+        {"id": "P", "findings": [finding()]},
+        {"id": "N", "findings": [finding()]},
+    ]
     score = replay.score(cases, rows)
     assert score["caught"] == 0
     assert score["false_positives"] == 1
@@ -54,7 +59,7 @@ def test_manual_exclusion_requires_a_reason() -> None:
 
 
 def test_subprocess_env_strips_color_forcing(monkeypatch: pytest.MonkeyPatch) -> None:
-    seen: list[tuple[list[str], dict[str, str]]] = []
+    seen: list[tuple[list[str], dict[Any, Any]]] = []
 
     def fake_run(args: list[str], **kwargs: object) -> object:
         env = kwargs["env"]
@@ -64,7 +69,7 @@ def test_subprocess_env_strips_color_forcing(monkeypatch: pytest.MonkeyPatch) ->
 
     monkeypatch.setenv("GH_FORCE_TTY", "1")
     monkeypatch.setenv("CLICOLOR_FORCE", "1")
-    monkeypatch.setattr(replay.subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "run", fake_run)
     monkeypatch.setattr(replay, "_gh_accepts_color_never", lambda: True)
     assert replay.command(Path("."), ["gh", "pr", "view", "1", "--json", "baseRefOid"]) == "{}"
     args, env = seen[0]
@@ -86,17 +91,15 @@ def test_subprocess_env_strips_color_forcing(monkeypatch: pytest.MonkeyPatch) ->
 def test_scan_failure_removes_the_worktree_and_temporary_ref(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    calls = []
-    monkeypatch.setattr(replay.Path, "home", lambda: tmp_path)
+    calls: list[list[str]] = []
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
 
     def command(_root: Path, args: list[str]) -> str:
         calls.append(args)
         return '{"baseRefOid": "base"}' if args[0] == "gh" else "merge-base"
 
     monkeypatch.setattr(replay, "command", command)
-    monkeypatch.setattr(
-        replay.subprocess, "run", lambda *a, **k: type("Known", (), {"returncode": 0})()
-    )
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: type("Known", (), {"returncode": 0})())
     monkeypatch.setattr(replay, "find_doc_date_drift", lambda *a: None)
     case = {"id": "P", "pr": 1, "sha": "head", "baseRefOid": "base"}
     with pytest.raises(RuntimeError, match="historical tree"):

@@ -10,8 +10,8 @@ import re
 from dataclasses import dataclass
 from datetime import date
 
-from doc_date_claims import dates_on_line, has_reasoned_ignore
-from frontmatter_contract import parse_frontmatter
+from scripts.validation.doc_date_claims import dates_on_line, has_reasoned_ignore
+from scripts.validation.frontmatter_contract import parse_frontmatter
 
 RULE_ADR = "adr-date"
 _ADR_PATH = re.compile(r"^(?:\.project-toolkit|\.agents)/architecture/ADR-\d+[^/]*\.md$")
