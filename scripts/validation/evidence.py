@@ -694,6 +694,20 @@ _ADVISORY_LICENCES: Final[tuple[tuple[str, EvidenceState, str, str], ...]] = (
         )
     ),
     (
+        "validate_doc_date_drift",
+        EvidenceState.FAIL,
+        REASON_ADVISORY_FINDINGS,
+        "Date and version drift is an author's reminder, not a defect proven in "
+        "this diff. Promote to blocking only after the --tree backlog is zero.",
+    ),
+    (
+        "validate_doc_date_drift",
+        EvidenceState.BLOCKED,
+        REASON_LISTING_FAILED,
+        "A failed git read leaves the advisory scan unrun. It stays non-blocking "
+        "and is counted as BLOCKED instead of PASS.",
+    ),
+    (
         "validate_canonical_citations",
         EvidenceState.FAIL,
         REASON_ADVISORY_FINDINGS,

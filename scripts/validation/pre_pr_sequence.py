@@ -48,6 +48,7 @@ from check_agent_tree_frontmatter import validate_agent_tree_frontmatter
 from check_agents_write_targets import validate_agents_write_targets
 from check_bypass_allowlist import validate_bypass_allowlist
 from check_citation_freshness import validate_citation_freshness
+from check_doc_date_drift import validate_doc_date_drift
 from check_doc_interpreter_portability import validate_doc_interpreter_portability
 from check_duplicate_test_helpers import validate_duplicate_test_helpers
 from check_equivalence_predicates import validate_equivalence_predicates
@@ -438,6 +439,12 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # one commit; unanchored, a later reader cannot tell "still true" from
     # "was true once" (issue #5771).
     _Gate("Measurement Anchoring (added lines)", _root_only(validate_measurement_anchoring)),
+    # Warns when a line ADDED since the base ref leaves a date or version out of
+    # step: Last Updated against Next Review, one URL or tool with two years or
+    # versions in a skill tree, or an as-of date older than a date added beside
+    # it. PR #7428 bumped one citation and left two stale; PR #6925 bumped Last
+    # Updated and left Next Review behind. Advisory: it returns a typed outcome.
+    _Gate("Doc Date Drift (advisory, added lines)", _root_only(validate_doc_date_drift)),
     # Fails when a Python line ADDED since the base ref decodes text with the
     # platform locale (subprocess text mode or read_text/write_text/open with no
     # encoding) or creates a test symlink with no Windows skip. Cursor Bugbot
