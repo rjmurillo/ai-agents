@@ -82,6 +82,47 @@ def command(cwd: Path, *argv: str) -> str:
     return result.stdout.strip()
 
 
+def checklist_covers(expected: object, entries: object) -> bool:
+    """Return True when every expected checklist file appears in entries.
+
+    Corpus names are full paths or bare filenames. A name matches ``prose_file``
+    when the paths are equal or the entry ends in ``/<name>``. No expected
+    list means there is nothing to miss. Anything else fails closed.
+    """
+    if expected is None:
+        return True
+    if not isinstance(expected, list) or not isinstance(entries, list):
+        return False
+    observed: set[str] = set()
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        prose = entry.get("prose_file")
+        if isinstance(prose, str) and prose:
+            observed.add(prose.replace("\\", "/"))
+    for name in expected:
+        if not isinstance(name, str) or not name:
+            return False
+        needle = name.replace("\\", "/").strip("/")
+        if not needle or not any(
+            path == needle or path.endswith("/" + needle) for path in observed
+        ):
+            return False
+    return True
+
+
+def run_passed(results: list[dict[str, Any]]) -> bool:
+    """Return True when the catch rate holds and every checklist file was listed."""
+    positives = [row for row in results if row["scope"] == "automatic"]
+    negatives = [row for row in results if row["scope"] == "negative"]
+    total = sum(len(row["caught"]) for row in positives)
+    caught = sum(sum(row["caught"]) for row in positives)
+    false_positives = sum(row["findings_count"] for row in negatives)
+    return (
+        caught == total and false_positives == 0 and all(row["checklist_covers"] for row in results)
+    )
+
+
 def matches(expected: dict[str, Any], finding: dict[str, Any]) -> bool:
     """Match file, defect class, and a line within three of the corpus line."""
     prose = finding["prose"]
@@ -162,6 +203,7 @@ def replay(case: dict[str, Any], run_id: str, output: Path) -> dict[str, Any]:
         ]
         expected = case.get("expected", [])
         caught = [any(matches(e, f) for f in findings) for e in expected]
+        covers = checklist_covers(case.get("checklist_files"), checklist)
         row = {
             "id": identity,
             "pr": int(number),
@@ -173,6 +215,7 @@ def replay(case: dict[str, Any], run_id: str, output: Path) -> dict[str, Any]:
             "caught": caught,
             "findings_count": len(findings),
             "checklist_count": len(checklist),
+            "checklist_covers": covers,
             "matched": [
                 {
                     "file": finding["prose"]["file"],
@@ -237,7 +280,7 @@ def main() -> int:
         "checker_sha256": hashes,
         "checker_diff": command(ROOT, "git", "diff", "--stat", "--", str(CHECK.parent)),
         "score": score,
-        "passed": caught == total and fp == 0,
+        "passed": run_passed(results),
         "results": results,
     }
     if hashes != checker_hashes():

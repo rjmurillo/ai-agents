@@ -423,6 +423,52 @@ def _has_inventoried_docs(payload: dict[str, object]) -> bool:
     )
 
 
+def _changed_markdown_missing(payload: dict[str, object]) -> bool:
+    """Return True when a changed Markdown path is absent from the inventory."""
+    assessment = payload.get("assessment")
+    if not isinstance(assessment, dict):
+        return False
+    changed = assessment.get("changed_files")
+    if not isinstance(changed, list):
+        return False
+    documentation_files = assessment.get("documentation_files")
+    inventoried: set[object] = set()
+    if isinstance(documentation_files, list):
+        inventoried = {
+            entry.get("path") for entry in documentation_files if isinstance(entry, dict)
+        }
+    return any(
+        isinstance(name, str) and name.endswith(".md") and name not in inventoried
+        for name in changed
+    )
+
+
+def _clean_same_pr_scan(payload: dict[str, object] | None) -> bool:
+    """Return True when a finished same-PR scan left no Markdown unchecked.
+
+    ``/review`` runs ``doc_accuracy.py --same-pr --format gate``. That scan
+    reads Python, templates, and data files, so a diff with no Markdown still
+    produces an empty ``documentation_files`` list. ``scanned_files`` of zero
+    is a finished scan of a diff with nothing to open. A bool is not a count.
+    A changed ``.md`` the inventory omitted stays unchecked.
+    """
+    if not isinstance(payload, dict):
+        return False
+    assessment = payload.get("assessment")
+    if not isinstance(assessment, dict) or _changed_markdown_missing(payload):
+        return False
+    same_pr = payload.get("same_pr")
+    if not isinstance(same_pr, dict):
+        return False
+    findings = same_pr.get("findings")
+    if not isinstance(findings, dict):
+        return False
+    examined = findings.get("examined")
+    if not isinstance(examined, dict):
+        return False
+    return _coerce_nonnegative_int(examined.get("scanned_files")) is not None
+
+
 def adapt_local_axis_verdict(
     axis: str,
     output: str,
@@ -505,7 +551,13 @@ def adapt_local_axis_verdict(
         # check_gate passes whenever no claim contradicts the code, and a run
         # that inventoried nothing has no claims. A deletion-only Markdown diff,
         # or one under EXCLUDE_DIRS, passes without opening a changed file.
-        if gate_verdict == "PASS" and exit_code == 0 and inventoried_docs:
+        # A same-PR scan that finished with no Markdown left out is not that
+        # silence: the gate JSON carries the examined-file count.
+        if (
+            gate_verdict == "PASS"
+            and exit_code == 0
+            and (inventoried_docs or _clean_same_pr_scan(payload))
+        ):
             return "PASS"
         if gate_verdict == "FAIL" and exit_code == 10:
             return "FAIL"
