@@ -16,12 +16,21 @@ the form to a handful of lines; an unrestricted "the N nouns" match hits ~160.
 
 An explicit contractual form ("exactly three", "at least two", "no more than
 four") is retained: the number is the requirement, not a copy of a list.
+
+A third form lives in structured data (`structured_count_claims`): a count word
+and a plural noun inside a string value of a JSON or YAML object restate the
+length of a sibling array in the same object ("these two PRs" beside a
+three-item `pull_requests` list, PR #7311). The noun has to match the array's
+key by token or initialism before the lengths are compared, so a count of
+files never gets judged against a list of pull requests.
 """
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
+from typing import Any
 
 NUMBER_WORDS: dict[str, int] = {
     "two": 2,
@@ -282,3 +291,124 @@ def bare_count_claims(text: str) -> list[Claim]:
 def _list_contradicts(stated: int, items: int) -> bool:
     """Return True when a following list is a countable enumeration of a different size."""
     return items >= 2 and items != stated and stated < 2 * items
+
+
+@dataclass(frozen=True)
+class StructuredClaim:
+    """One count word in a string value that its sibling array contradicts."""
+
+    path: str
+    line: int
+    text: str
+    stated: int
+    actual: int
+    array_key: str
+
+
+# number, up to two modifier words, then a plural noun. No trailing structure is needed:
+# the sibling array is the enumeration.
+_STRUCTURED_CLAIM_RE = re.compile(
+    rf"(?<![\w.-])(?P<num>{_NUMBER})\s+(?:[A-Za-z-]+\s+){{0,2}}?(?P<noun>[A-Za-z-]+s)\b",
+    re.IGNORECASE,
+)
+_KEY_TOKEN_RE = re.compile(r"[A-Z]?[a-z0-9]+|[A-Z]+(?![a-z])")
+
+
+def _singular(word: str) -> str:
+    lowered = word.lower()
+    return lowered[:-1] if lowered.endswith("s") and len(lowered) > 2 else lowered
+
+
+def _noun_matches_key(noun: str, key: str) -> bool:
+    """Return True when the noun names the key by token or by initialism.
+
+    "files" matches `changed_files`; "PRs" matches `pull_requests` because p and r
+    open its two tokens.
+    """
+    wanted = _singular(noun)
+    tokens = [_singular(token) for token in _KEY_TOKEN_RE.findall(key)]
+    if wanted in tokens:
+        return True
+    return len(tokens) > 1 and "".join(token[0] for token in tokens) == wanted
+
+
+def _locate(lines: list[str], key: str, value: str) -> int:
+    """Return the 1-based line that holds the string value, or 1 when it cannot be found."""
+    needle = json.dumps(value, ensure_ascii=False)[1:-1][:30]
+    holds = [i for i, line in enumerate(lines, 1) if needle and needle in line]
+    keyed = [i for i in holds if key in lines[i - 1]]
+    return (keyed or holds or [1])[0]
+
+
+def _claims_in_string(value: str) -> list[tuple[int, str]]:
+    """Return (stated, noun) for each non-contractual count in the string."""
+    found = []
+    for match in _STRUCTURED_CLAIM_RE.finditer(value):
+        prefix = value[: match.start()]
+        if _is_contractual(prefix) or _is_position_label(prefix, match.group("num")):
+            continue
+        found.append((_number(match.group("num")), match.group("noun")))
+    return found
+
+
+def _object_claims(obj: dict[str, Any], path: str, lines: list[str]) -> list[StructuredClaim]:
+    arrays = {key: val for key, val in obj.items() if isinstance(val, list) and val}
+    claims: list[StructuredClaim] = []
+    for key, value in obj.items():
+        if not isinstance(value, str):
+            continue
+        for stated, noun in _claims_in_string(value):
+            matched = [name for name in arrays if _noun_matches_key(noun, name)]
+            if len(matched) != 1 or len(arrays[matched[0]]) == stated:
+                continue
+            claims.append(
+                StructuredClaim(
+                    path=f"{path}.{key}" if path else key,
+                    line=_locate(lines, key, value),
+                    text=value,
+                    stated=stated,
+                    actual=len(arrays[matched[0]]),
+                    array_key=matched[0],
+                )
+            )
+    return claims
+
+
+def _walk(node: object, path: str, lines: list[str]) -> list[StructuredClaim]:
+    if isinstance(node, dict):
+        found = _object_claims(node, path, lines)
+        for key, child in node.items():
+            found += _walk(child, f"{path}.{key}" if path else str(key), lines)
+        return found
+    if isinstance(node, list):
+        return [c for i, child in enumerate(node) for c in _walk(child, f"{path}[{i}]", lines)]
+    return []
+
+
+def _parse_structured(text: str, kind: str) -> list[Any]:
+    """Return the parsed documents, or none when the text does not parse as ``kind``."""
+    if kind == "json":
+        try:
+            return [json.loads(text)]
+        except ValueError:
+            return []
+    import yaml
+
+    try:
+        return list(yaml.safe_load_all(text))
+    except yaml.YAMLError:
+        return []
+
+
+def structured_count_claims(text: str, kind: str) -> list[StructuredClaim]:
+    """Return count words in JSON or YAML string values that a sibling array contradicts.
+
+    ``kind`` is "json" or "yaml". Retained: a contractual qualifier before the number, an
+    object with no matching sibling array, an empty array, and a noun that matches two
+    arrays. With several arrays the noun picks one by token or initialism; with one array
+    it still has to match, which is stricter than "compare the only list": "edits three
+    files" beside a `pull_requests` list is not a claim about that list. A document that
+    does not parse yields nothing, because syntax errors are other validators' job.
+    """
+    lines = text.splitlines()
+    return [c for doc in _parse_structured(text, kind) for c in _walk(doc, "", lines)]

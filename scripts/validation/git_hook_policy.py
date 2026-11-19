@@ -81,6 +81,9 @@ from scripts.validation.session_scope import (
     session_change_scope,
 )
 from scripts.validation.sha_pinning import LOCAL_ACTION_PATTERN, VERSION_TAG_PATTERN
+from scripts.validation.staged_structured_cardinality import (
+    check_staged_structured_cardinality,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PROHIBITED_DASHES = ("\N{EN DASH}", "\N{EM DASH}")
@@ -9282,6 +9285,15 @@ def _handle_staged_dashes(args: argparse.Namespace) -> int:
     return check_staged_dashes(args.paths, _repo_root(args))
 
 
+def _handle_staged_cardinality(args: argparse.Namespace) -> int:
+    return check_staged_structured_cardinality(
+        args.paths,
+        _repo_root(args),
+        read_blob=_read_index_blob,
+        safe_path=_safe_relative_path,
+    )
+
+
 def _handle_branch_dashes(args: argparse.Namespace) -> int:
     """Branch-wide em/en-dash scan as a standalone pre-push job (issue #5086).
 
@@ -9604,6 +9616,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("root-hygiene", _handle_root_hygiene),
         ("session", _handle_session),
         ("staged-dashes", _handle_staged_dashes),
+        ("staged-cardinality", _handle_staged_cardinality),
         ("staged-action-pins", _handle_staged_action_pins),
         ("root-scratch", _handle_root_scratch),
         ("staged-conflict-markers", _handle_staged_conflict_markers),
