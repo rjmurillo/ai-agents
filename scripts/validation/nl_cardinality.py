@@ -242,6 +242,71 @@ def _contradicted_claims(text: str) -> list[Claim]:
     return claims
 
 
+def _identifier_count(lines: list[str], index: int, line: str) -> int:
+    """Count unique IDs after a colon, including the next three lines."""
+    paragraph = " ".join([line, *lines[index + 1 : index + 4]])
+    enumeration = paragraph.split(":", 1)[1].split(". ", 1)[0]
+    ids = re.findall(r"\b[A-Z]{2,}-\d+\b", enumeration)
+    if len(ids) >= 2 and len(set(ids)) == len(ids):
+        return len(ids)
+    return 0
+
+
+def _numbered_table_rows(lines: list[str], noun: str) -> int:
+    """Return rows in the first numbered table whose header names ``noun``."""
+    header_re = re.compile(rf"\|[^\n]*\b{noun}\b[^\n]*\|", re.I)
+    row_re = re.compile(r"\|\s*\d+\s*\|")
+    for start, header in enumerate(lines):
+        if header_re.search(header) is None:
+            continue
+        rows = 0
+        for row in lines[start + 1 :]:
+            if not row.lstrip().startswith("|"):
+                break
+            if row_re.match(row):
+                rows += 1
+        if rows:
+            return rows
+    return 0
+
+
+def _explicit_actual(lines: list[str], index: int, line: str, noun: str) -> int:
+    """Return the structure size a records or generators claim can be checked against."""
+    if noun == "records" and ":" in line:
+        return _identifier_count(lines, index, line)
+    if noun == "generators":
+        return _numbered_table_rows(lines, "generator")
+    return 0
+
+
+def explicit_count_claims(text: str) -> list[Claim]:
+    """Check stated counts against explicit identifier lists and ordered tables.
+
+    Unlike bare imperatives, each result carries a contradictory structure.
+    Wrapped identifier lists retain their original claim line.
+    """
+    claims = _contradicted_claims(text)
+    lines = text.splitlines()
+    fence: Fence | None = None
+    pattern = re.compile(
+        rf"\b(?P<num>{_NUMBER})\s+(?:[\w./-]+\.py\s+)?(?P<noun>records|generators)\b", re.I
+    )
+    for index, line in enumerate(lines):
+        fence, delimiter = fence_step(line, fence)
+        if delimiter or fence is not None:
+            continue
+        # A backticked script can qualify the counted generators.
+        plain = re.sub(r"`[^`]+`\s+", "", line)
+        match = pattern.search(plain)
+        if not match or _is_contractual(plain[: match.start("num")]):
+            continue
+        actual = _explicit_actual(lines, index, line, match.group("noun").lower())
+        stated = _number(match.group("num"))
+        if actual >= 2 and stated != actual:
+            claims.append(Claim(index + 1, line.strip(), stated, actual))
+    return sorted({(c.line, c.stated, c.actual): c for c in claims}.values(), key=lambda c: c.line)
+
+
 def _next_structure(lines: list[str], index: int) -> tuple[str, int]:
     """Classify what follows the claim line: ("table", 0), ("list", n), or ("none", 0)."""
     for line in lines[index + 1 :]:

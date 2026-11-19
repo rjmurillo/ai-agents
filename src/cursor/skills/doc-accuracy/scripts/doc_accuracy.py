@@ -2074,13 +2074,50 @@ def _same_pr_scan(target: Path, diff_base: str, output_dir: Path) -> dict[str, A
     except (OSError, subprocess.TimeoutExpired) as exc:
         print(f"ERROR: git failed reading the diff: {exc}", file=sys.stderr)
         return 3
+    try:
+        removed = subprocess.run(
+            _git_command(target, "diff", "--unified=0", f"{diff_base}...HEAD"),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=60,
+            check=True,
+            env=_git_env(),
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        print(f"ERROR: git failed reading removed symbols: {exc}", file=sys.stderr)
+        return 3
     result: dict[str, Any] = same_pr.run_same_pr(
         target,
         files,
         ranges,
         normalize=_norm_path,
         is_unsafe=lambda path: _has_symlink_part(path, target),
+        tracked_files=[_repo_relative(p, target) for p in _repo_files(target, require_git=True)],
+        removed_symbols=same_pr.removed_references(removed.stdout),
     )
+    # Repository pre-PR integration reuses the canonical cardinality detector.
+    validation = Path(__file__).resolve().parents[5] / "scripts" / "validation"
+    if (validation / "nl_cardinality.py").is_file():
+        sys.path.insert(0, str(validation))
+        try:
+            # Installed plugins do not ship this module, so the import stays optional.
+            try:
+                import nl_cardinality
+            except ImportError:
+                nl_cardinality = None
+            if nl_cardinality is not None:
+                same_pr.add_cardinality(
+                    result,
+                    target,
+                    files,
+                    ranges,
+                    nl_cardinality,
+                    is_unsafe=lambda path: _has_symlink_part(path, target),
+                )
+        finally:
+            sys.path.remove(str(validation))
     same_pr.write_artifacts(output_dir, result)
     return result
 

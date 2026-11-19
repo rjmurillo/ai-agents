@@ -6,8 +6,8 @@ hunks of every text file in the diff, not only documentation globs, and sorts
 each changed line into prose (Markdown and `.tmpl` lines, Python docstrings and
 comments, JSON and YAML string values) or code (with its enclosing symbol).
 
-Three deterministic rules emit findings that can fail the gate: R1 exit-code
-sets, R2 enumeration subsets, R3 JSON key contents. Every other changed prose
+Deterministic rules emit findings: R1 exit-code sets, R2 enumeration subsets,
+R3 JSON key contents, and R4 literal collection counts. Every other changed prose
 line that looks like a verifiable claim goes to the checklist with the code
 locations it was paired with, for the Phase 4 reviewer. Nothing that looks
 checkable is dropped silently.
@@ -34,7 +34,7 @@ import tokenize
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 # ===== line classification and code index =====
 
@@ -385,7 +385,9 @@ def check_exit_codes(
         if not touched or not literals:
             continue
         doc_only, code_only = sorted(codes - set(literals)), sorted(set(literals) - codes)
-        if not (doc_only or code_only):
+        # Dynamic return expressions can supply documented exits. Absence from
+        # this literal index does not prove those exits impossible.
+        if not code_only:
             continue
         line = min(touched)
         evidence = {"documented": sorted(codes), "doc_only": doc_only, "code_only": code_only}
@@ -503,6 +505,8 @@ def check_enumeration_subset(
                 found += _subset_finding(
                     prose, path, members, named, _clause_for(text, runs, i), sites
                 )
+        if found:
+            break
     return found
 
 
@@ -514,7 +518,7 @@ def _subset_finding(
     clause: str,
     sites: list[Site],
 ) -> list[dict[str, object]]:
-    if len(set(named)) < 2 or set(named) >= members:
+    if not named or set(named) >= members:
         return []
     scored = sorted(((len(_stems(clause) & site[2]), site) for site in sites), key=lambda s: -s[0])
     best = scored[0] if scored else (0, ("", 0, set()))
@@ -536,6 +540,94 @@ def _subset_finding(
     ]
 
 
+def literal_collections(index: CodeIndex) -> list[tuple[str, int, str, list[ast.expr]]]:
+    """Return named, literal collections without evaluating target code."""
+    if "literal_collections" in index.memo:
+        return cast(list[tuple[str, int, str, list[ast.expr]]], index.memo["literal_collections"])
+    collections: list[tuple[str, int, str, list[ast.expr]]] = []
+    for path in index.sources:
+        tree = index.tree(path)
+        for node in ast.walk(tree) if tree else []:
+            if not isinstance(node, ast.Assign | ast.AnnAssign):
+                continue
+            if not isinstance(node.value, ast.Tuple | ast.List | ast.Set):
+                continue
+            if any(isinstance(e, ast.Starred) for e in node.value.elts):
+                continue
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            for name in targets:
+                if isinstance(name, ast.Name):
+                    collections.append((path, node.lineno, name.id, node.value.elts))
+    index.memo["literal_collections"] = collections
+    return collections
+
+
+def check_literal_subset(prose: ProseLine, index: CodeIndex) -> list[dict[str, object]]:
+    """R2: a closed path enumeration omits a literal collection member."""
+    if re.search(r"\b(?:example|including|such as|e\.g\.)\b", prose.text, re.I):
+        return []
+    named = {s.rstrip("/") for s in re.findall(r"`([^`]+)`", prose.text)}
+    found = []
+    for path, line, symbol, values in literal_collections(index):
+        strings = [const_str(v) for v in values]
+        if None in strings or len(strings) < 2:
+            continue
+        members = {s.rstrip("/") for s in strings if s is not None}
+        overlap = named & members
+        # Two literal paths and an explicit scope/list claim bind the collection.
+        explicit = symbol in prose.text
+        paths = len(overlap) >= 2 and all(f"`{s}/`" in prose.text for s in overlap)
+        if not (explicit or paths and re.search(r"scope|root|prefix", prose.text, re.I)):
+            continue
+        if overlap and overlap < members:
+            found.append(
+                make_finding(
+                    "R2",
+                    "high",
+                    prose,
+                    (path, line, symbol),
+                    {"named": sorted(overlap), "missing": sorted(members - overlap)},
+                    f"Enumeration omits {sorted(members - overlap)} from `{symbol}`",
+                )
+            )
+    return found
+
+
+def check_literal_count(prose: ProseLine, index: CodeIndex) -> list[dict[str, object]]:
+    """R4: a count immediately beside a named collection differs from its length."""
+    words = {
+        "one": 1,
+        "two": 2,
+        "three": 3,
+        "four": 4,
+        "five": 5,
+        "six": 6,
+        "seven": 7,
+        "eight": 8,
+        "nine": 9,
+        "ten": 10,
+    }
+    found = []
+    for path, line, symbol, values in literal_collections(index):
+        match = re.search(rf"\b(\d+|{'|'.join(words)})\s+`{re.escape(symbol)}`", prose.text, re.I)
+        if not match:
+            continue
+        token = match.group(1).lower()
+        count = int(token) if token.isdigit() else words[token]
+        if count != len(values):
+            found.append(
+                make_finding(
+                    "R4",
+                    "high",
+                    prose,
+                    (path, line, symbol),
+                    {"stated": count, "actual": len(values)},
+                    f"Count {count} differs from {len(values)} entries in `{symbol}`",
+                )
+            )
+    return found
+
+
 # -- R3 -----------------------------------------------------------------------
 
 _NOUN_UNDER_KEY = re.compile(r"(?P<noun>[A-Za-z][\w-]*)\s+under\s+`(?P<key>[A-Za-z_]\w*)`")
@@ -546,6 +638,7 @@ _KEY_HOLDS_NOUN = re.compile(
 # Placeholder names that docs use to describe the pattern itself, not a real JSON key.
 _PLACEHOLDER_KEYS = {"key", "field", "name", "value", "k", "x"}
 _PRONOUNS = {"it", "them", "this", "that", "these", "those", "all", "everything", "both"}
+_NON_NOUNS = {"recorded", "listed", "stored", "written", "retained", "reported"}
 
 
 def _stem5(word: str) -> str:
@@ -571,7 +664,7 @@ def check_json_key(prose: ProseLine, index: CodeIndex) -> tuple[list[dict[str, o
     ]
     for pair in pairs:
         noun, key = pair["noun"], pair["key"]
-        if noun.lower() in _PRONOUNS or key in _PLACEHOLDER_KEYS:
+        if noun.lower() in _PRONOUNS | _NON_NOUNS or key in _PLACEHOLDER_KEYS:
             continue
         writes = [w for w in index.assignments(key) if w[2]]
         if not writes:
@@ -601,14 +694,13 @@ MAX_PAIRS = 6
 MAX_FILE_BYTES = 1_000_000
 SCANNED_SUFFIXES = PROSE_SUFFIXES | DATA_SUFFIXES | CODE_SUFFIXES
 LIMITS = [
-    "Only changed lines are read, and only code files changed in this diff are paired.",
-    "A claim contradicted by an unchanged file, such as a rule in a sibling document, "
-    "is not found here; the Phase 4 reviewer has to look for it.",
+    "Changed prose and touched exit tables are checked; unchanged symbol references are listed.",
+    "Explicit script paths can resolve unchanged literals. Other unchanged behavior needs review.",
     "Prose in a changed file that no rule matches is listed, not judged.",
 ]
 
 _COUNT_WORDS = (
-    r"two|three|four|five|six|seven|eight|nine|ten|twice|"
+    r"one|two|three|four|five|six|seven|eight|nine|ten|twice|"
     r"second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth"
 )
 _NUMBER_WORD = re.compile(rf"\b(?:{_COUNT_WORDS})\b", re.IGNORECASE)
@@ -660,12 +752,16 @@ def pair_code(prose: ProseLine, regions: dict[str, list[CodeRegion]]) -> list[di
         close = _shared_prefix(prose.file, path)
         for region in found:
             overlap = len(words & _tokens(region.symbol))
+            if Path(path).name in prose.text:
+                overlap += 5
             ranked.append(((path != prose.file, -overlap, -close, path, region.line), region))
     ranked.sort(key=lambda item: item[0])
     return [{"file": r.file, "line": r.line, "symbol": r.symbol} for _, r in ranked[:MAX_PAIRS]]
 
 
 def _read_scannable(target: Path, rel: str, is_unsafe: Callable[[Path], bool]) -> str | None:
+    if Path(rel).is_absolute() or ".." in Path(rel).parts:
+        return None
     path = target / rel
     if Path(rel).suffix not in SCANNED_SUFFIXES or is_unsafe(path):
         return None
@@ -686,6 +782,7 @@ def _file_findings(
     text: str,
     prose: list[ProseLine],
     index: CodeIndex,
+    literal_index: CodeIndex | None = None,
 ) -> tuple[list[dict[str, Any]], dict[tuple[str, int], list[str]]]:
     """Findings for one file's prose, plus extra checklist reasons keyed by prose line."""
     findings = check_exit_codes(rel, text, {p.line for p in prose}, index)
@@ -694,10 +791,29 @@ def _file_findings(
     for line in prose:
         found = check_enumeration_subset(line, index, order)
         r3, r3_notes = check_json_key(line, index)
-        findings += found + r3
+        literals = literal_index or index
+        findings += (
+            found + r3 + check_literal_subset(line, literals) + check_literal_count(line, literals)
+        )
         if r3_notes:
             notes[(rel, line.line)] = r3_notes
     return findings, notes
+
+
+def _expand_exit_table(rel: str, text: str, prose: list[ProseLine]) -> list[ProseLine]:
+    """Treat each touched exit table as one claim unit."""
+    if Path(rel).suffix not in PROSE_SUFFIXES:
+        return prose
+    lines = text.split("\n")
+    touched = {p.line for p in prose}
+    for _codes, span in _markdown_blocks(lines):
+        if touched & span:
+            prose += [
+                ProseLine(rel, n, lines[n - 1].strip())
+                for n in sorted(span - touched)
+                if _TABLE_ROW.match(lines[n - 1])
+            ]
+    return prose
 
 
 def run_same_pr(
@@ -707,6 +823,8 @@ def run_same_pr(
     *,
     normalize: Callable[[str], str],
     is_unsafe: Callable[[Path], bool],
+    tracked_files: list[str] | None = None,
+    removed_symbols: dict[str, list[dict[str, Any]]] | None = None,
 ) -> dict[str, Any]:
     """Scan the changed hunks; return the findings and checklist documents."""
     texts: dict[str, str] = {}
@@ -719,21 +837,38 @@ def run_same_pr(
     code_lines = 0
     for rel, text in texts.items():
         prose, found, count = classify_file(rel, text, ranges.get(normalize(rel)))
+        prose = _expand_exit_table(rel, text, prose)
         prose_by_file[rel], code_lines = prose, code_lines + count
         if found:
             regions[rel] = found
     index = CodeIndex(texts)
+    # Explicit paths can pair a changed claim with an unchanged literal.
+    references = {}
+    for prose in prose_by_file.values():
+        for claim in prose:
+            for mention in _SCRIPT_MENTION.findall(claim.text):
+                text = _read_scannable(target, mention, is_unsafe)
+                if text is not None:
+                    references[mention] = text
+    literal_index = CodeIndex({**references, **texts})
     findings: list[dict[str, Any]] = []
     notes: dict[tuple[str, int], list[str]] = {}
     for rel, prose in prose_by_file.items():
-        file_findings, file_notes = _file_findings(rel, texts[rel], prose, index)
+        file_findings, file_notes = _file_findings(rel, texts[rel], prose, index, literal_index)
         findings += file_findings
         notes.update(file_notes)
     findings = _unique(findings)
     for number, finding in enumerate(findings, start=1):
         finding["id"] = f"same-pr-{number:04d}"
     flagged = {(f["prose"]["file"], f["prose"]["line"]) for f in findings}
-    entries = _checklist(prose_by_file, regions, notes, flagged)
+    checklist_regions = {path: list(items) for path, items in regions.items()}
+    for path, line, symbol, _values in literal_collections(literal_index):
+        if path not in regions:
+            checklist_regions.setdefault(path, []).append(CodeRegion(path, line, symbol))
+    entries = _checklist(prose_by_file, checklist_regions, notes, flagged)
+    entries += unchanged_references(
+        target, tracked_files or [], ranges, regions, removed_symbols or {}, is_unsafe
+    )
     examined = {
         "changed_files": len(changed_files),
         "scanned_files": len(texts),
@@ -745,6 +880,103 @@ def run_same_pr(
         "findings": {"status": "OK", "examined": examined, "findings": findings},
         "checklist": {"examined": examined, "limits": LIMITS, "entries": entries},
     }
+
+
+def unchanged_references(
+    target: Path,
+    tracked: list[str],
+    ranges: dict[str, list[list[int]]],
+    regions: dict[str, list[CodeRegion]],
+    removed: dict[str, list[dict[str, Any]]],
+    is_unsafe: Callable[[Path], bool],
+) -> list[dict[str, Any]]:
+    """List unchanged prose naming changed symbols, flags, or deleted headings."""
+    aliases: dict[str, list[dict[str, Any]]] = {}
+    for path, changes in regions.items():
+        for region in changes:
+            if region.symbol == MODULE_SYMBOL or len(region.symbol.strip("_")) < 5:
+                continue
+            pair = {"file": path, "line": region.line, "symbol": region.symbol}
+            for name in (region.symbol, "--" + region.symbol.strip("_").replace("_", "-")):
+                aliases.setdefault(name, []).append(pair)
+    for symbol, pairs in removed.items():
+        aliases.setdefault(symbol, []).extend(pairs)
+    if not aliases:
+        return []
+    pattern = re.compile(
+        r"(?<![\w])(?:"
+        + "|".join(re.escape(n) for n in sorted(aliases, key=len, reverse=True))
+        + r")(?![\w])"
+    )
+    entries = []
+    for rel in tracked:
+        if Path(rel).suffix not in PROSE_SUFFIXES:
+            continue
+        text = _read_scannable(target, rel, is_unsafe)
+        if text is None:
+            continue
+        changed = changed_line_numbers(ranges.get(rel, []), len(text.splitlines()))
+        for line in _markdown_prose(
+            rel, text.splitlines(), set(range(1, len(text.splitlines()) + 1)) - changed
+        ):
+            names = set(pattern.findall(line.text))
+            # A heading's references belong to its skill tree or document directory.
+            names = {
+                n
+                for n in names
+                if n not in removed
+                or any(_reference_tree(rel) == _reference_tree(p["file"]) for p in removed[n])
+            }
+            if names:
+                pairs = [p for name in sorted(names) for p in aliases[name]]
+                entries.append(
+                    {
+                        "prose_file": rel,
+                        "prose_line": line.line,
+                        "text": line.text,
+                        "reasons": [f"unchanged reference:`{n}`" for n in sorted(names)],
+                        "pairs": pairs,
+                    }
+                )
+    return entries
+
+
+def _reference_tree(path: str) -> str:
+    skill = re.search(r"(?:skills/)([^/.]+)", path)
+    if skill:
+        return skill.group(1).removesuffix(".SKILL")
+    template = re.search(r"templates/skills/(.+)\.SKILL\.md\.tmpl", path)
+    return template.group(1) if template else str(Path(path).parent)
+
+
+def removed_references(diff: str) -> dict[str, list[dict[str, Any]]]:
+    """Index deleted definitions, headings, and option strings from a Git diff."""
+    found: dict[str, list[dict[str, Any]]] = {}
+    path = ""
+    old_line = 1
+    for line in diff.splitlines():
+        if line.startswith("--- a/"):
+            path = line[6:]
+        hunk = re.match(r"@@ -(\d+)", line)
+        if hunk:
+            old_line = int(hunk.group(1))
+            continue
+        if line.startswith(" "):
+            old_line += 1
+        if not line.startswith("-") or line.startswith("---"):
+            continue
+        text = line[1:]
+        heading = re.match(r"#{1,6}\s+(.+)", text)
+        definition = re.match(r"\s*(?:async\s+)?def\s+(\w+)\(", text)
+        names = [heading.group(1).strip()] if heading else []
+        names += [definition.group(1)] if definition else []
+        names += re.findall(r"(?<!\w)--[a-z][a-z-]+", text)
+        for name in names:
+            found.setdefault(name, []).append(
+                {"file": path, "line": old_line, "symbol": name, "side": "base"}
+            )
+        old_line += 1
+    return found
 
 
 def _unique(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -787,6 +1019,47 @@ def write_artifacts(output_dir: Path, result: dict[str, Any]) -> None:
         ("same-pr-checklist.json", "checklist"),
     ):
         (output_dir / name).write_text(json.dumps(result[key], indent=2), encoding="utf-8")
+
+
+def add_cardinality(
+    result: dict[str, Any],
+    target: Path,
+    files: set[str],
+    ranges: dict[str, list[list[int]]],
+    detector: Any,
+    is_unsafe: Callable[[Path], bool],
+) -> None:
+    """Reuse repository cardinality rules on changed prose and structured strings."""
+    findings = result["findings"]["findings"]
+    for rel in sorted(files):
+        text = _read_scannable(target, rel, is_unsafe)
+        if text is None:
+            continue
+        changed = changed_line_numbers(ranges.get(rel), len(text.splitlines()))
+        suffix = Path(rel).suffix
+        if suffix in PROSE_SUFFIXES:
+            claims = detector.explicit_count_claims(text)
+            rule = "nl-cardinality"
+        elif suffix in DATA_SUFFIXES:
+            claims = detector.structured_count_claims(text, "json" if suffix == ".json" else "yaml")
+            rule = "structured-cardinality"
+        else:
+            continue
+        for claim in claims:
+            if claim.line not in changed:
+                continue
+            findings.append(
+                make_finding(
+                    rule,
+                    "high",
+                    ProseLine(rel, claim.line, text.splitlines()[claim.line - 1]),
+                    (rel, claim.line, getattr(claim, "array_key", "enumeration")),
+                    {"stated": claim.stated, "actual": claim.actual},
+                    f"Count {claim.stated} differs from {claim.actual} enumerated entries",
+                )
+            )
+    for number, finding in enumerate(findings, start=1):
+        finding["id"] = f"same-pr-{number:04d}"
 
 
 def fold_into_gate(

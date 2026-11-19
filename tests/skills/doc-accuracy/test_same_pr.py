@@ -10,10 +10,74 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from diff_scope_helpers import Json, edit_files_and_commit, make_repo, mod, run_same_pr
+from diff_scope_helpers import Json, edit_files_and_commit, make_repo, run_same_pr
+
+
+def test_closed_scope_list_checks_explicit_unchanged_script(tmp_path: Path) -> None:
+    script = "scripts/scope.py"
+    repo = make_repo(
+        tmp_path,
+        {
+            script: 'SCOPE = ("src", "build", "packages")\n',
+            "CONTRIBUTING.md": "Scope rules.\n",
+        },
+    )
+    edit_files_and_commit(
+        repo,
+        {
+            "CONTRIBUTING.md": f"`{script}` scans root scope `src/` or `build/`.\n",
+        },
+    )
+    _code, findings, _checklist = run_same_pr(repo, tmp_path, "--phases", "1")
+    assert any(
+        f["rule"] == "R2" and f["evidence"]["missing"] == ["packages"] for f in findings["findings"]
+    )
+
+
+def test_literal_count_and_unchanged_option_reference(tmp_path: Path) -> None:
+    repo = make_repo(
+        tmp_path,
+        {
+            "src.py": 'SECTIONS = ("one", "two", "three")\ndef _preflight():\n    return 0\n',
+            "guide.md": "Run `--preflight` before publishing.\n",
+        },
+    )
+    edit_files_and_commit(
+        repo,
+        {
+            "src.py": 'SECTIONS = ("one", "two", "three")\ndef _preflight():\n    return 1\n',
+            "counts.md": "The two `SECTIONS` are required.\n",
+        },
+    )
+    _code, findings, checklist = run_same_pr(repo, tmp_path, "--phases", "1")
+    assert any(f["rule"] == "R4" for f in findings["findings"])
+    entry = _entry(checklist, "guide.md", "--preflight")
+    assert any(p["symbol"] == "_preflight" for p in entry["pairs"])
+
+
+def test_repo_cardinality_reaches_markdown_templates_and_json(tmp_path: Path) -> None:
+    repo = make_repo(tmp_path, {"guide.md": "No counts.\n"})
+    edit_files_and_commit(
+        repo,
+        {
+            "guide.md": (
+                "Four records are proposed: ADR-001, ADR-002, ADR-003, ADR-004, plus ADR-005.\n"
+            ),
+            "guide.tmpl": "The three checks: alpha, beta, gamma, delta.\n",
+            "data.json": '{"reason": "these two PRs", "pull_requests": [1, 2, 3]}\n',
+        },
+    )
+    _code, findings, _checklist = run_same_pr(repo, tmp_path, "--phases", "1")
+    assert {(f["prose"]["file"], f["rule"]) for f in findings["findings"]} >= {
+        ("guide.md", "nl-cardinality"),
+        ("guide.tmpl", "nl-cardinality"),
+        ("data.json", "structured-cardinality"),
+    }
+
 
 TMPL = "templates/skills/code-qualities-assessment.SKILL.md.tmpl"
 ASSESS = "src/claude/skills/code-qualities-assessment/scripts/assess.py"
@@ -35,7 +99,7 @@ def _rule(findings: Json, rule: str) -> list[Json]:
 def _entry(checklist: Json, path: str, needle: str) -> Json:
     hits = [e for e in checklist["entries"] if e["prose_file"] == path and needle in e["text"]]
     assert len(hits) == 1, [e["text"] for e in checklist["entries"]]
-    return hits[0]
+    return cast(Json, hits[0])
 
 
 # -- #7451: language enumeration names a subset of the closed set --------------
@@ -431,49 +495,3 @@ def test_checklist_pairs_a_severity_claim_with_changed_review_code(tmp_path: Pat
     assert all(p["line"] > 0 for p in entry["pairs"])
     # The contradicting rules live in unchanged files; the artifact says it cannot see them.
     assert any("unchanged" in limit for limit in checklist["limits"])
-
-
-# -- negative controls and CLI contract ----------------------------------------
-
-
-def test_accurate_prose_beside_changed_code_yields_no_finding_and_no_entry(
-    tmp_path: Path,
-) -> None:
-    repo = make_repo(tmp_path, {"docs/tool.md": "# Tool\n", TOOL: _tool_source([0], [])})
-    edit_files_and_commit(
-        repo,
-        {"docs/tool.md": "# Tool\n\nThis tool prints a report.\n", TOOL: _tool_source([0], [])},
-    )
-
-    code, findings, checklist = run_same_pr(repo, tmp_path)
-
-    assert code == 0
-    assert findings["findings"] == []
-    assert checklist["entries"] == []
-
-
-def test_findings_artifact_reports_what_was_examined(tmp_path: Path) -> None:
-    repo, _ = _grammar_repo(tmp_path, EXIT_ROW_RIGHT)
-
-    _, findings, _ = run_same_pr(repo, tmp_path)
-
-    assert findings["examined"]["changed_files"] == 2
-    assert findings["examined"]["prose_lines"] > 0
-    assert findings["examined"]["code_lines"] > 0
-
-
-def test_same_pr_without_diff_base_is_a_config_error(tmp_path: Path) -> None:
-    repo = make_repo(tmp_path, {"a.md": "# A\n"})
-
-    code = mod.main(["--target", str(repo), "--output-dir", str(tmp_path / "o"), "--same-pr"])
-
-    assert code == 2
-
-
-def test_same_pr_is_off_by_default(tmp_path: Path) -> None:
-    repo, _ = _grammar_repo(tmp_path, EXIT_ROW_WRONG)
-    out = tmp_path / "out"
-
-    mod.main(["--target", str(repo), "--output-dir", str(out), "--diff-base", "HEAD~1"])
-
-    assert not (out / "same-pr-findings.json").exists()

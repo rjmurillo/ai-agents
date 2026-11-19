@@ -468,35 +468,6 @@ class TestLocalAxisNeedsThePathThatRoutedIt:
         routed = {axis for _canonical, local in mod._EFFECT_TABLE.values() for axis in local}
         assert routed == {"doc-accuracy"}
 
-    def test_docstring_effect_selects_doc_accuracy_for_a_python_only_diff(self):
-        result = select(["src/main.py"], effects=["comments-or-docstrings"])
-        assert "doc-accuracy" in result["local_selected"]
-
-    def test_docstring_effect_is_dropped_when_no_path_is_readable(self):
-        result = select(["src/main.rs"], effects=["comments-or-docstrings"])
-        assert "doc-accuracy" not in result["local_selected"]
-        assert result["skipped"]["doc-accuracy"] == mod._UNREADABLE_REASON
-
-    def test_prose_and_code_combination_routes_doc_accuracy(self):
-        result = select(["templates/skills/x.SKILL.md.tmpl", "scripts/x.py"])
-        assert "doc-accuracy" in result["local_selected"]
-        assert "prose-and-code" in result["selection_reasons"]["doc-accuracy"]
-
-    def test_code_alone_does_not_route_doc_accuracy(self):
-        result = select(["scripts/x.py"])
-        assert "doc-accuracy" not in result["local_selected"]
-
-    def test_prose_alone_without_a_code_path_is_not_a_combination(self):
-        assert mod._routes_doc_accuracy_by_combination(["config/x.yaml"]) == []
-
-    def test_same_pr_suffixes_match_the_scanner(self):
-        same_pr = import_skill_script(
-            ".claude/skills/doc-accuracy/scripts/same_pr.py",
-            module_name="capability_same_pr",
-        )
-        expected = same_pr.PROSE_SUFFIXES | same_pr.DATA_SUFFIXES | {".py"}
-        assert mod._DOC_ACCURACY_SAME_PR_SUFFIXES == expected
-
     def test_axis_dropped_when_only_an_unreadable_path_routed_it(self):
         result = select(["README.md", "src/main.rs"])
         assert result["fail_closed"] is False

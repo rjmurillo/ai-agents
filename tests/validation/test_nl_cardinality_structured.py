@@ -9,12 +9,18 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
+_VALIDATION = Path(__file__).resolve().parents[2] / "scripts" / "validation"
+if str(_VALIDATION) not in sys.path:
+    sys.path.insert(0, str(_VALIDATION))
+
+import nl_cardinality as card
+
 from scripts.validation import git_hook_policy as policy
-from scripts.validation import nl_cardinality as card
 
 # Trimmed from the wrong state of PR #7311 (commit 96798c2f56).
 PR_7311_ENTRY = {
@@ -183,7 +189,7 @@ def _stage(tmp_path: Path, name: str, text: str) -> Path:
 
 
 def _run_hook(repo: Path, *paths: str) -> int:
-    return policy.main(["--repo-root", str(repo), "staged-cardinality", *paths])
+    return policy.main(["--repo-root", str(repo), "staged-structured-cardinality", *paths])
 
 
 def test_hook_fails_on_contradicted_count_in_staged_json(tmp_path: Path, capsys) -> None:

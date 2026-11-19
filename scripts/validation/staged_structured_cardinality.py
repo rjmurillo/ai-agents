@@ -14,7 +14,9 @@ import sys
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
-from scripts.validation.nl_cardinality import structured_count_claims
+from nl_cardinality import (
+    structured_count_claims,
+)  # sibling module; git_hook_policy puts this directory on sys.path
 
 _KIND_BY_SUFFIX = {".json": "json", ".yaml": "yaml", ".yml": "yaml"}
 

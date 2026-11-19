@@ -131,20 +131,6 @@ pre-commit:
             skip:
               - merge
 
-          # PR 7311: "these two PRs" sat beside a three-item pull_requests list.
-          # Staged files only, so the 27 existing hits (measured 2026-11-19 over
-          # 3097 tracked JSON/YAML files) stay untouched until someone edits them.
-          - name: structured-cardinality-policy
-            timeout: 2m
-            run: uv run --frozen python scripts/validation/git_hook_policy.py staged-cardinality {staged_files}
-            glob: "**/*.{json,yaml,yml}"
-            exclude:
-              - "node_modules/**"
-              - ".venv/**"
-              - "tests/hooks/fixtures/**"
-            skip:
-              - merge
-
           - name: action-pin-policy
             timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py staged-action-pins {staged_files}
@@ -297,6 +283,20 @@ pre-commit:
             timeout: 2m
             run: uv run --frozen python scripts/validation/check_subprocess_encoding.py
             glob: "**/*.py"
+            skip:
+              - merge
+
+          # PR 7311: "these two PRs" sat beside a three-item pull_requests list.
+          # Staged files only, so the 27 existing hits (measured 2026-11-19 over
+          # 3097 tracked JSON/YAML files) stay untouched until someone edits them.
+          - name: structured-cardinality-policy
+            timeout: 2m
+            run: uv run --frozen python scripts/validation/git_hook_policy.py staged-structured-cardinality {staged_files}
+            glob: "**/*.{json,yaml,yml}"
+            exclude:
+              - "node_modules/**"
+              - ".venv/**"
+              - "tests/hooks/fixtures/**"
             skip:
               - merge
 

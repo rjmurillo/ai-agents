@@ -388,15 +388,27 @@ def validate_model_pins(repo_root: Path) -> bool:
 
 
 _SAME_PR_SCRIPT = Path("src/claude/skills/doc-accuracy/scripts/doc_accuracy.py")
-_SAME_PR_CODE_SUFFIXES = (".py", ".cs", ".ts", ".tsx", ".js", ".ps1", ".sh")
+_SAME_PR_CODE_SUFFIXES = (
+    ".py",
+    ".cs",
+    ".ts",
+    ".tsx",
+    ".js",
+    ".ps1",
+    ".sh",
+    ".md",
+    ".tmpl",
+    ".json",
+    ".yaml",
+    ".yml",
+)
 
 
 def _branch_changes_code(repo_root: Path, base_ref: str) -> bool:
-    """True when the branch diff touches a code file.
+    """True when the branch diff touches a scannable file.
 
-    Path-level approximation of "prose and code both changed". Docstrings and
-    comments live in code files, so any changed code file can carry prose; a
-    docs-only branch has no code to pair with and is skipped.
+    Docs-only and structured-data changes can contradict their own counts.
+    Source files can carry docstrings and comments.
     """
     exit_code, stdout, _ = _run_subprocess(
         ["git", "-C", str(repo_root), "diff", "--name-only", f"{base_ref}...HEAD"]
@@ -424,7 +436,7 @@ def validate_doc_accuracy_same_pr(repo_root: Path) -> bool:
     if base_ref is None:
         raise MissingScriptSkip("no branch base ref resolved")
     if not _branch_changes_code(repo_root, base_ref):
-        print("  same-pr: 0 code files changed against the base, nothing to pair prose with")
+        print("  same-pr: 0 scannable files changed against the base")
         return True
     import tempfile
 

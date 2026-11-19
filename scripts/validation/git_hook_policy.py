@@ -9348,7 +9348,9 @@ def _handle_count_ratchets(args: argparse.Namespace) -> int:
             "in a managed container (ADR-104 rule 8)",
             file=sys.stderr,
         )
-    return checks_ratchet.main(_repo_root(args), deadline)
+    # int(): an unresolved sibling import is Any, and no-any-return fails the
+    # changed-file gate even though checks_ratchet.main is annotated int.
+    return int(checks_ratchet.main(_repo_root(args), deadline))
 
 
 def _handle_staged_action_pins(args: argparse.Namespace) -> int:
@@ -9616,7 +9618,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("root-hygiene", _handle_root_hygiene),
         ("session", _handle_session),
         ("staged-dashes", _handle_staged_dashes),
-        ("staged-cardinality", _handle_staged_cardinality),
+        ("staged-structured-cardinality", _handle_staged_cardinality),
         ("staged-action-pins", _handle_staged_action_pins),
         ("root-scratch", _handle_root_scratch),
         ("staged-conflict-markers", _handle_staged_conflict_markers),

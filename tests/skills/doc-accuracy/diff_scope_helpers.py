@@ -100,6 +100,6 @@ def run_same_pr(repo: Path, tmp_path: Path, *extra: str) -> tuple[int, Json, Jso
     out = tmp_path / "out"
     argv = ["--target", str(repo), "--output-dir", str(out), "--format", "summary"]
     code = mod.main([*argv, "--same-pr", "--diff-base", "HEAD~1", *extra])
-    findings: Json = json.loads((out / "same-pr-findings.json").read_text())
-    checklist: Json = json.loads((out / "same-pr-checklist.json").read_text())
+    findings: Json = json.loads((out / "same-pr-findings.json").read_text(encoding="utf-8"))
+    checklist: Json = json.loads((out / "same-pr-checklist.json").read_text(encoding="utf-8"))
     return code, findings, checklist

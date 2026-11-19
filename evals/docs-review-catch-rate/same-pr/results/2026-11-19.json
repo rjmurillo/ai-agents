@@ -1,0 +1,521 @@
+{
+  "schema_version": 1,
+  "date": "2026-11-19T15:41:57.154235+00:00",
+  "checker_head": "21912da94187f8cd324bc298feb518dbea65cf5a",
+  "checker_sha256": {
+    "src/claude/skills/doc-accuracy/scripts/doc_accuracy.py": "cf4b57ed639b633efd1a7470cc2ee8d17c66abeee8be9de698505ec3f43ef823",
+    "src/claude/skills/doc-accuracy/scripts/same_pr.py": "8b193df267e9ea614a5feaf13e0ba7f53e54ed59eb5ada7841fce265b98a9ab5",
+    "scripts/validation/nl_cardinality.py": "b548662920ee50b44a60adf5a4af189ff4f1b37945166917ba9b7633489742cf"
+  },
+  "checker_diff": ".../skills/doc-accuracy/scripts/doc_accuracy.py    |  33 +++\n src/claude/skills/doc-accuracy/scripts/same_pr.py  | 299 ++++++++++++++++++++-\n 2 files changed, 319 insertions(+), 13 deletions(-)",
+  "score": "caught 7 of 7 in-scope positives, 0 FP on 12 negatives, 8 manual with reasons",
+  "passed": true,
+  "results": [
+    {
+      "id": "C4-01",
+      "pr": 7451,
+      "sha": "916946a57ebec9b4767394a9017976cbcae63297",
+      "baseRefOid": "4f8e3852ae914a5539280c193064eee1ef592383",
+      "merge_base": "b46b69759f0ddf49e40d4f20870bce4d7bfa46cc",
+      "scope": "automatic",
+      "why": null,
+      "manual_claims": [],
+      "expected": [
+        {
+          "file": "templates/skills/code-qualities-assessment.SKILL.md.tmpl",
+          "line": 199,
+          "class": "R2"
+        }
+      ],
+      "caught": [
+        true
+      ],
+      "checklist_count": 403,
+      "findings_count": 30,
+      "matched": [
+        {
+          "file": "templates/skills/code-qualities-assessment.SKILL.md.tmpl",
+          "line": 199,
+          "rule": "R2"
+        }
+      ]
+    },
+    {
+      "id": "C4-02",
+      "pr": 7448,
+      "sha": "a96661c5e010300b3f2a6e19fa8083222cadb53c",
+      "baseRefOid": "b46b69759f0ddf49e40d4f20870bce4d7bfa46cc",
+      "merge_base": "b46b69759f0ddf49e40d4f20870bce4d7bfa46cc",
+      "scope": "automatic",
+      "why": null,
+      "manual_claims": [
+        {
+          "scope": "manual",
+          "why": "Record cardinality requires distinguishing one admitted regression from multiple built-in admission records.",
+          "file": "templates/skills/code-qualities-assessment.SKILL.md.tmpl",
+          "line": 196
+        }
+      ],
+      "expected": [
+        {
+          "file": "templates/skills/code-qualities-assessment.SKILL.md.tmpl",
+          "line": 199,
+          "class": "R2"
+        }
+      ],
+      "caught": [
+        true
+      ],
+      "checklist_count": 336,
+      "findings_count": 31,
+      "matched": [
+        {
+          "file": "templates/skills/code-qualities-assessment.SKILL.md.tmpl",
+          "line": 199,
+          "rule": "R2"
+        },
+        {
+          "file": "templates/skills/code-qualities-assessment.SKILL.md.tmpl",
+          "line": 199,
+          "rule": "R2"
+        },
+        {
+          "file": "templates/skills/code-qualities-assessment.SKILL.md.tmpl",
+          "line": 199,
+          "rule": "R2"
+        }
+      ]
+    },
+    {
+      "id": "C4-03",
+      "pr": 7450,
+      "sha": "d856c06b0ef879601d2bc55e94377c66b8f081ab",
+      "baseRefOid": "bc202bfff76244d51220f8c33f5abbe9ed1bbf24",
+      "merge_base": "b46b69759f0ddf49e40d4f20870bce4d7bfa46cc",
+      "scope": "automatic",
+      "why": null,
+      "manual_claims": [],
+      "expected": [
+        {
+          "file": "src/claude/skills/code-qualities-assessment/references/csharp-parser.md",
+          "line": 39,
+          "class": "R3"
+        }
+      ],
+      "caught": [
+        true
+      ],
+      "checklist_count": 458,
+      "findings_count": 12,
+      "matched": [
+        {
+          "file": "src/claude/skills/code-qualities-assessment/references/csharp-parser.md",
+          "line": 39,
+          "rule": "R3"
+        }
+      ]
+    },
+    {
+      "id": "C4-04",
+      "pr": 7311,
+      "sha": "96798c2f5654b39303e21e6e3b92f38a27222d81",
+      "baseRefOid": "fa6a2025019162c9b651df3c77d226d9a1c0023b",
+      "merge_base": "fa6a2025019162c9b651df3c77d226d9a1c0023b",
+      "scope": "automatic",
+      "why": null,
+      "manual_claims": [],
+      "expected": [
+        {
+          "file": ".project-toolkit/pr-checks/dispositions.json",
+          "line": 14,
+          "class": "structured-cardinality"
+        }
+      ],
+      "caught": [
+        true
+      ],
+      "checklist_count": 1,
+      "findings_count": 1,
+      "matched": [
+        {
+          "file": ".project-toolkit/pr-checks/dispositions.json",
+          "line": 14,
+          "rule": "structured-cardinality"
+        }
+      ]
+    },
+    {
+      "id": "C4-05",
+      "pr": 5741,
+      "sha": "3d6180a6bf04c4530d4036ec9de51a7c02ea98f3",
+      "baseRefOid": "5cad780a2824b23cd51730488650601ad2104c48",
+      "merge_base": "c771c6914580a280afc1a5cd6ded8be1d09771f6",
+      "scope": "manual",
+      "why": "The count names an allowlist without its symbol; review SECTIONS_TO_COMPARE in the named detector.",
+      "manual_claims": [],
+      "expected": [],
+      "caught": [],
+      "checklist_count": 512,
+      "findings_count": 0,
+      "matched": []
+    },
+    {
+      "id": "C4-06",
+      "pr": 5773,
+      "sha": "d81247391aaf67b43226095d385b1139df452dc9",
+      "baseRefOid": "9a1694ef0eba2360e6f95046c139a1db2c0b65e7",
+      "merge_base": "f50f68551242237b8e5f23461ae633679d7e1673",
+      "scope": "automatic",
+      "why": null,
+      "manual_claims": [],
+      "expected": [
+        {
+          "file": "templates/skills/ai-agents-generation-and-release.SKILL.md.tmpl",
+          "line": 3,
+          "class": "nl-cardinality"
+        }
+      ],
+      "caught": [
+        true
+      ],
+      "checklist_count": 954,
+      "findings_count": 1,
+      "matched": [
+        {
+          "file": "templates/skills/ai-agents-generation-and-release.SKILL.md.tmpl",
+          "line": 3,
+          "rule": "nl-cardinality"
+        }
+      ]
+    },
+    {
+      "id": "C4-07",
+      "pr": 5291,
+      "sha": "00a2be34f13ee0789b1627740ecabc632fd36217",
+      "baseRefOid": "ad634bbac805ac510ea7fb1fa298ce48dd22e38b",
+      "merge_base": "ad634bbac805ac510ea7fb1fa298ce48dd22e38b",
+      "scope": "automatic",
+      "why": null,
+      "manual_claims": [],
+      "expected": [
+        {
+          "file": ".agents/critique/ADR-073-phase2-backfill-debate-log.md",
+          "line": 153,
+          "class": "nl-cardinality"
+        }
+      ],
+      "caught": [
+        true
+      ],
+      "checklist_count": 210,
+      "findings_count": 2,
+      "matched": [
+        {
+          "file": ".agents/critique/ADR-073-phase2-backfill-debate-log.md",
+          "line": 153,
+          "rule": "nl-cardinality"
+        }
+      ]
+    },
+    {
+      "id": "C4-08",
+      "pr": 6584,
+      "sha": "926ad8185c80e3d85edb55f0906d0fd7e9c1011f",
+      "baseRefOid": "f7c9d132ad942b7ed2a2e0f7476a18c4eb70a1db",
+      "merge_base": "b55ace70c000eadd603c1a28ecbc7ff3d92eec7a",
+      "scope": "manual",
+      "why": "Behavioral equivalence needs a reviewer to compare exception handling.",
+      "manual_claims": [],
+      "expected": [],
+      "caught": [],
+      "checklist_count": 25,
+      "findings_count": 0,
+      "matched": []
+    },
+    {
+      "id": "C4-09",
+      "pr": 6852,
+      "sha": "579642032fa54cf30635ab4250008cafcebc865d",
+      "baseRefOid": "ff881b54af41bd47f4d0d4942e124cbd1545abd7",
+      "merge_base": "8dc469d8771165a5853298bb3a4403e70eb31609",
+      "scope": "manual",
+      "why": "Run counts depend on nested calls and require behavioral review.",
+      "manual_claims": [],
+      "expected": [],
+      "caught": [],
+      "checklist_count": 22,
+      "findings_count": 0,
+      "matched": []
+    },
+    {
+      "id": "C4-10",
+      "pr": 7379,
+      "sha": "ef0ac7bed700e873e923acb9f4ff8d93fcfb1917",
+      "baseRefOid": "807d12d292541b58c53176f6041ed4145e8f2d32",
+      "merge_base": "919a56dee13126cdcba48e6732f42fbf01963106",
+      "scope": "manual",
+      "why": "The contradiction sits in unchanged review rules outside this diff.",
+      "manual_claims": [],
+      "expected": [],
+      "caught": [],
+      "checklist_count": 5503,
+      "findings_count": 0,
+      "matched": []
+    },
+    {
+      "id": "C4-11",
+      "pr": 6908,
+      "sha": "fe824f71c2e39e30f4fce7c56fb8ce3420b5df1c",
+      "baseRefOid": "14b6678972445139e2a2de3537691e5541191cce",
+      "merge_base": "14b6678972445139e2a2de3537691e5541191cce",
+      "scope": "manual",
+      "why": "The preflight behavior needs review of an unchanged prose reference.",
+      "manual_claims": [],
+      "expected": [],
+      "caught": [],
+      "checklist_count": 464,
+      "findings_count": 0,
+      "matched": []
+    },
+    {
+      "id": "C4-12",
+      "pr": 7340,
+      "sha": "4ef1beaf407723ed78db42799196fd0a692f6a5c",
+      "baseRefOid": "24d694d9caafce53898b61170d665aafba1e2524",
+      "merge_base": "24d694d9caafce53898b61170d665aafba1e2524",
+      "scope": "manual",
+      "why": "The deleted scan heading needs a reviewer to assess remaining references.",
+      "manual_claims": [],
+      "expected": [],
+      "caught": [],
+      "checklist_count": 901,
+      "findings_count": 0,
+      "matched": []
+    },
+    {
+      "id": "C4-13",
+      "pr": 7168,
+      "sha": "6bc0df3fcfe5215aced40af34de2f4e381014c77",
+      "baseRefOid": "143627520267e7ce9e4ec5cb0098a820ebf364a6",
+      "merge_base": "e1eb8225898402089a115a4b99b8647b8e90572b",
+      "scope": "automatic",
+      "why": null,
+      "manual_claims": [],
+      "expected": [
+        {
+          "file": "CONTRIBUTING.md",
+          "line": 879,
+          "class": "R2"
+        }
+      ],
+      "caught": [
+        true
+      ],
+      "checklist_count": 282,
+      "findings_count": 2,
+      "matched": [
+        {
+          "file": "CONTRIBUTING.md",
+          "line": 878,
+          "rule": "R2"
+        }
+      ]
+    },
+    {
+      "id": "C4-14",
+      "pr": 7293,
+      "sha": "0028317401437ea4db3198490f2abbb4864c160a",
+      "baseRefOid": "ea8a78b47c3a9b51dd24057fc08d1300573355a4",
+      "merge_base": "d82875e0cad26be4af0154c70bb42d6619162865",
+      "scope": "manual",
+      "why": "The legal-only routing claim requires classifier behavior review.",
+      "manual_claims": [],
+      "expected": [],
+      "caught": [],
+      "checklist_count": 318,
+      "findings_count": 0,
+      "matched": []
+    },
+    {
+      "id": "N-7452",
+      "pr": 7452,
+      "sha": "6b9340fac0730c973cb27b1bbd8def16822b2bb4",
+      "baseRefOid": "498d4892a62a50d6624bc9315344dd9ef81e373d",
+      "merge_base": "da42adc4a7593906345f040d6a6a5d7b734bef04",
+      "scope": "negative",
+      "why": null,
+      "manual_claims": [],
+      "expected": [],
+      "caught": [],
+      "checklist_count": 413,
+      "findings_count": 0,
+      "matched": []
+    },
+    {
+      "id": "N-7431",
+      "pr": 7431,
+      "sha": "e30fb2297694dd5ca95d8913c0d0789d37b15ace",
+      "baseRefOid": "031b40d484d8f04c75bb0917e960aa96f78eb083",
+      "merge_base": "031b40d484d8f04c75bb0917e960aa96f78eb083",
+      "scope": "negative",
+      "why": null,
+      "manual_claims": [],
+      "expected": [],
+      "caught": [],
+      "checklist_count": 24,
+      "findings_count": 0,
+      "matched": []
+    },
+    {
+      "id": "N-7377",
+      "pr": 7377,
+      "sha": "17e0aa089892a67db4a5dda5898be631224cc310",
+      "baseRefOid": "919a56dee13126cdcba48e6732f42fbf01963106",
+      "merge_base": "919a56dee13126cdcba48e6732f42fbf01963106",
+      "scope": "negative",
+      "why": null,
+      "manual_claims": [],
+      "expected": [],
+      "caught": [],
+      "checklist_count": 70,
+      "findings_count": 0,
+      "matched": []
+    },
+    {
+      "id": "N-7412",
+      "pr": 7412,
+      "sha": "f9493d63c4e4efe7493d589940b7cd19ecd8cbfa",
+      "baseRefOid": "f2de906fa66e7287c845d3d4e5bfa5066a52d220",
+      "merge_base": "81953391200a290b610bc1f440fa2eba47a58624",
+      "scope": "negative",
+      "why": null,
+      "manual_claims": [],
+      "expected": [],
+      "caught": [],
+      "checklist_count": 1,
+      "findings_count": 0,
+      "matched": []
+    },
+    {
+      "id": "N-7146",
+      "pr": 7146,
+      "sha": "8fc3c74779bc5a4a363b8e12ae6f42ae1cd1d826",
+      "baseRefOid": "1483a697174329481230bf01b2c89d930b066fc3",
+      "merge_base": "1483a697174329481230bf01b2c89d930b066fc3",
+      "scope": "negative",
+      "why": null,
+      "manual_claims": [],
+      "expected": [],
+      "caught": [],
+      "checklist_count": 46,
+      "findings_count": 0,
+      "matched": []
+    },
+    {
+      "id": "N-7415",
+      "pr": 7415,
+      "sha": "c99aca0eb1795bef30e468a560579add8bd888ac",
+      "baseRefOid": "7aa43a0eb563cfb00a00de84361d5514b725cf66",
+      "merge_base": "7aa43a0eb563cfb00a00de84361d5514b725cf66",
+      "scope": "negative",
+      "why": null,
+      "manual_claims": [],
+      "expected": [],
+      "caught": [],
+      "checklist_count": 18,
+      "findings_count": 0,
+      "matched": []
+    },
+    {
+      "id": "N-7174",
+      "pr": 7174,
+      "sha": "2bccad6a6a7ec7ea6ea4cac5000fb17db7316745",
+      "baseRefOid": "2438d8def966511a7d58dcb8e20acabeb247801e",
+      "merge_base": "bfd68da913b67c2322561238a7ac3108638c2a10",
+      "scope": "negative",
+      "why": null,
+      "manual_claims": [],
+      "expected": [],
+      "caught": [],
+      "checklist_count": 63,
+      "findings_count": 0,
+      "matched": []
+    },
+    {
+      "id": "N-7313",
+      "pr": 7313,
+      "sha": "773f93276e3291077e3c6f8fc0b9fd2514a66a2a",
+      "baseRefOid": "b22c1b126fe9c98fb5b6506ccefba2ba35e69175",
+      "merge_base": "b22c1b126fe9c98fb5b6506ccefba2ba35e69175",
+      "scope": "negative",
+      "why": null,
+      "manual_claims": [],
+      "expected": [],
+      "caught": [],
+      "checklist_count": 135,
+      "findings_count": 0,
+      "matched": []
+    },
+    {
+      "id": "N-7324",
+      "pr": 7324,
+      "sha": "4d0d39000608e6ae031f9499ad9ad5d249372bc9",
+      "baseRefOid": "fc91afcf25a3d721a8f299c94851cc4d5139170d",
+      "merge_base": "e7f336d01251d0497efff18e378a4f9b0feee58f",
+      "scope": "negative",
+      "why": null,
+      "manual_claims": [],
+      "expected": [],
+      "caught": [],
+      "checklist_count": 51,
+      "findings_count": 0,
+      "matched": []
+    },
+    {
+      "id": "N-7446",
+      "pr": 7446,
+      "sha": "3adae314d51474f16ddd958d2a04cccf2e2697cf",
+      "baseRefOid": "e9acebe15f31d1f2ed0c5dae1d329d0af94632c5",
+      "merge_base": "e1702e456fe582eafefa7fbc1784a827488bf027",
+      "scope": "negative",
+      "why": null,
+      "manual_claims": [],
+      "expected": [],
+      "caught": [],
+      "checklist_count": 109,
+      "findings_count": 0,
+      "matched": []
+    },
+    {
+      "id": "N-7294",
+      "pr": 7294,
+      "sha": "2d7585ba6c4e466560b250af5e3eceabcaa4b712",
+      "baseRefOid": "d82875e0cad26be4af0154c70bb42d6619162865",
+      "merge_base": "d82875e0cad26be4af0154c70bb42d6619162865",
+      "scope": "negative",
+      "why": null,
+      "manual_claims": [],
+      "expected": [],
+      "caught": [],
+      "checklist_count": 13,
+      "findings_count": 0,
+      "matched": []
+    },
+    {
+      "id": "N-7253",
+      "pr": 7253,
+      "sha": "dd30394857a80257981f640d0b910ca71d1642bd",
+      "baseRefOid": "a28131561d0f751457cf0eb19547e070edbfa2c7",
+      "merge_base": "a28131561d0f751457cf0eb19547e070edbfa2c7",
+      "scope": "negative",
+      "why": null,
+      "manual_claims": [],
+      "expected": [],
+      "caught": [],
+      "checklist_count": 4779,
+      "findings_count": 0,
+      "matched": []
+    }
+  ],
+  "note": "Findings are counts plus matched file, line, and rule. same_pr.py gained a list annotation after this replay. Rules did not change."
+}

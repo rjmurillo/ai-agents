@@ -112,8 +112,6 @@ python3 scripts/doc_accuracy.py --target /path/to/repo --format markdown
 # Text summary to stdout
 python3 scripts/doc_accuracy.py --target /path/to/repo --format summary
 
-# Before opening a PR that changes prose and code (see Same-PR mode)
-python3 scripts/doc_accuracy.py --target . --diff-base origin/main --same-pr
 ```
 
 ### Line scoping with `--diff-base`
@@ -123,47 +121,10 @@ With `--diff-base`, only claims on changed lines block. See
 
 ### Same-PR mode
 
-A PR that changes prose and code can leave the prose wrong about the code beside
-it, and the scan above never sees that: it reads documentation files and checks
-code examples. Same-PR mode runs when you pass `--same-pr`, which needs
-`--diff-base` (without it the script exits 2). Run it before you open a PR
-whenever the branch changes both prose and code:
-
-```bash
-python3 scripts/doc_accuracy.py --target . --diff-base origin/main --same-pr
-```
-
-**What it reads.** The changed hunks of every text file in the diff, not only
-documentation globs. A changed line is prose when it is a Markdown or `.tmpl`
-line (table rows included), a Python docstring or comment, or a JSON or YAML
-string value. Every other changed line of a source file is code, tagged with the
-function or class that holds it. Each prose line is paired with the code symbols
-changed in the same diff: the same file first, then other changed files, nearest
-path first. The scan reads the working tree, so commit before you run it.
-
-**Rules.** Each rule needs a paired script or record it can identify, and stays
-quiet when it cannot judge. A finding carries the rule id, the prose file and
-line, the paired code file and line, evidence, and a severity.
-
-| Rule | Fires when | Severity |
-|------|------------|----------|
-| R1 exit-code set | A touched Exit Codes table or docstring block lists a different code set than the literal `return N`, `sys.exit(N)`, or `exit(N)` integers in the paired script. Returns count only inside `main`-like functions | high when the code has a literal the doc lacks, medium when only the doc has an extra code |
-| R2 enumeration subset | One clause names two or more, but not all, members of a closed set (values passed as `language_name=` or `error=` in the paired code) for a cause that every member shares: the code raises it from one function that takes the record. Clause and raise site match by keyword overlap | high |
-| R3 JSON key contents | A line of the form "noun under `key`" or "`key` holds noun" names a noun that no identifier on the assigned right-hand side shares a stem with. A key with no assignment goes to the checklist instead | high |
-
-**Checklist.** Any other changed prose that looks like a verifiable claim (a
-number or count word, "only", "identical", "every", "never", a backticked symbol,
-Exit, JSON, raises, or returns vocabulary) is written to `same-pr-checklist.json`
-with its reasons and paired code locations. Nothing that looks checkable is
-dropped. The Phase 4 prompt takes this file as input: verify each entry against
-its paired code, and read the unchanged files the prose depends on. The scan
-cannot see a contradiction that lives in a file the diff did not touch, so the
-checklist file says so in its `limits` list.
-
-**Artifacts and gate.** `same-pr-findings.json` and `same-pr-checklist.json` land
-in the output directory, and `--format summary` prints their counts. A finding at
-or above `--severity-threshold` makes the gate FAIL (exit 10), like any other
-finding.
+`--same-pr` (needs `--diff-base`, else exit 2) checks changed prose against code
+changed in the same diff. Before a PR changing both, run `doc_accuracy.py --target .
+--diff-base origin/main --same-pr`. R1 to R4 join the gate; other claims go to
+`same-pr-checklist.json`. See `references/diff-scoping.md`.
 
 ### Documenting another product's SDK
 
@@ -175,15 +136,7 @@ name. Declare the file with one HTML comment:
 <!-- doc-accuracy: external-sdk <name> -- <reason> -->
 ```
 
-- `<name>` is required. A missing `<reason>` stays valid and records "".
-- Put it right after the H1. It is honored only when `<!--` starts at column 0
-  and no earlier line contains three backticks or tildes. A marker below any
-  code fence is ignored. The first valid marker wins.
-- It silences `unresolved_symbol` for that file only. Other checks still run.
-- A missing, `-`-led, or placeholder name suppresses nothing and yields a
-  high `invalid_external_sdk_marker` finding.
-- `claims.json` records `sdk`, `reason`, and `line`. Phase 3 counts suppressed
-  symbols, and `summary` and `markdown` print one exemption line per file.
+Marker rules: `references/diff-scoping.md`.
 
 ---
 
@@ -195,8 +148,7 @@ name. Declare the file with one HTML comment:
 | `claims.json` | Phase 2: verifiable claims extracted from docs |
 | `compilability-findings.json` | Phase 3: run status and symbol resolution findings |
 | `gate-result.json` | Gate verdict, reason when inconclusive, and severity counts |
-| `same-pr-findings.json` | `--same-pr`: R1 to R3 findings and what was examined |
-| `same-pr-checklist.json` | `--same-pr`: changed prose claims with paired code, for Phase 4 |
+| `same-pr-*.json` | `--same-pr` output |
 | `report.md` | Markdown summary (when `--format markdown`) |
 
 ---
@@ -219,7 +171,7 @@ Dispatch one Sonnet agent per file group. Each agent receives:
 - Documentation file content
 - Filtered claims from `claims.json`
 - Compilability findings (to avoid re-checking)
-- `same-pr-checklist.json` entries for the file group, when `--same-pr` ran
+- `same-pr-checklist.json`, if present
 
 Agent prompt:
 

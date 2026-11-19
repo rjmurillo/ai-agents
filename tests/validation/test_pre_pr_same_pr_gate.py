@@ -29,8 +29,8 @@ def _stub(
     return calls
 
 
-def test_skips_the_scan_when_no_code_file_changed(monkeypatch: pytest.MonkeyPatch) -> None:
-    calls = _stub(monkeypatch, "docs/a.md\n", (2, "", "boom"))
+def test_skips_the_scan_when_no_scannable_file_changed(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = _stub(monkeypatch, "image.png\n", (2, "", "boom"))
 
     assert checks_spec.validate_doc_accuracy_same_pr(REPO_ROOT) is True
     assert all(cmd[0] == "git" for cmd in calls)
