@@ -606,6 +606,28 @@ def check_literal_subset(prose: ProseLine, index: CodeIndex) -> list[dict[str, o
     return found
 
 
+def _count_beside_symbol(text: str, symbol: str, words: dict[str, int]) -> int | None:
+    """Return the count token placed immediately before a backticked symbol."""
+    needle = "`" + symbol.lower() + "`"
+    folded = text.lower()
+    start = 0
+    while start < len(folded):
+        index = folded.find(needle, start)
+        if index < 0:
+            return None
+        if index == 0 or not text[index - 1].isspace():
+            start = index + 1
+            continue
+        token = text[:index].split()[-1].lower()
+        if token.isdigit():
+            return int(token)
+        counted = words.get(token)
+        if counted is not None:
+            return counted
+        start = index + 1
+    return None
+
+
 def check_literal_count(prose: ProseLine, index: CodeIndex) -> list[dict[str, object]]:
     """R4: a count immediately beside a named collection differs from its length."""
     words = {
@@ -622,22 +644,19 @@ def check_literal_count(prose: ProseLine, index: CodeIndex) -> list[dict[str, ob
     }
     found = []
     for path, line, symbol, values in literal_collections(index):
-        match = re.search(rf"\b(\d+|{'|'.join(words)})\s+`{re.escape(symbol)}`", prose.text, re.I)
-        if not match:
+        count = _count_beside_symbol(prose.text, symbol, words)
+        if count is None or count == len(values):
             continue
-        token = match.group(1).lower()
-        count = int(token) if token.isdigit() else words[token]
-        if count != len(values):
-            found.append(
-                make_finding(
-                    "R4",
-                    "high",
-                    prose,
-                    (path, line, symbol),
-                    {"stated": count, "actual": len(values)},
-                    f"Count {count} differs from {len(values)} entries in `{symbol}`",
-                )
+        found.append(
+            make_finding(
+                "R4",
+                "high",
+                prose,
+                (path, line, symbol),
+                {"stated": count, "actual": len(values)},
+                f"Count {count} differs from {len(values)} entries in `{symbol}`",
             )
+        )
     return found
 
 

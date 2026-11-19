@@ -106,3 +106,12 @@ def test_same_pr_is_off_by_default(tmp_path: Path) -> None:
     mod.main(["--target", str(repo), "--output-dir", str(out), "--diff-base", "HEAD~1"])
 
     assert not (out / "same-pr-findings.json").exists()
+
+
+def test_count_beside_symbol_reads_only_the_adjacent_token() -> None:
+    """A count counts only when it is the token touching the backticked name."""
+    words = {"two": 2}
+    count = _SAME_PR._count_beside_symbol
+    assert count("The two `SECTIONS` are required.", "SECTIONS", words) == 2
+    assert count("The 4 `SECTIONS` are required.", "sections", words) == 4
+    assert count("The two extra `SECTIONS` are required.", "SECTIONS", words) is None

@@ -30,6 +30,7 @@ import logging
 import os
 import posixpath
 import re
+import shlex
 import subprocess
 import sys
 import tokenize
@@ -2077,6 +2078,13 @@ def _same_pr_scan(target: Path, diff_base: str, output_dir: Path) -> dict[str, A
     try:
         env = _git_env()
         fork_oid, head_oid = _resolve_fork_and_head(diff_base, target, env)
+        # shlex.quote is a no-op on a hex id and stops the id, which came
+        # from git stdout under a copied environment, from reaching argv.
+        fork_token = shlex.quote(fork_oid)
+        head_token = shlex.quote(head_oid)
+        if fork_token != fork_oid or head_token != head_oid:
+            print("ERROR: refusing a revision that is not one shell token", file=sys.stderr)
+            return 3
         # Resolved commit IDs and these flags block a local diff driver.
         removed = subprocess.run(
             _git_command(
@@ -2087,8 +2095,8 @@ def _same_pr_scan(target: Path, diff_base: str, output_dir: Path) -> dict[str, A
                 "--no-color",
                 "--unified=0",
                 "--end-of-options",
-                fork_oid,
-                head_oid,
+                fork_token,
+                head_token,
                 "--",
             ),
             capture_output=True,
