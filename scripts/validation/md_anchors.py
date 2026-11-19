@@ -23,7 +23,7 @@ from __future__ import annotations
 import re
 import unicodedata
 
-from md_link_parse import _live_lines
+from md_link_parse import _live_lines, mask_inline_code
 
 _ATX = re.compile(r"^ {0,3}#{1,6}(?:[ \t]+(?P<text>.*?))?(?:[ \t]+#+)?[ \t]*$")
 _SETEXT_UNDERLINE = re.compile(r"^ {0,3}(?:=+|-+)[ \t]*$")
@@ -44,16 +44,17 @@ _KEPT_MAJOR = frozenset("LMN")  # Letter, Mark, Number; Connector_Punctuation is
 
 def heading_text(raw: str) -> str:
     """Reduce heading markdown to the text GitHub slugs, mirroring MD051."""
-    text = _IMAGE.sub("", raw)
-    text = _LINK.sub(lambda m: m.group("text"), text)
-    # A code span's text is kept verbatim, so protect it from the later passes.
+    # Stash code spans first. Link syntax inside a code span is literal text,
+    # so removing destinations before this pass turns `` `[x](y)` `` into `x`.
     spans: list[str] = []
 
     def stash(match: re.Match[str]) -> str:
         spans.append(match.group("body").strip(" ") or match.group("body"))
         return f"\x00{len(spans) - 1}\x00"
 
-    text = _CODE_SPAN.sub(stash, text)
+    text = _CODE_SPAN.sub(stash, raw)
+    text = _IMAGE.sub("", text)
+    text = _LINK.sub(lambda m: m.group("text"), text)
     text = _HTML_TAG.sub("", text)
     text = _CHAR_REF.sub("", text)
     text = _EMPHASIS_UNDERSCORE.sub(lambda m: m.group("body"), text)
@@ -111,7 +112,8 @@ def _html_anchors(body: str) -> set[str]:
     """Return ``id`` values on any tag and ``name`` values on ``<a>`` tags."""
     anchors: set[str] = set()
     for _, line in _live_lines(body):
-        for tag in _HTML_OPEN_TAG.finditer(line):
+        # A tag inside backticks is an example, not an anchor.
+        for tag in _HTML_OPEN_TAG.finditer(mask_inline_code(line, links_only=False)):
             attrs = " " + tag.group("attrs")
             found = _HTML_ID.search(attrs)
             if found is None and tag.group("name").lower() == "a":

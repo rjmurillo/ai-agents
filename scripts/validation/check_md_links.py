@@ -320,11 +320,17 @@ def find_broken_md_links(
     for file in candidates:
         scanner.scan_file(file, tally)
 
+    # One baseline entry clears one occurrence. A second copy of the same
+    # broken link is a new defect, including in staged mode, where the
+    # merge-base comparison does not run.
+    allowance = Counter(allowed)
     remaining = set(allowed)
     findings: list[Finding] = []
     for finding in tally.findings:
-        if finding.key() in allowed:
-            remaining.discard(finding.key())
+        key = finding.key()
+        if allowance[key]:
+            allowance[key] -= 1
+            remaining.discard(key)
         else:
             findings.append(finding)
     if files is None:

@@ -19,8 +19,13 @@ import re
 # CommonMark treats that line as indented-code content, not a fence opener
 # (Copilot, PR #5209 round-10 review).
 FENCE = re.compile(r"^ {0,3}(?P<marker>`{3,}|~{3,})")
-LINK = re.compile(r"\[(?P<text>[^\[\]\n]*)\]\((?P<dest>[^()\n]*)\)")
-UNTERMINATED = re.compile(r"\[(?P<text>[^\[\]\n]*)\]\((?P<dest>[^()\n]*)$")
+# One level of balanced parentheses, so `gone(v2).md` and a title such as
+# `"note (a)"` are still destinations. A second nested pair is not matched.
+_DEST = r"(?:[^()\n]|\([^()\n]*\))*"
+LINK = re.compile(rf"\[(?P<text>[^\[\]\n]*)\]\((?P<dest>{_DEST})\)")
+UNTERMINATED = re.compile(rf"\[(?P<text>[^\[\]\n]*)\]\((?P<dest>{_DEST})$")
+_LIST_ITEM = re.compile(r"^(?P<lead> *)(?P<marker>[-+*]|\d{1,9}[.)])(?P<gap>[ \t]+)(?P<rest>.*)$")
+_BLOCKQUOTE_PREFIX = re.compile(r"^ {0,3}> ?")
 
 # CommonMark reference links (spec.commonmark.org/0.31.2/#reference-link) are
 # real links this scanner could not see at all: ``[ADR-005][decision]`` with a
@@ -89,7 +94,10 @@ def split_destination_fragment(raw: str) -> tuple[str, str]:
     if dest.startswith("<"):
         end = dest.find(">")
         if end != -1:
-            dest = dest[1:end].strip()
+            # Spaces inside `<...>` are part of the path. Splitting here turned
+            # `<my file.md>` into `my`.
+            path, _, fragment = dest[1:end].strip().partition("#")
+            return path, fragment
     if not dest:
         return "", ""
     path, _, fragment = dest.split()[0].partition("#")
@@ -171,6 +179,64 @@ def _reference_link_pairs(line: str) -> list[tuple[str, str]]:
     return pairs
 
 
+def _list_content_column(line: str, base: int) -> int | None:
+    """Return the content column of a list item, or None.
+
+    ``base`` is the parent item's content column, or 0 at the root. CommonMark
+    allows the marker up to three spaces past that column. A gap of one to four
+    spaces puts the content at the first text column. A wider gap is indented
+    code, and the content column stays one space after the marker.
+    """
+    match = _LIST_ITEM.match(line)
+    if match is None:
+        return None
+    lead = len(match.group("lead"))
+    if lead < base or lead > base + 3:
+        return None
+    marker = match.group("marker")
+    gap = match.group("gap").expandtabs(4)
+    if match.group("rest").strip() and len(gap) <= 4:
+        return lead + len(marker) + len(gap)
+    return lead + len(marker) + 1
+
+
+def _strip_blockquotes(line: str) -> str:
+    """Drop leading blockquote markers. The returned text keeps its own indent."""
+    rest = line
+    while True:
+        match = _BLOCKQUOTE_PREFIX.match(rest)
+        if match is None:
+            return rest
+        rest = rest[match.end() :]
+
+
+def _fence_run(line: str, base: int) -> tuple[str, int, bool] | None:
+    """Return ``(char, length, trailing_is_blank)`` for a fence at ``base``.
+
+    The marker may sit up to three spaces past ``base``. A four-space marker at
+    the root is indented code, not a fence. A fence inside a list is judged
+    from that item's content column, and a fence inside a blockquote is judged
+    after the ``>`` markers are removed.
+    """
+    candidates = [line]
+    quoted = _strip_blockquotes(line)
+    if quoted != line and base == 0:
+        candidates.append(quoted)
+    for candidate in candidates:
+        if base > len(candidate) or candidate[:base].strip():
+            continue
+        indent = len(candidate) - len(candidate.lstrip(" "))
+        if indent < base or indent > base + 3:
+            continue
+        match = FENCE.match(candidate[base:])
+        if match is None:
+            continue
+        run = match.group("marker")
+        trailing = candidate[base + match.end() :]
+        return run[0], len(run), not trailing.strip()
+    return None
+
+
 def _live_lines(body: str) -> list[tuple[int, str]]:
     """Return ``(line number, text)`` for every line outside a fenced code block.
 
@@ -195,11 +261,10 @@ def _live_lines(body: str) -> list[tuple[int, str]]:
     which said the length condition was deferred because "no fence in this
     corpus nests same-character runs of different lengths" -- true of the
     corpus at the time, not a property the scanner can rely on going
-    forward.) Indented (4-space) code blocks and
-    inline single-backtick spans are still out of scope, per the module
-    docstring's "Links inside fenced code blocks... are skipped": both are a
-    full CommonMark parse away, which this line-scanner deliberately is not
-    (PR #5209 review).
+    forward.) A fence indented to a list item's content column, or written
+    after blockquote markers, is a fence. A four-space marker at the root is
+    still indented code, not a fence. Inline single-backtick spans are masked
+    separately by :func:`mask_inline_code`.
 
     Returning the surviving lines, rather than scanning them in place, is
     what lets ``scan_file`` collect the file's link reference definitions
@@ -209,11 +274,22 @@ def _live_lines(body: str) -> list[tuple[int, str]]:
     live: list[tuple[int, str]] = []
     fence_char: str | None = None
     fence_length = 0
+    fence_base = 0
+    list_columns: list[int] = []
     for line_number, line in enumerate(body.splitlines(), 1):
-        match = FENCE.match(line)
-        if match:
-            run = match.group("marker")
-            char, length = run[0], len(run)
+        if fence_char is None:
+            indent = len(line) - len(line.lstrip(" "))
+            while list_columns and line.strip() and indent < list_columns[-1]:
+                list_columns.pop()
+            item_column = _list_content_column(line, list_columns[-1] if list_columns else 0)
+            if item_column is not None:
+                list_columns.append(item_column)
+            base = list_columns[-1] if list_columns else 0
+        else:
+            base = fence_base
+        found = _fence_run(line, base)
+        if found:
+            char, length, trailing_is_whitespace_only = found
             # A closing fence may be followed only by spaces or tabs, per
             # CommonMark (spec.commonmark.org/0.31.2/#fenced-code-blocks,
             # quoted verbatim): "The closing code fence may be preceded by
@@ -227,11 +303,10 @@ def _live_lines(body: str) -> list[tuple[int, str]]:
             # in the fenced content could report links, and a broken link in
             # the live prose that followed could be silently skipped
             # (Copilot, PR #5209 round-9 review).
-            trailing_is_whitespace_only = not line[match.end() :].strip()
             if fence_char is None:
-                fence_char, fence_length = char, length
+                fence_char, fence_length, fence_base = char, length, base
             elif char == fence_char and length >= fence_length and trailing_is_whitespace_only:
-                fence_char, fence_length = None, 0
+                fence_char, fence_length, fence_base = None, 0, 0
             # else: a fence-shaped line that does not close (wrong character,
             # a shorter run than the opener, or trailing text after the
             # marker) is content, not a delimiter; fence_char/fence_length hold.
@@ -245,10 +320,20 @@ def _live_lines(body: str) -> list[tuple[int, str]]:
 _INLINE_CODE_SPAN = re.compile(r"(?P<ticks>`+)(?:(?!(?P=ticks)).)+?(?P=ticks)")
 
 
-def mask_inline_code(line: str) -> str:
+def mask_inline_code(line: str, *, links_only: bool = True) -> str:
     """Blank inline code spans on one line, keeping every column.
 
-    A ``[x](y.md)`` shown inside backticks is an example, not a link. A span
-    that wraps across lines is not masked; this is a line scanner.
+    A ``[x](y.md)`` shown inside backticks is an example, not a link. With
+    ``links_only``, a code span that does not itself contain a bracket stays,
+    so a shortcut label such as ``[`foo`]`` still resolves. Anchor scanning
+    passes ``links_only=False`` so an example ``<a id>`` is not a real anchor.
+    A span that wraps across lines is not masked; this is a line scanner.
     """
-    return _INLINE_CODE_SPAN.sub(lambda m: " " * len(m.group(0)), line)
+
+    def blank(match: re.Match[str]) -> str:
+        span = match.group(0)
+        if links_only and "[" not in span and "]" not in span:
+            return span
+        return " " * len(span)
+
+    return _INLINE_CODE_SPAN.sub(blank, line)
