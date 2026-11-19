@@ -179,7 +179,8 @@ else:
 if not os.path.isdir(_lib_dir):
     print(f"Plugin lib directory not found: {{_lib_dir}}", file=sys.stderr)
     sys.exit(2)
-"""
+""",
+            encoding="utf-8",
         )
         result = subprocess.run(
             [sys.executable, str(old_bootstrap)],

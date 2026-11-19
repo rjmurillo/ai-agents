@@ -1,6 +1,8 @@
 ---
 name: maintainer-review
+version: 1.0.0
 description: Make a need-gated maintainer decision (merge, request changes, supersede, close) on one PR or issue and draft a comment, with no remote action. Use for `maintainer decision on this PR`. Do NOT use as the quality gate (use review) or to answer your own PR threads (use pr-comment-responder).
+license: MIT
 metadata:
   routing:
     role: explicit-only

@@ -401,7 +401,7 @@ def test_main_surfaces_pending_reminder_with_fill_command() -> None:
         # Assert
         assert "1 retro(s) need completion" in out
         assert f"{skeleton_date}-auto-retro.md" in out
-        assert f"/retro fill {skeleton_date}" in out
+        assert f"/retrospective fill {skeleton_date}" in out
 
 
 def test_main_surfaces_single_fill_example_for_multiple_pending_retros() -> None:
@@ -422,8 +422,8 @@ def test_main_surfaces_single_fill_example_for_multiple_pending_retros() -> None
 
         # Assert
         assert "2 retro(s) need completion" in out
-        assert f"Run `/retro fill {older_date}`" in out
-        assert f"/retro fill {older_date}, {newer_date}" not in out
+        assert f"Run `/retrospective fill {older_date}`" in out
+        assert f"/retrospective fill {older_date}, {newer_date}" not in out
         assert f"Other available dates: {newer_date}." in out
 
 

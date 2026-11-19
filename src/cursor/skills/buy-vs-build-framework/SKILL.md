@@ -1,6 +1,8 @@
 ---
 name: buy-vs-build-framework
+version: 1.0.1
 description: Strategic framework for evaluating build, buy, partner, or defer decisions with four-phase process, tiered TCO analysis, and integration with decision quality tools. Use for strategic build/buy/partner/defer with TCO. Do NOT use for "is there an existing library for this" (use programming-advisor).
+license: MIT
 metadata:
   author: SkillForge
   domains: [strategy, sourcing, decision-making, tco-analysis]

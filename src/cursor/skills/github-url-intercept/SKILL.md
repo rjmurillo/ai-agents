@@ -1,6 +1,8 @@
 ---
 name: github-url-intercept
+version: 2.1.0
 description: "BLOCKING INTERCEPT: When ANY github.com URL appears in user input, STOP and use this skill. Never fetch GitHub HTML pages directly - they are 5-10MB and will exhaust your context window. This skill routes URLs to efficient API calls (1-50KB). Triggers on: gist.github.com, gist.githubusercontent.com, pull/, issues/, blob/, tree/, commit/, compare/. Use when you paste a GitHub URL, say \"analyze this PR\", \"look at this issue\", or \"what does this commit do\". Do NOT use for creating PRs, posting comments, or adding labels (use github instead)."
+license: MIT
 metadata:
   domains:
   - github
@@ -34,13 +36,12 @@ metadata:
 **When you see a GitHub URL, use these commands immediately:**
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 
 # PR URL → Use this
-python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request {n} --owner {owner} --repo {repo}
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_context.py --pull-request {n} --owner {owner} --repo {repo}; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Issue URL → Use this
-python3 "$SCRIPTS_DIR/issue/get_issue_context.py" --issue {n} --owner {owner} --repo {repo}
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/issue/get_issue_context.py --issue {n} --owner {owner} --repo {repo}; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # File/blob URL → Use this
 gh api repos/{owner}/{repo}/contents/{path}?ref={ref}
@@ -257,7 +258,7 @@ Input: "https://github.com/owner/repo/pull/<number>/checks?check_run_id=59355308
 
 Action:
   1. Parse: owner=rjmurillo, repo=ai-agents, pr=735, type=checks
-  2. Route: python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 735 --owner rjmurillo --repo ai-agents
+  2. Route: ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_checks.py --pull-request 735 --owner rjmurillo --repo ai-agents; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ### Gist URL
@@ -322,7 +323,7 @@ Action:
 Input: "Review this: https://github.com/owner/repo/pull/<number>"
 
 Action:
-  python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 123 --owner owner --repo repo
+  ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_context.py --pull-request 123 --owner owner --repo repo; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ### File URL → API
@@ -365,7 +366,7 @@ Action:
 Routes GitHub URLs to appropriate API access methods with CWE-78 command injection protection.
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github-url-intercept/scripts/test_url_routing.py" --url <github-url>
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github-url-intercept/scripts/test_url_routing.py --url <github-url>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ---
@@ -384,7 +385,7 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github-ur
 After routing a GitHub URL, run the bundled validator and require exit 0:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github-url-intercept/scripts/test_url_routing.py" --url "$GITHUB_URL"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github-url-intercept/scripts/test_url_routing.py --url "$GITHUB_URL"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 echo "exit=$?"   # must be 0; exit 1 means invalid URL or no routing available
 ```
 

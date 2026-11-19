@@ -47,9 +47,11 @@ from drift_allowlist import (  # noqa: E402
     split_differences,
 )
 from generate_agents_common import (  # noqa: E402
+    COPILOT_ROOT,
     convert_frontmatter_for_platform,
     convert_handoff_syntax,
     convert_memory_prefix,
+    convert_reference_roots,
     expand_toolset_references,
     format_frontmatter_yaml,
     is_path_within_root,
@@ -179,6 +181,12 @@ def _parse_yaml_value(raw: str) -> object:
 
 # Platforms that render from the Copilot template variant (ADR-109 B1).
 _COPILOT_FAMILY = frozenset({"copilot-cli", "github"})
+
+
+def _rewrite_copilot_reference_roots(text: str) -> str:
+    """Render split-agent skill reference paths to bare ${COPILOT_PLUGIN_ROOT} for Copilot CLI."""
+    rendered: str = convert_reference_roots(text, COPILOT_ROOT)
+    return rendered
 
 
 def _platform_source(
@@ -312,11 +320,10 @@ def generate_agents(
                 stanza = read_artifacts_stanza(config_file, "agents")
                 if stanza is not None:
                     config["__agents_stanza__"] = stanza
-                # ADR-115 Decision 7: a platform that ships no agents (Codex has
-                # no plugin component for them) declares an `artifacts` mapping
-                # with no `agents` stanza and no legacy output. Skip only that
-                # shape; any other config with no agents output still reaches
-                # the allowlist check below and fails loud.
+                # ADR-115 Decision 7: a platform that ships no agents declares an
+                # `artifacts` mapping with no `agents` stanza and
+                # no legacy output. Skip only that shape; any other config with no
+                # agents output still reaches the allowlist check below and fails loud.
                 artifacts = config.get("artifacts")
                 declares_no_agents = (
                     isinstance(artifacts, dict)
@@ -538,6 +545,8 @@ def generate_agents(
 
             transformed_body = convert_handoff_syntax(body, handoff_syntax)
             transformed_body = convert_memory_prefix(transformed_body, memory_prefix)
+            if platform_name in _COPILOT_FAMILY:
+                transformed_body = _rewrite_copilot_reference_roots(transformed_body)
 
             # Build output content with LF line endings (per .gitattributes eol=lf)
             fm_yaml = format_frontmatter_yaml(transformed_fm)

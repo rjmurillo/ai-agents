@@ -2,21 +2,25 @@
 
 ## Frontmatter Requirements
 
-Skills must use only these allowed frontmatter properties:
+Skills must use only these allowed frontmatter properties. The Spec column marks
+fields defined by the [agentskills.io specification](https://agentskills.io/specification).
+Other rows are Claude Code or repository extensions. A strict client for the
+open standard may ignore them.
 
-| Property | Required | Description |
-|----------|----------|-------------|
-| `name` | Yes | Hyphen-case, max 64 chars |
-| `description` | Yes | Max 1024 chars, no angle brackets |
-| `license` | No | MIT, Apache-2.0, etc. |
-| `allowed-tools` | No | Restrict tool access (comma-separated or YAML list) |
-| `model` | No | Omit to inherit the harness default. If pinned, only a bare alias pricing below the default (`haiku`) is allowed; a versioned id is rejected. |
-| `model-rationale` | No | Required when `model` is set; one line justifying the pin. |
-| `context` | No | Set to `fork` for isolated sub-agent context |
-| `agent` | No | Agent type when `context: fork` (`Explore`, `Plan`, `general-purpose`) |
-| `hooks` | No | Lifecycle hooks (`PreToolUse`, `PostToolUse`, `Stop`) |
-| `user-invocable` | No | Show in slash menu (default: `true`) |
-| `metadata` | No | Custom fields (version, author, domains, etc.) |
+| Property | Required | Spec | Description |
+|----------|----------|------|-------------|
+| `name` | Yes | Yes | 1-64 chars: lowercase letters, digits, hyphens. No leading, trailing, or consecutive hyphens. Must equal the directory name |
+| `description` | Yes | Yes | 1-1024 chars, hard limit. Say what the skill does and when to use it. No angle brackets |
+| `license` | No | Yes | MIT, Apache-2.0, or the name of a bundled license file |
+| `compatibility` | No | Yes | 1-500 chars. Environment needs beyond python3 and the standard library: intended product, system packages, network access. Omit it when a skill needs only those |
+| `allowed-tools` | No | Yes (experimental) | Pre-approved tools. Spec form is a space-separated string (`Bash(git:*) Read`). A YAML list is a repository deviation; comma-separated also validates |
+| `metadata` | No | Yes | Custom fields (version, author, domains, etc.). The spec expects string values; nested values are a repository deviation |
+| `model` | No | No | Omit to inherit the harness default. If pinned, only a bare alias pricing below the default (`haiku`) is allowed; a versioned id is rejected. |
+| `model-rationale` | No | No | Required when `model` is set; one line justifying the pin. |
+| `context` | No | No | Set to `fork` for isolated sub-agent context |
+| `agent` | No | No | Agent type when `context: fork` (`Explore`, `Plan`, `general-purpose`) |
+| `hooks` | No | No | Lifecycle hooks (`PreToolUse`, `PostToolUse`, `Stop`) |
+| `user-invocable` | No | No | Show in slash menu (default: `true`) |
 
 **Basic Example:**
 

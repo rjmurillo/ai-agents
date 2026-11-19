@@ -251,6 +251,91 @@ def _is_unscorable_by_design(entry: dict[str, object]) -> bool:
     return not _is_scored(entry) and entry.get("scoring_failed") is False
 
 
+_PARSER_SCANNER = "src/claude/skills/code-qualities-assessment/scripts/assess.py"
+
+# The only coupling transitions the review adapter may report as WARN
+# (ADR-122). Each JSON field must carry exactly its fixed record.
+_PARSER_DEPENDENCY_ADMISSIONS: dict[str, dict[str, object]] = {
+    "csharp_parser_dependency_admission": {
+        "issue": 7406,
+        "file": _PARSER_SCANNER,
+        "imports": ["tree_sitter", "tree_sitter_c_sharp"],
+        "baseScore": 10.0,
+        "headScore": 8.0,
+        "authorizedBy": "rjmurillo",
+        "authorizedOn": "2026-11-16",
+        "authorization": "Maintainer instruction: waiver, full send.",
+    },
+    "typescript_parser_dependency_admission": {
+        "issue": 7435,
+        "file": _PARSER_SCANNER,
+        "imports": ["tree_sitter", "tree_sitter_c_sharp", "tree_sitter_typescript"],
+        "baseScore": 8.0,
+        "headScore": 7.0,
+        "authorizedBy": "rjmurillo",
+        "authorizedOn": "2026-11-18",
+        "authorization": (
+            "Maintainer instruction: LGTM. Ship. agent- environment is optional. "
+            "Package add approved"
+        ),
+    },
+    "python_parser_dependency_admission": {
+        "issue": 7436,
+        "file": _PARSER_SCANNER,
+        "imports": [
+            "tree_sitter",
+            "tree_sitter_c_sharp",
+            "tree_sitter_python",
+            "tree_sitter_typescript",
+        ],
+        "baseScore": 7.0,
+        "headScore": 6.0,
+        "authorizedBy": "rjmurillo",
+        "authorizedOn": "2026-11-18",
+        "authorization": (
+            "Maintainer instruction: LGTM. Ship. agent- environment is optional. "
+            "Package add approved"
+        ),
+    },
+}
+
+
+def _is_admitted_parser_transition(comparison: dict[str, object], field: str) -> bool:
+    """Return True only for the exact scanner transition the *field* record admits."""
+    record = _PARSER_DEPENDENCY_ADMISSIONS[field]
+    if comparison.get(field) != record:
+        return False
+    base, head = record["baseScore"], record["headScore"]
+    assert isinstance(base, float) and isinstance(head, float)
+    match comparison:
+        case {
+            "file_path": str() as file_path,
+            "regressions": ["coupling"],
+            "evidence_loss": [],
+            "is_new_file": False,
+            "change_status": "M",
+            "deltas": list() as deltas,
+        }:
+            # The scanner emits one delta per quality, so a second coupling
+            # delta is a conflicting payload, never an admitted one.
+            coupling = [d for d in deltas if isinstance(d, dict) and d.get("quality") == "coupling"]
+            return (
+                file_path.replace("\\", "/") == _PARSER_SCANNER
+                and comparison.get("absolute_gate_reason") is None
+                and coupling
+                == [
+                    {
+                        "quality": "coupling",
+                        "base": base,
+                        "head": head,
+                        "delta": round(head - base, 4),
+                        "status": "compared",
+                    }
+                ]
+            )
+    return False
+
+
 def _has_assessed_files(files: list[object], summary: dict[str, object]) -> bool:
     """Return True when the assessment actually evaluated at least one file.
 
@@ -380,7 +465,28 @@ def adapt_local_axis_verdict(
             return "UNKNOWN"
         # A clean exit over zero files is silence, not a pass: in regression
         # mode assess.py emits `files: []` for a deletion-only diff.
-        return "PASS" if _has_assessed_files(files, summary) else "UNKNOWN"
+        if not _has_assessed_files(files, summary):
+            return "UNKNOWN"
+        comparisons = payload.get("comparisons", [])
+        if not isinstance(comparisons, list):
+            return "UNKNOWN"
+        verdicts = ["PASS"]
+        for comparison in comparisons:
+            if not isinstance(comparison, dict):
+                return "UNKNOWN"
+            admitted = [
+                field
+                for field in _PARSER_DEPENDENCY_ADMISSIONS
+                if comparison.get(field) is not None
+            ]
+            if not admitted:
+                if comparison.get("regressions") or comparison.get("evidence_loss"):
+                    return "FAIL"
+                continue
+            if len(admitted) != 1 or not _is_admitted_parser_transition(comparison, admitted[0]):
+                return "UNKNOWN"
+            verdicts.append("WARN")
+        return merge_verdicts(verdicts)
 
     if axis == "doc-accuracy":
         gate_verdict: object | None = None

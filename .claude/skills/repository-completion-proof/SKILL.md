@@ -50,10 +50,9 @@ Do not rely on variables surviving separate tool shells.
 From the repository root, the POSIX checkout form is:
 
 ```bash
-GITHUB_SCRIPTS="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 : "${PR_NUMBER:?Set the task PR number in this invocation}"
 : "${PR_REVIEW_CONFIG:?Set the selected absolute config path in this invocation}"
-uv run python "$GITHUB_SCRIPTS/pr/run_completion_gate.py" --config "$PR_REVIEW_CONFIG" --pull-request "$PR_NUMBER" --verify-config-only --json
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec uv run --frozen python "$d/lib/ptk_run.py" skills/github/scripts/pr/run_completion_gate.py --config "$PR_REVIEW_CONFIG" --pull-request "$PR_NUMBER" --verify-config-only --json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Keep the default trusted remote-tracking ref unless the selected base requires another.
@@ -107,10 +106,9 @@ Then execute the same dispatcher without verify-only:
 Bind the task PR and the same selected absolute config in this invocation.
 
 ```bash
-GITHUB_SCRIPTS="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 : "${PR_NUMBER:?Set the task PR number in this invocation}"
 : "${PR_REVIEW_CONFIG:?Set the selected absolute config path in this invocation}"
-uv run python "$GITHUB_SCRIPTS/pr/run_completion_gate.py" --config "$PR_REVIEW_CONFIG" --pull-request "$PR_NUMBER" --json
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec uv run --frozen python "$d/lib/ptk_run.py" skills/github/scripts/pr/run_completion_gate.py --config "$PR_REVIEW_CONFIG" --pull-request "$PR_NUMBER" --json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 This command dispatches configured verifiers; inspect their effects before execution.
@@ -166,8 +164,8 @@ Follow the [shared maintenance policy](../repository-pr-recovery/references/libr
 Each question below has a runnable instrument. The dispatcher lists them and runs one by id:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/repository-completion-proof/scripts/instruments.py" --repo . list
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/repository-completion-proof/scripts/instruments.py" --repo . run <id> -- <args>
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/repository-completion-proof/scripts/instruments.py --repo . list; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/repository-completion-proof/scripts/instruments.py --repo . run <id> -- <args>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Ids: `verify-config` (Phase 1), `merged-state`, `settled-zero`, `completion-gate`, `resolution-shas`, `suppressed-findings` (Phase 2), `merge-ready`, `live-state` (Phase 3).
@@ -181,5 +179,5 @@ Whether `live-state` and `merge-ready` join the check event to the head revision
 `reverify.json` holds the checks that tie this skill to the dispatcher and config it names. Run the drift check after any edit:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_drift.py" check --repo . --skills-root .claude/skills --name repository-completion-proof --require
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_drift.py check --repo . --skills-root .claude/skills --name repository-completion-proof --require; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```

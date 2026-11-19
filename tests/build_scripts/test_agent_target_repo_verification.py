@@ -27,6 +27,7 @@ QA_SURFACES = [
     REPO_ROOT / "src" / "copilot-cli" / "agents" / "qa.agent.md",
     REPO_ROOT / "src" / "vs-code-agents" / "qa.agent.md",
     REPO_ROOT / "src" / "cursor" / "agents" / "qa.md",
+    REPO_ROOT / "src" / "muse" / "agents" / "qa.md",
 ]
 SECURITY_SURFACES = [
     AGENTS / "security.shared.md",

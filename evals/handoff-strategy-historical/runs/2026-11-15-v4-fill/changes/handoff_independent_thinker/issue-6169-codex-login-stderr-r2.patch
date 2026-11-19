@@ -1,0 +1,76 @@
+diff --git a/scripts/eval/_cli_credential_sources.py b/scripts/eval/_cli_credential_sources.py
+index 9b0c1df..7651649 100644
+--- a/scripts/eval/_cli_credential_sources.py
++++ b/scripts/eval/_cli_credential_sources.py
+@@ -160,7 +160,7 @@ def _probe_env(environ: Mapping[str, str]) -> dict[str, str]:
+     return {name: value for name in _PROBE_ENV_NAMES if (value := environ.get(name))}
+ 
+ 
+-def _probe_output(argv: list[str], environ: Mapping[str, str]) -> str | None:
++def _probe_streams(argv: list[str], environ: Mapping[str, str]) -> tuple[str, str] | None:
+     try:
+         completed = subprocess.run(
+             argv,
+@@ -175,7 +175,14 @@ def _probe_output(argv: list[str], environ: Mapping[str, str]) -> str | None:
+         )
+     except (OSError, subprocess.SubprocessError):
+         return None
+-    return completed.stdout or "" if completed.returncode == 0 else None
++    if completed.returncode != 0:
++        return None
++    return completed.stdout or "", completed.stderr or ""
++
++
++def _probe_output(argv: list[str], environ: Mapping[str, str]) -> str | None:
++    streams = _probe_streams(argv, environ)
++    return None if streams is None else streams[0]
+ 
+ 
+ def claude_login_probe(executable: str, environ: Mapping[str, str]) -> bool:
+@@ -194,10 +201,15 @@ def claude_login_probe(executable: str, environ: Mapping[str, str]) -> bool:
+ 
+ def codex_login_probe(executable: str, environ: Mapping[str, str]) -> bool:
+     """True when `codex login status` reports the ChatGPT plan login."""
+-    output = _probe_output([executable, "login", "status"], environ)
+-    if output is None:
++    streams = _probe_streams([executable, "login", "status"], environ)
++    if streams is None:
+         return False
+-    return any(line.strip() == "Logged in using ChatGPT" for line in output.splitlines())
++    # The real CLI prints the status to stderr; older output used stdout.
++    return any(
++        line.strip() == "Logged in using ChatGPT"
++        for stream in streams
++        for line in stream.splitlines()
++    )
+ 
+ 
+ def copilot_login_probe(executable: str, environ: Mapping[str, str]) -> bool:
+diff --git a/tests/eval/test_issue_6169_repro.py b/tests/eval/test_issue_6169_repro.py
+index 8f40245..b36fc5f 100644
+--- a/tests/eval/test_issue_6169_repro.py
++++ b/tests/eval/test_issue_6169_repro.py
+@@ -18,3 +18,23 @@ def fake_run(argv: list[str], **kwargs: Any) -> Any:
+ 
+     monkeypatch.setattr(src.subprocess, "run", fake_run)
+     assert src.codex_login_probe("codex", {})
++
++
++def _run_returning(rc: int, out: str, err: str, monkeypatch: pytest.MonkeyPatch) -> bool:
++    def fake_run(argv: list[str], **kwargs: Any) -> Any:
++        return subprocess.CompletedProcess(argv, rc, out, err)
++
++    monkeypatch.setattr(src.subprocess, "run", fake_run)
++    return src.codex_login_probe("codex", {})
++
++
++def test_stderr_status_with_noise_lines(monkeypatch: pytest.MonkeyPatch) -> None:
++    assert _run_returning(0, "warn\n", "x\nLogged in using ChatGPT\ny\n", monkeypatch)
++
++
++def test_api_key_status_on_stderr_is_false(monkeypatch: pytest.MonkeyPatch) -> None:
++    assert not _run_returning(0, "", "Logged in using an API key\n", monkeypatch)
++
++
++def test_nonzero_rc_with_stderr_status_is_false(monkeypatch: pytest.MonkeyPatch) -> None:
++    assert not _run_returning(1, "", "Logged in using ChatGPT\n", monkeypatch)

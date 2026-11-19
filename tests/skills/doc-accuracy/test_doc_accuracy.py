@@ -2476,3 +2476,32 @@ class TestGateFormatDropsTheSymbolIndex:
         assert rc == 0
         payload = json.loads(capsys.readouterr().out)
         assert "source_symbols" in payload["assessment"]
+
+
+class TestDeletedDocsLeaveChangedFiles:
+    """A deleted doc is not in changed_files, so the review adapter can PASS.
+
+    Before the fix a branch that deleted one Markdown file and edited another
+    listed both in ``changed_files``. Only the edited one can be inventoried,
+    so ``adapt_local_axis_verdict`` read the clean run as a partial inventory
+    and returned UNKNOWN, which blocks the /review PASS marker.
+    """
+
+    @staticmethod
+    def _branch_that_deletes_and_edits(tmp_path: Path) -> Path:
+        repo = _git_repo(tmp_path / "repo")
+        (repo / "kept.md").write_text("# Kept\n", encoding="utf-8")
+        (repo / "gone.md").write_text("# Gone\n", encoding="utf-8")
+        (repo / "main.py").write_text("def foo():\n    pass\n", encoding="utf-8")
+        _commit_all(repo, "base")
+        (repo / "gone.md").unlink()
+        (repo / "kept.md").write_text("# Kept, edited\n", encoding="utf-8")
+        _commit_all(repo, "delete one doc, edit another")
+        return repo
+
+    def test_changed_files_omits_deleted_path(self, tmp_path: Path) -> None:
+        repo = self._branch_that_deletes_and_edits(tmp_path)
+
+        changed = _get_changed_files("HEAD~1", repo)
+
+        assert changed == {"kept.md"}

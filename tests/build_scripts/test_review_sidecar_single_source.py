@@ -17,6 +17,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 pytestmark = pytest.mark.skipif(
     sys.platform == "win32", reason="symlink creation needs Developer Mode on Windows"
@@ -54,6 +55,18 @@ def _read(repo: Path, rel: str) -> str:
     return (repo / rel).read_text(encoding="utf-8")
 
 
+def _seed_repo_only_hook_entries(repo: Path) -> None:
+    """Create the ``hooks`` row's ``repo_only`` entries, which the loader requires to exist."""
+    doc = yaml.safe_load((repo / "templates" / "platforms" / "binplace.yaml").read_text("utf-8"))
+    hooks_row = next(row for row in doc["rows"] if row["class"] == "hooks")
+    for name in hooks_row["repo_only"]:
+        _write(
+            repo,
+            f"templates/hooks/{name}/.keep" if "." not in name else f"templates/hooks/{name}",
+            "",
+        )
+
+
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
     """A scratch repo with the real binplace manifest and one review skill."""
@@ -71,6 +84,7 @@ def repo(tmp_path: Path) -> Path:
     manifest = tmp_path / "templates" / "platforms"
     manifest.mkdir(parents=True)
     shutil.copy(_REPO_ROOT / "templates" / "platforms" / "binplace.yaml", manifest)
+    _seed_repo_only_hook_entries(tmp_path)
     (manifest / "copilot-cli.yaml").write_text(
         'schemaVersion: "1.0"\n'
         "provider: copilot-cli\n"

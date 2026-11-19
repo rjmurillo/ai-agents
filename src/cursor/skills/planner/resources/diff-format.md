@@ -15,7 +15,7 @@ Unified diff format encodes both **location** and **content** in a single struct
     # Context lines (unchanged) serve as location anchors
     existing_code()
 
-+   # NEW: Comments explain WHY - transcribed verbatim by Developer
++   # NEW: Comments explain WHY - transcribed verbatim by the implementer
 +   # Guard against race condition when messages arrive out-of-order
 +   new_code()
 
@@ -30,7 +30,7 @@ Unified diff format encodes both **location** and **content** in a single struct
 | File path (`--- a/path/to/file.py`)        | **AUTHORITATIVE**         | Exact target file                                          |
 | Line numbers (`@@ -123,6 +123,15 @@`)      | **APPROXIMATE**           | May drift as earlier milestones modify the file            |
 | Function context (`@@ ... @@ def func():`) | **SCOPE HINT**            | Function/method containing the change                      |
-| Context lines (unchanged)                  | **AUTHORITATIVE ANCHORS** | Developer matches these patterns to locate insertion point |
+| Context lines (unchanged)                  | **AUTHORITATIVE ANCHORS** | The implementer matches these patterns to locate insertion point |
 | `+` lines                                  | **NEW CODE**              | Code to add, including WHY comments                        |
 | `-` lines                                  | **REMOVED CODE**          | Code to delete                                             |
 
@@ -61,7 +61,7 @@ Add validation after input sanitization in `UserService.validate()`:
 ```
 ````
 
-The prose tells Developer **where conceptually** (which method, what operation precedes it). The diff tells Developer **where exactly** (context lines to match).
+The prose tells the implementer **where conceptually** (which method, what operation precedes it). The diff tells the implementer **where exactly** (context lines to match).
 
 **When to use prose hints:**
 
@@ -84,13 +84,13 @@ The `@@` line can include function/method context after the line numbers:
 @@ -123,6 +123,15 @@ def validate(self, user):
 ```
 
-This follows standard unified diff format (git generates this automatically). It tells Developer which function contains the change, aiding navigation even when line numbers drift.
+This follows standard unified diff format (git generates this automatically). It tells the implementer which function contains the change, aiding navigation even when line numbers drift.
 
 ## Why Context Lines Matter
 
 When a plan has multiple milestones that modify the same file, earlier milestones shift line numbers. The `@@ -123` in Milestone 3 may no longer be accurate after Milestones 1 and 2 execute.
 
-**Context lines solve this**: Developer searches for the unchanged context patterns in the actual file. These patterns are stable anchors that survive line number drift.
+**Context lines solve this**: The implementer searches for the unchanged context patterns in the actual file. These patterns are stable anchors that survive line number drift.
 
 Include 2-3 context lines before and after changes for reliable matching.
 
@@ -98,12 +98,12 @@ Include 2-3 context lines before and after changes for reliable matching.
 
 Comments in `+` lines explain **WHY**, not **WHAT**. These comments:
 
-- Are transcribed verbatim by Developer
+- Are transcribed verbatim by the implementer
 - Source rationale from Planning Context (Decision Log, Rejected Alternatives)
 - Use concrete terms without hidden baselines
 - Must pass temporal contamination review (see `temporal-contamination.md`)
 
-**Important**: Comments written during planning often contain temporal contamination -- change-relative language, baseline references, or location directives. @agent-technical-writer reviews and fixes these before @agent-developer transcribes them.
+**Important**: Comments written during planning often contain temporal contamination -- change-relative language, baseline references, or location directives. @agent-comment-analyzer flags these, and the plan author fixes them, before @agent-implementer transcribes them.
 
 <example type="CORRECT" category="why_comment">
 ```diff
@@ -181,9 +181,9 @@ Context lines (`for tag in tags`, `# Retry loop`) are stable anchors that surviv
 | Multiple insertions same file           | YES       | >1 change location                       |
 | Deletions or replacements               | YES       | Removing/changing existing code          |
 | Pure assignment/return (CRUD, getters)  | NO        | Single statement, no branching           |
-| Boilerplate from template               | NO        | Developer can generate from pattern name |
+| Boilerplate from template               | NO        | The implementer can generate from pattern name |
 
-The boundary test: "Does Developer need to see exact placement and context to implement correctly?"
+The boundary test: "Does the implementer need to see exact placement and context to implement correctly?"
 
 - YES -> diff format
 - NO (can implement from description alone) -> prose sufficient

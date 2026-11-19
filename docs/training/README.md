@@ -16,11 +16,11 @@ Each entry names the issue that writes the page and who the page is for. An entr
 
 - [Take one change from /spec to /ship, and route requests with /autoplan](lifecycle-and-autoplan.md) (#7205): the spec to ship lifecycle and `/autoplan` routing. For contributors.
 
-- `review-and-pr-feedback.md` (#7206): the review and PR feedback loop with `/review`, `/pr-review`, and pr-autofix. For contributors.
+- [Review a branch with /review and answer a review thread](review-and-pr-feedback.md) (#7206): the review and PR feedback loop with `/review`, `/pr-review`, and pr-autofix. For contributors.
 
 - [Clear a blocked commit with Lefthook local gates](local-gates-and-hooks.md) (#7207): local gates with Lefthook, and what to do when a hook blocks. For contributors.
 
-- `build-and-improve-skills.md` (#7208): skillforge, skillify, skillopt, skill-bootstrap, and skill-doctor. For skill authors.
+- [Pick a skill tool, then capture a workflow and tune it](build-and-improve-skills.md) (#7208): skillforge, skillify, skillopt, skill-bootstrap, and skill-doctor. For skill authors.
 
 - [Keep an agent inside its authority and read what it reports](safe-agent-actions.md) (#7209): decision briefs, destructive-change safety, and evidence provenance. For everyone who runs agents.
 
@@ -28,7 +28,7 @@ Each entry names the issue that writes the page and who the page is for. An entr
 
 - [Change a rule and a skill through templates](template-first-authoring.md) (#7211): edit templates, then render generated files. For contributors.
 
-- `maintainer-operations.md` (#7212): agent workflow approval, the promotion gate, ruleset drift, and releases. For maintainers.
+- [Run the CI and release controls you own](maintainer-operations.md) (#7212): agent workflow approval, the promotion gate, ruleset drift, and releases. For maintainers.
 
 - [Measure agent quality with evals and benchmarks](measure-agent-quality.md) (#7213): evals and benchmarks. For maintainers and skill authors.
 

@@ -16,16 +16,15 @@ The synthesis comment is idempotent - if one already exists (detected by marker)
 ## Usage
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 
 # Basic usage
-python3 "$SCRIPTS_DIR/issue/invoke_copilot_assignment.py" --issue-number 123
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/issue/invoke_copilot_assignment.py --issue-number 123; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Preview without posting
-python3 "$SCRIPTS_DIR/issue/invoke_copilot_assignment.py" --issue-number 123 --dry-run
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/issue/invoke_copilot_assignment.py --issue-number 123 --dry-run; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Custom config
-python3 "$SCRIPTS_DIR/issue/invoke_copilot_assignment.py" --issue-number 123 --config-path "custom.yml"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/issue/invoke_copilot_assignment.py --issue-number 123 --config-path "custom.yml"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ## Configuration Reference

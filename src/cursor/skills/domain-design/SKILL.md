@@ -1,6 +1,8 @@
 ---
 name: domain-design
+version: 1.0.0
 description: Design an API, schema, or module boundary from the business behavior it must support, not from source payload shape or generic CRUD. Decides explicit state, domain operation versus CRUD, and history, then checks the design against use cases. Use when you say `design this schema`, `API design`, or `CRUD or domain operation`. Do NOT use for abstraction discovery (use cva-analysis).
+license: MIT
 metadata:
   capability:
     kind: reusable-primitive
@@ -96,7 +98,7 @@ reviewer can read them. It is advisory: it cannot tell whether the answers are
 true.
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/domain-design/scripts/evaluate_design.py" proposal.json
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/domain-design/scripts/evaluate_design.py proposal.json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 | Field | Meaning |

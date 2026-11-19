@@ -102,6 +102,10 @@ def _read_with_close_pr(path: Path, area: Area) -> str:
     def _fake_run(args, **_kwargs):
         if "comment" in args:
             raise _CapturedError(args[args.index("--body") + 1])
+        if "api" in args:
+            # close_pr.py now lists existing comments before it posts.
+            # An empty paginated slurp (see close_pr_test_support.pages).
+            return _completed("[[]]")
         return _completed(json.dumps({"state": "OPEN"}))
 
     area.monkeypatch.setattr(subprocess, "run", _fake_run)

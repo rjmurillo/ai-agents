@@ -23,6 +23,11 @@ from tests.test_test_pr_merge_ready import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _stub_ruleset_required_contexts(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(_mod, "fetch_ruleset_required_contexts", lambda *args, **kwargs: [])
+
+
 def _payload(
     *,
     base: object = "main",

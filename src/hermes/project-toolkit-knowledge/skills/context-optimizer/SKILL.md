@@ -155,13 +155,13 @@ Analyzes skill content and recommends Skill, Passive Context, or Hybrid placemen
 
 ```bash
 # Analyze a skill directory (from repo root)
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/context-optimizer/scripts/analyze_skill_placement.py" -p .claude/skills/github
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/context-optimizer/scripts/analyze_skill_placement.py -p .claude/skills/github; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Analyze a specific SKILL.md
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/context-optimizer/scripts/analyze_skill_placement.py" -p .claude/skills/github/SKILL.md
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/context-optimizer/scripts/analyze_skill_placement.py -p .claude/skills/github/SKILL.md; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Get detailed metrics
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/context-optimizer/scripts/analyze_skill_placement.py" -p .claude/skills/github -d
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/context-optimizer/scripts/analyze_skill_placement.py -p .claude/skills/github -d; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 **Output**:
@@ -299,16 +299,14 @@ lines without a signal are omitted, so a clean `git log` digests thin: use
 **Usage**:
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/context-optimizer/scripts"
-
 # Save the output and its exit code first, so the raw stays searchable
 some_command > build.log 2>&1; echo "exit=$?"
 
 # Distill the saved file; prints the digest path
-python3 "$SCRIPTS_DIR/distill_artifact.py" build.log
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/context-optimizer/scripts/distill_artifact.py build.log; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # JSON adds cached, kind, raw and digest bytes, ratio
-python3 "$SCRIPTS_DIR/distill_artifact.py" build.log --format json
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/context-optimizer/scripts/distill_artifact.py build.log --format json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 `-` reads stdin, but then no raw copy remains to search, and a pipe reports

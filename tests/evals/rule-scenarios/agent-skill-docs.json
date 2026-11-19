@@ -1,0 +1,53 @@
+{
+  "rule_path": ".claude/rules/agent-skill-docs.md",
+  "rule_id": "agent-skill-docs",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Adding a new skill without its reference page",
+      "input": "I am adding a new skill named `release-notes` with a template at `templates/skills/release-notes.SKILL.md.tmpl` and one script. List the files this change touches. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "docs/skills/release-notes.md",
+        "README",
+        "same PR"
+      ],
+      "expected_gate": "require-reference-page",
+      "rationale": "Each skill has one hand-written page under docs/skills/ and a row in docs/skills/README.md. No generator writes them and no gate compares them, so a new skill without a page ships undocumented, as sol-loop and llm-council did in PR #7416."
+    },
+    {
+      "id": "S2",
+      "desc": "Changing a skill's exit codes and arguments",
+      "input": "I am adding a `--reviewed-head` flag to the `record` step of the `sol-loop` skill script and a new exit code 4. What else must change in this PR? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "docs/skills/sol-loop.md",
+        "exit code",
+        "argument"
+      ],
+      "expected_gate": "update-page-facts",
+      "rationale": "Arguments and exit codes are facts the reference page states. A change to them leaves the page wrong unless the same PR updates it."
+    },
+    {
+      "id": "S3",
+      "desc": "Editing the generated agent catalog by hand",
+      "input": "An agent description changed, so I plan to fix its line in `docs/agent-catalog.md` directly. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "generated",
+        "build_all.py",
+        "shared.md"
+      ],
+      "expected_gate": "do-not-hand-edit-generated-catalog",
+      "rationale": "docs/agent-catalog.md renders from templates/agents/*.shared.md through build_all.py, so a hand edit is overwritten and fails the drift gate."
+    },
+    {
+      "id": "S4",
+      "desc": "Reflowing a skill's internal comments (negative)",
+      "input": "I am rewording two code comments inside a skill script without changing any behavior, argument, or output. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "comment",
+        "no behavior"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The change alters no fact the reference page states, so the page needs no edit."
+    }
+  ]
+}

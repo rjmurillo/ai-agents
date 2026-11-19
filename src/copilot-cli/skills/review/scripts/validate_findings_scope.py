@@ -24,10 +24,15 @@ not touch) or ``[unmet-criterion]`` (an unmet acceptance criterion that points a
 a file the PR did not touch) counts, so the output keeps its verdict and the
 orchestrator re-derives it from the counted findings.
 
+``--base-branch`` accepts a bare branch name (``main``) or a remote-prefixed
+reference (``origin/main``). The script tries ``origin/<base>`` first, then the
+value as given, and diffs against the first one that names a commit.
+
 EXIT CODES (ADR-035):
     0 - All locations are in scope, or the diff list is empty or unavailable.
     1 - One or more locations are out of scope.
-    2 - No input: no --text and stdin is a terminal (nothing to read).
+    2 - No input (no --text and stdin is a terminal), or --base-branch names
+        no commit, so the scope check could not run.
 """
 
 from __future__ import annotations
@@ -110,20 +115,65 @@ def _strip_line_suffix(location: str) -> str:
     return re.sub(r":\d+(-\d+)?$", "", location)
 
 
+# ``git rev-parse --verify --quiet`` exits 1 when a ref is absent. Any other
+# nonzero code (128 for "not a git repository") is a git failure, which keeps
+# the graceful-degrade path instead of blaming the base argument.
+_REV_PARSE_REF_ABSENT = 1
+
+
 def get_diff_files(worktree: str, base_branch: str) -> list[str] | None:
     """Return the list of files changed in the PR diff.
 
-    Returns *None* when git is unavailable or the command fails so callers
-    can degrade gracefully (exit 0 with a warning rather than blocking a
-    review entirely on a git error).
+    *base_branch* may be bare (``main``) or remote-prefixed (``origin/main``).
+    It tries ``origin/<base>`` first, then the value as given, and diffs
+    against the first that names a commit (issue #7399). A value that is
+    empty or starts with ``-`` is never passed to git, which would read it
+    as an option.
+
+    Returns *None* when git is unavailable or fails so callers can degrade
+    gracefully (exit 0 with a warning rather than blocking a review entirely
+    on a git error). Raises :class:`LookupError` when no candidate names a
+    commit: that is a caller error, and treating it as an unavailable diff
+    would report a check that never ran as passed.
     """
     if not shutil.which("git"):
         return None
+    candidates = (
+        []
+        if not base_branch or base_branch.startswith("-")
+        else [f"origin/{base_branch}", base_branch]
+    )
     try:
+        for base_ref in candidates:
+            probe = subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    worktree,
+                    "rev-parse",
+                    "--verify",
+                    "--quiet",
+                    f"{base_ref}^{{commit}}",
+                ],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=30,
+            )
+            if probe.returncode == 0:
+                break
+            if probe.returncode != _REV_PARSE_REF_ABSENT:
+                return None
+        else:
+            tried = ", ".join(candidates) or "(none)"
+            raise LookupError(f"base branch {base_branch!r} did not resolve; tried: {tried}")
         result = subprocess.run(
-            ["git", "-C", worktree, "diff", "--name-only", f"origin/{base_branch}...HEAD"],
+            ["git", "-C", worktree, "diff", "--name-only", f"{base_ref}...HEAD"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=30,
         )
         if result.returncode != 0:
@@ -315,13 +365,14 @@ def format_scope_checked_text(text: str, diff_files: list[str], *, frozen: bool 
 
 _HELP_EPILOG = """\
 examples:
+  %(prog)s --worktree . --base-branch main
   %(prog)s --worktree . --base-branch origin/main
   %(prog)s --text "src/app.py:42 missing null check"
 
 exit codes:
   0  all locations in scope, or the diff list is empty or unavailable
   1  one or more locations are out of scope
-  2  no --text and stdin is a terminal
+  2  no --text and stdin is a terminal, or --base-branch names no commit
 """
 
 
@@ -339,7 +390,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--base-branch",
         default="main",
-        help="Base branch for the three-dot diff (default: main).",
+        help=(
+            "Base branch for the three-dot diff, bare (main) or "
+            "remote-prefixed (origin/main) (default: main)."
+        ),
     )
     parser.add_argument(
         "--text",
@@ -374,11 +428,20 @@ def main(argv: list[str] | None = None) -> int:
     text = args.text if args.text is not None else sys.stdin.read()
 
     worktree = str(Path(args.worktree).resolve())
-    diff_files = get_diff_files(worktree, args.base_branch)
+    try:
+        diff_files = get_diff_files(worktree, args.base_branch)
+    except LookupError as exc:
+        print(
+            f"validate_findings_scope: {exc} in {worktree}; scope check did not run. "
+            "Pass a branch name such as main or a ref such as origin/main.",
+            file=sys.stderr,
+        )
+        return 2
 
     if diff_files is None:
         print(
-            f"WARNING: could not get diff for origin/{args.base_branch}...HEAD "
+            f"WARNING: could not get diff for {args.base_branch} (origin-prefixed or as given) "
+            f"against HEAD "
             f"in {worktree}; skipping scope check",
             file=sys.stderr,
         )

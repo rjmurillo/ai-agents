@@ -47,6 +47,8 @@
 #   - Codex plugin-load smoke (REQ-047 AC11): `codex plugin add` installs
 #     project-toolkit@ai-agents into an isolated CODEX_HOME and
 #     `codex debug prompt-input` lists every expected skill.
+#   - Codex agent install smoke (ADR-115 Decision 7): `install_agents.py` runs from the
+#     installed plugin cache, and `codex debug prompt-input` lists every shipped agent.
 #
 # Security (.claude/rules/security.md, issue #2231 item 3):
 #   - pull_request runs for same-repo branches get secrets only through the
@@ -106,7 +108,7 @@ jobs:
     steps:
       - name: Harden Runner
         # yamllint disable-line rule:line-length
-        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43  # v2.22.3
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a  # v2.22.4
         with:
           egress-policy: audit
 
@@ -157,7 +159,7 @@ jobs:
     steps:
       - name: Harden Runner
         # yamllint disable-line rule:line-length
-        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43  # v2.22.3
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a  # v2.22.4
         with:
           egress-policy: audit
 
@@ -209,7 +211,7 @@ jobs:
         # Windows and macOS runners do not support harden-runner; gate it.
         if: runner.os == 'Linux'
         # yamllint disable-line rule:line-length
-        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43  # v2.22.3
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a  # v2.22.4
         with:
           egress-policy: audit
 
@@ -437,7 +439,7 @@ jobs:
         # Windows and macOS runners do not support harden-runner; gate it.
         if: runner.os == 'Linux'
         # yamllint disable-line rule:line-length
-        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43  # v2.22.3
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a  # v2.22.4
         with:
           egress-policy: audit
 
@@ -497,8 +499,9 @@ jobs:
           python -I trusted-base/scripts/validation/assert_smoke_ran.py
           plugin-load-report.xml
           --smoke-substr test_plugin_load_smoke
-          --expected-count 1
+          --expected-count 2
           --require-pass test_codex_plugin_loads_expected_skills
+          --require-pass test_codex_agents_install_and_load
 
   # Hook discovery needs no credential and no model call: `claude plugin details`
   # reads the plugin tree only, with an empty HOME. No environment, no secret.
@@ -516,7 +519,7 @@ jobs:
     steps:
       - name: Harden Runner
         # yamllint disable-line rule:line-length
-        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43  # v2.22.3
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a  # v2.22.4
         with:
           egress-policy: audit
 
@@ -601,7 +604,7 @@ jobs:
         # Windows and macOS runners do not support harden-runner; gate it.
         if: runner.os == 'Linux'
         # yamllint disable-line rule:line-length
-        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43  # v2.22.3
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a  # v2.22.4
         with:
           egress-policy: audit
 
@@ -679,7 +682,7 @@ jobs:
     steps:
       - name: Harden Runner
         # yamllint disable-line rule:line-length
-        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43  # v2.22.3
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a  # v2.22.4
         with:
           egress-policy: audit
 

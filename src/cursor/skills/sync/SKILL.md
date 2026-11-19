@@ -1,6 +1,8 @@
 ---
 name: sync
+version: 1.0.0
 description: Detect Spec-to-Code drift by scanning REQ, DESIGN and TASK specs for references to code that no longer exists, then report it for triage. Use when you say `detect spec drift`, `sync the specs`, or `did my refactor break a spec`, and run it after a hand-edit that moved or deleted code. Do NOT use to write a spec (use spec), and do NOT use to auto-rewrite specs; it reports and never edits.
+license: MIT
 metadata:
   routing:
     role: explicit-only
@@ -83,7 +85,7 @@ Do not auto-apply edits. Confirm each case with the author of the change before 
 
 ### Step 3: Propose spec patches (follow-up, not in this slice)
 
-Patch proposal via the `spec-generator` agent is tracked as a follow-up. When wired, `/sync` will hand the drift findings to `Task(subagent_type="spec-generator")` to draft REQ/DESIGN/TASK edits and write a sync-log record, in a directory alongside the spec tiers, carrying the commit range it covered. Until then, apply the triage from Step 2 by hand and record the rationale in the PR description.
+Patch proposal via the `spec-generator` agent is tracked as a follow-up. When wired, `/sync` will hand the drift findings to the `spec-generator` agent (Claude Code: `Task`; Copilot CLI: `task`; Codex: `spawn_agent`; Muse Code: `subagent_spawn`) to draft REQ/DESIGN/TASK edits and write a sync-log record, in a directory alongside the spec tiers, carrying the commit range it covered. Until then, apply the triage from Step 2 by hand and record the rationale in the PR description.
 
 ## Principles
 

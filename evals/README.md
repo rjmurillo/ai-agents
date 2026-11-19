@@ -24,6 +24,7 @@ ADR-057's prompt-change scenarios answer a different question than the agent-vs-
 | `evals/security-spike/fixtures/` | Held-out agent-vs-baseline corpus | `scripts/eval/eval-agent-vs-baseline.py` |
 | `evals/adr-review-catch-rate/` | Seeded-defect corpus and results for the adr-review per-role catch rate (#5248) | `scripts/eval/eval_adr_review_catch_rate.py` |
 | `evals/code-review-catch-rate/` | Historical-bug corpus and results for the `code-reviewer` top-5 catch rate (#7149) | `scripts/eval/eval_code_review_catch_rate.py` |
+| `evals/third-party-review-gap/` | Defects third-party review bots caught after the author pipeline passed (PRs #6110 to #7380), a deterministic-check corpus, and a reviewer replay corpus | `scripts/eval/eval_io_portability_gap.py`, `scripts/eval/eval_third_party_gap_replay.py` |
 | `evals/skill-bootstrap-capability/fixtures/` | Before/after capability tasks (gold at `acff1d0a1`, 2026-10-17) and results for skill-bootstrap | `scripts/eval/eval_skill_bootstrap_capability.py` |
 | `evals/skill-cases/<skill>/cases.json` | Draft test cases (prompt plus expected output, no grader) for `skillopt`, `skillify`, `skillforge`. Graders wait for an observed run | `src/claude/skills/skill-bootstrap/scripts/bootstrap_eval.py check` |
 | `evals/longitudinal-pilot/fixtures/` | Frozen five-task sequence, vendor-only vs vendor plus validated local context, with a stale-fact trap (#6993); live runs need an explicit `--ceiling-usd` | `scripts/eval/eval_longitudinal_pilot.py` |

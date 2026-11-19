@@ -276,8 +276,10 @@ def parse_phase1_prompts(prompts_md: str) -> dict[str, str]:
     out: dict[str, str] = {}
     for role, heading in _ROLE_HEADINGS.items():
         at = prompts_md.index(f"\n### {heading}\n", phase1)
-        opener = prompts_md.index('prompt="""\n', at) + len('prompt="""\n')
-        out[role] = prompts_md[opener : prompts_md.index('\n""")', opener)]
+        # Each prompt sits in a four-backtick text fence, because the body nests
+        # three-backtick fences of its own.
+        opener = prompts_md.index("````text\n", at) + len("````text\n")
+        out[role] = prompts_md[opener : prompts_md.index("\n````\n", opener)]
     return out
 
 

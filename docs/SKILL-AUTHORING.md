@@ -1,6 +1,6 @@
 # Skill Authoring Guide
 
-This guide covers how to create Claude Code skills with correct YAML frontmatter, model selection, and file structure.
+This guide covers how to create Claude Code skills with correct YAML frontmatter, model selection, and file structure. To choose between the skill-building tools (`skillforge`, `skillify`, `skillopt`, `skill-bootstrap`, `skill-doctor`), read [Pick a skill tool, then capture a workflow and tune it](training/build-and-improve-skills.md).
 
 Based on the analysis in `.project-toolkit/analysis/claude-code-skill-frontmatter-2026.md`.
 
@@ -102,10 +102,10 @@ skill carries versioned id 'claude-opus-4-6'; skills and commands may not pin a 
 **1. No `model:` line (default).** Use this unless you have a cost reason not to.
 
 **2. A bare rolling alias that prices below the harness default, with a
-`model-rationale:` line.** The default is `claude-sonnet-4-6`, so `haiku` is
+`model-rationale:` line.** The default is `gpt-6.1-sol`, so `haiku` is
 the only alias that qualifies today. `opus` and `sonnet` do not price below the
 default and fail the check with `cost rationale on 'sonnet' but it does not
-price below the default 'claude-sonnet-4-6'`.
+price below the default 'gpt-6.1-sol'`.
 
 ```yaml
 model: haiku
@@ -120,9 +120,9 @@ Prices come from `MODEL_PRICING_RATES_USD_PER_1K_TOKENS` in
 
 | Alias | Resolves to | Cost (Input/Output per MTok) | Allowed in a skill? |
 |-------|-------------|------------------------------|---------------------|
-| `opus` | `claude-opus-4.6` | $5 / $25 | No: does not price below the default |
-| `sonnet` | `claude-sonnet-4.6` | $3 / $15 | No: it is the default, so not below it |
-| `haiku` | `claude-haiku-4.5` | $1 / $5 | Yes, with `model-rationale` |
+| `opus` | `claude-opus-5.5` | $4 / $20 | No: prices above the $2 / $10 default |
+| `sonnet` | `claude-sonnet-5.5` | $2 / $10 | No: it ties the default, so not below it |
+| `haiku` | `claude-haiku-5.5` | $0.10 / $0.50 (prompts up to 100K tokens) | Yes, with `model-rationale` |
 
 ### When to Pin the Cost Alias
 
@@ -213,24 +213,25 @@ upstream and fails silently everywhere else.
 python3 .claude/skills/github/scripts/pr/test_pr_merge_ready.py --pull-request 1
 ```
 
-**Resolve the script root through a plugin-root env var with a source
-fallback**, then invoke via the variable. Re-declare the variable at the top of
-each fenced `bash` block that uses it, so every snippet is runnable on its own:
+**Run the script through the plugin-root locator** (ADR-121), a closed subshell.
+It probes `${CLAUDE_PLUGIN_ROOT}`, `${COPILOT_PLUGIN_ROOT}`, then `.claude` for
+`lib/ptk_run.py` and runs the target through the first root that holds it. Claude
+Code rewrites the bare `${CLAUDE_PLUGIN_ROOT}` token in a SKILL.md or agent body to
+an absolute path, so a foreign `CLAUDE_PLUGIN_ROOT` cannot displace it.
 
 ```bash
-# CORRECT: uses a harness plugin root when one is exported, otherwise source checkout.
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr"
-python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request 1
+# CORRECT: the locator runs the first plugin root that holds lib/ptk_run.py.
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/test_pr_merge_ready.py --pull-request 1; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
-This form is sufficient when the host exports `COPILOT_PLUGIN_ROOT` or
-`CLAUDE_PLUGIN_ROOT`, or when the command runs from the source checkout. If a
-skill must run in a Copilot CLI install where neither variable is exported,
-add a fallback that probes the installed plugin roots before the command runs.
-The `/pr-autofix` skill uses that pattern for its PR helper scripts.
-
-For skills that only target Claude Code, the shorter
-`SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/..."` form is acceptable.
+Write every argument inside the locator, before its closing `; fi`. Words after
+the closing `)` are a separate command. Render one with `render_locator` in
+`build/scripts/plugin_run_launcher.py`, or rewrite legacy text with
+`python3 build/scripts/plugin_run_fix.py --fix PATH`. A launcher failure prints a
+`ptk_run:` line on stderr and exits 2, so a script that gives exit 2 its own
+meaning needs that line to tell the two apart. Targets must be stdlib-only.
+Gate-dispatched YAML keeps the legacy `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}`
+form, because the gate resolves it in Python.
 
 This is enforced by `scripts/validation/check_skill_md_exec_portability.py` (CI
 job "Validate Vendor Portability"). The check grandfathers existing offenders in
@@ -371,9 +372,9 @@ scalar there.
 A `front-door` skill may declare `intents`: phrases the autoplan long-tail
 resolver (`.claude/skills/autoplan/scripts/resolve_route.py`) matches
 against a request that misses the high-traffic table. An intent matches
-when every one of its words appears in the request (lowercased, stop words
-dropped, a trailing `s` folded). Write two to six phrases naming the
-skill's core question:
+when its tokens appear in order within a span of its token count plus two
+request tokens (stop words dropped first, trailing `s` and possessive `'s`
+folded). Write two to six phrases naming the skill's core question:
 
 ```yaml
     intents:

@@ -271,7 +271,7 @@
   {
    "kind": "contains",
    "path": "scripts/skill_description_budget.json",
-   "text": "49300",
+   "text": "49600",
    "id": "R49"
   }
  ]

@@ -569,7 +569,7 @@ def _merge_base(repo_root: Path, base_oid: str, head_oid: str, env: dict[str, st
 def _get_changed_diff(
     diff_base: str, repo_root: Path
 ) -> tuple[set[str], dict[str, list[list[int]]]]:
-    """Return changed files and their changed new-side line ranges.
+    """Return changed files still present at HEAD and their new-side line ranges.
 
     The first element is the ``_get_changed_files`` set. The second maps a
     changed file to ``[start, end]`` inclusive line ranges on the HEAD side,
@@ -585,7 +585,7 @@ def _get_changed_diff(
 
 
 def _get_changed_files(diff_base: str, repo_root: Path) -> set[str]:
-    """Get files changed on HEAD since it forked from diff_base.
+    """Get files changed on HEAD since it forked from diff_base, minus deletions.
 
     The diff runs from ``merge-base(diff_base, HEAD)`` to HEAD, the same
     change set as ``git diff diff_base...HEAD``. Committed changes only.
@@ -596,7 +596,8 @@ def _get_changed_files(diff_base: str, repo_root: Path) -> set[str]:
     2. Resolve each revision to an OID and verify object accessibility.
     3. Resolve ``<revision>^{commit}``; non-commit bases are config exit 2.
     4. Resolve the merge-base; unrelated histories are config exit 2.
-    5. Diff by resolved commit OIDs using NUL-separated output (``-z``).
+    5. Diff by resolved commit OIDs using NUL-separated output (``-z``),
+       dropping deleted paths (``--diff-filter=d``).
 
     All git commands use ``_git_env()`` to strip inherited repository-
     selection variables (GIT_DIR, GIT_WORK_TREE, etc.).
@@ -768,7 +769,12 @@ def _resolve_fork_and_head(diff_base: str, repo_root: Path, env: dict[str, str])
 
 
 def _diff_name_set(repo_root: Path, fork_oid: str, head_oid: str, env: dict[str, str]) -> set[str]:
-    """Phase 5: diff by resolved OIDs, NUL-separated output."""
+    """Phase 5: diff by resolved OIDs, NUL-separated output.
+
+    ``--diff-filter=d`` drops deleted paths. A deleted file has no HEAD-side
+    content to inventory, so listing it made a complete run read as a
+    partial inventory to the review adapter, which then reported UNKNOWN.
+    """
     oid = fork_oid
     try:
         # Not reachable as command injection: the refs are commit OIDs that
@@ -782,6 +788,7 @@ def _diff_name_set(repo_root: Path, fork_oid: str, head_oid: str, env: dict[str,
                 "--no-ext-diff",
                 "--no-textconv",
                 "--no-renames",
+                "--diff-filter=d",
                 "--name-only",
                 "-z",
                 oid,
@@ -2443,6 +2450,99 @@ def _doc_example_definitions(lines: list[str]) -> dict[str, set[str]]:
     return definitions
 
 
+# File-level opt-out for Markdown that documents another product's SDK:
+#   <!-- doc-accuracy: external-sdk <name> -- <reason> -->
+# A well-formed marker silences ``unresolved_symbol`` for the whole file.
+# A marker whose SDK name is missing or not a real name (no letter or digit,
+# starts with "-", or is the "<name>" placeholder) is reported as
+# INVALID_SDK_MARKER_CLAIM and suppresses nothing.
+#
+# Fail closed, with no fence state. A marker is honored only when (a) its line
+# starts with ``<!--`` at column 0, and (b) no EARLIER line contains a run of
+# three backticks or three tildes anywhere on the line. Every fenced code
+# block's opening line contains such a run, so a marker with none before it
+# cannot be inside a fence. Tracking fences instead (top level only, or with
+# container prefixes) inverts after a list item, blockquote, or HTML block that
+# holds a fence-like line, and then honors a marker inside a later real fence.
+# The cost: a marker placed below any code fence is not honored. Put it right
+# after the H1.
+_EXTERNAL_SDK_MARKER_RE = re.compile(
+    r"<!--\s*doc-accuracy:\s*external-sdk(?=\s|-->)(?P<body>.*?)-->"
+)
+_FENCE_LIKE_RUNS = ("```", "~~~")
+INVALID_SDK_MARKER_CLAIM = "invalid_external_sdk_marker"
+
+
+def _parse_sdk_marker_body(body: str) -> tuple[str, str]:
+    """Return ``(sdk name, reason)`` from a marker body; name is "" when absent.
+
+    The name is the whitespace-separated tokens before the first ``--`` token,
+    the reason is the tokens after it. One linear pass, no regex.
+    """
+    tokens = body.split()
+    if "--" not in tokens:
+        name, reason = " ".join(tokens), ""
+    else:
+        split_at = tokens.index("--")
+        name, reason = " ".join(tokens[:split_at]), " ".join(tokens[split_at + 1 :])
+    return (name if _is_valid_sdk_name(name) else ""), reason
+
+
+def _is_valid_sdk_name(name: str) -> bool:
+    """True when ``name`` names an SDK, not a typo or the template placeholder."""
+    return (
+        any(ch.isalnum() for ch in name)
+        and not name.startswith("-")
+        and not (name.startswith("<") and name.endswith(">"))
+    )
+
+
+def _find_external_sdk_markers(lines: list[str]) -> list[tuple[int, str, str]]:
+    """Find honored markers as ``(1-based line, sdk name, reason)`` tuples.
+
+    A marker counts only when ``<!--`` starts at column 0 and no earlier line
+    contains three backticks or three tildes (see the module comment above).
+    Scanning stops at the first line holding such a run. A marker after that
+    line is ignored, whether well formed or nameless, because it may be example
+    text inside a fence. ``sdk name`` is "" for a nameless marker, which the
+    caller reports. A marker split across LF-terminated lines is not recognized.
+    """
+    markers: list[tuple[int, str, str]] = []
+    for number, line in enumerate(lines, start=1):
+        marker = _EXTERNAL_SDK_MARKER_RE.match(line)
+        if marker:
+            name, reason = _parse_sdk_marker_body(marker.group("body"))
+            markers.append((number, name, reason))
+        if any(run in line for run in _FENCE_LIKE_RUNS):
+            break
+    return markers
+
+
+def _exemption_lines(
+    claims_data: dict[str, Any] | None, compilability_data: dict[str, Any] | None
+) -> list[str]:
+    """One human-readable line per file exempted by an external-sdk marker."""
+    exempt = (claims_data or {}).get("external_sdk_files", {})
+    suppressed = (compilability_data or {}).get("external_sdk_suppressed", {})
+    phase_three_ran = (
+        compilability_data is not None and compilability_data.get("status") != "DID_NOT_RUN"
+    )
+    lines = []
+    for path, info in sorted(exempt.items()):
+        info = info if isinstance(info, dict) else {"sdk": str(info)}
+        lines.append(
+            f"External SDK exemption: {path} (SDK {info.get('sdk', '')}, "
+            f"marker line {info.get('line', '?')}), "
+            f"reason: {info.get('reason') or 'none given'}; "
+            + (
+                f"{suppressed.get(path, 0)} unresolved_symbol suppressed"
+                if phase_three_ran
+                else "unresolved_symbol not checked (phase 3 did not run)"
+            )
+        )
+    return lines
+
+
 def _extract_quantitative_claims(line: str) -> list[str]:
     """Find quantitative claims in a line of text."""
     patterns = [
@@ -2465,6 +2565,7 @@ def run_claim_extraction(
     """Phase 2: Extract verifiable claims from documentation files."""
     claims: list[Claim] = []
     claim_counter = 0
+    external_sdk_files: dict[str, dict[str, Any]] = {}
 
     # Build symbol -> source file mapping
     symbol_to_source: dict[str, str] = {}
@@ -2483,6 +2584,26 @@ def run_claim_extraction(
         mapped_sources = doc_info.get("mapped_source_files", [])
         default_source = mapped_sources[0] if mapped_sources else ""
         doc_definitions = _doc_example_definitions(lines)
+
+        for marker_line, sdk_name, reason in _find_external_sdk_markers(lines):
+            if sdk_name:
+                external_sdk_files.setdefault(
+                    doc_info["path"], {"sdk": sdk_name, "reason": reason, "line": marker_line}
+                )
+                continue
+            claim_counter += 1
+            claims.append(
+                Claim(
+                    id=f"claim-{claim_counter:04d}",
+                    file=doc_info["path"],
+                    line=marker_line,
+                    claim_type=INVALID_SDK_MARKER_CLAIM,
+                    language="",
+                    content=lines[marker_line - 1].strip(),
+                    symbols_referenced=[],
+                    mapped_source=default_source,
+                )
+            )
 
         i = 0
         while i < len(lines):
@@ -2594,7 +2715,10 @@ def run_claim_extraction(
 
             i += 1
 
-    return {"claims": [c.to_dict() for c in claims]}
+    return {
+        "claims": [c.to_dict() for c in claims],
+        "external_sdk_files": external_sdk_files,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -2655,7 +2779,30 @@ def run_compilability_check(
     # Build a set of all known symbol names for quick lookup
     known_names = set(symbol_index.keys())
 
+    external_sdk_files: dict[str, Any] = claims_data.get("external_sdk_files", {})
+    external_sdk_suppressed: dict[str, int] = {}
+
     for claim_dict in claims_data.get("claims", []):
+        if claim_dict["type"] == INVALID_SDK_MARKER_CLAIM:
+            finding_counter += 1
+            findings.append(
+                Finding(
+                    id=f"compile-{finding_counter:04d}",
+                    claim_id=claim_dict["id"],
+                    severity="high",
+                    category="invalid_external_sdk_marker",
+                    file=claim_dict["file"],
+                    line=claim_dict["line"],
+                    description=(
+                        "external-sdk marker names no SDK, so it suppresses nothing. "
+                        "Expected: <!-- doc-accuracy: external-sdk <name> -- <reason> -->"
+                    ),
+                    evidence={"documented": claim_dict["content"][:200]},
+                    suggested_fix="Add the SDK name and a reason after 'external-sdk'.",
+                )
+            )
+            continue
+
         if claim_dict["type"] not in ("code_example", "method_signature"):
             continue
 
@@ -2768,6 +2915,13 @@ def run_compilability_check(
                 if lang == "csharp" and sym_name in _CSHARP_FRAMEWORK_TYPES_EXTRA:
                     continue
 
+                # The file declares itself documentation for another SDK, so a
+                # symbol missing here is not a claim about this repository.
+                if claim_dict["file"] in external_sdk_files:
+                    path = claim_dict["file"]
+                    external_sdk_suppressed[path] = external_sdk_suppressed.get(path, 0) + 1
+                    continue
+
                 finding_counter += 1
                 findings.append(
                     Finding(
@@ -2800,6 +2954,7 @@ def run_compilability_check(
             claims_by_id,
             assessment.get("changed_lines"),
         ),
+        "external_sdk_suppressed": external_sdk_suppressed,
     }
 
 
@@ -2890,6 +3045,12 @@ def generate_markdown_report(
             lines.append(f"- {ct}: {count}")
         lines.append("")
 
+    if exemptions := _exemption_lines(claims_data, compilability_data):
+        lines.append("## External SDK exemptions")
+        lines.append("")
+        lines.extend(f"- {text}" for text in exemptions)
+        lines.append("")
+
     if compilability_data and compilability_data["findings"]:
         lines.append("## Findings")
         lines.append("")
@@ -2928,6 +3089,8 @@ def _print_summary(
         print(f"Claims: {len(claims_data['claims'])} total")
         for ct, count in sorted(by_type.items()):
             print(f"  {ct}: {count}")
+    for text in _exemption_lines(claims_data, compilability_data):
+        print(text)
     if compilability_data:
         print(f"Findings: {gate_result['total_findings']} total")
         for sev in ("critical", "high", "medium", "low", "info"):

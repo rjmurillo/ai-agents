@@ -1,6 +1,14 @@
 ---
 name: ai-agents-external-claims
+version: 1.0.0
+license: MIT
 description: Verify external, vendor, and third-party claims (numbers, attributions, structure) against authoritative primary sources before they land in a repo artifact or external deliverable. Covers stake-holding sources, round-number tells, citation-chain drift, and the walk-the-gate-or-file-conservative discipline. Use when you say `verify an external claim`, `check a vendor number`, `is this stat real`, `validate a third-party citation`. Do NOT use for running an experiment (use `ai-agents-research-methodology` in the ai-agents repository) or command-injection scanning (use `security-scan`).
+metadata:
+  routing:
+    role: conditional-adjunct
+    invoker: research
+    trigger: the research claim gate finds an external claim about to enter a durable artifact
+    user-facing: true
 ---
 
 # ai-agents External Claims
@@ -169,9 +177,7 @@ location and run the validator again on that file. The `artifact` field names
 that final location.
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-external-claims/scripts/claim_ledger.py" \
-    --ledger "{analysis-dir}/{topic-slug}-analysis-claims.json" \
-    --artifact "{analysis-dir}/{topic-slug}-analysis.draft.md"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-external-claims/scripts/claim_ledger.py --ledger "{analysis-dir}/{topic-slug}-analysis-claims.json" --artifact "{analysis-dir}/{topic-slug}-analysis.draft.md"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 | Exit | Meaning | Next move |

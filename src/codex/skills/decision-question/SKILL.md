@@ -54,23 +54,29 @@ material unresolved user decision -> build the brief below
 
 ## Process
 
-All commands run `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/decision-question/scripts/decision_question.py`
-with `python3`. Output is one JSON object.
+Each command below is a locator that runs `decision_question.py`. Output is
+one JSON object.
 
 1. **Route.** Apply the gate. If no question is warranted, act and stop.
 2. **Draft the brief** for the earliest load-bearing decision (fields below).
 3. **Check and plan.** Write the brief as JSON and run:
 
    ```bash
-   python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/decision-question/scripts/decision_question.py" --brief <brief.json>
+   ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/decision-question/scripts/decision_question.py --brief <brief.json>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
    ```
 
-   `status: incomplete` (exit 2) lists the missing fields. Enrich the brief and
+   Exit 2 with a `ptk_run:` line on stderr and no JSON is a launcher failure.
+   Read the line: it names the cause (no plugin root holds the resolver, a
+   missing target, or a launch error). Fix that, not the brief.
+   `status: incomplete` (exit 2, JSON on stdout) lists the missing fields. Enrich the brief and
    rerun. `status: revise_recommendation` (exit 2) means an earlier answer
    filtered out the recommended option: pick a remaining option or set
    `no_recommendation`, then rerun. `status: ask` lists the prompt `pages` and
    the `page` to present now.
-4. **Ask, then prune.** Present the decision with `AskUserQuestion`. Record the
+4. **Ask, then prune.** Present the decision with the host's structured ask
+   tool (Claude Code: `AskUserQuestion`; Muse Code, and Codex in Plan mode only:
+   `request_user_input`, at most 3 questions; no such tool: a plain chat
+   question). Record the
    answer under `answers` and rerun. When the user picks `_more`, add one to
    that decision's count under `paging` and rerun; the same decision returns
    its next page. Decisions that depend on an answer are pruned or filtered from
@@ -83,7 +89,7 @@ with `python3`. Output is one JSON object.
 ### decision_question.py
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/decision-question/scripts/decision_question.py" --brief <brief.json> [--max-options N]
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/decision-question/scripts/decision_question.py --brief <brief.json> [--max-options N]; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Reads one decision, or `{context, decisions, answers, paging}`. Routes, then validates
@@ -106,9 +112,9 @@ Each decision carries a stable ID (`D1`, `D2`), a one-sentence statement of what
 must be decided now, why it matters now, at least two materially distinct options
 (presented 2 to 4 per page; overflow becomes a split chain) with their consequences, a recommendation with its load-bearing reason (or an
 explicit statement that evidence supports none), and `Hold` only when deferring
-is legitimate and a reopen condition exists. Render with the harness
-`AskUserQuestion` tool (`voice.md` defines the term); do not invent a new UI
-contract.
+is legitimate and a reopen condition exists. Render with the host's structured
+ask tool (Claude Code: `AskUserQuestion`, which `voice.md` defines); do not
+invent a new UI contract.
 
 Field rules, option construction, split chains, Hold, and the completeness
 check: [decision-brief-protocol.md](references/decision-brief-protocol.md).

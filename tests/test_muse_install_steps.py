@@ -132,3 +132,14 @@ def test_rerun_replaces_skills_and_lib_and_moves_old_copies_to_backup(tmp_path: 
     ) == "mine"
     assert (backup / "lib" / "dropped_upstream.py").is_file()
     assert _bash(_install_section_blocks()[1], tmp_path).returncode == 0
+
+
+def test_personal_install_creates_no_agent_files(tmp_path: Path) -> None:
+    """The personal agent has no documented agent format, so it gets no agents."""
+    install, _ = _install_section_blocks()
+
+    assert _bash(install, tmp_path).returncode == 0
+
+    created = [p for p in tmp_path.rglob("*") if "agents" in p.relative_to(tmp_path).parts]
+    assert created == []
+    assert not (tmp_path / ".config").exists()

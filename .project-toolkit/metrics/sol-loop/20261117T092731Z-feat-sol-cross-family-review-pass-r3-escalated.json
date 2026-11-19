@@ -1,0 +1,25 @@
+{
+  "author_family": "anthropic",
+  "branch": "feat/sol-cross-family-review-pass",
+  "counts": {
+    "dropped": 0,
+    "kept": 0,
+    "overlap": 0,
+    "raw": 0,
+    "sol_only": 0
+  },
+  "critic_sha256": "477331e194145d5ab627de6c8f0981c06d3ddc9dd6a365699f814c82f34d5af7",
+  "dropped": [],
+  "failure_class": "",
+  "findings": [],
+  "head_sha": "204d4a5b607b12b2f895928c121e7248f7fc6cb0",
+  "key": "feat/sol-cross-family-review-pass",
+  "model": "gpt-6.1-sol",
+  "overlap_rule": "same file and line within 3 of a critic path:line or range",
+  "pr": "7416",
+  "round": 3,
+  "schema_version": 2,
+  "status": "escalated",
+  "timestamp": "2026-11-17T09:27:31Z",
+  "verdict": ""
+}

@@ -131,11 +131,17 @@ class TestLocalRoutingFollowsScannerSupport:
         assert "code-qualities-assessment" in local
         assert "taste-lints" not in local
 
-    @pytest.mark.parametrize("path", ["scripts/deploy.ps1", "scripts/setup.sh"])
+    @pytest.mark.parametrize("path", ["scripts/setup.sh", "scripts/setup.bash"])
     def test_taste_lint_only_languages_skip_assess(self, path):
         local = set(select([path])["local_selected"])
         assert "taste-lints" in local
         assert "code-qualities-assessment" not in local
+
+    @pytest.mark.parametrize("path", ["scripts/deploy.ps1", "mod/M.psm1"])
+    def test_powershell_scripts_select_both_scanners(self, path):
+        """Issue #7437: assess.py scores PowerShell, and taste_lints reads it too."""
+        local = set(select([path])["local_selected"])
+        assert {"code-qualities-assessment", "taste-lints"} <= local
 
     @pytest.mark.parametrize("path", ["src/main.rs", "lib/widget.rb"])
     def test_languages_neither_scanner_reads_select_no_local_axis(self, path):
@@ -201,12 +207,13 @@ class TestOverrideModesAndLocalAxes:
 
     # One launcher, its Pester tests, and a README: the reported change shape.
     POWERSHELL_CHANGE = ["bin/launcher.ps1", "tests/launcher.Tests.ps1", "README.md"]
+    # Issue #7437: assess.py reads PowerShell, so code-qualities joins the scanners.
+    POWERSHELL_LOCAL = frozenset({"code-qualities-assessment", "doc-accuracy", "taste-lints"})
 
     def test_deep_skips_scanners_that_read_no_changed_file(self):
         result = select(self.POWERSHELL_CHANGE, deep=True)
-        assert set(result["local_selected"]) == {"doc-accuracy", "taste-lints"}
-        for axis in ("code-qualities-assessment", "golden-principles"):
-            assert result["skipped"][axis] == mod._UNREADABLE_REASON
+        assert set(result["local_selected"]) == self.POWERSHELL_LOCAL
+        assert result["skipped"] == {"golden-principles": mod._UNREADABLE_REASON}
 
     def test_deep_still_runs_every_canonical_axis_when_narrowing(self):
         result = select(self.POWERSHELL_CHANGE, deep=True)
@@ -227,9 +234,8 @@ class TestOverrideModesAndLocalAxes:
         module = ["mod/M.psm1", "mod/M.psd1", "mod/M.Format.ps1xml", "README.md"]
         result = select(module, deep=True)
         assert result["unclassified_paths"] == []
-        assert set(result["local_selected"]) == {"doc-accuracy", "taste-lints"}
-        for axis in ("code-qualities-assessment", "golden-principles"):
-            assert result["skipped"][axis] == mod._UNREADABLE_REASON
+        assert set(result["local_selected"]) == self.POWERSHELL_LOCAL
+        assert result["skipped"] == {"golden-principles": mod._UNREADABLE_REASON}
 
     def test_deep_keeps_doc_accuracy_for_a_tracked_build_doc(self):
         """Git-mode doc-accuracy reads build/AGENTS.md, so deep must keep it."""
@@ -268,9 +274,8 @@ class TestOverrideModesAndLocalAxes:
             canonical_candidates=CANDIDATES,
             deep=True,
         )
-        assert set(result["local_selected"]) == {"doc-accuracy", "taste-lints"}
-        for axis in ("code-qualities-assessment", "golden-principles"):
-            assert result["skipped"][axis] == mod._UNREADABLE_REASON
+        assert set(result["local_selected"]) == self.POWERSHELL_LOCAL
+        assert result["skipped"] == {"golden-principles": mod._UNREADABLE_REASON}
 
     @pytest.mark.parametrize(
         ("paths", "expected_local"),
@@ -297,11 +302,10 @@ class TestOverrideModesAndLocalAxes:
             deep=True,
         )
         assert result["unresolved_axes"] == ["analyst"]
-        assert set(result["local_selected"]) == {"doc-accuracy", "taste-lints"}
+        assert set(result["local_selected"]) == self.POWERSHELL_LOCAL
         for axis in result["local_selected"]:
             assert result["selection_reasons"][axis] == mod._UNRESOLVED_REASON
-        for axis in ("code-qualities-assessment", "golden-principles"):
-            assert result["skipped"][axis] == mod._UNREADABLE_REASON
+        assert result["skipped"] == {"golden-principles": mod._UNREADABLE_REASON}
 
     def test_deep_narrowing_keeps_the_deep_reason(self):
         """Negative control: a classified deep run still says deep review."""
@@ -334,17 +338,23 @@ class TestExecutableCodeCoversEveryScannerSuffix:
         assert (scanner_suffixes - non_source) <= mod._CODE_SUFFIXES
 
     @pytest.mark.parametrize(
-        "path", ["mod/M.psd1", "mod/M.Types.ps1xml", "mod/M.Format.PS1XML", "mod/M.PSD1"]
+        ("path", "local"),
+        [
+            ("mod/M.psd1", ["code-qualities-assessment"]),
+            ("mod/M.PSD1", ["code-qualities-assessment"]),
+            ("mod/M.Types.ps1xml", []),
+            ("mod/M.Format.PS1XML", []),
+        ],
     )
-    def test_powershell_manifest_and_format_files_are_executable_code(self, path):
+    def test_powershell_manifest_and_format_files_are_executable_code(self, path, local):
         """Issue #7004: these were unclassified, so the run failed closed and
-        assess and golden-principles scanned zero files."""
+        assess and golden-principles scanned zero files. Issue #7437: assess.py
+        now reads .psd1; no local scanner reads .ps1xml."""
         result = select([path])
         assert result["fail_closed"] is False
         assert result["unclassified_paths"] == []
         assert "code-quality" in result["canonical_selected"]
-        # No local scanner reads them, so none is selected.
-        assert result["local_selected"] == []
+        assert result["local_selected"] == local
 
     @pytest.mark.parametrize("path", ["mod/M.psd1", "mod/M.PSD1"])
     def test_powershell_manifest_also_routes_the_dependency_axes(self, path):

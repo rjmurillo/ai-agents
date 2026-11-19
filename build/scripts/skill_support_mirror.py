@@ -237,7 +237,11 @@ def _copy_skill_tree(
 
 
 def _prune_empty_dirs(root: Path) -> None:
-    """Remove now-empty directories left behind by :func:`_prune_stale_support_files`."""
+    """Remove every empty directory under ``root`` (used for vendor-copy removal).
+
+    Orphan pruning (``skill_mirror_prune``) removes only the directories its
+    own deletion emptied.
+    """
     if not root.is_dir():
         return
     for directory in sorted((p for p in root.rglob("*") if p.is_dir()), reverse=True):
@@ -260,7 +264,7 @@ def prune_repo_local_vendor_copies(
     callers' ``tree_root``) with the flag. It touches only ``tree_root/<name>``
     for the given names, so a shipped skill is never affected. A symlinked
     skill directory, or a symlink anywhere inside it, is refused as an error
-    (CWE-22/59) and left in place, like :func:`_iter_support_relpaths`.
+    (CWE-22/59) and left in place, like :func:`_vendor_copy_files`.
 
     ``check`` and ``what_if`` delete nothing: each file that would go is
     reported and counted. Returns ``(files removed or reported, errors)``.

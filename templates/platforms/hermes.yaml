@@ -10,7 +10,15 @@ artifacts:
     sourceDir: "src/claude/skills"
     outputDir: "src/hermes"
     # Budget under the Hermes cap of 400 files, counting lib/ and plugin.json.
-    packMaxFiles: 380
+    # 381 made room for skillforge's judging module (_conformance_judging.py).
+    # 395 adds room for technical-writing's 29 files in the delivery pack
+    # (ADR-115 Decision 6).
+    # 396 adds room for code-qualities-assessment's references/csharp-parser.md
+    # (issue #7406).
+    # 397 adds room for references/typescript-parser.md (issue #7435).
+    # 398 adds references/python-parser.md (issue #7436).
+    # 399 adds references/powershell-parser.md (issue #7437), leaving 1 under the cap.
+    packMaxFiles: 399
     # hermes-agent commit whose plugin_guard and install limits this table was
     # measured against. The guard test and the smoke test install this commit.
     hermesCommit: "63d0b94120027d487c9a5235b9ec64b696af1b26"
@@ -25,22 +33,31 @@ artifacts:
       - model
       - model-rationale
     # A skill appears in exactly one pack or under `excluded`. A new skill
-    # fails the build until it is added here, so no pack ever moves an old one.
+    # fails the build until it is added here, so a new skill never moves an old
+    # one. Moving a shipped skill to another pack changes what its users must
+    # install, so it needs an ADR-115 Decision 6 amendment (the quality pack
+    # split delivery when delivery reached 404 files).
     packs:
       delivery:
-        description: "Project Toolkit skills for GitHub pull request work, build, test, and quality gates, security review, and operations."
+        description: "Project Toolkit skills for GitHub pull request work, planning, build, test, and review gates."
         skills:
           [agent-harness-reference, ai-agents-external-claims, analyze, api-doc-authoring,
-           benchmark-models, build,
-           chaos-experiment, code-qualities-assessment, codeql-scan, destructive-change-safety,
-           doc-accuracy, dx-review, execution-plans, fix-markdown-fences, git-advanced-workflows,
-           github, github-url-intercept, golden-principles, maintainer-review, merge-resolver,
-           metrics, observability, orphan-ref-validator, pipeline-validator, plan, pr-autofix,
-           pr-comment-responder, pr-quality-all, pr-quality-analyst, pr-quality-architect,
+           benchmark-models, build, code-qualities-assessment,
+           doc-accuracy, dx-review, execution-plans, git-advanced-workflows,
+           github, github-url-intercept, maintainer-review, merge-resolver,
+           modernize, orphan-ref-validator, pipeline-validator, plan,
+           pr-autofix, pr-babysit, pr-comment-responder, pr-quality-all, pr-quality-analyst,
+           pr-quality-architect,
            pr-quality-devops, pr-quality-qa, pr-quality-roadmap, pr-quality-security, pr-review,
-           push-pr, quality-grades, research, reviewer-findings, security-review, slo-designer,
-           steering-matcher, style-enforcement, sync, taste-lints, test, threat-modeling,
+           push-pr, quality-grades, research, reviewer-findings,
+           steering-matcher, sync, takeover, taste-lints, test,
            validate-pr-description, validation-authority, windows-image-updater]
+      quality:
+        description: "Project Toolkit skills for security and reliability engineering, code and documentation standards, metrics, and independent model review."
+        skills:
+          [chaos-experiment, codeql-scan, destructive-change-safety, fix-markdown-fences,
+           golden-principles, llm-council, metrics, observability, security-review,
+           slo-designer, sol-loop, style-enforcement, technical-writing, threat-modeling]
       knowledge:
         description: "Project Toolkit skills for memory, context, decisions, requirements, strategy, and documentation."
         skills:
@@ -50,7 +67,7 @@ artifacts:
            curating-memories, cynefin-classifier, decision-critic, decision-question, domain-design,
            evidence-provenance, memory, memory-consolidate, memory-documentary, memory-enhancement, negotiation,
            panning-for-gold, pre-mortem, programming-advisor, prompt-engineer, prose-self-check,
-           reflect, requirements-interview, retro, retrospective, skill-bootstrap, skillforge,
+           reflect, requirements-interview, retrospective, skill-bootstrap, skillforge,
            skillify, skillopt,
            software-engineering-library, spec, using-serena-symbols, work-operating-model,
            world-model-diagnostic]
@@ -72,3 +89,7 @@ artifacts:
       security-detection: "Refers to excluded skill(s): review."
       spec-generator: "Refers to excluded skill(s): review."
       ship: "Refers to excluded skill(s): review."
+    # A file of a packed skill that no pack carries. The key is
+    # `<skill>/<path inside the skill>`. A key that matches no file fails the build.
+    excludedFiles:
+      retrospective/scripts/copilot_journal.py: "Needs the skill-doctor parser, which Hermes does not ship, so --journal always reports unavailable there."

@@ -1,6 +1,16 @@
 ---
 name: reflect
+version: 1.0.0
 description: CRITICAL learning capture. Extracts HIGH/MED/LOW confidence patterns from conversations to prevent repeating mistakes and preserve what works. Use PROACTIVELY after user corrections ("no", "wrong"), after praise ("perfect", "exactly"), when discovering edge cases, or when skills are heavily used. Without reflection, valuable learnings are LOST forever. Acts as continuous improvement engine for all skills. Invoke EARLY and OFTEN - every correction is a learning opportunity.
+license: MIT
+metadata:
+  timelessness: 8/10
+  adr: ADR-017, ADR-106
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan routes a received correction or lesson learned to reflect
+    user-facing: true
 ---
 
 # Reflect Skill

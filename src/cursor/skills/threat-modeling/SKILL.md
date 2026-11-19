@@ -1,6 +1,8 @@
 ---
 name: threat-modeling
+version: 1.0.0
 description: Structured security analysis using OWASP Four-Question Framework and STRIDE methodology. Generates threat matrices with risk ratings, mitigations, and prioritization. Use for attack surface analysis, security architecture review, or when asking what can go wrong. Do NOT use for per-change diff or snippet risk review; use security-review instead.
+license: MIT
 metadata:
   routing:
     role: lifecycle
@@ -187,9 +189,7 @@ For each element in your diagram, apply STRIDE:
 Use the generate script to create a structured matrix:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/threat-modeling/scripts/generate_threat_matrix.py" \
-    --scope "Authentication Service" \
-    --output .project-toolkit/security/threat-models/auth-threats.md
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/threat-modeling/scripts/generate_threat_matrix.py --scope "Authentication Service" --output .project-toolkit/security/threat-models/auth-threats.md; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 **Manual Format:**
@@ -270,9 +270,7 @@ For each threat, document:
 ### 3.4 Generate Mitigation Roadmap
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/threat-modeling/scripts/generate_mitigation_roadmap.py" \
-    --input .project-toolkit/security/threat-models/auth-threats.md \
-    --output .project-toolkit/security/threat-models/auth-roadmap.md
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/threat-modeling/scripts/generate_mitigation_roadmap.py --input .project-toolkit/security/threat-models/auth-threats.md --output .project-toolkit/security/threat-models/auth-roadmap.md; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 ---
@@ -286,8 +284,7 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/threat-mo
 Run the validation script:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/threat-modeling/scripts/validate_threat_model.py" \
-    .project-toolkit/security/threat-models/auth-threats.md
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/threat-modeling/scripts/validate_threat_model.py .project-toolkit/security/threat-models/auth-threats.md; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 **Validation Checks:**
@@ -460,7 +457,7 @@ See `universal.md` MUST NOT 11.
 ### Verification Command
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/threat-modeling/scripts/validate_threat_model.py" <model.md>
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/threat-modeling/scripts/validate_threat_model.py <model.md>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Exit code 0 indicates a valid, complete threat model.

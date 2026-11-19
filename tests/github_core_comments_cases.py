@@ -141,7 +141,9 @@ class TestGetTrustedSourceComments:
 class TestGetBotAuthorsConfig:
     def test_returns_dict_with_required_keys(self, tmp_path: Path):
         config = tmp_path / "bot-authors.yml"
-        config.write_text("reviewer:\n  - bot1\nautomation:\n  - bot2\nrepository:\n  - bot3\n")
+        config.write_text(
+            "reviewer:\n  - bot1\nautomation:\n  - bot2\nrepository:\n  - bot3\n", encoding="utf-8"
+        )
         # Mock _find_repo_root to skip CWE-22 check (tmp_path is outside repo)
         with patch("scripts.github_core.bot_config._find_repo_root", return_value=None):
             result = get_bot_authors_config(config_path=str(config), force=True)
@@ -149,7 +151,10 @@ class TestGetBotAuthorsConfig:
 
     def test_each_category_has_entries(self, tmp_path: Path):
         config = tmp_path / "bot-authors.yml"
-        config.write_text("reviewer:\n  - r1\n  - r2\nautomation:\n  - a1\nrepository:\n  - p1\n")
+        config.write_text(
+            "reviewer:\n  - r1\n  - r2\nautomation:\n  - a1\nrepository:\n  - p1\n",
+            encoding="utf-8",
+        )
         with patch("scripts.github_core.bot_config._find_repo_root", return_value=None):
             result = get_bot_authors_config(config_path=str(config), force=True)
         assert len(result["reviewer"]) == 2
@@ -158,7 +163,9 @@ class TestGetBotAuthorsConfig:
 
     def test_caches_result(self, tmp_path: Path):
         config = tmp_path / "bot-authors.yml"
-        config.write_text("reviewer:\n  - bot1\nautomation:\n  - bot2\nrepository:\n  - bot3\n")
+        config.write_text(
+            "reviewer:\n  - bot1\nautomation:\n  - bot2\nrepository:\n  - bot3\n", encoding="utf-8"
+        )
         with patch("scripts.github_core.bot_config._find_repo_root", return_value=None):
             r1 = get_bot_authors_config(config_path=str(config), force=True)
             r2 = get_bot_authors_config(config_path=str(config))
@@ -166,10 +173,14 @@ class TestGetBotAuthorsConfig:
 
     def test_force_reloads(self, tmp_path: Path):
         config = tmp_path / "bot-authors.yml"
-        config.write_text("reviewer:\n  - old\nautomation:\n  - a\nrepository:\n  - r\n")
+        config.write_text(
+            "reviewer:\n  - old\nautomation:\n  - a\nrepository:\n  - r\n", encoding="utf-8"
+        )
         with patch("scripts.github_core.bot_config._find_repo_root", return_value=None):
             get_bot_authors_config(config_path=str(config), force=True)
-            config.write_text("reviewer:\n  - new\nautomation:\n  - a\nrepository:\n  - r\n")
+            config.write_text(
+                "reviewer:\n  - new\nautomation:\n  - a\nrepository:\n  - r\n", encoding="utf-8"
+            )
             result = get_bot_authors_config(config_path=str(config), force=True)
         assert "new" in result["reviewer"]
 
@@ -179,7 +190,7 @@ class TestGetBotAuthorsConfig:
 
     def test_falls_back_on_empty_config(self, tmp_path: Path):
         config = tmp_path / "bot-authors.yml"
-        config.write_text("")
+        config.write_text("", encoding="utf-8")
         with patch("scripts.github_core.bot_config._find_repo_root", return_value=None):
             result = get_bot_authors_config(config_path=str(config), force=True)
         assert result == _DEFAULT_BOTS
@@ -187,7 +198,7 @@ class TestGetBotAuthorsConfig:
     def test_path_traversal_uses_defaults(self, tmp_path: Path):
         # Create a file that resolves outside the "repo root"
         outside = tmp_path / "outside.yml"
-        outside.write_text("reviewer:\n  - evil\n")
+        outside.write_text("reviewer:\n  - evil\n", encoding="utf-8")
         # Set repo root to a subdirectory so the file is outside it
         repo_root = tmp_path / "repo"
         repo_root.mkdir()

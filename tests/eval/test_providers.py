@@ -780,6 +780,7 @@ def test_openai_provider_sets_timeout_and_disables_sdk_retries(
         original_init(self, **kwargs)
         captured.append(self)
 
+    monkeypatch.delenv("EVAL_HTTP_TIMEOUT_SECONDS", raising=False)
     monkeypatch.setattr(_FakeOpenAI, "__init__", _record_init)
     provider = _providers.resolve_provider("openai")
 

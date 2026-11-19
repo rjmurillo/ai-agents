@@ -10,8 +10,12 @@ install:
     python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"\
         "/skills/<skill>/scripts/<name>.py"
 
-The repository has standardized on that one form for every such invocation.
-Two things have to hold for it to be portable:
+The repository standardized on that form (issue #5949). ADR-121 adds a second
+form for a new shell command that a model runs: the locator that
+``build/scripts/plugin_run_launcher.py`` renders. The validator accepts both. The
+locator is read as described under "Detection" below, and the legacy form is
+counted against a baseline that only moves down (rule 6). Two things have to hold
+for either form to be portable:
 
 1. **The interpreter is exactly ``python3``.** ``uv run python <script>``
    resolves the project's locked virtual environment, but a vendored plugin
@@ -29,10 +33,12 @@ Two things have to hold for it to be portable:
    install dependencies from even if it wanted to.
 
 This validator enforces both, plus a bare-path rule for shipped YAML (Rule 3,
-below). Markdown and code carry no baseline: every invocation there moved to
-the canonical form when this guard was added (issue #5949), so any offense is
+below). Markdown and code carry no offense baseline: every invocation there moved
+to an accepted form when this guard was added (issue #5949), so any offense is
 a regression. Shipped YAML has a short, named allowance list instead
-(``YAML_ALLOWANCES`` in ``plugin_root_interpreter_allowances.py``).
+(``YAML_ALLOWANCES`` in ``plugin_root_interpreter_allowances.py``). The one count
+that is allowed to differ from zero is the number of legacy-form sites in
+authored files (rule 6).
 
 Scope: tracked ``*.md``, ``*.py``, ``*.tmpl``, and ``*.mustache`` files, plus
 ``*.yaml`` and ``*.yml`` files under a plugin root (``.claude/``,
@@ -88,6 +94,29 @@ Detection:
   reported; an allowance that matches nothing is stale and fails the run, so it
   cannot hide a later offense under the same key (issue #6506).
 
+  **The locator (ADR-121).** ``plugin_root_interpreter_sites.py`` finds each
+  locator and reads its script path out of the text with
+  ``plugin_run_launcher.find_locators``. The locator's interpreter comes from the
+  closed set ``plugin_run_launcher.INTERPRETERS`` (ADR-121 decision 12), so rule 1
+  holds by construction, except that the ``uv run --frozen python`` form is an
+  offense outside a ``distribution: repo-local`` skill. Rule 2 applies to the
+  extracted path as it does to a legacy operand, minus any module that
+  ``GUARDED_IMPORT_ALLOWANCES`` covers for that target (decision 13); the ``uv``
+  form skips the import scan but still needs a tracked target. Rule 4 holds
+  because the locator names both variables. A locator that no longer reads back
+  (a bad target, a missing end) is an offense. A locator in shipped YAML is an
+  offense no allowance and no declaration covers: the completion gate splits
+  commands with ``shlex`` and runs no shell, so the locator would stay literal
+  there (ADR-121 decision 1, Class G).
+
+  **Rule 6 (legacy ratchet).** Authored files (``templates/`` and the hand-kept files
+  under ``src/claude/``, including the hand-maintained ``src/claude/lib`` modules;
+  ``plugin_root_interpreter_ratchet.authored_group``) hold a
+  counted number of legacy-form invocations and of assignments from the nested form.
+  A group whose count differs from ``LEGACY_SITE_BASELINE`` fails, above or below, so
+  a batch that migrates must lower the baseline in the same change. The baseline
+  describes this checkout, so a scan of another ``--repo-root`` does not apply it.
+
   A line carrying ``plugin-root-interpreter:`` plus a reason, on the offending
   line or the line directly above it, suppresses that one offense. Same
   line-scoped shape as ``check_doc_interpreter_portability.py``'s
@@ -102,7 +131,9 @@ Detection:
 
 Exit codes (ADR-035):
   0 - no offenses found and every allowance still matches
-  1 - one or more offenses found, or an allowance matches nothing
+  1 - one or more offenses found, an allowance matches nothing (including a
+      guarded-import allowance), or a legacy-site
+      count differs from its baseline
   2 - configuration error (git unavailable, an in-scope tracked file could not
       be read, or the scan examined zero files)
 """
@@ -122,8 +153,11 @@ _REPO_ROOT = _SCRIPT_DIR.parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from scripts.validation import plugin_root_guarded_imports as _guarded  # noqa: E402
 from scripts.validation import plugin_root_interpreter_allowances as _allowances  # noqa: E402
+from scripts.validation import plugin_root_interpreter_ratchet as _ratchet  # noqa: E402
 from scripts.validation import plugin_root_interpreter_rules as _rules  # noqa: E402
+from scripts.validation import plugin_root_interpreter_sites as _sites  # noqa: E402
 from scripts.validation.check_doc_interpreter_portability import (  # noqa: E402
     HISTORICAL_ROOTS,
     ScanError,
@@ -151,16 +185,23 @@ FIXTURE_ROOTS: tuple[str, ...] = ("tests/",)
 DECLARATION = "plugin-root-interpreter:"
 
 # The plugin-root fallback chain used across the repository is
-# ``${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}``, so an operand
-# that resolves through it lands under ``.claude`` in this checkout.
+# ``${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}``, and the locator's last
+# candidate is ``.claude``, so a target that resolves through either lands under
+# ``.claude`` in this checkout.
 _PLUGIN_ROOT_FALLBACK = ".claude"
-_PLUGIN_ROOT_VARS = ("COPILOT_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT")
+_Invocation = _sites.Invocation
+_find_invocations = _sites.find_invocations
+_join_continuations = _sites.join_continuations
+_lineno_at = _sites.lineno_at
 
 # YAML is read only where it ships; CI YAML runs uv on purpose.
 _PLUGIN_ROOTS = (".claude/", "src/claude/", "src/copilot-cli/")
 _YAML_SUFFIXES = (".yaml", ".yml")
 _Key = tuple[str, str, str, str]
+_LOCATOR_YAML_RULE = "locator-yaml"  # no allowance can cover it (ADR-121 decision 1)
 _Imports = dict[str, frozenset[str]] | None  # script to its third-party imports, per scan (#6854)
+_UsedGuarded = set[_guarded.GuardedKey] | None  # guarded-import allowances a scan applied
+_UV_INTERPRETER = _sites.UV_INTERPRETER
 _MUST_2 = ".claude/rules/plugin-self-containment.md MUST 2"
 _MUST_4 = ".claude/rules/plugin-self-containment.md MUST 4"
 
@@ -181,42 +222,12 @@ _TREE_PREFIX = re.compile(
 )
 _SCAN_PATTERNS = ("*.md", "*.py", "*.tmpl", "*.mustache", "*.yaml", "*.yml")
 
-# One interpreter token: `python`, `python3`, or a pinned `python3.11`-style
-# name. Matched identically inside and outside a `uv run` prefix so both
-# offending shapes (`uv run python`, bare `python3.11`) are recognized by one
-# sub-pattern.
-_INTERP_TOKEN = r"python3?(?:\.\d+)?"
-
-# The interpreter phrase, up to and including the opening `${` of a
-# plugin-root variable reference. Two alternatives:
-#   - `uv run [uv options/values] python[3]` (always a rule-1 violation); the
-#     option tokens exclude shell separators so `uv run pytest; python3 ...`
-#     stays one canonical invocation, not a `uv run` one
-#   - a bare interpreter token (canonical only when it is exactly `python3`)
-# Either is optionally followed by short options (`-u`, `-B`), then the
-# operand: an optional opening quote, then the literal `${COPILOT_PLUGIN_ROOT`
-# or `${CLAUDE_PLUGIN_ROOT`. `\b` stops the variable-name match before the
-# `:-` fallback separator so the balanced-brace scan below starts from a known
-# position.
-_INTERP_PHRASE = (
-    r"(?<![\w./-])"
-    r"(?P<interp>"
-    rf"uv[ \t]+run(?:[ \t]+[^\s;&|`]+)*?[ \t]+{_INTERP_TOKEN}"
-    r"|"
-    rf"{_INTERP_TOKEN}"
-    r")"
-    r"(?:[ \t]+-[\w-]+)*"
-    r"[ \t]+"
-    r'(?P<quote>["\'])?'
-)
-_INVOCATION_HEAD = re.compile(_INTERP_PHRASE + r"\$\{(?:" + "|".join(_PLUGIN_ROOT_VARS) + r")\b")
-
 # Rule 3 (YAML only): the same interpreter phrase on a bare fallback-root path.
 # The operand may spell the same path with `./`, `../`, `//`, or `/./` segments
 # (`./.claude/skills`, `.claude//skills`, `.claude/./skills`, `../.claude/skills`);
 # `_normalize_tail` collapses them so every spelling reaches the same offense (#6506).
 _BARE_INVOCATION = re.compile(
-    _INTERP_PHRASE
+    _sites.INTERP_PHRASE
     + r"(?:\.{1,2}/+)*\.claude/+(?:\./+)*"
     + r"(?P<tail>skills/+[A-Za-z0-9_./-]*\.py)(?![\w./-])"
 )
@@ -226,19 +237,6 @@ _REDUNDANT_SEPARATORS = re.compile(r"/(?:\.?/)+")
 def _normalize_tail(tail: str) -> str:
     """Collapse ``//`` and ``/./`` runs so equivalent spellings match one key."""
     return _REDUNDANT_SEPARATORS.sub("/", tail)
-
-
-# The `skills/...py` tail once the plugin-root expansion is behind us.
-_PATH_TAIL = re.compile(r"/skills/[A-Za-z0-9_./-]*\.py")
-
-
-@dataclass(frozen=True, slots=True)
-class _Invocation:
-    """One recognized plugin-root invocation on a single logical line."""
-
-    start: int
-    interp: str
-    tail: str  # e.g. "skills/foo/scripts/bar.py" (leading "/" stripped)
 
 
 @dataclass(frozen=True, slots=True)
@@ -251,61 +249,6 @@ class _Offense:
     message: str
 
 
-def _match_balanced_braces(line: str, start: int) -> int | None:
-    """Return the index just past the ``}`` that closes the brace before ``start``.
-
-    ``start`` is the position right after ``${VARNAME`` was matched, so one
-    brace is already open (``depth`` begins at 1). The fallback chain nests one
-    level deep (``${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}``);
-    this scans character by character rather than assuming a fixed nesting
-    depth, so it tolerates a bare ``${VAR}`` or a deeper chain equally.
-    Returns ``None`` when the line ends before the brace closes (malformed or
-    truncated input), which the caller treats as "not an invocation".
-    """
-    depth = 1
-    index = start
-    length = len(line)
-    while index < length:
-        char = line[index]
-        if char == "{":
-            depth += 1
-        elif char == "}":
-            depth -= 1
-            if depth == 0:
-                return index + 1
-        index += 1
-    return None
-
-
-def _find_invocations(line: str) -> Iterator[_Invocation]:
-    """Yield every recognized plugin-root invocation on one logical line."""
-    pos = 0
-    while True:
-        match = _INVOCATION_HEAD.search(line, pos)
-        if match is None:
-            return
-        pos = match.end()
-        brace_end = _match_balanced_braces(line, match.end())
-        if brace_end is None:
-            continue
-        quote = match.group("quote")
-        quote_closes_at_brace = quote is not None and line[brace_end : brace_end + 1] == quote
-        path_start = brace_end + 1 if quote_closes_at_brace else brace_end
-        tail_match = _PATH_TAIL.match(line, path_start)
-        if tail_match is None:
-            continue
-        tail_end = tail_match.end()
-        if quote is not None and not quote_closes_at_brace:
-            # Whole-operand quoting: the closing quote must follow the path.
-            if line[tail_end : tail_end + 1] != quote:
-                continue
-        yield _Invocation(
-            start=match.start(),
-            interp=match.group("interp"),
-            tail=tail_match.group(0).lstrip("/"),
-        )
-
-
 def _find_bare_invocations(line: str) -> Iterator[_Invocation]:
     """Yield every interpreter call on a bare ``.claude/skills/...py`` path."""
     for match in _BARE_INVOCATION.finditer(line):
@@ -314,43 +257,6 @@ def _find_bare_invocations(line: str) -> Iterator[_Invocation]:
             interp=match.group("interp"),
             tail=_normalize_tail(match.group("tail")),
         )
-
-
-def _join_continuations(text: str) -> tuple[list[str], list[list[int]]]:
-    """Collapse backslash-newline continuations; keep each char's source line.
-
-    Returns parallel lists: logical lines with continuations joined, and for
-    each logical line a same-length list mapping every character index back to
-    the 1-indexed original line it came from. A regex match against a logical
-    line can then be attributed to the real line the reader would open.
-    """
-    logical_lines: list[str] = []
-    line_no_maps: list[list[int]] = []
-    parts: list[str] = []
-    char_map: list[int] = []
-    for lineno, raw in enumerate(text.splitlines(), start=1):
-        if raw.endswith("\\"):
-            content = raw[:-1]
-            parts.append(content)
-            char_map.extend([lineno] * len(content))
-            continue
-        parts.append(raw)
-        char_map.extend([lineno] * len(raw))
-        logical_lines.append("".join(parts))
-        line_no_maps.append(char_map)
-        parts, char_map = [], []
-    if parts:  # trailing continuation with no following line to close it
-        logical_lines.append("".join(parts))
-        line_no_maps.append(char_map)
-    return logical_lines, line_no_maps
-
-
-def _lineno_at(char_map: list[int], index: int) -> int:
-    if not char_map:
-        return 1
-    if index < len(char_map):
-        return char_map[index]
-    return char_map[-1]
 
 
 def _is_declared(raw_lines: list[str], lineno: int) -> bool:
@@ -380,9 +286,19 @@ def _form_message(rel: str, lineno: int, interp: str) -> str:
 
 
 def _dependency_message(
-    rel: str, lineno: int, tail: str, repo_root: Path, tracked_py: set[str], imports: _Imports
+    rel: str,
+    lineno: int,
+    tail: str,
+    repo_root: Path,
+    tracked_py: set[str],
+    imports: _Imports,
+    used_guarded: _UsedGuarded = None,
 ) -> str | None:
-    """Return rule-2's message for one canonical-form invocation, or ``None``."""
+    """Return rule-2's message for one canonical-form invocation, or ``None``.
+
+    A module that ``GUARDED_IMPORT_ALLOWANCES`` covers for this target passes while
+    its import stays guarded across the closure (ADR-121 decision 13).
+    """
     mapped = f"{_PLUGIN_ROOT_FALLBACK}/{tail}"
     if mapped not in tracked_py:
         return (
@@ -392,7 +308,13 @@ def _dependency_message(
     imports = {} if imports is None else imports
     if mapped not in imports:  # 976 invocations named 45 scripts on 2026-10-23
         imports[mapped] = frozenset(third_party_imports(mapped, repo_root, tracked_py))
-    external = sorted(imports[mapped])
+    external, used, problems = _guarded.allowed_modules(
+        mapped, sorted(imports[mapped]), repo_root, tracked_py, local_modules
+    )
+    if used_guarded is not None:
+        used_guarded |= used
+    if problems:
+        return f"{rel}:{lineno}: " + "; ".join(problems)
     if not external:
         return None
     return (
@@ -401,30 +323,112 @@ def _dependency_message(
     )
 
 
-def _undeclared(
+def _matches(
     text: str, finder: Callable[[str], Iterator[_Invocation]]
-) -> Iterator[tuple[int, _Invocation]]:
-    """Yield (line, invocation) for each match no declaration suppresses."""
+) -> Iterator[tuple[int, _Invocation, bool]]:
+    """Yield (line, invocation, declared) per match; ``declared`` is whether a marker covers it."""
     raw_lines = text.splitlines()
     logical_lines, line_maps = _join_continuations(text)
     for logical, char_map in zip(logical_lines, line_maps, strict=True):
         for invocation in finder(logical):
             lineno = _lineno_at(char_map, invocation.start)
-            if not _is_declared(raw_lines, lineno):
-                yield lineno, invocation
+            yield lineno, invocation, _is_declared(raw_lines, lineno)
+
+
+def _undeclared(
+    text: str, finder: Callable[[str], Iterator[_Invocation]]
+) -> Iterator[tuple[int, _Invocation]]:
+    """Yield (line, invocation) for each match no declaration suppresses."""
+    for lineno, invocation, declared in _matches(text, finder):
+        if not declared:
+            yield lineno, invocation
+
+
+def _locator_offense(
+    rel: str,
+    lineno: int,
+    invocation: _Invocation,
+    repo_root: Path,
+    tracked_py: set[str],
+    imports: _Imports,
+    used_guarded: _UsedGuarded = None,
+) -> _Offense | None:
+    """Return the offense for one locator site, or ``None`` when it is clean.
+
+    The locator's interpreter comes from a closed set (ADR-121 decision 12), so
+    rule 1 holds by construction, except that the `uv` form is allowed only in a
+    repo-local skill. Rule 2 applies to the script path read out of it; the `uv`
+    form skips the import scan, because `uv` resolves the lock. A locator in shipped YAML is
+    refused: the completion gate splits commands with ``shlex`` and runs no shell,
+    so the locator would stay literal (ADR-121 decision 1, Class G).
+    """
+    tail = invocation.tail
+    if _is_yaml(rel):
+        message = (
+            f"{rel}:{lineno}: shipped YAML runs through the completion gate, which splits "
+            "commands with shlex and runs no shell. Keep the legacy form here "
+            "(ADR-121 decision 1, Class G)"
+        )
+        return _Offense(lineno, _LOCATOR_YAML_RULE, tail, message)
+    if invocation.problem is not None:
+        message = f"{rel}:{lineno}: malformed locator, {invocation.problem} (ADR-121)"
+        return _Offense(lineno, "locator", tail, message)
+    if invocation.interp == _UV_INTERPRETER:
+        return _uv_locator_offense(rel, lineno, tail, repo_root, tracked_py)
+    dependency = _dependency_message(
+        rel, lineno, tail, repo_root, tracked_py, imports, used_guarded
+    )
+    return None if dependency is None else _Offense(lineno, "dependency", tail, dependency)
+
+
+def _uv_locator_offense(
+    rel: str, lineno: int, tail: str, repo_root: Path, tracked_py: set[str]
+) -> _Offense | None:
+    """Return the offense for a `uv` locator: shipped skill, or a dangling target."""
+    if not _guarded.is_repo_local_site(repo_root, rel):
+        message = (
+            f"{rel}:{lineno}: the {_UV_INTERPRETER!r} locator needs a skill marked "
+            f"distribution: repo-local; a consumer install has no uv ({_MUST_4}, ADR-121 "
+            "decision 12)"
+        )
+        return _Offense(lineno, "form", tail, message)
+    mapped = f"{_PLUGIN_ROOT_FALLBACK}/{tail}"
+    if mapped in tracked_py:
+        return None
+    message = f"{rel}:{lineno}: {mapped} is not a tracked file (dangling plugin-root target)"
+    return _Offense(lineno, "dependency", tail, message)
 
 
 def _plugin_root_offenses(
-    text: str, rel: str, repo_root: Path, tracked_py: set[str], imports: _Imports = None
+    text: str,
+    rel: str,
+    repo_root: Path,
+    tracked_py: set[str],
+    imports: _Imports = None,
+    used_guarded: _UsedGuarded = None,
 ) -> list[_Offense]:
     offenses: list[_Offense] = []
-    for lineno, invocation in _undeclared(text, _find_invocations):
+    for lineno, invocation, declared in _matches(text, _find_invocations):
+        if invocation.form == _sites.LOCATOR:
+            # The YAML prohibition comes first: no declaration can waive it (ADR-121).
+            if declared and not _is_yaml(rel):
+                continue
+            locator = _locator_offense(
+                rel, lineno, invocation, repo_root, tracked_py, imports, used_guarded
+            )
+            if locator is not None:
+                offenses.append(locator)
+            continue
+        if declared:
+            continue
         tail = invocation.tail
         if invocation.interp != "python3":
             message = _form_message(rel, lineno, invocation.interp)
             offenses.append(_Offense(lineno, "form", tail, message))
             continue
-        dependency = _dependency_message(rel, lineno, tail, repo_root, tracked_py, imports)
+        dependency = _dependency_message(
+            rel, lineno, tail, repo_root, tracked_py, imports, used_guarded
+        )
         if dependency is not None:
             offenses.append(_Offense(lineno, "dependency", tail, dependency))
     return offenses
@@ -444,24 +448,41 @@ def _bare_path_offenses(text: str, rel: str) -> list[_Offense]:
 
 
 def find_offenses(
-    text: str, rel: str, repo_root: Path, tracked_py: set[str], imports: _Imports = None
+    text: str,
+    rel: str,
+    repo_root: Path,
+    tracked_py: set[str],
+    imports: _Imports = None,
+    used_guarded: _UsedGuarded = None,
 ) -> list[tuple[int, str]]:
-    """Return (line, message) per offense in one file; ``imports`` caches across files."""
-    found = _plugin_root_offenses(text, rel, repo_root, tracked_py, imports)
+    """Return (line, message) per offense in one file; ``imports`` caches across files.
+
+    ``used_guarded``, when given, receives each guarded-import allowance applied.
+    """
+    found = _plugin_root_offenses(text, rel, repo_root, tracked_py, imports, used_guarded)
     return [(o.lineno, o.message) for o in found]
 
 
 def find_yaml_offenses(
-    text: str, rel: str, repo_root: Path, tracked_py: set[str], used_allowances: set[_Key]
+    text: str,
+    rel: str,
+    repo_root: Path,
+    tracked_py: set[str],
+    used_allowances: set[_Key],
+    used_guarded: _UsedGuarded = None,
 ) -> list[tuple[int, str]]:
-    """Return rule 1 to 3 offenses minus allowances; record each allowance used."""
-    found = _plugin_root_offenses(text, rel, repo_root, tracked_py)
+    """Return rule 1 to 3 offenses minus allowances; record each allowance used.
+
+    ``used_guarded`` receives each guarded-import allowance a Class G site applied,
+    so an allowance whose only sites are shipped YAML is not reported stale.
+    """
+    found = _plugin_root_offenses(text, rel, repo_root, tracked_py, None, used_guarded)
     found += _bare_path_offenses(text, rel)
     root_relative = next((rel[len(r) :] for r in _PLUGIN_ROOTS if rel.startswith(r)), rel)
     owners, reported = _allowances.yaml_key_paths(text), []
     for offense in sorted(found, key=lambda o: o.lineno):
         key = (root_relative, owners[offense.lineno - 1], offense.rule, offense.tail)
-        if key in _YAML_ALLOWANCES:
+        if key in _YAML_ALLOWANCES and offense.rule != _LOCATOR_YAML_RULE:
             used_allowances.add(key)
         else:
             reported.append((offense.lineno, offense.message))
@@ -558,8 +579,15 @@ def scan(
     repo_root: Path,
     used_allowances: set[_Key] | None = None,
     used_single_root: set[str] | None = None,
+    legacy_counts: dict[str, _sites.LegacyCounts] | None = None,
+    used_guarded: _UsedGuarded = None,
 ) -> list[str]:
-    """Return one message per offense across the tree; record allowances used."""
+    """Return one message per offense across the tree; record allowances used.
+
+    ``legacy_counts``, when given, receives the legacy-form site count of each
+    authored group (see ``plugin_root_interpreter_ratchet``). ``used_guarded``,
+    when given, receives each guarded-import allowance a site applied.
+    """
     used = set() if used_allowances is None else used_allowances
     used_roots = set() if used_single_root is None else used_single_root
     tracked_py = tracked_py_with_links(repo_root)
@@ -573,26 +601,54 @@ def scan(
             text = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError) as exc:
             raise ScanError(f"could not read {rel}: {exc}") from exc
+        group = _ratchet.authored_group(rel)
+        if legacy_counts is not None and group is not None:
+            _ratchet.tally(legacy_counts, group, _sites.count_legacy_sites(text))
         if _is_yaml(rel):
-            found = find_yaml_offenses(text, rel, repo_root, tracked_py, used)
+            found = find_yaml_offenses(text, rel, repo_root, tracked_py, used, used_guarded)
         else:
-            found = find_offenses(text, rel, repo_root, tracked_py, imports)
+            found = find_offenses(text, rel, repo_root, tracked_py, imports, used_guarded)
         all_offenses.extend((rel, lineno, message) for lineno, message in found)
     all_offenses.extend(_scan_new_rules(repo_root, tracked_py, used_roots))
     all_offenses.sort(key=lambda item: (item[0], item[1]))
     return [message for _, _, message in all_offenses]
 
 
+def legacy_ratchet_messages(repo_root: Path, counts: dict[str, _sites.LegacyCounts]) -> list[str]:
+    """Return the legacy-site ratchet messages; none for a root other than this checkout.
+
+    ``LEGACY_SITE_BASELINE`` describes this checkout. A scan of another root, such as
+    a test fixture, has no baseline to compare with.
+    """
+    if repo_root != _REPO_ROOT:
+        return []
+    return _ratchet.ratchet_messages(counts, _allowances.LEGACY_SITE_BASELINE)
+
+
+def guarded_stale(
+    repo_root: Path, used_guarded: set[_guarded.GuardedKey]
+) -> set[_guarded.GuardedKey]:
+    """Return the guarded-import allowances no site applied; none for another root.
+
+    ``GUARDED_IMPORT_ALLOWANCES`` names this checkout's targets, so a scan of
+    another root, such as a test fixture, has nothing to compare with.
+    """
+    if repo_root != _REPO_ROOT:
+        return set()
+    return set(_guarded.GUARDED_IMPORT_ALLOWANCES) - used_guarded
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the CLI parser."""
     parser = argparse.ArgumentParser(
         description=(
-            "Fail when a plugin-root skill invocation uses anything but bare "
-            "python3 or names a target with non-stdlib imports (rules 1 to 3), "
-            "when a file names the Claude plugin-root variable without the Copilot "
-            "one (rule 4), or when a shipped skill or lib module imports a "
-            "third-party package at module level with no fallback (rule 5) "
-            "(issue #5949)."
+            "Fail when a plugin-root skill invocation, in the legacy form or as the "
+            "ADR-121 locator, uses anything but bare python3 or names a target with "
+            "non-stdlib imports (rules 1 to 3), when a file names the Claude plugin-root "
+            "variable without the Copilot one (rule 4), when a shipped skill or lib "
+            "module imports a third-party package at module level with no fallback "
+            "(rule 5), or when the count of legacy-form sites in authored files differs "
+            "from its baseline (rule 6) (issue #5949, ADR-121)."
         )
     )
     parser.add_argument("--repo-root", type=Path, default=None, help="Repository root.")
@@ -614,11 +670,15 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         used_allowances: set[_Key] = set()
         used_single_root: set[str] = set()
-        offenses = scan(repo_root, used_allowances, used_single_root)
+        legacy_counts: dict[str, _sites.LegacyCounts] = {}
+        used_guarded: set[_guarded.GuardedKey] = set()
+        offenses = scan(repo_root, used_allowances, used_single_root, legacy_counts, used_guarded)
     except (OSError, ScanError, subprocess.CalledProcessError) as exc:
         print(f"check-plugin-root-interpreter: {exc}", file=sys.stderr)
         return 2
 
+    ratchet = legacy_ratchet_messages(repo_root, legacy_counts)
+    offenses = offenses + ratchet
     for message in offenses:
         print(message, file=sys.stderr)
     stale = sorted(set(_YAML_ALLOWANCES) - used_allowances)
@@ -630,8 +690,14 @@ def main(argv: list[str] | None = None) -> int:
         message = "check-plugin-root-interpreter: single-root allowance matches no file: "
         print(message + key, file=sys.stderr)
 
-    if offenses or stale or stale_roots:
-        counts = f"{len(offenses)} offense(s), {len(stale) + len(stale_roots)} stale allowance(s)"
+    stale_guarded = sorted(guarded_stale(repo_root, used_guarded))
+    for target, module in stale_guarded:
+        message = "check-plugin-root-interpreter: guarded-import allowance matches no site: "
+        print(f"{message}{target} {module}", file=sys.stderr)
+
+    stale_total = len(stale) + len(stale_roots) + len(stale_guarded)
+    if offenses or stale_total:
+        counts = f"{len(offenses)} offense(s), {stale_total} stale allowance(s)"
         print(f"check-plugin-root-interpreter: FAIL ({counts})", file=sys.stderr)
         return 1
 

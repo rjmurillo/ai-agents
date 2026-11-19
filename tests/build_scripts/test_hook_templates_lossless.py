@@ -6,7 +6,9 @@ So there is no separate fixtures/ directory to keep in sync with a
 transformation: the committed ``templates/hooks/<rel>`` tree IS the
 fixture, and this test pins the three-way byte-identity chain
 ``templates/hooks/<rel>`` -> ``src/claude/hooks/<rel>`` (or
-``src/claude/hooks/hooks.json``) -> ``.claude/hooks/<rel>`` (or
+``src/claude/hooks/hooks.json``) -> ``.claude/hooks/<rel>`` for shipped entries,
+and the two-way chain ``templates/hooks/<rel>`` -> ``.claude/hooks/<rel>`` for
+repo-only entries (ADR-109 amendment 2026-11-11), (or
 ``.claude/hooks/hooks.json``, a symlink to the plugin file; ``.claude/settings.json``)
 the compile step plus the binplace step produce end to end, against the real repository
 tree, per TASK-034 Acceptance Criteria: "the first render byte-identical
@@ -15,7 +17,9 @@ to today's committed files."
 Independent pin on the corpus size (mirrors test_rule_templates_lossless.py's
 CodeRabbit-motivated frozenset): the 14 executables and dispatch_groups.json, from
 `git ls-files .claude/hooks` at HEAD (TASK-034 counted 16 hooks-class files
-including the markdownlint safe config, since removed).
+including the markdownlint safe config, since removed). The repo-only names are
+pinned separately and independently of ``binplace.yaml``, so a loader or list
+edit cannot move a file across the hop without failing here.
 """
 
 from __future__ import annotations
@@ -48,6 +52,22 @@ EXPECTED_HOOK_TREE_FILES = frozenset(
 )
 
 
+REPO_ONLY_TOP_LEVEL = frozenset(
+    {
+        "PreCompact",
+        "PreToolUse",
+        "SessionEnd",
+        "SessionStart",
+        "UserPromptSubmit",
+        "session-start.sh",
+    }
+)
+REPO_ONLY_FILES = frozenset(
+    rel for rel in EXPECTED_HOOK_TREE_FILES if rel.split("/", 1)[0] in REPO_ONLY_TOP_LEVEL
+)
+SHIPPED_FILES = EXPECTED_HOOK_TREE_FILES - REPO_ONLY_FILES
+
+
 def test_expected_corpus_matches_committed_templates_tree() -> None:
     """The frozen expectation and the on-disk template tree agree (sans hooks.json, caches)."""
     templates_root = _REPO_ROOT / "templates" / "hooks"
@@ -61,13 +81,24 @@ def test_expected_corpus_matches_committed_templates_tree() -> None:
     assert on_disk == EXPECTED_HOOK_TREE_FILES
 
 
-def test_hooks_tree_files_byte_identical_across_the_chain() -> None:
+def test_shipped_hooks_files_byte_identical_across_the_chain() -> None:
     """templates/hooks/<rel> == src/claude/hooks/<rel> == .claude/hooks/<rel>."""
-    for rel in sorted(EXPECTED_HOOK_TREE_FILES):
+    assert SHIPPED_FILES  # a vacuous loop would pass for any tree
+    for rel in sorted(SHIPPED_FILES):
         template_bytes = (_REPO_ROOT / "templates" / "hooks" / rel).read_bytes()
         plugin_bytes = (_REPO_ROOT / "src" / "claude" / "hooks" / rel).read_bytes()
         install_bytes = (_REPO_ROOT / ".claude" / "hooks" / rel).read_bytes()
         assert template_bytes == plugin_bytes == install_bytes, rel
+
+
+def test_repo_only_hooks_files_render_straight_to_install_tree() -> None:
+    """templates/hooks/<rel> == .claude/hooks/<rel>, and no copy ships in the plugin tree."""
+    assert REPO_ONLY_FILES
+    for rel in sorted(REPO_ONLY_FILES):
+        template_bytes = (_REPO_ROOT / "templates" / "hooks" / rel).read_bytes()
+        install_bytes = (_REPO_ROOT / ".claude" / "hooks" / rel).read_bytes()
+        assert template_bytes == install_bytes, rel
+        assert not (_REPO_ROOT / "src" / "claude" / "hooks" / rel).exists(), rel
 
 
 def test_hooks_json_byte_identical_at_plugin_hooks_dir_and_install_path() -> None:
@@ -87,7 +118,7 @@ def test_settings_byte_identical_direct_to_install_tree() -> None:
 
 
 def test_session_start_sh_stays_executable_end_to_end() -> None:
-    """The one executable-bit-sensitive file keeps its FULL mode through both hops.
+    """The executable-bit-sensitive file keeps its FULL mode, rendered straight to the install tree.
 
     Compares the complete permission bits (``stat.S_IMODE``), not only the
     owner execute bit: a mode change from 0o755 to 0o700 still carries the
@@ -97,11 +128,8 @@ def test_session_start_sh_stays_executable_end_to_end() -> None:
     template_mode = stat.S_IMODE(
         (_REPO_ROOT / "templates" / "hooks" / "session-start.sh").stat().st_mode
     )
-    plugin_mode = stat.S_IMODE(
-        (_REPO_ROOT / "src" / "claude" / "hooks" / "session-start.sh").stat().st_mode
-    )
     install_mode = stat.S_IMODE(
         (_REPO_ROOT / ".claude" / "hooks" / "session-start.sh").stat().st_mode
     )
-    assert template_mode == plugin_mode == install_mode
+    assert template_mode == install_mode
     assert template_mode & 0o100  # still executable, not just byte-for-byte equal

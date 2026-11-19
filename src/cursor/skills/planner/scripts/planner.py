@@ -4,7 +4,7 @@
 Interactive Sequential Planner - Two-phase planning workflow
 
 PLANNING PHASE: Step-based planning with forced reflection pauses.
-REVIEW PHASE: Orchestrates TW scrub and QR validation before execution.
+REVIEW PHASE: Orchestrates comment review and plan review before execution.
 
 Usage:
     # Planning phase (default)
@@ -37,14 +37,14 @@ def get_planning_step_guidance(step_number: int, total_steps: int) -> dict:
                 "FINAL VERIFICATION: complete each section before writing.",
                 "",
                 "<planning_context_verification>",
-                "TW and QR consume this section VERBATIM. Quality here =",
+                "Comment review and plan review consume this section VERBATIM. Quality here =",
                 "quality of scrubbed content and risk detection downstream.",
                 "",
                 "Decision Log (major choices):",
                 "  - What major architectural choice did you make?",
                 "  - What is the multi-step reasoning chain for that choice?",
                 "",
-                "Micro-decisions (TW sources ALL code comments from Decision Log):",
+                "Micro-decisions (WHY comments in code snippets come from Decision Log):",
                 "  - Time sources: wall clock vs monotonic? timezone handling?",
                 "  - Concurrency: mutex vs channel vs atomic? why?",
                 "  - Error granularity: specific error types vs generic? why?",
@@ -88,7 +88,7 @@ def get_planning_step_guidance(step_number: int, total_steps: int) -> dict:
                 "  - Context lines: 2-3 lines copied VERBATIM from actual file",
                 "    (FORBIDDEN: '...', '[existing code]', summaries, placeholders)",
                 "  - If you haven't read the target file, read it now to extract",
-                "    real anchors that Developer can match against",
+                "    real anchors that the implementer can match against",
                 "",
                 "Milestone-type specific criteria:",
                 "  - Test milestones: specify scenario count, assertion types, edge",
@@ -120,7 +120,7 @@ def get_planning_step_guidance(step_number: int, total_steps: int) -> dict:
                 "CONTAMINATED: '// After the retry loop' (location directive)",
                 "CLEAN: (delete -- diff context encodes location)",
                 "",
-                "TW will review, but starting clean reduces rework.",
+                "Comment review will catch the rest, but starting clean reduces rework.",
                 "</comment_hygiene_verification>",
                 "",
                 "<decision_audit_verification>",
@@ -134,7 +134,7 @@ def get_planning_step_guidance(step_number: int, total_steps: int) -> dict:
                 "      - All new files have backing citations",
                 "      - No 'assumption' rows remain unresolved",
                 "",
-                "If any assumption was resolved via AskUserQuestion:",
+                "If any assumption was resolved by asking the user:",
                 "  - Update backing to 'user-specified'",
                 "  - Add user's answer as citation",
                 "",
@@ -152,15 +152,15 @@ def get_planning_step_guidance(step_number: int, total_steps: int) -> dict:
                 ">>> ACTION REQUIRED: INVOKE REVIEW PHASE <<<\n"
                 "============================================\n\n"
                 "SKIPPING REVIEW MEANS:\n"
-                "  - Developer has NO prepared comments to transcribe\n"
+                "  - The implementer has NO prepared comments to transcribe\n"
                 "  - Code ships without WHY documentation\n"
-                "  - QR findings surface during execution, not before\n\n"
+                "  - Plan review findings surface during execution, not before\n\n"
                 "2. Run this command to start review:\n\n"
                 "   python3 planner.py --phase review --step-number 1 --total-steps 2 \\\n"
                 '     --thoughts "Plan written to [path]"\n\n'
                 "Review phase:\n"
-                "  Step 1: @agent-technical-writer scrubs code snippets\n"
-                "  Step 2: @agent-quality-reviewer validates the plan\n"
+                "  Step 1: @agent-comment-analyzer reviews code snippet comments\n"
+                "  Step 2: @agent-critic validates the plan\n"
                 "  Then: Ready for /plan-execution"
             ),
         }
@@ -236,15 +236,15 @@ def get_planning_step_guidance(step_number: int, total_steps: int) -> dict:
                 "  1. user-specified: 'User said X' -> cite the instruction",
                 "  2. doc-derived: 'CLAUDE.md says Y' -> cite file:section",
                 "  3. default-derived: 'Convention Z' -> cite <default-conventions domain>",
-                "  4. assumption: 'No backing' -> STOP, use AskUserQuestion NOW",
+                "  4. assumption: 'No backing' -> STOP, ask the user NOW",
                 "",
-                "For EACH 'assumption' row: use AskUserQuestion immediately.",
+                "For EACH 'assumption' row: ask the user immediately with the host ask tool (Claude Code: AskUserQuestion; Muse Code or Codex Plan mode: request_user_input; else a chat question).",
                 "Do not proceed to step 3 with unresolved assumptions.",
                 "</step_2_decision_classification>",
                 "",
                 "<step_2_rejected>",
                 "Document rejected alternatives with CONCRETE reasons.",
-                "TW uses this for 'why not X' code comments.",
+                "Comment review uses this for 'why not X' code comments.",
                 "</step_2_rejected>",
                 "",
                 "<step_2_architecture>",
@@ -271,7 +271,7 @@ def get_planning_step_guidance(step_number: int, total_steps: int) -> dict:
         return {
             "actions": [
                 "<step_3_risks>",
-                "Document risks NOW. QR excludes documented risks from findings.",
+                "Document risks NOW. Plan review excludes documented risks from findings.",
                 "",
                 "For each risk:",
                 "  | Risk | Mitigation | Anchor |",
@@ -293,7 +293,7 @@ def get_planning_step_guidance(step_number: int, total_steps: int) -> dict:
                 "  | Dedup breaks | No change; dedup uses TagData |",
                 "    worker.go:468 `isIdentical := tag.NumericValue == entry.val` |",
                 "",
-                "Claims without anchors are ASSUMPTIONS. QR will challenge them.",
+                "Claims without anchors are ASSUMPTIONS. Plan review will challenge them.",
                 "</step_3_risks>",
                 "",
                 "<step_3_uncertainty_flags>",
@@ -301,7 +301,7 @@ def get_planning_step_guidance(step_number: int, total_steps: int) -> dict:
                 "",
                 "  | Condition                          | Flag                    |",
                 "  |------------------------------------|-------------------------|",
-                "  | Multiple valid implementations     | needs TW rationale      |",
+                "  | Multiple valid implementations     | needs WHY rationale     |",
                 "  | Depends on external system         | needs error review      |",
                 "  | First use of pattern in codebase   | needs conformance check |",
                 "",
@@ -337,7 +337,7 @@ def get_planning_step_guidance(step_number: int, total_steps: int) -> dict:
                 "  - user-specified: User explicitly requested separate file",
                 "  - doc-derived: Project convention requires it",
                 "  - default-derived: Meets separation trigger (>500 lines, distinct module)",
-                "  - assumption: None of the above -> use AskUserQuestion NOW",
+                "  - assumption: None of the above -> ask the user NOW",
                 "",
                 "Default convention (domain: file-creation, test-organization):",
                 "  Extend existing files unless separation trigger applies.",
@@ -382,7 +382,7 @@ def get_planning_step_guidance(step_number: int, total_steps: int) -> dict:
             "</planning_context_check>",
             "",
             "<developer_walkthrough>",
-            "Walk through the plan as if you were Developer:",
+            "Walk through the plan as if you were the implementer:",
             "  - Can you implement each milestone from the spec alone?",
             "  - Are requirements specific enough to avoid interpretation?",
             "",
@@ -404,67 +404,89 @@ def get_review_step_guidance(step_number: int, total_steps: int) -> dict:
     if step_number == 1:
         return {
             "actions": [
-                "<review_step_1_delegate_tw>",
-                "DELEGATE to @agent-technical-writer:",
+                "<review_step_1_comment_review>",
+                "DELEGATE to @agent-comment-analyzer (read-only: it returns findings",
+                "and does not edit the plan file):",
                 "",
                 "  <delegation>",
-                "    <agent>@agent-technical-writer</agent>",
-                "    <mode>plan-scrub</mode>",
+                "    <agent>@agent-comment-analyzer</agent>",
                 "    <plan_source>[path to plan file]</plan_source>",
                 "    <task>",
                 "      1. Read ## Planning Context section FIRST",
-                "      2. Prioritize scrub by uncertainty (HIGH/MEDIUM/LOW)",
-                "      3. Add WHY comments to code snippets from Decision Log",
-                "      4. Enrich plan prose with rationale",
-                "      5. Add documentation milestone if missing",
-                "      6. FLAG any non-obvious logic lacking rationale",
+                "      2. Review every comment inside the plan's code snippets. The plan",
+                "         file is the artifact under review: the snippets are proposed code",
+                "         that does not exist in the repository yet. Read each snippet in",
+                "         the plan file as the code its comment describes, cite the plan",
+                "         file path and line in each finding, and do not flag a symbol the",
+                "         plan introduces as missing from the repository",
+                "      3. Flag temporal contamination (planner skill resources/",
+                "         temporal-contamination.md defines it)",
+                "      4. Flag snippet logic whose comment omits the rationale recorded",
+                "         in the Decision Log, citing the Decision Log row",
+                "      5. Prioritize findings by uncertainty (HIGH/MEDIUM/LOW)",
                 "    </task>",
                 "  </delegation>",
                 "",
-                "Wait for @agent-technical-writer to complete.",
-                "</review_step_1_delegate_tw>",
+                "Wait for @agent-comment-analyzer to return findings. If it returns",
+                "NEEDS_DECOMPOSITION, apply the top 10 findings, then delegate again",
+                "for the findings past the top 10.",
+                "",
+                "THEN apply the findings to the plan file yourself:",
+                "  1. Fix or remove each flagged comment",
+                "  2. Add WHY comments to code snippets from Decision Log",
+                "  3. Enrich plan prose with rationale",
+                "  4. Add documentation milestone if missing",
+                "  5. FLAG any non-obvious logic lacking rationale",
+                "</review_step_1_comment_review>",
             ],
             "next": (
-                f"After TW completes, invoke step {next_step}:\n"
+                f"After the findings are applied, invoke step {next_step}:\n"
                 "   python3 planner.py --phase review --step-number 2 --total-steps 2 "
-                '--thoughts "TW scrub complete, [summary of changes]"'
+                '--thoughts "Comment review applied, [summary of changes]"'
             ),
         }
 
     if step_number == 2:
         return {
             "actions": [
-                "<review_step_2_delegate_qr>",
-                "DELEGATE to @agent-quality-reviewer:",
+                "<review_step_2_plan_review>",
+                "DELEGATE to @agent-critic:",
                 "",
                 "  <delegation>",
-                "    <agent>@agent-quality-reviewer</agent>",
-                "    <mode>plan-review</mode>",
+                "    <agent>@agent-critic</agent>",
                 "    <plan_source>[path to plan file]</plan_source>",
                 "    <task>",
                 "      1. Read ## Planning Context (constraints, known risks)",
-                "      2. Write out CONTEXT FILTER before reviewing milestones",
-                "      3. Apply RULE 0 (production reliability) with open questions",
-                "      4. Apply RULE 1 (project conformance)",
+                "      2. Before reviewing milestones, list the constraints and known",
+                "         risks from Planning Context that limit what counts as a finding",
+                "      3. Check production reliability: failure paths, data integrity,",
+                "         resource use, with open questions",
+                "      4. Check project conformance: the repository's documented",
+                "         conventions; where they are silent, the planner skill's",
+                "         resources/default-conventions.md",
                 "      5. Check anticipated structural issues",
-                "      6. Verify TW scrub passes actionability test",
+                "      6. Verify each comment-review edit and plan edit is actionable:",
+                "         it names the file or milestone, the change, and the reason",
                 "      7. Accept risks documented in Known Risks as acknowledged",
                 "      8. Pay extra attention to milestones with uncertainty flags",
                 "    </task>",
                 "    <expected_output>",
-                "      Verdict: PASS | PASS_WITH_CONCERNS | NEEDS_CHANGES",
+                "      Verdict: APPROVED | APPROVED_WITH_CONCERNS | NEEDS_REVISION | BLOCKED",
                 "    </expected_output>",
                 "  </delegation>",
                 "",
-                "Wait for @agent-quality-reviewer verdict.",
-                "</review_step_2_delegate_qr>",
+                "Wait for the @agent-critic verdict.",
+                "</review_step_2_plan_review>",
             ],
             "next": (
-                "After QR returns verdict:\n"
-                "  - PASS or PASS_WITH_CONCERNS: Invoke step 3 to complete review\n"
-                "  - NEEDS_CHANGES: Address issues in plan, then restart review from step 1:\n"
+                "After the critic returns its verdict:\n"
+                "  - APPROVED or APPROVED_WITH_CONCERNS: Invoke step 3 to complete review\n"
+                "  - NEEDS_REVISION: Address issues in plan, then restart review from step 1:\n"
                 "    python3 planner.py --phase review --step-number 1 --total-steps 2 \\\n"
-                '      --thoughts "Addressed QR feedback: [summary of changes]"'
+                '      --thoughts "Addressed plan review feedback: [summary of changes]"\n'
+                "  - BLOCKED: Stop. Report the blocker (missing dependency, misaligned\n"
+                "    objective, or feasibility concern) to the user. Do not execute the plan\n"
+                "    until the user resolves it, then restart planning."
             ),
         }
 
@@ -473,11 +495,11 @@ def get_review_step_guidance(step_number: int, total_steps: int) -> dict:
             "actions": [
                 "<review_complete_verification>",
                 "Confirm before proceeding to execution:",
-                "  - TW has scrubbed code snippets with WHY comments?",
-                "  - TW has enriched plan prose with rationale?",
-                "  - TW flagged any gaps in Planning Context rationale?",
-                "  - QR verdict is PASS or PASS_WITH_CONCERNS?",
-                "  - Any concerns from QR are documented or addressed?",
+                "  - Comment review findings were applied to code snippets?",
+                "  - Code snippets have WHY comments and plan prose has rationale?",
+                "  - Any gaps in Planning Context rationale are flagged?",
+                "  - Plan review verdict is APPROVED or APPROVED_WITH_CONCERNS?",
+                "  - Any concerns from the plan review are documented or addressed?",
                 "</review_complete_verification>",
             ],
             "next": (

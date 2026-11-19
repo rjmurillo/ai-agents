@@ -1,10 +1,22 @@
 ---
 name: autoplan
+version: 0.1.0
 description: Route any request to the right skill, command, or agent chain with
   defaults, so nobody hand-picks from the full catalog. Use when you say
   `/autoplan`, `do it`, `handle it`, `figure this out`, or when a concrete
   request names no skill. Do NOT use when the user names a specific skill or
   lifecycle command; invoke that directly.
+license: MIT
+metadata:
+  capability:
+    kind: orchestrator
+    status: active
+  inspiration: gstack /autoplan (garrytan/gstack autoplan/SKILL.md.tmpl)
+  routing:
+    role: front-door
+    invoker: harness
+    trigger: the harness selects autoplan for a concrete request that names no skill
+    user-facing: true
 ---
 
 # Autoplan
@@ -45,12 +57,10 @@ routes through the table below instead of defaulting to a bare answer, for
 example "why is CI failing", "investigate the flaky test", or "redo the login
 fix properly".
 
-These phrases are grounded in this repo's own Copilot and Claude session
-history. The dominant real openers are continue, proceed, investigate, fix
-the X, do it, and handle it, not ceremonial delegation phrases. Continue and
-proceed are deliberately excluded as hard triggers: they mean resume the
-in-flight work, so they route to whatever is already running rather than
-re-classifying from scratch.
+The phrases come from this repo's session history: continue, proceed,
+investigate, fix the X, do it, handle it. Continue and proceed are not hard
+triggers: they resume the in-flight work, so they route to whatever is already
+running instead of re-classifying.
 
 ## Precedence
 
@@ -67,6 +77,8 @@ Apply in this order (REQ-039):
    router.
 
 ## Process
+
+**Delegation on each host.** "Delegate to the `X` agent" means the host's subagent tool: Claude Code `Task` with `subagent_type="X"`; Copilot CLI `task` with `agent_type="project-toolkit:X"`; Codex `spawn_agent` with `agent_type="X"`, plus `fork_turns="none"` when the agent reviews or judges work (the default hands it your whole history); Muse Code `subagent_spawn` with `role="X"` and an `objective`, plus `worktree_isolation: true` for an agent that writes files. If the host has no subagent tool, or no `X` agent is installed, run the step yourself in this session.
 
 ### Phase 0: Recon the target
 
@@ -158,7 +170,7 @@ evidence (failing tests, widening diff), not on speculation.
 | Correction received, lesson learned | Skill: reflect |
 | Document a decision | Skill: adr-generator |
 | New skill wanted | Skill: skillforge |
-| Multi-domain, cross-cutting, or requires multiple agents | Task(subagent_type="orchestrator") |
+| Multi-domain, cross-cutting, or requires multiple agents | Agent: orchestrator |
 
 The user naming a skill or command bypasses this table entirely. User
 Sovereignty wins over any row.
@@ -183,17 +195,11 @@ coordinates specialists.
 
 When the request names no skill or command, matches no row above, and is not
 multi-domain (Precedence step 3), run the resolver before falling back to the
-orchestrator. Resolve the script from the plugin root, so it works from an
-installed plugin and from a repository checkout:
+orchestrator. The command finds the script in the plugin root, so it works
+from an installed plugin and from the root of a repository checkout:
 
 ```bash
-RESOLVER="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-$(git rev-parse --show-toplevel)/.claude}}/skills/autoplan/scripts/resolve_route.py"
-```
-
-Then run:
-
-```bash
-python3 "$RESOLVER" --request "<the user's request text>"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/autoplan/scripts/resolve_route.py --request "<the user's request text>"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Read `kind` from the JSON result and act:
@@ -201,10 +207,10 @@ Read `kind` from the JSON result and act:
 | `kind` | Action |
 |--------|--------|
 | `explicit` | Invoke `route` directly; the request already named it. |
-| `orchestrator` | `Task(subagent_type="orchestrator")`; a multi-domain marker fired. |
+| `orchestrator` | Delegate to the `orchestrator` agent; a multi-domain marker fired. |
 | `specialist` | Invoke `route`, the one eligible skill whose intents matched. |
 | `ambiguous` | Ask the user to pick from `candidates` (Sovereignty; do not guess). |
-| `none` | No specialist matched. Fall through to the lifecycle chain by size tier, or `Task(subagent_type="orchestrator")` when nothing else fits. |
+| `none` | No specialist matched. Fall through to the lifecycle chain by size tier, or delegate to the `orchestrator` agent when nothing else fits. |
 
 A missing PyYAML module or a missing skills root exits 2 with a named
 reason on stderr; when that happens, read skill descriptions directly
@@ -278,13 +284,8 @@ Every /autoplan run ends with one summary block, not a narration stream:
 `resolve_route.py` is the deterministic long-tail resolver Phase 2b runs on
 a single-domain table miss (DESIGN-037). It reads local `SKILL.md`
 frontmatter and prints one JSON line to stdout; it opens no network
-connection and runs no subprocess. Resolve its path the same way Phase 2b
-does (`$RESOLVER` below), never as a bare relative invocation:
-
-```bash
-RESOLVER="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-$(git rev-parse --show-toplevel)/.claude}}/skills/autoplan/scripts/resolve_route.py"
-python3 "$RESOLVER" --request "audit our CLI for developer friction"
-```
+connection and runs no subprocess. Run it with the Phase 2b command, never
+as a bare relative invocation.
 
 Exit codes: `0` on any resolution, including `kind: "none"`. `2` for a
 missing skills root, a missing PyYAML module (named on stderr), or a bad
@@ -323,7 +324,7 @@ A routed run is complete when every box checks:
   example, a change that touches the shared agent templates implies Standard or
   above because of mirror obligations).
 - **Escape hatches.** Route fails mid-run: fall back to
-  Task(subagent_type="orchestrator") with the failure context rather than
+  the `orchestrator` agent with the failure context rather than
   retrying the same route blind. Two consecutive routing misses on one
   request: stop, ask which route the user wanted, and log the miss with the
   reflect skill.

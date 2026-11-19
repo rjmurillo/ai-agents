@@ -2,7 +2,7 @@
 
 AI Agents is an open-source multi-agent toolkit for software development with Claude Code, GitHub Copilot CLI, and VS Code Copilot Chat. An orchestrator routes work across 29 specialized agents, including analyst, architect, code-reviewer, dependency-auditor, implementer, critic, QA, security, and DevOps, to plan, build, review, and ship code with explicit handoffs and quality gates at each stage.
 
-Built for platform teams, engineering managers, and organizations that want AI-assisted development with real governance: plan-to-ship lifecycle skills (`/spec`, `/plan`, `/build`, `/test`, `/review`, `/ship`) in both CLIs, run as slash commands in Claude Code, review gates and a session protocol in both CLIs, and ADR-steered agent behavior. Optional cross-session memory is available via Serena. Install from the plugin marketplace with `/plugin marketplace add rjmurillo/ai-agents` then `/plugin install project-toolkit@ai-agents`, in Claude Code or Copilot CLI. MIT licensed.
+Built for platform teams, engineering managers, and organizations that want AI-assisted development with real governance: plan-to-ship lifecycle skills (`spec`, `plan`, `build`, `test`, `review`, `ship`) in both CLIs, run as slash commands in Claude Code, review gates and a session protocol in both CLIs, and ADR-steered agent behavior. Optional cross-session memory is available via Serena. Install from the plugin marketplace with `/plugin marketplace add rjmurillo/ai-agents` then `/plugin install project-toolkit@ai-agents`, in Claude Code or Copilot CLI. MIT licensed.
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/rjmurillo/ai-agents)
 
@@ -17,7 +17,7 @@ Built for platform teams, engineering managers, and organizations that want AI-a
 ## Why AI Agents
 
 - **Orchestrated specialists.** An orchestrator routes work to specialist agents (`analyst`, `architect`, `milestone-planner`, `implementer`, `critic`, `qa`, `security`, `devops`) with explicit handoffs.
-- **Plan-to-ship lifecycle.** Six commands cover the path in Claude Code: `/spec`, `/plan`, `/build`, `/test`, `/review`, `/ship`.
+- **Plan-to-ship lifecycle.** Six commands cover the path in Claude Code: `/spec`, `/plan`, `/build`, `/test`, `/review`, `/ship`. After a marketplace install, type them with the plugin prefix, such as `/project-toolkit:spec`. See [Call agents and skills](docs/call-agents-and-skills.md).
 - **Review gates that loop back.** The critic returns APPROVED, APPROVED_WITH_CONCERNS, NEEDS_REVISION, or BLOCKED. NEEDS_REVISION sends the plan back to the agent that produced it. A QA failure sends the work back to the implementer.
 - **One marketplace URL, two CLIs.** The same repository URL installs as a plugin marketplace in Claude Code and in GitHub Copilot CLI.
 - **VS Code Copilot Chat support.** Agents also load in VS Code Copilot Chat from `.github/agents/`.
@@ -37,7 +37,7 @@ Built for platform teams, engineering managers, and organizations that want AI-a
 - You need Gemini CLI or Codex CLI. This README documents Claude Code, GitHub Copilot CLI, and VS Code Copilot Chat only.
 - You want a tmux-driven pipeline across many CLIs. [AgentMux](https://github.com/markuswondrak/AgentMux) is an option there.
 
-More answers: [FAQ](docs/faq.md). Copilot CLI install: [docs/installation.md](docs/installation.md#github-copilot-cli). Which lifecycle phases fit which task: [docs/when-to-use.md](docs/when-to-use.md). Every agent: [docs/agent-catalog.md](docs/agent-catalog.md).
+More answers: [FAQ](docs/faq.md). Copilot CLI install: [docs/installation.md](docs/installation.md#github-copilot-cli). Which lifecycle phases fit which task: [docs/when-to-use.md](docs/when-to-use.md). Every agent: [docs/agents/README.md](docs/agents/README.md). Every skill: [docs/skills/README.md](docs/skills/README.md).
 
 ---
 
@@ -77,7 +77,7 @@ A Claude install lands the full set of agents and skills, including the six life
 |-----------|-------------|-------------|
 | Agents | Included | Included |
 | Skills | Included | Included |
-| Lifecycle skills (`/spec` to `/ship`) | Included, run as slash commands | Included, name the skill with a slash in your prompt (for example `Use /plan ...`), per GitHub's Copilot CLI skills docs |
+| Lifecycle skills (`/spec` to `/ship`) | Included, run as slash commands (`/project-toolkit:spec` after a marketplace install) | Included, name the skill with a slash in your prompt (for example `Use /plan ...`), per GitHub's Copilot CLI skills docs |
 | Hooks | One advisory Stop hook (ADR-084 rule 2a) | Not registered |
 | Session protocol | Included | Included |
 | Review gates | Included | Included |
@@ -345,7 +345,7 @@ Six lifecycle skills that map to the development lifecycle. Claude Code runs the
 | Plan how to build it | `/plan` | Milestones, atomic tasks (S/M/L), dependency graph, risk register |
 | Build incrementally | `/build` | TDD slices, atomic commits, code quality scoring |
 | Prove it works | `/test` | 6 quality gates (functional, non-functional, security, DevOps, DX, observability) |
-| Review before merge | `/review` | 5-axis review (architecture, security, quality, tests, standards) |
+| Review before merge | `/review` | Spec-compliance gate, then review axes picked by risk |
 | Ship to production | `/ship` | Pre-flight checks, PR creation, ship report |
 
 Each command chains to the next. Output from `/spec` feeds into `/plan`, which feeds into `/build`, and so on. You can also jump in at any point for smaller tasks.
@@ -559,8 +559,11 @@ This project uses a **template-based generation system**. To modify agents:
 |----------|-------------|
 | [docs/getting-started.md](docs/getting-started.md) | Step-by-step setup guide |
 | [docs/faq.md](docs/faq.md) | Short answers on install, platforms, agent count, review gates, and requirements |
-| [docs/agent-catalog.md](docs/agent-catalog.md) | All agents with capabilities and examples |
-| [docs/skill-reference.md](docs/skill-reference.md) | Selected skills with usage descriptions. The authoritative list is the [skills directory](src/claude/skills/) |
+| [docs/agents/README.md](docs/agents/README.md) | One page per agent: when to use it, a prompt to copy, and what you get back |
+| [docs/skills/README.md](docs/skills/README.md) | One page per skill: when to use it, what to type, outputs, and scripts |
+| [docs/agents-and-skills.md](docs/agents-and-skills.md) | How agents and skills differ and work together |
+| [docs/call-agents-and-skills.md](docs/call-agents-and-skills.md) | The exact syntax to call an agent or skill on each host |
+| [docs/agent-catalog.md](docs/agent-catalog.md) | Generated table of every agent template, with role and size |
 | [docs/architecture.md](docs/architecture.md) | Plugin structure, template system, design decisions |
 | [docs/customization.md](docs/customization.md) | How to extend and customize agents, skills, and hooks |
 | [docs/installation.md](docs/installation.md) | Complete installation guide |

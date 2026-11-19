@@ -21,6 +21,7 @@ RENDERED_PATHS = (
     PROJECT_ROOT / ".github/agents/implementer.agent.md",
     PROJECT_ROOT / "src/copilot-cli/agents/implementer.agent.md",
     PROJECT_ROOT / "src/cursor/agents/implementer.md",
+    PROJECT_ROOT / "src/muse/agents/implementer.md",
     PROJECT_ROOT / "src/vs-code-agents/implementer.agent.md",
 )
 # Partials own the text; rendered copies must carry it. Each partial is checked
@@ -120,7 +121,7 @@ class TestRenderedPrompt:
 
 @pytest.mark.parametrize(
     "path",
-    [p for p in RENDERED_PATHS if "cursor" not in p.parts],
+    [p for p in RENDERED_PATHS if "cursor" not in p.parts and "muse" not in p.parts],
     ids=_rendered_id,
 )
 def test_argument_hint_accepts_inline_acceptance_criteria(path: Path) -> None:

@@ -343,9 +343,7 @@ Verify code coverage meets minimum thresholds:
 Verify the PR description:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/validate_pr_description.py" \
-  --title "[PR title]" \
-  --body-file "[path-to-pr-body.md]"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/validate_pr_description.py --title "[PR title]" --body-file "[path-to-pr-body.md]"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 **Pass criteria:**

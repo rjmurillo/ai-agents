@@ -1,6 +1,8 @@
 ---
 name: context-hub-setup
+version: 1.0.0
 description: Check the Serena and Context7 plugin prerequisites and report what is missing, with the install command for each. Use when you say `set up context hub`, `check my plugin prerequisites`, or `troubleshoot MCP connectivity`. Do NOT use to actually gather context for a task (use context-gather), and do NOT use to search memory (use memory-search).
+license: MIT
 metadata:
   routing:
     role: explicit-only
@@ -85,7 +87,7 @@ Commands available:
 Memory search reads committed files rather than querying a server:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "topic"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/search_memory.py "topic"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 It reads the markdown under `.serena/memories/`, so it works whether or not the

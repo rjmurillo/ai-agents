@@ -2,11 +2,12 @@
 
 Each folder below is a portable Agent Plugins v1 package for Hermes.
 A pack holds the skills listed under it and one copy of `lib/`.
-Skills in one pack never refer to skills in another pack.
+No skill points at a script, reference, or other support file in another pack.
+Some skills name a skill from another pack, so install every pack for the full set.
 
 ## project-toolkit-delivery
 
-Project Toolkit skills for GitHub pull request work, build, test, and quality gates, security review, and operations.
+Project Toolkit skills for GitHub pull request work, planning, build, test, and review gates.
 
 - `agent-harness-reference`
 - `ai-agents-external-claims`
@@ -14,26 +15,21 @@ Project Toolkit skills for GitHub pull request work, build, test, and quality ga
 - `api-doc-authoring`
 - `benchmark-models`
 - `build`
-- `chaos-experiment`
 - `code-qualities-assessment`
-- `codeql-scan`
-- `destructive-change-safety`
 - `doc-accuracy`
 - `dx-review`
 - `execution-plans`
-- `fix-markdown-fences`
 - `git-advanced-workflows`
 - `github`
 - `github-url-intercept`
-- `golden-principles`
 - `maintainer-review`
 - `merge-resolver`
-- `metrics`
-- `observability`
+- `modernize`
 - `orphan-ref-validator`
 - `pipeline-validator`
 - `plan`
 - `pr-autofix`
+- `pr-babysit`
 - `pr-comment-responder`
 - `pr-quality-all`
 - `pr-quality-analyst`
@@ -47,17 +43,33 @@ Project Toolkit skills for GitHub pull request work, build, test, and quality ga
 - `quality-grades`
 - `research`
 - `reviewer-findings`
-- `security-review`
-- `slo-designer`
 - `steering-matcher`
-- `style-enforcement`
 - `sync`
+- `takeover`
 - `taste-lints`
 - `test`
-- `threat-modeling`
 - `validate-pr-description`
 - `validation-authority`
 - `windows-image-updater`
+
+## project-toolkit-quality
+
+Project Toolkit skills for security and reliability engineering, code and documentation standards, metrics, and independent model review.
+
+- `chaos-experiment`
+- `codeql-scan`
+- `destructive-change-safety`
+- `fix-markdown-fences`
+- `golden-principles`
+- `llm-council`
+- `metrics`
+- `observability`
+- `security-review`
+- `slo-designer`
+- `sol-loop`
+- `style-enforcement`
+- `technical-writing`
+- `threat-modeling`
 
 ## project-toolkit-knowledge
 
@@ -93,7 +105,6 @@ Project Toolkit skills for memory, context, decisions, requirements, strategy, a
 - `prose-self-check`
 - `reflect`
 - `requirements-interview`
-- `retro`
 - `retrospective`
 - `skill-bootstrap`
 - `skillforge`
@@ -123,3 +134,9 @@ These skills ship in no pack.
 - `skill-doctor`: The bundled renderer asset exceeds Hermes' 1 MiB per-file limit.
 - `spec-generator`: Refers to excluded skill(s): review.
 - `stuck-detection`: plugin_guard returns dangerous for this skill (ADR-115 Decision 6).
+
+## Excluded files
+
+These files of a shipped skill ship in no pack.
+
+- `retrospective/scripts/copilot_journal.py`: Needs the skill-doctor parser, which Hermes does not ship, so --journal always reports unavailable there.

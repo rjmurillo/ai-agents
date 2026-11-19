@@ -45,11 +45,10 @@ Reuse `github`, `reviewer-findings`, and `pr-comment-responder` only when their 
 
 Select GitHub transport through [github](../../../.claude/skills/github/SKILL.md).
 Set `PR_NUMBER` from the supplied PR, never a remembered result.
-For an available script transport, bind its installed root once:
+For an available script transport, run the producer:
 
 ```bash
-GITHUB_SCRIPTS="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
-python3 "$GITHUB_SCRIPTS/pr/why_pr_blocked.py" --owner rjmurillo --repo ai-agents --pull-request "$PR_NUMBER" --output-format json
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/why_pr_blocked.py --owner rjmurillo --repo ai-agents --pull-request "$PR_NUMBER" --output-format json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Read the complete selected discussion and inline threads before acting on findings.
@@ -65,7 +64,7 @@ For a failed check, copy its exact display name into `CHECK_NAME`.
 Set `BASE_BRANCH` from this PR's base branch.
 
 ```bash
-python3 "$GITHUB_SCRIPTS/pr/triage_red_check.py" --owner rjmurillo --repo ai-agents --pull-request "$PR_NUMBER" --branch "$BASE_BRANCH" --check-name "$CHECK_NAME" --output-format json
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/triage_red_check.py --owner rjmurillo --repo ai-agents --pull-request "$PR_NUMBER" --branch "$BASE_BRANCH" --check-name "$CHECK_NAME" --output-format json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Read `Data.Verdict`, evidence URL, run identity, and ambiguity fields together.
@@ -81,7 +80,7 @@ Exit codes alone cannot distinguish the three non-evidence verdicts.
 
 `PR_ONLY` means no matching row within the examined history.
 It does not prove a workflow never runs on main.
-Widen history only when schedule or path filters justify it, with `--history-depth` (max 50 commits).
+Widen history only when schedule or path filters justify it: `run triage-red-check -- --history-depth N` in the instrument locator (max 50 commits).
 Cancelled evidence may contain same-name workflows; validate identity before rerunning.
 Different failure signatures can coexist even when both branches are red.
 Read logs through `get_pr_check_logs.py`, not raw `gh`.
@@ -106,7 +105,7 @@ Denied legacy-protection access remains unknown; an empty legacy result does not
 Before accepting either green or red attribution, join the check's producer identity to the required integration:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/repository-pr-recovery/scripts/required_check_producer_join.py" --repo . --pr "$PR_NUMBER"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/repository-pr-recovery/scripts/required_check_producer_join.py --repo . --pr "$PR_NUMBER"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 It pages the effective rules and the evaluated SHA's check-runs (`filter=all`) to the end, matching `name`, `app.id`, `head_sha`, and `check_suite.id`.
@@ -148,8 +147,8 @@ Do not report the PR accepted or merged from a successful diagnosis alone.
 List every linked instrument and confirm it exists:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/repository-pr-recovery/scripts/instruments.py" --repo . list
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/repository-pr-recovery/scripts/instruments.py" --repo . run <id> -- <args>
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/repository-pr-recovery/scripts/instruments.py --repo . list; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/repository-pr-recovery/scripts/instruments.py --repo . run <id> -- <args>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 Ids: `why-pr-blocked`, `triage-red-check`, `check-logs`, `review-threads`, `required-context-conditions`, `producer-join`, `drift-self-check`.
@@ -174,5 +173,5 @@ Follow the [shared maintenance policy](references/library.md#maintenance).
 Checks live in `reverify.json`. Run the drift command after any edit:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_drift.py" check --repo . --skills-root .claude/skills --name repository-pr-recovery --require
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_drift.py check --repo . --skills-root .claude/skills --name repository-pr-recovery --require; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```

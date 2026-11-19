@@ -104,6 +104,9 @@ is an excerpt; `example-eval.json` is a full, runnable manifest.
 A manifest with no `sel` split, an empty one, a duplicate id, or a non-string
 id makes `score` and `pair-gate` exit 2. No held-out split, no gate.
 
+Writing tasks and verifiers that measure the skill: read
+`references/eval-authoring.md` before you draft `tasks`.
+
 ### Command tasks (`skillopt.py run`)
 
 A task with a `command` is a deterministic verifier that `run` executes
@@ -169,8 +172,8 @@ Use `python3` or another bare name for the interpreter; an absolute path is
 refused. Run the incumbent and the candidate bundle with the same `eval.json`:
 
 ```bash
-python3 "$SKILLOPT_DIR/skillopt.py" run --eval eval.json --bundle incumbent/ --role incumbent --out-dir results/
-python3 "$SKILLOPT_DIR/skillopt.py" run --eval eval.json --bundle candidate/ --role candidate --out-dir results/
+python3 "${SKILLOPT_DIR:?}/skillopt.py" run --eval eval.json --bundle incumbent/ --role incumbent --out-dir results/
+python3 "${SKILLOPT_DIR:?}/skillopt.py" run --eval eval.json --bundle candidate/ --role candidate --out-dir results/
 ```
 
 `--role` is `incumbent`, `candidate`, or `null` and names the file
@@ -307,13 +310,16 @@ list of numbers. Measure all three arms the same way, on the same machine.
   value counts. `null_wide_tasks` names those tasks.
 - The measurement method is yours: count tokens, time the run, or read the
   cost from the harness. Use the identical method in all three arms.
+- Capture tip: a harness may report token count and duration only in the
+  subagent completion notice, and nowhere else. Write both into
+  `measurements.json` for that run as soon as the notice arrives.
 
 ## Scoring and gating
 
 Run with `$SKILLOPT_DIR` from SKILL.md, from any directory:
 
 ```bash
-python3 "$SKILLOPT_DIR/skillopt.py" pair-gate --eval eval.json --incumbent-results incumbent_results.json --candidate-results candidate_results.json
+python3 "${SKILLOPT_DIR:?}/skillopt.py" pair-gate --eval eval.json --incumbent-results incumbent_results.json --candidate-results candidate_results.json
 ```
 
 On Windows:
@@ -366,7 +372,7 @@ Use the efficiency gate only when the claim is a cheaper or faster candidate
 that has no new held-out pass, such as a skill already at the accuracy ceiling:
 
 ```bash
-python3 "$SKILLOPT_DIR/skillopt.py" efficiency-gate \
+python3 "${SKILLOPT_DIR:?}/skillopt.py" efficiency-gate \
   --eval eval.json \
   --incumbent-results incumbent_results.json \
   --candidate-results candidate_results.json \
@@ -425,7 +431,7 @@ with-skill against without-skill runs. The two share the `n`, `mean`, `stdev`
 spread, the `never_passes` signal, and the candidate-minus-baseline delta.
 
 ```bash
-python3 "$SKILLOPT_DIR/skillopt.py" report --eval eval.json --incumbent-results incumbent_results.json --candidate-results candidate_results.json [--split sel] [--null-results null_results.json] [--evidence evidence.json] [--measurements measurements.json]
+python3 "${SKILLOPT_DIR:?}/skillopt.py" report --eval eval.json --incumbent-results incumbent_results.json --candidate-results candidate_results.json [--split sel] [--null-results null_results.json] [--evidence evidence.json] [--measurements measurements.json]
 ```
 
 `--evidence` is one line per task and arm, written by the runner who graded it:
@@ -456,6 +462,12 @@ The output has a `tasks` list and a `benchmark` object.
   `--measurements` is given, the same spread for the measured metric. An
   absent measurement gives a null, never zero. With one observation `stdev` is
   null.
+
+`stdev` is spread across tasks, not run-to-run noise. The null control
+(`--null-results`) measures run noise.
+
+Actions per signal, optional human review, and blind comparison: read
+`references/eval-authoring.md` when a signal fires or a reviewer is available.
 
 The same split checks as `pair-gate` apply: an exposed or invalid task in the
 `sel` split exits 2. A `train` report can include exposed tasks.

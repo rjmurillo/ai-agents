@@ -1,6 +1,16 @@
 ---
 name: pre-mortem
+version: 1.0.0
 description: Guide prospective hindsight analysis to identify project risks before failure occurs. Teams imagine the project has failed spectacularly, then work backward to identify causes. Increases risk identification by 30% compared to traditional planning. Use when you say "run a pre-mortem on", "what could cause this to fail", "identify project risks", or "what could go wrong with". Do NOT use to stress-test a single decision's reasoning (use decision-critic).
+license: MIT
+metadata:
+  author: SkillForge
+  academic_source: "HBR 2007 - Performing a Project Premortem by Gary Klein"
+  routing:
+    role: conditional-adjunct
+    invoker: buy-vs-build-framework
+    trigger: buy-vs-build-framework always runs pre-mortem in Phase 3 for risk identification
+    user-facing: false
 ---
 
 # Pre-Mortem Risk Identification
@@ -242,9 +252,7 @@ Generate the risk inventory using this structure:
 Validates risk inventory completeness and calculates aggregate statistics.
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/pre-mortem/scripts/pre-mortem.py" \
-  --inventory-path "$INVENTORY_PATH" \
-  --validate
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/pre-mortem/scripts/pre-mortem.py --inventory-path "$INVENTORY_PATH" --validate; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 **Exit Codes:**
@@ -268,9 +276,7 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/pre-morte
 After completing a pre-mortem, run the bundled validator and require exit 0:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/pre-mortem/scripts/pre-mortem.py" \
-  --inventory-path "$INVENTORY_PATH" \
-  --validate
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/pre-mortem/scripts/pre-mortem.py --inventory-path "$INVENTORY_PATH" --validate; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 echo "exit=$?"   # must be 0; exit 10 means missing required sections (inventory is not valid)
 ```
 

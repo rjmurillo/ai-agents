@@ -1,6 +1,8 @@
 ---
 name: evidence-provenance
+version: 1.0.0
 description: Decide whether evidence is independent or the same loop twice, and whether a named check was run. Classifies lineage (premise, origin, time, mutability, environment), keeps authority a separate axis, and reports VERIFIED, NOT RUN, UNAVAILABLE, or FAILED. Use when you say `is this independent evidence`, `did the reviewer confirm this`, `closed loop`, or `count the confirmations`. Do NOT use to report progress (use the voice rule) or to pick the governing validator (use validation-authority).
+license: MIT
 metadata:
   capability:
     kind: reusable-primitive
@@ -57,11 +59,11 @@ cannot answer "was R read correctly", because both artifacts inherit one reading
 3. **Classify.** Write the record as JSON and run:
 
    ```bash
-   python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/evidence-provenance/scripts/classify_lineage.py" <record.json>
+   ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/evidence-provenance/scripts/classify_lineage.py <record.json>; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
    ```
 
    An item whose `bound_to` names a different artifact or revision is always
-   rejected (`binding-mismatch`), not downgraded. Add `--promotion` when the
+   rejected (`binding-mismatch`), not downgraded. Write `--promotion` after `<record.json>`, inside the locator, when the
    evidence gates a deployment: every item then also needs a `bound_to` with
    artifact, revision, validator, command, and result, or it is rejected as
    `binding-missing`.

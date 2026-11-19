@@ -37,12 +37,13 @@
    • Use script-template.py as base
    • Include Result dataclass pattern
    • Add a fast-fail check, and plan an independent postcondition check
-   • Document exit codes
-   • Test before finalizing
-   • In SKILL.md, invoke scripts through a plugin-root env var, never a bare
-     .claude/skills path:
-     SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/{skill-name}/scripts"
-     then python3 "$SCRIPTS_DIR/script.py" (see docs/SKILL-AUTHORING.md)
+   • Follow references/script-design-rules.md: shared exit codes
+     (0 ok, 1 logic, 2 usage or config, 3 external, 4 auth), main(argv)
+     returns the code, stdlib only
+   • Write tests in the repository's test tree from the test template in
+     script-design-rules.md, one per exit code, and run them before finalizing
+   • In SKILL.md, invoke scripts through the plugin-root locator, never a bare
+     .claude/skills path (see ADR-121)
 ```
 
 ## Quality Checks During Generation
@@ -57,6 +58,7 @@
 | Verification | Concrete, measurable |
 | Tables over prose | Structured information in tables |
 | No placeholder text | Every section fully written |
-| Scripts (if present) | Shebang, docstring, argparse, exit codes, Result pattern |
+| Scripts (if present) | Shebang, docstring with an `Exit codes:` block, argparse, `main(argv)` returning the code, Result pattern |
+| Script tests | One test per exit code, in the repository's test tree, never in the skill directory |
 | Script docs | Scripts section in SKILL.md with usage examples |
-| Portable exec paths | Script invocations use `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/...`, never a bare `.claude/skills/...` path (issue #2838) |
+| Portable exec paths | Script invocations use the plugin-root locator, never a bare `.claude/skills/...` path (issue #2838) |

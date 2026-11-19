@@ -490,7 +490,7 @@ def test_go_stdlib_only_test_passes_absolute_coupling_gate(
         "10 Go standard library (not scored), 0 application or third-party (scored)",
         "Import count is reasonable",
     ]
-    report = json.loads((tmp_path / "quality.json").read_text())
+    report = json.loads((tmp_path / "quality.json").read_text(encoding="utf-8"))
     assert report["files"][0]["coupling"]["value"] == 10
     assert rc == 0
 
@@ -606,6 +606,137 @@ def test_coupling_explanation_matches_failing_score(tmp_path: Path) -> None:
         "5 import/dependency statements",
         "High import count suggests high coupling",
     ]
+
+
+_PY_STDLIB_PROBE = """\
+import json
+import logging
+from pathlib import Path
+from typing import Any
+
+
+def write_json(path: Path, data: Any) -> None:
+    logging.debug("Writing JSON")
+    path.write_text(json.dumps(data), encoding="utf-8")
+"""
+
+
+def test_python_stdlib_only_probe_passes_absolute_coupling_gate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Issue #7354: four standard-library imports scored coupling 6.0 and
+    exited 11. They are reported but not scored, so the gate passes."""
+    path = _write(tmp_path, "probe.py", _PY_STDLIB_PROBE)
+    monkeypatch.chdir(tmp_path)
+
+    coupling = assess_file(path, "production", False).coupling
+    rc = main(
+        [
+            "--target",
+            ".",
+            "--gate-mode",
+            "absolute",
+            "--format",
+            "json",
+            "--output",
+            str(tmp_path / "quality.json"),
+        ]
+    )
+
+    assert coupling.value == 10
+    assert coupling.confidence == 0.6
+    assert coupling.reasons == [
+        "4 import/dependency statements",
+        "4 Python standard library (not scored), 0 application or third-party (scored)",
+        "Import count is reasonable",
+    ]
+    report = json.loads((tmp_path / "quality.json").read_text(encoding="utf-8"))
+    assert report["files"][0]["coupling"]["value"] == 10
+    assert rc == 0
+
+
+def test_python_third_party_imports_still_fail_gate(tmp_path: Path) -> None:
+    """Negative control: nine third-party imports still score below
+    coupling.min and fail, so the gate stays intact."""
+    names = ["requests", "numpy", "pandas", "flask", "django", "yaml", "attr", "click", "rich"]
+    body = "".join(f"import {n}\n" for n in names) + "def f():\n    return 1\n"
+    path = _write(tmp_path, "deps.py", body)
+
+    assessment = assess_file(path, "production", False)
+
+    assert assessment.coupling.value == 1
+    assert assessment.coupling.reasons == [
+        "9 import/dependency statements",
+        "High import count suggests high coupling",
+    ]
+    assert check_thresholds([assessment], _default_config(), "production") == 11
+
+
+def test_python_first_party_and_relative_imports_still_count(tmp_path: Path) -> None:
+    """Project modules and relative imports are application coupling, even when
+    mixed with standard-library lines that are not scored."""
+    body = (
+        "import json\nimport os\n"
+        "import myapp.models\nfrom myapp import services\n"
+        "from . import sibling\nfrom .pkg import thing\nfrom .. import parent\n"
+        "def f():\n    return 1\n"
+    )
+    path = _write(tmp_path, "mixed.py", body)
+
+    coupling = assess_file(path, "production", False).coupling
+
+    assert coupling.value == 5
+    assert coupling.reasons[:2] == [
+        "7 import/dependency statements",
+        "2 Python standard library (not scored), 5 application or third-party (scored)",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("source", "statements", "standard"),
+    [
+        ("import os", 1, 1),
+        ("import os.path", 1, 1),
+        ("import os, sys", 1, 1),
+        ("import numpy as np", 1, 0),
+        ("import os, requests", 1, 0),
+        ("import os as operating_system, json as j", 1, 1),
+        ("from collections.abc import Callable", 1, 1),
+        ("from __future__ import annotations", 1, 1),
+        ("from os import path  # comment mentioning requests", 1, 1),
+        ("if True:\n    import subprocess", 1, 1),
+        ("from requests import get", 1, 0),
+        ("from requests.adapters import HTTPAdapter", 1, 0),
+        ("from . import sibling", 1, 0),
+        ("from .json import thing", 1, 0),
+        ("import jsonschema", 1, 0),
+        ("import logging_extra", 1, 0),
+        ("from os import path; import requests", 2, 1),
+        ("import os; import requests", 2, 1),
+        ("import os; from requests import get", 2, 1),
+        ("import os; import sys", 2, 2),
+        ("from os import path; import json;", 2, 2),
+        ("import os; x = 1", 1, 1),
+    ],
+)
+def test_python_standard_import_classification(source: str, statements: int, standard: int) -> None:
+    """Classify each statement on its top-level module names: a segment-aware
+    match, so a third-party name that shares a prefix with a standard module is
+    scored, and one third-party name keeps a multi-module statement scored."""
+    assert _mod._count_python_imports(source) == (statements, standard)
+
+
+def test_python_stdlib_exemption_needs_stdlib_names(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """On an interpreter without ``sys.stdlib_module_names`` nothing is
+    exempt, so the probe keeps its original score instead of passing blind."""
+    monkeypatch.setattr(_mod, "_PY_STDLIB_MODULES", frozenset())
+    path = _write(tmp_path, "probe.py", _PY_STDLIB_PROBE)
+
+    coupling = assess_file(path, "production", False).coupling
+
+    assert coupling.value == 6
 
 
 def test_web_indented_local_var_not_counted_as_global(tmp_path: Path) -> None:

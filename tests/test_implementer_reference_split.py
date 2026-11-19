@@ -21,7 +21,9 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 REFERENCE_DIR = REPO_ROOT / "src" / "claude" / "skills" / "build" / "references"
 LOADING_HEADING = "## Reference Loading"
-PATH_FORM = "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/build/references/"
+SHARED_PATH_FORM = "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/build/references/"
+CLAUDE_PATH_FORM = "${CLAUDE_PLUGIN_ROOT}/skills/build/references/"
+COPILOT_PATH_FORM = "${COPILOT_PLUGIN_ROOT}/skills/build/references/"
 UNRESOLVED_RULE = "apply the rules in this file and state that the reference was unavailable"
 
 IMPLEMENTER_PATHS = (
@@ -32,7 +34,18 @@ IMPLEMENTER_PATHS = (
     Path("src/copilot-cli/agents/implementer.agent.md"),
     Path("src/vs-code-agents/implementer.agent.md"),
     Path("src/cursor/agents/implementer.md"),
+    Path("src/muse/agents/implementer.md"),
 )
+
+
+def _expected_path_form(path: Path) -> str:
+    """Claude Code and Cursor get the bare Claude root, Copilot CLI its own, the rest both."""
+    if path.parts[:2] in {(".claude", "agents"), ("src", "claude"), ("src", "cursor")}:
+        return CLAUDE_PATH_FORM
+    if ".github" in path.parts or "copilot-cli" in path.parts:
+        return COPILOT_PATH_FORM
+    return SHARED_PATH_FORM
+
 
 # reference -> (load condition phrase in Reference Loading, stub heading in the body)
 REFERENCES = {
@@ -84,8 +97,9 @@ def _loading_section(path: Path) -> str:
 @pytest.mark.parametrize("path", IMPLEMENTER_PATHS, ids=str)
 def test_reference_loading_names_every_reference_with_a_condition(path: Path) -> None:
     section = _loading_section(path)
+    expected_form = _expected_path_form(path)
 
-    assert PATH_FORM in section, f"{path} Reference Loading lacks the plugin-root path form"
+    assert expected_form in section, f"{path} Reference Loading lacks {expected_form!r}"
     for name, (condition, _) in REFERENCES.items():
         assert name in section, f"{path} Reference Loading does not list {name}"
         assert condition in section, f"{path} has no load condition {condition!r} for {name}"

@@ -62,7 +62,7 @@ def _write_keep_pin_manifest(
         '"decision": "KEEP_PIN", '
         '"fixtures_sha": "abc123", '
         '"artifact": "evals/test-agent-spike/sweep.json", '
-        '"default_model": "claude-sonnet-4-6", '
+        '"default_model": "gpt-6.1-sol", '
         f'"date": "{utc_today.isoformat()}"'
         "}]}",
         encoding="utf-8",
@@ -77,10 +77,10 @@ def _write_keep_pin_manifest(
                 "decision": "KEEP_PIN",
                 "winner": "claude-opus-4-6",
                 "fixtures_sha": "abc123",
-                "default_model": "claude-sonnet-4-6",
+                "default_model": "gpt-6.1-sol",
                 "models": [
                     {"model_id": "claude-opus-4-6"},
-                    {"model_id": "claude-sonnet-4-6"},
+                    {"model_id": "gpt-6.1-sol"},
                 ],
                 "n_shared_fixtures": 8,
                 "recall_delta": 0.05,

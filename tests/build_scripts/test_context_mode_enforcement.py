@@ -42,7 +42,7 @@ _SECTION_HEADER = "## Context Mode Enforcement (REQUIRED)"
 _FORBID_PASS = "you MUST NOT emit `PASS`"
 _HEADER_LINE_PREFIX = "<!-- CONTEXT_MODE: ${CONTEXT_MODE}"
 _LOCAL_INPUT_HEADER = (
-    "Every Task input for a canonical axis MUST begin with `CONTEXT_MODE: $CONTEXT_MODE`"
+    "Every delegated input for a canonical axis MUST begin with `CONTEXT_MODE: $CONTEXT_MODE`"
 )
 _LOCAL_UNKNOWN_MODE = "If context completeness is unknown, use `partial`."
 

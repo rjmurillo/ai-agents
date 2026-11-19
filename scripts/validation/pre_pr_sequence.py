@@ -56,6 +56,7 @@ from check_git_hook_health import validate_git_hook_health
 from check_host_marketplaces import validate_host_marketplaces
 from check_in_root_worktrees import validate_in_root_worktrees
 from check_index_line_endings import validate_index_line_endings
+from check_io_portability import validate_io_portability
 from check_measurement_anchoring import validate_measurement_anchoring
 from check_nested_tests import validate_no_nested_tests
 from check_promotion_exceptions import validate_promotion_exceptions
@@ -118,6 +119,7 @@ from checks_plugin import (
 from checks_portability import (
     validate_agent_template_drift,
     validate_hook_template_drift,
+    validate_host_neutral_dispatch,
     validate_plugin_root_interpreter,
     validate_projection_invariants,
     validate_rule_lossless_fixtures,
@@ -440,6 +442,12 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # one commit; unanchored, a later reader cannot tell "still true" from
     # "was true once" (issue #5771).
     _Gate("Measurement Anchoring (added lines)", _root_only(validate_measurement_anchoring)),
+    # Fails when a Python line ADDED since the base ref decodes text with the
+    # platform locale (subprocess text mode or read_text/write_text/open with no
+    # encoding) or creates a test symlink with no Windows skip. Cursor Bugbot
+    # raised 85 such findings on PRs #6110 to #7380 that no gate here caught
+    # (evals/third-party-review-gap/README.md).
+    _Gate("IO Portability (added lines)", _root_only(validate_io_portability)),
     # Fails when a live doc tells a contributor to run a script with third-party
     # imports under a bare `python3`, which dies with ModuleNotFoundError on a
     # clean checkout. Issue #3791.
@@ -526,6 +534,8 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Skill Markdown Portability", _root_only(validate_skill_md_portability)),
     # The subset of those .md refs a reader would execute (issue #2838).
     _Gate("Skill Markdown Exec Portability", _root_only(validate_skill_md_exec_portability)),
+    # Codex and Muse skills name each host's tool, never a bare Task( (#7226).
+    _Gate("Host-Neutral Dispatch", _root_only(validate_host_neutral_dispatch)),
     # A SKILL.md resolver must not be able to select an out-of-repo copy.
     _Gate("Skill Resolver Anchoring", _root_only(validate_skill_resolver_anchoring)),
     # A plugin-root skill invocation must be bare `python3` with a

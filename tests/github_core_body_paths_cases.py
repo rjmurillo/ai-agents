@@ -17,14 +17,14 @@ class TestAssertValidBodyFile:
 
     def test_passes_when_file_exists(self, tmp_path: Path):
         f = tmp_path / "body.md"
-        f.write_text("hello")
+        f.write_text("hello", encoding="utf-8")
         assert_valid_body_file(str(f), str(tmp_path))
 
     def test_raises_on_traversal(self, tmp_path: Path):
         # Create file at parent so it exists, but path has traversal
         parent = tmp_path.parent
         f = parent / "body.md"
-        f.write_text("hello")
+        f.write_text("hello", encoding="utf-8")
         try:
             traversal_path = str(tmp_path / ".." / "body.md")
             with pytest.raises(SystemExit) as exc:
@@ -37,7 +37,7 @@ class TestAssertValidBodyFile:
         """File under TMPDIR accepted when allowed_base is None (mktemp staging)."""
         monkeypatch.setenv("TMPDIR", str(tmp_path))
         body = tmp_path / "pr-reply.md"
-        body.write_text("draft")
+        body.write_text("draft", encoding="utf-8")
         assert_valid_body_file(str(body), None)
 
     def test_accepts_system_tempfile_when_base_is_none(self, monkeypatch):
@@ -58,7 +58,7 @@ class TestAssertValidBodyFile:
         outside_dir = external_tmp_path / "not-a-temp-dir"
         outside_dir.mkdir()
         outside_file = outside_dir / "body.md"
-        outside_file.write_text("hello")
+        outside_file.write_text("hello", encoding="utf-8")
 
         unrelated_tmp = external_tmp_path / "unrelated-tmp"
         unrelated_tmp.mkdir()
@@ -130,7 +130,7 @@ class TestAssertValidBodyFileGitDir:
 
         with tempfile.TemporaryDirectory() as fake_git_dir:
             body = Path(fake_git_dir) / "reply.md"
-            body.write_text("draft reply")
+            body.write_text("draft reply", encoding="utf-8")
 
             monkeypatch.setattr(
                 _validation,
@@ -164,7 +164,7 @@ class TestAssertValidBodyFileGitDir:
         outside_dir = external_tmp_path / "not-allowed"
         outside_dir.mkdir()
         outside_file = outside_dir / "body.md"
-        outside_file.write_text("hello")
+        outside_file.write_text("hello", encoding="utf-8")
 
         monkeypatch.setattr(_validation, "_candidate_temp_roots", lambda: [])
         monkeypatch.setattr(_validation, "_candidate_git_dir_roots", lambda: [])

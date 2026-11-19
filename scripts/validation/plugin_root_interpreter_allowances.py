@@ -42,6 +42,18 @@ _HARNESS_FACT = (
     "States what Claude Code exports, as harness-reference evidence. It is a fact about "
     "one harness, not a command."
 )
+_SPLIT_AGENT_REF = (
+    "Split-agent skill reference path for a host that replaces the bare Claude token in "
+    "a plugin agent body only: Claude Code (ADR-121 row 4) and Cursor (probe of 2026-11-16). "
+    "Templates keep the dual-variable fallback, Copilot CLI renders COPILOT_PLUGIN_ROOT "
+    "(agent-body rewrite unmeasured, ADR-121), "
+    "and the Codex and Muse copies keep the fallback (generate_agents_common.py)."
+)
+
+_SPLIT_AGENT_BUILD = (
+    "Build transform that writes the bare Claude token into Claude Code agent renders. "
+    "It is a string the build emits, not a command."
+)
 
 # Rule 4 (single-root): files that may name the Claude plugin-root variable
 # without the Copilot one. Keyed by full path, else by path with the plugin tree
@@ -49,6 +61,18 @@ _HARNESS_FACT = (
 # (number of standalone statements per copy, reason). The checker fails when a
 # file holds more, or fewer, than the count, and when a key matches no file.
 SINGLE_ROOT_ALLOWANCES: dict[str, tuple[int, str]] = {
+    "build/scripts/agent_templates.py": (1, _SPLIT_AGENT_BUILD),
+    "src/claude/agents/architect.md": (1, _SPLIT_AGENT_REF),
+    "src/claude/agents/critic.md": (1, _SPLIT_AGENT_REF),
+    "src/claude/agents/implementer.md": (1, _SPLIT_AGENT_REF),
+    "src/claude/agents/orchestrator.md": (1, _SPLIT_AGENT_REF),
+    "src/claude/agents/qa.md": (1, _SPLIT_AGENT_REF),
+    "src/claude/agents/security.md": (1, _SPLIT_AGENT_REF),
+    "src/cursor/agents/architect.md": (1, _SPLIT_AGENT_REF),
+    "src/cursor/agents/critic.md": (1, _SPLIT_AGENT_REF),
+    "src/cursor/agents/implementer.md": (1, _SPLIT_AGENT_REF),
+    "src/cursor/agents/orchestrator.md": (1, _SPLIT_AGENT_REF),
+    "src/cursor/agents/qa.md": (1, _SPLIT_AGENT_REF),
     "src/claude/hooks/hooks.json": (1, _CLAUDE_HOOK),
     "hooks/invoke_dispatch_claude.py": (4, _CLAUDE_HOOK),
     "hooks/PreCompact/invoke_compact_checkpoint.py": (1, _CLAUDE_HOOK),
@@ -79,6 +103,24 @@ SINGLE_ROOT_ALLOWANCES: dict[str, tuple[int, str]] = {
         "A table that still recognizes the legacy single-root form in installed configs, "
         "and a comment on the root-trust check. Both stay put: any edit to this file "
         "changes the gate's frozen dispatch closure, which CI compares with the base.",
+    ),
+}
+
+# Ratchet for the legacy plugin-root form in authored files (ADR-121 rollout step 3).
+# Keyed by authored group (`authored_group` in plugin_root_interpreter_ratchet.py).
+# Value is (invocations, assignments, reason): invocations are `python3 "${...}/skills/..."`
+# commands, assignments are lines such as `SCRIPTS_DIR=${...}`. The checker fails when a
+# group holds more, or fewer, than the count. Lower a count in the pull request that
+# migrates the sites; never raise one. A group with no entry has a baseline of (0, 0).
+LEGACY_SITE_BASELINE: dict[str, tuple[int, int, str]] = {
+    "templates/agents": (0, 0, "Migrated in rollout step 4 (agents first)."),
+    "templates/skills": (0, 0, "Migrated in ADR-121 rollout step 9 (issue #7281)."),
+    "src/claude": (0, 0, "Migrated in rollout step 5 (hand-authored skill support files)."),
+    "src/claude yaml": (
+        17,
+        0,
+        "Class G: the completion gate dispatches these commands and runs no shell (ADR-121 "
+        "decision 1). They keep the legacy form.",
     ),
 }
 

@@ -19,7 +19,7 @@ class TestIsAllowedBodyFilePath:
         scratch = tmp_path / "claude-1000" / "scratchpad"
         scratch.mkdir(parents=True)
         body = scratch / "close5369.md"
-        body.write_text("body")
+        body.write_text("body", encoding="utf-8")
         assert is_allowed_body_file_path(str(body)) is True
 
     def test_accepts_path_under_repo_root(self):
@@ -31,7 +31,7 @@ class TestIsAllowedBodyFilePath:
         monkeypatch.setattr(_validation, "_candidate_temp_roots", lambda: [])
         monkeypatch.setattr(_validation, "_candidate_git_dir_roots", lambda: [])
         outside = external_tmp_path / "body.md"
-        outside.write_text("x")
+        outside.write_text("x", encoding="utf-8")
         assert is_allowed_body_file_path(str(outside)) is False
 
     def test_symlink_in_temp_root_pointing_outside_is_rejected(
@@ -42,7 +42,7 @@ class TestIsAllowedBodyFilePath:
         monkeypatch.setattr(_validation, "_candidate_temp_roots", lambda: [str(tmp_path.resolve())])
         monkeypatch.setattr(_validation, "_candidate_git_dir_roots", lambda: [])
         target = external_tmp_path / "secret.md"
-        target.write_text("secret")
+        target.write_text("secret", encoding="utf-8")
         link = tmp_path / "link.md"
         try:
             link.symlink_to(target)

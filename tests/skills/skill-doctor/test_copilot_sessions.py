@@ -360,7 +360,7 @@ def test_relative_script_launch_fails_from_unrelated_cwd(tmp_path):
 def test_cli_missing_empty_override_and_argument_conflict(tmp_path):
     home = tmp_path / "home"
     missing = run_collector(tmp_path, home, "--harness", "copilot")
-    assert missing.returncode == 1 and "not found" in missing.stderr
+    assert missing.returncode == 2 and "not found" in missing.stderr
     (home / "session-state").mkdir(parents=True)
     empty = run_collector(
         tmp_path,

@@ -1,0 +1,64 @@
+# TypeScript and JavaScript Parser
+
+TypeScript dependency counting uses Tree-sitter's TypeScript grammars, not line matching.
+`.ts` files use the TypeScript grammar. `.tsx` files use the TSX grammar.
+JavaScript files (`.js`, `.jsx`, `.mjs`, `.cjs`) also use the TSX grammar; see [JavaScript](#javascript).
+
+Each of these counts as one dependency:
+
+- `import` statements, including `import type`, side-effect imports, and `import x = require("y")`.
+- `export ... from` re-exports, including `export *` and `export type { T } from`.
+- `require("...")` calls.
+- Dynamic `import("...")` expressions.
+- Type-position imports such as `typeof import("m")` and `import("m").T`.
+  They name a module just as `import type` does, so they count the same way.
+
+Comments, strings, template literals, and `export { a }` with no source add nothing.
+
+Install these packages into the Python environment that runs the scanner.
+System Pythons on Debian, Ubuntu, and Homebrew refuse a bare pip install (PEP 668).
+Use a virtual environment:
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install tree-sitter==0.26.1 tree-sitter-typescript==0.23.2
+```
+
+With uv, run `uv pip install tree-sitter==0.26.1 tree-sitter-typescript==0.23.2`.
+Then run the scanner with that environment's Python.
+
+The scanner imports these packages only when assessing TypeScript or JavaScript source.
+Missing packages, parser startup failures, and source the grammar cannot parse exit 1 without a report.
+The scanner never installs packages or falls back to regex.
+
+## Grammar limits
+
+The scanner pins `tree-sitter-typescript==0.23.2`.
+Some valid TypeScript does not parse with that grammar.
+Known cases: `export type * from "m"` (TypeScript 5.0) and `in`/`out` variance annotations such as `type T<in out U> = U`.
+A `<Type>value` cast is valid only in `.ts`; in a `.tsx` file it fails to parse, as it does in the TypeScript compiler.
+A file the grammar cannot parse fails the scan with exit 1.
+The error names the file and says the file may be valid TypeScript.
+The scanner does not guess a count for such a file.
+
+## JavaScript
+
+JavaScript uses the same TSX grammar, the same package, and the same dependency forms (issue #7434).
+TSX parses JavaScript, JSX, and Flow-style annotations such as `import type` and `?T`.
+A `require` call counts only when the callee is the bare identifier `require`, so `obj.require("x")` adds nothing.
+The counter matches the name, not its binding, so a local function named `require` still counts.
+
+Reusing the grammar adds no parser import to the scanner, so its own coupling does not change and no admission applies.
+
+Some valid JavaScript does not parse with the TSX grammar.
+TypeScript keywords used as identifiers fail, such as `interface.on("line", f)` in non-strict code.
+Such a file fails the scan with exit 1, and the error says the file may be valid JavaScript.
+
+## Dependency admission
+
+The repository can admit the TypeScript parser's coupling change through
+`typescriptParserDependencyAdmission` in its quality configuration.
+This admission applies only to the scanner's fixed TypeScript parser transition.
+The raw coupling score remains `8.0 -> 7.0`, with its regression diagnostic.
+Exit 0 means admitted, not a raw pass; the review adapter returns `WARN`.
+Other regressions, evidence loss, and new-file threshold failures still block.

@@ -1,6 +1,6 @@
 """Choose which scoreable sessions to sample, balanced across harnesses.
 
-Python 3.10+, stdlib only. Local change to the Warp fork (issue #7187): the
+python3, stdlib only. Local change to the Warp fork (issue #7187): the
 upstream sampler had no harness dimension, so one harness could take the whole
 cap. See docs/skill-doctor-upstream-sync.md in the source repository.
 """

@@ -144,6 +144,27 @@ def check_assignment(shipped: list[str], config: HermesConfig) -> list[str]:
     return problems
 
 
+def check_excluded_files(source_root: Path, config: HermesConfig) -> list[str]:
+    """Each `excludedFiles` entry names a real file in a skill that ships in a pack.
+
+    An entry that matches nothing would hide a renamed or deleted file, so the
+    budget fix it was written for would quietly stop applying.
+    """
+    problems: list[str] = []
+    pack_of = _pack_of(config)
+    for entry in sorted(config.excluded_files):
+        skill, _, rel = entry.partition("/")
+        if skill not in pack_of:
+            problems.append(f"`excludedFiles` entry {entry!r}: skill {skill!r} is in no pack")
+        elif rel == "SKILL.md":
+            problems.append(
+                f"`excludedFiles` entry {entry!r} would ship {skill!r} without its SKILL.md"
+            )
+        elif not (source_root / skill / rel).is_file():
+            problems.append(f"`excludedFiles` entry {entry!r} matches no file in {skill!r}")
+    return problems
+
+
 def check_references(config: HermesConfig, refs: References) -> list[str]:
     """No packed skill refers to a skill in another pack or to an excluded skill."""
     problems: list[str] = []

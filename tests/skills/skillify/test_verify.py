@@ -341,6 +341,7 @@ def test_patch_mode_skips_description_lead_and_sections(skills_root):
         "name_matches_directory",
         "description_present",
         "description_has_trigger",
+        "description_within_limit",
         "single_step_section",
         "no_source_only_tool_names",
     }
@@ -448,3 +449,47 @@ def test_patch_mode_ignores_tables_and_prose_in_other_sections(skills_root):
     )
     skill = make_skill(skills_root, "host-skill", body=HOST_SKILL + extra)
     assert verify_patch(skill, external=True)["status"] == "PASS"
+
+
+def _description_of_length(length):
+    lead = "Ingest a meeting transcript into notes. Use when you ingest a meeting transcript."
+    return lead + "x" * (length - len(lead))
+
+
+@pytest.mark.parametrize(("length", "passes"), [(1024, True), (1025, False)])
+def test_description_length_limit(skills_root, length, passes):
+    skill = make_skill(skills_root, "meeting-ingest", description=_description_of_length(length))
+    result = verify(skill)
+    assert ("description_within_limit" in failed(result)) is not passes
+
+
+def test_description_length_limit_applies_in_patch_mode(skills_root):
+    over = _description_of_length(1025)
+    body = HOST_SKILL.replace("description: ", f"description: {over} ", 1)
+    skill = make_skill(skills_root, "host-skill", body=body)
+    assert "description_within_limit" in failed(verify_patch(skill))
+
+
+def _skill_with_lines(total):
+    text = GOOD_SKILL.format(
+        name="meeting-ingest",
+        description="Ingest a meeting transcript into notes.",
+        trigger=TRIGGER,
+    )
+    padding = total - len(text.splitlines())
+    assert padding >= 0
+    return text + "filler\n" * padding
+
+
+@pytest.mark.parametrize(("lines", "passes"), [(500, True), (501, False)])
+def test_create_mode_line_limit(skills_root, lines, passes):
+    skill = make_skill(skills_root, "meeting-ingest", body=_skill_with_lines(lines))
+    result = verify(skill)
+    assert ("skill_within_line_limit" in failed(result)) is not passes
+
+
+def test_patch_mode_skips_line_limit(skills_root):
+    body = HOST_SKILL + "filler\n" * 600
+    skill = make_skill(skills_root, "host-skill", body=body)
+    ids = {c["id"] for c in verify_patch(skill)["checks"]}
+    assert "skill_within_line_limit" not in ids

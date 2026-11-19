@@ -20,7 +20,11 @@ identifies today's file. It never verifies what a historical session executed.
 
 Usage: audit_manifest.py MANIFEST.json   (exit 0 valid, 1 invalid, 2 bad input)
 
-Python 3.10+, stdlib only. Nothing is uploaded.
+python3, stdlib only. Nothing is uploaded.
+
+Exit codes: 0 the manifest is valid; 1 the manifest is invalid, or an export's
+evidence contradicts its scope; 2 bad arguments, or the manifest is unreadable
+or not JSON.
 """
 
 from __future__ import annotations
@@ -72,6 +76,9 @@ _CAP_KEYS = (
 _REMOTE_HEADER = re.compile(r'^\s*\[\s*remote\s+"([^"]*)"\s*\]')
 _ANY_HEADER = re.compile(r"^\s*\[")
 _URL_LINE = re.compile(r"^\s*url\s*=\s*(.*?)\s*$", re.IGNORECASE)
+
+
+_EXIT_CODES = "Exit codes:" + (__doc__ or "").split("Exit codes:", 1)[-1]
 
 
 def inputs_from_args(args: Any) -> dict[str, Any]:
@@ -446,7 +453,10 @@ def validate_manifest(manifest: Any) -> list[str]:
 
 
 def _parse(argv: list[str]) -> argparse.Namespace | int:
-    parser = argparse.ArgumentParser(description="Validate a skill-doctor audit manifest.")
+    parser = argparse.ArgumentParser(
+        description="Validate a skill-doctor audit manifest.",
+        epilog=_EXIT_CODES,
+    )
     parser.add_argument("manifest", help="path to audit_manifest.json")
     try:
         return parser.parse_args(argv)

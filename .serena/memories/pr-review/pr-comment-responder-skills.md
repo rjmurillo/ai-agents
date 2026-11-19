@@ -24,20 +24,17 @@ Memory for tracking reviewer signal quality statistics, triage heuristics, and l
 
 ## Per-Reviewer Performance (Cumulative)
 
-Aggregated from 152 PRs over last 28 days (rolling window).
+Aggregated from 305 PRs over last 28 days.
 
 | Reviewer | PRs | Comments | Actionable | Signal | Trend |
 |----------|-----|----------|------------|--------|-------|
-| github-advanced-security | 3 | 80 | 80 | **100%** | → |
-| rjmurillo-bot | 19 | 120 | 120 | **100%** | → |
-| claude | 4 | 7 | 7 | **100%** | → |
-| rjmurillo | 46 | 149 | 145 | **97%** | → |
-| copilot-pull-request-reviewer | 79 | 723 | 684 | **95%** | → |
-| cursor | 36 | 122 | 112 | **92%** | → |
-| diffray | 8 | 28 | 25 | 89% | → |
-| gemini-code-assist | 95 | 256 | 210 | 82% | → |
-| chatgpt-codex-connector | 20 | 28 | 11 | 39% | → |
-
+| devin-ai-integration | 153 | 349 | 348 | **100%** | → |
+| github-advanced-security | 1 | 2 | 2 | **100%** | → |
+| coderabbitai | 31 | 270 | 265 | **98%** | → |
+| semgrep-code-rjmurillo | 13 | 52 | 51 | **98%** | → |
+| cursor | 128 | 288 | 257 | 89% | → |
+| github-copilot[bot] | 2 | 11 | 7 | 64% | → |
+| rjmurillo | 2 | 7 | 1 | 14% | → |
 ## Per-PR Breakdown
 
 ### PR #987 (2026-01-23)

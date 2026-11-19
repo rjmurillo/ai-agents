@@ -1,6 +1,8 @@
 ---
 name: code-qualities-assessment
 description: Assess maintainability of code through 5 foundational qualities (cohesion, coupling, encapsulation, testability, non-redundancy) with quantifiable scoring rubrics. assess.py scores source code only; rules, skills, and agents are assessed manually against the same qualities per references/executable-nl-artifacts.md. Works at method/class/module levels across multiple languages. Produces markdown reports with remediation guidance. Use when you ask to "assess maintainability", "score cohesion/coupling/testability" on specific code. Do NOT use for a full pre-merge review (use review) or repo-wide domain grading (use quality-grades).
+version: 1.2.0
+license: MIT
 metadata:
   capability:
     kind: reusable-primitive
@@ -49,7 +51,7 @@ python3 scripts/assess.py --target src/services/ --format html --output quality-
 |--------|---------|-------|
 | `scripts/assess.py` | Scores target code across the five quality axes. | `python3 scripts/assess.py --target <path> --format markdown` |
 
-Use `--changed-only` for diff-scoped checks and `--format json` for automation.
+Use `--changed-only` for diff-scoped checks and `--format json` for automation. See [C# parser](references/csharp-parser.md), [TypeScript and JavaScript parser](references/typescript-parser.md), and [Python parser](references/python-parser.md) for runtime packages, failures, and dependency admission. PowerShell (`.ps1`, `.psm1`, `.psd1`) gets coupling and non-redundancy scores only; see [PowerShell parser](references/powershell-parser.md) for the `pwsh` requirement and failures.
 
 ---
 
@@ -110,7 +112,7 @@ The skill runs automated assessment via `scripts/assess.py`:
 5. **Gate Enforcement (CI mode)**
    - Regression mode compares each changed file against its base revision
    - Absolute mode compares every assessed file against configured thresholds
-   - Exit code: 0=pass, 10=regressed, 11=below thresholds
+   - Exit code: 0=pass (or an admitted regression, see Exit Codes; only the record built into the scanner is accepted, any other value exits 1), 10=regressed, 11=below thresholds
 
 ---
 
@@ -191,10 +193,10 @@ The JSON report carries `gate_mode` and a `comparisons` array with per-quality
 
 | Code | Meaning |
 |------|---------|
-| 0 | Gate passed |
+| 0 | Gate passed. It can also carry one explicitly admitted regression, recorded under `csharp_parser_dependency_admission`, `typescript_parser_dependency_admission`, or `python_parser_dependency_admission` in the JSON; the review adapter reports that as WARN, never PASS. The scanner accepts only the records built into it, which cover its own parser dependencies; any other config value fails with exit 1. |
 | 10 | Regression mode: a comparable quality regressed, or scored evidence was lost |
 | 11 | Below configured thresholds (absolute mode, or a new file in regression mode); below-threshold qualities at or above `minConfidence`; lower-confidence misses warn only |
-| 1 | Script error (invalid args, unresolvable base, file not found) |
+| 1 | Script error (invalid args, unresolvable base, file not found, or, for C#, TypeScript, JavaScript, or Python, a missing parser package, a parser startup failure, or source the pinned grammar cannot parse; or, for PowerShell, `pwsh` missing from PATH, a PowerShell parser failure or timeout, or a syntax error) |
 
 ---
 
@@ -244,7 +246,7 @@ Create `.qualityrc.json` to customize thresholds. Optional `minConfidence` (defa
 After running assessment, run the bundled validator and require exit 0:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/code-qualities-assessment/scripts/assess.py" --target "$TARGET_PATH"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/code-qualities-assessment/scripts/assess.py --target "$TARGET_PATH"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 echo "exit=$?"   # must be 0; 10 = regressed, 11 = thresholds not met, 1 = script error
 ```
 
@@ -382,7 +384,8 @@ class User:
 python3 scripts/assess.py --target . --changed-only --base origin/main \
   --format json --output quality.json
 
-# Exit code 0  = nothing this change touched got worse, pass
+# Exit code 0  = nothing this change touched got worse, pass (an admitted regression
+#                exits 0 as WARN; only the built-in record is accepted, see Exit Codes)
 # Exit code 10 = a comparable quality regressed, fail PR
 # Exit code 11 = a file added by this change is below thresholds, fail PR
 ```
@@ -469,7 +472,7 @@ For detailed methodology and examples:
 
 | Support Level | Languages |
 |---------------|-----------|
-| Full | Python (.py), TypeScript/JavaScript (.ts, .js, .tsx, .jsx), C# (.cs), Java (.java), Go (.go) |
+| Full | Python (.py), TypeScript/JavaScript (.ts, .tsx, .js, .jsx, .mjs, .cjs), C# (.cs), Java (.java), Go (.go) |
 | Partial (heuristic) | Ruby (.rb), Rust (.rs), PHP (.php), Kotlin (.kt) |
 
 Serena integration improves accuracy when available.

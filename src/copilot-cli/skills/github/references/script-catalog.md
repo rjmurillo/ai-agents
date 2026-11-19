@@ -83,10 +83,12 @@ adds the marker. Read the action to learn whether a change would happen.
 | `edit_issue_body.py` | `would_update` | reads the issue first; a missing or hidden issue exits 3, as the edit would |
 | `set_issue_labels.py` | `would_set_labels` | reads the issue and label existence (a missing issue exits 3); lists `wouldCreate`, `wouldApply`, `wouldRemove` (including the stale `priority:*` label a new priority replaces) |
 | `set_issue_assignee.py` | `would_assign` | reads the issue first; a missing issue exits 3 |
-| `close_pr.py` | `would_close` | reports `wouldComment` and posts no comment; a real run exits 3 and leaves the PR open when the closing comment fails |
+| `close_pr.py` | `would_close` | reports `wouldComment` and `commentDuplicate`, reads existing comments, and posts nothing; a real run skips an identical closing comment already posted by the same author (any bot when `GET /user` is denied), reports `commentPosted`, `commentSkipped`, and `existingCommentId`, and exits 3 leaving the PR open when the comment lookup or post fails |
 | `new_pr.py` | text line `Dry run: would create PR` | runs the pre-creation validations; writes no audit log; exits 2 with `--prepare-body-file` |
 | `new_pr_review_comment.py` | `would_post` | reads the PR head commit and every review comment; `would_skip` (reason `duplicate`) when the same author already posted the same body at the path, line, and side |
 | `post_pr_comment_reply.py` | `would_post` | reads the PR or comment first (exit 2 if missing, or if the comment is on another PR); names the endpoint and body length; `would_skip` (reason `duplicate`) when the same author already posted the same body in the thread or PR conversation |
+| `add_pr_review_thread_reply.py` | `would_post` | reads the thread and applies the `--pull-request` and `--expected-*` guards as a real run does; `would_skip` when a real run skips (not found, resolved, another PR), exit 1 when the PR identity moved; with `--resolve` also reports `resolve_action: would_resolve`; posts, resolves, and disarms auto-merge nothing |
+| `resolve_pr_review_thread.py` | `would_resolve`, `would_skip` | reads the thread state as a real run does (`would_skip` for not found, already resolved, wrong PR); `--pull-request` pages every thread, exits 3 if a page cannot be read, and lists a per-thread `would_resolve` or `would_skip` |
 | `set_pr_auto_merge.py` | `WouldEnable`, `WouldDisable`, `NoChange` | enabling on a closed or merged PR exits 3, as a real run does |
 | `unresolve_pr_review_thread.py` | `would_unresolve` | `--thread-id` reads the thread and exits 1 when it is not found; `--all` lists the thread ids, reading every page and failing if a page cannot be read |
 | `update_pr_branch.py` | `would_update` | |

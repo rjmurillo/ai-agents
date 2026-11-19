@@ -32,7 +32,7 @@ Today, three surfaces exist and none sees tool-side friction:
 
 1. `invoke_reflect_nudge.py` (Stop, #5817) scans human turns for correction and preference regexes. It prints an advisory. It never reads tool results.
 2. `post-pr-retrospective.yml` runs only when a PR closes.
-3. `/retro fill` and `/retrospective` run only when a human types them.
+3. `/retrospective fill` and `/retrospective` run only when a human types them.
 
 So the owner must notice friction, remember it, and invoke `/retrospective` by hand.
 
@@ -376,7 +376,7 @@ No network, no model call, no writes inside any repository.
 - Copilot CLI registration.
 - PostToolUse or PostToolUseFailure hooks (ADR-084 rule 6).
 - User interrupts as a signal. They counted 0 in the Q5 corpus.
-- Changing `post-pr-retrospective.yml` or the `/retro` skill.
+- Changing `post-pr-retrospective.yml` or the `/retrospective` skill.
 - A judge model in either consumer (TokenEconomizer uses one; this spec uses deterministic counts).
 - Tool pruning. It can deny `Skill` and `Agent`, which routing depends on, and ADR-084 rule 6 applies.
 - A hook trigger for consumer A. It would be a per-call event, which must clear ADR-084 rule 6's additional bar and needs its own decision.

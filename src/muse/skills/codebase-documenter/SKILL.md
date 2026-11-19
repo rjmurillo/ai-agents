@@ -1,6 +1,14 @@
 ---
 name: codebase-documenter
+version: 1.0.0
 description: "Scaffold project documentation (README, ARCHITECTURE, API, CODE_COMMENTS) from templates with documented standards. Use when bootstrapping docs for a new or under-documented codebase."
+license: MIT
+metadata:
+  routing:
+    role: conditional-adjunct
+    invoker: world-model-diagnostic
+    trigger: world-model-diagnostic points here for an engineering-org documentation pass after the diagnostic
+    user-facing: false
 ---
 
 # Codebase Documenter
@@ -28,6 +36,7 @@ Use this skill when:
 Use a different skill when:
 
 - Documentation already exists and you want to verify accuracy, detect missing XML docs / docstrings / JSDoc, or audit README / CLAUDE.md drift. Use `doc-accuracy` for verification, missing-doc detection, and structural sync.
+- You want to edit an existing `README.md` or docs page, or fill a new scaffold with project content (diagrams, tradeoffs, invariants). Use the `technical-writing` skill.
 - You want narrative prose generated for an existing component. Use the `explainer` agent.
 
 ## Boundaries

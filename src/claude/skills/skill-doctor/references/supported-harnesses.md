@@ -4,7 +4,7 @@ This file is the single source of truth for harness support in `skill-doctor`. R
 
 ## Operating systems
 
-Collection and rendering run on Linux, macOS, and Windows with Python 3.10+.
+Collection and rendering run on Linux, macOS, and Windows with python3 and its standard library.
 Filesystem discovery uses native paths and the user's configured home directories.
 Copilot's CLI flag overrides `COPILOT_HOME`, which overrides the default home directory.
 The default is `~/.copilot` on POSIX and `%USERPROFILE%\.copilot` on Windows.

@@ -1,11 +1,13 @@
 ---
 name: memory-reflexion
+version: 0.2.0
 description: Tier 2 episode extraction, the reflexion write path split out of the
   memory router per ADR-063. Extracts an episode from a completed session log so
   later sessions can replay what was tried and what it cost. Use when you say
   `extract episode from session`, `record what happened this session`, or
   `re-extract this episode`. Do NOT use for Tier 1 lookups (use memory-search)
   or for adding citations (use memory-enhancement).
+license: MIT
 metadata:
   adr: ADR-038, ADR-063, ADR-089, ADR-103, ADR-106
   capability:
@@ -49,15 +51,15 @@ Use this skill when the user says:
 
 ```bash
 # Extract an episode from a completed session log (Tier 2)
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" "<session-log-path>"
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/extract_session_episode.py "<session-log-path>"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 
 # Re-extract over an existing episode, merging rather than clobbering
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" "<session-log-path>" --preserve
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/extract_session_episode.py "<session-log-path>" --preserve; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
 The script is canonical and shared with the `memory` router; this sub-skill does
-not reimplement it. It lives at
-`${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py`.
+not reimplement it. The locator above runs
+`skills/memory/scripts/extract_session_episode.py`.
 
 ## Quick Reference
 

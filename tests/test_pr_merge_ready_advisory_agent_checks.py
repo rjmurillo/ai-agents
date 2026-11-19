@@ -22,6 +22,12 @@ from tests.test_test_pr_merge_ready import _OPEN_PR, _mod
 
 check_merge_readiness = _mod.check_merge_readiness
 
+
+@pytest.fixture(autouse=True)
+def _stub_ruleset_required_contexts(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(_mod, "fetch_ruleset_required_contexts", lambda *args, **kwargs: [])
+
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = REPO_ROOT / ".github" / "workflows"
 # The loader resolves its own realpath, which is the canonical src/claude tree (ADR-119).
