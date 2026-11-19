@@ -1,0 +1,204 @@
+{
+  "schema_version": 1,
+  "selection": {
+    "source": "Richard supplied past documentation review findings and twelve clean reviews.",
+    "date": "2026-11-19",
+    "matching": "Match file and defect class within three lines; match targets when supplied."
+  },
+  "cases": [
+    {
+      "id": "C5-01",
+      "pr": 7235,
+      "sha": "cb2e3d595e72f89ca4b6d76099a8b04181bddb8c",
+      "scope": "positive",
+      "mode": "tree",
+      "expected": [
+        {
+          "file": "docs/diagrams/routing-flowchart.md",
+          "line": 240,
+          "defect_class": "missing-target",
+          "target": "./orchestrator-routing-algorithm.md"
+        },
+        {
+          "file": "docs/diagrams/routing-flowchart.md",
+          "line": 241,
+          "defect_class": "missing-target",
+          "target": "./task-classification-guide.md"
+        },
+        {
+          "file": "docs/diagrams/routing-flowchart.md",
+          "line": 242,
+          "defect_class": "missing-target",
+          "target": "../.agents/governance/agent-interview-protocol.md"
+        }
+      ]
+    },
+    {
+      "id": "C5-02",
+      "pr": 7235,
+      "sha": "cb2e3d595e72f89ca4b6d76099a8b04181bddb8c",
+      "scope": "positive",
+      "mode": "tree",
+      "expected": [
+        {
+          "file": "docs/workflow-commands.md",
+          "line": 227,
+          "defect_class": "missing-anchor",
+          "target": "../CLAUDE.md#lifecycle-commands"
+        },
+        {
+          "file": "docs/workflow-commands.md",
+          "line": 228,
+          "defect_class": "missing-anchor",
+          "target": "../AGENTS.md#skill-first"
+        }
+      ]
+    },
+    {
+      "id": "C5-03",
+      "pr": 7452,
+      "sha": "ae5acffcb3b9f9e00e4898d5bb0b0f9681a757d5",
+      "scope": "positive",
+      "mode": "tree",
+      "expected": [
+        {
+          "file": "src/claude/skills/spec-generator/references/spec-schemas.md",
+          "line": 470,
+          "defect_class": "missing-target",
+          "target": "./ears-format.md"
+        },
+        {
+          "file": "src/claude/skills/spec-generator/references/spec-schemas.md",
+          "line": 471,
+          "defect_class": "missing-target",
+          "target": "./naming-conventions.md"
+        },
+        {
+          "file": "src/claude/skills/spec-generator/references/spec-schemas.md",
+          "line": 472,
+          "defect_class": "missing-target",
+          "target": "./consistency-protocol.md"
+        },
+        {
+          "file": "src/claude/skills/spec-generator/references/spec-schemas.md",
+          "line": 473,
+          "defect_class": "missing-target",
+          "target": "../specs/README.md"
+        },
+        {
+          "file": "src/claude/skills/spec-generator/references/spec-schemas.md",
+          "line": 474,
+          "defect_class": "missing-target",
+          "target": "../planning/enhancement-PROJECT-PLAN.md"
+        },
+        {
+          "file": "src/claude/skills/memory-search/references/quick-start.md",
+          "line": 380,
+          "defect_class": "missing-target",
+          "target": "reflexion-memory.md"
+        }
+      ]
+    },
+    {
+      "id": "C5-04",
+      "pr": 7235,
+      "sha": "22b7a4779fa0c386acf60ac911e02fc395c34378",
+      "scope": "manual",
+      "why": "A valid destination cannot prove its label accurately describes the target section."
+    },
+    {
+      "id": "C5-05",
+      "pr": 5497,
+      "sha": "393a20de9d767f1107df96c97ef3f0b84f19df47",
+      "scope": "manual",
+      "why": "Plugin distribution boundaries require portability review, beyond repository link existence."
+    },
+    {
+      "id": "rename-5640",
+      "pr": 5640,
+      "sha": "67f302f7e4cf3196b209c04ad5f353be6ee5b9c7",
+      "scope": "positive",
+      "mode": "pre-pr",
+      "expected": [
+        {
+          "file": "docs/workflow-commands.md",
+          "line": 227,
+          "defect_class": "missing-anchor",
+          "target": "../CLAUDE.md#lifecycle-commands"
+        }
+      ]
+    },
+    {
+      "id": "negative-7452",
+      "pr": 7452,
+      "sha": "6b9340fac0730c973cb27b1bbd8def16822b2bb4",
+      "scope": "negative"
+    },
+    {
+      "id": "negative-7431",
+      "pr": 7431,
+      "sha": "e30fb2297694dd5ca95d8913c0d0789d37b15ace",
+      "scope": "negative"
+    },
+    {
+      "id": "negative-7377",
+      "pr": 7377,
+      "sha": "17e0aa089892a67db4a5dda5898be631224cc310",
+      "scope": "negative"
+    },
+    {
+      "id": "negative-7412",
+      "pr": 7412,
+      "sha": "f9493d63c4e4efe7493d589940b7cd19ecd8cbfa",
+      "scope": "negative"
+    },
+    {
+      "id": "negative-7146",
+      "pr": 7146,
+      "sha": "8fc3c74779bc5a4a363b8e12ae6f42ae1cd1d826",
+      "scope": "negative"
+    },
+    {
+      "id": "negative-7415",
+      "pr": 7415,
+      "sha": "c99aca0eb1795bef30e468a560579add8bd888ac",
+      "scope": "negative"
+    },
+    {
+      "id": "negative-7174",
+      "pr": 7174,
+      "sha": "2bccad6a6a7ec7ea6ea4cac5000fb17db7316745",
+      "scope": "negative"
+    },
+    {
+      "id": "negative-7313",
+      "pr": 7313,
+      "sha": "773f93276e3291077e3c6f8fc0b9fd2514a66a2a",
+      "scope": "negative"
+    },
+    {
+      "id": "negative-7324",
+      "pr": 7324,
+      "sha": "4d0d39000608e6ae031f9499ad9ad5d249372bc9",
+      "scope": "negative"
+    },
+    {
+      "id": "negative-7446",
+      "pr": 7446,
+      "sha": "3adae314d51474f16ddd958d2a04cccf2e2697cf",
+      "scope": "negative"
+    },
+    {
+      "id": "negative-7294",
+      "pr": 7294,
+      "sha": "2d7585ba6c4e466560b250af5e3eceabcaa4b712",
+      "scope": "negative"
+    },
+    {
+      "id": "negative-7253",
+      "pr": 7253,
+      "sha": "dd30394857a80257981f640d0b910ca71d1642bd",
+      "scope": "negative"
+    }
+  ]
+}

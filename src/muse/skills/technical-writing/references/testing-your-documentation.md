@@ -11,22 +11,27 @@ not only that the Markdown renders.
    start it as a background process and stop it when testing ends. For a
    repository with plain Markdown, render it the way the host shows it.
 2. **Check every edited link.** Run the site's link checker when it has one.
-   Otherwise open each internal target and confirm it exists. In the
-   `rjmurillo/ai-agents` repository, run `check_md_links.py` (under its
-   validation scripts) with the files you edited. It resolves relative links and cross-file `#anchors`; markdownlint covers
-   same-file anchors and "click here" link text.
+   Otherwise open each internal target and confirm it exists.
 3. **Run every safe code sample and command** you added or changed, in the stated
    environment. Copy the output you show from a real run, not from memory.
 4. **Run the repository's docs gates**: markdown lint, spell check, sample
-   compilation, snippet tests, and any docs CI job. Also run `prose_lint.py`
-   with `--docs-style` (from the `prose-self-check` skill) for advisory checks on
-   heading case, link text, vague openers, real-looking emails, and
-   credential-shaped strings.
+   compilation, snippet tests, and any docs CI job.
 5. **Check navigation**: table of contents, sidebar, index pages, and redirects
    for moved pages.
 6. **Run a fresh-reader pass**: give the page, and nothing else, to a reader
    with no context (a fresh subagent works). Ask them to follow it and report
    where they had to guess. Fix each guess.
+
+### Markdown links and style
+
+In `rjmurillo/ai-agents`, run `check_md_links.py` from the validation scripts.
+The default mode catches new broken links, including inbound links after renames.
+Use `--tree` to audit existing debt, including baseline entries.
+Markdownlint checks same-file anchors and vague text such as "click here".
+
+Run `prose_lint.py --docs-style` from the `prose-self-check` skill on edited pages.
+It reports advisory findings for headings, link text, openers, emails, and credentials.
+Review changed lines when evaluating an existing page.
 
 ## Samples you must not run unasked
 

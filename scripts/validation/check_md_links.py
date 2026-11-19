@@ -25,6 +25,10 @@ starts a fragment is written ``%23`` there, because ``#`` opens a comment in the
 shared baseline reader. An entry the base ref does not carry fails the run, and
 a full-scope run fails on an entry that no longer matches a finding.
 
+Pre-PR mode compares findings with the merge base, including unchanged sources.
+Renaming a heading or moving a target therefore exposes broken inbound links.
+``--tree`` reports all debt, including baseline entries, without comparing revisions.
+
 EXIT CODES:
   0 - no findings
   1 - at least one finding
@@ -38,6 +42,7 @@ import posixpath
 import re
 import subprocess
 import sys
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import unquote
@@ -46,7 +51,12 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
-from check_adr_links import _run_git, base_allowances_for_run, is_adr_target  # noqa: E402
+from check_adr_links import (  # noqa: E402
+    _run_git,
+    base_allowances_for_run,
+    is_adr_target,
+    resolve_base_ref,
+)
 from md_anchors import anchors_in  # noqa: E402
 from md_link_parse import (  # noqa: E402
     EXTERNAL_SCHEME_RE,
@@ -138,9 +148,10 @@ def in_scope(path: str) -> bool:
     return path.endswith("/SKILL.md") or "/references/" in path
 
 
-def tracked_inventory(repo_root: Path) -> Inventory:
+def tracked_inventory(repo_root: Path, ref: str | None = None) -> Inventory:
     """Read the git index. Raises ValueError on a path that did not decode."""
-    result = _run_git(repo_root, ["ls-files", "-s", "-z"])
+    args = ["ls-tree", "-rz", ref] if ref else ["ls-files", "-s", "-z"]
+    result = _run_git(repo_root, args)
     if result.returncode != 0:
         raise ValueError(f"git ls-files failed: {result.stderr.strip() or result.returncode}")
     files: set[str] = set()
@@ -153,7 +164,11 @@ def tracked_inventory(repo_root: Path) -> Inventory:
         files.add(name)
         if meta.startswith("120000"):
             try:
-                symlinks[name] = (repo_root / name).readlink().as_posix()
+                symlinks[name] = (
+                    _read_at_ref(repo_root, ref, name)
+                    if ref
+                    else (repo_root / name).readlink().as_posix()
+                )
             except OSError:
                 continue
     corrupted = sorted(f for f in files if "\ufffd" in f)
@@ -178,14 +193,20 @@ def _skip_path(path: str) -> bool:
 class _Scanner:
     """Scans files against one inventory, caching each target's anchors."""
 
-    def __init__(self, repo_root: Path, inventory: Inventory) -> None:
+    def __init__(self, repo_root: Path, inventory: Inventory, ref: str | None = None) -> None:
         self._root = repo_root
         self._inventory = inventory
+        self._ref = ref
         self._anchors: dict[str, set[str]] = {}
+
+    def _read(self, file: str) -> str:
+        if self._ref:
+            return _read_at_ref(self._root, self._ref, file)
+        return (self._root / file).read_text(encoding="utf-8")
 
     def _anchors_of(self, target: str) -> set[str]:
         if target not in self._anchors:
-            body = (self._root / target).read_text(encoding="utf-8", errors="replace")
+            body = self._read(target)
             self._anchors[target] = anchors_in(body)
         return self._anchors[target]
 
@@ -213,7 +234,7 @@ class _Scanner:
             return
         if resolved == file or not resolved.lower().endswith(".md"):
             return
-        if resolved not in self._inventory.files or not (self._root / resolved).is_file():
+        if resolved not in self._inventory.files:
             return
         tally.fragments_checked += 1
         if fragment not in self._anchors_of(resolved):
@@ -224,11 +245,9 @@ class _Scanner:
     def scan_file(self, file: str, tally: Tally) -> None:
         """Check every inline and reference-style link in one file."""
         path = self._root / file
-        if not path.is_file():
+        if not self._ref and not path.is_file():
             return
-        live = [
-            (n, mask_inline_code(text)) for n, text in _live_lines(path.read_text(encoding="utf-8"))
-        ]
+        live = [(n, mask_inline_code(text)) for n, text in _live_lines(self._read(file))]
         definitions = _link_definitions(live)
         for number, line in live:
             for match in LINK.finditer(line):
@@ -284,6 +303,7 @@ def find_broken_md_links(
     baseline: set[str] | None = None,
     base_allowances: set[str] | None = None,
     inventory: Inventory | None = None,
+    ref: str | None = None,
 ) -> tuple[list[Finding], int, int]:
     """Return ``(findings, files_examined, fragment_links_checked)``.
 
@@ -291,11 +311,11 @@ def find_broken_md_links(
     The inventory always covers the whole index so targets resolve fully.
     A full-scope run also reports baseline entries that matched nothing.
     """
-    inv = inventory if inventory is not None else tracked_inventory(repo_root)
+    inv = inventory if inventory is not None else tracked_inventory(repo_root, ref)
     allowed = baseline if baseline is not None else load_allowlist(repo_root / DEFAULT_BASELINE)
     validate_baseline(allowed, base_allowances)
     candidates = sorted(p for p in (files if files is not None else inv.files) if in_scope(p))
-    scanner = _Scanner(repo_root, inv)
+    scanner = _Scanner(repo_root, inv, ref)
     tally = Tally([])
     for file in candidates:
         scanner.scan_file(file, tally)
@@ -303,7 +323,7 @@ def find_broken_md_links(
     remaining = set(allowed)
     findings: list[Finding] = []
     for finding in tally.findings:
-        if finding.key() in remaining:
+        if finding.key() in allowed:
             remaining.discard(finding.key())
         else:
             findings.append(finding)
@@ -323,14 +343,52 @@ def _report(findings: list[Finding], examined: int, fragments: int) -> None:
     )
 
 
-def run(repo_root: Path, files: list[str] | None, base_ref: str, baseline_path: Path) -> int:
+def _read_at_ref(root: Path, ref: str, file: str) -> str:
+    """Read tracked content at a revision, failing on unavailable evidence."""
+    result = _run_git(root, ["show", f"{ref}:{file}"])
+    if result.returncode:
+        raise ValueError(f"cannot read {file} at {ref}: {result.stderr.strip()}")
+    return result.stdout
+
+
+def run(
+    repo_root: Path,
+    files: list[str] | None,
+    base_ref: str,
+    baseline_path: Path,
+    *,
+    tree: bool = False,
+) -> int:
     """Run one check and return the exit code (0 ok, 1 findings, 2 config)."""
     try:
-        allowed = load_allowlist(baseline_path)
-        base = base_allowances_for_run(repo_root, baseline_path, base_ref, label=LABEL)
+        allowed = set() if tree else load_allowlist(baseline_path)
+        base = (
+            None
+            if tree
+            else base_allowances_for_run(repo_root, baseline_path, base_ref, label=LABEL)
+        )
         findings, examined, fragments = find_broken_md_links(
             repo_root, files=files, baseline=allowed, base_allowances=base
         )
+        revision = resolve_base_ref(repo_root) if base_ref == "auto" else base_ref
+        if not tree and files is None and revision and revision != "none":
+            merged = _run_git(repo_root, ["merge-base", "HEAD", revision])
+            if merged.returncode:
+                raise ValueError(f"cannot resolve merge base: {merged.stderr.strip()}")
+            previous, _, _ = find_broken_md_links(
+                repo_root, baseline=set(), ref=merged.stdout.strip()
+            )
+            inherited = Counter(finding.key() for finding in previous)
+            for key in allowed:
+                inherited[key] = max(0, inherited[key] - 1)
+            regressions = []
+            for finding in findings:
+                key = finding.key()
+                if inherited[key] and finding.kind != "stale-allowance":
+                    inherited[key] -= 1
+                else:
+                    regressions.append(finding)
+            findings = regressions
     except (OSError, subprocess.SubprocessError, UnicodeDecodeError, ValueError) as exc:
         print(f"{LABEL}: {exc}", file=sys.stderr)
         return 2
@@ -359,6 +417,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--repo-root", default=".", help="Repository root path.")
     parser.add_argument("--baseline", default=str(DEFAULT_BASELINE), help="Baseline file.")
     parser.add_argument(
+        "--tree", action="store_true", help="Audit all links, including baseline debt."
+    )
+    parser.add_argument(
         "--base-ref",
         default="auto",
         help="Ref whose baseline copy this run may not add to; 'none' disables.",
@@ -373,7 +434,7 @@ def main(argv: list[str] | None = None) -> int:
     baseline = Path(args.baseline)
     baseline = baseline if baseline.is_absolute() else repo_root / baseline
     files = [f.replace("\\", "/") for f in args.files] if args.files else None
-    return run(repo_root, files, args.base_ref, baseline)
+    return run(repo_root, files, args.base_ref, baseline, tree=args.tree)
 
 
 if __name__ == "__main__":

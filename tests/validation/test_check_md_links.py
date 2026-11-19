@@ -375,6 +375,65 @@ def test_validate_md_links_returns_a_bool(tmp_path: Path) -> None:
     assert check_md_links.validate_md_links(repo, base_ref="none") is False
 
 
+def test_pre_pr_catches_inbound_link_when_only_target_heading_changes(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(
+        tmp_path,
+        {
+            "docs/source.md": "[target](target.md#old-heading)\n",
+            "docs/target.md": "# Old heading\n",
+            "docs/debt.md": "[old debt](gone.md)\n",
+        },
+        commit=True,
+    )
+    base = _git(repo, "rev-parse", "HEAD").strip()
+    (repo / "docs/target.md").write_text("# New heading\n", encoding="utf-8")
+    _git(repo, "add", "docs/target.md")
+
+    assert check_md_links.main(["--repo-root", str(repo), "--base-ref", base]) == 1
+    output = capsys.readouterr().out
+    assert "docs/source.md:1: missing-anchor: target.md#old-heading" in output
+    assert "gone.md" not in output
+
+
+def test_pre_pr_catches_inbound_link_when_target_moves(tmp_path: Path) -> None:
+    repo = make_repo(
+        tmp_path,
+        {
+            "docs/source.md": "[target](target.md)\n",
+            "docs/target.md": "# Target\n",
+        },
+        commit=True,
+    )
+    base = _git(repo, "rev-parse", "HEAD").strip()
+    _git(repo, "mv", "docs/target.md", "docs/moved.md")
+
+    assert check_md_links.main(["--repo-root", str(repo), "--base-ref", base]) == 1
+
+
+def test_tree_audit_reports_baseline_debt(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(
+        tmp_path,
+        {
+            "docs/debt.md": "[old debt](gone.md)\n",
+            str(check_md_links.DEFAULT_BASELINE): "missing-target:docs/debt.md:gone.md\n",
+        },
+        commit=True,
+    )
+
+    assert check_md_links.main(["--repo-root", str(repo), "--tree"]) == 1
+    assert "docs/debt.md:1: missing-target: gone.md" in capsys.readouterr().out
+
+
+def test_pre_pr_rejects_unknown_base(tmp_path: Path) -> None:
+    repo = make_repo(tmp_path, {"docs/a.md": "# A\n"}, commit=True)
+
+    assert check_md_links.main(["--repo-root", str(repo), "--base-ref", "no-such-ref"]) == 2
+
+
 @pytest.mark.parametrize(
     ("heading", "slug"),
     [
