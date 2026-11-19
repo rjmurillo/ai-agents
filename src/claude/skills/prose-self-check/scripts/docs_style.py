@@ -60,6 +60,8 @@ _CODE_SPAN = re.compile(r"(`+)(?:(?!\1).)+?\1")
 _LINK_URL = re.compile(r"\]\([^)]*\)")
 _NUMBERING = re.compile(r"^\d+(?:\.\d+)*[.)]?$")
 _LINK = re.compile(r"(?<!!)\[(?P<text>[^\[\]]*)\]\((?P<dest>[^()\s]*)(?:\s+\"[^\"]*\")?\)")
+# Reference-style links: [text][label] and the collapsed form [text][].
+_REF_LINK = re.compile(r"(?<!!)\[(?P<text>[^\[\]]+)\]\[[^\[\]]*\]")
 _OPENER = re.compile(rf"^(?:This|It)\s+(?:{VAGUE_VERBS})\b")
 _NOT_PARAGRAPH = re.compile(r"^(?:[-*+>|<]|\d+[.)]\s|#{1,6}\s|\[[^\]]+\]:)")
 _EMAIL = re.compile(
@@ -118,10 +120,13 @@ def _heading_hits(lines: list[str]) -> list[StyleHit]:
 def _link_hits(lines: list[str]) -> list[StyleHit]:
     hits = []
     for number, line in enumerate(lines, start=1):
-        for link in _LINK.finditer(_blank_spans(line)):
-            text, dest = link.group("text").strip(), link.group("dest")
+        blanked = _blank_spans(line)
+        links = [(m, m.group("dest")) for m in _LINK.finditer(blanked)]
+        links += [(m, "") for m in _REF_LINK.finditer(blanked)]
+        for link, dest in sorted(links, key=lambda pair: pair[0].start()):
+            text = link.group("text").strip()
             lowered = text.lower()
-            bare_url = bool(dest) and (text == dest or lowered.startswith(("http://", "https://")))
+            bare_url = (bool(dest) and text == dest) or lowered.startswith(("http://", "https://"))
             if lowered in VAGUE_LINK_TEXT or bare_url:
                 hits.append(
                     StyleHit(

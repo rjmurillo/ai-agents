@@ -164,6 +164,29 @@ def test_vague_link_text_is_reported(
     assert [f["kind"] for f in items if f["kind"] == "link-text"] == ["link-text"]
 
 
+@pytest.mark.parametrize("link", ["[this link][ref]", "[this page][]", "[https://a.test/x][ref]"])
+def test_vague_reference_style_link_text_is_reported(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], link: str
+) -> None:
+    text = (
+        f"# Top\n\nBody with {link}.\n\n[ref]: a.md\n[this page]: a.md\n[https://a.test/x]: a.md\n"
+    )
+
+    _, items = findings(tmp_path, text, capsys, "--docs-style")
+
+    assert [f["kind"] for f in items if f["kind"] == "link-text"] == ["link-text"]
+
+
+def test_descriptive_reference_style_link_text_is_not_reported(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    text = "# Top\n\nRead [the API guide][ref].\n\n[ref]: a.md\n"
+
+    _, items = findings(tmp_path, text, capsys, "--docs-style")
+
+    assert [f for f in items if f["kind"] == "link-text"] == []
+
+
 def test_bare_url_link_text_is_reported_but_descriptive_text_is_not(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
