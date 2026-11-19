@@ -9,7 +9,13 @@ from __future__ import annotations
 
 import citation_reverse_pass as gate
 from check_citation_freshness import Finding, _citation_anchors
-from citation_anchors import _CITATION, _adr_base_path, _expand_adr_citations, _moved_cluster
+from citation_anchors import (
+    _CITATION,
+    _adr_base_path,
+    _anchor_matches,
+    _expand_adr_citations,
+    _moved_cluster,
+)
 from citation_head_state import _reworded_line_pairs
 
 
@@ -29,6 +35,35 @@ def _cluster_finding(
         f"suggested citation {cite.target}:{span}"
     )
     return Finding(cite.citing_file, cite.line_number, cite.label, reason)
+
+
+def _quote_moved_outside(
+    anchors: list[str],
+    base_lines: list[str] | None,
+    head_lines: list[str] | None,
+    start: int,
+    end: int,
+) -> bool:
+    """Return whether a quoted anchor's only line changed and left the range.
+
+    A bare name is not enough. Debt stays quiet when that quoted line
+    keeps its number. A quote that occurs once, on a new line, is a finding.
+    """
+    if not base_lines or not head_lines:
+        return False
+    for anchor in anchors:
+        if " " not in anchor or len(anchor) < 12:
+            continue
+        base_hits = [
+            number for number, text in enumerate(base_lines, 1) if _anchor_matches(anchor, text)
+        ]
+        head_hits = [
+            number for number, text in enumerate(head_lines, 1) if _anchor_matches(anchor, text)
+        ]
+        moved = len(base_hits) == 1 and len(head_hits) == 1 and base_hits[0] != head_hits[0]
+        if moved and not start <= head_hits[0] <= end:
+            return True
+    return False
 
 
 def _judge_one(
@@ -76,10 +111,18 @@ def _judge_one(
     base_ok = base_finding is None and base_lines is not None
     if not base_ok and not touched:
         finding = _cluster_finding(cite, base_lines, trees)
-        if finding is None:
-            tally.stale_at_base += 1
-        else:
+        if finding is not None:
             findings.append(finding)
+            return
+        head_finding, head_lines = gate._judge(
+            cite, cite.target, anchors, trees.head_tracked, trees.head_files
+        )
+        if head_finding is not None and _quote_moved_outside(
+            anchors, base_lines, head_lines, cite.start, cite.end
+        ):
+            findings.append(head_finding)
+            return
+        tally.stale_at_base += 1
         return
     if base_ok:
         finding = gate._new_finding(cite, anchors, changes, trees, base_lines or [])
