@@ -81,9 +81,6 @@ from scripts.validation.session_scope import (
     session_change_scope,
 )
 from scripts.validation.sha_pinning import LOCAL_ACTION_PATTERN, VERSION_TAG_PATTERN
-from scripts.validation.staged_structured_cardinality import (
-    check_staged_structured_cardinality,
-)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PROHIBITED_DASHES = ("\N{EN DASH}", "\N{EM DASH}")
@@ -9286,6 +9283,11 @@ def _handle_staged_dashes(args: argparse.Namespace) -> int:
 
 
 def _handle_staged_cardinality(args: argparse.Namespace) -> int:
+    """Staged JSON and YAML counts. Other jobs do not import this module."""
+    from scripts.validation.staged_structured_cardinality import (
+        check_staged_structured_cardinality,
+    )
+
     return check_staged_structured_cardinality(
         args.paths,
         _repo_root(args),
