@@ -737,6 +737,21 @@ _ADVISORY_LICENCES: Final[tuple[tuple[str, EvidenceState, str, str], ...]] = (
         "as BLOCKED instead of PASS. An unresolved base ref still blocks under CI.",
     ),
     (
+        "validate_skill_page_freshness",
+        EvidenceState.FAIL,
+        REASON_ADVISORY_FINDINGS,
+        "A changed skill fact with no page edit is a prompt to read the page, not "
+        "proof it is wrong; a fact can change without changing what the page says. "
+        "The blocking page check owns missing pages.",
+    ),
+    (
+        "validate_skill_page_freshness",
+        EvidenceState.BLOCKED,
+        REASON_SCRIPT_FAILED,
+        "git could not diff against the base ref, so nothing was compared. This "
+        "advisory check reports the gap and does not block.",
+    ),
+    (
         "validate_yaml_style",
         EvidenceState.FAIL,
         REASON_ADVISORY_FINDINGS,

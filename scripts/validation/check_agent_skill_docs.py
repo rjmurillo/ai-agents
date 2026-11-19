@@ -52,7 +52,7 @@ from checks_common import _resolve_default_base_ref
 from evidence import (
     REASON_ADVISORY_FINDINGS,
     REASON_BASE_REF_UNRESOLVED,
-    REASON_DIFF_FAILED,
+    REASON_SCRIPT_FAILED,
     REASON_TREE_ABSENT,
     REASON_VIOLATIONS_FOUND,
     CheckOutcome,
@@ -400,7 +400,7 @@ def validate_skill_page_freshness(repo_root: Path) -> CheckOutcome:
     report = find_stale_pages(repo_root, ref)
     if report is None:
         return CheckOutcome.blocked(
-            _FRESHNESS, reason=REASON_DIFF_FAILED, scope=_SCOPE, detail=f"git failed on {ref}"
+            _FRESHNESS, reason=REASON_SCRIPT_FAILED, scope=_SCOPE, detail=f"git failed on {ref}"
         )
     print(_fresh_summary(report, ref))
     if report.findings:
