@@ -78,11 +78,11 @@ class _ReversePass(Protocol):
     """
 
     _judge: Callable[
-        [_CiteView, str, list[str], set[str], _HeadFileCache],
+        [_CiteView, str, list[str], set[str], _HeadFileCache, str],
         tuple[Finding | None, list[str] | None],
     ]
     _new_finding: Callable[
-        [_CiteView, list[str], _ChangeSet, _TreesView, list[str]],
+        [_CiteView, list[str], _ChangeSet, _TreesView, list[str], str],
         Finding | None,
     ]
 
@@ -173,7 +173,12 @@ def _judge_one(
     # belongs to the author, so base debt does not excuse it.
     if touched and not kept:
         finding, _lines = gate._judge(
-            cite, cite.target, anchors, trees.head_tracked, trees.head_files
+            cite,
+            cite.target,
+            anchors,
+            trees.head_tracked,
+            trees.head_files,
+            segment,
         )
         if finding is not None:
             findings.append(finding)
@@ -184,7 +189,7 @@ def _judge_one(
         if paired is not None:
             base_path = paired
     base_finding, base_lines = gate._judge(
-        cite, base_path, anchors, trees.base_tracked, trees.base_files
+        cite, base_path, anchors, trees.base_tracked, trees.base_files, segment
     )
     base_ok = base_finding is None and base_lines is not None
     if not base_ok and not touched:
@@ -193,7 +198,12 @@ def _judge_one(
             findings.append(finding)
             return
         head_finding, head_lines = gate._judge(
-            cite, cite.target, anchors, trees.head_tracked, trees.head_files
+            cite,
+            cite.target,
+            anchors,
+            trees.head_tracked,
+            trees.head_files,
+            segment,
         )
         if head_finding is not None and _quote_moved_outside(
             anchors, base_lines, head_lines, cite.start, cite.end
@@ -203,10 +213,15 @@ def _judge_one(
         tally.stale_at_base += 1
         return
     if base_ok:
-        finding = gate._new_finding(cite, anchors, changes, trees, base_lines or [])
+        finding = gate._new_finding(cite, anchors, changes, trees, base_lines or [], segment)
     else:
         finding, _lines = gate._judge(
-            cite, cite.target, anchors, trees.head_tracked, trees.head_files
+            cite,
+            cite.target,
+            anchors,
+            trees.head_tracked,
+            trees.head_files,
+            segment,
         )
     if finding is not None:
         findings.append(finding)

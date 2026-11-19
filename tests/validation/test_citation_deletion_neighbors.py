@@ -80,3 +80,30 @@ def test_deletion_anchor_is_not_an_authored_claim(
     code, out = _run(root, capsys)
 
     assert code == 0, out
+
+
+def test_root_respell_does_not_open_a_neighbor_cite(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A pure root respelling is not a deletion, so a nearby cite stays quiet."""
+    root = _repo(tmp_path)
+    _git(root, "checkout", "-q", "main")
+    old = f"See `.agents/analysis/x.md{':' + '5'}`.\n"
+    _commit(
+        root,
+        "docs/notes.md",
+        f"See `{TARGET}:1` for `magic_token`.\nkeep\n{old}",
+        "cite",
+    )
+    _git(root, "checkout", "-q", "-B", "feature")
+    new = f"See `.project-toolkit/analysis/x.md{':' + '5'}`.\n"
+    _commit(
+        root,
+        "docs/notes.md",
+        f"See `{TARGET}:1` for `magic_token`.\nkeep\n{new}",
+        "respell",
+    )
+
+    code, out = _run(root, capsys)
+
+    assert code == 0, out

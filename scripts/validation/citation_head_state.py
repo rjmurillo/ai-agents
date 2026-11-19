@@ -155,8 +155,10 @@ def _parse_diff_lines(
     kept = _drop_root_move_rewrites(added, removed)
     deleted: dict[str, tuple[int, ...]] = {}
     for path, numbers in deleted_at.items():
-        authored = {number for number, _text in kept.get(path, [])}
-        anchors = tuple(sorted(number for number in numbers if number not in authored))
+        # A root respelling leaves kept, but its added line still occupies
+        # this HEAD position. That position is not a deletion.
+        occupied = {number for number, _text in added.get(path, [])}
+        anchors = tuple(sorted(number for number in numbers if number not in occupied))
         if anchors:
             deleted[path] = anchors
     return kept, deleted

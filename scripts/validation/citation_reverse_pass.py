@@ -74,6 +74,7 @@ from citation_anchors import (  # noqa: E402
     _CITATION,
     _EXTENSIONS,
     _URL,
+    _anchor_candidates,
     _anchor_matches,
     _basename_index,
     _citation_aliases_across,
@@ -171,9 +172,18 @@ def _resolve_target(
 
 
 def _judge(
-    cite: _Cite, path: str, anchors: list[str], tracked: set[str], files: _HeadFileCache
+    cite: _Cite,
+    path: str,
+    anchors: list[str],
+    tracked: set[str],
+    files: _HeadFileCache,
+    segment: str,
 ) -> tuple[Finding | None, list[str] | None]:
-    """Run the forward gate's existence, range, and anchor checks on one tree."""
+    """Run the forward gate's existence, range, and anchor checks on one tree.
+
+    Distinctive votes use only this citation's own line slice.
+    Neighbor text stays in the any-anchor check.
+    """
     cited_lines, finding = _resolve_cited_range(
         cite.citing_file,
         cite.line_number,
@@ -194,13 +204,14 @@ def _judge(
             cite.start,
             cite.end,
         )
+    own = _anchor_candidates([segment], cite.label)
     if (
         finding is None
         and cited_lines is not None
-        and _range_misses_distinctive_anchors(anchors, cited_lines, cite.start, cite.end)
+        and _range_misses_distinctive_anchors(own, cited_lines, cite.start, cite.end)
     ):
-        hint = _relocation_hint(anchors, cited_lines)
-        named = ", ".join(repr(anchor) for anchor in anchors[:4])
+        hint = _relocation_hint(own, cited_lines)
+        named = ", ".join(repr(anchor) for anchor in own[:4])
         finding = Finding(
             cite.citing_file,
             cite.line_number,
@@ -247,10 +258,17 @@ def _content_moved(cite: _Cite, base: list[str], head: list[str]) -> bool:
 
 
 def _new_finding(
-    cite: _Cite, anchors: list[str], changes: _ChangeSet, trees: _Trees, base_lines: list[str]
+    cite: _Cite,
+    anchors: list[str],
+    changes: _ChangeSet,
+    trees: _Trees,
+    base_lines: list[str],
+    segment: str,
 ) -> Finding | None:
     """Judge one base-valid citation at HEAD; return the finding or None."""
-    finding, head_lines = _judge(cite, cite.target, anchors, trees.head_tracked, trees.head_files)
+    finding, head_lines = _judge(
+        cite, cite.target, anchors, trees.head_tracked, trees.head_files, segment
+    )
     head_path = changes.renamed_to.get(cite.target, cite.target)
     relocated = _relocated_range(cite.start, cite.end, base_lines, head_lines or [])
     moved_lines = head_lines

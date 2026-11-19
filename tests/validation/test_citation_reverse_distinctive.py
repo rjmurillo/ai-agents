@@ -113,3 +113,18 @@ def test_rare_names_that_stay_inside_do_not_fail(tmp_path: Path) -> None:
     code, out = _run_reverse(root)
 
     assert code == 0, out
+
+
+def test_neighbor_rare_names_do_not_fail_a_valid_cite(tmp_path: Path) -> None:
+    """A wrapped neighbor's rare names do not vote when this line's slice holds."""
+    root = _repo(tmp_path)
+    _git(root, "checkout", "-q", "main")
+    _commit(root, _CITED, _BASE + "rare_alpha\nrare_beta\n", "cited")
+    note = f"Remember `rare_alpha` and `rare_beta`\nSee `{_CITED}:1-3` for `shared_gate`.\n"
+    _commit(root, "docs/notes.md", note, "cite")
+    _git(root, "checkout", "-q", "-B", "feature")
+    _commit(root, _CITED, _BASE + "rare_alpha\nrare_beta\ntail\n", "tail")
+
+    code, out = _run_reverse(root)
+
+    assert code == 0, out
