@@ -100,7 +100,9 @@ def find_docs_readme(skill_parent: Path) -> Path | None:
 
     The parent must be named skills and sit in a git checkout that has the
     docs README. When the docs gate inventories skill trees and this checkout
-    contains one of them, the parent must be one of those trees.
+    carries the canonical (first) tree, the parent must be one of those trees.
+    A mirror tree alone, such as a harness folder in a consumer project, does
+    not make a checkout inventoried.
     """
     parent = skill_parent.resolve()
     if parent.name != SKILL_FOLDER_NAME:
@@ -114,8 +116,7 @@ def find_docs_readme(skill_parent: Path) -> Path | None:
     trees = _inventory_trees()
     gate_root = _gate_repo()
     inventoried = trees is not None and (
-        (gate_root is not None and root == gate_root)
-        or any((root / tree).is_dir() for tree in trees)
+        (gate_root is not None and root == gate_root) or (root / trees[0]).is_dir()
     )
     if not inventoried or trees is None:
         return readme

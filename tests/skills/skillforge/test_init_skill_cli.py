@@ -301,6 +301,20 @@ def test_other_repository_skill_folder_still_gets_a_page(tmp_path: Path) -> None
     assert (tmp_path / "docs" / "skills" / "my-skill.md").is_file()
 
 
+def test_consumer_repo_with_mirror_tree_still_gets_a_page(tmp_path: Path) -> None:
+    (tmp_path / ".git").mkdir()
+    (tmp_path / ".claude" / "skills").mkdir(parents=True)
+    skills = tmp_path / "team" / "skills"
+    skills.mkdir(parents=True)
+    (tmp_path / "docs" / "skills").mkdir(parents=True)
+    (tmp_path / "docs" / "skills" / "README.md").write_text(_README, encoding="utf-8")
+
+    result = run("my-skill", "--path", str(skills), "--docs-section", "Code quality")
+
+    assert result.returncode == 0, result.stderr
+    assert (tmp_path / "docs" / "skills" / "my-skill.md").is_file()
+
+
 def test_titled_row_counts_as_existing(tmp_path: Path) -> None:
     repo = _docs_repo(tmp_path)
     readme = repo / "docs" / "skills" / "README.md"
