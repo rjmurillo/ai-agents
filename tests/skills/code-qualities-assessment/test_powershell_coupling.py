@@ -421,6 +421,12 @@ def test_syntax_error_after_using_statements_still_fails_closed() -> None:
         ("function f { using namespace System }\n", "UsingMustBeAtStartOfScript"),
         ("begin { using namespace System }\n", "UsingMustBeAtStartOfScript"),
         ("process { using namespace System }\n", "UsingMustBeAtStartOfScript"),
+        ("trap { continue }\nusing namespace System\n", "UsingMustBeAtStartOfScript"),
+        ("using namespace System > out.txt\n", "MissingStatementTerminator"),
+        (
+            "using module @{ ModuleName = 'A'; ModuleName = 'B' }\n",
+            "DuplicateKeyInHashLiteral",
+        ),
     ],
 )
 def test_incomplete_using_statement_fails_closed(source: str, error_id: str) -> None:
@@ -438,6 +444,7 @@ def test_incomplete_using_statement_fails_closed(source: str, error_id: str) -> 
         "using assembly 'x.dll'\n",
         "using module @{ ModuleName = 'A'; ModuleVersion = '1.0' }\n",
         "using namespace System\nbegin { }\nprocess { }\n",
+        "using namespace System\ntrap { continue }\n",
     ],
 )
 def test_valid_using_forms_still_count_once(source: str) -> None:

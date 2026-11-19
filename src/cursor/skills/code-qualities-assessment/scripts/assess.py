@@ -1555,6 +1555,10 @@ $topBlocks = @($root.BeginBlock, $root.ProcessBlock, $root.EndBlock, $root.Dynam
 $headerEnd = [int]::MaxValue
 if ($root.ParamBlock) { $headerEnd = $root.ParamBlock.Extent.StartOffset }
 foreach ($block in $topBlocks) {
+    # A top-level trap lives in Traps, not Statements, and still ends the header.
+    foreach ($trap in $block.Traps) {
+        if ($trap.Extent.StartOffset -lt $headerEnd) { $headerEnd = $trap.Extent.StartOffset }
+    }
     foreach ($statement in $block.Statements) {
         $isUsing = $statement -is [System.Management.Automation.Language.PipelineAst] -and
             $statement.PipelineElements.Count -eq 1 -and $sentinelCommands -contains $statement.PipelineElements[0]
@@ -1574,7 +1578,7 @@ foreach ($command in $sentinelCommands) {
         $errorId = 'MissingUsingStatementDirective'
     } elseif ($elements.Count -eq 2) {
         $errorId = 'MissingUsingItemName'
-    } elseif ($elements.Count -gt 3) {
+    } elseif ($elements.Count -gt 3 -or $command.Redirections.Count -gt 0) {
         $errorId = 'MissingStatementTerminator'
     } elseif (-not ($operand -is [System.Management.Automation.Language.StringConstantExpressionAst] -or
             ($kind -eq 'module' -and $operand -is [System.Management.Automation.Language.HashtableAst]))) {
@@ -1590,6 +1594,17 @@ foreach ($command in $sentinelCommands) {
         }
     } else {
         $usingStatements += $command
+        # Blanking removes the operand, so keep any error PowerShell found inside it,
+        # such as a duplicate key in a `using module` hashtable.
+        foreach ($inner in $first[2]) {
+            $offset = $inner.Extent.StartOffset
+            if ($offset -ge $command.Extent.StartOffset -and $offset -lt $command.Extent.EndOffset) {
+                $usingErrors += [pscustomobject]@{
+                    id = $inner.ErrorId; line = $inner.Extent.StartLineNumber
+                    message = "$($inner.Message) ($($inner.ErrorId))"
+                }
+            }
+        }
     }
 }
 # Blank each statement, plus trailing blanks and a `;` terminator, keeping newlines.
