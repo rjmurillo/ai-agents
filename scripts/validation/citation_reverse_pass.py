@@ -28,10 +28,11 @@ tracked at the merge base has that basename and that file changed; the
 forward gate reads slashless names only for repository-root files. That
 covers the PR #5812 shape behind PR #6584, a bare name added in the same
 change that rewrote the cited file. A line the branch added was written
-against HEAD, so it is judged at HEAD only, with no merge-base comparison. Citations the forward gate already
-checks (an added line whose path it resolves) are skipped, so nothing is
-reported twice. Exemptions and the reasoned ignore marker are the forward
-gate's own, imported, not copied.
+against HEAD, so it is judged at HEAD only, with no merge-base
+comparison. Citations the forward gate already checks (an added line
+whose path it resolves) are skipped, so nothing is reported twice.
+Exemptions and the reasoned ignore marker are the forward gate's own,
+imported, not copied.
 
 Not caught: a citation with no ``path:N`` shape (prose such as "ADR-101
 lines 278-284", the PR #6689 miss), a citing file in an exempt historical
