@@ -210,7 +210,7 @@ def test_no_pack_is_dangerous_under_the_pinned_guard(runtime: Runtime) -> None:
 @needs_hermes
 def test_guard_negative_control_flags_a_dangerous_skill(runtime: Runtime, tmp_path: Path) -> None:
     pack = tmp_path / NEGATIVE_CONTROL_PACK
-    # memory-search carries two critical findings at the pin. stuck-detection was the
+    # memory-search carries critical findings at the pin. stuck-detection was the
     # control until main reworded it and the pinned guard rated it safe.
     shutil.copytree(SKILLS_SOURCE / "memory-search", pack / "skills" / "memory-search")
     write_manifest(pack)

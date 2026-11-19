@@ -313,12 +313,12 @@ Hermes scans each pack before it installs it. At the pinned hermes-agent commit 
 
    The repository smoke uses `--force` only for a `CAUTION` pack whose every `HIGH` finding was reviewed, by file, line, and line content (`FORCE_ALLOWED_FINDINGS` in `tests/e2e/hermes_runtime.py`). It never forces a `DANGEROUS` pack.
 
-Update: see "Check Hermes" below. `hermes plugins check-updates` cannot tell for these packs. Reinstall each pack with `--force`.
+Update: see "Check Hermes" below. `hermes plugins check-updates` cannot tell for these packs. Reinstall each pack the way steps 1 to 3 do: first without `--force`, so Hermes prints its findings, then with `--force` only if you accept them. `--force` accepts every `CAUTION` finding, including a new one. We traced this order in the pinned Hermes source and did not run it.
 
 Moving from two packs: on 2026-11-19, 14 skills moved from the delivery pack to the new quality pack. They are `chaos-experiment`, `codeql-scan`, `destructive-change-safety`, `fix-markdown-fences`, `golden-principles`, `llm-council`, `metrics`, `observability`, `security-review`, `slo-designer`, `sol-loop`, `style-enforcement`, `technical-writing`, and `threat-modeling`. No command moves them for you.
 
-- If you installed both packs, reinstall delivery with `--force`, then install quality (step 1). The new delivery pack no longer carries those 14 skills, so skipping quality loses them.
-- If you installed only delivery, its other 42 skills keep working after the reinstall, and `/test` still finds the skills it calls. To keep the 14 moved skills, install the quality pack.
+- If you installed both packs, reinstall delivery (steps 2 and 3), then install quality (step 1). The new delivery pack no longer carries those 14 skills, so skipping quality loses them. We did not run a reinstall over an old copy, so count the skills afterwards (see "Check Hermes"): delivery should show `42`.
+- If you installed only delivery, its other 42 skills keep working after the reinstall. Every skill that `/test` calls and Hermes ships stays in delivery; `security-scan` ships in no pack, as before. To keep the 14 moved skills, install the quality pack.
 - Reinstall delivery before you install quality. Until then your old delivery copy still carries the 14 skills, and we did not test how Hermes handles one skill name in two packs.
 
 Uninstall:
