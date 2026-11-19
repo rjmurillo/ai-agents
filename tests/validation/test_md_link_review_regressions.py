@@ -360,6 +360,9 @@ def test_a_plain_file_checkout_of_a_symlink_still_resolves(tmp_path: Path) -> No
 def test_an_unstaged_symlink_retarget_does_not_hide_the_index_target(tmp_path: Path) -> None:
     repo, link = _skill_link_repo(tmp_path)
     link.unlink()
-    link.symlink_to("../../src/claude/skills/missing")
+    try:
+        link.symlink_to("../../src/claude/skills/missing")
+    except OSError:
+        pytest.skip("symlinks unavailable")
 
     assert scan(repo) == []
