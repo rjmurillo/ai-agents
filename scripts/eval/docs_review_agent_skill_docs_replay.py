@@ -29,12 +29,52 @@ if str(ROOT) not in sys.path:
 from scripts.validation import check_agent_skill_docs as gate  # noqa: E402
 
 CORPUS = ROOT / "evals/docs-review-catch-rate/agent_skill_docs/corpus.json"
+_SHA = re.compile(r"[0-9a-fA-F]{7,40}")
+_REPO = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
+_PR = re.compile(r"[1-9][0-9]{0,9}")
+_TOKEN = re.compile(r"[A-Za-z0-9]{1,40}")
 
 
-def command(root: Path, *args: str) -> str:
-    """Run a bounded command, failing rather than scoring an external error."""
+def git_sha(value: object) -> str:
+    """Return a hex revision, rejecting option-shaped git arguments."""
+    text = str(value)
+    if _SHA.fullmatch(text) is None:
+        raise ValueError(f"refusing non-hex revision {text!r}")
+    return text
+
+
+def repo_slug(value: object) -> str:
+    """Return an owner/name slug, rejecting flags and extra arguments."""
+    text = str(value)
+    if _REPO.fullmatch(text) is None:
+        raise ValueError(f"refusing repository {text!r}")
+    return text
+
+
+def pr_number(value: object) -> str:
+    """Return a decimal pull request number with no leading zero."""
+    text = str(value)
+    if _PR.fullmatch(text) is None:
+        raise ValueError(f"refusing pull request number {text!r}")
+    return str(int(text))
+
+
+def ref_token(value: object) -> str:
+    """Return the disposable ref token. Slashes and flags are rejected."""
+    text = str(value)
+    if _TOKEN.fullmatch(text) is None:
+        raise ValueError(f"refusing ref token {text!r}")
+    return text
+
+
+def command(root: Path, *argv: str) -> str:
+    """Run one list-form command and return its stdout.
+
+    shell stays off. Dynamic tokens must already be git_sha, repo_slug,
+    pr_number, or ref_token results. shlex.quote would break this form.
+    """
     result = subprocess.run(
-        args,
+        argv,
         cwd=root,
         capture_output=True,
         text=True,
@@ -44,7 +84,7 @@ def command(root: Path, *args: str) -> str:
         check=False,
     )
     if result.returncode:
-        raise RuntimeError(f"{args[0]} exited {result.returncode}: {result.stderr[-3000:]}")
+        raise RuntimeError(f"{argv[0]} exited {result.returncode}: {result.stderr[-3000:]}")
     return result.stdout.strip()
 
 
@@ -154,7 +194,10 @@ def inspect_tree(tree: Path, base: str) -> dict[str, Any]:
 
 def replay(root: Path, case: dict[str, Any], repository: str, token: str) -> dict[str, Any]:
     """Fetch one PR and remove its disposable checkout and ref on every exit."""
-    number = int(str(case["pr"]))
+    number = int(pr_number(case["pr"]))
+    repository = repo_slug(repository)
+    token = ref_token(token)
+    pinned = git_sha(case["sha"]) if str(case.get("sha") or "") else ""
     metadata = json.loads(
         command(
             root,
@@ -174,7 +217,8 @@ def replay(root: Path, case: dict[str, Any], repository: str, token: str) -> dic
     try:
         command(root, "git", "fetch", "--no-tags", "origin", f"pull/{number}/head:{ref}")
         fetched = True
-        sha = command(root, "git", "rev-parse", "--verify", f"{case['sha'] or ref}^{{commit}}")
+        revision = f"{pinned}^{{commit}}" if pinned else f"{ref}^{{commit}}"
+        sha = command(root, "git", "rev-parse", "--verify", revision)
         # Reject an unrelated abbreviated SHA, even when another worktree fetched it.
         command(root, "git", "merge-base", "--is-ancestor", sha, ref)
         base_oid = metadata["baseRefOid"]
@@ -230,10 +274,11 @@ def score(rows: list[dict[str, Any]]) -> dict[str, Any]:
 def main() -> int:
     """Write the receipt. Exit one for a missed positive or a false positive."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--corpus", type=Path, default=CORPUS)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
-    corpus = json.loads(args.corpus.read_text(encoding="utf-8"))
+    # The committed corpus is the only input. A --corpus path would make
+    # argparse taint every git and gh argument (CWE-78).
+    corpus = json.loads(CORPUS.read_text(encoding="utf-8"))
     token = uuid.uuid4().hex[:10]
     rows = []
     try:
@@ -250,7 +295,7 @@ def main() -> int:
     result: dict[str, Any] = {
         "schema_version": 1,
         "run_at": now.isoformat(),
-        "corpus_sha256": hashlib.sha256(args.corpus.read_bytes()).hexdigest(),
+        "corpus_sha256": hashlib.sha256(CORPUS.read_bytes()).hexdigest(),
         "checker_sha256": hashlib.sha256(Path(gate.__file__).read_bytes()).hexdigest(),
         "runner_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         "checker_revision": command(ROOT, "git", "rev-parse", "HEAD"),

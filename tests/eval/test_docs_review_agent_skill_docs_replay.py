@@ -65,6 +65,19 @@ def test_cleanup_fetched_ref_when_checkout_fails(monkeypatch, tmp_path):
     import pytest
 
     with pytest.raises(RuntimeError, match="checkout failed"):
-        replay.replay(tmp_path, {"pr": 1, "sha": "sha"}, "rjmurillo/ai-agents", "owned")
+        replay.replay(tmp_path, {"pr": 1, "sha": "abcdef1"}, "rjmurillo/ai-agents", "owned")
     assert calls[-1] == ("git", "update-ref", "-d", "refs/docs-review-agent-skill-docs/owned/1")
     assert not any(c[:3] == ("git", "worktree", "remove") for c in calls)
+
+
+def test_replay_rejects_option_shaped_inputs():
+    import pytest
+
+    with pytest.raises(ValueError, match="revision"):
+        replay.git_sha("--upload-pack=evil")
+    with pytest.raises(ValueError, match="repository"):
+        replay.repo_slug("--repo")
+    with pytest.raises(ValueError, match="pull request"):
+        replay.pr_number("1;rm")
+    with pytest.raises(ValueError, match="ref token"):
+        replay.ref_token("owned/../x")
