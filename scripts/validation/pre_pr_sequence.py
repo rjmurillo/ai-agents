@@ -70,6 +70,7 @@ from check_skill_adr_bindings import validate_skill_adr_bindings
 from check_skill_output_envelopes import validate_skill_output_envelopes
 from check_skill_shell_placeholders import validate_skill_shell_placeholders
 from check_skill_tree_layout import validate_skill_tree_layout
+from check_skill_trigger_resolution import validate_skill_trigger_resolution
 from check_subprocess_encoding import validate_subprocess_encoding
 from check_template_repo_refs import validate_template_repo_refs
 from check_test_tree_writes import validate_test_tree_writes
@@ -771,6 +772,14 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate(
         "Skill Artifact Flow (metadata.inputs/outputs)",
         _root_only(validate_skill_artifact_flow_declarations),
+    ),
+    # Ratchet: each trigger phrase a skill description advertises must route
+    # through the autoplan resolver to that skill, never to a sibling or to
+    # `none`. Born from adr-generator advertising "write an ADR" with no
+    # intents, so autoplan never selected it.
+    _Gate(
+        "Skill Trigger Phrase Resolution (ratchet)",
+        _root_only(validate_skill_trigger_resolution),
     ),
     # Non-regression ratchet on path-local effective context (SPEC-4880,
     # issue #4880): the nested AGENTS.md/CLAUDE.md bytes a harness loads for

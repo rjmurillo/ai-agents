@@ -73,7 +73,7 @@ def test_trigger_phrase_matching_an_intent_passes(
 def test_slash_name_trigger_phrase_is_skipped(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    description = "Use when you say `/demo run`. Do NOT use for other work."
+    description = "Use when you say `/demo run` or `schema design`. Do NOT use for other work."
     metadata = _FRONT_DOOR.format(intent="schema design")
 
     code, rows = _lint(tmp_path, capsys, _skill_text(metadata, description=description))

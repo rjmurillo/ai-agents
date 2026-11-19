@@ -340,7 +340,7 @@ After creation:
 - [ ] Name is hyphen-case and <=64 chars
 - [ ] Description <=1024 chars, with no `<` or `>`
 - [ ] `SKILL.md` under 500 lines and 5,000 tokens, or the overage is stated
-- [ ] 3-5 trigger phrases defined
+- [ ] 3-5 trigger phrases, each matched by an `intents` entry
 - [ ] Timelessness score >=7
 - [ ] `quick_validate.py skills/my-skill/` passes
 - [ ] `validate-skill.py skills/my-skill/` passes

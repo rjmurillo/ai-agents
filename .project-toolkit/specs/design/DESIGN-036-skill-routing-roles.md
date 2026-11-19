@@ -103,22 +103,19 @@ matching, which every skill has.
    ships with, and names compare with the namespace removed. Presence of
    `intents` counts for nothing; only a resolver result does. This proves the
    resolver routes those intents and no other skill shadows them. It does not
-   prove a user words a request that way; the phrase report below covers that.
+   prove a user words a request that way; the trigger-phrase ratchet below covers that.
 3. **Scenario coverage**: the scenario file exists.
 4. **Scored accuracy**: not measured here. #5389 owns it.
 
 "Inbound-zero" lists skills that no other skill or agent text names at all.
 
-"Phrase misses" (added 2026-11-19) checks shipped `front-door` skills that
-declare `intents`. It reads the description after the first
-"Use when you say" (case-insensitive) up to the first `.` outside quotes. Each
-phrase in backticks or U+0022 quotes goes through `resolve_route.resolve`
-over the same root as layer 2. A phrase is a miss unless the result is
-`specialist` or `explicit` with exactly that skill as the only candidate, so
-`ambiguous` counts as a miss. The report prints the phrases examined, each
-miss, the skills with no "Use when you say" clause, and the count of front
-doors left out because they declare no `intents`. It is reported, not refused, for the
-same reason as layer 2: refusing on prose is a rejected alternative below.
+Trigger phrases are not an evidence layer here. The pre-PR ratchet
+`Skill Trigger Phrase Resolution (ratchet)` (`check_skill_trigger_resolution.py`,
+added 2026-11-19) runs the resolver over every phrase a description advertises
+and refuses a new phrase that is unrouted, routes to a sibling, or sits on a
+front door with no `intents`. It differs from the rejected alternative below:
+it refuses only a new resolver miss, which is deterministic, not an upper bound.
+A report-only phrase layer that briefly lived here was folded into that gate.
 
 ## Gate
 

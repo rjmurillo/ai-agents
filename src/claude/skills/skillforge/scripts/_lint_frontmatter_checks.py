@@ -54,8 +54,10 @@ HANDOFF_RE = re.compile(
     r"Writes: (?P<writes>none|`[^`]+`(?:, `[^`]+`)*)\. Next: (?P<next>none|`/[a-z][a-z0-9-]*`)\."
 )
 
-_LEAD = re.compile(r"use when you say", re.IGNORECASE)
-_QUOTED = re.compile(r"`([^`]+)`|\"([^\"]+)\"")
+_QUOTED = re.compile(r"\"([^\"]+)\"|`([^`]+)`")
+_WORD = re.compile(r"[A-Za-z0-9]+")
+_REDIRECT_MARKER = "Do NOT"
+_MIN_PHRASE_WORDS = 2
 _REDIRECT = re.compile(r"\b(?:do not|don't|not for)\b", re.IGNORECASE)
 
 LEVELS = ("MUST", "SHOULD")
@@ -236,24 +238,27 @@ def _resolver() -> ModuleType:
     return module
 
 
-def trigger_phrases(description: str) -> tuple[str, ...] | None:
-    """Quoted phrases after "Use when you say", up to the first '.' outside quotes."""
-    text = " ".join(description.split())
-    lead = _LEAD.search(text)
-    if lead is None:
-        return None
-    clause: list[str] = []
-    quote: str | None = None
-    for char in text[lead.end() :]:
-        if quote is not None:
-            if char == quote:
-                quote = None
-        elif char in '`"':
-            quote = char
-        elif char == ".":
-            break
-        clause.append(char)
-    return tuple(a or b for a, b in _QUOTED.findall("".join(clause)))
+def trigger_phrases(description: str) -> tuple[str, ...]:
+    """Return the trigger phrases a description advertises.
+
+    The same grammar the host repository's Skill Trigger Phrase Resolution
+    gate uses: every phrase in double quotes or backticks before the first
+    "Do NOT", with two or more words, skipping any that holds `/` or `.`
+    (a command or a path, not something a user says). Duplicates drop.
+    """
+    cut = description.find(_REDIRECT_MARKER)
+    phrases: list[str] = []
+    for match in _QUOTED.finditer(description):
+        if cut != -1 and match.start() > cut:
+            continue
+        phrase = (match.group(1) or match.group(2)).strip()
+        if "/" in phrase or "." in phrase:
+            continue
+        if len(_WORD.findall(phrase)) < _MIN_PHRASE_WORDS:
+            continue
+        if phrase not in phrases:
+            phrases.append(phrase)
+    return tuple(phrases)
 
 
 def phrases_routable(doc: subset.SkillDoc) -> list[str]:
@@ -265,16 +270,13 @@ def phrases_routable(doc: subset.SkillDoc) -> list[str]:
     phrases = trigger_phrases(description if isinstance(description, str) else "")
     if not phrases:
         return [
-            'description has intents but no "Use when you say `...`" phrases; '
-            "quote the phrases users type so they can be checked against the intents"
+            "description has intents but quotes no trigger phrase; quote the phrases "
+            "users type so they can be checked against the intents"
         ]
     resolver = _resolver()
-    name = str(_fields(doc).get("name", ""))
     tokenized = [resolver._tokenize(str(intent)) for intent in intents]
     problems = []
     for phrase in phrases:
-        if phrase.startswith(f"/{name}"):
-            continue  # an explicit slash invocation routes by name
         request = resolver._tokenize(phrase)
         if not any(resolver._matches_ordered(request, intent) for intent in tokenized):
             problems.append(f"trigger phrase {phrase!r} matches none of the skill's own intents")

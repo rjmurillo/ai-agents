@@ -14,7 +14,7 @@
     {"agent": "architect", "pair": "claude-shared", "unit": "order", "digest": "7b537d888855d930f49d4e0adaa9d4d3b87b90a8092f48c6af4bafa44bc0ee61"},
     {"agent": "architect", "pair": "claude-shared", "unit": "section:Architectural Decision Records (ADRs)", "digest": "23d91e960a646a969c65fa818fcf1bf38245e136fe070217e5d041692497b10e"},
     {"agent": "architect", "pair": "claude-shared", "unit": "section:Degraded Mode Protocol", "digest": "7102d2abbba62811b49cff11ae911a229044f7cf1201729c1ad070d8e278309a"},
-    {"agent": "architect", "pair": "claude-shared", "unit": "section:Handoff Protocol", "digest": "4a828f7747b4875aacfab400601d136d374b063d1d4acd680afef856e531a08f"},
+    {"agent": "architect", "pair": "claude-shared", "unit": "section:Handoff Protocol", "digest": "faf82d8ce5fc30f64776a0600f2153222c0e5f13a24d15a484195063ef107001"},
     {"agent": "architect", "pair": "claude-shared", "unit": "section:Legacy Modernization Patterns", "digest": "289d90efd8ddd18596ce797998c0c6268cee082af7bb9175ba0aaa7b646af9f5"},
     {"agent": "architect", "pair": "claude-shared", "unit": "section:Memory Protocol", "digest": "f724435a04d5f119f6c51f5d9a63a99726d68e2101a45f6803c09c3ea2b336e6"},
     {"agent": "architect", "pair": "claude-shared", "unit": "section:Reversibility Assessment", "digest": "5b6d36129e3f3dc4f7484fff21130a2d2038a8d459733dd3dfa9928a2b4d53e5"},

@@ -6,8 +6,8 @@ coverage are reported, never refused: a route is prose, and a common-word
 skill name makes an exact-token match an upper bound rather than proof.
 Scored routing accuracy is not measured here; issue #5389 owns it.
 
-The resolver-backed layers (intent reachability and phrase misses) live in
-`skill_routing_resolver_evidence.py` and are report-only as well.
+The resolver-backed intent reachability layer lives in
+`skill_routing_resolver_evidence.py` and is report-only as well.
 """
 
 from __future__ import annotations
@@ -26,10 +26,8 @@ import yaml  # noqa: E402
 from skill_routing_model import RESERVED_INVOKERS, ROLES, SkillDecl  # noqa: E402
 from skill_routing_resolver_evidence import (  # noqa: E402
     FrontDoor,
-    PhraseReport,
     intent_reachable,
     load_resolver,
-    phrase_report,
 )
 
 
@@ -42,7 +40,6 @@ class Evidence:
     scenario_covered: tuple[str, ...]
     checked: tuple[str, ...]
     intent_reached: tuple[str, ...] = ()
-    phrases: PhraseReport = PhraseReport(False, 0, (), (), 0)
 
 
 _REACHABLE_ROLES = frozenset({"front-door", "lifecycle", "conditional-adjunct", "nested-helper"})
@@ -221,7 +218,6 @@ def compute_evidence(
         scenario_covered=tuple(sorted(scenario_covered)),
         checked=tuple(sorted(checked)),
         intent_reached=tuple(sorted(reached)),
-        phrases=phrase_report(resolver, list(doors.values())),
     )
 
 
@@ -244,24 +240,8 @@ def render(skills: list[SkillDecl], evidence: Evidence, fmt: str) -> str:
     lines.append(f"scenario coverage: {len(evidence.scenario_covered)}/{total}")
     lines.append(f"inbound-zero: {len(evidence.inbound_zero)}")
     lines.extend(f"inbound-zero {name}" for name in evidence.inbound_zero)
-    lines.extend(_phrase_lines(evidence.phrases))
     lines.append("scored accuracy: not measured")
     return "\n".join(lines)
-
-
-def _phrase_lines(report: PhraseReport) -> list[str]:
-    """Render the phrase layer, or say it was not measured."""
-    if not report.measured:
-        return ["phrase report: not measured (resolver or rendered catalog absent)"]
-    lines = [
-        f"phrases examined: {report.examined}",
-        f"phrase misses: {len(report.misses)}",
-        *(f"phrase miss {name}: {phrase}" for name, phrase in report.misses),
-        f"front doors without a 'Use when you say' clause: {len(report.no_lead)}",
-        *(f"no lead-in {name}" for name in report.no_lead),
-        f"shipped front doors without intents: {report.without_intents}",
-    ]
-    return lines
 
 
 def _render_json(
@@ -290,13 +270,6 @@ def _render_json(
         "unresolved": list(evidence.unresolved),
         "intent_reached": list(evidence.intent_reached),
         "inbound_zero": list(evidence.inbound_zero),
-        "phrases": {
-            "measured": evidence.phrases.measured,
-            "examined": evidence.phrases.examined,
-            "misses": [list(miss) for miss in evidence.phrases.misses],
-            "no_lead": list(evidence.phrases.no_lead),
-            "without_intents": evidence.phrases.without_intents,
-        },
         "scored_accuracy": "not measured",
     }
     return json.dumps(payload, indent=2, sort_keys=True)

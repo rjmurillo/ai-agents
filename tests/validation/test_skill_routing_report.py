@@ -300,21 +300,17 @@ def test_json_report_is_valid_json_with_expected_shape(tree: Path) -> None:
         "unresolved",
         "intent_reached",
         "inbound_zero",
-        "phrases",
         "scored_accuracy",
     }
     assert payload["counts"]["total"] == 4
 
 
-def test_resolver_layers_report_not_measured_without_a_rendered_catalog(tree: Path) -> None:
+def test_intent_reachability_credits_nothing_without_a_rendered_catalog(tree: Path) -> None:
     _report_catalog(tree)
 
     skills, _findings, evidence = gate.survey(tree)
-    text = gate.render(skills, evidence, "text")
     payload = json.loads(gate.render(skills, evidence, "json"))
 
-    assert "phrase report: not measured" in text
-    assert payload["phrases"]["measured"] is False
     assert payload["intent_reached"] == []
 
 
@@ -324,7 +320,6 @@ def test_real_repository_reaches_intent_routed_front_doors() -> None:
     skills, _findings, evidence = gate.survey(repo_root)
     reached = set(evidence.intent_reached)
 
-    assert evidence.phrases.measured is True
     assert {"pr-review", "takeover", "domain-design"} <= reached
     assert reached.isdisjoint(evidence.unresolved)
 

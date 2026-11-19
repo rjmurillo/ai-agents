@@ -7,10 +7,12 @@ they differ, which keeps a change to one from drifting away from the other.
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 from tests.skills.skillforge.conformance_support import load
 
@@ -21,9 +23,10 @@ if str(_VALIDATION) not in sys.path:
 
 import check_capability_graph
 import check_skill_artifact_flow
-import skill_routing_resolver_evidence
+import check_skill_trigger_resolution
 import skill_size
 
+_SKILLS = _REPO_ROOT / "src" / "claude" / "skills"
 lint = load("skillforge_frontmatter_lint_mirror_under_test", "lint_skill_frontmatter.py")
 
 
@@ -64,24 +67,41 @@ def test_skill_byte_limit_matches_the_size_gate() -> None:
 
 
 _DESCRIPTIONS = (
-    'Plan work. Use when you say `plan this`, "break it down". Do NOT use for builds.',
-    "Use when you say `design this schema`. Then more text with `not a phrase` in it.",
-    'No lead-in here, only `quoted` text and "more" quotes.',
-    "USE WHEN YOU SAY `a. b` and `c`. Trailing `ignored`.",
-    'Use   when\nyou say\n`spaced   out`,  "two  words" . After.',
+    'Plan work. Use when you say `plan this`, "break it down". Do NOT use for `build this`.',
+    "Use when you say `design this schema`. Then `run tool.py` and `/slash cmd` text.",
+    'Only `quoted` single words and "more" quotes.',
+    'Duplicates: `ship it`, "ship it", and `ship   it`.',
+    "No quotes at all.",
 )
 
 
 @pytest.mark.parametrize("description", _DESCRIPTIONS, ids=range(len(_DESCRIPTIONS)))
-def test_trigger_phrase_extraction_matches_the_routing_evidence_gate(description: str) -> None:
+def test_trigger_phrase_extraction_matches_the_resolution_gate(description: str) -> None:
     mine = lint.trigger_phrases(description)
-    theirs = skill_routing_resolver_evidence.trigger_phrases(description)
+    theirs = tuple(check_skill_trigger_resolution.extract_phrases(description))
 
     assert mine == theirs
 
 
-def test_trigger_phrase_samples_exercise_both_none_and_tuple_results() -> None:
-    results = [lint.trigger_phrases(text) for text in _DESCRIPTIONS]
+def test_trigger_phrase_extraction_matches_the_gate_on_every_shipped_description() -> None:
+    descriptions = [
+        _description(path) for path in sorted(_SKILLS.glob("*/SKILL.md")) if _description(path)
+    ]
 
-    assert None in results
-    assert any(isinstance(result, tuple) and result for result in results)
+    mismatches = [
+        text
+        for text in descriptions
+        if lint.trigger_phrases(text) != tuple(check_skill_trigger_resolution.extract_phrases(text))
+    ]
+
+    assert len(descriptions) > 100
+    assert mismatches == []
+
+
+def _description(path: Path) -> str:
+    match = re.match(r"---\n(.*?)\n---", path.read_text(encoding="utf-8"), re.DOTALL)
+    if match is None:
+        return ""
+    front = yaml.safe_load(match.group(1)) or {}
+    value = front.get("description")
+    return value if isinstance(value, str) else ""

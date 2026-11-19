@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "scenarios": [
+    {
+      "id": "lt-adr-generator-plan-step",
+      "family": "long-tail-single-domain",
+      "request": "The plan says option B needs an ADR. Draft ADR-123 for the skill artifact flow decision.",
+      "expect": {
+        "kind": "specialist",
+        "route": "adr-generator",
+        "routes_absent": [
+          "orchestrator",
+          "adr-review"
+        ]
+      },
+      "rationale": "Miss 2026-11-19: a session drafted ADR-123 by hand from a plan step. The draft adr intent must route to adr-generator."
+    },
+    {
+      "id": "lt-adr-generator-new",
+      "family": "long-tail-single-domain",
+      "request": "This change needs a new ADR before we build it.",
+      "expect": {
+        "kind": "specialist",
+        "route": "adr-generator",
+        "routes_absent": [
+          "orchestrator",
+          "adr-review"
+        ]
+      },
+      "rationale": "A plan step that needs a new ADR routes to adr-generator before any file is written."
+    },
+    {
+      "id": "lt-adr-generator-amend",
+      "family": "long-tail-single-domain",
+      "request": "Amend ADR-110 to add produces and consumes keys to the capability block.",
+      "expect": {
+        "kind": "specialist",
+        "route": "adr-generator",
+        "routes_absent": [
+          "orchestrator",
+          "adr-review"
+        ]
+      },
+      "rationale": "Editing an existing ADR outside a debate round is Amend mode in adr-generator."
+    },
+    {
+      "id": "lt-adr-generator-supersede",
+      "family": "long-tail-single-domain",
+      "request": "Supersede ADR-064 with a record that keeps commands retired.",
+      "expect": {
+        "kind": "specialist",
+        "route": "adr-generator",
+        "routes_absent": [
+          "orchestrator",
+          "adr-review"
+        ]
+      },
+      "rationale": "A superseding record is a new ADR that adr-generator numbers and links."
+    },
+    {
+      "id": "lt-adr-generator-review-negative",
+      "family": "negative-noise",
+      "request": "Review this ADR before we merge it.",
+      "expect": {
+        "kind": "none",
+        "route": null,
+        "routes_absent": [
+          "adr-generator"
+        ]
+      },
+      "rationale": "Negative control: reviewing an ADR belongs to adr-review, never adr-generator."
+    },
+    {
+      "id": "lt-adr-generator-read-negative",
+      "family": "negative-noise",
+      "request": "Summarize what ADR-107 decided about skill contracts.",
+      "expect": {
+        "kind": "none",
+        "route": null,
+        "routes_absent": [
+          "adr-generator"
+        ]
+      },
+      "rationale": "Negative control: reading an ADR writes nothing, so adr-generator must not match."
+    }
+  ]
+}

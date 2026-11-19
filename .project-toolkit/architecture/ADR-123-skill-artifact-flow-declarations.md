@@ -19,6 +19,7 @@ The debate appears in `.project-toolkit/critique/ADR-123-debate-log.md`.
 A 2026-11-19 amendment keys declarations by artifact name.
 The amendment debate appears in `.project-toolkit/critique/ADR-123-debate-log-2.md`.
 A citation fix appears in `.project-toolkit/critique/ADR-123-debate-log-3.md`.
+The phrase-report correction appears in `.project-toolkit/critique/ADR-123-debate-log-4.md`.
 The maintainer selected the typed `inputs` and `outputs` option.
 
 ## Context
@@ -175,14 +176,15 @@ The gate runs in `pre_pr.py`.
 
 ## Routing changes in the same change, outside this record
 
-Two report-only evidence changes amend DESIGN-036, not this record.
+A report-only evidence change amends DESIGN-036, not this record.
 Reachability credits a front door when the resolver routes one of its intents to it.
-A phrase report lists description trigger phrases the resolver cannot route.
-DESIGN-036 rejected refusing on prose, so both stay report-only.
+DESIGN-036 rejected refusing on prose, so it stays report-only.
+Trigger phrases are checked by a separate ratchet, `Skill Trigger Phrase Resolution (ratchet)`.
+A short-lived phrase report was folded into that ratchet.
 
 Data fixes ship with them.
 `pr-review` becomes a routed front door, which breaks the `pr-review` and `pr-autofix` invoker cycle.
-The six phrases that miss today gain matching intents.
+Six phrases that missed the resolver at `b8bedf583` on 2026-11-19 gain matching intents.
 Four shipped skills keep their repo-local invokers.
 PR #5922 set those invokers on 2026-09-24.
 PR #6273 marked their triggers repo-local on 2026-10-11.

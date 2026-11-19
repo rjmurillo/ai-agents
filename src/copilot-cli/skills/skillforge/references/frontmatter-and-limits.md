@@ -69,35 +69,54 @@ When a file is near the cap:
 A skill that must stay large declares `size-exception: true` and carries a rationale
 comment near the top. Treat that as debt, not a target.
 
-Some hosts also budget the bytes an agent loads for a scenario: the entry skill plus
-every `capability.depends-on` owner it pulls in. Adding a `depends-on` can load a whole
-second skill. Measure that budget before you add a dependency, and add one only where
-the body actually invokes the owner.
+Some hosts also budget the bytes an agent loads for a scenario: always-on files, scoped
+rules, the entry skill, and every `capability.depends-on` owner it pulls in. In the
+rjmurillo/ai-agents repository the pre-PR gate `Instruction Bytes (per-fixture)`
+measures six task shapes. Adding a `depends-on` can load a whole second skill, and a
+52-byte autoplan table row once pushed a fixture over its ceiling. Measure before and
+after, and add a dependency only where the body actually invokes the owner.
 
 ## 3. Make every quoted trigger phrase routable (`fm.routing.phrases-routable`)
+
+A phrase in double quotes or backticks, before the first `Do NOT`, with two or more
+words and no `/` or `.`, is an advertised trigger. A slash command or a path is not
+something a user says, so it is skipped.
 
 An intent router matches a request against each skill's `metadata.routing.intents`. The
 autoplan resolver lowercases, drops stop words (`this`, `the`, `to`, and others), strips
 one trailing `s`, and then requires the intent's tokens **in order**, within a span of the
 intent's length plus two. So `schema design` does not match `design this schema`.
 
-Quote the phrases users type in the description, after `Use when you say`, and make sure
-each one matches at least one of the skill's own intents. A phrase written as a slash
-command (`/skill-name 1234`) routes by name and needs no intent.
-
-Avoid generic intents. A two-word intent like `pr review` also catches "do a PR review of
-my branch", which belongs to a code-review skill. Prefer the specific action and object:
-`respond to review comments and get a merge verdict`. Check the collision against
-sibling skills, and against any routing table that maps the same phrase elsewhere.
+- Each advertised phrase must match at least one of the skill's own intents.
+- No phrase may resolve to a sibling, and a front door that advertises phrases must
+  declare `intents`. In the rjmurillo/ai-agents repository the pre-PR ratchet
+  `Skill Trigger Phrase Resolution (ratchet)` checks all three against the whole
+  catalog; this lint checks only the first, because a consumer has no catalog.
+- Write intents as two or more tokens. A bare noun like `adr` also matches "review
+  this ADR" and steals the sibling's request. Use `draft adr` or `amend adr`.
+- Avoid generic pairs too. `pr review` caught "do a PR review of my branch", which
+  belongs to a code-review skill. Prefer the specific action and object, and add a
+  negative routing case for the nearest sibling.
+- A changed autoplan table row needs a routing scenario whose `expected_route` names
+  the row's target.
 
 `intents` are only valid on a `front-door` skill (`fm.routing.intents-role`).
 
-## 4. Name the sibling it is not (`fm.description.redirect`)
+## 4. Write a short description that names its sibling (`fm.description.redirect`)
 
-A user-facing description loads into every session, and a model picks a skill from it.
-When two skills share words, the model picks wrong unless one description says which to
-use instead. End the description with `Do NOT use for X (use Y).` naming the sibling a
-reader is most likely to confuse with this skill. Write it in both directions.
+Every description loads on every turn, so a long one taxes every task. Write the
+shortest description that routes. One measured fix went from 839 to 435 characters
+and gained triggers. In the rjmurillo/ai-agents repository the pre-PR gate
+`Skill Description Budget` caps the sum per skill root.
+
+- **Lead with the invocation condition.** Put the trigger situation first, for
+  example "Invoke before you write or edit any ADR file, even when nobody names an
+  ADR." Agents often reach a skill's work through a plan step, not a phrase.
+- **Name the sibling it is not.** When two skills share words, a model picks wrong
+  unless one description says which to use instead. End with
+  `Do NOT use for X (use Y).`, naming the sibling a reader is most likely to confuse
+  with this skill. Write it in both directions, and agree on who owns the edge
+  cases, such as edits made inside an open review round.
 
 ## 5. Declare hand-offs the same way (`fm.artifacts.shape`, `fm.handoff.shape`)
 
