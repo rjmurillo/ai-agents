@@ -1,5 +1,6 @@
 """Verify deterministic replay scoring and cleanup when a historical scan fails."""
 
+import json
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -137,6 +138,46 @@ def test_replay_rejects_refs_before_it_runs_a_command(
 ) -> None:
     with pytest.raises(ValueError, match=match):
         replay.replay(Path("."), repository, case)
+
+
+def test_main_maps_a_bad_corpus_to_exit_2(tmp_path: Path) -> None:
+    corpus = tmp_path / "corpus.json"
+    corpus.write_text('{"cases": []}', encoding="utf-8")
+    assert replay.main(["--corpus", str(corpus)]) == 2
+
+
+@pytest.mark.parametrize(
+    "error",
+    [RuntimeError("gh failed"), subprocess.TimeoutExpired(["git"], 1)],
+)
+def test_main_maps_external_failures_to_exit_3(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, error: BaseException
+) -> None:
+    corpus = tmp_path / "corpus.json"
+    corpus.write_text(
+        json.dumps(
+            {
+                "repository": "rjmurillo/ai-agents",
+                "cases": [
+                    {
+                        "id": "N",
+                        "kind": "negative",
+                        "scope": "automatic",
+                        "pr": 1,
+                        "sha": "a" * 40,
+                        "baseRefOid": "b" * 40,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def fail(*_args: object, **_kwargs: object) -> str:
+        raise error
+
+    monkeypatch.setattr(replay, "command", fail)
+    assert replay.main(["--corpus", str(corpus), "--output", str(tmp_path / "out.json")]) == 3
 
 
 def test_contained_keeps_a_worktree_inside_its_parent(tmp_path: Path) -> None:

@@ -5,7 +5,8 @@ Each case fetches its pull ref and checks out its pinned revision.
 The current validator reads that worktree with normal pre-PR diff scope.
 Temporary worktrees live outside the clone and are removed after each case.
 Temporary refs are deleted even when a scan fails. Exit codes: 0 pass,
-1 missed positives or false positives, 2 external or configuration errors.
+1 missed positives or false positives, 2 local configuration errors,
+3 external or timeout failures.
 """
 
 from __future__ import annotations
@@ -282,7 +283,12 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if summary["passed"] else 1
     except (OSError, ValueError, KeyError, RuntimeError, subprocess.TimeoutExpired) as error:
         print(f"doc-date-drift replay: {error}", file=sys.stderr)
-        return 2
+        # A bad corpus is local configuration. Git, gh, and timeouts are external.
+        if isinstance(error, subprocess.TimeoutExpired):
+            return 3
+        if isinstance(error, (ValueError, KeyError, OSError)):
+            return 2
+        return 3
 
 
 if __name__ == "__main__":
