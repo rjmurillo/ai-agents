@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "project-toolkit-authoring",
+  "description": "Project Toolkit skills for creating, measuring, and tuning skills, context placement, and agent prose.",
+  "author": {
+    "name": "rjmurillo"
+  },
+  "license": "MIT"
+}

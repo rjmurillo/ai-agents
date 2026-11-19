@@ -2,8 +2,8 @@
 
 Each folder below is a portable Agent Plugins v1 package for Hermes.
 A pack holds the skills listed under it and one copy of `lib/`.
-No skill points at a script, reference, or other support file in another pack.
-Some skills name a skill from another pack, so install every pack for the full set.
+No skill links to a script, reference, or other support file in another pack by path.
+Some skills name a skill or script from another pack, so install every pack for the full set.
 
 ## project-toolkit-delivery
 
@@ -86,7 +86,6 @@ Project Toolkit skills for memory, context, decisions, requirements, strategy, a
 - `codebase-documenter`
 - `context-gather`
 - `context-hub-setup`
-- `context-optimizer`
 - `curating-memories`
 - `cynefin-classifier`
 - `decision-critic`
@@ -102,19 +101,25 @@ Project Toolkit skills for memory, context, decisions, requirements, strategy, a
 - `pre-mortem`
 - `programming-advisor`
 - `prompt-engineer`
-- `prose-self-check`
 - `reflect`
 - `requirements-interview`
 - `retrospective`
-- `skill-bootstrap`
-- `skillforge`
-- `skillify`
-- `skillopt`
 - `software-engineering-library`
 - `spec`
 - `using-serena-symbols`
 - `work-operating-model`
 - `world-model-diagnostic`
+
+## project-toolkit-authoring
+
+Project Toolkit skills for creating, measuring, and tuning skills, context placement, and agent prose.
+
+- `context-optimizer`
+- `prose-self-check`
+- `skill-bootstrap`
+- `skillforge`
+- `skillify`
+- `skillopt`
 
 ## Excluded skills
 

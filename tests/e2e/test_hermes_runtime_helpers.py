@@ -167,6 +167,7 @@ def test_python_json_rejects_a_snippet_with_empty_stdout(tmp_path: Path) -> None
 _DELIVERY = "project-toolkit-delivery"
 _KNOWLEDGE = "project-toolkit-knowledge"
 _QUALITY = "project-toolkit-quality"
+_AUTHORING = "project-toolkit-authoring"
 _NEW_FINDING = ("inline_shell_exec", "skills/new-skill/SKILL.md", 3, "0" * 64)
 
 
@@ -174,7 +175,7 @@ def _one_reviewed(pack: str) -> tuple[str, str, int, str]:
     return sorted(hr.FORCE_ALLOWED_FINDINGS[pack])[0]
 
 
-@pytest.mark.parametrize("pack", [_DELIVERY, _KNOWLEDGE])
+@pytest.mark.parametrize("pack", [_DELIVERY, _AUTHORING])
 def test_force_is_allowed_when_every_high_finding_was_reviewed(pack: str) -> None:
     reviewed = hr.FORCE_ALLOWED_FINDINGS[pack]
 
@@ -187,12 +188,12 @@ def test_force_is_allowed_for_a_reviewed_subset() -> None:
     assert hr.force_for_verdict(_DELIVERY, "caution", one) is True
 
 
-@pytest.mark.parametrize("pack", [_DELIVERY, _KNOWLEDGE, _QUALITY])
+@pytest.mark.parametrize("pack", [_DELIVERY, _KNOWLEDGE, _QUALITY, _AUTHORING])
 def test_a_safe_pack_installs_without_force(pack: str) -> None:
     assert hr.force_for_verdict(pack, "safe", frozenset()) is False
 
 
-@pytest.mark.parametrize("pack", [_DELIVERY, _KNOWLEDGE])
+@pytest.mark.parametrize("pack", [_DELIVERY, _AUTHORING])
 def test_a_new_high_finding_in_a_reviewed_pack_blocks_force(pack: str) -> None:
     found = hr.FORCE_ALLOWED_FINDINGS[pack] | {_NEW_FINDING}
 
@@ -200,7 +201,7 @@ def test_a_new_high_finding_in_a_reviewed_pack_blocks_force(pack: str) -> None:
         hr.force_for_verdict(pack, "caution", found)
 
 
-@pytest.mark.parametrize("pack", [_DELIVERY, _KNOWLEDGE])
+@pytest.mark.parametrize("pack", [_DELIVERY, _AUTHORING])
 def test_a_reviewed_finding_that_moved_blocks_force(pack: str) -> None:
     pid, rel, line, digest = _one_reviewed(pack)
 
@@ -208,7 +209,7 @@ def test_a_reviewed_finding_that_moved_blocks_force(pack: str) -> None:
         hr.force_for_verdict(pack, "caution", frozenset({(pid, rel, line + 1, digest)}))
 
 
-@pytest.mark.parametrize("pack", [_DELIVERY, _KNOWLEDGE])
+@pytest.mark.parametrize("pack", [_DELIVERY, _AUTHORING])
 def test_a_reviewed_finding_whose_line_changed_blocks_force(pack: str) -> None:
     pid, rel, line, _ = _one_reviewed(pack)
 
@@ -220,12 +221,17 @@ def test_a_reviewed_finding_does_not_carry_to_another_pack() -> None:
     delivery_only = hr.FORCE_ALLOWED_FINDINGS[_DELIVERY]
 
     with pytest.raises(ValueError, match="unreviewed"):
-        hr.force_for_verdict(_KNOWLEDGE, "caution", delivery_only)
+        hr.force_for_verdict(_AUTHORING, "caution", delivery_only)
 
 
-def test_a_pack_with_no_reviewed_findings_fails_on_caution() -> None:
-    with pytest.raises(ValueError, match=_QUALITY):
-        hr.force_for_verdict(_QUALITY, "caution", frozenset({_NEW_FINDING}))
+@pytest.mark.parametrize("pack", [_KNOWLEDGE, _QUALITY])
+def test_a_pack_with_no_reviewed_findings_fails_on_caution(pack: str) -> None:
+    with pytest.raises(ValueError, match=pack):
+        hr.force_for_verdict(pack, "caution", frozenset({_NEW_FINDING}))
+
+
+def test_only_delivery_and_authoring_carry_reviewed_findings() -> None:
+    assert set(hr.FORCE_ALLOWED_FINDINGS) == {_DELIVERY, _AUTHORING}
 
 
 def test_caution_with_no_high_finding_fails() -> None:
@@ -234,13 +240,13 @@ def test_caution_with_no_high_finding_fails() -> None:
 
 
 @pytest.mark.parametrize("verdict", ["dangerous", "unknown", ""])
-@pytest.mark.parametrize("pack", [_DELIVERY, _KNOWLEDGE, _QUALITY])
+@pytest.mark.parametrize("pack", [_DELIVERY, _KNOWLEDGE, _QUALITY, _AUTHORING])
 def test_force_never_passes_a_verdict_worse_than_caution(verdict: str, pack: str) -> None:
     with pytest.raises(ValueError, match="only caution"):
         hr.force_for_verdict(pack, verdict, hr.FORCE_ALLOWED_FINDINGS.get(pack, frozenset()))
 
 
-@pytest.mark.parametrize("pack", [_DELIVERY, _KNOWLEDGE])
+@pytest.mark.parametrize("pack", [_DELIVERY, _AUTHORING])
 def test_every_reviewed_finding_hashes_the_line_it_names(pack: str) -> None:
     root = Path(__file__).resolve().parents[2] / "src" / "hermes" / pack
     for _, rel, line, digest in hr.FORCE_ALLOWED_FINDINGS[pack]:
