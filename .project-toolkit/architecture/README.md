@@ -163,6 +163,7 @@ These bind today.
 | [ADR-118](ADR-118-widen-fm-11-to-hand-authored-cross-harness-instructions.md) | Widen FM-11 to Cover Hand-Authored Cross-Harness Instructions | 2026-10-13 | Widen FM-11. |
 | [ADR-120](ADR-120-completion-gate-unknown-verdict.md) | The Completion Gate Reports a Refused Session as Unknown | 2026-11-04 | `fail_open` stays false. |
 | [ADR-122](ADR-122-scoped-parser-dependency-admission.md) | Admit the C# Parser Dependencies Without Hiding Their Coupling | 2026-11-18 | Add one fixed `csharpParserDependencyAdmission` record to `.qualityrc.json`. |
+| [ADR-123](ADR-123-skill-artifact-flow-declarations.md) | Skills Declare the Artifacts They Read and Write | 2026-11-19 | `metadata.outputs` and `metadata.inputs` become lists of mappings. |
 
 ## Proposed
 

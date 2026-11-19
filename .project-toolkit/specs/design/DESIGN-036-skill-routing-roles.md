@@ -8,8 +8,9 @@ related:
   - REQ-038
   - TASK-047
   - DESIGN-037
+  - ADR-123
 created: 2026-09-24
-updated: 2026-09-24
+updated: 2026-11-19
 author: spec-generator
 tags:
   - skills
@@ -95,10 +96,29 @@ matching, which every skill has.
    leave its denominator. A skill that fails this check is "unresolved".
    It is reported, not refused: the routes are prose, and a common-word skill
    name makes this an upper bound.
+   Amended 2026-11-19, in the change that landed ADR-123: a `front-door`
+   skill invoked by `autoplan` is also reachable when `resolve_route.resolve`
+   routes one of the skill's own `intents` to that skill alone. The catalog
+   root is `<repo_root>/src/claude/skills`, the rendered tree the resolver
+   ships with, and names compare with the namespace removed. Presence of
+   `intents` counts for nothing; only a resolver result does. This proves the
+   resolver routes those intents and no other skill shadows them. It does not
+   prove a user words a request that way; the phrase report below covers that.
 3. **Scenario coverage**: the scenario file exists.
 4. **Scored accuracy**: not measured here. #5389 owns it.
 
 "Inbound-zero" lists skills that no other skill or agent text names at all.
+
+"Phrase misses" (added 2026-11-19) checks shipped `front-door` skills that
+declare `intents`. It reads the description after the first
+"Use when you say" (case-insensitive) up to the first `.` outside quotes. Each
+phrase in backticks or U+0022 quotes goes through `resolve_route.resolve`
+over the same root as layer 2. A phrase is a miss unless the result is
+`specialist` or `explicit` with exactly that skill as the only candidate, so
+`ambiguous` counts as a miss. The report prints the phrases examined, each
+miss, the skills with no "Use when you say" clause, and the count of front
+doors left out because they declare no `intents`. It is reported, not refused, for the
+same reason as layer 2: refusing on prose is a rejected alternative below.
 
 ## Gate
 
