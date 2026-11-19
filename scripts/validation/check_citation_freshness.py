@@ -13,7 +13,8 @@ underscore identifier, or an indented continuation quote) appears within
 the cited range; a miss reports where the first anchor actually lives,
 which is usually the corrected citation.
 
-Deliberate scope: added lines only, so historical trees (``stale_script_refs``'s
+Deliberate scope: added lines only (``citation_reverse_pass.py`` covers
+unchanged citations into changed files), so historical trees (``stale_script_refs``'s
 ``HISTORICAL_ROOTS``), whose citations were true when written, are never
 re-policed. HEAD is the state verified, because HEAD is what a push ships
 (``.claude/rules/ci-scripts.md``, "Read the state you are asserting

@@ -50,6 +50,12 @@ INSTRUMENTS: list[dict[str, Any]] = [
         "source": "SKILL.md Provenance and Maintenance",
     },
     {
+        "id": "citation-reverse-pass",
+        "answers": "Do citations on unchanged lines still hold for files this branch changed?",
+        "argv": ["python3", "scripts/validation/citation_reverse_pass.py"],
+        "source": "SKILL.md Provenance and Maintenance",
+    },
+    {
         "id": "drift-self-check",
         "answers": "Has this skill drifted from its reverify.json checks?",
         "argv": [
