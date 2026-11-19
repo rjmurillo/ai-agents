@@ -2,12 +2,15 @@
 """Per-citation judgment for the citation reverse pass.
 
 Extracted from citation_reverse_pass.py at the file-size ceiling.
-The scan loads this module inside the grep loop.
+The pass imports this module by its bare sibling name.
 """
 
 from __future__ import annotations
 
-import citation_reverse_pass as gate
+import importlib
+from collections.abc import Callable
+from typing import Protocol, cast
+
 from check_citation_freshness import Finding, _citation_anchors
 from citation_anchors import (
     _CITATION,
@@ -16,11 +19,85 @@ from citation_anchors import (
     _expand_adr_citations,
     _moved_cluster,
 )
-from citation_head_state import _reworded_line_pairs
+from citation_head_state import _ChangeSet, _HeadFileCache, _reworded_line_pairs
+
+
+class _CiteView(Protocol):
+    """Citation fields the judge reads. The cite is frozen, so each field is read-only."""
+
+    @property
+    def citing_file(self) -> str: ...
+
+    @property
+    def line_number(self) -> int: ...
+
+    @property
+    def spelling(self) -> str: ...
+
+    @property
+    def start(self) -> int: ...
+
+    @property
+    def end(self) -> int: ...
+
+    @property
+    def target(self) -> str: ...
+
+    @property
+    def label(self) -> str: ...
+
+
+class _TreesView(Protocol):
+    """Tracked paths and file reads at the merge base and at HEAD."""
+
+    @property
+    def base_tracked(self) -> set[str]: ...
+
+    @property
+    def head_tracked(self) -> set[str]: ...
+
+    @property
+    def base_files(self) -> _HeadFileCache: ...
+
+    @property
+    def head_files(self) -> _HeadFileCache: ...
+
+
+class _TallyView(Protocol):
+    """Counters the judge increments."""
+
+    examined: int
+    stale_at_base: int
+
+
+class _ReversePass(Protocol):
+    """Pass functions this module calls, without a static import.
+
+    The pass imports this file by the bare name citation_reverse_judge.
+    Importing the pass back would put one file under two mypy names.
+    """
+
+    _judge: Callable[
+        [_CiteView, str, list[str], set[str], _HeadFileCache],
+        tuple[Finding | None, list[str] | None],
+    ]
+    _new_finding: Callable[
+        [_CiteView, list[str], _ChangeSet, _TreesView, list[str]],
+        Finding | None,
+    ]
+
+
+def _gate() -> _ReversePass:
+    """Load the pass by its bare sibling name.
+
+    importlib keeps mypy from following the import.
+    """
+    module = importlib.import_module("citation_reverse_pass")
+    return cast(_ReversePass, module)
 
 
 def _cluster_finding(
-    cite: gate._Cite, base_lines: list[str] | None, trees: gate._Trees
+    cite: _CiteView, base_lines: list[str] | None, trees: _TreesView
 ) -> Finding | None:
     """Return a move finding when four or more cited lines relocated together."""
     if base_lines is None or cite.target not in trees.head_tracked:
@@ -67,7 +144,7 @@ def _quote_moved_outside(
 
 
 def _judge_one(
-    cite: gate._Cite,
+    cite: _CiteView,
     segment: str,
     expanded: str,
     citing_lines: list[str],
@@ -76,12 +153,13 @@ def _judge_one(
     added: set[int],
     aliases: dict[str, str],
     retained: dict[str, dict[int, str]],
-    trees: gate._Trees,
-    tally: gate._Tally,
+    trees: _TreesView,
+    tally: _TallyView,
     findings: list[Finding],
-    changes: gate._ChangeSet,
+    changes: _ChangeSet,
 ) -> None:
     """Judge one reverse-pass citation and record a finding or base debt."""
+    gate = _gate()
     tally.examined += 1
     anchors = _citation_anchors(cite.label, expanded, segment, citing_lines, line_number, markdown)
     touched = line_number in added

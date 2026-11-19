@@ -51,7 +51,6 @@ from __future__ import annotations
 
 import argparse
 import sys
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -98,6 +97,7 @@ from citation_head_state import (  # noqa: E402
 from citation_head_state import (  # noqa: E402
     _ChangeSet as _ChangeSet,
 )
+from citation_reverse_judge import _judge_one  # noqa: E402
 from citation_scope import string_literal_lines  # noqa: E402
 
 _PREFIX = "[citation-reverse-pass]"
@@ -319,17 +319,6 @@ class _Tally:
     stale_at_base: int = 0
 
 
-def _load_judge_one() -> Callable[..., None]:
-    """Load the judge when a citation is scanned.
-
-    A function-level import keeps the module cycle broken and stays visible
-    to the validation-script reachability scan.
-    """
-    from citation_reverse_judge import _judge_one
-
-    return _judge_one
-
-
 def _scan(
     repo_root: Path,
     base_ref: str,
@@ -338,8 +327,6 @@ def _scan(
     tally: _Tally,
 ) -> list[Finding] | None:
     """Grep HEAD for inbound citations and judge each; may raise HeadReadError."""
-    judge_one = _load_judge_one()
-
     base_by_name: dict[str, list[str]] = {}
     head_by_name: dict[str, list[str]] = {}
     for path in trees.base_tracked:
@@ -378,7 +365,7 @@ def _scan(
         if _has_ignore_marker(citing_lines, line_number, text, markdown):
             continue
         for cite, segment in cites:
-            judge_one(
+            _judge_one(
                 cite,
                 segment,
                 expanded,
