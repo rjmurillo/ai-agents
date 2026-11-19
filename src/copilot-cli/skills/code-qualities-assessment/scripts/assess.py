@@ -1386,11 +1386,26 @@ def _is_go_standard_import(import_path: str, module_path: str | None) -> bool:
     return "." not in import_path.split("/", 1)[0]
 
 
-def _python_statement_modules(node: Any) -> list[str]:
-    """Return the module names one Python dependency statement binds.
+def _python_module_name(node: Any) -> str:
+    """Return the module a ``dotted_name`` or ``relative_import`` node names.
 
-    A relative ``from`` module keeps its leading dots, so it reads as first-party.
+    The name is built from identifier children, because node text keeps any
+    spaces, comments, or line continuations around the dots (``os .path``).
+    A relative module keeps one leading dot per level, so it reads as
+    first-party.
     """
+    if node.type == "relative_import":
+        prefix = next(child for child in node.children if child.type == "import_prefix")
+        dots = "." * prefix.text.decode("utf-8").count(".")
+        names = [_python_module_name(c) for c in node.children if c.type == "dotted_name"]
+        return str(dots + "".join(names))
+    return ".".join(
+        child.text.decode("utf-8") for child in node.children if child.type == "identifier"
+    )
+
+
+def _python_statement_modules(node: Any) -> list[str]:
+    """Return the module names one Python dependency statement binds."""
     if node.type == "future_import_statement":
         return ["__future__"]
     if node.type == "import_from_statement":
@@ -1400,12 +1415,12 @@ def _python_statement_modules(node: Any) -> list[str]:
                 f"Cannot count Python dependencies: a from-import at line "
                 f"{node.start_point[0] + 1} has no module name in the parse tree"
             )
-        return [module.text.decode("utf-8")]
+        return [_python_module_name(module)]
     modules = []
     for name in node.children_by_field_name("name"):
         if name.type == "aliased_import":
             name = name.child_by_field_name("name")
-        modules.append(name.text.decode("utf-8"))
+        modules.append(_python_module_name(name))
     return modules
 
 

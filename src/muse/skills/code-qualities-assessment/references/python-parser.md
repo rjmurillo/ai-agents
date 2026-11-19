@@ -5,6 +5,8 @@ It counts `import`, `from ... import`, and `from __future__ import` statements.
 Statements inside functions, classes, `if` blocks, and `try` blocks count too.
 Text in strings, docstrings, and comments does not add dependencies.
 One statement counts once, even when it names several modules.
+Dynamic imports such as `__import__("x")` and `importlib.import_module("x")` count 0.
+The regex this replaced skipped them too.
 Statements joined by `;` on one line count separately.
 The regex this replaced counted lines, so `import os; import requests` was one dependency.
 

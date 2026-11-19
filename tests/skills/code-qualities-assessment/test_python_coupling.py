@@ -82,6 +82,37 @@ def test_python_keeps_the_standard_library_exclusion() -> None:
     ]
 
 
+@pytest.mark.parametrize(
+    "source",
+    [
+        "import os .path\n",
+        "import os . path as p, json\n",
+        "import os.\\\n    path\n",
+        "from os . path import join\n",
+    ],
+)
+def test_python_spacing_around_dots_keeps_the_stdlib_exemption(source: str) -> None:
+    """Whitespace or a line continuation inside a dotted name is not part of it."""
+    coupling = assess_content(Path("spaced.py"), source).coupling
+
+    assert coupling.value == 10.0
+
+
+@pytest.mark.parametrize(
+    ("source", "module"),
+    [
+        ("from . json import y\n", ".json"),
+        ("from .. import z\n", ".."),
+        ("from .a . b import c\n", ".a.b"),
+    ],
+)
+def test_python_relative_module_keeps_its_dots(source: str, module: str) -> None:
+    """A relative module is named by its dots plus its identifiers."""
+    statement = _mod._dependency_nodes(_mod._PYTHON_GRAMMAR, _mod._load_python_grammar, source)[0]
+
+    assert _mod._python_statement_modules(statement) == [module]
+
+
 def test_python_relative_import_named_like_stdlib_is_scored() -> None:
     """``from .json import x`` is first-party even though ``json`` is stdlib."""
     coupling = assess_content(Path("rel.py"), "from .json import thing\n").coupling

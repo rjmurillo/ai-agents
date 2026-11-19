@@ -36,7 +36,7 @@ The repository can explicitly admit the parser's two dependencies through
 an entry in the `parserDependencyAdmissions` list in its quality configuration.
 This admission applies only to rjmurillo/ai-agents#7406's scanner transition.
 The raw coupling score remains `10.0 -> 8.0`, with its regression diagnostic.
-JSON retains the regression under `parser_dependency_admission` and records the scoped maintainer authorization.
+JSON keeps the raw regression and records the matched entry, with the scoped maintainer authorization, under `parser_dependency_admission`.
 Exit 0 means admitted, not a raw pass; the review adapter returns `WARN`.
 Other regressions, evidence loss, and new-file threshold failures still block.
 The admission becomes inactive once the comparison base includes these dependencies.
