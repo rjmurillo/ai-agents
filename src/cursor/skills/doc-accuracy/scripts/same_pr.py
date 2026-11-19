@@ -202,6 +202,19 @@ def _identifiers(node: ast.AST) -> set[str]:
     return names
 
 
+def _function_returns(node: ast.AST) -> list[ast.Return]:
+    """Returns in this function. Nested functions, classes, and lambdas are skipped."""
+    found: list[ast.Return] = []
+    for child in ast.iter_child_nodes(node):
+        if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda | ast.ClassDef):
+            continue
+        if isinstance(child, ast.Return):
+            found.append(child)
+            continue
+        found.extend(_function_returns(child))
+    return found
+
+
 def _is_exit_call(node: ast.Call) -> bool:
     func = node.func
     if isinstance(func, ast.Name):
@@ -231,7 +244,7 @@ class CodeIndex:
         """Map each literal exit integer to its first line.
 
         Counts ``sys.exit(N)``, ``exit(N)``, and ``return N`` inside ``main``-like
-        functions only: a ``return 1`` in a helper is rarely a process exit code.
+        functions only. A ``return`` in a nested function is not a process exit.
         """
         tree = self.tree(rel)
         found: dict[int, int] = {}
@@ -241,8 +254,8 @@ class CodeIndex:
             if isinstance(node, ast.Call) and _is_exit_call(node) and node.args:
                 self._take(found, node.args[0], node.lineno)
             if isinstance(node, ast.FunctionDef) and node.name in self._MAIN_NAMES:
-                for ret in ast.walk(node):
-                    if isinstance(ret, ast.Return) and ret.value is not None:
+                for ret in _function_returns(node):
+                    if ret.value is not None:
                         self._take(found, ret.value, ret.lineno)
         return found
 

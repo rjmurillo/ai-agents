@@ -80,6 +80,25 @@ def test_diff_scoping_matches_same_pr_read_limits() -> None:
     assert "nearest path first" not in section
 
 
+def test_exit_literals_skip_returns_nested_under_main() -> None:
+    """A return inside a helper nested in main is not a process exit."""
+    source = (
+        "def main() -> int:\n"
+        "    def helper() -> int:\n"
+        "        sys.exit(4)\n"
+        "        return 7\n"
+        "    async def inner() -> int:\n"
+        "        return 8\n"
+        "    if False:\n"
+        "        return 3\n"
+        "    return 0\n"
+    )
+
+    found = _SAME_PR.CodeIndex({"tool.py": source}).exit_literals("tool.py")
+
+    assert set(found) == {0, 3, 4}
+
+
 def test_same_pr_is_off_by_default(tmp_path: Path) -> None:
     repo, _ = _grammar_repo(tmp_path, EXIT_ROW_WRONG)
     out = tmp_path / "out"
