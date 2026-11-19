@@ -324,9 +324,9 @@ Moving from two packs: on 2026-11-19, 20 skills moved into two new packs. No com
 
 What to do depends on what you installed:
 
-- Both packs: reinstall delivery and knowledge, then install quality and authoring (steps 1 to 3). The new delivery and knowledge packs no longer carry the moved skills, so skipping a new pack loses them. We ran this at the pinned commit on 2026-11-19, from local copies, over a two-pack install from `ae5acffcb`. Delivery went from 56 skills to 42 and knowledge from 40 to 34. With all four packs, Hermes listed 96 skills and no name twice. Count yours afterwards (see "Check Hermes").
-- Only delivery: its other 42 skills keep working after the reinstall. Every skill that `/test` calls and Hermes ships stays in delivery; `security-scan` ships in no pack, as before. To keep the 14 moved skills, install the quality pack.
-- Only knowledge: its other 34 skills keep working after the reinstall. Knowledge now installs without `--force`. To keep the 6 moved skills, install the authoring pack. Without it, `retrospective` tells the agent to run `distill_artifact.py`, which you do not have.
+- Both packs: reinstall delivery and knowledge over the old copies the way the Update step says, with `--force` after you read the findings. Then install quality and authoring with steps 1 to 3. The new delivery and knowledge packs no longer carry the moved skills, so skipping a new pack loses them. We ran this at the pinned commit on 2026-11-19, from local copies, over a two-pack install from `ae5acffcb`. Delivery went from 56 skills to 42 and knowledge from 40 to 34. With all four packs, Hermes listed 96 skills and no name twice. Count yours afterwards (see "Check Hermes").
+- Only delivery: reinstall it the way the Update step says. Its other 42 skills keep working. Every skill that `/test` calls and Hermes ships stays in delivery; `security-scan` ships in no pack, as before. To keep the 14 moved skills, install the quality pack.
+- Only knowledge: reinstall it the way the Update step says. Replacing your old copy needs `--force`, though a fresh knowledge install no longer does. Its other 34 skills keep working. To keep the 6 moved skills, install the authoring pack. Without it, `retrospective` tells the agent to run `distill_artifact.py`, which you do not have.
 - Reinstall delivery and knowledge before you install quality and authoring. Until then your old copies still carry the moved skills. We did not test how Hermes handles one skill name in two packs.
 
 Uninstall:
