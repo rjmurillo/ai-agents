@@ -279,6 +279,24 @@ _PARSER_DEPENDENCY_ADMISSIONS: dict[str, dict[str, object]] = {
             "Package add approved"
         ),
     },
+    "python_parser_dependency_admission": {
+        "issue": 7436,
+        "file": _PARSER_SCANNER,
+        "imports": [
+            "tree_sitter",
+            "tree_sitter_c_sharp",
+            "tree_sitter_python",
+            "tree_sitter_typescript",
+        ],
+        "baseScore": 7.0,
+        "headScore": 6.0,
+        "authorizedBy": "rjmurillo",
+        "authorizedOn": "2026-11-18",
+        "authorization": (
+            "Maintainer instruction: LGTM. Ship. agent- environment is optional. "
+            "Package add approved"
+        ),
+    },
 }
 
 
