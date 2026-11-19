@@ -184,3 +184,16 @@ class TestVersionDrift:
         root = make_repo(tmp_path, {self.REF: old})
         commit_head(root, {self.SKILL: "Copilot CLI 1.0.109\n"})
         assert drift(root) == []
+
+
+def test_different_updated_days_in_one_year_are_drift(tmp_path: Path) -> None:
+    root = make_repo(tmp_path, {REF: _cite("2026-03-04")})
+    commit_head(root, {DOCS: _cite("2026-03-05")})
+    findings = drift(root)
+    assert any(f.rule == "subject-drift" and f.suggested == "2026-03-05" for f in findings)
+
+
+def test_year_only_and_full_updated_date_agree(tmp_path: Path) -> None:
+    root = make_repo(tmp_path, {REF: _cite("2026")})
+    commit_head(root, {DOCS: _cite("2026-03-05")})
+    assert not drift(root)

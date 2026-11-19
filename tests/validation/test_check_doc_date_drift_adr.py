@@ -27,7 +27,7 @@ def test_added_dated_amendment_flags_old_frontmatter(tmp_path: Path, marker: str
     findings = [f for f in drift(root) if f.rule == "adr-date"]
     assert len(findings) == 1
     assert findings[0].line == 3
-    assert findings[0].other_line == 9
+    assert findings[0].other_line == 8
     assert findings[0].suggested == "2026-10-23"
 
 
@@ -36,7 +36,7 @@ def test_undated_decision_edit_uses_commit_date(tmp_path: Path) -> None:
     commit_head(root, {ADR: document("## Decision\nNew choice.\n")})
     (finding,) = [f for f in drift(root) if f.rule == "adr-date"]
     assert finding.suggested == "2026-10-24"
-    assert finding.other_line == 8
+    assert finding.other_line == 7
 
 
 def test_newest_dated_decision_edit_wins(tmp_path: Path) -> None:

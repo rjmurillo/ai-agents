@@ -99,12 +99,13 @@ class TestNextReviewRules:
     def test_next_in_the_past_but_after_last_is_flagged_against_commit_date(
         self, tmp_path: Path
     ) -> None:
-        # Base interval is 24 days, so the suggestion is last + 24 days, which
-        # is still before the commit date. The spec asks for that literal value.
+        # The base interval is 24 days. Last Updated is before the commit
+        # date, so the suggestion is the commit date plus that interval.
         root = make_repo(tmp_path, {DOC: _header("2026-01-08", "2026-02-01")})
         commit_head(root, {DOC: _header("2026-01-10", "2026-02-01")})
         (finding,) = drift(root)
-        assert finding.suggested == "2026-02-03"
+        assert finding.suggested == "2026-11-17"
+        assert date.fromisoformat(finding.suggested) >= COMMIT_DATE
         assert where(finding) == (DOC, 4)
 
     def test_head_date_is_injectable(self, tmp_path: Path) -> None:

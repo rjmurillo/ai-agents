@@ -1,58 +1,23 @@
 #!/usr/bin/env python3
 """Warn when a changed Markdown doc leaves a date or version out of step.
 
-Two review rounds caught drift a script can find. PR #7428 bumped "updated
-2025" to "updated 2026" on a docs page while the skill reference citing the
-same article kept 2025 on two lines. PR #6925 bumped ``Last Updated`` and left
-``Next Review`` three months in the past. Both reached a human reviewer. This
-gate flags them while the author can still fix them.
+PRs #7428 and #6925 exposed stale source years and review dates.
+The scanner reads committed added lines, canonical skill trees, and ADRs.
+Rules: header-pair, subject-drift, version-drift, stale-as-of, and adr-date.
+Every finding names both locations and suggests a replacement value.
 
-Scope, in the design of ``check_measurement_anchoring.py``:
+``doc_date_claims.py`` owns prose matching; ``doc_date_adr.py`` owns ADR-073
+last-updated checks. The lifecycle validator uses a frozen tree baseline.
+It has no added-line path, so this gate owns changed ADR date checks.
 
-* Added lines only (``base...HEAD``), so the backlog is never re-policed.
-  ``--tree`` prints the backlog at HEAD, the corpus demonstration
-  ``.claude/rules/ci-scripts.md`` item 13 asks of a PR that adds a gate.
-* Tracked ``.md`` and ``.md.tmpl`` files, minus point-in-time records
-  (``HISTORICAL_ROOTS`` plus the extras below), generated mirrors, and
-  ``fixtures`` directories.
+``--tree`` measures the backlog. Generated mirrors, fixtures, historical
+records, and fenced code are excluded. A reasoned line exception uses
+``doc-date-drift: ignore -- <reason>`` on the flagged line or its predecessor.
 
-Rules (each finding names the flagged location, the other location, the rule
-id, and a suggested value; the rule logic is in ``doc_date_claims.py``):
-
-* ``header-pair``: ``Last Updated`` or ``Last Reviewed`` against ``Next
-  Review``, in the body or in frontmatter. Fires only when the diff added one
-  of the pair's lines. Flags a Next Review on or before Last Updated, or
-  before the HEAD commit date. Suggests Last Updated plus the prior interval
-  in the base version, else plus 90 days.
-* ``subject-drift``: an added line pairs a year with a URL or a quoted title,
-  and another line in the same skill tree pairs a different year with the same
-  subject. The "updated" year wins over the publication year.
-* ``version-drift``: an added line pairs a tool name with a version, and
-  another line in the same skill tree gives the same tool a different one.
-  Lines with history words (since, added in, deprecated, ...) are skipped.
-* ``stale-as-of``: an "as of" or "rechecked" date older than a date the diff
-  added within three lines of it, whether or not the as-of line was added.
-
-A skill tree is ``src/claude/skills/<name>/``, ``templates/skills/<name>.*``
-or ``templates/skills/<name>/``, ``.claude/skills/<name>/``, and
-``docs/skills/<name>.md``. Fenced code blocks are skipped.
-
-Escape hatch: ``doc-date-drift: ignore -- <reason>`` on the flagged line or
-the line above; line-scoped, no whole-gate skip.
-
-EXIT CODES: 0 = no findings (prints examined counts) or no base ref resolved
-(prints ``[SKIP]``); 1 = findings; 2 = configuration error (git failed).
-
-Advisory in pre-PR: ``validate_doc_date_drift`` returns a ``CheckOutcome``
-whose findings are ``FAIL`` with ``advisory.findings``, licensed in
-``evidence._ADVISORY_LICENCES`` so the push is not blocked. The CLI exits 1 on
-the same findings.
-
-Promote to blocking: make ``validate_doc_date_drift`` return ``bool`` (findings
-mean ``False``), drop "(advisory" from the gate name in ``pre_pr_sequence.py``,
-remove its licence rows from ``evidence.py``, and do it only once the
-``--tree`` backlog is zero or baselined. The same trigger shapes are noisy on
-the live tree today, so promotion before then blocks every push."""
+The pre-PR gate is advisory. The CLI exits 1 for findings and 2 for git errors.
+Promote by returning bool from the validator, removing its advisory licence
+in evidence.py, and renaming its gate after measuring the backlog.
+"""
 
 from __future__ import annotations
 
@@ -80,6 +45,7 @@ from citation_head_state import (  # noqa: E402
     _head_tracked_paths,
     _HeadFileCache,
 )
+from doc_date_adr import RULE_ADR, adr_problem  # noqa: E402
 from measurement_claims import fenced_line_numbers  # noqa: E402
 from stale_script_refs import HISTORICAL_ROOTS  # noqa: E402
 
@@ -169,7 +135,7 @@ def head_commit_date(repo_root: Path) -> date | None:
 
 def _number_key(value: str) -> tuple[int, ...]:
     """Return a comparable form of a year or version; ``1.0`` equals ``1.0.0``."""
-    parts = [int(part) for part in value.split(".")]
+    parts = [int(part) for part in value.replace("-", ".").split(".")]
     while len(parts) > 1 and parts[-1] == 0:
         parts.pop()
     return tuple(parts)
@@ -276,6 +242,9 @@ def _drift_finding(
     if (other_path, other_line) == (path, number):
         return None
     mine, theirs = _number_key(claim.value), _number_key(other_value)
+    if claim.rule == dc.RULE_SUBJECT:
+        width = min(len(mine), len(theirs))
+        mine, theirs = mine[:width], theirs[:width]
     if mine == theirs:
         return None
     other_added = other_line in ctx.added_by_path.get(other_path, ())
@@ -311,7 +280,24 @@ def _drift_findings(
 def _file_findings(ctx: _Context, path: str, numbered: list[tuple[int, str]]) -> list[Finding]:
     lines = ctx.head_files.lines(path)
     fenced = _fenced_lines(lines)
+    problem = adr_problem(path, lines, ctx.added_by_path[path], fenced, ctx.head_date)
+    adr = (
+        []
+        if problem is None
+        else [
+            Finding(
+                path,
+                problem.date_line,
+                path,
+                problem.other_line,
+                RULE_ADR,
+                problem.suggested.isoformat(),
+                "ADR frontmatter date predates the changed decision.",
+            )
+        ]
+    )
     return [
+        *adr,
         *_header_findings(ctx, path, lines, fenced),
         *_as_of_findings(ctx, path, lines, fenced),
         *_drift_findings(ctx, path, numbered, lines, fenced),

@@ -15,8 +15,8 @@ Four rules share it:
 * ``stale-as-of``: an "as of" date older than a date a diff added within three
   lines (:func:`as_of_claim`, :func:`dates_on_line`).
 
-Years compare at year granularity: a subject on one line dated ``2026-03-04``
-and on another dated ``2026`` agree.
+Updated ISO dates compare by day when both claims provide a day.
+A year-only claim agrees with an updated date within that year.
 """
 
 from __future__ import annotations
@@ -45,7 +45,9 @@ _URL = re.compile(r"https?://[^\s<>\"'`\]]+", re.IGNORECASE)
 _SCHEME = re.compile(r"^[a-z][a-z0-9+.-]*://", re.IGNORECASE)
 _TITLE = re.compile(r"[\"“]([^\"“”\n]+)[\"”]")
 _YEAR = re.compile(r"(?<![\w./-])((?:19|20)\d{2})(?!\d)")
-_UPDATED_YEAR = re.compile(r"\bupdated(?:\s+in)?\s+((?:19|20)\d{2})\b", re.IGNORECASE)
+_UPDATED_YEAR = re.compile(
+    r"\bupdated(?:\s+in)?\s+((?:19|20)\d{2}(?:-\d{2}-\d{2})?)\b", re.IGNORECASE
+)
 _BLOCKQUOTE_LEAD = re.compile(r"^\s*>+\s?")
 
 # Skill-tree layout: canonical sources only. Generated mirrors are not read.
@@ -133,7 +135,8 @@ def _subject_year(text: str) -> str | None:
     """Return the "updated" year if present, else the largest year, else None."""
     updated = _UPDATED_YEAR.search(text)
     if updated:
-        return updated.group(1)
+        value = updated.group(1)
+        return value if len(value) == 4 or _parse_iso(value) is not None else None
     years = _YEAR.findall(text)
     return max(years) if years else None
 
@@ -332,7 +335,9 @@ def header_problems(
         last, nexts = _pair(dates, section)
         if last is None:
             continue
-        suggested = suggest_next_review(last.value, _prior_interval(base_dates, section))
+        suggested = suggest_next_review(
+            max(last.value, head_date), _prior_interval(base_dates, section)
+        )
         for review in nexts:
             if last.line not in added and review.line not in added:
                 continue
