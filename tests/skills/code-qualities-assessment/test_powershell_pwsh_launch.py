@@ -254,9 +254,8 @@ def test_a_pwsh_in_the_checkout_does_not_hide_a_later_install(
 def test_temp_cleanup_failure_keeps_a_finished_parse(monkeypatch: pytest.MonkeyPatch) -> None:
     """Windows can hold pwsh's working directory; cleanup must not discard the result."""
     _fake_pwsh(monkeypatch, stdout='{"count":2,"errors":[]}')
-    real_directory = tempfile.TemporaryDirectory
 
-    class HeldDirectory(real_directory):  # type: ignore[valid-type,misc]
+    class HeldDirectory(tempfile.TemporaryDirectory[str]):
         def __init__(self, **kwargs: Any) -> None:
             self.ignore = kwargs.get("ignore_cleanup_errors", False)
             super().__init__(**kwargs)
