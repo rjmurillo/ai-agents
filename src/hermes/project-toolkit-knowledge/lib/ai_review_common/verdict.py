@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import re
+from typing import Any
 
 _VERDICT_PATTERN = re.compile(r"VERDICT:\s*([A-Z_]+)")
 
@@ -343,7 +344,7 @@ def _has_inventoried_docs(payload: dict[str, object]) -> bool:
 # a test pins both copies equal. A comparison carrying any other record is
 # UNKNOWN, never WARN.
 _PARSER_SCANNER = "src/claude/skills/code-qualities-assessment/scripts/assess.py"
-_PARSER_DEPENDENCY_ADMISSIONS: tuple[dict[str, object], ...] = (
+_PARSER_DEPENDENCY_ADMISSIONS: tuple[dict[str, Any], ...] = (
     {
         "issue": 7406,
         "file": _PARSER_SCANNER,
@@ -376,8 +377,6 @@ def _is_admitted_parser_comparison(comparison: dict[str, object]) -> bool:
     if admission is None:
         return False
     base, head = admission["baseScore"], admission["headScore"]
-    if not isinstance(base, float) or not isinstance(head, float):
-        return False
     file_path = comparison.get("file_path")
     deltas = comparison.get("deltas")
     admitted_delta = {
