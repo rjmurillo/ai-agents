@@ -208,6 +208,17 @@ def _clause_for(text: str, runs: list[tuple[int, int, list[str]]], target: int) 
     return ""
 
 
+def _enum_facts(index: CodeIndex, path: str) -> tuple[list[set[str]], list[Site]]:
+    """Closed sets and shared raise sites of one file, computed once per index."""
+    if path not in index.memo:
+        tree = index.tree(path)
+        sites = _shared_sites(tree) if tree else []
+        sets = _enum_sets(tree) if tree and sites else []
+        index.memo[path] = (sets, sites)
+    facts: tuple[list[set[str]], list[Site]] = index.memo[path]
+    return facts
+
+
 def check_enumeration_subset(
     prose: ProseLine, index: CodeIndex, code_order: list[str]
 ) -> list[dict[str, object]]:
@@ -215,9 +226,8 @@ def check_enumeration_subset(
     text = prose.text.replace("`", "")
     found: list[dict[str, object]] = []
     for path in code_order:
-        tree = index.tree(path)
-        sites = _shared_sites(tree) if tree else []
-        for members in _enum_sets(tree) if tree and sites else []:
+        sets, sites = _enum_facts(index, path)
+        for members in sets:
             runs = _member_runs(text, members)
             for i, (_, _, named) in enumerate(runs):
                 found += _subset_finding(
@@ -263,6 +273,8 @@ _KEY_HOLDS_NOUN = re.compile(
     r"`(?P<key>[A-Za-z_]\w*)`\s+(?:holds|keeps|records|stores|contains|retains)\s+"
     r"(?:the\s+|a\s+|an\s+)?(?P<noun>[A-Za-z][\w-]*)"
 )
+# Placeholder names that docs use to describe the pattern itself, not a real JSON key.
+_PLACEHOLDER_KEYS = {"key", "field", "name", "value", "k", "x"}
 _PRONOUNS = {"it", "them", "this", "that", "these", "those", "all", "everything", "both"}
 
 
@@ -289,7 +301,7 @@ def check_json_key(prose: ProseLine, index: CodeIndex) -> tuple[list[dict[str, o
     ]
     for pair in pairs:
         noun, key = pair["noun"], pair["key"]
-        if noun.lower() in _PRONOUNS:
+        if noun.lower() in _PRONOUNS or key in _PLACEHOLDER_KEYS:
             continue
         writes = [w for w in index.assignments(key) if w[2]]
         if not writes:

@@ -18,6 +18,7 @@ import json
 import re
 import tokenize
 from dataclasses import dataclass
+from typing import Any
 
 PROSE_SUFFIXES = {".md", ".tmpl", ".mdx"}
 DATA_SUFFIXES = {".json", ".yaml", ".yml"}
@@ -197,6 +198,7 @@ class CodeIndex:
     def __init__(self, sources: dict[str, str]) -> None:
         self.sources = {k: v for k, v in sources.items() if k.endswith(".py")}
         self._trees: dict[str, ast.AST | None] = {}
+        self.memo: dict[str, Any] = {}
 
     def tree(self, rel: str) -> ast.AST | None:
         if rel not in self._trees:

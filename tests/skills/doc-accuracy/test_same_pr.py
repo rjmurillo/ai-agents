@@ -205,6 +205,20 @@ def test_r3_stays_quiet_when_the_assigned_value_shares_the_nouns_stem(tmp_path: 
     assert code == 0
 
 
+def test_r3_ignores_a_placeholder_key_in_prose_that_describes_the_pattern(tmp_path: Path) -> None:
+    prose = 'A line like "noun under `key`" names a noun the code never assigns.'
+    head = (
+        COMPARISON_HEAD + '\n\ndef _put(box: dict, key: str, t: str) -> None:\n    box["key"] = t\n'
+    )
+    repo = make_repo(tmp_path, {CSHARP_DOC: "# C# parser\n", ASSESS: COMPARISON_BASE})
+    edit_files_and_commit(repo, {CSHARP_DOC: f"# C# parser\n\n{prose}\n", ASSESS: head})
+
+    code, findings, _ = run_same_pr(repo, tmp_path)
+
+    assert _rule(findings, "R3") == []
+    assert code == 0
+
+
 def test_r3_without_an_assignment_goes_to_the_checklist(tmp_path: Path) -> None:
     prose = "JSON retains the regression under `unassigned_key`."
     repo = _admission_repo(tmp_path, prose)

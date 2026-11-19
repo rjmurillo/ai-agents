@@ -139,6 +139,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     "Em/en-dash Prohibition",
     "Spec Contradiction Check",
     "Model Pin Governance (warn)",
+    "Doc Accuracy Same-PR (advisory)",
     "Active Plan Closeout Advisory",
     "YAML Style Validation",
     "Path Normalization",
