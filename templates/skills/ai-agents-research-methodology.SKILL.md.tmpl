@@ -20,7 +20,7 @@ metadata:
 
 # AI Agents Research Methodology
 
-<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths because its audience is repo contributors, not plugin consumers. Declared paths: .agents/governance/FAILURE-MODES.md, .project-toolkit/architecture/ADR-069-context-corpus-is-the-product.md, .project-toolkit/retrospective, .project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md, .project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md, scripts/eval/eval-prompt-change.py, scripts/validation/check_citation_freshness.py, scripts/validation/citation_reverse_pass.py -->
+<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths because its audience is repo contributors, not plugin consumers. Declared paths: .agents/governance/FAILURE-MODES.md, .project-toolkit/architecture/ADR-069-context-corpus-is-the-product.md, .project-toolkit/retrospective, .project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md, .project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md, scripts/eval/eval-prompt-change.py, scripts/validation/check_citation_freshness.py -->
 This repo runs on verification-based governance: labels like "MANDATORY" or
 "NON-NEGOTIABLE" are insufficient, every requirement needs a verification
 mechanism. The same standard applies to ideas. An idea is not accepted because it sounds
@@ -294,7 +294,7 @@ output; nothing in this repo produces or reads that telemetry today.
 
 ### Scripts
 
-Run `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-research-methodology/scripts/instruments.py --repo . list; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )` to see every linked instrument and whether its file exists. It lists the retro counter above, the `file:line` claim check (`bootstrap_mine.py claims`), `scripts/validation/check_citation_freshness.py` (citations on added lines), `scripts/validation/citation_reverse_pass.py` (unchanged citations into files the branch changed; run it before you push a branch that moves, renames, or deletes a cited file), and the drift check. It answers presence only; whether a cited line still says what this skill claims is for `reverify.json`.
+Run `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-research-methodology/scripts/instruments.py --repo . list; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )` to see every linked instrument and whether its file exists. It lists the retro counter above, the `file:line` claim check (`bootstrap_mine.py claims`), `scripts/validation/check_citation_freshness.py` (citations on added lines), its sibling `citation_reverse_pass.py` (unchanged citations into files the branch changed; run it before you push a branch that moves, renames, or deletes a cited file), and the drift check. It answers presence only; whether a cited line still says what this skill claims is for `reverify.json`.
 
 Machine-checkable facts live in `reverify.json`. Run the drift check after any edit:
 
