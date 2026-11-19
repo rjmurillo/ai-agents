@@ -32,11 +32,16 @@ The source goes to `pwsh` on stdin as base64 text, never on the command line.
 PowerShell resolves `using module` and `using assembly` targets while it parses.
 It reads local files, searches `PSModulePath`, and on Windows opens a network share for a UNC path.
 Every public PowerShell parse and tokenize API does this.
-So before `pwsh` sees the source, the scanner rewrites each ASCII `using`, in any case, to `__ptk_using__`.
-PowerShell matches keywords by ASCII case only, so no `using` statement reaches the parser.
+A `configuration` block also loads DSC resources for `Import-DscResource` while it parses.
+So before `pwsh` sees the source, the scanner rewrites each `using` to `__ptk_using__`.
+It rewrites each `configuration` to `__ptk_configuration__` the same way.
+Both rewrites ignore case, and they also catch Unicode lookalikes such as `uſing`.
+No `using` statement or `configuration` block reaches the parser.
 The rewrite keeps line numbers and keeps valid PowerShell valid.
 The parser sees each statement as a command named `__ptk_using__`, and the scanner counts those.
 A `using` statement in the wrong place, or with an unknown kind, is not reported as an error.
+A class that names a type a `using` statement would have imported reports `TypeNotFound`.
+That is a type lookup, not a syntax error, so it does not fail the scan.
 
 The scanner finds `pwsh` only in absolute PATH entries.
 It refuses a `pwsh` inside the scanned directory, and on Windows anything but `pwsh.exe`.

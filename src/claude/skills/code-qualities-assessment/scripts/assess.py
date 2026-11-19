@@ -1389,14 +1389,24 @@ _PWSH_TIMEOUT_SECONDS = 60
 
 # PowerShell resolves `using module` and `using assembly` targets while it
 # parses: it reads local files, searches PSModulePath, and on Windows opens an
-# SMB connection for a UNC target, which can send credentials (CWE-829). Every
-# public parse and tokenize API resolves. So the scanner rewrites each ASCII
-# `using`, in any case, to this inert name before pwsh sees the source.
-# PowerShell matches keywords by ASCII case only (tested on pwsh 7.6.10), so no
-# `using` statement survives, and the rewrite keeps line numbers and syntax.
-# The parser then sees each statement as a command with this name.
+# SMB connection for a UNC target, which can send credentials (CWE-829). A
+# `configuration` block loads DSC resources for `Import-DscResource` at parse
+# time too. Every public parse and tokenize API does this. So the scanner
+# rewrites each keyword to an inert command name before pwsh sees the source.
+# PowerShell matches keywords by ASCII case (tested on pwsh 7.6.10); the
+# Unicode-aware match below also rewrites lookalikes such as U+017F, which is
+# harmless. The rewrite keeps line numbers and keeps valid syntax valid. The
+# parser then sees each `using` statement as a command named the sentinel.
 _PWSH_USING_SENTINEL = "__ptk_using__"
-_PWSH_USING_KEYWORD = re.compile("using", re.IGNORECASE | re.ASCII)
+_PWSH_NEUTRALIZED_KEYWORDS = (
+    (re.compile("using", re.IGNORECASE), _PWSH_USING_SENTINEL),
+    (re.compile("configuration", re.IGNORECASE), "__ptk_configuration__"),
+)
+
+# With `using namespace` and `using module` rewritten, a class that names a
+# type those statements would have brought in reports TypeNotFound. That is a
+# lookup on the scanning machine, not a syntax error, so it never fails a scan.
+_PWSH_TYPE_LOOKUP_ERROR_IDS = ("TypeNotFound",)
 
 # Runs inside pwsh. Reads base64 UTF-8 source from stdin so no console code
 # page can alter it, parses it without executing it, and prints one JSON line.
@@ -1503,8 +1513,10 @@ def _find_pwsh() -> str:
 
 
 def _neutralize_using(source: str) -> str:
-    """Rewrite every ASCII `using` so pwsh resolves no module or assembly."""
-    return _PWSH_USING_KEYWORD.sub(_PWSH_USING_SENTINEL, source)
+    """Rewrite each resolving keyword so pwsh loads no module, assembly, or resource."""
+    for keyword, sentinel in _PWSH_NEUTRALIZED_KEYWORDS:
+        source = keyword.sub(sentinel, source)
+    return source
 
 
 def _run_pwsh_counter(source: str) -> dict[str, Any]:
@@ -1563,13 +1575,19 @@ def _count_powershell_imports(source: str) -> int:
 
     Strings and comments do not count, except `#Requires -Modules`, which
     PowerShell itself treats as a statement. A syntax error is fatal: no count
-    is guessed. No module or assembly is resolved, so a missing one is not an error.
+    is guessed. No module or assembly is resolved, so a missing one is not an
+    error, and neither is a type only that resolution would have supplied.
     """
     parsed = _run_pwsh_counter(source)
     errors = parsed.get("errors")
     errors = [errors] if isinstance(errors, dict) else errors
     if not isinstance(errors, list):
         raise PowerShellParserError(f"PowerShell parser returned errors as {errors!r}")
+    errors = [
+        error
+        for error in errors
+        if not (isinstance(error, dict) and error.get("id") in _PWSH_TYPE_LOOKUP_ERROR_IDS)
+    ]
     if errors:
         first = errors[0]
         where = f"line {first.get('line')}: " if isinstance(first, dict) else ""

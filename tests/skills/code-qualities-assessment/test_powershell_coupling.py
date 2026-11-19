@@ -419,7 +419,7 @@ def test_pwsh_never_receives_a_using_keyword(monkeypatch: pytest.MonkeyPatch) ->
     (call,) = calls
     sent = base64.b64decode(call["input"]).decode("utf-8")
     residue = sent.replace(_mod._PWSH_USING_SENTINEL, "")
-    assert re.search("using", residue, re.IGNORECASE | re.ASCII) is None
+    assert re.search("using", residue, re.IGNORECASE) is None
     assert sent.count("\n") == source.count("\n")
     assert sent.count(_mod._PWSH_USING_SENTINEL) == 4
 
@@ -448,3 +448,40 @@ def test_using_text_that_is_not_a_using_statement_does_not_count(source: str) ->
     coupling = _coupling(f"{source}\n")
 
     assert coupling.reasons[0] == "0 import/dependency statements"
+
+
+@pytest.mark.parametrize("spelling", ["u\u017fing", "us\u0131ng", "US\u0130NG", "uSiNg"])
+def test_unicode_case_lookalikes_are_neutralized_too(spelling: str) -> None:
+    """Defense in depth: any spelling that case-folds to using never reaches pwsh."""
+    neutralized = _mod._neutralize_using(f"{spelling} module \\\\host\\share\\x.psm1\n")
+
+    assert neutralized.startswith(_mod._PWSH_USING_SENTINEL)
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "using namespace System.Collections.Generic\nclass Stack : List[int] { }\n",
+        "using namespace System.Text\nclass Builder { [StringBuilder] $Buffer }\n",
+    ],
+)
+def test_types_from_a_neutralized_using_do_not_fail_the_scan(source: str) -> None:
+    """Valid classes that rely on using namespace still count instead of failing closed."""
+    coupling = _coupling(source)
+
+    assert coupling.reasons[0] == "1 import/dependency statements"
+
+
+def test_dsc_configuration_parses_without_loading_resources() -> None:
+    """A configuration block would load DSC resources at parse time; it is rewritten first."""
+    source = (
+        "configuration Web {\n"
+        "    Import-DscResource -ModuleName \\\\host\\share\\NoSuchDsc\n"
+        "    Node localhost { }\n"
+        "}\n"
+        "Import-Module Pester\n"
+    )
+
+    coupling = _coupling(source)
+
+    assert coupling.reasons[0] == "1 import/dependency statements"
