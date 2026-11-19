@@ -16,6 +16,8 @@ Feedback live in their own test modules.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from tests.agent_reference_helpers import (
@@ -43,11 +45,12 @@ ORCHESTRATOR_PATHS = (
 )
 
 
-def _expected_path_form(path: Path) -> str:
+def _expected_path_form(path: str) -> str:
     """Claude Code and Cursor get the bare Claude root, Copilot CLI its own, the rest both."""
-    if path.parts[:2] in {(".claude", "agents"), ("src", "claude"), ("src", "cursor")}:
+    parts = Path(path).parts
+    if parts[:2] in {(".claude", "agents"), ("src", "claude"), ("src", "cursor")}:
         return CLAUDE_PATH_FORM
-    if ".github" in path.parts or "copilot-cli" in path.parts:
+    if ".github" in parts or "copilot-cli" in parts:
         return COPILOT_PATH_FORM
     return SHARED_PATH_FORM
 

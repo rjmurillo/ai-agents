@@ -1350,6 +1350,415 @@ def _python_example_definitions(code: str) -> set[str]:
     return definitions - imports
 
 
+_PyPos = tuple[int, int]  # (line, character column) in the dedented example
+_PyDef = ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef
+_PY_DEF_NAME_RE = re.compile(r"\b(?:def|class)\s+(\w+)")
+_WORD_RE = re.compile(r"\w+")
+_PY_NESTED_SCOPES = (ast.Lambda, ast.ListComp, ast.SetComp, ast.GeneratorExp, ast.DictComp)
+_PY_TERMINAL_STATEMENTS = (ast.Return, ast.Raise, ast.Break, ast.Continue)
+# Bindings definitely made so far: name -> class scope when the value is a class.
+_PyDefined = dict[str, "_PyScope | None"]
+
+
+class _PyScope:
+    """One Python scope in an example: module, class, function or comprehension.
+
+    ``local`` holds every name the scope binds anywhere, so a read of a local
+    name never falls through to an enclosing scope. ``defined`` holds the
+    names definitely bound at the current point of the flow analysis.
+    ``outer`` is what enclosing scopes had definitely bound when this scope
+    was created. A plain class, not a dataclass: on Python 3.10 a dataclass
+    resolves its self-referencing string annotations through ``sys.modules``,
+    which a script loaded by file path may not be registered in.
+    """
+
+    def __init__(self, kind: str, parent: "_PyScope | None", local: set[str]) -> None:
+        self.kind = kind
+        self.local = local
+        self.never: set[str] = set()
+        self.defined: _PyDefined = {}
+        self.outer: _PyDefined = {}
+        if parent is not None:
+            self.outer = dict(parent.outer)
+            if parent.kind != "class":
+                # Nested scopes never see a class body's names.
+                for name in parent.local | parent.never:
+                    self.outer.pop(name, None)
+                self.outer.update(
+                    (n, v) for n, v in parent.defined.items() if n not in parent.never
+                )
+
+    def lookup(self, name: str) -> tuple[bool, "_PyScope | None"]:
+        """Whether ``name`` is definitely bound here, and its class scope if any."""
+        if name in self.never:
+            return False, None
+        table = self.defined if name in self.local else self.outer
+        return (name in table), table.get(name)
+
+
+def _py_scope_locals(nodes: list[Any]) -> tuple[set[str], set[str]]:
+    """Names a scope binds anywhere, and names it declares global or nonlocal.
+
+    Nested function, class, lambda and comprehension bodies are not walked;
+    only a nested definition's own name binds here.
+    """
+    local: set[str] = set()
+    never: set[str] = set()
+    stack = list(nodes)
+    while stack:
+        node = stack.pop()
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            local.add(node.name)
+            continue
+        if isinstance(node, _PY_NESTED_SCOPES):
+            continue
+        if isinstance(node, ast.Name) and not isinstance(node.ctx, ast.Load):
+            local.add(node.id)
+        elif isinstance(node, (ast.Global, ast.Nonlocal)):
+            never.update(node.names)
+        elif isinstance(node, ast.alias):
+            local.add(node.asname or node.name.split(".")[0])
+        elif isinstance(node, ast.ExceptHandler) and node.name:
+            local.add(node.name)
+        elif isinstance(node, (ast.MatchAs, ast.MatchStar)) and node.name:
+            local.add(node.name)
+        elif isinstance(node, ast.MatchMapping) and node.rest:
+            local.add(node.rest)
+        stack.extend(ast.iter_child_nodes(node))
+    return local, never
+
+
+class _PyBindingCollector(ast.NodeVisitor):
+    """Record each name occurrence and whether it resolves within the example.
+
+    A conservative definite-assignment pass. A read resolves only when every
+    path reaching it binds the name: ``if`` needs both branches, ``try``
+    needs the body and every handler, and a binding inside a loop body,
+    ``with`` body or ``match`` case does not survive the statement. A short-
+    circuit or conditional-expression walrus never binds definitely.
+    Imports, ``global``/``nonlocal``, ``except`` aliases and match captures
+    never resolve, so their names stay checkable.
+    """
+
+    def __init__(self, lines: list[str], tree: ast.Module) -> None:
+        self.lines = lines
+        local, never = _py_scope_locals(tree.body)
+        self.scope = _PyScope("module", None, local)
+        self.scope.never = never
+        self.uses: list[tuple[_PyPos, str, bool]] = []
+        self.conditional = 0  # depth inside short-circuit or ternary operands
+        self.halted = False  # the last statement left its block
+
+    def _pos(self, lineno: int, byte_col: int) -> _PyPos:
+        line = self.lines[lineno - 1].encode("utf-8")
+        return lineno, len(line[:byte_col].decode("utf-8", "replace"))
+
+    def _bind(self, name: str, pos: _PyPos | None, class_scope: "_PyScope | None" = None) -> None:
+        if pos is not None:
+            self.uses.append((pos, name, True))
+        if self.conditional == 0 and name not in self.scope.never:
+            self.scope.defined[name] = class_scope
+
+    def _visit_all(self, nodes: list[Any]) -> None:
+        for child in nodes:
+            if child is not None:
+                self.visit(child)
+
+    # --- expressions --------------------------------------------------------
+
+    def visit_Name(self, node: ast.Name) -> None:
+        pos = self._pos(node.lineno, node.col_offset)
+        if isinstance(node.ctx, ast.Store):
+            self._bind(node.id, pos)
+        elif isinstance(node.ctx, ast.Load):
+            self.uses.append((pos, node.id, self.scope.lookup(node.id)[0]))
+        else:
+            self.uses.append((pos, node.id, False))
+            self.scope.defined.pop(node.id, None)
+
+    def visit_Attribute(self, node: ast.Attribute) -> None:
+        self.visit(node.value)
+        line, end = self._pos(cast(int, node.end_lineno), cast(int, node.end_col_offset))
+        resolved = False
+        if isinstance(node.value, ast.Name):
+            found, class_scope = self.scope.lookup(node.value.id)
+            resolved = found and class_scope is not None and node.attr in class_scope.defined
+        self.uses.append(((line, end - len(node.attr)), node.attr, resolved))
+
+    def visit_NamedExpr(self, node: ast.NamedExpr) -> None:
+        self.visit(node.value)
+        self.visit(node.target)
+
+    def visit_BoolOp(self, node: ast.BoolOp) -> None:
+        self.visit(node.values[0])
+        self.conditional += 1
+        self._visit_all(node.values[1:])
+        self.conditional -= 1
+
+    def visit_IfExp(self, node: ast.IfExp) -> None:
+        self.visit(node.test)
+        self.conditional += 1
+        self._visit_all([node.body, node.orelse])
+        self.conditional -= 1
+
+    # --- simple statements ----------------------------------------------------
+
+    def visit_Assign(self, node: ast.Assign) -> None:
+        self.visit(node.value)
+        self._visit_all(node.targets)
+
+    def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
+        self._visit_all([node.annotation, node.value])
+        if node.value is None and isinstance(node.target, ast.Name):
+            # ``NAME: int`` declares a type but binds nothing.
+            pos = self._pos(node.target.lineno, node.target.col_offset)
+            self.uses.append((pos, node.target.id, False))
+            return
+        self.visit(node.target)
+
+    def visit_AugAssign(self, node: ast.AugAssign) -> None:
+        if isinstance(node.target, ast.Name):
+            pos = self._pos(node.target.lineno, node.target.col_offset)
+            self.uses.append((pos, node.target.id, self.scope.lookup(node.target.id)[0]))
+        self.visit(node.value)
+        self.visit(node.target)
+
+    def generic_visit(self, node: ast.AST) -> None:
+        super().generic_visit(node)
+        if isinstance(node, _PY_TERMINAL_STATEMENTS):
+            self.halted = True
+
+    # --- control flow ---------------------------------------------------------
+
+    def _run_block(self, stmts: list[ast.stmt], start: _PyDefined) -> _PyDefined | None:
+        """Visit ``stmts`` from ``start``; the bindings at exit, or None if none falls out."""
+        self.scope.defined = dict(start)
+        self.halted = False
+        for stmt in stmts:
+            self.visit(stmt)
+            if self.halted:
+                self.halted = False
+                return None
+        return self.scope.defined
+
+    def _merge(self, paths: list[_PyDefined | None], start: _PyDefined) -> None:
+        """Keep only bindings every path that falls through has made."""
+        live = [path for path in paths if path is not None]
+        if not live:
+            self.scope.defined = dict(start)
+            self.halted = True
+            return
+        merged = {
+            name: value for name, value in live[0].items() if all(name in path for path in live[1:])
+        }
+        for name in merged:
+            if any(path[name] is not merged[name] for path in live[1:]):
+                merged[name] = None
+        self.scope.defined = merged
+        self.halted = False
+
+    def visit_If(self, node: ast.If) -> None:
+        self.visit(node.test)
+        start = dict(self.scope.defined)
+        body = self._run_block(node.body, start)
+        orelse = self._run_block(node.orelse, start)
+        self._merge([body, orelse], start)
+
+    def _visit_loop(self, node: ast.For | ast.AsyncFor | ast.While) -> None:
+        # The body may run zero times, so nothing it binds survives the loop.
+        self.visit(node.iter if not isinstance(node, ast.While) else node.test)
+        start = dict(self.scope.defined)
+        if not isinstance(node, ast.While):
+            self.visit(node.target)
+        self._run_block(node.body, self.scope.defined)
+        self._run_block(node.orelse, start)
+        self.scope.defined = start
+        self.halted = False
+
+    def visit_For(self, node: ast.For) -> None:
+        self._visit_loop(node)
+
+    def visit_AsyncFor(self, node: ast.AsyncFor) -> None:
+        self._visit_loop(node)
+
+    def visit_While(self, node: ast.While) -> None:
+        self._visit_loop(node)
+
+    def _visit_with(self, node: ast.With | ast.AsyncWith) -> None:
+        # A context manager may suppress an exception raised in the body.
+        for item in node.items:
+            self.visit(item.context_expr)
+            self._visit_all([item.optional_vars])
+        start = dict(self.scope.defined)
+        self._run_block(node.body, start)
+        self.scope.defined = start
+        self.halted = False
+
+    def visit_With(self, node: ast.With) -> None:
+        self._visit_with(node)
+
+    def visit_AsyncWith(self, node: ast.AsyncWith) -> None:
+        self._visit_with(node)
+
+    def visit_Match(self, node: Any) -> None:
+        self.visit(node.subject)
+        start = dict(self.scope.defined)
+        for case in node.cases:
+            self.scope.defined = dict(start)
+            self._visit_all([case.pattern, case.guard])
+            self._run_block(case.body, self.scope.defined)
+        self.scope.defined = start
+        self.halted = False
+
+    def _visit_try(self, node: Any) -> None:
+        # An exception can leave the body before any binding in it.
+        start = dict(self.scope.defined)
+        body = self._run_block(node.body, start)
+        if body is not None:
+            body = self._run_block(node.orelse, body)
+        paths = [body]
+        for handler in node.handlers:
+            self.scope.defined = dict(start)
+            self._visit_all([handler.type])
+            paths.append(self._run_block(handler.body, self.scope.defined))
+        self._merge(paths, start)
+        merged, halted = self.scope.defined, self.halted
+        final = self._run_block(node.finalbody, start)
+        if final is None:
+            self.scope.defined, self.halted = merged, True
+            return
+        self.scope.defined = {**merged, **final}
+        self.halted = halted
+
+    def visit_Try(self, node: ast.Try) -> None:
+        self._visit_try(node)
+
+    def visit_TryStar(self, node: Any) -> None:
+        self._visit_try(node)
+
+    # --- scopes ---------------------------------------------------------------
+
+    def _bind_def_name(self, node: _PyDef, class_scope: "_PyScope | None" = None) -> None:
+        lineno, col = self._pos(node.lineno, node.col_offset)
+        match = _PY_DEF_NAME_RE.search(self.lines[lineno - 1], col)
+        found = match is not None and match[1] == node.name
+        pos = (lineno, cast(re.Match[str], match).start(1)) if found else None
+        self._bind(node.name, pos, class_scope)
+
+    def _enter(self, kind: str, local: set[str], never: set[str] | None = None) -> _PyScope:
+        outer = self.scope
+        self.scope = _PyScope(kind, outer, local)
+        self.scope.never = never or set()
+        return outer
+
+    def _leave(self, outer: _PyScope) -> None:
+        self.scope = outer
+        self.halted = False
+
+    def _bind_arguments(self, args: ast.arguments) -> None:
+        every = [*args.posonlyargs, *args.args, *args.kwonlyargs, args.vararg, args.kwarg]
+        for arg in every:
+            if arg is not None:
+                self._bind(arg.arg, self._pos(arg.lineno, arg.col_offset))
+
+    @staticmethod
+    def _argument_names(args: ast.arguments) -> set[str]:
+        every = [*args.posonlyargs, *args.args, *args.kwonlyargs, args.vararg, args.kwarg]
+        return {arg.arg for arg in every if arg is not None}
+
+    def _visit_function(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
+        args = node.args
+        every = [*args.posonlyargs, *args.args, *args.kwonlyargs, args.vararg, args.kwarg]
+        self._visit_all([*node.decorator_list, *args.defaults, *args.kw_defaults, node.returns])
+        self._visit_all([arg.annotation for arg in every if arg is not None])
+        self._bind_def_name(node)
+        local, never = _py_scope_locals(node.body)
+        outer = self._enter("function", local | self._argument_names(args), never)
+        self._bind_arguments(args)
+        self._run_block(node.body, self.scope.defined)
+        self._leave(outer)
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self._visit_function(node)
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        self._visit_function(node)
+
+    def visit_Lambda(self, node: ast.Lambda) -> None:
+        self._visit_all([*node.args.defaults, *node.args.kw_defaults])
+        outer = self._enter("function", self._argument_names(node.args))
+        self._bind_arguments(node.args)
+        self.visit(node.body)
+        self._leave(outer)
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        self._visit_all([*node.decorator_list, *node.bases, *node.keywords])
+        local, never = _py_scope_locals(node.body)
+        outer = self._enter("class", local, never)
+        class_scope = self.scope
+        self._run_block(node.body, {})
+        self._leave(outer)
+        # A class name binds only after its body has run.
+        self._bind_def_name(node, class_scope)
+
+    def _visit_comprehension(self, node: Any) -> None:
+        generators: list[ast.comprehension] = node.generators
+        self.visit(generators[0].iter)
+        local, _ = _py_scope_locals([generator.target for generator in generators])
+        outer = self._enter("comprehension", local)
+        for index, generator in enumerate(generators):
+            self.visit(generator.target)
+            if index:
+                self.visit(generator.iter)
+            self._visit_all(generator.ifs)
+        self._visit_all([getattr(node, field, None) for field in ("elt", "key", "value")])
+        self._leave(outer)
+
+    def visit_ListComp(self, node: ast.ListComp) -> None:
+        self._visit_comprehension(node)
+
+    def visit_SetComp(self, node: ast.SetComp) -> None:
+        self._visit_comprehension(node)
+
+    def visit_GeneratorExp(self, node: ast.GeneratorExp) -> None:
+        self._visit_comprehension(node)
+
+    def visit_DictComp(self, node: ast.DictComp) -> None:
+        self._visit_comprehension(node)
+
+
+def _python_local_names(code: str) -> set[str]:
+    """Names whose every code occurrence binds or resolves within the example.
+
+    A read resolves only to a binding that every path reaching it has made,
+    in a scope visible from the read; ``Owner.name`` resolves only when
+    ``Owner`` is a class the example declares whose body definitely binds
+    ``name``. One unresolved occurrence keeps the name checkable, so this
+    never hides a use before binding, out of scope, or on a path that skips
+    the binding.
+    """
+    source = textwrap.dedent(code)
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError):
+        return set()
+    collector = _PyBindingCollector(source.split("\n"), tree)
+    collector.visit(tree)
+    status: dict[tuple[_PyPos, str], bool] = {}
+    for pos, name, resolved in collector.uses:
+        key = (pos, name)
+        status[key] = status.get(key, True) and resolved
+    occurrences: dict[str, list[_PyPos]] = {}
+    for lineno, line in enumerate(_strip_python_non_code(source).split("\n"), start=1):
+        for word in _WORD_RE.finditer(line):
+            occurrences.setdefault(word[0], []).append((lineno, word.start()))
+    return {
+        name
+        for name in {name for _, name in status}
+        if name in occurrences and all(status.get((pos, name), False) for pos in occurrences[name])
+    }
+
+
 _PY_PLAIN_IMPORT_RE = re.compile(r"^[ \t]*import[ \t]+([^\n]+)$", re.MULTILINE)
 _PY_IMPORT_PART_RE = re.compile(r"([\w.]+)(?:\s+as\s+(\w+))?$")
 
@@ -1575,6 +1984,403 @@ def _strip_csharp_comments(code: str) -> str:
     )
 
 
+# (start, end) character spans of literal text or comment to blank.
+_Spans = list[tuple[int, int]]
+_CSHARP_STRING_PREFIX_RE = re.compile(r'(\$*)(@?)(\$*)("+)')
+_CSHARP_CHAR_RE = re.compile(r"'(?:\\.[^'\n]{0,8}|[^'\\\n])'")
+_BRACE_RUN_RE = re.compile(r"\{+")
+
+
+def _c_family_code_view(code: str, lang: str) -> str:
+    """Blank C#, TypeScript, and JavaScript literal text and comments.
+
+    Interpolation holes stay visible because they are code. A literal or
+    comment whose terminator is missing stays visible too: blanking hides
+    findings, so the view errs toward keeping text. Column preserving.
+    """
+    chars = list(code)
+    for start, end in _scan_c_family(code, 0, lang, in_hole=False)[1]:
+        for index in range(start, end):
+            if chars[index] != "\n":
+                chars[index] = " "
+    return "".join(chars)
+
+
+def _scan_c_family(code: str, i: int, lang: str, *, in_hole: bool) -> tuple[int, _Spans]:
+    """Scan code from ``i``; inside a hole, stop at its unmatched ``}``."""
+    spans: _Spans = []
+    depth = 0
+    while i < len(code):
+        char = code[i]
+        if code.startswith("//", i):
+            end = code.find("\n", i)
+            end = len(code) if end < 0 else end
+            spans.append((i, end))
+            i = end
+            continue
+        if code.startswith("/*", i):
+            end = code.find("*/", i + 2)
+            if end >= 0:
+                spans.append((i, end + 2))
+                i = end + 2
+                continue
+        regex_end = _scan_js_regex(code, i) if lang != "csharp" else None
+        if regex_end is not None:
+            # A regex body stays visible code; skipping it keeps its quotes
+            # from opening a string that would swallow the code after it.
+            i = regex_end
+            continue
+        literal = _scan_c_family_literal(code, i, lang)
+        if literal is not None:
+            i, literal_spans = literal
+            spans.extend(literal_spans)
+            continue
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            if depth == 0 and in_hole:
+                return i, spans
+            depth = max(depth - 1, 0)
+        i += 1
+    return i, spans
+
+
+# Characters and keywords after which ``/`` starts a regex, not a division.
+_JS_REGEX_PRECEDERS = frozenset("(,=:[!&|?{};+-*%~^")
+_JS_REGEX_KEYWORDS = frozenset(
+    {"return", "typeof", "instanceof", "in", "of", "new", "delete", "void", "throw", "case"}
+    | {"do", "else", "yield", "await"}
+)
+_JS_WORD_BEFORE_RE = re.compile(r"(\w+)\s*$")
+
+
+def _js_regex_allowed(code: str, i: int) -> bool:
+    """Whether a ``/`` at ``i`` begins a regex by the preceding token.
+
+    After an identifier, a number, ``)`` or ``]`` it is a division, as in
+    JavaScript itself. ``<`` and a bare ``>`` are left out so JSX closing
+    tags never open a regex; ``=>`` is kept for arrow function bodies.
+    """
+    before = code[:i].rstrip()
+    if not before:
+        return True
+    last = before[-1]
+    if last in _JS_REGEX_PRECEDERS:
+        return True
+    if last == ">":
+        return before.endswith("=>")
+    word = _JS_WORD_BEFORE_RE.search(before)
+    return word is not None and word[1] in _JS_REGEX_KEYWORDS
+
+
+def _scan_js_regex(code: str, i: int) -> int | None:
+    """End index of a JavaScript regex literal at ``i``, or None.
+
+    Escapes and ``[...]`` classes may hold ``/``. A body that reaches a line
+    end is not a regex, so the ``/`` stays ordinary code.
+    """
+    if code[i] != "/" or code.startswith(("//", "/*"), i) or not _js_regex_allowed(code, i):
+        return None
+    j, in_class = i + 1, False
+    while j < len(code) and code[j] != "\n":
+        char = code[j]
+        if char == "\\":
+            j += 2
+            continue
+        if char == "[":
+            in_class = True
+        elif char == "]":
+            in_class = False
+        elif char == "/" and not in_class:
+            j += 1
+            while j < len(code) and code[j].isalpha():
+                j += 1
+            return j
+        j += 1
+    return None
+
+
+def _scan_c_family_literal(code: str, i: int, lang: str) -> tuple[int, _Spans] | None:
+    """Return the end index and blank spans of a literal at ``i``, if terminated."""
+    if lang == "csharp":
+        if code[i] == "'":
+            match = _CSHARP_CHAR_RE.match(code, i)
+            return (match.end(), [(i, match.end())]) if match else None
+        prefix = _CSHARP_STRING_PREFIX_RE.match(code, i)
+        if prefix is None or (prefix[1] and prefix[3]) or i > 0 and code[i - 1] in "$@":
+            return None
+        dollars = len(prefix[1] or prefix[3])
+        quotes = len(prefix[4])
+        if quotes >= 3 and not prefix[2]:
+            return _scan_quoted(code, i, prefix.end(), '"' * quotes, dollars, lang, "raw")
+        mode = "verbatim" if prefix[2] else "regular"
+        return _scan_quoted(code, i, prefix.start(4) + 1, '"', dollars, lang, mode)
+    if code[i] in "\"'":
+        return _scan_quoted(code, i, i + 1, code[i], 0, lang, "regular")
+    if code[i] == "`":
+        return _scan_quoted(code, i, i + 1, "`", 1, lang, "template")
+    return None
+
+
+def _scan_quoted(
+    code: str, start: int, i: int, closer: str, holes: int, lang: str, mode: str
+) -> tuple[int, _Spans] | None:
+    """Scan a quoted body from ``i``; ``holes`` is the brace count opening a hole.
+
+    ``mode`` is ``regular`` (backslash escapes, one line), ``verbatim``
+    (``""`` escapes, multi-line), ``raw`` (no escapes, multi-line), or
+    ``template`` (JavaScript backquote with ``${`` holes).
+    """
+    spans: _Spans = []
+    text_start = start
+    while i < len(code):
+        if mode in ("regular", "template") and code[i] == "\\":
+            i += 2
+            continue
+        if mode == "regular" and code[i] == "\n":
+            return None
+        if code.startswith(closer, i):
+            if mode == "verbatim" and code.startswith('""', i):
+                i += 2
+                continue
+            spans.append((text_start, i + len(closer)))
+            return i + len(closer), spans
+        opener = _hole_opener_length(code, i, holes, mode)
+        if opener < 0:
+            i += -opener
+            continue
+        if opener:
+            spans.append((text_start, i + opener))
+            end, hole_spans = _scan_c_family(code, i + opener, lang, in_hole=True)
+            closing = "}" * (1 if mode == "template" else holes)
+            if not code.startswith(closing, end):
+                return None
+            spans.extend(hole_spans)
+            text_start = end
+            i = end + len(closing)
+            continue
+        i += 1
+    return None
+
+
+def _hole_opener_length(code: str, i: int, holes: int, mode: str) -> int:
+    """Characters opening a hole at ``i``; negative skips literal braces; 0 is text."""
+    if not holes:
+        return 0
+    if mode == "template":
+        return 2 if code.startswith("${", i) else 0
+    if code[i] != "{":
+        return 0
+    run = cast(re.Match[str], _BRACE_RUN_RE.match(code, i)).end() - i
+    if mode != "raw":
+        # ``{{`` is an escaped brace in an ordinary interpolated string.
+        return -2 if run >= 2 else 1
+    if run < holes:
+        return -run
+    # The trailing ``holes`` braces open the hole; any before them are text.
+    return run
+
+
+_COMMON_FRAMEWORK_TYPES = frozenset(
+    {
+        "String",
+        "Int32",
+        "Boolean",
+        "Object",
+        "Array",
+        "List",
+        "Dictionary",
+        "Task",
+        "Action",
+        "Func",
+        "IEnumerable",
+        "IList",
+        "Console",
+        "Exception",
+        "Math",
+        "DateTime",
+        "TimeSpan",
+        "Path",
+        "File",
+        "Directory",
+        "Type",
+        "Attribute",
+        "Nullable",
+        "True",
+        "False",
+        "None",
+        "Error",
+        "Promise",
+    }
+)
+_CSHARP_KEYWORD_TYPES = frozenset(
+    {"string", "int", "long", "short", "byte", "sbyte", "uint", "ulong", "ushort"}
+    | {"bool", "double", "float", "decimal", "char", "object", "dynamic", "nint", "nuint"}
+)
+_TS_KEYWORD_TYPES = frozenset(
+    {"string", "number", "boolean", "bigint", "symbol", "object", "any", "unknown", "void"}
+)
+# Receivers whose members are never repo claims: framework types per language.
+_PROVEN_RECEIVER_TYPES: dict[str, frozenset[str]] = {
+    "csharp": _COMMON_FRAMEWORK_TYPES
+    | _CSHARP_FRAMEWORK_TYPES_EXTRA
+    | _CSHARP_KEYWORD_TYPES
+    | {"System"},
+    "typescript": _COMMON_FRAMEWORK_TYPES | _JS_BUILTIN_TYPES | _TS_KEYWORD_TYPES,
+    "javascript": _COMMON_FRAMEWORK_TYPES | _JS_BUILTIN_TYPES,
+}
+_TYPE_NAME_RE = re.compile(r"[A-Z][a-zA-Z0-9]+")
+_MEMBER_ACCESS_RE = re.compile(r"\??\.\s*([A-Za-z]\w*)")
+_IDENTIFIER_BEFORE_RE = re.compile(r"(\w+)\s*$")
+_NEW_BEFORE_RE = re.compile(r"\bnew\s*$")
+_GROUP_OPENERS = {")": "(", "]": "[", ">": "<"}
+# ``Type name`` declarations (C#) and ``name: Type`` annotations (TypeScript),
+# plus ``name = new Type(`` in both, map a lowercase variable to its type.
+_CSHARP_TYPED_NAME_RE = re.compile(
+    r"\b([A-Za-z_]\w*)(?:\s*<[^<>;{}()]*>)?(?:\s*\[\s*\])?\??\s+([a-z_]\w*)\s*(?=[=;,)])"
+)
+_TS_TYPED_NAME_RE = re.compile(r"\b([a-z_$][\w$]*)\s*\??:\s*([A-Za-z_]\w*)")
+_NEW_ASSIGNED_RE = re.compile(r"\b([a-z_]\w*)\s*=\s*new\s+(?:\w+\s*\.\s*)*([A-Z]\w*)")
+
+
+_TYPE_BODY_RE = re.compile(r"\b(?:class|struct|record|interface)\s+[A-Z]\w*[^{;]*\{")
+# A field or property declared directly in a type body: ``int Total;``,
+# ``decimal Total { get; set; }``, ``int Total => 1;`` or ``int Total = 0;``.
+_CSHARP_MEMBER_DECL_RE = re.compile(
+    r"(?:^|(?<=[{;}]))\s*(?:(?:public|private|protected|internal|static|readonly|const"
+    r"|virtual|override|abstract|sealed|new|required|volatile|unsafe)\s+)*"
+    r"(?!(?:return|throw|await|yield|var|using|case|goto|else|new|class|struct|record"
+    r"|interface|enum)\b)"
+    r"[A-Za-z_][\w.]*(?:\s*<[^<>;{}]*>)?(?:\s*\[\s*\])*\??\s+([A-Z]\w*)\s*(?=;|=(?!=)|\{|=>)",
+    re.MULTILINE,
+)
+# A TypeScript or JavaScript class field or interface property: ``Total: number``.
+_TS_MEMBER_DECL_RE = re.compile(
+    r"(?:^|(?<=[{;,]))\s*(?:(?:public|private|protected|readonly|static|declare|abstract"
+    r"|override)\s+)*([A-Z]\w*)\s*[?!]?\s*(?=:|=(?![=>])|;)",
+    re.MULTILINE,
+)
+
+
+def _type_member_scopes(view: str, lang: str) -> list[tuple[int, int, set[str]]]:
+    """Each declared type's body span and the fields and properties it declares.
+
+    Only declarations at the body's own brace depth count, so a local
+    variable inside a method is not a member. A type whose body never
+    closes contributes nothing.
+    """
+    pattern = _CSHARP_MEMBER_DECL_RE if lang == "csharp" else _TS_MEMBER_DECL_RE
+    scopes: list[tuple[int, int, set[str]]] = []
+    for header in _TYPE_BODY_RE.finditer(view):
+        start, depth = header.end(), 0
+        depths: list[int] = []
+        for index in range(start, len(view)):
+            char = view[index]
+            if char == "}" and depth == 0:
+                body = view[start:index]
+                members = {
+                    match[1] for match in pattern.finditer(body) if depths[match.start(1)] == 0
+                }
+                scopes.append((start, index, members))
+                break
+            depths.append(depth)
+            depth += {"{": 1, "}": -1}.get(char, 0)
+    return scopes
+
+
+def _blank_in_scope_members(view: str, scopes: list[tuple[int, int, set[str]]]) -> str:
+    """Blank a declared member's own declaration and bare uses inside its type body.
+
+    Outside the declaring body a bare name stays visible, so it is checked.
+    """
+    chars = list(view)
+    for start, end, members in scopes:
+        for word in _WORD_RE.finditer(view, start, end):
+            if word[0] in members:
+                chars[word.start() : word.end()] = " " * len(word[0])
+    return "".join(chars)
+
+
+def _skip_group_back(view: str, end: int) -> int | None:
+    """Index of the opener matching the closer just before ``end``, or None."""
+    closer = view[end - 1]
+    opener = _GROUP_OPENERS[closer]
+    depth = 0
+    for index in range(end - 1, -1, -1):
+        if view[index] == closer:
+            depth += 1
+        elif view[index] == opener:
+            depth -= 1
+            if depth == 0:
+                return index
+    return None
+
+
+def _receiver_root(view: str, dot: int) -> tuple[str, bool]:
+    """The identifier a member chain ending at ``dot`` starts from.
+
+    Walks back over ``a.b(...)[...]<...>.`` links. The flag is True when the
+    root follows ``new`` (a constructed type). An empty root means the
+    receiver is not a plain chain (a literal, a parenthesized expression).
+    """
+    end = dot
+    while True:
+        end = len(view[:end].rstrip())
+        while end and view[end - 1] in _GROUP_OPENERS:
+            if view[end - 1] == ">" and view[:end].endswith("=>"):
+                return "", False
+            opener = _skip_group_back(view, end)
+            if opener is None:
+                return "", False
+            end = len(view[:opener].rstrip())
+        word = _IDENTIFIER_BEFORE_RE.search(view[:end])
+        if word is None:
+            return "", False
+        start = end - len(word[0].rstrip())
+        head = view[:start].rstrip()
+        if head.endswith("."):
+            end = len(head) - 1 - (1 if head.endswith("?.") else 0)
+            continue
+        return word[1], bool(_NEW_BEFORE_RE.search(head))
+
+
+def _receiver_types(view: str, lang: str) -> dict[str, str]:
+    """Lowercase variable name -> declared or constructed type in the example."""
+    typed = (
+        [(name, kind) for kind, name in _CSHARP_TYPED_NAME_RE.findall(view)]
+        if lang == "csharp"
+        else _TS_TYPED_NAME_RE.findall(view)
+    )
+    types = dict(typed)
+    types.update(_NEW_ASSIGNED_RE.findall(view))
+    return types
+
+
+def _proven_member_names(
+    view: str, lang: str, local_types: set[str], unresolved_types: set[str]
+) -> set[str]:
+    """Member names whose every access has a receiver proven not to be repo API.
+
+    A receiver is proven when its chain starts at a type the example
+    declares, a framework type, a variable declared or constructed with one
+    of those, or ``this``/``base`` inside an example that declares a type.
+    A free variable, or one assigned from an unresolved call, proves
+    nothing, so its members stay checkable.
+    """
+    proven_types = (local_types - unresolved_types) | _PROVEN_RECEIVER_TYPES.get(lang, frozenset())
+    variables = _receiver_types(view, lang)
+    proven: dict[str, bool] = {}
+    for match in _MEMBER_ACCESS_RE.finditer(view):
+        root, constructed = _receiver_root(view, match.start())
+        if root in ("this", "base"):
+            ok = bool(local_types - unresolved_types)
+        else:
+            receiver_type = root if constructed else variables.get(root, root)
+            ok = bool(root) and receiver_type in proven_types
+        proven[match[1]] = proven.get(match[1], True) and ok
+    return {name for name, ok in proven.items() if ok}
+
+
 def _extract_identifiers(
     code: str, lang: str = "", doc_definitions: frozenset[str] | set[str] = frozenset()
 ) -> list[str]:
@@ -1582,14 +2388,17 @@ def _extract_identifiers(
 
     For Python (``lang == "python"``) only code tokens count: strings,
     docstrings and comments are blanked first, names imported from the
-    standard library and declarations within the example are dropped, and
+    standard library, declarations within the example, and names whose every
+    occurrence binds or resolves within the example are dropped, and
     attribute chains on stdlib-imported modules are blanked.
 
     f-string expressions stay visible only on Python 3.12+, where the
     tokenizer splits f-strings. On 3.10 and 3.11 the whole f-string is one
     STRING token and is blanked, which can only miss a symbol, never add a
     false finding. C#, TypeScript, and JavaScript comments are blanked,
-    example-local declarations are dropped. Member calls stay visible for
+    example-local declarations are dropped. Their string literal text stays
+    in the extracted list; Phase 3 drops a name seen only in literals or
+    comments (``_c_family_code_view``). Member calls stay visible for
     parameter checks against known methods. TypeScript object-literal keys
     are data, not named parameters. Other languages keep the
     language-agnostic scan.
@@ -1597,6 +2406,7 @@ def _extract_identifiers(
     ignored_names: set[str] = set(doc_definitions)
     if lang == "python":
         ignored_names.update(_python_example_definitions(code))
+        ignored_names.update(_python_local_names(code))
         code = _strip_python_non_code(code)
         ignored_names.update(_python_stdlib_imported_names(code))
         code = _blank_stdlib_attribute_chains(code)
@@ -1998,16 +2808,32 @@ def run_compilability_check(
 
         content = claim_dict["content"]
         lang = claim_dict.get("language", "")
-        checked_content = _strip_csharp_comments(content) if lang in _DECLARATION_RES else content
+        # Literal text and comments are data; interpolation holes stay code.
+        checked_content = (
+            _c_family_code_view(content, lang) if lang in _DECLARATION_RES else content
+        )
+        code_words = set(_WORD_RE.findall(checked_content))
         member_only: set[str] = set()
         if lang in _DECLARATION_RES:
             # Keep bare uses and constructors, even if a member shares the name.
             bare_content = re.sub(r"\.\s*[A-Za-z]\w*", lambda m: " " * len(m[0]), checked_content)
+            member_scopes = _type_member_scopes(checked_content, lang)
+            bare_content = _blank_in_scope_members(bare_content, member_scopes)
             bare_names = set(re.findall(r"\b([A-Z][a-zA-Z0-9]+)\b", bare_content))
+            declared_members = {name for _, _, names in member_scopes for name in names}
+            accessed_members = set(_MEMBER_ACCESS_RE.findall(checked_content))
             constructed = set(re.findall(r"\bnew\s+(?:\w+\s*\.\s*)*([A-Z]\w*)", checked_content))
-            member_only = (
-                set(re.findall(r"\.\s*([A-Za-z]\w*)", checked_content)) - bare_names - constructed
+            # A type named in code but absent from the claim's references was
+            # dropped at extraction as example-local or doc-local.
+            local_types = {word for word in code_words if _TYPE_NAME_RE.fullmatch(word)} - set(
+                claim_dict.get("symbols_referenced", [])
             )
+            # A member the example declares and never reaches through an
+            # unproven receiver is example-local; so is a proven access.
+            member_only = (
+                _proven_member_names(checked_content, lang, local_types, known_names)
+                | (declared_members - accessed_members)
+            ) - (bare_names | constructed)
 
         # Skip languages without source-symbol extractors (e.g. text/ASCII
         # diagrams, PowerShell, bash).  Only languages present in
@@ -2064,43 +2890,16 @@ def run_compilability_check(
             else:
                 if sym_name in member_only:
                     continue
+                # A name only inside a literal or comment is data, not an API claim.
+                if lang in _DECLARATION_RES and sym_name not in code_words:
+                    continue
                 # Symbol not found in codebase
                 # Only flag CamelCase identifiers (likely type/method names)
                 if not re.match(r"^[A-Z][a-zA-Z0-9]+$", sym_name):
                     continue
 
                 # Skip common framework types
-                framework_types = {
-                    "String",
-                    "Int32",
-                    "Boolean",
-                    "Object",
-                    "Array",
-                    "List",
-                    "Dictionary",
-                    "Task",
-                    "Action",
-                    "Func",
-                    "IEnumerable",
-                    "IList",
-                    "Console",
-                    "Exception",
-                    "Math",
-                    "DateTime",
-                    "TimeSpan",
-                    "Path",
-                    "File",
-                    "Directory",
-                    "Type",
-                    "Attribute",
-                    "Nullable",
-                    "True",
-                    "False",
-                    "None",
-                    "Error",
-                    "Promise",
-                }
-                if sym_name in framework_types:
+                if sym_name in _COMMON_FRAMEWORK_TYPES:
                     continue
 
                 # Python builtins (ImportError, ValueError, ...) and typing
