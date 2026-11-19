@@ -74,7 +74,9 @@ def _dropped_anchors(
     dropped: dict[str, frozenset[str]] = {}
     for status, path, new_path in records:
         current = new_path if status[0] in "RC" else path
-        if status[0] not in "MRC" or not current.endswith(".md") or not path.endswith(".md"):
+        if current is None or status[0] not in "MRC":
+            continue
+        if not current.endswith(".md") or not path.endswith(".md"):
             continue
         old = _show(repo, f"{old_prefix}{path}")
         new = _show(repo, f"{new_prefix}{current}")
