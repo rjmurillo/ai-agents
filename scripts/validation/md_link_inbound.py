@@ -2,8 +2,8 @@
 
 File arguments scan the named pages. A rename breaks links in pages that were
 not named. This module reads ``git diff --name-status -M`` and returns the
-extra in-scope pages a basename search finds. The staged diff wins. When
-nothing is staged, the diff is ``base...HEAD``.
+extra in-scope pages a basename search finds. The staged diff wins, and that
+search reads the index. When nothing is staged, the diff is ``base...HEAD``.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from urllib.parse import unquote
 
 from check_adr_links import _run_git, is_adr_target, resolve_base_ref
 from md_anchors import anchors_in
-from md_link_parse import EXTERNAL_SCHEME_RE, split_destination_fragment
+from md_link_parse import EXTERNAL_SCHEME_RE
 
 
 @dataclass(frozen=True)
@@ -26,6 +26,7 @@ class InboundScan:
     removed: frozenset[str]
     dropped: dict[str, frozenset[str]]
     files: tuple[str, ...]
+    index: bool = False
 
 
 def _parse_name_status(blob: str) -> list[tuple[str, str, str | None]]:
@@ -89,12 +90,18 @@ def _dropped_anchors(
 
 
 def _mentions(
-    repo: Path, needles: list[str], already: set[str], scope: Callable[[str], bool]
+    repo: Path,
+    needles: list[str],
+    already: set[str],
+    scope: Callable[[str], bool],
+    *,
+    cached: bool,
 ) -> tuple[str, ...]:
     """Return in-scope pages whose text contains an old basename."""
     if not needles:
         return ()
-    args = ["grep", "-F", "-I", "-l", "-z"]
+    args = ["grep", "--cached"] if cached else ["grep"]
+    args.extend(("-F", "-I", "-l", "-z"))
     for needle in needles:
         args.extend(("-e", needle))
     result = _run_git(repo, args)
@@ -119,6 +126,7 @@ def collect_inbound(
     if staged:
         records = staged
         old_prefix, new_prefix = "HEAD:", ":"
+        from_index = True
     else:
         resolved = resolve_base_ref(repo) if base_ref == "auto" else base_ref
         committed = (
@@ -128,6 +136,7 @@ def collect_inbound(
         )
         records = committed or []
         old_prefix, new_prefix = f"{resolved}:", "HEAD:"
+        from_index = False
     removed = frozenset(
         path.replace("\\", "/") for status, path, _new in records if status[0] in "RD"
     )
@@ -139,7 +148,12 @@ def collect_inbound(
         if name and name not in seen:
             seen.add(name)
             needles.append(name)
-    return InboundScan(removed, dropped, _mentions(repo, needles, already, scope))
+    return InboundScan(
+        removed,
+        dropped,
+        _mentions(repo, needles, already, scope, cached=from_index),
+        from_index,
+    )
 
 
 def inbound_kept(
@@ -151,8 +165,12 @@ def inbound_kept(
     known: Callable[[str], bool],
     follow: Callable[[str], str],
 ) -> bool:
-    """Return whether one finding was caused by a removed path or heading."""
-    raw_path, fragment = split_destination_fragment(target)
+    """Return whether one finding was caused by a removed path or heading.
+
+    ``target`` is a dest label, ``path`` or ``path#fragment``. The path may
+    contain spaces, so this split keeps every character before the fragment.
+    """
+    raw_path, _, fragment = target.partition("#")
     path = unquote(raw_path.split("?", 1)[0])
     if _outside(path):
         return False

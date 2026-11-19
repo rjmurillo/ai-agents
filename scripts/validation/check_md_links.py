@@ -28,6 +28,7 @@ a full-scope run fails on an entry that no longer matches a finding.
 Pre-PR mode compares findings with the merge base, including unchanged sources.
 File arguments also report inbound links to a path or heading removed in the
 staged diff, or in ``base...HEAD`` when nothing is staged.
+Staged inbound pages are read from the index.
 ``--tree`` reports all debt, including baseline entries, without comparing revisions.
 Paths that are all outside the scope are named on stderr. The exit code stays 0.
 
@@ -196,13 +197,23 @@ def _skip_path(path: str) -> bool:
 class _Scanner:
     """Scans files against one inventory, caching each target's anchors."""
 
-    def __init__(self, repo_root: Path, inventory: Inventory, ref: str | None = None) -> None:
+    def __init__(
+        self,
+        repo_root: Path,
+        inventory: Inventory,
+        ref: str | None = None,
+        *,
+        index: bool = False,
+    ) -> None:
         self._root = repo_root
         self._inventory = inventory
         self._ref = ref
+        self._index = index
         self._anchors: dict[str, set[str]] = {}
 
     def _read(self, file: str) -> str:
+        if self._index:
+            return _read_at_ref(self._root, "", file)
         if self._ref:
             return _read_at_ref(self._root, self._ref, file)
         path = self._root / file
@@ -254,7 +265,7 @@ class _Scanner:
     def scan_file(self, file: str, tally: Tally) -> None:
         """Check every inline and reference-style link in one file."""
         path = self._root / file
-        if not self._ref and not path.is_file():
+        if not self._index and not self._ref and not path.is_file():
             return
         live = [(n, mask_inline_code(text)) for n, text in _live_lines(self._read(file))]
         definitions = _link_definitions(live)
@@ -333,9 +344,10 @@ def find_broken_md_links(
     extra = 0
     if files is not None and ref is None:
         hints = collect_inbound(repo_root, base_ref, set(candidates), in_scope)
+        reader = _Scanner(repo_root, inv, index=True) if hints.index else scanner
         side = Tally([])
         for name in hints.files:
-            scanner.scan_file(name, side)
+            reader.scan_file(name, side)
         for finding in side.findings:
             if inbound_kept(
                 finding.kind,

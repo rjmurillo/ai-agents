@@ -197,12 +197,52 @@ def test_staged_rename_is_clean_when_the_inbound_link_is_updated(
     )
     _git(repo, "mv", "docs/a.md", "docs/b.md")
     (repo / "docs/c.md").write_text("[b](b.md)\n", encoding="utf-8")
+    _git(repo, "add", "docs/c.md")
 
     code = check_md_links.main(["--repo-root", str(repo), "--base-ref", "none", "docs/b.md"])
     out = capsys.readouterr().out
 
     assert code == 0
     assert "docs/c.md" not in out
+
+
+def test_staged_rename_reports_an_angle_bracket_link_with_spaces(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(
+        tmp_path,
+        {
+            "docs/my file.md": "# A\n",
+            "docs/c.md": "[a](<my file.md>)\n[nope](missing.md)\n",
+        },
+        commit=True,
+    )
+    _git(repo, "mv", "docs/my file.md", "docs/b.md")
+
+    code = check_md_links.main(["--repo-root", str(repo), "--base-ref", "none", "docs/b.md"])
+    out = capsys.readouterr().out
+
+    assert code == 1
+    assert "docs/c.md:1: missing-target: my file.md" in out
+    assert "missing.md" not in out
+
+
+def test_staged_rename_reports_the_index_link_when_the_worktree_is_fixed(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(
+        tmp_path,
+        {"docs/a.md": "# A\n", "docs/c.md": "[a](a.md)\n"},
+        commit=True,
+    )
+    _git(repo, "mv", "docs/a.md", "docs/b.md")
+    (repo / "docs/c.md").write_text("[b](b.md)\n", encoding="utf-8")
+
+    code = check_md_links.main(["--repo-root", str(repo), "--base-ref", "none", "docs/b.md"])
+    out = capsys.readouterr().out
+
+    assert code == 1
+    assert "docs/c.md:1: missing-target: a.md" in out
 
 
 def test_staged_delete_of_a_non_md_target_reports_the_inbound_link(
