@@ -1,0 +1,247 @@
+{
+  "schema_version": 1,
+  "selection": "Real post-PR documentation review findings supplied by Richard and Doc Writer.",
+  "cases": [
+    {
+      "id": "C4-01",
+      "pr": 7451,
+      "sha": "916946a57e",
+      "scope": "automatic",
+      "expected": [
+        {
+          "file": "templates/skills/code-qualities-assessment.SKILL.md.tmpl",
+          "line": 199,
+          "class": "R2"
+        }
+      ]
+    },
+    {
+      "id": "C4-02",
+      "pr": 7448,
+      "sha": "a96661c5e0",
+      "scope": "automatic",
+      "expected": [
+        {
+          "file": "templates/skills/code-qualities-assessment.SKILL.md.tmpl",
+          "line": 199,
+          "class": "R2"
+        }
+      ],
+      "manual_claims": [
+        {
+          "scope": "manual",
+          "why": "Record cardinality requires distinguishing one admitted regression from multiple built-in admission records.",
+          "file": "templates/skills/code-qualities-assessment.SKILL.md.tmpl",
+          "line": 196
+        }
+      ]
+    },
+    {
+      "id": "C4-03",
+      "pr": 7450,
+      "sha": "d856c06b0e",
+      "scope": "automatic",
+      "expected": [
+        {
+          "file": "src/claude/skills/code-qualities-assessment/references/csharp-parser.md",
+          "line": 39,
+          "class": "R3"
+        }
+      ]
+    },
+    {
+      "id": "C4-04",
+      "pr": 7311,
+      "sha": "96798c2f56",
+      "scope": "automatic",
+      "expected": [
+        {
+          "file": ".project-toolkit/pr-checks/dispositions.json",
+          "line": 14,
+          "class": "structured-cardinality"
+        }
+      ]
+    },
+    {
+      "id": "C4-05",
+      "pr": 5741,
+      "sha": "3d6180a6bf",
+      "scope": "manual",
+      "why": "The count names an allowlist without its symbol; review SECTIONS_TO_COMPARE in the named detector.",
+      "checklist_files": [
+        "templates/skills/ai-agents-architecture-contract.SKILL.md.tmpl"
+      ]
+    },
+    {
+      "id": "C4-06",
+      "pr": 5773,
+      "sha": "d81247391a",
+      "scope": "automatic",
+      "expected": [
+        {
+          "file": "templates/skills/ai-agents-generation-and-release.SKILL.md.tmpl",
+          "line": 3,
+          "class": "nl-cardinality"
+        }
+      ]
+    },
+    {
+      "id": "C4-07",
+      "pr": 5291,
+      "sha": "00a2be34f1",
+      "scope": "automatic",
+      "expected": [
+        {
+          "file": ".agents/critique/ADR-073-phase2-backfill-debate-log.md",
+          "line": 153,
+          "class": "nl-cardinality"
+        }
+      ]
+    },
+    {
+      "id": "C4-08",
+      "pr": 6584,
+      "sha": "926ad8185c",
+      "scope": "manual",
+      "why": "Behavioral equivalence needs a reviewer to compare exception handling.",
+      "checklist_files": [
+        "detect_adr_changes.py"
+      ]
+    },
+    {
+      "id": "C4-09",
+      "pr": 6852,
+      "sha": "579642032f",
+      "scope": "manual",
+      "why": "Run counts depend on nested calls and require behavioral review.",
+      "checklist_files": [
+        "tests/test_subprocess_text_encoding.py"
+      ]
+    },
+    {
+      "id": "C4-10",
+      "pr": 7379,
+      "sha": "ef0ac7bed7",
+      "scope": "manual",
+      "why": "The contradiction sits in unchanged review rules outside this diff.",
+      "checklist_files": [
+        "finding-severity.md"
+      ]
+    },
+    {
+      "id": "C4-11",
+      "pr": 6908,
+      "sha": "fe824f71c2",
+      "scope": "manual",
+      "why": "The preflight behavior needs review of an unchanged prose reference.",
+      "checklist_files": [
+        "templates/skills/push-pr.SKILL.md.tmpl"
+      ]
+    },
+    {
+      "id": "C4-12",
+      "pr": 7340,
+      "sha": "4ef1beaf40",
+      "scope": "manual",
+      "why": "The deleted scan heading needs a reviewer to assess remaining references.",
+      "checklist_files": [
+        "templates/skills/orphan-ref-validator.SKILL.md.tmpl"
+      ]
+    },
+    {
+      "id": "C4-13",
+      "pr": 7168,
+      "sha": "6bc0df3fcf",
+      "scope": "automatic",
+      "expected": [
+        {
+          "file": "CONTRIBUTING.md",
+          "line": 879,
+          "class": "R2"
+        }
+      ]
+    },
+    {
+      "id": "C4-14",
+      "pr": 7293,
+      "sha": "00283174",
+      "scope": "manual",
+      "why": "The legal-only routing claim requires classifier behavior review.",
+      "checklist_files": [
+        "axis-selection.md"
+      ]
+    },
+    {
+      "id": "N-7452",
+      "pr": 7452,
+      "sha": "6b9340fa",
+      "scope": "negative"
+    },
+    {
+      "id": "N-7431",
+      "pr": 7431,
+      "sha": "e30fb229",
+      "scope": "negative"
+    },
+    {
+      "id": "N-7377",
+      "pr": 7377,
+      "sha": null,
+      "scope": "negative"
+    },
+    {
+      "id": "N-7412",
+      "pr": 7412,
+      "sha": "f9493d63",
+      "scope": "negative"
+    },
+    {
+      "id": "N-7146",
+      "pr": 7146,
+      "sha": "8fc3c747",
+      "scope": "negative"
+    },
+    {
+      "id": "N-7415",
+      "pr": 7415,
+      "sha": "c99aca0e",
+      "scope": "negative"
+    },
+    {
+      "id": "N-7174",
+      "pr": 7174,
+      "sha": "2bccad6a",
+      "scope": "negative"
+    },
+    {
+      "id": "N-7313",
+      "pr": 7313,
+      "sha": "773f9327",
+      "scope": "negative"
+    },
+    {
+      "id": "N-7324",
+      "pr": 7324,
+      "sha": "4d0d3900",
+      "scope": "negative"
+    },
+    {
+      "id": "N-7446",
+      "pr": 7446,
+      "sha": "3adae314",
+      "scope": "negative"
+    },
+    {
+      "id": "N-7294",
+      "pr": 7294,
+      "sha": "2d7585ba",
+      "scope": "negative"
+    },
+    {
+      "id": "N-7253",
+      "pr": 7253,
+      "sha": "dd303948",
+      "scope": "negative"
+    }
+  ]
+}

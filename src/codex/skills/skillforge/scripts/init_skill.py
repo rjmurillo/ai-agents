@@ -7,6 +7,13 @@ scripts/, and assets/ subdirectories pre-populated with starter files.
 
 Usage:
     python init_skill.py <skill-name> [--path <parent-directory>] [--dry-run]
+                         [--docs-section <README heading>]
+
+When --path is a folder named skills inside a git checkout that has
+docs/skills/README.md, the script also writes docs/skills/<skill-name>.md
+with the seven sibling sections (see _docs_page.py). With
+--docs-section it adds the README row under that heading; without it, it
+prints the row to paste. A repository with no such README is left alone.
 
 Examples:
     python init_skill.py code-reviewer
@@ -20,9 +27,12 @@ Exit Codes:
 """
 
 import argparse
+import importlib
+import os
 import re
 import sys
 from pathlib import Path
+from types import ModuleType
 
 # ---------------------------------------------------------------------------
 # Templates
@@ -305,6 +315,18 @@ def create_skill(name: str, parent_dir: Path) -> Path:
     return skill_dir
 
 
+def _docs_page() -> ModuleType:
+    """Import the sibling docs scaffold module, from this file's directory.
+
+    Imported here, not at module level, so the plugin-root interpreter check can
+    see that a bare python3 run resolves it (python -I drops the script dir).
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    if here not in sys.path:
+        sys.path.insert(0, here)
+    return importlib.import_module("_docs_page")
+
+
 def print_next_steps(skill_dir: Path, name: str):
     """Print guidance for the user after scaffolding."""
     print(f"""
@@ -352,6 +374,7 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s my-skill
   %(prog)s my-skill --path skills --dry-run
+  %(prog)s my-skill --path src/claude/skills --docs-section "Code quality"
 
 exit codes:
   0  skill created (or previewed with --dry-run)
@@ -376,6 +399,11 @@ def main():
         type=Path,
         default=Path.cwd(),
         help="Parent directory for the new skill (default: current directory)",
+    )
+
+    parser.add_argument(
+        "--docs-section",
+        help="docs/skills/README.md heading whose table gets the new row (repository docs only)",
     )
 
     parser.add_argument(
@@ -404,11 +432,25 @@ def main():
             print(f"Error: Directory already exists: {skill_dir}", file=sys.stderr)
             sys.exit(1)
         print(f"Dry run: would create {skill_dir} with SKILL.md, references/, scripts/, assets/")
+        readme = _docs_page().find_docs_readme(parent)
+        if readme is not None:
+            page = readme.parent / f"{args.name}.md"
+            print(f"Dry run: would write {page}")
+            if args.docs_section:
+                print(f"Dry run: would add a row under '## {args.docs_section}' in {readme}")
+            else:
+                print(f"Dry run: would leave {readme} unchanged")
         sys.exit(0)
 
     # Create scaffold
     skill_dir = create_skill(args.name, parent)
     print_next_steps(skill_dir, args.name)
+    readme = _docs_page().find_docs_readme(parent)
+    if readme is not None:
+        for note in _docs_page().scaffold(
+            args.name, to_title(args.name), readme, args.docs_section
+        ):
+            print(note)
 
     sys.exit(0)
 
