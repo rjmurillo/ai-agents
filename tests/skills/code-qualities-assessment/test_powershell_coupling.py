@@ -5,6 +5,7 @@ import json
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +30,11 @@ _spec.loader.exec_module(_mod)
 assess_content = _mod.assess_content
 
 
+# An absolute path that ends in .exe on every platform, outside any checkout.
+FAKE_PWSH = str(Path(tempfile.gettempdir()) / "fake-pwsh-bin" / "pwsh.exe")
+PWSH_NAMES = ("pwsh", "pwsh.exe")
+
+
 def _coupling(source: str, name: str = "Script.ps1") -> Any:
     require_working_pwsh()
     return assess_content(Path(name), source).coupling
@@ -45,7 +51,7 @@ def _fake_pwsh(
     """Replace pwsh with a fake that records each call and returns a fixed result."""
     calls: list[dict[str, Any]] = []
     monkeypatch.setattr(
-        shutil, "which", lambda name, path=None: "/fake/pwsh" if name == "pwsh" else None
+        shutil, "which", lambda name, path=None: FAKE_PWSH if name in PWSH_NAMES else None
     )
 
     def fake_run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
@@ -332,7 +338,6 @@ def test_neutralized_source_resolves_no_module_or_assembly() -> None:
         "& 'using' module Pester",
         ". using module Pester",
         "Write-Output using module Pester",
-        "using",
     ],
 )
 def test_using_text_that_is_not_a_using_statement_does_not_count(source: str) -> None:
@@ -384,6 +389,8 @@ def test_dsc_configuration_parses_without_loading_resources() -> None:
             2,
         ),
         ("#Requires -Modules Pester\nusing module ./Local.psm1\nparam($Path)\n", 2),
+        ("using namespace System;\n[CmdletBinding()]\nparam()\n", 1),
+        ("using namespace System ;\nparam()\nImport-Module A\n", 2),
     ],
 )
 def test_param_block_after_using_statements_still_parses(source: str, expected: int) -> None:
@@ -398,3 +405,19 @@ def test_syntax_error_after_using_statements_still_fails_closed() -> None:
 
     with pytest.raises(_mod.PowerShellParserError, match="line 3"):
         assess_content(Path("Script.ps1"), "using namespace System.Text\n\nfunction f( {\n")
+
+
+@pytest.mark.parametrize(
+    ("source", "error_id"),
+    [
+        ("using\n", "Missing using directive"),
+        ("using namespace\n", "Missing using item name"),
+        ("using module\n", "Missing using item name"),
+    ],
+)
+def test_incomplete_using_statement_fails_closed(source: str, error_id: str) -> None:
+    """PowerShell rejects these; the rewrite to a command must not turn them into a count."""
+    require_working_pwsh()
+
+    with pytest.raises(_mod.PowerShellParserError, match=error_id):
+        assess_content(Path("Script.ps1"), source)

@@ -1516,6 +1516,10 @@ _PWSH_TYPE_LOOKUP_ERROR_IDS = ("TypeNotFound",)
 # is legal. The second parse supplies the syntax errors and other counts.
 _PWSH_COUNT_SCRIPT = r"""
 $ErrorActionPreference = 'Stop'
+if ($PSVersionTable.PSVersion.Major -lt 7) {
+    [Console]::Error.WriteLine("PowerShell 7 or later is required; found $($PSVersionTable.PSVersion)")
+    exit 3
+}
 function Read-Script([string]$text) {
     $tokens = $null
     $errors = $null
@@ -1526,21 +1530,39 @@ $encoded = [Console]::In.ReadToEnd().Trim()
 $source = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($encoded))
 $usingKinds = @('module', 'namespace', 'assembly')
 $bareWord = [System.Management.Automation.Language.StringConstantType]::BareWord
+function Test-BareWord($element, [string]$value) {
+    return ($element -is [System.Management.Automation.Language.StringConstantExpressionAst] -and
+        $element.StringConstantType -eq $bareWord -and ($value -eq '' -or $element.Value -ceq $value))
+}
 $first = Read-Script $source
-$usingStatements = @($first[0].FindAll({
+$sentinelCommands = @($first[0].FindAll({
     param($node)
-    if ($node -isnot [System.Management.Automation.Language.CommandAst]) { return $false }
-    if ($node.InvocationOperator -ne 'Unknown' -or $node.CommandElements.Count -lt 2) { return $false }
-    $name = $node.CommandElements[0]
-    $kind = $node.CommandElements[1]
-    return ($name -is [System.Management.Automation.Language.StringConstantExpressionAst] -and
-        $name.StringConstantType -eq $bareWord -and $name.Value -ceq '__SENTINEL__' -and
-        $kind -is [System.Management.Automation.Language.StringConstantExpressionAst] -and
-        $kind.StringConstantType -eq $bareWord -and $usingKinds -contains $kind.Value.ToLowerInvariant())
+    return ($node -is [System.Management.Automation.Language.CommandAst] -and
+        $node.InvocationOperator -eq 'Unknown' -and (Test-BareWord $node.CommandElements[0] '__SENTINEL__'))
 }, $true))
+$usingStatements = @()
+$usingErrors = @()
+foreach ($command in $sentinelCommands) {
+    $elements = $command.CommandElements
+    $hasKind = $elements.Count -ge 2 -and (Test-BareWord $elements[1] '') -and
+        $usingKinds -contains $elements[1].Value.ToLowerInvariant()
+    if ($hasKind -and $elements.Count -ge 3) { $usingStatements += $command; continue }
+    # PowerShell itself rejects these forms; the rewrite would otherwise hide them.
+    $line = $command.Extent.StartLineNumber
+    if ($elements.Count -eq 1) {
+        $usingErrors += [pscustomobject]@{ id = 'MissingUsingStatementDirective'; line = $line; message = 'Missing using directive.' }
+    } elseif ($hasKind) {
+        $usingErrors += [pscustomobject]@{ id = 'MissingUsingItemName'; line = $line; message = 'Missing using item name.' }
+    }
+}
+# Blank each statement, plus trailing blanks and a `;` terminator, keeping newlines.
 $chars = $source.ToCharArray()
 foreach ($statement in $usingStatements) {
-    for ($i = $statement.Extent.StartOffset; $i -lt $statement.Extent.EndOffset; $i++) {
+    $end = $statement.Extent.EndOffset
+    $next = $end
+    while ($next -lt $chars.Length -and ($chars[$next] -eq ' ' -or $chars[$next] -eq "`t")) { $next++ }
+    if ($next -lt $chars.Length -and $chars[$next] -eq ';') { $end = $next + 1 }
+    for ($i = $statement.Extent.StartOffset; $i -lt $end; $i++) {
         if ($chars[$i] -ne "`n" -and $chars[$i] -ne "`r") { $chars[$i] = ' ' }
     }
 }
@@ -1559,7 +1581,7 @@ $requires = @($tokens | Where-Object {
     $_.Kind -eq 'Comment' -and $_.Text -match '^#requires\b' -and
         @((Read-Script $_.Text)[0].ScriptRequirements.RequiredModules).Count -gt 0
 }).Count
-$parseErrors = @($errors | ForEach-Object {
+$parseErrors = @($usingErrors) + @($errors | ForEach-Object {
     [pscustomobject]@{ id = $_.ErrorId; line = $_.Extent.StartLineNumber; message = $_.Message }
 })
 [pscustomobject]@{ count = $imports + $usingStatements.Count + $requires; errors = $parseErrors } |
@@ -1767,34 +1789,46 @@ def _count_typescript_imports(source: str, suffix: str) -> int:
     return _count_dependency_nodes(source, _TYPESCRIPT_GRAMMARS[suffix])
 
 
+def _pwsh_rejection(pwsh: Path) -> str | None:
+    """Return why *pwsh* must not run, or None when it is an installed pwsh."""
+    if sys.platform == "win32" and pwsh.suffix.lower() != ".exe":
+        return f"Refusing to run {pwsh}: pwsh on Windows must be pwsh.exe"
+    scanned = Path.cwd().resolve()
+    if pwsh.is_relative_to(scanned) or pwsh.resolve().is_relative_to(scanned):
+        return f"Refusing to run {pwsh}: it is inside the scanned directory, not an installed pwsh"
+    return None
+
+
 def _find_pwsh() -> str:
-    """Return an absolute pwsh path found only on absolute PATH entries (CWE-427).
+    """Return the first eligible pwsh on an absolute PATH entry (CWE-427).
 
     Relative PATH entries resolve against the scanned checkout, where a planted
-    `pwsh` could run in place of PowerShell.
+    `pwsh` could run in place of PowerShell. Each entry is searched in order,
+    so an ineligible match (a `pwsh.cmd` shim, or a copy inside the checkout)
+    does not hide a real pwsh in a later entry.
     """
     import os
     import shutil
 
-    entries = os.environ.get("PATH", "").split(os.pathsep)
-    search_path = os.pathsep.join(entry for entry in entries if entry and os.path.isabs(entry))
-    found = shutil.which("pwsh", path=search_path) if search_path else None
-    if found is None:
-        raise PowerShellParserError(
-            "PowerShell 7 (pwsh) is not on PATH. It is required to count "
-            "PowerShell dependencies (see references/powershell-parser.md)"
-        )
-    # Run the PATH entry itself, not its symlink target: a Snap install links
-    # /snap/bin/pwsh to /usr/bin/snap, which dispatches on the name it is run by.
-    pwsh = Path(found).absolute()
-    if sys.platform == "win32" and pwsh.suffix.lower() != ".exe":
-        raise PowerShellParserError(f"Refusing to run {pwsh}: pwsh on Windows must be pwsh.exe")
-    scanned = Path.cwd().resolve()
-    if pwsh.is_relative_to(scanned) or pwsh.resolve().is_relative_to(scanned):
-        raise PowerShellParserError(
-            f"Refusing to run {pwsh}: it is inside the scanned directory, not an installed pwsh"
-        )
-    return str(pwsh)
+    name = "pwsh.exe" if sys.platform == "win32" else "pwsh"
+    rejection = None
+    for entry in os.environ.get("PATH", "").split(os.pathsep):
+        if not entry or not os.path.isabs(entry):
+            continue
+        found = shutil.which(name, path=entry)
+        if found is None:
+            continue
+        # Run the PATH entry itself, not its symlink target: a Snap install
+        # links /snap/bin/pwsh to /usr/bin/snap, which dispatches on its name.
+        pwsh = Path(found).absolute()
+        rejection = _pwsh_rejection(pwsh)
+        if rejection is None:
+            return str(pwsh)
+    raise PowerShellParserError(
+        rejection
+        or "PowerShell 7 (pwsh) is not on PATH. It is required to count "
+        "PowerShell dependencies (see references/powershell-parser.md)"
+    )
 
 
 def _neutralize_using(source: str) -> str:
@@ -1821,7 +1855,9 @@ def _run_pwsh_counter(source: str) -> dict[str, Any]:
     payload = base64.b64encode(_neutralize_using(source).encode("utf-8")).decode("ascii")
     argv = [pwsh, "-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", command]
     try:
-        with tempfile.TemporaryDirectory() as empty_dir:
+        # A cleanup failure (Windows can hold the directory briefly) must not
+        # discard a finished parse, so cleanup errors are ignored.
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as empty_dir:
             result = subprocess.run(
                 argv,
                 input=payload,

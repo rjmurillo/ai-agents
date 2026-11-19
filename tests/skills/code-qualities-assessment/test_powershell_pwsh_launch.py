@@ -5,16 +5,18 @@ receives, and how every failure of the parser process fails closed.
 """
 
 import base64
+import os
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from .test_powershell_coupling import _fake_pwsh, _mod, assess_content
+from .test_powershell_coupling import FAKE_PWSH, _fake_pwsh, _mod, assess_content
 
 
 @pytest.mark.parametrize(
@@ -60,7 +62,7 @@ def test_source_travels_on_stdin_from_an_empty_directory(
     assess_content(Path("Script.ps1"), source)
 
     (call,) = calls
-    assert call["argv"][0] == "/fake/pwsh"
+    assert call["argv"][0] == FAKE_PWSH
     assert call["argv"][1:5] == ["-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand"]
     assert not any("Remove-Item" in part or "Import-Module" in part for part in call["argv"])
     assert call["input"] and "Import-Module" not in call["input"]
@@ -199,3 +201,73 @@ def test_other_parsed_languages_never_reach_pwsh(
     coupling = assess_content(Path(name), source).coupling
 
     assert coupling.reasons[0] == "1 import/dependency statements"
+
+
+def test_older_pwsh_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The script exits 3 below PowerShell 7; that exit is a failure, never a score."""
+    assert "$PSVersionTable.PSVersion.Major -lt 7" in _mod._PWSH_COUNT_SCRIPT
+    message = "PowerShell 7 or later is required; found 6.2.7"
+    _fake_pwsh(monkeypatch, returncode=3, stderr=message, stdout="")
+
+    with pytest.raises(_mod.PowerShellParserError, match="exited 3: " + re.escape(message)):
+        assess_content(Path("Script.ps1"), "Import-Module A\n")
+
+
+def _two_entry_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, first: Path) -> Path:
+    """Put *first* and then a real-looking pwsh.exe on PATH; return the second."""
+    second = tmp_path / "later" / "pwsh.exe"
+    second.parent.mkdir()
+    monkeypatch.setenv("PATH", os.pathsep.join([str(first.parent), str(second.parent)]))
+    lookups = {str(first.parent): str(first), str(second.parent): str(second)}
+    monkeypatch.setattr(shutil, "which", lambda _name, path=None: lookups.get(path))
+    return second
+
+
+def test_windows_skips_a_cmd_shim_for_a_later_pwsh_exe(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = _fake_pwsh(monkeypatch, stdout='{"count":1,"errors":[]}')
+    shim = tmp_path / "shims" / "pwsh.cmd"
+    shim.parent.mkdir()
+    real = _two_entry_path(tmp_path, monkeypatch, shim)
+    monkeypatch.setattr(sys, "platform", "win32")
+
+    assess_content(Path("Script.ps1"), "Import-Module A\n")
+
+    assert calls[0]["argv"][0] == str(real)
+
+
+def test_a_pwsh_in_the_checkout_does_not_hide_a_later_install(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = _fake_pwsh(monkeypatch, stdout='{"count":1,"errors":[]}')
+    work = tmp_path / "work"
+    (work / "bin").mkdir(parents=True)
+    monkeypatch.chdir(work)
+    real = _two_entry_path(tmp_path, monkeypatch, work / "bin" / "pwsh.exe")
+
+    assess_content(Path("Script.ps1"), "Import-Module A\n")
+
+    assert calls[0]["argv"][0] == str(real)
+
+
+def test_temp_cleanup_failure_keeps_a_finished_parse(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Windows can hold pwsh's working directory; cleanup must not discard the result."""
+    _fake_pwsh(monkeypatch, stdout='{"count":2,"errors":[]}')
+    real_directory = tempfile.TemporaryDirectory
+
+    class HeldDirectory(real_directory):  # type: ignore[valid-type,misc]
+        def __init__(self, **kwargs: Any) -> None:
+            self.ignore = kwargs.get("ignore_cleanup_errors", False)
+            super().__init__(**kwargs)
+
+        def __exit__(self, *exc: object) -> None:
+            super().__exit__(*exc)
+            if not self.ignore:
+                raise PermissionError("directory is in use")
+
+    monkeypatch.setattr(tempfile, "TemporaryDirectory", HeldDirectory)
+
+    coupling = assess_content(Path("Script.ps1"), "Import-Module A\nImport-Module B\n").coupling
+
+    assert coupling.reasons[0] == "2 import/dependency statements"

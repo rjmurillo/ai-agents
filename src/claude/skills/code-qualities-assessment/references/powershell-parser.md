@@ -2,7 +2,8 @@
 
 PowerShell dependency counting uses PowerShell's own parser, not line matching.
 The scanner runs `pwsh` and reads the syntax tree it returns.
-It adds no Python package, so the scanner stays standard-library only.
+PowerShell parsing adds no Python package.
+Other parsed languages still need their own packages; see their parser references.
 
 ## What counts
 
@@ -41,21 +42,24 @@ Both rewrites ignore case, and they also catch Unicode lookalikes such as `uſin
 No `using` statement or `configuration` block reaches the parser.
 The rewrite keeps line numbers.
 The parser sees each statement as a command named `__ptk_using__`, and the scanner counts those.
-It then blanks those statements, keeping newlines, and parses again.
+It then blanks those statements and any `;` that ends them, keeping newlines, and parses again.
 That keeps a `[CmdletBinding()] param()` block after them legal, and the second parse supplies the syntax errors.
 A `using` statement in the wrong place, or with an unknown kind, is not reported as an error.
 A class that names a type a `using` statement would have imported reports `TypeNotFound`.
 That is a type lookup, not a syntax error, so it does not fail the scan.
 
 The scanner finds `pwsh` only in absolute PATH entries.
-It refuses a `pwsh` inside the scanned directory, and on Windows anything but `pwsh.exe`.
+It searches each entry in order and skips a `pwsh` inside the scanned directory.
+On Windows it looks only for `pwsh.exe`, so a `pwsh.cmd` shim never runs.
 
 ## Failures
 
 These stop the scan with exit 1 and no report:
 
 - `pwsh` is not on an absolute PATH entry, or it cannot start.
+- `pwsh` is older than PowerShell 7.
 - `pwsh` times out, exits non-zero, or returns output the scanner cannot read.
+- A `using` statement has no kind or no name, such as a bare `using namespace`.
 - PowerShell reports a syntax error in the file. The message names the file and line.
 
 The scanner never guesses a count and never falls back to regex.
@@ -67,7 +71,7 @@ The scanner never guesses a count and never falls back to regex.
 
 ## Why not Tree-sitter
 
-Issue rjmurillo/ai-agents#7437 first chose `tree-sitter-powershell==0.26.4`.
+This scanner first tried `tree-sitter-powershell==0.26.4`.
 On 2026-11-18 that grammar marked 8 of 63 valid files with error nodes.
 The files were the deduplicated modules shipped with pwsh 7.6.10.
 `Export-ModuleMember -Function Get-A, Set-B` is one form it rejects.
