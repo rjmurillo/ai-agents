@@ -160,6 +160,20 @@ def test_yaml_matching_count_is_clean() -> None:
     assert card.structured_count_claims(text, "yaml") == []
 
 
+def test_yaml_bool_key_does_not_crash_and_still_checks_string_keys() -> None:
+    text = "on: [push, pull_request]\nreason: Waived for these two PRs.\npull_requests: [1, 2, 3]\n"
+
+    claims = card.structured_count_claims(text, "yaml")
+
+    assert [(c.stated, c.actual, c.array_key) for c in claims] == [(2, 3, "pull_requests")]
+
+
+def test_yaml_with_only_a_bool_key_yields_no_claims() -> None:
+    text = "on: [push, pull_request]\nnote: Runs on these two events.\n"
+
+    assert card.structured_count_claims(text, "yaml") == []
+
+
 def test_unparseable_document_yields_no_claims() -> None:
     assert card.structured_count_claims("{not json", "json") == []
     assert card.structured_count_claims("a: [unclosed", "yaml") == []

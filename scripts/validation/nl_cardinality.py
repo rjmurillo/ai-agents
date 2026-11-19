@@ -417,9 +417,11 @@ def _claims_in_string(value: str) -> list[tuple[int, str]]:
 
 
 def _object_claims(obj: dict[str, Any], path: str, lines: list[str]) -> list[StructuredClaim]:
-    arrays = {key: val for key, val in obj.items() if isinstance(val, list) and val}
+    # PyYAML 1.1 parses keys such as "on" as True. Only string keys are names.
+    items = [(key, val) for key, val in obj.items() if isinstance(key, str)]
+    arrays = {key: val for key, val in items if isinstance(val, list) and val}
     claims: list[StructuredClaim] = []
-    for key, value in obj.items():
+    for key, value in items:
         if not isinstance(value, str):
             continue
         for stated, noun in _claims_in_string(value):
@@ -474,6 +476,7 @@ def structured_count_claims(text: str, kind: str) -> list[StructuredClaim]:
     it still has to match, which is stricter than "compare the only list": "edits three
     files" beside a `pull_requests` list is not a claim about that list. A document that
     does not parse yields nothing, because syntax errors are other validators' job.
+    A key that is not a string is skipped.
     """
     lines = text.splitlines()
     return [c for doc in _parse_structured(text, kind) for c in _walk(doc, "", lines)]
