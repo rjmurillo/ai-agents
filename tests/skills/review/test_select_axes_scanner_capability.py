@@ -207,14 +207,12 @@ class TestOverrideModesAndLocalAxes:
 
     # One launcher, its Pester tests, and a README: the reported change shape.
     POWERSHELL_CHANGE = ["bin/launcher.ps1", "tests/launcher.Tests.ps1", "README.md"]
+    # Issue #7437: assess.py reads PowerShell, so code-qualities joins the scanners.
+    POWERSHELL_LOCAL = frozenset({"code-qualities-assessment", "doc-accuracy", "taste-lints"})
 
     def test_deep_skips_scanners_that_read_no_changed_file(self):
         result = select(self.POWERSHELL_CHANGE, deep=True)
-        assert set(result["local_selected"]) == {
-            "code-qualities-assessment",
-            "doc-accuracy",
-            "taste-lints",
-        }
+        assert set(result["local_selected"]) == self.POWERSHELL_LOCAL
         assert result["skipped"] == {"golden-principles": mod._UNREADABLE_REASON}
 
     def test_deep_still_runs_every_canonical_axis_when_narrowing(self):
@@ -236,11 +234,7 @@ class TestOverrideModesAndLocalAxes:
         module = ["mod/M.psm1", "mod/M.psd1", "mod/M.Format.ps1xml", "README.md"]
         result = select(module, deep=True)
         assert result["unclassified_paths"] == []
-        assert set(result["local_selected"]) == {
-            "code-qualities-assessment",
-            "doc-accuracy",
-            "taste-lints",
-        }
+        assert set(result["local_selected"]) == self.POWERSHELL_LOCAL
         assert result["skipped"] == {"golden-principles": mod._UNREADABLE_REASON}
 
     def test_deep_keeps_doc_accuracy_for_a_tracked_build_doc(self):
@@ -280,11 +274,7 @@ class TestOverrideModesAndLocalAxes:
             canonical_candidates=CANDIDATES,
             deep=True,
         )
-        assert set(result["local_selected"]) == {
-            "code-qualities-assessment",
-            "doc-accuracy",
-            "taste-lints",
-        }
+        assert set(result["local_selected"]) == self.POWERSHELL_LOCAL
         assert result["skipped"] == {"golden-principles": mod._UNREADABLE_REASON}
 
     @pytest.mark.parametrize(
@@ -312,11 +302,7 @@ class TestOverrideModesAndLocalAxes:
             deep=True,
         )
         assert result["unresolved_axes"] == ["analyst"]
-        assert set(result["local_selected"]) == {
-            "code-qualities-assessment",
-            "doc-accuracy",
-            "taste-lints",
-        }
+        assert set(result["local_selected"]) == self.POWERSHELL_LOCAL
         for axis in result["local_selected"]:
             assert result["selection_reasons"][axis] == mod._UNRESOLVED_REASON
         assert result["skipped"] == {"golden-principles": mod._UNREADABLE_REASON}
