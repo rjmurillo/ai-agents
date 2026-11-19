@@ -82,6 +82,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     "Stale Script References",
     "Citation Freshness (added lines)",
     "Measurement Anchoring (added lines)",
+    "Doc Date Drift (advisory, added lines)",
     "IO Portability (added lines)",
     "Documented Interpreter Portability",
     "Orphaned Build Deferrals",

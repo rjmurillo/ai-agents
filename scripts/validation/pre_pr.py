@@ -55,6 +55,7 @@ from active_plan_closeout import validate_active_plan_closeout
 from check_adr_lifecycle import validate_adr_lifecycle
 from check_adr_links import validate_adr_links
 from check_citation_freshness import validate_citation_freshness
+from check_doc_date_drift import validate_doc_date_drift
 from check_doc_interpreter_portability import (
     validate_doc_interpreter_portability,
 )
