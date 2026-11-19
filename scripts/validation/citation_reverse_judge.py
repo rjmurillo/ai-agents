@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import citation_reverse_pass as gate
 from check_citation_freshness import Finding, _citation_anchors
-from citation_anchors import _CITATION, _expand_adr_citations, _moved_cluster
+from citation_anchors import _CITATION, _adr_base_path, _expand_adr_citations, _moved_cluster
 from citation_head_state import _reworded_line_pairs
 
 
@@ -65,8 +65,13 @@ def _judge_one(
         if finding is not None:
             findings.append(finding)
         return
+    base_path = cite.target
+    if cite.target not in trees.base_tracked:
+        paired = _adr_base_path(cite.target, trees.base_tracked)
+        if paired is not None:
+            base_path = paired
     base_finding, base_lines = gate._judge(
-        cite, cite.target, anchors, trees.base_tracked, trees.base_files
+        cite, base_path, anchors, trees.base_tracked, trees.base_files
     )
     base_ok = base_finding is None and base_lines is not None
     if not base_ok and not touched:

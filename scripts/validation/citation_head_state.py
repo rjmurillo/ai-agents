@@ -53,7 +53,30 @@ def _head_tracked_paths(repo_root: Path, ref: str = "HEAD") -> set[str] | None:
 def _added_lines_since_base(
     repo_root: Path, base_ref: str, head_ref: str = "HEAD"
 ) -> dict[str, list[tuple[int, str]]] | None:
-    """Map citing file -> [(new line number, line text)] for added lines.
+    """Map citing file -> [(new line number, line text)] for added lines."""
+    edits = _diff_line_edits(repo_root, base_ref, head_ref)
+    if edits is None:
+        return None
+    return edits[0]
+
+
+def _diff_line_edits(
+    repo_root: Path, base_ref: str, head_ref: str = "HEAD"
+) -> tuple[dict[str, list[tuple[int, str]]], dict[str, tuple[int, ...]]] | None:
+    """Return added lines and HEAD positions of deletion-only hunks.
+
+    Callers that only need authored ``+`` lines keep ``_added_lines_since_base``.
+    A deletion-only hunk has no ``+`` line, so its HEAD position is returned
+    separately and is never treated as an authored claim.
+    """
+    added, deleted = _parse_diff_lines(repo_root, base_ref, head_ref)
+    return None if added is None or deleted is None else (added, deleted)
+
+
+def _parse_diff_lines(
+    repo_root: Path, base_ref: str, head_ref: str = "HEAD"
+) -> tuple[dict[str, list[tuple[int, str]]] | None, dict[str, tuple[int, ...]] | None]:
+    """Map citing file -> added lines, and deletion-only HEAD anchors.
 
     ``head_ref`` defaults to HEAD; an eval that replays a past pull request
     passes the commit it reviewed, so it reads diffs exactly as the gates do.
@@ -95,10 +118,11 @@ def _added_lines_since_base(
         ],
     )
     if exit_code != 0:
-        return None
+        return None, None
 
     added: dict[str, list[tuple[int, str]]] = {}
     removed: dict[str, Counter[str]] = {}
+    deleted_at: dict[str, set[int]] = {}
     current_file: str | None = None
     new_lineno = 0
     in_hunk = False
@@ -127,7 +151,15 @@ def _added_lines_since_base(
             new_lineno += 1
         elif raw.startswith("-"):
             removed.setdefault(current_file, Counter())[_undo_root_move(raw[1:])] += 1
-    return _drop_root_move_rewrites(added, removed)
+            deleted_at.setdefault(current_file, set()).add(new_lineno)
+    kept = _drop_root_move_rewrites(added, removed)
+    deleted: dict[str, tuple[int, ...]] = {}
+    for path, numbers in deleted_at.items():
+        authored = {number for number, _text in kept.get(path, [])}
+        anchors = tuple(sorted(number for number in numbers if number not in authored))
+        if anchors:
+            deleted[path] = anchors
+    return kept, deleted
 
 
 def _undo_root_move(line: str) -> str:

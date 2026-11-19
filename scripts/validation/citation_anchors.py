@@ -363,19 +363,17 @@ def _historical(path: str) -> bool:
     return path.startswith(HISTORICAL_ROOTS)
 
 
-def _citation_aliases(tracked: set[str]) -> dict[str, str]:
-    """Map a zero-padded ADR number to its file when that number is unique.
+_ADR_PARENTS = frozenset({"architecture", "adr", "adrs"})
 
-    The number parse is ``adr_number`` from the ADR link checker. Serena
-    memories and other historical roots are not ADR records, so they do not
-    compete. A number that still names two files is left unresolved.
-    """
+
+def _adr_candidates(tracked: set[str]) -> dict[str, set[str]]:
+    """Map a zero-padded ADR number to the files that use it."""
     candidates: dict[str, set[str]] = {}
     for path in tracked:
         if _historical(path):
             continue
         pure = PurePosixPath(path)
-        if pure.parent.name not in {"architecture", "adr", "adrs"}:
+        if pure.parent.name not in _ADR_PARENTS:
             continue
         if not ADR_BASENAME.match(pure.name):
             continue
@@ -383,7 +381,60 @@ def _citation_aliases(tracked: set[str]) -> dict[str, str]:
         if number is None:
             continue
         candidates.setdefault(f"{number:03d}", set()).add(path)
-    return {name: next(iter(paths)) for name, paths in candidates.items() if len(paths) == 1}
+    return candidates
+
+
+def _unique_adr(paths: set[str]) -> str | None:
+    """Return the only path in a number's set, or None when it is empty or split."""
+    if len(paths) != 1:
+        return None
+    return next(iter(paths))
+
+
+def _citation_aliases(tracked: set[str]) -> dict[str, str]:
+    """Map a zero-padded ADR number to its file when that number is unique.
+
+    The number parse is ``adr_number`` from the ADR link checker. Serena
+    memories and other historical roots are not ADR records, so they do not
+    compete. A number that still names two files is left unresolved.
+    """
+    return {
+        name: path
+        for name, paths in _adr_candidates(tracked).items()
+        if (path := _unique_adr(paths)) is not None
+    }
+
+
+def _citation_aliases_across(base_tracked: set[str], head_tracked: set[str]) -> dict[str, str]:
+    """Resolve ADR numbers from the merge base and from HEAD.
+
+    A number that names two files on either side stays unresolved. A number
+    that exists only at the merge base keeps that path, so a deletion still
+    fails at HEAD. Different unique paths are a rename, and the alias then
+    names the HEAD file.
+    """
+    base = _adr_candidates(base_tracked)
+    head = _adr_candidates(head_tracked)
+    aliases: dict[str, str] = {}
+    for number in set(base) | set(head):
+        if len(base.get(number, set())) > 1 or len(head.get(number, set())) > 1:
+            continue
+        head_path = _unique_adr(head.get(number, set()))
+        if head_path is not None:
+            aliases[number] = head_path
+            continue
+        base_path = _unique_adr(base.get(number, set()))
+        if base_path is not None:
+            aliases[number] = base_path
+    return aliases
+
+
+def _adr_base_path(head_path: str, base_tracked: set[str]) -> str | None:
+    """Return the one merge-base ADR file that shares ``head_path``'s number."""
+    number = adr_number(PurePosixPath(head_path).name)
+    if number is None:
+        return None
+    return _unique_adr(_adr_candidates(base_tracked).get(f"{number:03d}", set()))
 
 
 def _expand_adr_citations(text: str, aliases: dict[str, str]) -> str:

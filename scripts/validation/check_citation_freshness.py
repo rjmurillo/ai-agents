@@ -73,8 +73,8 @@ from citation_anchors import (  # noqa: E402
 from citation_exemptions import _is_exempt_citing_file  # noqa: E402
 from citation_head_state import (  # noqa: E402
     HeadReadError,
-    _added_lines_since_base,
     _change_set,
+    _diff_line_edits,
     _head_tracked_paths,
     _HeadFileCache,
 )
@@ -302,9 +302,10 @@ def find_stale_citations(repo_root: Path, base_ref: str) -> list[Finding] | None
     tracked = _head_tracked_paths(repo_root)
     if tracked is None:
         return None
-    added = _added_lines_since_base(repo_root, base_ref)
-    if added is None:
+    edits = _diff_line_edits(repo_root, base_ref)
+    if edits is None:
         return None
+    added, deleted = edits
 
     head_files = _HeadFileCache(repo_root)
     findings: list[Finding] = []
@@ -322,6 +323,7 @@ def find_stale_citations(repo_root: Path, base_ref: str) -> list[Finding] | None
             citations_checked,
             base_ref,
             changed,
+            deleted,
         )
     except HeadReadError as error:
         # An operational git failure mid-run is the config-error exit,
@@ -334,17 +336,21 @@ def find_stale_citations(repo_root: Path, base_ref: str) -> list[Finding] | None
 
 
 def _lines_beside_edits(
-    added_rows: list[tuple[int, str]], file_lines: list[str], radius: int = 3
+    added_rows: list[tuple[int, str]],
+    file_lines: list[str],
+    radius: int = 3,
+    deleted_numbers: tuple[int, ...] = (),
 ) -> list[tuple[int, str, bool]]:
     """Return added lines, then unchanged lines within ``radius`` of an edit.
 
     The third item is True when the line itself was added. A citation the
     author left beside an edit is part of the diff they are publishing.
+    Deletion positions select neighbors only. They are not authored claims.
     """
     added_numbers = {number for number, _text in added_rows}
     rows = [(number, text, True) for number, text in added_rows]
     seen = set(added_numbers)
-    for number in added_numbers:
+    for number in added_numbers | set(deleted_numbers):
         for neighbor in range(number - radius, number + radius + 1):
             if neighbor in seen or not 1 <= neighbor <= len(file_lines):
                 continue
@@ -362,17 +368,22 @@ def _scan_added_lines(
     citations_checked: int,
     base_ref: str,
     changed: frozenset[str],
+    deleted: dict[str, tuple[int, ...]],
 ) -> list[Finding]:
     """Scan every added line for citations; may raise HeadReadError."""
     aliases = _citation_aliases(tracked)
     names = _basename_index(tracked)
-    for citing_file in sorted(added):
+    for citing_file in sorted(set(added) | set(deleted)):
         if _is_exempt_citing_file(citing_file):
             continue
         files_scanned += 1
         file_lines = head_files.lines(citing_file)
         test_strings = string_literal_lines(citing_file, file_lines)
-        for line_number, line_text, authored in _lines_beside_edits(added[citing_file], file_lines):
+        for line_number, line_text, authored in _lines_beside_edits(
+            added.get(citing_file, []),
+            file_lines,
+            deleted_numbers=deleted.get(citing_file, ()),
+        ):
             if line_number in test_strings:
                 continue
             # URLs are masked before scanning so an external link shaped

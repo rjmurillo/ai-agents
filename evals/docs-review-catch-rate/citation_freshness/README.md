@@ -78,5 +78,8 @@ Repeated or edited boundary text can prevent safe relocation suggestions.
 A bare basename counts only when one tracked file has that name.
 A bare `:N` binds to the previous unique filename.
 Prose line ranges with no path stay manual.
+Ten negative cases examine zero citations.
+Only N05 and N10 exercise inbound references.
+That is a known limit of this corpus.
 Serena memory citation checks require a separate scope decision.
 Generated skill copies remain exempt; template sources receive checks directly.

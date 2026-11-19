@@ -53,9 +53,7 @@ import argparse
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
-from importlib import import_module
 from pathlib import Path
-from typing import cast
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _SCRIPT_DIR.parent.parent
@@ -68,6 +66,7 @@ from check_citation_freshness import (  # noqa: E402
     Finding,
     _anchor_finding,
     _has_ignore_marker,
+    _relocation_hint,
     _report_findings,
     _resolve_cited_range,
 )
@@ -78,9 +77,10 @@ from citation_anchors import (  # noqa: E402
     _URL,
     _anchor_matches,
     _basename_index,
-    _citation_aliases,
+    _citation_aliases_across,
     _expand_adr_citations,
     _expand_continuations,
+    _range_misses_distinctive_anchors,
     _relocated_range,
     _same_line_segment,
     _unique_move,
@@ -193,6 +193,19 @@ def _judge(
             cited_lines,
             cite.start,
             cite.end,
+        )
+    if (
+        finding is None
+        and cited_lines is not None
+        and _range_misses_distinctive_anchors(anchors, cited_lines, cite.start, cite.end)
+    ):
+        hint = _relocation_hint(anchors, cited_lines)
+        named = ", ".join(repr(anchor) for anchor in anchors[:4])
+        finding = Finding(
+            cite.citing_file,
+            cite.line_number,
+            cite.label,
+            f"distinctive anchors ({named}) sit outside lines {cite.start}-{cite.end}{hint}",
         )
     return finding, cited_lines
 
@@ -307,9 +320,14 @@ class _Tally:
 
 
 def _load_judge_one() -> Callable[..., None]:
-    """Load the judge when a citation is scanned."""
-    module = import_module("citation_reverse_judge")
-    return cast(Callable[..., None], module._judge_one)
+    """Load the judge when a citation is scanned.
+
+    A function-level import keeps the module cycle broken and stays visible
+    to the validation-script reachability scan.
+    """
+    from citation_reverse_judge import _judge_one
+
+    return _judge_one
 
 
 def _scan(
@@ -328,7 +346,7 @@ def _scan(
         base_by_name.setdefault(path.rsplit("/", 1)[-1], []).append(path)
     for path in trees.head_tracked:
         head_by_name.setdefault(path.rsplit("/", 1)[-1], []).append(path)
-    aliases = _citation_aliases(trees.head_tracked)
+    aliases = _citation_aliases_across(trees.base_tracked, trees.head_tracked)
     names = _basename_index(trees.head_tracked)
     hits = _grep_head(repo_root)
     added_map = _added_lines_since_base(repo_root, base_ref)

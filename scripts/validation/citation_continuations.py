@@ -23,6 +23,12 @@ _BARE_RANGE = re.compile(r"(?<![\w./\\-]):(?P<start>\d+)(?:-(?P<end>\d+))?\b")
 _EXTENSIONS = (
     "py|md|yml|yaml|json|jsonc|xml|csv|ps1|psm1|psd1|sh|ts|js|toml|txt|ini|cfg|html|css|ipynb"
 )
+# A repository-relative path. The basename is what a later bare range binds
+# to. Segments of "." or "..", and a match stuck to a URL or an absolute
+# path, are rejected by the caller or by the lookbehind.
+_REPO_FILE = re.compile(
+    rf"(?<![\w./\\-])(?P<path>(?:[\w.-]+/)+)(?P<name>[\w.-]+\.(?:{_EXTENSIONS}))\b"
+)
 
 
 def _file_pattern() -> re.Pattern[str]:
@@ -61,6 +67,11 @@ def _expand_continuations(text: str, index: dict[str, list[str]]) -> str:
     filename = _file_pattern()
     events: list[tuple[int, int, str, re.Match[str]]] = []
     for match in filename.finditer(text):
+        events.append((match.start(), match.end(), "file", match))
+    for match in _REPO_FILE.finditer(text):
+        segments = [part for part in match.group("path").split("/") if part]
+        if any(part in {".", ".."} for part in segments):
+            continue
         events.append((match.start(), match.end(), "file", match))
     for match in _BARE_RANGE.finditer(text):
         events.append((match.start(), match.end(), "colon", match))

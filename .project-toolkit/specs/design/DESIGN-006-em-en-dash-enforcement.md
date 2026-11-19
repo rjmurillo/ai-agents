@@ -187,9 +187,10 @@ exit 0
 - Filter to `*.md` files.
 - Skip vendored paths (`node_modules/`, `.venv/`, `.serena/cache/`).
 - For each remaining file, read and search for U+2014 or U+2013.
-- Return `bool` (False on any violation, True on clean), matching the existing pattern of
-  `validate_session_end`, `validate_pester_tests`, `validate_markdown_lint`, etc.
-  (`scripts/validation/pre_pr.py:178, 203, 218`).
+- Return `bool` (False on any violation, True on clean).
+  `validate_session_end` is defined at `scripts/validation/checks_tooling.py:158`.
+  `validate_markdown_lint` is defined at `scripts/validation/checks_tooling.py:293`.
+  `validate_pester_tests` has since been removed.
 
 **Integration**: The existing `pre_pr.py` check-runner calls `validate_dash_prohibition()`
 alongside the other `validate_*` functions. The runner translates `False` returns to exit

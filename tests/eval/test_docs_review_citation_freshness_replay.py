@@ -78,8 +78,11 @@ def test_failed_check_removes_worktree_and_fetched_ref(
     def command(args: list[str], cwd: Path = replay.ROOT) -> str:
         commands.append(args)
         if args[0] == "gh":
-            return '{"baseRefOid": "base", "headRefOid": "head"}'
-        return "commit"
+            return (
+                '{"baseRefOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", '
+                '"headRefOid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}'
+            )
+        return "cccccccccccccccccccccccccccccccccccccccc"
 
     def broken_check(root: Path, base: str) -> Any:
         raise RuntimeError("cannot read HEAD")
@@ -88,6 +91,35 @@ def test_failed_check_removes_worktree_and_fetched_ref(
     monkeypatch.setattr(replay, "check", broken_check)
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     with pytest.raises(RuntimeError, match="cannot read HEAD"):
-        replay.replay(dict(pr=1, sha="head"), "owner/repo", "unit")
+        replay.replay(dict(pr=1, sha="abcdef1"), "owner/repo", "unit")
     assert commands[-2][0:3] == ["git", "worktree", "remove"]
     assert commands[-1] == ["git", "update-ref", "-d", "refs/docs-citation-replay/unit/1"]
+
+
+def test_replay_rejects_option_shaped_inputs() -> None:
+    with pytest.raises(ValueError, match="revision"):
+        replay.git_sha("--upload-pack=evil")
+    with pytest.raises(ValueError, match="repository"):
+        replay.repo_slug("--repo")
+    with pytest.raises(ValueError, match="pull request"):
+        replay.pr_number("1;rm")
+    with pytest.raises(ValueError, match="ref token"):
+        replay.ref_token("owned/../x")
+
+
+def test_replay_outside_checkout_writes_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    calls: list[list[str]] = []
+
+    def command(args: list[str], cwd: Path = replay.ROOT) -> str:
+        calls.append(args)
+        return ""
+
+    monkeypatch.setattr(replay, "command", command)
+    output = tmp_path / "out.json"
+    code = replay.main(["--output", str(output)])
+    assert code == 2
+    assert calls == []
+    assert not output.exists()
