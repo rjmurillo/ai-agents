@@ -4,8 +4,10 @@ A repository that keeps hand-written skill pages under docs/skills/ (with a
 README.md that lists them in tables) wants one page and one row per skill.
 This module writes both, but only when the new skill lands directly in a
 folder named ``skills`` inside a git checkout that has docs/skills/README.md.
-Anywhere else it does nothing, so a skill at the repository root or in a
-scratch folder gets no docs files.
+When that checkout contains ``src/claude/skills``, only that tree and
+``.claude/skills`` qualify. A mirrored tree does not, because the docs gate
+does not inventory it. A checkout without ``src/claude/skills`` keeps the
+broader skills-folder rule. Anywhere else this module does nothing.
 
 Stdlib only.
 """
@@ -29,7 +31,13 @@ PAGE_SECTIONS = (
 )
 
 ROW_TEMPLATE = "| [`{name}`]({name}.md) | TODO | TODO: what a reader uses it to do |\n"
-_ROW_LINK = re.compile(r"\]\((?:\./)?([A-Za-z0-9_.-]+)\.md\)")
+# Local page only: optional ./, fragment, and title. Not a URL.
+# Same pattern as scripts/validation/check_agent_skill_docs.py.
+_ROW_LINK = re.compile(
+    r"\]\(\s*<?(?:\./)?([A-Za-z0-9_.-]+)\.md(?:#[^>\s)]*)?>?"
+    r"(?:\s+(?:\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|\([^)\n]*\)))?\s*\)"
+)
+_CANONICAL_SKILL_PARENTS = ("src/claude/skills", ".claude/skills")
 
 
 def page_text(name: str, title: str) -> str:
@@ -38,20 +46,60 @@ def page_text(name: str, title: str) -> str:
     return f"# {title}\n\nTODO: one sentence on what `{name}` does for the reader.\n\n{body}"
 
 
-def find_docs_readme(skill_parent: Path) -> Path | None:
-    """Return docs/skills/README.md when ``skill_parent`` is a skill folder.
+def _git_root(start: Path) -> Path | None:
+    for directory in (start, *start.parents):
+        if (directory / ".git").exists():
+            return directory
+    return None
 
-    ``skill_parent`` must be named SKILL_FOLDER_NAME and sit inside a git
-    checkout whose root holds DOCS_README.
+
+def find_docs_readme(skill_parent: Path) -> Path | None:
+    """Return docs/skills/README.md when this parent may receive a page.
+
+    The parent must be named skills and sit in a git checkout that has the
+    docs README. When that checkout contains src/claude/skills, only
+    src/claude/skills and .claude/skills qualify.
     """
     parent = skill_parent.resolve()
     if parent.name != SKILL_FOLDER_NAME:
         return None
-    for directory in (parent, *parent.parents):
-        if (directory / ".git").exists():
-            readme = directory / DOCS_README
-            return readme if readme.is_file() else None
-    return None
+    root = _git_root(parent)
+    if root is None:
+        return None
+    readme = root / DOCS_README
+    if not readme.is_file():
+        return None
+    if (root / "src" / "claude" / "skills").is_dir():
+        try:
+            relative = parent.relative_to(root).as_posix()
+        except ValueError:
+            return None
+        if relative not in _CANONICAL_SKILL_PARENTS:
+            return None
+    return readme
+
+
+def _column_count(line: str) -> int:
+    body = line.strip()
+    if body.startswith("|"):
+        body = body[1:]
+    if body.endswith("|"):
+        body = body[:-1]
+    if not body.strip():
+        return 0
+    return len(body.split("|"))
+
+
+def _row_for_width(name: str, columns: int) -> str:
+    """Return a README row whose cell count matches ``columns``."""
+    link = f"[`{name}`]({name}.md)"
+    description = "TODO: what a reader uses it to do"
+    width = columns if columns >= 2 else 2
+    if width == 2:
+        cells = [link, description]
+    else:
+        cells = [link, *["TODO"] * (width - 2), description]
+    return "| " + " | ".join(cells) + " |\n"
 
 
 def _row_names(line: str) -> list[str]:
@@ -63,11 +111,12 @@ def has_row(text: str, name: str) -> bool:
     return any(name in _row_names(line) for line in text.splitlines())
 
 
-def insert_row(text: str, section: str, name: str, row: str) -> str | None:
-    """Return ``text`` with ``row`` in the table under ``## section``.
+def insert_row(text: str, section: str, name: str) -> str | None:
+    """Return ``text`` with a row for ``name`` under ``## section``.
 
-    The row goes before the first body row whose link sorts after ``name``,
-    else after the last row. Returns None when the heading or table is missing.
+    The row uses the column count of that table. It goes before the first
+    body row whose link sorts after ``name``, else after the last row.
+    Returns None when the heading or table is missing.
     """
     lines = text.splitlines(keepends=True)
     try:
@@ -83,6 +132,7 @@ def insert_row(text: str, section: str, name: str, row: str) -> str | None:
             rows.append(index)
     if not rows:
         return None
+    row = _row_for_width(name, _column_count(lines[rows[0]]))
     position = rows[-1] + 1
     for index in rows:
         names = _row_names(lines[index])
@@ -109,7 +159,7 @@ def scaffold(name: str, title: str, readme: Path, section: str | None) -> list[s
         notes.append(f"README row exists, left alone: {readme}")
         return notes
     row = ROW_TEMPLATE.format(name=name)
-    updated = insert_row(text, section, name, row) if section else None
+    updated = insert_row(text, section, name) if section else None
     if updated is None:
         where = f"heading '## {section}' has no table" if section else "no --docs-section given"
         notes.append(f"README row not added ({where}). Add this row to a table in {readme}:")

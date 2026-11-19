@@ -87,7 +87,12 @@ SECTIONS = (
 _BLOCKING = "validate_agent_skill_docs"
 _FRESHNESS = "validate_skill_page_freshness"
 _SCOPE = "docs/skills, docs/agents"
-_ROW_LINK = re.compile(r"\]\((?:\./)?([A-Za-z0-9_.-]+)\.md\)")
+# Local page only: optional ./, fragment, and title. Not a URL.
+# Same pattern as src/claude/skills/skillforge/scripts/_docs_page.py.
+_ROW_LINK = re.compile(
+    r"\]\(\s*<?(?:\./)?([A-Za-z0-9_.-]+)\.md(?:#[^>\s)]*)?>?"
+    r"(?:\s+(?:\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|\([^)\n]*\)))?\s*\)"
+)
 _HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
 _QUOTED = re.compile(r'"([^"\n]+)"|`([^`\n]+)`')
 _BACKTICK_PATH = re.compile(r"`([^`\s]*/[^`\s]*)`")
@@ -144,20 +149,38 @@ def readme_rows(readme_text: str) -> set[str]:
     return rows
 
 
+def _fence_run(stripped: str) -> tuple[str, int, str] | None:
+    """Return fence character, length, and the remainder of the line."""
+    if not stripped or stripped[0] not in "`~":
+        return None
+    char = stripped[0]
+    length = 1
+    while length < len(stripped) and stripped[length] == char:
+        length += 1
+    if length < 3:
+        return None
+    return char, length, stripped[length:]
+
+
 def _headings(text: str) -> list[re.Match[str]]:
-    """Return heading matches outside fenced code blocks."""
+    """Return heading matches outside fenced code blocks.
+
+    A fence closes on the same character, at least as long as the opening
+    run, with no info string. A shorter inner fence stays inside.
+    """
     found: list[re.Match[str]] = []
-    fence = ""
+    fence: tuple[str, int] | None = None
     for line in text.splitlines():
         stripped = line.lstrip()
-        marker = stripped[:3]
-        if marker in ("```", "~~~"):
-            if not fence:
-                fence = marker
-            elif marker == fence:
-                fence = ""
+        run = _fence_run(stripped)
+        if run is not None:
+            char, length, rest = run
+            if fence is None:
+                fence = (char, length)
+            elif char == fence[0] and length >= fence[1] and rest.strip() == "":
+                fence = None
             continue
-        if not fence and (match := _HEADING.match(line)):
+        if fence is None and (match := _HEADING.match(line)):
             found.append(match)
     return found
 

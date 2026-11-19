@@ -260,3 +260,93 @@ def test_row_lands_in_alphabetical_order(tmp_path: Path) -> None:
         line for line in readme.read_text(encoding="utf-8").splitlines() if line.startswith("| [")
     ]
     assert [row.split("`")[1] for row in rows] == ["alpha", "beta", "zeta"]
+
+
+def test_mirror_skill_tree_gets_no_docs_page(tmp_path: Path) -> None:
+    repo = _docs_repo(tmp_path)
+    mirror = repo / "src" / "copilot-cli" / "skills"
+    mirror.mkdir(parents=True)
+    readme = repo / "docs" / "skills" / "README.md"
+    before = readme.read_text(encoding="utf-8")
+
+    result = run("my-skill", "--path", str(mirror), "--docs-section", "Code quality")
+
+    assert result.returncode == 0, result.stderr
+    assert (mirror / "my-skill" / "SKILL.md").is_file()
+    assert not (repo / "docs" / "skills" / "my-skill.md").exists()
+    assert readme.read_text(encoding="utf-8") == before
+
+
+def test_repo_local_skill_tree_still_gets_a_page(tmp_path: Path) -> None:
+    repo = _docs_repo(tmp_path)
+    local = repo / ".claude" / "skills"
+    local.mkdir(parents=True)
+
+    result = run("my-skill", "--path", str(local), "--docs-section", "Code quality")
+
+    assert result.returncode == 0, result.stderr
+    assert (repo / "docs" / "skills" / "my-skill.md").is_file()
+
+
+def test_other_repository_skill_folder_still_gets_a_page(tmp_path: Path) -> None:
+    (tmp_path / ".git").mkdir()
+    skills = tmp_path / "team" / "skills"
+    skills.mkdir(parents=True)
+    (tmp_path / "docs" / "skills").mkdir(parents=True)
+    (tmp_path / "docs" / "skills" / "README.md").write_text(_README, encoding="utf-8")
+
+    result = run("my-skill", "--path", str(skills), "--docs-section", "Code quality")
+
+    assert result.returncode == 0, result.stderr
+    assert (tmp_path / "docs" / "skills" / "my-skill.md").is_file()
+
+
+def test_titled_row_counts_as_existing(tmp_path: Path) -> None:
+    repo = _docs_repo(tmp_path)
+    readme = repo / "docs" / "skills" / "README.md"
+    readme.write_text(
+        _README.replace(
+            "| match | Do alpha |",
+            '| match | Do alpha |\n| [x](my-skill.md "my skill") | match | Old |',
+        ),
+        encoding="utf-8",
+    )
+    before = readme.read_text(encoding="utf-8")
+
+    result = run(
+        "my-skill",
+        "--path",
+        str(repo / "src" / "claude" / "skills"),
+        "--docs-section",
+        "Code quality",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "README row exists" in result.stdout
+    assert readme.read_text(encoding="utf-8") == before
+
+
+def test_two_column_table_gets_a_two_cell_row(tmp_path: Path) -> None:
+    repo = _docs_repo(tmp_path)
+    readme = repo / "docs" / "skills" / "README.md"
+    readme.write_text(
+        "# Skills\n\n"
+        "## Repository maintenance (this repository only)\n\n"
+        "| Skill | Use it to |\n"
+        "| --- | --- |\n"
+        "| [`alpha`](alpha.md) | Do alpha |\n",
+        encoding="utf-8",
+    )
+
+    result = run(
+        "my-skill",
+        "--path",
+        str(repo / "src" / "claude" / "skills"),
+        "--docs-section",
+        "Repository maintenance (this repository only)",
+    )
+
+    assert result.returncode == 0, result.stderr
+    text = readme.read_text(encoding="utf-8")
+    assert "| [`my-skill`](my-skill.md) | TODO: what a reader uses it to do |" in text
+    assert "| [`my-skill`](my-skill.md) | TODO | TODO:" not in text
