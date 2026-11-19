@@ -282,3 +282,19 @@ class TestPrePrWiring:
         labels = [gate.name for gate in pre_pr_sequence._SEQUENCE]
 
         assert "Citation Freshness (reverse pass)" in labels
+
+
+def test_range_boundaries_move_even_when_an_anchor_stays_inside(tmp_path: Path) -> None:
+    """A growing helper shifts both cited boundaries but retains its name."""
+    base = "def magic_token():\n    begin_value = 1\n    return begin_value\n"
+    root = _repo_with_doc(tmp_path, f"The `magic_token` helper lives at {TARGET}:1-3.\n")
+    _git(root, "checkout", "-q", "main")
+    _commit_file(root, TARGET, base)
+    _git(root, "checkout", "-q", "-B", "feature")
+    head = "# inserted above\n" + base.replace("    return", "    extra_value = 2\n    return")
+    _commit_file(root, TARGET, head)
+
+    code, output = _run_reverse(root)
+
+    assert code == 1, output
+    assert f"suggested citation {TARGET}:2-5" in output
