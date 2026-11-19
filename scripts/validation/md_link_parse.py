@@ -210,6 +210,23 @@ def _strip_blockquotes(line: str) -> str:
         rest = rest[match.end() :]
 
 
+def _fence_at_column(line: str, column: int) -> tuple[str, int, bool] | None:
+    """Return a fence whose marker begins at ``column``.
+
+    ``1. ```md`` puts the opener on the marker line. ``_fence_run`` misses it
+    because the columns before the backticks are ``1. ``, not whitespace. The
+    indented closer is then read as a new opener and later live links disappear.
+    """
+    if column < 0 or column >= len(line):
+        return None
+    match = re.match(r"(?P<marker>`{3,}|~{3,})", line[column:])
+    if match is None:
+        return None
+    run = match.group("marker")
+    trailing = line[column + match.end() :]
+    return run[0], len(run), not trailing.strip()
+
+
 def _fence_run(line: str, base: int) -> tuple[str, int, bool] | None:
     """Return ``(char, length, trailing_is_blank)`` for a fence at ``base``.
 
@@ -277,6 +294,7 @@ def _live_lines(body: str) -> list[tuple[int, str]]:
     fence_base = 0
     list_columns: list[int] = []
     for line_number, line in enumerate(body.splitlines(), 1):
+        item_column: int | None = None
         if fence_char is None:
             indent = len(line) - len(line.lstrip(" "))
             while list_columns and line.strip() and indent < list_columns[-1]:
@@ -288,6 +306,8 @@ def _live_lines(body: str) -> list[tuple[int, str]]:
         else:
             base = fence_base
         found = _fence_run(line, base)
+        if found is None and item_column is not None:
+            found = _fence_at_column(line, item_column)
         if found:
             char, length, trailing_is_whitespace_only = found
             # A closing fence may be followed only by spaces or tabs, per

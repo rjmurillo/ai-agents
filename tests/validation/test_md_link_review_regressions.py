@@ -37,6 +37,13 @@ def test_staged_mode_reports_a_second_baselined_copy(tmp_path: Path) -> None:
     assert kinds(findings) == [("missing-target", "gone.md")]
 
 
+def test_a_fence_on_the_list_marker_line_does_not_hide_later_links(tmp_path: Path) -> None:
+    body = "1. ```md\n   [example](gone.md)\n   ```\n\n[after](also-gone.md)\n"
+    repo = make_repo(tmp_path, {"docs/a.md": body})
+
+    assert kinds(scan(repo)) == [("missing-target", "also-gone.md")]
+
+
 def test_a_fence_inside_a_list_is_not_a_link(tmp_path: Path) -> None:
     body = "1. Step\n\n    ```md\n    [example](gone.md)\n    ```\n\n[after](also-gone.md)\n"
     repo = make_repo(tmp_path, {"docs/a.md": body})
