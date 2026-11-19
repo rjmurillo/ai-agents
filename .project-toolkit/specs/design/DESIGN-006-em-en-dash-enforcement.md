@@ -189,7 +189,7 @@ exit 0
 - For each remaining file, read and search for U+2014 or U+2013.
 - Return `bool` (False on any violation, True on clean), matching the existing pattern of
   `validate_session_end`, `validate_pester_tests`, `validate_markdown_lint`, etc.
-  (`scripts/validation/pre_pr.py:177, 202, 217`).
+  (`scripts/validation/pre_pr.py:178, 203, 218`).
 
 **Integration**: The existing `pre_pr.py` check-runner calls `validate_dash_prohibition()`
 alongside the other `validate_*` functions. The runner translates `False` returns to exit
