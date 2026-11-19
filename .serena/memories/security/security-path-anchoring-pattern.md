@@ -21,8 +21,9 @@ user_input = request.args.get("path")
 # CORRECT: Anchor first, then resolve
 resolved_path = (allowed_base / user_input).resolve()
 
-# Verify path is within base after resolution
-if not str(resolved_path).startswith(str(allowed_base.resolve())):
+# Verify path is within base after resolution (a string prefix check
+# would accept a sibling such as /home/user/files-evil)
+if not resolved_path.is_relative_to(allowed_base.resolve()):
     raise SecurityError("Path traversal attempt detected")
 
 # Now safe to use resolved_path
@@ -32,6 +33,8 @@ Why this works:
 - `(allowed_base / "/etc/passwd")` attempts to make `/etc/passwd` relative to base
 - `.resolve()` normalizes the path, showing the attempt
 - Containment check fails because absolute path is outside base
+- `is_relative_to` compares path parts, so a sibling directory that shares
+  the base name as a prefix still fails the check
 
 ## Anti-Pattern
 
