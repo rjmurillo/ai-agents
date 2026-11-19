@@ -119,6 +119,22 @@ class TestMovedContent:
         assert code == 0, out
         assert "examined 1 inbound citation" in out
 
+    def test_anchorless_cite_of_a_repeated_line_is_not_called_moved(self, tmp_path: Path) -> None:
+        # Line 2 is long enough to count but occurs twice, so a shifted
+        # copy proves nothing about where the cited line went.
+        content = "# head\nresult = compute(\n    1,\n)\nresult = compute(\n    2,\n)\n"
+        root = _repo(tmp_path)
+        _git(root, "checkout", "-q", "main")
+        _commit_file(root, TARGET, content)
+        _commit_file(root, DOC, f"See {TARGET}:2 for the opener.\n")
+        _git(root, "checkout", "-q", "-B", "feature")
+        _commit_file(root, TARGET, "# new\n" + content)
+
+        code, out = _run_reverse(root)
+
+        assert code == 0, out
+        assert "examined 1 inbound citation" in out
+
 
 class TestMovedOrDeletedFile:
     def test_renamed_target_names_the_new_path(self, tmp_path: Path) -> None:

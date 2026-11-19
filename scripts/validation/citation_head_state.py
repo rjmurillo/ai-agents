@@ -40,9 +40,9 @@ def _git(repo_root: Path, args: list[str]) -> tuple[int, str, str]:
     return cast("tuple[int, str, str]", result)
 
 
-def _head_tracked_paths(repo_root: Path) -> set[str] | None:
-    """Return the set of paths tracked at HEAD, or None on git failure."""
-    exit_code, stdout, _stderr = _git(repo_root, ["ls-tree", "-r", "-z", "--name-only", "HEAD"])
+def _head_tracked_paths(repo_root: Path, ref: str = "HEAD") -> set[str] | None:
+    """Return the set of paths tracked at ref (HEAD by default), or None on git failure."""
+    exit_code, stdout, _stderr = _git(repo_root, ["ls-tree", "-r", "-z", "--name-only", ref])
     if exit_code != 0:
         return None
     return {path for path in stdout.split("\0") if path}
@@ -165,19 +165,24 @@ class HeadReadError(RuntimeError):
 
 
 class _HeadFileCache:
-    """Lazy line-content reads from HEAD, one ``git show`` per file."""
+    """Lazy line-content reads from one ref, one ``git show`` per file.
 
-    def __init__(self, repo_root: Path) -> None:
+    The ref is HEAD unless a caller names another; the reverse pass
+    (``citation_reverse_pass.py``) also reads the merge base.
+    """
+
+    def __init__(self, repo_root: Path, ref: str = "HEAD") -> None:
         self._repo_root = repo_root
+        self._ref = ref
         self._cache: dict[str, list[str]] = {}
 
     def lines(self, path: str) -> list[str]:
-        """Return the HEAD lines of path (LF-only split).
+        """Return the lines of path at the cache's ref (LF-only split).
 
         Raises :class:`HeadReadError` when git cannot produce the content.
         """
         if path not in self._cache:
-            exit_code, stdout, _stderr = _git(self._repo_root, ["show", f"HEAD:{path}"])
+            exit_code, stdout, _stderr = _git(self._repo_root, ["show", f"{self._ref}:{path}"])
             if exit_code != 0:
                 raise HeadReadError(path)
             lines = stdout.split("\n")

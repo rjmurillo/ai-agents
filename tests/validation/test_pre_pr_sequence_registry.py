@@ -81,6 +81,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     "Build Command Exit Gates",
     "Stale Script References",
     "Citation Freshness (added lines)",
+    "Citation Freshness (reverse pass)",
     "Measurement Anchoring (added lines)",
     "IO Portability (added lines)",
     "Documented Interpreter Portability",
