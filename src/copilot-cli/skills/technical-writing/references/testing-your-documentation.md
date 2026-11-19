@@ -16,9 +16,16 @@ not only that the Markdown renders.
    environment. Copy the output you show from a real run, not from memory.
 4. **Run the repository's docs gates**: markdown lint, spell check, sample
    compilation, snippet tests, and any docs CI job.
-5. **Check navigation**: table of contents, sidebar, index pages, and redirects
+5. **Check dates and versions.** In the ai-agents repository, run
+   `uv run python scripts/validation/check_doc_date_drift.py`. It warns on
+   added lines only, and each warning has a suggested value:
+   - `header-pair`: Next Review is not after Last Updated or the commit date.
+   - `subject-drift`: one URL or quoted title has two years in the same skill.
+   - `version-drift`: one tool name has two versions in the same skill.
+   - `stale-as-of`: an "as of" date is older than a date you added nearby.
+6. **Check navigation**: table of contents, sidebar, index pages, and redirects
    for moved pages.
-6. **Run a fresh-reader pass**: give the page, and nothing else, to a reader
+7. **Run a fresh-reader pass**: give the page, and nothing else, to a reader
    with no context (a fresh subagent works). Ask them to follow it and report
    where they had to guess. Fix each guess.
 
