@@ -49,13 +49,18 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
-if str(_PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PROJECT_ROOT))
+_SCRIPT_DIR = Path(__file__).resolve().parent
+for _path in (_PROJECT_ROOT, _SCRIPT_DIR):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
 
-# Package imports, like check_tmp_worktrees.py: pre_pr.py loads evidence as
-# scripts.validation.evidence, and a second copy under a bare name makes its
-# CheckOutcome a different class that the runner rejects.
-from scripts.validation.checks_common import _resolve_default_base_ref  # noqa: E402
+# Each module is imported under the name the rest of pre-PR uses, so there is
+# one copy of each. evidence is a package import (pre_pr.py loads
+# scripts.validation.evidence; a bare copy makes CheckOutcome a foreign class).
+# checks_common is a bare import, as in check_citation_freshness.py; a package
+# copy makes mypy see the file under two module names.
+from checks_common import _resolve_default_base_ref  # noqa: E402
+
 from scripts.validation.evidence import (  # noqa: E402
     REASON_ADVISORY_FINDINGS,
     REASON_BASE_REF_UNRESOLVED,
