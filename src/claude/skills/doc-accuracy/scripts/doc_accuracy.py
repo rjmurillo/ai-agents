@@ -2236,6 +2236,64 @@ _TS_TYPED_NAME_RE = re.compile(r"\b([a-z_$][\w$]*)\s*\??:\s*([A-Za-z_]\w*)")
 _NEW_ASSIGNED_RE = re.compile(r"\b([a-z_]\w*)\s*=\s*new\s+(?:\w+\s*\.\s*)*([A-Z]\w*)")
 
 
+_TYPE_BODY_RE = re.compile(r"\b(?:class|struct|record|interface)\s+[A-Z]\w*[^{;]*\{")
+# A field or property declared directly in a type body: ``int Total;``,
+# ``decimal Total { get; set; }``, ``int Total => 1;`` or ``int Total = 0;``.
+_CSHARP_MEMBER_DECL_RE = re.compile(
+    r"(?:^|(?<=[{;}]))\s*(?:(?:public|private|protected|internal|static|readonly|const"
+    r"|virtual|override|abstract|sealed|new|required|volatile|unsafe)\s+)*"
+    r"(?!(?:return|throw|await|yield|var|using|case|goto|else|new|class|struct|record"
+    r"|interface|enum)\b)"
+    r"[A-Za-z_][\w.]*(?:\s*<[^<>;{}]*>)?(?:\s*\[\s*\])*\??\s+([A-Z]\w*)\s*(?=;|=(?!=)|\{|=>)",
+    re.MULTILINE,
+)
+# A TypeScript or JavaScript class field or interface property: ``Total: number``.
+_TS_MEMBER_DECL_RE = re.compile(
+    r"(?:^|(?<=[{;,]))\s*(?:(?:public|private|protected|readonly|static|declare|abstract"
+    r"|override)\s+)*([A-Z]\w*)\s*[?!]?\s*(?=:|=(?![=>])|;)",
+    re.MULTILINE,
+)
+
+
+def _type_member_scopes(view: str, lang: str) -> list[tuple[int, int, set[str]]]:
+    """Each declared type's body span and the fields and properties it declares.
+
+    Only declarations at the body's own brace depth count, so a local
+    variable inside a method is not a member. A type whose body never
+    closes contributes nothing.
+    """
+    pattern = _CSHARP_MEMBER_DECL_RE if lang == "csharp" else _TS_MEMBER_DECL_RE
+    scopes: list[tuple[int, int, set[str]]] = []
+    for header in _TYPE_BODY_RE.finditer(view):
+        start, depth = header.end(), 0
+        depths: list[int] = []
+        for index in range(start, len(view)):
+            char = view[index]
+            if char == "}" and depth == 0:
+                body = view[start:index]
+                members = {
+                    match[1] for match in pattern.finditer(body) if depths[match.start(1)] == 0
+                }
+                scopes.append((start, index, members))
+                break
+            depths.append(depth)
+            depth += {"{": 1, "}": -1}.get(char, 0)
+    return scopes
+
+
+def _blank_in_scope_members(view: str, scopes: list[tuple[int, int, set[str]]]) -> str:
+    """Blank a declared member's own declaration and bare uses inside its type body.
+
+    Outside the declaring body a bare name stays visible, so it is checked.
+    """
+    chars = list(view)
+    for start, end, members in scopes:
+        for word in _WORD_RE.finditer(view, start, end):
+            if word[0] in members:
+                chars[word.start() : word.end()] = " " * len(word[0])
+    return "".join(chars)
+
+
 def _skip_group_back(view: str, end: int) -> int | None:
     """Index of the opener matching the closer just before ``end``, or None."""
     closer = view[end - 1]
@@ -2612,18 +2670,23 @@ def run_compilability_check(
         if lang in _DECLARATION_RES:
             # Keep bare uses and constructors, even if a member shares the name.
             bare_content = re.sub(r"\.\s*[A-Za-z]\w*", lambda m: " " * len(m[0]), checked_content)
+            member_scopes = _type_member_scopes(checked_content, lang)
+            bare_content = _blank_in_scope_members(bare_content, member_scopes)
             bare_names = set(re.findall(r"\b([A-Z][a-zA-Z0-9]+)\b", bare_content))
+            declared_members = {name for _, _, names in member_scopes for name in names}
+            accessed_members = set(_MEMBER_ACCESS_RE.findall(checked_content))
             constructed = set(re.findall(r"\bnew\s+(?:\w+\s*\.\s*)*([A-Z]\w*)", checked_content))
             # A type named in code but absent from the claim's references was
             # dropped at extraction as example-local or doc-local.
             local_types = {word for word in code_words if _TYPE_NAME_RE.fullmatch(word)} - set(
                 claim_dict.get("symbols_referenced", [])
             )
+            # A member the example declares and never reaches through an
+            # unproven receiver is example-local; so is a proven access.
             member_only = (
                 _proven_member_names(checked_content, lang, local_types, known_names)
-                - bare_names
-                - constructed
-            )
+                | (declared_members - accessed_members)
+            ) - (bare_names | constructed)
 
         # Skip languages without source-symbol extractors (e.g. text/ASCII
         # diagrams, PowerShell, bash).  Only languages present in
