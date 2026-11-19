@@ -457,13 +457,45 @@ class TestLocalAxisNeedsThePathThatRoutedIt:
     said the axis passed without scanning the path that selected it.
     """
 
-    def test_effect_table_routes_no_local_axis(self):
-        """The premise: local selections come only from paths.
+    def test_effect_table_routes_only_doc_accuracy_as_a_local_axis(self):
+        """The premise: an effect-routed local axis still passes the path filter.
 
-        If an effect ever routes a local axis it has no path to check, and the
-        path filter would drop it. This reds first so that change is deliberate.
+        Only `comments-or-docstrings` routes one, `doc-accuracy`, and the scanner
+        filter (`scannable_local_axes`) still drops it when no changed path is
+        one `--same-pr` reads. This reds first so a new effect-routed local axis
+        is deliberate.
         """
-        assert not any(local for _canonical, local in mod._EFFECT_TABLE.values())
+        routed = {axis for _canonical, local in mod._EFFECT_TABLE.values() for axis in local}
+        assert routed == {"doc-accuracy"}
+
+    def test_docstring_effect_selects_doc_accuracy_for_a_python_only_diff(self):
+        result = select(["src/main.py"], effects=["comments-or-docstrings"])
+        assert "doc-accuracy" in result["local_selected"]
+
+    def test_docstring_effect_is_dropped_when_no_path_is_readable(self):
+        result = select(["src/main.rs"], effects=["comments-or-docstrings"])
+        assert "doc-accuracy" not in result["local_selected"]
+        assert result["skipped"]["doc-accuracy"] == mod._UNREADABLE_REASON
+
+    def test_prose_and_code_combination_routes_doc_accuracy(self):
+        result = select(["templates/skills/x.SKILL.md.tmpl", "scripts/x.py"])
+        assert "doc-accuracy" in result["local_selected"]
+        assert "prose-and-code" in result["selection_reasons"]["doc-accuracy"]
+
+    def test_code_alone_does_not_route_doc_accuracy(self):
+        result = select(["scripts/x.py"])
+        assert "doc-accuracy" not in result["local_selected"]
+
+    def test_prose_alone_without_a_code_path_is_not_a_combination(self):
+        assert mod._routes_doc_accuracy_by_combination(["config/x.yaml"]) == []
+
+    def test_same_pr_suffixes_match_the_scanner(self):
+        same_pr = import_skill_script(
+            ".claude/skills/doc-accuracy/scripts/same_pr.py",
+            module_name="capability_same_pr",
+        )
+        expected = same_pr.PROSE_SUFFIXES | same_pr.DATA_SUFFIXES | {".py"}
+        assert mod._DOC_ACCURACY_SAME_PR_SUFFIXES == expected
 
     def test_axis_dropped_when_only_an_unreadable_path_routed_it(self):
         result = select(["README.md", "src/main.rs"])

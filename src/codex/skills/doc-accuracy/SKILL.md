@@ -85,7 +85,7 @@ Phase 6: Structure         (Sonnet agent, 1-2m)  -> structure-findings.json
 | Script | Purpose |
 |--------|---------|
 | `scripts/doc_accuracy.py` | Phases 1-3: Assessment, claim extraction, compilability check |
-| `same_pr.py`, `same_pr_rules.py`, `same_pr_source.py` (same directory as the row above) | Same-PR mode, loaded by `doc_accuracy.py --same-pr`: prose against code changed in the same diff. Not run on its own |
+| `same_pr.py` (same directory as the row above) | Same-PR mode, loaded by `doc_accuracy.py --same-pr`: prose against code changed in the same diff. Not run on its own |
 | `pr_snapshot.py` (same directory as the row above) | Capture an immutable head and base snapshot of a PR for review, or re-check it with `--check-stale`. Exit 0 ok, 1 verification or stale, 2 config, 3 external, 4 auth. Flags: `--owner`, `--repo`, `--pull-request`, `--output-dir`, `--identity-file`, `--run-scanner` |
 
 ## Invocation

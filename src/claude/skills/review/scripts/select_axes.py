@@ -447,6 +447,19 @@ _TASTE_LINT_SUFFIXES = frozenset(
 # tests/skills/review/test_select_axes_scanner_capability.py, so widening the
 # canonical list reds that test instead of silently drifting from this one.
 _DOC_ACCURACY_SUFFIXES = frozenset({".md"})
+# /review runs doc-accuracy with `--same-pr --diff-base`, which reads the changed
+# hunks of more than DOC_GLOBS: Markdown and `.tmpl` lines, JSON and YAML string
+# values, and Python docstrings and comments. Canonical source:
+# .claude/skills/doc-accuracy/scripts/same_pr.py, `PROSE_SUFFIXES`,
+# `DATA_SUFFIXES`, and `.py` (the one code suffix that carries prose). Matched
+# case-sensitively, like DOC_GLOBS. Divergence: none. Parity is asserted against
+# those constants in tests/skills/review/test_select_axes_scanner_capability.py.
+_DOC_ACCURACY_SAME_PR_SUFFIXES = frozenset(
+    {".md", ".mdx", ".tmpl", ".json", ".yaml", ".yml", ".py"}
+)
+# The subset of those suffixes that holds prose without being code. A changed
+# file of one of these beside any changed code file routes doc-accuracy.
+_DOC_ACCURACY_PROSE_ONLY_SUFFIXES = frozenset({".md", ".mdx", ".tmpl", ".json", ".yaml", ".yml"})
 # Same file, `_GIT_EXCLUDE_DIRS`, quoted verbatim. /review always runs the
 # scanner with `--diff-base`, which forces git mode: the inventory comes from
 # `git ls-files` and drops only these two directories. The walk-mode
@@ -490,17 +503,35 @@ def _taste_lints_reads(path: str) -> bool:
 
 
 def _doc_accuracy_reads(path: str) -> bool:
-    """Return True when doc_accuracy.py would inventory *path*.
+    """Return True when `doc_accuracy.py --same-pr` would read *path*.
 
     Mirrors `DOC_GLOBS` and the git-mode `_GIT_EXCLUDE_DIRS` in
-    `.claude/skills/doc-accuracy/scripts/doc_accuracy.py`; see the constants
-    above for the quoted contracts. The suffix alone is not enough: git mode
-    still drops `.git/` and `.doc-accuracy/`. A tracked `build/AGENTS.md` is
-    read, because git mode skips the walk-mode `EXCLUDE_DIRS`.
+    `.claude/skills/doc-accuracy/scripts/doc_accuracy.py`, widened to the
+    same-PR suffixes (`_DOC_ACCURACY_SAME_PR_SUFFIXES`) because /review always
+    passes `--same-pr`. The suffix alone is not enough: git mode still drops
+    `.git/` and `.doc-accuracy/`. A tracked `build/AGENTS.md` is read, because
+    git mode skips the walk-mode `EXCLUDE_DIRS`.
     """
-    if _suffix(path) not in _DOC_ACCURACY_SUFFIXES:
+    if _suffix(path) not in _DOC_ACCURACY_SAME_PR_SUFFIXES:
         return False
     return not (_DOC_ACCURACY_EXCLUDED_DIRS & set(_segments(path)[:-1]))
+
+
+def _routes_doc_accuracy_by_combination(paths: Sequence[str]) -> list[str]:
+    """Return the prose paths that, beside any code path, route doc-accuracy.
+
+    A changed prose path doc-accuracy reads plus a changed code path is the
+    shape where prose can drift from the code beside it (`--same-pr`), even
+    when the prose is a `.tmpl`, `.json`, or `.yaml` that no risk row claims.
+    """
+    if not any(_is_code_path(_norm(raw)) for raw in paths if _norm(raw)):
+        return []
+    return [
+        raw
+        for raw in paths
+        if _suffix(_posix(raw)) in _DOC_ACCURACY_PROSE_ONLY_SUFFIXES
+        and _doc_accuracy_reads(_posix(raw))
+    ]
 
 
 def _golden_principles_reads(path: str) -> bool:
@@ -569,8 +600,9 @@ def scannable_local_axes(paths: Sequence[str]) -> set[str]:
     `README.md` and `src/main.rs`, only the Rust file routes taste-lints, and
     only the README is readable by it, so a whole-list question keeps the axis
     and it reports PASS over a file that never selected it while skipping the
-    one that did. `_EFFECT_TABLE` routes no local axis, so paths are the only
-    source of a local selection; a contract test holds that.
+    one that did. Only `_RISK_TABLE` paths are judged here. An axis routed by a
+    diff effect or by the prose-and-code combination has no single routing path,
+    so `select_axes` asks `readable_local_axes` about the whole list for those.
     """
     return {
         axis
@@ -635,9 +667,10 @@ _EFFECT_TABLE: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     "dependency-change": (("security", "devops"), ()),
     "agent-behavior": (("agent-safety",), ()),
     "decision-record": (("decision-rigor",), ()),
-    "comments-or-docstrings": (("code-quality",), ()),
+    "comments-or-docstrings": (("code-quality",), ("doc-accuracy",)),
 }
 
+_COMBINATION_SOURCE = "prose-and-code"
 _SKIP_REASON = "skipped - no changed path or diff effect matched this axis"
 _UNREADABLE_REASON = "skipped - no changed file this axis's scanner reads"
 _FAIL_CLOSED_REASON = "selected - fail-closed: change could not be classified"
@@ -786,6 +819,8 @@ def select_axes(
         raw for raw in unreviewable_paths(usable_paths) if raw not in unclassified
     ]
     canonical_sources, local_sources, unknown_effects = _contributions(categories, effects)
+    if _routes_doc_accuracy_by_combination(usable_paths):
+        local_sources.setdefault("doc-accuracy", []).append(_COMBINATION_SOURCE)
 
     # A demanded canonical axis with no references/{stem}.md prompt cannot be
     # dispatched. Report it rather than dropping it from both output lists.
@@ -834,7 +869,20 @@ def select_axes(
         # Deep and fail-closed narrow by scanner reads alone
         # (readable_local_axes), since neither routes an axis by category.
         routed_local = set(local_sources) & set(LOCAL_AXES)
-        local_selected = routed_local & scannable_local_axes(usable_paths)
+        # An effect or the prose-and-code combination names no path, so the
+        # whole-list question applies to them; a path-routed axis keeps the
+        # stricter per-routing-path one.
+        pathless = {
+            axis
+            for axis in routed_local
+            if any(
+                src.startswith("effect:") or src == _COMBINATION_SOURCE
+                for src in local_sources[axis]
+            )
+        }
+        local_selected = (routed_local & scannable_local_axes(usable_paths)) | (
+            pathless & readable_local_axes(usable_paths)
+        )
         unreadable_local = routed_local - local_selected
         for axis in canonical_selected:
             reasons[axis] = "selected - " + ", ".join(canonical_sources[axis])
