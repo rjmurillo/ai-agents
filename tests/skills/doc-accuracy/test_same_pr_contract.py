@@ -8,10 +8,26 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+_HELPERS_DIR = str(Path(__file__).resolve().parent)
+_TESTS_SKILLS_DIR = str(Path(__file__).resolve().parents[1])
+if _TESTS_SKILLS_DIR not in sys.path:
+    sys.path.insert(0, _TESTS_SKILLS_DIR)
+if _HELPERS_DIR not in sys.path:
+    sys.path.insert(0, _HELPERS_DIR)
 
+from claude_skills_import import import_skill_script
 from diff_scope_helpers import edit_files_and_commit, make_repo, mod, run_same_pr
 from test_same_pr import EXIT_ROW_RIGHT, EXIT_ROW_WRONG, TOOL, _grammar_repo, _tool_source
+
+_SAME_PR = import_skill_script(
+    ".claude/skills/doc-accuracy/scripts/same_pr.py",
+    module_name="same_pr_doc_contract",
+)
+_DIFF_SCOPING = (
+    Path(__file__).resolve().parents[3]
+    / "src/claude/skills/doc-accuracy/references/diff-scoping.md"
+)
+_COUNT_WORDS = {6: "six"}
 
 
 def test_accurate_prose_beside_changed_code_yields_no_finding_and_no_entry(
@@ -46,6 +62,22 @@ def test_same_pr_without_diff_base_is_a_config_error(tmp_path: Path) -> None:
     code = mod.main(["--target", str(repo), "--output-dir", str(tmp_path / "o"), "--same-pr"])
 
     assert code == 2
+
+
+def test_diff_scoping_matches_same_pr_read_limits() -> None:
+    """The same-PR paragraph has to name the real suffix list, size cap, and pair cap."""
+    section = _DIFF_SCOPING.read_text(encoding="utf-8")
+    start = section.index("**What it reads.**")
+    section = section[start : section.index("**Rules.**")]
+    megabytes = _SAME_PR.MAX_FILE_BYTES / 1_000_000
+
+    assert megabytes == int(megabytes)
+    assert f"{int(megabytes)} MB" in section
+    assert _COUNT_WORDS[_SAME_PR.MAX_PAIRS] in section
+    for suffix in _SAME_PR.SCANNED_SUFFIXES:
+        assert f"`{suffix}`" in section
+    assert "every text file" not in section
+    assert "nearest path first" not in section
 
 
 def test_same_pr_is_off_by_default(tmp_path: Path) -> None:

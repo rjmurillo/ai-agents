@@ -38,13 +38,17 @@ whenever the branch changes both prose and code:
 done; exit 2 )
 ```
 
-**What it reads.** The changed hunks of every text file in the diff, not only
-documentation globs. A changed line is prose when it is a Markdown or `.tmpl`
-line (table rows included), a Python docstring or comment, or a JSON or YAML
-string value. Every other changed line of a source file is code, tagged with the
-function or class that holds it. Each prose line is paired with the code symbols
-changed in the same diff: the same file first, then other changed files, nearest
-path first. The scan reads the working tree, so commit before you run it.
+**What it reads.** The changed hunks of files with a known suffix, up to 1 MB
+each. A changed line is prose when it is a `.md`, `.mdx`, or `.tmpl` line (table
+rows included), a Python docstring or comment, or a `.json`, `.yaml`, or `.yml`
+string of at least four words. Changed lines in `.py`, `.cs`, `.ts`, `.tsx`,
+`.js`, `.ps1`, and `.sh` files are code: Python lines are tagged with the
+function or class that holds them, or `<module>` when none does, and other code
+files get one `<module>` region. Files with any other suffix are counted as
+skipped and never read. Each prose line is paired with up to six changed code
+symbols: the same file first, then symbols whose names share the most words with
+the line (plus five when the line names the file), then the longest shared
+directory prefix. The scan reads the working tree, so commit before you run it.
 
 **Rules.** Each rule needs a paired script or record it can identify, and stays
 quiet when it cannot judge. A finding carries the rule id, the prose file and
