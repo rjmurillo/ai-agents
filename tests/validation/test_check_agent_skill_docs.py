@@ -248,7 +248,8 @@ def test_section_name_inside_code_fence_is_ignored(tmp_path):
     sample = "```markdown\n## Related\n## When to use it\n```\n"
     page = repo / "docs" / "skills" / "alpha.md"
     page.write_text(
-        _page_text("alpha").replace("## Advanced use\n\nText.", "## Advanced use\n\n" + sample)
+        _page_text("alpha").replace("## Advanced use\n\nText.", "## Advanced use\n\n" + sample),
+        encoding="utf-8",
     )
 
     assert gate.find_page_findings(repo).findings == []
