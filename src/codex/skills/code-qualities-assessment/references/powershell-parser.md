@@ -44,7 +44,6 @@ The rewrite keeps line numbers.
 The parser sees each statement as a command named `__ptk_using__`, and the scanner counts those.
 It then blanks those statements and any `;` that ends them, keeping newlines, and parses again.
 That keeps a `[CmdletBinding()] param()` block after them legal, and the second parse supplies the syntax errors.
-A `using` statement in the wrong place, or with an unknown kind, is not reported as an error.
 A class that names a type a `using` statement would have imported reports `TypeNotFound`.
 That is a type lookup, not a syntax error, so it does not fail the scan.
 
@@ -59,7 +58,8 @@ These stop the scan with exit 1 and no report:
 - `pwsh` is not on an absolute PATH entry, or it cannot start.
 - `pwsh` is older than PowerShell 7.
 - `pwsh` times out, exits non-zero, or returns output the scanner cannot read.
-- A `using` statement has no kind or no name, such as a bare `using namespace`.
+- A `using` statement PowerShell rejects: no kind or name, an unknown kind, a variable name, extra words,
+  or a place after another statement. The rewrite hides these errors, so the scanner checks them itself.
 - PowerShell reports a syntax error in the file. The message names the file and line.
 
 The scanner never guesses a count and never falls back to regex.

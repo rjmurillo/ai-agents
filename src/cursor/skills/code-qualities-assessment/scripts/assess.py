@@ -1514,12 +1514,18 @@ _PWSH_TYPE_LOOKUP_ERROR_IDS = ("TypeNotFound",)
 # keeping newlines, and the source is parsed again, because a using statement
 # rewritten as a command would end the header where `[CmdletBinding()] param()`
 # is legal. The second parse supplies the syntax errors and other counts.
-_PWSH_COUNT_SCRIPT = r"""
-$ErrorActionPreference = 'Stop'
+# Runs first. An older pwsh exits 3, which the scanner reports as a failure.
+_PWSH_VERSION_GUARD = r"""
 if ($PSVersionTable.PSVersion.Major -lt 7) {
     [Console]::Error.WriteLine("PowerShell 7 or later is required; found $($PSVersionTable.PSVersion)")
     exit 3
 }
+"""
+
+_PWSH_COUNT_SCRIPT = (
+    _PWSH_VERSION_GUARD
+    + r"""
+$ErrorActionPreference = 'Stop'
 function Read-Script([string]$text) {
     $tokens = $null
     $errors = $null
@@ -1540,19 +1546,49 @@ $sentinelCommands = @($first[0].FindAll({
     return ($node -is [System.Management.Automation.Language.CommandAst] -and
         $node.InvocationOperator -eq 'Unknown' -and (Test-BareWord $node.CommandElements[0] '__SENTINEL__'))
 }, $true))
+# Every rewritten `using` must be a statement PowerShell would accept, because
+# the rewrite hides the errors PowerShell reports for it. Check kind, operand,
+# arity, and placement (top level, before any other statement) here.
+$root = $first[0]
+$topBlocks = @($root.BeginBlock, $root.ProcessBlock, $root.EndBlock, $root.DynamicParamBlock) |
+    Where-Object { $_ }
+$headerEnd = [int]::MaxValue
+if ($root.ParamBlock) { $headerEnd = $root.ParamBlock.Extent.StartOffset }
+foreach ($block in $topBlocks) {
+    foreach ($statement in $block.Statements) {
+        $isUsing = $statement -is [System.Management.Automation.Language.PipelineAst] -and
+            $statement.PipelineElements.Count -eq 1 -and $sentinelCommands -contains $statement.PipelineElements[0]
+        if (-not $isUsing -and $statement.Extent.StartOffset -lt $headerEnd) {
+            $headerEnd = $statement.Extent.StartOffset
+        }
+    }
+}
 $usingStatements = @()
 $usingErrors = @()
 foreach ($command in $sentinelCommands) {
     $elements = $command.CommandElements
-    $hasKind = $elements.Count -ge 2 -and (Test-BareWord $elements[1] '') -and
-        $usingKinds -contains $elements[1].Value.ToLowerInvariant()
-    if ($hasKind -and $elements.Count -ge 3) { $usingStatements += $command; continue }
-    # PowerShell itself rejects these forms; the rewrite would otherwise hide them.
-    $line = $command.Extent.StartLineNumber
-    if ($elements.Count -eq 1) {
-        $usingErrors += [pscustomobject]@{ id = 'MissingUsingStatementDirective'; line = $line; message = 'Missing using directive.' }
-    } elseif ($hasKind) {
-        $usingErrors += [pscustomobject]@{ id = 'MissingUsingItemName'; line = $line; message = 'Missing using item name.' }
+    $kind = if ($elements.Count -ge 2 -and (Test-BareWord $elements[1] '')) { $elements[1].Value.ToLowerInvariant() } else { '' }
+    $operand = if ($elements.Count -ge 3) { $elements[2] } else { $null }
+    $errorId = $null
+    if ($elements.Count -eq 1 -or $usingKinds -notcontains $kind) {
+        $errorId = 'MissingUsingStatementDirective'
+    } elseif ($elements.Count -eq 2) {
+        $errorId = 'MissingUsingItemName'
+    } elseif ($elements.Count -gt 3) {
+        $errorId = 'MissingStatementTerminator'
+    } elseif (-not ($operand -is [System.Management.Automation.Language.StringConstantExpressionAst] -or
+            ($kind -eq 'module' -and $operand -is [System.Management.Automation.Language.HashtableAst]))) {
+        $errorId = 'InvalidValueForUsingItemName'
+    } elseif (-not ($command.Parent -is [System.Management.Automation.Language.PipelineAst] -and
+            $topBlocks -contains $command.Parent.Parent -and $command.Extent.StartOffset -lt $headerEnd)) {
+        $errorId = 'UsingMustBeAtStartOfScript'
+    }
+    if ($errorId) {
+        $usingErrors += [pscustomobject]@{
+            id = $errorId; line = $command.Extent.StartLineNumber; message = "Invalid using statement ($errorId)."
+        }
+    } else {
+        $usingStatements += $command
     }
 }
 # Blank each statement, plus trailing blanks and a `;` terminator, keeping newlines.
@@ -1587,6 +1623,7 @@ $parseErrors = @($usingErrors) + @($errors | ForEach-Object {
 [pscustomobject]@{ count = $imports + $usingStatements.Count + $requires; errors = $parseErrors } |
     ConvertTo-Json -Compress -Depth 3 -EscapeHandling EscapeNonAscii
 """.replace("__SENTINEL__", _PWSH_USING_SENTINEL)
+)
 
 
 class TypeScriptParserError(ParserError):

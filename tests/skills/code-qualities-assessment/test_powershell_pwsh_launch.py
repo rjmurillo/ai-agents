@@ -17,6 +17,8 @@ from typing import Any
 
 import pytest
 
+from tests.pwsh_launcher_probe import require_working_pwsh
+
 from .test_powershell_coupling import FAKE_PWSH, _fake_pwsh, _mod, assess_content
 
 
@@ -204,9 +206,30 @@ def test_other_parsed_languages_never_reach_pwsh(
     assert coupling.reasons[0] == "1 import/dependency statements"
 
 
+@pytest.mark.parametrize(("major", "expected_exit"), [("6", 3), ("7", 0), ("8", 0)])
+def test_version_guard_rejects_only_pwsh_before_7(major: str, expected_exit: int) -> None:
+    """Run the real guard with the major version substituted; 6 exits 3, 7 continues."""
+    require_working_pwsh()
+    guard = _mod._PWSH_VERSION_GUARD.replace("$PSVersionTable.PSVersion.Major", major)
+    assert guard != _mod._PWSH_VERSION_GUARD
+    assert _mod._PWSH_COUNT_SCRIPT.startswith(_mod._PWSH_VERSION_GUARD)
+
+    result = subprocess.run(
+        ["pwsh", "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", guard + "\nexit 0"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=60,
+        check=False,
+    )
+
+    assert result.returncode == expected_exit, result.stderr
+    assert ("PowerShell 7 or later is required" in result.stderr) is (expected_exit == 3)
+
+
 def test_older_pwsh_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The script exits 3 below PowerShell 7; that exit is a failure, never a score."""
-    assert "$PSVersionTable.PSVersion.Major -lt 7" in _mod._PWSH_COUNT_SCRIPT
+    """Python's side: an exit 3 from the guard is a failure, never a score."""
     message = "PowerShell 7 or later is required; found 6.2.7"
     _fake_pwsh(monkeypatch, returncode=3, stderr=message, stdout="")
 

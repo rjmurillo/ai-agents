@@ -5,7 +5,6 @@ import json
 import shutil
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -30,8 +29,9 @@ _spec.loader.exec_module(_mod)
 assess_content = _mod.assess_content
 
 
-# An absolute path that ends in .exe on every platform, outside any checkout.
-FAKE_PWSH = str(Path(tempfile.gettempdir()) / "fake-pwsh-bin" / "pwsh.exe")
+# An absolute path that ends in .exe on every platform. It hangs off the
+# filesystem root, never under the scanned directory or a repo-local TMPDIR.
+FAKE_PWSH = str(Path(Path.cwd().anchor) / "fake-pwsh-bin-7437" / "pwsh.exe")
 PWSH_NAMES = ("pwsh", "pwsh.exe")
 
 
@@ -50,6 +50,7 @@ def _fake_pwsh(
 ) -> list[dict[str, Any]]:
     """Replace pwsh with a fake that records each call and returns a fixed result."""
     calls: list[dict[str, Any]] = []
+    monkeypatch.setenv("PATH", str(Path(FAKE_PWSH).parent))
     monkeypatch.setattr(
         shutil, "which", lambda name, path=None: FAKE_PWSH if name in PWSH_NAMES else None
     )
@@ -410,9 +411,14 @@ def test_syntax_error_after_using_statements_still_fails_closed() -> None:
 @pytest.mark.parametrize(
     ("source", "error_id"),
     [
-        ("using\n", "Missing using directive"),
-        ("using namespace\n", "Missing using item name"),
-        ("using module\n", "Missing using item name"),
+        ("using\n", "MissingUsingStatementDirective"),
+        ("using namespace\n", "MissingUsingItemName"),
+        ("using module\n", "MissingUsingItemName"),
+        ("using namespce System\n", "MissingUsingStatementDirective"),
+        ("using namespace $name\n", "InvalidValueForUsingItemName"),
+        ("using namespace A B\n", "MissingStatementTerminator"),
+        ("Write-Output ready\nusing namespace System\n", "UsingMustBeAtStartOfScript"),
+        ("function f { using namespace System }\n", "UsingMustBeAtStartOfScript"),
     ],
 )
 def test_incomplete_using_statement_fails_closed(source: str, error_id: str) -> None:
@@ -421,3 +427,23 @@ def test_incomplete_using_statement_fails_closed(source: str, error_id: str) -> 
 
     with pytest.raises(_mod.PowerShellParserError, match=error_id):
         assess_content(Path("Script.ps1"), source)
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "using namespace System\nWrite-Output ready\n",
+        "using assembly 'x.dll'\n",
+        "using module @{ ModuleName = 'A'; ModuleVersion = '1.0' }\n",
+    ],
+)
+def test_valid_using_forms_still_count_once(source: str) -> None:
+    """Negative control for the validity checks: PowerShell accepts each of these."""
+    assert _coupling(source).reasons[0] == "1 import/dependency statements"
+
+
+def test_a_function_named_like_the_sentinel_is_not_a_using_statement() -> None:
+    """The rewrite renames `using` inside names too, so no real command can match it."""
+    source = "function __ptk_using__ { }\n__ptk_using__\n"
+
+    assert _coupling(source).reasons[0] == "0 import/dependency statements"
