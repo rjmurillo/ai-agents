@@ -70,8 +70,8 @@ apply here too. This cohort also made a directly observed finding, in
 ancestry back to PR #5418 (`4e33c4baa`): the `FAST_STAGE_RAN_ENV` skip
 mechanism. `scripts/validation/pre_pr_sequence.py:543` reads
 `fast_stage_ran = os.environ.get(FAST_STAGE_RAN_ENV) == "1"`.
-`lefthook.yml:590` sets `AI_AGENTS_PRE_PR_FAST_STAGE_RAN: "1"`.
-`tests/validation/test_pre_pr_sequence_registry.py:134-147` defines
+`lefthook.yml:718` sets `AI_AGENTS_PRE_PR_FAST_STAGE_RAN: "1"`.
+`tests/validation/test_pre_pr_sequence_registry.py:184-191` defines
 `FAST_STAGE_DUPLICATES`, five gate names. This is a first-hand production
 signal, not a cited claim: this cohort read the code and confirmed it.
 
