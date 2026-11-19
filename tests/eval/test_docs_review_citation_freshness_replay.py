@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -50,6 +51,22 @@ def test_manual_reasons_are_reported_without_inflating_recall() -> None:
     summary = replay.score(rows)
     assert summary["in_scope"] == 1
     assert summary["manual"] == [dict(id="M", why="Historical root.")]
+
+
+def test_report_index_omits_bulk_fields_and_writes_a_case_file(tmp_path: Path) -> None:
+    output = tmp_path / "2026-11-19.json"
+    report = dict(
+        schema_version=1,
+        cases=[dict(id="C1-01", caught=True, findings=[dict(reason="moved")], output="log")],
+    )
+    replay.write_report(report, output)
+    index = json.loads(output.read_text(encoding="utf-8"))
+    assert "findings" not in index["cases"][0]
+    assert "output" not in index["cases"][0]
+    assert index["cases"][0]["record"] == "2026-11-19/C1-01.json"
+    shard = json.loads((tmp_path / "2026-11-19" / "C1-01.json").read_text(encoding="utf-8"))
+    assert shard["findings"] == [dict(reason="moved")]
+    assert shard["output"] == "log"
 
 
 def test_failed_check_removes_worktree_and_fetched_ref(

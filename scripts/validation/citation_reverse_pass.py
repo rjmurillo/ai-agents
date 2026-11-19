@@ -51,8 +51,11 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
+from importlib import import_module
 from pathlib import Path
+from typing import cast
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _SCRIPT_DIR.parent.parent
@@ -65,7 +68,6 @@ from check_citation_freshness import (  # noqa: E402
     Finding,
     _anchor_finding,
     _has_ignore_marker,
-    _is_exempt_citing_file,
     _report_findings,
     _resolve_cited_range,
 )
@@ -83,15 +85,18 @@ from citation_anchors import (  # noqa: E402
     _same_line_segment,
     _unique_move,
 )
+from citation_exemptions import _is_exempt_citing_file  # noqa: E402
 from citation_head_state import (  # noqa: E402
     HeadReadError,
     _added_lines_since_base,
     _change_set,
-    _ChangeSet,
     _git,
     _head_tracked_paths,
     _HeadFileCache,
     _merge_base,
+)
+from citation_head_state import (  # noqa: E402
+    _ChangeSet as _ChangeSet,
 )
 from citation_scope import string_literal_lines  # noqa: E402
 
@@ -253,9 +258,9 @@ def _new_finding(
         suffix = f"-{end}" if cite.ranged else ""
         reason += f"; suggested citation {head_path}:{start}{suffix}"
     elif moved_lines is not None:
-        start = _moved_start(cite, anchors, base_lines, moved_lines)
-        if start is not None and start >= 1:
-            reason += _suggestion(cite, head_path, start)
+        moved_start = _moved_start(cite, anchors, base_lines, moved_lines)
+        if moved_start is not None and moved_start >= 1:
+            reason += _suggestion(cite, head_path, moved_start)
     return Finding(cite.citing_file, cite.line_number, cite.label, reason)
 
 
@@ -301,6 +306,12 @@ class _Tally:
     stale_at_base: int = 0
 
 
+def _load_judge_one() -> Callable[..., None]:
+    """Load the judge when a citation is scanned."""
+    module = import_module("citation_reverse_judge")
+    return cast(Callable[..., None], module._judge_one)
+
+
 def _scan(
     repo_root: Path,
     base_ref: str,
@@ -309,7 +320,7 @@ def _scan(
     tally: _Tally,
 ) -> list[Finding] | None:
     """Grep HEAD for inbound citations and judge each; may raise HeadReadError."""
-    from citation_reverse_judge import _judge_one
+    judge_one = _load_judge_one()
 
     base_by_name: dict[str, list[str]] = {}
     head_by_name: dict[str, list[str]] = {}
@@ -349,7 +360,7 @@ def _scan(
         if _has_ignore_marker(citing_lines, line_number, text, markdown):
             continue
         for cite, segment in cites:
-            _judge_one(
+            judge_one(
                 cite,
                 segment,
                 expanded,

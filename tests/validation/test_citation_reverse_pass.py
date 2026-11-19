@@ -369,10 +369,11 @@ def test_added_adr_citation_is_checked_by_the_forward_gate(
 
 
 def test_recorded_replay_findings_are_historical_but_corpus_is_authored() -> None:
-    from scripts.validation.check_citation_freshness import _is_exempt_citing_file
+    from scripts.validation.citation_exemptions import _is_exempt_citing_file
 
     prefix = "evals/docs-review-catch-rate/citation_freshness"
     assert _is_exempt_citing_file(f"{prefix}/results/2026-11-19.json")
+    assert _is_exempt_citing_file(f"{prefix}/results/2026-11-19/C1-01.json")
     assert not _is_exempt_citing_file(f"{prefix}/corpus.json")
     assert not _is_exempt_citing_file(f"{prefix}/README.md")
 

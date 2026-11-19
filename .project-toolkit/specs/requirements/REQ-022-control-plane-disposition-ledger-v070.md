@@ -71,7 +71,7 @@ ancestry back to PR #5418 (`4e33c4baa`): the `FAST_STAGE_RAN_ENV` skip
 mechanism. `scripts/validation/pre_pr_sequence.py:543` reads
 `fast_stage_ran = os.environ.get(FAST_STAGE_RAN_ENV) == "1"`.
 `lefthook.yml:590` sets `AI_AGENTS_PRE_PR_FAST_STAGE_RAN: "1"`.
-`tests/validation/test_pre_pr_sequence_registry.py:133-146` defines
+`tests/validation/test_pre_pr_sequence_registry.py:134-147` defines
 `FAST_STAGE_DUPLICATES`, five gate names. This is a first-hand production
 signal, not a cited claim: this cohort read the code and confirmed it.
 

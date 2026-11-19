@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Per-citation judgment for the citation reverse pass.
 
-Extracted from ``citation_reverse_pass.py`` at the file-size ceiling.
-Imported lazily so the two modules do not cycle at load time.
+Extracted from citation_reverse_pass.py at the file-size ceiling.
+The scan loads this module inside the grep loop.
 """
 
 from __future__ import annotations

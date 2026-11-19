@@ -13,6 +13,7 @@ import contextlib
 import hashlib
 import io
 import json
+import os
 import subprocess
 import sys
 import uuid
@@ -33,6 +34,12 @@ CORPUS = ROOT / "evals/docs-review-catch-rate/citation_freshness/corpus.json"
 
 def command(args: list[str], cwd: Path = ROOT) -> str:
     """Run a bounded command and retain its diagnostics on failure."""
+    env = os.environ.copy()
+    env["NO_COLOR"] = "1"
+    env["GH_NO_COLOR"] = "1"
+    env.pop("GH_FORCE_TTY", None)
+    env.pop("CLICOLOR_FORCE", None)
+    env.pop("FORCE_COLOR", None)
     result = subprocess.run(
         args,
         cwd=cwd,
@@ -42,6 +49,7 @@ def command(args: list[str], cwd: Path = ROOT) -> str:
         errors="replace",
         check=False,
         timeout=180,
+        env=env,
     )
     if result.returncode:
         raise RuntimeError(f"{args[0:3]}: {result.stderr[-3000:]}")
@@ -68,7 +76,7 @@ def check(root: Path, base: str) -> tuple[list[dict[str, Any]], str]:
 
 def matches(case: dict[str, Any], finding: dict[str, Any]) -> bool:
     """Match the pinned location and defect class without a model judge."""
-    return (
+    return bool(
         case.get("file") == finding["citing_file"]
         and case.get("defect_class") == finding["defect_class"]
         and abs(case.get("line", -100) - finding["citing_line"]) <= 3
@@ -165,6 +173,21 @@ def score(rows: list[dict[str, Any]]) -> dict[str, Any]:
     )
 
 
+def write_report(report: dict[str, Any], output: Path) -> None:
+    """Write a short index and one case file beside it."""
+    shard_dir = output.parent / output.stem
+    shard_dir.mkdir(parents=True, exist_ok=True)
+    slim_cases: list[dict[str, Any]] = []
+    for row in report["cases"]:
+        case_id = str(row["id"])
+        name = f"{case_id}.json"
+        (shard_dir / name).write_text(json.dumps(row, indent=2) + "\n", encoding="utf-8")
+        slim = {key: value for key, value in row.items() if key not in {"findings", "output"}}
+        slim["record"] = f"{output.stem}/{name}"
+        slim_cases.append(slim)
+    output.write_text(json.dumps(dict(report, cases=slim_cases), indent=2) + "\n", encoding="utf-8")
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run all cases, or selected cases during development."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -215,7 +238,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     output = args.output or args.corpus.parent / "results" / "2026-11-19.json"
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    write_report(report, output)
     print(summary["score_line"])
     return 0 if summary["passed"] else 1
 

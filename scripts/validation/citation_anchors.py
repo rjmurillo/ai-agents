@@ -21,20 +21,25 @@ import re
 from pathlib import PurePosixPath
 
 from check_adr_links import ADR_BASENAME, adr_number
-from citation_continuations import (  # noqa: F401
-    _basename_index,
-    _expand_continuations,
-    _moved_cluster,
-    _range_misses_distinctive_anchors,
+from citation_continuations import (
+    _EXTENSIONS as _EXTENSIONS,
+)
+from citation_continuations import (
+    _basename_index as _basename_index,
+)
+from citation_continuations import (
+    _expand_continuations as _expand_continuations,
+)
+from citation_continuations import (
+    _moved_cluster as _moved_cluster,
+)
+from citation_continuations import (
+    _range_misses_distinctive_anchors as _range_misses_distinctive_anchors,
+)
+from citation_continuations import (
+    _unique_move as _unique_move,
 )
 from stale_script_refs import HISTORICAL_ROOTS
-
-# Text formats this repository actually cites; extend when a real
-# citation to a new format appears rather than enumerating every
-# extension in existence (each entry adds matcher surface).
-_EXTENSIONS = (
-    "py|md|yml|yaml|json|jsonc|xml|csv|ps1|psm1|psd1|sh|ts|js|toml|txt|ini|cfg|html|css|ipynb"
-)
 
 # A citation: a repo path with a known extension, then :N or :N-M. The
 # path class excludes backticks, quotes, parens, and colons, so
@@ -325,28 +330,6 @@ def _same_line_segment(line: str, matches: list[re.Match[str]], index: int) -> s
     return line[start:end]
 
 
-def _block_positions(block: list[str], lines: list[str]) -> list[int]:
-    """Return every 1-based start where block sits verbatim in lines."""
-    width = len(block)
-    return [i + 1 for i in range(len(lines) - width + 1) if lines[i : i + width] == block]
-
-
-def _unique_move(block: list[str], start: int, base: list[str], head: list[str]) -> int | None:
-    """Return the block's single HEAD position, or None when the move is unproven.
-
-    A cited block counts as moved only when it is distinctive (at least
-    eight non-space characters), occurs exactly once at the merge base and
-    exactly once at HEAD, and the HEAD copy is not at the cited start. A
-    common line such as ``---`` or ``sys.executable,`` proves nothing.
-    """
-    if len("".join(text.strip() for text in block)) < 8:
-        return None
-    at_head = _block_positions(block, head)
-    if len(_block_positions(block, base)) != 1 or len(at_head) != 1:
-        return None
-    return None if at_head[0] == start else at_head[0]
-
-
 def _relocated_range(
     start: int, end: int, base: list[str], head: list[str]
 ) -> tuple[int, int] | None:
@@ -365,8 +348,9 @@ def _relocated_range(
     return first, last
 
 
-# ADR-036:45 and "ADR-101 describes at lines 278-284". The colon form
-# does not allow a space, so "ADR-035: 0 ok" stays an exit code.
+# Colon form: ADR number, colon, line number, and no space after the colon.
+# "ADR-035: 0 ok" stays an exit code because a space follows the colon.
+# Prose form: ADR number, up to six words, then lines and a line range.
 _ADR_CITE = re.compile(
     r"\bADR-(?P<number>\d+)(?::|\s+(?:[A-Za-z]+\s+){0,6}lines?\s+)"
     r"(?P<start>\d+)(?:-(?P<end>\d+))?\b",

@@ -321,11 +321,11 @@ different owners and states.
 - Owner: `scripts/validation/pre_pr_sequence.py`
 - Consumers: `lefthook.yml` pre-push hook, `pre_pr.py` (direct invocation),
   CI
-- Evidence: `scripts/validation/pre_pr_sequence.py:543-554`, `fast_stage_ran =
+- Evidence: `scripts/validation/pre_pr_sequence.py:549-560`, `fast_stage_ran =
   os.environ.get(FAST_STAGE_RAN_ENV) == "1"` through the skip block's
   `continue` (read this session, the full skip-and-record block);
   `lefthook.yml:590`, `AI_AGENTS_PRE_PR_FAST_STAGE_RAN: "1"` (read
-  this session); `tests/validation/test_pre_pr_sequence_registry.py:133-141`
+  this session); `tests/validation/test_pre_pr_sequence_registry.py:134-142`
   defines `FAST_STAGE_DUPLICATES = frozenset({"Count Ratchets",
   "Unreachable Code Detection", "Path Normalization", "Planning Artifacts",
   "Em/en-dash Prohibition"})` and `:238-266` (`class TestFastStageDeferral`)

@@ -1,0 +1,83 @@
+{
+  "id": "C1-01",
+  "pr": 5343,
+  "sha": "8e7e59b263",
+  "kind": "positive",
+  "scope": "automatic",
+  "file": ".claude/skills/ai-agents-diagnostics-toolkit/SKILL.md",
+  "line": 56,
+  "defect_class": "stale-citation",
+  "defect": "build_all.py lines 1005-1033 moved to different code.",
+  "resolved_sha": "8e7e59b2634b80de2620fd28675b7e75e06b7d0b",
+  "pr_base": "83e33e16d3737d9a1cb2d109bc8aa41ed40c7266",
+  "merge_base": "8926061a1e8153af98fea52ca16001ecaecdf9a7",
+  "findings": [
+    {
+      "citing_file": ".claude/skills/ai-agents-generation-and-release/SKILL.md",
+      "citing_line": 215,
+      "citation": "build/generate_agents.py:13-16",
+      "reason": "none of the cited anchors ('grep -n \"REQ-003-010\" build/scripts/build_all.py', 'REQ-003-010', \"sed -n '16,30p' build/scripts/build_all.py\", 'build_all') appear at lines 13-16; 'REQ-003-010' first appears at line 260",
+      "gate": "forward",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".agents/architecture/ADR-052-template-strategy.md",
+      "citing_line": 145,
+      "citation": "build/scripts/build_all.py:143-146",
+      "reason": "the text at lines 143-146 at the merge base moved at HEAD; suggested citation build/scripts/build_all.py:178-181",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".agents/architecture/ADR-102-session-qa-binding-field-precedence.md",
+      "citing_line": 310,
+      "citation": "build/scripts/build_all.py:316-335",
+      "reason": "the text at lines 316-335 at the merge base moved at HEAD; suggested citation build/scripts/build_all.py:351-367",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".agents/critique/ADR-102-debate-log.md",
+      "citing_line": 25,
+      "citation": "build/scripts/build_all.py:316-335",
+      "reason": "the text at lines 316-335 at the merge base moved at HEAD; suggested citation build/scripts/build_all.py:351-367",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".claude/skills/ai-agents-architecture-contract/references/provenance.md",
+      "citing_line": 13,
+      "citation": "build/scripts/build_all.py:435-443",
+      "reason": "the text at lines 435-443 at the merge base moved at HEAD; suggested citation build/scripts/build_all.py:472-478",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".claude/skills/ai-agents-diagnostics-toolkit/SKILL.md",
+      "citing_line": 56,
+      "citation": "build/scripts/build_all.py:1005-1033",
+      "reason": "the text at lines 1005-1033 at the merge base moved at HEAD; suggested citation build/scripts/build_all.py:1235-1240",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".claude/skills/ai-agents-generation-and-release/SKILL.md",
+      "citing_line": 57,
+      "citation": "build/scripts/build_all.py:429",
+      "reason": "the text at lines 429-429 at the merge base moved at HEAD; suggested citation build/scripts/build_all.py:464",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".claude/skills/ai-agents-generation-and-release/SKILL.md",
+      "citing_line": 211,
+      "citation": "build/scripts/build_all.py:435-443",
+      "reason": "the text at lines 435-443 at the merge base moved at HEAD; suggested citation build/scripts/build_all.py:472-478",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    }
+  ],
+  "output": "[citation-freshness] examined 4 citation(s) across 6 changed file(s) vs 8926061a1e8153af98fea52ca16001ecaecdf9a7\n[citation-reverse-pass] examined 22 inbound citation(s) to 9 changed file(s) vs 8926061a1e8153af98fea52ca16001ecaecdf9a7; 13 already stale at the merge base (not blocking)\n",
+  "caught": true,
+  "false_positives": 0
+}

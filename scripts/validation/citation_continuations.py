@@ -17,14 +17,18 @@ _FILENAME: re.Pattern[str] | None = None
 # A colon range that is not already the tail of a path citation. ``file.py:12``
 # has a word character before the colon, so it stays with the matcher.
 _BARE_RANGE = re.compile(r"(?<![\w./\\-]):(?P<start>\d+)(?:-(?P<end>\d+))?\b")
+# Text formats this repository actually cites; extend when a real
+# citation to a new format appears rather than enumerating every
+# extension in existence (each entry adds matcher surface).
+_EXTENSIONS = (
+    "py|md|yml|yaml|json|jsonc|xml|csv|ps1|psm1|psd1|sh|ts|js|toml|txt|ini|cfg|html|css|ipynb"
+)
 
 
 def _file_pattern() -> re.Pattern[str]:
-    """Return the filename pattern, built after citation_anchors has loaded."""
+    """Return the filename pattern for a bare range."""
     global _FILENAME
     if _FILENAME is None:
-        from citation_anchors import _EXTENSIONS
-
         _FILENAME = re.compile(rf"(?<![\w./\\-])(?P<name>[\w.-]+\.(?:{_EXTENSIONS}))\b")
     return _FILENAME
 
@@ -83,6 +87,28 @@ def _expand_continuations(text: str, index: dict[str, list[str]]) -> str:
     return "".join(parts)
 
 
+def _block_positions(block: list[str], lines: list[str]) -> list[int]:
+    """Return every 1-based start where block sits verbatim in lines."""
+    width = len(block)
+    return [i + 1 for i in range(len(lines) - width + 1) if lines[i : i + width] == block]
+
+
+def _unique_move(block: list[str], start: int, base: list[str], head: list[str]) -> int | None:
+    """Return the block's single HEAD position, or None when the move is unproven.
+
+    A cited block counts as moved only when it is distinctive (at least
+    eight non-space characters), occurs exactly once at the merge base and
+    exactly once at HEAD, and the HEAD copy is not at the cited start. A
+    common line such as ``---`` or ``sys.executable,`` proves nothing.
+    """
+    if len("".join(text.strip() for text in block)) < 8:
+        return None
+    at_head = _block_positions(block, head)
+    if len(_block_positions(block, base)) != 1 or len(at_head) != 1:
+        return None
+    return None if at_head[0] == start else at_head[0]
+
+
 def _moved_cluster(
     start: int, end: int, base: list[str], head: list[str]
 ) -> tuple[int, int] | None:
@@ -95,8 +121,6 @@ def _moved_cluster(
     """
     if not (1 <= start <= end <= len(base)) or not head:
         return None
-    from citation_anchors import _unique_move
-
     destinations: list[int] = []
     for number in range(start, end + 1):
         moved = _unique_move([base[number - 1]], number, base, head)
