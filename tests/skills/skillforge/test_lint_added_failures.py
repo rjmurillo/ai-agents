@@ -9,6 +9,7 @@ private name must report NOT_EVALUATED, never crash `evaluate`.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -20,15 +21,15 @@ _ROUTING_PHRASE = 'Demo skill. Use when you say "ship the thing". Do NOT use for
 _ROUTING_META = "  routing:\n    role: front-door\n    intents:\n      - ship the thing\n"
 
 
-def _rule(rule_id: str) -> object:
+def _rule(rule_id: str) -> Any:
     return next(rule for rule in lint.RULES if rule.id == rule_id)
 
 
-def _result(rule_id: str, status: str) -> object:
+def _result(rule_id: str, status: str) -> Any:
     return lint.Result(_rule(rule_id), status, ("because",))
 
 
-def _ids(results: list[object]) -> list[str]:
+def _ids(results: list[Any]) -> list[str]:
     return [r.rule.id for r in results]
 
 
