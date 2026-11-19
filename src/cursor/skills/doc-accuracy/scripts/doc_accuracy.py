@@ -1362,6 +1362,8 @@ class _PyScope:
 
 
 _PyDef = ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef
+_PY_DEF_NAME_RE = re.compile(r"\b(?:def|class)\s+(\w+)")
+_WORD_RE = re.compile(r"\w+")
 
 
 def _py_lookup(name: str, scope: _PyScope, pos: _PyPos) -> tuple[_PyPos, "_PyScope | None"] | None:
@@ -1430,6 +1432,11 @@ class _PyBindingCollector(ast.NodeVisitor):
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
         self._visit_all([node.annotation, node.value])
+        if node.value is None and isinstance(node.target, ast.Name):
+            # ``NAME: int`` declares a type but binds nothing.
+            pos = self._pos(node.target.lineno, node.target.col_offset)
+            self.uses.append((pos, node.target.id, ("never",)))
+            return
         self._visit_targets([node.target], node)
 
     def visit_NamedExpr(self, node: ast.NamedExpr) -> None:
@@ -1494,9 +1501,8 @@ class _PyBindingCollector(ast.NodeVisitor):
         # A class name binds after its body runs; a function name at ``def``.
         lineno, col = self._pos(node.lineno, node.col_offset)
         effective = self._end(node) if class_scope else (lineno, col)
-        pattern = rf"\b(?:def|class)\s+({re.escape(node.name)})\b"
-        match = re.compile(pattern).search(self.lines[lineno - 1], col)
-        if match is None:
+        match = _PY_DEF_NAME_RE.search(self.lines[lineno - 1], col)
+        if match is None or match[1] != node.name:
             self.scope.bindings.setdefault(node.name, []).append((effective, class_scope))
             return
         self._bind(node.name, (lineno, match.start(1)), class_scope, effective)
@@ -1599,18 +1605,15 @@ def _python_local_names(code: str) -> set[str]:
     for pos, name, check in collector.uses:
         key = (pos, name)
         status[key] = status.get(key, True) and _py_use_resolves(check, name, pos)
-    code_lines = _strip_python_non_code(source).split("\n")
-    resolved: set[str] = set()
-    for name in {name for _, name in status}:
-        word = re.compile(rf"\b{re.escape(name)}\b")
-        occurrences = [
-            (lineno, match.start())
-            for lineno, line in enumerate(code_lines, start=1)
-            for match in word.finditer(line)
-        ]
-        if occurrences and all(status.get((pos, name), False) for pos in occurrences):
-            resolved.add(name)
-    return resolved
+    occurrences: dict[str, list[_PyPos]] = {}
+    for lineno, line in enumerate(_strip_python_non_code(source).split("\n"), start=1):
+        for word in _WORD_RE.finditer(line):
+            occurrences.setdefault(word[0], []).append((lineno, word.start()))
+    return {
+        name
+        for name in {name for _, name in status}
+        if name in occurrences and all(status.get((pos, name), False) for pos in occurrences[name])
+    }
 
 
 _PY_PLAIN_IMPORT_RE = re.compile(r"^[ \t]*import[ \t]+([^\n]+)$", re.MULTILINE)
@@ -2265,6 +2268,7 @@ def run_compilability_check(
         checked_content = (
             _c_family_code_view(content, lang) if lang in _DECLARATION_RES else content
         )
+        code_words = set(_WORD_RE.findall(checked_content))
         member_only: set[str] = set()
         if lang in _DECLARATION_RES:
             # Keep bare uses and constructors, even if a member shares the name.
@@ -2331,9 +2335,7 @@ def run_compilability_check(
                 if sym_name in member_only:
                     continue
                 # A name only inside a literal or comment is data, not an API claim.
-                if lang in _DECLARATION_RES and not re.search(
-                    rf"\b{re.escape(sym_name)}\b", checked_content
-                ):
+                if lang in _DECLARATION_RES and sym_name not in code_words:
                     continue
                 # Symbol not found in codebase
                 # Only flag CamelCase identifiers (likely type/method names)

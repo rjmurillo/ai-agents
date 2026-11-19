@@ -25,6 +25,7 @@ _ENUM = "from enum import Enum\n\nclass Status(Enum):\n    SUCCESS = 0\n    TIME
     "code",
     [
         "THRESHOLDS = {'limit': 3}\nprint(THRESHOLDS)\n",
+        "LIMIT: int = 3\nprint(LIMIT)\n",
         _ENUM,
         _ENUM + "def main():\n    return Status.SUCCESS\n",
         _ENUM
@@ -66,6 +67,8 @@ def test_example_local_bindings_are_not_flagged(code: str) -> None:
         ("LIMIT = 3\nprint(LIMIT)\nprint(OTHER.LIMIT)\n", {"LIMIT", "OTHER"}),
         ("VALUES = [LIMIT for n in range(3)]\nLIMIT = 1\n", {"LIMIT"}),
         ("def f():\n    global LIMIT\n    LIMIT = 3\n", {"LIMIT"}),
+        ("LIMIT: int\nprint(LIMIT)\n", {"LIMIT"}),
+        ("class Config:\n    LIMIT: int\n\nvalue = Config.LIMIT\n", {"LIMIT"}),
     ],
 )
 def test_unresolved_python_names_stay_flagged(code: str, expected: set[str]) -> None:
