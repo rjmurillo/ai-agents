@@ -135,6 +135,7 @@ from checks_spec import (
     validate_build_gates,
     validate_canonical_citations,
     validate_commands_retired,
+    validate_doc_accuracy_same_pr,
     validate_model_pins,
     validate_orchestrator_citations,
     validate_retired_ownership_claims,
@@ -627,6 +628,10 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # references locally; warn mode never blocks (enforcement stays in CI), but a
     # config error (exit 2) still fails.
     _Gate("Model Pin Governance (warn)", _root_only(validate_model_pins)),
+    # Advisory: prose that drifts from code changed in the same diff
+    # (doc_accuracy.py --same-pr, phase 1 only). Findings print, never block.
+    # Measured 2026-11-19 on this branch vs origin/main (34 changed files): 5.4s wall.
+    _Gate("Doc Accuracy Same-PR (advisory)", _root_only(validate_doc_accuracy_same_pr)),
     # Advisory warning when every tracking issue on an active execution plan is
     # closed, so stale plans do not silently refill .project-toolkit/plans/active/.
     # Issue #3426.

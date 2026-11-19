@@ -10,6 +10,10 @@ Phase 1: Assessment - enumerate docs/source, extract symbols, build mapping
 Phase 2: Claim Extraction - parse markdown for verifiable claims
 Phase 3: Compilability - verify code example symbols exist in codebase
 
+Same-PR mode (--same-pr, requires --diff-base): also checks prose against code
+changed in the same diff (see same_pr.py). Findings join the gate; --same-pr
+without --diff-base exits 2.
+
 Exit Codes:
     0: No findings at or above severity threshold
     1: Error or inconclusive run, including no source symbols for Phase 3
@@ -26,6 +30,7 @@ import logging
 import os
 import posixpath
 import re
+import shlex
 import subprocess
 import sys
 import tokenize
@@ -2028,6 +2033,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "since HEAD forked from this ref, as in git diff REF...HEAD)",
     )
     parser.add_argument(
+        "--same-pr",
+        action="store_true",
+        help="Check changed prose against code changed in the same diff and write "
+        "same-pr-findings.json and same-pr-checklist.json (requires --diff-base)",
+    )
+    parser.add_argument(
         "--severity-threshold",
         type=str,
         default="high",
@@ -2049,10 +2060,100 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _same_pr_scan(target: Path, diff_base: str, output_dir: Path) -> dict[str, Any] | int:
+    """Run the same-PR scan over the diff; return its result, or an exit code on failure."""
+    scripts_dir = str(Path(__file__).resolve().parent)
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    import same_pr
+
+    try:
+        files, ranges = _get_changed_diff(diff_base, target)
+    except _GitError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return exc.exit_code
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        print(f"ERROR: git failed reading the diff: {exc}", file=sys.stderr)
+        return 3
+    try:
+        env = _git_env()
+        fork_oid, head_oid = _resolve_fork_and_head(diff_base, target, env)
+        # shlex.quote is a no-op on a hex id and stops the id, which came
+        # from git stdout under a copied environment, from reaching argv.
+        fork_token = shlex.quote(fork_oid)
+        head_token = shlex.quote(head_oid)
+        if fork_token != fork_oid or head_token != head_oid:
+            print("ERROR: refusing a revision that is not one shell token", file=sys.stderr)
+            return 3
+        # Resolved commit IDs and these flags block a local diff driver.
+        removed = subprocess.run(
+            _git_command(
+                target,
+                "diff",
+                "--no-ext-diff",
+                "--no-textconv",
+                "--no-color",
+                "--unified=0",
+                "--end-of-options",
+                fork_token,
+                head_token,
+                "--",
+            ),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=60,
+            check=True,
+            env=env,
+        )
+    except _GitError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return exc.exit_code
+    except (OSError, subprocess.SubprocessError) as exc:
+        print(f"ERROR: git failed reading removed symbols: {exc}", file=sys.stderr)
+        return 3
+    result: dict[str, Any] = same_pr.run_same_pr(
+        target,
+        files,
+        ranges,
+        normalize=_norm_path,
+        is_unsafe=lambda path: _has_symlink_part(path, target),
+        tracked_files=[_repo_relative(p, target) for p in _repo_files(target, require_git=True)],
+        removed_symbols=same_pr.removed_references(removed.stdout),
+    )
+    # Repository pre-PR integration reuses the canonical cardinality detector.
+    validation = Path(__file__).resolve().parents[5] / "scripts" / "validation"
+    if (validation / "nl_cardinality.py").is_file():
+        sys.path.insert(0, str(validation))
+        try:
+            # Installed plugins do not ship this module, so the import stays optional.
+            try:
+                import nl_cardinality
+            except ImportError:
+                nl_cardinality = None
+            if nl_cardinality is not None:
+                same_pr.add_cardinality(
+                    result,
+                    target,
+                    files,
+                    ranges,
+                    nl_cardinality,
+                    is_unsafe=lambda path: _has_symlink_part(path, target),
+                )
+        finally:
+            sys.path.remove(str(validation))
+    same_pr.write_artifacts(output_dir, result)
+    return result
+
+
 def main(argv: list[str] | None = None) -> int:
     """Entry point for doc-accuracy scanner."""
     parser = _build_parser()
     args = parser.parse_args(argv)
+    if args.same_pr and not args.diff_base:
+        print("ERROR: --same-pr requires --diff-base", file=sys.stderr)
+        return 2
 
     # Validate target path (CWE-22 prevention)
     target = args.target.resolve()
@@ -2157,8 +2258,24 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
 
+    same_pr_result = None
+    if args.same_pr:
+        scan = _same_pr_scan(target, args.diff_base, output_dir)
+        if isinstance(scan, int):
+            return scan
+        same_pr_result = scan
+
     # Gate evaluation
     gate_result = check_gate(compilability_data, args.severity_threshold)
+    if same_pr_result:
+        import same_pr
+
+        gate_result = same_pr.fold_into_gate(
+            gate_result,
+            same_pr_result["findings"]["findings"],
+            args.severity_threshold,
+            SEVERITY_ORDER,
+        )
 
     # Write gate result
     (output_dir / "gate-result.json").write_text(
@@ -2185,11 +2302,16 @@ def main(argv: list[str] | None = None) -> int:
                     "claims_data": claims_data,
                     "compilability_data": compilability_data,
                     "gate_result": gate_result,
+                    **({"same_pr": same_pr_result} if same_pr_result else {}),
                 },
                 indent=2,
             )
         )
     elif args.format == "summary":
+        if same_pr_result:
+            import same_pr
+
+            print("\n".join(same_pr.summary_lines(same_pr_result)))
         _print_summary(assessment, claims_data, compilability_data, gate_result)
     elif args.format == "markdown":
         report_path = output_dir / "report.md"

@@ -129,6 +129,7 @@ from checks_spec import (
     validate_agent_catalog,
     validate_build_gates,
     validate_canonical_citations,
+    validate_doc_accuracy_same_pr,
     validate_model_pins,
     validate_orchestrator_citations,
     validate_skill_md_portability,
