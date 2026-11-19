@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from types import TracebackType
 from typing import Any
 
 import pytest
@@ -260,8 +261,13 @@ def test_temp_cleanup_failure_keeps_a_finished_parse(monkeypatch: pytest.MonkeyP
             self.ignore = kwargs.get("ignore_cleanup_errors", False)
             super().__init__(**kwargs)
 
-        def __exit__(self, *exc: object) -> None:
-            super().__exit__(*exc)
+        def __exit__(
+            self,
+            exc_type: type[BaseException] | None,
+            exc: BaseException | None,
+            traceback: TracebackType | None,
+        ) -> None:
+            super().__exit__(exc_type, exc, traceback)
             if not self.ignore:
                 raise PermissionError("directory is in use")
 
