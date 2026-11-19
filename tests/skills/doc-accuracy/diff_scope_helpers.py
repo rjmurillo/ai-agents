@@ -85,3 +85,21 @@ def edit_and_commit(repo: Path, name: str, text: str | bytes) -> None:
     raw = text.encode() if isinstance(text, str) else text
     (repo / name).write_bytes(raw)
     commit(repo)
+
+
+def edit_files_and_commit(repo: Path, files: dict[str, str]) -> None:
+    """Write every file in ``files`` and commit them as one head commit."""
+    for name, text in files.items():
+        (repo / name).parent.mkdir(parents=True, exist_ok=True)
+        (repo / name).write_text(text, encoding="utf-8")
+    commit(repo)
+
+
+def run_same_pr(repo: Path, tmp_path: Path, *extra: str) -> tuple[int, Json, Json]:
+    """Run ``--same-pr`` against ``HEAD~1``; return exit code, findings, checklist."""
+    out = tmp_path / "out"
+    argv = ["--target", str(repo), "--output-dir", str(out), "--format", "summary"]
+    code = mod.main([*argv, "--same-pr", "--diff-base", "HEAD~1", *extra])
+    findings: Json = json.loads((out / "same-pr-findings.json").read_text())
+    checklist: Json = json.loads((out / "same-pr-checklist.json").read_text())
+    return code, findings, checklist
