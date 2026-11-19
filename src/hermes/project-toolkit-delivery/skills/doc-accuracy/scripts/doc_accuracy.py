@@ -2075,16 +2075,33 @@ def _same_pr_scan(target: Path, diff_base: str, output_dir: Path) -> dict[str, A
         print(f"ERROR: git failed reading the diff: {exc}", file=sys.stderr)
         return 3
     try:
+        env = _git_env()
+        fork_oid, head_oid = _resolve_fork_and_head(diff_base, target, env)
+        # Resolved commit IDs and these flags block a local diff driver.
         removed = subprocess.run(
-            _git_command(target, "diff", "--unified=0", f"{diff_base}...HEAD"),
+            _git_command(
+                target,
+                "diff",
+                "--no-ext-diff",
+                "--no-textconv",
+                "--no-color",
+                "--unified=0",
+                "--end-of-options",
+                fork_oid,
+                head_oid,
+                "--",
+            ),
             capture_output=True,
             text=True,
             encoding="utf-8",
             errors="replace",
             timeout=60,
             check=True,
-            env=_git_env(),
+            env=env,
         )
+    except _GitError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return exc.exit_code
     except (OSError, subprocess.SubprocessError) as exc:
         print(f"ERROR: git failed reading removed symbols: {exc}", file=sys.stderr)
         return 3
