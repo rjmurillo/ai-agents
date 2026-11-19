@@ -167,14 +167,9 @@ def tracked_inventory(repo_root: Path, ref: str | None = None) -> Inventory:
         name = name.replace("\\", "/")
         files.add(name)
         if meta.startswith("120000"):
-            try:
-                symlinks[name] = (
-                    _read_at_ref(repo_root, ref, name)
-                    if ref
-                    else (repo_root / name).readlink().as_posix()
-                )
-            except OSError:
-                continue
+            # The blob is the target. readlink() fails when the worktree
+            # file is missing or is a plain file.
+            symlinks[name] = _read_at_ref(repo_root, ref or "", name)
     corrupted = sorted(f for f in files if "\ufffd" in f)
     if corrupted:
         raise ValueError(f"tracked path(s) with undecodable bytes: {', '.join(corrupted)}")

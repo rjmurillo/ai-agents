@@ -321,3 +321,45 @@ def test_parentheses_in_a_filename_or_title_do_not_hide_the_link(tmp_path: Path)
         ("missing-target", "other.md"),
     ]
     assert scan(present) == []
+
+
+def _skill_link_repo(tmp_path: Path) -> tuple[Path, Path]:
+    """Return a repo whose index links ``.claude/skills/demo`` at the real skill."""
+    repo = make_repo(
+        tmp_path,
+        {
+            "docs/a.md": "[s](../.claude/skills/demo/SKILL.md#intro)\n",
+            "src/claude/skills/demo/SKILL.md": "# Intro\n",
+        },
+    )
+    link = repo / ".claude/skills/demo"
+    link.parent.mkdir(parents=True)
+    try:
+        link.symlink_to("../../src/claude/skills/demo")
+    except OSError:
+        pytest.skip("symlinks unavailable")
+    _git(repo, "add", ".claude/skills/demo")
+    return repo, link
+
+
+def test_a_deleted_worktree_symlink_still_resolves_from_the_index(tmp_path: Path) -> None:
+    repo, link = _skill_link_repo(tmp_path)
+    link.unlink()
+
+    assert scan(repo) == []
+
+
+def test_a_plain_file_checkout_of_a_symlink_still_resolves(tmp_path: Path) -> None:
+    repo, link = _skill_link_repo(tmp_path)
+    link.unlink()
+    link.write_text("../../src/claude/skills/demo", encoding="utf-8")
+
+    assert scan(repo) == []
+
+
+def test_an_unstaged_symlink_retarget_does_not_hide_the_index_target(tmp_path: Path) -> None:
+    repo, link = _skill_link_repo(tmp_path)
+    link.unlink()
+    link.symlink_to("../../src/claude/skills/missing")
+
+    assert scan(repo) == []
