@@ -51,6 +51,16 @@ def test_autofix_pass_skips_the_link_check(monkeypatch: pytest.MonkeyPatch) -> N
     assert code == 0
 
 
+@pytest.mark.parametrize("skip_autofix", ["0", "true", "yes", ""])
+def test_only_an_exact_skip_autofix_1_runs_the_link_check(
+    monkeypatch: pytest.MonkeyPatch, skip_autofix: str
+) -> None:
+    code, calls = _run(monkeypatch, skip_autofix, ["docs/a.md"])
+
+    assert calls == []
+    assert code == 0
+
+
 def test_pre_pr_sequence_registers_the_gate_after_adr_links() -> None:
     names = [gate.name for gate in pre_pr_sequence._SEQUENCE]
 

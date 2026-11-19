@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 import scripts.validation.check_md_links as check_md_links
 from tests.validation.test_check_md_links import _git, kinds, make_repo, scan
 
@@ -98,6 +100,31 @@ def test_an_anchor_example_inside_backticks_is_not_an_anchor(tmp_path: Path) -> 
     )
 
     assert kinds(scan(repo)) == [("missing-anchor", "t.md#gone")]
+
+
+def test_unstaged_deletion_of_a_tracked_target_uses_the_index(tmp_path: Path) -> None:
+    repo = make_repo(
+        tmp_path,
+        {"docs/a.md": "[b](b.md#sec)\n", "docs/b.md": "# Sec\n"},
+        commit=True,
+    )
+    (repo / "docs/b.md").unlink()
+
+    assert check_md_links.main(["--repo-root", str(repo), "--base-ref", "none"]) == 0
+
+
+def test_unstaged_deletion_still_reports_a_missing_anchor(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(
+        tmp_path,
+        {"docs/a.md": "[b](b.md#sec)\n", "docs/b.md": "# Other\n"},
+        commit=True,
+    )
+    (repo / "docs/b.md").unlink()
+
+    assert check_md_links.main(["--repo-root", str(repo), "--base-ref", "none"]) == 1
+    assert "missing-anchor: b.md#sec" in capsys.readouterr().out
 
 
 def test_parentheses_in_a_filename_or_title_do_not_hide_the_link(tmp_path: Path) -> None:

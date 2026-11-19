@@ -202,7 +202,13 @@ class _Scanner:
     def _read(self, file: str) -> str:
         if self._ref:
             return _read_at_ref(self._root, self._ref, file)
-        return (self._root / file).read_text(encoding="utf-8")
+        path = self._root / file
+        if path.is_file():
+            return path.read_text(encoding="utf-8")
+        # An unstaged deletion leaves the path in the index and removes the
+        # worktree file. Reading the worktree raised FileNotFoundError and the
+        # whole run exited 2. The index blob is the tracked content.
+        return _read_at_ref(self._root, "", file)
 
     def _anchors_of(self, target: str) -> set[str]:
         if target not in self._anchors:
