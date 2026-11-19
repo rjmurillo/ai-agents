@@ -1,0 +1,1144 @@
+{
+  "schema_version": 1,
+  "date": "2026-11-19T18:17:39.677953+00:00",
+  "checker_sha": "5303955a35068493d6491b6bb93a3352e34d9079",
+  "checker_files": {
+    "citation_scope.py": "e1ab03fc78423f78f7af7eebb8dd2b31c4a527bbf464826985b902c7ea14b119",
+    "citation_reverse_judge.py": "4151b4d796ca762830db28f031930d2014b5742baac280c809c7974af2d8c08e",
+    "citation_exemptions.py": "7d32a7d00a311640fc2c61f8054694ddf91db4d55803e2bb0d755648c1d1ed13",
+    "citation_anchors.py": "1c234ef161bf9fad3690340d5135c8a4f149c1f455deb4c0039588ce92eaab65",
+    "citation_head_state.py": "51eb8c2b7b0b71a17088f0b8cd02153302979f65f23405823ac895b637805179",
+    "citation_continuations.py": "72e22a1ed6d1102a0481e6f2cad14f0c496d6b103c526cb0f3b6505d33156661",
+    "citation_reverse_pass.py": "133f929e02db640614ba7e3aaab23c2aaee21e4f6f498c77783255042dc14b13",
+    "check_citation_freshness.py": "15538653acedf0fe81de946a814921b239dfdd301fb0793c1fb308eb09162713"
+  },
+  "corpus_sha256": "28dcbfc230470172704a9975be4aafb489ca43cf9cb74579860e3d1f0b28ab90",
+  "summary": {
+    "caught": 9,
+    "in_scope": 9,
+    "false_positives": 0,
+    "negatives": 12,
+    "manual": [
+      {
+        "id": "C1-10",
+        "why": "Serena memories remain exempt under HISTORICAL_ROOTS."
+      },
+      {
+        "id": "C1-11",
+        "why": "Prose line ranges lack a path:N citation and occur in a historical root."
+      }
+    ],
+    "errors": 0,
+    "passed": true,
+    "score_line": "caught 9 of 9 in-scope positives, 0 FP on 12 negatives, 2 manual with reasons"
+  },
+  "cases": [
+    {
+      "id": "C1-01",
+      "pr": 5343,
+      "sha": "8e7e59b263",
+      "kind": "positive",
+      "scope": "automatic",
+      "file": ".claude/skills/ai-agents-diagnostics-toolkit/SKILL.md",
+      "line": 56,
+      "defect_class": "stale-citation",
+      "defect": "build_all.py lines 1005-1033 moved to different code.",
+      "resolved_sha": "8e7e59b2634b80de2620fd28675b7e75e06b7d0b",
+      "pr_base": "83e33e16d3737d9a1cb2d109bc8aa41ed40c7266",
+      "merge_base": "8926061a1e8153af98fea52ca16001ecaecdf9a7",
+      "findings": [
+        {
+          "citing_file": ".claude/skills/ai-agents-generation-and-release/SKILL.md",
+          "citing_line": 215,
+          "citation": "build/generate_agents.py:13-16",
+          "reason": "none of the cited anchors ('grep -n \"REQ-003-010\" build/scripts/build_all.py', 'REQ-003-010', \"sed -n '16,30p' build/scripts/build_all.py\", 'build_all') appear at lines 13-16; 'REQ-003-010' first appears at line 260",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".agents/architecture/ADR-052-template-strategy.md",
+          "citing_line": 145,
+          "citation": "build/scripts/build_all.py:143-146",
+          "reason": "the text at lines 143-146 at the merge base moved at HEAD; suggested citation build/scripts/build_all.py:178-181",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".agents/architecture/ADR-102-session-qa-binding-field-precedence.md",
+          "citing_line": 310,
+          "citation": "build/scripts/build_all.py:316-335",
+          "reason": "the text at lines 316-335 at the merge base moved at HEAD; suggested citation build/scripts/build_all.py:351-367",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".agents/critique/ADR-102-debate-log.md",
+          "citing_line": 25,
+          "citation": "build/scripts/build_all.py:316-335",
+          "reason": "the text at lines 316-335 at the merge base moved at HEAD; suggested citation build/scripts/build_all.py:351-367",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".claude/skills/ai-agents-architecture-contract/references/provenance.md",
+          "citing_line": 13,
+          "citation": "build/scripts/build_all.py:435-443",
+          "reason": "the text at lines 435-443 at the merge base moved at HEAD; suggested citation build/scripts/build_all.py:472-478",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".claude/skills/ai-agents-diagnostics-toolkit/SKILL.md",
+          "citing_line": 56,
+          "citation": "build/scripts/build_all.py:1005-1033",
+          "reason": "the text at lines 1005-1033 at the merge base moved at HEAD; suggested citation build/scripts/build_all.py:1235-1240",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".claude/skills/ai-agents-generation-and-release/SKILL.md",
+          "citing_line": 57,
+          "citation": "build/scripts/build_all.py:429",
+          "reason": "the text at lines 429-429 at the merge base moved at HEAD; suggested citation build/scripts/build_all.py:464",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".claude/skills/ai-agents-generation-and-release/SKILL.md",
+          "citing_line": 211,
+          "citation": "build/scripts/build_all.py:435-443",
+          "reason": "the text at lines 435-443 at the merge base moved at HEAD; suggested citation build/scripts/build_all.py:472-478",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        }
+      ],
+      "output": "[citation-freshness] examined 4 citation(s) across 6 changed file(s) vs 8926061a1e8153af98fea52ca16001ecaecdf9a7\n[citation-reverse-pass] examined 22 inbound citation(s) to 9 changed file(s) vs 8926061a1e8153af98fea52ca16001ecaecdf9a7; 13 already stale at the merge base (not blocking)\n",
+      "caught": true,
+      "false_positives": 0
+    },
+    {
+      "id": "C1-02",
+      "pr": 6492,
+      "sha": "2580325a93",
+      "kind": "positive",
+      "scope": "automatic",
+      "file": ".agents/governance/FAIL-OPEN-INVENTORY.md",
+      "line": 147,
+      "defect_class": "stale-citation",
+      "defect": "checks_coverage.py lines 70-135 no longer covers validate_review_marker.",
+      "resolved_sha": "2580325a93bd8196476cc44086ac1afaae1cb11b",
+      "pr_base": "070e4017ee9960cba0a411a4aa7a5f9d689dad3d",
+      "merge_base": "ff1a471f25ff93b5375f8c0f5d019cc9822a7542",
+      "findings": [
+        {
+          "citing_file": ".agents/governance/FAIL-OPEN-INVENTORY.md",
+          "citing_line": 148,
+          "citation": "scripts/validation/check_git_hook_health.py:468",
+          "reason": "none of the cited anchors ('validate_copilot_routing_exclusions', 'FileNotFoundError', 'RoutingConfigError', 'SKIP') appear at lines 468-468; 'SKIP' first appears at line 393",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".agents/governance/FAIL-OPEN-INVENTORY.md",
+          "citing_line": 147,
+          "citation": "scripts/validation/checks_coverage.py:70-135",
+          "reason": "the text at lines 70-135 at the merge base moved at HEAD; suggested citation scripts/validation/checks_coverage.py:72-144",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".project-toolkit/architecture/ADR-107-canonical-skill-contracts-and-harness-projections.md",
+          "citing_line": 559,
+          "citation": "scripts/validation/check_skill_md_portability.py:315-318",
+          "reason": "the text at lines 315-318 at the merge base moved at HEAD; suggested citation scripts/validation/check_skill_md_portability.py:314-317",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        }
+      ],
+      "output": "[citation-freshness] examined 2 citation(s) across 9 changed file(s) vs ff1a471f25ff93b5375f8c0f5d019cc9822a7542\n[citation-reverse-pass] examined 7 inbound citation(s) to 15 changed file(s) vs ff1a471f25ff93b5375f8c0f5d019cc9822a7542; 0 already stale at the merge base (not blocking)\n",
+      "caught": true,
+      "false_positives": 0
+    },
+    {
+      "id": "C1-03",
+      "pr": 6278,
+      "sha": "d4dc86aadf",
+      "kind": "positive",
+      "scope": "automatic",
+      "file": ".agents/governance/FAIL-OPEN-INVENTORY.md",
+      "line": 186,
+      "defect_class": "stale-citation",
+      "defect": "ai-spec-review.yml lines 168 no longer identifies the step.",
+      "resolved_sha": "d4dc86aadf55a7687f51edc1c7a38d128d50b4a9",
+      "pr_base": "3e7f33d05d36e7dac25794baf1637e9602ebbac1",
+      "merge_base": "a6849524aba777da8c126ca0948da4b81549c600",
+      "findings": [
+        {
+          "citing_file": ".agents/governance/FAIL-OPEN-INVENTORY.md",
+          "citing_line": 186,
+          "citation": ".github/workflows/ai-spec-review.yml:168",
+          "reason": "none of the cited anchors ('validate-compliance', 'continue-on-error: true', 'review-spec', 'STATE] spec-report-comment reason=') appear at lines 168-168; 'continue-on-error: true' first appears at line 103",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".agents/governance/FAIL-OPEN-INVENTORY.md",
+          "citing_line": 197,
+          "citation": ".github/workflows/ai-spec-review.yml:98",
+          "reason": "none of the cited anchors ('health-check', 'continue-on-error: true', 'memory_enhancement', \"readFileSync('health-report.md\") appear at lines 98-98; 'continue-on-error: true' first appears at line 103",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".agents/governance/FAIL-OPEN-INVENTORY.md",
+          "citing_line": 198,
+          "citation": ".github/workflows/ai-spec-review.yml:123",
+          "reason": "none of the cited anchors ('validate-pr', 'continue-on-error: true', 'pr-validation-comment', 'review-spec') appear at lines 123-123; 'continue-on-error: true' first appears at line 103",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".agents/governance/FAIL-OPEN-INVENTORY.md",
+          "citing_line": 213,
+          "citation": ".github/workflows/ai-spec-validation.yml:193",
+          "reason": "cites line 193 but the file has 112 lines at HEAD",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".project-toolkit/architecture/ADR-101-enforcement-planes.md",
+          "citing_line": 347,
+          "citation": ".github/workflows/ai-spec-validation.yml:219",
+          "reason": "cites line 219 but the file has 112 lines at HEAD",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".project-toolkit/architecture/ADR-101-enforcement-planes.md",
+          "citing_line": 424,
+          "citation": ".github/workflows/ai-spec-validation.yml:97-102",
+          "reason": "the text at lines 97-102 at the merge base moved at HEAD; suggested citation .github/workflows/ai-spec-validation.yml:83-87",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".project-toolkit/architecture/ADR-114-agent-workflows-approval-and-non-blocking.md",
+          "citing_line": 55,
+          "citation": ".github/workflows/ai-spec-validation.yml:97-102",
+          "reason": "the text at lines 97-102 at the merge base moved at HEAD; suggested citation .github/workflows/ai-spec-validation.yml:83-87",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".project-toolkit/audit/2026-09-04-ponytail-audit-over-engineering.md",
+          "citing_line": 194,
+          "citation": ".github/PULL_REQUEST_TEMPLATE.md:157",
+          "reason": "the text at lines 157-157 at the merge base moved at HEAD; suggested citation .github/PULL_REQUEST_TEMPLATE.md:159",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".project-toolkit/pr-consolidation/PR-REVIEW-CONSOLIDATION.md",
+          "citing_line": 153,
+          "citation": ".github/workflows/ai-spec-validation.yml:233",
+          "reason": "cites line 233 but the file has 112 lines at HEAD",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".project-toolkit/pr-consolidation/PR-REVIEW-CONSOLIDATION.md",
+          "citing_line": 208,
+          "citation": ".github/workflows/ai-spec-validation.yml:233",
+          "reason": "cites line 233 but the file has 112 lines at HEAD",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        }
+      ],
+      "output": "[citation-freshness] examined 2 citation(s) across 36 changed file(s) vs a6849524aba777da8c126ca0948da4b81549c600\n[citation-reverse-pass] examined 18 inbound citation(s) to 50 changed file(s) vs a6849524aba777da8c126ca0948da4b81549c600; 6 already stale at the merge base (not blocking)\n",
+      "caught": true,
+      "false_positives": 0
+    },
+    {
+      "id": "C1-04",
+      "pr": 6332,
+      "sha": "727e9bf5f0",
+      "kind": "positive",
+      "scope": "automatic",
+      "file": ".project-toolkit/specs/design/DESIGN-026-memory-placement-validator.md",
+      "line": 78,
+      "defect_class": "stale-citation",
+      "defect": "lefthook.yml lines 328-350 no longer identifies the cited group.",
+      "resolved_sha": "727e9bf5f0adac36f21b7e99bb91fd8a73062502",
+      "pr_base": "adc6cc25220395bbef2d0b987a6c21e1b67d1277",
+      "merge_base": "ca616861c2cade76d304c5469b145871aa8b63ba",
+      "findings": [
+        {
+          "citing_file": ".project-toolkit/specs/design/DESIGN-026-memory-placement-validator.md",
+          "citing_line": 78,
+          "citation": "lefthook.yml:328-350",
+          "reason": "distinctive anchors ('parallel: true', 'memory-size', 'memory-index', 'memory-token-counts') sit outside lines 328-350; 'parallel: true' first appears at line 104",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".project-toolkit/metrics/control-plane-dispositions-v0.7.0.md",
+          "citing_line": 324,
+          "citation": "scripts/validation/pre_pr_sequence.py:543-554",
+          "reason": "the text at lines 543-554 at the merge base moved at HEAD; suggested citation scripts/validation/pre_pr_sequence.py:545-556",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".project-toolkit/metrics/control-plane-dispositions-v0.7.0.md",
+          "citing_line": 328,
+          "citation": "tests/validation/test_pre_pr_sequence_registry.py:133-141",
+          "reason": "the text at lines 133-141 at the merge base moved at HEAD; suggested citation tests/validation/test_pre_pr_sequence_registry.py:134-142",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".project-toolkit/plans/active/5456-control-plane-subtraction-cohort-1.md",
+          "citing_line": 119,
+          "citation": "scripts/validation/pre_pr_sequence.py:252-254",
+          "reason": "the text at lines 252-254 at the merge base moved at HEAD; suggested citation scripts/validation/pre_pr_sequence.py:253-255",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".project-toolkit/specs/requirements/REQ-022-control-plane-disposition-ledger-v070.md",
+          "citing_line": 74,
+          "citation": "tests/validation/test_pre_pr_sequence_registry.py:133-146",
+          "reason": "the text at lines 133-146 at the merge base moved at HEAD; suggested citation tests/validation/test_pre_pr_sequence_registry.py:134-147",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".project-toolkit/specs/requirements/REQ-022-control-plane-disposition-ledger-v070.md",
+          "citing_line": 246,
+          "citation": "scripts/validation/pre_pr_sequence.py:543-556",
+          "reason": "the text at lines 543-556 at the merge base moved at HEAD; suggested citation scripts/validation/pre_pr_sequence.py:545-558",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".project-toolkit/specs/requirements/REQ-022-control-plane-disposition-ledger-v070.md",
+          "citing_line": 248,
+          "citation": "tests/validation/test_pre_pr_sequence_registry.py:133-266",
+          "reason": "the text at lines 133-266 at the merge base moved at HEAD; suggested citation tests/validation/test_pre_pr_sequence_registry.py:134-267",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".project-toolkit/specs/requirements/REQ-024-control-plane-baseline-v070.md",
+          "citing_line": 116,
+          "citation": "scripts/validation/pre_pr_sequence.py:253-257",
+          "reason": "the text at lines 253-257 at the merge base moved at HEAD; suggested citation scripts/validation/pre_pr_sequence.py:254-257",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".project-toolkit/specs/requirements/REQ-024-control-plane-baseline-v070.md",
+          "citing_line": 118,
+          "citation": "scripts/validation/pre_pr_sequence.py:543-556",
+          "reason": "the text at lines 543-556 at the merge base moved at HEAD; suggested citation scripts/validation/pre_pr_sequence.py:545-558",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".project-toolkit/specs/tasks/TASK-029-control-plane-disposition-ledger-v070.md",
+          "citing_line": 42,
+          "citation": "scripts/validation/pre_pr_sequence.py:543-556",
+          "reason": "the text at lines 543-556 at the merge base moved at HEAD; suggested citation scripts/validation/pre_pr_sequence.py:545-558",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".project-toolkit/specs/tasks/TASK-029-control-plane-disposition-ledger-v070.md",
+          "citing_line": 43,
+          "citation": "tests/validation/test_pre_pr_sequence_registry.py:133-266",
+          "reason": "the text at lines 133-266 at the merge base moved at HEAD; suggested citation tests/validation/test_pre_pr_sequence_registry.py:134-267",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": "scripts/validation/check_git_hook_health.py",
+          "citing_line": 460,
+          "citation": "scripts/validation/pre_pr_sequence.py:150",
+          "reason": "the text at lines 150-150 at the merge base moved at HEAD; suggested citation scripts/validation/pre_pr_sequence.py:151",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        }
+      ],
+      "output": "[citation-freshness] examined 1 citation(s) across 18 changed file(s) vs ca616861c2cade76d304c5469b145871aa8b63ba\n[citation-reverse-pass] examined 22 inbound citation(s) to 20 changed file(s) vs ca616861c2cade76d304c5469b145871aa8b63ba; 8 already stale at the merge base (not blocking)\n",
+      "caught": true,
+      "false_positives": 0
+    },
+    {
+      "id": "C1-05",
+      "pr": 5338,
+      "sha": "b13283f2c3",
+      "kind": "positive",
+      "scope": "automatic",
+      "file": ".claude/rules/canonical-source-mirror.md",
+      "line": 121,
+      "defect_class": "stale-citation",
+      "defect": ".markdownlint-cli2.yaml lines 131 should cite line 138.",
+      "resolved_sha": "b13283f2c305984cacadf3ccba82af6b498d342d",
+      "pr_base": "1692f5ad61bcd9bbf066f3753ec9dd3bfa0787e9",
+      "merge_base": "192c506c021b2ce71e740c73c4e15efcd570d029",
+      "findings": [
+        {
+          "citing_file": ".claude/rules/canonical-source-mirror.md",
+          "citing_line": 107,
+          "citation": ".claude/skills/orphan-ref-validator/scripts/envelope.py:28-34",
+          "reason": "none of the cited anchors ('orphan-ref-validator', '```python') appear at lines 28-34; 'orphan-ref-validator' first appears at line 2",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".claude/rules/canonical-source-mirror.md",
+          "citing_line": 121,
+          "citation": ".markdownlint-cli2.yaml:131",
+          "reason": "none of the cited anchors ('ignores', 'agents/', 'agents/**') appear at lines 131-131; 'ignores' first appears at line 103",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".github/instructions/canonical-source-mirror.instructions.md",
+          "citing_line": 98,
+          "citation": ".claude/skills/orphan-ref-validator/scripts/envelope.py:28-34",
+          "reason": "none of the cited anchors ('orphan-ref-validator', '```python') appear at lines 28-34; 'orphan-ref-validator' first appears at line 2",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".github/instructions/canonical-source-mirror.instructions.md",
+          "citing_line": 112,
+          "citation": ".markdownlint-cli2.yaml:131",
+          "reason": "none of the cited anchors ('ignores', 'agents/', 'agents/**') appear at lines 131-131; 'ignores' first appears at line 103",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": "src/copilot-cli/instructions/canonical-source-mirror.instructions.md",
+          "citing_line": 98,
+          "citation": ".claude/skills/orphan-ref-validator/scripts/envelope.py:28-34",
+          "reason": "none of the cited anchors ('orphan-ref-validator', '```python') appear at lines 28-34; 'orphan-ref-validator' first appears at line 2",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": "src/copilot-cli/instructions/canonical-source-mirror.instructions.md",
+          "citing_line": 112,
+          "citation": ".markdownlint-cli2.yaml:131",
+          "reason": "none of the cited anchors ('ignores', 'agents/', 'agents/**') appear at lines 131-131; 'ignores' first appears at line 103",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".agents/qa/pr-5088-generated-staleness-gate-report.md",
+          "citing_line": 126,
+          "citation": "scripts/validation/pre_pr_sequence.py:147",
+          "reason": "the text at lines 147-147 at the merge base moved at HEAD; suggested citation scripts/validation/pre_pr_sequence.py:148",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".agents/specs/design/DESIGN-006-em-en-dash-enforcement.md",
+          "citing_line": 192,
+          "citation": "scripts/validation/pre_pr.py:177",
+          "reason": "the text at lines 177-177 at the merge base moved at HEAD; suggested citation scripts/validation/pre_pr.py:178",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": "scripts/validation/check_git_hook_health.py",
+          "citing_line": 273,
+          "citation": "scripts/validation/pre_pr_sequence.py:150",
+          "reason": "the text at lines 150-150 at the merge base moved at HEAD; suggested citation scripts/validation/pre_pr_sequence.py:151",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        }
+      ],
+      "output": "[citation-freshness] examined 9 citation(s) across 15 changed file(s) vs 192c506c021b2ce71e740c73c4e15efcd570d029\n[citation-reverse-pass] examined 25 inbound citation(s) to 15 changed file(s) vs 192c506c021b2ce71e740c73c4e15efcd570d029; 22 already stale at the merge base (not blocking)\n",
+      "caught": true,
+      "false_positives": 0
+    },
+    {
+      "id": "C1-06",
+      "pr": 5287,
+      "sha": "2bcb83d278",
+      "kind": "positive",
+      "scope": "automatic",
+      "file": ".claude/skills/ai-agents-config-catalog/SKILL.md",
+      "line": 64,
+      "defect_class": "stale-citation",
+      "defect": "The introduced audit citation names stale lines.",
+      "resolved_sha": "2bcb83d278e0fdbea61958bcceeed1790cd932b6",
+      "pr_base": "ad634bbac805ac510ea7fb1fa298ce48dd22e38b",
+      "merge_base": "ad634bbac805ac510ea7fb1fa298ce48dd22e38b",
+      "findings": [
+        {
+          "citing_file": ".claude/skills/ai-agents-config-catalog/SKILL.md",
+          "citing_line": 64,
+          "citation": "scripts/validation/check_push_lock_before_commit.py:58",
+          "reason": "none of the cited anchors ('pip', 'uv sync --frozen --extra dev', 'uv run python', 'python3') appear at lines 58-58; 'pip' first appears at line 32",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".claude/skills/ai-agents-config-catalog/SKILL.md",
+          "citing_line": 61,
+          "citation": ".claude/hooks/PreToolUse/invoke_serena_worktree_scope_guard.py:68-73",
+          "reason": "cited file not tracked at HEAD",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".agents/architecture/ADR-100-retire-pr-size-ceilings.md",
+          "citing_line": 255,
+          "citation": "lefthook.yml:378",
+          "reason": "the text at lines 378-378 at the merge base moved at HEAD; suggested citation lefthook.yml:388",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".agents/architecture/ADR-101-enforcement-planes.md",
+          "citing_line": 433,
+          "citation": "lefthook.yml:193",
+          "reason": "the text at lines 193-193 at the merge base moved at HEAD; suggested citation lefthook.yml:203",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        }
+      ],
+      "output": "[citation-freshness] examined 2 citation(s) across 11 changed file(s) vs ad634bbac805ac510ea7fb1fa298ce48dd22e38b\n[citation-reverse-pass] examined 18 inbound citation(s) to 12 changed file(s) vs ad634bbac805ac510ea7fb1fa298ce48dd22e38b; 16 already stale at the merge base (not blocking)\n",
+      "caught": true,
+      "false_positives": 0
+    },
+    {
+      "id": "C1-07",
+      "pr": 5286,
+      "sha": "81b88dd3df",
+      "kind": "positive",
+      "scope": "automatic",
+      "file": ".agents/architecture/ADR-052-template-strategy.md",
+      "line": 32,
+      "defect_class": "stale-citation",
+      "defect": "The quoted Not Generated heading moved from line 45 to 58.",
+      "resolved_sha": "81b88dd3df199e8b56e82a79850b2f72b83bca09",
+      "pr_base": "5e4990710eadbdc1ad1d6b73c7033166d65918b1",
+      "merge_base": "ad634bbac805ac510ea7fb1fa298ce48dd22e38b",
+      "findings": [
+        {
+          "citing_file": ".agents/architecture/ADR-052-template-strategy.md",
+          "citing_line": 32,
+          "citation": ".agents/architecture/ADR-036-two-source-agent-template-architecture.md:45",
+          "reason": "none of the cited anchors ('src/claude/', 'templates/agents/*.shared.md', 'are the authoritative source for Claude', 'Not Generated') appear at lines 45-45; 'src/claude/' first appears at line 28",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".agents/architecture/ADR-052-template-strategy.md",
+          "citing_line": 44,
+          "citation": "build/AGENTS.md:240",
+          "reason": "none of the cited anchors ('claude/agents/', 'github/agents/') appear at lines 240-240; 'claude/agents/' first appears at line 178",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".agents/critique/ADR-052-debate-log.md",
+          "citing_line": 18,
+          "citation": ".agents/architecture/ADR-036-two-source-agent-template-architecture.md:45",
+          "reason": "none of the cited anchors ('## Status', 'NEEDS_CHANGES', 'ADR-036, Accepted', 'NEEDS_REVISION') appear at lines 45-45; '## Status' first appears at line 14",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".claude/skills/ai-agents-architecture-contract/SKILL.md",
+          "citing_line": 57,
+          "citation": ".agents/architecture/ADR-030-skills-pattern-superiority.md:31",
+          "reason": "none of the cited anchors ('implemented: false', 'templates/agents/', 'Status: Critical Update - Changes Recommendation') appear at lines 31-31",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".claude/skills/ai-agents-architecture-contract/references/provenance.md",
+          "citing_line": 13,
+          "citation": "build/scripts/build_all.py:435-443",
+          "reason": "none of the cited anchors ('grep -n \"asymmetric\" .agents/architecture/ADR-072-*.md', 'No code moves on this ADR alone', 'the seam is asymmetric', 'asymmetric') appear at lines 435-443",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".claude/skills/ai-agents-architecture-contract/references/provenance.md",
+          "citing_line": 14,
+          "citation": "build/scripts/build_all.py:674",
+          "reason": "none of the cited anchors ('grep -n \"asymmetric\" .agents/architecture/ADR-072-*.md', 'No code moves on this ADR alone', 'the seam is asymmetric', 'asymmetric') appear at lines 674-674",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        }
+      ],
+      "output": "[citation-freshness] examined 11 citation(s) across 12 changed file(s) vs ad634bbac805ac510ea7fb1fa298ce48dd22e38b\n[citation-reverse-pass] examined 6 inbound citation(s) to 15 changed file(s) vs ad634bbac805ac510ea7fb1fa298ce48dd22e38b; 4 already stale at the merge base (not blocking)\n",
+      "caught": true,
+      "false_positives": 0
+    },
+    {
+      "id": "C1-08",
+      "pr": 5812,
+      "sha": "94a46b801a",
+      "kind": "positive",
+      "scope": "automatic",
+      "file": "tests/validation/test_frontmatter_contract.py",
+      "line": 147,
+      "defect_class": "stale-citation",
+      "defect": "PR #5812 introduced generate_adr_index.py:202. PR #6584 only inherited it.",
+      "evidence_pr": 6584,
+      "resolved_sha": "94a46b801ace6794cf6919c7f75cf0cf8079f725",
+      "pr_base": "659097d6d66c5e66aab76f9f2258bf2e333ee7b8",
+      "merge_base": "659097d6d66c5e66aab76f9f2258bf2e333ee7b8",
+      "findings": [
+        {
+          "citing_file": ".agents/analysis/frontmatter-parser-build-vs-buy.md",
+          "citing_line": 47,
+          "citation": "frontmatter/default_handlers.py:255",
+          "reason": "cited file not tracked at HEAD",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".agents/analysis/frontmatter-parser-build-vs-buy.md",
+          "citing_line": 71,
+          "citation": "scripts/validation/yaml_utils.py:26",
+          "reason": "none of the cited anchors ('text.find(\"\\\\n---\", 3', '\\\\n---', 'line.strip() == \"---', 'src/claude/') appear at lines 26-26; 'text.find(\"\\\\n---\", 3' first appears at line 27",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".agents/analysis/frontmatter-parser-build-vs-buy.md",
+          "citing_line": 72,
+          "citation": ".claude/skills/adr-review/scripts/detect_adr_changes.py:225",
+          "reason": "none of the cited anchors ('text.find(\"\\\\n---\", 3', '\\\\n---', 'line.strip() == \"---', 'src/claude/') appear at lines 225-225; 'line.strip() == \"---' first appears at line 262",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".agents/analysis/frontmatter-parser-build-vs-buy.md",
+          "citing_line": 73,
+          "citation": "build/scripts/generate_adr_index.py:84",
+          "reason": "none of the cited anchors ('text.find(\"\\\\n---\", 3', '\\\\n---', 'line.strip() == \"---', 'src/claude/') appear at lines 84-84",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".agents/analysis/frontmatter-parser-build-vs-buy.md",
+          "citing_line": 81,
+          "citation": "build/scripts/validate_agent_matrix_refs.py:200",
+          "reason": "none of the cited anchors ('^---\\\\s*\\\\n(.*?)\\\\n---\\\\s*\\\\n', '\\\\A(---\\\\r?\\\\n.*?\\\\r?\\\\n---\\\\r?\\\\n)(.*)\\\\Z', '^---[ \\\\t]*$') appear at lines 200-200; '^---[ \\\\t]*$' first appears at line 206",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".agents/analysis/frontmatter-parser-build-vs-buy.md",
+          "citing_line": 86,
+          "citation": "scripts/validation/traceability.py:93",
+          "reason": "none of the cited anchors ('startswith(\"---') appear at lines 93-93",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".agents/analysis/frontmatter-parser-build-vs-buy.md",
+          "citing_line": 86,
+          "citation": "scripts/traceability/spec_utils.py:54",
+          "reason": "none of the cited anchors ('startswith(\"---') appear at lines 54-54",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".agents/analysis/frontmatter-parser-build-vs-buy.md",
+          "citing_line": 94,
+          "citation": "scripts/validation/memory_index.py:888",
+          "reason": "none of the cited anchors ('FM_BOUNDARY') appear at lines 888-888; 'FM_BOUNDARY' first appears at line 890",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".agents/analysis/frontmatter-parser-build-vs-buy.md",
+          "citing_line": 143,
+          "citation": "frontmatter/default_handlers.py:252",
+          "reason": "cited file not tracked at HEAD",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".agents/analysis/frontmatter-parser-build-vs-buy.md",
+          "citing_line": 381,
+          "citation": "scripts/validation/memory_index.py:888",
+          "reason": "none of the cited anchors ('FM_BOUNDARY') appear at lines 888-888; 'FM_BOUNDARY' first appears at line 890",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".agents/analysis/frontmatter-probes/probe_library_semantics.py",
+          "citing_line": 22,
+          "citation": "frontmatter/default_handlers.py:255",
+          "reason": "cited file not tracked at HEAD",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".agents/analysis/frontmatter-parser-build-vs-buy.md",
+          "citing_line": 42,
+          "citation": "scripts/validation/check_adr_lifecycle.py:246",
+          "reason": "none of the cited anchors ('unterminated', 'empty block', 'non-mapping block', 'metadata == ') appear at lines 246-246; 'unterminated' first appears at line 243",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".agents/analysis/frontmatter-parser-build-vs-buy.md",
+          "citing_line": 71,
+          "citation": "scripts/validation/check_adr_lifecycle.py:224",
+          "reason": "none of the cited anchors ('| repo |', 'line.strip() == \"---', 'src/claude/', 'src/copilot-cli/') appear at lines 224-224",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".claude/rules/adr-records.md",
+          "citing_line": 18,
+          "citation": "build/scripts/generate_adr_index.py:161",
+          "reason": "the text at lines 161-161 at the merge base moved at HEAD; suggested citation build/scripts/generate_adr_index.py:167",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".claude/rules/adr-records.md",
+          "citing_line": 25,
+          "citation": "build/scripts/generate_adr_index.py:503-514",
+          "reason": "none of the cited anchors ('_blocking_condition', '## Status') appear at lines 503-514; '_blocking_condition' first appears at line 455; suggested citation build/scripts/generate_adr_index.py:455-466",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".claude/skills/adr-review/scripts/detect_adr_changes.py",
+          "citing_line": 175,
+          "citation": "build/scripts/generate_adr_index.py:224-231",
+          "reason": "none of the cited anchors ('_no_duplicate_keys', 'seen: list[Any] = []') appear at lines 224-231",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".github/instructions/adr-records.instructions.md",
+          "citing_line": 16,
+          "citation": "build/scripts/generate_adr_index.py:161",
+          "reason": "the text at lines 161-161 at the merge base moved at HEAD; suggested citation build/scripts/generate_adr_index.py:167",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".github/instructions/adr-records.instructions.md",
+          "citing_line": 23,
+          "citation": "build/scripts/generate_adr_index.py:503-514",
+          "reason": "none of the cited anchors ('_blocking_condition', '## Status') appear at lines 503-514; '_blocking_condition' first appears at line 455; suggested citation build/scripts/generate_adr_index.py:455-466",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": "build/scripts/generate_adr_index.py",
+          "citing_line": 593,
+          "citation": "build/scripts/generate_adr_index.py:504",
+          "reason": "the text at lines 504-504 at the merge base moved at HEAD; suggested citation build/scripts/generate_adr_index.py:456",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": "scripts/validation/check_adr_links.py",
+          "citing_line": 954,
+          "citation": "scripts/validation/check_adr_lifecycle.py:1121-1130",
+          "reason": "the text at lines 1121-1130 at the merge base moved at HEAD; suggested citation scripts/validation/check_adr_lifecycle.py:1138-1147",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": "scripts/validation/check_skill_adr_bindings.py",
+          "citing_line": 55,
+          "citation": "scripts/validation/check_adr_lifecycle.py:152-155",
+          "reason": "the text at lines 152-155 at the merge base moved at HEAD; suggested citation scripts/validation/check_adr_lifecycle.py:157-160",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": "scripts/validation/check_skill_adr_bindings.py",
+          "citing_line": 625,
+          "citation": "scripts/validation/check_adr_lifecycle.py:1258",
+          "reason": "the text at lines 1258-1258 at the merge base moved at HEAD; suggested citation scripts/validation/check_adr_lifecycle.py:1275",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": "scripts/validation/check_skill_adr_bindings.py",
+          "citing_line": 767,
+          "citation": "scripts/validation/check_adr_lifecycle.py:1146-1150",
+          "reason": "none of the cited anchors ('_resolve_default_base_ref', 'baseline_absent_at_ref', '_counts_at_ref') appear at lines 1146-1150; '_resolve_default_base_ref' first appears at line 132; suggested citation scripts/validation/check_adr_lifecycle.py:1163-1167",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": "src/claude/rules/adr-records.md",
+          "citing_line": 18,
+          "citation": "build/scripts/generate_adr_index.py:161",
+          "reason": "the text at lines 161-161 at the merge base moved at HEAD; suggested citation build/scripts/generate_adr_index.py:167",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": "src/claude/rules/adr-records.md",
+          "citing_line": 25,
+          "citation": "build/scripts/generate_adr_index.py:503-514",
+          "reason": "none of the cited anchors ('_blocking_condition', '## Status') appear at lines 503-514; '_blocking_condition' first appears at line 455; suggested citation build/scripts/generate_adr_index.py:455-466",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": "templates/rules/adr-records.md",
+          "citing_line": 18,
+          "citation": "build/scripts/generate_adr_index.py:161",
+          "reason": "the text at lines 161-161 at the merge base moved at HEAD; suggested citation build/scripts/generate_adr_index.py:167",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": "templates/rules/adr-records.md",
+          "citing_line": 25,
+          "citation": "build/scripts/generate_adr_index.py:503-514",
+          "reason": "none of the cited anchors ('_blocking_condition', '## Status') appear at lines 503-514; '_blocking_condition' first appears at line 455; suggested citation build/scripts/generate_adr_index.py:455-466",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": "tests/test_adr_063_memory_skill_decomposition.py",
+          "citing_line": 166,
+          "citation": "build/scripts/generate_adr_index.py:356-360",
+          "reason": "none of the cited anchors ('_strip_fences(body', 'prose', '_extract_title', '# Heading') appear at lines 356-360; '_strip_fences(body' first appears at line 517; suggested citation build/scripts/generate_adr_index.py:352-356",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": "tests/validation/test_frontmatter_contract.py",
+          "citing_line": 147,
+          "citation": "build/scripts/generate_adr_index.py:202",
+          "reason": "none of the cited anchors ('? [a, b', 'parse_frontmatter') appear at lines 202-202; 'parse_frontmatter' first appears at line 89",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        }
+      ],
+      "output": "[citation-freshness] examined 36 citation(s) across 15 changed file(s) vs 659097d6d66c5e66aab76f9f2258bf2e333ee7b8\n[citation-reverse-pass] examined 48 inbound citation(s) to 17 changed file(s) vs 659097d6d66c5e66aab76f9f2258bf2e333ee7b8; 17 already stale at the merge base (not blocking)\n",
+      "caught": true,
+      "false_positives": 0
+    },
+    {
+      "id": "C1-09",
+      "pr": 5741,
+      "sha": "3d6180a6bf",
+      "kind": "positive",
+      "scope": "automatic",
+      "file": "templates/skills/ai-agents-debugging-playbook.SKILL.md.tmpl",
+      "line": 86,
+      "defect_class": "stale-citation",
+      "defect": "detect_agent_drift.py lines 57-76 and the bare continuation :668 are stale.",
+      "resolved_sha": "3d6180a6bf04c4530d4036ec9de51a7c02ea98f3",
+      "pr_base": "5cad780a2824b23cd51730488650601ad2104c48",
+      "merge_base": "c771c6914580a280afc1a5cd6ded8be1d09771f6",
+      "findings": [
+        {
+          "citing_file": ".claude/skills/ai-agents-debugging-playbook/SKILL.md",
+          "citing_line": 86,
+          "citation": "build/scripts/validate_install_parity.py:389",
+          "reason": "none of the cited anchors (' and exempts diffs touching only hand-maintained agent copies ', ' that script and', 'both diff a base ref, so an uncommitted control is invisible and you must commit the control first; and') appear at lines 389-389",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".claude/skills/ai-agents-debugging-playbook/SKILL.md",
+          "citing_line": 86,
+          "citation": "build/scripts/detect_agent_drift.py:57-76",
+          "reason": "none of the cited anchors ('compares only the 18 headings named in its', 'allowlist ', 'SECTIONS_TO_COMPARE') appear at lines 57-76; 'SECTIONS_TO_COMPARE' first appears at line 77",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".claude/skills/ai-agents-debugging-playbook/SKILL.md",
+          "citing_line": 86,
+          "citation": "build/scripts/detect_agent_drift.py:668",
+          "reason": "none of the cited anchors (' at an 80 percent similarity threshold ') appear at lines 668-668",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": "templates/skills/ai-agents-architecture-contract.SKILL.md.tmpl",
+          "citing_line": 56,
+          "citation": ".agents/architecture/ADR-030-skills-pattern-superiority.md:31",
+          "reason": "none of the cited anchors ('implemented: false', 'templates/agents/', 'Status: Critical Update - Changes Recommendation') appear at lines 31-31; 'implemented: false' first appears at line 9",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": "templates/skills/ai-agents-change-control.SKILL.md.tmpl",
+          "citing_line": 56,
+          "citation": "build/scripts/build_all.py:841",
+          "reason": "distinctive anchors ('src/vs-code-agents/', 'src/copilot-cli/agents/', 'templates/agents/*.shared.md', 'github/instructions/') sit outside lines 841-841; 'src/copilot-cli/agents/' first appears at line 1366",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": "templates/skills/ai-agents-debugging-playbook.SKILL.md.tmpl",
+          "citing_line": 86,
+          "citation": "build/scripts/validate_install_parity.py:389",
+          "reason": "none of the cited anchors (' and exempts diffs touching only hand-maintained agent copies ', ' that script and', 'both diff a base ref, so an uncommitted control is invisible and you must commit the control first; and') appear at lines 389-389",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": "templates/skills/ai-agents-debugging-playbook.SKILL.md.tmpl",
+          "citing_line": 86,
+          "citation": "build/scripts/detect_agent_drift.py:57-76",
+          "reason": "none of the cited anchors ('compares only the 18 headings named in its', 'allowlist ', 'SECTIONS_TO_COMPARE') appear at lines 57-76; 'SECTIONS_TO_COMPARE' first appears at line 77",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": "templates/skills/ai-agents-debugging-playbook.SKILL.md.tmpl",
+          "citing_line": 86,
+          "citation": "build/scripts/detect_agent_drift.py:668",
+          "reason": "none of the cited anchors (' at an 80 percent similarity threshold ') appear at lines 668-668",
+          "gate": "forward",
+          "defect_class": "stale-citation"
+        },
+        {
+          "citing_file": ".agents/critique/SESSION-PROTOCOL-interpreter-portability-debate-log.md",
+          "citing_line": 23,
+          "citation": ".claude/skills/ai-agents-build-and-env/SKILL.md:146",
+          "reason": "none of the cited anchors ('uv run python <script>', 'python3', 'github/actions/setup-code-env', 'Run them as `uv run python <script>` locally so the project venv supplies it. CI can invoke bare `python3` because `.github/actions/setup-code-env` installs the locked dependencies system-wide first') appear at lines 146-146; 'python3' first appears at line 54; suggested citation .claude/skills/ai-agents-build-and-env/SKILL.md:147",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        }
+      ],
+      "output": "[citation-freshness] examined 72 citation(s) across 18 changed file(s) vs c771c6914580a280afc1a5cd6ded8be1d09771f6\n[citation-reverse-pass] examined 4 inbound citation(s) to 22 changed file(s) vs c771c6914580a280afc1a5cd6ded8be1d09771f6; 1 already stale at the merge base (not blocking)\n",
+      "caught": true,
+      "false_positives": 0
+    },
+    {
+      "id": "C1-10",
+      "pr": 5284,
+      "sha": "4f85dfb986",
+      "kind": "positive",
+      "scope": "manual",
+      "file": ".serena/memories/validation/validation-portability-scan-contract.md",
+      "line": 21,
+      "defect_class": "stale-citation",
+      "defect": "check_skill_md_portability.py lines 660-666 moved to 666-672.",
+      "why": "Serena memories remain exempt under HISTORICAL_ROOTS.",
+      "resolved_sha": "4f85dfb9864c008819a6bb0cacabe08a1244afe5",
+      "pr_base": "ad634bbac805ac510ea7fb1fa298ce48dd22e38b",
+      "merge_base": "910dad83da7df0d1214d091d7d5e97c2870bec56",
+      "findings": [
+        {
+          "citing_file": ".agents/audits/2026-07-02-safety-audit.md",
+          "citing_line": 104,
+          "citation": "scripts/validation/check_skill_md_portability.py:237-281",
+          "reason": "the text at lines 237-281 at the merge base moved at HEAD; suggested citation scripts/validation/check_skill_md_portability.py:247-291",
+          "gate": "reverse",
+          "defect_class": "stale-citation"
+        }
+      ],
+      "output": "[citation-freshness] examined 1 citation(s) across 12 changed file(s) vs 910dad83da7df0d1214d091d7d5e97c2870bec56\n[citation-reverse-pass] examined 3 inbound citation(s) to 14 changed file(s) vs 910dad83da7df0d1214d091d7d5e97c2870bec56; 2 already stale at the merge base (not blocking)\n",
+      "caught": false,
+      "false_positives": 0
+    },
+    {
+      "id": "C1-11",
+      "pr": 6689,
+      "sha": null,
+      "kind": "positive",
+      "scope": "manual",
+      "file": ".project-toolkit/analysis/adr-101-requirement-2-publisher-app-spike.md",
+      "line": 153,
+      "defect_class": "stale-citation",
+      "defect": "The prose lines 265-271 citation should name lines 278-284.",
+      "why": "Prose line ranges lack a path:N citation and occur in a historical root.",
+      "resolved_sha": "66c5478efaec35f5e0319ce46610bcf58b8e8502",
+      "pr_base": "44fd46a46eda470b1645b139afce68fcda1b8175",
+      "merge_base": "44fd46a46eda470b1645b139afce68fcda1b8175",
+      "findings": [],
+      "output": "[citation-freshness] examined 0 citation(s) across 0 changed file(s) vs 44fd46a46eda470b1645b139afce68fcda1b8175\n[citation-reverse-pass] examined 0 inbound citation(s) to 1 changed file(s) vs 44fd46a46eda470b1645b139afce68fcda1b8175; 0 already stale at the merge base (not blocking)\n",
+      "caught": false,
+      "false_positives": 0
+    },
+    {
+      "id": "N01",
+      "pr": 7452,
+      "sha": "6b9340fa",
+      "kind": "negative",
+      "scope": "automatic",
+      "resolved_sha": "6b9340fac0730c973cb27b1bbd8def16822b2bb4",
+      "pr_base": "498d4892a62a50d6624bc9315344dd9ef81e373d",
+      "merge_base": "da42adc4a7593906345f040d6a6a5d7b734bef04",
+      "findings": [],
+      "output": "[citation-freshness] examined 0 citation(s) across 5 changed file(s) vs da42adc4a7593906345f040d6a6a5d7b734bef04\n[citation-reverse-pass] examined 0 inbound citation(s) to 24 changed file(s) vs da42adc4a7593906345f040d6a6a5d7b734bef04; 0 already stale at the merge base (not blocking)\n",
+      "caught": false,
+      "false_positives": 0
+    },
+    {
+      "id": "N02",
+      "pr": 7431,
+      "sha": "e30fb229",
+      "kind": "negative",
+      "scope": "automatic",
+      "resolved_sha": "e30fb2297694dd5ca95d8913c0d0789d37b15ace",
+      "pr_base": "031b40d484d8f04c75bb0917e960aa96f78eb083",
+      "merge_base": "031b40d484d8f04c75bb0917e960aa96f78eb083",
+      "findings": [],
+      "output": "[citation-freshness] examined 0 citation(s) across 1 changed file(s) vs 031b40d484d8f04c75bb0917e960aa96f78eb083\n[citation-reverse-pass] examined 0 inbound citation(s) to 1 changed file(s) vs 031b40d484d8f04c75bb0917e960aa96f78eb083; 0 already stale at the merge base (not blocking)\n",
+      "caught": false,
+      "false_positives": 0
+    },
+    {
+      "id": "N03",
+      "pr": 7377,
+      "sha": null,
+      "kind": "negative",
+      "scope": "automatic",
+      "resolved_sha": "17e0aa089892a67db4a5dda5898be631224cc310",
+      "pr_base": "919a56dee13126cdcba48e6732f42fbf01963106",
+      "merge_base": "919a56dee13126cdcba48e6732f42fbf01963106",
+      "findings": [],
+      "output": "[citation-freshness] examined 0 citation(s) across 1 changed file(s) vs 919a56dee13126cdcba48e6732f42fbf01963106\n[citation-reverse-pass] examined 0 inbound citation(s) to 7 changed file(s) vs 919a56dee13126cdcba48e6732f42fbf01963106; 0 already stale at the merge base (not blocking)\n",
+      "caught": false,
+      "false_positives": 0
+    },
+    {
+      "id": "N04",
+      "pr": 7412,
+      "sha": "f9493d63",
+      "kind": "negative",
+      "scope": "automatic",
+      "resolved_sha": "f9493d63c4e4efe7493d589940b7cd19ecd8cbfa",
+      "pr_base": "f2de906fa66e7287c845d3d4e5bfa5066a52d220",
+      "merge_base": "81953391200a290b610bc1f440fa2eba47a58624",
+      "findings": [],
+      "output": "[citation-freshness] examined 0 citation(s) across 1 changed file(s) vs 81953391200a290b610bc1f440fa2eba47a58624\n[citation-reverse-pass] examined 0 inbound citation(s) to 7 changed file(s) vs 81953391200a290b610bc1f440fa2eba47a58624; 0 already stale at the merge base (not blocking)\n",
+      "caught": false,
+      "false_positives": 0
+    },
+    {
+      "id": "N05",
+      "pr": 7146,
+      "sha": "8fc3c747",
+      "kind": "negative",
+      "scope": "automatic",
+      "resolved_sha": "8fc3c74779bc5a4a363b8e12ae6f42ae1cd1d826",
+      "pr_base": "1483a697174329481230bf01b2c89d930b066fc3",
+      "merge_base": "1483a697174329481230bf01b2c89d930b066fc3",
+      "findings": [],
+      "output": "[citation-freshness] examined 0 citation(s) across 7 changed file(s) vs 1483a697174329481230bf01b2c89d930b066fc3\n[citation-reverse-pass] examined 22 inbound citation(s) to 9 changed file(s) vs 1483a697174329481230bf01b2c89d930b066fc3; 15 already stale at the merge base (not blocking)\n",
+      "caught": false,
+      "false_positives": 0
+    },
+    {
+      "id": "N06",
+      "pr": 7415,
+      "sha": "c99aca0e",
+      "kind": "negative",
+      "scope": "automatic",
+      "resolved_sha": "c99aca0eb1795bef30e468a560579add8bd888ac",
+      "pr_base": "7aa43a0eb563cfb00a00de84361d5514b725cf66",
+      "merge_base": "7aa43a0eb563cfb00a00de84361d5514b725cf66",
+      "findings": [],
+      "output": "[citation-freshness] examined 0 citation(s) across 0 changed file(s) vs 7aa43a0eb563cfb00a00de84361d5514b725cf66\n[citation-reverse-pass] examined 0 inbound citation(s) to 6 changed file(s) vs 7aa43a0eb563cfb00a00de84361d5514b725cf66; 0 already stale at the merge base (not blocking)\n",
+      "caught": false,
+      "false_positives": 0
+    },
+    {
+      "id": "N07",
+      "pr": 7174,
+      "sha": "2bccad6a",
+      "kind": "negative",
+      "scope": "automatic",
+      "resolved_sha": "2bccad6a6a7ec7ea6ea4cac5000fb17db7316745",
+      "pr_base": "2438d8def966511a7d58dcb8e20acabeb247801e",
+      "merge_base": "bfd68da913b67c2322561238a7ac3108638c2a10",
+      "findings": [],
+      "output": "[citation-freshness] examined 0 citation(s) across 4 changed file(s) vs bfd68da913b67c2322561238a7ac3108638c2a10\n[citation-reverse-pass] examined 0 inbound citation(s) to 28 changed file(s) vs bfd68da913b67c2322561238a7ac3108638c2a10; 0 already stale at the merge base (not blocking)\n",
+      "caught": false,
+      "false_positives": 0
+    },
+    {
+      "id": "N08",
+      "pr": 7313,
+      "sha": "773f9327",
+      "kind": "negative",
+      "scope": "automatic",
+      "resolved_sha": "773f93276e3291077e3c6f8fc0b9fd2514a66a2a",
+      "pr_base": "b22c1b126fe9c98fb5b6506ccefba2ba35e69175",
+      "merge_base": "b22c1b126fe9c98fb5b6506ccefba2ba35e69175",
+      "findings": [],
+      "output": "[citation-freshness] examined 0 citation(s) across 2 changed file(s) vs b22c1b126fe9c98fb5b6506ccefba2ba35e69175\n[citation-reverse-pass] examined 0 inbound citation(s) to 20 changed file(s) vs b22c1b126fe9c98fb5b6506ccefba2ba35e69175; 0 already stale at the merge base (not blocking)\n",
+      "caught": false,
+      "false_positives": 0
+    },
+    {
+      "id": "N09",
+      "pr": 7324,
+      "sha": "4d0d3900",
+      "kind": "negative",
+      "scope": "automatic",
+      "resolved_sha": "4d0d39000608e6ae031f9499ad9ad5d249372bc9",
+      "pr_base": "fc91afcf25a3d721a8f299c94851cc4d5139170d",
+      "merge_base": "e7f336d01251d0497efff18e378a4f9b0feee58f",
+      "findings": [],
+      "output": "[citation-freshness] examined 0 citation(s) across 0 changed file(s) vs e7f336d01251d0497efff18e378a4f9b0feee58f\n[citation-reverse-pass] examined 0 inbound citation(s) to 6 changed file(s) vs e7f336d01251d0497efff18e378a4f9b0feee58f; 0 already stale at the merge base (not blocking)\n",
+      "caught": false,
+      "false_positives": 0
+    },
+    {
+      "id": "N10",
+      "pr": 7446,
+      "sha": "3adae314",
+      "kind": "negative",
+      "scope": "automatic",
+      "resolved_sha": "3adae314d51474f16ddd958d2a04cccf2e2697cf",
+      "pr_base": "e9acebe15f31d1f2ed0c5dae1d329d0af94632c5",
+      "merge_base": "e1702e456fe582eafefa7fbc1784a827488bf027",
+      "findings": [],
+      "output": "[citation-freshness] examined 0 citation(s) across 4 changed file(s) vs e1702e456fe582eafefa7fbc1784a827488bf027\n[citation-reverse-pass] examined 1 inbound citation(s) to 15 changed file(s) vs e1702e456fe582eafefa7fbc1784a827488bf027; 1 already stale at the merge base (not blocking)\n",
+      "caught": false,
+      "false_positives": 0
+    },
+    {
+      "id": "N11",
+      "pr": 7294,
+      "sha": "2d7585ba",
+      "kind": "negative",
+      "scope": "automatic",
+      "resolved_sha": "2d7585ba6c4e466560b250af5e3eceabcaa4b712",
+      "pr_base": "d82875e0cad26be4af0154c70bb42d6619162865",
+      "merge_base": "d82875e0cad26be4af0154c70bb42d6619162865",
+      "findings": [],
+      "output": "[citation-freshness] examined 0 citation(s) across 1 changed file(s) vs d82875e0cad26be4af0154c70bb42d6619162865\n[citation-reverse-pass] examined 0 inbound citation(s) to 13 changed file(s) vs d82875e0cad26be4af0154c70bb42d6619162865; 0 already stale at the merge base (not blocking)\n",
+      "caught": false,
+      "false_positives": 0
+    },
+    {
+      "id": "N12",
+      "pr": 7253,
+      "sha": "dd303948",
+      "kind": "negative",
+      "scope": "automatic",
+      "resolved_sha": "dd30394857a80257981f640d0b910ca71d1642bd",
+      "pr_base": "a28131561d0f751457cf0eb19547e070edbfa2c7",
+      "merge_base": "a28131561d0f751457cf0eb19547e070edbfa2c7",
+      "findings": [],
+      "output": "[citation-freshness] examined 0 citation(s) across 1 changed file(s) vs a28131561d0f751457cf0eb19547e070edbfa2c7\n[citation-reverse-pass] examined 0 inbound citation(s) to 11 changed file(s) vs a28131561d0f751457cf0eb19547e070edbfa2c7; 0 already stale at the merge base (not blocking)\n",
+      "caught": false,
+      "false_positives": 0
+    }
+  ]
+}
