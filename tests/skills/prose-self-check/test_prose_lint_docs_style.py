@@ -60,7 +60,7 @@ def findings(tmp_path: Path, text: str, capsys: pytest.CaptureFixture[str], *fla
     return code, payload["files"][str(doc)]["findings"]
 
 
-def docs_findings(items: list[dict]) -> list[dict]:
+def docs_findings(items: list[dict[str, object]]) -> list[dict[str, object]]:
     return [f for f in items if f["kind"] in DOC_KINDS]
 
 

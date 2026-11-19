@@ -12,9 +12,8 @@ not only that the Markdown renders.
    repository with plain Markdown, render it the way the host shows it.
 2. **Check every edited link.** Run the site's link checker when it has one.
    Otherwise open each internal target and confirm it exists. In the
-   `rjmurillo/ai-agents` repository, run `check_md_links.py` with the files you
-   edited (`uv run python scripts/validation/check_md_links.py FILE ...`). It
-   resolves relative links and cross-file `#anchors`; markdownlint covers
+   `rjmurillo/ai-agents` repository, run `check_md_links.py` (under its
+   validation scripts) with the files you edited. It resolves relative links and cross-file `#anchors`; markdownlint covers
    same-file anchors and "click here" link text.
 3. **Run every safe code sample and command** you added or changed, in the stated
    environment. Copy the output you show from a real run, not from memory.

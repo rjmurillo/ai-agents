@@ -51,10 +51,20 @@ def make_repo(tmp_path: Path, files: dict[str, str], *, commit: bool = False) ->
     return repo
 
 
-def scan(repo: Path, **kwargs: object) -> list[check_md_links.Finding]:
+def scan(
+    repo: Path,
+    *,
+    baseline: set[str] | None = None,
+    files: list[str] | None = None,
+    base_allowances: set[str] | None = None,
+) -> list[check_md_links.Finding]:
     """Return the findings of a full-scope scan with an empty baseline."""
-    kwargs.setdefault("baseline", set())
-    findings, _examined, _fragments = check_md_links.find_broken_md_links(repo, **kwargs)  # type: ignore[arg-type]
+    findings, _examined, _fragments = check_md_links.find_broken_md_links(
+        repo,
+        baseline=set() if baseline is None else baseline,
+        files=files,
+        base_allowances=base_allowances,
+    )
     return findings
 
 
