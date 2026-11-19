@@ -21,6 +21,11 @@ metadata:
     invoker: autoplan
     trigger: autoplan routes requests to respond to PR review threads to pr-comment-responder
     user-facing: true
+    intents:
+      - respond to pr comments
+      - address the review feedback
+      - handle bot review comments
+      - reply to reviewer
 ---
 # PR Comment Responder
 

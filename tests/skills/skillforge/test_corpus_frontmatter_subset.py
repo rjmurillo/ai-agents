@@ -14,17 +14,14 @@ at `b8bedf583`; this test is the guard that keeps the defect class from returnin
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import pytest
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
-_SCRIPTS = _REPO_ROOT / "src" / "claude" / "skills" / "skillforge" / "scripts"
-if str(_SCRIPTS) not in sys.path:
-    sys.path.insert(0, str(_SCRIPTS))
+from tests.skills.skillforge.conformance_support import load
 
-import _conformance_parse as subset_parser
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+subset_parser = load("skillforge_subset_parser_under_test", "_conformance_parse.py")
 
 _TREES = (
     "src/claude/skills",

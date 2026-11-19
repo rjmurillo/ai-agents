@@ -311,7 +311,7 @@ SKILL="$HOME/.claude/skills/my-skill"
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillforge/scripts/package_skill.py "$SKILL" ./dist; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
-Read [references/scripts-and-validation.md](references/scripts-and-validation.md) before you act on an exit code, use `--root DIR`, or judge conformance guidelines.
+Read [references/scripts-and-validation.md](references/scripts-and-validation.md) before you act on an exit code, use `--root DIR`, judge conformance, or lint frontmatter ([rules](references/frontmatter-and-limits.md)).
 
 ---
 
@@ -356,7 +356,7 @@ After creation:
 
 ## Scripts
 
-Entry scripts: `init_skill.py`, `triage_skill_request.py`, `discover_skills.py`, `quick_validate.py`, `validate-skill.py`, `conformance.py`, `check_docs_safety.py`, `skill_modularity_audit.py`, and `package_skill.py`. Each runs on the Python 3 standard library; `quick_validate.py` and `validate-skill.py` use PyYAML when it is installed and fall back to a stdlib parser when it is not. Exit codes differ by script; read [references/scripts-and-validation.md](references/scripts-and-validation.md) before you act on one.
+Entry scripts: `init_skill.py`, `triage_skill_request.py`, `discover_skills.py`, `quick_validate.py`, `validate-skill.py`, `conformance.py`, `lint_skill_frontmatter.py`, `check_docs_safety.py`, `skill_modularity_audit.py`, and `package_skill.py`. Each runs on the Python 3 standard library; `quick_validate.py` and `validate-skill.py` use PyYAML when it is installed and fall back to a stdlib parser when it is not.
 
 ---
 

@@ -178,7 +178,8 @@ One optimization step:
    incumbent is never written; an `--out` that resolves to the incumbent exits
    2. Exit 2 is a usage or validation error, not a gate loss: an empty `sel`
    split, an incumbent `--out`, budget overflow, a bad anchor, a protected
-   fence, or marker text inside a patch.
+   fence, marker text in a patch, or a new MUST failure from skillforge's
+   `lint_skill_frontmatter.py`.
 6. **Re-roll** every task on `candidate.md` into `candidate_results.json`.
    For a bundle, `apply` writes a new directory. Finish every edit to its
    scripts first, then run the command tasks, then `hash` the final

@@ -51,31 +51,35 @@ if str(_SCRIPT_DIR) not in sys.path:
 
 import yaml  # noqa: E402
 from instruction_budget_globs import _FRONTMATTER_RE, _UniqueKeySafeLoader  # noqa: E402
+from skill_artifact_schema import (  # noqa: E402
+    ARTIFACT_RE,
+    INPUT_KEYS,
+    OUTPUT_KEYS,
+    PATH_RE,
+    SOURCES,
+    Input,
+    Output,
+    parse_inputs,
+    parse_outputs,
+    subset_defect,
+)
 from skill_routing_model import LIFECYCLE_ORDER, RESERVED_INVOKERS  # noqa: E402
 
-# skillforge ships a stdlib-only frontmatter parser that consumers run without
-# PyYAML. PyYAML accepts shapes it refuses (flow mappings, mappings inside a
-# sequence, quoted keys), so a template this gate passes can still make
-# conformance report NOT_EVALUATED on every MUST rule. Reading each template
-# with the shipped parser closes that gap. It is imported from this checkout,
-# not from the repository under test, so fixture trees need no copy of it.
-_SUBSET_PARSER_DIR = _SCRIPT_DIR.parents[1] / "src" / "claude" / "skills" / "skillforge" / "scripts"
-if str(_SUBSET_PARSER_DIR) not in sys.path:
-    sys.path.append(str(_SUBSET_PARSER_DIR))
-import _conformance_parse as subset_parser  # noqa: E402
+__all__ = [
+    "ARTIFACT_RE",
+    "INPUT_KEYS",
+    "OUTPUT_KEYS",
+    "PATH_RE",
+    "SOURCES",
+    "Input",
+    "Output",
+    "main",
+    "survey",
+    "validate_skill_artifact_flow",
+]
 
 TEMPLATE_DIR = "templates/skills"
 TEMPLATE_SUFFIX = ".SKILL.md.tmpl"
-
-ARTIFACT_RE = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*")
-# Relative to the artifact root. Each segment starts with a lowercase letter or
-# digit, so `..`, `.git`, a leading `/`, `\`, `~`, `$`, `:` and control
-# characters cannot match. Applied with `fullmatch`, so a trailing newline fails.
-PATH_RE = re.compile(r"[a-z0-9][a-z0-9._-]*(?:/[a-z0-9][a-z0-9._-]*)*/?")
-
-SOURCES: tuple[str, ...] = ("skill", "user", "repo")
-INPUT_KEYS: frozenset[str] = frozenset({"source", "required"})
-OUTPUT_KEYS: frozenset[str] = frozenset({"path"})
 
 # A walk that reaches the router, a reserved invoker, an agent, or an unknown
 # name credits nobody: none of them is a lifecycle skill.
@@ -89,23 +93,6 @@ HANDOFF_RE = re.compile(
 
 class TreeError(Exception):
     """The template tree cannot answer the question this gate asks."""
-
-
-@dataclass(frozen=True)
-class Input:
-    """One declared input."""
-
-    artifact: str
-    source: str
-    required: bool
-
-
-@dataclass(frozen=True)
-class Output:
-    """One declared output."""
-
-    artifact: str
-    path: str | None
 
 
 @dataclass(frozen=True)
@@ -143,100 +130,11 @@ def _split(text: str) -> tuple[dict[str, object], str]:
     return (data if isinstance(data, dict) else {}), text[match.end() :]
 
 
-def _entry_defects(rel: str, field: str, artifact: object, entry: object) -> list[str]:
-    """Return shape defects for one `inputs` or `outputs` entry.
-
-    An entry is `artifact-name:` with no value (all defaults) or with a
-    mapping of the optional keys. The shape is keyed by artifact so it stays
-    inside the frontmatter subset skillforge's stdlib parser reads: block
-    mappings only, no flow collections, no mappings inside a sequence.
-    """
-    if isinstance(artifact, bool):
-        return [
-            f"{rel}: {field} key {artifact!r} is a YAML 1.1 boolean "
-            "(yes, no, on, off); rename the artifact"
-        ]
-    if not isinstance(artifact, str):
-        return [f"{rel}: {field} key {artifact!r} must be a string artifact name"]
-    where = f"{rel}: {field}.{artifact!r}"
-    defects: list[str] = []
-    if not ARTIFACT_RE.fullmatch(artifact):
-        defects.append(f"{where}: artifact name must be lowercase kebab case")
-    if entry is None:
-        return defects
-    if not isinstance(entry, dict):
-        return [*defects, f"{where} must be empty or a mapping, not {type(entry).__name__}"]
-    allowed = INPUT_KEYS if field == "inputs" else OUTPUT_KEYS
-    unknown = [key for key in entry if key not in allowed]
-    defects.extend(f"{where} has unknown key {key!r}" for key in sorted(unknown, key=repr))
-    if field == "outputs" and "path" in entry:
-        path = entry["path"]
-        if not isinstance(path, str):
-            defects.append(f"{where}.path must be a string")
-        elif not PATH_RE.fullmatch(path):
-            defects.append(
-                f"{where}.path {path!r} must be a lowercase path relative to the artifact root"
-            )
-    if field == "inputs":
-        source = entry.get("source", "skill")
-        if not isinstance(source, str) or source not in SOURCES:
-            defects.append(f"{where}.source {source!r} must be one of {', '.join(SOURCES)}")
-        if "required" in entry and not isinstance(entry["required"], bool):
-            defects.append(f"{where}.required must be true or false")
-    return defects
-
-
-def _parse_entries(
-    rel: str, field: str, value: object
-) -> tuple[tuple[Input, ...] | tuple[Output, ...], list[str]]:
-    """Return the typed entries of one mapping and any defects found reading it."""
-    if value is None:
-        return (), []
-    if not isinstance(value, dict):
-        return (), [
-            f"{rel}: {field} must be a mapping keyed by artifact name, not {type(value).__name__}"
-        ]
-    defects: list[str] = []
-    for artifact, entry in value.items():
-        defects.extend(_entry_defects(rel, field, artifact, entry))
-    if defects:
-        return (), defects
-    options = {name: (entry or {}) for name, entry in value.items()}
-    if field == "inputs":
-        return (
-            tuple(
-                Input(
-                    artifact=name,
-                    source=opts.get("source", "skill"),
-                    required=opts.get("required", True),
-                )
-                for name, opts in options.items()
-            ),
-            [],
-        )
-    return tuple(Output(artifact=name, path=opts.get("path")) for name, opts in options.items()), []
-
-
-def _subset_defect(rel: str, text: str) -> str | None:
-    """Return why skillforge's stdlib parser cannot read the frontmatter, or None."""
-    raw, _body, error = subset_parser.split_frontmatter(text)
-    if raw is None:
-        return None if error is None else f"{rel}: {error}"
-    try:
-        subset_parser.parse_frontmatter(raw)
-    except (subset_parser.UnsupportedError, subset_parser.ParseError) as exc:
-        return (
-            f"{rel}: skillforge's stdlib frontmatter parser refuses this template ({exc}); "
-            "use block mappings, and key lists by name instead of listing mappings"
-        )
-    return None
-
-
 def _read_skill(path: Path, rel: str) -> tuple[SkillFlow | None, list[str]]:
     """Read one template, returning its flow or the defects that prevented it."""
     name = path.name.removesuffix(TEMPLATE_SUFFIX)
     text = path.read_text(encoding="utf-8")
-    subset = _subset_defect(rel, text)
+    subset = subset_defect(rel, text)
     try:
         front, body = _split(text)
     except (yaml.YAMLError, ValueError) as exc:
@@ -246,15 +144,15 @@ def _read_skill(path: Path, rel: str) -> tuple[SkillFlow | None, list[str]]:
     metadata = metadata if isinstance(metadata, dict) else {}
     routing = metadata.get("routing")
     invoker = routing.get("invoker") if isinstance(routing, dict) else None
-    inputs, input_defects = _parse_entries(rel, "inputs", metadata.get("inputs"))
-    outputs, output_defects = _parse_entries(rel, "outputs", metadata.get("outputs"))
+    inputs, input_defects = parse_inputs(rel, metadata.get("inputs"))
+    outputs, output_defects = parse_outputs(rel, metadata.get("outputs"))
     flow = SkillFlow(
         name=name,
         rel=rel,
         shipped=metadata.get("distribution") != "repo-local",
         invoker=invoker if isinstance(invoker, str) else None,
-        inputs=inputs,  # type: ignore[arg-type]  # _parse_entries returns the type its field names
-        outputs=outputs,  # type: ignore[arg-type]  # _parse_entries returns the type its field names
+        inputs=inputs,
+        outputs=outputs,
         body=body,
     )
     return flow, ([subset] if subset else []) + input_defects + output_defects
@@ -288,7 +186,7 @@ def producers(skills: dict[str, SkillFlow]) -> dict[str, list[str]]:
     return index
 
 
-def _producer_defects(skills: dict[str, SkillFlow], index: dict[str, list[str]]) -> list[str]:
+def _producer_defects(index: dict[str, list[str]]) -> list[str]:
     """Item 2: one producer per artifact name."""
     return [
         f"artifact `{artifact}` has {len(names)} producers ({', '.join(sorted(names))}); "
@@ -463,7 +361,7 @@ def survey(repo_root: Path) -> Survey:
     owners = credited_artifacts(skills, credit)
     findings = (
         sorted(defects)
-        + _producer_defects(skills, index)
+        + _producer_defects(index)
         + sorted(_input_defects(skills, index))
         + cycle_defects
         + _lifecycle_defects(skills, owners)

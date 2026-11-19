@@ -18,6 +18,7 @@ Accepted. The panel reached consensus in round 2, confirmed in round 3.
 The debate appears in `.project-toolkit/critique/ADR-123-debate-log.md`.
 A 2026-11-19 amendment keys declarations by artifact name.
 The amendment debate appears in `.project-toolkit/critique/ADR-123-debate-log-2.md`.
+A citation fix appears in `.project-toolkit/critique/ADR-123-debate-log-3.md`.
 The maintainer selected the typed `inputs` and `outputs` option.
 
 ## Context
@@ -77,7 +78,7 @@ Each value is empty or a mapping.
 A wrong type is a defect, not a crash.
 Every pattern applies with `re.fullmatch`, so a trailing newline fails.
 
-`path` is relative to the artifact root, which `artifact_dir` in `lib/paths.py` resolves.
+`path` is relative to the artifact root, which `artifact_dir` in `src/claude/lib/paths.py` resolves.
 The root defaults to `.project-toolkit/`, and `AI_AGENTS_ARTIFACT_ROOT` moves it.
 `path` matches `^[a-z0-9][a-z0-9._-]*(/[a-z0-9][a-z0-9._-]*)*/?$`.
 That grammar rejects `..`, a leading `/`, `\`, drive letters, `~`, `$`, and control characters.
