@@ -142,6 +142,10 @@ _LINE_COMMENT_PREFIXES = {
     "powershell": ("#",),
 }
 
+# A line made only of brackets and separators, such as `}`, `});`, or `{ }`.
+# Non-redundancy skips these: they repeat by syntax, not by copy-paste.
+_STRUCTURAL_ONLY_LINE = re.compile(r"[{}()\[\];,]+(?:\s+[{}()\[\];,]+)*")
+
 # Repo-root-anchored prefixes of build outputs (ADR-109, ADR-119). Under
 # ADR-119, src/claude/skills/<name>/ scripts and the top-level src/claude/lib
 # modules are hand-maintained source, so only the rendered parts of src/claude
@@ -2107,22 +2111,42 @@ def _score_testability(language: str | None, code_lines: list[str]) -> QualitySc
     return QualityScore(value=round(score, 1), confidence=0.5, reasons=reasons)
 
 
-def _score_non_redundancy(lines: list[str], scored: bool) -> QualityScore:
-    """Approximate non-redundancy from the ratio of unique to total lines.
+def _is_knowledge_line(line: str, comment_prefixes: tuple[str, ...]) -> bool:
+    """Return True when a stripped line can carry duplicated knowledge.
 
-    This is language-agnostic and unchanged in spirit from the original
-    heuristic.
+    Line comments and lines of only brackets and separators repeat by syntax,
+    not by copy-paste: every C# member has `{` and `}`, and every XML doc
+    comment has `/// <summary>` (issue #7454).
+    """
+    if not line:
+        return False
+    if comment_prefixes and line.startswith(comment_prefixes):
+        return False
+    return _STRUCTURAL_ONLY_LINE.fullmatch(line) is None
+
+
+def _score_non_redundancy(
+    lines: list[str], scored: bool, comment_prefixes: tuple[str, ...] = ()
+) -> QualityScore:
+    """Approximate non-redundancy from the ratio of unique to total code lines.
+
+    Blank lines, line comments, and bracket-only lines are not counted, so
+    syntax that every member repeats does not read as duplication.
     """
     confidence = 0.5 if scored else 0.0
-    non_blank = [line.strip() for line in lines if line.strip()]
-    if not non_blank:
+    code = [
+        stripped
+        for stripped in (line.strip() for line in lines)
+        if _is_knowledge_line(stripped, comment_prefixes)
+    ]
+    if not code:
         return QualityScore(
-            value=10.0, confidence=confidence, reasons=["Empty file, no duplication"]
+            value=10.0, confidence=confidence, reasons=["No code lines, no duplication"]
         )
-    unique_lines = len(set(non_blank))
-    score = (unique_lines / len(non_blank)) * 10.0
+    unique_lines = len(set(code))
+    score = (unique_lines / len(code)) * 10.0
     reasons = [
-        f"{unique_lines}/{len(non_blank)} unique non-blank lines",
+        f"{unique_lines}/{len(code)} unique code lines (comments and bracket-only lines excluded)",
         "High duplication detected" if score < 7 else "Low duplication",
     ]
     if not scored:
@@ -2230,7 +2254,7 @@ def assess_content(
         ),
         encapsulation=_score_encapsulation(language, code_lines),
         testability=_score_testability(language, code_lines),
-        non_redundancy=_score_non_redundancy(lines, language is not None),
+        non_redundancy=_score_non_redundancy(lines, language is not None, comment_prefixes),
     )
 
 
