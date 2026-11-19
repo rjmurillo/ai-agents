@@ -423,20 +423,17 @@ def _has_inventoried_docs(payload: dict[str, object]) -> bool:
     )
 
 
-def _changed_markdown_missing(payload: dict[str, object]) -> bool:
+def _changed_markdown_missing(assessment: dict[str, object]) -> bool:
     """Return True when a changed Markdown path is absent from the inventory."""
-    assessment = payload.get("assessment")
-    if not isinstance(assessment, dict):
-        return False
     changed = assessment.get("changed_files")
     if not isinstance(changed, list):
         return False
-    documentation_files = assessment.get("documentation_files")
-    inventoried: set[object] = set()
-    if isinstance(documentation_files, list):
-        inventoried = {
-            entry.get("path") for entry in documentation_files if isinstance(entry, dict)
-        }
+    docs = assessment.get("documentation_files")
+    inventoried = (
+        {entry.get("path") for entry in docs if isinstance(entry, dict)}
+        if isinstance(docs, list)
+        else set()
+    )
     return any(
         isinstance(name, str) and name.endswith(".md") and name not in inventoried
         for name in changed
@@ -455,18 +452,15 @@ def _clean_same_pr_scan(payload: dict[str, object] | None) -> bool:
     if not isinstance(payload, dict):
         return False
     assessment = payload.get("assessment")
-    if not isinstance(assessment, dict) or _changed_markdown_missing(payload):
+    if not isinstance(assessment, dict) or _changed_markdown_missing(assessment):
         return False
     same_pr = payload.get("same_pr")
     if not isinstance(same_pr, dict):
         return False
     findings = same_pr.get("findings")
-    if not isinstance(findings, dict):
-        return False
-    examined = findings.get("examined")
-    if not isinstance(examined, dict):
-        return False
-    return _coerce_nonnegative_int(examined.get("scanned_files")) is not None
+    examined = findings.get("examined") if isinstance(findings, dict) else None
+    scanned = examined.get("scanned_files") if isinstance(examined, dict) else None
+    return _coerce_nonnegative_int(scanned) is not None
 
 
 def adapt_local_axis_verdict(

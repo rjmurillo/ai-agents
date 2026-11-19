@@ -115,3 +115,5 @@ def test_count_beside_symbol_reads_only_the_adjacent_token() -> None:
     assert count("The two `SECTIONS` are required.", "SECTIONS", words) == 2
     assert count("The 4 `SECTIONS` are required.", "sections", words) == 4
     assert count("The two extra `SECTIONS` are required.", "SECTIONS", words) is None
+    assert count("   `SECTIONS` are required.", "SECTIONS", words) is None
+    assert count("   `SECTIONS` and two `SECTIONS`.", "SECTIONS", words) == 2

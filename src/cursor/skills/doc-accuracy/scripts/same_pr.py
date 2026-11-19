@@ -618,7 +618,11 @@ def _count_beside_symbol(text: str, symbol: str, words: dict[str, int]) -> int |
         if index == 0 or not text[index - 1].isspace():
             start = index + 1
             continue
-        token = text[:index].split()[-1].lower()
+        prefix_tokens = text[:index].split()
+        if not prefix_tokens:
+            start = index + 1
+            continue
+        token = prefix_tokens[-1].lower()
         if token.isdigit():
             return int(token)
         counted = words.get(token)
