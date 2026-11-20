@@ -1,0 +1,14 @@
+{
+  "id": "N08",
+  "pr": 7313,
+  "sha": "773f9327",
+  "kind": "negative",
+  "scope": "automatic",
+  "resolved_sha": "773f93276e3291077e3c6f8fc0b9fd2514a66a2a",
+  "pr_base": "b22c1b126fe9c98fb5b6506ccefba2ba35e69175",
+  "merge_base": "b22c1b126fe9c98fb5b6506ccefba2ba35e69175",
+  "findings": [],
+  "output": "[citation-freshness] examined 0 citation(s) across 2 changed file(s) vs b22c1b126fe9c98fb5b6506ccefba2ba35e69175\n[citation-reverse-pass] examined 0 inbound citation(s) to 20 changed file(s) vs b22c1b126fe9c98fb5b6506ccefba2ba35e69175; 0 already stale at the merge base (not blocking)\n",
+  "caught": false,
+  "false_positives": 0
+}

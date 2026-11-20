@@ -1,0 +1,91 @@
+{
+  "id": "C1-09",
+  "pr": 5741,
+  "sha": "3d6180a6bf",
+  "kind": "positive",
+  "scope": "automatic",
+  "file": "templates/skills/ai-agents-debugging-playbook.SKILL.md.tmpl",
+  "line": 86,
+  "defect_class": "stale-citation",
+  "defect": "detect_agent_drift.py lines 57-76 and the bare continuation :668 are stale.",
+  "resolved_sha": "3d6180a6bf04c4530d4036ec9de51a7c02ea98f3",
+  "pr_base": "5cad780a2824b23cd51730488650601ad2104c48",
+  "merge_base": "c771c6914580a280afc1a5cd6ded8be1d09771f6",
+  "findings": [
+    {
+      "citing_file": ".claude/skills/ai-agents-debugging-playbook/SKILL.md",
+      "citing_line": 86,
+      "citation": "build/scripts/validate_install_parity.py:389",
+      "reason": "none of the cited anchors (' and exempts diffs touching only hand-maintained agent copies ', ' that script and', 'both diff a base ref, so an uncommitted control is invisible and you must commit the control first; and') appear at lines 389-389",
+      "gate": "forward",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".claude/skills/ai-agents-debugging-playbook/SKILL.md",
+      "citing_line": 86,
+      "citation": "build/scripts/detect_agent_drift.py:57-76",
+      "reason": "none of the cited anchors ('compares only the 18 headings named in its', 'allowlist ', 'SECTIONS_TO_COMPARE') appear at lines 57-76; 'SECTIONS_TO_COMPARE' first appears at line 77",
+      "gate": "forward",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".claude/skills/ai-agents-debugging-playbook/SKILL.md",
+      "citing_line": 86,
+      "citation": "build/scripts/detect_agent_drift.py:668",
+      "reason": "none of the cited anchors (' at an 80 percent similarity threshold ') appear at lines 668-668",
+      "gate": "forward",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": "templates/skills/ai-agents-architecture-contract.SKILL.md.tmpl",
+      "citing_line": 56,
+      "citation": ".agents/architecture/ADR-030-skills-pattern-superiority.md:31",
+      "reason": "none of the cited anchors ('implemented: false', 'templates/agents/', 'Status: Critical Update - Changes Recommendation') appear at lines 31-31; 'implemented: false' first appears at line 9",
+      "gate": "forward",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": "templates/skills/ai-agents-change-control.SKILL.md.tmpl",
+      "citing_line": 56,
+      "citation": "build/scripts/build_all.py:841",
+      "reason": "distinctive anchors ('src/vs-code-agents/', 'src/copilot-cli/agents/', 'templates/agents/*.shared.md', 'github/instructions/') sit outside lines 841-841; 'src/copilot-cli/agents/' first appears at line 1366",
+      "gate": "forward",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": "templates/skills/ai-agents-debugging-playbook.SKILL.md.tmpl",
+      "citing_line": 86,
+      "citation": "build/scripts/validate_install_parity.py:389",
+      "reason": "none of the cited anchors (' and exempts diffs touching only hand-maintained agent copies ', ' that script and', 'both diff a base ref, so an uncommitted control is invisible and you must commit the control first; and') appear at lines 389-389",
+      "gate": "forward",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": "templates/skills/ai-agents-debugging-playbook.SKILL.md.tmpl",
+      "citing_line": 86,
+      "citation": "build/scripts/detect_agent_drift.py:57-76",
+      "reason": "none of the cited anchors ('compares only the 18 headings named in its', 'allowlist ', 'SECTIONS_TO_COMPARE') appear at lines 57-76; 'SECTIONS_TO_COMPARE' first appears at line 77",
+      "gate": "forward",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": "templates/skills/ai-agents-debugging-playbook.SKILL.md.tmpl",
+      "citing_line": 86,
+      "citation": "build/scripts/detect_agent_drift.py:668",
+      "reason": "none of the cited anchors (' at an 80 percent similarity threshold ') appear at lines 668-668",
+      "gate": "forward",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".agents/critique/SESSION-PROTOCOL-interpreter-portability-debate-log.md",
+      "citing_line": 23,
+      "citation": ".claude/skills/ai-agents-build-and-env/SKILL.md:146",
+      "reason": "none of the cited anchors ('uv run python <script>', 'python3', 'github/actions/setup-code-env', 'Run them as `uv run python <script>` locally so the project venv supplies it. CI can invoke bare `python3` because `.github/actions/setup-code-env` installs the locked dependencies system-wide first') appear at lines 146-146; 'python3' first appears at line 54; suggested citation .claude/skills/ai-agents-build-and-env/SKILL.md:147",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    }
+  ],
+  "output": "[citation-freshness] examined 72 citation(s) across 18 changed file(s) vs c771c6914580a280afc1a5cd6ded8be1d09771f6\n[citation-reverse-pass] examined 4 inbound citation(s) to 22 changed file(s) vs c771c6914580a280afc1a5cd6ded8be1d09771f6; 1 already stale at the merge base (not blocking)\n",
+  "caught": true,
+  "false_positives": 0
+}
