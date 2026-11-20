@@ -63,10 +63,10 @@ class TestSeverityIsNumeric:
     @pytest.mark.parametrize("flag", [True, False])
     def test_a_boolean_severity_is_no_severity_not_a_number(self, flag: bool) -> None:
         """A bool is an int in Python. Reporting 1.0 would fabricate a severity."""
-        assert ccs._severity([_rule("r1", flag)], "r1") is None
+        assert ccs._severity(flag) is None
 
     def test_a_real_number_survives_the_type_guard(self) -> None:
-        assert ccs._severity([_rule("r1", 7.5)], "r1") == 7.5
+        assert ccs._severity(7.5) == 7.5
 
     def test_a_missing_rule_is_high_not_critical(self) -> None:
         doc = _sarif(rules=[], results=[_error("unknown-rule")])
@@ -80,6 +80,76 @@ class TestSeverityIsNumeric:
 
 
 class TestGrading:
+    @pytest.mark.parametrize(
+        ("result_fields", "default_level", "counts", "label"),
+        [
+            ({}, "error", (1, 0), "CRITICAL"),
+            ({}, "warning", (0, 0), "MEDIUM"),
+            ({}, None, (0, 0), "MEDIUM"),
+            ({"level": "warning"}, "error", (0, 0), "MEDIUM"),
+            ({"level": "error"}, "warning", (1, 0), "CRITICAL"),
+            ({"level": "note"}, "error", (0, 0), None),
+            ({"kind": "pass"}, "error", (0, 0), None),
+        ],
+    )
+    def test_effective_level(self, result_fields, default_level, counts, label):
+        """D22 A applies SARIF level precedence before grading."""
+        rule = _rule("r1", "9.0")
+        if default_level is not None:
+            rule["defaultConfiguration"] = {"level": default_level}
+        doc = _sarif(rules=[rule], results=[{"ruleId": "r1", **result_fields}])
+        tally = ccs.grade([("a.sarif", doc)])
+        assert (tally.critical, tally.high) == counts
+        assert tally.lines[1:] == ([f"  {label}: r1 - "] if label else [])
+
+    def test_rule_index_and_extension_determine_inherited_severity(self):
+        """D22 A resolves indexes within their original tool component."""
+        rule = _rule("r1", "10.0") | {"defaultConfiguration": {"level": "error"}}
+        doc = _sarif(
+            rules=[_rule("r1", "1.0")],
+            results=[{"rule": {"index": 1, "toolComponent": {"index": 0}}}],
+        )
+        doc["runs"][0]["tool"]["extensions"] = [{"rules": [_rule("other", 1), rule]}]
+        tally = ccs.grade([("a.sarif", doc)])
+        assert (tally.critical, tally.high) == (1, 0)
+        assert tally.lines[-1] == "  CRITICAL: r1 - "
+
+    @pytest.mark.parametrize(
+        "reference",
+        [
+            {"ruleIndex": 1},
+            {"ruleId": "r1"},
+            {"ruleIndex": -1, "ruleId": "r1"},
+            {"ruleIndex": True, "ruleId": "r1"},
+        ],
+    )
+    def test_legacy_rule_references(self, reference: dict[str, object]) -> None:
+        """Rule indexes use positions in the original array."""
+        rule = _rule("r1", "10.0") | {"defaultConfiguration": {"level": "error"}}
+        doc = _sarif(rules=[{}, rule], results=[reference])
+        assert ccs.grade([("a.sarif", doc)]).lines[-1] == "  CRITICAL: r1 - "
+
+    def test_rule_id_can_resolve_an_extension(self) -> None:
+        rule = _rule("ext/r1", 9.3) | {"defaultConfiguration": {"level": "error"}}
+        doc = _sarif(rules=[], results=[{"ruleId": "ext/r1"}])
+        doc["runs"][0]["tool"]["extensions"] = [{"rules": [rule]}]
+        assert ccs.grade([("a.sarif", doc)]).critical == 1
+
+    @pytest.mark.parametrize("score", ["7.5", 0, None, "unscored"])
+    def test_result_severity_overrides_inherited_severity(self, score: object) -> None:
+        result = _error("r1") | {"properties": {"security-severity": score}}
+        doc = _sarif(rules=[_rule("r1", "10.0")], results=[result])
+        assert ccs.grade([("a.sarif", doc)]).high == 1
+
+    def test_result_severity_works_without_a_rule(self) -> None:
+        result = _error("r1") | {"properties": {"security-severity": "9.5"}}
+        doc = _sarif(rules=[], results=[result])
+        assert ccs.grade([("a.sarif", doc)]).critical == 1
+
+    def test_unresolved_rule_defaults_to_warning(self) -> None:
+        doc = _sarif(rules=[], results=[{"ruleId": "r1", "ruleIndex": 3}])
+        assert ccs.grade([("a.sarif", doc)]).lines[-1] == "  MEDIUM: r1 - "
+
     def test_warnings_are_counted_but_not_graded(self) -> None:
         doc = _sarif(
             rules=[], results=[{"level": "warning", "ruleId": "w1", "message": {"text": "m"}}]
@@ -157,6 +227,15 @@ class TestLoadDocuments:
 
 
 class TestCli:
+    @pytest.mark.parametrize(("score", "expected_exit"), [("7.5", 0), ("9.0", 1), ("10.0", 1)])
+    def test_inherited_error_uses_existing_threshold(self, tmp_path, capsys, score, expected_exit):
+        """D22 A blocks inherited critical results and reports inherited high results."""
+        rule = _rule("r1", score) | {"defaultConfiguration": {"level": "error"}}
+        doc = _sarif(rules=[rule], results=[{"ruleId": "r1"}])
+        (tmp_path / "a.sarif").write_text(json.dumps(doc), encoding="utf-8")
+        assert ccs.main(["--sarif-dir", str(tmp_path)]) == expected_exit
+        assert ("CRITICAL: r1" if expected_exit else "HIGH: r1") in capsys.readouterr().out
+
     def test_an_empty_directory_exits_nonzero_with_a_message(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:

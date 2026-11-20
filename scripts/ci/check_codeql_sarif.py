@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 _CRITICAL_SEVERITY = 9.0
+_SEVERITY_PROPERTY = "security-severity"
 
 
 @dataclass
@@ -42,23 +43,21 @@ class Tally:
     lines: list[str] = field(default_factory=list)
 
 
-def _severity(rules: list[dict[str, object]], rule_id: object) -> float | None:
-    """Return the numeric ``security-severity`` for a rule id, if it has one."""
-    for rule in rules:
-        if not isinstance(rule, dict) or rule.get("id") != rule_id:
-            continue
-        properties = rule.get("properties")
-        if not isinstance(properties, dict):
-            return None
-        raw = properties.get("security-severity")
-        # A bool is an int in Python; a boolean severity is nonsense, not 0.0/1.0.
-        if isinstance(raw, bool) or not isinstance(raw, (int, float, str)):
-            return None
-        try:
-            return float(raw)
-        except ValueError:
-            return None
-    return None
+def _severity(raw: object) -> float | None:
+    """Parse a numeric security severity, excluding boolean values."""
+    if isinstance(raw, bool) or not isinstance(raw, (int, float, str)):
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        return None
+
+
+def _result_severity(result: dict[str, object], rule: object) -> float | None:
+    properties = result.get("properties")
+    if isinstance(properties, dict) and _SEVERITY_PROPERTY in properties:
+        return _severity(properties[_SEVERITY_PROPERTY])
+    return _severity(_dig(rule, "properties", _SEVERITY_PROPERTY))
 
 
 def _message(result: dict[str, object]) -> str:
@@ -79,6 +78,60 @@ def _dig(container: object, *keys: str) -> object:
     return container
 
 
+def _indexed(items: object, index: object) -> dict[str, object] | None:
+    if isinstance(items, list) and type(index) is int and 0 <= index < len(items):
+        item = items[index]
+        if isinstance(item, dict):
+            return item
+    return None
+
+
+def _rule_components(tool: object, reference: object) -> list[object]:
+    """Select the referenced SARIF tool component or search driver first."""
+    driver = _dig(tool, "driver")
+    extensions = _dig(tool, "extensions")
+    components = extensions if isinstance(extensions, list) else []
+    if not isinstance(reference, dict):
+        return [driver, *components]
+    indexed = _indexed(components, reference.get("index"))
+    if indexed is not None:
+        return [indexed]
+    for key in ("guid", "name"):
+        identity = reference.get(key)
+        if isinstance(identity, str):
+            return [c for c in [driver, *components] if _dig(c, key) == identity]
+    return [driver]
+
+
+def _resolve_rule(tool: object, result: dict[str, object]) -> tuple[object, object]:
+    """Resolve the reporting descriptor and id for a SARIF result."""
+    reference = result.get("rule")
+    rule_id = result.get("ruleId", _dig(reference, "id"))
+    rule_index = result.get("ruleIndex", _dig(reference, "index"))
+    components = _rule_components(tool, _dig(reference, "toolComponent"))
+    if components:
+        # Without a component reference, an index addresses the driver only.
+        rule = _indexed(_dig(components[0], "rules"), rule_index)
+        if rule is not None:
+            return rule, rule_id if rule_id is not None else rule.get("id")
+    for component in components:
+        rules = _dig(component, "rules")
+        if isinstance(rules, list) and isinstance(rule_id, str):
+            for rule in rules:
+                if _dig(rule, "id") == rule_id:
+                    return rule, rule_id
+    return None, rule_id
+
+
+def _effective_level(result: dict[str, object], rule: object) -> object:
+    if "level" in result:
+        return result["level"]
+    if result.get("kind", "fail") != "fail":
+        return "none"
+    default_level = _dig(rule, "defaultConfiguration", "level")
+    return default_level if default_level is not None else "warning"
+
+
 def grade(documents: list[tuple[str, dict[str, object]]]) -> Tally:
     """Count findings by severity across parsed SARIF documents."""
     tally = Tally()
@@ -88,10 +141,7 @@ def grade(documents: list[tuple[str, dict[str, object]]]) -> Tally:
         if not isinstance(runs, list):
             continue
         for run in runs:
-            raw_rules = _dig(run, "tool", "driver", "rules")
-            rules = (
-                [r for r in raw_rules if isinstance(r, dict)] if isinstance(raw_rules, list) else []
-            )
+            tool = _dig(run, "tool")
             results = run.get("results") if isinstance(run, dict) else None
             if not isinstance(results, list):
                 continue
@@ -99,10 +149,10 @@ def grade(documents: list[tuple[str, dict[str, object]]]) -> Tally:
                 if not isinstance(result, dict):
                     continue
                 tally.total += 1
-                level = result.get("level")
-                rule_id = result.get("ruleId")
+                rule, rule_id = _resolve_rule(tool, result)
+                level = _effective_level(result, rule)
                 if level == "error":
-                    severity = _severity(rules, rule_id)
+                    severity = _result_severity(result, rule)
                     if severity is not None and severity >= _CRITICAL_SEVERITY:
                         tally.critical += 1
                         tally.lines.append(f"  CRITICAL: {rule_id} - {_message(result)}")
