@@ -205,22 +205,40 @@ def test_issue_7459_test_file_scores_only_its_third_party_directive() -> None:
     assert coupling.value == 9.0
 
 
-def test_issue_7459_test_file_passes_default_coupling_gate(tmp_path: Path) -> None:
-    """Issue #7459: Three System directives and Xunit pass default thresholds (coupling min 7).
+_ISSUE_7459_GATE_FILE = (
+    "using System;\nusing System.IO;\nusing System.Linq;\nusing Xunit;\n\n"
+    "public sealed class CollisionNamingContentTests\n{\n"
+    "    [Fact]\n    public void NamesDoNotCollide()\n    {\n"
+    "        using var ws = new MemoryStream();\n"
+    "        Assert.Empty(Array.Empty<int>().Where(x => x > ws.Length));\n"
+    "    }\n}\n"
+)
 
-    The body is not repetitive, so only the coupling gate can decide the exit code.
+
+@pytest.mark.parametrize(
+    ("source", "exit_code", "stderr_fragment"),
+    [
+        pytest.param(_ISSUE_7459_GATE_FILE, 0, "", id="issue-7459-file-passes"),
+        pytest.param(
+            "".join(f"using Vendor{i}.Api;\n" for i in range(4)) + "class C {}\n",
+            11,
+            "Coupling 6.0 < 7",
+            id="third-party-control-fails",
+        ),
+    ],
+)
+def test_default_coupling_gate_scores_only_non_system_directives(
+    tmp_path: Path, source: str, exit_code: int, stderr_fragment: str
+) -> None:
+    """Issue #7459: Under default thresholds (coupling min 7) only non-System directives gate.
+
+    The issue's file passes. Four third-party directives still fail, so the
+    exemption leaves the gate live. Neither body is repetitive, so only the
+    coupling gate decides the exit code.
     """
-    target = tmp_path / "tests" / "CollisionNamingContentTests.cs"
+    target = tmp_path / "tests" / "Example.cs"
     target.parent.mkdir()
-    target.write_text(
-        "using System;\nusing System.IO;\nusing System.Linq;\nusing Xunit;\n\n"
-        "public sealed class CollisionNamingContentTests\n{\n"
-        "    [Fact]\n    public void NamesDoNotCollide()\n    {\n"
-        "        using var ws = new MemoryStream();\n"
-        "        Assert.Empty(Array.Empty<int>().Where(x => x > ws.Length));\n"
-        "    }\n}\n",
-        encoding="utf-8",
-    )
+    target.write_text(source, encoding="utf-8")
     assert not (tmp_path / ".qualityrc.json").exists()
 
     result = subprocess.run(
@@ -234,31 +252,8 @@ def test_issue_7459_test_file_passes_default_coupling_gate(tmp_path: Path) -> No
         timeout=60,
     )
 
-    assert result.returncode == 0, result.stderr
-    assert json.loads(result.stdout)["files"][0]["coupling"]["value"] == 9.0
-
-
-def test_third_party_heavy_csharp_still_fails_default_coupling_gate(tmp_path: Path) -> None:
-    """Issue #7459 control: The exemption leaves the coupling gate live for other namespaces."""
-    target = tmp_path / "Heavy.cs"
-    target.write_text(
-        "".join(f"using Vendor{i}.Api;\n" for i in range(4)) + "class C {}\n",
-        encoding="utf-8",
-    )
-
-    result = subprocess.run(
-        [sys.executable, str(_SCRIPT), "--target", str(target), "--format", "json"],
-        cwd=tmp_path,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-        timeout=60,
-    )
-
-    assert result.returncode == 11
-    assert "Coupling 6.0 < 7" in result.stderr
+    assert result.returncode == exit_code, result.stderr
+    assert stderr_fragment in result.stderr
 
 
 @pytest.mark.parametrize("failure", [AttributeError("no text"), StopIteration()])
