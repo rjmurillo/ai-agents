@@ -77,6 +77,20 @@ def test_verify_deleted_tracked_file_under_create_grant_exits_one(
     assert kinds(payload) == [("create-only-changed", TRACKED_ADR)]
 
 
+def test_verify_tracked_file_removed_from_index_then_edited_is_not_a_create(
+    repo: Path, capsys: Capsys, snap_path: Path
+) -> None:
+    commit_tracked_adr(repo)
+    take_snapshot(capsys, repo, snap_path)
+    run_git(repo, "rm", "-q", "--cached", TRACKED_ADR)
+    write(repo, TRACKED_ADR, "# rewritten\n")
+
+    code, payload = verify(capsys, repo, snap_path, "--also-create", ADR_DIR)
+
+    assert code == 1
+    assert ("create-only-changed", TRACKED_ADR) in kinds(payload)
+
+
 def test_verify_mode_change_of_tracked_file_under_create_grant_exits_one(
     repo: Path, capsys: Capsys, snap_path: Path
 ) -> None:

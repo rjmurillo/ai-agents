@@ -398,7 +398,7 @@ def verify(args: argparse.Namespace) -> tuple[int, Payload]:
         "existing": set(before["existing_skills"]),
         "also_allow": also_allow,
         "also_create": also_create,
-        "created": new_untracked(before, after),
+        "created": new_untracked(before, after, lambda *a: _git(root, *a)),
     }
     violations: list[Payload] = [
         {"kind": f"{key}-changed", "before": before[key], "after": after[key]}

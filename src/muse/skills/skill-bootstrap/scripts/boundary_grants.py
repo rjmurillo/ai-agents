@@ -6,6 +6,7 @@ only, so it runs from any plugin root beside the script that imports it.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -51,17 +52,32 @@ def covered(posix: PurePosixPath, grants: list[tuple[PurePosixPath, bool]]) -> b
     return any(posix == extra or (is_dir and extra in posix.parents) for extra, is_dir in grants)
 
 
-def new_untracked(before: Payload, after: Payload) -> set[str]:
+def new_untracked(before: Payload, after: Payload, git: Callable[..., str]) -> set[str]:
     """Return paths absent from the snapshot that are untracked now, the only create-only writes.
 
-    A path in the snapshot was dirty or untracked already, and a clean tracked path that
-    changed shows a status code other than `??`, so neither counts as a new file.
+    A path in the snapshot was dirty or untracked already, so it is not new. A path HEAD
+    tracks is never new either: `git rm --cached` on a clean file, then an edit, reports
+    both `D ` and `??` for it, and the status map keeps only the last code. `git` runs a
+    git command in the repository and returns its stdout.
     """
-    return {
+    fresh = {
         path
         for path, state in after["paths"].items()
         if path not in before["paths"] and state.startswith("??|")
     }
+    if not fresh or not before["head"]:
+        return fresh
+    listed = git(
+        "--literal-pathspecs",
+        "ls-tree",
+        "-z",
+        "--name-only",
+        "--full-tree",
+        before["head"],
+        "--",
+        *sorted(fresh),
+    )
+    return fresh - set(listed.split("\0"))
 
 
 def classify(path: str, rel: PurePosixPath, grants: Payload, ignored: bool = False) -> str | None:
