@@ -392,7 +392,36 @@ class TestCsharpLiteralAndAttributeArguments:
         ("Process(\n    [\n        Create(name: x, FakeOpt: y),\n    ]\n);", "FakeOpt"),
         ("Process(\n    [\n        Make(new W { A = 1, FakeProp = 2 }),\n    ]\n);", "FakeProp"),
         ("Process(\n    [\n        Items.Select(FakeType => 1),\n    ]\n);", "FakeType"),
+        ("var r = arr switch {\n    [Point(FakeX: 1), ..] when flag => 1,\n};", "FakeX"),
+        ("if (grid[i][Find(FakeArg: 2)] is null) {}", "FakeArg"),
+        ("var v = grid[i][Compute(FakeArg: 2)]\n    is int n;", "FakeArg"),
+        ("var d = new Dictionary<K, int> {\n    [Key(FakeName: 1)] = 2,\n};", "FakeName"),
+        ("handlers[i](FakeParam: 1);", "FakeParam"),
     )
+
+    # Real attribute sections whose named arguments are blanked.
+    ATTRIBUTE_FORMS = (
+        '[DllImport("k", EntryPoint = "B")] /* x */ static extern void F();',
+        "[Benchmark(EntryPoint = true)]\n(int, int) Compute() {}",
+        "class C {\n    [Attr(EntryPoint = 1)]\n    ~C() {}\n}",
+        "// leading comment\n[Attr(EntryPoint = 1)]\npublic void M() {}",
+        "void A() {}\n[Attr(EntryPoint = 1)]\n[Other]\npublic void M() {}",
+    )
+
+    def test_attribute_forms_blank_named_arguments(self) -> None:
+        for code in self.ATTRIBUTE_FORMS:
+            result = _extract_identifiers(code, "csharp")
+
+            assert "EntryPoint" not in result, code
+            assert "Attr" in result or "DllImport" in result or "Benchmark" in result, code
+
+    def test_recursion_limit_falls_back_to_unblanked_code(self) -> None:
+        code = '$"{' * 2000 + '"Quoted" [Attr(Named = 1)]' + '}"' * 2000
+
+        result = _extract_identifiers(code, "csharp")
+
+        assert "Quoted" in result
+        assert "Named" in result
 
     def test_real_code_beside_literals_stays_visible(self) -> None:
         for code, name in self.REAL_CODE_STAYS_VISIBLE:
@@ -461,6 +490,8 @@ class TestCsharpLiteralAndAttributeArguments:
             '$@"{\n' * 40 + "var w = new FakeWidget();",
             '$"{' * 2000 + "FakeWidget" + '}"' * 2000,
             '$$"""' + "{{x}}" * 50000 + '"""; var w = new FakeWidget();',
+            "[a]\n" + "//,[b]//\n" * 20000 + ")\nvar w = new FakeWidget();",
+            " " * 50000 + "[" * 20000 + "\nvar w = new FakeWidget();",
         )
         for code in cases:
             started = time.monotonic()

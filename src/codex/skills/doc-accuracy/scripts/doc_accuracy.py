@@ -1437,13 +1437,17 @@ def _blank_csharp_literal(code: str, match: re.Match[str], chars: list[str]) -> 
     return end
 
 
-def _blank_csharp_literals(code: str) -> str:
+def _blank_csharp_literals(code: str) -> str | None:
     """Blank C# string and char literal text, keeping every column.
 
     Covers regular, verbatim (@), interpolated ($, $@, @$) and raw (three or
     more quotes, with any $ markers) strings, plus char literals. Holes stay
     visible, and literals nested in a hole are blanked too. Comments are
     skipped unchanged, so a quote inside one opens nothing.
+
+    Returns None when hole nesting exceeds the recursion limit. Holes nest by
+    recursion, and only hundreds of nested $"{ levels reach the limit, which
+    no real snippet does.
     """
     chars = list(code)
     index = 0
@@ -1457,24 +1461,34 @@ def _blank_csharp_literals(code: str) -> str:
             else:
                 index = _blank_csharp_literal(code, match, chars)
     except RecursionError:
-        # Holes nest by recursion. Hundreds of nested $"{ levels exceed
-        # the interpreter limit; no real snippet does. Returning the code
-        # unblanked can only report extra names, never hide one.
-        return code
+        return None
     return "".join(chars)
 
 
-# An attribute section opens at a line start or after "(", "," or "]" (a
-# parameter attribute or a chained section). After its closing "]", skipping
-# blank space, newlines and line comments, the next code must start a
-# declaration: a name, "@", another "[", or the end of the snippet. A
-# collection expression is followed by ")", ",", ";", "." or an operator, so
-# it does not qualify, even when its "]" ends a line. Inside a section, a name
-# right after "(" or "," and before "=" or ":" names a property or parameter
-# that the attribute's own type defines. A ternary operand follows "?" and a
-# lambda parameter precedes "=>", so both stay visible.
-_CSHARP_ATTRIBUTE_OPEN_RE = re.compile(r"(?:^|[(,\]])[ \t]*\[", re.MULTILINE)
-_CSHARP_ATTRIBUTE_FOLLOWER_RE = re.compile(r"(?:\s|//[^\n]*(?=\n|\Z))*(?:\Z|[A-Za-z_@\[])")
+# Comments in code whose literals are already blanked, so "//" in a string
+# cannot start one.
+_CSHARP_COMMENT_RE = re.compile(r"(?s)//[^\n]*|/\*.*?(?:\*/|\Z)")
+
+# An attribute section is a "[" in declaration position. Skipping blank space
+# and comments, the code before it is the snippet start, ";", "{", "}", the
+# "]" of an attribute section (chained sections), or "(" or "," (a parameter
+# attribute). An indexer follows a name, and a collection expression usually
+# follows "=", "return" or an operator, so neither qualifies.
+_CSHARP_ATTRIBUTE_CONTEXT = frozenset(";{}(,")
+
+# After the closing "]", the next code must start a declaration: a name, "@",
+# "[", "(" (a tuple return type), "~" (a finalizer), or the snippet end. A
+# collection expression or list pattern is followed by ")", ",", ";", ".",
+# "=", "=>", an operator, or a keyword such as "is" or "when", so it does not
+# qualify.
+_CSHARP_ATTRIBUTE_FOLLOWER_RE = re.compile(
+    r"\s*(?:\Z|[@\[(~]|(?!(?:is|as|when|and|or|not|with|switch)\b)[A-Za-z_])"
+)
+
+# Inside a section, a name right after "(" or "," and before "=" or ":"
+# names a property or parameter that the attribute's own type defines. A
+# ternary operand follows "?" and a lambda parameter precedes "=>", so both
+# stay visible.
 _CSHARP_ATTRIBUTE_NAMED_ARG_RE = re.compile(
     r"[(,][ \t\r\n]*([A-Za-z_]\w*)(?=[ \t]*(?:=(?![=>])|:(?!:)))"
 )
@@ -1501,24 +1515,40 @@ def _csharp_attribute_section_end(code: str, start: int) -> tuple[int, bool]:
     return len(code), False
 
 
+def _previous_code_index(view: str, index: int) -> int:
+    """Index of the last non-blank character before ``index``, or -1."""
+    index -= 1
+    while index >= 0 and view[index].isspace():
+        index -= 1
+    return index
+
+
 def _blank_csharp_attribute_named_args(code: str) -> str:
     """Blank named-argument names inside attribute argument lists.
 
     Expects literals already blanked, so brackets and parentheses in strings
-    do not move the section end. Attribute names, positional arguments, and
-    ``typeof``/``nameof`` operands stay visible. Each character is scanned
-    by at most one section, so the pass stays linear.
+    do not move a section. Comments are blanked in a private view used only
+    to find sections. Attribute names, positional arguments, and
+    ``typeof``/``nameof`` operands stay visible. Every section scan starts
+    past the previous one, so the pass stays linear.
     """
+    view = _CSHARP_COMMENT_RE.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), code)
     chars = list(code)
     scanned_to = 0
-    for opening in _CSHARP_ATTRIBUTE_OPEN_RE.finditer(code):
-        if opening.end() <= scanned_to:
+    attribute_closes: set[int] = set()
+    for opening in re.finditer(r"\[", view):
+        if opening.start() < scanned_to:
             continue
-        stop, closed = _csharp_attribute_section_end(code, opening.end())
+        before = _previous_code_index(view, opening.start())
+        in_context = before < 0 or view[before] in _CSHARP_ATTRIBUTE_CONTEXT
+        if not in_context and before not in attribute_closes:
+            continue
+        stop, closed = _csharp_attribute_section_end(view, opening.end())
         scanned_to = stop
-        if not closed or not _CSHARP_ATTRIBUTE_FOLLOWER_RE.match(code, stop + 1):
+        if not closed or not _CSHARP_ATTRIBUTE_FOLLOWER_RE.match(view, stop + 1):
             continue
-        for named in _CSHARP_ATTRIBUTE_NAMED_ARG_RE.finditer(code, opening.end(), stop):
+        attribute_closes.add(stop)
+        for named in _CSHARP_ATTRIBUTE_NAMED_ARG_RE.finditer(view, opening.end(), stop):
             _blank_span(chars, named.start(1), named.end(1))
     return "".join(chars)
 
@@ -1542,9 +1572,9 @@ def _extract_identifiers(code: str, lang: str = "") -> list[str]:
     ``DEBUG``. Named-argument names in attribute argument lists are blanked
     too, so ``EntryPoint`` in ``[DllImport("k32", EntryPoint = "Beep")]`` is
     not reported. The attribute name itself stays a checked code reference.
-    Comments are still scanned. Other languages keep lines starting with ``#``, because
-    JavaScript and TypeScript private members use that prefix, and keep the
-    language-agnostic scan.
+    Comments are still scanned. Other languages keep lines starting with
+    ``#``, because JavaScript and TypeScript private members use that prefix,
+    and keep the language-agnostic scan.
     """
     stdlib_names: set[str] = set()
     if lang == "python":
@@ -1552,7 +1582,12 @@ def _extract_identifiers(code: str, lang: str = "") -> list[str]:
         stdlib_names = _python_stdlib_imported_names(code)
     elif lang == "csharp":
         code = _CSHARP_DIRECTIVE_LINE_RE.sub("", code)
-        code = _blank_csharp_attribute_named_args(_blank_csharp_literals(code))
+        blanked = _blank_csharp_literals(code)
+        if blanked is None:
+            # Scanning the unblanked code can only report extra names.
+            logger.debug("C# literal scan hit the recursion limit; scanning raw code")
+        else:
+            code = _blank_csharp_attribute_named_args(blanked)
     # Match CamelCase and snake_case identifiers (3+ chars)
     identifiers = re.findall(r"\b([A-Z][a-zA-Z0-9]+)\b", code)
     # Also match method calls
