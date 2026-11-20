@@ -2,7 +2,7 @@
 
 ## Summary
 
-- **Rounds**: 2 of 10
+- **Rounds**: 3 of 10
 - **Prior debate log**: `.project-toolkit/critique/ADR-109-debate-log-4.md` (closed)
 - **ADRs covered**: ADR-100, ADR-102, ADR-109
 - **Outcome**: Consensus
@@ -10,6 +10,7 @@
 
 This branch deleted lines from `git_hook_policy.py` and moved other cited files.
 The citation reverse pass then flagged seven ADR citations as stale.
+Round 3 covers ten ADR-102 References lines that the gate checked next to the edit.
 The edit touches citations only, so the reduced panel ran (architect and critic).
 No decision text, status, or rule changed.
 
@@ -59,6 +60,37 @@ No decision text, status, or rule changed.
 | ADR-109 B4 `official-hook-contracts.md:316-319` matches its claim | VERIFIED |
 | The word diff changes no decision text | VERIFIED |
 
+## Round 3 Summary
+
+Editing ADR-102 line 355 brought its neighbours, lines 350-358, under the strict anchor check.
+Those citations were already stale on main.
+
+### Votes
+
+| Agent | Vote |
+|-------|------|
+| architect | Disagree-and-Commit |
+| critic | Disagree-and-Commit |
+
+### Key Issues
+
+| # | Issue | Pri | Resolution |
+|---|-------|-----|------------|
+| 1 | Line 350 cited `qa_report.py:142-182`; `session_qa_binding` is now `:145-203`. | P1 | Now `:145-203`. A reasoned marker notes that `:173-177` is the raise this ADR deleted. |
+| 2 | Line 351 cited `:185-209`; `validate_qa_report` is now `:206-227`. | P1 | Now `:206-227`. |
+| 3 | Line 353 cited the fallback, not the live-HEAD resolution. | P1 | Now `validate_session_json.py:1663-1665`. |
+| 4 | Line 354 stopped before the error append. | P2 | Now `:691-728`. |
+
+### Claims Checked
+
+| Claim | Result |
+|---|---|
+| `validate_session_json.py:950-1018` is `validate_qa_report_evidence` | VERIFIED |
+| `session_scope.py:391-416` is `committed_session_validation_modes()` | VERIFIED |
+| Schema `:159-163` is the `commitHead` block | VERIFIED |
+| Extractor `:843-844` is the two-line comment | VERIFIED |
+| The diff changes no decision text | VERIFIED |
+
 ## Dissent
 
-None. Both seats accepted in round 2.
+Both seats disagreed and committed in round 3 on the issues above. All issues were then fixed as listed.

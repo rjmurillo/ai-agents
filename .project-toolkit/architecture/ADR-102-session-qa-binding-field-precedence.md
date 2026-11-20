@@ -347,15 +347,15 @@ The design trades a hard verdict for an accurate one. The raise asserted that a 
 
 ## References
 
-- `.claude/lib/qa_report.py:142-182`. `session_qa_binding` and the raise at `:173-177`.
-- `.claude/lib/qa_report.py:185-209`. `validate_qa_report`, which reads `expected.session_log` and not `expected.commit`.
-- `scripts/validate_session_json.py:960-986`. `validate_qa_report_evidence`, the only production caller.
-- `scripts/validate_session_json.py:1641-1642`. Live-`HEAD` resolution that makes `binding.commit` a fallback rather than the normal head.
-- `scripts/validate_session_json.py:696-706`. `endingCommit`'s independent reachability check.
+- `.claude/lib/qa_report.py:145-203`. `session_qa_binding` and the raise at `:173-177`. <!-- citation-freshness: ignore -- historical: `:173-177` is the equality raise this ADR deleted; the diagnostic replaced it inside `:145-203` -->
+- `.claude/lib/qa_report.py:206-227`. `validate_qa_report`, which reads `expected.session_log` and not `expected.commit`.
+- `scripts/validate_session_json.py:950-1018`. `validate_qa_report_evidence`, the only production caller.
+- `scripts/validate_session_json.py:1663-1665`. Live-`HEAD` resolution that makes `binding.commit` a fallback rather than the normal head.
+- `scripts/validate_session_json.py:691-728`. `endingCommit`'s independent reachability check.
 - `scripts/validation/git_hook_policy.py:2774`. The pre-commit mode flags that keep this check unreachable from pre-commit.
-- `scripts/validation/session_scope.py:348-370`. `committed_session_validation_modes()`, whose residual population is where this check actually engages.
-- `.agents/schemas/session-log.schema.json:170-174`. `commitHead`, and its statement that QA rebinding advances `comparison.head`.
-- `.claude/skills/memory/scripts/extract_session_episode.py:831-832`. The extractor comment carrying the same understanding.
+- `scripts/validation/session_scope.py:391-416`. `committed_session_validation_modes()`, whose residual population is where this check actually engages.
+- `.agents/schemas/session-log.schema.json:159-163`. `commitHead`, and its statement that QA rebinding advances `comparison.head`.
+- `src/claude/skills/memory/scripts/extract_session_episode.py:843-844`. The extractor comment carrying the same understanding.
 - `.claude/rules/session-logs.md` MUST 2, MUST 3. Why `endingCommit` moves on a separate schedule.
 - `.claude/rules/ci-scripts.md` MUST-NOT-2, SHOULD 4. Validator-change ADR requirement; repairs to silent failures.
 - `.project-toolkit/critique/ADR-096-debate-log.md`. The review pattern this ADR follows.
