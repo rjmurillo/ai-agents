@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -386,6 +387,11 @@ class TestCsharpLiteralAndAttributeArguments:
         ("Use([Pick(flag ? FakeType : other)]);", "FakeType"),
         ("List<object> l =\n[\n    Make(flag ? MadeUpType : null),\n];", "MadeUpType"),
         ("Run(\n    [Build(Size: 3)],\n    other);", "Size"),
+        ("Run(\n    other,\n    [Build(Size: 3)]\n);", "Size"),
+        ("Run(\n    [Build(Size: 3)] // note\n);", "Size"),
+        ("Process(\n    [\n        Create(name: x, FakeOpt: y),\n    ]\n);", "FakeOpt"),
+        ("Process(\n    [\n        Make(new W { A = 1, FakeProp = 2 }),\n    ]\n);", "FakeProp"),
+        ("Process(\n    [\n        Items.Select(FakeType => 1),\n    ]\n);", "FakeType"),
     )
 
     def test_real_code_beside_literals_stays_visible(self) -> None:
@@ -435,12 +441,34 @@ class TestCsharpLiteralAndAttributeArguments:
         assert "Category" not in result
         assert "Trait" in result
 
+    def test_attribute_before_comment_and_declaration_is_blanked(self) -> None:
+        code = '[Obsolete(DiagnosticId = "X")] // old\npublic void M() {}'
+
+        result = _extract_identifiers(code, "csharp")
+
+        assert "DiagnosticId" not in result
+        assert "Obsolete" in result
+
     def test_long_marker_run_finishes_quickly(self) -> None:
         code = "$" * 20000 + "\n" + "([" * 20000 + "\nvar w = new FakeWidget();"
 
         result = _extract_identifiers(code, "csharp")
 
         assert "FakeWidget" in result
+
+    def test_crafted_hole_nesting_stays_fast_and_safe(self) -> None:
+        cases = (
+            '$@"{\n' * 40 + "var w = new FakeWidget();",
+            '$"{' * 2000 + "FakeWidget" + '}"' * 2000,
+            '$$"""' + "{{x}}" * 50000 + '"""; var w = new FakeWidget();',
+        )
+        for code in cases:
+            started = time.monotonic()
+
+            result = _extract_identifiers(code, "csharp")
+
+            assert time.monotonic() - started < 10, code[:20]
+            assert "FakeWidget" in result, code[:20]
 
     def test_unclosed_bracket_does_not_reach_later_statements(self) -> None:
         code = "[Broken(\nvar a = 1;\nvar w = Build(Size: 3);"
