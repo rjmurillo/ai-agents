@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -84,6 +85,32 @@ def test_balanced_block_above_honored_marker_keeps_findings_in_scope(tmp_path: P
     assert ghost["scope_marker_line"] == head.split("\n").index(MARKER.rstrip("\n")) + 1
 
 
+def test_prose_edit_above_already_ignored_marker_stays_info(tmp_path: Path) -> None:
+    """A marker below a fence was ignored at the base too; prose cannot flip it."""
+    base = f"# T\n\nintro\n\n{FENCE}bash\necho hi\n{FENCE}\n\n" + MARKER + "\n" + example("Ghost")
+    repo = make_repo(tmp_path, {"doc.md": base})
+    edit_and_commit(repo, "doc.md", base.replace("intro", "intro two", 1))
+
+    code, data = gate_diff(repo, tmp_path)
+
+    ghost = by_symbol(data)["Ghost"]
+    assert code == 0
+    assert ghost["in_diff"] is False
+    assert "scope_reason" not in ghost
+
+
+def test_edited_stop_line_above_ignored_marker_keeps_findings_in_scope(tmp_path: Path) -> None:
+    """Editing the first fence-like line above the marker can flip its status."""
+    base = f"# T\n\nuse {FENCE} here\n\n" + MARKER + "\n" + example("Ghost")
+    repo = make_repo(tmp_path, {"doc.md": base})
+    edit_and_commit(repo, "doc.md", base.replace(f"use {FENCE} here", f"use {FENCE} there", 1))
+
+    code, data = gate_diff(repo, tmp_path)
+
+    assert code == 10
+    assert by_symbol(data)["Ghost"]["scope_reason"] == "ignored_external_sdk_marker"
+
+
 def test_prose_edit_below_example_keeps_marker_honored(tmp_path: Path) -> None:
     base = "# T\n" + MARKER + "\n" + example("Ghost") + "\ntail\n"
     repo = make_repo(tmp_path, {"doc.md": base})
@@ -163,6 +190,8 @@ def test_plain_uses_without_declaration_still_flag(tmp_path: Path) -> None:
         ("csharp", "var o = new Order();", set()),
         ("python", "class A:\n    async def go(self): ...\nx = B()", {"A", "go"}),
         ("typescript", "interface I {}\ntype T = 1\nconst z = new Q()", {"I", "T"}),
+        ("typescript", "export type T = 1\ndeclare type U = 2", {"T", "U"}),
+        ("typescript", 'import type Ghost from "./g"\nimport { type Spook } from "./s"', set()),
         ("bash", "class Foo", set()),
     ],
 )
@@ -178,3 +207,22 @@ def test_method_signature_claims_ignore_declared_names(tmp_path: Path) -> None:
 
     assert code == 10
     assert "Ghost" in by_symbol(data)
+
+
+@pytest.mark.parametrize(
+    ("lang", "code"),
+    [
+        ("csharp", "public a b c\n" * 20000),
+        ("csharp", '"' + '\\"' * 20000 + "\\"),
+        ("typescript", "`" + "\\`" * 20000 + "\\"),
+        ("python", "\n" * 40000 + "x"),
+    ],
+    ids=["cs-modifiers", "cs-escaped-quotes", "ts-template", "py-blank-lines"],
+)
+def test_declared_names_stays_linear_on_crafted_blocks(lang: str, code: str) -> None:
+    """A PR-controlled block must not stall the gate (quadratic took 14s at 6000 lines)."""
+    start = time.perf_counter()
+
+    mod._declared_names(code, lang)
+
+    assert time.perf_counter() - start < 2.0

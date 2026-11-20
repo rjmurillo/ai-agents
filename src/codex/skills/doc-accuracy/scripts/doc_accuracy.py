@@ -1418,56 +1418,79 @@ def _find_external_sdk_markers(lines: list[str]) -> list[tuple[int, str, str]]:
     text inside a fence. ``sdk name`` is "" for a nameless marker, which the
     caller reports. A marker split across LF-terminated lines is not recognized.
     """
+    stop = _sdk_marker_scan_stop(lines)
+    scanned = lines if stop is None else lines[: stop + 1]
     markers: list[tuple[int, str, str]] = []
-    for number, line in enumerate(lines, start=1):
+    for number, line in enumerate(scanned, start=1):
         marker = _EXTERNAL_SDK_MARKER_RE.match(line)
         if marker:
             name, reason = _parse_sdk_marker_body(marker.group("body"))
             markers.append((number, name, reason))
-        if any(run in line for run in _FENCE_LIKE_RUNS):
-            break
     return markers
 
 
-def _first_ignored_sdk_marker(lines: list[str]) -> int | None:
-    """Return the 1-based line of the first well-formed marker the scan ignored.
+def _sdk_marker_scan_stop(lines: list[str]) -> int | None:
+    """0-based index of the first line holding a fence-like run, or None.
 
-    ``_find_external_sdk_markers`` stops at the first line holding a fence-like
-    run. A valid marker after that line is ignored today, but a change at or
-    above it can flip that, so the scoping pass needs to know where it sits.
+    The marker scan reads up to and including this line and no further.
     """
-    stop = next(
-        (n for n, ln in enumerate(lines) if any(run in ln for run in _FENCE_LIKE_RUNS)),
-        None,
-    )
+    for index, line in enumerate(lines):
+        if any(run in line for run in _FENCE_LIKE_RUNS):
+            return index
+    return None
+
+
+def _first_ignored_sdk_marker(lines: list[str]) -> dict[str, int] | None:
+    """Locate the first well-formed marker the scan ignored, and the stop line.
+
+    Returns 1-based ``{"line": marker, "stop_line": stop}`` or None. Lines
+    above an unchanged marker keep their order, so the marker can only have
+    been honored at the base when the diff changed the marker line or the
+    stop line (the first fence-like line, which must then be new).
+    """
+    stop = _sdk_marker_scan_stop(lines)
     if stop is None:
         return None
     for number, line in enumerate(lines[stop + 1 :], start=stop + 2):
         marker = _EXTERNAL_SDK_MARKER_RE.match(line)
         if marker and _parse_sdk_marker_body(marker.group("body"))[0]:
-            return number
+            return {"line": number, "stop_line": stop + 1}
     return None
 
 
+# Every pattern stays on one line or one whitespace run, so a crafted block
+# cannot make a match rescan to the end of the block from every start.
 _DECLARED_NAME_PATTERNS: dict[str, tuple[re.Pattern[str], ...]] = {
     "csharp": (
         re.compile(r"\b(?:class|struct|interface|enum|record|namespace)\s+([A-Za-z_][\w.]*)"),
         re.compile(r"\b([A-Za-z_]\w*)\s*\{\s*(?:get|set|init)\b"),
-        re.compile(r"\b(?:public|private|protected|internal)\b[^;{}()=]*?\b([A-Za-z_]\w*)\s*\("),
+        re.compile(
+            r"\b(?:public|private|protected|internal)\b[^;{}()=\n]*?\b([A-Za-z_]\w*)[ \t]*\("
+        ),
     ),
-    "python": (re.compile(r"^\s*(?:async\s+)?(?:class|def)\s+(\w+)", re.MULTILINE),),
-    "javascript": (re.compile(r"\b(?:class|interface|type|enum|function)\s+([A-Za-z_$][\w$]*)"),),
+    "python": (re.compile(r"^[ \t]*(?:async[ \t]+)?(?:class|def)[ \t]+(\w+)", re.MULTILINE),),
+    "javascript": (
+        re.compile(r"\b(?:class|interface|enum|function)\s+([A-Za-z_$][\w$]*)"),
+        # ``type`` declares only at statement start, so ``import type X`` and
+        # ``import { type X }`` stay claims about the repository.
+        re.compile(
+            r"^[ \t]*(?:export[ \t]+)?(?:declare[ \t]+)?type[ \t]+([A-Za-z_$][\w$]*)",
+            re.MULTILINE,
+        ),
+    ),
 }
 _DECLARED_NAME_PATTERNS["typescript"] = _DECLARED_NAME_PATTERNS["javascript"]
 
 # Comments and string literals in C#, JavaScript, and TypeScript. Blanking errs
 # toward hiding a declaration, which can only keep a finding, never drop one.
+# A backslash always consumes the next character (or the end of the block), so
+# each string body has one parse and every alternative ends without failing.
 _C_LIKE_NON_CODE_RE = re.compile(
     r"(?s)/\*.*?(?:\*/|\Z)"
     r"|//[^\n]*"
-    r"|\"(?:\\.|[^\"\\\n])*(?:\"|(?=\n)|\Z)"
-    r"|'(?:\\.|[^'\\\n])*(?:'|(?=\n)|\Z)"
-    r"|`(?:\\.|[^`\\])*(?:`|\Z)"
+    r"|\"(?:\\(?:.|\Z)|[^\"\\\n])*(?:\"|(?=\n)|\Z)"
+    r"|'(?:\\(?:.|\Z)|[^'\\\n])*(?:'|(?=\n)|\Z)"
+    r"|`(?:\\(?:.|\Z)|[^`\\])*(?:`|\Z)"
 )
 
 
@@ -1554,7 +1577,7 @@ def run_claim_extraction(
     claims: list[Claim] = []
     claim_counter = 0
     external_sdk_files: dict[str, dict[str, Any]] = {}
-    external_sdk_ignored: dict[str, int] = {}
+    external_sdk_ignored: dict[str, dict[str, int]] = {}
 
     # Build symbol -> source file mapping
     symbol_to_source: dict[str, str] = {}
@@ -1717,11 +1740,16 @@ def run_claim_extraction(
 # ---------------------------------------------------------------------------
 
 
+def _marker_may_have_flipped(marker: dict[str, int], ranges: list[list[int]]) -> bool:
+    """True when a changed range covers the ignored marker or the scan stop line."""
+    return any(lo <= line <= hi for lo, hi in ranges for line in marker.values())
+
+
 def _scope_findings(
     findings: list[dict[str, Any]],
     claims_by_id: dict[str, dict[str, Any]],
     changed_lines: dict[str, list[list[int]]] | None,
-    ignored_markers: dict[str, int] | None = None,
+    ignored_markers: dict[str, dict[str, int]] | None = None,
 ) -> list[dict[str, Any]]:
     """Mark findings in or out of the PR's changed lines (``--diff-base`` only).
 
@@ -1732,9 +1760,9 @@ def _scope_findings(
     visible but never reaches the gate.
 
     ``ignored_markers`` maps a file to its first well-formed external-sdk
-    marker that the scan ignored. A change at or above that line could have
-    flipped the marker's honor status, so an ``unresolved_symbol`` finding in
-    that file stays in scope.
+    marker that the scan ignored, as ``{"line", "stop_line"}``. When the diff
+    changed either line, the marker may have been honored at the base, so an
+    ``unresolved_symbol`` finding in that file stays in scope.
     """
     if changed_lines is None:
         return findings
@@ -1745,17 +1773,17 @@ def _scope_findings(
         # Fail closed: a file with no entry, or an empty list, is changed in
         # full.
         in_diff = not ranges or _claim_in_ranges(claim, ranges)
-        marker_line = markers.get(claim["file"])
+        marker = markers.get(claim["file"])
         if (
             not in_diff
-            and marker_line is not None
+            and marker is not None
             and finding["category"] == "unresolved_symbol"
-            and any(lo <= marker_line for lo, _ in ranges or [])
+            and _marker_may_have_flipped(marker, ranges or [])
         ):
             in_diff = True
             # The claim's own lines did not change, so say why it gates.
             finding["scope_reason"] = "ignored_external_sdk_marker"
-            finding["scope_marker_line"] = marker_line
+            finding["scope_marker_line"] = marker["line"]
         finding["in_diff"] = in_diff
         if not in_diff:
             finding["original_severity"] = finding["severity"]
