@@ -78,7 +78,9 @@ except ImportError:  # pragma: no cover - PyYAML is a project dependency
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 RESOLVER = REPO_ROOT / "src" / "claude" / "skills" / "autoplan" / "scripts" / "resolve_route.py"
-SKILLS_SUBDIR = Path("src") / "claude" / "skills"
+# The install tree holds every skill: shipped ones link into src/claude/skills
+# (ADR-119) and repo-local ones live here only, so both are checked.
+SKILLS_SUBDIR = Path(".claude") / "skills"
 BASELINE_RELATIVE = Path("scripts") / "validation" / "skill_trigger_resolution_baseline.json"
 
 EXIT_OK = 0
@@ -400,7 +402,7 @@ def main(argv: list[str] | None = None) -> int:
     """CLI entry point."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--repo-root", default=str(REPO_ROOT))
-    parser.add_argument("--skills-dir", default=None, help="default: <repo-root>/src/claude/skills")
+    parser.add_argument("--skills-dir", default=None, help="default: <repo-root>/.claude/skills")
     parser.add_argument("--baseline", default=None, help="default: the shipped baseline JSON")
     parser.add_argument("--write-baseline", action="store_true")
     args = parser.parse_args(argv)

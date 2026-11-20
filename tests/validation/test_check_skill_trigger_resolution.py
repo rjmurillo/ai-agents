@@ -22,7 +22,7 @@ from tests.validation.trigger_resolution_fixtures import (
 
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
-    (tmp_path / "src" / "claude" / "skills").mkdir(parents=True)
+    (tmp_path / ".claude" / "skills").mkdir(parents=True)
     return tmp_path
 
 

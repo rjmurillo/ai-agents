@@ -18,6 +18,9 @@
       "agent-harness-reference": [
         "harness contract"
       ],
+      "ai-agents-portability-campaign": [
+        "run the portability campaign"
+      ],
       "analyze": [
         "analyze this codebase"
       ],

@@ -414,13 +414,13 @@ def test_a_missing_subset_parser_exits_2_naming_the_parser(
 
     absent = tmp_path / "no-skillforge"
     monkeypatch.setattr(schema, "_SUBSET_PARSER_DIR", absent)
-    monkeypatch.setattr(schema, "_parser_cache", [])
+    monkeypatch.setattr(schema, "_module_cache", {})
     assert not absent.exists()
 
     code, _, err = _run(corpus, capsys)
 
     assert code == 2
-    assert "skillforge parser not found" in err
+    assert "skillforge module not found" in err
 
 
 def test_a_subset_parser_that_fails_to_import_exits_2(
@@ -435,7 +435,7 @@ def test_a_subset_parser_that_fails_to_import_exits_2(
     broken.mkdir()
     (broken / "_conformance_parse.py").write_text("raise RuntimeError('boom')\n", encoding="utf-8")
     monkeypatch.setattr(schema, "_SUBSET_PARSER_DIR", broken)
-    monkeypatch.setattr(schema, "_parser_cache", [])
+    monkeypatch.setattr(schema, "_module_cache", {})
 
     code, _, err = _run(corpus, capsys)
 
@@ -450,7 +450,7 @@ def test_importing_the_schema_module_does_not_load_the_parser(tmp_path: Path) ->
     probe = (
         "import sys; sys.path.insert(0, 'scripts/validation'); "
         "import skill_artifact_schema as s; "
-        "assert s._parser_cache == [], 'parser loaded at import'"
+        "assert s._module_cache == {}, 'parser loaded at import'"
     )
     result = subprocess.run(
         [sys.executable, "-I", "-c", probe],

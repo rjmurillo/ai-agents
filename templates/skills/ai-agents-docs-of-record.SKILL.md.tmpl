@@ -2,7 +2,7 @@
 name: ai-agents-docs-of-record
 version: 1.0.0
 license: MIT
-description: Runbook for this repo's documents of record. Session logs, ADRs, retrospectives, Serena memories, per-issue handoffs, plus the templates, validators, naming rules, and house prose style that bind them. Use when you say `write the session log`, `create an ADR`, `fill the retro`, `save this to memory`, `which document of record`. Do NOT use for authoring skills (use `SkillForge`) or research write-ups (use `ai-agents-research-methodology`).
+description: Runbook for this repo's documents of record. Session logs, ADRs, retrospectives, Serena memories, per-issue handoffs, plus the templates, validators, naming rules, and house prose style that bind them. Use when you say `write the session log`, `fill the retro`, `save this to memory`, `which document of record`. Do NOT use to write an ADR (use `adr-generator`), for authoring skills (use `SkillForge`), or for research write-ups (use `ai-agents-research-methodology`).
 metadata:
   distribution: repo-local
   routing:

@@ -32,7 +32,7 @@ def _skill(
 
 
 def _skills(repo: Path) -> Path:
-    return repo / "src" / "claude" / "skills"
+    return repo / ".claude" / "skills"
 
 
 def _baseline(

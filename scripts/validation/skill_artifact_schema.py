@@ -57,33 +57,34 @@ class SubsetParserUnavailableError(RuntimeError):
     """Skillforge's stdlib frontmatter parser is missing or fails to import."""
 
 
-def _load_subset_parser() -> ModuleType:
-    """Import skillforge's parser without leaving its directory or siblings behind.
+def _load_skillforge_module(filename: str, alias: str) -> ModuleType:
+    """Import one skillforge script without leaving its directory or siblings behind.
 
-    The parser imports `_path_guard` from its own directory. Leaving that
-    directory on sys.path, or `_path_guard` in sys.modules, would make a later
-    import of another tree's skillforge scripts pick up this copy.
+    skillforge's scripts import siblings such as `_path_guard` from their own
+    directory. Leaving that directory on sys.path, or a sibling in sys.modules,
+    would make a later import of another tree's skillforge scripts pick up this
+    copy.
 
-    Raises SubsetParserUnavailableError when the parser file is absent or its import
+    Raises SubsetParserUnavailableError when the file is absent or its import
     fails, so a caller can map the failure to its own config exit.
     """
-    parser_file = _SUBSET_PARSER_DIR / "_conformance_parse.py"
-    if not parser_file.is_file():
-        raise SubsetParserUnavailableError(f"skillforge parser not found: {parser_file}")
+    module_file = _SUBSET_PARSER_DIR / filename
+    if not module_file.is_file():
+        raise SubsetParserUnavailableError(f"skillforge module not found: {module_file}")
     saved_path = list(sys.path)
     saved_modules = set(sys.modules)
     sys.path.insert(0, str(_SUBSET_PARSER_DIR))
     try:
-        spec = importlib.util.spec_from_file_location("_artifact_flow_subset_parser", parser_file)
+        spec = importlib.util.spec_from_file_location(alias, module_file)
         if spec is None or spec.loader is None:
-            raise SubsetParserUnavailableError(f"cannot load {parser_file}")
+            raise SubsetParserUnavailableError(f"cannot load {module_file}")
         module = importlib.util.module_from_spec(spec)
         sys.modules[spec.name] = module
         try:
             spec.loader.exec_module(module)
         except Exception as exc:
             sys.modules.pop(spec.name, None)
-            raise SubsetParserUnavailableError(f"cannot import {parser_file}: {exc}") from exc
+            raise SubsetParserUnavailableError(f"cannot import {module_file}: {exc}") from exc
         return module
     finally:
         sys.path[:] = saved_path
@@ -93,18 +94,34 @@ def _load_subset_parser() -> ModuleType:
                 del sys.modules[added]
 
 
-_parser_cache: list[ModuleType] = []
+_module_cache: dict[str, ModuleType] = {}
+
+
+def _skillforge_module(filename: str, alias: str) -> ModuleType:
+    """Return one skillforge script module, loading it on first use."""
+    if filename not in _module_cache:
+        _module_cache[filename] = _load_skillforge_module(filename, alias)
+    return _module_cache[filename]
 
 
 def subset_parser() -> ModuleType:
-    """Return skillforge's parser, loading it on first use."""
-    if not _parser_cache:
-        _parser_cache.append(_load_subset_parser())
-    return _parser_cache[0]
+    """Return skillforge's stdlib frontmatter parser, loading it on first use."""
+    return _skillforge_module("_conformance_parse.py", "_artifact_flow_subset_parser")
+
+
+def shipped_lint_checks() -> ModuleType:
+    """Return skillforge's lint checks, the module that ships `fm.artifacts.shape`."""
+    return _skillforge_module("_lint_frontmatter_checks.py", "_artifact_flow_lint_checks")
 
 
 def subset_defect(rel: str, text: str) -> str | None:
-    """Return why skillforge's stdlib parser cannot read the frontmatter, or None."""
+    """Return why skillforge cannot read or accept the frontmatter, or None.
+
+    Two refusals count. The stdlib parser cannot read the frontmatter, or the
+    shipped rule `fm.artifacts.shape` rejects the declarations. PyYAML reads
+    `null`, `~`, and `yes` as typed values where the stdlib parser keeps text,
+    so this gate calls the shipped rule itself rather than restating it.
+    """
     parser = subset_parser()
     raw, _body, error = parser.split_frontmatter(text)
     if raw is None:
@@ -116,7 +133,18 @@ def subset_defect(rel: str, text: str) -> str | None:
             f"{rel}: skillforge's stdlib frontmatter parser refuses this template ({exc}); "
             "use block mappings, and key lists by name instead of listing mappings"
         )
-    return None
+    checks = shipped_lint_checks()
+    doc = checks.subset.SkillDoc(directory=Path(rel).parent, skill_md=Path(rel), text=text)
+    checks.subset.parse_doc_text(doc)
+    try:
+        problems = checks.artifacts_shape(doc)
+    except checks.NotApplicableError:
+        return None
+    if not problems:
+        return None
+    return f"{rel}: skillforge rule fm.artifacts.shape refuses this template: " + "; ".join(
+        problems
+    )
 
 
 def _name_defect(rel: str, field: str, artifact: object) -> str | None:

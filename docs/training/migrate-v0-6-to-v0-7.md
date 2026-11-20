@@ -4,7 +4,7 @@
 
 Move a working v0.6.0 install to the current `main` build of `project-toolkit`. You finish with one plugin, the old command names mapped to skills, and a checklist that proves it worked.
 
-v0.7.0 has no release tag yet. This guide was run against `main` at commit `b959011e3f60`. Plugin versions are commit SHAs now, so your install shows its own SHA.
+v0.7.0 has no release tag yet. This guide was run against `main` at commit `b959011e3f60`. Plugin versions are commit SHAs now, so your install shows its own SHA. Since that commit, the seven `pr-quality-*` skills became one `pr-quality` skill, and the steps below use the new name.
 
 This guide checks Claude Code. For GitHub Copilot CLI, use the Copilot sections in [docs/installation.md](../installation.md).
 
@@ -66,17 +66,17 @@ If `Version` is an older SHA, `main` has moved since your update. Run the two up
 
 ### 2. Rename your commands to skills
 
-`.claude/commands/` is gone ([ADR-064](../../.project-toolkit/architecture/ADR-064-commands-to-skills-migration.md), PR #5640). Every command became a skill with `user-invocable: true`, so the slash names you type still work. Only the `pr-quality/` group changed name.
+`.claude/commands/` is gone ([ADR-064](../../.project-toolkit/architecture/ADR-064-commands-to-skills-migration.md), PR #5640). Every command became a skill with `user-invocable: true`, so the slash names you type still work. Only the `pr-quality/` group changed: it is now one skill that takes `--axis`.
 
 | v0.6.0 command | v0.7 skill |
 |---|---|
-| `pr-quality/security` | `pr-quality-security` |
-| `pr-quality/all` | `pr-quality-all` |
-| `pr-quality/analyst` | `pr-quality-analyst` |
-| `pr-quality/architect` | `pr-quality-architect` |
-| `pr-quality/devops` | `pr-quality-devops` |
-| `pr-quality/qa` | `pr-quality-qa` |
-| `pr-quality/roadmap` | `pr-quality-roadmap` |
+| `pr-quality/security` | `pr-quality --axis security` |
+| `pr-quality/all` | `pr-quality` |
+| `pr-quality/analyst` | `pr-quality --axis analyst` |
+| `pr-quality/architect` | `pr-quality --axis architect` |
+| `pr-quality/devops` | `pr-quality --axis devops` |
+| `pr-quality/qa` | `pr-quality --axis qa` |
+| `pr-quality/roadmap` | `pr-quality --axis roadmap` |
 | `build` | `build` (unchanged) |
 | `checkpoint` | `checkpoint` (unchanged) |
 | `context-hub-setup` | `context-hub-setup` (unchanged) |
@@ -100,7 +100,7 @@ To prove a skill is visible in your installed host, not only in the source tree,
 claude plugin details project-toolkit@ai-agents
 ```
 
-Look for `pr-quality-security` under `Skills`.
+Look for `pr-quality` under `Skills`.
 
 ### 3. Know which hooks stopped running
 
@@ -205,7 +205,7 @@ claude plugin list
 claude plugin details project-toolkit@ai-agents
 ```
 
-`Skills` includes `pr-quality-security`, `pr-quality-all`, and `pr-comment-responder`. `Agents` does not include `pr-comment-responder`. `Hooks (1)` shows `Stop`. At commit `b959011e3f60` the counts were 105 skills, 29 agents, and 1 hook.
+`Skills` includes `pr-quality` and `pr-comment-responder`. `Agents` does not include `pr-comment-responder`. `Hooks (1)` shows `Stop`. At commit `b959011e3f60` the counts were 105 skills, 29 agents, and 1 hook.
 
 Contributors also run these in a clone:
 
