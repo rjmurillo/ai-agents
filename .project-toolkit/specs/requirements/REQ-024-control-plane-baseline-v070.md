@@ -115,8 +115,8 @@ as the corpus and its history grow, because nobody has one place to check
   2026-08-19): the section "The same work runs twice in one hook" is now
   stale.
   `scripts/validation/pre_pr_sequence.py:322-326` sets `already_run_by="count-ratchets"`.
-  The `FAST_STAGE_RAN_ENV` skip sits at `scripts/validation/pre_pr_sequence.py:837-848`.
-  `lefthook.yml:732` sets `AI_AGENTS_PRE_PR_FAST_STAGE_RAN: "1"`.
+  The `FAST_STAGE_RAN_ENV` skip sits at `scripts/validation/pre_pr_sequence.py:853-864`.
+  `lefthook.yml:728` sets `AI_AGENTS_PRE_PR_FAST_STAGE_RAN: "1"`.
   `tests/validation/test_pre_pr_sequence_registry.py:190-198` defines `FAST_STAGE_DUPLICATES`.
   The set names Count Ratchets, Unreachable Code Detection, Path Normalization, Planning Artifacts, and Em/en-dash Prohibition.
   `tests/validation/test_pre_pr_sequence_registry.py:293-317` defines `TestFastStageDeferral`.

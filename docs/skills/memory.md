@@ -6,7 +6,7 @@ Routes a memory request to the right focused sub-skill. It also holds the Serena
 
 - You ask "what do we know about X", "recall prior context", or "search memory" and are not sure which memory operation you need.
 - You need the rules for connecting to Serena, reading memories, and writing a new one.
-- Trigger phrases: `search memory`, `check memory health`, `extract episode from session`, `memory-first gate`, `consolidate memory`.
+- Trigger phrases: `search memory`, `check memory tier health`, `extract episode from session`, `memory-first gate`, `consolidate memory`.
 
 ## When not to use it
 

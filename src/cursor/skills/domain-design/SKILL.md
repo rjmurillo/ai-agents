@@ -24,6 +24,7 @@ metadata:
       - module boundary
       - crud or domain operation
       - explicit state or reconstruction
+      - design this schema
 ---
 
 # Domain Design

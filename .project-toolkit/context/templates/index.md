@@ -1,9 +1,9 @@
 [templates/]
 |Canonical source for five ADR-109 artifact classes: agents, rules, skills, ho... (see: .project-toolkit/context/templates/details/templates.md)
 [Matters]
-|Per-class render map. Compilers run inside `build_all.py` except `prompts`; b... (see: .project-toolkit/context/templates/details/matters.md)
+|Per-class render map. Compilers run inside `build_all.py`; binplace copies th... (see: .project-toolkit/context/templates/details/matters.md)
 [Entry points]
-|`uv run python build/scripts/build_all.py` renders every class but `prompts` ... (see: .project-toolkit/context/templates/details/entry-points.md)
+|`uv run python build/scripts/build_all.py` renders every class and binplaces.... (see: .project-toolkit/context/templates/details/entry-points.md)
 [Where to look]
 || Path | Why | (see: .project-toolkit/context/templates/details/where-to-look.md)
 [Skip]

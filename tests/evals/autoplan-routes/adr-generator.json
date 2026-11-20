@@ -1,0 +1,155 @@
+{
+  "schema_version": 1,
+  "scenarios": [
+    {
+      "id": "lt-adr-generator-plan-step",
+      "family": "long-tail-single-domain",
+      "request": "The plan says option B needs an ADR. Draft ADR-123 for the skill artifact flow decision.",
+      "expect": {
+        "kind": "specialist",
+        "route": "adr-generator",
+        "routes_absent": [
+          "orchestrator",
+          "adr-review"
+        ]
+      },
+      "rationale": "Miss 2026-11-19: a session drafted ADR-123 by hand from a plan step. The draft adr intent must route to adr-generator."
+    },
+    {
+      "id": "lt-adr-generator-new",
+      "family": "long-tail-single-domain",
+      "request": "This change needs a new ADR before we build it.",
+      "expect": {
+        "kind": "specialist",
+        "route": "adr-generator",
+        "routes_absent": [
+          "orchestrator",
+          "adr-review"
+        ]
+      },
+      "rationale": "A plan step that needs a new ADR routes to adr-generator before any file is written."
+    },
+    {
+      "id": "lt-adr-generator-amend",
+      "family": "long-tail-single-domain",
+      "request": "Amend ADR-110 to add produces and consumes keys to the capability block.",
+      "expect": {
+        "kind": "specialist",
+        "route": "adr-generator",
+        "routes_absent": [
+          "orchestrator",
+          "adr-review"
+        ]
+      },
+      "rationale": "Editing an existing ADR outside a debate round is Amend mode in adr-generator."
+    },
+    {
+      "id": "lt-adr-generator-supersede",
+      "family": "long-tail-single-domain",
+      "request": "Supersede ADR-064 with a record that keeps commands retired.",
+      "expect": {
+        "kind": "specialist",
+        "route": "adr-generator",
+        "routes_absent": [
+          "orchestrator",
+          "adr-review"
+        ]
+      },
+      "rationale": "A superseding record is a new ADR that adr-generator numbers and links."
+    },
+    {
+      "id": "lt-adr-generator-review-negative",
+      "family": "negative-noise",
+      "request": "Review this ADR before we merge it.",
+      "expect": {
+        "kind": "none",
+        "route": null,
+        "routes_absent": [
+          "adr-generator"
+        ]
+      },
+      "rationale": "Negative control: reviewing an ADR belongs to adr-review, never adr-generator."
+    },
+    {
+      "id": "lt-adr-generator-read-negative",
+      "family": "negative-noise",
+      "request": "Summarize what ADR-107 decided about skill contracts.",
+      "expect": {
+        "kind": "none",
+        "route": null,
+        "routes_absent": [
+          "adr-generator"
+        ]
+      },
+      "rationale": "Negative control: reading an ADR writes nothing, so adr-generator must not match."
+    },
+    {
+      "id": "lt-adr-generator-review-record-negative",
+      "family": "negative-noise",
+      "request": "Review this architecture decision record.",
+      "expect": {
+        "kind": "none",
+        "route": null,
+        "routes_absent": [
+          "adr-generator"
+        ]
+      },
+      "rationale": "Negative control: an ADR review request spelled out as architecture decision record must not reach the authoring skill."
+    },
+    {
+      "id": "lt-adr-generator-spelled-out-create",
+      "family": "long-tail-single-domain",
+      "request": "Create an architecture decision record for the queue choice.",
+      "expect": {
+        "kind": "specialist",
+        "route": "adr-generator",
+        "routes_absent": [
+          "orchestrator",
+          "adr-review"
+        ]
+      },
+      "rationale": "Spelled-out authoring requests must still reach adr-generator after the bare intent was narrowed."
+    },
+    {
+      "id": "lt-adr-generator-review-draft-record-negative",
+      "family": "negative-noise",
+      "request": "Review the draft architecture decision record.",
+      "expect": {
+        "kind": "none",
+        "route": null,
+        "routes_absent": [
+          "adr-generator"
+        ]
+      },
+      "rationale": "Negative control: draft as an adjective in a review request must not reach the authoring skill."
+    },
+    {
+      "id": "lt-adr-generator-spelled-out-amend",
+      "family": "long-tail-single-domain",
+      "request": "Amend this architecture decision record to cover the retry budget.",
+      "expect": {
+        "kind": "specialist",
+        "route": "adr-generator",
+        "routes_absent": [
+          "orchestrator",
+          "adr-review"
+        ]
+      },
+      "rationale": "Spelled-out amendment requests reach adr-generator after the bare intent was narrowed."
+    },
+    {
+      "id": "lt-adr-generator-spelled-out-supersede",
+      "family": "long-tail-single-domain",
+      "request": "Supersede this architecture decision record with one that keeps the queue.",
+      "expect": {
+        "kind": "specialist",
+        "route": "adr-generator",
+        "routes_absent": [
+          "orchestrator",
+          "adr-review"
+        ]
+      },
+      "rationale": "Spelled-out supersede requests reach adr-generator through the supersede architecture decision record intent."
+    }
+  ]
+}

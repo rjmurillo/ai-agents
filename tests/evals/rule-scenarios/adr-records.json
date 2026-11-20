@@ -40,6 +40,20 @@
       ],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "The strip applies only to the Status paragraph of a proposed record as rendered in the Proposed table. A Decision edit on an accepted record does not reach it."
+    },
+    {
+      "id": "S4",
+      "desc": "Plan step needs an ADR and the agent plans to copy a sibling ADR by hand",
+      "input": "The plan I just approved needs ADR-123. I read ADR-122 and will copy its format into .project-toolkit/architecture/ADR-123-skill-artifact-flow-declarations.md, then run the adr-review debate. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "adr-generator",
+        "before",
+        "number",
+        "frontmatter",
+        "index"
+      ],
+      "expected_gate": "require-adr-generator-before-write",
+      "rationale": "MUST 2 requires the adr-generator skill before the first write to an ADR. Copying a sibling's format skips its numbering, ADR-073 frontmatter defaults, quality checklist, and index refresh. A plan that goes straight from reading ADR-122 to writing the file fails."
     }
   ]
 }

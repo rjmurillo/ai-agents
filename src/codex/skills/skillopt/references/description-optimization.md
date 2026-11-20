@@ -95,6 +95,37 @@ description: Extract line items and totals from invoice PDFs and scans, and reco
 The rewrite names the work (extract, reconcile) and the cases that should
 trigger it. It stays under 1024 characters.
 
+## Gate before you score
+
+Run the cheap deterministic checks before a trigger-rate eval. They decide in
+seconds and cost no model calls. The named pre-PR gates exist in the
+rjmurillo/ai-agents repository; elsewhere, check the same limits by hand.
+
+1. The description is at most 1024 characters.
+2. The pre-PR gate `Skill Description Budget` still passes. A candidate that
+   adds length takes it from every other skill's share of the corpus budget.
+3. The pre-PR gate `Skill Trigger Phrase Resolution (ratchet)` still passes. Every quoted
+   phrase routes to this skill and none routes to a sibling. Add an `intents`
+   entry for a new phrase, or drop the phrase.
+4. The pre-PR gate `Instruction Bytes (per-fixture)` still passes when the
+   skill is always-on or routed in a fixture.
+
+A candidate that fails any of these is rejected without scoring.
+
+## Turn real misses into eval cases
+
+A miss is a session that did a skill's work without loading the skill. Mine
+transcripts for the request that led to the work, then add it three ways:
+
+- A resolver fixture under the autoplan route fixtures. It is deterministic,
+  so it fails before the fix and passes after.
+- A description-router fixture that names the skill and its nearest sibling.
+- An autoplan model scenario when the miss came through a plan step.
+
+Include should-trigger queries that never name the domain. The 2026-11-19
+`adr-generator` miss came from "go ahead with option B", where the plan said
+option B needed an ADR.
+
 ## Gotchas
 
 - Simple one-step requests may not trigger a matching skill, because the agent

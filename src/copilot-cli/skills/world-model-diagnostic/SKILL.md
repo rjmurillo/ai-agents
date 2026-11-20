@@ -16,6 +16,9 @@ metadata:
       - world model failing
       - automate judgment audit
       - boundary layer audit
+      - audit our world model
+      - world model architecture fits
+      - audit where we automate judgment
 ---
 
 # World Model Diagnostic

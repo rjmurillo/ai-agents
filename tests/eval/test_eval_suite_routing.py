@@ -101,7 +101,7 @@ ROUTING_CASES = [
     ("CLAUDE.md", "entrypoints"),
     ("src/copilot-cli/lib/github_core/CLAUDE.md", "entrypoints"),
     # Prompts and scenarios, unchanged by this fix.
-    (".github/prompts/pr-quality-gate-architect.md", "prompts"),
+    (".github/prompts/default-ai-review.md", "prompts"),
     ("tests/evals/rule-scenarios/code-quality.json", "scenarios"),
     # Genuinely unclassified.
     ("src/copilot-cli/docs/copilot-instructions.md", "other"),

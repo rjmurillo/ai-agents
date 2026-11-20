@@ -11,8 +11,22 @@ metadata:
       - project-workflow-skill-bootstrap
     depends-on: []
     status: active
-  inputs: [target-repository, output-root, mode, accepted-outcomes, budget]
-  outputs: [project-skills, skill-scripts, capability-eval, bootstrap-report]
+  inputs:
+    target-repository:
+      source: user
+    output-root:
+      source: user
+    bootstrap-mode:
+      source: user
+    accepted-outcomes:
+      source: user
+    bootstrap-budget:
+      source: user
+  outputs:
+    project-skills:
+    project-skill-scripts:
+    capability-eval:
+    bootstrap-report:
   routing:
     role: front-door
     invoker: autoplan
