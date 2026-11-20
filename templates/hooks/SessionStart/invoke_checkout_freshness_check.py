@@ -22,7 +22,6 @@ References:
 
 from __future__ import annotations
 
-import io
 import os
 import subprocess
 import sys
@@ -183,44 +182,17 @@ def _write_audit_log(project_dir: str, check: FreshnessCheck) -> None:
         pass  # Fail-open: audit is best-effort
 
 
-def _drain_stdin() -> None:
-    """Drain stdin to prevent pipe buffer blocking on the harness side."""
-    if not sys.stdin.isatty():
-        try:
+try:
+    from hook_utilities.protocol_output import drain_stdin as _drain_stdin
+    from hook_utilities.protocol_output import emit_utf8 as _emit_utf8
+except ImportError:
+
+    def _drain_stdin() -> None:
+        if not sys.stdin.isatty():
             sys.stdin.read()
-        except OSError:
-            pass
 
-
-def _emit_utf8(text: str) -> None:
-    """Prefer UTF-8 protocol output, with an ambient-encoding text fallback."""
-    stream = sys.stdout
-    reconfigure = getattr(stream, "reconfigure", None)
-    if callable(reconfigure):
-        try:
-            reconfigure(encoding="utf-8", errors="strict", newline="\n")
-        except (
-            AttributeError,
-            TypeError,
-            ValueError,
-            io.UnsupportedOperation,
-            OSError,
-        ):
-            pass
-        else:
-            stream.write(text + "\n")
-            stream.flush()
-            return
-
-    payload = bytes(f"{text}\n", encoding="utf-8")
-    buffer = getattr(stream, "buffer", None)
-    if buffer is not None:
-        buffer.write(payload)
-        buffer.flush()
-        return
-
-    stream.write(text + "\n")
-    stream.flush()
+    def _emit_utf8(text: str) -> None:
+        print(text, flush=True)
 
 
 def main() -> None:
