@@ -43,11 +43,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
-if str(_SCRIPT_DIR) not in sys.path:
-    sys.path.insert(0, str(_SCRIPT_DIR))
-_REPO_ROOT = _SCRIPT_DIR.parents[1]
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
+for _path in (_SCRIPT_DIR.parents[1], _SCRIPT_DIR):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
 
 import yaml  # noqa: E402
 from instruction_budget_globs import load_unique_frontmatter  # noqa: E402
