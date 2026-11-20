@@ -20,7 +20,7 @@
     {
       "id": "S2",
       "desc": "Worker agent text says it cannot delegate but the grant is silent",
-      "input": "I am adding a new worker agent template, templates/agents/summarizer.claude.md.tmpl. Its body says 'you CANNOT delegate' and its frontmatter has no tools list. I plan to leave the grant out because the prose already says it. Plan in 5 short bullets. Do not modify any files.",
+      "input": "I am adding a new worker agent, src/claude/agents/summarizer.md, from a new template templates/agents/summarizer.claude.md.tmpl. Its body says 'you CANNOT delegate' and its frontmatter has no tools list. I plan to leave the grant out because the prose already says it. Plan in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "disallowedTools",
         "Agent",

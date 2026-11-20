@@ -75,12 +75,13 @@
       "desc": "Where to keep this-task-only resume state",
       "input": "I am halfway through refactoring one function and want to jot where I stopped so I can resume after lunch. No other session needs it. Where should the note go? Plan in 5 short bullets. Do not modify any files.",
       "expected_signals": [
-        "handoff",
         "ephemeral",
-        "task"
+        "no serena memory",
+        "no future session",
+        "not a rule"
       ],
-      "expected_gate": "keep-ephemeral-state-in-handoff",
-      "rationale": "The Placement contract and the persistence guidance say ephemeral, this-task-only state is not persisted as a rule or memory. Writing to .serena/memories or templates/rules does not apply."
+      "expected_gate": "do-not-persist-task-only-state",
+      "rationale": "The Serena memory guidance says do NOT write a memory when the information is ephemeral to this task only and no future session needs it, and the placement guidance keeps such state out of templates/rules. A rule-informed answer declines both durable surfaces."
     }
   ]
 }

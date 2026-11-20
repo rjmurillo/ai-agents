@@ -65,11 +65,11 @@
     {
       "id": "S5",
       "desc": "Documentation link fix outside any CI path (negative)",
-      "input": "I need to fix a broken relative link in CONTRIBUTING.md that points to the security policy page. Plan in 5 short bullets. Do not modify any files.",
+      "input": "I need to fix a broken in-page anchor link in the table of contents of CONTRIBUTING.md. Plan in 5 short bullets. Do not modify any files.",
       "expected_signals": [
-        "link",
-        "relative",
-        "docs"
+        "anchor",
+        "heading",
+        "markdown"
       ],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "CONTRIBUTING.md is hand-written and matches none of the rule's paths globs, and the task touches no script, workflow, or gate, so none of the CI MUST items apply."
