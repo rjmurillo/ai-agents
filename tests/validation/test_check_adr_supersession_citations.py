@@ -180,6 +180,7 @@ def test_fixed_adr_107_wording_passes() -> None:
         "Owner and expiry come from this record, not from ADR-080.\n",
         'The "Tier 1 per ADR-080" framing governs nothing.\n',
         "Skills MUST NOT cite ADR-080 as authority.\n",
+        "Skills must not cite ADR-052 or ADR-080 as the owner of pins.\n",
     ],
 )
 def test_historical_mention_passes(text: str) -> None:

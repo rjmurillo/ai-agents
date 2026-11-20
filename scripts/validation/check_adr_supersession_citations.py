@@ -10,12 +10,10 @@ an ADR body. This gate does.
 
 ## What is scanned
 
-Git-tracked `.project-toolkit/architecture/ADR-NNN-*.md` files whose own
-frontmatter status is `accepted` or `proposed`. A `superseded`, `deprecated`
-or `rejected` record is history as a whole, so what it cites is history too.
-
-Only mentions of a `superseded` record are classified. A `deprecated` or
-`rejected` target has no successor to cite instead, so it is out of scope.
+Git-tracked `.project-toolkit/architecture/ADR-NNN-*.md` records whose own
+status is `accepted` or `proposed`; a retired record is history as a whole.
+Only mentions of a `superseded` record are classified: a `deprecated` or
+`rejected` target has no successor to cite instead.
 
 ## Why the rule gate's classifier is not reused as is
 
@@ -43,7 +41,7 @@ counted, never failed.
   no longer, at the time, or used to (not after is, are or be), or a past-tense
   "was", "were" or "had been" before governed, owned, defined, required or
   mandated; or "not" or "never" plus from, by, under, per, cite, follow, use or
-  rely on directly precedes the mention.
+  rely on precedes the mention, alone or with other ADRs in a list.
 - AUTHORITY: the sentence carries MUST, SHALL or REQUIRED, or one of governs,
   governing, governed by, owns, owned by, current owner, owner of, binding,
   authority, in force or requires; or the mention follows a binding phrase
@@ -52,8 +50,7 @@ counted, never failed.
 
 ## Not covered
 
-- A table cell is its own sentence, because the shared splitter cuts on `|`.
-  A row such as `| ADR-080 | Indirect | Remains the model-pin authority |`
+- A table cell is its own sentence (the splitter cuts on `|`), so a row
   classifies only when the cell that names the ADR also carries the signal.
 - An UNCLASSIFIED mention never fails. A blind read of all 131 at `31a65de8e`
   (2026-11-20) judged 25 of them live authority, so recall is partial.
@@ -140,7 +137,9 @@ _HISTORY_RE = re.compile(
     re.IGNORECASE,
 )
 _NEGATED_BEFORE_RE = re.compile(
-    r"\b(?:not|never)\s+(?:from|by|under|per|cite|follow|use|rely on)\s+$", re.IGNORECASE
+    r"\b(?:not|never)\s+(?:from|by|under|per|cite|follow|use|rely on)\s+"
+    r"(?:ADR-\d+\s*(?:,|\bor\b|\band\b)\s*)*$",
+    re.IGNORECASE,
 )
 
 
