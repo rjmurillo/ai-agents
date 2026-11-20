@@ -1,0 +1,14 @@
+{
+  "id": "N10",
+  "pr": 7446,
+  "sha": "3adae314",
+  "kind": "negative",
+  "scope": "automatic",
+  "resolved_sha": "3adae314d51474f16ddd958d2a04cccf2e2697cf",
+  "pr_base": "e9acebe15f31d1f2ed0c5dae1d329d0af94632c5",
+  "merge_base": "e1702e456fe582eafefa7fbc1784a827488bf027",
+  "findings": [],
+  "output": "[citation-freshness] examined 0 citation(s) across 4 changed file(s) vs e1702e456fe582eafefa7fbc1784a827488bf027\n[citation-reverse-pass] examined 1 inbound citation(s) to 15 changed file(s) vs e1702e456fe582eafefa7fbc1784a827488bf027; 1 already stale at the merge base (not blocking)\n",
+  "caught": false,
+  "false_positives": 0
+}
