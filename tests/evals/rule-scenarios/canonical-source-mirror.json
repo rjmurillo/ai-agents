@@ -1,0 +1,92 @@
+{
+  "rule_path": ".claude/rules/canonical-source-mirror.md",
+  "rule_id": "canonical-source-mirror",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "New pre-push guard claims it mirrors a CI validator regex",
+      "input": "I am adding .claude/hooks/evidence_guard.py. Its module docstring says 'matches the contradiction regex in scripts/validate_session_json.py' and I plan to paste a paraphrase of that regex into the guard, with no import and no test, and add the citation later. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "conformance test",
+        "import",
+        "same commit",
+        "canonical",
+        "check_canonical_citations",
+        "cite"
+      ],
+      "expected_gate": "require-structural-evidence-for-mirror-claim",
+      "rationale": "What the first commit MUST do: a mirror claim needs ranks 1 to 4 evidence (shared implementation, conformance test, generated projection, symbolic reference) in the same commit. Anti-patterns rejected: 'mirrors X' with a paraphrase, and a citation deferred to 'I will add it later'. PR #1887 needed 7 fix commits."
+    },
+    {
+      "id": "S2",
+      "desc": "Guard is deliberately stricter than the canonical validator",
+      "input": "In scripts/validation/check_session_evidence.py I want the local guard to block a push on conditions where the CI validator in scripts/validate_session_json.py only warns. The docstring will say the guard is 'aligned with' the validator. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "stricter than canonical",
+        "floor",
+        "ceiling",
+        "divergence",
+        "reason",
+        "aligned"
+      ],
+      "expected_gate": "document-stricter-than-canonical-divergence",
+      "rationale": "Section 'Stricter than canonical: defending divergence' requires naming the canonical floor (validator warns), the local ceiling (guard blocks), and the reason. 'Aligned with X' with no divergence section is an anti-pattern the rule rejects."
+    },
+    {
+      "id": "S3",
+      "desc": "Rule text asserts what another validator skips, based on function names",
+      "input": "I am writing a paragraph in .claude/rules/testing.md that says .pytest_tmp is the only directory name both validate_plugin_manifests.py and check_placeholder_identity.py skip. I have only seen the function names, such as _is_pytest_tmp, not the bodies. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "read the body",
+        "line number",
+        "_is_pytest_tmp",
+        "pytest-of-",
+        "cite",
+        "not the name"
+      ],
+      "expected_gate": "verify-behavioral-claim-from-body",
+      "rationale": "Section 'Behavioral claims: read the body, not the name': a function's name is not evidence of its behavior. PR #3775 shipped exactly this claim, and check_placeholder_identity.py:36 _is_pytest_tmp never inspects a directory of that name."
+    },
+    {
+      "id": "S4",
+      "desc": "Documentation on one branch names a test added on another branch",
+      "input": "On branch docs/hook-notes I am editing .agents/governance/hook-conventions.md to name test_hook_anchoring_negative_control, which I wrote on my other worktree branch feat/hook-anchoring. It resolves fine in my shell. Both branches are open. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "git grep",
+        "branch that will merge",
+        "worktree",
+        "merge order",
+        "dangling",
+        "move"
+      ],
+      "expected_gate": "verify-citation-in-merging-branch-worktree",
+      "rationale": "Section 'True when you wrote it is not true at merge': run git grep -nF -- '<name>' in the worktree of the branch that will merge. A symbol cited without a line number is invisible to both citation-freshness gates, so only this manual check catches it."
+    },
+    {
+      "id": "S5",
+      "desc": "Typo and flag change in a validator with no mirror claim (negative)",
+      "input": "In scripts/validation/check_md_links.py I want to fix a typo in the argparse help text and add a --verbose flag that prints each file examined. The docstring makes no claim about any other component. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "typo",
+        "verbose",
+        "flag",
+        "help"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The rule binds contracts derived from another source and claims about another component's behavior. A help-text typo and a verbose flag make neither, so no citation or conformance test is required."
+    },
+    {
+      "id": "S6",
+      "desc": "Word 'mirror' in an unrelated UI task (negative)",
+      "input": "In src/web/components/ImagePreview.tsx I need a button that mirrors the preview image horizontally with a CSS scaleX(-1) transform. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "scalex",
+        "transform",
+        "button",
+        "css"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The trigger is a contract claimed to match a repository source. 'Mirror' here is a geometric flip in a path outside the rule's scope, so the canonical-source rules do not apply."
+    }
+  ]
+}

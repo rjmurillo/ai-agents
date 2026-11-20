@@ -1,0 +1,91 @@
+{
+  "rule_path": ".claude/rules/csharp.md",
+  "rule_id": "csharp",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Oversized, branchy method with an explanatory comment",
+      "input": "src/Orders/OrderService.cs has ProcessOrder at about 85 lines with cyclomatic complexity around 14, and one block carries a long comment explaining what it does. I want to clean it up. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "60 lines",
+        "cyclomatic",
+        "10",
+        "extract a private method",
+        "guard clause",
+        "comment"
+      ],
+      "expected_gate": "enforce-method-size-and-complexity-limits",
+      "rationale": "Style and Structure: methods stay under 60 lines and keep cyclomatic complexity at or below 10, and the rule says to extract a private method before writing a comment that explains a block."
+    },
+    {
+      "id": "S2",
+      "desc": "Large struct passed by value in a hot loop",
+      "input": "In src/Geometry/Vector4D.cs the readonly struct holds four doubles (32 bytes) and is passed by value to Dot and Cross inside a tight loop. Profiling shows extra copying. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "16 bytes",
+        "in",
+        "defensive copy",
+        "pass by",
+        "benchmarkdotnet",
+        "struct"
+      ],
+      "expected_gate": "pass-large-struct-by-in",
+      "rationale": "Allocation and Performance: pass large structs by in to avoid defensive copies, and a struct over about 16 bytes passed by value is usually a mistake. Measure with BenchmarkDotNet before and after."
+    },
+    {
+      "id": "S3",
+      "desc": "Library async method that ignores token and ConfigureAwait",
+      "input": "src/Parsing/CsvReader.cs is a class library. ReadRowsAsync awaits a stream read, has no CancellationToken parameter, and a sync wrapper calls .Result on it. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "CancellationToken",
+        "ConfigureAwait(false)",
+        "every await",
+        "propagate async",
+        ".Result",
+        "deadlock"
+      ],
+      "expected_gate": "library-async-conventions",
+      "rationale": "Async section: an awaitable crossing an I/O boundary takes and honors a CancellationToken, libraries use ConfigureAwait(false) on every await, and .Result or .Wait() is never used to block. The caller must become async."
+    },
+    {
+      "id": "S4",
+      "desc": "New xUnit test file with over-mocking and loose names",
+      "input": "I am creating tests/Orders/OrderServiceTests.cs. I plan to mock OrderService itself with Moq to verify calls and name tests Test1 and Test2. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "Method_State_ExpectedOutcome",
+        "boundaries only",
+        "do not mock the type under test",
+        "NSubstitute",
+        "xunit"
+      ],
+      "expected_gate": "csharp-test-naming-and-mocking",
+      "rationale": "Tooling section: mocks go at boundaries only and never on the type under test, and tests are named Method_State_ExpectedOutcome."
+    },
+    {
+      "id": "S5",
+      "desc": "Same async concerns in a TypeScript file (negative)",
+      "input": "In src/api/orders.ts the fetchOrders function is 90 lines and awaits several calls without an AbortSignal. Suggest how to restructure it. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "typescript",
+        "abortsignal",
+        "await",
+        "split"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The rule's paths cover .cs, .csproj, Directory.Build.*, .cshtml, and .razor. A TypeScript file is adjacent in concern but out of scope, so C# limits and CancellationToken guidance do not apply."
+    },
+    {
+      "id": "S6",
+      "desc": "Editing appsettings.json in a .NET service (negative)",
+      "input": "Add a Logging:LogLevel override for Microsoft.AspNetCore to src/Api/appsettings.Development.json. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "appsettings",
+        "loglevel",
+        "json",
+        "override"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "appsettings.Development.json matches none of the rule's globs, so the C# idiom rules do not activate for a plain JSON settings edit."
+    }
+  ]
+}

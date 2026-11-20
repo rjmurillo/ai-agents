@@ -1,0 +1,73 @@
+{
+  "rule_path": ".claude/rules/testing.md",
+  "rule_id": "testing",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Mutation harness that prints SURVIVED when a patch silently fails",
+      "input": "I am writing tests/validation/test_mutation_harness.py to mutate a gate script and report whether tests catch it. I plan to patch with sed and print DEAD if pytest fails or SURVIVED if it passes. Is that enough? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "did-not-apply",
+        "cmp -s",
+        "occurrence",
+        "byte-identical",
+        "restore"
+      ],
+      "expected_gate": "report-three-mutation-outcomes",
+      "rationale": "MUST 7: a harness must report DEAD, SURVIVED, and DID-NOT-APPLY, count target occurrences before patching, exit non-zero when the literal is missing, cmp -s the patched file against a backup, and assert a byte-identical restore."
+    },
+    {
+      "id": "S2",
+      "desc": "Harness where every mutant expects failure",
+      "input": "In tests/validation/test_mutation_harness.py I run four mutants, each shelling out to `pytest tests.validation.test_gate` and asserting returncode != 0. All four report killed. Done? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "inverted control",
+        "rc == 0",
+        "exit 4",
+        "filesystem path",
+        "no tests ran"
+      ],
+      "expected_gate": "add-inverted-control-to-mutation-harness",
+      "rationale": "MUST 11: a dotted module name is read as a path, so pytest exits 4 with zero tests collected and returncode != 0 counts as a kill. The harness needs a mutant that must survive (rc == 0), must reject 'no tests ran' and exit 4, and must target files by path."
+    },
+    {
+      "id": "S3",
+      "desc": "CI-only guard reading CI inside a test body",
+      "input": "In tests/build_scripts/test_example_guard.py I want `if os.environ.get(\"CI\"): assert guard_ran()` inside the test so the check only runs on GitHub Actions. Any problem? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "_clear_ci_env",
+        "conftest",
+        "module-level",
+        "skipif",
+        "collection time"
+      ],
+      "expected_gate": "read-ci-at-import-time",
+      "rationale": "SHOULD 13: tests/conftest.py installs an autouse _clear_ci_env fixture (issue #4380) that deletes CI before every test, so the in-body branch is dead code. Capture CI in a module-level constant and gate with @pytest.mark.skipif, both evaluated at collection time."
+    },
+    {
+      "id": "S4",
+      "desc": "Test writes a durable fixture into the repository tree",
+      "input": "My new test tests/validation/test_example_cache.py writes a golden cache file to ./.pytest-tmp/cache.json so later tests can reuse it. Fine? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        ".pytest_tmp",
+        "gitignore",
+        "tempfile",
+        "near-miss",
+        "validate_plugin_manifests"
+      ],
+      "expected_gate": "use-pytest-tmp-or-tempfile",
+      "rationale": "MUST NOT 4: do not leave files in the working tree. Durable fixtures go in .pytest_tmp/, which .gitignore covers and validate_plugin_manifests.py prunes. The near-miss spelling .pytest-tmp is neither ignored nor pruned, and ephemeral scratch uses tempfile."
+    },
+    {
+      "id": "S5",
+      "desc": "Production code edit that merely mentions tests (negative)",
+      "input": "I am refactoring the parsing loop in scripts/validation/check_example.py for readability. No test files are involved yet. What should I watch? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "parsing",
+        "readability"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The edited file matches none of the testing rule's paths (tests/**, **/*.Tests.ps1, **/tests/**, benchmarks, testing.md itself), so the test-file clauses do not activate."
+    }
+  ]
+}

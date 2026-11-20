@@ -1,0 +1,86 @@
+{
+  "rule_path": ".claude/rules/knowledge-persistence.md",
+  "rule_id": "knowledge-persistence",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "New cross-harness convention added as a rule template",
+      "input": "I am adding a new testing convention to templates/rules/testing.md that must bind Claude, Codex, and Copilot. Which command regenerates the copies, which files change, and do I bump anything in the plugin manifests? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "build_all.py",
+        ".github/instructions",
+        "src/copilot-cli/instructions",
+        "same change",
+        "adr-092"
+      ],
+      "expected_gate": "regenerate-mirrors-in-same-change",
+      "rationale": "MUST 1 puts the canonical rule in templates/rules/. MUST 2 requires regenerating src/claude/rules, .claude/rules, .github/instructions, and src/copilot-cli/instructions with build_all.py in the same change. MUST 3 says leave the manifests alone because they carry no version (ADR-092)."
+    },
+    {
+      "id": "S2",
+      "desc": "New Serena memory added without an index row",
+      "input": "I learned why the pre-push hook is slow and want to save it as a new file .serena/memories/ci/pre-push-slowness.md. What else must land in the same change? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "memory-index.md",
+        "keyword line",
+        "(0)",
+        "memory-token-update",
+        "check_memory_placement"
+      ],
+      "expected_gate": "index-new-serena-memory-by-hand",
+      "rationale": "MUST 5: a new memory needs a keyword line in memory-index.md in the same change, with (0) as the token placeholder that memory-token-update rewrites; memory_index.py --ci checks only index rows to files, never the reverse. The placement check (check_memory_placement.py) also runs on new memories."
+    },
+    {
+      "id": "S3",
+      "desc": "Hand edit of a generated instruction mirror",
+      "input": "There is a typo in .github/instructions/testing.instructions.md. I plan to fix it right there in the file. Is that the right place? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "do not hand-edit",
+        "templates/rules",
+        "build_all.py",
+        "canonical",
+        "regenerate"
+      ],
+      "expected_gate": "edit-canonical-template-not-mirror",
+      "rationale": "MUST NOT 1 forbids hand-editing a generated mirror under .github/instructions/ or src/copilot-cli/instructions/. The edit goes in the canonical rule under templates/rules/ followed by regeneration."
+    },
+    {
+      "id": "S4",
+      "desc": "Must-obey convention proposed as a Serena memory",
+      "input": "Every contributor on every harness must run the formatter before pushing. I want to record this as a memory in .serena/memories/conventions/formatter.md so agents see it. Is that the right surface? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "rule",
+        "templates/rules",
+        "mcp-gated",
+        "evidence",
+        "placement"
+      ],
+      "expected_gate": "place-binding-convention-in-rule-not-memory",
+      "rationale": "MUST 7 and the Placement contract: a memory holds evidence, not policy, and a required behavior must not depend on Serena retrieval, which is MCP-gated. A convention that binds every harness goes in a rule under templates/rules/."
+    },
+    {
+      "id": "S5",
+      "desc": "Script edit in an adjacent validation tree (negative)",
+      "input": "scripts/validation/check_memory_placement.py has an off-by-one when counting normative terms near a fence. I am fixing the Python only and touching no rule or memory file. Outline the fix and its test. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "off-by-one",
+        "test",
+        "fence"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The rule scopes to .claude/rules, .serena/memories, the two instruction mirror trees, and templates/rules. A Python edit under scripts/validation/ matches none of them, so the mirror, index, and placement mechanics do not apply."
+    },
+    {
+      "id": "S6",
+      "desc": "Task-only note that needs no persistence (negative)",
+      "input": "I am halfway through refactoring one function and want to jot where I stopped so I can resume after lunch. No other session needs it. Where should the note go? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "handoff",
+        "ephemeral",
+        "task"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The Placement contract and the persistence guidance say ephemeral, this-task-only state is not persisted as a rule or memory. Writing to .serena/memories or templates/rules does not apply."
+    }
+  ]
+}

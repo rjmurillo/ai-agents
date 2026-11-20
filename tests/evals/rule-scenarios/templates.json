@@ -1,0 +1,74 @@
+{
+  "rule_path": ".claude/rules/templates.md",
+  "rule_id": "templates",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Agent template edit followed by only the generator script",
+      "input": "I edited templates/agents/critic.shared.md. I plan to run `python build/generate_agents.py` and commit. Is that enough? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "build_all.py",
+        "stale",
+        "src/claude/agents",
+        ".claude/agents",
+        "same pr"
+      ],
+      "expected_gate": "run-build-all-and-commit-generated-trees",
+      "rationale": "MUST 1 and 2: build/generate_agents.py alone does not compile the .claude.md.tmpl and .copilot.md.tmpl pair, so src/claude/agents/ and .claude/agents/ stay stale. The one command is `uv run python build/scripts/build_all.py`, and regenerated trees are committed in the same PR."
+    },
+    {
+      "id": "S2",
+      "desc": "New rule template needs the lossless fixture synced",
+      "input": "I am adding templates/rules/example-rule.md. After build_all.py runs, what else must I touch so pre_pr.py passes, and what about size? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "rule_templates_b2",
+        "expected",
+        "lossless",
+        "220000",
+        "trim"
+      ],
+      "expected_gate": "sync-lossless-fixture-and-offset-bytes",
+      "rationale": "MUST 6: copy src/claude/rules/<name>.md over tests/build_scripts/fixtures/rule_templates_b2/expected/<name>.md or the Rule Lossless Fixtures gate fails. Instruction Bytes fixture F2 has a 220000-byte ceiling that cannot be raised, so trim the same rule by every byte added."
+    },
+    {
+      "id": "S3",
+      "desc": "Large new skill template",
+      "input": "I am growing templates/skills/adr-review.SKILL.md.tmpl with a 300-line procedure so the skill is self-contained. How should I structure it? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "500 lines",
+        "24576",
+        "references",
+        "depends-on",
+        "routing.intents"
+      ],
+      "expected_gate": "keep-skill-template-inside-gates",
+      "rationale": "MUST 7: a rendered SKILL.md caps at 500 lines and 24576 bytes, Instruction Bytes fixtures F1 to F6 count its depends-on closure, procedure belongs in references/*.md, and routing uses metadata.routing.intents."
+    },
+    {
+      "id": "S4",
+      "desc": "Pinning a model tier in an agent template",
+      "input": "In templates/agents/analyst.copilot.md.tmpl I want `model_tier: haiku` so the Copilot mirror ships `model: haiku`. Will that work? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "adr-111",
+        "keep_pin",
+        "no model",
+        "inherit",
+        "retirement"
+      ],
+      "expected_gate": "follow-adr-111-model-pin-policy",
+      "rationale": "MUST 5: the generator emits model: in the mirrors only for a fresh, fully validated KEEP_PIN entry in the ADR-111 sidecar manifest. Otherwise every model_tier, haiku included, resolves to no model field (issues #5313, #6638)."
+    },
+    {
+      "id": "S5",
+      "desc": "Hand-maintained skill script outside templates (negative)",
+      "input": "I am fixing a bug in src/claude/skills/adr-review/scripts/helper.py, a non-SKILL.md file. Do I need to edit anything under templates/ first? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "scripts",
+        "hand-maintained",
+        "skill"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "A skill's non-SKILL.md files are hand-maintained and never under templates/. The edit does not match templates/**, so the template regeneration clauses do not apply."
+    }
+  ]
+}

@@ -1,0 +1,86 @@
+{
+  "rule_path": ".claude/rules/plugin-self-containment.md",
+  "rule_id": "plugin-self-containment",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Upstream-only docs path added to a shipped skill description",
+      "input": "I am editing the frontmatter description in src/claude/skills/metrics/SKILL.md to add 'see docs/agent-metrics.md for the schema'. docs/ exists in this repo. Is that fine, and which gate decides? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "upstream-only",
+        "check_plugin_frontmatter_self_containment",
+        "vendor-portability",
+        "dangle",
+        "inline"
+      ],
+      "expected_gate": "block-upstream-only-path-in-shipped-file",
+      "rationale": "MUST 1: a shipped file must not tell the reader to open a path that exists only upstream unless a vendor-portability declaration names that path. check_plugin_frontmatter_self_containment.py holds description and name at zero. docs/agent-metrics.md in the metrics description was the measured incident."
+    },
+    {
+      "id": "S2",
+      "desc": "Bare repo-relative script path in a skill body",
+      "input": "In src/claude/skills/pr-quality/SKILL.md I want to add a step that runs one of its scripts with 'uv run python .claude/skills/pr-quality/scripts/<script>.py'. Is that portable to a consumer install? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "plugin_run_launcher",
+        "plugin_run_fix",
+        "copilot_plugin_root",
+        "stdlib",
+        "python3"
+      ],
+      "expected_gate": "use-plugin-root-locator-and-stdlib-python",
+      "rationale": "MUST 2 forbids bare .claude/skills/... paths and requires the locator that build/scripts/plugin_run_launcher.py renders (plugin_run_fix.py --fix writes it). MUST 4 requires python3 over a stdlib-only script because a consumer install has no guaranteed uv."
+    },
+    {
+      "id": "S3",
+      "desc": "Agent partial naming a tree-specific agent path",
+      "input": "I am adding a note to a file under templates/agents/partials/ (an orchestrator-*.mustache partial) telling the reader to open .claude/agents/<name>.md for the capability matrix. What is wrong and what else breaks? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "registered in this install",
+        "golden fixtures",
+        "agent_templates_b1",
+        "test_agent_templates_lossless",
+        "six"
+      ],
+      "expected_gate": "avoid-tree-specific-path-in-agent-prose",
+      "rationale": "Agent files section: shared agent prose is copied into six trees across three plugin roots, so name no tree-specific path; say an agent registered in this install. Editing agent templates MUST 1: update the golden fixtures under tests/build_scripts/fixtures/agent_templates_b1/expected by hand; only test_agent_templates_lossless.py catches a miss."
+    },
+    {
+      "id": "S4",
+      "desc": "Declaration used to silence a flagged reference",
+      "input": "check_skill_md_portability.py flags a '.agents/' path in src/claude/skills/doc-sync/SKILL.md. I plan to add a vendor-portability comment at the top of the file to make the check pass. Good approach? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "names that path",
+        "do not use it to silence",
+        "adr-083",
+        "ratchet",
+        "suppresses every"
+      ],
+      "expected_gate": "declare-only-real-intended-references",
+      "rationale": "The declaration section says to use it only when the reference is real and intended, not to silence one you should have fixed. In the four baselined ratchets it suppresses every portability check for the whole file. SHOULD 3 and ADR-083 ask whether a repo-specific artifact belongs in a plugin root at all."
+    },
+    {
+      "id": "S5",
+      "desc": "Agent told to write into the consumer workspace (negative)",
+      "input": "In templates/agents/planner.shared.md I am adding a line that tells the planner to write its output to .project-toolkit/planning/ in the user's own repository. Does this need a vendor-portability declaration? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "consumer-workspace",
+        "not a defect",
+        "no declaration"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "Three kinds of path table: a consumer-workspace path is the plugin doing its job and is not a defect. MUST 1 explicitly exempts consumer-workspace paths."
+    },
+    {
+      "id": "S6",
+      "desc": "Bundled templates directory inside a skill (negative)",
+      "input": "In src/claude/skills/threat-modeling/SKILL.md I am pointing the reader to the bundled templates/threat-model-template.md inside that skill. Should I widen the ratchet pattern or add a declaration? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "bundled",
+        "ships with the plugin",
+        "narrow"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "Known coverage gap: a bundled templates/ directory inside a skill ships with the plugin and resolves. The declaration is the wrong tool and the patterns must not be widened to a bare templates/."
+    }
+  ]
+}
