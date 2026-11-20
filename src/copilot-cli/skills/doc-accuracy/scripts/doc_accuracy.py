@@ -1357,14 +1357,7 @@ def _csharp_hole_end(code: str, start: int, chars: list[str], escape: str = "") 
     unterminated literals, or a string missing its close quote that pairs
     with a later quote on the same line, can still blank the code between.
     """
-    scan = _HoleScan(code, chars, escape, start)
-    while scan.index < len(code):
-        done = scan.step()
-        if done is not None:
-            return done, scan.closed
-    if scan.line_bound:
-        return scan.unclosed(scan.index), False
-    return scan.index, False
+    return _HoleScan(code, chars, escape, start).run()
 
 
 # A hole spanning more lines than this is treated as unclosed. The cap keeps
@@ -1379,76 +1372,86 @@ class _HoleScan:
         opening = start
         while opening < len(code) and code[opening] == "{":
             opening += 1
-        self.code, self.chars, self.escape, self.start = code, chars, escape, start
-        self.base, self.depth, self.paren, self.index = opening - start, 0, 0, start
-        self.line_bound = escape in ("\\", '"')
-        self.format_allowed, self.closed = True, False
-        self.lines = 0
+        self._code, self._chars, self._escape, self._start = code, chars, escape, start
+        self._base, self._depth, self._paren, self._index = opening - start, 0, 0, start
+        self._line_bound = escape in ("\\", '"')
+        self._format_allowed, self._closed = True, False
+        self._lines = 0
 
-    def step(self) -> int | None:
+    def run(self) -> tuple[int, bool]:
+        """Scan to the hole's end; return (end, closed) as ``_csharp_hole_end``."""
+        while self._index < len(self._code):
+            done = self._step()
+            if done is not None:
+                return done, self._closed
+        if self._line_bound:
+            return self._unclosed(self._index), False
+        return self._index, False
+
+    def _step(self) -> int | None:
         """Advance past one token or character; return the hole end once known."""
-        token = _CSHARP_TOKEN_START_RE.match(self.code, self.index)
+        token = _CSHARP_TOKEN_START_RE.match(self._code, self._index)
         if token is not None:
             return self._token(token)
-        char = self.code[self.index]
+        char = self._code[self._index]
         if char == "\n" and self._count_lines(1):
-            return self.unclosed(self.index)
-        top_level = self.paren == 0 and self.depth == self.base
-        if char == "\n" or (top_level and _ends_format_context(self.code, self.index)):
-            self.format_allowed = False
+            return self._unclosed(self._index)
+        top_level = self._paren == 0 and self._depth == self._base
+        if char == "\n" or (top_level and _ends_format_context(self._code, self._index)):
+            self._format_allowed = False
         if char in "{}":
             return self._brace(char)
         if char in "([)]":
-            self.paren += 1 if char in "([" else -1
-        elif self.code.startswith("::", self.index):
-            self.index += 1
-        elif char == ":" and top_level and self.format_allowed:
+            self._paren += 1 if char in "([" else -1
+        elif self._code.startswith("::", self._index):
+            self._index += 1
+        elif char == ":" and top_level and self._format_allowed:
             self._format_span()
             return None
-        self.index += 1
+        self._index += 1
         return None
 
     def _token(self, token: re.Match[str]) -> int | None:
-        code, index = self.code, self.index
-        after = _skip_csharp_token(code, token, self.chars)
-        if _closes_outer_raw_string(code, token, after, self.escape):
-            self.chars[index:after] = code[index:after]
+        code, index = self._code, self._index
+        after = _skip_csharp_token(code, token, self._chars)
+        if _closes_outer_raw_string(code, token, after, self._escape):
+            self._chars[index:after] = code[index:after]
             return index
-        if self.line_bound and _string_token_unterminated(code, token, after):
+        if self._line_bound and _string_token_unterminated(code, token, after):
             # A nested string with no close means this hole is broken: its
             # quote was the outer close, or an inner hole never closed.
-            return self.unclosed(after)
+            return self._unclosed(after)
         newlines = code.count("\n", index, after)
         if newlines:
-            self.format_allowed = False
+            self._format_allowed = False
             if self._count_lines(newlines):
-                return self.unclosed(after)
-        self.index = after
+                return self._unclosed(after)
+        self._index = after
         return None
 
     def _count_lines(self, newlines: int) -> bool:
         """Record crossed newlines; return whether the hole is over the cap."""
-        self.lines += newlines
-        return self.line_bound and self.lines > _MAX_HOLE_LINES
+        self._lines += newlines
+        return self._line_bound and self._lines > _MAX_HOLE_LINES
 
     def _brace(self, char: str) -> int | None:
-        self.depth += 1 if char == "{" else -1
-        self.index += 1
-        if self.depth != 0:
+        self._depth += 1 if char == "{" else -1
+        self._index += 1
+        if self._depth != 0:
             return None
-        self.closed = True
-        return self.index
+        self._closed = True
+        return self._index
 
     def _format_span(self) -> None:
-        self.format_allowed = False
-        stop = _csharp_format_span_end(self.code, self.index + 1, self.escape)
-        if self.code.startswith("}" * self.base, stop):
-            _blank_span(self.chars, self.index + 1, stop)
-        self.index = stop
+        self._format_allowed = False
+        stop = _csharp_format_span_end(self._code, self._index + 1, self._escape)
+        if self._code.startswith("}" * self._base, stop):
+            _blank_span(self._chars, self._index + 1, stop)
+        self._index = stop
 
-    def unclosed(self, end: int) -> int:
+    def _unclosed(self, end: int) -> int:
         """Undo blanking up to ``end``; return the hole's opening line end."""
-        return _end_unclosed_hole(self.code, self.start, end, self.chars)
+        return _end_unclosed_hole(self._code, self._start, end, self._chars)
 
 
 def _end_unclosed_hole(code: str, start: int, end: int, chars: list[str]) -> int:
