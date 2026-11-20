@@ -277,7 +277,7 @@ def classify(sentence: str, match: re.Match[str], tail_end: int, context: Classi
     """Class of ``match``, a mention of a superseded ADR in ``sentence``."""
     adr = int(match.group(1))
     before = sentence[: match.start()]
-    after = sentence[match.end() : tail_end]
+    after = sentence[match.end() : tail_end][:200]  # LINEAGE_AFTER_RE is quadratic
     if (
         adr in context.own_supersedes
         or context.quoted
@@ -368,7 +368,7 @@ def scan(repo_root: Path, records: list[Record], corpus: Corpus) -> ScanResult |
     for rel in candidates:
         record = by_path.get(rel)
         path = readable(repo_root, rel)
-        if record is None or path is None:
+        if record is None or path is None or not corpus.status.get(record.number):
             absent.append(rel)
             continue
         examined += 1
@@ -411,7 +411,7 @@ def _fail_absent(result: ScanResult) -> int:
         )
     print(
         f"[{CHECK}] config: skipped {len(result.absent)} of {result.candidates} tracked ADR "
-        "record(s); a gate that cannot see every record has not passed.",
+        f"record(s), examined {result.examined}; a gate that cannot see every record failed.",
         file=sys.stderr,
     )
     return EXIT_CONFIG

@@ -403,20 +403,20 @@ def test_cli_exits_external_when_git_cannot_list(
     assert "examined 0 record(s)" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize("break_it", ["directory", "no-status"])
 def test_cli_exits_config_on_a_tracked_record_it_cannot_read(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], break_it: str
 ) -> None:
-    repo = _repo(tmp_path, "Clean.\n")
-    record = repo / _ADR_DIR / "ADR-121-link.md"
-    record.write_text(_adr(121, "accepted", "Body.\n"), encoding="utf-8")
+    repo, record = _repo(tmp_path, "Clean.\n"), tmp_path / "repo" / _ADR_DIR / "ADR-121-x.md"
+    body = _adr(121, "accepted", "") if break_it == "directory" else "---\nid: ADR-121\n---\n"
+    record.write_text(body, encoding="utf-8")
     _git(repo, "add", "-A")
-    record.unlink()
-    record.mkdir()  # still tracked, but no longer a regular file on disk
+    if break_it == "directory":  # still tracked, but no longer a regular file on disk
+        record.unlink()
+        record.mkdir()
     code = main(["--repo-root", str(repo), "--baseline", str(_baseline(tmp_path, []))])
     assert code == EXIT_CONFIG
-    assert "ADR-121-link.md: [adr-supersession-citation] tracked ADR record" in (
-        capsys.readouterr().err
-    )
+    assert "ADR-121-x.md: [adr-supersession-citation] tracked ADR" in capsys.readouterr().err
 
 
 def test_scan_reports_a_record_whose_read_fails(
