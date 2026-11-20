@@ -440,12 +440,14 @@ def test_a_draft_into_another_work_tree_of_the_repository_is_gated_on_that_tree(
     assert sorted(p.name for p in (repo / "docs" / "adr").iterdir()) == ["0001-a.md"]
 
 
-def test_a_scratch_folder_inside_an_unrelated_repository_is_not_gated(tmp_path: Path) -> None:
+def test_a_scratch_folder_inside_an_unrelated_repository_is_gated_on_that_repository(
+    tmp_path: Path,
+) -> None:
+    # The work tree around --out decides, not the repository the scan file names.
     repo, _folder = _toolkit_repo(tmp_path)
     other = new_repo(tmp_path / "other")
-    result = bootstrap_adr.draft(
-        _scan_file(tmp_path, repo, _cand()), "c-1234567", str(other / "scratch"), "Proposed"
-    )
-    assert (
-        result["in_repo"] is False and Path(result["path"]).parent == (other / "scratch").resolve()
-    )
+    with pytest.raises(ConfigError, match="not an ADR folder"):
+        bootstrap_adr.draft(
+            _scan_file(tmp_path, repo, _cand()), "c-1234567", str(other / "scratch"), "Proposed"
+        )
+    assert not (other / "scratch").exists()

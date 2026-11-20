@@ -55,6 +55,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -73,7 +74,16 @@ from adr_locate import (
     locate_folders,
     render,
 )
-from adr_scan import ConfigError, GitError, git_bytes, git_text, repo_root, scan
+from adr_scan import (
+    ConfigError,
+    GitError,
+    git_bytes,
+    git_text,
+    refusal,
+    repo_root,
+    scan,
+    stderr_text,
+)
 
 __all__ = [
     "DEFAULT_MAX_COMMITS",
@@ -92,6 +102,8 @@ __all__ = [
 
 MAX_JSON_BYTES = 16 * MAX_READ_BYTES
 _KINDS = frozenset({"commit", "pr", "decision-log"})
+_WHITESPACE = re.compile(r"\s+")
+_SHA = re.compile(r"[0-9A-Fa-f]{40}|[0-9A-Fa-f]{64}", re.ASCII)
 _STATUS = re.compile(r"[A-Za-z][A-Za-z -]{0,39}\Z", re.ASCII)
 
 
@@ -153,58 +165,89 @@ def _clean_source(source: object) -> dict[str, Any]:
     }
 
 
-def _check_candidate(candidate: dict[str, Any]) -> None:
-    if candidate.get("kind") not in _KINDS:
+def _prepare_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
+    """A cleaned copy of a scan candidate, or ConfigError. The scan data is left as it was.
+
+    Every text field is stripped of control bytes. The title also loses every line break:
+    whitespace runs become one space, so it cannot start a heading in the draft.
+    """
+    kind = candidate.get("kind")
+    if not isinstance(kind, str) or kind not in _KINDS:
         raise ConfigError(f"candidate {candidate.get('id')!r} has an unknown kind")
-    title = (_text(candidate.get("title"), "title", True) or "").strip()
-    candidate["title"] = adr_title(candidate["kind"], title)
-    for key in ("reason", "excerpt"):
-        candidate[key] = _text(candidate.get(key), key)
-    candidate["source"] = _clean_source(candidate.get("source"))
+    title = _WHITESPACE.sub(" ", _text(candidate.get("title"), "title", True) or "").strip()
+    return {
+        **candidate,
+        "title": adr_title(kind, title),
+        "reason": _text(candidate.get("reason"), "reason"),
+        "excerpt": _text(candidate.get("excerpt"), "excerpt"),
+        "source": _clean_source(candidate.get("source")),
+    }
+
+
+def _same_file(first: Path, second: Path) -> bool:
+    """Do two paths name one file or folder? True for links and for case variants."""
+    try:
+        return os.path.samefile(first, second)
+    except OSError:
+        return False
 
 
 def _git_path(directory: Path, flag: str) -> Path | None:
-    proc = git_bytes(directory, "rev-parse", flag)
+    proc = git_bytes(directory, "rev-parse", "--path-format=absolute", flag)
     text = proc.stdout.decode("utf-8", "replace").strip()
-    return (directory / text).resolve() if proc.returncode == 0 and text else None
+    return Path(text).resolve() if proc.returncode == 0 and text else None
 
 
-def _gate_tree(root: Path, out_dir: Path) -> Path | None:
-    """The work tree that ``out_dir`` lies in, when draft must gate on it.
+def _enclosing_tree(path: Path) -> Path | None:
+    """The git work tree that holds ``path`` or its nearest existing ancestor, else None.
 
-    That is the scanned work tree, or another work tree of the same repository (a linked
-    worktree), found by asking git where the nearest existing ancestor of ``out_dir`` lives.
-    An unrelated repository or a plain folder gives None: a scratch folder.
+    None means no work tree encloses it. Any other git failure (the ``.git`` folder, a bare
+    repository, a dubious-ownership refusal) is an error and never a scratch folder.
     """
-    if out_dir == root or root in out_dir.parents:
-        return root
-    ancestor = next((path for path in (out_dir, *out_dir.parents) if path.is_dir()), None)
-    top = _git_path(ancestor, "--show-toplevel") if ancestor else None
-    if ancestor is None or top is None:
+    ancestor = next(item for item in (path, *path.parents) if item.is_dir())
+    proc = git_bytes(ancestor, "rev-parse", "--path-format=absolute", "--show-toplevel")
+    top = proc.stdout.decode("utf-8", "replace").strip()
+    if proc.returncode == 0 and top:
+        return Path(top).resolve()
+    if "not a git repository" in stderr_text(proc):
         return None
-    common = _git_path(ancestor, "--git-common-dir")
-    return top if common is not None and common == _git_path(root, "--git-common-dir") else None
+    raise refusal(proc, f"git reports no work tree for {ancestor}")
 
 
-def _gate_target(root: Path, out_dir: Path) -> Path | None:
-    """The work tree to gate on, or None for a scratch folder. In a work tree, ``out_dir``
-    must be one of its located ADR folders."""
-    tree = _gate_tree(root, out_dir)
-    if tree is not None:
-        allowed = {
-            (tree / rel).resolve() for rel, _source in locate_folders(tree) if is_draft_target(rel)
-        }
-        if out_dir not in allowed:
-            raise ConfigError(
-                f"{out_dir} is inside the repository {tree} and is not an ADR folder that takes drafts"
-            )
-    return tree
+def _same_repo(first: Path, second: Path) -> bool:
+    """Do two work trees belong to one repository? A linked worktree shares its common dir."""
+    one, two = _git_path(first, "--git-common-dir"), _git_path(second, "--git-common-dir")
+    return one is not None and two is not None and _same_file(one, two)
 
 
-def _refuse_ignored(root: Path, target: Path) -> None:
-    proc = git_text(
-        root, "check-ignore", "-q", "--", target.relative_to(root).as_posix(), ok=(0, 1)
+def _gate_target(out_dir: Path) -> tuple[Path | None, Path]:
+    """``(work tree or None, folder)`` for ``draft --out``.
+
+    The work tree that git finds around ``out_dir`` decides, whatever repository the scan
+    file names. Inside a work tree, ``out_dir`` must be one of its located ADR folders that
+    take drafts, and ``folder`` is that folder spelled as the work tree has it. A path with
+    no work tree around it is a scratch folder.
+    """
+    try:
+        tree = _enclosing_tree(out_dir)
+    except ConfigError as exc:
+        raise ConfigError(f"{out_dir} is not an ADR folder that takes drafts: {exc}") from exc
+    if tree is None:
+        return None, out_dir
+    for rel, _source in locate_folders(tree):
+        folder = (tree / rel).resolve()
+        if is_draft_target(rel) and _same_file(folder, out_dir):
+            return tree, folder
+    raise ConfigError(
+        f"{out_dir} is inside the repository {tree} and is not an ADR folder that takes drafts"
     )
+
+
+def _refuse_ignored(tree: Path, target: Path) -> None:
+    # ``./`` keeps a name that starts with ``:`` from being read as pathspec magic. git refuses
+    # ``--literal-pathspecs`` for check-ignore ("pathspec magic not supported by this command").
+    pathspec = "./" + target.relative_to(tree).as_posix()
+    proc = git_text(tree, "check-ignore", "-q", "--", pathspec, ok=(0, 1))
     if proc.returncode == 0:
         raise ConfigError(f"{target} is ignored by git; the ADR would not be committed")
 
@@ -214,32 +257,46 @@ def _file_name(style: Style, number: int, candidate: dict[str, Any]) -> str:
     if not slug:
         source = candidate.get("source")
         sha = source.get("sha") if isinstance(source, dict) else None
-        base = f"decision-{sha[:7]}" if isinstance(sha, str) and sha else None
+        base = (
+            f"decision-{sha[:7].lower()}" if isinstance(sha, str) and _SHA.fullmatch(sha) else None
+        )
         slug = base or f"decision-{slugify(str(candidate['id'])) or 'unnamed'}"
     return f"{style.prefix}{number:0{style.width}d}-{slug}.md"
+
+
+def _encode(text: str, target: Path) -> bytes:
+    """UTF-8 bytes of ``text``. A lone surrogate fails here, before any file or folder exists."""
+    try:
+        return text.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise ConfigError(f"text for {target} cannot be written as UTF-8: {exc.reason}") from exc
+
+
+def _create_new(target: Path, data: bytes) -> None:
+    """Create ``target`` with mode ``x``, and its folder if needed. FileExistsError if it exists."""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with open(target, "xb") as handle:
+        handle.write(data)
 
 
 def draft(scan_path: str, ident: str, out: str, status: str) -> dict[str, Any]:
     """Write one ADR for candidate ``ident`` into ``out`` and return the ``draft`` payload."""
     if not _STATUS.fullmatch(status):
         raise ConfigError(f"--status {status!r} must be a short plain word or phrase")
-    scan, candidate = load_candidate(scan_path, ident)
-    _check_candidate(candidate)
-    root = repo_root(Path(scan["repo"]))
-    out_dir = Path(out).resolve()
-    tree = _gate_target(root, out_dir)
+    scan, loaded = load_candidate(scan_path, ident)
+    candidate = _prepare_candidate(loaded)
+    repo_root(Path(scan["repo"]))  # the scan file must name a real repository; it gates nothing
+    tree, out_dir = _gate_target(Path(out).resolve())
     if out_dir.exists() and not out_dir.is_dir():
         raise ConfigError(f"--out {out_dir} is not a directory")
-    out_dir.mkdir(parents=True, exist_ok=True)
     style = folder_style(out_dir)
     number = style.highest + 1
     target = out_dir / _file_name(style, number, candidate)
     if tree is not None:
         _refuse_ignored(tree, target)
-    text = render(style, number, candidate, status)
+    data = _encode(render(style, number, candidate, status), target)
     try:
-        with open(target, "x", encoding="utf-8", newline="\n") as handle:
-            handle.write(text)
+        _create_new(target, data)
     except FileExistsError as exc:
         raise ExistsError(f"{target} already exists; it is never replaced", target) from exc
     twins = [
@@ -297,24 +354,23 @@ def _read_prs(path: str | None) -> list[Any] | None:
 
 
 def _out_outside_repo(root: Path, out: str) -> Path:
-    """Resolve ``--out`` once and refuse a path inside the repository, a directory, or an existing file."""
+    """Resolve ``--out`` once and refuse a path inside any work tree of the scanned repository,
+    a directory, or an existing file."""
     target = Path(out).resolve()
-    if target == root or root in target.parents:
+    inside = target == root or root in target.parents
+    if not inside:
+        try:
+            tree = _enclosing_tree(target)
+        except ConfigError as exc:
+            raise ConfigError(f"--out {target}: {exc}") from exc
+        inside = tree is not None and _same_repo(root, tree)
+    if inside:
         raise ConfigError(f"--out {target} is inside the repository {root}; write it elsewhere")
     if target.is_dir():
         raise ConfigError(f"--out {target} is a directory")
     if target.exists():
         raise ConfigError(f"--out {target} already exists; it is never overwritten")
     return target
-
-
-def _write_new(target: Path, text: str) -> None:
-    target.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        with open(target, "x", encoding="utf-8", newline="\n") as handle:
-            handle.write(text)
-    except FileExistsError as exc:
-        raise ConfigError(f"--out {target} already exists; it is never overwritten") from exc
 
 
 def _cmd_locate(args: argparse.Namespace) -> dict[str, Any]:
@@ -327,7 +383,10 @@ def _cmd_scan(args: argparse.Namespace) -> dict[str, Any]:
     if args.since is not None and args.since.startswith("-"):
         raise ConfigError(f"--since may not start with '-': {args.since!r}")
     payload = scan(root, args.rev, args.max_commits, args.since, _read_prs(args.prs_json))
-    _write_new(target, json.dumps(payload, indent=2) + "\n")
+    try:
+        _create_new(target, _encode(json.dumps(payload, indent=2) + "\n", target))
+    except FileExistsError as exc:
+        raise ConfigError(f"--out {target} already exists; it is never overwritten") from exc
     return {**payload, "out": str(target)}
 
 
