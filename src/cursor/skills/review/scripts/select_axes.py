@@ -177,7 +177,7 @@ _TEST_EXACT_FILENAMES = frozenset({"conftest.py"})
 _AGENT_ARTIFACT_DIRECTORIES = frozenset({"skills", "agents", "hooks", "prompts", "commands"})
 _AGENT_ARTIFACT_FILENAMES = frozenset({"skill.md"})
 # The four file-type domains golden-principles actually checks, mirroring
-# scan_principles._is_applicable and the markers in scan_principles_core.py:84-86.
+# scan_principles._is_applicable and the *_PATH_MARKER constants in scan_principles_core.py.
 # GP-001 covers .sh/.bash anywhere, GP-003 SKILL.md under .claude/skills/,
 # GP-004 .md under .claude/agents/ except CLAUDE.md, and GP-005/GP-006
 # .yml/.yaml under .github/workflows/. Selecting on any broader notion of
