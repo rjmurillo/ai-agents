@@ -1,0 +1,107 @@
+{
+  "id": "C1-03",
+  "pr": 6278,
+  "sha": "d4dc86aadf",
+  "kind": "positive",
+  "scope": "automatic",
+  "file": ".agents/governance/FAIL-OPEN-INVENTORY.md",
+  "line": 186,
+  "defect_class": "stale-citation",
+  "defect": "ai-spec-review.yml lines 168 no longer identifies the step.",
+  "resolved_sha": "d4dc86aadf55a7687f51edc1c7a38d128d50b4a9",
+  "pr_base": "3e7f33d05d36e7dac25794baf1637e9602ebbac1",
+  "merge_base": "a6849524aba777da8c126ca0948da4b81549c600",
+  "findings": [
+    {
+      "citing_file": ".agents/governance/FAIL-OPEN-INVENTORY.md",
+      "citing_line": 151,
+      "citation": ".github/scripts/validate_investigation_claims.py:372",
+      "reason": "none of the cited anchors ('check_branch_context', 'return 0', 'SKIP', 'git.merge_in_progress') appear at lines 372-372; 'return 0' first appears at line 349",
+      "gate": "forward",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".agents/governance/FAIL-OPEN-INVENTORY.md",
+      "citing_line": 186,
+      "citation": ".github/workflows/ai-spec-review.yml:168",
+      "reason": "none of the cited anchors ('validate-compliance', 'continue-on-error: true', 'review-spec', 'STATE] spec-report-comment reason=') appear at lines 168-168; 'continue-on-error: true' first appears at line 103",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".agents/governance/FAIL-OPEN-INVENTORY.md",
+      "citing_line": 197,
+      "citation": ".github/workflows/ai-spec-review.yml:98",
+      "reason": "none of the cited anchors ('health-check', 'continue-on-error: true', 'memory_enhancement', \"readFileSync('health-report.md\") appear at lines 98-98; 'continue-on-error: true' first appears at line 103",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".agents/governance/FAIL-OPEN-INVENTORY.md",
+      "citing_line": 198,
+      "citation": ".github/workflows/ai-spec-review.yml:123",
+      "reason": "none of the cited anchors ('validate-pr', 'continue-on-error: true', 'pr-validation-comment', 'review-spec') appear at lines 123-123; 'continue-on-error: true' first appears at line 103",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".agents/governance/FAIL-OPEN-INVENTORY.md",
+      "citing_line": 213,
+      "citation": ".github/workflows/ai-spec-validation.yml:193",
+      "reason": "cites line 193 but the file has 112 lines at HEAD",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".project-toolkit/architecture/ADR-101-enforcement-planes.md",
+      "citing_line": 347,
+      "citation": ".github/workflows/ai-spec-validation.yml:219",
+      "reason": "cites line 219 but the file has 112 lines at HEAD",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".project-toolkit/architecture/ADR-101-enforcement-planes.md",
+      "citing_line": 424,
+      "citation": ".github/workflows/ai-spec-validation.yml:97-102",
+      "reason": "the text at lines 97-102 at the merge base moved at HEAD; suggested citation .github/workflows/ai-spec-validation.yml:83-87",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".project-toolkit/architecture/ADR-114-agent-workflows-approval-and-non-blocking.md",
+      "citing_line": 55,
+      "citation": ".github/workflows/ai-spec-validation.yml:97-102",
+      "reason": "the text at lines 97-102 at the merge base moved at HEAD; suggested citation .github/workflows/ai-spec-validation.yml:83-87",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".project-toolkit/audit/2026-09-04-ponytail-audit-over-engineering.md",
+      "citing_line": 194,
+      "citation": ".github/PULL_REQUEST_TEMPLATE.md:157",
+      "reason": "the text at lines 157-157 at the merge base moved at HEAD; suggested citation .github/PULL_REQUEST_TEMPLATE.md:159",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".project-toolkit/pr-consolidation/PR-REVIEW-CONSOLIDATION.md",
+      "citing_line": 153,
+      "citation": ".github/workflows/ai-spec-validation.yml:233",
+      "reason": "cites line 233 but the file has 112 lines at HEAD",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".project-toolkit/pr-consolidation/PR-REVIEW-CONSOLIDATION.md",
+      "citing_line": 208,
+      "citation": ".github/workflows/ai-spec-validation.yml:233",
+      "reason": "cites line 233 but the file has 112 lines at HEAD",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    }
+  ],
+  "output": "[citation-freshness] examined 3 citation(s) across 37 changed file(s) vs a6849524aba777da8c126ca0948da4b81549c600\n[citation-reverse-pass] examined 18 inbound citation(s) to 50 changed file(s) vs a6849524aba777da8c126ca0948da4b81549c600; 6 already stale at the merge base (not blocking)\n",
+  "caught": true,
+  "false_positives": 0
+}

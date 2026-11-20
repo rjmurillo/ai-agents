@@ -13,7 +13,8 @@ underscore identifier, or an indented continuation quote) appears within
 the cited range; a miss reports where the first anchor actually lives,
 which is usually the corrected citation.
 
-Deliberate scope: added lines only, so historical trees (``stale_script_refs``'s
+Deliberate scope: added lines only (``citation_reverse_pass.py`` covers
+unchanged citations into changed files), so historical trees (``stale_script_refs``'s
 ``HISTORICAL_ROOTS``), whose citations were true when written, are never
 re-policed. HEAD is the state verified, because HEAD is what a push ships
 (``.claude/rules/ci-scripts.md``, "Read the state you are asserting
@@ -60,13 +61,20 @@ from citation_anchors import (  # noqa: E402
     _anchor_candidates,
     _anchor_matches,
     _atx_heading,
+    _basename_index,
+    _citation_aliases,
     _context_lines,
     _continuation_quote,
+    _expand_adr_citations,
+    _expand_continuations,
+    _range_misses_distinctive_anchors,
     _same_line_segment,
 )
+from citation_exemptions import _is_exempt_citing_file  # noqa: E402
 from citation_head_state import (  # noqa: E402
     HeadReadError,
-    _added_lines_since_base,
+    _change_set,
+    _diff_line_edits,
     _head_tracked_paths,
     _HeadFileCache,
 )
@@ -74,65 +82,8 @@ from citation_scope import (  # noqa: E402
     enclosing_fence_start,
     string_literal_lines,
 )
-from stale_script_refs import HISTORICAL_ROOTS  # noqa: E402
 
 IGNORE_MARKER = "citation-freshness: ignore"
-
-# Directory fragments whose files synthesize citations on purpose.
-_FIXTURE_FRAGMENTS = ("/fixtures/",)
-
-# Recorded eval runs (evals/<name>/runs/**/*.jsonl). Raw model replies quote
-# the invented paths of the prompts under test, and a run record is a
-# point-in-time capture, like a session log. Authored files there stay policed.
-_EVAL_RUN_RECORD = re.compile(
-    r"^evals/[^/]+/runs/.+\.jsonl$"
-    # durable-outcome-live run reports hold the same raw replies (issue #5768).
-    r"|^evals/durable-outcome-live/.+/report[^/]*\.json$"
-)
-
-# Historical trees this gate exempts beyond stale_script_refs's tuple:
-# episode records are point-in-time captures, exactly like sessions and
-# retrospectives, and that tuple is another gate's contract to widen.
-_EXTRA_HISTORICAL_ROOTS = (
-    ".project-toolkit/memory/",
-    ".project-toolkit/planning/",
-    ".project-toolkit/pr-comments/",
-    ".project-toolkit/qa/",
-    ".project-toolkit/retrospective/",
-)
-
-# Generated skill mirrors (build/scripts/generate_skills.py,
-# build/scripts/skill_support_mirror.py): .claude/skills/ is the canonical,
-# hand-maintained source, copied byte for byte into src/claude/skills/ and
-# src/copilot-cli/skills/. A citation's staleness is a property of the prose,
-# not of which tree happens to carry a copy of it; policing the same broken
-# citation again at each mirror path would flag it once per generated copy
-# instead of once at the source that should actually be fixed, and would
-# retroactively flag EVERY pre-existing citation drift in a skill the first
-# time the build populates a new mirror tree for it (ADR-109 B3's
-# support-file follow-up populated src/claude/skills/ for 84 skills in one
-# PR). Exempted by prefix, not content match: this gate checks prose
-# accuracy, not byte identity, so there is nothing content comparison would
-# add here that the source's own (still-enforced) citations do not already
-# cover.
-#
-# src/hermes/ (ADR-115 Decision 6) joins the list: each pack copies skills/<name>/
-# and the rendered lib/ from those same sources, so the same reasoning holds.
-_GENERATED_SKILL_MIRROR_ROOTS = (
-    "src/claude/skills/",
-    "src/copilot-cli/skills/",
-    "src/hermes/",
-    "src/codex/skills/",
-    "src/muse/skills/",
-    # Lib packages render from scripts/ with an import rewrite (lib_mirror.py).
-    "src/codex/lib/",
-    "src/muse/lib/",
-    "src/cursor/skills/",
-    # ADR-115: the Cursor tree also renders rules (.mdc) and lib/ from canonical
-    # sources, so a citation there is policed once at the source.
-    "src/cursor/rules/",
-    "src/cursor/lib/",
-)
 
 
 @dataclass(frozen=True)
@@ -147,17 +98,6 @@ class Finding:
     def format(self) -> str:
         """Return the finding in file:line: citation: reason form."""
         return f"{self.citing_file}:{self.citing_line}: {self.citation}: {self.reason}"
-
-
-def _is_exempt_citing_file(path: str) -> bool:
-    """Return whether a citing file is out of this gate's scope."""
-    if path.startswith(HISTORICAL_ROOTS) or path.startswith(_EXTRA_HISTORICAL_ROOTS):
-        return True
-    if path.startswith(_GENERATED_SKILL_MIRROR_ROOTS) or _EVAL_RUN_RECORD.match(path):
-        return True
-    # The leading slash makes the fragment match a top-level fixtures/
-    # directory too, not only nested ones (diff paths are repo-relative).
-    return any(fragment in f"/{path}" for fragment in _FIXTURE_FRAGMENTS)
 
 
 _IGNORE_WITH_REASON = re.compile(re.escape(IGNORE_MARKER) + r"\s+--\s+\S")
@@ -314,7 +254,7 @@ def _check_citation(
     citation_text = f"{cited_path}:{match.group('start')}" + (f"-{end_group}" if end_group else "")
 
     citing_lines = head_files.lines(citing_file)
-    markdown = citing_file.endswith(".md")
+    markdown = citing_file.endswith((".md", ".md.tmpl"))
     if _has_ignore_marker(citing_lines, line_number, line_text, markdown):
         return None
     cited_lines, finding = _resolve_cited_range(
@@ -334,14 +274,26 @@ def _check_citation(
         return finding
     if cited_lines is None:
         return None
-    return _anchor_finding(
+    anchors = _citation_anchors(
+        citation_text, line_text, segment, citing_lines, line_number, markdown
+    )
+    finding = _anchor_finding(
+        citing_file, line_number, citation_text, anchors, cited_lines, start, end
+    )
+    if finding is not None:
+        return finding
+    # A shared token can satisfy the any-anchor rule inside the wrong block.
+    # Rare anchors named on this line still have to land in the cited range.
+    own = _anchor_candidates([segment], citation_text)
+    if not _range_misses_distinctive_anchors(own, cited_lines, start, end):
+        return None
+    hint = _relocation_hint(own, cited_lines)
+    named = ", ".join(repr(anchor) for anchor in own[:4])
+    return Finding(
         citing_file,
         line_number,
         citation_text,
-        _citation_anchors(citation_text, line_text, segment, citing_lines, line_number, markdown),
-        cited_lines,
-        start,
-        end,
+        f"distinctive anchors ({named}) sit outside lines {start}-{end}{hint}",
     )
 
 
@@ -350,17 +302,28 @@ def find_stale_citations(repo_root: Path, base_ref: str) -> list[Finding] | None
     tracked = _head_tracked_paths(repo_root)
     if tracked is None:
         return None
-    added = _added_lines_since_base(repo_root, base_ref)
-    if added is None:
+    edits = _diff_line_edits(repo_root, base_ref)
+    if edits is None:
         return None
+    added, deleted = edits
 
     head_files = _HeadFileCache(repo_root)
     findings: list[Finding] = []
     files_scanned = 0
     citations_checked = 0
+    changes = _change_set(repo_root, base_ref)
+    changed = changes.changed if changes is not None else frozenset()
     try:
         return _scan_added_lines(
-            added, tracked, head_files, findings, files_scanned, citations_checked, base_ref
+            added,
+            tracked,
+            head_files,
+            findings,
+            files_scanned,
+            citations_checked,
+            base_ref,
+            changed,
+            deleted,
         )
     except HeadReadError as error:
         # An operational git failure mid-run is the config-error exit,
@@ -372,6 +335,30 @@ def find_stale_citations(repo_root: Path, base_ref: str) -> list[Finding] | None
         return None
 
 
+def _lines_beside_edits(
+    added_rows: list[tuple[int, str]],
+    file_lines: list[str],
+    radius: int = 3,
+    deleted_numbers: tuple[int, ...] = (),
+) -> list[tuple[int, str, bool]]:
+    """Return added lines, then unchanged lines within ``radius`` of an edit.
+
+    The third item is True when the line itself was added. A citation the
+    author left beside an edit is part of the diff they are publishing.
+    Deletion positions select neighbors only. They are not authored claims.
+    """
+    added_numbers = {number for number, _text in added_rows}
+    rows = [(number, text, True) for number, text in added_rows]
+    seen = set(added_numbers)
+    for number in added_numbers | set(deleted_numbers):
+        for neighbor in range(number - radius, number + radius + 1):
+            if neighbor in seen or not 1 <= neighbor <= len(file_lines):
+                continue
+            seen.add(neighbor)
+            rows.append((neighbor, file_lines[neighbor - 1], False))
+    return rows
+
+
 def _scan_added_lines(
     added: dict[str, list[tuple[int, str]]],
     tracked: set[str],
@@ -380,19 +367,31 @@ def _scan_added_lines(
     files_scanned: int,
     citations_checked: int,
     base_ref: str,
+    changed: frozenset[str],
+    deleted: dict[str, tuple[int, ...]],
 ) -> list[Finding]:
     """Scan every added line for citations; may raise HeadReadError."""
-    for citing_file in sorted(added):
+    aliases = _citation_aliases(tracked)
+    names = _basename_index(tracked)
+    for citing_file in sorted(set(added) | set(deleted)):
         if _is_exempt_citing_file(citing_file):
             continue
         files_scanned += 1
-        test_strings = string_literal_lines(citing_file, head_files.lines(citing_file))
-        for line_number, line_text in added[citing_file]:
+        file_lines = head_files.lines(citing_file)
+        test_strings = string_literal_lines(citing_file, file_lines)
+        for line_number, line_text, authored in _lines_beside_edits(
+            added.get(citing_file, []),
+            file_lines,
+            deleted_numbers=deleted.get(citing_file, ()),
+        ):
             if line_number in test_strings:
                 continue
             # URLs are masked before scanning so an external link shaped
             # like host/org/file.py:N never reads as a repository citation.
-            scannable = _URL.sub(" ", line_text)
+            # ADR-NNN:N and a bare :N after a filename expand before the match.
+            scannable = _expand_continuations(
+                _expand_adr_citations(_URL.sub(" ", line_text), aliases), names
+            )
             matches = list(_CITATION.finditer(scannable))
             for index, match in enumerate(matches):
                 # A slashless name is a claim only when a tracked root
@@ -400,6 +399,10 @@ def _scan_added_lines(
                 # (auth.ts:47) and is skipped before it is even counted.
                 cited_path = match.group("path").removeprefix("./")
                 if "/" not in cited_path and cited_path not in tracked:
+                    continue
+                # The reverse pass owns citations into a file this branch
+                # changed. A neighbor line is not itself an added claim.
+                if not authored and cited_path in changed:
                     continue
                 citations_checked += 1
                 finding = _check_citation(

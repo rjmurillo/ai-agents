@@ -14,6 +14,8 @@ from __future__ import annotations
 import re
 import sys
 from collections import Counter
+from dataclasses import dataclass
+from difflib import SequenceMatcher
 from pathlib import Path
 from typing import cast
 
@@ -40,9 +42,9 @@ def _git(repo_root: Path, args: list[str]) -> tuple[int, str, str]:
     return cast("tuple[int, str, str]", result)
 
 
-def _head_tracked_paths(repo_root: Path) -> set[str] | None:
-    """Return the set of paths tracked at HEAD, or None on git failure."""
-    exit_code, stdout, _stderr = _git(repo_root, ["ls-tree", "-r", "-z", "--name-only", "HEAD"])
+def _head_tracked_paths(repo_root: Path, ref: str = "HEAD") -> set[str] | None:
+    """Return the set of paths tracked at ref (HEAD by default), or None on git failure."""
+    exit_code, stdout, _stderr = _git(repo_root, ["ls-tree", "-r", "-z", "--name-only", ref])
     if exit_code != 0:
         return None
     return {path for path in stdout.split("\0") if path}
@@ -51,7 +53,30 @@ def _head_tracked_paths(repo_root: Path) -> set[str] | None:
 def _added_lines_since_base(
     repo_root: Path, base_ref: str, head_ref: str = "HEAD"
 ) -> dict[str, list[tuple[int, str]]] | None:
-    """Map citing file -> [(new line number, line text)] for added lines.
+    """Map citing file -> [(new line number, line text)] for added lines."""
+    edits = _diff_line_edits(repo_root, base_ref, head_ref)
+    if edits is None:
+        return None
+    return edits[0]
+
+
+def _diff_line_edits(
+    repo_root: Path, base_ref: str, head_ref: str = "HEAD"
+) -> tuple[dict[str, list[tuple[int, str]]], dict[str, tuple[int, ...]]] | None:
+    """Return added lines and HEAD positions of deletion-only hunks.
+
+    Callers that only need authored ``+`` lines keep ``_added_lines_since_base``.
+    A deletion-only hunk has no ``+`` line, so its HEAD position is returned
+    separately and is never treated as an authored claim.
+    """
+    added, deleted = _parse_diff_lines(repo_root, base_ref, head_ref)
+    return None if added is None or deleted is None else (added, deleted)
+
+
+def _parse_diff_lines(
+    repo_root: Path, base_ref: str, head_ref: str = "HEAD"
+) -> tuple[dict[str, list[tuple[int, str]]] | None, dict[str, tuple[int, ...]] | None]:
+    """Map citing file -> added lines, and deletion-only HEAD anchors.
 
     ``head_ref`` defaults to HEAD; an eval that replays a past pull request
     passes the commit it reviewed, so it reads diffs exactly as the gates do.
@@ -93,10 +118,11 @@ def _added_lines_since_base(
         ],
     )
     if exit_code != 0:
-        return None
+        return None, None
 
     added: dict[str, list[tuple[int, str]]] = {}
     removed: dict[str, Counter[str]] = {}
+    deleted_at: dict[str, set[int]] = {}
     current_file: str | None = None
     new_lineno = 0
     in_hunk = False
@@ -125,7 +151,17 @@ def _added_lines_since_base(
             new_lineno += 1
         elif raw.startswith("-"):
             removed.setdefault(current_file, Counter())[_undo_root_move(raw[1:])] += 1
-    return _drop_root_move_rewrites(added, removed)
+            deleted_at.setdefault(current_file, set()).add(new_lineno)
+    kept = _drop_root_move_rewrites(added, removed)
+    deleted: dict[str, tuple[int, ...]] = {}
+    for path, numbers in deleted_at.items():
+        # A root respelling leaves kept, but its added line still occupies
+        # this HEAD position. That position is not a deletion.
+        occupied = {number for number, _text in added.get(path, [])}
+        anchors = tuple(sorted(number for number in numbers if number not in occupied))
+        if anchors:
+            deleted[path] = anchors
+    return kept, deleted
 
 
 def _undo_root_move(line: str) -> str:
@@ -165,19 +201,24 @@ class HeadReadError(RuntimeError):
 
 
 class _HeadFileCache:
-    """Lazy line-content reads from HEAD, one ``git show`` per file."""
+    """Lazy line-content reads from one ref, one ``git show`` per file.
 
-    def __init__(self, repo_root: Path) -> None:
+    The ref is HEAD unless a caller names another; the reverse pass
+    (``citation_reverse_pass.py``) also reads the merge base.
+    """
+
+    def __init__(self, repo_root: Path, ref: str = "HEAD") -> None:
         self._repo_root = repo_root
+        self._ref = ref
         self._cache: dict[str, list[str]] = {}
 
     def lines(self, path: str) -> list[str]:
-        """Return the HEAD lines of path (LF-only split).
+        """Return the lines of path at the cache's ref (LF-only split).
 
         Raises :class:`HeadReadError` when git cannot produce the content.
         """
         if path not in self._cache:
-            exit_code, stdout, _stderr = _git(self._repo_root, ["show", f"HEAD:{path}"])
+            exit_code, stdout, _stderr = _git(self._repo_root, ["show", f"{self._ref}:{path}"])
             if exit_code != 0:
                 raise HeadReadError(path)
             lines = stdout.split("\n")
@@ -185,3 +226,75 @@ class _HeadFileCache:
                 lines.pop()
             self._cache[path] = lines
         return self._cache[path]
+
+
+@dataclass(frozen=True, slots=True)
+class _ChangeSet:
+    """Base-side paths whose content or name changed, and where renames went."""
+
+    changed: frozenset[str]
+    renamed_to: dict[str, str]
+
+
+def _merge_base(repo_root: Path, base_ref: str) -> str | None:
+    exit_code, stdout, _stderr = _git(repo_root, ["merge-base", base_ref, "HEAD"])
+    sha = stdout.strip()
+    return sha if exit_code == 0 and sha else None
+
+
+def _change_set(repo_root: Path, base_ref: str) -> _ChangeSet | None:
+    """Read ``--name-status`` for base...HEAD, including added and copied paths."""
+    exit_code, stdout, _stderr = _git(
+        repo_root,
+        [
+            "-c",
+            "core.quotePath=false",
+            "diff",
+            "--no-color",
+            "--no-ext-diff",
+            "--no-relative",
+            "--name-status",
+            "-z",
+            "--find-renames",
+            f"{base_ref}...HEAD",
+        ],
+    )
+    if exit_code != 0:
+        return None
+    tokens = stdout.split("\0")
+    changed: set[str] = set()
+    renamed_to: dict[str, str] = {}
+    index = 0
+    while index < len(tokens):
+        status = tokens[index]
+        if not status:
+            index += 1
+            continue
+        if status[0] in "RC":
+            old, new = tokens[index + 1], tokens[index + 2]
+            index += 3
+            if status[0] == "R":
+                changed.add(old)
+                renamed_to[old] = new
+            # The new path of a rename or copy is a target too: a citation
+            # may already use the destination name.
+            changed.add(new)
+            continue
+        if status[0] in "AMTD":
+            changed.add(tokens[index + 1])
+        index += 2
+    return _ChangeSet(frozenset(changed), renamed_to)
+
+
+def _reworded_line_pairs(base: list[str], head: list[str]) -> dict[int, str]:
+    """Pair a one-line replacement with the base line it replaced.
+
+    A citation token that survives that replacement was not newly authored.
+    Added lines and ambiguous replacements have no pair.
+    """
+    opcodes = SequenceMatcher(None, base, head, autojunk=False).get_opcodes()
+    return {
+        j + 1: base[i]
+        for tag, i, end_i, j, end_j in opcodes
+        if tag == "replace" and end_i - i == 1 and end_j - j == 1
+    }

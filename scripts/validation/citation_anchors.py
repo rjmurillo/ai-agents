@@ -18,13 +18,28 @@ that short is checked for existence and range, not content.
 from __future__ import annotations
 
 import re
+from pathlib import PurePosixPath
 
-# Text formats this repository actually cites; extend when a real
-# citation to a new format appears rather than enumerating every
-# extension in existence (each entry adds matcher surface).
-_EXTENSIONS = (
-    "py|md|yml|yaml|json|jsonc|xml|csv|ps1|psm1|psd1|sh|ts|js|toml|txt|ini|cfg|html|css|ipynb"
+from check_adr_links import ADR_BASENAME, adr_number
+from citation_continuations import (
+    _EXTENSIONS as _EXTENSIONS,
 )
+from citation_continuations import (
+    _basename_index as _basename_index,
+)
+from citation_continuations import (
+    _expand_continuations as _expand_continuations,
+)
+from citation_continuations import (
+    _moved_cluster as _moved_cluster,
+)
+from citation_continuations import (
+    _range_misses_distinctive_anchors as _range_misses_distinctive_anchors,
+)
+from citation_continuations import (
+    _unique_move as _unique_move,
+)
+from stale_script_refs import HISTORICAL_ROOTS
 
 # A citation: a repo path with a known extension, then :N or :N-M. The
 # path class excludes backticks, quotes, parens, and colons, so
@@ -313,3 +328,123 @@ def _same_line_segment(line: str, matches: list[re.Match[str]], index: int) -> s
     else:
         end = _gap_split(line, matches[index].end(), matches[index + 1].start())
     return line[start:end]
+
+
+def _relocated_range(
+    start: int, end: int, base: list[str], head: list[str]
+) -> tuple[int, int] | None:
+    """Map unique cited boundary lines, including ranges that grew internally.
+
+    Edited or repeated boundaries prove no relocation. A stable first line
+    with only an end moved may reflect an intentional edit within the range.
+    Require both boundaries to move, preserving the policy for in-place edits.
+    """
+    if not (1 <= start <= end <= len(base)):
+        return None
+    first = _unique_move([base[start - 1]], start, base, head)
+    last = _unique_move([base[end - 1]], end, base, head)
+    if first is None or last is None or last < first:
+        return None
+    return first, last
+
+
+# Colon form: ADR number, colon, line number, and no space after the colon.
+# "ADR-035: 0 ok" stays an exit code because a space follows the colon.
+# Prose form: ADR number, up to six words, then lines and a line range.
+_ADR_CITE = re.compile(
+    r"\bADR-(?P<number>\d+)(?::|\s+(?:[A-Za-z]+\s+){0,6}lines?\s+)"
+    r"(?P<start>\d+)(?:-(?P<end>\d+))?\b",
+    re.IGNORECASE,
+)
+
+
+def _historical(path: str) -> bool:
+    """Return whether path sits under a historical root the gates already exempt."""
+    return path.startswith(HISTORICAL_ROOTS)
+
+
+_ADR_PARENTS = frozenset({"architecture", "adr", "adrs"})
+
+
+def _adr_candidates(tracked: set[str]) -> dict[str, set[str]]:
+    """Map a zero-padded ADR number to the files that use it."""
+    candidates: dict[str, set[str]] = {}
+    for path in tracked:
+        if _historical(path):
+            continue
+        pure = PurePosixPath(path)
+        if pure.parent.name not in _ADR_PARENTS:
+            continue
+        if not ADR_BASENAME.match(pure.name):
+            continue
+        number = adr_number(pure.name)
+        if number is None:
+            continue
+        candidates.setdefault(f"{number:03d}", set()).add(path)
+    return candidates
+
+
+def _unique_adr(paths: set[str]) -> str | None:
+    """Return the only path in a number's set, or None when it is empty or split."""
+    if len(paths) != 1:
+        return None
+    return next(iter(paths))
+
+
+def _citation_aliases(tracked: set[str]) -> dict[str, str]:
+    """Map a zero-padded ADR number to its file when that number is unique.
+
+    The number parse is ``adr_number`` from the ADR link checker. Serena
+    memories and other historical roots are not ADR records, so they do not
+    compete. A number that still names two files is left unresolved.
+    """
+    return {
+        name: path
+        for name, paths in _adr_candidates(tracked).items()
+        if (path := _unique_adr(paths)) is not None
+    }
+
+
+def _citation_aliases_across(base_tracked: set[str], head_tracked: set[str]) -> dict[str, str]:
+    """Resolve ADR numbers from the merge base and from HEAD.
+
+    A number that names two files on either side stays unresolved. A number
+    that exists only at the merge base keeps that path, so a deletion still
+    fails at HEAD. Different unique paths are a rename, and the alias then
+    names the HEAD file.
+    """
+    base = _adr_candidates(base_tracked)
+    head = _adr_candidates(head_tracked)
+    aliases: dict[str, str] = {}
+    for number in set(base) | set(head):
+        if len(base.get(number, set())) > 1 or len(head.get(number, set())) > 1:
+            continue
+        head_path = _unique_adr(head.get(number, set()))
+        if head_path is not None:
+            aliases[number] = head_path
+            continue
+        base_path = _unique_adr(base.get(number, set()))
+        if base_path is not None:
+            aliases[number] = base_path
+    return aliases
+
+
+def _adr_base_path(head_path: str, base_tracked: set[str]) -> str | None:
+    """Return the one merge-base ADR file that shares ``head_path``'s number."""
+    number = adr_number(PurePosixPath(head_path).name)
+    if number is None:
+        return None
+    return _unique_adr(_adr_candidates(base_tracked).get(f"{number:03d}", set()))
+
+
+def _expand_adr_citations(text: str, aliases: dict[str, str]) -> str:
+    """Rewrite ADR-NNN line cites as path:line cites the matcher already checks."""
+
+    def adr(match: re.Match[str]) -> str:
+        path = aliases.get(f"{int(match.group('number')):03d}")
+        if path is None:
+            return match.group(0)
+        end = f"-{match.group('end')}" if match.group("end") else ""
+        return f"{path}:{match.group('start')}{end}"
+
+    return _ADR_CITE.sub(adr, text)

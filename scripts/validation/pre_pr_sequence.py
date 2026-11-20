@@ -174,6 +174,7 @@ from checks_tooling import (
     validate_workflow_yaml,
     validate_yaml_style,
 )
+from citation_reverse_pass import validate_citation_reverse_pass
 from stale_script_refs import validate_stale_script_refs
 from validate_argument_hint import validate_argument_hint
 from validate_design_review import validate_design_review_frontmatter
@@ -447,6 +448,11 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # checkable claims were reaching paid AI review rounds instead (PR #5336
     # existed solely to repair four such citations; issue #5337).
     _Gate("Citation Freshness (added lines)", _root_only(validate_citation_freshness)),
+    # Fails when a citation on an UNCHANGED line points into a file this
+    # branch modified, renamed, or deleted, and the citation held at the
+    # merge base but fails at HEAD. The added-lines gate above cannot see
+    # these; a post-PR reviewer caught them by hand (PR #6689, PR #6584).
+    _Gate("Citation Freshness (reverse pass)", _root_only(validate_citation_reverse_pass)),
     # Fails when a line ADDED since the base ref states a tree-state count
     # ("109 skills in `.claude/skills/`", "9,765 tracked files") with no commit
     # SHA, ISO date, or version tag on the line. A count is a measurement of

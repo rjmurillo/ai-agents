@@ -152,6 +152,7 @@ from checks_tooling import (
     validate_workflow_yaml,
     validate_yaml_style,
 )
+from citation_reverse_pass import validate_citation_reverse_pass
 from pre_pr_console import enable_line_buffering
 from pre_pr_headroom import headroom_stage
 from pre_pr_held_output import HeldOutput

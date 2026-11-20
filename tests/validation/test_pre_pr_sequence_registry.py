@@ -84,6 +84,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     "Agent and Skill Reference Pages (docs/skills, docs/agents)",
     "Skill Page Freshness (advisory)",
     "Citation Freshness (added lines)",
+    "Citation Freshness (reverse pass)",
     "Measurement Anchoring (added lines)",
     "Doc Date Drift (advisory, added lines)",
     "IO Portability (added lines)",
