@@ -158,6 +158,8 @@ A Go path is standard when its first element has no dot.
 Packages of the module named in the nearest `go.mod` always count.
 The cgo pseudo-package `"C"` also counts.
 Ten imports such as `fmt`, `os`, and `time` therefore score 10, not 1.
+Python standard-library statements and C# `System` namespace directives are not scored either.
+Their breakdown line appears only when at least one is present.
 
 ---
 

@@ -62,7 +62,7 @@ working tree.
     CodeQL workflow. Nothing. [`.github/codeql/suppressions.yml`]
 16. `delete:` two pre-PR runner flags that are parsed and never read, one of
     them advertised in the PR template checklist. Nothing.
-    [two `add_argument` blocks at `scripts/validation/pre_pr.py:305-335`].
+    [two `add_argument` blocks at `scripts/validation/pre_pr.py:306-336`].
 17. `delete:` inert `warn` (8 keys) and `coupling.max` (2 keys) in the quality
     config, which the assessor never reads despite the file's own `_comment`
     claiming otherwise. Nothing. [`.qualityrc.json`]

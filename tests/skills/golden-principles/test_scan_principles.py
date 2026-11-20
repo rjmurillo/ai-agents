@@ -326,3 +326,26 @@ def test_skill_model_blank_fails_adr080(tmp_path: Path) -> None:
     assert v.rule == "skill-frontmatter"
     assert "ADR-080" in v.message
     assert "blank" in v.message
+
+
+def test_non_adopting_scan_downgrades_only_repo_policy_rules(tmp_path: Path) -> None:
+    # Issue #7483: only GP-001 is a repository-policy rule. A malformed
+    # SKILL.md still errors when the repository has not adopted the document.
+    shell = _write(tmp_path, "tool.sh", "echo hi\n")
+    skill = _write(tmp_path, _SKILL_DEMO, "---\nname: demo\n---\n")
+
+    result = _mod.run_scan([shell, skill], _mod.ALL_RULES, principles_adopted=False)
+
+    by_rule = {v.rule: v.severity for v in result.violations}
+    assert by_rule["script-language"] == "warning"
+    assert by_rule["skill-frontmatter"] == "error"
+    assert result.principles_adopted is False
+
+
+def test_adopting_scan_keeps_script_language_error(tmp_path: Path) -> None:
+    shell = _write(tmp_path, "tool.sh", "echo hi\n")
+
+    result = _mod.run_scan([shell], ("script-language",))
+
+    assert [v.severity for v in result.violations] == ["error"]
+    assert "ADR-042" in result.violations[0].remediation

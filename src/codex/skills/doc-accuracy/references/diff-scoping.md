@@ -57,7 +57,7 @@ line, the paired code file and line, evidence, and a severity.
 | Rule | Fires when | Severity |
 |------|------------|----------|
 | R1 exit-code set | A touched exit table omits a literal process exit. Dynamic exits remain unjudged. | high |
-| R2 enumeration subset | A closed language or path enumeration omits a collection member. | high |
+| R2 enumeration subset | A closed language or path enumeration omits a collection member. A path list binds only when its line names the collection or its script, or sits in that script. | high |
 | R3 JSON key contents | A claimed noun disagrees with identifiers assigned to its JSON key. | high |
 | R4 collection count | A count beside a named literal collection differs from its length. | high |
 

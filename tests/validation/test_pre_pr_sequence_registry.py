@@ -78,6 +78,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     "ADR Exception Markers",
     "Skill ADR Bindings (ratchet)",
     "Rule ADR Citations (ratchet)",
+    "ADR Supersession Citations (ratchet)",
     "Design Review Frontmatter",
     "Build Command Exit Gates",
     "Stale Script References",
