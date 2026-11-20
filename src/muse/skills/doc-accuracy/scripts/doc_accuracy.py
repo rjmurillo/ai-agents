@@ -1458,23 +1458,25 @@ def _first_ignored_sdk_marker(lines: list[str]) -> dict[str, int] | None:
     return None
 
 
-# Every pattern stays on one line or one whitespace run, so a crafted block
-# cannot make a match rescan to the end of the block from every start.
+# Every pattern stays on one line and the modifier run is capped, so a crafted
+# block cannot make a match rescan to the end of a line from every start. A
+# declaration the cap misses keeps its finding, which is the safe direction.
 _DECLARED_NAME_PATTERNS: dict[str, tuple[re.Pattern[str], ...]] = {
     "csharp": (
         re.compile(r"\b(?:class|struct|interface|enum|record|namespace)\s+([A-Za-z_][\w.]*)"),
         re.compile(r"\b([A-Za-z_]\w*)\s*\{\s*(?:get|set|init)\b"),
         re.compile(
-            r"\b(?:public|private|protected|internal)\b[^;{}()=\n]*?\b([A-Za-z_]\w*)[ \t]*\("
+            r"\b(?:public|private|protected|internal)\b[^;{}()=\n]{0,200}?\b([A-Za-z_]\w*)[ \t]*\("
         ),
     ),
     "python": (re.compile(r"^[ \t]*(?:async[ \t]+)?(?:class|def)[ \t]+(\w+)", re.MULTILINE),),
     "javascript": (
         re.compile(r"\b(?:class|interface|enum|function)\s+([A-Za-z_$][\w$]*)"),
-        # ``type`` declares only at statement start, so ``import type X`` and
-        # ``import { type X }`` stay claims about the repository.
+        # A type alias is ``type Name =`` or ``type Name<...> =``. Requiring the
+        # ``=`` or ``<`` keeps ``import type X`` and a wrapped
+        # ``import {\n  type X,\n}`` list as claims about the repository.
         re.compile(
-            r"^[ \t]*(?:export[ \t]+)?(?:declare[ \t]+)?type[ \t]+([A-Za-z_$][\w$]*)",
+            r"^[ \t]*(?:export[ \t]+)?(?:declare[ \t]+)?type[ \t]+([A-Za-z_$][\w$]*)[ \t]*[=<]",
             re.MULTILINE,
         ),
     ),
@@ -1742,7 +1744,8 @@ def run_claim_extraction(
 
 def _marker_may_have_flipped(marker: dict[str, int], ranges: list[list[int]]) -> bool:
     """True when a changed range covers the ignored marker or the scan stop line."""
-    return any(lo <= line <= hi for lo, hi in ranges for line in marker.values())
+    watched = (marker["line"], marker["stop_line"])
+    return any(lo <= line <= hi for lo, hi in ranges for line in watched)
 
 
 def _scope_findings(

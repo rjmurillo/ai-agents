@@ -101,8 +101,8 @@ The marker is `<!-- doc-accuracy: external-sdk <name> -- <reason> -->`.
 - Without a marker, a code example's own declared names are not reported as
   unresolved. In C# these are types, namespaces, properties, and methods with
   an access modifier. In Python they are classes and functions. In JavaScript
-  and TypeScript they are classes, interfaces, enums, functions, and types
-  declared at the start of a statement, so `import type X` is still a claim.
+  and TypeScript they are classes, interfaces, enums, functions, and type
+  aliases (`type X =`), so `import type X` and `import { type X }` stay claims.
   Comments and strings declare nothing. The report counts each skip per file
   under `declared_name_suppressed`. Method signature claims get no exemption.
 - A missing, `-`-led, or placeholder name suppresses nothing and yields a

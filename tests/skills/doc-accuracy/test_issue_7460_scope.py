@@ -192,6 +192,9 @@ def test_plain_uses_without_declaration_still_flag(tmp_path: Path) -> None:
         ("typescript", "interface I {}\ntype T = 1\nconst z = new Q()", {"I", "T"}),
         ("typescript", "export type T = 1\ndeclare type U = 2", {"T", "U"}),
         ("typescript", 'import type Ghost from "./g"\nimport { type Spook } from "./s"', set()),
+        ("typescript", 'import {\n  type Ghost,\n  type Spook as S,\n} from "./g"', set()),
+        ("typescript", 'export {\n  type Ghost,\n} from "./g"', set()),
+        ("typescript", "type Pair<T> = [T, T]", {"Pair"}),
         ("bash", "class Foo", set()),
     ],
 )
@@ -213,11 +216,18 @@ def test_method_signature_claims_ignore_declared_names(tmp_path: Path) -> None:
     ("lang", "code"),
     [
         ("csharp", "public a b c\n" * 20000),
+        ("csharp", "public " * 20000),
         ("csharp", '"' + '\\"' * 20000 + "\\"),
         ("typescript", "`" + "\\`" * 20000 + "\\"),
         ("python", "\n" * 40000 + "x"),
     ],
-    ids=["cs-modifiers", "cs-escaped-quotes", "ts-template", "py-blank-lines"],
+    ids=[
+        "cs-modifiers",
+        "cs-one-line-modifiers",
+        "cs-escaped-quotes",
+        "ts-template",
+        "py-blank-lines",
+    ],
 )
 def test_declared_names_stays_linear_on_crafted_blocks(lang: str, code: str) -> None:
     """A PR-controlled block must not stall the gate (quadratic took 14s at 6000 lines)."""
