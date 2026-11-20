@@ -400,6 +400,9 @@ class TestCsharpLiteralAndAttributeArguments:
         ('var s = $"{\n/* " */ var z = FakeWidget.Go();', "FakeWidget"),
         ("var r = arr switch {\n    [Point(FakeX: 1), ..] rest => 1,\n};", "FakeX"),
         ("var r = xs switch { [] => 0,\n    [Point(FakeX: 1)] one when ok => 1 };", "FakeX"),
+        ("if (t is (1, [Point(FakeX: 1)] rest)) {}", "FakeX"),
+        ("if (t is ([Point(FakeX: 1)] rest, 2)) {}", "FakeX"),
+        ("var r = (a, b) switch { ([Point(FakeX: 1)] xs, _) => 1 };", "FakeX"),
         ('var s = $@"{a // don\'t\n} {FakeWidget.Go()}";', "FakeWidget"),
     )
 
@@ -411,6 +414,10 @@ class TestCsharpLiteralAndAttributeArguments:
         ("// leading comment\n[Attr(EntryPoint = 1)]\npublic void M() {}", "Attr"),
         ("void A() {}\n[Other]\n[Attr(EntryPoint = 1)]\npublic void M() {}", "Attr"),
         ('enum E {\n    [Display(EntryPoint = "r")] Red,\n}', "Display"),
+        ('enum E { Red, [Display(EntryPoint = "g")] Green }', "Display"),
+        ('int P {\n    [Obsolete(EntryPoint = "X")] get => _p;\n}', "Obsolete"),
+        ('int P { get => 1; [Obsolete(EntryPoint = "X")] set => _p = value; }', "Obsolete"),
+        ("void F([Range(EntryPoint = 1)] int count, [In] Foo p) {}", "Range"),
     )
 
     def test_attribute_forms_blank_named_arguments(self) -> None:
