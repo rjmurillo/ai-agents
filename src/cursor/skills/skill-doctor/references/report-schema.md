@@ -53,3 +53,40 @@ go in `scores`.
   "evaluation": {"diagnosis": "static", "optimization": "not_run"}
 }
 ```
+
+## Optional `adr_drift` section
+
+Add this object only when Step 1a ran. Reports without it render unchanged.
+The section never feeds `scores.overall`. `render_report.py` exits 1 when any
+finding has an empty `suggested_fix`.
+
+```json
+"adr_drift": {
+  "skipped": "<reason, only when Step 1a did not run; omit repos then>",
+  "repos": [
+    {
+      "repo": "<repo slug>",
+      "head": "<commit SHA the scan read>",
+      "examined": 300,
+      "truncated": false,
+      "findings": [
+        {
+          "id": "<id from the scan file>",
+          "kind": "<finding kind>",
+          "group": "Numbering | Links | History",
+          "severity": "info | low | medium | high",
+          "confidence": "deterministic | heuristic",
+          "evidence": {"path": "", "line": 0, "sha": "", "subject": ""},
+          "suggested_fix": "<non-empty text>",
+          "draft": "<path under proposed/adr/, relative to REPORT_DIR, when a draft was written>"
+        }
+      ],
+      "align": {"status": "absent | detected | no_graph | ran | failed",
+                "text": "", "exit_code": null, "command_hint": "", "advisory_note": ""}
+    }
+  ]
+}
+```
+
+Copy `findings` and `align` from the scan file. Add `draft` only after `draft`
+wrote a file. Kinds, fixes, and align states are in `adr-drift.md`.

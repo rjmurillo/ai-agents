@@ -11,7 +11,9 @@ python3, stdlib only. Uses system fonts so the page and the exported PNG
 render the same everywhere.
 
 Exit codes: 0 report.html was written; 1 report.json has no numeric
-scores.overall or makes an unsupported claim; 2 bad arguments, or report.json
+scores.overall, makes an unsupported claim, or carries an adr_drift finding
+with an empty suggested_fix; an ADR-only report (adr_drift, no scores) skips the
+scorecard; 2 bad arguments, or report.json
 is unreadable or not JSON.
 """
 
@@ -27,6 +29,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import report_adr
 import report_audit
 import report_evaluation
 import report_script
@@ -391,6 +394,8 @@ def render_page(r: Any) -> str:
     generated_at = format_generated_at(r.get("generated_at"))
     title = esc(r.get("title", "Agent Skill Report"))
     css = report_style.PAGE_CSS.replace("__CLAMP__", str(DIFF_CLAMP_PX))
+    adr_section = report_adr.render_adr_drift(r, esc)
+    adr_block = f"\n{adr_section}" if adr_section else ""
     return f"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
@@ -403,7 +408,7 @@ def render_page(r: Any) -> str:
 {render_summary(r, grade)}
 {render_findings(r)}
 {render_candidates(r)}
-{render_evidence(r)}
+{render_evidence(r)}{adr_block}
 </main>
 </div>
 <script>{embedded_diffs_script()}</script>
@@ -422,6 +427,8 @@ def load_report(report_path: Path) -> dict[str, Any]:
     except (OSError, UnicodeDecodeError, ValueError) as exc:
         print(f"error: cannot read {report_path}: {exc}", file=sys.stderr)
         sys.exit(2)
+    if report_adr.is_adr_only(report):
+        return report
     scores = report.get("scores") if isinstance(report, dict) else None
     if not isinstance(scores, dict) or not isinstance(scores.get("overall"), (int, float)):
         print(f"error: {report_path} needs a numeric scores.overall", file=sys.stderr)
@@ -450,8 +457,15 @@ def main(argv: Any = None) -> None:
     args = parse_args(argv)
     report_path = Path(args.report_path).expanduser()
     r = load_report(report_path)
+    if report_adr.is_adr_only(r):
+        css = report_style.PAGE_CSS.replace("__CLAMP__", str(DIFF_CLAMP_PX))
+        sys.exit(report_adr.write_adr_only(report_path, r, esc, css, format_generated_at))
     r.setdefault("grade", grade_for(r["scores"]["overall"]))
-    errors = report_evaluation.validate_report(r) + report_audit.validate_audit(r)
+    errors = (
+        report_evaluation.validate_report(r)
+        + report_audit.validate_audit(r)
+        + report_adr.validate_adr_drift(r)
+    )
     if errors:
         for error in errors:
             print(f"error: unsupported claim: {error}", file=sys.stderr)

@@ -1,12 +1,13 @@
 # skill-doctor
 
-Scores how your installed skills performed in recent local agent sessions, then drafts evidence-backed edits. You get one self-contained HTML report with a grade, three top findings, and candidate skill changes with handoff prompts.
+Scores how your installed skills performed in recent local agent sessions, then drafts evidence-backed edits. You get one self-contained HTML report with a grade, three top findings, and candidate skill changes with handoff prompts. It can also check a repository for ADR drift: duplicate numbers, broken links, stale records, and decisions in git history that no ADR names.
 
 ## When to use it
 
 - You want to grade your agent setup from real conversations.
 - A skill did not fire when it should have, or keeps failing.
-- Trigger phrases: `diagnose skill usage`, `grade my agent setup`, `run skill-doctor`.
+- You want to know whether a repository's ADRs match its git history.
+- Trigger phrases: `diagnose skill usage`, `grade my agent setup`, `run skill-doctor`, `check ADR drift`.
 
 ## When not to use it
 
@@ -25,12 +26,15 @@ In a Claude Code session inside a checkout of this repository, drop the prefix: 
 
 The skill asks two questions. First, which conversations to grade: this repository, all conversations, or chosen projects. Second, which skills to evaluate: project and global skills, or project skills only. It then collects, scores, and renders the report. Collection and rendering run locally.
 
+For `check ADR drift` alone, the skill skips both questions, confirms the repository, scans it, and renders an ADR drift report with no scorecard.
+
 ## What you get
 
 - `report.html` in a fresh temp directory, with the scorecard, findings, and suggested skill edits. A Share button saves a PNG locally. The skill ends by printing the absolute path.
 - A grade across efficiency, code quality, procedure compliance, verbosity, and skill coverage, plus an overall score.
 - Candidate edits, each with status `unevaluated`, a unified diff, and handoff prompts for [`skillopt`](skillopt.md) or [`skillforge`](skillforge.md).
 - A spoken summary of the grade and three findings, plus the renderer's `evaluation:` line.
+- For ADR drift, an `ADR drift` section: findings by group (Numbering, Links, History) with a suggested fix each, optional draft ADRs under `proposed/adr/` in the report directory, and an align line. History findings are candidates, not verdicts. The section never changes the grade.
 
 Overall weights: efficiency 0.25, code quality 0.25, procedure compliance 0.20, verbosity 0.15, skill coverage 0.15. The skill notes that coverage rewards skill adoption and does not prove skills improved outcomes.
 
@@ -54,8 +58,11 @@ uv run python .claude/skills/skill-doctor/scripts/render_report.py --help
 | `render_report.py` | Render `report.json` into `report.html`; `--open` requests a browser |
 | `audit_manifest.py`, `audit_batches.py` | Validate manifests; assign and import review batches |
 | `public_export.py` | Write an aggregate-only summary that is safe to share |
+| `adr_drift.py` | `locate` ADR folders, `scan` a repository into a JSON file, `draft` one ADR from a finding |
 
 Collector scope flags: `--repo PATH` (repeatable), `--all-conversations`, `--include-global-skills`, `--harness auto|all|claude|codex|copilot|warp|pi|grok|zcode|hermes|droid`, `--days`, `--max-sessions`, `--min-idle-minutes` (default 15; sessions newer than that are skipped), and `--out`. Exit `0` is success, `1` is invalid input or an unsupported claim, and `2` is bad arguments or an unreadable file.
+
+`adr_drift.py` never writes into the scanned repository, except that `draft --out` can target one of the repository's ADR folders (skill-bootstrap does this after you accept a finding; skill-doctor writes drafts under its report directory only). Its exit codes: `0` ok, `1` logic error or a `draft` target that already exists, `2` bad arguments, unreadable input, a disallowed `--out`, or not a git repository, `3` a git command failed. `scan` reads 300 commits by default and reports `truncated` when it stopped early. `--prs-json FILE` supplies PR text from your own export. `--with-align` is an opt-in to run `align adr` when align and its graph already exist; without it, align never runs and the report prints the command for you to run.
 
 A conversation counts as failed when any applicable raw score is below 0.5. A failure caused only by a provider cutoff does not count. A passing conversation can support only a `Cut:` candidate, which removes a wasted instruction or step.
 
@@ -80,5 +87,6 @@ When [`skill-bootstrap`](skill-bootstrap.md) invokes this skill, it reuses that 
 - [`skillforge`](skillforge.md): routes `new-skill` candidates.
 - Source: [`SKILL.md`](../../src/claude/skills/skill-doctor/SKILL.md)
 - Audit workflow: [`audit-workflow.md`](../../src/claude/skills/skill-doctor/references/audit-workflow.md)
+- ADR drift: [`adr-drift.md`](../../src/claude/skills/skill-doctor/references/adr-drift.md)
 - Supported harnesses: [`supported-harnesses.md`](../../src/claude/skills/skill-doctor/references/supported-harnesses.md)
 - How to call skills on each host: [Call agents and skills](../call-agents-and-skills.md)
