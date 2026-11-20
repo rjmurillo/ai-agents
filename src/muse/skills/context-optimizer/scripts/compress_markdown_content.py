@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import importlib
 import json
+import os
 import re
 import sys
 from dataclasses import asdict, dataclass
@@ -32,6 +33,24 @@ from enum import Enum
 from pathlib import Path
 
 from path_validation import validate_path_within_repo
+
+# ADR-047 keeps this bootstrap inline because imports need sys.path first.
+_PLUGIN_ROOT = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+if _PLUGIN_ROOT:
+    _LIB_DIR = Path(_PLUGIN_ROOT) / "lib"
+else:
+    _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+
+if not os.path.isdir(_LIB_DIR):
+    raise RuntimeError(
+        "Expected portability helper lib directory not found: "
+        f"{_LIB_DIR}. Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT to the "
+        "plugin root, or run from an ai-agents checkout."
+    )
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from hook_utilities.frontmatter_block import split_frontmatter  # noqa: E402
 
 # tiktoken is imported lazily inside count_tokens so this module is importable
 # (e.g. by the test suite) even when tiktoken is absent. A module-level
@@ -369,19 +388,15 @@ def remove_redundant_words(content: str, level: CompressionLevel) -> str:
 
     lines = content.split("\n")
     result_lines = []
-    in_yaml_frontmatter = False
-    frontmatter_seen = False
+    # The leading frontmatter block comes from the shared parser: line 0 is the
+    # opening fence and closing_line is the closing one.
+    split = split_frontmatter(content)
+    closing_line = content.count("\n", 0, split.raw_end) if split.found else -1
 
-    for line in lines:
-        stripped = line.strip()
-
-        # Track YAML frontmatter boundaries (--- at start/end)
-        if stripped == "---":
-            if not frontmatter_seen:
-                in_yaml_frontmatter = True
-                frontmatter_seen = True
-            elif in_yaml_frontmatter:
-                in_yaml_frontmatter = False
+    for index, line in enumerate(lines):
+        in_yaml_frontmatter = 0 < index < closing_line
+        # Fence lines and horizontal rules pass through unchanged.
+        if index in (0, closing_line) and split.found or line.strip() == "---":
             result_lines.append(line)
             continue
 
