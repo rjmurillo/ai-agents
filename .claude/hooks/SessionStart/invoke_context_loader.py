@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
-"""Auto-load the latest retrospective at session start.
+"""Remind the session about unfilled retrospective skeletons.
 
-Claude Code SessionStart hook that injects the most recent retrospective
-into the session so prior-session findings (recurring bug patterns, gotchas)
-are available without a manual read.
+Claude Code SessionStart hook. When an unfilled retrospective skeleton dated
+in the last ``PENDING_RETRO_MAX_AGE_DAYS`` days exists, it prints a short
+reminder with the ``/retrospective fill <date>`` command. Otherwise it prints
+nothing, so a session with no pending work pays no context cost. The Stop
+hook that wrote skeletons was retired by #3349, so in this repository the
+reminder fires only if someone adds a skeleton by hand.
 
-Loads the latest retrospective from .project-toolkit/retrospective/ (learnings from
-prior sessions), truncated to prevent context bloat. Output is printed to
-stdout so Claude Code injects it into the session context.
+Does NOT inject retrospective content. The latest-retrospective injection was
+dropped; the ADR-008 amendment dated 2026-11-20 records the evidence.
+Retrospectives stay reachable on demand through the ``retrospective`` skill
+and ``.project-toolkit/retrospective/INDEX.md``.
 
-Does NOT load .agents/HANDOFF.md. That file was frozen read-only from
-2025-12-22 and is now deleted (superseded by per-issue handoffs and Serena
-memory per ADR-014); injecting it unconditionally spent roughly 1,000
-tokens per session on a dashboard nobody updates.
+Does NOT load .agents/HANDOFF.md either (Issue #5168; superseded by
+per-issue handoffs and Serena memory per ADR-014).
 
 Hook Type: SessionStart (non-blocking, fail-open)
 Exit Codes:
@@ -21,7 +23,9 @@ Exit Codes:
 References:
     - Issue #1703 (lifecycle hook infrastructure)
     - Issue #1672 (session-start gate)
-    - Issue #5168 (removed the HANDOFF.md auto-load; stale since 2025-12-22)
+    - Issue #2079 (pending-skeleton reminder)
+    - Issue #5168 (removed the HANDOFF.md auto-load)
+    - Issues #7471 and #7472 (influence telemetry and curation cadence)
     - ADR-008 (protocol automation via lifecycle hooks)
     - ADR-014 (distributed handoff architecture; supersedes HANDOFF.md)
 """
@@ -63,87 +67,34 @@ except ImportError:
         return False
 
 
-# Maximum characters to inject per file to prevent context bloat
-MAX_RETRO_CHARS = 4000
+# Characters read from the head of each candidate when searching for the
+# skeleton marker. The marker sits near the top of a skeleton, so the full
+# file is never read. Nothing read here is injected into session context.
+SKELETON_MARKER_SCAN_CHARS = 4000
 
 HOOK_NAME = "context-loader"
 
-# Mirror of the marker stamped into unfilled skeletons by the Stop hook
-# (Issue #2079). Canonical source:
-# .claude/hooks/Stop/invoke_auto_retrospective.py, constant
-# ``RETRO_STATE_MARKER``. Quoted verbatim per the canonical-source-mirror
-# rule. A skeleton carries this exact string until a reviewer fills it and
-# removes the marker; this hook counts the unfilled ones to remind the user.
+# Marker carried by unfilled skeletons (Issue #2079). Its writer, the Stop
+# hook ``invoke_auto_retrospective.py``, was retired by #3349; the marker is
+# documented in the retrospective skill's ``references/skeleton-fill.md``.
+# A skeleton carries this exact string until a reviewer fills it and removes
+# the marker; this hook counts the unfilled ones to remind the user.
 RETRO_STATE_MARKER = "<!-- RETRO-STATE: skeleton-pending-fill -->"
 
 # Skeletons older than this many days stop nagging (Issue #2079 acceptance:
 # "Cap by date so stale skeletons do not nag forever").
 PENDING_RETRO_MAX_AGE_DAYS = 7
 
-# A retrospective older than this many days is not injected (Issue #7227).
-# Stale guidance presented as current misleads the agent more than silence.
-RETRO_MAX_AGE_DAYS = 30
-
-# Lines scanned for a ``Date:`` header when the filename carries no date.
-RETRO_HEADER_SCAN_LINES = 20
-
-
-def _read_file_truncated(path: Path, max_chars: int) -> str | None:
-    """Read a file, truncating to max_chars if necessary.
-
-    Streams only the bytes needed instead of loading the whole file, so
-    large files do not balloon hook memory.
-    """
-    try:
-        with path.open(encoding="utf-8", errors="replace") as handle:
-            content = handle.read(max_chars + 1)
-    except OSError:
-        return None
-
-    if len(content) > max_chars:
-        return content[:max_chars] + f"\n\n[... truncated at {max_chars} chars ...]"
-    return content
-
-
-def _is_contained_retrospective(path: Path, resolved_retro_dir: Path) -> bool:
-    """Return whether ``path`` is a real file safely inside ``resolved_retro_dir``.
-
-    A retrospective symlink can target a credential or private file (an
-    SSH key, a dotenv, ``/etc/shadow``) renamed with a ``.md`` extension;
-    without this check, :func:`_find_latest_retrospective` would happily
-    stat and later read through the link, injecting up to
-    ``MAX_RETRO_CHARS`` of that file's content into SessionStart model
-    context. ``path.is_symlink()`` rejects the leaf link itself;
-    ``resolve()`` plus containment additionally rejects a target reached
-    through a symlinked ANCESTOR directory that still resolves somewhere
-    other than under the retrospective directory (a leaf-only check misses
-    that case, the same distinction the build pipeline's containment
-    checks draw for generated paths).
-    """
-    if path.is_symlink():
-        return False
-    try:
-        resolved = path.resolve()
-    except OSError:
-        return False
-    return resolved.is_relative_to(resolved_retro_dir)
-
 
 def _has_symlink_component(root: Path, target: Path) -> bool:
     """Return whether any path component from ``root`` down to ``target`` is a symlink.
 
-    ``_is_contained_retrospective`` checks containment against
-    ``retro_dir.resolve()``, but resolving ``retro_dir`` first is exactly
-    the gap: if ``retro_dir`` itself (or an ancestor such as ``.agents``) is
-    a symlink to an external directory, ``resolve()`` follows it and every
-    file that is genuinely inside the redirected target then reads as
-    "contained" relative to that redirected root. A project-recognized
-    checkout whose ``.agents`` or ``.project-toolkit/retrospective`` is a symlink
-    would leak an external directory's newest Markdown file into
-    SessionStart context. Walking each unresolved component between
-    ``root`` (the project directory, trusted) and ``target`` (``retro_dir``)
-    catches that redirection before anything is resolved, stat'd, or
-    globbed.
+    If ``retro_dir`` itself (or an ancestor such as ``.project-toolkit``) is
+    a symlink to an external directory, globbing it would scan that external
+    directory and leak its Markdown filenames into SessionStart context.
+    Walking each unresolved component between ``root`` (the project
+    directory, trusted) and ``target`` (``retro_dir``) catches that
+    redirection before anything is stat'd or globbed.
     """
     try:
         relative_parts = target.relative_to(root).parts
@@ -155,105 +106,6 @@ def _has_symlink_component(root: Path, target: Path) -> bool:
         if current.is_symlink():
             return True
     return False
-
-
-_HEADER_DATE_RE = re.compile(
-    r"^\W*(?:\*\*)?Date(?:\*\*)?\s*:\s*(?:\*\*)?\s*(\d{4}-\d{2}-\d{2})",
-    re.IGNORECASE,
-)
-
-
-def _header_date(path: Path) -> date | None:
-    """Return the ``Date:`` value from the first lines of ``path``, if any.
-
-    Accepts ``Date: 2025-12-16``, ``**Date**: 2025-12-16``, and the bullet form
-    ``- **Date**: 2025-12-16``. A read error or an invalid calendar date counts
-    as undated.
-    """
-    try:
-        with path.open(encoding="utf-8", errors="replace") as handle:
-            for _ in range(RETRO_HEADER_SCAN_LINES):
-                line = handle.readline()
-                if not line:
-                    break
-                match = _HEADER_DATE_RE.match(line)
-                if match:
-                    return datetime.strptime(match.group(1), "%Y-%m-%d").date()
-    except (OSError, ValueError):
-        return None
-    return None
-
-
-def _retrospective_date(path: Path) -> date | None:
-    """Return the document's own date: filename prefix first, then header."""
-    return _filename_date(path.name) or _header_date(path)
-
-
-def _find_latest_retrospective(
-    retro_dir: Path,
-    root: Path,
-    max_age_days: int = RETRO_MAX_AGE_DAYS,
-    today: date | None = None,
-) -> Path | None:
-    """Find the newest retrospective by its own date, within ``max_age_days``.
-
-    A git checkout stamps every file with the same mtime, so mtime cannot
-    order retrospectives (Issue #7227). The date comes from a ``YYYY-MM-DD``
-    filename prefix, else a ``Date:`` header in the first lines. mtime only
-    breaks a tie between equal dates. Undated files are never injected, and
-    nothing is returned when the newest dated file is older than the cap.
-
-    ``root`` is the trusted project directory; every component from ``root``
-    down to ``retro_dir`` is rejected if it is a symlink (see
-    :func:`_has_symlink_component`) before ``retro_dir`` is resolved or
-    globbed at all. Per-file stat failures (race with deletion, permission
-    issue) skip that file rather than aborting the whole scan, so a single
-    unreadable retro does not hide every other retro from the SessionStart
-    hook. A symlinked candidate, or one whose resolved path escapes the
-    retrospective directory, is skipped by :func:`_is_contained_retrospective`
-    before it is ever stat'd or read.
-    """
-    if not retro_dir.is_dir():
-        return None
-
-    if _has_symlink_component(root, retro_dir):
-        return None
-
-    try:
-        resolved_retro_dir = retro_dir.resolve()
-    except OSError:
-        return None
-
-    candidates: list[tuple[date, float, Path]] = []
-    try:
-        # Exclude the co-located INDEX.md: it lives alongside the retro files
-        # but is a meta-index, not a retrospective. See
-        # .claude/hooks/Stop/invoke_auto_retrospective.py::update_retro_index.
-        retro_paths = [p for p in retro_dir.glob("*.md") if p.name != "INDEX.md"]
-    except OSError:
-        return None
-
-    for path in retro_paths:
-        if not _is_contained_retrospective(path, resolved_retro_dir):
-            continue
-        try:
-            mtime = path.stat().st_mtime
-        except OSError:
-            continue
-        doc_date = _retrospective_date(path)
-        if doc_date is None:
-            continue
-        candidates.append((doc_date, mtime, path))
-
-    if not candidates:
-        return None
-
-    candidates.sort(key=lambda entry: (entry[0], entry[1], entry[2].name), reverse=True)
-    newest_date, _mtime, newest = candidates[0]
-    reference = today if today is not None else datetime.now(tz=UTC).date()
-    if newest_date < reference - timedelta(days=max_age_days):
-        return None
-    return newest
 
 
 def _count_pending_skeletons(
@@ -268,12 +120,12 @@ def _count_pending_skeletons(
     ``root`` is the trusted project directory; every component from ``root``
     down to ``retro_dir`` is rejected if it is a symlink (see
     :func:`_has_symlink_component`) before ``retro_dir`` is globbed, so a
-    symlinked ``.agents`` or ``retrospective`` ancestor cannot redirect the
-    scan to an external directory and leak its filenames.
+    symlinked ``.project-toolkit`` or ``retrospective`` ancestor cannot
+    redirect the scan to an external directory and leak its filenames.
 
     Fail-open: a missing directory or a symlinked ancestor yields ``(0, [])``;
     a per-file stat or read error skips that file rather than aborting the
-    scan, mirroring :func:`_find_latest_retrospective`.
+    scan.
     """
     if not retro_dir.is_dir():
         return 0, []
@@ -283,8 +135,7 @@ def _count_pending_skeletons(
 
     try:
         # Exclude the co-located INDEX.md: it lives alongside the retro files
-        # but is a meta-index, not a retrospective. See
-        # .claude/hooks/Stop/invoke_auto_retrospective.py::update_retro_index.
+        # but is a meta-index, not a retrospective.
         retro_paths = [p for p in retro_dir.glob("*.md") if p.name != "INDEX.md"]
     except OSError:
         return 0, []
@@ -297,7 +148,7 @@ def _count_pending_skeletons(
             if not _is_pending_skeleton_recent(path, cutoff_date, cutoff_mtime):
                 continue
             with path.open(encoding="utf-8", errors="replace") as handle:
-                head = handle.read(MAX_RETRO_CHARS)
+                head = handle.read(SKELETON_MARKER_SCAN_CHARS)
         except OSError:
             continue
         if RETRO_STATE_MARKER in head:
@@ -417,8 +268,22 @@ def _emit_utf8(text: str) -> None:
     stream.flush()
 
 
+def _pending_reminder(pending_count: int, pending_names: list[str]) -> str:
+    """Render the unfilled-skeleton reminder with one fill command (Issue #2079)."""
+    listed = _pending_skeleton_summary(pending_names)
+    dates = _skeleton_dates(pending_names)
+    fill_hint = dates[0] if dates else "<date>"
+    other_dates = f"\n\nOther available dates: {', '.join(dates[1:])}." if len(dates) > 1 else ""
+    return (
+        f"## ⏳ {pending_count} retro(s) need completion\n\n"
+        f"Unfilled skeletons (last {PENDING_RETRO_MAX_AGE_DAYS} days): {listed}\n\n"
+        f"Run `/retrospective fill {fill_hint}` to populate one skeleton and clear it."
+        f"{other_dates}"
+    )
+
+
 def main() -> None:
-    """Load the latest retrospective into session context."""
+    """Remind about unfilled retrospective skeletons; inject nothing otherwise."""
     _drain_stdin()
 
     if skip_if_consumer_repo(HOOK_NAME):
@@ -426,48 +291,14 @@ def main() -> None:
 
     project_dir = get_project_directory()
     project_path = Path(project_dir)
-    loaded_files: list[str] = []
-    output_parts: list[str] = []
-
-    # Load latest retrospective
     retro_dir = project_path / ".project-toolkit" / "retrospective"
-    latest_retro = _find_latest_retrospective(retro_dir, project_path)
-    if latest_retro:
-        retro_content = _read_file_truncated(latest_retro, MAX_RETRO_CHARS)
-        if retro_content:
-            output_parts.append(
-                f"## 📝 Auto-loaded: Latest Retrospective ({latest_retro.name})\n\n{retro_content}"
-            )
-            loaded_files.append(f"retrospective/{latest_retro.name}")
 
-    # Remind about unfilled retro skeletons (Issue #2079). Surface a count
-    # and the fill command so the next interactive session can complete them.
     pending_count, pending_names = _count_pending_skeletons(retro_dir, project_path)
     if pending_count:
-        listed = _pending_skeleton_summary(pending_names)
-        dates = _skeleton_dates(pending_names)
-        fill_hint = dates[0] if dates else "<date>"
-        other_dates = (
-            f"\n\nOther available dates: {', '.join(dates[1:])}." if len(dates) > 1 else ""
-        )
-        output_parts.append(
-            f"## ⏳ {pending_count} retro(s) need completion\n\n"
-            f"Unfilled skeletons (last {PENDING_RETRO_MAX_AGE_DAYS} days): {listed}\n\n"
-            f"Run `/retrospective fill {fill_hint}` to populate one skeleton and clear it."
-            f"{other_dates}"
-        )
-        loaded_files.append(f"pending-retros:{pending_count}")
-
-    # Output to stdout (injected into Claude's context)
-    if output_parts:
-        header = "## 🔄 Context Loader: Session Start Auto-Injection\n\n"
-        summary = f"**Loaded {len(loaded_files)} file(s)**: {', '.join(loaded_files)}\n\n---\n\n"
-        _emit_utf8(header + summary + "\n\n---\n\n".join(output_parts))
+        _emit_utf8(_pending_reminder(pending_count, pending_names))
+        _write_audit_log(project_dir, [f"pending-retros:{pending_count}"])
     else:
-        _emit_utf8("## 🔄 Context Loader: No context files found to auto-load")
-
-    # Audit trail (best-effort)
-    _write_audit_log(project_dir, loaded_files if loaded_files else ["(none)"])
+        _write_audit_log(project_dir, ["(none)"])
 
 
 if __name__ == "__main__":

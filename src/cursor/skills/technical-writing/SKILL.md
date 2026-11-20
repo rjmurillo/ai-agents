@@ -112,7 +112,17 @@ Report each check as `VERIFIED`, `FAILED`, `NOT RUN`, or `UNAVAILABLE`.
 
 ## Audit Mode
 
-When asked to review or audit a page, do not rewrite it unasked. Return findings:
+When asked to review or audit a page, do not rewrite it unasked.
+Check for [negative contrast](references/prose-patterns.md#negative-contrast)
+by hand, even when prose lint finds nothing. Look for trailing `, not ...`.
+A contrast can be accurate and still be rhetorical. Flag it as `polish` when
+exact, direct wording keeps every fact. State the result and any separate step.
+
+Leave clear exclusions, prerequisites, and warnings as written when the
+negative itself states a restriction.
+"Do not X until Y" sets a prerequisite. It does not require X afterward.
+
+Return findings:
 
 | Field | Content |
 |-------|---------|
