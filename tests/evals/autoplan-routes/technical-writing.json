@@ -72,6 +72,26 @@
         "route": "api-doc-authoring"
       },
       "rationale": "The API owner also wins when the audit comes before the page type."
+    },
+    {
+      "id": "lt-hemingway-pass-endpoint-api-guide-audit",
+      "family": "long-tail-single-domain",
+      "request": "Audit this endpoint API guide using a Hemingway pass",
+      "expect": {
+        "kind": "specialist",
+        "route": "api-doc-authoring"
+      },
+      "rationale": "An audit phrased as a Hemingway pass retains API guide ownership."
+    },
+    {
+      "id": "lt-hemingway-pass-api-guide-pass-first",
+      "family": "long-tail-single-domain",
+      "request": "Do a Hemingway pass on this API guide",
+      "expect": {
+        "kind": "specialist",
+        "route": "api-doc-authoring"
+      },
+      "rationale": "The API owner also wins when the pass comes before the page type."
     }
   ]
 }
