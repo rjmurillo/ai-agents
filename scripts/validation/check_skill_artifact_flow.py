@@ -45,9 +45,12 @@ from pathlib import Path
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
+_REPO_ROOT = _SCRIPT_DIR.parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
 import yaml  # noqa: E402
-from instruction_budget_globs import _FRONTMATTER_RE, _UniqueKeySafeLoader  # noqa: E402
+from instruction_budget_globs import load_unique_frontmatter  # noqa: E402
 from skill_artifact_schema import (  # noqa: E402
     ARTIFACT_RE,
     INPUT_KEYS,
@@ -62,6 +65,8 @@ from skill_artifact_schema import (  # noqa: E402
     subset_defect,
 )
 from skill_routing_model import LIFECYCLE_ORDER, RESERVED_INVOKERS  # noqa: E402
+
+from scripts.hook_utilities.frontmatter_block import split_frontmatter  # noqa: E402
 
 __all__ = [
     "ARTIFACT_RE",
@@ -118,14 +123,11 @@ class Survey:
 def _split(text: str) -> tuple[dict[str, object], str]:
     """Return (frontmatter, body), rejecting duplicate keys.
 
-    Raises yaml.YAMLError on malformed frontmatter, and ValueError
-    (`UnsupportedApplyToError`) on a duplicate key.
+    Raises ValueError (`UnsupportedApplyToError`) on malformed frontmatter or
+    a duplicate key. Reads the block through
+    `scripts/hook_utilities/frontmatter_block.py`.
     """
-    match = _FRONTMATTER_RE.match(text)
-    if match is None:
-        return {}, text
-    data = yaml.load(match.group(1), Loader=_UniqueKeySafeLoader)
-    return (data if isinstance(data, dict) else {}), text[match.end() :]
+    return load_unique_frontmatter(text), split_frontmatter(text).body
 
 
 def _read_skill(path: Path, rel: str) -> tuple[SkillFlow | None, list[str]]:

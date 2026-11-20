@@ -184,7 +184,6 @@ import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 import yaml
 
@@ -199,6 +198,7 @@ if str(_REPO_ROOT) not in sys.path:
 from check_adr_lifecycle import ADR_FILENAME_RE, Record, collect_records  # noqa: E402
 
 from scripts.ci.count_ratchet import tracked_files  # noqa: E402
+from scripts.hook_utilities.frontmatter_block import load_frontmatter  # noqa: E402
 
 EXIT_OK = 0
 EXIT_REGRESSION = 1
@@ -222,8 +222,6 @@ RETIRED_STATUSES = frozenset({"superseded", "deprecated", "rejected"})
 #: but it reads a structured frontmatter reference field where that is the
 #: documented shorthand; this field has no such contract.
 _ADR_REF_RE = re.compile(r"ADR[-_ ]?(\d{1,4})", re.IGNORECASE)
-
-_FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---", re.DOTALL)
 
 _BASELINE_PATH = Path(__file__).with_name("skill_adr_bindings_baseline.json")
 
@@ -318,17 +316,12 @@ def declared_adr_numbers(skill_path: Path) -> tuple[list[int], str | None]:
     except UnicodeDecodeError as exc:
         return [], f"is not valid UTF-8: {exc}"
 
-    match = _FRONTMATTER_RE.match(text)
-    if match is None:
-        return [], None
-    try:
-        parsed: Any = yaml.safe_load(match.group(1))
-    except yaml.YAMLError:
-        # Frontmatter shape is another gate's subject. A skill whose YAML will
-        # not parse declares nothing this gate can resolve, and inventing a
-        # finding here would double-report that gate's violation.
-        return [], None
-    if not isinstance(parsed, dict):
+    # Frontmatter shape is another gate's subject. A skill whose block is
+    # absent, unterminated, or will not parse declares nothing this gate can
+    # resolve, and inventing a finding here would double-report that gate's
+    # violation.
+    parsed = load_frontmatter(text, yaml)
+    if parsed is None:
         return [], None
     metadata = parsed.get("metadata")
     if not isinstance(metadata, dict):

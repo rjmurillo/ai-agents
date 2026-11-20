@@ -3,12 +3,20 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Hashable
+import sys
 from functools import cache
+from pathlib import Path
 
-import yaml
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
 
-_FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
+import yaml  # noqa: E402
+
+from scripts.hook_utilities.frontmatter_block import (  # noqa: E402
+    FrontmatterStatus,
+    parse_frontmatter,
+)
 
 
 class UnsupportedApplyToError(ValueError):
@@ -24,41 +32,24 @@ class UnsupportedApplyToError(ValueError):
     """
 
 
-class _UniqueKeySafeLoader(yaml.SafeLoader):
-    """``SafeLoader`` that rejects duplicate mapping keys instead of last-wins.
+def load_unique_frontmatter(text: str) -> dict[str, object]:
+    """Return the leading frontmatter mapping, rejecting duplicate keys.
 
-    PyYAML (like most YAML parsers) silently keeps the last value when a key
-    repeats. A rule with two ``applyTo`` keys would then be scored on whichever
-    came last, so a universal ``applyTo`` could be masked by a trailing
-    directory-scoped one and dodge the budget. Fail closed on any duplicate.
+    Uses ``scripts/hook_utilities/frontmatter_block.py``. PyYAML keeps the last
+    value when a key repeats, so a rule with two ``applyTo`` keys would be
+    scored on whichever came last and a universal ``applyTo`` could be masked
+    by a trailing directory-scoped one. Fail closed on any duplicate, at any
+    depth.
+
+    Returns ``{}`` when there is no block, the block never closes, or the block
+    is empty or not a mapping. Raises ``UnsupportedApplyToError`` when the YAML
+    is invalid, a key repeats, or a key is unhashable.
     """
-
-
-def _construct_unique_mapping(
-    loader: _UniqueKeySafeLoader, node: yaml.MappingNode, deep: bool = False
-) -> dict[object, object]:
-    """Build a mapping, raising ``UnsupportedApplyToError`` on a duplicate key."""
-    mapping: dict[object, object] = {}
-    for key_node, value_node in node.value:
-        key = loader.construct_object(key_node, deep=deep)
-        # SafeLoader.construct_mapping rejects an unhashable key (a YAML complex
-        # key such as ``? [a, b]``) with a ConstructorError; the raw ``key in
-        # mapping`` below would instead raise an uncaught TypeError and escape as
-        # exit 1. Guard it so malformed frontmatter fails closed as exit 2.
-        if not isinstance(key, Hashable):
-            msg = f"unhashable key in frontmatter: {key!r}"
-            raise UnsupportedApplyToError(msg)
-        if key in mapping:
-            msg = f"duplicate key {key!r} in frontmatter"
-            raise UnsupportedApplyToError(msg)
-        mapping[key] = loader.construct_object(value_node, deep=deep)
-    return mapping
-
-
-_UniqueKeySafeLoader.add_constructor(
-    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
-    _construct_unique_mapping,
-)
+    result = parse_frontmatter(text, yaml)
+    if result.status is FrontmatterStatus.MALFORMED:
+        detail = (result.error or "").removeprefix("invalid YAML frontmatter: ")
+        raise UnsupportedApplyToError(f"frontmatter is not valid YAML: {detail}")
+    return result.metadata or {}
 
 
 # VS Code's matcher special-cases these three globs as matching every file even
@@ -345,15 +336,8 @@ def parse_applyto(text: str) -> set[str]:
     the ceiling. A file with no frontmatter block, or frontmatter without an
     ``applyTo`` key, is legitimately unscoped and returns an empty set.
     """
-    fm_match = _FRONTMATTER_RE.match(text)
-    if fm_match is None:
-        return set()
-    try:
-        data = yaml.load(fm_match.group(1), Loader=_UniqueKeySafeLoader)
-    except yaml.YAMLError as exc:
-        msg = f"frontmatter is not valid YAML: {exc}"
-        raise UnsupportedApplyToError(msg) from exc
-    if not isinstance(data, dict) or "applyTo" not in data:
+    data = load_unique_frontmatter(text)
+    if "applyTo" not in data:
         return set()
     patterns: set[str] = set()
     for glob in _iter_applyto_globs(data["applyTo"]):

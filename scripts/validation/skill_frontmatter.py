@@ -58,6 +58,8 @@ if _VALIDATION_PACKAGE_SENTINEL.is_file() and str(_PROJECT_ROOT) not in sys.path
 
 import yaml
 
+from scripts.hook_utilities.frontmatter_block import FrontmatterStatus
+from scripts.hook_utilities.frontmatter_block import parse_frontmatter as fm_parse
 from scripts.validation.models import ValidationResult
 
 # Valid model identifiers.
@@ -163,15 +165,6 @@ _Yaml12Loader.add_implicit_resolver(
 )
 
 
-def _load_yaml12(text: str) -> object:
-    """Load one YAML document with `_Yaml12Loader`, a SafeLoader subclass."""
-    loader = _Yaml12Loader(text)
-    try:
-        return loader.get_single_data()
-    finally:
-        loader.dispose()
-
-
 # XML tag detection pattern
 _XML_TAG_PATTERN: re.Pattern[str] = re.compile(r"<[^>]+>")
 _SKILL_FILE_PATTERN: re.Pattern[str] = re.compile(
@@ -239,43 +232,37 @@ class FileValidationResult:
 def parse_frontmatter(content: str) -> FrontmatterResult:
     """Parse and validate YAML frontmatter structure.
 
-    This parser handles simple key-value pairs and basic arrays.
-    It does NOT support quoted strings with embedded colons, complex nested
-    structures, YAML anchors/aliases, or advanced features.
+    The fence comes from ``scripts/hook_utilities/frontmatter_block.py`` and the
+    typed view loads through ``_Yaml12Loader`` (YAML 1.2 core schema, last
+    duplicate key wins). The flat ``frontmatter`` view is a line-based reader
+    for simple key-value pairs and basic arrays. It does NOT support quoted
+    strings with embedded colons, complex nested structures, YAML anchors or
+    aliases, or advanced features.
     """
     result = FrontmatterResult()
 
-    if not content.startswith("---"):
+    parsed = fm_parse(content, yaml, allow_duplicate_keys=True, loader=_Yaml12Loader)
+    if parsed.status is FrontmatterStatus.ABSENT:
         result.errors.append("Frontmatter must start with '---' on line 1")
         return result
-
-    lines = content.split("\n")
-    frontmatter_end = -1
-
-    for i in range(1, len(lines)):
-        if lines[i].strip() == "---":
-            frontmatter_end = i
-            break
-
-    if frontmatter_end == -1:
+    if parsed.status is FrontmatterStatus.UNTERMINATED:
         result.errors.append("Frontmatter must end with '---'")
         return result
 
-    frontmatter_content = "\n".join(lines[1:frontmatter_end])
+    # The core's raw block starts at the newline after the opening fence and
+    # ends with the newline before the closing fence; the line view wants neither.
+    frontmatter_content = parsed.raw.removeprefix("\n").removesuffix("\n")
 
     # Check for tab characters
     if "\t" in frontmatter_content:
         result.errors.append("Frontmatter must use spaces for indentation (tabs not allowed)")
 
-    try:
-        typed_frontmatter = _load_yaml12(frontmatter_content) or {}
-    except yaml.YAMLError as exc:
-        result.errors.append(f"Frontmatter YAML parse error: {exc}")
-        typed_frontmatter = {}
-
-    if not isinstance(typed_frontmatter, dict):
+    typed_frontmatter: dict[object, object] = parsed.metadata or {}
+    if parsed.status is FrontmatterStatus.MALFORMED:
+        detail = (parsed.error or "").removeprefix("invalid YAML frontmatter: ")
+        result.errors.append(f"Frontmatter YAML parse error: {detail}")
+    elif parsed.status is FrontmatterStatus.NOT_A_MAPPING:
         result.errors.append("Frontmatter must be a YAML mapping")
-        typed_frontmatter = {}
 
     for field_name in STRING_ONLY_FIELDS:
         if field_name in typed_frontmatter and not isinstance(typed_frontmatter[field_name], str):
