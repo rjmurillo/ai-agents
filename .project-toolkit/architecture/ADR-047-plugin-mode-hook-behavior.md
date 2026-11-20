@@ -13,7 +13,7 @@ implemented: true
 
 ## Status
 
-Accepted (amended 2026-04-29; see Amendments section)
+Accepted. See the 2026-04-29 and 2026-11-19 amendments.
 
 ## Date
 
@@ -71,7 +71,7 @@ When a required directory (e.g., `.agents/`, `.project-toolkit/sessions/`) does 
 
 ### Standard Import Boilerplate
 
-Every hook or skill script that imports from `.claude/lib/` MUST use this pattern with path validation. The pattern checks `CLAUDE_PLUGIN_ROOT` first, then walks up from `__file__` looking for the `.claude-plugin/plugin.json` manifest marker:
+Every hook or skill script that imports from `.claude/lib/` MUST use this pattern with path validation, subject to the scoped amendments below. The pattern checks `CLAUDE_PLUGIN_ROOT` first, then walks up from `__file__` looking for the `.claude-plugin/plugin.json` manifest marker:
 
 ```python
 # Bootstrap: find lib directory via env var or manifest walk-up.
@@ -116,7 +116,7 @@ The path validation prevents importing from non-existent directories, which woul
 
 ### Trade-offs
 
-- **Duplication**: The 7-line import boilerplate is repeated in 37+ files. This is acceptable because the bootstrap paradox prevents extracting it (cannot import a utility before making it importable).
+- **Duplication**. An ordinary import needs the library directory on `sys.path` first. Keep the hook bootstrap inline. The 2026-11-19 amendment records the shared resolver for two skill entry points.
 - **Directory creation**: `os.makedirs(exist_ok=True)` is safe and idempotent, but creates directories that may not be expected by all consumers. The plugin documentation should describe the `.agents/` directory.
 
 ## Consequences
@@ -266,6 +266,31 @@ When creating a new hook or skill script:
 **Test impact**: `tests/test_plugin_path_resolution.py` continues to assert the literal string `os.environ.get("CLAUDE_PLUGIN_ROOT")` is present in every hook with a lib import. The test does NOT assert `GITHUB_WORKSPACE` is present, so the test passes both before and after this amendment.
 
 **Migration**: The 23 production hooks were migrated to the manifest-walk-up form by `scripts/migrations/req003_inline_plugin_root_bootstrap.py` as part of REQ-003. Re-running the migration is idempotent.
+
+### 2026-11-19: Share the paths bootstrap for llm-council and sol-loop
+
+The original debate considered extraction and kept inline bootstraps for hooks.
+The two skill entry points introduced together in #7416 share a layout.
+Each ships at `skills/<skill>/scripts/<entry>.py` beside its plugin's `lib/`.
+
+Only `council.py` and `sol_loop.py` receive this exception to the inline requirement.
+They load their bundled `lib/bootstrap.py` by its resolved file path.
+This follows source-tree skill links and entry-file symlinks.
+Environment hints and Python's module search cannot select a different bootstrap.
+The editable source is `scripts/hook_utilities/bootstrap.py`.
+The existing build distributes it without adding shipped files.
+
+`load_skill_paths()` checks the Copilot root, Claude root, then the skill's own lib.
+Each candidate must hold a file at `lib/paths.py`.
+The helper loads that exact file under a private module name.
+Cached modules and packages cannot replace the selected file.
+The selected library stays off Python's module search path.
+The resolved entry directory comes first for sibling imports.
+Exhausted candidates raise `RuntimeError`, listing their paths in order.
+A partial install missing the bundled bootstrap fails while loading that file.
+
+Hook callers keep their existing bootstrap and failure handling.
+Other skill callers retain the inline requirement.
 
 ## Related Decisions
 
