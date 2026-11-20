@@ -26,6 +26,9 @@ class EmailValidator:
 ### Score: 7/10 (Good Cohesion)
 
 ```python
+from datetime import datetime
+
+
 class User:
     """Represents a user with validation"""
 
@@ -94,12 +97,26 @@ class Utilities:
 ### Score: 10/10 (Minimal Coupling)
 
 ```python
+from dataclasses import dataclass
+from typing import Protocol
+
+
+@dataclass(frozen=True)
+class Order:
+    total_cents: int
+
+
+class PaymentServiceInterface(Protocol):
+    def charge(self, amount_cents: int) -> bool:
+        """Return whether the payment service accepted this amount."""
+
+
 class OrderProcessor:
     def __init__(self, payment_service: PaymentServiceInterface):
         self._payment_service = payment_service  # Injected dependency
 
     def process(self, order: Order) -> bool:
-        return self._payment_service.charge(order.total)
+        return self._payment_service.charge(order.total_cents)
 ```
 
 **Why 10**: Depends on interface, not implementation. Easy to test with mocks. No global state.
@@ -107,12 +124,31 @@ class OrderProcessor:
 ### Score: 7/10 (Loose Coupling)
 
 ```python
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class Order:
+    total_cents: int
+
+
+class PaymentService:
+    def __init__(self, credit_cents: int):
+        self._credit_cents = credit_cents
+
+    def charge(self, amount_cents: int) -> bool:
+        if not 0 < amount_cents <= self._credit_cents:
+            return False
+        self._credit_cents -= amount_cents
+        return True
+
+
 class OrderProcessor:
-    def __init__(self):
-        self._payment_service = PaymentService()  # Direct instantiation
+    def __init__(self, credit_cents: int):
+        self._payment_service = PaymentService(credit_cents)  # Direct instantiation
 
     def process(self, order: Order) -> bool:
-        return self._payment_service.charge(order.total)
+        return self._payment_service.charge(order.total_cents)
 ```
 
 **Why 7**: Direct instantiation creates coupling, but isolated to constructor. Still testable.
@@ -120,31 +156,94 @@ class OrderProcessor:
 ### Score: 4/10 (Moderate Coupling)
 
 ```python
+import logging
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class Order:
+    total_cents: int
+
+
+class PaymentService:
+    def __init__(self, credit_cents: int):
+        self._credit_cents = credit_cents
+
+    def charge(self, amount_cents: int) -> bool:
+        if not 0 < amount_cents <= self._credit_cents:
+            return False
+        self._credit_cents -= amount_cents
+        return True
+
+
+payment_service = PaymentService(credit_cents=10_000)
+
+
 class OrderProcessor:
     def process(self, order: Order) -> bool:
-        # Global singleton access
-        payment = PaymentService.get_instance()
-        logger = Logger.get_instance()
-
+        # Process-wide service and logger are hidden dependencies.
+        logger = logging.getLogger("orders")
         logger.info("Processing order")
-        return payment.charge(order.total)
+        return payment_service.charge(order.total_cents)
 ```
 
 **Why 4**: Depends on singletons (hidden dependencies). Global state. Hard to test.
 
 ### Score: 1/10 (Tight Coupling)
 
+This integration example needs `psycopg` and `stripe`, an `orders` table, and test credentials.
+The Stripe test account must allow the supplied payment method.
+
 ```python
+import os
+import smtplib
+from dataclasses import dataclass
+from email.message import EmailMessage
+
+import psycopg
+from stripe import StripeClient
+
+
+@dataclass(frozen=True)
+class Order:
+    order_id: str
+    total_cents: int
+    email: str
+    payment_method: str
+
+
 class OrderProcessor:
     def process(self, order: Order) -> bool:
         # Hard-coded dependencies everywhere
-        db = DatabaseConnection("localhost", 5432)
-        payment = StripePayment(api_key="sk_live_...")
-        email = SmtpEmail("smtp.gmail.com")
+        with psycopg.connect(host="localhost", port=5432, dbname="orders") as db:
+            db.execute(
+                "INSERT INTO orders (id, total_cents) VALUES (%s, %s)",
+                (order.order_id, order.total_cents),
+            )
 
-        db.save(order)
-        payment.charge(order.total)
-        email.send(order.user.email, "Order confirmed")
+        client = StripeClient(os.environ["STRIPE_TEST_SECRET_KEY"])
+        payment = client.v1.payment_intents.create(
+            {
+                "amount": order.total_cents,
+                "currency": "usd",
+                "payment_method": order.payment_method,
+                "payment_method_types": ["card"],
+                "confirm": True,
+            },
+            {"idempotency_key": order.order_id},
+        )
+        if payment.status != "succeeded":
+            return False
+
+        sender = os.environ["SMTP_USER"]
+        message = EmailMessage()
+        message["From"] = sender
+        message["To"] = order.email
+        message["Subject"] = "Order confirmed"
+        message.set_content(f"Payment received for order {order.order_id}.")
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10) as smtp:
+            smtp.login(sender, os.environ["SMTP_PASSWORD"])
+            smtp.send_message(message)
         return True
 ```
 
@@ -421,18 +520,38 @@ Score based on convention adherence, not enforcement.
 ### TypeScript: Interface Segregation
 
 ```typescript
+import Stripe from "stripe";
+
 // Good coupling (10/10)
 interface PaymentProcessor {
   charge(amount: number): Promise<boolean>;
 }
 
-class Order {
+class OrderWithPaymentProcessor {
   constructor(private payment: PaymentProcessor) {}
+
+  pay(totalCents: number): Promise<boolean> {
+    return this.payment.charge(totalCents);
+  }
 }
 
 // Poor coupling (4/10)
-class Order {
-  constructor(private payment: StripePayment) {}  // Concrete dependency
+class OrderWithStripe {
+  constructor(private payment: Stripe) {}  // Concrete dependency
+
+  async pay(totalCents: number, paymentMethod: string, orderId: string): Promise<boolean> {
+    const intent = await this.payment.paymentIntents.create(
+      {
+        amount: totalCents,
+        currency: "usd",
+        payment_method: paymentMethod,
+        payment_method_types: ["card"],
+        confirm: true,
+      },
+      { idempotencyKey: orderId },
+    );
+    return intent.status === "succeeded";
+  }
 }
 ```
 
