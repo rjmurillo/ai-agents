@@ -40,8 +40,9 @@ counted, never failed.
   history, historical, precedent, lineage, originally, formerly, previously,
   no longer, at the time, or used to (not after is, are or be), or a past-tense
   "was", "were" or "had been" before governed, owned, defined, required or
-  mandated; or "not" or "never" plus from, by, under, per, cite, follow, use or
-  rely on precedes the mention, alone or with other ADRs in a list.
+  mandated; or "not" or "never" (optionally plus governed, owned, defined,
+  required or bound) plus from, by, under, per, cite, follow, use or rely on
+  precedes the mention, alone or in a list joined by commas, or, and.
 - AUTHORITY: the sentence carries MUST, SHALL or REQUIRED, or one of governs,
   governing, governed by, owns, owned by, current owner, owner of, binding,
   authority, in force or requires; or the mention follows a binding phrase
@@ -137,8 +138,9 @@ _HISTORY_RE = re.compile(
     re.IGNORECASE,
 )
 _NEGATED_BEFORE_RE = re.compile(
-    r"\b(?:not|never)\s+(?:from|by|under|per|cite|follow|use|rely on)\s+"
-    r"(?:ADR-\d+\s*(?:,|\bor\b|\band\b)\s*)*$",
+    r"\b(?:not|never)\s+(?:(?:governed|owned|defined|required|bound)\s+)?"
+    r"(?:from|by|under|per|cite|follow|use|rely on)\s+"
+    r"(?:ADR-\d+\s*(?:,\s*(?:or|and)?|\bor\b|\band\b)\s*)*$",
     re.IGNORECASE,
 )
 
@@ -352,8 +354,7 @@ class ScanResult:
 def scan(repo_root: Path, records: list[Record], corpus: Corpus) -> ScanResult | str:
     """Classify every superseded-ADR mention in the tracked live records.
 
-    Returns the fault reason when git could not list the files, so a gate that
-    enumerated nothing never reports an empty findings list as a clean tree.
+    Returns the fault reason when git cannot list files, never an empty list.
     """
     tracked = tracked_files(repo_root, (f"{ADR_DIR}/ADR-*.md",))
     if tracked is None:

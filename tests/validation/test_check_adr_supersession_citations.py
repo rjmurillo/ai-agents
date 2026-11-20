@@ -181,6 +181,8 @@ def test_fixed_adr_107_wording_passes() -> None:
         'The "Tier 1 per ADR-080" framing governs nothing.\n',
         "Skills MUST NOT cite ADR-080 as authority.\n",
         "Skills must not cite ADR-052 or ADR-080 as the owner of pins.\n",
+        "Agents MUST NOT cite ADR-036, ADR-052, or ADR-080.\n",
+        "This record is not governed by ADR-080.\n",
     ],
 )
 def test_historical_mention_passes(text: str) -> None:
