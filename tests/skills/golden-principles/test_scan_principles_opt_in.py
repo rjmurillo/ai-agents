@@ -12,6 +12,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -44,25 +45,25 @@ def _make_repo_with_diff(repo: Path, *, adopts_principles: bool) -> None:
     _run_git(repo, "init", "-b", "main")
     _run_git(repo, "config", "user.email", "test@example.com")
     _run_git(repo, "config", "user.name", "Test")
-    (repo / "base.py").write_text("x = 1\n")
+    (repo / "base.py").write_text("x = 1\n", encoding="utf-8")
     _run_git(repo, "add", "base.py")
     if adopts_principles:
         doc = repo / core.GOVERNANCE_DOC
         doc.parent.mkdir(parents=True)
-        doc.write_text("# Golden principles\n")
+        doc.write_text("# Golden principles\n", encoding="utf-8")
         _run_git(repo, "add", core.GOVERNANCE_DOC)
     _run_git(repo, "commit", "-m", "base")
     _run_git(repo, "checkout", "-b", "feature")
-    (repo / "changed.py").write_text("y = 2\n")
+    (repo / "changed.py").write_text("y = 2\n", encoding="utf-8")
     _run_git(repo, "add", "changed.py")
     _run_git(repo, "commit", "-m", "change")
 
 
 def _scan_new_shell_script(
     repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> tuple[int, dict[str, object]]:
+) -> tuple[int, dict[str, Any]]:
     """Commit one new .sh on the feature branch and run the /review invocation."""
-    (repo / "verify-package-contents.sh").write_text("echo verify\n")
+    (repo / "verify-package-contents.sh").write_text("echo verify\n", encoding="utf-8")
     _run_git(repo, "add", "verify-package-contents.sh")
     _run_git(repo, "commit", "-m", "add shell helper")
     monkeypatch.chdir(repo)
@@ -134,7 +135,7 @@ class TestRepositoryPolicyOptIn:
     ) -> None:
         # Running from a subdirectory must still find the root's document.
         _make_repo_with_diff(tmp_path, adopts_principles=True)
-        (tmp_path / "added.sh").write_text("echo added\n")
+        (tmp_path / "added.sh").write_text("echo added\n", encoding="utf-8")
         _run_git(tmp_path, "add", "added.sh")
         _run_git(tmp_path, "commit", "-m", "add shell script")
         subdir = tmp_path / "nested"
@@ -153,7 +154,7 @@ class TestRepositoryPolicyOptIn:
         repo = tmp_path / "repo"
         repo.mkdir()
         _make_repo_with_diff(repo, adopts_principles=True)
-        (repo / "tool.sh").write_text("echo hi\n")
+        (repo / "tool.sh").write_text("echo hi\n", encoding="utf-8")
         outside = tmp_path / "outside"
         outside.mkdir()
         monkeypatch.chdir(outside)
@@ -167,7 +168,7 @@ class TestRepositoryPolicyOptIn:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         # No repository root means no governance document: advisory, exit 0.
-        (tmp_path / "tool.sh").write_text("echo hi\n")
+        (tmp_path / "tool.sh").write_text("echo hi\n", encoding="utf-8")
         monkeypatch.chdir(tmp_path)
 
         with patch("sys.argv", ["scan_principles.py", "--directory", str(tmp_path)]):

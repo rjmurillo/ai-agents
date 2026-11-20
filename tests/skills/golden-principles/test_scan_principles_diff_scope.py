@@ -50,16 +50,16 @@ def _make_repo_with_diff(repo: Path, *, adopts_principles: bool = True) -> None:
     _run_git(repo, "init", "-b", "main")
     _run_git(repo, "config", "user.email", "test@example.com")
     _run_git(repo, "config", "user.name", "Test")
-    (repo / "base.py").write_text("x = 1\n")
+    (repo / "base.py").write_text("x = 1\n", encoding="utf-8")
     _run_git(repo, "add", "base.py")
     if adopts_principles:
         doc = repo / core.GOVERNANCE_DOC
         doc.parent.mkdir(parents=True)
-        doc.write_text("# Golden principles\n")
+        doc.write_text("# Golden principles\n", encoding="utf-8")
         _run_git(repo, "add", core.GOVERNANCE_DOC)
     _run_git(repo, "commit", "-m", "base")
     _run_git(repo, "checkout", "-b", "feature")
-    (repo / "changed.py").write_text("y = 2\n")
+    (repo / "changed.py").write_text("y = 2\n", encoding="utf-8")
     _run_git(repo, "add", "changed.py")
     _run_git(repo, "commit", "-m", "change")
 
@@ -134,7 +134,7 @@ class TestMainDiffScope:
         _make_repo_with_diff(tmp_path)
         # A pre-existing shell script on the base would trip GP-001 on a
         # whole-tree scan, but it is not in the diff so --diff-scope ignores it.
-        (tmp_path / "legacy.sh").write_text("echo hi\n")
+        (tmp_path / "legacy.sh").write_text("echo hi\n", encoding="utf-8")
         _run_git(tmp_path, "checkout", "main")
         _run_git(tmp_path, "add", "legacy.sh")
         _run_git(tmp_path, "commit", "-m", "legacy shell on main")
@@ -150,7 +150,7 @@ class TestMainDiffScope:
     ) -> None:
         _make_repo_with_diff(tmp_path)
         # Add a new shell script in the diff: GP-001 (script-language) is an error.
-        (tmp_path / "added.sh").write_text("echo added\n")
+        (tmp_path / "added.sh").write_text("echo added\n", encoding="utf-8")
         _run_git(tmp_path, "add", "added.sh")
         _run_git(tmp_path, "commit", "-m", "add shell script")
         monkeypatch.chdir(tmp_path)
@@ -195,7 +195,7 @@ class TestMainDiffScope:
         # the scan still finds them when cwd is a subdirectory. Without the
         # anchor the file would be skipped and the gate would pass falsely.
         _make_repo_with_diff(tmp_path)
-        (tmp_path / "added.sh").write_text("echo added\n")
+        (tmp_path / "added.sh").write_text("echo added\n", encoding="utf-8")
         _run_git(tmp_path, "add", "added.sh")
         _run_git(tmp_path, "commit", "-m", "add shell script")
         subdir = tmp_path / "nested"
