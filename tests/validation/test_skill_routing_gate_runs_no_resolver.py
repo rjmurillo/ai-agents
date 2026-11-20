@@ -19,14 +19,14 @@ if str(_VALIDATION) not in sys.path:
 import check_skill_routing_roles as gate
 
 
-class _ResolverRan(Exception):
+class _ResolverRanError(Exception):
     """Raised by the stand-in evidence step to prove it was called."""
 
 
 @pytest.fixture
 def evidence_raises(monkeypatch: pytest.MonkeyPatch) -> None:
     def _boom(*_args: object, **_kwargs: object) -> object:
-        raise _ResolverRan("evidence was computed")
+        raise _ResolverRanError("evidence was computed")
 
     monkeypatch.setattr(gate, "compute_evidence", _boom)
 
@@ -43,5 +43,5 @@ def test_the_cli_without_report_computes_no_evidence() -> None:
 
 @pytest.mark.usefixtures("evidence_raises")
 def test_the_cli_with_report_still_computes_evidence() -> None:
-    with pytest.raises(_ResolverRan):
+    with pytest.raises(_ResolverRanError):
         gate.main(["--repo-root", str(_REPO_ROOT), "--report"])

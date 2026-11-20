@@ -38,7 +38,8 @@ Checks, each named so the baseline tracks them separately:
 Resolver use: the resolver's own `main` is loaded from its file path and called
 with `--request` and `--skills-root`, the way `scripts/eval/eval_autoplan_routes.py`
 does. Skills are listed from `.claude/skills`, but phrases resolve against
-`src/claude/skills`, the catalog autoplan's default invocation reads. Routes may be namespaced (`project-toolkit:adr-generator`); the bare name
+`src/claude/skills`, the catalog autoplan's default invocation reads. Routes may be namespaced
+(`project-toolkit:adr-generator`); the bare name
 after the colon is compared.
 
 Ratchet: `skill_trigger_resolution_baseline.json` holds `(check, skill, phrase)`
