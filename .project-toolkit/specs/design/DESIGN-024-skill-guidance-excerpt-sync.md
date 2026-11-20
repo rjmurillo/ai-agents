@@ -31,7 +31,7 @@ Two designs were drafted on 2026-09-11. The first kept `.claude/skills/<name>/SK
 | Constraint | Where | Effect on the issue's design |
 |---|---|---|
 | REQ-003-010 | `.project-toolkit/specs/requirements/REQ-003-multi-tool-artifact-build.md:369-370` | "The build shall never write to `.claude/<artifact>/`" |
-| The guard | `build/scripts/build_all.py:1036` `assert_no_claude_writes`, called at `:2226`, exit 2 | A before-and-after content diff of `.claude/`: a compile step that writes `.claude/skills/<name>/SKILL.md` exits 2 whenever the render differs from the committed file, which is every regeneration that does work |
+| The guard | `build/scripts/build_all.py:1036` `assert_no_claude_writes`, called at `:2454`, exit 2 | A before-and-after content diff of `.claude/`: a compile step that writes `.claude/skills/<name>/SKILL.md` exits 2 whenever the render differs from the committed file, which is every regeneration that does work <!-- citation-freshness: ignore -- the call assert_no_claude_writes( is at build_all.py:2454 and the definition at :1036, verified 2026-11-20; the row anchors describe the whole guard, not one line --> |
 | ADR-107 property 1 | `ADR-107-...md:61` | "Generators read canonical trees and write mirror trees. They never write under `.claude/`", listed as settled |
 | REQ-003 D4 | `REQ-003-...md:80` | `.claude/<artifact>/` is canonical |
 | Epic #5698 correction | issue body | "#5706 must not create ... a generator that writes over canonical `.claude/` content" |
