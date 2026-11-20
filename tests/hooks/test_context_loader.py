@@ -4,6 +4,7 @@
 Covers the pending-retro skeleton reminder added for Issue #2079: counting
 unfilled skeletons by their RETRO-STATE marker, capping by filename date,
 extracting fill dates, and surfacing the reminder in the injected context.
+Also pins that no retrospective content is injected (Issues #7471, #7472).
 """
 
 from __future__ import annotations
@@ -11,7 +12,7 @@ from __future__ import annotations
 import os
 import sys
 import time
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from io import StringIO
 from pathlib import Path
 from typing import IO, Any
@@ -193,81 +194,6 @@ def test_unreadable_file_skipped_not_fatal() -> None:
         # Assert: the bad file is skipped, the good one still counts
         assert count == 1
         assert names == [f"{good_date}-auto-retro.md"]
-
-
-_TODAY = date(2026, 1, 15)
-
-
-# --- _find_latest_retrospective: symlink containment (CWE-22/CWE-59) ------
-
-
-def test_find_latest_retrospective_skips_a_symlinked_leaf(tmp_path: Path) -> None:
-    """A retrospective symlink is never followed, even when it is newest."""
-    retro_dir = tmp_path / "retrospective"
-    retro_dir.mkdir()
-    real = retro_dir / "2026-01-01-auto-retro.md"
-    real.write_text("real retro\n", encoding="utf-8")
-
-    secret = tmp_path / "secret.txt"
-    secret.write_text("SECRET_CONTENT\n", encoding="utf-8")
-    # Force a strictly later mtime than `real`'s so, absent the symlink
-    # defense, the secret would win the "most recent" comparison outright.
-    # Without this, both files' mtimes can tie (coarse filesystem
-    # resolution, or both written within the same tick), letting the test
-    # pass by luck of insertion order even if the symlink filter were broken.
-    later = real.stat().st_mtime + 10
-    os.utime(secret, (later, later))
-    link = retro_dir / "2026-01-02-auto-retro.md"
-    try:
-        link.symlink_to(secret)
-    except OSError:
-        pytest.skip("cannot create symlink on this platform")
-
-    latest = invoke_context_loader._find_latest_retrospective(retro_dir, tmp_path, today=_TODAY)
-
-    assert latest == real
-
-
-def test_find_latest_retrospective_ignores_a_symlink_even_when_newer(tmp_path: Path) -> None:
-    """Positive control: a real, unlinked retro is still found when present."""
-    retro_dir = tmp_path / "retrospective"
-    retro_dir.mkdir()
-    real = retro_dir / "2026-01-01-auto-retro.md"
-    real.write_text("real retro\n", encoding="utf-8")
-
-    latest = invoke_context_loader._find_latest_retrospective(retro_dir, tmp_path, today=_TODAY)
-
-    assert latest == real
-
-
-def test_find_latest_retrospective_rejects_a_symlinked_retro_dir(tmp_path: Path) -> None:
-    """A symlinked ``.project-toolkit/retrospective`` must not redirect containment.
-
-    Resolving ``retro_dir`` before checking containment means a symlinked
-    retro directory (or a symlinked ``.agents`` ancestor) makes every file
-    genuinely inside the redirected external directory read as "contained"
-    relative to that redirected root. Walking the unresolved components
-    between the project root and ``retro_dir`` catches this before anything
-    is resolved or globbed.
-    """
-    project_dir = tmp_path / "project"
-    agents_dir = project_dir / ".agents"
-    agents_dir.mkdir(parents=True)
-
-    outside = tmp_path / "outside"
-    outside.mkdir()
-    newer = outside / "2099-01-01-auto-retro.md"
-    newer.write_text("exfiltrated\n", encoding="utf-8")
-
-    retro_dir = agents_dir / "retrospective"
-    try:
-        retro_dir.symlink_to(outside)
-    except OSError:
-        pytest.skip("cannot create symlink on this platform")
-
-    latest = invoke_context_loader._find_latest_retrospective(retro_dir, project_dir, today=_TODAY)
-
-    assert latest is None
 
 
 # --- _count_pending_skeletons: ancestor symlink guard (CWE-22/CWE-59) -----
@@ -479,6 +405,123 @@ def test_main_no_reminder_when_skeleton_stale() -> None:
 
         # Assert
         assert "need completion" not in out
+
+
+def _write_retrospective(retro_dir: Path, filename: str, body: str) -> Path:
+    retro_dir.mkdir(parents=True, exist_ok=True)
+    path = retro_dir / filename
+    path.write_text(body, encoding="utf-8")
+    return path
+
+
+def test_main_does_not_inject_retrospective_content(tmp_path: Path) -> None:
+    """A fresh, filled retrospective is no longer injected into the session."""
+    # Arrange
+    (tmp_path / ".agents").mkdir()
+    retro_dir = tmp_path / ".project-toolkit" / "retrospective"
+    _write_retrospective(
+        retro_dir,
+        f"{_date_days_ago(0)}-sweep.md",
+        "# Retrospective: sweep\n\nRETRO_BODY_SENTINEL\n",
+    )
+
+    # Act
+    out = _run_main_with_project(tmp_path)
+
+    # Assert
+    assert "RETRO_BODY_SENTINEL" not in out
+    assert "Latest Retrospective" not in out
+    assert out == ""
+
+
+def test_main_reminder_carries_no_retrospective_content(tmp_path: Path) -> None:
+    """With a pending skeleton and a filled retro, only the reminder is emitted."""
+    # Arrange
+    (tmp_path / ".agents").mkdir()
+    retro_dir = tmp_path / ".project-toolkit" / "retrospective"
+    skeleton_date = _date_days_ago(0)
+    _write_skeleton(retro_dir, skeleton_date)
+    _write_retrospective(
+        retro_dir,
+        f"{_date_days_ago(1)}-sweep.md",
+        "# Retrospective: sweep\n\nRETRO_BODY_SENTINEL\n",
+    )
+
+    # Act
+    out = _run_main_with_project(tmp_path)
+
+    # Assert
+    assert out.startswith("## ⏳ 1 retro(s) need completion")
+    assert "RETRO_BODY_SENTINEL" not in out
+    assert "filled content" not in out
+
+
+def test_main_emits_nothing_when_retro_dir_is_missing(tmp_path: Path) -> None:
+    # Arrange
+    (tmp_path / ".agents").mkdir()
+
+    # Act
+    out = _run_main_with_project(tmp_path)
+
+    # Assert
+    assert out == ""
+
+
+def test_main_ignores_skeletons_behind_a_symlinked_project_toolkit(tmp_path: Path) -> None:
+    """A symlinked ``.project-toolkit`` must not leak an outside skeleton (CWE-59)."""
+    # Arrange
+    project_dir = tmp_path / "project"
+    (project_dir / ".agents").mkdir(parents=True)
+    outside_toolkit = tmp_path / "outside-toolkit"
+    _write_skeleton(outside_toolkit / "retrospective", _date_days_ago(0))
+    _symlink_or_skip(project_dir / ".project-toolkit", outside_toolkit)
+
+    # Act
+    out = _run_main_with_project(project_dir)
+
+    # Assert
+    assert out == ""
+
+
+def test_main_counts_skeletons_in_a_real_project_toolkit(tmp_path: Path) -> None:
+    """Control for the symlink case: the same layout without a link is counted."""
+    # Arrange
+    project_dir = tmp_path / "project"
+    (project_dir / ".agents").mkdir(parents=True)
+    _write_skeleton(project_dir / ".project-toolkit" / "retrospective", _date_days_ago(0))
+
+    # Act
+    out = _run_main_with_project(project_dir)
+
+    # Assert
+    assert "1 retro(s) need completion" in out
+
+
+def test_main_audit_log_records_pending_count(tmp_path: Path) -> None:
+    # Arrange
+    (tmp_path / ".agents").mkdir()
+    _write_skeleton(tmp_path / ".project-toolkit" / "retrospective", _date_days_ago(0))
+
+    # Act
+    _run_main_with_project(tmp_path)
+
+    # Assert
+    logs = list((tmp_path / ".project-toolkit" / ".hook-state").glob("context-loader-*.log"))
+    assert len(logs) == 1
+    assert "Loaded: pending-retros:1" in logs[0].read_text(encoding="utf-8")
+
+
+def test_main_audit_log_records_none_when_nothing_pending(tmp_path: Path) -> None:
+    # Arrange
+    (tmp_path / ".agents").mkdir()
+
+    # Act
+    _run_main_with_project(tmp_path)
+
+    # Assert
+    logs = list((tmp_path / ".project-toolkit" / ".hook-state").glob("context-loader-*.log"))
+    assert len(logs) == 1
+    assert "Loaded: (none)" in logs[0].read_text(encoding="utf-8")
 
 
 if __name__ == "__main__":

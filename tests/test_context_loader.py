@@ -2,7 +2,7 @@
 """Tests for SessionStart/invoke_context_loader.py.
 
 Covers:
-- Latest retrospective detection, loading, and truncation
+- No retrospective content is injected (Issues #7471, #7472)
 - HANDOFF.md is never loaded (Issue #5168; the file is a frozen, stale
   artifact and injecting it wasted ~1,000 tokens/session for no benefit)
 - Fail-open on missing files
@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import io
 import sys
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -43,28 +43,6 @@ def project_tree(tmp_path: Path) -> Path:
     # Present but must never be loaded (Issue #5168).
     (agents / "HANDOFF.md").write_text("# Handoff\n\nProject state dashboard.\n", encoding="utf-8")
     return tmp_path
-
-
-class TestReadFileTruncated:
-    """Test _read_file_truncated helper."""
-
-    def test_reads_small_file(self, tmp_path: Path) -> None:
-        f = tmp_path / "small.md"
-        f.write_text("hello world", encoding="utf-8")
-        result = invoke_context_loader._read_file_truncated(f, 1000)
-        assert result == "hello world"
-
-    def test_truncates_large_file(self, tmp_path: Path) -> None:
-        f = tmp_path / "large.md"
-        f.write_text("x" * 5000, encoding="utf-8")
-        result = invoke_context_loader._read_file_truncated(f, 100)
-        assert result is not None
-        assert len(result) < 200  # 100 chars + truncation message
-        assert "truncated" in result
-
-    def test_returns_none_on_missing_file(self, tmp_path: Path) -> None:
-        result = invoke_context_loader._read_file_truncated(tmp_path / "nonexistent.md", 1000)
-        assert result is None
 
 
 class TestUtf8ProtocolOutput:
@@ -155,48 +133,6 @@ class TestUtf8ProtocolOutput:
         assert stream.flushed is True
 
 
-class TestFindLatestRetrospective:
-    """Test _find_latest_retrospective helper."""
-
-    def test_finds_most_recent(self, tmp_path: Path) -> None:
-        """Pick the retro with the newest document date, not the newest mtime.
-
-        The file with the older date gets the later mtime, so mtime ordering
-        would pick the wrong file (Issue #7227). ``today`` is pinned so the
-        age cap does not depend on the wall clock.
-        """
-        import os
-
-        retro_dir = tmp_path / "retros"
-        retro_dir.mkdir()
-        old = retro_dir / "2025-01-01-retro.md"
-        old.write_text("old retro", encoding="utf-8")
-        new = retro_dir / "2025-06-15-retro.md"
-        new.write_text("new retro updated", encoding="utf-8")
-
-        # Invert mtimes on purpose: the older document is the newer file.
-        os.utime(old, (2000, 2000))
-        os.utime(new, (1000, 1000))
-
-        result = invoke_context_loader._find_latest_retrospective(
-            retro_dir, tmp_path, today=date(2025, 6, 20)
-        )
-        assert result is not None
-        assert result.name == "2025-06-15-retro.md"
-
-    def test_returns_none_on_empty_dir(self, tmp_path: Path) -> None:
-        retro_dir = tmp_path / "retros"
-        retro_dir.mkdir()
-        result = invoke_context_loader._find_latest_retrospective(retro_dir, tmp_path)
-        assert result is None
-
-    def test_returns_none_on_missing_dir(self, tmp_path: Path) -> None:
-        result = invoke_context_loader._find_latest_retrospective(
-            tmp_path / "nonexistent", tmp_path
-        )
-        assert result is None
-
-
 class TestMain:
     """Test main() function."""
 
@@ -206,10 +142,10 @@ class TestMain:
                 invoke_context_loader.main()
             assert exc_info.value.code == 0
 
-    def test_loads_retro_and_ignores_handoff(
+    def test_ignores_retro_and_handoff(
         self, project_tree: Path, capsys: pytest.CaptureFixture
     ) -> None:
-        # Add a retrospective
+        """Neither a fresh retrospective nor HANDOFF.md reaches session context."""
         today = datetime.now(tz=UTC).date().isoformat()
         retro = project_tree / ".project-toolkit" / "retrospective" / f"{today}-retro.md"
         retro.write_text("# Retro\n\nLearnings here.", encoding="utf-8")
@@ -223,16 +159,17 @@ class TestMain:
             invoke_context_loader.main()
 
         captured = capsys.readouterr()
-        assert "Retrospective" in captured.out
+        assert "Learnings here." not in captured.out
         # Regression guard for Issue #5168: HANDOFF.md exists in project_tree
         # but must never be read or injected.
         assert "HANDOFF.md" not in captured.out
+        assert captured.out == ""
 
     def test_ignores_handoff_when_no_retro_present(
         self, project_tree: Path, capsys: pytest.CaptureFixture
     ) -> None:
-        """With only a (stale, unloaded) HANDOFF.md and no retrospective,
-        nothing qualifies for auto-load and the hook reports as much."""
+        """With only a (stale, unloaded) HANDOFF.md and no pending skeleton,
+        the hook prints nothing."""
         with (
             patch.object(invoke_context_loader, "skip_if_consumer_repo", return_value=False),
             patch.object(
@@ -242,7 +179,7 @@ class TestMain:
             invoke_context_loader.main()
 
         captured = capsys.readouterr()
-        assert "No context files found" in captured.out
+        assert captured.out == ""
         assert "HANDOFF.md" not in captured.out
 
     def test_handles_missing_handoff(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
@@ -258,7 +195,7 @@ class TestMain:
             invoke_context_loader.main()
 
         captured = capsys.readouterr()
-        assert "No context files found" in captured.out
+        assert captured.out == ""
 
     def test_writes_audit_log(self, project_tree: Path) -> None:
         with (
