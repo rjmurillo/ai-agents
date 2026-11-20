@@ -20,6 +20,24 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+# ADR-047 keeps this bootstrap inline because imports need sys.path first.
+_PLUGIN_ROOT = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+if _PLUGIN_ROOT:
+    _LIB_DIR = Path(_PLUGIN_ROOT) / "lib"
+else:
+    _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+
+if not os.path.isdir(_LIB_DIR):
+    raise RuntimeError(
+        "Expected portability helper lib directory not found: "
+        f"{_LIB_DIR}. Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT to the "
+        "plugin root, or run from an ai-agents checkout."
+    )
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from hook_utilities.frontmatter_block import FrontmatterStatus, split_frontmatter  # noqa: E402
+
 SKILL_ROOT = Path(__file__).resolve().parent.parent
 SCORERS_DIR = SKILL_ROOT / "scorers"
 SCHEMA_VERSION = 1
@@ -58,15 +76,18 @@ _EXIT_CODES = "Exit codes:" + (__doc__ or "").split("Exit codes:", 1)[-1]
 
 
 def load_label_table(rubric_path: Path) -> dict[str, float]:
-    """Parse ``labels:`` value/score pairs from a scorer markdown frontmatter."""
-    lines = rubric_path.read_text(encoding="utf-8").splitlines()
-    if not lines or lines[0].strip() != "---":
+    """Parse ``labels:`` value/score pairs from a scorer markdown frontmatter.
+
+    The block comes from ``hook_utilities.frontmatter_block.split_frontmatter``.
+    """
+    split = split_frontmatter(rubric_path.read_text(encoding="utf-8"))
+    if split.status is FrontmatterStatus.ABSENT:
         raise ScoreInputError(f"{rubric_path.name}: missing frontmatter")
+    if not split.found:
+        raise ScoreInputError(f"{rubric_path.name}: frontmatter is never closed")
     table: dict[str, float] = {}
     current: str | None = None
-    for line in lines[1:]:
-        if line.strip() == "---":
-            break
+    for line in split.raw.splitlines():
         value = _VALUE_RE.match(line)
         if value:
             current = value.group(1)

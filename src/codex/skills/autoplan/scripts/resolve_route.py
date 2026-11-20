@@ -94,10 +94,29 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+# ADR-047 keeps this bootstrap inline because imports need sys.path first.
+_PLUGIN_ROOT = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+if _PLUGIN_ROOT:
+    _LIB_DIR = Path(_PLUGIN_ROOT) / "lib"
+else:
+    _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+
+if not os.path.isdir(_LIB_DIR):
+    raise RuntimeError(
+        "Expected portability helper lib directory not found: "
+        f"{_LIB_DIR}. Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT to the "
+        "plugin root, or run from an ai-agents checkout."
+    )
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from hook_utilities.frontmatter_block import FrontmatterStatus, parse_frontmatter  # noqa: E402
 
 try:
     import yaml
@@ -105,8 +124,6 @@ except ImportError:
     yaml = None
 
 __all__ = ["main", "resolve", "Root", "Skill"]
-
-_FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 
 _WORD_RE = re.compile(r"[a-z0-9]+")
 
@@ -276,6 +293,9 @@ def _default_namespace(root: Path) -> str:
 def _read_frontmatter(path: Path) -> dict[str, object]:
     """Best-effort YAML frontmatter parse. Returns `{}` on any defect.
 
+    Reads the block with `hook_utilities.frontmatter_block.parse_frontmatter`,
+    last-one-wins on a repeated key as `yaml.safe_load` was.
+
     The resolver is not a validator: `check_skill_routing_roles.py` already
     refuses a malformed routing block before this script ever runs against a
     real catalog. A skill this resolver cannot parse simply contributes no
@@ -285,18 +305,13 @@ def _read_frontmatter(path: Path) -> dict[str, object]:
         text = path.read_text(encoding="utf-8")
     except OSError:
         return {}
-    match = _FRONTMATTER_RE.match(text)
-    if match is None:
-        return {}
-    try:
-        data = yaml.safe_load(match.group(1))
-    except yaml.YAMLError as exc:
+    result = parse_frontmatter(text, yaml, allow_duplicate_keys=True)
+    if result.status is FrontmatterStatus.MALFORMED:
         # Foreign plugin roots never pass the routing-role gate, so say which
         # skill dropped out instead of skipping it silently.
-        reason = exc.__class__.__name__
+        reason = (result.error or "").splitlines()[0]
         print(f"warning: skipped {path}: unparseable frontmatter ({reason})", file=sys.stderr)
-        return {}
-    return data if isinstance(data, dict) else {}
+    return result.metadata if result.status is FrontmatterStatus.VALID else {}
 
 
 def _load_catalog(roots: list[Root]) -> list[Skill]:

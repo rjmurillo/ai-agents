@@ -91,6 +91,3 @@ NAME_REGEX = r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
 
 # Semver regex (supports pre-release versions like 1.0.0-beta.1)
 SEMVER_REGEX = r"^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$"
-
-# Frontmatter regex (handles both LF and CRLF line endings)
-FRONTMATTER_REGEX = r"^---\r?\n(.*?)\r?\n---"

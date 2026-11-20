@@ -24,6 +24,24 @@ import sys
 from pathlib import Path
 from typing import Any
 
+# ADR-047 keeps this bootstrap inline because imports need sys.path first.
+_PLUGIN_ROOT = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+if _PLUGIN_ROOT:
+    _LIB_DIR = Path(_PLUGIN_ROOT) / "lib"
+else:
+    _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+
+if not os.path.isdir(_LIB_DIR):
+    raise RuntimeError(
+        "Expected portability helper lib directory not found: "
+        f"{_LIB_DIR}. Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT to the "
+        "plugin root, or run from an ai-agents checkout."
+    )
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from hook_utilities.frontmatter_block import FrontmatterStatus, parse_frontmatter, split_frontmatter  # noqa: E402
+
 # Shared CWE-22 containment and CLI parsing, same module quick_validate.py uses.
 # Same fallback as package_skill.py: put this file's directory on sys.path when it
 # is loaded from elsewhere.
@@ -179,33 +197,31 @@ class SkillValidator:
             return False
 
     def parse_frontmatter(self) -> bool:
-        """Parse YAML frontmatter from skill file."""
-        # Handle both LF and CRLF line endings
-        match = re.match(r"^---\r?\n(.*?)\r?\n---", self.content, re.DOTALL)
-        if not match:
+        """Parse YAML frontmatter from skill file.
+
+        The block comes from ``hook_utilities.frontmatter_block``. Without
+        PyYAML, the basic reader runs over the block text.
+        """
+        split = split_frontmatter(self.content)
+        if not split.found:
             self.errors.append("Missing YAML frontmatter")
             return False
-
-        frontmatter_text = match.group(1)
 
         try:
             import yaml
 
-            parsed = yaml.safe_load(frontmatter_text)
-            # Guard against None or non-dict returns from yaml.safe_load
-            if parsed is None:
-                self.frontmatter = {}
-            elif not isinstance(parsed, dict):
-                self.errors.append(
-                    f"Frontmatter must be a YAML dictionary, got {type(parsed).__name__}"
-                )
+            result = parse_frontmatter(self.content, yaml, allow_duplicate_keys=True)
+            if result.status is FrontmatterStatus.NOT_A_MAPPING:
+                self.errors.append(f"Frontmatter must be a YAML dictionary: {result.error}")
                 return False
-            else:
-                self.frontmatter = parsed
+            if result.status is FrontmatterStatus.MALFORMED:
+                self.errors.append(f"Failed to parse frontmatter: {result.error}")
+                return False
+            self.frontmatter = result.metadata or {}
             return True
         except ImportError:
             # Parse basic fields without yaml library (handles folded scalars)
-            self._parse_frontmatter_fallback(frontmatter_text)
+            self._parse_frontmatter_fallback(split.raw.strip("\r\n"))
             return True
         except Exception as e:
             self.errors.append(f"Failed to parse frontmatter: {e}")

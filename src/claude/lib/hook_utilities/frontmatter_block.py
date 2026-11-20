@@ -86,19 +86,29 @@ class FrontmatterSplit:
 
     ``raw`` is the text between the fences. ``body`` is the text after the
     closing fence, minus the one newline that ends the fence line.
-    ``body_start`` is the index in the source text where ``body`` begins, so a
-    caller that needs original bytes or a line number slices the source. When
-    no block is found, ``raw`` is ``""``, ``body`` is the whole text, and
-    ``body_start`` is 0.
-
     ``FM_BOUNDARY``'s ``\\s*`` is greedy, so the closing fence absorbs blank
     lines that follow it. ``body`` therefore does not keep those lines.
+
+    The offsets index the source text, so a caller that needs original bytes or
+    a line number slices the source instead of re-finding a fence:
+
+    - ``raw_start``: where ``raw`` begins (the end of the opening fence match).
+    - ``raw_end``: where ``raw`` ends, which is the start of the closing fence.
+    - ``fence_end``: just past the closing fence line and its newline, before
+      any blank lines. ``text[fence_end:]`` is the body with those lines kept.
+    - ``body_start``: where ``body`` begins.
+
+    When no block is found, ``raw`` is ``""``, ``body`` is the whole text, and
+    every offset is 0.
     """
 
     status: FrontmatterStatus
     raw: str
     body: str
     body_start: int
+    raw_start: int = 0
+    raw_end: int = 0
+    fence_end: int = 0
 
     @property
     def found(self) -> bool:
@@ -146,7 +156,17 @@ def split_frontmatter(text: str) -> FrontmatterSplit:
     # The boundary match stops before the newline that ends the fence line.
     if text.startswith("\n", body_start):
         body_start += 1
-    return FrontmatterSplit(FrontmatterStatus.VALID, raw, text[body_start:], body_start)
+    line_end = text.find("\n", closing.start())
+    fence_end = len(text) if line_end < 0 else line_end + 1
+    return FrontmatterSplit(
+        FrontmatterStatus.VALID,
+        raw,
+        text[body_start:],
+        body_start,
+        raw_start=opening.end(),
+        raw_end=closing.start(),
+        fence_end=fence_end,
+    )
 
 
 _STRICT_LOADERS: dict[int, type] = {}
@@ -176,8 +196,11 @@ def _strict_loader(yaml: ModuleType) -> type:
         mapping: dict[Any, Any] = loader.construct_mapping(node, deep=True)
         return mapping
 
-    strict = type("StrictFrontmatterLoader", (yaml.SafeLoader,), {})
-    strict.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, no_duplicate_keys)
+    # Any: the class derives from the caller's SafeLoader, which this file
+    # cannot import, so its add_constructor classmethod is invisible to mypy.
+    built: Any = type("StrictFrontmatterLoader", (yaml.SafeLoader,), {})
+    built.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, no_duplicate_keys)
+    strict: type = built
     _STRICT_LOADERS[id(yaml)] = strict
     return strict
 
