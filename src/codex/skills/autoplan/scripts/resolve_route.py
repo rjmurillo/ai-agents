@@ -66,6 +66,8 @@ Matching:
    request length.
 3. A skill's score is its count of matching intents. The tie-break is the
    total token count of those matching intents.
+   When API doc authoring matches, it owns Hemingway requests over technical
+   writing in the same namespace.
 
 Order: explicit name/namespace reference (dropping a self-reference and
 continuing) -> multi-domain marker -> highest-scoring eligible front-door
@@ -447,8 +449,21 @@ def _resolve_specialist(
             "candidates": [],
             "rationale": "no explicit reference, multi-domain marker, or intent match",
         }
-    top = max((score, tiebreak) for score, tiebreak, _skill, _matched in scored)
-    winners = [entry for entry in scored if (entry[0], entry[1]) == top]
+    api_doc_namespaces = {
+        skill.namespace for _, _, skill, _ in scored if skill.name == "api-doc-authoring"
+    }
+    hemingway_intents = {_tokenize("hemingway audit"), _tokenize("hemingway pass")}
+    eligible = [
+        (score, tiebreak, skill, matched)
+        for score, tiebreak, skill, matched in scored
+        if not (
+            skill.name == "technical-writing"
+            and skill.namespace in api_doc_namespaces
+            and any(_tokenize(intent) in hemingway_intents for intent in matched)
+        )
+    ]
+    top = max((score, tiebreak) for score, tiebreak, _skill, _matched in eligible)
+    winners = [entry for entry in eligible if (entry[0], entry[1]) == top]
     if len(winners) > 1:
         names = sorted(entry[2].qualified_name for entry in winners)
         return {
@@ -458,11 +473,14 @@ def _resolve_specialist(
             "rationale": f"ambiguous: tied specialists {', '.join(names)}",
         }
     _score, _tiebreak, skill, matched = winners[0]
+    rationale = f"matched intents: {', '.join(matched)}"
+    if len(eligible) < len(scored):
+        rationale += ". API doc authoring takes precedence over technical writing for Hemingway requests in the same namespace"
     return {
         "kind": "specialist",
         "route": skill.qualified_name,
         "candidates": [skill.qualified_name],
-        "rationale": f"matched intents: {', '.join(matched)}",
+        "rationale": rationale,
     }
 
 
