@@ -9,11 +9,12 @@
       "pr": 5343,
       "sha": "8e7e59b263",
       "kind": "positive",
-      "scope": "automatic",
+      "scope": "manual",
       "file": ".claude/skills/ai-agents-diagnostics-toolkit/SKILL.md",
       "line": 56,
       "defect_class": "stale-citation",
-      "defect": "build_all.py lines 1005-1033 moved to different code."
+      "defect": "build_all.py lines 1005-1033 moved to different code.",
+      "why": "Its anchors never match code, so the base verdict is stale; base debt never blocks."
     },
     {
       "id": "C1-02",
@@ -136,11 +137,12 @@
       "sha": "2787132138",
       "fix_sha": "39df73d11bcc173cf7447960b18c1c7e2b783ca1",
       "kind": "positive",
-      "scope": "automatic",
+      "scope": "manual",
       "file": ".project-toolkit/specs/requirements/REQ-022-control-plane-disposition-ledger-v070.md",
       "line": 71,
       "defect_class": "stale-citation",
-      "defect": "The mechanism cite still names the old fast-stage line."
+      "defect": "The mechanism cite still names the old fast-stage line.",
+      "why": "Already stale at the merge base (line 543, quote at 796); base debt never blocks."
     },
     {
       "id": "C1-15",

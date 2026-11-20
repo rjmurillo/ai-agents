@@ -1,0 +1,51 @@
+{
+  "id": "C1-06",
+  "pr": 5287,
+  "sha": "2bcb83d278",
+  "kind": "positive",
+  "scope": "automatic",
+  "file": ".claude/skills/ai-agents-config-catalog/SKILL.md",
+  "line": 64,
+  "defect_class": "stale-citation",
+  "defect": "The introduced audit citation names stale lines.",
+  "resolved_sha": "2bcb83d278e0fdbea61958bcceeed1790cd932b6",
+  "pr_base": "ad634bbac805ac510ea7fb1fa298ce48dd22e38b",
+  "merge_base": "ad634bbac805ac510ea7fb1fa298ce48dd22e38b",
+  "findings": [
+    {
+      "citing_file": ".claude/skills/ai-agents-config-catalog/SKILL.md",
+      "citing_line": 64,
+      "citation": "scripts/validation/check_push_lock_before_commit.py:58",
+      "reason": "none of the cited anchors ('pip', 'uv sync --frozen --extra dev', 'uv run python', 'python3') appear at lines 58-58; 'pip' first appears at line 32",
+      "gate": "forward",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".claude/skills/ai-agents-config-catalog/SKILL.md",
+      "citing_line": 61,
+      "citation": ".claude/hooks/PreToolUse/invoke_serena_worktree_scope_guard.py:68-73",
+      "reason": "cited file not tracked at HEAD",
+      "gate": "forward",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".agents/architecture/ADR-100-retire-pr-size-ceilings.md",
+      "citing_line": 255,
+      "citation": "lefthook.yml:378",
+      "reason": "the text at lines 378-378 at the merge base moved at HEAD; suggested citation lefthook.yml:388",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".agents/architecture/ADR-101-enforcement-planes.md",
+      "citing_line": 433,
+      "citation": "lefthook.yml:193",
+      "reason": "the text at lines 193-193 at the merge base moved at HEAD; suggested citation lefthook.yml:203",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    }
+  ],
+  "output": "[citation-freshness] examined 2 citation(s) across 11 changed file(s) vs ad634bbac805ac510ea7fb1fa298ce48dd22e38b\n[citation-reverse-pass] examined 18 inbound citation(s) to 12 changed file(s) vs ad634bbac805ac510ea7fb1fa298ce48dd22e38b; 16 already stale at the merge base (not blocking)\n",
+  "caught": true,
+  "false_positives": 0
+}

@@ -1,0 +1,91 @@
+{
+  "id": "C1-05",
+  "pr": 5338,
+  "sha": "b13283f2c3",
+  "kind": "positive",
+  "scope": "automatic",
+  "file": ".claude/rules/canonical-source-mirror.md",
+  "line": 121,
+  "defect_class": "stale-citation",
+  "defect": ".markdownlint-cli2.yaml lines 131 should cite line 138.",
+  "resolved_sha": "b13283f2c305984cacadf3ccba82af6b498d342d",
+  "pr_base": "1692f5ad61bcd9bbf066f3753ec9dd3bfa0787e9",
+  "merge_base": "192c506c021b2ce71e740c73c4e15efcd570d029",
+  "findings": [
+    {
+      "citing_file": ".claude/rules/canonical-source-mirror.md",
+      "citing_line": 107,
+      "citation": ".claude/skills/orphan-ref-validator/scripts/envelope.py:28-34",
+      "reason": "none of the cited anchors ('orphan-ref-validator', '```python') appear at lines 28-34; 'orphan-ref-validator' first appears at line 2",
+      "gate": "forward",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".claude/rules/canonical-source-mirror.md",
+      "citing_line": 121,
+      "citation": ".markdownlint-cli2.yaml:131",
+      "reason": "none of the cited anchors ('ignores', 'agents/', 'agents/**') appear at lines 131-131; 'ignores' first appears at line 103",
+      "gate": "forward",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".github/instructions/canonical-source-mirror.instructions.md",
+      "citing_line": 98,
+      "citation": ".claude/skills/orphan-ref-validator/scripts/envelope.py:28-34",
+      "reason": "none of the cited anchors ('orphan-ref-validator', '```python') appear at lines 28-34; 'orphan-ref-validator' first appears at line 2",
+      "gate": "forward",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".github/instructions/canonical-source-mirror.instructions.md",
+      "citing_line": 112,
+      "citation": ".markdownlint-cli2.yaml:131",
+      "reason": "none of the cited anchors ('ignores', 'agents/', 'agents/**') appear at lines 131-131; 'ignores' first appears at line 103",
+      "gate": "forward",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": "src/copilot-cli/instructions/canonical-source-mirror.instructions.md",
+      "citing_line": 98,
+      "citation": ".claude/skills/orphan-ref-validator/scripts/envelope.py:28-34",
+      "reason": "none of the cited anchors ('orphan-ref-validator', '```python') appear at lines 28-34; 'orphan-ref-validator' first appears at line 2",
+      "gate": "forward",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": "src/copilot-cli/instructions/canonical-source-mirror.instructions.md",
+      "citing_line": 112,
+      "citation": ".markdownlint-cli2.yaml:131",
+      "reason": "none of the cited anchors ('ignores', 'agents/', 'agents/**') appear at lines 131-131; 'ignores' first appears at line 103",
+      "gate": "forward",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".agents/qa/pr-5088-generated-staleness-gate-report.md",
+      "citing_line": 126,
+      "citation": "scripts/validation/pre_pr_sequence.py:147",
+      "reason": "the text at lines 147-147 at the merge base moved at HEAD; suggested citation scripts/validation/pre_pr_sequence.py:148",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".agents/specs/design/DESIGN-006-em-en-dash-enforcement.md",
+      "citing_line": 192,
+      "citation": "scripts/validation/pre_pr.py:177",
+      "reason": "the text at lines 177-177 at the merge base moved at HEAD; suggested citation scripts/validation/pre_pr.py:178",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": "scripts/validation/check_git_hook_health.py",
+      "citing_line": 273,
+      "citation": "scripts/validation/pre_pr_sequence.py:150",
+      "reason": "the text at lines 150-150 at the merge base moved at HEAD; suggested citation scripts/validation/pre_pr_sequence.py:151",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    }
+  ],
+  "output": "[citation-freshness] examined 9 citation(s) across 15 changed file(s) vs 192c506c021b2ce71e740c73c4e15efcd570d029\n[citation-reverse-pass] examined 25 inbound citation(s) to 15 changed file(s) vs 192c506c021b2ce71e740c73c4e15efcd570d029; 22 already stale at the merge base (not blocking)\n",
+  "caught": true,
+  "false_positives": 0
+}

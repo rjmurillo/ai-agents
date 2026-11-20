@@ -1,0 +1,28 @@
+{
+  "id": "C1-10",
+  "pr": 5284,
+  "sha": "4f85dfb986",
+  "kind": "positive",
+  "scope": "manual",
+  "file": ".serena/memories/validation/validation-portability-scan-contract.md",
+  "line": 21,
+  "defect_class": "stale-citation",
+  "defect": "check_skill_md_portability.py lines 660-666 moved to 666-672.",
+  "why": "Serena memories remain exempt under HISTORICAL_ROOTS.",
+  "resolved_sha": "4f85dfb9864c008819a6bb0cacabe08a1244afe5",
+  "pr_base": "ad634bbac805ac510ea7fb1fa298ce48dd22e38b",
+  "merge_base": "910dad83da7df0d1214d091d7d5e97c2870bec56",
+  "findings": [
+    {
+      "citing_file": ".agents/audits/2026-07-02-safety-audit.md",
+      "citing_line": 104,
+      "citation": "scripts/validation/check_skill_md_portability.py:237-281",
+      "reason": "the text at lines 237-281 at the merge base moved at HEAD; suggested citation scripts/validation/check_skill_md_portability.py:247-291",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    }
+  ],
+  "output": "[citation-freshness] examined 1 citation(s) across 12 changed file(s) vs 910dad83da7df0d1214d091d7d5e97c2870bec56\n[citation-reverse-pass] examined 4 inbound citation(s) to 14 changed file(s) vs 910dad83da7df0d1214d091d7d5e97c2870bec56; 3 already stale at the merge base (not blocking)\n",
+  "caught": false,
+  "false_positives": 0
+}
