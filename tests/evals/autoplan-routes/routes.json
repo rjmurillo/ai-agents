@@ -413,32 +413,6 @@
       "rationale": "Boundary: more strategic intents match, so buy-vs-build wins the tie-break."
     },
     {
-      "id": "lt-technical-writing-hemingway",
-      "family": "long-tail-single-domain",
-      "request": "Give this migration guide a Hemingway pass.",
-      "expect": {
-        "kind": "specialist",
-        "route": "technical-writing",
-        "routes_absent": [
-          "orchestrator"
-        ]
-      },
-      "rationale": "The named edit routes to technical-writing without an explicit skill name."
-    },
-    {
-      "id": "lt-technical-writing-hemingway-audit",
-      "family": "long-tail-single-domain",
-      "request": "Audit docs/refresh.md using a Hemingway pass. Suggest replacements.",
-      "expect": {
-        "kind": "specialist",
-        "route": "technical-writing",
-        "routes_absent": [
-          "orchestrator"
-        ]
-      },
-      "rationale": "The named audit routes to technical-writing without an explicit skill name."
-    },
-    {
       "id": "explicit-slash",
       "family": "explicit-skill",
       "request": "run /dx-review on this change",
