@@ -102,3 +102,5 @@ def test_edited_stale_cite_still_blocks_after_a_shift(tmp_path: Path) -> None:
 
     assert code == 1, out
     assert "docs/notes.md:1" in out
+    assert "none of the cited anchors" in out
+    assert "; 0 already stale at the merge base" in out

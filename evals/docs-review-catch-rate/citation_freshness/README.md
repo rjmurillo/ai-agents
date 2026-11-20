@@ -5,7 +5,9 @@ Measured 2026-11-20: caught 8 of 8 in-scope past misses, 0 FP on 12 negatives, 7
 The checker revision is 8e871c86a4d6.
 The 2026-11-19 run caught 10 of 10.
 C1-01 and C1-14 then moved to manual.
-The reverse pass no longer blocks on a citation already stale at the merge base (PR #7482).
+The reverse pass no longer blocks on an untouched citation already stale at the merge base.
+PR #7482 was blocked by one such citation.
+A citing line the branch edits still blocks.
 Every in-scope positive matched the pinned file, class, and line.
 The twelve negatives produced no findings.
 
@@ -72,7 +74,9 @@ C1-06 catches a stale citation introduced on an added line.
 ## What stays manual and why
 
 C1-01 stays manual.
-Its prose anchors never match code, so the merge base already judges it stale.
+Its anchors, such as `Mode: Generate` and `Written:`, are prose words.
+None of them appears in `build_all.py` lines 1005-1033 at merge base `8926061a1` (2026-11-20).
+So the merge base already judges it stale.
 Base debt never blocks, so moving the cited block does not flag it.
 C1-14 stays manual.
 It cited line 543 while the quote sat at line 796 at the merge base.

@@ -472,7 +472,11 @@ _PAD = "# pad one\n# pad two\n# pad three\n"
 
 
 def test_four_moved_lines_under_a_stale_untouched_range_stay_debt(tmp_path: Path) -> None:
-    """A range already wrong at the base does not block when its lines shift."""
+    """A range already wrong at the base does not block when its lines shift.
+
+    Intended: the owner accepted that eval case C1-01 is no longer caught
+    (decision D1, 2026-11-20). Do not restore a moved-cluster exception.
+    """
     root = _repo(tmp_path)
     _git(root, "checkout", "-q", "main")
     _commit_file(root, TARGET, _CLUSTER)
