@@ -92,7 +92,7 @@ ADR_107_AS_IT_STOOD = """\
 - ADR-036 (two-source agent templates, superseded by ADR-052, procedure still operative).
 """
 
-#: The same span as PR #7482 rewrites it.
+#: An excerpt of that span as PR #7482 rewrote it (three of its bullets).
 ADR_107_FIXED = """\
 ## Related Decisions
 
