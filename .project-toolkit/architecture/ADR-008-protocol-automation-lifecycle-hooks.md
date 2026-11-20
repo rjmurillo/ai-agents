@@ -1,7 +1,7 @@
 ---
 id: ADR-008
 status: accepted
-date: 2026-08-19
+date: 2026-11-20
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -135,7 +135,7 @@ its row and gains a retirement note rather than disappearing.
 
 | Hook | File | Type | Status |
 |------|------|------|--------|
-| **SessionStart: Context Loader** | `SessionStart/invoke_context_loader.py` | SessionStart | Implemented, narrowed by #5170 |
+| **SessionStart: Context Loader** | `SessionStart/invoke_context_loader.py` | SessionStart | Implemented, narrowed by #5170 and the 2026-11-20 amendment |
 | **PreCompact: Compact Checkpoint** | `PreCompact/invoke_compact_checkpoint.py` | PreCompact | Implemented, trimmed by #3273 |
 | **PreToolUse: False Completion Gate** | `PreToolUse/invoke_false_completion_gate.py` | PreToolUse | Retired by #3184 |
 | **PostToolUse: Plan State Sync** | `PostToolUse/invoke_plan_state_sync.py` | PostToolUse | Retired by #3184 |
@@ -181,6 +181,40 @@ the latest retrospective and the pending-retro-skeleton reminder; the
 criterion this ADR records ("SessionStart loads context") remains met, on a
 narrower path.
 
+### Amendment 2026-11-20 (Issues #7471, #7472)
+
+The Context Loader hook narrowed again: it no longer injects the latest
+retrospective. It injected the first 4,000 characters of the newest dated
+retrospective into every session, whatever the task. At `main` `b12beeae6`
+(2026-11-20), all three retrospectives in its 30-day window ran 11,965 to
+16,858 characters, so every injection was truncated. Only the newest file
+is injected. For that file, `2026-11-11-issue-sweep-2026-11-10.md`, the cut
+fell 96 characters before its Phase 1 insights heading, so sessions received
+the Phase 0 data-gathering trace and none of the findings. The same held for
+2 of the 3 files in the window. No eval measured whether the injection
+changed a session: the influence instruments in #7471's verdict cover rules
+and skills, not hook output. Issues #7471 and #7472 supply the rule applied
+here: machinery that cannot show a measured benefit is retired.
+
+Two alternatives were rejected. Shrinking the injection to the insights
+section would need a parser for retrospectives that use different headings,
+and it would still carry no measured benefit. Gating by task relevance is not
+possible at SessionStart, because its payload carries no prompt; it would
+need a new UserPromptSubmit stage, which is new machinery with no measured
+need. Dropping saves about 4,000 characters, roughly 1,000 tokens, in every
+session. The change is reversible with one revert and loses no data.
+
+The hook now prints only the pending-retro-skeleton reminder, and nothing at
+all when no skeleton is pending. That reminder has no live producer: the
+Stop hook that wrote skeletons was retired by #3349, and the newest skeleton
+on disk is dated 2026-07-03, outside the 7-day window. In this repository
+the hook is therefore inert unless someone adds a skeleton by hand. Whether
+to retire the hook outright is a separate decision; it touches the hook
+registration and the `AUTHORIZED_HOOKS` ledger. Retrospectives stay
+reachable on demand through the `retrospective` skill and the retrospective
+`INDEX.md`. The criterion "SessionStart loads context" is now met only by
+that reminder, when a skeleton exists.
+
 ### Acceptance Criteria Mapping
 
 As accepted 2025-12-20. Rows for retired hooks are kept because they record
@@ -189,9 +223,9 @@ hook.
 
 | Criteria | Hook | Evidence | Still met by a hook |
 |----------|------|----------|---------------------|
-| SessionStart loads context | Context Loader | Auto-injects HANDOFF.md + latest retro | Partially, HANDOFF.md dropped by #5168/#5170 |
+| SessionStart loads context | Context Loader | Auto-injects HANDOFF.md + latest retro | Partially, HANDOFF.md dropped by #5168/#5170, latest retro dropped by the 2026-11-20 amendment; only the pending-skeleton reminder remains |
 | Hook execution logged | All hooks | Audit trail in `.project-toolkit/.hook-state/` | Yes, for the survivors |
-| Zero context reading failures | Context Loader | Eliminates manual context loading requirement | Yes |
+| Zero context reading failures | Context Loader | Eliminates manual context loading requirement | No, the hook injects no retrospective content since the 2026-11-20 amendment; retrospectives load on demand |
 | PreToolUse blocks false completion | False Completion Gate | Blocks commit/PR without test evidence | No, retired by #3184 |
 | Stop generates retros | Auto-Retrospective | Creates `.project-toolkit/retrospective/{date}-auto-retro.md` | No, retired by #3349 |
 
