@@ -1,8 +1,10 @@
-"""An untouched cite fails when its one quoted line moves.
+"""An untouched citation that was stale at the merge base stays debt.
 
-REQ-022 line 71 was already stale at the merge base. The quoted
-assignment occurs once, and that line number changed. That is a finding.
-A quote that keeps its line number stays debt.
+PR #7482 was blocked by ADR-109 line 96. That line cited ADR-107 line 663.
+The quoted bullet already sat at line 725 on main, so the citation was
+wrong before the branch. The branch added three lines above the bullet.
+It never touched line 96. The reverse pass blocked anyway and printed
+"0 already stale". These cases pin the fix: debt is counted, not blocked.
 """
 
 from __future__ import annotations
@@ -22,6 +24,7 @@ _BASE = "one\ntwo\nold comment about vendored install\n\n" + _QUOTE + "\n"
 _SHIFTED = "one\ntwo\nold comment about vendored install\n\nspacer\n" + _QUOTE + "\n"
 _SAME = "one\ntwo\nold comment about vendored install\n\n" + _QUOTE + "\nextra = 1\n"
 _NO_QUOTE = "one\ntwo\nold comment about vendored install\nextra = 1\n"
+_ONE_STALE = "; 1 already stale at the merge base (not blocking)"
 
 
 def _cite(path: str) -> str:
@@ -49,46 +52,53 @@ def _run_reverse(root: Path) -> tuple[int, str]:
     return proc.returncode, proc.stdout + proc.stderr
 
 
-def test_untouched_cite_fails_when_its_quote_moved(tmp_path: Path) -> None:
-    """The quoted line occurs once, and its number changed."""
+def _stale_cite_on_feature(tmp_path: Path, head_text: str) -> Path:
+    """Main cites line 3 of a file whose quote sits at line 5: stale at base."""
     root = _repo(tmp_path)
     _git(root, "checkout", "-q", "main")
     _commit(root, f"hooks/{_NAME}", _BASE, "cited")
     _commit(root, "docs/notes.md", _cite(_NAME), "cite")
     _git(root, "checkout", "-q", "-B", "feature")
-    _commit(root, f"hooks/{_NAME}", _SHIFTED, "move quote")
+    _commit(root, f"hooks/{_NAME}", head_text, "edit cited file")
+    return root
+
+
+def test_untouched_stale_cite_stays_debt_when_its_quote_shifts(tmp_path: Path) -> None:
+    """The PR #7482 shape: lines shift under a cite that was already wrong."""
+    root = _stale_cite_on_feature(tmp_path, _SHIFTED)
+
+    code, out = _run_reverse(root)
+
+    assert code == 0, out
+    assert _ONE_STALE in out
+
+
+def test_untouched_stale_cite_stays_debt_when_quote_keeps_its_line(tmp_path: Path) -> None:
+    """A unique quote that stays on the same line does not block."""
+    root = _stale_cite_on_feature(tmp_path, _SAME)
+
+    code, out = _run_reverse(root)
+
+    assert code == 0, out
+    assert _ONE_STALE in out
+
+
+def test_untouched_stale_cite_stays_debt_when_quote_is_deleted(tmp_path: Path) -> None:
+    """Base debt with no quote left at HEAD does not block."""
+    root = _stale_cite_on_feature(tmp_path, _NO_QUOTE)
+
+    code, out = _run_reverse(root)
+
+    assert code == 0, out
+    assert _ONE_STALE in out
+
+
+def test_edited_stale_cite_still_blocks_after_a_shift(tmp_path: Path) -> None:
+    """A citing line the branch edits owns its citation, even inherited drift."""
+    root = _stale_cite_on_feature(tmp_path, _SHIFTED)
+    _commit(root, "docs/notes.md", "The fast-stage" + _cite(_NAME)[3:], "reword")
 
     code, out = _run_reverse(root)
 
     assert code == 1, out
-    assert "none of the cited anchors" in out
-
-
-def test_untouched_cite_stays_debt_when_quote_keeps_its_line(tmp_path: Path) -> None:
-    """A unique quote that stays on the same line does not block."""
-    root = _repo(tmp_path)
-    _git(root, "checkout", "-q", "main")
-    _commit(root, f"hooks/{_NAME}", _BASE, "cited")
-    _commit(root, "docs/notes.md", _cite(_NAME), "cite")
-    _git(root, "checkout", "-q", "-B", "feature")
-    _commit(root, f"hooks/{_NAME}", _SAME, "edit beside quote")
-
-    code, out = _run_reverse(root)
-
-    assert code == 0, out
-    assert "already stale at the merge base" in out
-
-
-def test_untouched_cite_without_a_relocated_quote_stays_debt(tmp_path: Path) -> None:
-    """Base debt with no unique quote elsewhere does not block."""
-    root = _repo(tmp_path)
-    _git(root, "checkout", "-q", "main")
-    _commit(root, f"hooks/{_NAME}", _BASE, "cited")
-    _commit(root, "docs/notes.md", _cite(_NAME), "cite")
-    _git(root, "checkout", "-q", "-B", "feature")
-    _commit(root, f"hooks/{_NAME}", _NO_QUOTE, "edit without quote")
-
-    code, out = _run_reverse(root)
-
-    assert code == 0, out
-    assert "already stale at the merge base" in out
+    assert "docs/notes.md:1" in out

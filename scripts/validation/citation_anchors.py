@@ -31,9 +31,6 @@ from citation_continuations import (
     _expand_continuations as _expand_continuations,
 )
 from citation_continuations import (
-    _moved_cluster as _moved_cluster,
-)
-from citation_continuations import (
     _range_misses_distinctive_anchors as _range_misses_distinctive_anchors,
 )
 from citation_continuations import (
