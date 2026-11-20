@@ -7,7 +7,7 @@ Writes, edits, and audits documentation pages: tutorials, how-to guides, concept
 - You are writing a new docs page or tutorial, or rewriting one.
 - You want an existing page audited for problems, with exact fixes and no rewrite.
 - You need to choose a style guide for a docs site that has none.
-- Trigger phrases: `write a documentation page for X`, `write a tutorial`, `edit the docs prose`, `pick a stylebook for these docs`.
+- Trigger phrases: `write a tutorial`, `edit the docs prose`, `give this doc a Hemingway pass`, `pick a stylebook for these docs`.
 
 ## When not to use it
 
@@ -27,7 +27,13 @@ In Claude Code, after a plugin install, run:
 
 In a Claude Code session inside a checkout of this repository, drop the prefix: `/technical-writing`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /technical-writing skill to ...`.
 
-Then name the page and the goal, for example "write a how-to page for configuring retries in docs/retries.md". For an audit, name the skill and the page: `/technical-writing audit docs/install.md`. The automatic router does not send audit requests to this skill.
+Then name the page and goal. For example, ask for a how-to on configuring retries in `docs/retries.md`.
+For a general audit, use `/technical-writing audit docs/install.md`.
+A named Hemingway audit routes here automatically.
+
+Ask for a Hemingway pass to put reader actions first and cut repeated setup.
+The pass preserves exact commands, prerequisites, warnings, failure behavior,
+and rollback steps. Ask for an audit to get exact replacements without file edits.
 
 ## What you get
 

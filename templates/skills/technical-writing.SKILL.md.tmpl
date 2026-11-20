@@ -1,7 +1,7 @@
 ---
 name: technical-writing
 version: 1.0.0
-description: Write, edit, or audit docs pages (tutorials, how-tos, concepts, reference, troubleshooting, rule pages) in the site's conventions and one stylebook, then test them. Do NOT use for endpoint API guides (use api-doc-authoring) or claim checks (use doc-accuracy).
+description: Write, edit, or audit docs pages in the site's conventions and one stylebook. Use for fact-preserving Hemingway passes. Do NOT use for endpoint API guides (use api-doc-authoring) or claim checks (use doc-accuracy).
 license: MIT
 user-invocable: true
 metadata:
@@ -21,6 +21,7 @@ metadata:
       - write integration documentation
       - write rule documentation
       - edit docs prose
+      - hemingway pass
       - pick a stylebook
       - choose a stylebook
 ---
@@ -46,8 +47,10 @@ own these:
 
 ## Triggers
 
-`write a documentation page for X`, `write a tutorial`, `edit the docs prose`,
-`pick a stylebook for these docs`. For an audit, name the skill: `/technical-writing audit docs/x.md`.
+`write a tutorial`, `edit the docs prose`, `pick a stylebook for these docs`,
+`give this doc a Hemingway pass`.
+A named Hemingway audit routes here automatically. For a general audit,
+name the skill with `/technical-writing audit docs/x.md`.
 
 ## When It Applies
 
@@ -101,6 +104,20 @@ Check the draft against [prose patterns](references/prose-patterns.md),
 `prose-self-check` skill's lint on the page as the automated pass. Fix each
 high-severity finding or state why it is a false positive. When that skill is
 not installed, record the pass as `UNAVAILABLE` and rely on the manual check.
+
+#### Hemingway pass
+
+Treat a named Hemingway pass as an edit or audit, not literary imitation.
+Use the requested mode. For an audit, leave files unchanged and suggest exact
+replacements. Apply changes to a file only when the user asks for an edit.
+
+- Lead each step with the reader's action. Use active voice.
+- Cut repeated setup. Split sentences that bury an action or condition.
+- Keep exact commands, prerequisites, warnings, failure behavior, and rollback
+  steps. Preserve their order and the conditions that govern each action.
+- Compare the result with the original. Check what the reader does before,
+  during, and after the task, including what happens if it fails.
+- Keep needed detail. Do not enforce sentence-length quotas or invent steps.
 
 ### 5. Test
 
