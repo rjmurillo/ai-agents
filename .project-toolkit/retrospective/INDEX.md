@@ -4,8 +4,8 @@
 > (Issue #1703) was deleted in #3349, so nothing writes here automatically.
 >
 > This index is a curated subset, not a census: it lists a small share of the
-> retrospectives in this directory, and each new one widens the gap. Do not read
-> an absent retrospective as an absent incident. To search the whole corpus, use
+> retrospectives in this directory. Do not read an absent retrospective as an
+> absent incident. To search the whole corpus, use
 > `grep -rli "<term>" .project-toolkit/retrospective/`.
 >
 > This note names no counts on purpose, because hand-typed counts go stale. For
