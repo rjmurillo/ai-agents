@@ -1,24 +1,28 @@
 # Port of aligndottech/align-cli at commit 8d758e9899677b61442b08ffda74b74887bfc42a
 # Ported upstream files:
-#   src/lib/git.ts                 (unquoteGitPath and the commit record parser of
-#                                   getCommitHistoryDetailed, lines 110-242)
+#   src/lib/git.ts                 (the record parser of getCommitHistoryDetailed, lines
+#                                   110-242, replaced here by a parser over raw commit objects)
 #   src/lib/context-from-graph.ts  (decisionShapedRows, lines 84-109)
+# Not ported: unquoteGitPath, because the port reads no per-commit file lists.
 # Extension E3, breaking_change, has no upstream source.
 # Sibling ports: adr_shape.py, adr_docs.py, adr_reason.py.
 # MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align
-"""Pure classifiers over commit records: parse ``git log``, filter, flag breaking changes.
+"""Pure classifiers over commit records: parse a commit object, filter, flag breaking changes.
 
-No I/O, no subprocess, standard library only. The CLI that runs ``git log`` with
-``GIT_LOG_ARGS`` passes its output to ``parse_commit_records``.
+No I/O, no subprocess, standard library only. The reader in ``adr_git.py`` lists commit
+SHAs with ``git rev-list``, feeds them to ``git cat-file --batch``, and passes each raw
+object to ``parse_commit_object``.
 
 Departures from the upstream source, each pinned by a test:
 
-- ``decision_shaped_rows`` strips any ``type(scope)!:`` prefix and applies the
+- ``is_decision_shaped_title`` strips any ``type(scope)!:`` prefix and applies the
   fix-shaped test to the type. Upstream's ``^\\w+\\([^)]*\\):`` alternative dropped
   every scoped commit except ``feat(...)``.
-- The commit record format uses NUL bytes, which git refuses in a commit message,
-  so a message cannot forge a record header. The 40-hex sha check stays as a second
-  guard.
+- Commits are parsed from raw objects, never from delimited ``git log`` text. The
+  ``cat-file --batch`` output is size-prefixed and the SHA order comes from ``rev-list``,
+  so no commit message can forge a record, even one holding NUL bytes that
+  ``git hash-object`` wrote past git's own checks. Upstream guarded with a 40-hex
+  header check on delimited text.
 - ``breaking_change`` is new (extension E3, Conventional Commits 1.0.0).
 
 Regex notes. Module-level patterns compile with ``re.ASCII`` so ``\\b``, ``\\w``, ``\\d`` and
@@ -28,52 +32,33 @@ here, because Python's ``$`` also matches before a trailing newline. ASCII ``\\s
 
 from __future__ import annotations
 
+import codecs
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from typing import Protocol, TypeVar
 
 __all__ = [
-    "GIT_LOG_ARGS",
     "CommitRecord",
     "DecisionRow",
     "breaking_change",
     "decision_shaped_rows",
     "is_decision_shaped_title",
-    "parse_commit_records",
-    "unquote_git_path",
+    "parse_commit_object",
 ]
 
 _I = re.IGNORECASE | re.ASCII
 _A = re.ASCII
 
 # ---------------------------------------------------------------------------
-# P7: commit record parsing that refuses forged headers (src/lib/git.ts)
+# P7: commit records from raw objects (src/lib/git.ts, replaced)
 # ---------------------------------------------------------------------------
 
-# Arguments for ``git log``. Git refuses a NUL byte in a commit message, so a NUL-based
-# marker cannot be forged by one. Each record is
-#   NUL "COMMIT" NUL sha NUL subject NUL author NUL date NUL body NUL "END" NL files...
-# where files come from ``--name-only``. Pass these after ``git log``.
-GIT_LOG_ARGS: tuple[str, ...] = (
-    "--format=%x00COMMIT%x00%H%x00%s%x00%aN%x00%aI%x00%b%x00END",
-    "--name-only",
+_AUTHOR = re.compile(
+    r"(?P<name>.*) <[^<>]*> (?P<ts>-?[0-9]{1,12}) (?P<sign>[+-])(?P<hh>[0-9]{2})(?P<mm>[0-9]{2})\Z",
+    _A | re.DOTALL,
 )
-_RECORD_MARKER = "\x00COMMIT\x00"
-_RECORD_END = "\x00END"
-_FULL_SHA = re.compile(r"[0-9a-f]{40}\Z", _A)
-_C_ESCAPES = {
-    "a": 7,
-    "b": 8,
-    "t": 9,
-    "n": 10,
-    "v": 11,
-    "f": 12,
-    "r": 13,
-    '"': 34,
-    "\\": 92,
-}
-_OCTAL_ESCAPE = re.compile(r"[0-3][0-7]{2}", _A)
 
 
 @dataclass(frozen=True)
@@ -83,71 +68,76 @@ class CommitRecord:
     author: str
     date: str
     body: str
-    files: tuple[str, ...]
 
 
-def unquote_git_path(path: str) -> str:
-    """Undo git's C-quoting of a path with non-ASCII bytes, a quote or a backslash.
+def _split_object(raw: bytes) -> tuple[bytes, bytes]:
+    """Headers and message, split at the first blank line. No blank line: all headers."""
+    if raw.startswith(b"\n"):
+        return b"", raw[1:]
+    head, sep, message = raw.partition(b"\n\n")
+    return (head, message) if sep else (raw, b"")
 
-    ``"docs/page-\\303\\251.md"`` becomes ``docs/page-\u00e9.md``. An unquoted path, and
-    a quoted one that holds an escape git does not write, is returned unchanged.
-    """
-    if len(path) < 2 or not path.startswith('"') or not path.endswith('"'):
-        return path
-    body = path[1:-1]
-    out = bytearray()
-    i = 0
-    while i < len(body):
-        ch = body[i]
-        if ch != "\\":
-            out += ch.encode("utf-8", "replace")
-            i += 1
+
+def _header_values(head: bytes) -> dict[bytes, bytes]:
+    """The first value of each header. Continuation lines (a gpgsig block) are skipped."""
+    values: dict[bytes, bytes] = {}
+    for line in head.split(b"\n"):
+        if line.startswith(b" "):
             continue
-        octal = _OCTAL_ESCAPE.match(body, i + 1)
-        if octal:
-            out.append(int(octal.group(0), 8))
-            i += 4
-            continue
-        escaped = _C_ESCAPES.get(body[i + 1 : i + 2])
-        if escaped is None:
-            return path
-        out.append(escaped)
-        i += 2
-    return out.decode("utf-8", "replace")
+        key, _, value = line.partition(b" ")
+        values.setdefault(key, value)
+    return values
 
 
-def _is_record_header(chunk: str) -> bool:
-    return bool(_FULL_SHA.match(chunk.split("\x00", 1)[0]))
+def _decode(data: bytes, encoding: bytes | None) -> str:
+    """Decode with the commit's ``encoding`` header, or UTF-8 when it is absent or unusable."""
+    if encoding:
+        try:
+            name = codecs.lookup(encoding.decode("ascii")).name
+            return data.decode(name, "replace")
+        except (LookupError, ValueError):
+            pass
+    return data.decode("utf-8", "replace")
 
 
-def _record_from(text: str) -> CommitRecord | None:
-    parts = text.split("\x00", 4)
-    if len(parts) < 5:
-        return None
-    sha, subject, author, date, rest = parts
-    end = rest.rfind(_RECORD_END)
-    body = rest if end < 0 else rest[:end]
-    tail = "" if end < 0 else rest[end + len(_RECORD_END) :]
-    files = tuple(unquote_git_path(line.strip()) for line in tail.split("\n") if line.strip())
-    return CommitRecord(sha, subject, author, date, body.rstrip(), files)
+def _author_fields(author: str) -> tuple[str, str]:
+    """The author name and the author date as an ISO 8601 instant, or an empty date."""
+    match = _AUTHOR.fullmatch(author)
+    if not match:
+        return author.partition(" <")[0], ""
+    offset = timedelta(hours=int(match["hh"]), minutes=int(match["mm"]))
+    epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+    try:
+        zone = timezone(-offset if match["sign"] == "-" else offset)
+        date = (epoch + timedelta(seconds=int(match["ts"]))).astimezone(zone).isoformat()
+    except (OverflowError, ValueError, OSError):
+        date = ""
+    return match["name"], date
 
 
-def parse_commit_records(raw: str) -> list[CommitRecord]:
-    """Parse ``git log`` output made with ``GIT_LOG_ARGS``.
+def _subject_and_body(message: str) -> tuple[str, str]:
+    """Subject is the first paragraph joined by spaces, body is the rest, as ``%s`` and ``%b``."""
+    text = message.replace("\r\n", "\n").lstrip("\n")
+    first, _, rest = text.partition("\n\n")
+    subject = " ".join(part.strip() for part in first.split("\n") if part.strip())
+    return subject, rest.strip()
 
-    Only a marker followed by a full 40-hex lowercase sha starts a record. A marker
-    with any other sha stays part of the previous record's text, so it cannot
-    forge a record. A record with no ``END`` terminator keeps all its text as the body.
-    Text before the first record is ignored.
+
+def parse_commit_object(sha: str, raw: bytes) -> CommitRecord:
+    """Parse the raw bytes of one commit object as ``git cat-file commit`` prints them.
+
+    The author name and date come from the first ``author`` header. The message is
+    everything after the first blank line, decoded with the ``encoding`` header when
+    it names a known text codec and as UTF-8 otherwise. Text that looks like a header,
+    holds NUL bytes, or imitates a record boundary is message text. A malformed object
+    never raises: a missing author gives empty fields, a bad timestamp gives an empty date.
     """
-    texts: list[str] = []
-    for chunk in raw.replace("\r\n", "\n").split(_RECORD_MARKER)[1:]:
-        if _is_record_header(chunk):
-            texts.append(chunk)
-        elif texts:
-            texts[-1] += _RECORD_MARKER + chunk
-    records = (_record_from(text) for text in texts)
-    return [record for record in records if record is not None]
+    head, message = _split_object(raw)
+    headers = _header_values(head)
+    author_text = _decode(headers.get(b"author", b""), headers.get(b"encoding"))
+    author, date = _author_fields(author_text)
+    subject, body = _subject_and_body(_decode(message, headers.get(b"encoding")))
+    return CommitRecord(sha, subject, author, date, body)
 
 
 # ---------------------------------------------------------------------------

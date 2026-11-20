@@ -46,6 +46,7 @@ def test_every_script_on_disk_is_bundled_and_documented() -> None:
     helpers = {
         "scripts/adr_commits.py",
         "scripts/adr_docs.py",
+        "scripts/adr_git.py",
         "scripts/adr_reason.py",
         "scripts/adr_shape.py",
         "scripts/adr_trailers.py",

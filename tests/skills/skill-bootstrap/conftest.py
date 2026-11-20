@@ -17,6 +17,8 @@ try:
     # after the paths are removed again.
     import adr_commits  # noqa: F401
     import adr_docs  # noqa: F401
+    import adr_git  # noqa: F401
+    import adr_helpers  # noqa: F401
     import adr_reason  # noqa: F401
     import adr_shape  # noqa: F401
     import adr_trailers  # noqa: F401
