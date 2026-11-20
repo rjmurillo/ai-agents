@@ -32,13 +32,23 @@ from pathlib import Path
 from typing import Any
 
 from adr_git import ConfigError, git_bytes, git_text, repo_root
-from adr_locate import MAX_READ_BYTES, Style, adr_files, folder_style, locate_folders, render_h1
+from adr_locate import (
+    MAX_READ_BYTES,
+    Style,
+    adr_files,
+    folder_style,
+    is_draft_target,
+    locate_folders,
+    render_h1,
+)
 from adr_text import iso_day, sanitize, slugify
 
 __all__ = ["ExistsError", "NOT_RECORDED", "draft", "load_candidate", "render"]
 
 NOT_RECORDED = "Not recorded in the source."
 NO_REASON = "The source states no reason."
+_TYPE_PREFIX = re.compile(r"\A[a-z]+(?:\([^)]*\))?!?:[ \t]+", re.IGNORECASE | re.ASCII)
+_PR_SUFFIX = re.compile(r"[ \t]*\(#[0-9]+\)\Z", re.ASCII)
 _KINDS = frozenset({"commit", "pr", "decision-log"})
 _STATUS = re.compile(r"[A-Za-z][A-Za-z -]{0,39}\Z", re.ASCII)
 _URL = re.compile(r"https://[^\s<>`\"']+\Z", re.ASCII)
@@ -162,10 +172,20 @@ def render(style: Style, number: int, candidate: dict[str, Any], status: str) ->
     return "\n".join(lines)
 
 
+def adr_title(kind: str, title: str) -> str:
+    """The ADR title for a source title: a commit or pull request loses its conventional
+    ``type(scope)!:`` prefix and its trailing ``(#N)``. Upstream keeps both."""
+    if kind == "decision-log":
+        return title
+    cleaned = _PR_SUFFIX.sub("", _TYPE_PREFIX.sub("", title, count=1)).strip()
+    return cleaned[:1].upper() + cleaned[1:] if cleaned else title
+
+
 def _check_candidate(candidate: dict[str, Any]) -> None:
     if candidate.get("kind") not in _KINDS:
         raise ConfigError(f"candidate {candidate.get('id')!r} has an unknown kind")
-    candidate["title"] = (_text(candidate.get("title"), "title", True) or "").strip()
+    title = (_text(candidate.get("title"), "title", True) or "").strip()
+    candidate["title"] = adr_title(candidate["kind"], title)
 
 
 def _git_path(directory: Path, flag: str) -> Path | None:
@@ -196,9 +216,13 @@ def _gate_target(root: Path, out_dir: Path) -> Path | None:
     must be one of its located ADR folders."""
     tree = _gate_tree(root, out_dir)
     if tree is not None:
-        allowed = {(tree / rel).resolve() for rel, _source in locate_folders(tree)}
+        allowed = {
+            (tree / rel).resolve() for rel, _source in locate_folders(tree) if is_draft_target(rel)
+        }
         if out_dir not in allowed:
-            raise ConfigError(f"{out_dir} is inside the repository {tree} and is not an ADR folder")
+            raise ConfigError(
+                f"{out_dir} is inside the repository {tree} and is not an ADR folder that takes drafts"
+            )
     return tree
 
 

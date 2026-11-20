@@ -41,7 +41,7 @@ The payload `error` names the cause: `config` for exit 2, `git` or `io` for exit
 
 `bootstrap_adr.py scan` reads git and the working tree and makes no network call. `--out` must be outside the repository. `--prs-json` is a JSON list of merged pull requests. Each item needs `number`, `title`, `body`, `url` (or `html_url`), `merged_at` (or `mergedAt`), and `author` (or `user`) with `login`. `merge_commit_sha` (or `mergeCommit.oid`) is optional.
 
-`bootstrap_adr.py` finds ADR folders in three steps. It reads an `.adr-dir` file and checks the known folder names together. Only when those find nothing does it look for any folder with three or more ADR-named files. Inside the repository, `draft` writes only into a folder found this way, and a folder with no ADR-named file is not one. It refuses a path that git ignores.
+`bootstrap_adr.py` finds ADR folders in three steps. It reads an `.adr-dir` file and checks the known folder names together. Only when those find nothing does it look for any folder with three or more ADR-named files. Inside the repository, `draft` writes only into a folder found this way, and a folder with no ADR-named file is not one. It refuses a path that git ignores. An `rfc` or `rfcs` folder is read, so its links still hide decisions, but it has `draft_target: false`. It is never `primary`, and `draft` refuses it. A draft title drops the commit's `type(scope)!:` prefix and its trailing `(#N)`.
 
 ## Windows PowerShell
 

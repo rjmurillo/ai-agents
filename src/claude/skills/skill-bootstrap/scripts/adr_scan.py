@@ -29,6 +29,7 @@ Departures from the upstream source, each pinned by a test:
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -101,7 +102,14 @@ class _Pending:
     number: int | None
 
 
+_HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
+_TASK_LINE = re.compile(r"^[ \t]*[-*][ \t]+\[[ xX]\][^\n]*\n?", re.MULTILINE)
+_BLANK_RUN = re.compile(r"\n{3,}")
+
+
 def _excerpt(title: str, body: str) -> str:
+    """The quoted source text: template comments and checklist lines are form, not content."""
+    body = _BLANK_RUN.sub("\n\n", _TASK_LINE.sub("", _HTML_COMMENT.sub("", body)))
     return sanitize(f"{title}\n\n{body}".strip(), EXCERPT_CHARS)
 
 
