@@ -231,7 +231,7 @@ If a check fails, start here:
 - **`claude-agents` shows `failed to load`.** Run `claude plugin uninstall claude-agents@ai-agents`.
 - **`Version` still reads `0.6.0`.** Run `claude plugin marketplace update ai-agents`, then update again. Restart Claude Code.
 - **`/plugin` is not recognized.** Update Claude Code to a build that supports plugin marketplaces. See [Troubleshooting](../installation.md#troubleshooting).
-- **A `/pr-quality/...` command is not found.** Use the hyphen name from the table in step 2.
+- **A `/pr-quality/...` command is not found.** Use `/pr-quality --axis <name>` from the table in step 2.
 - **`lefthook check-install` fails.** Rerun `uv run --frozen lefthook install --reset-hooks-path`. In a linked worktree, check the shared hooks instead. [CONTRIBUTING.md](../../CONTRIBUTING.md#pre-commit-hooks) explains why.
 - **A script still writes to `.agents/`.** Change its path to `.project-toolkit/`, using step 6.
 

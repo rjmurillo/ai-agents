@@ -310,3 +310,20 @@ class TestExaminedCount:
         assert fail_lines
         assert all(str(_skills(repo) / "w" / "SKILL.md") in line for line in fail_lines)
         assert "examined skills=1 phrases=1 " in out
+
+
+class TestAutoplanCatalog:
+    """Phrases resolve against the shipped tree autoplan reads, not the install tree."""
+
+    def test_a_repo_local_phrase_autoplan_cannot_reach_is_flagged(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        shipped = repo / "src" / "claude" / "skills"
+        shipped.mkdir(parents=True)
+        _skill(shipped, "build", 'Use for "build the widget".', ["build widget"])
+        installed = _skills(repo)
+        _skill(installed, "build", 'Use for "build the widget".', ["build widget"])
+        _skill(installed, "local-only", 'Use for "prove the widget".', ["prove widget"])
+
+        assert _run(repo, _baseline(repo)) == gate.EXIT_VIOLATION
+        assert f"{gate.CHECK_OWN}: local-only: 'prove the widget'" in capsys.readouterr().out

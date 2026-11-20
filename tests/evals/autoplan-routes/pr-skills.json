@@ -41,6 +41,19 @@
         ]
       },
       "rationale": "The retired pr-quality-qa skill answered this phrase; pr-quality must keep it after the collapse."
+    },
+    {
+      "id": "lt-pr-review-gate-verdict-status-negative",
+      "family": "negative-noise",
+      "request": "For PR 123, show me the completion gate verdict. Just report the status.",
+      "expect": {
+        "kind": "none",
+        "route": null,
+        "routes_absent": [
+          "pr-review"
+        ]
+      },
+      "rationale": "Negative control: a status-only gate question must not start pr-review, which runs the comment responder."
     }
   ]
 }

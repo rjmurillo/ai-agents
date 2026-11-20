@@ -122,6 +122,20 @@
         ]
       },
       "rationale": "Negative control: draft as an adjective in a review request must not reach the authoring skill."
+    },
+    {
+      "id": "lt-adr-generator-spelled-out-amend",
+      "family": "long-tail-single-domain",
+      "request": "Amend this architecture decision record to cover the retry budget.",
+      "expect": {
+        "kind": "specialist",
+        "route": "adr-generator",
+        "routes_absent": [
+          "orchestrator",
+          "adr-review"
+        ]
+      },
+      "rationale": "Spelled-out amendment requests reach adr-generator after the bare intent was narrowed."
     }
   ]
 }

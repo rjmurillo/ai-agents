@@ -15,7 +15,6 @@ metadata:
     user-facing: true
     intents:
       - comments and tell me if it can merge
-      - completion gate verdict
 ---
 
 # PR Review

@@ -193,6 +193,14 @@ MEASURED_RULES = frozenset({"fm.size.bytes"})
 _MEASUREMENT = re.compile(r"(\d+) bytes")
 
 
+_LINE_NUMBER = re.compile(r"\bline \d+\b")
+
+
+def _unplaced(message: str) -> str:
+    """Drop a parser line number, so moving an inherited error is not a new one."""
+    return _LINE_NUMBER.sub("line N", message)
+
+
 def _measurement(result: Result) -> int:
     for message in result.messages:
         match = _MEASUREMENT.search(message)
@@ -225,8 +233,8 @@ def added_failures(before: list[Result], after: list[Result]) -> list[Result]:
             if _grew(result, before):
                 added.append(result)
         elif result.status == "FAIL":
-            inherited = failing_before.get(result.rule.id, set())
-            new_messages = tuple(m for m in result.messages if m not in inherited)
+            inherited = {_unplaced(m) for m in failing_before.get(result.rule.id, set())}
+            new_messages = tuple(m for m in result.messages if _unplaced(m) not in inherited)
             if new_messages:
                 added.append(Result(result.rule, result.status, new_messages))
         elif (

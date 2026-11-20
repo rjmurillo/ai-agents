@@ -81,6 +81,10 @@ RESOLVER = REPO_ROOT / "src" / "claude" / "skills" / "autoplan" / "scripts" / "r
 # The install tree holds every skill: shipped ones link into src/claude/skills
 # (ADR-119) and repo-local ones live here only, so both are checked.
 SKILLS_SUBDIR = Path(".claude") / "skills"
+# Autoplan's default invocation resolves against the shipped plugin tree, so a
+# phrase counts as routable only when that catalog routes it. A tree without
+# one (a test fixture) resolves against the skills directory instead.
+CATALOG_SUBDIR = Path("src") / "claude" / "skills"
 BASELINE_RELATIVE = Path("scripts") / "validation" / "skill_trigger_resolution_baseline.json"
 
 EXIT_OK = 0
@@ -276,7 +280,10 @@ def _bare(route: object) -> str | None:
 
 
 def find_violations(skills: list[Skill], skills_dir: Path) -> set[Identity]:
-    """Resolve every skill's phrases and return the violating identities."""
+    """Resolve every skill's phrases against `skills_dir`, the catalog autoplan reads.
+
+    Return the violating identities.
+    """
     found: set[Identity] = set()
     _CATALOG_CACHE.clear()
     for skill in skills:
@@ -380,7 +387,8 @@ def _run(args: argparse.Namespace) -> int:
             f"examined {len(skills)} skills under {skills_dir} but found 0 trigger phrases; "
             "the check would examine nothing, so it cannot report success"
         )
-    found = find_violations(skills, skills_dir)
+    catalog = repo_root / CATALOG_SUBDIR
+    found = find_violations(skills, catalog if catalog.is_dir() else skills_dir)
     if args.write_baseline:
         # ci-scripts MUST 7: a write into the resolved root needs cwd inside it.
         target = baseline_path.resolve()

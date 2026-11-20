@@ -97,6 +97,14 @@ def test_crossing_the_size_cap_is_an_added_failure() -> None:
     assert _ids(lint.new_failures(incumbent, candidate)) == ["fm.size.bytes"]
 
 
+def test_moving_an_inherited_parse_error_is_not_an_added_failure() -> None:
+    rule = _rule("fm.subset-parse")
+    before = [lint.Result(rule, "FAIL", ("line 3: this flow collection is not supported",))]
+    after = [lint.Result(rule, "FAIL", ("line 4: this flow collection is not supported",))]
+
+    assert lint.added_failures(before, after) == []
+
+
 def test_inherited_fail_is_not_an_added_failure() -> None:
     before = [_result("fm.capability.shape", "FAIL")]
     after = [_result("fm.capability.shape", "FAIL")]
