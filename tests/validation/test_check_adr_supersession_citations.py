@@ -1,13 +1,13 @@
 """Tests for scripts/validation/check_adr_supersession_citations.py.
 
-pos: the ADR-107 line 710 text as it stood on main fails, and so do MUST,
+pos: the ADR-107 Related Decisions text as it stood on main fails, and so do MUST,
 "per", "governs", and "current owner" citations of a superseded record.
 neg: lineage clauses, a named successor (direct or transitive), the record's
 own `supersedes`, quotations, history words, negation, code spans, fences,
 paths, non-superseded targets, and retired citing records all pass. The fixed
 ADR-107 wording from PR #7482 passes.
 edge: a quotation split across a capitalised wrap, a mention that is neither
-(unclassified, never failed), and the rule gate's META verdict on line 710.
+(unclassified, never failed), and the rule gate's META verdict on that ADR-107 text.
 Ratchet and CLI: known passes, new fails, stale fails, unusable scope exits 2.
 Wiring: one pre_pr row that reaches this validator.
 """
@@ -128,7 +128,7 @@ def test_adr_107_line_710_as_it_stood_is_authority() -> None:
 
 def test_rule_gate_classifies_line_710_as_bibliography_meta() -> None:
     """Why reuse of the rule gate's classifier was not enough: `## Related
-    Decisions` matches its bibliography heading, so line 710 reads as META."""
+    Decisions` matches its bibliography heading, so the ADR-080 bullet reads as META."""
     found = rule_gate.citations_in("f.md", ADR_107_AS_IT_STOOD, {80: "superseded"}, set())
     assert [(c.adr, c.kind) for c in found] == [(80, rule_gate.META)]
 
@@ -182,7 +182,7 @@ def test_historical_mention_passes(text: str) -> None:
 
 
 def test_quotation_split_by_a_capitalised_wrap_is_still_quoted() -> None:
-    """ADR-089 line 325: the quote opens on the previous line, and the shared
+    """The ADR-089 tier-taxonomy paragraph: the quote opens on the previous line, and the shared
     block splitter starts a new block at the capital S."""
     text = 'The "Tier 1\n   Semantic / Tier 3 Causal, per ADR-080" framing is fabricated.\n'
     assert _authority(text) == []
@@ -426,9 +426,12 @@ def test_the_registered_row_calls_this_gate(
     import pre_pr_sequence as sequence
 
     seen: list[Path] = []
-    monkeypatch.setattr(
-        sequence, "validate_adr_supersession_citations", lambda root: seen.append(root) or True
-    )
+
+    def _spy(repo_root: Path) -> bool:
+        seen.append(repo_root)
+        return True
+
+    monkeypatch.setattr(sequence, "validate_adr_supersession_citations", _spy)
     row = _registered_row()
     # _root_only resolves the validator by name at call time, so the spy is seen.
     assert row.run(tmp_path, argparse.Namespace()) is True

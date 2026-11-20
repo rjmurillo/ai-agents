@@ -19,12 +19,12 @@ Only mentions of a `superseded` record are classified. A `deprecated` or
 
 ## Why the rule gate's classifier is not reused as is
 
-ADRs are written differently from rules. The rule gate treats everything under
-a `Related ...` heading as bibliography, and ADR-107 line 710 sits under
-`## Related Decisions`. That gate returns META for the exact line this gate
-exists to catch. `tests/validation/test_check_adr_supersession_citations.py`
-pins that divergence. The masking, block, sentence, mention and lineage
-helpers are imported from that module, so both gates parse prose one way.
+The rule gate treats everything under a `Related ...` heading as bibliography.
+The ADR-107 bullet that prompted this gate sits under a Related Decisions
+heading, so that gate returns META for it. The divergence is pinned in
+`tests/validation/test_check_adr_supersession_citations.py`. The masking,
+block, sentence, mention and lineage helpers come from the rule gate, so both
+gates parse prose one way.
 
 ## Citation classes
 
