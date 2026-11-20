@@ -11,7 +11,8 @@ a host monitor (for example Claude Code's Monitor tool) wakes the agent once
 per real event. Progress and transient errors go to stderr.
 
 Each poll reads one GraphQL snapshot through ``github_core.api.gh_graphql``
-and the merge gate from the github skill's ``why_pr_blocked.py``.
+and the merge gate from the github skill's ``why_pr_blocked.py``. Between polls
+it waits on ``gh event listen`` when available, else sleeps (github_core.api).
 
 --until
   ready       required checks pass on the current head, no unresolved review
@@ -76,6 +77,7 @@ _script_dir = os.path.dirname(os.path.abspath(__file__))
 if _script_dir not in sys.path:
     sys.path.insert(0, _script_dir)
 
+from github_core.api import ALL_PR_EVENTS, pr_url, wait_for_pr_event  # noqa: E402
 from pr_wait_activity import diff_activity, review_blockers  # noqa: E402 - needs the script directory
 from pr_wait_state import (  # noqa: E402 - needs the script directory on sys.path
     Json,
@@ -447,7 +449,7 @@ def watch(state: State, state_path: Path, target: tuple[str, str, int], args: An
         baseline = False
         if code is not None:
             return code
-        time.sleep(delay)
+        wait_for_pr_event(pr_url(*target), ALL_PR_EVENTS, delay, min_seconds=MIN_INTERVAL)
 
 
 def run(args: argparse.Namespace) -> int:

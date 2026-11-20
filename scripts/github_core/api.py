@@ -11,6 +11,9 @@ public import surface ``from scripts.github_core.api import ...`` stays stable
 - ``rate_limit``: ``RateLimitResult``, ``RateLimitStatus``,
   ``DEFAULT_RATE_THRESHOLDS``,
   ``check_workflow_rate_limit``.
+
+Defined here: ``wait_for_pr_event`` waits on ``gh event listen`` between polls
+and sleeps when event streams are unavailable (end of this module).
 """
 
 from __future__ import annotations
@@ -24,11 +27,11 @@ import subprocess
 import sys
 import time
 import warnings
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from typing import TYPE_CHECKING, NoReturn
+from typing import TYPE_CHECKING, Literal, NoReturn
 
 if TYPE_CHECKING:
     from scripts.github_core.protocol import GitHubClient
@@ -1583,3 +1586,220 @@ def get_trusted_source_comments(
     if not comments:
         return []
     return [c for c in comments if c.get("user", {}).get("login") in trusted_users]
+
+
+# ---------------------------------------------------------------------------
+# PR event waits (gh event listen, with a sleep fallback)
+# ---------------------------------------------------------------------------
+# It lives here, not in its own module, because each Hermes pack carries a
+# full lib/ copy and the delivery pack sits at Hermes' 400-file cap.
+#
+# Wait for a pull request event, or sleep when event streams are unavailable.
+#
+# ``gh event listen`` (gh 2.105.0 and later, GitHub Event Streams preview)
+# blocks until a pull request event arrives. A poll loop can call
+# :func:`wait_for_pr_event` where it used to call ``time.sleep(interval)``.
+# The call returns at the first event, or after ``seconds`` at the latest.
+# The caller then re-reads PR state exactly as it did after a sleep.
+#
+# The wait never runs longer than ``seconds``. That bound matters because
+# ``gh event listen`` does not replay events from before its stream attached.
+# An event that lands between the caller's read and the attach is missed, and
+# the next read picks it up one interval later. Polling had the same worst case.
+#
+# Runtime detection, with no hard dependency on the preview:
+#
+# - ``AI_AGENTS_PR_EVENT_LISTEN=0`` turns listening off.
+# - gh is missing, or older than 2.105.0: fall back to sleeping.
+# - ``GH_HOST`` names a host other than github.com: fall back. Event Streams
+#   exists only on github.com.
+# - The account is not on the waitlist (HTTP 403, "not enabled for this
+#   account"), or gh reports an unknown command or a 404: fall back, and stop
+#   trying ``gh event listen`` for the rest of the process.
+# - Any other listen failure (network, HTTP 422 subscription limit): sleep
+#   the rest of the window, then try listening again on the next call.
+#
+# The return value says which path ran. Callers do not need it to stay
+# correct: every path returns within ``seconds`` and raises nothing.
+
+EVENT_REVIEW_SUBMITTED = "com.github.pull_request.review.submitted.v1"
+EVENT_STATE_CHANGED = "com.github.pull_request.state.changed.v1"
+EVENT_HEAD_CHANGED = "com.github.pull_request.head.changed.v1"
+EVENT_MERGE_CONFLICT = "com.github.pull_request.merge_conflict.v1"
+EVENT_CHECK_SUITE_COMPLETED = "com.github.pull_request.check_suite.status.changed.v1"
+
+ALL_PR_EVENTS: tuple[str, ...] = (
+    EVENT_REVIEW_SUBMITTED,
+    EVENT_STATE_CHANGED,
+    EVENT_HEAD_CHANGED,
+    EVENT_MERGE_CONFLICT,
+    EVENT_CHECK_SUITE_COMPLETED,
+)
+CHECK_EVENTS: tuple[str, ...] = (EVENT_CHECK_SUITE_COMPLETED, EVENT_HEAD_CHANGED)
+
+MIN_GH_VERSION = (2, 105, 0)
+# `gh event listen --timeout` exits with this status when no event arrived.
+LISTEN_TIMEOUT_EXIT = 8
+DISABLE_ENV = "AI_AGENTS_PR_EVENT_LISTEN"
+# Extra time past the listen window before the child is killed.
+_KILL_GRACE_SECONDS = 15
+_VERSION_TIMEOUT_SECONDS = 10
+
+_VERSION_RE = re.compile(r"gh version (\d+)\.(\d+)\.(\d+)")
+# stderr markers that mean listening cannot work for this account or gh.
+# Observed live on gh 2.105.0 (2026-11-19): "event subscriptions are in preview
+# and not enabled for this account: HTTP 403: Event subscriptions are not
+# enabled for this account".
+_PERMANENT_MARKERS = (
+    "not enabled for this account",
+    "http 403",
+    "http 404",
+    'unknown command "event"',
+)
+
+WaitOutcome = Literal["event", "timeout", "fallback"]
+
+# Process-wide verdict: None until probed, then True or False.
+_listen_available: bool | None = None
+
+
+def pr_url(owner: str, repo: str, number: int) -> str:
+    """Return the github.com web URL that ``gh event listen --resource`` takes."""
+    return f"https://github.com/{owner}/{repo}/pull/{int(number)}"
+
+
+def reset_listen_state() -> None:
+    """Forget the cached support verdict. For tests."""
+    global _listen_available
+    _listen_available = None
+
+
+def _parse_gh_version(text: str) -> tuple[int, int, int] | None:
+    match = _VERSION_RE.search(text)
+    if match is None:
+        return None
+    major, minor, patch = (int(part) for part in match.groups())
+    return major, minor, patch
+
+
+def _host_is_github_com() -> bool:
+    host = (os.environ.get("GH_HOST") or "github.com").strip().lower()
+    return host == "github.com"
+
+
+def _probe_listen_support() -> bool:
+    """Return True when gh is new enough and listens on github.com."""
+    if not _host_is_github_com():
+        return False
+    try:
+        result = subprocess.run(
+            ["gh", "--version"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=_VERSION_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    version = _parse_gh_version(result.stdout or "")
+    return result.returncode == 0 and version is not None and version >= MIN_GH_VERSION
+
+
+def listen_available() -> bool:
+    """Return whether ``gh event listen`` may be tried.
+
+    The off switch is read on every call. The gh probe runs once per process.
+    """
+    global _listen_available
+    if os.environ.get(DISABLE_ENV, "").strip() == "0":
+        return False
+    if _listen_available is None:
+        _listen_available = _probe_listen_support()
+    return _listen_available
+
+
+def _is_permanent_refusal(stderr: str) -> bool:
+    lowered = stderr.lower()
+    return any(marker in lowered for marker in _PERMANENT_MARKERS)
+
+
+def _listen_command(url: str, events: Sequence[str], seconds: int) -> list[str]:
+    return [
+        "gh",
+        "event",
+        "listen",
+        "--resource",
+        url,
+        "--event",
+        ",".join(events),
+        "--timeout",
+        f"{seconds}s",
+    ]
+
+
+def _run_listen(url: str, events: Sequence[str], seconds: int) -> WaitOutcome | None:
+    """Run one bounded listen. Return the outcome, or None when it failed."""
+    global _listen_available
+    try:
+        result = subprocess.run(
+            _listen_command(url, events, seconds),
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=seconds + _KILL_GRACE_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return "timeout"
+    except OSError:
+        _listen_available = False
+        return None
+    if result.returncode == 0:
+        return "event"
+    if result.returncode == LISTEN_TIMEOUT_EXIT:
+        return "timeout"
+    if _is_permanent_refusal(result.stderr or ""):
+        _listen_available = False
+    return None
+
+
+def wait_for_pr_event(
+    url: str,
+    events: Sequence[str],
+    seconds: float,
+    *,
+    min_seconds: float = 0.0,
+    sleep: Callable[[float], None] | None = None,
+    clock: Callable[[], float] | None = None,
+) -> WaitOutcome:
+    """Block until one of ``events`` fires on ``url``, for at most ``seconds``.
+
+    Returns ``"event"`` when an event arrived, ``"timeout"`` when the listen
+    window closed with none, and ``"fallback"`` when the wait was a sleep.
+    ``min_seconds`` is a floor on an event wake, so a burst of events cannot
+    make the caller poll faster than its old minimum interval. ``sleep`` and
+    ``clock`` are seams; they resolve to ``time.sleep`` and ``time.monotonic``
+    at call time so a test that patches ``time.sleep`` also patches this.
+    """
+    sleep = sleep if sleep is not None else time.sleep
+    clock = clock if clock is not None else time.monotonic
+    whole_seconds = int(seconds)
+    if whole_seconds < 1 or not events or not listen_available():
+        sleep(seconds)
+        return "fallback"
+
+    started = clock()
+    outcome = _run_listen(url, events, whole_seconds)
+    elapsed = clock() - started
+    if outcome == "event":
+        floor_left = min(min_seconds, seconds) - elapsed
+        if floor_left > 0:
+            sleep(floor_left)
+        return "event"
+    if outcome == "timeout":
+        return "timeout"
+    left = seconds - elapsed
+    if left > 0:
+        sleep(left)
+    return "fallback"

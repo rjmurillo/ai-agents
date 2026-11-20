@@ -89,7 +89,7 @@ A read-only example, from a checkout:
 uv run python .claude/skills/github/scripts/pr/get_pr_context.py --pull-request 123 --include-changed-files
 ```
 
-`get_pr_checks.py` takes `--wait`, `--timeout-seconds`, `--required-only`, and `--output-format {json,human,auto}`. Keep `--wait` at or below 570 seconds, because the agent tool call is killed at 600 seconds.
+`get_pr_checks.py` takes `--wait`, `--timeout-seconds`, `--required-only`, and `--output-format {json,human,auto}`. Keep `--wait` at or below 570 seconds, because the agent tool call is killed at 600 seconds. Under `--wait` it wakes early on a finished check suite or a push when `gh event listen` works (gh 2.105.0 or later, GitHub Event Streams access), and otherwise re-reads every 10 seconds; exit codes are the same either way.
 
 In a network-restricted sandbox, the read-only scripts under `scripts/pr/` run with a bare Python interpreter, not `uv run`. `uv run` resolves the whole project environment and times out with no network.
 

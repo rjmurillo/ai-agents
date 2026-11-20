@@ -71,7 +71,7 @@ Run this from the root of a checkout of this repository:
 uv run python .claude/skills/pr-babysit/scripts/pr_wait.py --help
 ```
 
-Flags: `pr` (positional), `--repo OWNER/NAME`, `--until {ready,green,any-change}`, `--interval SECONDS` (default 30, floor 10). The skill also ships `pr_wait_activity.py` and `pr_wait_state.py` as helpers for the watcher.
+Flags: `pr` (positional), `--repo OWNER/NAME`, `--until {ready,green,any-change}`, `--interval SECONDS` (default 30, floor 10). Between reads it waits on `gh event listen` when gh is 2.105.0 or later and the account has GitHub Event Streams access, and wakes at the next review, push, merge conflict, finished check suite, or state change. Otherwise it sleeps `--interval`. Output and exit codes match on both paths, and `AI_AGENTS_PR_EVENT_LISTEN=0` forces the sleep. The skill also ships `pr_wait_activity.py` and `pr_wait_state.py` as helpers for the watcher.
 
 ### Merging
 
