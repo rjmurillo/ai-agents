@@ -24,10 +24,12 @@ Exit Codes:
 
 References:
     - Issue #1703 (lifecycle hook infrastructure)
+    - Issue #1672 (session-start gate)
     - Issue #2079 (pending-skeleton reminder)
     - Issue #5168 (removed the HANDOFF.md auto-load)
     - Issues #7471 and #7472 (influence telemetry and curation cadence)
     - ADR-008 (protocol automation via lifecycle hooks)
+    - ADR-014 (distributed handoff architecture; supersedes HANDOFF.md)
 """
 
 from __future__ import annotations
