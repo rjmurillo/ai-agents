@@ -19,9 +19,7 @@ corpus classifies as authored (`instruction_bytes_corpus.canonical_paths`: templ
 per-harness agent templates, partials, governance, root AGENTS.md and CLAUDE.md),
 hand-kept `.github/prompts/` files, skill references, and untemplated skills.
 Generated projections are not in the allowlist, so one authored source with N
-generated copies is the good shape and is never counted. The one projection that
-shares a root with authored text, `.github/prompts/pr-quality-gate-*.md`, is
-skipped by name.
+generated copies is the good shape and is never counted.
 
 The check is a ratchet over a committed baseline. Existing debt is allowed; a
 new pair, a bigger overlap, or a new stale count fails. Shrinking debt also
@@ -88,9 +86,6 @@ NL_SUFFIXES = (".md", ".tmpl", ".mustache")
 # closing fence from a shared include, so its frontmatter is not parseable alone. The
 # rendered rule is what carries `paths:`, so only non-template files fail on bad frontmatter.
 FRAGMENT_SUFFIXES = (".tmpl", ".mustache")
-# `.github/prompts/pr-quality-gate-*.md` is generated from the review skill's
-# references (templates/platforms/binplace.yaml), so it is a projection.
-GENERATED_PROMPT_PREFIX = "pr-quality-gate-"
 _RULE_RE = re.compile(r"^[\s|:\-=*_#>]*$")
 
 
@@ -118,17 +113,9 @@ class GraphViolationError(Exception):
 
 def authored_files(repo_root: Path) -> list[Path]:
     """Return authored sources: the byte corpus set, hand-kept prompts, skill references."""
-    files = [
-        repo_root / rel
-        for rel in _canonical_paths(repo_root)
-        if rel.endswith(NL_SUFFIXES) and not Path(rel).name.startswith(GENERATED_PROMPT_PREFIX)
-    ]
+    files = [repo_root / rel for rel in _canonical_paths(repo_root) if rel.endswith(NL_SUFFIXES)]
     for subdir, pattern in EXTRA_AUTHORED_GLOBS:
-        files.extend(
-            p
-            for p in sorted((repo_root / subdir).glob(pattern))
-            if not p.name.startswith(GENERATED_PROMPT_PREFIX)
-        )
+        files.extend(sorted((repo_root / subdir).glob(pattern)))
     skills = repo_root / SKILL_ROOT
     templated = {
         p.name.removesuffix(".SKILL.md.tmpl")

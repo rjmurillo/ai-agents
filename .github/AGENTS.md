@@ -4,7 +4,7 @@ CI workflows plus generated Copilot mirrors, agents, prompts, and hook JSON for 
 
 ## Matters
 
-- Generated, never hand-edit: `instructions/`, `agents/*.agent.md`, `hooks/hooks.json`: links into `src/copilot-cli/`, plus repo-only real instructions (ADR-119). `prompts/pr-quality-gate-*.md` regenerates only with `build/scripts/generate_pr_quality_prompts.py`, which `build_all.py` does not run.
+- Generated, never hand-edit: `instructions/`, `agents/*.agent.md`, `hooks/hooks.json`: links into `src/copilot-cli/`, plus repo-only real instructions (ADR-119).
 - `copilot-instructions.md`: Copilot's always-on entry point (every Copilot CLI session). Byte ratchet 6351 (4707 today) in `scripts/validate_workspace_budget.py`, enforced by `tests/test_workspace_limits.py::test_per_file_limit` inside the required `Run Python Tests`; the pytest matrix runs on every event, so every edit here meets it.
 - Cross-harness work: read `agent-harness-reference` first, route it through `ai-agents-portability-campaign`.
 
@@ -21,7 +21,7 @@ CI workflows plus generated Copilot mirrors, agents, prompts, and hook JSON for 
 | `agents/*.agent.md` (30) | Links to the shipped `src/copilot-cli/agents/` |
 | `instructions/*.instructions.md` | Links, plus repo-only files from `generate_rules.py` |
 | `hooks/` | `hooks.json` links to `src/copilot-cli/hooks/` and registers nothing. `memory-recall.json` is hand-authored: Copilot memory recall on `userPromptTransformed` (issue #4727) |
-| `prompts/` (33) | 12 `pr-quality-gate-*.md` generated; 7 `pr-quality.*.prompt.md` hand-written, dot not hyphen |
+| `prompts/` (12) | Hand-written inputs to Actions workflows; no generated copies |
 
 ## Skip
 
@@ -37,7 +37,6 @@ CI workflows plus generated Copilot mirrors, agents, prompts, and hook JSON for 
 ## Dangerous assumptions
 
 - "`instructions/` mirrors `.claude/rules/`": since ADR-109 B2 the generator source is `src/claude/rules/`; the canonical edit is `templates/rules/<name>.md`.
-- "`binplace.yaml` has a `prompts` row, so `build_all.py` writes `prompts/`": that row's `plugin_tree` is null, so binplace skips it.
 - "`instruction-budget.yml` caps root `AGENTS.md`/`CLAUDE.md`": it gates the always-on rule corpus. Root doc cap is `passive-context-budget.yml`.
 - Green `validate-generated-agents.yml` or `agent-drift-detection.yml` on a PR touching no agent file proves nothing: both skip behind a paths filter (not Build-all Staleness).
 
@@ -50,7 +49,6 @@ CI workflows plus generated Copilot mirrors, agents, prompts, and hook JSON for 
 ## Architecture
 
 - `generate_rules.py` renames `paths:` to `applyTo:`, drops `priority:`/`alwaysApply:`, skips all-internal rules from `src/copilot-cli/instructions/` (issue #4317) and writes them to `instructions/`.
-- `prompts/pr-quality-gate-*.md`: one-way edge from `.claude/skills/review/references/`, outside `build_all.py --check`. Stale output blocks at lefthook `review-axis-drift` and the `Review-axes drift check` step.
 
 ## Commands
 
@@ -58,7 +56,6 @@ CI workflows plus generated Copilot mirrors, agents, prompts, and hook JSON for 
 uv run python scripts/ci/adr006_run_block_scanner.py --max 0
 uv run python scripts/validate_workflows.py
 uv run python build/scripts/generate_rules.py
-uv run python build/scripts/generate_pr_quality_prompts.py --dry-run
 uv run python build/scripts/build_all.py --check
 uv run python scripts/validate_workspace_budget.py
 uv run python -m scripts.validation.passive_context_budget --ci

@@ -545,7 +545,7 @@ When reviewing PRs that add new directories or relocate files, assess structural
 
 When you create or update an ADR file matching `.project-toolkit/architecture/ADR-*.md`:
 
-1. Save ADR to `.project-toolkit/architecture/ADR-NNNN-[title].md`
+1. Draft or amend the ADR through the `adr-generator` skill (follow its phases when you cannot invoke skills). It saves to `.project-toolkit/architecture/ADR-NNNN-[title].md`
 2. Update architecture changelog if needed
 3. Store decision in memory
 4. Return to orchestrator with **MANDATORY routing**:

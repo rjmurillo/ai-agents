@@ -75,7 +75,9 @@ Gate modes answer two different questions:
 | 0 | Gate passed, or nothing changed in regression mode. It can also carry one explicitly admitted regression, listed under `csharp_parser_dependency_admission`, `typescript_parser_dependency_admission`, or `python_parser_dependency_admission`; the review adapter reports that as WARN. The scanner accepts only the fixed records for rjmurillo/ai-agents issues #7406, #7435, and #7436; any other config value fails with exit 1. |
 | 1 | Invalid target, config error, or no files to assess. For C#, TypeScript, JavaScript, and Python it also means the parser package is missing, the parser failed to start, or the pinned grammar could not parse a file. For PowerShell it also means `pwsh` is missing from PATH, the PowerShell parser failed or timed out, or PowerShell reports a syntax error |
 | 10 | Regression: a quality regressed or scored evidence was lost |
-| 11 | A file is below the configured thresholds |
+| 11 | A file is below the configured thresholds. The scanner checks every file and quality first, so stderr names each failure in one run |
+
+In the JSON report, each file has a `threshold_gate` object. It holds `failed`, `unscored_supported_source`, and a `below_threshold` list with the `quality`, `score`, `minimum`, `confidence`, and `advisory` of each miss. It is null when the absolute gate did not check the file, such as a regression-mode file with a comparable base.
 
 Scores are size-derived, so growth alone can lower cohesion. Read the named delta before you act on an exit 10. Test modules (a `tests` directory in the path or a `test_` file name) get no cohesion score, and the Markdown report shows it as `unscored (n/a)`, because each test case counts as a definition (issue #7410). Other test naming, such as Go `*_test.go`, TypeScript `*.test.ts`, or a singular `test/` directory, is still classified as authored and still gets a cohesion score.
 

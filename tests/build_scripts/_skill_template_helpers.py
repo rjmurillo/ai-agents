@@ -91,7 +91,7 @@ def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
     # under a second; 60s is margin for a loaded CI runner, not an expected
     # runtime, and turns a hung child process into a reported test failure
     # instead of a wedged test job. Mirrors the same-purpose 60s timeout on
-    # the python3 subprocess in test_generate_pr_quality_prompts.py:586.
+    # the python3 subprocess timeouts in the sibling build-script tests.
     return subprocess.run(
         [sys.executable, str(_GENERATE_SKILLS_PATH), *args],
         capture_output=True,

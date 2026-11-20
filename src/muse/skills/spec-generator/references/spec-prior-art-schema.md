@@ -278,17 +278,11 @@ Absence of the file does not block `/spec`; the tally is review-only data for th
    - [ ] .claude/skills/review/references/security.md -- document new verdict in axis prose
    - [ ] .claude/skills/review/references/devops.md -- document new verdict in axis prose
    - [ ] .claude/skills/review/references/roadmap.md -- document new verdict in axis prose
-   - [ ] .github/prompts/pr-quality-gate-analyst.md -- mirror axis prose
-   - [ ] .github/prompts/pr-quality-gate-architect.md -- mirror axis prose
-   - [ ] .github/prompts/pr-quality-gate-qa.md -- mirror axis prose
-   - [ ] .github/prompts/pr-quality-gate-security.md -- mirror axis prose
-   - [ ] .github/prompts/pr-quality-gate-devops.md -- mirror axis prose
-   - [ ] .github/prompts/pr-quality-gate-roadmap.md -- mirror axis prose
    ```
 
    Each entry follows the documented contract literally: bare `{file_path}:{line_or_section}` with no backticks. When `{line_or_section}` is not a line number, quote it (for example, `"validity"`). `{what changes}` is a single phrase. The worked example pins the exact byte-level shape that future checklist linters will pattern-match against; do not paraphrase the separator or drop `--`.
 
-   The checklist surfaces 17 sites for a single token. Without it, the implementer discovers each one through a separate bot-review round trip.
+   The checklist surfaces 11 sites for a single token. Without it, the implementer discovers each one through a separate bot-review round trip.
 7. **Analyst review (doc-accuracy + golden-principles, then gap check)**. Run two skills in sequence before the gap-and-ambiguity check, each gating the spec from advancing to Step 8:
 
    1. Invoke Skill(skill="doc-accuracy") to scan for contradictions between the spec and existing docs, ADRs, and code. Common case: the spec proposes behavior that contradicts a documented ADR constraint or an existing design doc. **Halt condition**: `doc-accuracy` finds a contradiction with an existing ADR; halt and require an explicit ADR amendment proposal before continuing (do not silently override the ADR).

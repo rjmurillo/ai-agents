@@ -1,9 +1,15 @@
 ---
 name: review
 version: 1.0.0
-description: Review before merge. Stage-1 spec-compliance gate, then risk-selected Stage-2 review axes from the canonical set. analyst always runs, callers can pin extra always-on axes, and explicit deep review runs every canonical axis. Run after /test. Do NOT invoke code-qualities-assessment, doc-accuracy, golden-principles, or taste-lints directly for a full review; review can select them when requested or when deep review is explicit.
+description: Review before merge. Stage-1 spec-compliance gate, then risk-selected Stage-2 review axes from the canonical set. analyst always runs, callers can pin extra always-on axes, and explicit deep review runs every canonical axis. Run after /test. Do NOT invoke code-qualities-assessment, doc-accuracy, golden-principles, or taste-lints directly for a full review; review can select them when requested or when deep review is explicit. Do NOT use to answer PR review comments (use pr-review) or as the pre-push gate (use pr-quality).
 license: MIT
 metadata:
+  inputs:
+    implementation-change:
+    requirements-spec:
+      required: false
+  outputs:
+    review-marker:
   capability:
     kind: orchestrator
     owns: [technical-review]
@@ -155,6 +161,10 @@ Followed by per-axis findings in detail. Each finding:
 
 Label each finding from its own value, never its axis verdict: `resources/finding-severity.md`. Display only.
 
+## Handoff
+
+Writes: `review-marker`. Next: `/ship`.
+
 ## Write the SHA-bound PASS marker
 
 On a **PASS** final verdict (or a WARN where every WARN was acknowledged), write a
@@ -177,10 +187,7 @@ A re-run after PASS writes another marker, which is safe.
 
 ## Principles
 
-- **Deep review is the strict superset of CI**. In deep review, `/review` surfaces every CI finding first.
-- **Drift fails closed**. If `.claude/skills/review/references/` and `.github/prompts/` diverge, pre-push blocks. CI re-checks.
 - **UNKNOWN is information**. A skill that did not evaluate is not a silent PASS. Loops, not files: `evidence-provenance`.
-- **Vendored survival**. `/review` works in a `.claude/`-only checkout. No axis or skill references `.agents/` or `.github/`.
 - **Voice**. Read `resources/writing-style.md` before writing findings (glossing, completeness scores).
 
 ## Verification

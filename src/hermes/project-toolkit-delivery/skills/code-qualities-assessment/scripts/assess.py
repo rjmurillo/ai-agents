@@ -217,8 +217,6 @@ def classify_file_category(file_path: Path, content: str | None = None) -> str:
     parts = _repo_relative_parts(file_path)
     if any(parts[: len(segment)] == segment for segment in _GENERATED_PATH_SEGMENTS):
         return "generated"
-    if file_path.name.startswith("pr-quality-gate-") and ".github" in parts:
-        return "generated"
     if content is None:
         try:
             content = file_path.read_text(encoding="utf-8")
@@ -2495,11 +2493,18 @@ def generate_json_report(
     assessments: list[FileAssessment],
     comparisons: list[FileComparison] | None = None,
     gate_mode: str = "absolute",
+    threshold_gates: dict[str, dict[str, Any]] | None = None,
 ) -> str:
-    """Generate JSON report"""
+    """Generate JSON report.
+
+    Each file carries ``threshold_gate``: its absolute threshold verdict, or
+    null when the absolute gate did not examine it (a regression-mode file
+    with a comparable base).
+    """
+    gates = threshold_gates or {}
     return json.dumps(
         {
-            "files": [asdict(a) for a in assessments],
+            "files": [{**asdict(a), "threshold_gate": gates.get(a.file_path)} for a in assessments],
             "gate_mode": gate_mode,
             "comparisons": [asdict(c) for c in (comparisons or [])],
             "summary": {
@@ -2545,50 +2550,102 @@ def check_thresholds(
     ``context`` is an explicit override applied to every file. When it is
     None, each file uses the context named by its own category.
 
+    Every file and every quality is checked before the verdict, so one run
+    reports every failure (issue #7481).
+
     Returns:
         0: All thresholds met
         11: Below thresholds
     """
     floor = _confidence_floor(config)
+    failed = False
     for assessment in assessments:
-        thresholds = _thresholds_for(config, context, assessment)
-        if (
-            fail_unscored_supported
-            and assessment.category != "generated"
-            and detect_language(Path(assessment.file_path)) is not None
-            and not _has_scored_quality(assessment)
-        ):
+        gate = evaluate_threshold_gate(
+            assessment,
+            config,
+            context,
+            fail_unscored_supported=fail_unscored_supported,
+        )
+        if gate["unscored_supported_source"]:
             print(
                 f"❌ {assessment.file_path}: supported authored source could not be scored",
                 file=sys.stderr,
             )
-            return 11
-
-        quality_checks = (
-            ("Cohesion", assessment.cohesion, thresholds["cohesion"].get("min")),
-            # Coupling uses "min" semantics: higher score = looser coupling =
-            # better. Legacy configs that only specify "max" are skipped rather
-            # than gated incorrectly.
-            ("Coupling", assessment.coupling, thresholds["coupling"].get("min")),
-            ("Encapsulation", assessment.encapsulation, thresholds["encapsulation"].get("min")),
-            ("Testability", assessment.testability, thresholds["testability"].get("min")),
-            ("Non-Redundancy", assessment.non_redundancy, thresholds["nonRedundancy"].get("min")),
-        )
-        for label, score, minimum in quality_checks:
-            if not _score_below_threshold(score, minimum):
-                continue
-            message = f"{assessment.file_path}: {label} {score.value} < {minimum}"
-            if _is_advisory(score, floor):
+        for miss in gate["below_threshold"]:
+            label = _QUALITY_LABELS[miss["quality"]]
+            message = f"{assessment.file_path}: {label} {miss['score']} < {miss['minimum']}"
+            if miss["advisory"]:
                 print(
-                    f"⚠️ {message} (advisory: confidence {score.confidence} "
+                    f"⚠️ {message} (advisory: confidence {miss['confidence']} "
                     f"< minConfidence {floor})",
                     file=sys.stderr,
                 )
                 continue
             print(f"❌ {message}", file=sys.stderr)
-            return 11
+        failed = failed or gate["failed"]
 
-    return 0
+    return 11 if failed else 0
+
+
+# Gate order, JSON key (the FileAssessment field name), config key, and the
+# label the stderr lines print. Coupling uses "min" semantics: higher score =
+# looser coupling = better. Legacy configs that only specify "max" are skipped
+# rather than gated incorrectly.
+_GATED_QUALITIES = (
+    ("cohesion", "cohesion", "Cohesion"),
+    ("coupling", "coupling", "Coupling"),
+    ("encapsulation", "encapsulation", "Encapsulation"),
+    ("testability", "testability", "Testability"),
+    ("non_redundancy", "nonRedundancy", "Non-Redundancy"),
+)
+_QUALITY_LABELS = {field: label for field, _, label in _GATED_QUALITIES}
+
+
+def evaluate_threshold_gate(
+    assessment: FileAssessment,
+    config: dict[str, Any],
+    context: str | None,
+    *,
+    fail_unscored_supported: bool = False,
+) -> dict[str, Any]:
+    """Return the absolute threshold verdict for one file.
+
+    This is the single source for both the stderr lines ``check_thresholds``
+    prints and the ``threshold_gate`` object the JSON report carries, so a
+    caller reading the JSON gets the same verdict the exit code reflects.
+    ``failed`` is true when the file is unscored supported source, or when any
+    ``below_threshold`` entry is not advisory.
+    """
+    if (
+        fail_unscored_supported
+        and assessment.category != "generated"
+        and detect_language(Path(assessment.file_path)) is not None
+        and not _has_scored_quality(assessment)
+    ):
+        return {"failed": True, "unscored_supported_source": True, "below_threshold": []}
+
+    thresholds = _thresholds_for(config, context, assessment)
+    floor = _confidence_floor(config)
+    misses: list[dict[str, Any]] = []
+    for field_name, config_key, _ in _GATED_QUALITIES:
+        score: QualityScore = getattr(assessment, field_name)
+        minimum = thresholds[config_key].get("min")
+        if not _score_below_threshold(score, minimum):
+            continue
+        misses.append(
+            {
+                "quality": field_name,
+                "score": score.value,
+                "minimum": minimum,
+                "confidence": score.confidence,
+                "advisory": _is_advisory(score, floor),
+            }
+        )
+    return {
+        "failed": any(not miss["advisory"] for miss in misses),
+        "unscored_supported_source": False,
+        "below_threshold": misses,
+    }
 
 
 def _resolve_target_path(target: str) -> str:
@@ -2640,6 +2697,19 @@ def _build_regression_inputs(
     return build_comparisons(assessments, base, tolerance, changed_files)
 
 
+def _absolute_gate_inputs(
+    gate_mode: str,
+    assessments: list[FileAssessment],
+    new_file_assessments: list[FileAssessment],
+) -> tuple[list[FileAssessment], bool]:
+    """Return the files the absolute threshold gate examines, and whether an
+    unscored supported file fails it. Regression mode gates only files with
+    no comparable base; absolute mode gates every file."""
+    if gate_mode == "regression":
+        return new_file_assessments, True
+    return assessments, False
+
+
 def _render_report(
     output_format: str,
     assessments: list[FileAssessment],
@@ -2647,6 +2717,7 @@ def _render_report(
     config: dict[str, Any],
     gate_mode: str,
     context: str | None = None,
+    new_file_assessments: list[FileAssessment] | None = None,
 ) -> str:
     """Render the selected report format."""
     if output_format == "markdown":
@@ -2654,7 +2725,16 @@ def _render_report(
         section = generate_regression_section(comparisons)
         return f"{report}\n\n{section}" if section else report
     if output_format == "json":
-        return generate_json_report(assessments, comparisons, gate_mode)
+        gated, fail_unscored = _absolute_gate_inputs(
+            gate_mode, assessments, new_file_assessments or []
+        )
+        gates = {
+            a.file_path: evaluate_threshold_gate(
+                a, config, context, fail_unscored_supported=fail_unscored
+            )
+            for a in gated
+        }
+        return generate_json_report(assessments, comparisons, gate_mode, gates)
     return "HTML format not yet implemented"
 
 
@@ -2679,7 +2759,8 @@ def _gate_result(
     """Apply the gate policy selected for this run."""
     if gate_mode == "regression":
         return check_regression(comparisons, new_file_assessments, config, context)
-    return check_thresholds(assessments, config, context)
+    gated, fail_unscored = _absolute_gate_inputs(gate_mode, assessments, new_file_assessments)
+    return check_thresholds(gated, config, context, fail_unscored_supported=fail_unscored)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -2752,7 +2833,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1
 
-    report = _render_report(args.format, assessments, comparisons, config, gate_mode, args.context)
+    report = _render_report(
+        args.format,
+        assessments,
+        comparisons,
+        config,
+        gate_mode,
+        args.context,
+        new_file_assessments,
+    )
     _write_report(report, args.output)
     return _gate_result(
         gate_mode,

@@ -4,6 +4,14 @@ version: 1.0.0
 description: Turn a problem into testable requirements with acceptance criteria, through a first-principles gate, a memory-first prior-art gate, and a PRD schema. Use when you say `spec this out`, `what should we build`, or `define the requirements`, and run it before plan. Do NOT use to sequence work into milestones (use plan), do NOT use to write the code (use build), and do NOT use to emit the REQ, DESIGN and TASK files directly (use spec-generator, which this invokes).
 license: MIT
 metadata:
+  capability:
+    kind: orchestrator
+    owns:
+      - requirements-specification
+    status: active
+  inputs:
+    problem-statement:
+      source: user
   routing:
     role: front-door
     invoker: autoplan
@@ -122,6 +130,10 @@ Structured requirements document. Mirror the PRD schema produced in step 2; do n
 - **Complexity classification** (engineering tier 1-5 from Step 3, plus problem domain Clear/Complicated/Complex/Chaotic from the Step 3 `cynefin-classifier` skill, plus derived methodology)
 - **Operating Model Context** (Tier 5 only; the 5-layer model elicited by the Step 1 `work-operating-model` skill: decision rights, communication patterns, work intake, conflict resolution, retrospection; omit at Tier 1-4)
 - **ADR cross-reference** (Tier 4-5 only; the `ADR-NNN-{slug}.md` produced by the Step 6 `adr-generator` skill and its `adr-review` verdict, with the bidirectional ADR<->REQ link; omit at Tier 1-3)
+
+## Handoff
+
+Writes: `requirements-spec`, `design-spec`, `task-spec`. Next: `/plan`.
 
 ## Writing Style, Completeness Scores, Confusion Protocol
 

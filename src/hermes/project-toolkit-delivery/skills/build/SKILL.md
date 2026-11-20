@@ -264,6 +264,10 @@ Scope is the allowed paths in the work order's `NON-GOALS` field (`orchestrator-
 - Record out-of-scope findings in existing handoff fields only: command, result, failing paths, scope decision in CONTEXT; owner in ESCALATE TO; stop reason in STOP CONDITIONS.
 - Reuse a recorded blocker only after a freshness check: head SHA and failing paths match and the command returns the same result. Otherwise discard the record and reclassify.
 
+## Handoff
+
+Writes: `implementation-change`, `validation-record`. Next: `/test`.
+
 ## Verification
 
 - [ ] Complexity tier assigned, and the oversight level matches the tier table

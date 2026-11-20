@@ -19,7 +19,7 @@ version: 1.0.0
 |----------------|-----------|
 | `scan for security changes` | detect-infrastructure with staged files |
 | `check security-critical files` | detect-infrastructure with file list |
-| `run security scan on changes` | detect-infrastructure analysis |
+| `does this change need security review` | detect-infrastructure analysis |
 | `do I need a security review` | Risk-level assessment of changed files |
 | `check infrastructure changes` | Pattern matching against critical/high lists |
 

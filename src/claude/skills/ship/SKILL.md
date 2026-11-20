@@ -7,6 +7,17 @@ allowed-tools: Task, Skill, Read, Glob, Grep, Bash(*)
 argument-hint: target-branch
 user-invocable: true
 metadata:
+  capability:
+    kind: orchestrator
+    owns:
+      - release-preflight
+    status: active
+  inputs:
+    implementation-change:
+    review-marker:
+      required: false
+  outputs:
+    pull-request:
   routing:
     role: front-door
     invoker: autoplan
@@ -18,9 +29,6 @@ metadata:
 
 Pre-flight validation, CI check, and PR creation, branching on VCS host and on
 whether the branch is yours.
-
-Migrated from `.claude/commands/ship.md` under ADR-064, which makes skills the
-single user-invocable surface.
 
 ## Triggers
 
@@ -162,7 +170,6 @@ Delegate to `devops` (Claude Code Task, Copilot CLI task, Codex spawn_agent, Mus
 - **Faster is safer**: Small, frequent shipments reduce blast radius. Ship early.
 - **No deliberate debt**: If it is not ready, do not ship it. Fix it or defer it.
 - **Observability first**: If you cannot measure it, you cannot ship it safely.
-- **Do not pollute shared branches**: In contributor mode, never write a marker commit, create a PR, or merge onto a branch you do not own.
 
 ## Output
 
@@ -266,6 +273,10 @@ Run this check only at decision points: starting a heavy action, switching tasks
 
 If any answer is "no" or "not sure," adjust before proceeding.
 
+## Handoff
+
+Writes: `pull-request`. Next: none.
+
 ## Verification
 
 - [ ] `host` and `mode` detected before any pre-flight check, and both stated in the report
@@ -292,8 +303,7 @@ If any answer is "no" or "not sure," adjust before proceeding.
 ## Extension Points
 
 - **Another VCS host.** Mode Detection's `case` and each check's host branch are
-  the only host-aware parts; the review-marker and security checks are
-  host-agnostic by construction.
+  the only host-aware parts; the marker and security checks are host-agnostic.
 - **New pre-flight check.** Add it to the numbered list, to the report block, and
   to the Verification list together, so it cannot run unreported.
 - **Different review proof.** Check 3 accepts a marker commit in owner mode and

@@ -18,7 +18,6 @@ TEMPLATE = (ROOT / "templates" / "skills" / "review.SKILL.md.tmpl").read_text(en
 REVIEW = ROOT / "src" / "claude" / "skills" / "review"
 RESOURCE = (REVIEW / "resources" / "codeql-prestep.md").read_text(encoding="utf-8")
 SECURITY = (REVIEW / "references" / "security.md").read_text(encoding="utf-8")
-PROMPT = (ROOT / ".github" / "prompts" / "pr-quality-gate-security.md").read_text(encoding="utf-8")
 SKILL_MD_BYTE_CAP = 24576
 
 OUTCOMES = sorted(pre._TIER1_OUTCOMES | {"CLEAN", "FINDINGS"})
@@ -112,10 +111,6 @@ class TestSecurityAxisPrompt:
 
     def test_a_missing_block_is_not_a_clean_result(self):
         assert "not a clean result" in SECURITY
-
-    def test_the_committed_ci_prompt_carries_the_guidance(self):
-        assert "CODEQL RESULTS" in PROMPT
-        assert "candidate to confirm" in PROMPT
 
     def test_the_block_heading_matches_the_procedure_page(self):
         assert "CODEQL RESULTS" in RESOURCE

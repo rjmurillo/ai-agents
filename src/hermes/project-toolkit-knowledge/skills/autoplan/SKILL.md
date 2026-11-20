@@ -158,7 +158,7 @@ evidence (failing tests, widening diff), not on speculation.
 | "Did I touch security-critical files?" | Skill: security-detection |
 | Review a diff or snippet for vulnerabilities | Skill: security-review; injection scan via security-scan |
 | Correction received, lesson learned | Skill: reflect |
-| Document a decision | Skill: adr-generator |
+| Document a decision, or a plan needs an ADR | Skill: adr-generator |
 | New skill wanted | Skill: skillforge |
 | Multi-domain, cross-cutting, or requires multiple agents | Agent: orchestrator |
 

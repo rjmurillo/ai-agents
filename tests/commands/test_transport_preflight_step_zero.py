@@ -15,7 +15,6 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 REVIEW = REPO_ROOT / ".claude" / "skills" / "pr-review" / "SKILL.md"
-PROMPT = REPO_ROOT / ".github" / "prompts" / "pr-review.prompt.md"
 COPILOT_REVIEW = REPO_ROOT / "src" / "copilot-cli" / "skills" / "pr-review" / "SKILL.md"
 TEMPLATE = REPO_ROOT / "templates" / "skills" / "pr-review.SKILL.md.tmpl"
 # Copies with no scripts map of their own (D3 and D5 on #6506).
@@ -27,13 +26,13 @@ MAPLESS_COPIES = [
 
 
 class TestStepZeroStopsOnUnverifiableTokens:
-    @pytest.mark.parametrize("path", [REVIEW, COPILOT_REVIEW, PROMPT])
+    @pytest.mark.parametrize("path", [REVIEW, COPILOT_REVIEW])
     def test_non_empty_unverifiable_tokens_stop_the_run(self, path):
         body = path.read_text(encoding="utf-8")
         assert "A non-empty list stops the run" in body
         assert "empty `blocking_unverifiable_command_tokens` list" in body
 
-    @pytest.mark.parametrize("path", [REVIEW, COPILOT_REVIEW, PROMPT])
+    @pytest.mark.parametrize("path", [REVIEW, COPILOT_REVIEW])
     def test_stop_is_scoped_to_the_running_harness(self, path):
         """D3 (#6506): another harness's tokens are reported, not a stop."""
         body = path.read_text(encoding="utf-8")
@@ -48,7 +47,7 @@ class TestStepZeroStopsOnUnverifiableTokens:
         )
         assert "Only after exit 0 with an empty `unverifiable_command_tokens` list" not in body
 
-    @pytest.mark.parametrize("path", [REVIEW, COPILOT_REVIEW, PROMPT])
+    @pytest.mark.parametrize("path", [REVIEW, COPILOT_REVIEW])
     def test_command_key_is_read_from_the_verified_config(self, path):
         body = path.read_text(encoding="utf-8")
         step_1 = body.index("### Step 1")
@@ -57,7 +56,7 @@ class TestStepZeroStopsOnUnverifiableTokens:
         assert "resolved once" in window
         assert "from config" not in window
 
-    @pytest.mark.parametrize("path", [REVIEW, COPILOT_REVIEW, PROMPT])
+    @pytest.mark.parametrize("path", [REVIEW, COPILOT_REVIEW])
     def test_old_continue_on_exit_zero_wording_is_gone(self, path):
         body = path.read_text(encoding="utf-8")
         assert "Only after exit 0, run `transport_preflight.command_key` from config" not in body

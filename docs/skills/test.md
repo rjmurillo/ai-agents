@@ -50,6 +50,8 @@ Every finding cites `file:line`. Security findings also cite a CWE number. At th
 
 Gate 5 can also return `ERROR`. The overall verdict is `CRITICAL_FAIL` if any gate fails or reports `ERROR`. It is `WARN` if any gate warns. Otherwise it is `PASS`. The skill hands the gate verdicts to [`quality-grades`](quality-grades.md) for the overall score.
 
+Hand-off (ADR-123): Writes `test-gate-report`. Next: [`review`](review.md). `metadata.inputs` and `metadata.outputs` in the skill's frontmatter declare the same data.
+
 ## Advanced use
 
 ### Which gates run
