@@ -150,14 +150,15 @@ def test_csharp_imports_counted(tmp_path: Path) -> None:
     """C# `using` directives count toward coupling; previously only Python
     `import ` did, so every C# file looked maximally decoupled."""
     body = (
-        "using System;\n"
-        "using System.Linq;\n"
-        "using System.Collections.Generic;\n"
+        "using Newtonsoft.Json;\n"
+        "using Company.Core;\n"
+        "using Xunit;\n"
         "public class Foo { public int X; }\n"
     )
     path = _write(tmp_path, "Foo.cs", body)
     score = assess_file(path, "production", False).coupling.value
-    # 3 usings => coupling score 7, strictly below the perfect 10.
+    # 3 non-System usings => coupling score 7, strictly below the perfect 10.
+    # System namespace directives are reported but not scored (issue #7459).
     assert score < 10
 
 

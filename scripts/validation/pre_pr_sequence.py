@@ -43,6 +43,7 @@ from active_plan_closeout import validate_active_plan_closeout
 from check_adr_exception_markers import validate_adr_exception_markers
 from check_adr_lifecycle import validate_adr_lifecycle
 from check_adr_links import validate_adr_links
+from check_adr_supersession_citations import validate_adr_supersession_citations
 from check_agent_delegation import validate_agent_delegation
 from check_agent_skill_docs import (
     validate_agent_skill_docs,
@@ -426,6 +427,13 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # the classifier places as binding can fail it. Baselined by identity, so a
     # new violation cannot hide behind a repaired one.
     _Gate("Rule ADR Citations (ratchet)", _root_only(validate_rule_adr_citations)),
+    # Resolves an `ADR-NNN` citation inside a live ADR body against the cited
+    # record's own status. The skill and rule ADR gates never read ADR bodies,
+    # and the rule gate treats a `Related ...` heading as bibliography: that hid
+    # ADR-107 naming superseded ADR-080 as the owner of `model:`. Only a mention
+    # of a `superseded` record placed as current authority fails. Baselined by
+    # identity, like its rule-file sibling.
+    _Gate("ADR Supersession Citations (ratchet)", _root_only(validate_adr_supersession_citations)),
     _Gate("Design Review Frontmatter", _root_only(validate_design_review_frontmatter)),
     # PR #1887 retrospective, Layer 2.
     _Gate("Build Command Exit Gates", _root_only(validate_build_gates)),
