@@ -10,8 +10,12 @@ show what changed:
 
 - A renamed doc is an added file. A pure rename gates every claim in it, so a
   doc moved out of an unassessed path cannot carry unchecked claims.
-- Adding, editing, or deleting a fence line re-pairs every later fence. Claims
-  from the first changed fence to the end of the file are in scope.
+- Adding or removing a column-0 backtick fence line flips fence pairing only
+  where the count of such changed lines above is odd. Only those stretches come
+  into scope, so a balanced new block leaves later examples out of scope. A
+  changed tilde or indented fence still puts the rest of the file in scope. A
+  change at or above an ignored external-sdk marker keeps the file's
+  `unresolved_symbol` findings in scope.
 - A symlinked doc, or a doc under a symlinked directory, is changed in full,
   because git diffs only the link text.
 
@@ -91,6 +95,10 @@ The marker is `<!-- doc-accuracy: external-sdk <name> -- <reason> -->`.
   and no earlier line contains three backticks or tildes. A marker below any
   code fence is ignored. The first valid marker wins.
 - It silences `unresolved_symbol` for that file only. Other checks still run.
+- Without a marker, a code example's own declared names are not reported as
+  unresolved. These are types, namespaces, properties, and methods that the same
+  block declares in C#, Python, JavaScript, or TypeScript. Method signature
+  claims do not get this exemption.
 - A missing, `-`-led, or placeholder name suppresses nothing and yields a
   high `invalid_external_sdk_marker` finding.
 - `claims.json` records `sdk`, `reason`, and `line`. Phase 3 counts suppressed

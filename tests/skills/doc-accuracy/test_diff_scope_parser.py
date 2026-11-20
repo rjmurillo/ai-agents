@@ -24,7 +24,27 @@ NO_NEWLINE = "\\ No newline at end of file\n"
         ("--- a/a.md\n+++ /dev/null\n@@ -1,2 +0,0 @@\n-a\n-b\n", {}),
         (
             "+++ b/a.md\n@@ -2 +2 @@\n-x\n+```bash\n@@ -9,0 +10 @@\n+y\n",
-            {"a.md": [[2, 2], [10, 10], [2, WHOLE_FILE_END]]},
+            {"a.md": [[2, 2], [3, 9], [10, 10], [11, WHOLE_FILE_END]]},
+        ),
+        # A balanced added pair in one hunk leaves later pairing unchanged.
+        (
+            "+++ b/a.md\n@@ -2,0 +3,3 @@\n+```bash\n+echo\n+```\n@@ -9,0 +12 @@\n+y\n",
+            {"a.md": [[3, 5], [12, 12]]},
+        ),
+        # Open added in hunk 1, close added in hunk 3: only the stretch between.
+        (
+            "+++ b/a.md\n@@ -1,0 +2 @@\n+```bash\n@@ -5,0 +7 @@\n+y\n@@ -9,0 +12 @@\n+```\n",
+            {"a.md": [[2, 2], [3, 6], [7, 7], [8, 11], [12, 12]]},
+        ),
+        # A removed column-0 fence flips pairing for everything below it.
+        (
+            "+++ b/a.md\n@@ -5,2 +4,0 @@\n-```\n-text\n",
+            {"a.md": [[4, 5], [6, WHOLE_FILE_END]]},
+        ),
+        # An indented backtick fence stays fail closed from its own line.
+        (
+            "+++ b/a.md\n@@ -3,0 +4 @@\n+  ```bash\n",
+            {"a.md": [[4, 4], [4, WHOLE_FILE_END]]},
         ),
         (
             "+++ b/a.md\n@@ -5,2 +4,0 @@\n-  ~~~~\n-text\n",
