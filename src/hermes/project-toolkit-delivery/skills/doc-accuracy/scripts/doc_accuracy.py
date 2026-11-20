@@ -1328,21 +1328,42 @@ def _csharp_hole_end(code: str, start: int, chars: list[str]) -> int:
 
     The hole is code and stays visible, but literals inside it are blanked
     and comments skipped, so a brace or quote in either cannot end the hole
-    early. An unclosed hole runs to the end of the snippet and leaves it
-    visible.
+    early. A format specifier, the text after a top-level ":" as in
+    ``{price:N2}``, is literal text and is blanked. A ternary inside a hole
+    must be parenthesized, so its ":" is never top-level. An unclosed hole
+    runs to the end of the snippet and leaves it visible.
     """
-    depth, index = 0, start
+    opening = start
+    while opening < len(code) and code[opening] == "{":
+        opening += 1
+    base, depth, paren, index = opening - start, 0, 0, start
     while index < len(code):
         token = _CSHARP_TOKEN_START_RE.match(code, index)
         if token is not None:
             index = _skip_csharp_token(code, token, chars)
             continue
-        if code[index] == "{":
+        char = code[index]
+        if char == "{":
             depth += 1
-        elif code[index] == "}":
+        elif char == "}":
             depth -= 1
             if depth == 0:
                 return index + 1
+        elif char in "([":
+            paren += 1
+        elif char in ")]":
+            paren -= 1
+        elif code.startswith("::", index):
+            index += 2
+            continue
+        elif char == ":" and depth == base and paren == 0:
+            # A format specifier closes on its own line. Without a "}" there,
+            # the hole is malformed, so leave the rest visible as code.
+            close = code.find("}", index, _line_end(code, index))
+            if close >= 0:
+                _blank_span(chars, index + 1, close)
+                index = close
+                continue
         index += 1
     return index
 
@@ -1480,7 +1501,9 @@ _CSHARP_COMMENT_RE = re.compile(r"(?s)//[^\n]*|/\*.*?(?:\*/|\Z)")
 # and comments, the code before it is the snippet start, ";", "{", "}", the
 # "]" of an attribute section (chained sections), or "(" or "," (a parameter
 # attribute). An indexer follows a name, and a collection expression usually
-# follows "=", "return" or an operator, so neither qualifies.
+# follows "=", "return" or an operator, so neither qualifies. Accepted limit:
+# an attribute after "=" (a lambda attribute) or "<" (a type parameter
+# attribute) is not detected, so its named arguments are still reported.
 _CSHARP_ATTRIBUTE_CONTEXT = frozenset(";{}(,")
 
 # After the closing "]", the next code must start a declaration: a name, "@",
@@ -1492,7 +1515,7 @@ _CSHARP_ATTRIBUTE_CONTEXT = frozenset(";{}(,")
 # see _is_attribute_follower.
 _CSHARP_ATTRIBUTE_FOLLOWER_RE = re.compile(
     r"\s*(?:\Z|[@\[(~]|(?!(?:is|as|when|and|or|not|with|switch)\b)"
-    r"(?P<name>[A-Za-z_]\w*)\b(?P<after>\s*(?:=>|when\b|[,)]))?)"
+    r"(?P<name>[A-Za-z_]\w*)\b(?P<after>\s*(?:=>|(?:when|and|or)\b|[,)]))?)"
 )
 
 # Accessors may be expression-bodied, so "get =>" still ends an attribute.
@@ -1502,9 +1525,7 @@ _CSHARP_ACCESSOR_NAMES = frozenset({"get", "set", "init", "add", "remove"})
 # names a property or parameter that the attribute's own type defines. A
 # ternary operand follows "?" and a lambda parameter precedes "=>", so both
 # stay visible.
-_CSHARP_ATTRIBUTE_NAMED_ARG_RE = re.compile(
-    r"[(,][ \t\r\n]*([A-Za-z_]\w*)(?=[ \t]*(?:=(?![=>])|:(?!:)))"
-)
+_CSHARP_ATTRIBUTE_NAMED_ARG_RE = re.compile(r"[(,]\s*([A-Za-z_]\w*)(?=\s*(?:=(?![=>])|:(?!:)))")
 
 
 def _csharp_attribute_section_end(code: str, start: int) -> tuple[int, bool]:
@@ -1532,16 +1553,20 @@ def _is_attribute_follower(view: str, stop: int, enclosing: str) -> bool:
     """Whether the code after the "]" at ``stop`` starts a declaration.
 
     ``enclosing`` is the innermost open bracket around the section, or "" at
-    the top level. A name followed by "when" is a switch-arm designation. A
-    name followed by "=>" is one too, unless it is an accessor. A lone name
-    followed by "," or ")" inside parentheses is a designation in a tuple or
-    positional pattern; inside braces it is an enum member.
+    the top level. An attribute section never sits directly inside "[", so
+    such a bracket is a nested list pattern or collection. A name followed
+    by "when", "and" or "or" is a pattern designation. A name followed by
+    "=>" is one too, unless it is an accessor. A lone name followed by ","
+    or ")" inside parentheses is a designation in a tuple or positional
+    pattern; inside braces it is an enum member.
     """
+    if enclosing == "[":
+        return False
     follower = _CSHARP_ATTRIBUTE_FOLLOWER_RE.match(view, stop + 1)
     if follower is None:
         return False
     after = (follower.group("after") or "").strip()
-    if after == "when":
+    if after in ("when", "and", "or"):
         return False
     if after == "=>":
         return follower.group("name") in _CSHARP_ACCESSOR_NAMES
@@ -1633,7 +1658,7 @@ def _extract_identifiers(code: str, lang: str = "") -> list[str]:
         blanked = _blank_csharp_literals(code)
         if blanked is None:
             # Scanning the unblanked code can only report extra names.
-            logger.debug("C# literal scan hit the recursion limit; scanning raw code")
+            logger.warning("C# literal scan hit the recursion limit; scanning raw code")
         else:
             code = _blank_csharp_attribute_named_args(blanked)
     # Match CamelCase and snake_case identifiers (3+ chars)

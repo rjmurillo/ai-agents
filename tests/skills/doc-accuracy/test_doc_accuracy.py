@@ -319,7 +319,10 @@ class TestCsharpLiteralAndAttributeArguments:
         ('var s = $@"Path InterpVerbatim {x}";', "InterpVerbatim"),
         ('var s = """\nRawBlockName\n""";', "RawBlockName"),
         ('var s = "Escaped \\" StillString";', "StillString"),
-        ("var c = 'Q'; var d = '\\'';", "Q"),
+        ("var c = 'Q'; var d = '\\''; var e = \"CharTail\";", "CharTail"),
+        ('var s = $"Total {total:N2} at {when:HH:mm}";', "N2"),
+        ('var s = $"{when:HH:mm} done";', "HH"),
+        ('var s = $$"""\n{{price:Currency}}\n""";', "Currency"),
     )
 
     def test_names_in_literals_are_not_extracted(self) -> None:
@@ -403,6 +406,16 @@ class TestCsharpLiteralAndAttributeArguments:
         ("if (t is (1, [Point(FakeX: 1)] rest)) {}", "FakeX"),
         ("if (t is ([Point(FakeX: 1)] rest, 2)) {}", "FakeX"),
         ("var r = (a, b) switch { ([Point(FakeX: 1)] xs, _) => 1 };", "FakeX"),
+        ("if (o is [_, [Point(FakeX: 1)] inner]) {}", "FakeX"),
+        ("if (o is { Items: [_, [Point(FakeX: 1)] w] }) {}", "FakeX"),
+        ("var r = x switch { [Point(FakeX: 1)] v and { Length: 1 } => 1 };", "FakeX"),
+        ("if (o is Pair([Point(FakeX: 1)] v and var w, _)) {}", "FakeX"),
+        ("var r = x switch { [Point(FakeX: 1)] v or [] => 1 };", "FakeX"),
+        ("var q = '\"'; var w = new FakeWidget();", "FakeWidget"),
+        ('var s = $"{Ledger.Sum():N2} {(ok ? FakeWidget.A : 0)}";', "FakeWidget"),
+        ('var s = $"{Ledger.Sum():N2}";', "Ledger"),
+        ('var s = $"{global::FakeWidget.Name}";', "FakeWidget"),
+        ('$"{\nvar e = cond ? [Z(A: 1)] : [];\nvar a = new FakeWidget(); }', "FakeWidget"),
         ('var s = $@"{a // don\'t\n} {FakeWidget.Go()}";', "FakeWidget"),
     )
 
@@ -418,6 +431,7 @@ class TestCsharpLiteralAndAttributeArguments:
         ('int P {\n    [Obsolete(EntryPoint = "X")] get => _p;\n}', "Obsolete"),
         ('int P { get => 1; [Obsolete(EntryPoint = "X")] set => _p = value; }', "Obsolete"),
         ("void F([Range(EntryPoint = 1)] int count, [In] Foo p) {}", "Range"),
+        ("[Attr(\n    EntryPoint\n        = 1)]\npublic void M() {}", "Attr"),
     )
 
     def test_attribute_forms_blank_named_arguments(self) -> None:
@@ -427,13 +441,15 @@ class TestCsharpLiteralAndAttributeArguments:
             assert "EntryPoint" not in result, code
             assert attribute in result, code
 
-    def test_recursion_limit_falls_back_to_unblanked_code(self) -> None:
+    def test_recursion_limit_falls_back_to_unblanked_code(self, caplog) -> None:
         code = '$"{' * 2000 + '"Quoted" [Attr(Named = 1)]' + '}"' * 2000
 
-        result = _extract_identifiers(code, "csharp")
+        with caplog.at_level("WARNING"):
+            result = _extract_identifiers(code, "csharp")
 
         assert "Quoted" in result
         assert "Named" in result
+        assert "recursion limit" in caplog.text
 
     def test_real_code_beside_literals_stays_visible(self) -> None:
         for code, name in self.REAL_CODE_STAYS_VISIBLE:
