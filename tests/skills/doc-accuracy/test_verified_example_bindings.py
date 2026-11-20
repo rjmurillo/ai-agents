@@ -98,7 +98,11 @@ def test_csharp_example_bindings(code: str, expected: set[str]) -> None:
         ),
         ("const ratio = 'Text' / Divisor / Factor;", {"Divisor", "Factor"}),
         ("const ratio = total /* comment */ / Divisor / Factor;", {"Divisor", "Factor"}),
-        ("const ratio = value.return / Divisor / Factor;", {"Divisor", "Factor"}),
+        (
+            "interface Result { return: number }; declare const value: Result;\n"
+            "const ratio = value.return / Divisor / Factor;",
+            {"Divisor", "Factor"},
+        ),
         ("const ratio = of / Divisor / Factor;", {"Divisor", "Factor"}),
         ("const ratio = value! / Divisor / Factor;", {"Divisor", "Factor"}),
         ("const found = /* comment */ /Pattern/.test(input) && Neighbor();", {"Neighbor"}),

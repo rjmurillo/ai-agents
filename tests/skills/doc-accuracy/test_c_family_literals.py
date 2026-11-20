@@ -148,8 +148,13 @@ def test_code_view_preserves_lengths_and_newlines() -> None:
             10,
             {("unresolved_symbol", "GhostWidget")},
         ),
-        ("csharp", 'widget.Configure("a: b", wrong: 1);', 10, {("phantom_parameter", "")}),
-        ("csharp", 'widget.Configure("wrong: 1");', 0, set()),
+        (
+            "csharp",
+            'var widget = new ExistingWidget();\nwidget.Configure("a: b", wrong: 1);',
+            10,
+            {("phantom_parameter", "")},
+        ),
+        ("csharp", 'var widget = new ExistingWidget();\nwidget.Configure("wrong: 1");', 0, set()),
         (
             "javascript",
             'const p = /"/; GhostWidget(); const t = "ok";',

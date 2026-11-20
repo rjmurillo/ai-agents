@@ -168,7 +168,11 @@ def test_csharp_undeclared_types_still_flagged(code: str, expected: set[str]) ->
             "typescript",
         ),
         ("const now = new Date();\nconst m = new Map();\n", "typescript"),
-        ("user.save();\nconst n = user.name;\n", "typescript"),
+        (
+            "interface User { save(): void; name: string }\n"
+            "declare const user: User;\nuser.save();\nconst n = user.name;\n",
+            "typescript",
+        ),
         ("/* If the cache is Concrete */\nfunction Handler() { }\nHandler();\n", "javascript"),
         ("enum Level { High }\nconst l = Level.High;\n", "typescript"),
     ],
@@ -224,7 +228,12 @@ def test_doc_declarations_do_not_cross_language_boundaries(tmp_path: Path) -> No
         ("python", "import third_party\nthird_party.GhostWidget()", 10, "unresolved_symbol"),
         ("csharp", "class LocalWidget { }\nnew LocalWidget();", 0, ""),
         ("csharp", "MissingFactory();", 10, "unresolved_symbol"),
-        ("csharp", "widget.Configure(wrong: 1);", 10, "phantom_parameter"),
+        (
+            "csharp",
+            "var widget = new ExistingWidget();\nwidget.Configure(wrong: 1);",
+            10,
+            "phantom_parameter",
+        ),
         ("csharp", "new company.GhostWidget();", 10, "unresolved_symbol"),
         ("typescript", "enum Level { High = MissingFactory() }", 10, "unresolved_symbol"),
     ],
