@@ -60,7 +60,7 @@ import re
 from collections.abc import Callable
 from pathlib import Path
 
-from frontmatter_key_drop import drop_frontmatter_keys
+from frontmatter_key_drop import drop_frontmatter_keys, split_fenced_frontmatter
 
 _PLUGIN_MANIFEST_RELATIVE = Path(".claude-plugin") / "plugin.json"
 _DEFAULT_PLUGIN_NAME = "project-toolkit"
@@ -69,9 +69,6 @@ _INCLUDE_LINE_RE = re.compile(r"^@([A-Za-z0-9_.\-/]+\.md)\s*$", re.MULTILINE)
 _ARGUMENTS_TOKEN = "$ARGUMENTS"
 _FENCED_CODE_BLOCK_RE = re.compile(r"(```.*?```)", re.DOTALL)
 _INLINE_CODE_SPAN_RE = re.compile(r"(`+[^`\n]*`+)")
-
-_FRONTMATTER_RE = re.compile(r"\A(---\r?\n.*?\r?\n---\r?\n)(.*)\Z", re.DOTALL)
-
 
 # The `allowed-tools` value, which may wrap onto continuation lines in a YAML
 # block or list. Anchored at the key so no other frontmatter value is touched.
@@ -443,10 +440,10 @@ def translate_reference_file(content: str, skills_output_dir: Path) -> str:
     it gets the same body transforms (1 to 3). It has no ``allowed-tools`` or
     droppable keys: any frontmatter passes through untouched.
     """
-    match = _FRONTMATTER_RE.match(content)
-    if match is None:
+    parts = split_fenced_frontmatter(content)
+    if parts is None:
         return translate_body(content, skills_output_dir)
-    return match.group(1) + translate_body(match.group(2), skills_output_dir)
+    return parts[0] + translate_body(parts[1], skills_output_dir)
 
 
 def translate_skill_file(
@@ -461,10 +458,10 @@ def translate_skill_file(
     passed through. When no frontmatter is present, the
     whole content is treated as body.
     """
-    match = _FRONTMATTER_RE.match(content)
-    if match is None:
+    parts = split_fenced_frontmatter(content)
+    if parts is None:
         return translate_body(content, skills_output_dir)
-    frontmatter, body = match.group(1), match.group(2)
+    frontmatter, body = parts
     # str(...): mypy types this sibling sys.path import as Any, the same
     # pre-existing gap generate_skills.py notes for its sibling imports.
     kept = str(drop_frontmatter_keys(translate_allowed_tools(frontmatter), drop_keys))
@@ -480,10 +477,10 @@ def drop_skill_frontmatter_keys(content: str, drop_keys: frozenset[str]) -> str:
     Claude-only ``model`` pin goes. Content with no frontmatter is returned
     unchanged.
     """
-    match = _FRONTMATTER_RE.match(content)
-    if match is None:
+    parts = split_fenced_frontmatter(content)
+    if parts is None:
         return content
-    frontmatter, body = match.group(1), match.group(2)
+    frontmatter, body = parts
     return str(drop_frontmatter_keys(frontmatter, drop_keys)) + body
 
 

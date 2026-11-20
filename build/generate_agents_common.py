@@ -13,11 +13,13 @@ from __future__ import annotations
 import importlib.util
 import os
 import re
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from types import ModuleType
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 
@@ -77,6 +79,40 @@ def _load_model_pin_manifest_exports() -> tuple[
 
 resolve_manifest_model, format_model_id_for_platform = _load_model_pin_manifest_exports()
 
+
+def _load_frontmatter_block() -> ModuleType:
+    """Load ``scripts/hook_utilities/frontmatter_block.py`` without touching sys.path.
+
+    Same reason as ``_load_model_pin_manifest_exports``: an importer of this
+    file (``scripts/validation/agent_registry.py`` loads it by path) must not
+    have ``sys.path`` mutated. The module is registered in ``sys.modules``
+    because ``@dataclass(slots=True)`` looks its own module up there. A module
+    already imported under its package name is reused.
+    """
+    canonical = "scripts.hook_utilities.frontmatter_block"
+    loaded = sys.modules.get(canonical)
+    if loaded is not None:
+        return loaded
+    private = "_generate_agents_common_frontmatter_block"
+    loaded = sys.modules.get(private)
+    if loaded is not None:
+        return loaded
+    path = _SCRIPT_DIR.parent / "scripts" / "hook_utilities" / "frontmatter_block.py"
+    spec = importlib.util.spec_from_file_location(private, path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load frontmatter parser {path}: no import spec")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[private] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception as exc:
+        del sys.modules[private]
+        raise ImportError(f"Cannot load frontmatter parser {path}: {exc}") from exc
+    return module
+
+
+_frontmatter_block = _load_frontmatter_block()
+
 # Field ordering for frontmatter output
 _FIELD_ORDER = ("name", "description", "argument-hint", "tools", "model")
 
@@ -88,9 +124,6 @@ _BLOCK_ARRAY_ITEM = re.compile(r"^\s+-\s*(.*)$")
 
 # Regex for frontmatter key-value lines (allows hyphens in keys)
 _FM_KEY_VALUE = re.compile(r"^([\w-]+):\s*(.*)$")
-
-# Regex for YAML frontmatter extraction
-_FRONTMATTER_RE = re.compile(r"^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$")
 
 
 def is_path_within_root(path: str | Path, root: str | Path) -> bool:
@@ -113,15 +146,22 @@ def is_path_within_root(path: str | Path, root: str | Path) -> bool:
 def read_yaml_frontmatter(content: str) -> dict[str, str] | None:
     """Extract YAML frontmatter from a markdown file.
 
-    Returns dict with 'frontmatter_raw' and 'body' keys, or None if no frontmatter found.
+    Locates the block with ``scripts/hook_utilities/frontmatter_block.py``, the
+    repository's one fence rule. Returns dict with 'frontmatter_raw' and 'body'
+    keys, or None if no frontmatter found. 'frontmatter_raw' excludes the fence
+    lines and the newline before the closing fence. 'body' starts on the line
+    after the closing fence line, so blank lines that follow the fence stay in it.
     """
-    match = _FRONTMATTER_RE.match(content)
-    if match:
-        return {
-            "frontmatter_raw": match.group(1),
-            "body": match.group(2),
-        }
-    return None
+    block = _frontmatter_block
+    split = block.split_frontmatter(content)
+    if not split.found:
+        return None
+    opening_end = block.FM_BOUNDARY.match(content).end()
+    closing_start = opening_end + len(split.raw)
+    raw = split.raw.removeprefix("\n").removesuffix("\n").removesuffix("\r")
+    fence_line_end = content.find("\n", closing_start)
+    body = "" if fence_line_end < 0 else content[fence_line_end + 1 :]
+    return {"frontmatter_raw": raw, "body": body}
 
 
 def parse_simple_frontmatter(frontmatter_raw: str) -> dict[str, str | None]:
