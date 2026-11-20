@@ -141,6 +141,19 @@ def test_plain_uses_without_declaration_still_flag(tmp_path: Path) -> None:
         ("csharp", "public Order (int id) { }", set()),
         ("csharp", "internal Ghost(string s) : base(s) { }", set()),
         ("csharp", "protected internal override string ToString() { }", {"ToString"}),
+        # A modifier word never stands in for a return type.
+        ("csharp", "protected internal Order(int id) { }", set()),
+        ("csharp", "private protected Order() { }", set()),
+        ("csharp", "public unsafe Order(int* p) { }", set()),
+        ("csharp", "public extern Order();", set()),
+        ("csharp", "public partial Order();", set()),
+        # A generic return type may hold a comma and a space.
+        ("csharp", "public Dictionary<string, int> Build(int x) { }", {"Build"}),
+        (
+            "csharp",
+            "public static async Task<Dictionary<string, List<int>>> Load(int x) { }",
+            {"Load"},
+        ),
         ("csharp", "public static explicit operator\tGhost(Order o) => new();", set()),
         ("csharp", "public Cooperator Hire(int id) { }", {"Hire"}),
         ("csharp", "public int Id\n{\n    get;\n}", {"Id"}),
@@ -174,6 +187,8 @@ def test_method_signature_claims_ignore_declared_names(tmp_path: Path) -> None:
     [
         ("csharp", "public a b c\n" * 20000),
         ("csharp", "public " * 20000),
+        ("csharp", "public a, " * 20000),
+        ("csharp", "public " + ", " * 40000),
         ("csharp", "aaaa " * 20000),
         ("typescript", "export " * 20000),
         ("csharp", '"' + '\\"' * 20000 + "\\"),
@@ -186,6 +201,8 @@ def test_method_signature_claims_ignore_declared_names(tmp_path: Path) -> None:
     ids=[
         "cs-modifiers",
         "cs-one-line-modifiers",
+        "cs-generic-commas",
+        "cs-comma-run",
         "cs-one-line-tokens",
         "ts-one-line-exports",
         "cs-escaped-quotes",
