@@ -1856,7 +1856,7 @@ def _is_csharp_standard_directive(directive: Any) -> bool:
         raise CSharpParserError(
             f"Cannot count C# dependencies: the using directive on line "
             f"{directive.start_point[0] + 1} has no target. "
-            "Check the pinned grammar (tree-sitter-c-sharp==0.23.5)"
+            f"Check the pinned versions ({_CSHARP_GRAMMAR.packages})"
         )
     return _csharp_root_namespace(targets[-1]) == "System"
 
@@ -1864,8 +1864,8 @@ def _is_csharp_standard_directive(directive: Any) -> bool:
 def _count_csharp_imports(source: str) -> tuple[int, int]:
     """Count directive syntax nodes, not resource declarations or literal text.
 
-    Returns the directive count and how many of those import the ``System``
-    namespace tree, which ships with .NET (issue #7459).
+    Returns the directive count and how many of those have a target rooted at
+    the ``System`` namespace, whatever assembly provides it (issue #7459).
     """
     directives = _dependency_nodes(source, _CSHARP_GRAMMAR)
     try:
@@ -1875,7 +1875,7 @@ def _count_csharp_imports(source: str) -> tuple[int, int]:
         # A node shape the pinned grammar should never produce: fail closed.
         raise CSharpParserError(
             f"Cannot count C# dependencies: unexpected parse-tree shape "
-            f"({type(exc).__name__}). Check the pinned grammar (tree-sitter-c-sharp==0.23.5)"
+            f"({type(exc).__name__}). Check the pinned versions ({_CSHARP_GRAMMAR.packages})"
         ) from exc
     return len(directives), standard
 

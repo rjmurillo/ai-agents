@@ -278,6 +278,13 @@ def test_csharp_directive_without_target_fails_closed_with_its_line() -> None:
         _mod._is_csharp_standard_directive(directive)
 
 
+@pytest.mark.parametrize("source", ["using ;", "using A = ;", "global using ;"])
+def test_csharp_directive_without_target_is_a_parse_error_first(source: str) -> None:
+    """Issue #7459: The pinned grammar rejects an empty directive before classification."""
+    with pytest.raises(_mod.CSharpParserError, match="could not parse this file"):
+        _mod._count_csharp_imports(source + "\n")
+
+
 @pytest.mark.parametrize("failure", [AttributeError("no text"), StopIteration()])
 def test_unexpected_csharp_directive_shapes_fail_closed(
     monkeypatch: pytest.MonkeyPatch, failure: BaseException

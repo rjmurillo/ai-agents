@@ -9,6 +9,7 @@ That includes `global::System` and alias targets such as `using IO = System.IO;`
 The match reads the namespace, not the assembly.
 NuGet packages under `System.*`, such as `System.Reactive`, are also not scored.
 Tuple, array, nullable, and pointer alias targets stay scored, even `System.Int32[]`.
+Generic type arguments are not read, so `using L = System.Collections.Generic.List<Xunit.Fact>;` is not scored.
 Other languages and quality scores retain their existing heuristics.
 
 Install these packages into the Python environment that runs the scanner.
