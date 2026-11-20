@@ -2,9 +2,9 @@
 
 The detail behind the Scripts section of `SKILL.md`.
 
-Each CLI uses only the Python standard library, prints JSON with an `examined` count, writes nothing inside the repository (`bootstrap_eval.py freeze` writes there only with `--allow-in-repo`; `bootstrap_mine.py --out` refuses an in-repo path with no override), and runs on Linux, macOS, and Windows.
+Each CLI uses only the Python standard library, prints JSON with an `examined` count, writes nothing inside the repository (`bootstrap_eval.py freeze` writes there only with `--allow-in-repo`; `bootstrap_adr.py draft` only creates a new file in a located ADR folder; `bootstrap_mine.py --out` refuses an in-repo path with no override), and runs on Linux, macOS, and Windows.
 
-`bootstrap_friction.py`, `bootstrap_review.py`, and `review_clusters.py` are modules the miner imports, not CLIs. `adr_shape.py`, `adr_commits.py`, `adr_docs.py`, `adr_reason.py`, and `adr_trailers.py` are pure-function classifiers for ADR detection, ported from align-cli under MIT (`LICENSE-align`); they have no CLI and do no I/O. `adr_git.py` is the module that runs git for them: it reads commits with `git rev-list` and `git cat-file --batch`, so a commit message cannot forge a record.
+`bootstrap_friction.py`, `bootstrap_review.py`, and `review_clusters.py` are modules the miner imports, not CLIs. `adr_shape.py`, `adr_commits.py`, `adr_docs.py`, `adr_reason.py`, `adr_trailers.py`, `adr_text.py`, and `adr_prs.py` are pure-function modules for ADR detection, ported from align-cli under MIT (`LICENSE-align`); they have no CLI and do no I/O. `adr_git.py`, `adr_locate.py`, `adr_log.py`, `adr_scan.py`, and `adr_draft.py` are the modules `bootstrap_adr.py` imports; they have no CLI either. `adr_git.py` runs git and reads commits with `git rev-list` and `git cat-file --batch`, so a commit message cannot forge a record.
 
 Exit code 0 means success and exit code 1 means findings that need action, for every script. Exit codes 2 and 3 differ by script:
 
@@ -16,8 +16,9 @@ Exit code 0 means success and exit code 1 means findings that need action, for e
 | `bootstrap_sweep.py` | Bad arguments; malformed or mismatched input; run directory in the repository or not empty; changed judge rubric; git missing or failed; any read or write failure (payload `error` is `io`) | None |
 | `bootstrap_drift.py` | Bad arguments; repo or skills root not a directory; unknown `--name` | None; an unreadable `reverify.json` is `malformed` (exit 1) |
 | `bootstrap_boundary.py` | See the detail below | Git missing, failed, or timed out; an unreadable working-tree file |
+| `bootstrap_adr.py` | Bad arguments; not a repository; bad rev, `--since`, or `--prs-json`; unreadable or malformed scan file; refused `--out` (inside the repository, a directory, or already there); `draft` into a folder that is not a located ADR folder or is ignored by git; a bad `--status`; any read or write failure (payload `error` is `io`) | Git missing, failed, or timed out |
 
-The payload `error` names the cause: `config` for exit 2, `git` or `io` for exit 3. `bootstrap_sweep.py` exits 2 for both, with `config` for git failures and `io` for read or write failures.
+The payload `error` names the cause: `config` for exit 2, `git` or `io` for exit 3. `bootstrap_sweep.py` exits 2 for both, with `config` for git failures and `io` for read or write failures. `bootstrap_adr.py` exits 2 with `io` for read and write failures.
 
 | Script and subcommand | Phase | Computes |
 |---|---|---|
@@ -28,10 +29,15 @@ The payload `error` names the cause: `config` for exit 2, `git` or `io` for exit
 | `bootstrap_sweep.py plan`, `index`, `import`, `tally` | 2 | Source classes and read tools; evidence checks and batches; judge rows; ranked incidents, knowledge gaps, friction map |
 | `bootstrap_drift.py check` | 6, drift | Each skill's `reverify.json` checks; `update_candidates`; `timed_out`; `--require` also fails a skill with no `reverify.json` or only skipped checks |
 | `bootstrap_boundary.py plan`, `snapshot`, `verify` | 1, 3, 6 | Names and conflicts; the write boundary |
+| `bootstrap_adr.py locate` | 2 | ADR folders with prefix, width, highest number, H1 form, and headings; the single `primary` folder; `next_number` |
+| `bootstrap_adr.py scan` | 2 | Decisions with no ADR, from commits, an offline pull request export, and decision-log entries; `truncated`; drop counts per filter |
+| `bootstrap_adr.py draft` | 6 | One new ADR, status `Proposed`, created with mode `x` so a file is never replaced |
 
 `bootstrap_boundary.py` detail: `plan` exits 1 on a conflict or an invalid name. `verify` exits 1 on a path outside the boundary, an existing skill changed without `--update`, an ignored file written in a skill (it would not ship), HEAD or branch moved, or index flags or `info/exclude` changed. Exit code 2 covers bad arguments; an output root outside the allowed set; an output root, skill directory, or `--also-allow` path that git ignores; an `--also-allow` path outside the repository, under `.git`, or overlapping a skills root; a symlink in any of those paths; or a snapshot that already exists, is inside the repository, is unreadable, or is from another repository or output root. `verify` does not see gitignored files outside the output root, empty directories, other writes inside `.git/`, or tag, config, and push operations. It catches accidental writes by a cooperating run; it is not a sandbox. Only the Phase 1 snapshot counts, so `snapshot` refuses to overwrite an existing file. An unreadable file in the working tree stops `snapshot` with exit code 3 before any write.
 
 `bootstrap_drift.py` runs a `command` check only with `--allow-commands`; review the argv first, because it executes repository code. The command gets no stdin, discarded output, and only `PATH`, `HOME`, `LANG`, `LC_ALL`, `SYSTEMROOT`, `TEMP`, and `TMP` from the environment, each only when set. Never pass `--allow-commands` in a job that holds secrets or runs on untrusted pull request content.
+
+`bootstrap_adr.py` exits 1 only when `draft` finds its target file or its number already taken (payload `error` is `exists`). It never retries with another number. `scan` reads git and the working tree, makes no network call, and needs `--out` outside the repository. `--prs-json` is a JSON list of merged pull requests. Each item needs `number`, `title`, `body`, `url` (or `html_url`), `merged_at` (or `mergedAt`), `author` (or `user`) with `login`, and optionally `merge_commit_sha` (or `mergeCommit.oid`). A location, `.adr-dir` first, then the known ADR folders, then any folder with three or more ADR-named files, decides where `draft` may write inside the repository.
 
 ## Windows PowerShell
 

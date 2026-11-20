@@ -25,10 +25,12 @@ __all__ = [
     "GitError",
     "git_bytes",
     "git_text",
+    "origin_web_base",
     "read_commits",
     "repo_root",
     "resolve_rev",
     "rev_list",
+    "web_base",
 ]
 
 GIT_TIMEOUT_S = 30
@@ -130,6 +132,38 @@ def _read_batch(root: Path, shas: list[str]) -> list[CommitRecord]:
     if pos != len(data):
         raise GitError("git cat-file --batch returned more data than was asked for")
     return records
+
+
+_URL_REMOTE = re.compile(
+    r"(?:https?|ssh|git)://(?:[^@/]*@)?(?P<host>[A-Za-z0-9.-]+)(?::[0-9]+)?/(?P<path>.+)\Z",
+    re.ASCII,
+)
+_SCP_REMOTE = re.compile(r"(?:[^@/:]+@)?(?P<host>[A-Za-z0-9.-]+):(?P<path>[^/].*)\Z", re.ASCII)
+_REPO_PATH = re.compile(r"[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+\Z", re.ASCII)
+_HOSTED = re.compile(r"(?:github|gitlab)\.[a-z0-9.-]+\Z", re.ASCII)
+
+
+def web_base(remote: str) -> tuple[str, str] | None:
+    """``(kind, https base)`` for an https or ssh GitHub or GitLab remote, else None.
+
+    Only the host and the repository path are kept, so a ``user:token@`` in the remote
+    never reaches the result. ``kind`` is ``github`` or ``gitlab``.
+    """
+    text = remote.strip()
+    match = _URL_REMOTE.fullmatch(text) or _SCP_REMOTE.fullmatch(text)
+    if match is None:
+        return None
+    host = match["host"].lower()
+    path = match["path"].strip("/").removesuffix(".git").strip("/")
+    if not _HOSTED.fullmatch(host) or not _REPO_PATH.fullmatch(path):
+        return None
+    return ("github" if host.startswith("github.") else "gitlab"), f"https://{host}/{path}"
+
+
+def origin_web_base(root: Path) -> tuple[str, str] | None:
+    """``web_base`` of the ``origin`` remote. A repository with no origin gives None."""
+    proc = git_text(root, "config", "--get", "remote.origin.url", ok=(0, 1))
+    return web_base(proc.stdout) if proc.returncode == 0 else None
 
 
 def read_commits(

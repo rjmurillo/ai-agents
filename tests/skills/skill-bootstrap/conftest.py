@@ -17,11 +17,18 @@ try:
     # after the paths are removed again.
     import adr_commits  # noqa: F401
     import adr_docs  # noqa: F401
+    import adr_draft  # noqa: F401
     import adr_git  # noqa: F401
     import adr_helpers  # noqa: F401
+    import adr_locate  # noqa: F401
+    import adr_log  # noqa: F401
+    import adr_prs  # noqa: F401
     import adr_reason  # noqa: F401
+    import adr_scan  # noqa: F401
     import adr_shape  # noqa: F401
+    import adr_text  # noqa: F401
     import adr_trailers  # noqa: F401
+    import bootstrap_adr  # noqa: F401
     import bootstrap_boundary  # noqa: F401
     import bootstrap_helpers  # noqa: F401
     import bootstrap_review  # noqa: F401
