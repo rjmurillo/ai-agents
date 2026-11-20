@@ -222,7 +222,7 @@ def test_own_number_is_skipped() -> None:
 
 @pytest.mark.timeout(10)
 def test_long_negated_list_is_classified_in_linear_time() -> None:
-    text = "Skills must not cite " + "ADR-052, " * 200 + "x ADR-080 owns pins.\n"
+    text = "Skills must not cite " + "ADR-052, " * 40 + "x ADR-080 owns pins.\n"
     assert _authority(text) == [(80, 1)]
 
 

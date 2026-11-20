@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
 """Flag a live ADR that cites a superseded ADR as current authority.
 
-ADR-107 line 710 said "ADR-080 (model pin justification policy): owns
-`model:` on any authored artifact." ADR-111 had already superseded ADR-080, so
-the record named a retired decision as the current owner of a policy. The
-sibling gates resolve citations in rule files (`check_rule_adr_citations.py`)
-and in `SKILL.md` `metadata.adr` (`check_skill_adr_bindings.py`). Neither reads
-an ADR body. This gate does.
+ADR-107 line 710 named ADR-080 as the owner of `model:` after ADR-111 had
+superseded it. The sibling gates read rule files (`check_rule_adr_citations.py`)
+and `SKILL.md` `metadata.adr` (`check_skill_adr_bindings.py`), never an ADR body.
 
 ## What is scanned
 
@@ -15,39 +12,22 @@ status is `accepted` or `proposed`; a retired record is history as a whole.
 Only mentions of a `superseded` record are classified: a `deprecated` or
 `rejected` target has no successor to cite instead.
 
-## Why the rule gate's classifier is not reused as is
-
-The rule gate treats everything under a `Related ...` heading as bibliography.
-The ADR-107 bullet that prompted this gate sits under a Related Decisions
-heading, so that gate returns META for it. The divergence is pinned in
-`tests/validation/test_check_adr_supersession_citations.py`. The masking,
-block, sentence, mention and lineage helpers come from the rule gate, so both
-gates parse prose one way.
+The rule gate's block, sentence, mention and lineage helpers are reused, but
+not its classifier: it reads a `Related ...` heading as bibliography, which is
+where the ADR-107 bullet sits. A test pins that divergence.
 
 ## Citation classes
 
-Each mention of a superseded ADR lands in exactly one class. Only AUTHORITY
-fails the gate. A mention the classifier cannot place is UNCLASSIFIED and is
-counted, never failed.
+Each mention of a superseded ADR lands in one class; only AUTHORITY fails.
 
-- NOT A CITATION, never seen: in a fenced block, an HTML comment, the
-  frontmatter, an inline code span, or a file name such as
-  `ADR-080-model-pin-justification-policy.md`.
-- HISTORY: the cited record is in this record's own `supersedes` list; the
-  mention sits inside double quotes; a lineage clause wraps it ("superseded by
-  ADR-111", "which supersedes ADR-080"); the sentence names a successor of the
-  cited record anywhere in its `superseded-by` chain; the sentence says
-  history, historical, precedent, lineage, originally, formerly, previously,
-  no longer, at the time, or used to (not after is, are or be), or a past-tense
-  "was", "were" or "had been" before governed, owned, defined, required or
-  mandated; or "not" or "never" (optionally plus governed, owned, defined,
-  required or bound) plus from, by, under, per, cite, follow, use or rely on
-  precedes the mention, alone or in a list joined by commas, or, and.
-- AUTHORITY: the sentence carries MUST, SHALL or REQUIRED, or one of governs,
-  governing, governed by, owns, owned by, current owner, owner of, binding,
-  authority, in force or requires; or the mention follows a binding phrase
-  the rule gate's `BINDING_BEFORE_RE` lists ("per", "under", "comply with").
-- UNCLASSIFIED: everything else. HISTORY wins when a sentence carries both.
+- NOT A CITATION, never seen: fences, HTML comments, frontmatter, code spans,
+  and file names such as `ADR-080-model-pin-justification-policy.md`.
+- HISTORY: own `supersedes`, inside double quotes, a lineage clause, a named
+  successor anywhere in the chain, a `_HISTORY_RE` word, or a negation
+  (`_NEGATED_BEFORE_RE`, such as "must not cite ADR-052, or ADR-080").
+- AUTHORITY: MUST, SHALL, REQUIRED, an `_AUTHORITY_RE` word such as governs or
+  owns, or a binding phrase from the rule gate's `BINDING_BEFORE_RE` ("per").
+- UNCLASSIFIED: everything else, counted and never failed. HISTORY wins ties.
 
 ## Not covered
 
@@ -57,6 +37,8 @@ counted, never failed.
   (2026-11-20) judged 25 of them live authority, so recall is partial.
 - A stray straight `"` (an inch mark) earlier in a paragraph reads later
   mentions as quoted, so they pass as HISTORY.
+- Only text within `WINDOW` characters of a mention is classified, so cost stays
+  linear; the longest ADR sentence was 695 characters at `36f056888`.
 
 ## Ratchet
 
@@ -72,6 +54,7 @@ could not list tracked files. Every terminal line carries the examined count.
 from __future__ import annotations
 
 import argparse
+import bisect
 import re
 import sys
 from dataclasses import dataclass, field
@@ -91,7 +74,6 @@ from check_adr_lifecycle import Record, collect_records  # noqa: E402
 from check_rule_adr_citations import (  # noqa: E402
     BINDING_BEFORE_RE,
     CODE_SPAN_RE,
-    COMMENT_RE,
     FENCE_RE,
     FRONTMATTER_RE,
     LINEAGE_AFTER_RE,
@@ -117,6 +99,7 @@ CHECK = "adr-supersession-citation"
 ADR_DIR = ".project-toolkit/architecture"
 LIVE = frozenset({"accepted", "proposed"})
 SUPERSEDED = "superseded"
+WINDOW = 400
 
 AUTHORITY = "authority"
 HISTORY = "history"
@@ -229,35 +212,45 @@ def _soften_code_span(match: re.Match[str]) -> str:
     return re.sub(r"ADR-", "ADR_", text)
 
 
+def _mask_comments(text: str) -> str:
+    """The rule gate's ``<!--.*?-->`` blanking, in one linear pass (no retries)."""
+    parts, at = [], 0
+    while (opened := text.find("<!--", at)) != -1:
+        closed = text.find("-->", opened + 4)
+        if closed == -1:
+            break
+        parts += [text[at:opened], re.sub(r"[^\n]", " ", text[opened : closed + 3])]
+        at = closed + 3
+    return "".join(parts) + text[at:]
+
+
 def mask_non_citations(text: str) -> str:
     """Blank what cannot hold a citation, preserving every offset."""
-    for pattern in (FRONTMATTER_RE, FENCE_RE, COMMENT_RE):
+    for pattern in (FRONTMATTER_RE, FENCE_RE):
         text = pattern.sub(blank, text)
+    text = _mask_comments(text)
     # The shared patterns import untyped, so pin the result type here.
     masked: str = CODE_SPAN_RE.sub(_soften_code_span, text)
     return masked
 
 
-def _quote_depth(text: str) -> int:
-    """Open double quotes in ``text``: straight quotes by parity, curly by balance."""
-    return text.count('"') % 2 + max(0, text.count("“") - text.count("”"))
+def _quote_counts(text: str) -> tuple[int, int]:
+    """Straight double quotes and the curly open-minus-close balance in ``text``."""
+    return text.count('"'), text.count("“") - text.count("”")
 
 
-def _paragraph_prefixes(masked: str) -> list[str]:
-    """For each line (index 0 is line 1), the paragraph text above it.
-
-    Quote state is counted over the paragraph, not the block or the sentence:
-    the shared block splitter starts a new block at a capitalised wrap, and the
-    sentence splitter cuts on `.`, so either can split one quotation in two.
-    """
-    prefixes: list[str] = []
-    paragraph = ""
+def _paragraph_quotes(masked: str) -> list[tuple[int, int]]:
+    """Per line (index 0 is line 1), quote counts over its paragraph so far; a
+    block or sentence split can cut one quotation in two, a paragraph cannot."""
+    counts: list[tuple[int, int]] = []
+    straight = curly = 0
     for line in masked.split("\n"):
         if not line.strip():
-            paragraph = ""
-        prefixes.append(paragraph)
-        paragraph += line + "\n"
-    return prefixes
+            straight = curly = 0
+        counts.append((straight, curly))
+        more_straight, more_curly = _quote_counts(line)
+        straight, curly = straight + more_straight, curly + more_curly
+    return counts
 
 
 def _names_successor(sentence: str, successors: list[int]) -> bool:
@@ -277,7 +270,7 @@ def classify(sentence: str, match: re.Match[str], tail_end: int, context: Classi
     """Class of ``match``, a mention of a superseded ADR in ``sentence``."""
     adr = int(match.group(1))
     before = sentence[: match.start()]
-    after = sentence[match.end() : tail_end][:200]  # LINEAGE_AFTER_RE is quadratic
+    after = sentence[match.end() : tail_end]
     if (
         adr in context.own_supersedes
         or context.quoted
@@ -309,13 +302,13 @@ def citations_in(path: str, own: int, text: str, corpus: Corpus) -> list[Citatio
     found: list[tuple[int, int, str]] = []
     own_supersedes = corpus.supersedes.get(own, frozenset())
     masked = mask_non_citations(text)
-    prefixes = _paragraph_prefixes(masked)
+    quotes = _paragraph_quotes(masked)
     for _bibliography, block in blocks(masked):
         joined = " ".join(line for _, line in block)
-        starts: list[tuple[int, int]] = []
+        offsets: list[int] = []
         offset = 0
-        for number, line in block:
-            starts.append((offset, number))
+        for _number, line in block:
+            offsets.append(offset)
             offset += len(line) + 1
         for start, end in sentence_spans(joined):
             sentence = joined[start:end]
@@ -326,10 +319,17 @@ def citations_in(path: str, own: int, text: str, corpus: Corpus) -> list[Citatio
                     continue
                 tail_end = matches[index + 1].start() if index + 1 < len(matches) else len(sentence)
                 absolute = start + match.start()
-                line_offset, lineno = max((o, n) for o, n in starts if o <= absolute)
-                before = prefixes[lineno - 1] + joined[line_offset:absolute]
-                context = ClassifyContext(corpus, own_supersedes, _quote_depth(before) > 0)
-                found.append((lineno, adr, classify(sentence, match, tail_end, context)))
+                at = bisect.bisect_right(offsets, absolute) - 1
+                lineno = block[at][0]
+                straight, curly = quotes[lineno - 1]
+                more_straight, more_curly = _quote_counts(joined[offsets[at] : absolute])
+                quoted = (straight + more_straight) % 2 == 1 or curly + more_curly > 0
+                context = ClassifyContext(corpus, own_supersedes, quoted)
+                lo = max(0, match.start() - WINDOW)
+                window = sentence[lo : match.end() + WINDOW]
+                wmatch = MENTION_RE.match(window, match.start() - lo)
+                tail = min(tail_end, match.end() + WINDOW) - lo
+                found.append((lineno, adr, classify(window, wmatch, tail, context)))
     lines = text.split("\n")
     return [Citation(path, n, adr, kind, _excerpt(lines[n - 1], adr)) for n, adr, kind in found]
 
