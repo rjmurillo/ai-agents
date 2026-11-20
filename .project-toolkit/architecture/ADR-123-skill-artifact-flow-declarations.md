@@ -243,9 +243,11 @@ No ceiling is raised.
 
 ### Reversibility
 
-Removing the gate restores current behavior.
-The typed declarations are inert data without the gate.
-No data migration or installed-plugin change is required.
+Removing the repository gate restores current behavior inside this repository.
+The shipped skillforge linter also checks the keyed shape, as MUST rule `fm.artifacts.shape`.
+That rule runs in consumer installs, so a full reversal removes it too.
+Without both, the typed declarations are inert data.
+No data migration is required.
 
 ## Impact on Dependent Components
 
@@ -255,6 +257,8 @@ No data migration or installed-plugin change is required.
 | `scripts/validation/skill_routing_model.py` | Direct | Gains `LIFECYCLE_ORDER` |
 | `scripts/validation/check_skill_artifact_flow.py` | New | Enforces items 1 to 5 |
 | `scripts/validation/pre_pr_sequence.py` | Direct | One new gate row |
+| `scripts/validation/skill_artifact_schema.py` | New | Shared shape checks for the gate |
+| `src/claude/skills/skillforge/scripts/` (`lint_skill_frontmatter.py`, `_lint_frontmatter_checks.py`) and `references/frontmatter-and-limits.md` | Direct | Shipped MUST rule `fm.artifacts.shape` checks the keyed shape in consumer installs, in every harness tree the build mirrors |
 
 ## Confirmation
 

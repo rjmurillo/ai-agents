@@ -91,7 +91,7 @@ Consensus: six of six Accept or Disagree-and-Commit. No P0.
 
 ## Round 3 Summary
 
-Confirmation of the round 2 fixes, rows 17 to 27, run as one pass through all six seat lenses.
+Confirmation of the round 2 fixes, rows 17 to 27. One reviewer ran this round as a single pass through all six seat lenses, so its votes are not six independent reviews.
 
 ### Votes
 
