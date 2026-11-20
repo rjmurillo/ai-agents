@@ -19,11 +19,11 @@ _VALIDATION_DIR = Path(__file__).resolve().parents[2] / "scripts" / "validation"
 if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
 
+from adr_prose import mask_comments
 from check_adr_supersession_citations import (
     AUTHORITY,
     HISTORY,
     WINDOW,
-    _mask_comments,
     citations_in,
 )
 from check_rule_adr_citations import COMMENT_RE, blank
@@ -44,13 +44,13 @@ from tests.validation.test_check_adr_supersession_citations import CORPUS
     ],
 )
 def test_comment_masking_matches_the_rule_gate_regex(text: str) -> None:
-    assert _mask_comments(text) == COMMENT_RE.sub(blank, text)
+    assert mask_comments(text) == COMMENT_RE.sub(blank, text)
 
 
 @pytest.mark.timeout(10)
 def test_unclosed_comment_openers_mask_in_linear_time() -> None:
     text = "<!-- " * 40_000 + "ADR-080 governs pins.\n"
-    assert _mask_comments(text) == text
+    assert mask_comments(text) == text
 
 
 @pytest.mark.timeout(10)

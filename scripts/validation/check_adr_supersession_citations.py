@@ -12,9 +12,9 @@ status is `accepted` or `proposed`; a retired record is history as a whole.
 Only mentions of a `superseded` record are classified: a `deprecated` or
 `rejected` target has no successor to cite instead.
 
-The rule gate's block, sentence, mention and lineage helpers are reused, but
-not its classifier: it reads a `Related ...` heading as bibliography, which is
-where the ADR-107 bullet sits. A test pins that divergence.
+The rule gate's sentence, mention and lineage helpers are reused, but not its
+classifier (it reads a `Related ...` heading as bibliography, where the ADR-107
+bullet sits; a test pins that) or its blocks. `adr_prose.py` masks and splits.
 
 ## Citation classes
 
@@ -70,17 +70,18 @@ if str(_REPO_ROOT) not in sys.path:
 
 # The rule gate owns prose parsing for ADR citations; it exports these names so
 # both gates parse prose one way.
+from adr_prose import (  # noqa: E402
+    mask_non_citations,
+    paragraph_blocks,
+    paragraph_quotes,
+    quote_counts,
+)
 from check_adr_lifecycle import Record, collect_records  # noqa: E402
 from check_rule_adr_citations import (  # noqa: E402
     BINDING_BEFORE_RE,
-    CODE_SPAN_RE,
-    FENCE_RE,
-    FRONTMATTER_RE,
     LINEAGE_AFTER_RE,
     LINEAGE_BEFORE_RE,
     MENTION_RE,
-    blank,
-    blocks,
     read_baseline,
     readable,
     sentence_spans,
@@ -205,54 +206,6 @@ def build_corpus(records: list[Record]) -> Corpus:
     return Corpus(status, supersedes, successor)
 
 
-def _soften_code_span(match: re.Match[str]) -> str:
-    """Keep a code span's words (`superseded` is lineage), drop its delimiters,
-    quotes and ADR ids: an id inside a span is still not a citation."""
-    text = match.group(0).replace("`", " ").replace('"', " ")
-    return re.sub(r"ADR-", "ADR_", text)
-
-
-def _mask_comments(text: str) -> str:
-    """The rule gate's ``<!--.*?-->`` blanking, in one linear pass (no retries)."""
-    parts, at = [], 0
-    while (opened := text.find("<!--", at)) != -1:
-        closed = text.find("-->", opened + 4)
-        if closed == -1:
-            break
-        parts += [text[at:opened], re.sub(r"[^\n]", " ", text[opened : closed + 3])]
-        at = closed + 3
-    return "".join(parts) + text[at:]
-
-
-def mask_non_citations(text: str) -> str:
-    """Blank what cannot hold a citation, preserving every offset."""
-    for pattern in (FRONTMATTER_RE, FENCE_RE):
-        text = pattern.sub(blank, text)
-    text = _mask_comments(text)
-    # The shared patterns import untyped, so pin the result type here.
-    masked: str = CODE_SPAN_RE.sub(_soften_code_span, text)
-    return masked
-
-
-def _quote_counts(text: str) -> tuple[int, int]:
-    """Straight double quotes and the curly open-minus-close balance in ``text``."""
-    return text.count('"'), text.count("“") - text.count("”")
-
-
-def _paragraph_quotes(masked: str) -> list[tuple[int, int]]:
-    """Per line (index 0 is line 1), quote counts over its paragraph so far; a
-    block or sentence split can cut one quotation in two, a paragraph cannot."""
-    counts: list[tuple[int, int]] = []
-    straight = curly = 0
-    for line in masked.split("\n"):
-        if not line.strip():
-            straight = curly = 0
-        counts.append((straight, curly))
-        more_straight, more_curly = _quote_counts(line)
-        straight, curly = straight + more_straight, curly + more_curly
-    return counts
-
-
 def _names_successor(sentence: str, successors: list[int]) -> bool:
     return any(re.search(rf"(?<![/\w-])ADR-0*{n}\b", sentence) for n in successors)
 
@@ -302,8 +255,8 @@ def citations_in(path: str, own: int, text: str, corpus: Corpus) -> list[Citatio
     found: list[tuple[int, int, str]] = []
     own_supersedes = corpus.supersedes.get(own, frozenset())
     masked = mask_non_citations(text)
-    quotes = _paragraph_quotes(masked)
-    for _bibliography, block in blocks(masked):
+    quotes = paragraph_quotes(masked)
+    for block in paragraph_blocks(masked):
         joined = " ".join(line for _, line in block)
         offsets: list[int] = []
         offset = 0
@@ -322,7 +275,7 @@ def citations_in(path: str, own: int, text: str, corpus: Corpus) -> list[Citatio
                 at = bisect.bisect_right(offsets, absolute) - 1
                 lineno = block[at][0]
                 straight, curly = quotes[lineno - 1]
-                more_straight, more_curly = _quote_counts(joined[offsets[at] : absolute])
+                more_straight, more_curly = quote_counts(joined[offsets[at] : absolute])
                 quoted = (straight + more_straight) % 2 == 1 or curly + more_curly > 0
                 context = ClassifyContext(corpus, own_supersedes, quoted)
                 lo = max(0, match.start() - WINDOW)

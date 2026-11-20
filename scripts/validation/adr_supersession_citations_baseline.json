@@ -3,6 +3,7 @@
   "description": "Known live ADRs that cite a superseded ADR as current authority. Delete a line when its citation is repaired. Adding a line legalises a violation.",
   "known": [
     ".project-toolkit/architecture/ADR-033-routing-level-enforcement-gates.md::ADR-005",
+    ".project-toolkit/architecture/ADR-040-skill-frontmatter-standardization.md::ADR-080",
     ".project-toolkit/architecture/ADR-070-memory-first-gate-spec-pipeline.md::ADR-007",
     ".project-toolkit/architecture/ADR-094-govern-copilot-cli-compatibility.md::ADR-080",
     ".project-toolkit/architecture/ADR-108-template-owned-skill-files.md::ADR-052"

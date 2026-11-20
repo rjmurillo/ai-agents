@@ -529,10 +529,12 @@ def validate_rule_adr_citations(repo_root: Path) -> bool:
 # Public names for check_adr_supersession_citations.py, which parses ADR prose
 # with this gate's masking, block, sentence, mention and lineage rules.
 BINDING_BEFORE_RE = _BINDING_BEFORE_RE
+BLOCK_START_RE = _BLOCK_START_RE
 CODE_SPAN_RE = _CODE_SPAN_RE
 COMMENT_RE = _COMMENT_RE
 FENCE_RE = _FENCE_RE
 FRONTMATTER_RE = _FRONTMATTER_RE
+HEADING_RE = _HEADING_RE
 LINEAGE_AFTER_RE = _LINEAGE_AFTER_RE
 LINEAGE_BEFORE_RE = _LINEAGE_BEFORE_RE
 MENTION_RE = _MENTION_RE
