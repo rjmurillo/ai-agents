@@ -9,55 +9,20 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 import tempfile
 from pathlib import Path
 
 import pytest
 
 from tests.eval._control_ablation_test_support import (
-    FakeClaudeRunner,
+    REAL_HOME_ENV,
+    EnvSpyRunner,
     ablation,
     ablation_tasks,
     cli,
+    live_first_task_args,
     load_tasks,
-    write_tasks,
 )
-
-REAL_HOME_ENV = "EVAL_RUNTIME_REAL_HOME"
-
-
-class EnvSpyRunner(FakeClaudeRunner):
-    """Record the env each Claude call received."""
-
-    def __init__(self, tasks: list[ablation_tasks.Task]) -> None:
-        super().__init__(tasks)
-        self.envs: list[dict[str, str]] = []
-        self.real_home: list[str | None] = []
-
-    def __call__(self, argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
-        if "--version" not in [str(a) for a in argv]:
-            env = kwargs["env"]
-            assert isinstance(env, dict)
-            self.envs.append({str(k): str(v) for k, v in env.items()})
-            self.real_home.append(os.environ.get(REAL_HOME_ENV))
-        return super().__call__(argv, **kwargs)
-
-
-def _live_args(tmp_path: Path, *extra: str) -> list[str]:
-    return [
-        "--tasks",
-        str(write_tasks(tmp_path)),
-        "--controls",
-        "reduced",
-        "--only-tasks",
-        load_tasks(tmp_path)[0].id,
-        "--workspace-root",
-        str(tmp_path / "ws"),
-        "--output-dir",
-        str(tmp_path / "out"),
-        *extra,
-    ]
 
 
 def test_isolated_run_sets_a_sibling_config_dir_and_records_no_confound(
@@ -67,7 +32,7 @@ def test_isolated_run_sets_a_sibling_config_dir_and_records_no_confound(
 ) -> None:
     monkeypatch.delenv(REAL_HOME_ENV, raising=False)
     runner = EnvSpyRunner(load_tasks(tmp_path))
-    assert cli.main(_live_args(tmp_path), runner=runner) == cli.EXIT_OK
+    assert cli.main(live_first_task_args(tmp_path), runner=runner) == cli.EXIT_OK
     report = json.loads(capsys.readouterr().out)
     assert report["real_home"] is False
     assert "confound" not in report
@@ -82,7 +47,7 @@ def test_real_home_run_leaves_the_config_dir_unset_and_records_the_confound(
     monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
     runner = EnvSpyRunner(load_tasks(tmp_path))
     monkeypatch.setenv(REAL_HOME_ENV, "0")
-    code = cli.main(_live_args(tmp_path, "--real-home"), runner=runner)
+    code = cli.main(live_first_task_args(tmp_path, "--real-home"), runner=runner)
     assert runner.real_home and set(runner.real_home) == {"1"}
     assert os.environ.get(REAL_HOME_ENV) == "0"
     assert code == cli.EXIT_OK
@@ -94,7 +59,7 @@ def test_real_home_run_leaves_the_config_dir_unset_and_records_the_confound(
 
 def test_the_credential_file_flag_no_longer_exists(tmp_path: Path) -> None:
     with pytest.raises(SystemExit) as exc:
-        cli.main(_live_args(tmp_path, "--claude-auth-file", str(tmp_path / "x")))
+        cli.main(live_first_task_args(tmp_path, "--claude-auth-file", str(tmp_path / "x")))
     assert exc.value.code == 2
 
 

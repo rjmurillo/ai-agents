@@ -10,16 +10,17 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 import tempfile
 from pathlib import Path
 
 import pytest
 
 from tests.eval._control_ablation_test_support import (
+    REAL_HOME_ENV,
+    EnvSpyRunner,
     FakeClaudeRunner,
-    ablation_tasks,
     cli,
+    live_first_task_args,
     load_tasks,
     write_tasks,
 )
@@ -27,7 +28,6 @@ from tests.eval._credential_test_support import set_sources
 from tests.eval._runtime_parity_test_support import runtime_harness
 
 TOKEN_ENV = "CLAUDE_CODE_OAUTH_TOKEN"
-REAL_HOME_ENV = "EVAL_RUNTIME_REAL_HOME"
 DISK_TOKEN = "disk-token-for-ablation-test"
 
 
@@ -47,43 +47,10 @@ def _disk_login(monkeypatch: pytest.MonkeyPatch) -> None:
     set_sources(monkeypatch, "_claude_cli", disk=lambda _env: DISK_TOKEN)
 
 
-class SpyRunner(FakeClaudeRunner):
-    """Record each Claude call's env."""
-
-    def __init__(self, tasks: list[ablation_tasks.Task]) -> None:
-        super().__init__(tasks)
-        self.envs: list[dict[str, str]] = []
-        self.real_home: list[str | None] = []
-
-    def __call__(self, argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
-        if "--version" not in [str(a) for a in argv]:
-            env = kwargs["env"]
-            assert isinstance(env, dict)
-            self.envs.append({str(k): str(v) for k, v in env.items()})
-            self.real_home.append(os.environ.get(REAL_HOME_ENV))
-        return super().__call__(argv, **kwargs)
-
-
-def _live_args(tmp_path: Path, *extra: str) -> list[str]:
-    return [
-        "--tasks",
-        str(write_tasks(tmp_path)),
-        "--controls",
-        "reduced",
-        "--only-tasks",
-        load_tasks(tmp_path)[0].id,
-        "--workspace-root",
-        str(tmp_path / "ws"),
-        "--output-dir",
-        str(tmp_path / "out"),
-        *extra,
-    ]
-
-
 def test_isolated_run_carries_the_stored_login_as_a_token(tmp_path: Path) -> None:
-    runner = SpyRunner(load_tasks(tmp_path))
+    runner = EnvSpyRunner(load_tasks(tmp_path))
 
-    assert cli.main(_live_args(tmp_path), runner=runner) == cli.EXIT_OK
+    assert cli.main(live_first_task_args(tmp_path), runner=runner) == cli.EXIT_OK
 
     assert runner.envs[0][TOKEN_ENV] == DISK_TOKEN
     assert runner.envs[0]["CLAUDE_CONFIG_DIR"].endswith(".claude-config")
@@ -94,9 +61,9 @@ def test_runtime_env_itself_stays_login_free(tmp_path: Path) -> None:
 
 
 def test_real_home_run_gets_no_token(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    runner = SpyRunner(load_tasks(tmp_path))
+    runner = EnvSpyRunner(load_tasks(tmp_path))
     monkeypatch.setenv(REAL_HOME_ENV, "0")
-    code = cli.main(_live_args(tmp_path, "--real-home"), runner=runner)
+    code = cli.main(live_first_task_args(tmp_path, "--real-home"), runner=runner)
     assert runner.real_home and set(runner.real_home) == {"1"}
     assert os.environ.get(REAL_HOME_ENV) == "0"
 
@@ -106,9 +73,9 @@ def test_real_home_run_gets_no_token(tmp_path: Path, monkeypatch: pytest.MonkeyP
 
 def test_an_exported_api_key_is_left_alone(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-operator-key")
-    runner = SpyRunner(load_tasks(tmp_path))
+    runner = EnvSpyRunner(load_tasks(tmp_path))
 
-    assert cli.main(_live_args(tmp_path), runner=runner) == cli.EXIT_OK
+    assert cli.main(live_first_task_args(tmp_path), runner=runner) == cli.EXIT_OK
 
     assert runner.envs[0]["ANTHROPIC_API_KEY"] == "sk-ant-operator-key"
     assert TOKEN_ENV not in runner.envs[0]
@@ -119,9 +86,9 @@ def test_no_reachable_login_exits_4_before_any_workspace_exists(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], probe: bool
 ) -> None:
     set_sources(monkeypatch, "_claude_cli", disk=lambda _env: None, probe=probe)
-    runner = SpyRunner(load_tasks(tmp_path))
+    runner = EnvSpyRunner(load_tasks(tmp_path))
 
-    code = cli.main(_live_args(tmp_path), runner=runner)
+    code = cli.main(live_first_task_args(tmp_path), runner=runner)
 
     assert code == cli.EXIT_AUTH == 4
     assert runner.calls == []
@@ -147,9 +114,9 @@ def test_a_missing_login_is_not_needed_under_real_home(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     set_sources(monkeypatch, "_claude_cli", disk=lambda _env: None, probe=True)
-    runner = SpyRunner(load_tasks(tmp_path))
+    runner = EnvSpyRunner(load_tasks(tmp_path))
     monkeypatch.setenv(REAL_HOME_ENV, "0")
-    code = cli.main(_live_args(tmp_path, "--real-home"), runner=runner)
+    code = cli.main(live_first_task_args(tmp_path, "--real-home"), runner=runner)
     assert runner.real_home and set(runner.real_home) == {"1"}
     assert os.environ.get(REAL_HOME_ENV) == "0"
 
@@ -173,7 +140,7 @@ def test_invoke_claude_masks_the_token_in_the_reply(tmp_path: Path) -> None:
 def test_a_token_the_agent_wrote_into_a_file_never_reaches_the_records(tmp_path: Path) -> None:
     runner = FakeClaudeRunner(load_tasks(tmp_path), extra_files={"leak.txt": DISK_TOKEN})
 
-    assert cli.main(_live_args(tmp_path), runner=runner) == cli.EXIT_OK
+    assert cli.main(live_first_task_args(tmp_path), runner=runner) == cli.EXIT_OK
 
     written = "".join(
         path.read_text(encoding="utf-8", errors="replace")

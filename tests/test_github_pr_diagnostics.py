@@ -9,41 +9,29 @@ Covers:
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import subprocess
-import sys
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 from scripts.github_core.api import RepoInfo
+from tests.skills.claude_skills_import import import_skill_script
 
 # ---------------------------------------------------------------------------
 # Script imports
 # ---------------------------------------------------------------------------
 
-_SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
+# A unique alias keeps this registration from colliding with
+# test_get_pr_checks.py / test_merge_pr.py when pytest collects all three.
+_merge_mod = import_skill_script(".claude/skills/github/scripts/pr/merge_pr.py", "_diag_merge_pr")
+_audit_mod = import_skill_script(
+    ".claude/skills/github/scripts/pr/audit_closing_claims.py", "_diag_audit_closing_claims"
 )
-
-
-def _import_script(name: str):
-    # Use a unique alias so this module's registration doesn't collide with
-    # test_get_pr_checks.py / test_merge_pr.py when pytest collects all three.
-    alias = f"_diag_{name}"
-    spec = importlib.util.spec_from_file_location(alias, _SCRIPTS_DIR / f"{name}.py")
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[alias] = mod
-    spec.loader.exec_module(mod)
-    return mod
-
-
-_merge_mod = _import_script("merge_pr")
-_audit_mod = _import_script("audit_closing_claims")
-_edit_mod = _import_script("edit_pr_body")
+_edit_mod = import_skill_script(
+    ".claude/skills/github/scripts/pr/edit_pr_body.py", "_diag_edit_pr_body"
+)
 
 # ---------------------------------------------------------------------------
 # Helpers shared across tests
