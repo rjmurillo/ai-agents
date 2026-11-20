@@ -41,12 +41,22 @@ integration pages, user guides, and announcements.
 Skip it for code comments, commit messages, PR bodies, and agent prompts. This
 repository's voice rules already cover those.
 
-## Hemingway audit workflow
+## Hemingway pass
 
-For a named Hemingway audit, use Audit Mode and verify findings through
-read-only inspection. This rule takes precedence over execution guidance in
-Test and Audit Mode. Run samples, builds, or gates only if the user also
-requests execution.
+Use the requested edit or audit mode. Follow this section in place of the
+general Process. For an audit, use the Audit Mode findings format and verify
+through read-only inspection. Apply file edits, run samples, build, or run
+gates only when the user requests those actions. This execution rule takes
+precedence over Audit Mode and Test.
+
+- Lead each step with the reader's action. Use active voice.
+- Cut repeated setup. Split sentences that bury an action or condition.
+- Keep exact commands, prerequisites, warnings, failure behavior, and rollback
+  steps. Preserve their order and the conditions that govern each action.
+- Compare the result with the original. Check what the reader does before,
+  during, and after the task, including what happens if it fails.
+- Keep needed detail. Avoid sentence-length quotas, invented steps, and
+  literary imitation.
 
 ## Process
 
@@ -91,21 +101,6 @@ Check the draft against [prose patterns](references/prose-patterns.md),
 `prose-self-check` skill's lint on the page as the automated pass. Fix each
 high-severity finding or state why it is a false positive. When that skill is
 not installed, record the pass as `UNAVAILABLE` and rely on the manual check.
-
-#### Hemingway pass
-
-Treat a named Hemingway pass as an edit or audit, not literary imitation.
-Use the requested mode. For an audit, follow the Hemingway audit workflow and
-suggest exact replacements. Apply changes to a file only when the user asks
-for an edit.
-
-- Lead each step with the reader's action. Use active voice.
-- Cut repeated setup. Split sentences that bury an action or condition.
-- Keep exact commands, prerequisites, warnings, failure behavior, and rollback
-  steps. Preserve their order and the conditions that govern each action.
-- Compare the result with the original. Check what the reader does before,
-  during, and after the task, including what happens if it fails.
-- Keep needed detail. Do not enforce sentence-length quotas or invent steps.
 
 ### 5. Test
 
