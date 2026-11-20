@@ -163,6 +163,14 @@ the PR's repository. It prints one line per real event (`head`, `check`,
 `closed` line first, and a ready exit 0 prints a `ready:` line. `--help` lists
 the exit codes.
 
+Between reads, the watcher waits on `gh event listen` when gh is 2.105.0 or
+later and the account has GitHub Event Streams access. It wakes on the next
+review, push, merge conflict, finished check suite, or state change. Otherwise
+(older gh, a waitlist refusal, or a non-github.com host) it sleeps `--interval`.
+Output and exit codes are the same on both paths. Events cut the wait; the
+worst case stays one interval. A `pr-event-wait:` line on stderr names the
+mode and why listening stopped. `AI_AGENTS_PR_EVENT_LISTEN=0` forces the sleep.
+
 Exit codes:
 
 | Exit | Meaning | Next step |
