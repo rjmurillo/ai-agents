@@ -114,6 +114,17 @@ def _disable_heavy_stage_headroom_gate(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def _disable_pr_event_listen(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep PR wait loops on their sleep fallback in every test.
+
+    ``github_core.api.wait_for_pr_event`` would otherwise spawn a real ``gh --version`` and
+    ``gh event listen`` from any test that drives a PR wait loop.
+    ``tests/test_github_core_pr_events.py`` removes this to test listening.
+    """
+    monkeypatch.setenv("AI_AGENTS_PR_EVENT_LISTEN", "0")
+
+
+@pytest.fixture(autouse=True)
 def _default_project_repo(monkeypatch: pytest.MonkeyPatch) -> None:
     """Default every test to the ai-agents project repo (issue #2610).
 

@@ -40,7 +40,7 @@ Parameters: `--issue`, `--reason`, `--comment`, `--verify-claims`, `--dry-run`
 
 ### `get_pr_checks.py`
 
-CI check status with polling. Falls back to REST on a GraphQL rate limit and reports the source in `DataSource`. REST `--required-only` with no ruleset exits 3.
+CI check status. Under `--wait` it re-reads checks every 10 seconds, or sooner when `gh event listen` (gh 2.105.0 or later, GitHub Event Streams access) reports a finished check suite or a push. Without event access it sleeps the 10 seconds; output and exit codes are the same. `AI_AGENTS_PR_EVENT_LISTEN=0` forces the sleep. Falls back to REST on a GraphQL rate limit and reports the source in `DataSource`. REST `--required-only` with no ruleset exits 3.
 
 Parameters: `--pull-request`, `--wait`, `--timeout-seconds` (keep at or below 570 with `--wait`; it warns above), `--missing-grace-seconds`, `--required-only`, `--output-format {json,human,auto}`
 

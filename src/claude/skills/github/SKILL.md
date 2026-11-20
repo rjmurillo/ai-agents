@@ -167,7 +167,7 @@ PR scripts and `github_core` import with the SDK blocked.
 |--------|---------|----------------|
 | `get_pull_requests.py` | List PRs with filters | `--state`, `--label`, `--author`, `--base`, `--head`, `--search`, `--limit` |
 | `get_pr_context.py` | PR metadata, diff, files | `--pull-request`, `--include-changed-files`, `--include-diff` |
-| `get_pr_checks.py` | CI check status with polling (full text: `references/script-catalog.md`) | `--pull-request`, `--wait`, `--timeout-seconds`, `--missing-grace-seconds`, `--required-only`, `--output-format {json,human,auto}` |
+| `get_pr_checks.py` | CI check status; `--wait` listens or polls (full text: `references/script-catalog.md`) | `--pull-request`, `--wait`, `--timeout-seconds`, `--missing-grace-seconds`, `--required-only`, `--output-format {json,human,auto}` |
 | `get_pr_check_logs.py` | Failing CI check logs; names each failed step (`FailedSteps`) | `--pull-request`, `--check-name` (repeatable, case-insensitive), `--max-lines`, `--context-lines` |
 | `triage_red_check.py` | CI triage step 1: is a failing PR check also red on main? Exit 0 green on main, 1 red on main, 3 cannot determine | `--check-name`, `--branch`, `--history-depth`, `--pull-request` |
 | `get_pr_review_comments.py` | Paginated review comments with stale detection | `--pull-request`, `--include-issue-comments`, `--detect-stale`, `--exclude-stale`, `--only-stale` |
