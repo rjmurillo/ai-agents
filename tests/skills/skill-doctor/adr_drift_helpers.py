@@ -20,6 +20,7 @@ def git(repo: Path, *args: str, env: dict[str, str] | None = None) -> str:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
         check=True,
         env={**os.environ, **env} if env else None,
     )
@@ -91,7 +92,8 @@ def scan(
     out = repo.parent / "out" / name
     code, _, err = run_cli(capsys, "scan", "--repo", str(repo), "--out", str(out), *extra)
     assert code == 0, err
-    return json.loads(out.read_text(encoding="utf-8"))
+    result: dict[str, Any] = json.loads(out.read_text(encoding="utf-8"))
+    return result
 
 
 def kinds(result: dict[str, Any], kind: str) -> list[dict[str, Any]]:

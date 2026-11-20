@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 import socket
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import adr_corpus
 import adr_draft
@@ -37,10 +39,11 @@ KNOWN = [
 ]
 
 
-def _locate(capsys: pytest.CaptureFixture[str], repo: Path) -> dict:
+def _locate(capsys: pytest.CaptureFixture[str], repo: Path) -> dict[str, Any]:
     code, out, err = run_cli(capsys, "locate", "--repo", str(repo))
     assert code == 0, err
-    return json.loads(out)
+    located: dict[str, Any] = json.loads(out)
+    return located
 
 
 @pytest.mark.parametrize("folder", KNOWN)
@@ -146,7 +149,13 @@ def _draft_source(tmp_path: Path, capsys, adrs: dict[str, str], subjects: list[s
     return repo, result, tmp_path / "out" / "scan.json"
 
 
-def _draft(capsys, scan_file: Path, finding: dict, out: Path, *extra: str):
+def _draft(
+    capsys: pytest.CaptureFixture[str],
+    scan_file: Path,
+    finding: dict[str, Any],
+    out: Path,
+    *extra: str,
+) -> tuple[int, str, str]:
     return run_cli(
         capsys, "draft", "--scan", str(scan_file), "--id", finding["id"], "--out", str(out), *extra
     )
@@ -394,7 +403,7 @@ def test_exit_3_when_a_git_command_fails_or_git_is_missing(tmp_path, capsys, mon
     monkeypatch.setattr(adr_drift, "read_commits", fail)
     failed = run_cli(capsys, *args)
     monkeypatch.undo()
-    monkeypatch.setattr(adr_drift.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(shutil, "which", lambda _name: None)
     missing = run_cli(capsys, *args)
 
     assert failed[0] == 3 and "boom" in failed[2]
@@ -410,6 +419,7 @@ def test_every_subcommand_has_help(command, flag):
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
     )
 
     assert proc.returncode == 0 and "usage:" in proc.stdout and flag in proc.stdout
@@ -417,7 +427,11 @@ def test_every_subcommand_has_help(command, flag):
 
 def _process(*argv: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, str(SCRIPT), *argv], capture_output=True, text=True, encoding="utf-8"
+        [sys.executable, str(SCRIPT), *argv],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
     )
 
 

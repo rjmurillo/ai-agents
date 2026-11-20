@@ -213,7 +213,7 @@ def run_scan(args: argparse.Namespace) -> int:
     docs = read_docs(dirs)
     findings: list[Finding] = [] if dirs else [_no_directory_finding()]
     findings += check_numbering(dirs, docs) + check_links(docs, dirs)
-    findings += check_supersession(docs, dirs) + check_cited_paths(repo, docs)
+    findings += check_supersession(docs) + check_cited_paths(repo, docs)
     try:
         history = _history(repo, args, dirs, docs, prs)
     except GitError as exc:

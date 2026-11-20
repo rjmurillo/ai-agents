@@ -24,8 +24,8 @@ SHIM = """#!/bin/sh
 
 
 @pytest.fixture
-def home(tmp_path, monkeypatch) -> Path:
-    path = tmp_path / "home"
+def home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    path: Path = tmp_path / "home"
     path.mkdir()
     monkeypatch.setenv("HOME", str(path))
     monkeypatch.setenv("ALIGN_LOG", str(tmp_path / "align.log"))

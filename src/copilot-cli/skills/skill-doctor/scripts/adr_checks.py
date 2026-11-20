@@ -291,7 +291,7 @@ def _prose_edges(line: str, number: int, in_status: bool) -> list[Edge]:
     )
 
 
-def check_supersession(docs: Sequence[AdrDoc], dirs: Sequence[AdrDir]) -> list[Finding]:
+def check_supersession(docs: Sequence[AdrDoc]) -> list[Finding]:
     by_number: dict[int, AdrDoc] = {}
     for doc in docs:
         by_number.setdefault(doc.file.number, doc)

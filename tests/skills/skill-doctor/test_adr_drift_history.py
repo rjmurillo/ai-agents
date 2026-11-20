@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 from adr_drift_helpers import adr_path, adr_text, commit, git, kinds, run_cli, scan, seeded_repo
@@ -13,7 +14,7 @@ def _repo(tmp_path: Path, adrs: dict[str, str] | None = None) -> Path:
     return seeded_repo(tmp_path / "repo", adrs)
 
 
-def _subjects(result: dict) -> list[str]:
+def _subjects(result: dict[str, Any]) -> list[str]:
     return [f["evidence"]["subject"] for f in kinds(result, "undocumented-decision")]
 
 
