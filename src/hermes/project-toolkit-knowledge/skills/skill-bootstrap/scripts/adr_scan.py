@@ -149,7 +149,12 @@ _BLANK_RUN = re.compile(r"\n{3,}")
 
 
 def _excerpt(title: str, body: str) -> str:
-    """The quoted source text: template comments and checklist lines are form, not content."""
+    """The quoted source text: template comments and checklist lines are form, not content.
+
+    The body is cut before any pattern runs. ``<!--.*?-->`` is quadratic on a body of many
+    unclosed ``<!--``, and only ``EXCERPT_CHARS`` of the result are kept.
+    """
+    body = body[: EXCERPT_CHARS * 4]
     body = _BLANK_RUN.sub("\n\n", _TASK_LINE.sub("", _HTML_COMMENT.sub("", body)))
     return sanitize(f"{title}\n\n{body}".strip(), EXCERPT_CHARS)
 

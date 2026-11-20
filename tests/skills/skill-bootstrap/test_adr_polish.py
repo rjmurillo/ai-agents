@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Any
 
@@ -94,3 +95,16 @@ def test_an_excerpt_drops_template_comments_and_checklist_lines() -> None:
 
     assert "<!--" not in excerpt and "[x]" not in excerpt and "[ ]" not in excerpt
     assert "We adopt grpc because REST" in excerpt
+
+
+def test_an_excerpt_of_many_unclosed_comment_openers_returns_quickly() -> None:
+    body = "<!--" * 50_000
+    assert len(body) == 200_000
+
+    started = time.monotonic()
+    excerpt = adr_scan._excerpt("Adopt grpc", body)
+    elapsed = time.monotonic() - started
+
+    assert len(excerpt) <= adr_scan.EXCERPT_CHARS
+    assert excerpt.startswith("Adopt grpc")
+    assert elapsed < 2.0
