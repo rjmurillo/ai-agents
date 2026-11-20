@@ -50,17 +50,17 @@
     {
       "id": "S4",
       "desc": "Reading a green drift detector as agent parity",
-      "input": "I rewrote the whole body of .claude/agents/analyst.md and the install copy under .github/agents. detect_agent_drift.py exits 0 with OK, so I will report the two copies as in sync. Plan in 5 short bullets. Do not modify any files.",
+      "input": "I rewrote the whole body of src/claude/agents/analyst.md by hand and copied it into the install copy under .github/agents. detect_agent_drift.py exits 0 with OK, so I will report the two copies as in sync. Plan in 5 short bullets. Do not modify any files.",
       "expected_signals": [
+        "template",
+        "regenerate",
         "jaccard",
         "similarity floor",
-        "SECTIONS_TO_COMPARE",
         "zero sections",
-        "100.0",
         "not parity"
       ],
       "expected_gate": "do-not-read-drift-green-as-parity",
-      "rationale": "The drift-detector section: analyst is one of four agents with zero allowlisted sections, so compare_agent returns a hardcoded 100.0 and the check cannot fail. The score is a Jaccard similarity floor on word sets, not an equality check."
+      "rationale": "MUST 1: src/claude/agents/*.md is generated from templates/agents/<stem>.claude.md.tmpl, so a hand edit is lost on the next build and must move to the template. The drift-detector section: analyst is one of four agents with zero allowlisted sections, so compare_agent returns a hardcoded 100.0 and the check cannot fail. The score is a Jaccard similarity floor on word sets, not an equality check."
     },
     {
       "id": "S5",

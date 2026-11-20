@@ -64,11 +64,11 @@
       "input": "I am fixing a bug in src/claude/skills/adr-review/scripts/helper.py, a non-SKILL.md file. Do I need to edit anything under templates/ first? Plan in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "scripts",
-        "hand-maintained",
-        "skill"
+        "skill",
+        "not under templates"
       ],
       "expected_gate": "skip-rule-not-applicable",
-      "rationale": "A skill's non-SKILL.md files are hand-maintained and never under templates/. The edit does not match templates/**, so the template regeneration clauses do not apply."
+      "rationale": "The file does not match the rule's templates/** scope, and templates/skills/ holds SKILL.md templates and shared partials, never a skill script, so the regeneration clauses do not apply to a skill script."
     }
   ]
 }

@@ -19,18 +19,18 @@
     },
     {
       "id": "S2",
-      "desc": "Mirrored lib edit followed by an old two-step sync",
-      "input": "I changed src/claude/lib/hook_utilities/bootstrap.py. I plan to run a standalone lib sync script and then the build, and trust the zero exit codes. Plan in 5 short bullets. Do not modify any files.",
+      "desc": "Mirrored lib edit made in the rendered tree, followed by an old two-step sync",
+      "input": "I changed src/claude/lib/hook_utilities/bootstrap.py directly. I plan to run a standalone lib sync script and then the build, and trust the zero exit codes. Plan in 5 short bullets. Do not modify any files.",
       "expected_signals": [
+        "scripts/hook_utilities",
+        "lib_mirror.py",
         "build_all.py",
-        "one command",
         "--check",
         "src/copilot-cli/lib",
-        "byte-identical",
         "retired"
       ],
       "expected_gate": "single-command-build-all",
-      "rationale": "Generator order section: build_all.py renders and binplaces every class including lib, build_all.py --check verifies byte identity, and the standalone sync is retired (issue #5790). The lib trees should be compared, not just trusted by exit code."
+      "rationale": "Generator order section and References: lib_mirror.py renders scripts/{hook_utilities,github_core,ai_review_common}/ into every lib plugin tree, so an edit made in src/claude/lib/ is overwritten by the next build and must move to scripts/hook_utilities/. build_all.py is the one command, build_all.py --check verifies byte identity, the standalone sync is retired (issue #5790), and the lib trees should be compared rather than trusted by exit code."
     },
     {
       "id": "S3",

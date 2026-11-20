@@ -60,7 +60,7 @@
         "transitive"
       ],
       "expected_gate": "stdlib-only-for-bare-python3-step",
-      "rationale": "MUST 18: a step that invokes a script with bare python3 may import only the standard library, transitively. markdown_parser.py line 16 imports markdown_it, which fails at module load on a runner whose only prior step is checkout."
+      "rationale": "MUST 18: a step that invokes a script with bare python3 may import only the standard library, transitively. markdown_parser.py imports markdown_it, which fails at module load on a runner whose only prior step is checkout."
     },
     {
       "id": "S5",

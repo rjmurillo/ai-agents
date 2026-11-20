@@ -58,7 +58,7 @@
     },
     {
       "id": "S5",
-      "desc": "Adding a row to the failure-mode taxonomy file (negative)",
+      "desc": "Fixing a typo in an existing failure-mode taxonomy row (negative)",
       "input": "I want to fix a typo in a row of .agents/governance/FAILURE-MODES.md. Which steps apply? Plan in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "typo",
