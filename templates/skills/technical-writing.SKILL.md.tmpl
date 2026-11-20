@@ -109,7 +109,9 @@ not installed, record the pass as `UNAVAILABLE` and rely on the manual check.
 
 Treat a named Hemingway pass as an edit or audit, not literary imitation.
 Use the requested mode. For an audit, leave files unchanged and suggest exact
-replacements. Apply changes to a file only when the user asks for an edit.
+replacements. Verify findings through read-only inspection. Run samples, builds,
+or gates only when the user also requests execution. Apply changes to a file
+only when the user asks for an edit.
 
 - Lead each step with the reader's action. Use active voice.
 - Cut repeated setup. Split sentences that bury an action or condition.

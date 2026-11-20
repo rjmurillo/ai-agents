@@ -90,7 +90,7 @@
     {
       "id": "hemingway-audit",
       "desc": "The named audit offers an exact replacement without editing or inventing procedure",
-      "input": "Audit line 18 of this fictional docs/refresh.md excerpt using a Hemingway pass. Do not edit the file or run commands. Report the finding and proposed replacement.\n\n18: It is necessary for the signed catalog to have been downloaded before the command `mosaic refresh --signed` is run, and if the command reports `STALE`, it is necessary to leave the existing catalog in place.",
+      "input": "Audit line 18 of this fictional docs/refresh.md excerpt using a Hemingway pass. Report the finding and proposed replacement.\n\n18: It is necessary for the signed catalog to have been downloaded before the command `mosaic refresh --signed` is run, and if the command reports `STALE`, it is necessary to leave the existing catalog in place.",
       "expected_signals": [
         "docs/refresh.md and line 18",
         "polish",
