@@ -68,8 +68,8 @@ _REPO_ROOT = _SCRIPT_DIR.parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-# The rule gate owns prose parsing for ADR citations; it exports these names so
-# both gates parse prose one way.
+# Masking and blocks come from adr_prose (it differs from the rule gate on
+# purpose); mention, sentence and lineage rules come from the rule gate.
 from adr_prose import (  # noqa: E402
     mask_non_citations,
     paragraph_blocks,
@@ -111,13 +111,14 @@ _BASELINE_PATH = Path(__file__).with_name("adr_supersession_citations_baseline.j
 _ADR_ID_RE = re.compile(r"\bADR-0*(\d{1,4})\b")  # a date in the value is not an id
 _AUTHORITY_CASED_RE = re.compile(r"\b(?:MUST|SHALL|REQUIRED)\b")
 _AUTHORITY_RE = re.compile(
-    r"\b(?:governs|governing|governed by|owns|owned by|current owner|owner of|binding|"
+    r"\b(?:governs|governing|governed by|owns|owned by|current owner|owner of|"
+    r"(?<!non-)(?<!not )binding|"
     r"authority|in force|requires)\b",
     re.IGNORECASE,
 )
 _HISTORY_RE = re.compile(
     r"\b(?:histor(?:y|ical|ically)|precedent|lineage|originally|formerly|"
-    r"previously|no longer|at the time|(?<!\bis )(?<!\bare )(?<!\bbe )used to|"
+    r"previously|no longer|at the time(?! of writing)|(?<!\bis )(?<!\bare )(?<!\bbe )used to|"
     r"(?:was|were|had been)\s+(?:governed|owned|defined|required|mandated))\b",
     re.IGNORECASE,
 )

@@ -71,3 +71,22 @@ def test_separate_list_items_stay_separate_blocks() -> None:
 def test_headings_blank_lines_and_table_rows_end_a_block() -> None:
     text = "intro line\nwrapped line\n\n## Head\nnext\n| a | b |\n| c | d |\n"
     assert [[n for n, _ in block] for block in paragraph_blocks(text)] == [[1, 2], [5], [6], [7]]
+
+
+@pytest.mark.parametrize(
+    ("text", "kind"),
+    [
+        ("At the time of writing, ADR-080 governs model pins.\n", AUTHORITY),
+        ("At the time, ADR-080 governed model pins.\n", HISTORY),
+        ("ADR-080 is binding on every skill.\n", AUTHORITY),
+    ],
+)
+def test_review_round_signal_words(text: str, kind: str) -> None:
+    assert [c.kind for c in citations_in("f.md", 107, text, CORPUS)] == [kind]
+
+
+@pytest.mark.parametrize(
+    "text", ["ADR-080 is non-binding guidance.\n", "ADR-080 is not binding here.\n"]
+)
+def test_a_negated_binding_word_is_not_authority(text: str) -> None:
+    assert AUTHORITY not in [c.kind for c in citations_in("f.md", 107, text, CORPUS)]
