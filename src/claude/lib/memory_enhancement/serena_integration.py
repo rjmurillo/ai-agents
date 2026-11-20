@@ -22,8 +22,9 @@ from .models import (
     SourceType,
 )
 
-# Larger files are skipped before they are read (ADR-109 amendment 2026-11-20).
+# Recall passes MAX_MEMORY_BYTES as ``max_bytes``; other callers read every file.
 MAX_MEMORY_BYTES = 256 * 1024
+MAX_TITLE_CHARS = 200  # cut at parse time, before scoring and output
 
 _CITATION_PATTERN = re.compile(
     r"\[cite:(?P<source_type>\w+)\]\((?P<target>[^)]+)\)"
@@ -140,7 +141,11 @@ def memory_id_from_path(file_path: Path, memories_dir: Path | None = None) -> st
     return Path(file_path).stem
 
 
-def load_memory(file_path: Path, memories_dir: Path | None = None) -> MemoryWithCitations | None:
+def load_memory(
+    file_path: Path,
+    memories_dir: Path | None = None,
+    max_bytes: int | None = None,
+) -> MemoryWithCitations | None:
     """Load a single memory file and parse its content.
 
     Supports two formats:
@@ -153,6 +158,7 @@ def load_memory(file_path: Path, memories_dir: Path | None = None) -> MemoryWith
             ``memory_id`` is path-qualified (e.g. ``workflows/foo``) so it
             matches the form ``verify --memory-id`` expects.  When absent the
             bare stem is used (backward-compatible default).
+        max_bytes: Skip a file larger than this. None reads every file.
 
     Returns:
         Parsed MemoryWithCitations, or None if the file cannot be parsed.
@@ -161,8 +167,8 @@ def load_memory(file_path: Path, memories_dir: Path | None = None) -> MemoryWith
         return None
 
     try:
-        if file_path.stat().st_size > MAX_MEMORY_BYTES:
-            print(f"Warning: skipping {file_path}: over {MAX_MEMORY_BYTES} bytes", file=sys.stderr)
+        if max_bytes is not None and file_path.stat().st_size > max_bytes:
+            print(f"Warning: skipping {file_path}: over {max_bytes} bytes", file=sys.stderr)
             return None
         raw_text = file_path.read_text(encoding="utf-8")
     except OSError as exc:
@@ -170,13 +176,17 @@ def load_memory(file_path: Path, memories_dir: Path | None = None) -> MemoryWith
         return None
     memory_id = memory_id_from_path(file_path, memories_dir)
 
-    title, created_at, updated_at, tags, confidence, content = _extract_metadata(raw_text)
-    if title is None:
-        title = Path(file_path).stem
+    try:
+        title, created_at, updated_at, tags, confidence, content = _extract_metadata(raw_text)
+        if title is None:
+            title = Path(file_path).stem
 
-    citations = parse_citation_block(content)
-    links = parse_link_block(content)
-    content = _strip_citation_link_blocks(content)
+        citations = parse_citation_block(content)
+        links = parse_link_block(content)
+        content = _strip_citation_link_blocks(content)
+    except RecursionError:
+        print(f"Warning: skipping {file_path}: nesting too deep to parse", file=sys.stderr)
+        return None
 
     try:
         return MemoryWithCitations(
@@ -344,10 +354,8 @@ def _extract_metadata(
     metadata, body, fallback_content = frontmatter_reader.read_frontmatter(raw_text)
 
     if metadata:
-        title = metadata.get("title")
-        if not isinstance(title, str):
-            # A YAML alias or mapping is not a title. Never stringify it.
-            title = None
+        raw_title = metadata.get("title")  # a YAML alias or mapping is never stringified
+        title = raw_title[:MAX_TITLE_CHARS] if isinstance(raw_title, str) else None
         tags = _parse_tags(metadata.get("tags"))
         raw_created = metadata.get("created_at")
         raw_updated = metadata.get("updated_at")

@@ -74,13 +74,13 @@ class TestSearchWithRipgrep:
     """Unit tests for ripgrep subprocess integration."""
 
     @pytest.mark.unit
-    @patch("memory_enhancement.search.shutil.which", return_value=None)
+    @patch("memory_enhancement.search.resolve_tool", return_value=None)
     def test_rg_not_installed(self, mock_which, tmp_path: Path):
         assert _search_with_ripgrep("query", tmp_path) is None
 
     @pytest.mark.unit
     @patch("memory_enhancement.search.subprocess.run")
-    @patch("memory_enhancement.search.shutil.which", return_value="/usr/bin/rg")
+    @patch("memory_enhancement.search.resolve_tool", return_value="/usr/bin/rg")
     def test_rg_returns_paths(self, mock_which, mock_run, tmp_path: Path):
         f1 = _write_memory(tmp_path, "one")
         mock_run.return_value = MagicMock(returncode=0, stdout=f"{f1}\n")
@@ -89,7 +89,7 @@ class TestSearchWithRipgrep:
 
     @pytest.mark.unit
     @patch("memory_enhancement.search.subprocess.run")
-    @patch("memory_enhancement.search.shutil.which", return_value="/usr/bin/rg")
+    @patch("memory_enhancement.search.resolve_tool", return_value="/usr/bin/rg")
     def test_rg_no_matches(self, mock_which, mock_run, tmp_path: Path):
         mock_run.return_value = MagicMock(returncode=1, stdout="")
         result = _search_with_ripgrep("nonexistent", tmp_path)
@@ -97,13 +97,13 @@ class TestSearchWithRipgrep:
 
     @pytest.mark.unit
     @patch("memory_enhancement.search.subprocess.run", side_effect=OSError("fail"))
-    @patch("memory_enhancement.search.shutil.which", return_value="/usr/bin/rg")
+    @patch("memory_enhancement.search.resolve_tool", return_value="/usr/bin/rg")
     def test_rg_os_error(self, mock_which, mock_run, tmp_path: Path):
         assert _search_with_ripgrep("query", tmp_path) is None
 
     @pytest.mark.unit
     @patch("memory_enhancement.search.subprocess.run")
-    @patch("memory_enhancement.search.shutil.which", return_value="/usr/bin/rg")
+    @patch("memory_enhancement.search.resolve_tool", return_value="/usr/bin/rg")
     def test_rg_bad_exit_code(self, mock_which, mock_run, tmp_path: Path):
         mock_run.return_value = MagicMock(returncode=2, stdout="")
         assert _search_with_ripgrep("query", tmp_path) is None
@@ -113,13 +113,13 @@ class TestSearchWithGrep:
     """Unit tests for grep subprocess fallback."""
 
     @pytest.mark.unit
-    @patch("memory_enhancement.search.shutil.which", return_value=None)
+    @patch("memory_enhancement.search.resolve_tool", return_value=None)
     def test_grep_not_installed(self, mock_which, tmp_path: Path):
         assert _search_with_grep("query", tmp_path) is None
 
     @pytest.mark.unit
     @patch("memory_enhancement.search.subprocess.run")
-    @patch("memory_enhancement.search.shutil.which", return_value="/usr/bin/grep")
+    @patch("memory_enhancement.search.resolve_tool", return_value="/usr/bin/grep")
     def test_grep_returns_paths(self, mock_which, mock_run, tmp_path: Path):
         f1 = _write_memory(tmp_path, "found")
         mock_run.return_value = MagicMock(returncode=0, stdout=f"{f1}\n")

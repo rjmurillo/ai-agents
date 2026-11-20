@@ -50,11 +50,11 @@ def _count_loads(monkeypatch: pytest.MonkeyPatch, on_load=None) -> list[Path]:
     loaded: list[Path] = []
     real = search.load_memory
 
-    def counting(file_path: Path, memories_dir: Path | None = None):
+    def counting(file_path: Path, memories_dir: Path | None = None, max_bytes=None):
         loaded.append(file_path)
         if on_load is not None:
             on_load()
-        return real(file_path, memories_dir)
+        return real(file_path, memories_dir, max_bytes)
 
     monkeypatch.setattr(search, "load_memory", counting)
     return loaded
@@ -73,7 +73,9 @@ def test_sixty_matching_files_load_at_most_fifty(
     directory = _memories(tmp_path, [f"note-{i:02d}" for i in range(60)])
     loaded = _count_loads(monkeypatch)
 
-    search.search_memories("gateway", directory, repo_root=tmp_path)
+    search.search_memories(
+        "gateway", directory, repo_root=tmp_path, max_candidates=search.MAX_CANDIDATES
+    )
 
     assert len(loaded) == 50
     assert len(set(loaded)) == 50
@@ -85,7 +87,9 @@ def test_the_cut_is_deterministic_path_order_when_relevance_ties(
     directory = _memories(tmp_path, [f"note-{i:02d}" for i in range(60)])
     loaded = _count_loads(monkeypatch)
 
-    search.search_memories("gateway", directory, repo_root=tmp_path)
+    search.search_memories(
+        "gateway", directory, repo_root=tmp_path, max_candidates=search.MAX_CANDIDATES
+    )
 
     expected = sorted(directory.glob("*.md"))[:50]
     assert sorted(path.resolve() for path in loaded) == [p.resolve() for p in expected]
@@ -97,7 +101,9 @@ def test_a_better_stem_match_survives_the_cut_even_when_it_sorts_last(
     directory = _memories(tmp_path, [f"note-{i:02d}" for i in range(60)] + ["zzz-gateway"])
     loaded = _count_loads(monkeypatch)
 
-    results = search.search_memories("gateway", directory, repo_root=tmp_path, max_results=1)
+    results = search.search_memories(
+        "gateway", directory, repo_root=tmp_path, max_results=1, max_candidates=50
+    )
 
     assert len(loaded) == 50
     assert results[0].memory_id == "zzz-gateway"
@@ -220,7 +226,7 @@ def _fake_run(monkeypatch: pytest.MonkeyPatch, outcomes: list) -> list[float]:
         return MagicMock(returncode=1, stdout="")
 
     monkeypatch.setattr(search.subprocess, "run", run)
-    monkeypatch.setattr(search.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(search, "resolve_tool", lambda name, roots=(): f"/usr/bin/{name}")
     return timeouts
 
 
@@ -331,8 +337,8 @@ def test_a_spent_deadline_before_verification_makes_no_verify_call(
     monkeypatch.setattr(search, "verify_citation", verify)
     real_load = search.load_memory
 
-    def load_then_expire(file_path, memories_dir=None):
-        memory = real_load(file_path, memories_dir)
+    def load_then_expire(file_path, memories_dir=None, max_bytes=None):
+        memory = real_load(file_path, memories_dir, max_bytes)
         clock.advance(100.0)
         return memory
 

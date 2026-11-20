@@ -94,12 +94,19 @@ _STOP_WORDS = frozenset(
 
 _MAX_RECALL_RESULTS = 3
 
-# Wall-clock budget for one recall, from the start of recall_block. The hook
-# timeout is 10 s (dispatch_groups.json), so 8 s leaves room for interpreter
-# start and output. File-search timeouts shrink to the time left, no new file
-# loads once it is spent, and citation checks are skipped (ADR-109 amendment
-# 2026-11-20).
+# Wall-clock budget for one recall, from the start of recall_block. The host
+# kills the hook at the 15 s timeout in hooks.json. The 10 s timeout in
+# dispatch_groups.json is not enforced in-process, so it is not the bound.
+# 8 s leaves room for interpreter start and output. File-search timeouts shrink
+# to the time left, no new file loads once it is spent, and citation checks are
+# skipped (ADR-109 amendment 2026-11-20).
 RECALL_DEADLINE_SECONDS = 8.0
+
+# The whole injected block, sentinels included, never exceeds this many
+# characters, whatever the memories hold.
+MAX_BLOCK_CHARS = 8000
+_CLOSING = "</memory-context>"
+_TRUNCATED = "[truncated]"
 
 # Recalled text is repository content the model reads as context. The preface
 # tells it to treat the block as data (ADR-109 amendment 2026-11-20).
@@ -157,6 +164,13 @@ def recall_block(user_input: str) -> str:
         return ""
 
 
+def note(message: str) -> None:
+    """Print a recall note. Imported lazily: this file also runs as a plain script."""
+    from ..recall_log import note as _note
+
+    _note(message)
+
+
 def _is_contained_directory(memories_dir: Path, repo_root: Path) -> bool:
     """True when *memories_dir* is a directory whose real path stays inside *repo_root*.
 
@@ -169,7 +183,11 @@ def _is_contained_directory(memories_dir: Path, repo_root: Path) -> bool:
         return False
     try:
         memories_dir.resolve().relative_to(repo_root.resolve())
-    except (ValueError, OSError):
+    except ValueError:
+        note(f"ignoring {memories_dir}: it resolves outside the repository")
+        return False
+    except OSError:
+        note(f"ignoring {memories_dir}: its path cannot be resolved")
         return False
     return True
 
@@ -247,7 +265,9 @@ def _search_and_format(
         Formatted memory context string, or empty string.
     """
     # Import here to avoid circular imports at module level
-    from ..search import search_memories
+    from ..search import MAX_CANDIDATES, search_memories
+    from ..serena_integration import MAX_MEMORY_BYTES
+    from ..verification import MAX_VERIFY_BYTES
 
     results = search_memories(
         query=query,
@@ -256,6 +276,9 @@ def _search_and_format(
         repo_root=repo_root,
         min_relevance=_MIN_RELEVANCE,
         deadline=deadline,
+        max_candidates=MAX_CANDIDATES,
+        max_memory_bytes=MAX_MEMORY_BYTES,
+        max_verify_bytes=MAX_VERIFY_BYTES,
     )
 
     if not results:
@@ -282,34 +305,41 @@ def _format_memory_context(results: list[SearchResult]) -> str:
     Returns:
         The memory context block, written to stdout by the caller.
     """
-    lines = [
-        "<memory-context>",
-        "## Relevant Memories (auto-recalled)",
-        _PREFACE,
-        "",
-    ]
-
+    head = "\n".join(["<memory-context>", "## Relevant Memories (auto-recalled)", _PREFACE, ""])
+    # Room for everything before the closing sentinel and its newline.
+    limit = MAX_BLOCK_CHARS - len(_CLOSING) - 1
+    out = head
     for result in results:
-        title = _neutralize(" ".join(result.title.split()))
-        lines.append(
-            f"### {title} (relevance: {result.relevance:.0%}, "
-            f"confidence: {result.confidence:.0%}, {result.citation_status})"
-        )
-        lines.append(_neutralize(result.snippet))
-        relative_path = result.file_path
-        try:
-            from . import find_repo_root
+        entry = _format_entry(result)
+        if len(out) + 1 + len(entry) <= limit:
+            out = f"{out}\n{entry}"
+            continue
+        room = limit - len(out) - 1 - len(_TRUNCATED)
+        if room > 0:
+            out = f"{out}\n{entry[:room]}{_TRUNCATED}"
+        note(f"recalled block cut at {MAX_BLOCK_CHARS} characters")
+        break
+    return f"{out}\n{_CLOSING}"
 
-            repo_root = find_repo_root(result.file_path)
-            if repo_root is not None:
-                relative_path = result.file_path.relative_to(repo_root)
-        except (ValueError, ImportError):
-            pass
-        lines.append(f"Source: {_neutralize(str(relative_path))}")
-        lines.append("")
 
-    lines.append("</memory-context>")
-    return "\n".join(lines)
+def _format_entry(result: SearchResult) -> str:
+    """One recalled memory: heading, snippet, source line, trailing blank line."""
+    title = _neutralize(" ".join(result.title.split()))
+    heading = (
+        f"### {title} (relevance: {result.relevance:.0%}, "
+        f"confidence: {result.confidence:.0%}, {result.citation_status})"
+    )
+    relative_path = result.file_path
+    try:
+        from . import find_repo_root
+
+        repo_root = find_repo_root(result.file_path)
+        if repo_root is not None:
+            relative_path = result.file_path.relative_to(repo_root)
+    except (ValueError, ImportError):
+        pass
+    source = f"Source: {_neutralize(str(relative_path))}"
+    return "\n".join([heading, _neutralize(result.snippet), source, ""])
 
 
 if __name__ == "__main__":

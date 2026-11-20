@@ -14,9 +14,10 @@ Re-exec once under ``.venv`` so the registered command behaves the same as
 interpreter that is missing the dependency.
 
 Only the project registration in ``.claude/settings.json`` reaches this module.
-The recall shim skips it under a plugin install (a plugin-root variable set),
-where the recall closure needs no third-party package and a consumer's ``.venv``
-is the consumer's own code (ADR-109 amendment 2026-11-20).
+The recall shim skips it when it runs inside the grouped dispatcher
+(``claude_hook_dispatch`` in ``sys.modules``), where stdin is already consumed,
+the recall closure needs no third-party package, and a consumer's ``.venv`` is
+the consumer's own code (ADR-109 amendment 2026-11-20).
 """
 
 from __future__ import annotations

@@ -2,8 +2,9 @@
 """Unit tests for the memory recall shim (issue #7493, ADR-109 amendment 2026-11-20).
 
 The shim finds ``memory_enhancement`` at ``<plugin root>/lib`` and re-executes
-under the project ``.venv`` only for the project registration, where
-``CLAUDE_PLUGIN_ROOT`` is unset.
+under the project ``.venv`` only on a direct run. Inside the grouped dispatcher
+(``claude_hook_dispatch`` in ``sys.modules``) it never re-executes, whatever
+plugin-root variable the host exports.
 """
 
 from __future__ import annotations

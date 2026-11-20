@@ -28,7 +28,7 @@ def test_a_file_over_the_limit_is_skipped_before_it_is_read(
         Path, "read_text", lambda self, *a, **k: reads.append(self) or original(self, *a, **k)
     )
 
-    assert si.load_memory(path, tmp_path) is None
+    assert si.load_memory(path, tmp_path, si.MAX_MEMORY_BYTES) is None
 
     assert reads == []
     assert "over" in capsys.readouterr().err
@@ -38,14 +38,21 @@ def test_a_file_at_the_limit_still_loads(tmp_path: Path) -> None:
     path = _write(tmp_path, "y" * si.MAX_MEMORY_BYTES)
 
     assert si.MAX_MEMORY_BYTES == 256 * 1024
+    assert si.load_memory(path, tmp_path, si.MAX_MEMORY_BYTES) is not None
+
+
+def test_load_memory_has_no_size_cap_unless_asked(tmp_path: Path) -> None:
+    """Health, graph, reflection and the CLI read every file."""
+    path = _write(tmp_path, "z" * (si.MAX_MEMORY_BYTES + 1))
+
     assert si.load_memory(path, tmp_path) is not None
 
 
-def test_load_memories_skips_only_the_oversized_file(tmp_path: Path) -> None:
+def test_load_memories_reads_a_large_file_too(tmp_path: Path) -> None:
     _write(tmp_path, "z" * (si.MAX_MEMORY_BYTES + 1), "big.md")
     _write(tmp_path, f"# Small\n\n{_BODY}", "small.md")
 
-    assert [m.memory_id for m in si.load_memories(tmp_path)] == ["small"]
+    assert sorted(m.memory_id for m in si.load_memories(tmp_path)) == ["big", "small"]
 
 
 @pytest.mark.parametrize(

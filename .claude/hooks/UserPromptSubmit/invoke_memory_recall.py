@@ -24,7 +24,7 @@ Exit Codes:
         processing and erase the user prompt, so this hook never blocks.
 
 Interpreter: the recall import closure needs no third-party package
-(``serena_integration`` guards its ``frontmatter`` and ``yaml`` imports), so
+(``frontmatter_reader`` guards its ``frontmatter`` and ``yaml`` imports), so
 it runs under the host's bare ``python3``. A direct run, which is the project
 registration in ``.claude/settings.json``, re-executes under the project
 ``.venv`` so developers keep the full parser. Inside the grouped dispatcher

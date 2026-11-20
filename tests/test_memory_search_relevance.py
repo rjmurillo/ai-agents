@@ -183,8 +183,8 @@ class TestRelevanceLabel:
         md.write_text("# Unrelated Entry (2026-01-01)\n\ngithub tokens\n", encoding="utf-8")
         mock_rg.return_value = [md]
 
-        def windows_ids(path, root=None):
-            memory = load_memory(path, root)
+        def windows_ids(path, root=None, max_bytes=None):
+            memory = load_memory(path, root, max_bytes)
             return replace(memory, memory_id=memory.memory_id.replace("/", "\\"))
 
         with patch.object(search_module, "load_memory", windows_ids):

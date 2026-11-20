@@ -8,7 +8,6 @@ by confidence score from the existing scoring infrastructure.
 from __future__ import annotations
 
 import re
-import shutil
 import subprocess
 import time
 from dataclasses import dataclass
@@ -17,12 +16,15 @@ from pathlib import Path
 from . import find_repo_root
 from .confidence import calculate_confidence
 from .models import MemoryWithCitations, VerificationResult
+from .recall_log import note
 from .serena_integration import load_memory
-from .verification import STALE_REASON_MARKERS, verify_citation
+from .tool_resolver import resolve_tool
+from .verification import STALE_REASON_MARKERS, cited_file_exceeds, verify_citation
 
 _SEARCH_TIMEOUT = 5
-# Most candidate files loaded and scored per call. The file search matches any
+# Most candidate files loaded and scored per recall. The file search matches any
 # one term anywhere in a file, so a broad query can match hundreds of files.
+# Opt-in: only the recall path passes it, so the search CLI scores every match.
 MAX_CANDIDATES = 50
 _DEFAULT_MAX_RESULTS = 5
 _SNIPPET_LENGTH = 200
@@ -95,6 +97,9 @@ def search_memories(
     repo_root: Path | None = None,
     min_relevance: float = 0.0,
     deadline: float | None = None,
+    max_candidates: int | None = None,
+    max_memory_bytes: int | None = None,
+    max_verify_bytes: int | None = None,
 ) -> list[SearchResult]:
     """Search memories and return ranked results.
 
@@ -113,6 +118,10 @@ def search_memories(
         deadline: ``time.monotonic()`` value after which no new work starts.
             The file-search timeouts shrink to the time left, and ranking
             returns what it has. None means no deadline.
+        max_candidates: Most files to load and score. None scores every match.
+        max_memory_bytes: Skip memory files larger than this. None reads all.
+        max_verify_bytes: Skip citation checks on cited files larger than
+            this (status "unverified"). None verifies all.
 
     Returns:
         List of SearchResult sorted by relevance, then confidence, descending.
@@ -125,10 +134,11 @@ def search_memories(
 
     effective_root = repo_root or find_repo_root(memories_dir) or memories_dir.parent.parent
 
-    paths = _search_with_ripgrep(query, memories_dir, deadline)
+    paths = _search_with_ripgrep(query, memories_dir, deadline, effective_root)
     if paths is None:
-        paths = _search_with_grep(query, memories_dir, deadline)
+        paths = _search_with_grep(query, memories_dir, deadline, effective_root)
     if paths is None:
+        # No pure-Python search exists. No usable rg or grep means no recall.
         return []
 
     return rank_results(
@@ -139,6 +149,9 @@ def search_memories(
         query=query,
         min_relevance=min_relevance,
         deadline=deadline,
+        max_candidates=max_candidates,
+        max_memory_bytes=max_memory_bytes,
+        max_verify_bytes=max_verify_bytes,
     )
 
 
@@ -175,7 +188,9 @@ def rank_results(
     query: str = "",
     min_relevance: float = 0.0,
     deadline: float | None = None,
-    max_candidates: int = MAX_CANDIDATES,
+    max_candidates: int | None = None,
+    max_memory_bytes: int | None = None,
+    max_verify_bytes: int | None = None,
 ) -> list[SearchResult]:
     """Load each matched file, score relevance and confidence, drop results
     below ``min_relevance``, and sort descending.
@@ -193,17 +208,28 @@ def rank_results(
         deadline: ``time.monotonic()`` value after which no further file is
             loaded and citation checks are skipped (status "unverified").
         max_candidates: Most files loaded and scored, chosen by
-            ``_bounded_candidates``.
+            ``_bounded_candidates``. None scores every path.
+        max_memory_bytes: Skip memory files larger than this. None reads all.
+        max_verify_bytes: Skip citation checks on cited files larger than
+            this. None verifies all.
 
     Returns:
         Sorted list of SearchResult by relevance, then confidence, descending.
     """
     results: list[SearchResult] = []
+    candidates = paths
+    if max_candidates is not None:
+        candidates = _bounded_candidates(paths, query, max_candidates)
+        if len(paths) > max_candidates:
+            note(f"scoring {max_candidates} of {len(paths)} matching memories (candidate cap)")
 
-    for file_path in _bounded_candidates(paths, query, max_candidates):
+    for file_path in candidates:
         if _time_left(deadline) == 0.0:
+            note("deadline reached, returning the memories scored so far")
             break
-        result = _score_memory_file(file_path, repo_root, memories_dir, query, deadline)
+        result = _score_memory_file(
+            file_path, repo_root, memories_dir, query, deadline, max_memory_bytes, max_verify_bytes
+        )
         if result is not None and result.relevance >= min_relevance:
             results.append(result)
 
@@ -234,13 +260,16 @@ def _split_query_terms(query: str) -> list[str]:
 
 
 def _search_with_ripgrep(
-    query: str, memories_dir: Path, deadline: float | None = None
+    query: str,
+    memories_dir: Path,
+    deadline: float | None = None,
+    repo_root: Path | None = None,
 ) -> list[Path] | None:
     """Search using ripgrep. Returns None if rg is unavailable or fails.
 
     Multi-word queries use OR logic via multiple -e flags.
     """
-    rg_path = shutil.which("rg")
+    rg_path = resolve_tool("rg", [repo_root, memories_dir])
     if rg_path is None:
         return None
 
@@ -255,6 +284,7 @@ def _search_with_ripgrep(
 
     timeout = _search_timeout(deadline)
     if timeout is None:
+        note("deadline reached before the file search started")
         return None
 
     try:
@@ -266,7 +296,10 @@ def _search_with_ripgrep(
             errors="replace",
             timeout=timeout,
         )
-    except (subprocess.TimeoutExpired, OSError):
+    except subprocess.TimeoutExpired:
+        note(f"{Path(cmd[0]).stem} timed out after {timeout:g}s")
+        return None
+    except OSError:
         return None
 
     if result.returncode not in (0, 1):
@@ -276,13 +309,16 @@ def _search_with_ripgrep(
 
 
 def _search_with_grep(
-    query: str, memories_dir: Path, deadline: float | None = None
+    query: str,
+    memories_dir: Path,
+    deadline: float | None = None,
+    repo_root: Path | None = None,
 ) -> list[Path] | None:
     """Search using grep. Returns None if grep is unavailable or fails.
 
     Multi-word queries use OR logic via multiple -e flags.
     """
-    grep_path = shutil.which("grep")
+    grep_path = resolve_tool("grep", [repo_root, memories_dir])
     if grep_path is None:
         return None
 
@@ -297,6 +333,7 @@ def _search_with_grep(
 
     timeout = _search_timeout(deadline)
     if timeout is None:
+        note("deadline reached before the file search started")
         return None
 
     try:
@@ -308,7 +345,10 @@ def _search_with_grep(
             errors="replace",
             timeout=timeout,
         )
-    except (subprocess.TimeoutExpired, OSError):
+    except subprocess.TimeoutExpired:
+        note(f"{Path(cmd[0]).stem} timed out after {timeout:g}s")
+        return None
+    except OSError:
         return None
 
     if result.returncode not in (0, 1):
@@ -340,13 +380,15 @@ def _score_memory_file(
     memories_dir: Path | None = None,
     query: str = "",
     deadline: float | None = None,
+    max_memory_bytes: int | None = None,
+    max_verify_bytes: int | None = None,
 ) -> SearchResult | None:
     """Load a memory file, compute confidence, and build a SearchResult."""
-    memory = load_memory(file_path, memories_dir)
+    memory = load_memory(file_path, memories_dir, max_memory_bytes)
     if memory is None:
         return None
 
-    verification_results = _verify_within(memory, repo_root, deadline)
+    verification_results = _verify_within(memory, repo_root, deadline, max_verify_bytes)
     confidence = calculate_confidence(memory, verification_results)
     citation_status = _determine_citation_status(verification_results)
     snippet = memory.content[:_SNIPPET_LENGTH]
@@ -367,16 +409,24 @@ def _score_memory_file(
 
 
 def _verify_within(
-    memory: MemoryWithCitations, repo_root: Path, deadline: float | None
+    memory: MemoryWithCitations,
+    repo_root: Path,
+    deadline: float | None,
+    max_verify_bytes: int | None = None,
 ) -> list[VerificationResult]:
-    """Verify each citation while time remains.
+    """Verify each citation while time remains and cited files stay small.
 
-    Out of time means no verification at all, not a partial one, so the status
-    reads "unverified" and a half-checked memory never reads "verified".
+    Out of time, or a cited file over *max_verify_bytes*, means no verification
+    at all, not a partial one, so the status reads "unverified" and a
+    half-checked memory never reads "verified".
     """
     results: list[VerificationResult] = []
     for citation in memory.citations:
         if _time_left(deadline) == 0.0:
+            return []
+        if max_verify_bytes is not None and cited_file_exceeds(
+            citation, repo_root, max_verify_bytes
+        ):
             return []
         results.append(verify_citation(citation, repo_root))
     return results

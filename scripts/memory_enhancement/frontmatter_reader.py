@@ -18,6 +18,8 @@ import sys
 from types import ModuleType
 from typing import Any
 
+from .recall_log import note_once
+
 
 def _optional_module(name: str) -> ModuleType | None:
     """Import *name*, or return None when it is not installed.
@@ -102,6 +104,7 @@ def read_frontmatter_stdlib(raw_text: str) -> tuple[dict[str, Any], str, str]:
     if yaml is None:
         # No YAML parser: metadata is unreadable, but the block must not
         # leak into the memory body.
+        note_once("no-yaml", "no YAML parser available, memory frontmatter metadata is ignored")
         return {}, content, content
     try:
         data = yaml.safe_load(block)

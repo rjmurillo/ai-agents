@@ -308,12 +308,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if advisory and event != ADVISORY_EVENT:
+        exit_code = _failure_exit(False, args.group)
+        outcome = "allowing" if exit_code == 0 else "denying"
         print(
             f"claude-hook-dispatch: --advisory is valid for {ADVISORY_EVENT} only, "
-            f"group {args.group!r} is {event!r}; denying",
+            f"group {args.group!r} is {event!r}; {outcome}",
             file=sys.stderr,
         )
-        return _failure_exit(False, args.group)
+        return exit_code
 
     if advisory and args.group != _ADVISORY_GROUP_ID:
         # Reserved to one group (ADR-071). Exit 2 would block the Stop, so

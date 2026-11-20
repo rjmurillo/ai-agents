@@ -788,7 +788,7 @@ forbidden_modules = ["scripts.*", "memory_enhancement", "tests"]
 # longer matches an import.
 # scripts.memory_enhancement also ships (lib_mirror.py, Claude plugin only,
 # ADR-109 amendment 2026-11-20) but is not a source module here: its
-# serena_integration module imports frontmatter and yaml behind
+# frontmatter_reader module imports frontmatter and yaml behind
 # `except ImportError` guards. Adding it would need ignore entries, and this
 # list is a shrink-only baseline. The blocked-import test
 # tests/hooks/test_memory_recall_closure_blocked_imports.py enforces the guards.

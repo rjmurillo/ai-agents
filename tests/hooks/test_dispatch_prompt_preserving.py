@@ -27,8 +27,14 @@ OTHER = "userpromptsubmit-1-other"
 SHIM = "UserPromptSubmit/s.py"
 
 
-def _group(monkeypatch: pytest.MonkeyPatch, *, self_hosts: bool = False) -> None:
-    monkeypatch.setattr(entry, "_load_group", lambda _g: ("UserPromptSubmit", "gate_all", [SHIM]))
+def _group(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    self_hosts: bool = False,
+    event: str = "UserPromptSubmit",
+    mode: str = "gate_all",
+) -> None:
+    monkeypatch.setattr(entry, "_load_group", lambda _g: (event, mode, [SHIM]))
     monkeypatch.setattr(entry, "_project_self_hosts_plugin", lambda: self_hosts)
 
 
@@ -65,21 +71,40 @@ def test_manifest_load_failure(monkeypatch, capsys, group, expected) -> None:
     assert len(_status_lines(capsys.readouterr().err)) == 1
 
 
-@pytest.mark.parametrize(("group", "expected"), [(RECALL, 0), (OTHER, 2)])
-def test_self_host_check_exception(monkeypatch, capsys, group, expected) -> None:
-    _group(monkeypatch)
-
+def _explode_self_host(monkeypatch: pytest.MonkeyPatch) -> list[object]:
     def explode() -> bool:
         raise OSError("boom")
 
     monkeypatch.setattr(entry, "_project_self_hosts_plugin", explode)
     ran: list[object] = []
     monkeypatch.setattr(entry, "run_group", lambda *a, **k: ran.append(a) or 0)
+    return ran
 
-    code = entry.main(["--group", group])
 
-    assert code == expected
-    assert len(_status_lines(capsys.readouterr().err)) == 1
+def test_self_host_check_exception_fails_open_for_the_recall_group(monkeypatch, capsys) -> None:
+    _group(monkeypatch)
+    ran = _explode_self_host(monkeypatch)
+
+    code = entry.main(["--group", RECALL])
+
+    (line,) = _status_lines(capsys.readouterr().err)
+    assert code == 0
+    assert "self-host check failed" in line and "OSError: boom" in line
+    assert ran == []
+
+
+def test_control_self_host_check_exception_still_blocks_an_unreserved_group(
+    monkeypatch, capsys
+) -> None:
+    """An observe group reaches the self-host check, so this is the same failure."""
+    _group(monkeypatch, event="SessionStart", mode="observe")
+    ran = _explode_self_host(monkeypatch)
+
+    code = entry.main(["--group", OTHER])
+
+    (line,) = _status_lines(capsys.readouterr().err)
+    assert code == 2
+    assert "self-host check failed" in line and "OSError: boom" in line
     assert ran == []
 
 
@@ -268,3 +293,27 @@ def test_control_an_unreserved_id_on_another_event_still_runs(
     entry.main(["--group", OTHER])
 
     assert marker.exists()
+
+
+def test_advisory_flag_on_the_recall_group_exits_zero_and_says_allowing(
+    monkeypatch, capsys
+) -> None:
+    _group(monkeypatch)
+
+    code = entry.main(["--group", RECALL, "--advisory"])
+
+    (line,) = _status_lines(capsys.readouterr().err)
+    assert code == 0
+    assert "allowing" in line and "denying" not in line
+
+
+def test_control_advisory_flag_on_an_unreserved_non_stop_group_says_denying(
+    monkeypatch, capsys
+) -> None:
+    _group(monkeypatch)
+
+    code = entry.main(["--group", OTHER, "--advisory"])
+
+    (line,) = _status_lines(capsys.readouterr().err)
+    assert code == 2
+    assert "denying" in line

@@ -449,13 +449,12 @@ def _run_group(
 
             if outcome.decision is not None:
                 if mode == OBSERVE or advisory or suppress_decision:
-                    label = (
-                        "advisory"
-                        if advisory
-                        else "observe"
-                        if mode == OBSERVE
-                        else "prompt-preserving"
-                    )
+                    if advisory:
+                        label = "advisory"
+                    elif mode == OBSERVE:
+                        label = "observe"
+                    else:
+                        label = "prompt-preserving"
                     print(
                         f"claude-hook-dispatch: shim {name} emitted a valid "
                         f"blocking decision; suppressing decision in {label} mode",
