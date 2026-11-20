@@ -1487,9 +1487,11 @@ _CSHARP_ATTRIBUTE_CONTEXT = frozenset(";{}(,")
 # "[", "(" (a tuple return type), "~" (a finalizer), or the snippet end. A
 # collection expression or list pattern is followed by ")", ",", ";", ".",
 # "=", "=>", an operator, or a keyword such as "is" or "when", so it does not
-# qualify.
+# qualify. A list pattern in a switch arm can be followed by a designation
+# name, but that name is followed by "=>" or "when"; a declaration's is not.
 _CSHARP_ATTRIBUTE_FOLLOWER_RE = re.compile(
-    r"\s*(?:\Z|[@\[(~]|(?!(?:is|as|when|and|or|not|with|switch)\b)[A-Za-z_])"
+    r"\s*(?:\Z|[@\[(~]|(?!(?:is|as|when|and|or|not|with|switch)\b)"
+    r"[A-Za-z_]\w*\b(?!\s*(?:=>|when\b)))"
 )
 
 # Inside a section, a name right after "(" or "," and before "=" or ":"

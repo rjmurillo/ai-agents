@@ -398,24 +398,27 @@ class TestCsharpLiteralAndAttributeArguments:
         ("var d = new Dictionary<K, int> {\n    [Key(FakeName: 1)] = 2,\n};", "FakeName"),
         ("handlers[i](FakeParam: 1);", "FakeParam"),
         ('var s = $"{\n/* " */ var z = FakeWidget.Go();', "FakeWidget"),
+        ("var r = arr switch {\n    [Point(FakeX: 1), ..] rest => 1,\n};", "FakeX"),
+        ("var r = xs switch { [] => 0,\n    [Point(FakeX: 1)] one when ok => 1 };", "FakeX"),
         ('var s = $@"{a // don\'t\n} {FakeWidget.Go()}";', "FakeWidget"),
     )
 
     # Real attribute sections whose named arguments are blanked.
     ATTRIBUTE_FORMS = (
-        '[DllImport("k", EntryPoint = "B")] /* x */ static extern void F();',
-        "[Benchmark(EntryPoint = true)]\n(int, int) Compute() {}",
-        "class C {\n    [Attr(EntryPoint = 1)]\n    ~C() {}\n}",
-        "// leading comment\n[Attr(EntryPoint = 1)]\npublic void M() {}",
-        "void A() {}\n[Attr(EntryPoint = 1)]\n[Other]\npublic void M() {}",
+        ('[DllImport("k", EntryPoint = "B")] /* x */ static extern void F();', "DllImport"),
+        ("[Benchmark(EntryPoint = true)]\n(int, int) Compute() {}", "Benchmark"),
+        ("class C {\n    [Attr(EntryPoint = 1)]\n    ~C() {}\n}", "Attr"),
+        ("// leading comment\n[Attr(EntryPoint = 1)]\npublic void M() {}", "Attr"),
+        ("void A() {}\n[Other]\n[Attr(EntryPoint = 1)]\npublic void M() {}", "Attr"),
+        ('enum E {\n    [Display(EntryPoint = "r")] Red,\n}', "Display"),
     )
 
     def test_attribute_forms_blank_named_arguments(self) -> None:
-        for code in self.ATTRIBUTE_FORMS:
+        for code, attribute in self.ATTRIBUTE_FORMS:
             result = _extract_identifiers(code, "csharp")
 
             assert "EntryPoint" not in result, code
-            assert "Attr" in result or "DllImport" in result or "Benchmark" in result, code
+            assert attribute in result, code
 
     def test_recursion_limit_falls_back_to_unblanked_code(self) -> None:
         code = '$"{' * 2000 + '"Quoted" [Attr(Named = 1)]' + '}"' * 2000
