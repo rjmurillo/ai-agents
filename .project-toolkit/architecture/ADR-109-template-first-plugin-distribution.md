@@ -261,10 +261,14 @@ Rollback: revert the PR, run `uv run python build/scripts/build_all.py`, and con
 The `prompts` manifest row and its generator are gone.
 The owner collapsed the seven `pr-quality` skills into one `pr-quality` skill.
 That skill reads the `review` skill's `references/` files directly.
-Only their own drift guards and guard tests read the twelve generated `.github/prompts/pr-quality-gate-*.md` copies.
+Before this change, the copies' drift guards and two content tests read the twelve generated `.github/prompts/pr-quality-gate-*.md` files.
+The tests are `test_codeql_wiring.py` and `test_context_mode_enforcement.py`.
+The guards were deleted, and the tests keep only their checks on the `review` skill's references.
+The forensic `validate_seed_parity.py` reads the copies at a pinned commit.
 The copies, the generator, its CI drift step, and its lefthook job were deleted together.
 The user-invoked `.github/prompts/*.prompt.md` files that duplicated skills went too.
-Skills and agents are now the only user-invoked prompt surfaces.
+Nine of the ten `.github/prompts/*.prompt.md` files went.
+The tenth, `metrics-analysis.prompt.md`, stays as an input the `ai-metrics-analysis.yml` workflow reads.
 Workflow input files under `.github/prompts/` stay, and no workflow that reads them changed.
 `validate-generated-agents.yml` lost only its drift-check step.
 
