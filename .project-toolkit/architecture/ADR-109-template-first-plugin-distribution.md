@@ -298,7 +298,7 @@ Workflow input files under `.github/prompts/` stay, and no workflow that reads t
 - PR #5741 (open): second-wave skill templating, batch 1; when it merges, the "18 of 111" count above changes and B3's remaining count drops with it.
 - PRs #5724, #5726, #5731 (ADR-108's three merged PRs, `repo-observed`: `git log --oneline` showing `5159f30da`, `02f7a589b`, `8a79d7e83`), #5739, #5740 (two further skill-templating PRs the same day, `repo-observed`: `fcc5ea0cc`, `915281c25`).
 - `.claude/rules/claude-agents.md:24`, the 173-commit, 54-commit, 31% measurement and the asymmetric co-change demonstration.
-- `.claude/rules/generated-artifacts.md:159-197`, "Generator order: sync before build," the lib ordering hazard and its explicit rejection of the naive fix.
+- `.claude/rules/generated-artifacts.md:159-197`, "Generator order: sync before build," the lib ordering hazard and its explicit rejection of the naive fix. <!-- citation-freshness: ignore -- historical quote: the section was rewritten as Generator order: one command, not a sequence, now at generated-artifacts.md line 171, and no longer holds the quoted text -->
 - `.claude/rules/plugin-self-containment.md`, the plugin-root boundary and the three current plugin roots.
 - `src/claude/skills/agent-harness-reference/references/official-hook-contracts.md:51` (Configuration contract table, repository hook files) and `:316-324` (Cloud agent section, loads only `.github/hooks/*.json`, ignores installed plugins).
 - `.project-toolkit/architecture/ADR-097-zero-tool-use-hooks.md:96-98`, why the plugin `hooks.json` is `"hooks": {}`. (2026-11-04: the file now lives at `src/claude/hooks/hooks.json` and registers one advisory Stop group; see the section 2 amendment.)

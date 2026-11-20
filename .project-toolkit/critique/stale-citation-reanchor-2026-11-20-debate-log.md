@@ -2,7 +2,7 @@
 
 ## Summary
 
-- **Rounds**: 4 of 10
+- **Rounds**: 5 of 10
 - **Outcome**: Consensus
 - **Final Status**: unchanged (the edit changes no ADR status or decision)
 - **Scope**: line-number citations in ADR-036, ADR-052, ADR-080, ADR-083, ADR-096, ADR-101,
@@ -108,6 +108,28 @@ citations in these ADRs failed it after round 3.
 | critic | Block on one item: ADR-080 line 58 was correct at its citing commit and only moved two lines. Fixed to `:160-186`. All other items accepted. |
 
 Both required changes were applied as given.
+
+## Round 5 Summary
+
+The gate then flagged three more citations beside the round 4 edits. Each keeps its number
+with a reasoned same-line marker.
+
+### Key Issues Addressed
+
+- ADR-080 line 58: lines 160 to 186 hold `build_child_argv`, an exact match. The gate pairs
+  the next citation's anchor with this range, a false anchor.
+- ADR-108 line 166: at blame commit `5159f30da` the cited test line asserted that
+  `@CLAUDE.md` is present. HEAD lines 168 and 172 assert it is absent. The row records the
+  state before the pilot.
+- ADR-109 line 301 quotes the section "Generator order: sync before build". That section is now
+  "Generator order: one command, not a sequence" at line 171, and the quoted text is gone.
+
+### Agent Positions
+
+| Agent | Position |
+|-------|----------|
+| architect | Accept. All three reasons verified against the blame commits and HEAD. |
+| critic | Accept. All three reasons hold. The diff matches the reviewed artifact byte for byte. |
 
 ## Decision
 
