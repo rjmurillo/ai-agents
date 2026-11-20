@@ -26,6 +26,41 @@ def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
     return subprocess.CompletedProcess(args=[], returncode=rc, stdout=stdout, stderr=stderr)
 
 
+def _close_open_pr_with_comment(comment_args: list[str]) -> tuple[int, int]:
+    """Close an OPEN PR that has no earlier comment; return (exit code, gh calls).
+
+    The gh calls answer in order: PR state, the comment lookup page, then
+    success for posting the comment and closing the PR.
+    """
+    state_json = json.dumps({"state": "OPEN"})
+    call_count = 0
+
+    def _side_effect(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return _completed(stdout=state_json, rc=0)
+        if call_count == 2:
+            return _completed(stdout="[[]]", rc=0)
+        return _completed(rc=0)
+
+    with (
+        patch(
+            "close_pr.assert_gh_authenticated",
+        ),
+        patch(
+            "close_pr.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ),
+        patch(
+            "subprocess.run",
+            side_effect=_side_effect,
+        ),
+    ):
+        rc = main(["--pull-request", "50", *comment_args])
+    return rc, call_count
+
+
 # Tests: build_parser
 
 
@@ -166,39 +201,7 @@ class TestMain:
         assert output["action"] == "closed"
 
     def test_close_with_comment(self, capsys):
-        state_json = json.dumps({"state": "OPEN"})
-        call_count = 0
-
-        def _side_effect(*args, **kwargs):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                return _completed(stdout=state_json, rc=0)
-            if call_count == 2:
-                return _completed(stdout="[[]]", rc=0)
-            return _completed(rc=0)
-
-        with (
-            patch(
-                "close_pr.assert_gh_authenticated",
-            ),
-            patch(
-                "close_pr.resolve_repo_params",
-                return_value=RepoInfo(owner="o", repo="r"),
-            ),
-            patch(
-                "subprocess.run",
-                side_effect=_side_effect,
-            ),
-        ):
-            rc = main(
-                [
-                    "--pull-request",
-                    "50",
-                    "--comment",
-                    "Superseded by #51",
-                ]
-            )
+        rc, call_count = _close_open_pr_with_comment(["--comment", "Superseded by #51"])
         assert rc == 0
         assert call_count == 4
         output = json.loads(capsys.readouterr().out)
@@ -236,39 +239,7 @@ class TestMain:
     def test_comment_file_used(self, tmp_path, capsys):
         comment_file = tmp_path / "reason.md"
         comment_file.write_text("Closing because superseded")
-        state_json = json.dumps({"state": "OPEN"})
-        call_count = 0
-
-        def _side_effect(*args, **kwargs):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                return _completed(stdout=state_json, rc=0)
-            if call_count == 2:
-                return _completed(stdout="[[]]", rc=0)
-            return _completed(rc=0)
-
-        with (
-            patch(
-                "close_pr.assert_gh_authenticated",
-            ),
-            patch(
-                "close_pr.resolve_repo_params",
-                return_value=RepoInfo(owner="o", repo="r"),
-            ),
-            patch(
-                "subprocess.run",
-                side_effect=_side_effect,
-            ),
-        ):
-            rc = main(
-                [
-                    "--pull-request",
-                    "50",
-                    "--comment-file",
-                    str(comment_file),
-                ]
-            )
+        rc, call_count = _close_open_pr_with_comment(["--comment-file", str(comment_file)])
         assert rc == 0
         assert call_count == 4
 

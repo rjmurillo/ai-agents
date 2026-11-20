@@ -24,14 +24,7 @@ import pytest
 
 _needs_git = pytest.mark.skipif(shutil.which("git") is None, reason="git CLI not installed")
 
-TESTS_SKILLS_DIR = str(Path(__file__).resolve().parents[1])
-PROJECT_ROOT = str(Path(__file__).resolve().parents[3])
-if TESTS_SKILLS_DIR not in sys.path:
-    sys.path.insert(0, TESTS_SKILLS_DIR)
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
-
-from claude_skills_import import import_skill_script
+from tests.skills.claude_skills_import import PROJECT_ROOT, import_skill_script
 
 mod = import_skill_script(
     ".claude/skills/review/scripts/validate_findings_scope.py",

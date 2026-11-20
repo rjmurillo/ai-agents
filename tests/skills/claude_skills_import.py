@@ -35,3 +35,15 @@ def import_skill_script(relative_path: str, module_name: str | None = None) -> o
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def import_cached_module(relative_path: str, module_name: str) -> object:
+    """Return the module registered as ``module_name``, importing it by path once.
+
+    Several test files share one helper module. Reusing the registered copy
+    keeps every file patching the same module object.
+    """
+    cached = sys.modules.get(module_name)
+    if cached is not None:
+        return cached
+    return import_skill_script(relative_path, module_name)
