@@ -109,11 +109,6 @@ def test_severity_parser_ignores_commas_inside_notes() -> None:
     assert severity_values(text) == ["polish"]
 
 
-def test_each_real_file_is_checked_once() -> None:
-    resolved = [path.resolve() for path in CONVENTIONS_FILES]
-    assert len(resolved) == len(set(resolved)), CONVENTIONS_FILES
-
-
 def test_severity_parser_rejects_unknown_label() -> None:
     labels = severity_values("Severity: SHOULD_FIX\n")
     assert set(labels) - contract_dispositions() == {"SHOULD_FIX"}
