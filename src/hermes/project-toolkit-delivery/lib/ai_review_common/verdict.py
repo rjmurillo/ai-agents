@@ -560,8 +560,8 @@ def adapt_local_axis_verdict(
         return "UNKNOWN"
 
     # golden-principles and taste-lints ship one exit-code contract, stated
-    # identically in .claude/skills/golden-principles/SKILL.md:90-96 and
-    # .claude/skills/taste-lints/SKILL.md:100-106:
+    # identically in the Exit Codes tables of
+    # .claude/skills/golden-principles/SKILL.md and .claude/skills/taste-lints/SKILL.md:
     #   | 0 | No violations found |
     #   | 1 | Script error (bad arguments, file not found) |
     #   | 10 | Violations detected |
@@ -595,7 +595,7 @@ def adapt_local_axis_verdict(
         return "UNKNOWN"
     # Both scanners derive that status from this very field: `if
     # result.error_count > 0: return EXIT_VIOLATIONS` then `return
-    # EXIT_SUCCESS` (scan_principles.py:455-457, taste_lints.py:1122-1124).
+    # EXIT_SUCCESS` (scan_principles.py main(), taste_lints.py main()).
     # Exit 10 and a positive error_count are therefore one condition, so a
     # disagreement means the status and the payload describe different runs
     # and neither is evidence.

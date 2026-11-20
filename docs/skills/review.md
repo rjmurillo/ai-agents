@@ -53,7 +53,7 @@ How the verdict forms:
 
 1. Stage 1 is the `spec-compliance` gate. A Stage-1 `CRITICAL_FAIL` stops the review. Every other axis shows `SKIPPED`. A Stage-1 `UNKNOWN` (no spec found) does not stop it.
 2. Stage 2 runs the axes that `select_axes.py` picks from the changed paths and diff effects. `analyst` always runs. Callers can pin more axes.
-3. Local-only axes (`code-qualities-assessment`, `doc-accuracy`, `golden-principles`, `taste-lints`) run as sibling skills after the canonical axes.
+3. Local-only axes (`code-qualities-assessment`, `doc-accuracy`, `golden-principles`, `taste-lints`) run as sibling skills after the canonical axes. In a repository without `.agents/governance/golden-principles.md`, a new shell script yields `WARN` on the `golden-principles` axis, not `FAIL`.
 4. A deep review runs every canonical axis. Ask for a "deep" or "full" review, or run it as a pre-merge gate.
 
 The canonical axes are `analyst`, `architect`, `qa`, `security`, `devops`, `roadmap`, `reliability`, `observability`, `agent-safety`, `decision-rigor`, and `code-quality`. Each has a prompt at `references/<axis>.md`.

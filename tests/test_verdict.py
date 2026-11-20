@@ -1150,7 +1150,7 @@ class TestAdaptLocalAxisVerdict:
         """Exit 10 with no errors contradicts the scanner's own gate.
 
         Both scanners return EXIT_VIOLATIONS from `error_count > 0` alone
-        (scan_principles.py:455-457, taste_lints.py:1122-1124), so this pair
+        (scan_principles.py main(), taste_lints.py main()), so this pair
         cannot come from one run.
         """
         payload = lint_payload(warning_count=2)
