@@ -4,7 +4,8 @@
 Covers the pending-retro skeleton reminder added for Issue #2079: counting
 unfilled skeletons by their RETRO-STATE marker, capping by filename date,
 extracting fill dates, and surfacing the reminder in the injected context.
-Also pins that no retrospective content is injected (Issues #7471, #7472).
+No-injection and audit behavior of main() lives in
+test_context_loader_no_injection.py.
 """
 
 from __future__ import annotations
@@ -424,123 +425,6 @@ def test_main_no_reminder_when_skeleton_stale() -> None:
 
         # Assert
         assert "need completion" not in out
-
-
-def _write_retrospective(retro_dir: Path, filename: str, body: str) -> Path:
-    retro_dir.mkdir(parents=True, exist_ok=True)
-    path = retro_dir / filename
-    path.write_text(body, encoding="utf-8")
-    return path
-
-
-def test_main_does_not_inject_retrospective_content(tmp_path: Path) -> None:
-    """A fresh, filled retrospective is no longer injected into the session."""
-    # Arrange
-    (tmp_path / ".agents").mkdir()
-    retro_dir = tmp_path / ".project-toolkit" / "retrospective"
-    _write_retrospective(
-        retro_dir,
-        f"{_date_days_ago(0)}-sweep.md",
-        "# Retrospective: sweep\n\nRETRO_BODY_SENTINEL\n",
-    )
-
-    # Act
-    out = _run_main_with_project(tmp_path)
-
-    # Assert
-    assert "RETRO_BODY_SENTINEL" not in out
-    assert "Latest Retrospective" not in out
-    assert out == ""
-
-
-def test_main_reminder_carries_no_retrospective_content(tmp_path: Path) -> None:
-    """With a pending skeleton and a filled retro, only the reminder is emitted."""
-    # Arrange
-    (tmp_path / ".agents").mkdir()
-    retro_dir = tmp_path / ".project-toolkit" / "retrospective"
-    skeleton_date = _date_days_ago(0)
-    _write_skeleton(retro_dir, skeleton_date)
-    _write_retrospective(
-        retro_dir,
-        f"{_date_days_ago(1)}-sweep.md",
-        "# Retrospective: sweep\n\nRETRO_BODY_SENTINEL\n",
-    )
-
-    # Act
-    out = _run_main_with_project(tmp_path)
-
-    # Assert
-    assert out.startswith("## ⏳ 1 retro(s) need completion")
-    assert "RETRO_BODY_SENTINEL" not in out
-    assert "filled content" not in out
-
-
-def test_main_emits_nothing_when_retro_dir_is_missing(tmp_path: Path) -> None:
-    # Arrange
-    (tmp_path / ".agents").mkdir()
-
-    # Act
-    out = _run_main_with_project(tmp_path)
-
-    # Assert
-    assert out == ""
-
-
-def test_main_ignores_skeletons_behind_a_symlinked_project_toolkit(tmp_path: Path) -> None:
-    """A symlinked ``.project-toolkit`` must not leak an outside skeleton (CWE-59)."""
-    # Arrange
-    project_dir = tmp_path / "project"
-    (project_dir / ".agents").mkdir(parents=True)
-    outside_toolkit = tmp_path / "outside-toolkit"
-    _write_skeleton(outside_toolkit / "retrospective", _date_days_ago(0))
-    _symlink_or_skip(project_dir / ".project-toolkit", outside_toolkit)
-
-    # Act
-    out = _run_main_with_project(project_dir)
-
-    # Assert
-    assert out == ""
-
-
-def test_main_counts_skeletons_in_a_real_project_toolkit(tmp_path: Path) -> None:
-    """Control for the symlink case: the same layout without a link is counted."""
-    # Arrange
-    project_dir = tmp_path / "project"
-    (project_dir / ".agents").mkdir(parents=True)
-    _write_skeleton(project_dir / ".project-toolkit" / "retrospective", _date_days_ago(0))
-
-    # Act
-    out = _run_main_with_project(project_dir)
-
-    # Assert
-    assert "1 retro(s) need completion" in out
-
-
-def test_main_audit_log_records_pending_count(tmp_path: Path) -> None:
-    # Arrange
-    (tmp_path / ".agents").mkdir()
-    _write_skeleton(tmp_path / ".project-toolkit" / "retrospective", _date_days_ago(0))
-
-    # Act
-    _run_main_with_project(tmp_path)
-
-    # Assert
-    logs = list((tmp_path / ".project-toolkit" / ".hook-state").glob("context-loader-*.log"))
-    assert len(logs) == 1
-    assert "Loaded: pending-retros:1" in logs[0].read_text(encoding="utf-8")
-
-
-def test_main_audit_log_records_none_when_nothing_pending(tmp_path: Path) -> None:
-    # Arrange
-    (tmp_path / ".agents").mkdir()
-
-    # Act
-    _run_main_with_project(tmp_path)
-
-    # Assert
-    logs = list((tmp_path / ".project-toolkit" / ".hook-state").glob("context-loader-*.log"))
-    assert len(logs) == 1
-    assert "Loaded: (none)" in logs[0].read_text(encoding="utf-8")
 
 
 if __name__ == "__main__":
