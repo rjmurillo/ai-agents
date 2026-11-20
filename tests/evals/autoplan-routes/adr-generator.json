@@ -136,6 +136,20 @@
         ]
       },
       "rationale": "Spelled-out amendment requests reach adr-generator after the bare intent was narrowed."
+    },
+    {
+      "id": "lt-adr-generator-spelled-out-supersede",
+      "family": "long-tail-single-domain",
+      "request": "Supersede this architecture decision record with one that keeps the queue.",
+      "expect": {
+        "kind": "specialist",
+        "route": "adr-generator",
+        "routes_absent": [
+          "orchestrator",
+          "adr-review"
+        ]
+      },
+      "rationale": "Spelled-out supersede requests reach adr-generator through the supersede architecture decision record intent."
     }
   ]
 }

@@ -31,12 +31,14 @@ Checks, each named so the baseline tracks them separately:
   least one phrase but declares no `intents`. The deterministic resolver cannot
   reach it, so every phrase routes only if a model happens to read the
   description. `adr-generator` sat in this state until 2026-11-19, when 56 of
-  67 sessions that wrote an ADR never invoked it. The identity's phrase field
-  is the first advertised phrase.
+  67 sessions that wrote an ADR never invoked it. The check records one
+  identity per advertised phrase that does not route to the skill, so a
+  baselined skill cannot add an unroutable phrase under an older entry.
 
 Resolver use: the resolver's own `main` is loaded from its file path and called
 with `--request` and `--skills-root`, the way `scripts/eval/eval_autoplan_routes.py`
-does. Routes may be namespaced (`project-toolkit:adr-generator`); the bare name
+does. Skills are listed from `.claude/skills`, but phrases resolve against
+`src/claude/skills`, the catalog autoplan's default invocation reads. Routes may be namespaced (`project-toolkit:adr-generator`); the bare name
 after the colon is compared.
 
 Ratchet: `skill_trigger_resolution_baseline.json` holds `(check, skill, phrase)`
