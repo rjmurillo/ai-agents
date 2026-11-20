@@ -147,3 +147,9 @@ class TestAsAdvisory:
         assert (advisory.file, advisory.line, advisory.message) == ("x.sh", 0, "m")
         assert "Advisory only" in advisory.remediation
         assert original.severity == "error"
+
+
+def test_this_repository_adopts_the_principles() -> None:
+    # Guard: if the document moves, GP-001 would silently become advisory here.
+    repo_root = Path(__file__).resolve().parents[3]
+    assert core.repo_adopts_principles(str(repo_root)) is True

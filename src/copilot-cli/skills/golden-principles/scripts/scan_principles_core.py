@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # taste-lint: ignore file-size -- git diff-line helpers added for #4007 pushed
-# this file from 440 to 513 lines, and the #7483 opt-in helpers to about 550.
-# They cannot be extracted without circular imports: they depend on _git_root,
+# this file past 500 lines, and the #7483 opt-in helpers added to it. They
+# cannot be extracted without circular imports: they depend on _git_root,
 # _GIT_TIMEOUT_SECONDS, is_safe_path, and subprocess, all defined here. A
 # further split is tracked separately.
 """Core types, utilities, and git helpers for the golden-principles scanner.
@@ -49,6 +49,7 @@ __all__ = [
     "GOVERNANCE_DOC",
     "REPO_POLICY_RULES",
     "repo_adopts_principles",
+    "base_adopts_principles",
     "as_advisory",
 ]
 
@@ -379,6 +380,27 @@ def repo_adopts_principles(root: str | None) -> bool:
     return root is not None and Path(root, GOVERNANCE_DOC).is_file()
 
 
+def base_adopts_principles(base: str) -> bool:
+    """Return True when the diff base commit carries the governance document.
+
+    A branch that deletes the document must not exempt its own changes, so a
+    diff-scoped scan treats the repository as adopting when either side does.
+    ``base`` was already validated by ``get_diff_files``. Any git failure
+    reads as "not adopted at base"; HEAD is still checked by the caller.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "cat-file", "-e", f"{base}:{GOVERNANCE_DOC}"],
+            capture_output=True,
+            check=False,
+            cwd=_git_root(),
+            timeout=_GIT_TIMEOUT_SECONDS,
+        )
+    except (OSError, RuntimeError, subprocess.TimeoutExpired):
+        return False
+    return result.returncode == 0
+
+
 def as_advisory(violation: Violation) -> Violation:
     """Downgrade a repository-policy violation to an advisory warning."""
     return replace(
@@ -386,7 +408,7 @@ def as_advisory(violation: Violation) -> Violation:
         severity="warning",
         remediation=(
             "AGENT_REMEDIATION: Advisory only. This repository has no "
-            f"{GOVERNANCE_DOC}, so the golden-principles script-language policy "
+            f"{GOVERNANCE_DOC}, so the golden-principles {violation.rule} policy "
             "does not bind it. No change is required."
         ),
     )

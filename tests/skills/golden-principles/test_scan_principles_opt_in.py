@@ -37,7 +37,14 @@ EXIT_VIOLATIONS = mod.EXIT_VIOLATIONS
 
 def _run_git(repo: Path, *args: str) -> None:
     """Run a git command in the given repo, failing loudly on error."""
-    subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True, encoding="utf-8")
+    subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+    )
 
 
 def _make_repo_with_diff(repo: Path, *, adopts_principles: bool) -> None:
@@ -168,10 +175,71 @@ class TestRepositoryPolicyOptIn:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         # No repository root means no governance document: advisory, exit 0.
+        # Patch the root lookup so a governed checkout above tmp_path cannot leak in.
         (tmp_path / "tool.sh").write_text("echo hi\n", encoding="utf-8")
         monkeypatch.chdir(tmp_path)
+        argv = ["scan_principles.py", "--directory", str(tmp_path)]
 
-        with patch("sys.argv", ["scan_principles.py", "--directory", str(tmp_path)]):
+        with patch.object(mod, "_find_repo_root", return_value=None), patch("sys.argv", argv):
             rc = main()
 
         assert rc == EXIT_SUCCESS
+
+    def test_branch_deleting_document_still_fails(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        # The base adopted the rule; the branch cannot exempt itself by deleting it.
+        _make_repo_with_diff(tmp_path, adopts_principles=True)
+        _run_git(tmp_path, "rm", "-q", core.GOVERNANCE_DOC)
+        _run_git(tmp_path, "commit", "-m", "drop governance doc")
+
+        rc, payload = _scan_new_shell_script(tmp_path, monkeypatch, capsys)
+
+        assert rc == EXIT_VIOLATIONS
+        assert payload["principles_adopted"] is True
+
+    def test_branch_adding_document_enforces_on_itself(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        _make_repo_with_diff(tmp_path, adopts_principles=False)
+        doc = tmp_path / core.GOVERNANCE_DOC
+        doc.parent.mkdir(parents=True)
+        doc.write_text("# Golden principles\n", encoding="utf-8")
+        _run_git(tmp_path, "add", core.GOVERNANCE_DOC)
+        _run_git(tmp_path, "commit", "-m", "adopt governance doc")
+
+        rc, _ = _scan_new_shell_script(tmp_path, monkeypatch, capsys)
+
+        assert rc == EXIT_VIOLATIONS
+
+    def test_named_files_read_opt_in_from_their_repo(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _make_repo_with_diff(repo, adopts_principles=True)
+        script = repo / "tool.sh"
+        script.write_text("echo hi\n", encoding="utf-8")
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        monkeypatch.chdir(outside)
+
+        with patch("sys.argv", ["scan_principles.py", str(script)]):
+            rc = main()
+
+        assert rc == EXIT_VIOLATIONS
+
+    def test_base_adoption_is_false_for_unknown_base(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _make_repo_with_diff(tmp_path, adopts_principles=True)
+        monkeypatch.chdir(tmp_path)
+
+        assert core.base_adopts_principles("main") is True
+        assert core.base_adopts_principles("no-such-ref") is False

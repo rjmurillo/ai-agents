@@ -46,6 +46,7 @@ from scan_principles_core import (  # noqa: E402
     _git_root,
     _has_path_parts,
     as_advisory,
+    base_adopts_principles,
     check_agent_definition,
     check_script_language,
     get_diff_files,
@@ -283,7 +284,8 @@ def run_scan(
     """Run golden principle scan on the given files.
 
     When ``principles_adopted`` is False, REPO_POLICY_RULES findings are
-    downgraded to warnings (issue #7483).
+    downgraded to warnings (issue #7483). The default enforces them; the CLI
+    passes the scanned repository's adoption state instead.
     """
     result = ScanResult(principles_adopted=principles_adopted)
 
@@ -390,6 +392,21 @@ def _find_repo_root(start: Path | None = None) -> str | None:
     return None
 
 
+def _collect_local_scope(directory: str | None, paths: list[str]) -> tuple[list[str], bool]:
+    """Return the files to scan and whether their repository adopts GP rules.
+
+    The repository is the one holding the scanned directory, else the first
+    named file, else the current directory.
+    """
+    if directory:
+        root = _find_repo_root(Path(directory))
+        return get_repo_files(directory), repo_adopts_principles(root)
+    if paths:
+        return paths, repo_adopts_principles(_find_repo_root(Path(paths[0]).parent))
+    root = _find_repo_root()
+    return get_repo_files(root or "."), repo_adopts_principles(root)
+
+
 _HELP_EPILOG = """\
 examples:
   %(prog)s --directory .
@@ -444,27 +461,22 @@ def main() -> int:
 
     files: list[str] = []
     diff_lines: dict[str, set[int]] | None = None
-    repo_root = _find_repo_root(Path(args.directory) if args.directory else None)
     if args.diff_scope is not None:
         try:
             files = get_diff_files(args.diff_scope)
             diff_lines = get_diff_line_numbers(args.diff_scope)
-            repo_root = _git_root()
+            adopted = repo_adopts_principles(_git_root()) or base_adopts_principles(args.diff_scope)
         except (ValueError, RuntimeError) as exc:
             print(f"golden-principles: {exc}", file=sys.stderr)
             return EXIT_ERROR
-    elif args.directory:
-        files = get_repo_files(args.directory)
-    elif args.files:
-        files = args.files
     else:
-        files = get_repo_files(repo_root or ".")
+        files, adopted = _collect_local_scope(args.directory, args.files)
 
     if not files:
         print("golden-principles: no files to scan.")
         return EXIT_SUCCESS
 
-    result = run_scan(files, rules, diff_lines, repo_adopts_principles(repo_root))
+    result = run_scan(files, rules, diff_lines, adopted)
 
     output = format_json(result) if args.format == "json" else format_text(result)
 
