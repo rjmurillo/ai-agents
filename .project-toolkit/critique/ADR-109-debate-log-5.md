@@ -1,18 +1,16 @@
-# ADR Debate Log: citation refresh in ADR-100, ADR-102, and ADR-109
+# ADR Debate Log: ADR-109 amendment, PR-quality prompt subset retired
 
 ## Summary
 
-- **Rounds**: 3 of 10
+- **Rounds**: 1 of 10
 - **Prior debate log**: `.project-toolkit/critique/ADR-109-debate-log-4.md` (closed)
-- **ADRs covered**: ADR-100, ADR-102, ADR-109
 - **Outcome**: Consensus
-- **Final Status**: unchanged (no ADR status edit)
+- **Final Status**: accepted
 
-This branch deleted lines from `git_hook_policy.py` and moved other cited files.
-The citation reverse pass then flagged seven ADR citations as stale.
-Round 3 covers ten ADR-102 References lines that the gate checked next to the edit.
-The edit touches citations only, so the reduced panel ran (architect and critic).
-No decision text, status, or rule changed.
+The change adds "Amendment 2026-11-19: the PR-quality prompt subset is retired".
+It replaces two citations of the deleted prompt generator with a pointer to that amendment.
+The ADR lifecycle gate (`cited-paths-exist`) fails on a citation to a deleted file.
+The edit is prose and records a retirement the same change makes, so the reduced panel ran.
 
 ## Round 1 Summary
 
@@ -20,77 +18,24 @@ No decision text, status, or rule changed.
 
 | Agent | Vote |
 |-------|------|
-| architect | Block |
-| critic | Block |
-
-### Key Issues
-
-| # | Issue | Pri | Resolution |
-|---|-------|-----|------------|
-| 1 | ADR-100 lines 45, 256, and 436 cite a commit-limit gate that no longer exists. The refreshed numbers pointed at unrelated code. | P0 | Original numbers restored. Each line carries a reasoned ignore marker that names the revision it describes. |
-| 2 | ADR-102 lines 221 and 355 cited debate-log placeholder code at `:1949`. | P0 | Both now cite `git_hook_policy.py:2774`, which passes the mode flags. |
-| 3 | ADR-100 line 256 also cites `:6727`, which is stale. | P1 | The line marker covers it and names `72f0e6309`. |
-| 4 | ADR-109 B1 could cite `validate_install_parity.py:149` instead of a marker. | P2 | Kept the marker. The row records the regex B1 rewrote, which no longer exists. |
-| 5 | The reverse pass follows moved text, not meaning, so it can "fix" a dead citation. | P2 | Out of scope here. Flagged in the PR body. |
-
-## Round 2 Summary
-
-### Votes
-
-| Agent | Vote |
-|-------|------|
 | architect | Accept |
-| critic | Accept |
-
-### Key Issues
-
-| # | Issue | Pri | Resolution |
-|---|-------|-----|------------|
-| 1 | The ADR-100 markers named the wrong revision. | P2 | Each marker now names its revision. Lines 45 and 436 match `ba541c21f` (2026-08-20). Line 256 matches `ba541c21f` and `72f0e6309` (2026-09-08). |
-
-### Claims Checked
-
-| Claim | Result |
-|---|---|
-| `git_hook_policy.py:2774` passes `--pre-commit` and `--existing-log` | VERIFIED |
-| `23ad6e429` (2026-09-22) deleted the commit-limit gate | VERIFIED |
-| `3487d2f69` (2026-08-21) removed the bypass-label comment | VERIFIED |
-| `ba541c21f` holds `:6055-6070`, `:6122`, and `:5604` as cited | VERIFIED |
-| `72f0e6309` holds `_check_commit_limit` at `:6727` | VERIFIED |
-| ADR-109 B4 `official-hook-contracts.md:316-319` matches its claim | VERIFIED |
-| The word diff changes no decision text | VERIFIED |
-
-## Round 3 Summary
-
-Editing ADR-102 line 355 brought its neighbours, lines 350-358, under the strict anchor check.
-Those citations were already stale on main.
-
-### Votes
-
-| Agent | Vote |
-|-------|------|
-| architect | Disagree-and-Commit |
 | critic | Disagree-and-Commit |
 
-### Key Issues
+### Key Issues Addressed
 
 | # | Issue | Pri | Resolution |
 |---|-------|-----|------------|
-| 1 | Line 350 cited `qa_report.py:142-182`; `session_qa_binding` is now `:145-203`. | P1 | Now `:145-203`. A reasoned marker notes that `:173-177` is the raise this ADR deleted. |
-| 2 | Line 351 cited `:185-209`; `validate_qa_report` is now `:206-227`. | P1 | Now `:206-227`. |
-| 3 | Line 353 cited the fallback, not the live-HEAD resolution. | P1 | Now `validate_session_json.py:1663-1665`. |
-| 4 | Line 354 stopped before the error append. | P2 | Now `:691-728`. |
+| 1 | "only user-facing surfaces" was too broad: rules, hooks, and workflow inputs exist. | P2 | Now "the only user-invoked prompt surfaces". |
+| 2 | "no workflow changed" was ambiguous: one workflow lost its drift step. | P2 | Scoped to workflows that read the input files, and the drift-step removal is named. |
+| 3 | Decision text and the B3 row still describe the `prompts` row as planned. | P3 | Kept, following the earlier amendment pattern; both now point to the amendment. |
+| 4 | Two tests use deleted prompt paths as glob-match strings. | P3 | Recorded as stale fixtures; they read no file. |
 
 ### Claims Checked
 
 | Claim | Result |
 |---|---|
-| `validate_session_json.py:950-1018` is `validate_qa_report_evidence` | VERIFIED |
-| `session_scope.py:391-416` is `committed_session_validation_modes()` | VERIFIED |
-| Schema `:159-163` is the `commitHead` block | VERIFIED |
-| Extractor `:843-844` is the two-line comment | VERIFIED |
-| The diff changes no decision text | VERIFIED |
-
-## Dissent
-
-Both seats disagreed and committed in round 3 on the issues above. All issues were then fixed as listed.
+| Generator, drift wrapper, 12 gate copies, and 9 user-invoked prompts deleted | VERIFIED |
+| `binplace.yaml` has no `prompts` row; no `review-axis-drift` job; no drift step | VERIFIED |
+| `pr-quality` reads the review references | VERIFIED |
+| Workflow input files remain | VERIFIED |
+| Nothing else read the twelve copies | VERIFIED for live code |
