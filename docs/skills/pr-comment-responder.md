@@ -13,7 +13,7 @@ Works every review thread on one pull request. It reads each comment, reacts, ch
 - You have several PRs, or you want a merge verdict: use [`pr-review`](pr-review.md).
 - You have one known reply to post: run `post_pr_comment_reply.py` directly.
 - You want a full pre-merge review of the diff: use [`review`](review.md).
-- You want to run the local quality gates before you push: use [`pr-quality-all`](pr-quality-all.md).
+- You want to run the local quality gates before you push: use [`pr-quality`](pr-quality.md).
 
 ## Quick start
 

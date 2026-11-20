@@ -8,8 +8,9 @@ related:
   - REQ-038
   - TASK-047
   - DESIGN-037
+  - ADR-123
 created: 2026-09-24
-updated: 2026-09-24
+updated: 2026-11-19
 author: spec-generator
 tags:
   - skills
@@ -32,8 +33,8 @@ supports, beside the ADR-110 `capability` block:
 metadata:
   routing:
     role: nested-helper
-    invoker: pr-quality-all
-    trigger: pr-quality-all runs the security axis
+    invoker: doc-accuracy
+    trigger: doc-accuracy runs the fence repair
     user-facing: true
 ```
 
@@ -95,10 +96,26 @@ matching, which every skill has.
    leave its denominator. A skill that fails this check is "unresolved".
    It is reported, not refused: the routes are prose, and a common-word skill
    name makes this an upper bound.
+   Amended 2026-11-19, in the change that landed ADR-123: a `front-door`
+   skill invoked by `autoplan` is also reachable when `resolve_route.resolve`
+   routes one of the skill's own `intents` to that skill alone. The catalog
+   root is `<repo_root>/src/claude/skills`, the rendered tree the resolver
+   ships with, and names compare with the namespace removed. Presence of
+   `intents` counts for nothing; only a resolver result does. This proves the
+   resolver routes those intents and no other skill shadows them. It does not
+   prove a user words a request that way; the trigger-phrase ratchet below covers that.
 3. **Scenario coverage**: the scenario file exists.
 4. **Scored accuracy**: not measured here. #5389 owns it.
 
 "Inbound-zero" lists skills that no other skill or agent text names at all.
+
+Trigger phrases are not an evidence layer here. The pre-PR ratchet
+`Skill Trigger Phrase Resolution (ratchet)` (`check_skill_trigger_resolution.py`,
+added 2026-11-19) runs the resolver over every phrase a description advertises
+and refuses a new phrase that is unrouted, routes to a sibling, or sits on a
+front door with no `intents`. It differs from the rejected alternative below:
+it refuses only a new resolver miss, which is deterministic, not an upper bound.
+A report-only phrase layer that briefly lived here was folded into that gate.
 
 ## Gate
 

@@ -605,10 +605,6 @@ pre-push:
             timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py branch-context
 
-          - name: review-axis-drift
-            timeout: 90s
-            run: uv run --frozen python build/scripts/generate_pr_quality_prompts.py --dry-run
-
           # The import-linter contracts in pyproject.toml [tool.importlinter].
           # No glob: a pyproject.toml or uv.lock change can break a contract in
           # a push that carries no Python file. Measured standalone on

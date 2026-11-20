@@ -323,8 +323,8 @@ with no block, an invalid role, a role/invoker contradiction, or a malformed
 metadata:
   routing:
     role: nested-helper
-    invoker: pr-quality-all
-    trigger: pr-quality-all runs the security axis
+    invoker: doc-accuracy
+    trigger: doc-accuracy runs the fence repair
     user-facing: true
 ```
 

@@ -53,7 +53,6 @@ GATED: dict[str, str] = {
     "path-normalization": "Path Normalization",
     "planning-artifacts": "Planning Artifacts",
     "dash-prohibition": "Em/en-dash Prohibition",
-    "review-axis-drift": "Review Axis Drift",
     "import-boundaries": "Import Boundaries",
     "security-suppression-policy": "Security Suppressions Diff",
     "placeholder-identity": "Placeholder Identity",

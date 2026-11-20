@@ -10,7 +10,7 @@ description: >
   when the target supports it. Compares against a prior dx-review result when
   one exists (boomerang). Use when asked to "run a DX audit", "test the
   developer experience", "measure onboarding friction", "DX scorecard", or
-  "evaluate developer ergonomics".
+  "evaluate developer ergonomics". Do NOT use for a full pre-merge review (use review).
 license: MIT
 user-invocable: true
 ---

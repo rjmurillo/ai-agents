@@ -18,6 +18,9 @@ allowed to exist:
   - patch applier       : applies bounded atomic edits, refusing to touch the
                           protected slow-section, refusing ambiguous anchors,
                           and never writing over the incumbent file
+  - frontmatter lint    : refuses a candidate that adds a MUST failure from
+                          skillforge's lint_skill_frontmatter.py (byte cap,
+                          stdlib-parsable frontmatter, Handoff line shape)
   - validation gates    : scalar strict-greater, and per-task strict Pareto with
                           unverified-result and null-control checks
   - efficiency gate     : a pre-declared cost, latency, or token gain at the
@@ -70,6 +73,7 @@ from _skillopt_gates import (
     pair_gate,
     score_results,
 )
+from _skillopt_lint import check_candidate
 from _skillopt_patching import (
     SLOW_END,
     SLOW_START,
@@ -151,6 +155,7 @@ def _cmd_apply(args: argparse.Namespace) -> int:
     doc = doc_path.read_bytes().decode("utf-8")
     patches = _load_json(args.patches)
     result = apply_patches(doc, patches, args.budget)
+    check_candidate(doc, result)
     if args.dry_run:
         sys.stderr.write(
             f"OK: {len(patches)} patch(es) apply cleanly within budget {args.budget}\n"

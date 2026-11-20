@@ -185,7 +185,7 @@ def validate_orchestrator_citations(repo_root: Path) -> CheckOutcome:
     """Verify orchestrator prose path citations resolve to real files.
 
     Wraps ``scripts/validation/check_orchestrator_citations.py``, which fails
-    when a backtick path citation in ``.claude/skills/pr-quality-all/SKILL.md``
+    when a backtick path citation in ``.claude/skills/pr-quality/SKILL.md``
     points to a file that no longer exists. A stale citation (e.g. the removed
     ``AIReviewCommon.psm1`` reference fixed in PR #1934) sends the next reader
     to a dead pointer. See Issue #1966.
@@ -198,7 +198,7 @@ def validate_orchestrator_citations(repo_root: Path) -> CheckOutcome:
     path that already blocks, and ``pre_pr.run_validation`` keeps ``FAIL`` for
     the same reason on a raising validator.
     """
-    scope = "path citations in .claude/skills/pr-quality-all/SKILL.md"
+    scope = "path citations in .claude/skills/pr-quality/SKILL.md"
     script = repo_root / "scripts" / "validation" / "check_orchestrator_citations.py"
     if not script.exists():
         print(

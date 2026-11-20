@@ -21,6 +21,7 @@ metadata:
       - already package
       - already saas
       - already solves
+      - build or use existing
 ---
 
 # Programming Advisor - "Reinventing the Wheel" Detector
