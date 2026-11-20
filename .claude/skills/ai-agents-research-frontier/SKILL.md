@@ -221,7 +221,7 @@ Retired surfaces, the rebuild steps, and the full milestone live in
 
 | Anti-pattern | Why it fails here | Do instead |
 |--------------|-------------------|------------|
-| Citing ADR-069 as a measured effect | ADR-069 was accepted on 2026-11-20 as a principle. The 2026-09-28 control ablation (`.project-toolkit/metrics/control-ablation-v0.7.0.md`) returned `MIXED`, so the effect is unmeasured | Cite ADR-069 as a principle; cite the falsifiable milestone, not the ADR, for any claim that the corpus changes outcomes |
+| Citing ADR-069 as a measured effect | ADR-069 was accepted on 2026-11-20 as a principle. The 2026-09-28 control ablation that ADR-069 cites returned `MIXED`, so the effect is unmeasured | Cite ADR-069 as a principle; cite the falsifiable milestone, not the ADR, for any claim that the corpus changes outcomes |
 | Shipping a detector or guard without replaying it on real history | An M4 threshold could never fire; guards prevented 0/35 of their own fixes | Calibrate against roughly the last 5 real PRs first |
 | Trusting vendor docs for harness behavior | Docs were wrong by omission on plugin-root env vars and payload casing | Empirical probe with pinned version and negative control (`ai-agents-empirical-probe-toolkit`) |
 | Claiming corpus counts or eval coverage from this file | Counts decay; this file is a snapshot | Run `corpus-counts` and the Phase 1 verification commands |
