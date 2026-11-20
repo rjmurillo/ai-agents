@@ -66,3 +66,56 @@
 - critic's noted gap (no test asserts Evidence-column content, only
   hook-file-existence) is a real but separate hardening task, not blocking this
   correction.
+
+## Amendment 2026-11-20: Context Loader drops the retrospective injection
+
+### Summary
+
+- **Scope**: correction to an accepted ADR. The Context Loader hook stops
+  injecting the newest retrospective. It keeps only the pending-skeleton
+  reminder. No decision text changed; the status stays `accepted`.
+- **Panel**: reduced (architect, critic). The edit touches no executable
+  enforcement and no rule another gate reads.
+- **Rounds**: 1
+- **Outcome**: Consensus after revision (architect Disagree-and-Commit,
+  critic Revise; every P0 and P1 incorporated).
+
+### Key Issues Addressed
+
+- Both agents found one false claim. The draft said the 4,000-character cut
+  "always" fell before the insights section. At `b12beeae6` (2026-11-20),
+  `2026-10-24-shared-clone-identity-leak.md` starts Phase 1 at character
+  2,880. The claim held for 2 of 3 files. The amendment now names the one
+  injected file, where the cut fell 96 characters short of Phase 1.
+- critic: the status cells credited issues #7471 and #7472, which never name
+  the hook. They now cite the amendment. The issues are cited as the rule
+  applied, not as the change.
+- critic: `templates/hooks/dispatch_groups.json` still showed "Auto-loading
+  latest retrospective". The status message now matches the behavior.
+- architect and critic: the "Zero context reading failures" row still read
+  `Yes`. It now records that the hook loads no context.
+- architect: the frontmatter `date` moved to 2026-11-20, as the 2026-08-19
+  amendment did.
+- No debate log entry existed. This section is that entry.
+
+### Agent Positions
+
+| Agent | Position | Notes |
+|-------|----------|-------|
+| architect | Disagree-and-Commit, resolved | P1 false "always" claim and missing log, both fixed. P2 date and row drift, fixed. Verified the size range and that no `scripts/eval` file measures hook output |
+| critic | Revise, resolved | P0 false claim, P1 stale status message and issue attribution, P1 missing log, all fixed. Found no broken consumer of the removed functions or output |
+
+### Review Round (2026-11-20, `/review` decision-rigor axis)
+
+- The first draft recorded only "drop". The amendment now names the two
+  rejected options (shrink to insights, gate by relevance) and why.
+- The surviving reminder has no live producer. #3349 retired the Stop hook
+  that wrote skeletons, and the newest skeleton is dated 2026-07-03. The
+  amendment now says the hook is inert in this repository.
+
+### Next Steps
+
+- Decide whether to retire the Context Loader hook outright. It is inert
+  here, but retiring it touches the hook registration, the
+  `AUTHORIZED_HOOKS` ledger, and the skeleton-fill documentation. That is
+  outside this change and is left for the owner.
