@@ -57,7 +57,7 @@ plus `scripts/eval/_model_sweep_core.py`) and #2902 completed the pricing table.
 harness is **agent-shaped**: it builds child arguments only for `--agent`,
 `--fixtures`, `--model`, `--n-runs` (`scripts/eval/eval-model-sweep.py:158-184`) and the
 base evaluator reads `templates/agents/{agent}.shared.md`
-(`scripts/eval/eval-agent-vs-baseline.py:104,394-406`). It cannot evaluate a skill or a
+(`scripts/eval/eval-agent-vs-baseline.py:118,394-406`). It cannot evaluate a skill or a
 command.
 
 Grounding the consequence: only **1 of 74 pinned skills** and **17 of 31

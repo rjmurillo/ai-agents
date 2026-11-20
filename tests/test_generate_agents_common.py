@@ -471,7 +471,7 @@ class TestConvertFrontmatterForPlatform:
             unit = entry.get("unit")
             winner_id = model if isinstance(model, str) else "claude-opus-4-6"
             default_id = default_model if isinstance(default_model, str) else "gpt-6.1-sol"
-            # Matches build/generate_agents.py:303's agent_name derivation
+            # Matches build/generate_agents.py:383's agent_name derivation
             # verbatim; see model_pin_sweep_evidence.py:_agent_name_from_unit.
             agent = Path(str(unit)).stem.replace(".shared", "")
             artifact_path.write_text(

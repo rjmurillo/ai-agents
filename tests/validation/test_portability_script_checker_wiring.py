@@ -17,7 +17,7 @@ function names are what actually anchor the claims. Verbatim from
 `scripts/validation/portability_common.py:190`. `write_baseline` reaches
 `write_baseline_json` at `portability_common.py:217`, which runs
 `if refuse_symlinked_baseline(repo_root, baseline_path):` again at
-`scripts/validation/portability_baseline.py:428` and
+`scripts/validation/portability_baseline.py:424` and
 `if refuse_dropped_entries(previous, counted, unit, allow_shrink, problem):` at
 `:435`.
 

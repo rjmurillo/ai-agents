@@ -38,7 +38,7 @@ Yes. More agents and fleets raise the agent-selected share, so a provenance mark
 Searched `.serena/memories` for provenance, new_issue, and source-label names:
 one unrelated hit (`decision-eval-fixture-provenance-closed-loop.md`). Searched
 the tree for `source:agent`: only the parent spec and
-`.agents/governance/COST-GOVERNANCE.md:163`, which already defines the
+`.agents/governance/COST-GOVERNANCE.md:165`, which already defines the
 human-only, agent-only, conflict, and unknown buckets this script feeds. No
 halt: nothing built answers the question.
 

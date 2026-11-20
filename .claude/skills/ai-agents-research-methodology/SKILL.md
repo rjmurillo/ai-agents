@@ -59,7 +59,7 @@ invent a new review ritual; route into these:
 
 | Claim type | Adversarial mechanism | How to invoke |
 |---|---|---|
-| Architectural decision (ADR) | `adr-review` 6-agent debate (architect, critic, independent-thinker, security, analyst, high-level-advisor) until consensus, 10 rounds max | Auto-fires on any `ADR-*.md` create/edit (AGENTS.md:12, "ADR review: debate log required"); or `/adr-review path` |
+| Architectural decision (ADR) | `adr-review` 6-agent debate (architect, critic, independent-thinker, security, analyst, high-level-advisor) until consensus, 10 rounds max | Auto-fires on any `ADR-*.md` create/edit (AGENTS.md:13, "ADR review: debate log required"); or `/adr-review path` |
 | A single decision's reasoning | `decision-critic` skill | Say `Poke holes in this decision` or `Validate my thinking on ...` |
 | Contrarian read of a plan | `independent-thinker` or `critic` agent (`.claude/agents/`) | Task tool with that subagent_type |
 | Strategic build/buy/defer | `buy-vs-build-framework` (Quick tier: 1-2 hours) | Required gate for new capabilities, see Phase 3 |
@@ -88,7 +88,7 @@ made after seeing the data is a description, not a test. Concretely:
    fixture; `ls tests/evals/` lists what is available.)
 
    `--dry-run` validates inputs and makes no API calls
-   (scripts/eval/eval-prompt-change.py:633, `Validate inputs, no API calls`).
+   (scripts/eval/eval-prompt-change.py:961, `Validate inputs, no API calls`).
    It is the only no-spend path; there is no `--mock`.
 3. Run the real eval, compare against the written prediction, and record both
    in the write-up. A miss is a finding, not an embarrassment.
@@ -141,7 +141,7 @@ Turn the hunch into a falsifiable claim and probe it. Rules of the probe
 
 If the idea adds a new capability (Context, module, scanner, validator,
 pipeline component), it must pass the buy-vs-build gate BEFORE any spec work.
-AGENTS.md:12 lists "new cap buy-vs-build" among the skills a new capability
+AGENTS.md:13 lists "new cap buy-vs-build" among the skills a new capability
 must pass. Run `buy-vs-build-framework` at Quick tier (1-2 hours: Core vs
 Context, simple TCO, go/no-go).
 
@@ -277,8 +277,8 @@ volatile facts:
 |---|---|---|
 | Recursive-failure false premise, calibration rule, M4 numbers | `.project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md:20` (`misdiagnosed root cause`); the same retro's lines 72 to 73 give the M4 numbers and lines 149 to 157 state the calibration rule | `grep -n "calibrat" .project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md` |
 | Fail-open wrapper rejection record | `.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:297` and `:393` (`addressed-by-prevention`) | `grep -n 2230 .project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md` |
-| adr-review debate log required | `AGENTS.md:12` (`ADR review: debate log required`); `.claude/skills/adr-review/SKILL.md` | `grep -n "debate" .claude/skills/adr-review/SKILL.md` |
-| buy-vs-build gate for new capabilities | `AGENTS.md:12` (`new cap buy-vs-build`) | `grep -n "buy-vs-build" AGENTS.md` |
+| adr-review debate log required | `AGENTS.md:13` (`ADR review: debate log required`); `.claude/skills/adr-review/SKILL.md` | `grep -n "debate" .claude/skills/adr-review/SKILL.md` |
+| buy-vs-build gate for new capabilities | `AGENTS.md:13` (`new cap buy-vs-build`) | `grep -n "buy-vs-build" AGENTS.md` |
 | buy-vs-build Quick tier ends in a Go/No-go | `.claude/skills/buy-vs-build-framework/SKILL.md:92` (`Go/No-go`) | verified directly against the cited line; no command needed that would read a sibling skill's directory <!-- citation-freshness: ignore -- symlinked shipped skill; tracked at src/claude/skills/buy-vs-build-framework/SKILL.md --> |
 | eval scripts and `--dry-run` | `scripts/eval/eval-prompt-change.py:633` (`Validate inputs, no API calls`); `scripts/eval/` listing | `ls scripts/eval/ && grep -n "dry-run" scripts/eval/eval-prompt-change.py` |
 | Contradiction log format | `.claude/skills/memory-gate/references/contradiction-log.md` | `grep -n "decision-" .claude/skills/memory-gate/references/contradiction-log.md` |

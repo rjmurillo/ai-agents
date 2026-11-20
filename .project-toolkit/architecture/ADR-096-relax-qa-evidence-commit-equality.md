@@ -109,7 +109,7 @@ def validate_qa_report(path: Path, expected: QaBinding, *, head: str, repo_root:
 ### Why Change Now
 
 - **Has the original problem changed?** No. A stale QA verdict reused against changed code is still the risk this guards against, and real code changes still hard-fail after this change, at both call sites, including the path where they previously did not (see Decision).
-- **Is there a better solution now?** Yes. `post_qa_code_changes` already exists and is already directly unit-tested (`tests/test_validate_session_json.py:399-505`), not merely indirectly exercised.
+- **Is there a better solution now?** Yes. `post_qa_code_changes` already exists and is already directly unit-tested (`tests/test_validate_session_json.py:496-602`), not merely indirectly exercised.
 - **What are the risks of change?** Requiring `head` is a breaking signature change for `validate_qa_report()`'s two callers, both within this repository and audited exhaustively (see Impact table); a bug in `post_qa_code_changes` or `QA_EVIDENCE_PREFIXES` is now load-bearing for every QA-report validation rather than a subset. Mitigated by the acceptance criteria above requiring explicit test coverage of both outcomes at both call sites, on each site's fresh-validation path, which is the scenario the round-1 fail-open finding was actually reachable from (see the correction note in Decision).
 
 ## Rationale

@@ -90,7 +90,7 @@ The equality raise, in other words, blocks the whole QA-evidence check in order 
 
 ### The check is also the only thing touching `comparison.head`, and it is not a control
 
-`endingCommit` carries an independent, real check: `scripts/validate_session_json.py:696-706` calls `commit_reachability_problem()` and reports an error when the recorded SHA is unreachable. Nothing equivalent exists for `comparison.head`; the schema pattern is its only other validation.
+`endingCommit` carries an independent, real check: `scripts/validate_session_json.py:719-729` calls `commit_reachability_problem()` and reports an error when the recorded SHA is unreachable. Nothing equivalent exists for `comparison.head`; the schema pattern is its only other validation.
 
 That asymmetry is what makes the equality raise look like a control and behave like a false-positive generator. It cannot say which field is wrong, only that two fields disagree, and both fields live in the same self-attested file authored by the same actor the check judges. ADR-096 recorded the same trust model for the QA report itself ("the report is plain text in the working tree, authored by the same actor the check judges, with no signature or independent proof a QA run occurred"). It applies more strongly here: an actor who wanted to defeat this check would edit the second field.
 
@@ -126,7 +126,7 @@ That sharpens the argument rather than weakening it. In the one persisting commi
 
 ### What ADR-096 already settled, and what it left
 
-ADR-096 replaced `validate_qa_report()`'s equality raise with `post_qa_code_changes()`, which walks the commits between two SHAs, filters `QA_EVIDENCE_PREFIXES` (`.claude/lib/qa_report.py:21-25`), and returns only non-evidence paths. That fix is merged (`46049e1`, PR #5167) and is not revisited here. ADR-096 scoped this function out for two stated reasons: the invariant is different in kind, and its 50-commit sample did not observe this check firing. The first reason is upheld by this ADR and drives the design away from a mechanical copy. The second is now answered by the corpus measurement above.
+ADR-096 replaced `validate_qa_report()`'s equality raise with `post_qa_code_changes()`, which walks the commits between two SHAs, filters `QA_EVIDENCE_PREFIXES` (`.claude/lib/qa_report.py:19-23`), and returns only non-evidence paths. That fix is merged (`46049e1`, PR #5167) and is not revisited here. ADR-096 scoped this function out for two stated reasons: the invariant is different in kind, and its 50-commit sample did not observe this check firing. The first reason is upheld by this ADR and drives the design away from a mechanical copy. The second is now answered by the corpus measurement above.
 
 `handoff.md:207` names relaxing this equality as required "at minimum" for the PR #4954 round-15 reviewer's remedy, and `handoff.md:219` records the recommended fix as a dedicated QA-freshness field in the session-log schema, distinct from `endingCommit`. This ADR is the prerequisite, not the remedy. The remedy is tracked as a follow-up (see References).
 
