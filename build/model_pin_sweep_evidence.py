@@ -37,7 +37,7 @@ MIN_SHARED_FIXTURES = 8
 # Mirrors scripts/eval/_model_sweep_core.py:44 (DEFAULT_MIN_EFFECT = 0.05)
 # verbatim; the qualification formula it feeds
 # (``qualifies = delta >= min_effect and ci_low > 0.0``) is at that module's
-# line 306. Not imported: _model_sweep_core.py:35 does
+# line 291. Not imported: _model_sweep_core.py:35 does
 # ``from _report_aggregator import (...)``, a bare module-relative import
 # that requires scripts/eval on sys.path, the exact sys.path mutation
 # build/model_pin_manifest.py's own docstring already avoids for
@@ -45,7 +45,7 @@ MIN_SHARED_FIXTURES = 8
 MIN_RECALL_DELTA = 0.05
 
 # Mirrors scripts/eval/_model_sweep_core.py:43 (SCHEMA_VERSION = "1")
-# verbatim. build_report's own docstring (lines 469-474) says this field
+# verbatim. build_report's own docstring (lines 598-604) says this field
 # "gates future shape changes"; a report missing it, or carrying a
 # different value, has not committed to the field set this module reads.
 SWEEP_REPORT_SCHEMA_VERSION = "1"

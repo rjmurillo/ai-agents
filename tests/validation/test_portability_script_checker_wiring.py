@@ -15,11 +15,11 @@ function names are what actually anchor the claims. Verbatim from
 `_resolve_baseline_path` delegates to `resolve_checked_baseline`, which runs
 `if refuse_symlinked_baseline(root, resolved):` at
 `scripts/validation/portability_common.py:235`. `write_baseline` reaches
-`write_baseline_json` at `portability_common.py:217`, which runs
+`write_baseline_json` at `portability_common.py:264`, which runs
 `if refuse_symlinked_baseline(repo_root, baseline_path):` again at
 `scripts/validation/portability_baseline.py:424` and
 `if refuse_dropped_entries(previous, counted, unit, allow_shrink, problem):` at
-`:435`.
+`:431`.
 
 So the symlink condition is refused by *both* paths, and the resolver runs
 first. A single symlinked-baseline control therefore observes neither: unwire
