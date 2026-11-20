@@ -466,8 +466,7 @@ def validate_git_hook_health(repo_root: Path) -> bool:
     """Return False when pre-push is inert or verification is impossible.
 
         Entry point matching the contract the pre-PR registry consumes. Canonical
-        source: ``scripts/validation/pre_pr_sequence.py:263-265``, whose adapter
-        signature reads verbatim (quoted at column 0 to preserve the source):
+        source: ``scripts/validation/pre_pr_sequence.py:263-265``. Its adapter reads:
 
     def _root_only(
         validator: Callable[[Path], GateResult],

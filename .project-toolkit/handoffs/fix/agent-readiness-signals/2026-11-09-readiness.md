@@ -1,5 +1,126 @@
 # Agent readiness handoff
 
+## Current Resume (2026-11-20 UTC)
+
+HEAD `586619654` integrates D13 tip `756bf3997` on 2026-11-20.
+D13's six ADR votes closed with no P0 or P1 findings.
+The exact-file bootstrap rejects cached modules and supports isolated entry-file symlinks.
+Parent entry-point regression passed all 52 tests.
+Combined bootstrap, hook-health, and validation-skill regression passed all 167 tests.
+The worker's broader 673-test receipt remains historical integration evidence.
+All fourteen final independent review slots remain unused.
+
+Commit `e19924ac5` contains D17's six approved numeric governance citation repairs.
+Richard approved D18's three redundant command-label removals on 2026-11-20.
+Those removals preserve function names, ranges, behavior, and policy fields.
+Commit `f87460eb0` landed D18, but the three rows still fail reverse citation.
+Their prose names typed tokens defined in shared helpers at lines 7539-7541 and 9241.
+Each function name also hits its dispatch line, so it casts no inside vote.
+Any further row edit needs a new governance decision.
+Richard canceled D16; ADR-100, ADR-101, and ADR-102 remain untouched.
+Their six reverse-citation failures still block merge and require owner action.
+
+Duplication examined 3865 Python files after D13 integration on 2026-11-20.
+It found zero growth and exactly 30 stale entries.
+The authorized shrink-only updater removed those entries; 305 allowances remain.
+A fresh unchanged gate passed against origin/main.
+Portability removed one redundant upstream reference and its stale declaration.
+The updater reduced only existing allowances; no entry grew.
+Fresh skill-page checking found zero stale pages across 29 changed skills.
+Forward citation checking passed across 248 changed files.
+Hook-health wording preserves its quoted signature at 500 lines.
+Ruff checks, formatting, and whitespace checks passed.
+The full pre-condensation handoff remains in scratch:
+`readiness-handoff-before-20261120-condensation.md`.
+
+Preflight at `1e5f0f7ee` completed in 612.5231 seconds on 2026-11-20.
+It recorded 120 passes, seven failures, and two skips.
+Five failures blocked: count ratchets, duplication, reverse citations, portability, and doc accuracy.
+The documentation-accuracy subprocess timed out at its internal 300-second cap.
+Other failures were advisory temporary-worktree and active-plan findings.
+Receipt: `.project-toolkit/scratch/readiness-1e5f0f7ee-preflight.json`.
+This historical run does not certify the integrated tip.
+
+D13's first Codex worker exhausted credits; its old worktree remains preserved.
+Duplicate recovery task `0853489c-1903-4c49-b9c4-6b2b764ba0c6` was canceled.
+The Factory recovery worker completed the integrated D13 commit.
+D14 still owns only L1-L6 and L10-L12 scanner repairs.
+L7-L9, illustrative-example acceptance, suppressions, and threshold changes remain unauthorized.
+Full-corpus documentation acceptance remains unproved.
+No push, PR creation, or merge occurred during this resume.
+
+## Verified Integration History
+
+These historical receipts do not prove acceptance of the final integrated tip.
+Earlier detailed prose remains in the scratch handoff copy named above.
+
+### D11 and D15
+
+The parent merged `0735d2bb4` as `6f4358628` on 2026-11-20 UTC.
+That checkpoint includes `87a8f07d8`, `89cabae7c`, and `549025189`.
+The scalar helper ships in authoring, not knowledge.
+Parent regression passed 6,664 tests with one CI-only PowerShell-presence skip.
+Real PowerShell parser tests used the portable runtime.
+Generation parity, Ruff, whitespace, and conflict-marker checks passed.
+Committed IO scanning found zero violations across 252 files.
+Duplication found one new council/sol-loop block across 3,864 files.
+Thirty stale baseline entries remain unchanged until no new clones remain.
+Both original Opus workers stopped with provider HTTP 429 errors.
+D15 option A permits alternate providers; isolated Codex workers own D13 and D14.
+
+### Main and Four-Pack Integration
+
+The parent integrated main `b12beeae6` as `22cf17f40` on 2026-11-20.
+The instrument conflict preserves citation reverse-pass and the shared drift helper.
+Generation places the scalar helper and its mirrors in authoring.
+The approved pack budget remains 399 files, not main's 400.
+At that integration, authoring/delivery/knowledge/quality contain 188/298/256/163 tracked files.
+Each library contains 55 identical files; skill ownership remains unique.
+Changed-area regression passed 8,141 tests with two skips.
+A broad serial attempt timed out after collecting 20,426 tests.
+That timeout is not a passing full-suite result.
+Conflict markers, Ruff, instrument CLI, generation parity, and thirteen Hermes smokes passed.
+Receipts use `readiness-b12-main-*` and `readiness-22cf-main-pinned-smoke.log` in scratch.
+
+D10 tip `726bb6227` merged as `82085ac4d` on 2026-11-19.
+Richard selected the fourth authoring pack in its child thread.
+ADR-115 debate seven records four Accept and two Disagree-and-Commit votes.
+The debate records no open P0/P1 findings; ADR status remains proposed.
+Independent comparison preserved all 678 skill files without duplicate ownership.
+All 552 selected integration tests passed; thirteen pinned Hermes smokes passed.
+The first smoke setup failed Python discovery; no product test ran.
+The passing fixture verified Hermes `63d0b94120027d487c9a5235b9ec64b696af1b26`.
+The parent's global Hermes checkout was not modified.
+Debate seven predates D11/D13 inventory and does not establish final pack counts.
+
+### D12 Documentation and D14 Boundary
+
+Corrected D12 tip `9a761dd84` merged as `621173ebb` on 2026-11-19.
+Independent .NET checks first found Linux case-sibling and root-base containment defects.
+The corrected immutable example passed all twenty parent checks.
+Those checks cover traversal, siblings, equality, absolute paths, empty input, and NUL.
+The example states its lexical-only guarantee and link-swap race limitation.
+Windows behavior remains untested on a Windows runtime.
+All 629 selected regression tests passed; generation and whitespace checks passed.
+Markdownlint checked four shipped documents; configured exclusions skipped named history documents.
+Receipts remain under `d12-parent-corrected-path-probe/` in scratch.
+The integrated scan previously reported 907 high findings.
+Full-corpus documentation acceptance remains unproved.
+
+### D9 Encoding and Earlier Integration
+
+D9 encoding tip `0f31710a2` was cherry-picked as `7cfb39b24`.
+Commit `cc8798228` repaired seventeen remaining fixture writes.
+All 803 selected tests passed; Ruff passed across 23 files.
+The old encoding stash remains preserved; do not blindly apply it.
+D9/D10 integration `1f4d972a6` preserves D9 tip `4ad3557b1`.
+Its staged safety tree is `66fff7a1e021c3eab8119bbb7b8430a5dcbb171a`.
+Safety ref `refs/readiness-safety/staged-20261119` and scratch patches remain preserved.
+D10 history retains `07a69ff6e`, `9693b7932`, `f2373f54d`, and `c87c838dd`.
+Earlier independent D9 regression passed 431 tests and eight member-resolution probes.
+Combined integration regression passed 662 tests after twelve reproduced reference-test failures.
+The helpers now normalize string inputs into path components.
+
 ## Resume Evidence (2026-11-18)
 
 The D7 scanner repair is committed at `5c5e843cbc41fcd6ca1f8596337037ac17d1cab1` (2026-11-18).
@@ -29,6 +150,37 @@ The fourteen final-review slots remain reserved.
 No open PR exists for this branch, verified on 2026-11-18.
 No push, review marker, or external write occurred during this resume.
 The existing fourteen final-review slots remain unused.
+
+## D8 Local Integration Blocker (2026-11-18)
+
+The fresh fetch resolved main to `ae5acffcb3b9f9e00e4898d5bb0b0f9681a757d5` (2026-11-18).
+The merge remains uncommitted, with all nine conflict paths resolved and staged.
+Both specifications retain the repository-local mirror inventory and upstream updates.
+The PR command retains shared bootstrap behavior and upstream comment deduplication.
+All five PR command mirrors match their canonical source byte-for-byte.
+Workflow assertions now cover ten defaults, preserving both branches' additions.
+On 2026-11-18, the focused integration suite passed all 418 tests.
+Ruff and formatting passed for both authored Python conflict paths.
+The configured Markdown command examined zero files because these specifications are ignored.
+Conflict-marker and whitespace checks passed.
+Regeneration failed: Hermes delivery contains 404 files against its unchanged 399-file budget.
+The runtime cap is 400 files, so raising the configured budget cannot resolve this.
+The merged inventory retains five branch helper files absent from upstream.
+No helper, limit, exclusion, baseline, or security contract changed to clear this blocker.
+Evidence lives under `.project-toolkit/scratch/`:
+
+- `readiness-d8-integration-build.log`: failed regeneration.
+- `readiness-d8-integration-tests.log`: focused regression.
+- `readiness-d8-integration-evidence.json`: inventories, helper paths, and PR parity.
+- `readiness-d8-integration-markers.json`: conflict verification.
+- `readiness-d8-integration-ruff.log`: Python lint.
+- `readiness-d8-integration-python-lint.log`: Python formatting.
+- `readiness-d8-integration-markdown-lint.log`: zero-file Markdown result.
+
+Owner decision is required before packing or helper-layout changes.
+No commit, push, PR, review marker, or additional agent was created.
+Committed build verification and full acceptance remain unproved.
+All fourteen final-review slots remain reserved.
 
 ## Status
 
