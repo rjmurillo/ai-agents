@@ -70,6 +70,26 @@ def test_single_added_fence_above_example_still_blocks(tmp_path: Path) -> None:
     assert by_symbol(data)["Ghost"]["in_diff"] is True
 
 
+def test_retagged_opening_fence_keeps_its_block_in_scope(tmp_path: Path) -> None:
+    """Retagging ```text to ```csharp is even parity, but the block still gates.
+
+    The removed and added fence lines net zero, so parity adds no range. The
+    example's claim span starts on its opening fence, which the hunk covers, so
+    findings the new language exposes stay blocking.
+    """
+    body = "".join(f"line {n}\n" for n in range(6))
+    base = f"# T\n\nintro\n\n{FENCE}text\nvar g = new Ghost();\n{body}{FENCE}\n"
+    repo = make_repo(tmp_path, {"doc.md": base})
+    edit_and_commit(repo, "doc.md", base.replace(f"{FENCE}text", f"{FENCE}csharp", 1))
+
+    code, data = gate_diff(repo, tmp_path)
+
+    ghost = by_symbol(data)["Ghost"]
+    assert code == 10
+    assert ghost["severity"] == "high"
+    assert ghost["in_diff"] is True
+
+
 def test_balanced_block_above_honored_marker_keeps_findings_in_scope(tmp_path: Path) -> None:
     base = "# T\n" + MARKER + "\n" + example("Ghost")
     head = base.replace("# T\n", "# T\n\n" + BALANCED_BLOCK, 1)
