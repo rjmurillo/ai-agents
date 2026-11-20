@@ -30,7 +30,7 @@
     {
       "id": "S3",
       "desc": "Serena not active, native LSP on Claude harness",
-      "input": "Serena reports no active project in this session. I need the definition of build_rules in build/scripts/generate_rules.py and its references. What do I use before falling back to grep? Plan in 5 short bullets. Do not modify any files.",
+      "input": "Serena is not configured in this harness. I need the definition of _resolve_paths in build/scripts/generate_rules.py and every caller. What do I use before falling back to grep? Plan in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "goToDefinition",
         "findReferences",

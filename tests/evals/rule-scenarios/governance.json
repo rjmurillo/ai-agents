@@ -10,7 +10,7 @@
         "evidence anchor",
         "source:",
         "why:",
-        "git diff -u3",
+        "git diff -U3",
         "same section"
       ],
       "expected_gate": "require-evidence-anchor-for-governance-line",

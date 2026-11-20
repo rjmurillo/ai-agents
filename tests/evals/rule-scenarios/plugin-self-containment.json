@@ -60,27 +60,39 @@
     },
     {
       "id": "S5",
-      "desc": "Agent told to write into the consumer workspace (negative)",
+      "desc": "Consumer-workspace output path in an agent template",
       "input": "In templates/agents/planner.shared.md I am adding a line that tells the planner to write its output to .project-toolkit/planning/ in the user's own repository. Does this need a vendor-portability declaration? Plan in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "consumer-workspace",
         "not a defect",
         "no declaration"
       ],
-      "expected_gate": "skip-rule-not-applicable",
+      "expected_gate": "classify-consumer-workspace-path-not-defect",
       "rationale": "Three kinds of path table: a consumer-workspace path is the plugin doing its job and is not a defect. MUST 1 explicitly exempts consumer-workspace paths."
     },
     {
       "id": "S6",
-      "desc": "Bundled templates directory inside a skill (negative)",
+      "desc": "Skill prose points at its own bundled templates directory",
       "input": "In src/claude/skills/threat-modeling/SKILL.md I am pointing the reader to the bundled templates/threat-model-template.md inside that skill. Should I widen the ratchet pattern or add a declaration? Plan in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "bundled",
         "ships with the plugin",
         "narrow"
       ],
-      "expected_gate": "skip-rule-not-applicable",
+      "expected_gate": "keep-ratchet-narrow-for-bundled-template",
       "rationale": "Known coverage gap: a bundled templates/ directory inside a skill ships with the plugin and resolves. The declaration is the wrong tool and the patterns must not be widened to a bare templates/."
+    },
+    {
+      "id": "S7",
+      "desc": "Docstring in an upstream-only maintenance script names a repo path (negative)",
+      "input": "I am rewriting the module docstring of scripts/maintenance/gc_worktrees.py so it explains which worktree directories it scans. Outline the new docstring. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "docstring",
+        "worktree",
+        "scan"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The rule's paths cover .claude/**, src/claude/**, src/copilot-cli/**, and templates/agents/**. scripts/maintenance/ is upstream-only and never ships, so no path in it can break a consumer install and the self-containment checks do not apply."
     }
   ]
 }

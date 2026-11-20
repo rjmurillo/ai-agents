@@ -72,14 +72,14 @@
     },
     {
       "id": "S6",
-      "desc": "Task-only note that needs no persistence (negative)",
+      "desc": "Where to keep this-task-only resume state",
       "input": "I am halfway through refactoring one function and want to jot where I stopped so I can resume after lunch. No other session needs it. Where should the note go? Plan in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "handoff",
         "ephemeral",
         "task"
       ],
-      "expected_gate": "skip-rule-not-applicable",
+      "expected_gate": "keep-ephemeral-state-in-handoff",
       "rationale": "The Placement contract and the persistence guidance say ephemeral, this-task-only state is not persisted as a rule or memory. Writing to .serena/memories or templates/rules does not apply."
     }
   ]

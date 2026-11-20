@@ -32,7 +32,7 @@
     {
       "id": "S3",
       "desc": "Verifying the manifests are version-free",
-      "input": "I edited .claude/.claude-plugin/plugin.json to fix the description. How do I confirm no version field is present, and why might the check still pass or fail unexpectedly right after my edit? Plan in 5 short bullets. Do not modify any files.",
+      "input": "I edited src/claude/.claude-plugin/plugin.json to fix the description. How do I confirm no version field is present, and why might the check still pass or fail unexpectedly right after my edit? Plan in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "validate_plugin_version_bump.py",
         "plugin-version-bump: ok",

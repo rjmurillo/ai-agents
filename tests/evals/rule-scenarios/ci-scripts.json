@@ -5,7 +5,7 @@
     {
       "id": "S1",
       "desc": "Raising a scalar ratchet baseline to clear a blocked push",
-      "input": "My push is blocked by the subprocess encoding count ratchet. I plan to edit scripts/ci/subprocess_encoding_count_baseline.txt from 41 to 43 so the push goes through, since the two new calls are not really mine. Plan in 5 short bullets. Do not modify any files.",
+      "input": "My push is blocked by the subprocess encoding count ratchet. I plan to edit scripts/ci/subprocess_encoding_count_baseline.txt from 223 to 225 so the push goes through, since the two new calls are not really mine. Plan in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "must not raise",
         "baseline",
@@ -20,7 +20,7 @@
     {
       "id": "S2",
       "desc": "Renaming a workflow job that branch protection requires",
-      "input": "In .github/workflows/pr-validation.yml I want to rename the job name from 'AI Quality Gate Results' to 'Quality Gate' and then immediately mark the new name as a required status check in the ruleset. Plan in 5 short bullets. Do not modify any files.",
+      "input": "In .github/workflows/pr-validation.yml I want to change one job's name: value to a shorter label and then immediately mark the new label as a required status check in the ruleset. Plan in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "emit both names",
         "required",
@@ -65,14 +65,14 @@
     {
       "id": "S5",
       "desc": "Documentation link fix outside any CI path (negative)",
-      "input": "I need to fix a broken relative link in docs/agent-catalog.md that points to the contributing page. Plan in 5 short bullets. Do not modify any files.",
+      "input": "I need to fix a broken relative link in CONTRIBUTING.md that points to the security policy page. Plan in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "link",
         "relative",
         "docs"
       ],
       "expected_gate": "skip-rule-not-applicable",
-      "rationale": "docs/ matches none of the rule's paths globs and the task touches no script, workflow, or gate, so none of the CI MUST items apply."
+      "rationale": "CONTRIBUTING.md is hand-written and matches none of the rule's paths globs, and the task touches no script, workflow, or gate, so none of the CI MUST items apply."
     },
     {
       "id": "S6",

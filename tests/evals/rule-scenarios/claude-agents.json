@@ -20,7 +20,7 @@
     {
       "id": "S2",
       "desc": "Worker agent text says it cannot delegate but the grant is silent",
-      "input": "In the template behind src/claude/agents/analyst.md the body says 'you CANNOT delegate' but the frontmatter has no tools list. I plan to leave it as is because the prose already says it. Plan in 5 short bullets. Do not modify any files.",
+      "input": "I am adding a new worker agent template, templates/agents/summarizer.claude.md.tmpl. Its body says 'you CANNOT delegate' and its frontmatter has no tools list. I plan to leave the grant out because the prose already says it. Plan in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "disallowedTools",
         "Agent",
@@ -60,7 +60,7 @@
         "not parity"
       ],
       "expected_gate": "do-not-read-drift-green-as-parity",
-      "rationale": "MUST 1: src/claude/agents/*.md is generated from templates/agents/<stem>.claude.md.tmpl, so a hand edit is lost on the next build and must move to the template. The drift-detector section: analyst is one of four agents with zero allowlisted sections, so compare_agent returns a hardcoded 100.0 and the check cannot fail. The score is a Jaccard similarity floor on word sets, not an equality check."
+      "rationale": "MUST 1: src/claude/agents/*.md is generated from templates/agents/<stem>.claude.md.tmpl, so a hand edit is lost on the next build and must move to the template. The drift-detector section: analyst has no allowlisted sections in SECTIONS_TO_COMPARE, so the content-similarity score falls back to 100.0 and cannot fall below the floor. The score is a Jaccard similarity floor on word sets, not an equality check, so a green run is not parity."
     },
     {
       "id": "S5",
