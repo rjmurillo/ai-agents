@@ -94,7 +94,7 @@ The pre-merge `/review` ran after round 2 and changed the ADR text, so the panel
 - `decision-rigor` found that `true` routes any later material change to supersession, and the text did not say so.
 - `analyst` and `correctness` found that the Context section still named closed #7468 as the inventory owner.
 - `analyst` found the `implemented` paragraph claimed more than the verdicts said.
-- `decision-rigor` found 14 live statements outside this record that still called ADR-069 proposed. One of them failed `citation_reverse_pass.py`.
+- `decision-rigor` found 14 live statements outside this record (2026-11-20, at `15c13340a`) that still called ADR-069 proposed. One of them failed `citation_reverse_pass.py`.
 
 ### Major Changes Made
 
@@ -121,6 +121,14 @@ The critic's recorded reservation: `implemented: true` means any later material 
 - architect P2: the ablation sentence says "accepted 9 of 15 tasks durably", matching the metric.
 - architect P1 (the log is missing) was already resolved. This log was committed with the status change.
 
+## Corrections From Review Round 2
+
+The pre-merge `/review` round 2 found two factual errors in the ADR text. Both are corrections, not changes to the decision, so the panel did not vote again.
+
+- `decision-rigor`: the ablation counts 15 runs per arm (5 tasks, 3 repeats each), not 15 tasks. Implementation Notes item 4 now says "runs".
+- `correctness`: the Context catalog is called a 2026-05-02 snapshot, but PR #5887 (2026-09-22) moved one of its paths. The Context section now names that move.
+- `decision-rigor` also found that three skill `reverify.json` checks still asserted `status: proposed`. They now assert `status: accepted`, and `bootstrap_drift.py check` passes for those rows.
+
 ## Next Steps
 
-- `.project-toolkit/architecture/ADR-107-canonical-skill-contracts-and-harness-projections.md` (Related Decisions) still calls ADR-069 `proposed`. Editing ADR-107 needs its own debate log, so this change leaves it. The PR body names it as an open follow-up.
+- `.project-toolkit/architecture/ADR-107-canonical-skill-contracts-and-harness-projections.md` (Related Decisions) still calls ADR-069 `proposed`. Editing ADR-107 needs its own debate log, so this change leaves it. The PR for this change names it as an open follow-up.
