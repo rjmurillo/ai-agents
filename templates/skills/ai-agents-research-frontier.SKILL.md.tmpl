@@ -37,7 +37,7 @@ build on it.
 
 | Rank | Program | Anchor artifacts | Status (HEAD 42e409325, 2026-10-31) | Falsifiable milestone (short form) |
 |------|---------|------------------|---------------------------|-------------------------------------|
-| 1 | Verified governance | ADR-069, `scripts/eval/eval-rule-activation.py` | ADR-069 ACCEPTED (2026-11-20) as a principle, effect unmeasured; eval tool and rule scenario fixtures exist (count: `corpus-counts`) | Controlled eval shows gated-corpus sessions beat ungated on N scenarios with defensible stats |
+| 1 | Verified governance | ADR-069, `scripts/eval/eval-rule-activation.py` | ADR-069 ACCEPTED (2026-11-20) as a principle, effect not established; eval tool and rule scenario fixtures exist (count: `corpus-counts`) | Controlled eval shows gated-corpus sessions beat ungated on N scenarios with defensible stats |
 | 2 | Cross-harness abstraction | ADR-072, ADR-068, `build/generate_agents.py`, `tests/build_scripts/test_generate_hooks_runtime_contract.py` | ADR-072 and ADR-068 ACCEPTED; generators and contract tests exist and run | New harness target added with zero hand-edits to generated trees, contract suite green |
 | 3 | Self-improving loop | `reflect`, `memory-search`; hooks and `EVENT=` telemetry retired (ADR-097, ADR-084) | Tool-call hooks retired; no producer or consumer pipeline | A correction observed once auto-proposes a guard that survives calibration |
 
@@ -221,7 +221,7 @@ Retired surfaces, the rebuild steps, and the full milestone live in
 
 | Anti-pattern | Why it fails here | Do instead |
 |--------------|-------------------|------------|
-| Citing ADR-069 as a measured effect | ADR-069 was accepted on 2026-11-20 as a principle. The 2026-09-28 control ablation that ADR-069 cites returned `MIXED`, so the effect is unmeasured | Cite ADR-069 as a principle; cite the falsifiable milestone, not the ADR, for any claim that the corpus changes outcomes |
+| Citing ADR-069 as a measured effect | ADR-069 was accepted on 2026-11-20 as a principle. The 2026-09-28 control ablation that ADR-069 cites returned `MIXED`, so the effect is not established | Cite ADR-069 as a principle; cite the falsifiable milestone, not the ADR, for any claim that the corpus changes outcomes |
 | Shipping a detector or guard without replaying it on real history | An M4 threshold could never fire; guards prevented 0/35 of their own fixes | Calibrate against roughly the last 5 real PRs first |
 | Trusting vendor docs for harness behavior | Docs were wrong by omission on plugin-root env vars and payload casing | Empirical probe with pinned version and negative control (`ai-agents-empirical-probe-toolkit`) |
 | Claiming corpus counts or eval coverage from this file | Counts decay; this file is a snapshot | Run `corpus-counts` and the Phase 1 verification commands |

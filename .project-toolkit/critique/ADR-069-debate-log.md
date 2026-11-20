@@ -2,7 +2,7 @@
 
 ## Summary
 
-- **Rounds**: 3 of 10
+- **Rounds**: 2 of 10
 - **Prior debate log**: none
 - **Outcome**: Consensus
 - **Final Status**: accepted
@@ -67,13 +67,6 @@ The critic changed to true for two reasons:
 
 The architect added a further point. "First merged change" was already met by PR #1869 on 2026-05-10. So the literal reading cannot explain why the field is false.
 
-### Findings Applied After The Votes
-
-- architect P2 and critic P1: the closing sentence overstated the merged PRs. PR #7482 cites ADR-069 only to exclude it. The paragraph now rests on the artifact test alone.
-- critic P1: Implementation Notes said no gate was associated. It now credits follow-up PR #7489.
-- critic P0: this log must exist before the commit. It ships in the same commit as the status change.
-- Editorial: the Decision opener now ends with a period, so the generated index summary reads as a sentence.
-
 ### Claims Checked
 
 | Claim | Result |
@@ -84,51 +77,6 @@ The architect added a further point. "First merged change" was already met by PR
 | Cited script paths exist | VERIFIED (`git ls-files`) |
 | `check_adr_lifecycle.py` passes with no new violations | VERIFIED (153 violations across 123 records, none outside the baseline, 2026-11-20 at `15c13340a`) |
 
-## Round 3 Summary
-
-The pre-merge `/review` ran after round 2 and changed the ADR text, so the panel voted again on the text that ships.
-
-### Key Issues Addressed
-
-- `decision-rigor` found that the acceptance cited only supporting evidence. The #7471 verdict rests on the 2026-09-28 control ablation (`.project-toolkit/metrics/control-ablation-v0.7.0.md`), which returned `MIXED`.
-- `decision-rigor` found that `true` routes any later material change to supersession, and the text did not say so.
-- `analyst` and `correctness` found that the Context section still named closed #7468 as the inventory owner.
-- `analyst` found the `implemented` paragraph claimed more than the verdicts said.
-- `decision-rigor` found 14 live statements outside this record (2026-11-20, at `15c13340a`) that still called ADR-069 proposed. One of them failed `citation_reverse_pass.py`.
-
-### Major Changes Made
-
-- Implementation Notes item 4 cites the `MIXED` ablation. It says the record is accepted as a principle and its effect is unmeasured.
-- A Revisit condition points at the research-frontier Program 1 falsifiable milestone.
-- The `implemented` paragraph says "recorded verdict" and names the supersession consequence.
-- The Context section points at Implementation Notes item 1 for the current inventory.
-- The same change updates the stale status text in three skill templates, their generated copies, one skill reference, one docs page, and the roadmap.
-
-### Votes
-
-| Agent | Vote |
-|-------|------|
-| architect | Accept |
-| critic | Disagree-and-Commit |
-
-### Dissent
-
-The critic's recorded reservation: `implemented: true` means any later material change needs a superseding record. The principle's effect is unmeasured, so a negative Program 1 result will need a new record, not an amendment.
-
-### Findings Applied After The Votes
-
-- critic P2: the Revisit condition names the template path.
-- architect P2: the ablation sentence says "accepted 9 of 15 tasks durably", matching the metric.
-- architect P1 (the log is missing) was already resolved. This log was committed with the status change.
-
-## Corrections From Review Round 2
-
-The pre-merge `/review` round 2 found two factual errors in the ADR text. Both are corrections, not changes to the decision, so the panel did not vote again.
-
-- `decision-rigor`: the ablation counts 15 runs per arm (5 tasks, 3 repeats each), not 15 tasks. Implementation Notes item 4 now says "runs".
-- `correctness`: the Context catalog is called a 2026-05-02 snapshot, but PR #5887 (2026-09-22) moved one of its paths. The Context section now names that move.
-- `decision-rigor` also found that three skill `reverify.json` checks still asserted `status: proposed`. They now assert `status: accepted`, and `bootstrap_drift.py check` passes for those rows.
-
 ## Next Steps
 
-- `.project-toolkit/architecture/ADR-107-canonical-skill-contracts-and-harness-projections.md` (Related Decisions) still calls ADR-069 `proposed`. Editing ADR-107 needs its own debate log, so this change leaves it. The PR for this change names it as an open follow-up.
+This debate closed at round 2 with consensus. Edits made after that vote are debated in `.project-toolkit/critique/ADR-069-debate-log-2.md`.
