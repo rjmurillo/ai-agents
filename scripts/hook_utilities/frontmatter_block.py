@@ -196,8 +196,11 @@ def _strict_loader(yaml: ModuleType) -> type:
         mapping: dict[Any, Any] = loader.construct_mapping(node, deep=True)
         return mapping
 
-    strict = type("StrictFrontmatterLoader", (yaml.SafeLoader,), {})
-    strict.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, no_duplicate_keys)
+    # Any: the class derives from the caller's SafeLoader, which this file
+    # cannot import, so its add_constructor classmethod is invisible to mypy.
+    built: Any = type("StrictFrontmatterLoader", (yaml.SafeLoader,), {})
+    built.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, no_duplicate_keys)
+    strict: type = built
     _STRICT_LOADERS[id(yaml)] = strict
     return strict
 
