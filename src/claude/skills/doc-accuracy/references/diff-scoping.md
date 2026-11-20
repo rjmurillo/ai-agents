@@ -103,8 +103,11 @@ The marker is `<!-- doc-accuracy: external-sdk <name> -- <reason> -->`.
   an access modifier. In Python they are classes and functions. In JavaScript
   and TypeScript they are classes, interfaces, enums, functions, and type
   aliases (`type X =`), so `import type X` and `import { type X }` stay claims.
-  Comments and strings declare nothing. The report counts each skip per file
-  under `declared_name_suppressed`. Method signature claims get no exemption.
+  A declaration counts only at the start of a line, after any attributes and
+  modifiers. Comments, strings, and text in the middle of a line, such as a
+  regex literal, declare nothing. A conversion operator does not declare its
+  target type. The report counts each skip per file under
+  `declared_name_suppressed`. Method signature claims get no exemption.
 - A missing, `-`-led, or placeholder name suppresses nothing and yields a
   high `invalid_external_sdk_marker` finding.
 - `claims.json` records `sdk`, `reason`, and `line`. Phase 3 counts suppressed

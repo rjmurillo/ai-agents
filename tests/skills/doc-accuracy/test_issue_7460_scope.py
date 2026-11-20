@@ -201,7 +201,19 @@ def test_plain_uses_without_declaration_still_flag(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("lang", "code", "expected"),
     [
-        ("csharp", "namespace Foo.Bar { class A {} }", {"Foo", "Bar", "A"}),
+        ("csharp", "namespace Foo.Bar\n{\n    internal sealed class A {}\n}", {"Foo", "Bar", "A"}),
+        # Declarations count only at the start of a statement.
+        ("csharp", 'var s = $"{format("class Ghost")}";\nvar g = new Ghost();', set()),
+        ("typescript", "const pattern = /class Ghost/;\nconst g = new Ghost();", set()),
+        (
+            "typescript",
+            "export default class Widget {}\nexport abstract class Base {}",
+            {"Widget", "Base"},
+        ),
+        # A conversion operator never declares its target, whatever separates them.
+        ("csharp", "public static implicit operator  Ghost(Order o) => new();", set()),
+        ("csharp", "public static implicit operator /* target */ Ghost(Order o) => new();", set()),
+        ("csharp", "public static implicit operator \t Ghost(Order o) => new();", set()),
         ("csharp", "public int Run(int x) { }", {"Run"}),
         ("csharp", "var o = new Order();", set()),
         ("csharp", "void F<T>() where T : class\nGhost x;", set()),
@@ -239,6 +251,8 @@ def test_method_signature_claims_ignore_declared_names(tmp_path: Path) -> None:
     [
         ("csharp", "public a b c\n" * 20000),
         ("csharp", "public " * 20000),
+        ("csharp", "aaaa " * 20000),
+        ("typescript", "export " * 20000),
         ("csharp", '"' + '\\"' * 20000 + "\\"),
         ("csharp", '@"' + '""' * 20000),
         ("csharp", '"""' * 20000),
@@ -249,6 +263,8 @@ def test_method_signature_claims_ignore_declared_names(tmp_path: Path) -> None:
     ids=[
         "cs-modifiers",
         "cs-one-line-modifiers",
+        "cs-one-line-tokens",
+        "ts-one-line-exports",
         "cs-escaped-quotes",
         "cs-verbatim-quotes",
         "cs-raw-openers",

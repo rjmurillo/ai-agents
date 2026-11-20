@@ -1458,24 +1458,45 @@ def _first_ignored_sdk_marker(lines: list[str]) -> dict[str, int] | None:
     return None
 
 
-# Keyword and modifier patterns stay on one line, and the modifier run is
-# capped, so a crafted block cannot make a match rescan to the end of a line
-# from every start. The property pattern spans line breaks on purpose, because
-# a name, its ``{`` and ``get`` often sit on separate lines. Each whitespace
-# run there follows one word, so it stays linear. A declaration a pattern
-# misses keeps its finding, which is the safe direction.
+# Every pattern is anchored at the start of a line, so a declaration counts
+# only where a statement begins. Text in the middle of a line, such as a regex
+# literal or a string the blanking pass could not parse, declares nothing.
+# Keyword and modifier runs stay on one line, and the method run is capped, so
+# a crafted block cannot make a match rescan a line from every start. The
+# property pattern crosses line breaks on purpose, because a name, its ``{``
+# and ``get`` often sit on separate lines. A declaration a pattern misses
+# keeps its finding, which is the safe direction.
+_CS_ATTRIBUTES = r"(?:\[[^\]\n]*\][ \t]*)*"
+_CS_MODIFIERS = (
+    r"(?:(?:public|private|protected|internal|static|sealed|abstract|partial"
+    r"|readonly|unsafe|file|new|ref)[ \t]+)*"
+)
 _DECLARED_NAME_PATTERNS: dict[str, tuple[re.Pattern[str], ...]] = {
     "csharp": (
-        re.compile(r"\b(?:class|struct|interface|enum|record|namespace)[ \t]+([A-Za-z_][\w.]*)"),
-        re.compile(r"\b([A-Za-z_]\w*)\s*\{\s*(?:get|set|init)\b"),
         re.compile(
-            r"\b(?:public|private|protected|internal)\b[^;{}()=\n]{0,200}?"
-            r"(?<!\boperator )(?<!\boperator\t)\b([A-Za-z_]\w*)[ \t]*\("
+            r"^[ \t]*" + _CS_ATTRIBUTES + _CS_MODIFIERS + r"(?:class|struct|interface|enum"
+            r"|record(?:[ \t]+(?:class|struct))?|namespace)[ \t]+([A-Za-z_][\w.]*)",
+            re.MULTILINE,
+        ),
+        re.compile(
+            r"^[ \t]*(?:[\w<>\[\],.?]+[ \t]+)+([A-Za-z_]\w*)\s*\{\s*(?:get|set|init)\b",
+            re.MULTILINE,
+        ),
+        # A conversion operator names its target type, it does not declare it,
+        # so the run before the method name may not cross an ``operator`` token.
+        re.compile(
+            r"^[ \t]*" + _CS_ATTRIBUTES + r"(?:public|private|protected|internal)\b"
+            r"(?:(?!\boperator\b)[^;{}()=\n]){0,200}?\b([A-Za-z_]\w*)[ \t]*\(",
+            re.MULTILINE,
         ),
     ),
     "python": (re.compile(r"^[ \t]*(?:async[ \t]+)?(?:class|def)[ \t]+(\w+)", re.MULTILINE),),
     "javascript": (
-        re.compile(r"\b(?:class|interface|enum|function)[ \t]+([A-Za-z_$][\w$]*)"),
+        re.compile(
+            r"^[ \t]*(?:export[ \t]+)?(?:default[ \t]+)?(?:declare[ \t]+)?(?:abstract[ \t]+)?"
+            r"(?:async[ \t]+)?(?:class|interface|enum|function)[ \t]+([A-Za-z_$][\w$]*)",
+            re.MULTILINE,
+        ),
         # A type alias is ``type Name =`` or ``type Name<...> =``. Requiring the
         # ``=`` or ``<`` keeps ``import type X`` and a wrapped
         # ``import {\n  type X,\n}`` list as claims about the repository.
