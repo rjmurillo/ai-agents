@@ -55,14 +55,14 @@ counted, never failed.
   classifies only when the cell that names the ADR also carries the signal.
 - An UNCLASSIFIED mention never fails. A blind read of all 131 at `31a65de8e`
   (2026-11-20) judged 25 of them live authority, so recall is partial.
-- The key is identity, not count: a second authority citation in a record
-  that is already baselined passes.
+- A stray straight `"` (an inch mark) earlier in a paragraph reads later
+  mentions as quoted, so they pass as HISTORY.
 
 ## Ratchet
 
-The baseline lists known violations by identity, `<path>::ADR-NNN`, as the rule
-gate does. A new violation fails, and so does a stale entry, so the list only
-shrinks. A PR that supersedes an ADR must repoint live citers or add them here.
+The baseline keys known violations by identity, `<path>::ADR-NNN`, like the rule
+gate, so a second citation in a baselined record passes. New or stale entries
+fail. A PR that supersedes an ADR must repoint live citers or add them here.
 
 Exit codes follow ADR-035: 0 ok, 1 new or stale violation or an unterminated
 fence, 2 configuration fault or a tracked record the scan could not read, 3 git
