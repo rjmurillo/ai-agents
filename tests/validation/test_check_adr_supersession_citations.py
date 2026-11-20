@@ -1,13 +1,11 @@
 """Tests for scripts/validation/check_adr_supersession_citations.py.
 
-pos: the ADR-107 Related Decisions text as it stood on main fails, and so do MUST,
-"per", "governs", and "current owner" citations of a superseded record.
-neg: lineage clauses, a named successor (direct or transitive), the record's
-own `supersedes`, quotations, history words, negation, code spans, fences,
-paths, non-superseded targets, and retired citing records all pass. The fixed
-ADR-107 wording from PR #7482 passes.
-edge: a quotation split across a capitalised wrap, a mention that is neither
-(unclassified, never failed), and the rule gate's META verdict on that ADR-107 text.
+pos: the ADR-107 Related Decisions text as it stood on main, and MUST, "per",
+"governs" and "current owner" citations of a superseded record, fail.
+neg: lineage, named successors, own `supersedes`, quotes, history words,
+negation, code, fences, paths, other statuses and retired citers pass, as does
+the PR #7482 ADR-107 wording. edge: split quotes, unclassified mentions, the
+rule gate's META verdict, and a long negated list in linear time.
 CLI: known passes, new or stale fails, unusable scope exits 2; one pre_pr row.
 """
 
@@ -199,14 +197,10 @@ def test_record_cited_in_its_own_supersedes_list_is_history() -> None:
     assert _kinds("ADR-080 governs model pins.\n", own=111) == [(80, HISTORY, 1)]
 
 
-def test_non_superseded_targets_are_not_classified() -> None:
-    text = "ADR-002 governs X. ADR-078 governs Y. ADR-111 governs Z.\n"
-    assert _kinds(text) == []
-
-
 @pytest.mark.parametrize(
     "text",
     [
+        "ADR-002 governs X. ADR-078 governs Y. ADR-111 governs Z.\n",
         "Run `ADR-080 governs` in a code span.\n",
         "```text\nADR-080 governs model pins.\n```\n",
         "<!-- ADR-080 governs model pins. -->\n",
@@ -224,6 +218,12 @@ def test_mention_with_no_signal_is_unclassified_not_failed() -> None:
 
 def test_own_number_is_skipped() -> None:
     assert _kinds("ADR-080 governs model pins.\n", own=80) == []
+
+
+@pytest.mark.timeout(10)
+def test_long_negated_list_is_classified_in_linear_time() -> None:
+    text = "Skills must not cite " + "ADR-052, " * 200 + "x ADR-080 owns pins.\n"
+    assert _authority(text) == [(80, 1)]
 
 
 # --------------------------------------------------------------------------

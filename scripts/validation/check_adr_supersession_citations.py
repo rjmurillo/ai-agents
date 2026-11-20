@@ -140,7 +140,7 @@ _HISTORY_RE = re.compile(
 _NEGATED_BEFORE_RE = re.compile(
     r"\b(?:not|never)\s+(?:(?:governed|owned|defined|required|bound)\s+)?"
     r"(?:from|by|under|per|cite|follow|use|rely on)\s+"
-    r"(?:ADR-\d+\s*(?:,\s*(?:or|and)?|\bor\b|\band\b)\s*)*$",
+    r"(?:ADR-\d+,?\s+(?:(?:or|and)\s+)?)*$",  # one owner per space: linear time
     re.IGNORECASE,
 )
 
