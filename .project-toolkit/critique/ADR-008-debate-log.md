@@ -105,6 +105,17 @@
 | architect | Disagree-and-Commit, resolved | P1 false "always" claim and missing log, both fixed. P2 date and row drift, fixed. Verified the size range and that no `scripts/eval` file measures hook output |
 | critic | Revise, resolved | P0 false claim, P1 stale status message and issue attribution, P1 missing log, all fixed. Found no broken consumer of the removed functions or output |
 
+### Review Round (2026-11-20, `/review` decision-rigor axis)
+
+- The first draft recorded only "drop". The amendment now names the two
+  rejected options (shrink to insights, gate by relevance) and why.
+- The surviving reminder has no live producer. #3349 retired the Stop hook
+  that wrote skeletons, and the newest skeleton is dated 2026-07-03. The
+  amendment now says the hook is inert in this repository.
+
 ### Next Steps
 
-- None. The change is self-contained in the hook, its tests, and this ADR.
+- Decide whether to retire the Context Loader hook outright. It is inert
+  here, but retiring it touches the hook registration, the
+  `AUTHORIZED_HOOKS` ledger, and the skeleton-fill documentation. That is
+  outside this change and is left for the owner.

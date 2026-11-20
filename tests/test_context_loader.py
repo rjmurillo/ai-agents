@@ -48,7 +48,7 @@ def project_tree(tmp_path: Path) -> Path:
 class TestUtf8ProtocolOutput:
     """The SessionStart protocol must survive Windows console encodings."""
 
-    PROTOCOL_TEXT = "## 🔄 Context Loader: Session Start Auto-Injection"
+    PROTOCOL_TEXT = "## ⏳ 1 retro(s) need completion"
 
     def test_reconfigures_cp1252_stdout_to_utf8(self, monkeypatch) -> None:
         raw = io.BytesIO()

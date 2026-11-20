@@ -153,6 +153,25 @@ def test_undated_skeleton_falls_back_to_mtime_age_cap() -> None:
         assert names == ["auto-retro.md"]
 
 
+def test_invalid_calendar_date_falls_back_to_mtime_age_cap(tmp_path: Path) -> None:
+    """A date-shaped but impossible filename prefix is treated as undated."""
+    # Arrange
+    retro_dir = tmp_path / "retrospective"
+    recent = _write_skeleton_file(retro_dir, "2026-13-40-auto-retro.md")
+    stale = _write_skeleton_file(retro_dir, "2026-02-30-auto-retro.md")
+    _age_file(recent, days_old=1)
+    _age_file(stale, days_old=30)
+
+    # Act
+    count, names = invoke_context_loader._count_pending_skeletons(
+        retro_dir, tmp_path, max_age_days=7
+    )
+
+    # Assert
+    assert count == 1
+    assert names == ["2026-13-40-auto-retro.md"]
+
+
 def test_missing_directory_yields_zero() -> None:
     # Arrange
     import tempfile

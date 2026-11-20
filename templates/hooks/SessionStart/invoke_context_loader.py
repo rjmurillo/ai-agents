@@ -1,17 +1,15 @@
 #!/usr/bin/env python3
 """Remind the session about unfilled retrospective skeletons.
 
-Claude Code SessionStart hook. When the Stop hook has left retrospective
-skeletons unfilled in the last ``PENDING_RETRO_MAX_AGE_DAYS`` days, it prints
-a short reminder with the ``/retrospective fill <date>`` command. Otherwise
-it prints nothing, so a session with no pending work pays no context cost.
+Claude Code SessionStart hook. When an unfilled retrospective skeleton dated
+in the last ``PENDING_RETRO_MAX_AGE_DAYS`` days exists, it prints a short
+reminder with the ``/retrospective fill <date>`` command. Otherwise it prints
+nothing, so a session with no pending work pays no context cost. The Stop
+hook that wrote skeletons was retired by #3349, so in this repository the
+reminder fires only if someone adds a skeleton by hand.
 
-Does NOT inject retrospective content. It used to inject the first 4,000
-characters of the newest retrospective into every session, whatever the task.
-That was dropped: every retrospective in the 30-day window ran 11,965 to
-16,858 characters, so the cut fell before the insights section in 2 of 3
-files, including the one injected. No eval measured whether the injection
-changed any session. See the ADR-008 amendment dated 2026-11-20.
+Does NOT inject retrospective content. The latest-retrospective injection was
+dropped; the ADR-008 amendment dated 2026-11-20 records the evidence.
 Retrospectives stay reachable on demand through the ``retrospective`` skill
 and ``.project-toolkit/retrospective/INDEX.md``.
 
@@ -76,12 +74,11 @@ SKELETON_MARKER_SCAN_CHARS = 4000
 
 HOOK_NAME = "context-loader"
 
-# Mirror of the marker stamped into unfilled skeletons by the Stop hook
-# (Issue #2079). Canonical source:
-# .claude/hooks/Stop/invoke_auto_retrospective.py, constant
-# ``RETRO_STATE_MARKER``. Quoted verbatim per the canonical-source-mirror
-# rule. A skeleton carries this exact string until a reviewer fills it and
-# removes the marker; this hook counts the unfilled ones to remind the user.
+# Marker carried by unfilled skeletons (Issue #2079). Its writer, the Stop
+# hook ``invoke_auto_retrospective.py``, was retired by #3349; the marker is
+# documented in the retrospective skill's ``references/skeleton-fill.md``.
+# A skeleton carries this exact string until a reviewer fills it and removes
+# the marker; this hook counts the unfilled ones to remind the user.
 RETRO_STATE_MARKER = "<!-- RETRO-STATE: skeleton-pending-fill -->"
 
 # Skeletons older than this many days stop nagging (Issue #2079 acceptance:
@@ -138,8 +135,7 @@ def _count_pending_skeletons(
 
     try:
         # Exclude the co-located INDEX.md: it lives alongside the retro files
-        # but is a meta-index, not a retrospective. See
-        # .claude/hooks/Stop/invoke_auto_retrospective.py::update_retro_index.
+        # but is a meta-index, not a retrospective.
         retro_paths = [p for p in retro_dir.glob("*.md") if p.name != "INDEX.md"]
     except OSError:
         return 0, []
