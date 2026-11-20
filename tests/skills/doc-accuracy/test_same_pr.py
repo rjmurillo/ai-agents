@@ -103,7 +103,42 @@ def test_r2_binds_paths_when_the_line_names_the_collection_symbol(tmp_path: Path
 
     (hit,) = _rule(findings, "R2")
     assert hit["code"]["symbol"] == "AGENT_PATTERNS"
+    assert hit["evidence"]["missing"] == [".claude/agents", "src/vs-code-agents"]
     assert code == 10
+
+
+def test_r2_binds_paths_when_the_line_names_the_bare_script_name(tmp_path: Path) -> None:
+    prose = ADR_ROW.replace("| tests |", "| `./eval-suite.py` scans these roots |")
+    repo = _agent_patterns_repo(tmp_path, prose, change_code=True)
+
+    code, findings, _ = run_same_pr(repo, tmp_path, "--phases", "1")
+
+    (hit,) = _rule(findings, "R2")
+    assert hit["code"]["symbol"] == "AGENT_PATTERNS"
+    assert code == 10
+
+
+def test_r2_binds_a_comment_inside_the_collection_file(tmp_path: Path) -> None:
+    comment = "# Scope roots: `src/claude/` and `src/copilot-cli/agents/`.\n"
+    repo = make_repo(tmp_path, {EVAL_SUITE: AGENT_PATTERNS_SOURCE})
+    edit_files_and_commit(repo, {EVAL_SUITE: comment + AGENT_PATTERNS_SOURCE})
+
+    code, findings, _ = run_same_pr(repo, tmp_path, "--phases", "1")
+
+    (hit,) = _rule(findings, "R2")
+    assert hit["prose"]["file"] == EVAL_SUITE
+    assert hit["evidence"]["missing"] == [".claude/agents", "src/vs-code-agents"]
+    assert code == 10
+
+
+def test_r2_needs_a_scope_word_when_the_line_names_only_the_file(tmp_path: Path) -> None:
+    prose = f"`{EVAL_SUITE}` reads `src/claude/` and `src/copilot-cli/agents/`."
+    repo = _agent_patterns_repo(tmp_path, prose, change_code=True)
+
+    code, findings, _ = run_same_pr(repo, tmp_path, "--phases", "1")
+
+    assert _rule(findings, "R2") == []
+    assert code == 0
 
 
 def test_literal_count_and_unchanged_option_reference(tmp_path: Path) -> None:

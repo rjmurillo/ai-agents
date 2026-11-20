@@ -575,12 +575,17 @@ def literal_collections(index: CodeIndex) -> list[tuple[str, int, str, list[ast.
     return collections
 
 
+def _same_script(path: str, mention: str) -> bool:
+    """True when ``mention`` names ``path`` by its full path or a trailing part."""
+    return path == mention or path.endswith("/" + mention)
+
+
 def check_literal_subset(prose: ProseLine, index: CodeIndex) -> list[dict[str, object]]:
     """R2: a closed path enumeration omits a literal collection member."""
     if re.search(r"\b(?:example|including|such as|e\.g\.)\b", prose.text, re.I):
         return []
     named = {s.rstrip("/") for s in re.findall(r"`([^`]+)`", prose.text)}
-    scripts = set(_SCRIPT_MENTION.findall(prose.text))
+    scripts = {m.removeprefix("./") for m in _SCRIPT_MENTION.findall(prose.text)}
     found = []
     for path, line, symbol, values in literal_collections(index):
         strings = [const_str(v) for v in values]
@@ -588,14 +593,15 @@ def check_literal_subset(prose: ProseLine, index: CodeIndex) -> list[dict[str, o
             continue
         members = {s.rstrip("/") for s in strings if s is not None}
         overlap = named & members
-        # The line must name the collection, by symbol or by its file path.
-        # Two shared paths and a scope word alone matched unrelated table
-        # rows (issue #7484), because any changed or mentioned script joins
-        # the index for every prose line.
+        # The line must name the collection, by symbol or by its file, or sit
+        # in that file. Two shared paths and a scope word alone matched
+        # unrelated table rows (issue #7484), because any changed or
+        # mentioned script joins the index for every prose line.
         explicit = symbol in prose.text
         paths = len(overlap) >= 2 and all(f"`{s}/`" in prose.text for s in overlap)
-        scoped = paths and path in scripts and re.search(r"scope|root|prefix", prose.text, re.I)
-        if not (explicit or scoped):
+        own_file = prose.file == path or any(_same_script(path, m) for m in scripts)
+        scoped = bool(re.search(r"scope|root|prefix", prose.text, re.I))
+        if not (explicit or paths and own_file and scoped):
             continue
         if overlap and overlap < members:
             found.append(
