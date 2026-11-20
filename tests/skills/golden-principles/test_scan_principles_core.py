@@ -115,3 +115,41 @@ class TestReadFileLines:
 
     def test_returns_empty_for_missing_file(self) -> None:
         assert core.read_file_lines("/nonexistent/path/file.py") == []
+
+
+class TestRepoAdoptsPrinciples:
+    """Opt-in signal for repository-policy rules (issue #7483)."""
+
+    def test_false_without_root(self) -> None:
+        assert core.repo_adopts_principles(None) is False
+
+    def test_false_when_document_missing(self, tmp_path: Path) -> None:
+        assert core.repo_adopts_principles(str(tmp_path)) is False
+
+    def test_true_when_document_present(self, tmp_path: Path) -> None:
+        doc = tmp_path / core.GOVERNANCE_DOC
+        doc.parent.mkdir(parents=True)
+        doc.write_text("# Golden principles\n", encoding="utf-8")
+        assert core.repo_adopts_principles(str(tmp_path)) is True
+
+    def test_false_when_document_path_is_directory(self, tmp_path: Path) -> None:
+        (tmp_path / core.GOVERNANCE_DOC).mkdir(parents=True)
+        assert core.repo_adopts_principles(str(tmp_path)) is False
+
+
+class TestAsAdvisory:
+    def test_downgrades_severity_and_keeps_location(self) -> None:
+        original = core.Violation("script-language", "GP-001", "error", "x.sh", 0, "m", "fix")
+
+        advisory = core.as_advisory(original)
+
+        assert advisory.severity == "warning"
+        assert (advisory.file, advisory.line, advisory.message) == ("x.sh", 0, "m")
+        assert "Advisory only" in advisory.remediation
+        assert original.severity == "error"
+
+
+def test_this_repository_adopts_the_principles() -> None:
+    # Guard: if the document moves, GP-001 would silently become advisory here.
+    repo_root = Path(__file__).resolve().parents[3]
+    assert core.repo_adopts_principles(str(repo_root)) is True

@@ -10,7 +10,7 @@ license: MIT
 Scan the repository for violations of mechanically enforced golden principles.
 Produces remediation instructions that agents can act on directly.
 
-<!-- vendor-portability: declared. This skill enforces GP-001 through GP-008 defined in .agents/governance/golden-principles.md and cites that document plus .claude/skills/ siblings. The governance file is the upstream rule source; a vendored install without it loses the canonical principle text, while the bundled scanner still applies its built-in GP-001 and GP-003 through GP-006 checks against the consumer's files (GP-002 is enforced elsewhere, not by this scanner). -->
+<!-- vendor-portability: declared. This skill enforces GP-001 through GP-008 defined in .agents/governance/golden-principles.md and cites that document plus .claude/skills/ siblings. The governance file is the upstream rule source; a vendored install without it loses the canonical principle text, while the bundled scanner still applies its built-in GP-003 through GP-006 checks against the consumer's files. GP-001 reports only a warning in a repository without that file, because it enforces this repository's own ADR-042. GP-002 is enforced elsewhere, not by this scanner. -->
 
 Inspired by [OpenAI Harness Engineering](https://openai.com/index/harness-engineering/):
 
@@ -86,6 +86,15 @@ Use `quality-grades` instead when:
 | `actions-pinned` | GP-006 | GitHub Actions pinned to SHA |
 
 GP-002, GP-007, GP-008 are enforced by existing tools (git hooks, taste-lints).
+
+### Repository opt-in for GP-001
+
+GP-001 is a repository policy, not a code check. It is an error when the
+scanned repository has `.agents/governance/golden-principles.md` at its root.
+A `--diff-scope` scan also counts that file at the base commit, so a branch
+cannot exempt itself by deleting it. Without the file, a new `.sh` or `.bash`
+file is a warning with an advisory remediation, and the scan exits 0. The JSON output reports the state as
+`principles_adopted`. The other rules apply in every repository.
 
 ## Exit Codes
 
