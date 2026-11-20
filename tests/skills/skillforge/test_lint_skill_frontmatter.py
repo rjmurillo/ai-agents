@@ -236,3 +236,18 @@ def test_capability_bad_kind_fails(tmp_path: Path, capsys: pytest.CaptureFixture
     assert code == 1
     assert rows["fm.capability.shape"]["status"] == "FAIL"
     assert "capability.kind must be one of" in _messages(rows["fm.capability.shape"])
+
+
+@pytest.mark.parametrize(
+    ("path", "status"),
+    [("123", "FAIL"), ("true", "FAIL"), ('"123"', "PASS"), ("plans/active/", "PASS")],
+    ids=["plain-int", "plain-bool", "quoted-int", "real-path"],
+)
+def test_artifact_path_must_be_text_not_a_yaml_core_type(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], path: str, status: str
+) -> None:
+    metadata = f"  outputs:\n    scratch-note:\n      path: {path}\n"
+
+    _code, rows = _lint(tmp_path, capsys, _skill_text(metadata))
+
+    assert rows["fm.artifacts.shape"]["status"] == status

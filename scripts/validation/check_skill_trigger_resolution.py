@@ -280,12 +280,13 @@ def find_violations(skills: list[Skill], skills_dir: Path) -> set[Identity]:
     found: set[Identity] = set()
     _CATALOG_CACHE.clear()
     for skill in skills:
-        phrases = extract_phrases(skill.description)
-        if skill.front_door and not skill.has_intents and phrases:
-            found.add((CHECK_NO_INTENTS, skill.name, phrases[0]))
-        for phrase in phrases:
+        for phrase in extract_phrases(skill.description):
             result = resolve(phrase, skills_dir)
             routed = _bare(result.get("route")) if result["kind"] == "specialist" else None
+            # One identity per phrase, so a baselined skill cannot add an
+            # unroutable phrase under an older entry.
+            if skill.front_door and not skill.has_intents and routed != skill.name:
+                found.add((CHECK_NO_INTENTS, skill.name, phrase))
             if skill.has_intents and routed != skill.name:
                 found.add((CHECK_OWN, skill.name, phrase))
             if routed is not None and routed != skill.name:

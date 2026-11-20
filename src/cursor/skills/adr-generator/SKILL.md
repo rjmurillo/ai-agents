@@ -29,7 +29,7 @@ metadata:
       - new adr
       - amend adr
       - supersede adr
-      - architecture decision record
+      - write architecture decision record
       - document decision
       - document design choices
       - record why chose

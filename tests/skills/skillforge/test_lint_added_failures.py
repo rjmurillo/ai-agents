@@ -54,6 +54,28 @@ def test_inherited_not_evaluated_is_not_an_added_failure() -> None:
     assert lint.added_failures(before, after) == []
 
 
+def test_a_new_violation_of_an_already_failing_rule_is_an_added_failure() -> None:
+    rule = _rule("fm.artifacts.shape")
+    before = [lint.Result(rule, "FAIL", ("old violation",))]
+    after = [lint.Result(rule, "FAIL", ("old violation", "new violation"))]
+
+    added = lint.added_failures(before, after)
+
+    assert [r.messages for r in added] == [("new violation",)]
+
+
+def test_new_failures_reports_a_second_bad_path_beside_an_inherited_one() -> None:
+    incumbent = _skill_text("  outputs:\n    old-note:\n      path: /outside\n")
+    candidate = _skill_text(
+        "  outputs:\n    old-note:\n      path: /outside\n    new-note:\n      path: ../outside\n"
+    )
+
+    added = lint.new_failures(incumbent, candidate)
+
+    assert _ids(added) == ["fm.artifacts.shape"]
+    assert all("new-note" in message for message in added[0].messages)
+
+
 def test_inherited_fail_is_not_an_added_failure() -> None:
     before = [_result("fm.capability.shape", "FAIL")]
     after = [_result("fm.capability.shape", "FAIL")]

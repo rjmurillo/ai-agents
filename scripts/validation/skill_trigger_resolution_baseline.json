@@ -16,64 +16,109 @@
     "phrase-routes-to-sibling": {},
     "front-door-phrases-without-intents": {
       "agent-harness-reference": [
-        "harness contract"
+        "copilot cli hook behavior",
+        "harness contract",
+        "hook payload format",
+        "stale plugin root"
       ],
       "ai-agents-portability-campaign": [
+        "copilot hook timeout regression",
+        "new copilot cli release, recheck the contract",
+        "port hooks to a new harness",
         "run the portability campaign"
       ],
       "analyze": [
-        "analyze this codebase"
+        "analyze this codebase",
+        "architecture review of this system",
+        "find code smells",
+        "review code quality",
+        "run security assessment"
       ],
       "autoplan": [
-        "do it"
+        "do it",
+        "figure this out",
+        "handle it"
       ],
       "build": [
-        "build this"
+        "build this",
+        "implement this slice",
+        "write the code for this task"
       ],
       "context-gather": [
-        "gather context before planning"
+        "gather context before planning",
+        "what do we know before I start"
       ],
       "github": [
+        "add label to issue",
+        "check CI status",
         "create a PR"
       ],
       "github-url-intercept": [
-        "analyze this PR"
+        "analyze this PR",
+        "look at this issue",
+        "what does this commit do"
       ],
       "memory-search": [
-        "search memory"
+        "recall prior context",
+        "search memory",
+        "what do we know about X"
       ],
       "plan": [
+        "break this into milestones",
+        "decompose this spec",
         "plan how to build this"
       ],
       "planner": [
+        "pick up where the plan left off",
+        "resume execution",
         "run the planner workflow"
       ],
       "push-pr": [
-        "push and open a PR"
+        "open a pull request",
+        "push and open a PR",
+        "push this branch"
       ],
       "quality-grades": [
-        "grade quality"
+        "audit domain quality",
+        "domain quality report",
+        "grade quality",
+        "run quality grades",
+        "show quality gaps"
       ],
       "research": [
-        "research this topic"
+        "analyze this external practice for us",
+        "research this topic",
+        "what does the literature say about X"
       ],
       "security-detection": [
-        "did I touch security-critical files"
+        "did I touch security-critical files",
+        "should the security agent review this"
       ],
       "security-scan": [
+        "CWE-78 check before PR",
         "scan for command injection"
       ],
       "ship": [
-        "ship it"
+        "run pre-flight and open the PR",
+        "ship it",
+        "ship this branch"
       ],
       "skillforge": [
-        "create a skill"
+        "SkillForge: {goal}",
+        "create a skill",
+        "do I have a skill for",
+        "improve the X skill",
+        "which skill should I use"
       ],
       "spec": [
-        "spec this out"
+        "define the requirements",
+        "spec this out",
+        "what should we build"
       ],
       "test": [
-        "prove this works"
+        "prove this works",
+        "run the test gates",
+        "validate this change"
       ]
     }
   }

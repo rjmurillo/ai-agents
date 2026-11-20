@@ -25,6 +25,7 @@ def _with_metadata(root: Path, block: str) -> None:
 @pytest.mark.parametrize(
     ("block", "problem"),
     [
+        ("  outputs: null\n", "outputs must be a mapping keyed by artifact name"),
         ("  outputs:\n    scratch-note: null\n", "outputs.scratch-note must be empty"),
         ("  outputs:\n    scratch-note: ~\n", "outputs.scratch-note must be empty"),
         (

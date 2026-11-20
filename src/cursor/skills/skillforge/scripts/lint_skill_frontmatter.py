@@ -188,17 +188,22 @@ def lint_text(text: str) -> list[Result]:
 def added_failures(before: list[Result], after: list[Result]) -> list[Result]:
     """Return MUST failures in `after` that `before` does not have.
 
-    A FAIL counts when the incumbent did not FAIL the rule. A MUST rule that is
-    NOT_EVALUATED counts when the incumbent PASSed it, because the standalone
-    linter treats that state as failing (`failed`). An incumbent that was
-    itself NOT_EVALUATED or failing already carried the problem.
+    A FAIL counts when it carries a message the incumbent's FAIL of the same
+    rule did not, so an inherited failure cannot hide a new violation of that
+    rule. Only the new messages are returned. A MUST rule that is NOT_EVALUATED
+    counts when the incumbent PASSed it, because the standalone linter treats
+    that state as failing (`failed`). An incumbent that was itself
+    NOT_EVALUATED already carried the problem.
     """
-    failing_before = {r.rule.id for r in before if r.status == "FAIL"}
+    failing_before = {r.rule.id: set(r.messages) for r in before if r.status == "FAIL"}
     passing_before = {r.rule.id for r in before if r.status == "PASS"}
     added = []
     for result in after:
-        if result.status == "FAIL" and result.rule.id not in failing_before:
-            added.append(result)
+        if result.status == "FAIL":
+            inherited = failing_before.get(result.rule.id, set())
+            new_messages = tuple(m for m in result.messages if m not in inherited)
+            if new_messages:
+                added.append(Result(result.rule, result.status, new_messages))
         elif (
             result.status == "NOT_EVALUATED"
             and result.rule.level == "MUST"

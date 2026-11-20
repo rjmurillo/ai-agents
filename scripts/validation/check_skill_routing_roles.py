@@ -391,16 +391,28 @@ def check_routing_graph(
     return sorted(findings)
 
 
-def survey(repo_root: Path) -> tuple[list[SkillDecl], list[str], Evidence]:
-    """Read the tree once and return every declaration, finding, and evidence layer."""
+def _declarations(
+    repo_root: Path,
+) -> tuple[list[SkillDecl], list[str], dict[str, Path], dict[str, Path]]:
+    """Read every declaration and the gate's findings. Runs no repository code."""
     skills, defects = collect_skills(repo_root)
     skill_templates = _skill_template_map(repo_root)
     agent_templates = _agent_template_map(repo_root)
     graph_findings = check_routing_graph(
         skills, frozenset(skill_templates), frozenset(agent_templates)
     )
+    return skills, sorted(defects) + graph_findings, skill_templates, agent_templates
+
+
+def survey(repo_root: Path) -> tuple[list[SkillDecl], list[str], Evidence]:
+    """Return every declaration, finding, and evidence layer.
+
+    Evidence loads autoplan's resolver from the checkout, so only `--report`
+    asks for it. The blocking gate calls `_declarations` alone.
+    """
+    skills, findings, skill_templates, agent_templates = _declarations(repo_root)
     evidence = compute_evidence(repo_root, skills, skill_templates, agent_templates)
-    return skills, sorted(defects) + graph_findings, evidence
+    return skills, findings, evidence
 
 
 def _report_findings(findings: list[str]) -> None:
@@ -422,7 +434,7 @@ def validate_skill_routing_roles(repo_root: Path) -> bool:
     Entry point matching the ``validate_*(repo_root) -> bool`` contract that
     ``pre_pr_sequence.py`` expects.
     """
-    _skills, findings, _evidence = survey(repo_root)
+    _skills, findings, _skill_templates, _agent_templates = _declarations(repo_root)
     if not findings:
         return True
     _report_findings(findings)
@@ -443,12 +455,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[FAIL] Invalid repository root: {repo_root}", file=sys.stderr)
         return 2
     try:
-        skills, findings, evidence = survey(repo_root)
+        if args.report:
+            skills, findings, evidence = survey(repo_root)
+            print(render(skills, evidence, args.format))
+        else:
+            skills, findings, _skill_templates, _agent_templates = _declarations(repo_root)
     except TreeError as exc:
         print(f"[FAIL] {exc}", file=sys.stderr)
         return 2
-    if args.report:
-        print(render(skills, evidence, args.format))
     if findings:
         _report_findings(findings)
         return 1

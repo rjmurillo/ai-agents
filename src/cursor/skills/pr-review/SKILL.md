@@ -14,7 +14,7 @@ metadata:
     trigger: autoplan routes a request to answer PR review comments and get a merge verdict
     user-facing: true
     intents:
-      - tell me if it can merge
+      - comments and tell me if it can merge
       - completion gate verdict
 ---
 

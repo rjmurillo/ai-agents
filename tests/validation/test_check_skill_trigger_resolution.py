@@ -7,6 +7,7 @@ Fixtures live in `trigger_resolution_fixtures`; config and resolver failures are
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -180,13 +181,30 @@ class TestRealTree:
 class TestFrontDoorWithoutIntents:
     """The 2026-11-19 adr-generator miss: phrases advertised, no intents declared."""
 
-    def test_front_door_phrases_without_intents_fail_naming_first_phrase(
+    def test_front_door_phrases_without_intents_fail_naming_every_phrase(
         self, repo: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         _skill(_skills(repo), "adr-maker", 'Use when you say "write an ADR" or "draft an ADR".')
         assert _run(repo, _baseline(repo)) == gate.EXIT_VIOLATION
         out = capsys.readouterr().out
         assert f"{gate.CHECK_NO_INTENTS}: adr-maker: 'write an ADR'" in out
+        assert f"{gate.CHECK_NO_INTENTS}: adr-maker: 'draft an ADR'" in out
+
+    def test_a_baselined_skill_cannot_add_an_unroutable_phrase(
+        self, repo: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(repo)
+        skills = _skills(repo)
+        _skill(skills, "adr-maker", 'Use when you say "write an ADR".')
+        baseline = _baseline(repo)
+        assert _run(repo, baseline, "--write-baseline") == gate.EXIT_OK
+        shutil.rmtree(skills / "adr-maker")
+        _skill(skills, "adr-maker", 'Use when you say "write an ADR" or "implement it today".')
+
+        assert _run(repo, baseline) == gate.EXIT_VIOLATION
+        assert (
+            f"{gate.CHECK_NO_INTENTS}: adr-maker: 'implement it today'" in capsys.readouterr().out
+        )
 
     def test_declaring_intents_clears_it(self, repo: Path) -> None:
         _skill(

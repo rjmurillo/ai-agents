@@ -82,6 +82,19 @@
         ]
       },
       "rationale": "Negative control: reading an ADR writes nothing, so adr-generator must not match."
+    },
+    {
+      "id": "lt-adr-generator-review-record-negative",
+      "family": "negative-noise",
+      "request": "Review this architecture decision record.",
+      "expect": {
+        "kind": "none",
+        "route": null,
+        "routes_absent": [
+          "adr-generator"
+        ]
+      },
+      "rationale": "Negative control: an ADR review request spelled out as architecture decision record must not reach the authoring skill."
     }
   ]
 }

@@ -167,7 +167,10 @@ def _entry_problems(field: str, name: object, value: object) -> list[str]:
     problems = [f"{where} has unknown option {key!r}" for key in value if key not in allowed]
     if "path" in value:
         path = value["path"]
-        if not isinstance(path, str) or not PATH_RE.fullmatch(path):
+        typed = subset.core_type(path)
+        if typed is not None:
+            problems.append(f"{where}.path is a YAML {typed}, not a path; quote it")
+        elif not isinstance(path, str) or not PATH_RE.fullmatch(path):
             problems.append(
                 f"{where}.path {path!r} must be lowercase and relative to the artifact root"
             )
