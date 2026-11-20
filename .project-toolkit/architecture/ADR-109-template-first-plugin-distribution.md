@@ -300,7 +300,7 @@ Workflow input files under `.github/prompts/` stay, and no workflow that reads t
 - `.claude/rules/claude-agents.md:24`, the 173-commit, 54-commit, 31% measurement and the asymmetric co-change demonstration.
 - `.claude/rules/generated-artifacts.md:159-197`, "Generator order: sync before build," the lib ordering hazard and its explicit rejection of the naive fix.
 - `.claude/rules/plugin-self-containment.md`, the plugin-root boundary and the three current plugin roots.
-- `.claude/skills/agent-harness-reference/references/official-hook-contracts.md:48` (Configuration contract table, repository hook files) and `:291-299` (Cloud agent section, loads only `.github/hooks/*.json`, ignores installed plugins).
+- `src/claude/skills/agent-harness-reference/references/official-hook-contracts.md:51` (Configuration contract table, repository hook files) and `:316-324` (Cloud agent section, loads only `.github/hooks/*.json`, ignores installed plugins).
 - `.project-toolkit/architecture/ADR-097-zero-tool-use-hooks.md:96-98`, why the plugin `hooks.json` is `"hooks": {}`. (2026-11-04: the file now lives at `src/claude/hooks/hooks.json` and registers one advisory Stop group; see the section 2 amendment.)
 - `scripts/validation/check_adr_lifecycle.py:68`, the `proposed-cannot-supersede` check that fixes when the ADR-052 supersession takes effect.
 - `build/scripts/skill_templates.py:183-244`, the per-skill symlink and containment checks each later class re-implements for its own paths.

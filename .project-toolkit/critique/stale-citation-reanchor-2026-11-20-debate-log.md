@@ -2,7 +2,7 @@
 
 ## Summary
 
-- **Rounds**: 3 of 10
+- **Rounds**: 4 of 10
 - **Outcome**: Consensus
 - **Final Status**: unchanged (the edit changes no ADR status or decision)
 - **Scope**: line-number citations in ADR-036, ADR-052, ADR-080, ADR-083, ADR-096, ADR-101,
@@ -78,6 +78,36 @@ line of 20 or more characters, or the citation's own anchor found once in the fi
 
 ADR-101 line 272 now cites `:114`. ADR-102 line 315 has no consensus, so it stays unchanged
 and is listed as indeterminate in the pull request.
+
+## Round 4 Summary
+
+The added-lines gate also checks citations within three lines of an edit. Eight such
+citations in these ADRs failed it after round 3.
+
+### Key Issues Addressed
+
+- ADR-101 line 274 cites `:153` for the token line. That text now sits at line 155. The
+  sentence also names `:2-4` on purpose, as the earlier wrong revision, so the line carries a
+  reasoned ignore marker.
+- ADR-109 line 303 cites a file under `.claude/skills/`, a symlink the gate does not track. The
+  same file is tracked at `src/claude/skills/agent-harness-reference/references/`. Line 48
+  there now sits at line 51, and lines 291 to 299 now sit at 316 to 324, an exact match.
+- ADR-107 line 65 and ADR-108 line 34 cite `build_all.py:2454`, which is correct. Their anchors
+  describe the whole guard, so no single line matches. Both carry a reasoned marker.
+- ADR-108 lines 163 and 164 are Change Impact rows that quote sentences as they were. One
+  quoted sentence is gone. The other was reworded, and its successor is at
+  `generated-artifacts.md` line 198. Both keep their numbers with a reasoned marker.
+- ADR-080 line 58 cites `build_child_argv`. That block moved down two lines, so lines 158 to
+  184 are now 160 to 186, an exact match.
+
+### Agent Positions
+
+| Agent | Position |
+|-------|----------|
+| architect | Block on one item: the ADR-108 line 164 marker wrongly said no successor exists. Fixed to name line 198. All other items verified. |
+| critic | Block on one item: ADR-080 line 58 was correct at its citing commit and only moved two lines. Fixed to `:160-186`. All other items accepted. |
+
+Both required changes were applied as given.
 
 ## Decision
 

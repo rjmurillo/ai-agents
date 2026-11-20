@@ -55,7 +55,7 @@ The pins encode a guess, not a measurement. This ADR is criterion 1 of issue
 Issue #2901 delivered the sweep harness (`scripts/eval/eval-model-sweep.py`
 plus `scripts/eval/_model_sweep_core.py`) and #2902 completed the pricing table. But the
 harness is **agent-shaped**: it builds child arguments only for `--agent`,
-`--fixtures`, `--model`, `--n-runs` (`scripts/eval/eval-model-sweep.py:158-184`) and the
+`--fixtures`, `--model`, `--n-runs` (`scripts/eval/eval-model-sweep.py:160-186`) and the
 base evaluator reads `templates/agents/{agent}.shared.md`
 (`scripts/eval/eval-agent-vs-baseline.py:118,394-406`). It cannot evaluate a skill or a
 command.
