@@ -2,7 +2,7 @@
 
 ## Summary
 
-- **Rounds**: 6 of 10
+- **Rounds**: 7 of 10
 - **Outcome**: Consensus
 - **Final Status**: unchanged (the edit changes no ADR status or decision)
 - **Scope**: line-number citations in ADR-036, ADR-052, ADR-080, ADR-083, ADR-096, ADR-101,
@@ -157,6 +157,23 @@ The `/review` correctness and analyst axes found citations the earlier rounds mi
 |-------|----------|
 | architect | Accept all three. Named the same off-by-one at ADR-108 line 161, now fixed. |
 | critic | Accept all three. ADR-107 line 66 still says "re-anchored 2026-09-11"; that dated prose stays unchanged. |
+
+## Round 7 Summary
+
+A review thread on PR #7504 found one more round 1 row that missed its cited text.
+
+### Key Issues Addressed
+
+- ADR-096 line 112 says `post_qa_code_changes` is directly unit-tested. The round 1 range,
+  `tests/test_validate_session_json.py:496-602`, started inside an unrelated test and missed
+  two of the direct tests. Lines 525 to 653 hold five whole tests, and each calls the function.
+
+### Agent Positions
+
+| Agent | Position |
+|-------|----------|
+| architect | Accept. Five direct tests at 525, 566, 596, 616, and 634; the last ends at 653. |
+| critic | Accept. At citing commit `46049e1ee` the same tests began at 428, so the meaning holds. |
 
 ## Decision
 
