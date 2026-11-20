@@ -1,0 +1,267 @@
+{
+  "schema_version": 1,
+  "repository": "rjmurillo/ai-agents",
+  "selection": "Past Doc Writer findings and twelve docs review negatives supplied by Richard.",
+  "matching": "Same citing file, stale-citation class, and line within three.",
+  "cases": [
+    {
+      "id": "C1-01",
+      "pr": 5343,
+      "sha": "8e7e59b263",
+      "kind": "positive",
+      "scope": "automatic",
+      "file": ".claude/skills/ai-agents-diagnostics-toolkit/SKILL.md",
+      "line": 56,
+      "defect_class": "stale-citation",
+      "defect": "build_all.py lines 1005-1033 moved to different code."
+    },
+    {
+      "id": "C1-02",
+      "pr": 6492,
+      "sha": "2580325a93",
+      "kind": "positive",
+      "scope": "automatic",
+      "file": ".agents/governance/FAIL-OPEN-INVENTORY.md",
+      "line": 147,
+      "defect_class": "stale-citation",
+      "defect": "checks_coverage.py lines 70-135 no longer covers validate_review_marker."
+    },
+    {
+      "id": "C1-03",
+      "pr": 6278,
+      "sha": "d4dc86aadf",
+      "kind": "positive",
+      "scope": "automatic",
+      "file": ".agents/governance/FAIL-OPEN-INVENTORY.md",
+      "line": 186,
+      "defect_class": "stale-citation",
+      "defect": "ai-spec-review.yml lines 168 no longer identifies the step."
+    },
+    {
+      "id": "C1-04",
+      "pr": 6332,
+      "sha": "727e9bf5f0",
+      "kind": "positive",
+      "scope": "automatic",
+      "file": ".project-toolkit/specs/design/DESIGN-026-memory-placement-validator.md",
+      "line": 78,
+      "defect_class": "stale-citation",
+      "defect": "lefthook.yml lines 328-350 no longer identifies the cited group."
+    },
+    {
+      "id": "C1-05",
+      "pr": 5338,
+      "sha": "b13283f2c3",
+      "kind": "positive",
+      "scope": "automatic",
+      "file": ".claude/rules/canonical-source-mirror.md",
+      "line": 121,
+      "defect_class": "stale-citation",
+      "defect": ".markdownlint-cli2.yaml lines 131 should cite line 138."
+    },
+    {
+      "id": "C1-06",
+      "pr": 5287,
+      "sha": "2bcb83d278",
+      "kind": "positive",
+      "scope": "automatic",
+      "file": ".claude/skills/ai-agents-config-catalog/SKILL.md",
+      "line": 64,
+      "defect_class": "stale-citation",
+      "defect": "The introduced audit citation names stale lines."
+    },
+    {
+      "id": "C1-07",
+      "pr": 5286,
+      "sha": "81b88dd3df",
+      "kind": "positive",
+      "scope": "automatic",
+      "file": ".agents/architecture/ADR-052-template-strategy.md",
+      "line": 32,
+      "defect_class": "stale-citation",
+      "defect": "The quoted Not Generated heading moved from line 45 to 58."
+    },
+    {
+      "id": "C1-08",
+      "pr": 5812,
+      "sha": "94a46b801a",
+      "kind": "positive",
+      "scope": "automatic",
+      "file": "tests/validation/test_frontmatter_contract.py",
+      "line": 147,
+      "defect_class": "stale-citation",
+      "defect": "PR #5812 introduced generate_adr_index.py:202. PR #6584 only inherited it.",
+      "evidence_pr": 6584
+    },
+    {
+      "id": "C1-09",
+      "pr": 5741,
+      "sha": "3d6180a6bf",
+      "kind": "positive",
+      "scope": "automatic",
+      "file": "templates/skills/ai-agents-debugging-playbook.SKILL.md.tmpl",
+      "line": 86,
+      "defect_class": "stale-citation",
+      "defect": "detect_agent_drift.py lines 57-76 and the bare continuation :668 are stale."
+    },
+    {
+      "id": "C1-12",
+      "pr": 7461,
+      "sha": "2787132138",
+      "fix_sha": "39df73d11bcc173cf7447960b18c1c7e2b783ca1",
+      "kind": "positive",
+      "scope": "manual",
+      "file": ".project-toolkit/specs/requirements/REQ-022-control-plane-disposition-ledger-v070.md",
+      "line": 248,
+      "defect_class": "stale-citation",
+      "defect": "The three evidence cites name lines that no longer hold the fast-stage skip.",
+      "why": "no quoted anchor; line-only cite cannot be verified without semantics."
+    },
+    {
+      "id": "C1-13",
+      "pr": 7461,
+      "sha": "2787132138",
+      "fix_sha": "39df73d11bcc173cf7447960b18c1c7e2b783ca1",
+      "kind": "positive",
+      "scope": "manual",
+      "file": ".project-toolkit/specs/tasks/TASK-029-control-plane-disposition-ledger-v070.md",
+      "line": 43,
+      "defect_class": "stale-citation",
+      "defect": "The task cites name the same moved fast-stage lines.",
+      "why": "no quoted anchor; line-only cite cannot be verified without semantics."
+    },
+    {
+      "id": "C1-14",
+      "pr": 7461,
+      "sha": "2787132138",
+      "fix_sha": "39df73d11bcc173cf7447960b18c1c7e2b783ca1",
+      "kind": "positive",
+      "scope": "automatic",
+      "file": ".project-toolkit/specs/requirements/REQ-022-control-plane-disposition-ledger-v070.md",
+      "line": 71,
+      "defect_class": "stale-citation",
+      "defect": "The mechanism cite still names the old fast-stage line."
+    },
+    {
+      "id": "C1-15",
+      "pr": 7461,
+      "sha": "2787132138",
+      "fix_sha": "39df73d11bcc173cf7447960b18c1c7e2b783ca1",
+      "kind": "positive",
+      "scope": "manual",
+      "file": ".project-toolkit/specs/design/DESIGN-006-em-en-dash-enforcement.md",
+      "line": 192,
+      "defect_class": "stale-citation",
+      "defect": "The dash checker cite still names the old pre_pr module.",
+      "why": "no quoted anchor; line-only cite cannot be verified without semantics."
+    },
+    {
+      "id": "C1-10",
+      "pr": 5284,
+      "sha": "4f85dfb986",
+      "kind": "positive",
+      "scope": "manual",
+      "file": ".serena/memories/validation/validation-portability-scan-contract.md",
+      "line": 21,
+      "defect_class": "stale-citation",
+      "defect": "check_skill_md_portability.py lines 660-666 moved to 666-672.",
+      "why": "Serena memories remain exempt under HISTORICAL_ROOTS."
+    },
+    {
+      "id": "C1-11",
+      "pr": 6689,
+      "sha": null,
+      "kind": "positive",
+      "scope": "manual",
+      "file": ".project-toolkit/analysis/adr-101-requirement-2-publisher-app-spike.md",
+      "line": 153,
+      "defect_class": "stale-citation",
+      "defect": "The prose lines 265-271 citation should name lines 278-284.",
+      "why": "Prose line ranges lack a path:N citation and occur in a historical root."
+    },
+    {
+      "id": "N01",
+      "pr": 7452,
+      "sha": "6b9340fa",
+      "kind": "negative",
+      "scope": "automatic"
+    },
+    {
+      "id": "N02",
+      "pr": 7431,
+      "sha": "e30fb229",
+      "kind": "negative",
+      "scope": "automatic"
+    },
+    {
+      "id": "N03",
+      "pr": 7377,
+      "sha": null,
+      "kind": "negative",
+      "scope": "automatic"
+    },
+    {
+      "id": "N04",
+      "pr": 7412,
+      "sha": "f9493d63",
+      "kind": "negative",
+      "scope": "automatic"
+    },
+    {
+      "id": "N05",
+      "pr": 7146,
+      "sha": "8fc3c747",
+      "kind": "negative",
+      "scope": "automatic"
+    },
+    {
+      "id": "N06",
+      "pr": 7415,
+      "sha": "c99aca0e",
+      "kind": "negative",
+      "scope": "automatic"
+    },
+    {
+      "id": "N07",
+      "pr": 7174,
+      "sha": "2bccad6a",
+      "kind": "negative",
+      "scope": "automatic"
+    },
+    {
+      "id": "N08",
+      "pr": 7313,
+      "sha": "773f9327",
+      "kind": "negative",
+      "scope": "automatic"
+    },
+    {
+      "id": "N09",
+      "pr": 7324,
+      "sha": "4d0d3900",
+      "kind": "negative",
+      "scope": "automatic"
+    },
+    {
+      "id": "N10",
+      "pr": 7446,
+      "sha": "3adae314",
+      "kind": "negative",
+      "scope": "automatic"
+    },
+    {
+      "id": "N11",
+      "pr": 7294,
+      "sha": "2d7585ba",
+      "kind": "negative",
+      "scope": "automatic"
+    },
+    {
+      "id": "N12",
+      "pr": 7253,
+      "sha": "dd303948",
+      "kind": "negative",
+      "scope": "automatic"
+    }
+  ]
+}

@@ -51,6 +51,12 @@ INSTRUMENTS: list[dict[str, Any]] = [
         "argv": ["python3", "scripts/validation/check_citation_freshness.py"],
         "source": "SKILL.md Provenance and Maintenance",
     },
+    {
+        "id": "citation-reverse-pass",
+        "answers": "Do citations on unchanged lines still hold for files this branch changed?",
+        "argv": ["python3", "scripts/validation/citation_reverse_pass.py"],
+        "source": "SKILL.md Provenance and Maintenance",
+    },
     drift_instrument(SKILL, SK),
 ]
 

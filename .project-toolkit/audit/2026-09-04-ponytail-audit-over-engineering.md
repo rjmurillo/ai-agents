@@ -62,7 +62,7 @@ working tree.
     CodeQL workflow. Nothing. [`.github/codeql/suppressions.yml`]
 16. `delete:` two pre-PR runner flags that are parsed and never read, one of
     them advertised in the PR template checklist. Nothing.
-    [two `add_argument` blocks at `scripts/validation/pre_pr.py:263-272`]
+    [two `add_argument` blocks at `scripts/validation/pre_pr.py:305-335`].
 17. `delete:` inert `warn` (8 keys) and `coupling.max` (2 keys) in the quality
     config, which the assessor never reads despite the file's own `_comment`
     claiming otherwise. Nothing. [`.qualityrc.json`]
@@ -144,7 +144,7 @@ extra (`mypy`, `semgrep`, `bandit`, `pip-audit`, `ruff`, `pytest*`, `lefthook`,
    the "Session End" PR validation;
    `git_hook_policy.py session` is a validate-if-present pre-commit gate that
    `lefthook.yml` runs as `session-policy`; and
-   `scripts/validation/pre_pr_sequence.py:257` registers it as the
+   `scripts/validation/pre_pr_sequence.py:378` registers it as the
    "Session End Validation" gate.
    All three fire
    whenever a legacy log is staged or cherry-picked, so the validator stays.

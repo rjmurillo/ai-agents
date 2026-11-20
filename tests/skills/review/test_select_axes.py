@@ -255,9 +255,14 @@ class TestDemandedAxisWithNoPrompt:
         assert result["fail_closed"] is True
         assert set(result["canonical_selected"]) == set(candidates)
         # A missing prompt says nothing about the path list, so local axes
-        # still narrow to the scanners that read a changed file.
-        assert set(result["local_selected"]) == {"code-qualities-assessment", "taste-lints"}
-        assert result["skipped"]["doc-accuracy"] == mod._UNREADABLE_REASON
+        # still narrow to the scanners that read a changed file. doc-accuracy
+        # reads Python docstrings in --same-pr mode, so it stays.
+        assert set(result["local_selected"]) == {
+            "code-qualities-assessment",
+            "doc-accuracy",
+            "taste-lints",
+        }
+        assert result["skipped"]["golden-principles"] == mod._UNREADABLE_REASON
 
     def test_every_candidate_is_selected_or_skipped(self, tmp_path: Path) -> None:
         # No axis disappears from both lists, on either branch.
@@ -532,7 +537,7 @@ class TestSkillDocumentsTheSelector:
             # assessment.documentation_files, and --format json also serializes
             # the repository-wide source_symbols index, 98.8% of an 8.5 MB
             # payload on this repo, which truncates into a parse failure.
-            'doc_accuracy.py> --target . --diff-base "origin/$BASE_BRANCH" --format gate',
+            'doc_accuracy.py> --target . --diff-base "origin/$BASE_BRANCH" --same-pr --format gate',
             'scan_principles.py> --diff-scope "origin/$BASE_BRANCH" --format json',
             'taste_lints.py> --diff-scope "origin/$BASE_BRANCH" --format json',
         ):

@@ -1,0 +1,15 @@
+# Known broken relative markdown links that check_md_links.py reports but does not block on.
+#
+# Each entry is <kind>:<file>:<target>, with no line number, so an unrelated edit
+# above the link does not invalidate it. A "#" that starts a fragment is written
+# "%23" because "#" opens a comment in the shared baseline reader.
+#
+# Remove an entry when its link is repaired: the checker fails on an entry that no
+# longer matches a finding. MUST NOT add an entry to clear a link the current
+# change introduced; the checker fails on an entry the base ref does not carry.
+missing-target:src/claude/skills/memory-search/references/quick-start.md:reflexion-memory.md
+missing-target:src/claude/skills/spec-generator/references/spec-schemas.md:../planning/enhancement-PROJECT-PLAN.md
+missing-target:src/claude/skills/spec-generator/references/spec-schemas.md:../specs/README.md
+missing-target:src/claude/skills/spec-generator/references/spec-schemas.md:./consistency-protocol.md
+missing-target:src/claude/skills/spec-generator/references/spec-schemas.md:./ears-format.md
+missing-target:src/claude/skills/spec-generator/references/spec-schemas.md:./naming-conventions.md

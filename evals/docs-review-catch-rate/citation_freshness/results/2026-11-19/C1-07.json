@@ -1,0 +1,67 @@
+{
+  "id": "C1-07",
+  "pr": 5286,
+  "sha": "81b88dd3df",
+  "kind": "positive",
+  "scope": "automatic",
+  "file": ".agents/architecture/ADR-052-template-strategy.md",
+  "line": 32,
+  "defect_class": "stale-citation",
+  "defect": "The quoted Not Generated heading moved from line 45 to 58.",
+  "resolved_sha": "81b88dd3df199e8b56e82a79850b2f72b83bca09",
+  "pr_base": "5e4990710eadbdc1ad1d6b73c7033166d65918b1",
+  "merge_base": "ad634bbac805ac510ea7fb1fa298ce48dd22e38b",
+  "findings": [
+    {
+      "citing_file": ".agents/architecture/ADR-052-template-strategy.md",
+      "citing_line": 32,
+      "citation": ".agents/architecture/ADR-036-two-source-agent-template-architecture.md:45",
+      "reason": "none of the cited anchors ('src/claude/', 'templates/agents/*.shared.md', 'are the authoritative source for Claude', 'Not Generated') appear at lines 45-45; 'src/claude/' first appears at line 28",
+      "gate": "forward",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".agents/architecture/ADR-052-template-strategy.md",
+      "citing_line": 44,
+      "citation": "build/AGENTS.md:240",
+      "reason": "none of the cited anchors ('claude/agents/', 'github/agents/') appear at lines 240-240; 'claude/agents/' first appears at line 178",
+      "gate": "forward",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".agents/critique/ADR-052-debate-log.md",
+      "citing_line": 18,
+      "citation": ".agents/architecture/ADR-036-two-source-agent-template-architecture.md:45",
+      "reason": "none of the cited anchors ('## Status', 'NEEDS_CHANGES', 'ADR-036, Accepted', 'NEEDS_REVISION') appear at lines 45-45; '## Status' first appears at line 14",
+      "gate": "forward",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".claude/skills/ai-agents-architecture-contract/SKILL.md",
+      "citing_line": 57,
+      "citation": ".agents/architecture/ADR-030-skills-pattern-superiority.md:31",
+      "reason": "none of the cited anchors ('implemented: false', 'templates/agents/', 'Status: Critical Update - Changes Recommendation') appear at lines 31-31",
+      "gate": "forward",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".claude/skills/ai-agents-architecture-contract/references/provenance.md",
+      "citing_line": 13,
+      "citation": "build/scripts/build_all.py:435-443",
+      "reason": "none of the cited anchors ('grep -n \"asymmetric\" .agents/architecture/ADR-072-*.md', 'No code moves on this ADR alone', 'the seam is asymmetric', 'asymmetric') appear at lines 435-443",
+      "gate": "forward",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".claude/skills/ai-agents-architecture-contract/references/provenance.md",
+      "citing_line": 14,
+      "citation": "build/scripts/build_all.py:674",
+      "reason": "none of the cited anchors ('grep -n \"asymmetric\" .agents/architecture/ADR-072-*.md', 'No code moves on this ADR alone', 'the seam is asymmetric', 'asymmetric') appear at lines 674-674",
+      "gate": "forward",
+      "defect_class": "stale-citation"
+    }
+  ],
+  "output": "[citation-freshness] examined 11 citation(s) across 12 changed file(s) vs ad634bbac805ac510ea7fb1fa298ce48dd22e38b\n[citation-reverse-pass] examined 6 inbound citation(s) to 15 changed file(s) vs ad634bbac805ac510ea7fb1fa298ce48dd22e38b; 4 already stale at the merge base (not blocking)\n",
+  "caught": true,
+  "false_positives": 0
+}

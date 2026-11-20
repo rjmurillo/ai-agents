@@ -199,6 +199,14 @@ N prose line(s) of M in K file(s)`. A fence that never closes hides the rest
 of the document from the scanner, so it is reported as its own high-severity
 `unterminated_fence` finding rather than letting a barely-read file exit 0.
 
+Add `--docs-style` for documentation pages. It also reports `heading-case`
+(a heading not in sentence case), `link-text` (text such as "this link" or a
+bare URL), `vague-opener` (a section that opens "This is ..."), `example-email`
+(an address outside example.com, example.org, and example.net), and
+`token-shaped` (a string shaped like a GitHub, Anthropic, or AWS credential).
+All five are `info` severity and never change the exit code. The last two also
+read fenced code, because examples live there.
+
 Layer 2 matches across the whole document, so a tell that straddles a hard
 wrap is still caught. A blank line ends the match: the shapes are sentences,
 not paragraphs.

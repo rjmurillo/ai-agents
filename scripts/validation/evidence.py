@@ -694,6 +694,20 @@ _ADVISORY_LICENCES: Final[tuple[tuple[str, EvidenceState, str, str], ...]] = (
         )
     ),
     (
+        "validate_doc_date_drift",
+        EvidenceState.FAIL,
+        REASON_ADVISORY_FINDINGS,
+        "Date and version drift is an author's reminder, not a defect proven in "
+        "this diff. Promote to blocking only after the --tree backlog is zero.",
+    ),
+    (
+        "validate_doc_date_drift",
+        EvidenceState.BLOCKED,
+        REASON_LISTING_FAILED,
+        "A failed git read leaves the advisory scan unrun. It stays non-blocking "
+        "and is counted as BLOCKED instead of PASS.",
+    ),
+    (
         "validate_canonical_citations",
         EvidenceState.FAIL,
         REASON_ADVISORY_FINDINGS,
@@ -735,6 +749,21 @@ _ADVISORY_LICENCES: Final[tuple[tuple[str, EvidenceState, str, str], ...]] = (
         "Decision D10 left the dash scan's narrowing past a blob git cannot read "
         "non-blocking, with each skipped file reported. The narrowing is now counted "
         "as BLOCKED instead of PASS. An unresolved base ref still blocks under CI.",
+    ),
+    (
+        "validate_skill_page_freshness",
+        EvidenceState.FAIL,
+        REASON_ADVISORY_FINDINGS,
+        "A changed skill fact with no page edit is a prompt to read the page, not "
+        "proof it is wrong; a fact can change without changing what the page says. "
+        "The blocking page check owns missing pages.",
+    ),
+    (
+        "validate_skill_page_freshness",
+        EvidenceState.BLOCKED,
+        REASON_SCRIPT_FAILED,
+        "git could not diff against the base ref, so nothing was compared. This "
+        "advisory check reports the gap and does not block.",
     ),
     (
         "validate_yaml_style",
