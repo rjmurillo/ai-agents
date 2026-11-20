@@ -1,0 +1,14 @@
+{
+  "id": "N12",
+  "pr": 7253,
+  "sha": "dd303948",
+  "kind": "negative",
+  "scope": "automatic",
+  "resolved_sha": "dd30394857a80257981f640d0b910ca71d1642bd",
+  "pr_base": "a28131561d0f751457cf0eb19547e070edbfa2c7",
+  "merge_base": "a28131561d0f751457cf0eb19547e070edbfa2c7",
+  "findings": [],
+  "output": "[citation-freshness] examined 0 citation(s) across 1 changed file(s) vs a28131561d0f751457cf0eb19547e070edbfa2c7\n[citation-reverse-pass] examined 0 inbound citation(s) to 11 changed file(s) vs a28131561d0f751457cf0eb19547e070edbfa2c7; 0 already stale at the merge base (not blocking)\n",
+  "caught": false,
+  "false_positives": 0
+}
