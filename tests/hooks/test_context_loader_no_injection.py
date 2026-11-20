@@ -27,7 +27,7 @@ import invoke_context_loader
 MARKER = invoke_context_loader.RETRO_STATE_MARKER
 GUIDE = invoke_context_loader.RETRO_LOOKUP_GUIDE
 # Ceiling on the guide, paid by every session in this repository. The guide
-# replaced a 4,000-character injection; keep it an order of magnitude smaller.
+# followed a 4,000-character injection; the ceiling holds it to a fifth of that.
 GUIDE_MAX_CHARS = 800
 
 
@@ -168,7 +168,7 @@ def test_main_audit_log_records_pending_count(tmp_path: Path) -> None:
     assert "Loaded: pending-retros:1, retro-guide" in logs[0].read_text(encoding="utf-8")
 
 
-def test_main_audit_log_records_none_when_nothing_pending(tmp_path: Path) -> None:
+def test_main_audit_log_records_none_when_retro_dir_is_missing(tmp_path: Path) -> None:
     # Arrange
     (tmp_path / ".agents").mkdir()
 
@@ -212,6 +212,9 @@ def test_main_prints_no_guide_behind_a_symlinked_retrospective_dir(tmp_path: Pat
 
     # Assert
     assert out == ""
+    logs = list((project_dir / ".project-toolkit" / ".hook-state").glob("context-loader-*.log"))
+    assert len(logs) == 1
+    assert "Loaded: (none)" in logs[0].read_text(encoding="utf-8")
 
 
 def test_main_guide_carries_no_filename_from_the_directory(tmp_path: Path) -> None:
@@ -239,3 +242,4 @@ def test_guide_names_the_lookup_tools() -> None:
     assert "grep -rli" in GUIDE
     assert "memory-search" in GUIDE
     assert "read_memory" in GUIDE
+    assert GUIDE.index("memory-search") < GUIDE.index("read_memory")

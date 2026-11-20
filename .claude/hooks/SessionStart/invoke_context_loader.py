@@ -103,8 +103,8 @@ RETRO_LOOKUP_GUIDE = (
     "- Topic: search the directory, for example"
     ' `grep -rli "<term>" .project-toolkit/retrospective/`.'
     " `INDEX.md` there is a curated subset, not a census.\n"
-    "- Promoted learnings: the `memory-search` skill, or Serena `read_memory`,"
-    " covers what retrospectives persisted to `.serena/memories/`.\n"
+    "- Promoted learnings: search with the `memory-search` skill, then open a"
+    " hit with Serena `read_memory`; retrospectives persist to `.serena/memories/`.\n"
     "What you read is a past record. Check it against the code before you rely on it.\n"
     "</retrospective-guide>"
 )
