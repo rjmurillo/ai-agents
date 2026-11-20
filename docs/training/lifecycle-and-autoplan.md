@@ -11,7 +11,7 @@ You know it worked when two things are true:
 
 This is a teaching run. `/autoplan` would size the example change as Trivial and skip `/spec` and `/plan`. We run every phase once so you see what each one produces. Step 11 shows what to drop on real work.
 
-The change runs against a fixed commit. Part 2 (steps 5 to 12) works on a branch cut from commit `81025e191` (`81025e1912dea575fb9123294c4efa76e6948506`, 2026-11-17). The practice defect exists there as this page describes it. Every command and expected output from step 5 on assumes that branch.
+The change runs against a fixed commit. Part 2 (steps 5 to 12) and the Check section run on a branch cut from commit `81025e191`. Its full SHA is `81025e1912dea575fb9123294c4efa76e6948506`, from 2026-11-17. The practice defect exists there as this page describes it.
 
 ## Before you start
 
@@ -113,7 +113,7 @@ Other docs cover the same ground. We link them and do not repeat them:
 
 **Part 2: take one change through the lifecycle.** Steps 5 to 12 run on a branch cut from commit `81025e191`, not from the tip of `main`.
 
-5. **Pick the change and cut a branch.** At commit `81025e191`, `docs/workflow-commands.md` says `/ship` runs five pre-flight checks. The [ship skill](../../src/claude/skills/ship/SKILL.md) defines four: pipeline, security, reviewed, and tests. You fix that mismatch. `main` got the same fix later, so cut your branch from `81025e191` to keep every command and output on this page exact. Steps 6 to 12 load the skills from your checkout, so they run as they were at that commit. If a skill acts differently from its page on `main`, the pin is the cause, not your setup. Never commit to `main`.
+5. **Pick the change and cut a branch.** At commit `81025e191`, `docs/workflow-commands.md` says `/ship` runs five pre-flight checks. The [ship skill](../../src/claude/skills/ship/SKILL.md) defines four: pipeline, security, reviewed, and tests. You fix that mismatch. `main` got the same fix later, so cut your branch from `81025e191` to keep every command and output in Part 2 exact. Steps 6 to 12 load the skills from your checkout, so they run as they were at that commit. If a skill acts differently from its page on `main`, the pin is the cause, not your setup. Never commit to `main`.
 
    ```bash
    git fetch origin
@@ -171,7 +171,7 @@ Other docs cover the same ground. We link them and do not repeat them:
 
    A memory gate runs after the First Principles gate passes. It searches memory, Git history, and past pull requests for prior work on the files and names in your Q3 and Q4 answers. It then lists the files, skills, and other names it found that your Q1, Q3, and Q4 answers do not name. In an interactive session, it asks you to mark each one in-scope, out-of-scope, or blast-radius (connected, and your change may affect it). Two or more blast-radius marks stop the spec. With no person present, the agent marks every unnamed item blast-radius itself, and three or more stop the spec.
 
-   For this exercise, mark each one out-of-scope with a one-line reason, because your edit changes only `docs/workflow-commands.md`. The search may also find the pull request that already made this fix on `main`. That is expected, since this exercise replays that fix. It does not stop the spec.
+   For this exercise, mark each one out-of-scope with a one-line reason, because your edit changes only `docs/workflow-commands.md`. The search may also find the pull request that fixed the same defect on `main` after `81025e191`. That is expected, and it does not stop the spec.
 
    With both gates passed, `/spec` produces a requirements document: problem statement, numbered acceptance criteria, out-of-scope items, and open questions. The spec generator writes durable files to these paths:
 
