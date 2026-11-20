@@ -114,7 +114,7 @@ as the corpus and its history grow, because nobody has one place to check
   ("Pre-push wall clock is python-tests; everything else is noise", dated
   2026-08-19): the section "The same work runs twice in one hook" is now
   stale.
-  `scripts/validation/pre_pr_sequence.py:324-328` sets `already_run_by="count-ratchets"`.
+  `scripts/validation/pre_pr_sequence.py:326-330` sets `already_run_by="count-ratchets"`.
   The `FAST_STAGE_RAN_ENV` skip sits at `scripts/validation/pre_pr_sequence.py:859-870`.
   `lefthook.yml:728` sets `AI_AGENTS_PRE_PR_FAST_STAGE_RAN: "1"`.
   `tests/validation/test_pre_pr_sequence_registry.py:192-200` defines `FAST_STAGE_DUPLICATES`.
