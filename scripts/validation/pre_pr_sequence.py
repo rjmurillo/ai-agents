@@ -428,8 +428,8 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # new violation cannot hide behind a repaired one.
     _Gate("Rule ADR Citations (ratchet)", _root_only(validate_rule_adr_citations)),
     # Resolves an `ADR-NNN` citation inside a live ADR body against the cited
-    # record's own status. The fourth ADR consumer gate: the rule gate reads
-    # rule files and treats a `Related ...` heading as bibliography, which hid
+    # record's own status. The skill and rule ADR gates never read ADR bodies,
+    # and the rule gate treats a `Related ...` heading as bibliography: that hid
     # ADR-107 naming superseded ADR-080 as the owner of `model:`. Only a mention
     # of a `superseded` record placed as current authority fails. Baselined by
     # identity, like its rule-file sibling.

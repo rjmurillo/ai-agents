@@ -27,11 +27,13 @@ _VALIDATION_DIR = Path(__file__).resolve().parents[2] / "scripts" / "validation"
 if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
 
+import check_adr_supersession_citations as gate
 import check_rule_adr_citations as rule_gate
-from check_adr_lifecycle import Record
+from check_adr_lifecycle import Record, collect_records
 from check_adr_supersession_citations import (
     AUTHORITY,
     EXIT_CONFIG,
+    EXIT_EXTERNAL,
     EXIT_OK,
     EXIT_REGRESSION,
     HISTORY,
@@ -384,6 +386,50 @@ def test_cli_exits_config_when_no_record_is_tracked(
         main(["--repo-root", str(repo), "--baseline", str(_baseline(tmp_path, []))]) == EXIT_CONFIG
     )
     assert "examined 0 of 0" in capsys.readouterr().err
+
+
+def test_cli_exits_external_when_git_cannot_list(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = _repo(tmp_path, "Clean.\n")
+    monkeypatch.setattr(gate, "tracked_files", lambda root, globs: None)
+    code = main(["--repo-root", str(repo), "--baseline", str(_baseline(tmp_path, []))])
+    assert code == EXIT_EXTERNAL
+    assert "examined 0 record(s)" in capsys.readouterr().err
+
+
+def test_cli_exits_config_on_a_tracked_record_it_cannot_read(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = _repo(tmp_path, "Clean.\n")
+    outside = tmp_path / "outside.md"
+    outside.write_text(_adr(121, "accepted", "Body.\n"), encoding="utf-8")
+    (repo / _ADR_DIR / "ADR-121-link.md").symlink_to(outside)
+    _git(repo, "add", "-A")
+    code = main(["--repo-root", str(repo), "--baseline", str(_baseline(tmp_path, []))])
+    assert code == EXIT_CONFIG
+    assert "ADR-121-link.md: [adr-supersession-citation] tracked ADR record" in (
+        capsys.readouterr().err
+    )
+
+
+def test_scan_reports_a_record_whose_read_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = _repo(tmp_path, ADR_107_AS_IT_STOOD)
+    records, _ = collect_records(repo / _ADR_DIR, repo)
+    real_read = Path.read_text
+
+    def _read(path: Path, encoding: str = "utf-8", errors: str = "strict") -> str:
+        if path.name == "ADR-107-live.md":
+            raise PermissionError("denied")
+        return real_read(path, encoding=encoding, errors=errors)
+
+    monkeypatch.setattr(Path, "read_text", _read)
+    result = gate.scan(repo, records, build_corpus(records))
+    assert not isinstance(result, str)
+    assert result.absent == [f"{_ADR_DIR}/ADR-107-live.md"]
+    assert result.citations == []
 
 
 def test_script_exits_nonzero_as_a_subprocess(tmp_path: Path) -> None:

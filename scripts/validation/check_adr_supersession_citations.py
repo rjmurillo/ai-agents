@@ -45,17 +45,19 @@ counted, never failed.
   "not under" or "not per" directly precedes the mention.
 - AUTHORITY: the sentence carries MUST, SHALL or REQUIRED, or one of governs,
   governing, governed by, owns, owned by, current owner, owner of, binding,
-  authority, in force or requires; or the mention follows "per", "under",
-  "comply with", "governed by", "defined by" or "according to".
-- UNCLASSIFIED: everything else.
+  authority, in force or requires; or the mention follows a binding phrase
+  the rule gate's `_BINDING_BEFORE_RE` lists ("per", "under", "comply with").
+- UNCLASSIFIED: everything else. HISTORY wins when a sentence carries both.
 
 ## Not covered
 
 - A table cell is its own sentence, because the shared splitter cuts on `|`.
   A row such as `| ADR-080 | Indirect | Remains the model-pin authority |`
   classifies only when the cell that names the ADR also carries the signal.
-- A record that restates a retired decision without naming the record has no
-  citation to resolve.
+- An UNCLASSIFIED mention never fails. A blind read of all 131 at `31a65de8e`
+  (2026-11-20) judged 25 of them live authority, so recall is partial.
+- The key is identity, not count: a second authority citation in a record
+  that is already baselined passes.
 
 ## Ratchet
 
@@ -196,12 +198,8 @@ def _ids(value: object) -> frozenset[int]:
 
 
 def build_corpus(records: list[Record]) -> Corpus:
-    """Read status and edges from each record's frontmatter.
-
-    Successors come from both directions: a record's own `superseded-by`, and
-    another record's `supersedes`. `check_adr_lifecycle.py` keeps the two
-    reciprocal; reading both keeps this gate correct while they disagree.
-    """
+    """Status and edges from frontmatter; successors from `superseded-by` and
+    from another record's `supersedes`, so a one-sided edge still counts."""
     status: dict[int, str] = {}
     supersedes: dict[int, frozenset[int]] = {}
     successor: dict[int, int] = {}
@@ -221,17 +219,13 @@ def build_corpus(records: list[Record]) -> Corpus:
 
 
 def _soften_code_span(match: re.Match[str]) -> str:
-    """Keep a code span's words, drop its delimiters and any ADR id or quote in it.
-
-    The rule gate blanks code spans. Here the words matter: ADR-107 writes
-    "(template strategy, `superseded` by ADR-109)", and blanking `superseded`
-    would hide the lineage. An ADR id inside a span is still not a citation.
-    """
+    """Keep a code span's words (`superseded` is lineage), drop its delimiters,
+    quotes and ADR ids: an id inside a span is still not a citation."""
     text = match.group(0).replace("`", " ").replace('"', " ")
     return re.sub(r"ADR-", "ADR_", text)
 
 
-def mask_noise(text: str) -> str:
+def mask_non_citations(text: str) -> str:
     """Blank what cannot hold a citation, preserving every offset."""
     for pattern in (_FRONTMATTER_RE, _FENCE_RE, _COMMENT_RE):
         text = pattern.sub(_blank, text)
@@ -310,7 +304,7 @@ def citations_in(path: str, own: int, text: str, corpus: Corpus) -> list[Citatio
     """Every mention of a superseded ADR in the record ``own``, classified."""
     found: list[tuple[int, int, str]] = []
     own_supersedes = corpus.supersedes.get(own, frozenset())
-    masked = mask_noise(text)
+    masked = mask_non_citations(text)
     prefixes = _paragraph_prefixes(masked)
     for _bibliography, block in _blocks(masked):
         joined = " ".join(line for _, line in block)
@@ -377,7 +371,11 @@ def scan(repo_root: Path, records: list[Record], corpus: Corpus) -> ScanResult |
         examined += 1
         if corpus.status.get(record.number) not in LIVE:
             continue
-        text = path.read_text(encoding="utf-8", errors="replace")
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            absent.append(rel)
+            continue
         fence_line = unterminated_fence_line(text)
         if fence_line is not None:
             unterminated.append(f"{rel}:{fence_line}")
