@@ -1,24 +1,34 @@
 #!/usr/bin/env python3
-"""Tests for the shared frontmatter contract (issue #5275).
+"""Tests for the one frontmatter parser, ``scripts/hook_utilities/frontmatter_block.py``.
 
 Covers positive, negative and edge cases per `.agents/governance/TESTING-RIGOR.md`,
-plus a negative control for each integration hazard the buy-vs-build evaluation
-recorded at `.project-toolkit/analysis/frontmatter-parser-build-vs-buy.md`. The hazard
-tests exist so a future "simplify this to frontmatter.loads()" change fails
-loudly instead of silently losing a distinction a gate depends on.
+a negative control for each integration hazard recorded at
+`.project-toolkit/analysis/frontmatter-parser-build-vs-buy.md`, and parity with
+``python-frontmatter``, which stays installed as the test oracle for the fence rule.
 """
 
 from __future__ import annotations
+
+import ast
+import functools
+import re
+from pathlib import Path
 
 import pytest
 import yaml
 from frontmatter.default_handlers import YAMLHandler
 
-from scripts.validation.frontmatter_contract import (
+import scripts.hook_utilities.frontmatter_block as frontmatter_block
+from scripts.hook_utilities.frontmatter_block import (
+    FM_BOUNDARY,
+    FM_BOUNDARY_PATTERN,
     FrontmatterError,
     FrontmatterStatus,
-    parse_frontmatter,
+    load_frontmatter,
+    split_frontmatter,
 )
+
+parse = functools.partial(frontmatter_block.parse_frontmatter, yaml=yaml)
 
 BODY = "id: ADR-999\nstatus: accepted"
 
@@ -41,7 +51,7 @@ class TestAcceptedFences:
         ],
     )
     def test_accepts(self, label: str, text: str) -> None:
-        result = parse_frontmatter(text)
+        result = parse(text)
         assert result.status is FrontmatterStatus.VALID, label
         assert result.metadata == {"id": "ADR-999", "status": "accepted"}, label
         assert result.ok and result.present, label
@@ -52,13 +62,13 @@ class TestRejectedFences:
 
     def test_trailing_text_after_fence_is_not_a_close(self) -> None:
         """`--- nope` is the one slip that signals a real authoring mistake."""
-        result = parse_frontmatter(f"---\n{BODY}\n--- nope\nBody.\n")
+        result = parse(f"---\n{BODY}\n--- nope\nBody.\n")
         assert result.status is FrontmatterStatus.UNTERMINATED
         assert result.metadata is None
         assert result.present is True
 
     def test_no_closing_fence(self) -> None:
-        result = parse_frontmatter(f"---\n{BODY}\nBody.\n")
+        result = parse(f"---\n{BODY}\nBody.\n")
         assert result.status is FrontmatterStatus.UNTERMINATED
         assert result.error is not None
         assert "closing" in result.error
@@ -66,11 +76,11 @@ class TestRejectedFences:
     def test_bom_before_opening_fence_is_absent(self) -> None:
         """A BOM means the file does not start with the fence. Matches every
         pre-existing parser, all of which returned "no frontmatter" here."""
-        result = parse_frontmatter(f"﻿---\n{BODY}\n---\nBody.\n")
+        result = parse(f"﻿---\n{BODY}\n---\nBody.\n")
         assert result.status is FrontmatterStatus.ABSENT
 
     def test_no_frontmatter_at_all(self) -> None:
-        result = parse_frontmatter("Just body text.\n")
+        result = parse("Just body text.\n")
         assert result.status is FrontmatterStatus.ABSENT
         assert result.metadata is None
         assert result.body == "Just body text.\n"
@@ -98,7 +108,7 @@ class TestStatusDiscrimination:
         ],
     )
     def test_each_state_is_distinct(self, text: str, expected: FrontmatterStatus) -> None:
-        assert parse_frontmatter(text).status is expected
+        assert parse(text).status is expected
 
     def test_all_four_would_collapse_under_the_naive_library_call(self) -> None:
         """Negative control proving the distinction is not free.
@@ -115,10 +125,10 @@ class TestStatusDiscrimination:
             "---\n- a\n---\nBody.\n",
         ]
         assert all(frontmatter.loads(t).metadata == {} for t in collapsing)
-        assert len({parse_frontmatter(t).status for t in collapsing}) == 4
+        assert len({parse(t).status for t in collapsing}) == 4
 
     def test_empty_block_parses_to_an_empty_mapping(self) -> None:
-        result = parse_frontmatter("---\n---\nBody.\n")
+        result = parse("---\n---\nBody.\n")
         assert result.metadata == {}
         assert result.ok is True
 
@@ -127,17 +137,17 @@ class TestDuplicateKeys:
     """Repeated keys are a defect for the ADR gates, not last-one-wins."""
 
     def test_duplicate_key_rejected_by_default(self) -> None:
-        result = parse_frontmatter("---\nid: A\nid: B\n---\nBody.\n")
+        result = parse("---\nid: A\nid: B\n---\nBody.\n")
         assert result.status is FrontmatterStatus.MALFORMED
         assert result.error is not None
         assert "duplicate key" in result.error
 
     def test_duplicate_key_nested_in_a_value_is_rejected(self) -> None:
         text = "---\nmeta:\n  a: 1\n  a: 2\n---\nBody.\n"
-        assert parse_frontmatter(text).status is FrontmatterStatus.MALFORMED
+        assert parse(text).status is FrontmatterStatus.MALFORMED
 
     def test_duplicate_key_allowed_when_opted_in(self) -> None:
-        result = parse_frontmatter("---\nid: A\nid: B\n---\nBody.\n", allow_duplicate_keys=True)
+        result = parse("---\nid: A\nid: B\n---\nBody.\n", allow_duplicate_keys=True)
         assert result.status is FrontmatterStatus.VALID
         assert result.metadata == {"id": "B"}
 
@@ -145,11 +155,11 @@ class TestDuplicateKeys:
         """`? [a, b]` builds a list key. A set-based duplicate check raises
         TypeError here, escaping the caller's YAMLError handling and turning a
         documented exit code into a traceback (generate_adr_index.py:202)."""
-        result = parse_frontmatter("---\n? [a, b]\n: value\n---\nBody.\n")
+        result = parse("---\n? [a, b]\n: value\n---\nBody.\n")
         assert result.status in (FrontmatterStatus.VALID, FrontmatterStatus.MALFORMED)
 
     def test_genuinely_duplicated_unhashable_keys_are_caught(self) -> None:
-        result = parse_frontmatter("---\n? [a, b]\n: 1\n? [a, b]\n: 2\n---\nBody.\n")
+        result = parse("---\n? [a, b]\n: 1\n? [a, b]\n: 2\n---\nBody.\n")
         assert result.status is FrontmatterStatus.MALFORMED
 
 
@@ -165,37 +175,37 @@ class TestLoaderPin:
         naive = frontmatter.loads(f"---\n{BODY}\n---\nB\n", Loader=yaml.SafeLoader)
         assert "Loader" in naive.metadata
 
-        result = parse_frontmatter(f"---\n{BODY}\n---\nB\n")
+        result = parse(f"---\n{BODY}\n---\nB\n")
         assert result.metadata is not None
         assert "Loader" not in result.metadata
 
     def test_unsafe_python_tags_are_rejected(self) -> None:
         text = "---\na: 1\nb: !!python/object/apply:os.system []\n---\nX\n"
-        assert parse_frontmatter(text).status is FrontmatterStatus.MALFORMED
+        assert parse(text).status is FrontmatterStatus.MALFORMED
 
 
 class TestBodySplit:
     """The body is what prose consumers read."""
 
     def test_body_excludes_the_frontmatter(self) -> None:
-        result = parse_frontmatter(f"---\n{BODY}\n---\n# Title\n\nPara.\n")
+        result = parse(f"---\n{BODY}\n---\n# Title\n\nPara.\n")
         assert result.body == "# Title\n\nPara.\n"
         assert "status: accepted" not in result.body
 
     def test_body_keeps_a_later_horizontal_rule(self) -> None:
         """Only the first two fences delimit the block; `---` in prose stays."""
-        result = parse_frontmatter(f"---\n{BODY}\n---\nA.\n\n---\n\nB.\n")
+        result = parse(f"---\n{BODY}\n---\nA.\n\n---\n\nB.\n")
         assert "---" in result.body
         assert result.body.endswith("B.\n")
 
     def test_raw_is_the_text_between_the_fences(self) -> None:
-        result = parse_frontmatter(f"---\n{BODY}\n---\nBody.\n")
+        result = parse(f"---\n{BODY}\n---\nBody.\n")
         assert "id: ADR-999" in result.raw
         assert "Body." not in result.raw
 
     def test_absent_frontmatter_returns_the_whole_text_as_body(self) -> None:
         text = "# Title\n\nNo frontmatter here.\n"
-        assert parse_frontmatter(text).body == text
+        assert parse(text).body == text
 
 
 class TestStrictMode:
@@ -211,53 +221,169 @@ class TestStrictMode:
     )
     def test_strict_raises_on_a_broken_block(self, text: str) -> None:
         with pytest.raises(FrontmatterError):
-            parse_frontmatter(text, strict=True)
+            parse(text, strict=True)
 
     def test_strict_does_not_raise_on_absent_frontmatter(self) -> None:
         """A file with no block is a routine input, not a defect."""
-        result = parse_frontmatter("Just body.\n", strict=True)
+        result = parse("Just body.\n", strict=True)
         assert result.status is FrontmatterStatus.ABSENT
 
     def test_strict_does_not_raise_on_a_valid_block(self) -> None:
-        result = parse_frontmatter(f"---\n{BODY}\n---\nBody.\n", strict=True)
+        result = parse(f"---\n{BODY}\n---\nBody.\n", strict=True)
         assert result.status is FrontmatterStatus.VALID
 
 
-class TestNoLocalFenceLogic:
-    """The module must keep delegating rather than re-deriving.
+PARITY_SHAPES = [
+    f"---\n{BODY}\n---\nBody.\n",
+    f"---\n{BODY}\n--- \nBody.\n",
+    f"---\n{BODY}\n----\nBody.\n",
+    f"---\n{BODY}\n--- nope\nBody.\n",
+    f"---\n{BODY}\nBody.\n",
+    f"----\n{BODY}\n---\n",
+    f"\n---\n{BODY}\n---\n",
+    f"---\r\n{BODY}\r\n---\r\nBody.\r\n",
+    "---\n---\n",
+    f"---\n\n\n{BODY}\n---\n\n\nBody.\n",
+    f"\ufeff---\n{BODY}\n---\n",
+    "---",
+    f"---\n{BODY}\n---",
+    "Just body.\n",
+    "",
+]
 
-    Hand-copying this library's pattern instead of calling it is what produced
-    the twelfth fence contract at memory_index.py:888. This test is the guard
-    against the adapter becoming the thirteenth.
-    """
 
-    def test_module_defines_no_fence_regex(self) -> None:
-        """Checked with `ast`, not text search: the module docstring quotes the
-        library's pattern verbatim, as canonical-source-mirror.md requires, so a
-        substring check would match its own documentation."""
-        import ast
-        from pathlib import Path
+class TestLibraryParity:
+    """The fence rule is python-frontmatter's, checked against the installed library."""
 
-        import scripts.validation.frontmatter_contract as mod
+    def test_pattern_and_flags_equal_the_library(self) -> None:
+        assert FM_BOUNDARY_PATTERN == YAMLHandler.FM_BOUNDARY.pattern
+        assert FM_BOUNDARY.flags == YAMLHandler.FM_BOUNDARY.flags
 
-        tree = ast.parse(Path(mod.__file__).read_text(encoding="utf-8"))
+    @pytest.mark.parametrize("text", PARITY_SHAPES)
+    def test_detect_and_split_equal_the_library(self, text: str) -> None:
+        handler = YAMLHandler()
+        result = split_frontmatter(text)
 
-        imported: set[str] = set()
+        if not handler.detect(text):
+            assert result.status is FrontmatterStatus.ABSENT
+            return
+        try:
+            raw, content = handler.split(text)
+        except ValueError:
+            assert result.status is FrontmatterStatus.UNTERMINATED
+            return
+        assert result.status is FrontmatterStatus.VALID
+        assert result.raw == raw
+        assert result.body == content.removeprefix("\n")
+
+
+class TestSplit:
+    """split_frontmatter reads no YAML and reports where the body starts."""
+
+    def test_body_start_slices_the_source(self) -> None:
+        text = f"---\n{BODY}\n---\nBody.\n"
+
+        result = split_frontmatter(text)
+
+        assert result.found
+        assert result.raw == f"\n{BODY}\n"
+        assert text[result.body_start :] == "Body.\n"
+        assert text.count("\n", 0, result.body_start) == 4
+
+    def test_absent_block_returns_whole_text(self) -> None:
+        result = split_frontmatter("Body.\n")
+
+        assert (result.status, result.raw, result.body, result.body_start) == (
+            FrontmatterStatus.ABSENT,
+            "",
+            "Body.\n",
+            0,
+        )
+        assert not result.found
+
+    def test_unterminated_block_returns_whole_text(self) -> None:
+        text = f"---\n{BODY}\n"
+
+        result = split_frontmatter(text)
+
+        assert result.status is FrontmatterStatus.UNTERMINATED
+        assert (result.raw, result.body, result.body_start) == ("", text, 0)
+
+    def test_malformed_yaml_still_splits(self) -> None:
+        result = split_frontmatter("---\na: [\n---\nBody.\n")
+
+        assert result.found
+        assert result.body == "Body.\n"
+
+
+class TestLoad:
+    """load_frontmatter returns only a mapping, last-one-wins by default."""
+
+    def test_returns_mapping(self) -> None:
+        assert load_frontmatter(f"---\n{BODY}\n---\n", yaml) == {
+            "id": "ADR-999",
+            "status": "accepted",
+        }
+
+    @pytest.mark.parametrize(
+        "text",
+        ["Body.\n", f"---\n{BODY}\n", "---\n---\n", "---\n- a\n---\n", "---\na: [\n---\n"],
+    )
+    def test_returns_none_for_unusable_blocks(self, text: str) -> None:
+        assert load_frontmatter(text, yaml) is None
+
+    def test_duplicate_keys_last_one_wins_by_default(self) -> None:
+        assert load_frontmatter("---\nid: A\nid: B\n---\n", yaml) == {"id": "B"}
+
+    def test_duplicate_keys_rejected_on_request(self) -> None:
+        assert (
+            load_frontmatter("---\nid: A\nid: B\n---\n", yaml, allow_duplicate_keys=False) is None
+        )
+
+
+class TestLoaderOverride:
+    """A caller may name its loader, but only a SafeLoader subclass."""
+
+    def test_custom_safe_loader_is_used(self) -> None:
+        class UpperLoader(yaml.SafeLoader):
+            pass
+
+        UpperLoader.add_constructor(
+            "tag:yaml.org,2002:str", lambda loader, node: loader.construct_scalar(node).upper()
+        )
+
+        result = parse("---\nid: abc\n---\n", loader=UpperLoader)
+
+        assert result.metadata == {"ID": "ABC"}
+
+    def test_non_safe_loader_is_refused(self) -> None:
+        with pytest.raises(TypeError, match="SafeLoader"):
+            parse("---\nid: abc\n---\n", loader=yaml.UnsafeLoader)
+
+    def test_strict_loader_is_cached_per_yaml_module(self) -> None:
+        parse("---\na: 1\n---\n")
+        parse("---\na: 1\n---\n")
+
+        assert len(frontmatter_block._STRICT_LOADERS) == 1
+
+
+class TestShippedLibStaysStdlibOnly:
+    """The module ships in the plugin lib trees, so it imports no third-party module."""
+
+    def test_imports_only_stdlib(self) -> None:
+        tree = ast.parse(Path(frontmatter_block.__file__).read_text(encoding="utf-8"))
+        roots: set[str] = set()
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
-                imported.update(alias.name for alias in node.names)
+                roots.update(alias.name.split(".")[0] for alias in node.names)
             elif isinstance(node, ast.ImportFrom) and node.module:
-                imported.add(node.module)
-        assert "re" not in imported, "the adapter must not import re"
+                roots.add(node.module.split(".")[0])
 
-        calls = [
-            node
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr == "compile"
+        assert roots <= {"__future__", "dataclasses", "enum", "re", "types", "typing"}
+
+    def test_boundary_is_the_only_compiled_pattern(self) -> None:
+        compiled = [
+            value for value in vars(frontmatter_block).values() if isinstance(value, re.Pattern)
         ]
-        assert calls == [], "the adapter must not compile its own pattern"
 
-    def test_boundary_comes_from_the_library(self) -> None:
-        assert YAMLHandler.FM_BOUNDARY.pattern == r"^-{3,}\s*$"
+        assert compiled == [FM_BOUNDARY]
