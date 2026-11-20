@@ -22,10 +22,6 @@ metadata:
       - document this api
       - api quickstart
       - api guide
-      - api guide hemingway audit
-      - hemingway audit api guide
-      - api guide hemingway pass
-      - hemingway pass api guide
       - endpoint documentation
 ---
 

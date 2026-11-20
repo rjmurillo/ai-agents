@@ -92,6 +92,26 @@
         "route": "api-doc-authoring"
       },
       "rationale": "The API owner also wins when the pass comes before the page type."
+    },
+    {
+      "id": "lt-hemingway-audit-api-documentation",
+      "family": "long-tail-single-domain",
+      "request": "Give this API documentation a Hemingway audit",
+      "expect": {
+        "kind": "specialist",
+        "route": "api-doc-authoring"
+      },
+      "rationale": "The API owner also handles requests that say API documentation."
+    },
+    {
+      "id": "lt-hemingway-audit-api-guide-far-apart",
+      "family": "long-tail-single-domain",
+      "request": "Give this endpoint API guide for users of our billing service a Hemingway audit",
+      "expect": {
+        "kind": "specialist",
+        "route": "api-doc-authoring"
+      },
+      "rationale": "API ownership holds when the document type and audit phrase are far apart."
     }
   ]
 }

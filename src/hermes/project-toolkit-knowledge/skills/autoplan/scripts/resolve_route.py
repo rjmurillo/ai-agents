@@ -66,6 +66,8 @@ Matching:
    request length.
 3. A skill's score is its count of matching intents. The tie-break is the
    total token count of those matching intents.
+   When API doc authoring matches, it owns Hemingway requests over technical
+   writing in the same namespace.
 
 Order: explicit name/namespace reference (dropping a self-reference and
 continuing) -> multi-domain marker -> highest-scoring eligible front-door
@@ -447,6 +449,18 @@ def _resolve_specialist(
             "candidates": [],
             "rationale": "no explicit reference, multi-domain marker, or intent match",
         }
+    api_doc_namespaces = {
+        skill.namespace for _, _, skill, _ in scored if skill.name == "api-doc-authoring"
+    }
+    scored = [
+        entry
+        for entry in scored
+        if not (
+            entry[2].name == "technical-writing"
+            and entry[2].namespace in api_doc_namespaces
+            and {"hemingway audit", "hemingway pass"}.intersection(entry[3])
+        )
+    ]
     top = max((score, tiebreak) for score, tiebreak, _skill, _matched in scored)
     winners = [entry for entry in scored if (entry[0], entry[1]) == top]
     if len(winners) > 1:
