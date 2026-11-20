@@ -60,6 +60,7 @@ three items.
 
 ### Next Steps
 
-None for ADR-107. Two items are flagged in the pull request body for the owner, not fixed here:
-ADR-109 line 96 cites ADR-107 line 663 for a bullet that already sits elsewhere on `main`, and
-the "any authored artifact" scope wording.
+None for ADR-107. The three added lines moved a bullet that ADR-109 line 96 quotes. That
+citation was already stale on `main`. The owner chose to fix it on this branch, and ADR-109 line
+94 followed. See `.project-toolkit/critique/ADR-109-debate-log-4.md`. The "any authored
+artifact" scope wording is flagged in the pull request body for the owner, not changed here.
