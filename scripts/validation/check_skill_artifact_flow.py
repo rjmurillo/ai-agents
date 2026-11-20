@@ -23,18 +23,14 @@ Six invariants are blocking:
      with helper outputs credited along the `routing.invoker` chain
   5. each lifecycle skill carries a `## Handoff` line that agrees with (4)
 
-A skill with no `inputs` or `outputs` is not a defect, except that item 4
-needs the lifecycle skills to declare enough data to connect.
-
-The gate reads `templates/skills/*.SKILL.md.tmpl`, the canonical source. It
-never opens, creates, or writes a declared `path`.
+A skill with no `inputs` or `outputs` is not a defect, except under item 4.
+The gate reads `templates/skills/*.SKILL.md.tmpl` and never opens a declared `path`.
 
 Exit codes (ADR-035):
     0 - Success (every declaration is well-formed and the lifecycle connects)
     1 - Logic error (a declaration is malformed, unresolved, or disconnected)
-    2 - Config error (invalid repository root, a template that cannot be read,
-        or `templates/skills` is absent or holds no skill templates, which
-        would make a PASS vacuous). An invalid argument combination also exits 2.
+    2 - Config error: bad repository root, unreadable template, no skill
+        templates (a vacuous PASS), or an invalid argument combination.
 """
 
 from __future__ import annotations
