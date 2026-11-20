@@ -1659,8 +1659,8 @@ _PERMANENT_MARKERS = (
 
 WaitOutcome = Literal["event", "timeout", "fallback"]
 
-# Process-wide verdict: None until probed, then True or False.
-_listen_available: bool | None = None
+# Process-wide verdict under "available": None until probed, then True or False.
+_LISTEN_STATE: dict[str, bool | None] = {"available": None}
 
 
 def pr_url(owner: str, repo: str, number: int) -> str:
@@ -1670,8 +1670,7 @@ def pr_url(owner: str, repo: str, number: int) -> str:
 
 def reset_listen_state() -> None:
     """Forget the cached support verdict. For tests."""
-    global _listen_available
-    _listen_available = None
+    _LISTEN_STATE["available"] = None
 
 
 def _parse_gh_version(text: str) -> tuple[int, int, int] | None:
@@ -1711,12 +1710,11 @@ def listen_available() -> bool:
 
     The off switch is read on every call. The gh probe runs once per process.
     """
-    global _listen_available
     if os.environ.get(DISABLE_ENV, "").strip() == "0":
         return False
-    if _listen_available is None:
-        _listen_available = _probe_listen_support()
-    return _listen_available
+    if _LISTEN_STATE["available"] is None:
+        _LISTEN_STATE["available"] = _probe_listen_support()
+    return bool(_LISTEN_STATE["available"])
 
 
 def _is_permanent_refusal(stderr: str) -> bool:
@@ -1740,7 +1738,6 @@ def _listen_command(url: str, events: Sequence[str], seconds: int) -> list[str]:
 
 def _run_listen(url: str, events: Sequence[str], seconds: int) -> WaitOutcome | None:
     """Run one bounded listen. Return the outcome, or None when it failed."""
-    global _listen_available
     try:
         result = subprocess.run(
             _listen_command(url, events, seconds),
@@ -1753,14 +1750,14 @@ def _run_listen(url: str, events: Sequence[str], seconds: int) -> WaitOutcome | 
     except subprocess.TimeoutExpired:
         return "timeout"
     except OSError:
-        _listen_available = False
+        _LISTEN_STATE["available"] = False
         return None
     if result.returncode == 0:
         return "event"
     if result.returncode == LISTEN_TIMEOUT_EXIT:
         return "timeout"
     if _is_permanent_refusal(result.stderr or ""):
-        _listen_available = False
+        _LISTEN_STATE["available"] = False
     return None
 
 

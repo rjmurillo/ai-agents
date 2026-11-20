@@ -21,6 +21,8 @@ if _helpers is None:
 _gate = _helpers.gate_payload
 _pr = _helpers.pr_payload
 pw = _helpers.pw
+# pr_wait.py imports the helper at call time, from the lib copy it put on sys.path.
+gh_api = importlib.import_module("github_core.api")
 
 
 def test_watch_waits_on_all_pr_events_between_polls(
@@ -35,9 +37,14 @@ def test_watch_waits_on_all_pr_events_between_polls(
         waits.append((url, tuple(events), seconds, kw))
         return "event"
 
-    monkeypatch.setattr(pw, "wait_for_pr_event", fake_wait)
+    monkeypatch.setattr(gh_api, "wait_for_pr_event", fake_wait)
 
     assert pw.main(["5", "--repo", "o/r", "--until", "green", "--interval", "45"]) == 0
     assert waits == [
-        ("https://github.com/o/r/pull/5", pw.ALL_PR_EVENTS, 45, {"min_seconds": pw.MIN_INTERVAL})
+        (
+            "https://github.com/o/r/pull/5",
+            gh_api.ALL_PR_EVENTS,
+            45,
+            {"min_seconds": pw.MIN_INTERVAL},
+        )
     ]

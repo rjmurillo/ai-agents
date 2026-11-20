@@ -77,7 +77,8 @@ _script_dir = os.path.dirname(os.path.abspath(__file__))
 if _script_dir not in sys.path:
     sys.path.insert(0, _script_dir)
 
-from github_core.api import ALL_PR_EVENTS, pr_url, wait_for_pr_event  # noqa: E402
+# Bound as a module and read at call time, so a test that patches github_core.api applies.
+import github_core.api as gh_api  # noqa: E402 - needs the lib directory on sys.path
 from pr_wait_activity import diff_activity, review_blockers  # noqa: E402 - needs the script directory
 from pr_wait_state import (  # noqa: E402 - needs the script directory on sys.path
     Json,
@@ -193,9 +194,7 @@ def parse_target(raw: str, repo: str | None) -> tuple[str, str, int]:
         if arg is None or arg.group(2) in (".", ".."):
             raise ValueError(f"--repo must be owner/name, got {repo!r}")
         return arg.group(1), arg.group(2), int(raw)
-    from github_core.api import resolve_repo_params
-
-    info = resolve_repo_params("", "")
+    info = gh_api.resolve_repo_params("", "")
     return info.owner, info.repo, int(raw)
 
 
@@ -306,16 +305,14 @@ def _ready_verdict(state: State, gate: Json, poll: Poll, green: bool) -> None:
 
 
 def fetch_snapshot(owner: str, name: str, number: int) -> tuple[Json, str]:
-    from github_core.api import gh_graphql, is_auth_failure_text
-
     try:
-        data = gh_graphql(SNAPSHOT_QUERY, {"owner": owner, "name": name, "number": number})
+        data = gh_api.gh_graphql(SNAPSHOT_QUERY, {"owner": owner, "name": name, "number": number})
     except FileNotFoundError as exc:
         raise SetupError(f"gh is not installed or not on PATH: {exc}") from exc
     except RuntimeError as exc:
         if _NOT_FOUND.search(str(exc)):
             raise LookupError(f"PR {owner}/{name}#{number} not found") from exc
-        if is_auth_failure_text(str(exc)):
+        if gh_api.is_auth_failure_text(str(exc)):
             raise AuthError(str(exc)) from exc
         raise
     pr = ((data.get("repository") or {}).get("pullRequest")) or None
@@ -449,7 +446,9 @@ def watch(state: State, state_path: Path, target: tuple[str, str, int], args: An
         baseline = False
         if code is not None:
             return code
-        wait_for_pr_event(pr_url(*target), ALL_PR_EVENTS, delay, min_seconds=MIN_INTERVAL)
+        gh_api.wait_for_pr_event(
+            gh_api.pr_url(*target), gh_api.ALL_PR_EVENTS, delay, min_seconds=MIN_INTERVAL
+        )
 
 
 def run(args: argparse.Namespace) -> int:

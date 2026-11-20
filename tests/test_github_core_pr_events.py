@@ -24,16 +24,25 @@ WAITLIST_STDERR = (
 
 
 class FakeClock:
+    """Monotonic clock and sleep seam. Sleeping advances the clock."""
+
     def __init__(self) -> None:
-        self.now = 1000.0
-        self.sleeps: list[float] = []
+        self._now = 1000.0
+        self._sleeps: list[float] = []
 
     def __call__(self) -> float:
-        return self.now
+        return self._now
+
+    def advance(self, seconds: float) -> None:
+        self._now += seconds
 
     def sleep(self, seconds: float) -> None:
-        self.sleeps.append(seconds)
-        self.now += seconds
+        self._sleeps.append(seconds)
+        self.advance(seconds)
+
+    @property
+    def sleeps(self) -> list[float]:
+        return list(self._sleeps)
 
 
 class FakeGh:
@@ -50,32 +59,37 @@ class FakeGh:
         listen_raises: BaseException | None = None,
         version_raises: BaseException | None = None,
     ) -> None:
-        self.clock = clock
-        self.version = version
-        self.listen_rc = listen_rc
-        self.listen_stderr = listen_stderr
-        self.listen_takes = listen_takes
-        self.listen_raises = listen_raises
-        self.version_raises = version_raises
-        self.calls: list[list[str]] = []
+        self._clock = clock
+        self._version = version
+        self._listen = (listen_rc, listen_stderr)
+        self._listen_takes = listen_takes
+        self._listen_raises = listen_raises
+        self._version_raises = version_raises
+        self._calls: list[list[str]] = []
+
+    def set_listen_result(self, returncode: int, stderr: str = "") -> None:
+        self._listen = (returncode, stderr)
 
     def __call__(self, argv: list[str], **kwargs: object) -> SimpleNamespace:
-        self.calls.append(list(argv))
+        self._calls.append(list(argv))
         assert kwargs.get("errors") == "replace"
         assert kwargs.get("capture_output") is True
         if argv == ["gh", "--version"]:
-            if self.version_raises is not None:
-                raise self.version_raises
-            return SimpleNamespace(returncode=0, stdout=self.version, stderr="")
+            if self._version_raises is not None:
+                raise self._version_raises
+            return SimpleNamespace(returncode=0, stdout=self._version, stderr="")
         if argv[:3] == ["gh", "event", "listen"]:
-            if self.listen_raises is not None:
-                raise self.listen_raises
-            self.clock.now += self.listen_takes
-            stdout = '{"type":"x"}\n' if self.listen_rc == 0 else ""
-            return SimpleNamespace(
-                returncode=self.listen_rc, stdout=stdout, stderr=self.listen_stderr
-            )
+            if self._listen_raises is not None:
+                raise self._listen_raises
+            self._clock.advance(self._listen_takes)
+            returncode, stderr = self._listen
+            stdout = '{"type":"x"}\n' if returncode == 0 else ""
+            return SimpleNamespace(returncode=returncode, stdout=stdout, stderr=stderr)
         raise AssertionError(f"unexpected command: {argv}")
+
+    @property
+    def calls(self) -> list[list[str]]:
+        return [list(c) for c in self._calls]
 
     def listen_calls(self) -> list[list[str]]:
         return [c for c in self.calls if c[:3] == ["gh", "event", "listen"]]
@@ -199,7 +213,7 @@ def test_transient_failure_falls_back_for_this_call_only(monkeypatch, clock):
 
     assert _wait(clock, 30) == "fallback"
     assert clock.sleeps == [pytest.approx(28.0)]
-    gh.listen_rc, gh.listen_stderr = 0, ""
+    gh.set_listen_result(0)
     assert _wait(clock, 30) == "event"
     assert len(gh.listen_calls()) == 2
 
