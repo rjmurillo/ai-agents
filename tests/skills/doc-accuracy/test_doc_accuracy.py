@@ -416,6 +416,12 @@ class TestCsharpLiteralAndAttributeArguments:
         ('var s = $"{Ledger.Sum():N2}";', "Ledger"),
         ('var s = $"{global::FakeWidget.Name}";', "FakeWidget"),
         ('$"{\nvar e = cond ? [Z(A: 1)] : [];\nvar a = new FakeWidget(); }', "FakeWidget"),
+        ("var d = '\\''; var w = new FakeWidget();", "FakeWidget"),
+        ('var s = $"{F(name: FakeWidget.A)}";', "FakeWidget"),
+        ('var s = $"{(ok ? 0 : FakeWidget.A)}";', "FakeWidget"),
+        ('var s = $"{ok ? RealY.A : FakeWidget.B}";', "FakeWidget"),
+        ('var s = $"{\nvar e = cond ? a : new FakeWidget(); }";', "FakeWidget"),
+        ('var s = $"{value\nlabel: FakeWidget.Go(); }";', "FakeWidget"),
         ('var s = $@"{a // don\'t\n} {FakeWidget.Go()}";', "FakeWidget"),
     )
 
@@ -520,6 +526,7 @@ class TestCsharpLiteralAndAttributeArguments:
             '$$"""' + "{{x}}" * 50000 + '"""; var w = new FakeWidget();',
             "[a]\n" + "//,[b]//\n" * 20000 + ")\nvar w = new FakeWidget();",
             " " * 50000 + "[" * 20000 + "\nvar w = new FakeWidget();",
+            '$"{' + "a:" * 50000 + "\nvar w = new FakeWidget();",
         )
         for code in cases:
             started = time.monotonic()

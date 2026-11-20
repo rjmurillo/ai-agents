@@ -1329,20 +1329,30 @@ def _csharp_hole_end(code: str, start: int, chars: list[str]) -> int:
     The hole is code and stays visible, but literals inside it are blanked
     and comments skipped, so a brace or quote in either cannot end the hole
     early. A format specifier, the text after a top-level ":" as in
-    ``{price:N2}``, is literal text and is blanked. A ternary inside a hole
-    must be parenthesized, so its ":" is never top-level. An unclosed hole
-    runs to the end of the snippet and leaves it visible.
+    ``{price:N2}``, is literal text and is blanked. Valid C# parenthesizes a
+    ternary inside a hole, so its ":" is never top-level. The blanking stays
+    conservative for malformed code: the ":" must sit on the hole's opening
+    line with a "}" later on that line, and no top-level ternary "?" may
+    come before it. An unclosed hole runs to the end of the snippet and
+    leaves it visible.
     """
     opening = start
     while opening < len(code) and code[opening] == "{":
         opening += 1
     base, depth, paren, index = opening - start, 0, 0, start
+    first_line_end = _line_end(code, start)
+    format_allowed = True
     while index < len(code):
         token = _CSHARP_TOKEN_START_RE.match(code, index)
         if token is not None:
             index = _skip_csharp_token(code, token, chars)
             continue
         char = code[index]
+        if index >= first_line_end or (char == "?" and paren == 0 and depth == base):
+            # Past the opening line, or after a "?" that may open an
+            # unparenthesized ternary, a ":" is not trusted as a format
+            # specifier. "?." and "??" make this stricter, never looser.
+            format_allowed = False
         if char == "{":
             depth += 1
         elif char == "}":
@@ -1356,10 +1366,12 @@ def _csharp_hole_end(code: str, start: int, chars: list[str]) -> int:
         elif code.startswith("::", index):
             index += 2
             continue
-        elif char == ":" and depth == base and paren == 0:
-            # A format specifier closes on its own line. Without a "}" there,
-            # the hole is malformed, so leave the rest visible as code.
-            close = code.find("}", index, _line_end(code, index))
+        elif char == ":" and depth == base and paren == 0 and format_allowed:
+            # Without a "}" later on the opening line the hole is malformed,
+            # so leave the rest visible. One failed search ends format
+            # blanking for this hole, which keeps the scan linear.
+            close = code.find("}", index, first_line_end)
+            format_allowed = False
             if close >= 0:
                 _blank_span(chars, index + 1, close)
                 index = close
@@ -1502,8 +1514,9 @@ _CSHARP_COMMENT_RE = re.compile(r"(?s)//[^\n]*|/\*.*?(?:\*/|\Z)")
 # "]" of an attribute section (chained sections), or "(" or "," (a parameter
 # attribute). An indexer follows a name, and a collection expression usually
 # follows "=", "return" or an operator, so neither qualifies. Accepted limit:
-# an attribute after "=" (a lambda attribute) or "<" (a type parameter
-# attribute) is not detected, so its named arguments are still reported.
+# an attribute after "=" (a lambda attribute), after "<" (a type parameter
+# attribute), or directly inside "[" (a lambda attribute in a collection
+# expression) is not detected, so its named arguments are still reported.
 _CSHARP_ATTRIBUTE_CONTEXT = frozenset(";{}(,")
 
 # After the closing "]", the next code must start a declaration: a name, "@",
@@ -1553,8 +1566,9 @@ def _is_attribute_follower(view: str, stop: int, enclosing: str) -> bool:
     """Whether the code after the "]" at ``stop`` starts a declaration.
 
     ``enclosing`` is the innermost open bracket around the section, or "" at
-    the top level. An attribute section never sits directly inside "[", so
-    such a bracket is a nested list pattern or collection. A name followed
+    the top level. A section directly inside "[" is treated as a nested list
+    pattern or collection element, never an attribute; a lambda attribute
+    there is the one accepted miss, and it only over-reports. A name followed
     by "when", "and" or "or" is a pattern designation. A name followed by
     "=>" is one too, unless it is an accessor. A lone name followed by ","
     or ")" inside parentheses is a designation in a tuple or positional
