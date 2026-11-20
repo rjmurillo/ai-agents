@@ -21,11 +21,32 @@ Reduce coupling by limiting knowledge between components. The fewer objects a cl
 ## Violation Example
 
 ```csharp
+using System;
+
+var character = new Character(new Stats(new Strength(new Modifier(2))));
+
 // BAD: Train wreck, reaching through collaborators
-var modifier = character.Stats.Strength.Modifier.Value;
+Console.WriteLine(character.Stats.Strength.Modifier.Value);
 
 // GOOD: Tell, don't ask
-var modifier = character.GetStrengthModifier();
+Console.WriteLine(character.GetStrengthModifier());
+
+record Modifier(int Value);
+
+record Strength(Modifier Modifier)
+{
+    public int GetModifier() => Modifier.Value;
+}
+
+record Stats(Strength Strength)
+{
+    public int GetStrengthModifier() => Strength.GetModifier();
+}
+
+record Character(Stats Stats)
+{
+    public int GetStrengthModifier() => Stats.GetStrengthModifier();
+}
 ```
 
 ## Application to This Project

@@ -22,14 +22,27 @@ Define input/output invariants clearly. Methods have:
 ## Example
 
 ```csharp
-// Precondition: amount > 0
-// Postcondition: balance reduced by amount
-// Invariant: balance >= 0
-public void Withdraw(decimal amount)
+using System;
+
+public sealed class Account
 {
-    if (amount <= 0) throw new ArgumentException("Amount must be positive");
-    if (amount > Balance) throw new InvalidOperationException("Insufficient funds");
-    Balance -= amount;
+    // Invariant: balance >= 0.
+    public decimal Balance { get; private set; }
+
+    public Account(decimal openingBalance)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(openingBalance);
+        Balance = openingBalance;
+    }
+
+    // Precondition: amount is positive and available.
+    // Postcondition: balance is reduced by that amount.
+    public void Withdraw(decimal amount)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(amount);
+        if (amount > Balance) throw new InvalidOperationException("Insufficient funds");
+        Balance -= amount;
+    }
 }
 ```
 

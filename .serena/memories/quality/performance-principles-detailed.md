@@ -7,16 +7,32 @@ Borrow memory once, reuse, return. Minimize allocations in hot paths.
 
 ### Implementation
 ```csharp
-// Use ArrayPool<T> for temporary buffers
-var pool = ArrayPool<T>.Shared;
-var buffer = pool.Rent(minimumSize);
-try
+using System;
+using System.Buffers;
+
+static int CountDistinctIds(ReadOnlySpan<int> ids)
 {
-    // Use buffer
-}
-finally
-{
-    pool.Return(buffer, clearArray: true);
+    if (ids.IsEmpty)
+        return 0;
+
+    var pool = ArrayPool<int>.Shared;
+    var buffer = pool.Rent(ids.Length);
+    try
+    {
+        Span<int> sorted = buffer.AsSpan(0, ids.Length);
+        ids.CopyTo(sorted);
+        sorted.Sort();
+
+        int count = 1;
+        for (int i = 1; i < sorted.Length; i++)
+            if (sorted[i] != sorted[i - 1])
+                count++;
+        return count;
+    }
+    finally
+    {
+        pool.Return(buffer, clearArray: true);
+    }
 }
 ```
 
