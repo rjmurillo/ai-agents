@@ -75,11 +75,26 @@ Distributed request flow across services.
 
 Single SDK covering all three pillars. Vendor-neutral, CNCF standard.
 
+This tracing example uses `OpenTelemetry` and `OpenTelemetry.Exporter.OpenTelemetryProtocol`.
+
 ```csharp
+using System;
+using System.Diagnostics;
+using OpenTelemetry;
+using OpenTelemetry.Trace;
+
+using var source = new ActivitySource("MyService");
 using var tracerProvider = Sdk.CreateTracerProviderBuilder()
-    .AddSource("MyService")
+    .AddSource(source.Name)
     .AddOtlpExporter()
     .Build();
+
+using (var activity = source.StartActivity("load-config"))
+{
+    var environment = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Production";
+    activity?.SetTag("app.environment", environment);
+    Console.WriteLine(environment);
+}
 ```
 
 ## Relationship to SRE
