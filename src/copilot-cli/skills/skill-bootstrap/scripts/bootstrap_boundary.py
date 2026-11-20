@@ -6,11 +6,12 @@ repository (`.claude/skills` or `.github/skills`), and only into the skill
 directories it named. Paths the user authorized beyond that root, such as a
 canonical skill template, are passed with `--also-allow`. A folder where the
 run may only add new files, such as an ADR directory, is passed with
-`--also-create`: a new untracked file there is allowed, and any other change
-under it (edit, delete, mode change, a file already untracked at snapshot
-that changed, or a path the snapshot HEAD tracks) is `create-only-changed`. A path matching both grants follows
-`--also-allow`. This script makes the boundary checkable on Linux, macOS, and
-Windows.
+`--also-create`: a new regular untracked file there is allowed. Any other
+change under it is `create-only-changed`: an edit, delete, or mode change; a
+file already untracked at snapshot that changed; a path the snapshot HEAD
+tracks; a new symlink or nested repository; or a new `.gitignore` or
+`.gitattributes`. A path matching both grants follows `--also-allow`. This
+script makes the boundary checkable on Linux, macOS, and Windows.
 
 Subcommands:
 
@@ -42,13 +43,16 @@ new or changed ignored file in an authorized skill is reported as
 `ignored-in-boundary`, because it would not ship. It does not see other ref
 changes (tags, other branches, config, push), other writes inside `.git/`,
 or gitignored paths outside the output root, so an ignored output root,
-skill directory, `--also-allow` path, or `--also-create` path is refused. A file grant authorizes
-that exact path; end a directory grant with `/`. It catches accidental writes by
-a cooperating run; it is not a sandbox, and a snapshot taken after the writes
+skill directory, `--also-allow` path, or `--also-create` path is refused.
+Ignored files inside a grant are not checked. A file grant authorizes that
+exact path; end a directory grant with `/`. It catches accidental writes by a
+cooperating run; it is not a sandbox, and a snapshot taken after the writes
 proves nothing, so snapshot refuses to overwrite an existing file. Empty
-directories are invisible to git and to verify. A symlink in the output root, a
-skill directory, an `--also-allow` path, or an `--also-create` path fails with exit 2. An unreadable working-tree file stops snapshot with exit 3. Staging is
-compared by status code, not by staged content. Stdlib only, so the script runs from any plugin root.
+directories are invisible to git and to verify. A symlink in the output root,
+a skill directory, an `--also-allow` path, or an `--also-create` path fails
+with exit 2. An unreadable working-tree file stops snapshot with exit 3.
+Staging is compared by status code, not by staged content. Stdlib only, so the
+script runs from any plugin root.
 """
 
 from __future__ import annotations
@@ -388,7 +392,7 @@ def verify(args: argparse.Namespace) -> tuple[int, Payload]:
         "existing": set(before["existing_skills"]),
         "also_allow": also_allow,
         "also_create": also_create,
-        "created": new_untracked(before, after, lambda *a: _git(root, *a)),
+        "created": new_untracked(before, after, also_create, lambda *a: _git(root, *a)),
     }
     violations: list[Payload] = [
         {"kind": f"{key}-changed", "before": before[key], "after": after[key]}
@@ -451,9 +455,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--also-create",
         action="append",
         help=(
-            "repo path where the run may add new files but change none that exist; end a"
-            " directory grant with /. A path that also matches --also-allow follows"
-            " --also-allow"
+            "repo path where the run may add new regular files but change none that"
+            " exist; end a directory grant with /. Ignored files under it are not"
+            " checked. A path that also matches --also-allow follows --also-allow"
         ),
     )
     return parser

@@ -6,11 +6,13 @@ only, so it runs from any plugin root beside the script that imports it.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 from typing import Any
 
 Payload = dict[str, Any]
+Grants = list[tuple[PurePosixPath, bool]]
 
 
 class ConfigError(Exception):
@@ -23,7 +25,7 @@ def posix(value: str) -> PurePosixPath:
 
 def parse_grants(
     root: Path, values: list[str], skills_roots: tuple[str, ...], flag: str = "--also-allow"
-) -> list[tuple[PurePosixPath, bool]]:
+) -> Grants:
     """Return each grant with whether it is a directory grant (written with a trailing `/`).
 
     `skills_roots` are the repo-relative skills roots a grant may not overlap. `flag` names the
@@ -47,56 +49,76 @@ def parse_grants(
     return allowed
 
 
-def covered(posix: PurePosixPath, grants: list[tuple[PurePosixPath, bool]]) -> bool:
+# A created file must be a regular file: `_hash` in bootstrap_boundary writes
+# `<sha256>:<mode>` for one, and `symlink:` or `dir:` for a link or nested repository.
+_REGULAR_FILE_STATE = re.compile(r"\?\?\|[0-9a-f]{64}:")
+# Files that change what git reports for their directory. A new one could hide later
+# writes, because verify does not hash ignored files under a grant.
+_GIT_CONTROL_FILES = frozenset({".gitignore", ".gitattributes"})
+_LS_TREE_BATCH = 100
+
+
+def covered(candidate: PurePosixPath, grants: Grants) -> bool:
     """Return whether any grant covers the path: an exact file or a directory grant above it."""
-    return any(posix == extra or (is_dir and extra in posix.parents) for extra, is_dir in grants)
+    return any(
+        candidate == extra or (is_dir and extra in candidate.parents) for extra, is_dir in grants
+    )
 
 
-def new_untracked(before: Payload, after: Payload, git: Callable[..., str]) -> set[str]:
-    """Return paths absent from the snapshot that are untracked now, the only create-only writes.
+def new_untracked(
+    before: Payload, after: Payload, create_grants: Grants, git: Callable[..., str]
+) -> set[str]:
+    """Return the paths under a create grant that are new regular files, untracked now.
 
     A path in the snapshot was dirty or untracked already, so it is not new. A path HEAD
     tracks is never new either: `git rm --cached` on a clean file, then an edit, reports
-    both `D ` and `??` for it, and the status map keeps only the last code. `git` runs a
-    git command in the repository and returns its stdout.
+    both `D ` and `??` for it, and the status map keeps only the last code. A new symlink
+    or nested repository is not a created file. `git` runs a git command in the
+    repository and returns its stdout. With no create grant, git is not called.
     """
-    fresh = {
+    fresh = sorted(
         path
         for path, state in after["paths"].items()
-        if path not in before["paths"] and state.startswith("??|")
-    }
-    if not fresh or not before["head"]:
-        return fresh
-    listed = git(
-        "--literal-pathspecs",
-        "ls-tree",
-        "-z",
-        "--name-only",
-        "--full-tree",
-        before["head"],
-        "--",
-        *sorted(fresh),
+        if path not in before["paths"]
+        and _REGULAR_FILE_STATE.match(state)
+        and covered(PurePosixPath(path), create_grants)
     )
-    return fresh - set(listed.split("\0"))
+    if not fresh or not before["head"]:
+        return set(fresh)
+    tracked: set[str] = set()
+    for start in range(0, len(fresh), _LS_TREE_BATCH):
+        batch = fresh[start : start + _LS_TREE_BATCH]
+        listed = git(
+            "--literal-pathspecs",
+            "ls-tree",
+            "-z",
+            "--name-only",
+            "--full-tree",
+            before["head"],
+            "--",
+            *batch,
+        )
+        tracked.update(listed.split("\0"))
+    return set(fresh) - tracked
 
 
 def classify(path: str, rel: PurePosixPath, grants: Payload) -> str | None:
     """Return the violation kind for one changed path, or None when authorized.
 
     An `--also-allow` grant wins over an `--also-create` grant. A path under a create grant
-    is authorized only when it is a new untracked file. A new `.gitignore` there is refused:
-    verify does not hash ignored files under a grant, so one could hide later writes.
+    is authorized only when it is a new regular file that is not a `.gitignore` or
+    `.gitattributes`.
     """
-    posix = PurePosixPath(path)
-    if covered(posix, grants["also_allow"]):
+    candidate = PurePosixPath(path)
+    if covered(candidate, grants["also_allow"]):
         return None
-    if covered(posix, grants["also_create"]):
-        if posix.name == ".gitignore" or path not in grants["created"]:
+    if covered(candidate, grants["also_create"]):
+        if candidate.name in _GIT_CONTROL_FILES or path not in grants["created"]:
             return "create-only-changed"
         return None
-    if rel not in posix.parents or len(posix.relative_to(rel).parts) < 2:
+    if rel not in candidate.parents or len(candidate.relative_to(rel).parts) < 2:
         return "outside-boundary"
-    skill = posix.relative_to(rel).parts[0]
+    skill = candidate.relative_to(rel).parts[0]
     if skill in grants["updates"]:
         return None
     if skill in grants["existing"]:

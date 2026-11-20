@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
+import boundary_grants
 import pytest
 from bootstrap_helpers import ignore, run_git, symlink_or_skip, take_snapshot, verify, write
 
@@ -279,3 +280,87 @@ def test_verify_new_gitignore_under_create_grant_is_create_only_changed(
 
     assert code == 1
     assert kinds(payload) == [("create-only-changed", "docs/adr/.gitignore")]
+
+
+def test_verify_new_gitattributes_under_create_grant_is_create_only_changed(
+    repo: Path, capsys: Capsys, snap_path: Path
+) -> None:
+    take_snapshot(capsys, repo, snap_path)
+    write(repo, "docs/adr/.gitattributes", "*.md -diff\n")
+
+    code, payload = verify(capsys, repo, snap_path, "--also-create", ADR_DIR)
+
+    assert code == 1
+    assert kinds(payload) == [("create-only-changed", "docs/adr/.gitattributes")]
+
+
+def test_verify_new_symlink_under_create_grant_is_create_only_changed(
+    repo: Path, capsys: Capsys, snap_path: Path, tmp_path: Path
+) -> None:
+    commit_tracked_adr(repo)
+    take_snapshot(capsys, repo, snap_path)
+    symlink_or_skip(repo / "docs/adr/0002-link.md", tmp_path / "outside.md")
+
+    code, payload = verify(capsys, repo, snap_path, "--also-create", ADR_DIR)
+
+    assert code == 1
+    assert kinds(payload) == [("create-only-changed", "docs/adr/0002-link.md")]
+
+
+def test_verify_new_nested_repository_under_create_grant_is_create_only_changed(
+    repo: Path, capsys: Capsys, snap_path: Path
+) -> None:
+    commit_tracked_adr(repo)
+    take_snapshot(capsys, repo, snap_path)
+    write(repo, "docs/adr/nested/readme.md")
+    run_git(repo / "docs/adr/nested", "init", "-q")
+
+    code, payload = verify(capsys, repo, snap_path, "--also-create", ADR_DIR)
+
+    assert code == 1
+    assert kinds(payload) == [("create-only-changed", "docs/adr/nested")]
+
+
+def test_verify_create_grant_in_a_repository_with_no_commit_accepts_a_new_file(
+    tmp_path: Path, capsys: Capsys, snap_path: Path
+) -> None:
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    run_git(empty, "init", "-q")
+    (empty / ".claude" / "skills").mkdir(parents=True)
+    take_snapshot(capsys, empty, snap_path)
+    write(empty, NEW_ADR)
+
+    code, payload = verify(capsys, empty, snap_path, "--also-create", ADR_DIR)
+
+    assert code == 0
+    assert payload["violations"] == []
+
+
+def test_new_untracked_with_no_create_grant_never_calls_git() -> None:
+    before = {"head": "a" * 40, "paths": {}}
+    after = {"paths": {"docs/adr/0002-second.md": "??|" + "b" * 64 + ":644"}}
+
+    def refuse(*_args: str) -> str:
+        raise AssertionError("git must not run without a create grant")
+
+    assert boundary_grants.new_untracked(before, after, [], refuse) == set()
+
+
+def test_new_untracked_checks_head_in_batches() -> None:
+    paths = {f"docs/adr/{n:04d}-x.md": "??|" + "c" * 64 + ":644" for n in range(250)}
+    calls: list[int] = []
+
+    def fake_git(*args: str) -> str:
+        calls.append(len(args[args.index("--") + 1 :]))
+        return ""
+
+    created = boundary_grants.new_untracked(
+        {"head": "a" * 40, "paths": {}},
+        {"paths": paths},
+        [(PurePosixPath("docs/adr"), True)],
+        fake_git,
+    )
+
+    assert created == set(paths)
+    assert calls == [100, 100, 50]
