@@ -1475,8 +1475,8 @@ def _first_ignored_sdk_marker(lines: list[str]) -> dict[str, int] | None:
 # Every pattern is anchored at the start of a line, so a declaration counts
 # only where a statement begins. Text in the middle of a line, such as a regex
 # literal or a string the blanking pass could not parse, declares nothing.
-# Keyword and modifier runs stay on one line, and the method run is capped, so
-# a crafted block cannot make a match rescan a line from every start. The
+# Keyword and modifier runs stay on one line, and no two adjacent parts can
+# share a run of spaces, so a crafted line costs linear time per line. The
 # property pattern crosses line breaks on purpose, because a name, its ``{``
 # and ``get`` often sit on separate lines. A declaration a pattern misses
 # keeps its finding, which is the safe direction.
@@ -1491,11 +1491,13 @@ _CS_METHOD_MODIFIER_WORDS = (
 )
 _CS_METHOD_MODIFIERS = r"(?:(?:" + _CS_METHOD_MODIFIER_WORDS + r")[ \t]+)*"
 # A return type: no modifier or conversion keyword, then type characters. A
-# comma inside a generic may be followed by spaces (``Dictionary<string, int>``).
-# The comma is only in the second branch, so each character has one parse.
+# comma inside a generic may be followed by one space (``Dictionary<string,
+# int>``). The comma is only in the second branch, so each character has one
+# parse. One space at most keeps that branch from sharing a run of spaces with
+# the ``[ \t]+`` before the method name, which would make a match quadratic.
 _CS_RETURN_TYPE = (
     r"(?!(?:" + _CS_METHOD_MODIFIER_WORDS + r"|implicit|explicit|operator)\b)"
-    r"(?:[\w<>\[\].?]|,[ \t]*){1,200}"
+    r"(?:[\w<>\[\].?]|,[ \t]?){1,200}"
 )
 _DECLARED_NAME_PATTERNS: dict[str, tuple[re.Pattern[str], ...]] = {
     "csharp": (
