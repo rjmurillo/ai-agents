@@ -466,11 +466,12 @@ def validate_git_hook_health(repo_root: Path) -> bool:
     """Return False when pre-push is inert or verification is impossible.
 
         Entry point matching the contract the pre-PR registry consumes. Canonical
-        source: ``scripts/validation/pre_pr_sequence.py:150``, whose adapter
-        signature reads verbatim (quoted at column 0 so the 96-character original
-        is reproduced byte for byte rather than wrapped to fit an indent):
+        source: ``scripts/validation/pre_pr_sequence.py:263-265``, whose adapter
+        signature reads verbatim (quoted at column 0 to preserve the source):
 
-    def _root_only(validator: Callable[[Path], bool]) -> Callable[[Path, argparse.Namespace], bool]:
+    def _root_only(
+        validator: Callable[[Path], GateResult],
+    ) -> Callable[[Path, argparse.Namespace], GateResult]:
 
         A dead pre-push hook or an unverifiable Git state fails loud rather than
         warning. The repair is bounded, and refusing an unverifiable push avoids

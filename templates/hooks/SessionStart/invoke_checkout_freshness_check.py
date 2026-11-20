@@ -107,7 +107,7 @@ def check_checkout_freshness(cwd: str) -> FreshnessCheck:
         # A bare branch name on the command line updates only FETCH_HEAD on
         # some git configurations, leaving refs/remotes/origin/main stale
         # even though the fetch itself succeeded (already pinned in this
-        # repo at tests/test_check_pr_live_state.py:347-348). Use the
+        # repo at tests/test_check_pr_live_state.py:328-331). Use the
         # explicit refspec so the remote-tracking ref this hook reads is the
         # one that actually gets updated.
         fetch_result = _run_git(

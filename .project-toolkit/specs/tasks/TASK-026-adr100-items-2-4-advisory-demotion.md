@@ -48,7 +48,7 @@ delivered, verify only, do not re-touch).
       tests/validation/test_audit_procedure_claims.py -q` passes with
       advisory-updated expectations.
 - [ ] TASK-026-AC7: ADR-100 item 1's already-delivered status verified
-      unchanged (`git_hook_policy.py:6727`,
+      unchanged ([the 2026-08-21 removal](https://github.com/rjmurillo/ai-agents/commit/3487d2f694ce45f1aed3028c51c935ec10b552d0),
       `scripts/ci/enforce_pr_validation.py`).
 - [ ] TASK-026-AC8: `uv run python scripts/validation/pre_pr.py` passes.
 

@@ -68,10 +68,10 @@ data, not new measurement.
 The same commit `cd0f9561d` and live-number evidence cited in REQ-024 Q5
 apply here too. This cohort also made a directly observed finding, in
 ancestry back to PR #5418 (`4e33c4baa`): the `FAST_STAGE_RAN_ENV` skip
-mechanism. `scripts/validation/pre_pr_sequence.py:829` reads
+mechanism. `scripts/validation/pre_pr_sequence.py:835` reads
 `fast_stage_ran = os.environ.get(FAST_STAGE_RAN_ENV) == "1"`.
 `lefthook.yml:732` sets `AI_AGENTS_PRE_PR_FAST_STAGE_RAN: "1"`.
-`tests/validation/test_pre_pr_sequence_registry.py:184-191` defines
+`tests/validation/test_pre_pr_sequence_registry.py:192-200` defines
 `FAST_STAGE_DUPLICATES`, five gate names. This is a first-hand production
 signal, not a cited claim: this cohort read the code and confirmed it.
 
@@ -243,9 +243,9 @@ not a running system.
       checkable).
 - [ ] REQ-022-AC3: WHEN the row for the pre-push duplicate-gate finding is
       recorded, THE SYSTEM SHALL classify it `KEEP`.
-      Evidence citations: `scripts/validation/pre_pr_sequence.py:802-813`,
+      Evidence citations: `scripts/validation/pre_pr_sequence.py:835-846`,
       `lefthook.yml:718`, and
-      `tests/validation/test_pre_pr_sequence_registry.py:184-311`.
+      `tests/validation/test_pre_pr_sequence_registry.py:192-319`.
       THE SYSTEM SHALL NOT propose a deletion PR for this mechanism SO
       THAT the already-fixed finding is recorded rather than re-solved
       (DR3, this REQ's motivating example).

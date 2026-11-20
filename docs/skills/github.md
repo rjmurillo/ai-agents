@@ -64,6 +64,10 @@ uv run python .claude/skills/github/scripts/utils/check_github_transport.py
 
 A transport failure is an unknown, never a verdict. Do not report a PR as blocked or red because the API was unreachable. The script-to-tool map is in [`transport-routing.md`](../../src/claude/skills/github/references/transport-routing.md).
 
+Scripts share library discovery through the internal `skill_bootstrap.py` helper.
+It checks plugin-root environment variables before using the caller's fallback.
+It exits `2` when the selected library directory does not exist.
+
 **Script groups.** Each group lives under `scripts/` in the skill:
 
 | Group | Examples |
