@@ -5,6 +5,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -168,6 +169,9 @@ def test_csharp_system_namespace_directives_are_reported_not_scored(directive: s
         "using Streams = List<System.IO.Stream>;",
         "using Point = (int X, int Y);",
         "using unsafe Pointer = int*;",
+        "using Ints = System.Int32[];",
+        "using MaybeInt = System.Int32?;",
+        "using unsafe IntPointer = System.Int32*;",
     ],
 )
 def test_csharp_other_namespace_directives_are_scored(directive: str) -> None:
@@ -254,6 +258,24 @@ def test_default_coupling_gate_scores_only_non_system_directives(
 
     assert result.returncode == exit_code, result.stderr
     assert stderr_fragment in result.stderr
+    if exit_code == 0:
+        reasons = json.loads(result.stdout)["files"][0]["coupling"]["reasons"]
+        assert reasons[1] == (
+            "3 C# System namespace (not scored), 1 application or third-party (scored)"
+        )
+
+
+def test_csharp_directive_without_target_fails_closed_with_its_line() -> None:
+    """Issue #7459: A directive node with no target raises, naming its source line."""
+    alias = SimpleNamespace(id=1, type="identifier")
+    directive = SimpleNamespace(
+        child_by_field_name=lambda field: alias if field == "name" else None,
+        named_children=[alias, SimpleNamespace(id=2, type="comment")],
+        start_point=(6, 0),
+    )
+
+    with pytest.raises(_mod.CSharpParserError, match="on line 7 has no target"):
+        _mod._is_csharp_standard_directive(directive)
 
 
 @pytest.mark.parametrize("failure", [AttributeError("no text"), StopIteration()])

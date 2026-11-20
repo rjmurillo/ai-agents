@@ -1817,8 +1817,10 @@ def _csharp_root_namespace(node: Any) -> str | None:
     """Return the first namespace segment a C# name node refers to.
 
     ``global::`` is the root namespace, so ``global::System.IO`` starts with
-    ``System``. An extern alias (``Lib::System``) names another assembly, and a
-    tuple, pointer, or keyword type names no namespace: both return None.
+    ``System``. An extern alias (``Lib::System``) names another assembly, so it
+    returns None. A tuple, array, nullable, pointer, or keyword alias target is
+    not a name node, so it returns None and stays scored, even when its element
+    type is a ``System`` type such as ``System.Int32[]``.
     """
     while node.type in ("qualified_name", "generic_name"):
         node = (
@@ -1849,8 +1851,11 @@ def _is_csharp_standard_directive(directive: Any) -> bool:
         if child.type != "comment" and (alias is None or child.id != alias.id)
     ]
     if not targets:
+        # Defensive: the pinned grammar rejects `using ;` as a parse error
+        # first. A grammar change must still fail closed, not guess a score.
         raise CSharpParserError(
-            "Cannot count C# dependencies: a using directive has no target. "
+            f"Cannot count C# dependencies: the using directive on line "
+            f"{directive.start_point[0] + 1} has no target. "
             "Check the pinned grammar (tree-sitter-c-sharp==0.23.5)"
         )
     return _csharp_root_namespace(targets[-1]) == "System"
