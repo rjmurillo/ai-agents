@@ -54,6 +54,7 @@ def test_every_script_on_disk_is_bundled_and_documented() -> None:
         "scripts/bootstrap_friction.py",
         "scripts/bootstrap_sweep.py",
         "scripts/bootstrap_sweep_import.py",
+        "scripts/boundary_grants.py",
         "scripts/bootstrap_review.py",
         "scripts/review_clusters.py",
     }
