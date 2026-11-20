@@ -332,6 +332,7 @@ class TestCsharpLiteralAndAttributeArguments:
         ('foreach (var record in rs) { var s = $"{record.Total:D5}"; }', "D5"),
         ('var s = $"{where:N2} {var:F1} {item.record:C2} {this.@class:X4}";', "N2"),
         ('var s = $"{item.record:C2} {this.@class:X4}";', "X4"),
+        ('var s = $"{var:F1}";', "F1"),
     )
 
     def test_names_in_literals_are_not_extracted(self) -> None:
@@ -352,13 +353,17 @@ class TestCsharpLiteralAndAttributeArguments:
         assert "Total" not in result
         assert "Braced" not in result
 
-    def test_unterminated_string_hides_only_its_own_line(self) -> None:
-        code = 'var s = "open TrailingName\nvar w = new FakeWidget();'
+    def test_unterminated_string_stays_visible(self) -> None:
+        """A string with no closing quote is a typo; its text is not hidden."""
+        for code in (
+            'var s = "open TrailingName\nvar w = new FakeWidget();',
+            'var c = "x; var w = new FakeWidget();',
+            "var c = 'x; var w = new FakeWidget();",
+        ):
+            result = _extract_identifiers(code, "csharp")
 
-        result = _extract_identifiers(code, "csharp")
-
-        assert "TrailingName" not in result
-        assert "FakeWidget" in result
+            assert "FakeWidget" in result, code
+        assert "TrailingName" in _extract_identifiers('var s = "open TrailingName', "csharp")
 
     def test_attribute_named_arguments_are_not_extracted(self) -> None:
         code = '[DllImport("k32", EntryPoint = "Beep", SetLastError: true)]\nvoid F() {}'
@@ -449,6 +454,22 @@ class TestCsharpLiteralAndAttributeArguments:
         ('var s = $$"""{{x}"""; var w = new FakeWidget();', "FakeWidget"),
         ('var s = $$"""{{x:N2}"""; var w = new FakeWidget();', "FakeWidget"),
         ('var s = $"{c ??.case 1: FakeWidget.Go(); }', "FakeWidget"),
+        ('var s = $"{d"; var w = new FakeWidget("x");', "FakeWidget"),
+        ('var s = $"{d:N2"; var w = new FakeWidget("x");', "FakeWidget"),
+        ('var s = $"{d"; var w = new FakeWidget(); var t = "x";', "FakeWidget"),
+        ('var s = $"{d"; var w = new FakeWidget($"{y}");', "FakeWidget"),
+        ('var s = $"{d"; [FakeAttr("x")] class C {}', "FakeAttr"),
+        ('Console.WriteLine($"T: {o.Total"); var v = new FakeService("db");', "FakeService"),
+        ('var s = $@"{d"; var w = new FakeWidget();', "FakeWidget"),
+        ('var s = @$"{d"; var w = new FakeWidget();', "FakeWidget"),
+        ('var p = $@"C:\\{dir"; var v = new FakeService();', "FakeService"),
+        ('var s = $"{d"; var w = new FakeWidget(); // C:\\"', "FakeWidget"),
+        ('var s = $"{\n    FakeWidget.Make() }";', "FakeWidget"),
+        ('var s = $"{F("x)}"; var w = new FakeWidget();', "FakeWidget"),
+        ('var s = $"{\n    F("x")\n}"; FakeWidget.Go();', "FakeWidget"),
+        ('var s = $"{x:N2\n}"; FakeWidget.Go();', "FakeWidget"),
+        ('var s = $"{d"; var w = new FakeWidget();\nif (x) { y(); }\n}', "FakeWidget"),
+        ('var s = $@"{x}\nVerbatimTail" + Fake.A; var w = new FakeWidget();', "FakeWidget"),
         ('var s = $$"""\n{{done: FakeWidget.Go(); }\n"""', "FakeWidget"),
         ('var s = $@"{a // don\'t\n} {FakeWidget.Go()}";', "FakeWidget"),
     )
@@ -557,6 +578,9 @@ class TestCsharpLiteralAndAttributeArguments:
             '$"{' + "a:" * 50000 + "\nvar w = new FakeWidget();",
             '$$"""' + "{{x:N}}" * 50000 + '"""; var w = new FakeWidget();',
             '$"{x; ' + "a: {b} " * 20000 + "\nvar w = new FakeWidget();",
+            '$"{d"\n' * 20000 + "var w = new FakeWidget();",
+            '$"{a"' * 20000 + "\nvar w = new FakeWidget();",
+            '$@"{d\n' * 3000 + "var w = new FakeWidget();",
         )
         for code in cases:
             started = time.monotonic()
