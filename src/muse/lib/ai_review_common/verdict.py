@@ -300,6 +300,74 @@ _PARSER_DEPENDENCY_ADMISSIONS: dict[str, dict[str, object]] = {
 }
 
 
+# ADR-122 item 10: the adapter's own copy of the eight issue #7493 change
+# records. The scanner holds a second copy; a conformance test keeps them equal.
+_CHANGE_ADMISSIONS: tuple[dict[str, object], ...] = tuple(
+    {
+        "issue": 7493,
+        "file": file,
+        "quality": quality,
+        "baseScore": base,
+        "headScore": head,
+        "authorizedBy": "rjmurillo",
+        "authorizedOn": "2026-11-20",
+        "authorization": (
+            "Maintainer decisions D1 and D2, choice A: "
+            "admit all 8 transitions as fixed records in one ADR-122 item."
+        ),
+    }
+    for file, quality, base, head in (
+        ("build/scripts/lib_mirror.py", "coupling", 8.0, 7.0),
+        ("scripts/memory_enhancement/hooks/user_prompt_submit_memory.py", "cohesion", 6.3, 4.2),
+        ("scripts/memory_enhancement/hooks/user_prompt_submit_memory.py", "coupling", 6.0, 3.0),
+        ("scripts/memory_enhancement/search.py", "cohesion", 4.2, 2.1),
+        ("scripts/memory_enhancement/search.py", "coupling", 5.0, 3.0),
+        ("templates/hooks/UserPromptSubmit/invoke_memory_recall.py", "cohesion", 9.2, 7.7),
+        ("templates/hooks/invoke_dispatch_claude.py", "cohesion", 5.7, 4.6),
+        ("tests/build_scripts/test_lib_mirror.py", "coupling", 7.0, 6.0),
+    )
+)
+
+
+def _delta_matches_record(comparison: dict[str, object], record: dict[str, object]) -> bool:
+    """Return True when the delta for the record quality is exactly its transition."""
+    deltas = comparison.get("deltas")
+    if not isinstance(deltas, list):
+        return False
+    base, head = record["baseScore"], record["headScore"]
+    assert isinstance(base, float) and isinstance(head, float)
+    expected = (base, head, round(head - base, 4), "compared")
+    return any(
+        isinstance(d, dict)
+        and d.get("quality") == record["quality"]
+        and (d.get("base"), d.get("head"), d.get("delta"), d.get("status")) == expected
+        for d in deltas
+    )
+
+
+def _is_admitted_change(comparison: dict[str, object]) -> bool:
+    """Return True only when ``change_admissions`` is exactly the regressions' fixed records."""
+    records = comparison.get("change_admissions")
+    regressions = comparison.get("regressions")
+    if not isinstance(records, list) or not records or not isinstance(regressions, list):
+        return False
+    if comparison.get("evidence_loss") or comparison.get("absolute_gate_reason") is not None:
+        return False
+    if comparison.get("is_new_file") is not False or comparison.get("change_status") != "M":
+        return False
+    path = str(comparison.get("file_path", "")).replace("\\", "/")
+    qualities = [r.get("quality") if isinstance(r, dict) else None for r in records]
+    if len(set(qualities)) != len(qualities) or set(qualities) != set(regressions):
+        return False
+    return all(
+        isinstance(r, dict)
+        and r in _CHANGE_ADMISSIONS
+        and r["file"] == path
+        and _delta_matches_record(comparison, r)
+        for r in records
+    )
+
+
 def _is_admitted_parser_transition(comparison: dict[str, object], field: str) -> bool:
     """Return True only for the exact scanner transition the *field* record admits."""
     record = _PARSER_DEPENDENCY_ADMISSIONS[field]
@@ -519,6 +587,11 @@ def adapt_local_axis_verdict(
                 for field in _PARSER_DEPENDENCY_ADMISSIONS
                 if comparison.get(field) is not None
             ]
+            if comparison.get("change_admissions") is not None:
+                if admitted or not _is_admitted_change(comparison):
+                    return "UNKNOWN"
+                verdicts.append("WARN")
+                continue
             if not admitted:
                 if comparison.get("regressions") or comparison.get("evidence_loss"):
                     return "FAIL"

@@ -122,6 +122,38 @@ _PARSER_DEPENDENCY_ADMISSIONS = {
     ),
 }
 
+# ADR-122 item 10: eight change-scoped transitions from issue #7493, each
+# pinned to its base and head score. Matching, config equality, and the review
+# adapter's own copy are described there.
+# Each row splits its path into directory and name, so no string literal starts
+# with the upstream-only ``scripts/`` prefix that the vendor portability
+# check flags in shipped skill scripts.
+_CHANGE_ADMISSIONS = tuple(
+    {
+        "issue": 7493,
+        "file": f"{directory}/{name}",
+        "quality": quality,
+        "baseScore": base,
+        "headScore": head,
+        "authorizedBy": "rjmurillo",
+        "authorizedOn": "2026-11-20",
+        "authorization": (
+            "Maintainer decisions D1 and D2, choice A: "
+            "admit all 8 transitions as fixed records in one ADR-122 item."
+        ),
+    }
+    for directory, name, quality, base, head in (
+        ("build/scripts", "lib_mirror.py", "coupling", 8.0, 7.0),
+        ("scripts", "memory_enhancement/hooks/user_prompt_submit_memory.py", "cohesion", 6.3, 4.2),
+        ("scripts", "memory_enhancement/hooks/user_prompt_submit_memory.py", "coupling", 6.0, 3.0),
+        ("scripts", "memory_enhancement/search.py", "cohesion", 4.2, 2.1),
+        ("scripts", "memory_enhancement/search.py", "coupling", 5.0, 3.0),
+        ("templates/hooks", "UserPromptSubmit/invoke_memory_recall.py", "cohesion", 9.2, 7.7),
+        ("templates/hooks", "invoke_dispatch_claude.py", "cohesion", 5.7, 4.6),
+        ("tests/build_scripts", "test_lib_mirror.py", "coupling", 7.0, 6.0),
+    )
+)
+
 # Coupling for these languages is counted from a syntax tree over raw source.
 # Filtering comment lines first would drop PowerShell's `#Requires` statements,
 # which are comments to a line filter.
@@ -709,7 +741,9 @@ def get_files_to_assess(
 
     existing_files: list[Path] = []
     for file_path in files:
-        if not file_path.exists():
+        # git diff can list a path that is a directory on disk: a symlink to a
+        # directory or a submodule. Neither is a source file to score.
+        if not file_path.exists() or file_path.is_dir():
             continue
         _resolve_in_workspace(file_path, "assessment candidate")
         existing_files.append(file_path)
@@ -998,6 +1032,7 @@ class FileComparison:
     csharp_parser_dependency_admission: dict[str, Any] | None = None
     typescript_parser_dependency_admission: dict[str, Any] | None = None
     python_parser_dependency_admission: dict[str, Any] | None = None
+    change_admissions: list[dict[str, Any]] | None = None
 
     def parser_dependency_admission(self) -> dict[str, Any] | None:
         """Return the admission record attached to this comparison, if any."""
@@ -1079,6 +1114,66 @@ def _apply_parser_dependency_admissions(
         else:
             for reason in reasons:
                 print(f"NOT ADMITTED: {comparison.file_path}: {reason}", file=sys.stderr)
+
+
+def _change_admission_mismatch(comparison: FileComparison, record: dict[str, Any]) -> str | None:
+    """Return why *comparison* is outside the record's transition, or None if it matches."""
+    if comparison.is_new_file or comparison.change_status != "M":
+        return f"change status is {comparison.change_status}, not a modified file"
+    if comparison.absolute_gate_reason is not None:
+        return f"absolute gate applies: {comparison.absolute_gate_reason}"
+    if comparison.evidence_loss:
+        return f"evidence loss in {comparison.evidence_loss}"
+    quality, base, head = record["quality"], record["baseScore"], record["headScore"]
+    delta = next((d for d in comparison.deltas if d.quality == quality), None)
+    if delta is None:
+        return f"no {quality} delta recorded"
+    observed = (delta.base, delta.head, delta.delta, delta.status)
+    if observed != (base, head, round(head - base, 4), "compared"):
+        return f"{quality} transition {observed} differs from {base} -> {head}"
+    return None
+
+
+def _apply_change_admissions(comparisons: list[FileComparison], config: dict[str, Any]) -> None:
+    """Admit a comparison only when every regressed quality has a matching record."""
+    if "changeAdmissions" not in config:
+        return
+    if config["changeAdmissions"] != list(_CHANGE_ADMISSIONS):
+        raise ValueError("Invalid changeAdmissions: scope or authorization differs")
+    for comparison in comparisons:
+        path = Path(comparison.file_path).as_posix()
+        records = [r for r in _CHANGE_ADMISSIONS if r["file"] == path]
+        if not records or not comparison.regressions:
+            continue
+        matched: list[dict[str, Any]] = []
+        for quality in comparison.regressions:
+            reasons = ["no record for this file and quality"]
+            for record in (r for r in records if r["quality"] == quality):
+                reason = _change_admission_mismatch(comparison, record)
+                if reason is None:
+                    matched.append(dict(record))
+                    break
+                reasons = [reason]
+            else:
+                print(f"NOT ADMITTED: {path}: {quality}: {reasons[0]}", file=sys.stderr)
+        if len(matched) == len(comparison.regressions):
+            comparison.change_admissions = matched
+
+
+def _admission_notice(comparison: FileComparison, quality: str) -> str | None:
+    """Return the ADMITTED line for one regressed quality, or None when it is not admitted."""
+    approval = comparison.parser_dependency_admission()
+    if not (quality == "coupling" and approval):
+        approval = next(
+            (r for r in comparison.change_admissions or [] if r["quality"] == quality), None
+        )
+    if approval is None:
+        return None
+    return (
+        f"ADMITTED: issue #{approval['issue']}, authorized by "
+        f"{approval['authorizedBy']} on {approval['authorizedOn']}: "
+        f"{approval['authorization']} Raw {quality} regression remains reported."
+    )
 
 
 def _delta_for(quality: str, base: QualityScore, head: QualityScore) -> QualityDelta:
@@ -1296,16 +1391,11 @@ def check_regression(
                 f"{delta.base} -> {delta.head} (delta {delta.delta})",
                 file=sys.stderr,
             )
-            approval = comparison.parser_dependency_admission()
-            if quality == "coupling" and approval:
-                print(
-                    f"ADMITTED: issue #{approval['issue']}, authorized by "
-                    f"{approval['authorizedBy']} on {approval['authorizedOn']}: "
-                    f"{approval['authorization']} Raw coupling regression remains reported.",
-                    file=sys.stderr,
-                )
-            else:
+            notice = _admission_notice(comparison, quality)
+            if notice is None:
                 degraded = True
+            else:
+                print(notice, file=sys.stderr)
         for quality in comparison.evidence_loss:
             print(
                 f"❌ {comparison.file_path}: {quality} was scored at base and is "
@@ -2829,6 +2919,7 @@ def main(argv: list[str] | None = None) -> int:
             changed_files,
         )
         _apply_parser_dependency_admissions(comparisons, config)
+        _apply_change_admissions(comparisons, config)
     except (RuntimeError, ValueError) as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1

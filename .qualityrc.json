@@ -1,6 +1,88 @@
 {
-  "_comment": "assess.py reads thresholds[\"coupling\"].get(\"min\") (_thresholds_for and check_thresholds in .claude/skills/code-qualities-assessment/scripts/assess.py); a config that leaves coupling.min unset has its coupling gate skipped rather than gated incorrectly (see the comment beside that read). This file leaves coupling empty, so no coupling gate fires. assess.py never reads a \"warn\" field for any quality, only each quality's \"min\", so the warn keys this file used to carry were inert and are gone; coupling.max was never read either. minConfidence (0.5) makes a quality advisory when its score confidence is lower: cohesion is a size and definition proxy at confidence 0.4, so it prints a warning and never fails the absolute gate. The regression gate still compares cohesion against the merge base. Test modules get no cohesion score, because each test case counts as a definition (issue 7410), so the test context sets no cohesion minimum. The csharpParserDependencyAdmission, typescriptParserDependencyAdmission, and pythonParserDependencyAdmission records each admit one scanner transition under ADR-122.",
+  "_comment": "assess.py reads thresholds[\"coupling\"].get(\"min\") (_thresholds_for and check_thresholds in .claude/skills/code-qualities-assessment/scripts/assess.py); a config that leaves coupling.min unset has its coupling gate skipped rather than gated incorrectly (see the comment beside that read). This file leaves coupling empty, so no coupling gate fires. assess.py never reads a \"warn\" field for any quality, only each quality's \"min\", so the warn keys this file used to carry were inert and are gone; coupling.max was never read either. minConfidence (0.5) makes a quality advisory when its score confidence is lower: cohesion is a size and definition proxy at confidence 0.4, so it prints a warning and never fails the absolute gate. The regression gate still compares cohesion against the merge base. Test modules get no cohesion score, because each test case counts as a definition (issue 7410), so the test context sets no cohesion minimum. The csharpParserDependencyAdmission, typescriptParserDependencyAdmission, and pythonParserDependencyAdmission records each admit one scanner transition under ADR-122. The changeAdmissions list admits eight issue 7493 transitions under ADR-122 item 10.",
   "minConfidence": 0.5,
+  "changeAdmissions": [
+    {
+      "issue": 7493,
+      "file": "build/scripts/lib_mirror.py",
+      "quality": "coupling",
+      "baseScore": 8.0,
+      "headScore": 7.0,
+      "authorizedBy": "rjmurillo",
+      "authorizedOn": "2026-11-20",
+      "authorization": "Maintainer decisions D1 and D2, choice A: admit all 8 transitions as fixed records in one ADR-122 item."
+    },
+    {
+      "issue": 7493,
+      "file": "scripts/memory_enhancement/hooks/user_prompt_submit_memory.py",
+      "quality": "cohesion",
+      "baseScore": 6.3,
+      "headScore": 4.2,
+      "authorizedBy": "rjmurillo",
+      "authorizedOn": "2026-11-20",
+      "authorization": "Maintainer decisions D1 and D2, choice A: admit all 8 transitions as fixed records in one ADR-122 item."
+    },
+    {
+      "issue": 7493,
+      "file": "scripts/memory_enhancement/hooks/user_prompt_submit_memory.py",
+      "quality": "coupling",
+      "baseScore": 6.0,
+      "headScore": 3.0,
+      "authorizedBy": "rjmurillo",
+      "authorizedOn": "2026-11-20",
+      "authorization": "Maintainer decisions D1 and D2, choice A: admit all 8 transitions as fixed records in one ADR-122 item."
+    },
+    {
+      "issue": 7493,
+      "file": "scripts/memory_enhancement/search.py",
+      "quality": "cohesion",
+      "baseScore": 4.2,
+      "headScore": 2.1,
+      "authorizedBy": "rjmurillo",
+      "authorizedOn": "2026-11-20",
+      "authorization": "Maintainer decisions D1 and D2, choice A: admit all 8 transitions as fixed records in one ADR-122 item."
+    },
+    {
+      "issue": 7493,
+      "file": "scripts/memory_enhancement/search.py",
+      "quality": "coupling",
+      "baseScore": 5.0,
+      "headScore": 3.0,
+      "authorizedBy": "rjmurillo",
+      "authorizedOn": "2026-11-20",
+      "authorization": "Maintainer decisions D1 and D2, choice A: admit all 8 transitions as fixed records in one ADR-122 item."
+    },
+    {
+      "issue": 7493,
+      "file": "templates/hooks/UserPromptSubmit/invoke_memory_recall.py",
+      "quality": "cohesion",
+      "baseScore": 9.2,
+      "headScore": 7.7,
+      "authorizedBy": "rjmurillo",
+      "authorizedOn": "2026-11-20",
+      "authorization": "Maintainer decisions D1 and D2, choice A: admit all 8 transitions as fixed records in one ADR-122 item."
+    },
+    {
+      "issue": 7493,
+      "file": "templates/hooks/invoke_dispatch_claude.py",
+      "quality": "cohesion",
+      "baseScore": 5.7,
+      "headScore": 4.6,
+      "authorizedBy": "rjmurillo",
+      "authorizedOn": "2026-11-20",
+      "authorization": "Maintainer decisions D1 and D2, choice A: admit all 8 transitions as fixed records in one ADR-122 item."
+    },
+    {
+      "issue": 7493,
+      "file": "tests/build_scripts/test_lib_mirror.py",
+      "quality": "coupling",
+      "baseScore": 7.0,
+      "headScore": 6.0,
+      "authorizedBy": "rjmurillo",
+      "authorizedOn": "2026-11-20",
+      "authorization": "Maintainer decisions D1 and D2, choice A: admit all 8 transitions as fixed records in one ADR-122 item."
+    }
+  ],
   "csharpParserDependencyAdmission": {
     "issue": 7406,
     "file": "src/claude/skills/code-qualities-assessment/scripts/assess.py",
