@@ -117,9 +117,9 @@ as the corpus and its history grow, because nobody has one place to check
   `scripts/validation/pre_pr_sequence.py:322-326` sets `already_run_by="count-ratchets"`.
   The `FAST_STAGE_RAN_ENV` skip sits at `scripts/validation/pre_pr_sequence.py:837-848`.
   `lefthook.yml:732` sets `AI_AGENTS_PRE_PR_FAST_STAGE_RAN: "1"`.
-  `tests/validation/test_pre_pr_sequence_registry.py:184-191` defines `FAST_STAGE_DUPLICATES`.
+  `tests/validation/test_pre_pr_sequence_registry.py:190-198` defines `FAST_STAGE_DUPLICATES`.
   The set names Count Ratchets, Unreachable Code Detection, Path Normalization, Planning Artifacts, and Em/en-dash Prohibition.
-  `tests/validation/test_pre_pr_sequence_registry.py:288-312` defines `TestFastStageDeferral`.
+  `tests/validation/test_pre_pr_sequence_registry.py:293-317` defines `TestFastStageDeferral`.
   These cites stop the duplicate run this memory describes. Relevance: this was the evidentiary basis for a fourth PR
   ("delete duplicate gate execution") in this cohort's original seed plan;
   the mechanism it targeted is already fixed. Decision: propose-amend. The
