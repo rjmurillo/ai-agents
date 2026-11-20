@@ -428,6 +428,7 @@ python3 scripts/assess.py --target src/services/auth.py
 For detailed methodology and examples:
 
 - [Calibration Examples](references/calibration-examples.md)
+- [Advanced Calibration Notes](references/calibration-advanced-notes.md)
 - [Refactoring Patterns](references/refactoring-patterns.md)
 - [Dotnet Performance Patterns](references/dotnet-performance-patterns.md)
 

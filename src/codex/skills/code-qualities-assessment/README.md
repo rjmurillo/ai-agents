@@ -35,6 +35,7 @@ code-qualities-assessment/
 │   └── .qualityrc.json             # Configuration template
 └── references/
     ├── calibration-examples.md     # Scoring examples for team calibration
+    ├── calibration-advanced-notes.md # Automated scoring, language notes, workshop
     └── refactoring-patterns.md     # Remediation patterns
 ```text
 
