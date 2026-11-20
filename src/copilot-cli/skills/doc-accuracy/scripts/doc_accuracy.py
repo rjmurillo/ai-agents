@@ -1329,29 +1329,38 @@ def _csharp_hole_end(code: str, start: int, chars: list[str]) -> int:
     The hole is code and stays visible, but literals inside it are blanked
     and comments skipped, so a brace or quote in either cannot end the hole
     early. A format specifier, the text after a top-level ":" as in
-    ``{price:N2}``, is literal text and is blanked. Valid C# parenthesizes a
-    ternary inside a hole, so its ":" is never top-level. The blanking stays
-    conservative for malformed code: the ":" must sit on the hole's opening
-    line with a "}" later on that line, and no top-level ternary "?" may
-    come before it. An unclosed hole runs to the end of the snippet and
-    leaves it visible.
+    ``{price:N2}``, is literal text and is blanked once the "}" that ends it
+    is reached. Valid C# parenthesizes a ternary inside a hole, so its ":"
+    is never top-level. For malformed code the blanking stays conservative:
+    a ":" counts only before any newline, top-level ";", or ternary "?" in
+    the hole ("?." and "??" are not ternaries), and a specifier that meets a
+    newline or a quote before its "}" is dropped and left visible. An
+    unclosed hole runs to the end of the snippet and leaves it visible.
     """
     opening = start
     while opening < len(code) and code[opening] == "{":
         opening += 1
     base, depth, paren, index = opening - start, 0, 0, start
-    first_line_end = _line_end(code, start)
-    format_allowed = True
+    format_allowed, format_start = True, -1
     while index < len(code):
+        char = code[index]
+        if format_start >= 0:
+            if char == "}":
+                _blank_span(chars, format_start, index)
+                format_start = -1
+            elif char in '\n"':
+                format_start = -1
+            else:
+                index += 1
+                continue
         token = _CSHARP_TOKEN_START_RE.match(code, index)
         if token is not None:
-            index = _skip_csharp_token(code, token, chars)
+            after = _skip_csharp_token(code, token, chars)
+            if format_allowed and code.find("\n", index, after) >= 0:
+                format_allowed = False
+            index = after
             continue
-        char = code[index]
-        if index >= first_line_end or (char == "?" and paren == 0 and depth == base):
-            # Past the opening line, or after a "?" that may open an
-            # unparenthesized ternary, a ":" is not trusted as a format
-            # specifier. "?." and "??" make this stricter, never looser.
+        if char == "\n" or (paren == 0 and depth == base and _ends_format_context(code, index)):
             format_allowed = False
         if char == "{":
             depth += 1
@@ -1367,17 +1376,24 @@ def _csharp_hole_end(code: str, start: int, chars: list[str]) -> int:
             index += 2
             continue
         elif char == ":" and depth == base and paren == 0 and format_allowed:
-            # Without a "}" later on the opening line the hole is malformed,
-            # so leave the rest visible. One failed search ends format
-            # blanking for this hole, which keeps the scan linear.
-            close = code.find("}", index, first_line_end)
             format_allowed = False
-            if close >= 0:
-                _blank_span(chars, index + 1, close)
-                index = close
-                continue
+            format_start = index + 1
         index += 1
     return index
+
+
+def _ends_format_context(code: str, index: int) -> bool:
+    """Whether the top-level character at ``index`` rules out a later specifier.
+
+    A ";" means a statement, so the hole is malformed. A "?" may open an
+    unparenthesized ternary, unless it is part of "?.", "?[" or "??".
+    """
+    char = code[index]
+    if char == ";":
+        return True
+    if char != "?":
+        return False
+    return code[index + 1 : index + 2] not in (".", "[", "?") and code[index - 1 : index] != "?"
 
 
 def _csharp_char_end(code: str, start: int) -> int:

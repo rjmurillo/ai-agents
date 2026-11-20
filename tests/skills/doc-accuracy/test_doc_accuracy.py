@@ -323,6 +323,9 @@ class TestCsharpLiteralAndAttributeArguments:
         ('var s = $"Total {total:N2} at {when:HH:mm}";', "N2"),
         ('var s = $"{when:HH:mm} done";', "HH"),
         ('var s = $$"""\n{{price:Currency}}\n""";', "Currency"),
+        ('var s = $"{order?.Total:N2}";', "N2"),
+        ('var s = $"{a ?? b:C2}";', "C2"),
+        ('var s = $"{items?[0]:X8}";', "X8"),
     )
 
     def test_names_in_literals_are_not_extracted(self) -> None:
@@ -422,6 +425,10 @@ class TestCsharpLiteralAndAttributeArguments:
         ('var s = $"{ok ? RealY.A : FakeWidget.B}";', "FakeWidget"),
         ('var s = $"{\nvar e = cond ? a : new FakeWidget(); }";', "FakeWidget"),
         ('var s = $"{value\nlabel: FakeWidget.Go(); }";', "FakeWidget"),
+        ('var s = $"{name; class A : FakeBase { }', "FakeBase"),
+        ('var s = $"{x; done: FakeWidget.Go(); }', "FakeWidget"),
+        ('var s = $"{a ?? b ? c : FakeWidget.B}";', "FakeWidget"),
+        ('var s = $"{x:N2\nvar w = new FakeWidget(); }";', "FakeWidget"),
         ('var s = $@"{a // don\'t\n} {FakeWidget.Go()}";', "FakeWidget"),
     )
 
@@ -527,6 +534,8 @@ class TestCsharpLiteralAndAttributeArguments:
             "[a]\n" + "//,[b]//\n" * 20000 + ")\nvar w = new FakeWidget();",
             " " * 50000 + "[" * 20000 + "\nvar w = new FakeWidget();",
             '$"{' + "a:" * 50000 + "\nvar w = new FakeWidget();",
+            '$$"""' + "{{x:N}}" * 50000 + '"""; var w = new FakeWidget();',
+            '$"{x; ' + "a: {b} " * 20000 + "\nvar w = new FakeWidget();",
         )
         for code in cases:
             started = time.monotonic()
