@@ -349,9 +349,9 @@ arguments, provenance handling, verification, user intent, or failure semantics.
 
 `.claude/rules/claude-model-patches.md` is the only such overlay today, and its own Precedence
 section already subordinates it to skill workflows, STOP points, and gates (`repo-observed`). New
-overlays named after a model family or release are refused unless they carry ADR-080-shaped
-evidence: a measured, reproduced capability difference, a named owner, and an expiry recorded as
-`review-by`.
+overlays named after a model family or release are refused unless they carry three things: a
+measured, reproduced capability difference, modeled on the evidence bar of ADR-080 rule 2 that
+ADR-111 rule 2 restates; a named owner; and an expiry recorded as `review-by`.
 
 ### 8. What this record rejects
 
@@ -707,8 +707,11 @@ Revert the commit that adds `templates/agent-mcp-servers.yaml`, restore the four
   harness-conditional.
 - ADR-094 (govern Copilot CLI compatibility through executable surfaces, `accepted`): executable
   configuration is the version record; ADR prose must not freeze versions or counts.
-- ADR-080 (model pin justification policy): owns `model:` on any authored artifact. Source of the
-  evidence, owner, and expiry shape used by the adapter exception process.
+- ADR-111 (skill model pins project per harness, `accepted`): owns `model:` on any authored
+  artifact. It supersedes ADR-080.
+- ADR-080 (model pin justification policy, `superseded` by ADR-111): kept as history. Origin of
+  the measured-evidence bar (rule 2, restated as ADR-111 rule 2) behind section 7's overlay rule.
+  Owner and expiry come from this record, not from ADR-080.
 - ADR-052 (template strategy, `superseded` by ADR-109 2026-09-11, `implemented: false`): kept as
   history. ADR-109 is the governing agent-direction record.
 - ADR-036 (two-source agent templates, superseded by ADR-052, procedure still operative).
