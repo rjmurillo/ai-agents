@@ -303,7 +303,6 @@ max-complexity = 15
 "build/scripts/build_all.py" = ["C901"]
 "build/scripts/generate_hooks_body.py" = ["C901"]
 "build/scripts/generate_hooks_events.py" = ["C901"]
-"build/scripts/generate_pr_quality_prompts.py" = ["C901"]
 "build/scripts/generate_rules.py" = ["C901"]
 "build/scripts/generate_skills.py" = ["C901"]
 "build/scripts/lib_mirror.py" = ["C901"]

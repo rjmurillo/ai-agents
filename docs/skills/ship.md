@@ -52,6 +52,8 @@ NEXT: [monitoring, follow-up items]
 | `VALIDATED` | Contributor mode: checks ran, no marker commit, no PR created, nothing merged |
 | `BLOCKED` | A blocking check failed, or a deferred pipeline check failed after PR creation |
 
+Hand-off (ADR-123): Writes `pull-request`. It is the last lifecycle step. `metadata.inputs` and `metadata.outputs` in the skill's frontmatter declare the same data.
+
 ## Advanced use
 
 **Mode detection.** Before any check, the skill sets `host` and `mode`, and states both in the report.

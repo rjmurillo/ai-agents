@@ -1,7 +1,7 @@
 ---
 name: sol-loop
 version: 1.0.0
-description: GPT Sol review after the fresh critic, at most 2 rounds, logging findings only Sol raised. Use for "sol loop". Not for pre-merge review (use review).
+description: GPT Sol review after the fresh critic, at most 2 rounds, logging findings only Sol raised. Use for "sol loop". Not for pre-merge review (use review) or open-ended questions (use llm-council).
 license: MIT
 argument-hint: "[pr-number --author-family anthropic|openai|unknown]"
 user-invocable: true

@@ -8,8 +8,16 @@ metadata:
   capability:
     kind: orchestrator
     status: active
-  inputs: [scope-description, session-log, git-history]
-  outputs: [retrospective-markdown-file]
+  inputs:
+    retrospective-scope:
+      source: user
+    session-log:
+      source: repo
+    git-history:
+      source: repo
+  outputs:
+    retrospective:
+      path: retrospective/
   adr: ADR-008, ADR-017, ADR-106
   routing:
     role: conditional-adjunct
@@ -57,7 +65,7 @@ retrospective is written when someone asks for one.
 |-----------|-----------------|
 | A `reflect` pass produced a HIGH-confidence finding | Yes |
 | `main` went red, or a merge was reverted or force-fixed | Yes |
-| The user corrected the work explicitly | Yes |
+| A correction exposed a systemic failure | Yes |
 | A session ended and nothing above fired | No, a calendar is not a trigger |
 | An unfilled auto-retro skeleton exists in `.project-toolkit/retrospective/` | Yes (fill it) |
 | Diagnosing why a task failed (Five Whys, fishbone) | Yes |

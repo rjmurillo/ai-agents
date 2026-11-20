@@ -49,6 +49,8 @@ uv run python .claude/skills/skillopt/scripts/mine_sessions.py sources
 
 Subcommands: `budget`, `apply`, `run`, `gate`, `pair-gate`, `efficiency-gate`, `report`, `score`, `hash`, `buffer-check`, `buffer-add`, `where`.
 
+`apply` runs skillforge's `lint_skill_frontmatter.py` on the incumbent and the candidate. It exits `2` when the candidate adds a MUST failure the incumbent did not have, such as a SKILL.md over the byte cap or frontmatter the stdlib parser refuses. New SHOULD findings print as warnings.
+
 | Command | Exit codes |
 | --- | --- |
 | `budget`, `apply`, `score`, `buffer-add` | `0` success, `2` usage or validation error |

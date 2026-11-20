@@ -4,6 +4,18 @@ version: 1.0.0
 description: Implement a planned change in thin vertical slices, test-first, with atomic commits and four mandatory exit gates. Use when you say `build this`, `implement this slice`, or `write the code for this task`, and run it after plan. Do NOT use to decide what to build (use spec) or to sequence the work (use plan), and do NOT use to review a finished diff (use review).
 license: MIT
 metadata:
+  capability:
+    kind: orchestrator
+    owns:
+      - slice-implementation
+    status: active
+  inputs:
+    requirements-spec:
+    execution-plan:
+      required: false
+  outputs:
+    implementation-change:
+    validation-record:
   routing:
     role: front-door
     invoker: autoplan
@@ -267,6 +279,10 @@ Scope is the allowed paths in the work order's `NON-GOALS` field (`orchestrator-
 - Never weaken the gate, add suppression directives (including `<!-- orphan-ref-ignore -->`), change baselines, broaden permissions, or skip hooks.
 - Record out-of-scope findings in existing handoff fields only: command, result, failing paths, scope decision in CONTEXT; owner in ESCALATE TO; stop reason in STOP CONDITIONS.
 - Reuse a recorded blocker only after a freshness check: head SHA and failing paths match and the command returns the same result. Otherwise discard the record and reclassify.
+
+## Handoff
+
+Writes: `implementation-change`, `validation-record`. Next: `/test`.
 
 ## Verification
 

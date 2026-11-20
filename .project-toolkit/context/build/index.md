@@ -13,7 +13,7 @@
 [Dangerous assumptions]
 |Older docs mention `scripts/sync_plugin_lib.py` as a first step. It is retire... (see: .project-toolkit/context/build/details/dangerous-assumptions.md)
 [Dependencies]
-|`generate_pr_quality_prompts.py`: `.claude/skills/review/references/<role>.md... (see: .project-toolkit/context/build/details/dependencies.md)
+|Lefthook regen jobs glob only `templates/agents/*.shared.md` and `templates/p... (see: .project-toolkit/context/build/details/dependencies.md)
 [Architecture]
 |Lib (B5): `lib_mirror.py` renders `scripts/{hook_utilities,github_core,ai_rev... (see: .project-toolkit/context/build/details/architecture.md)
 [Commands]

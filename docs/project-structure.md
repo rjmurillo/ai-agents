@@ -32,7 +32,6 @@ Root map: what to edit, what is generated, what to skip. `AGENTS.md` owns protoc
 | `.agents/archive/`, `.project-toolkit/{retrospective,critique,qa,analysis}/`, `.project-toolkit/memory/episodes/` | Evidence. Live: `.project-toolkit/sessions/handoffs/`, latest at start, update at end |
 | `evals/` | Corpora; runners in `scripts/eval/`. `tests/evals/` is pytest input |
 | `.factory/mcp.json`, `.vscode/mcp.json` | `scripts/sync_mcp_config.py --sync-all` output |
-| `.github/prompts/pr-quality-gate-*.md` | `build/scripts/generate_pr_quality_prompts.py`; `build_all.py` skips it |
 | `packages/` | Separate toolchains, own lockfiles |
 
 ## Constraints

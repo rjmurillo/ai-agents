@@ -1,8 +1,7 @@
 """Stdlib-only split of a leading YAML frontmatter block from a Markdown file.
 
-Callers: ``build/scripts/generate_pr_quality_prompts.py`` and
-``scripts/validation/validate_seed_parity.py``. Both run under bare ``python3``
-and must stay stdlib-only, because ``check_doc_interpreter_portability.py``
+Caller: ``scripts/validation/validate_seed_parity.py``. It runs under bare
+``python3`` and must stay stdlib-only, because ``check_doc_interpreter_portability.py``
 fails any bare-``python3`` script whose import closure reaches a third-party
 module. This module therefore never imports ``yaml`` or ``frontmatter``, and it
 does no YAML parsing: it only finds the fences.
