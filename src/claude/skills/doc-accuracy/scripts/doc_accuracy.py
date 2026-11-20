@@ -1298,6 +1298,13 @@ def _python_stdlib_imported_names(code: str) -> set[str]:
     return names
 
 
+# A C# preprocessor directive occupies its whole line, optionally indented,
+# with optional whitespace after "#". Directive lines name build symbols
+# (NETFRAMEWORK, NET472, DEBUG) or tooling text (#region, #pragma), never a
+# repository declaration.
+_CSHARP_DIRECTIVE_LINE_RE = re.compile(r"^[ \t]*#[ \t]*[a-z]+\b.*$", re.MULTILINE)
+
+
 def _extract_identifiers(code: str, lang: str = "") -> list[str]:
     """Extract potential identifiers from a code snippet.
 
@@ -1308,13 +1315,20 @@ def _extract_identifiers(code: str, lang: str = "") -> list[str]:
     f-string expressions stay visible only on Python 3.12+, where the
     tokenizer splits f-strings. On 3.10 and 3.11 the whole f-string is one
     STRING token and is blanked, which can only miss a symbol, never add a
-    false finding. Other languages keep the
+    false finding.
+
+    For C# (``lang == "csharp"``) preprocessor directive lines are blanked
+    first, so ``#if NETFRAMEWORK`` does not report an unresolved symbol
+    (issue #7453). Other languages keep lines starting with ``#``, because
+    JavaScript and TypeScript private members use that prefix, and keep the
     language-agnostic scan.
     """
     stdlib_names: set[str] = set()
     if lang == "python":
         code = _strip_python_non_code(code)
         stdlib_names = _python_stdlib_imported_names(code)
+    elif lang == "csharp":
+        code = _CSHARP_DIRECTIVE_LINE_RE.sub("", code)
     # Match CamelCase and snake_case identifiers (3+ chars)
     identifiers = re.findall(r"\b([A-Z][a-zA-Z0-9]+)\b", code)
     # Also match method calls
