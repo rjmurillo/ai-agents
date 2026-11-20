@@ -26,11 +26,21 @@ mod = import_skill_script(".claude/skills/adr-review/scripts/detect_adr_changes.
 _get_adr_status = mod._get_adr_status
 _get_dependent_adrs = mod._get_dependent_adrs
 _run_git = mod._run_git
-_split_frontmatter = mod._split_frontmatter
 _is_frontmatter_only_change = mod._is_frontmatter_only_change
-_frontmatter_fields = mod._parse_frontmatter
-_only_non_decision_fields_changed = mod._only_non_decision_fields_changed
 main = mod.main
+
+
+def _doc(frontmatter: str) -> str:
+    """Wrap raw frontmatter lines in fences so the shared parser reads them."""
+    return f"---\n{frontmatter}---\n"
+
+
+def _frontmatter_fields(frontmatter: str) -> dict[str, object] | None:
+    return mod._parse_frontmatter(_doc(frontmatter))
+
+
+def _only_non_decision_fields_changed(old: str, new: str) -> bool:
+    return mod._only_non_decision_fields_changed(_doc(old), _doc(new))
 
 
 class TestGetAdrStatus:
@@ -300,28 +310,6 @@ class TestMain:
         captured = capsys.readouterr()
         data = json.loads(captured.out)
         assert "HasChanges" in data
-
-
-class TestSplitFrontmatter:
-    """Tests for _split_frontmatter helper."""
-
-    def test_splits_frontmatter_and_body(self) -> None:
-        content = "---\nstatus: proposed\n---\n\n# Body\n\nText.\n"
-        frontmatter, body = _split_frontmatter(content)
-        assert "status: proposed" in frontmatter
-        assert body == "\n# Body\n\nText.\n"
-
-    def test_no_frontmatter_returns_empty_and_full_content(self) -> None:
-        content = "# Body only\n\nNo frontmatter.\n"
-        frontmatter, body = _split_frontmatter(content)
-        assert frontmatter == ""
-        assert body == content
-
-    def test_unterminated_frontmatter_treated_as_body(self) -> None:
-        content = "---\nstatus: proposed\n# never closes\n"
-        frontmatter, body = _split_frontmatter(content)
-        assert frontmatter == ""
-        assert body == content
 
 
 class TestOnlyNonDecisionFieldsChanged:
