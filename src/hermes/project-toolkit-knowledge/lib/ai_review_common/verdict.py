@@ -560,8 +560,8 @@ def adapt_local_axis_verdict(
         return "UNKNOWN"
 
     # golden-principles and taste-lints ship one exit-code contract, stated
-    # identically in .claude/skills/golden-principles/SKILL.md:90-96 and
-    # .claude/skills/taste-lints/SKILL.md:100-106:
+    # identically in the Exit Codes tables of
+    # .claude/skills/golden-principles/SKILL.md and .claude/skills/taste-lints/SKILL.md:
     #   | 0 | No violations found |
     #   | 1 | Script error (bad arguments, file not found) |
     #   | 10 | Violations detected |
