@@ -144,6 +144,8 @@ def test_rule_gate_classifies_line_710_as_bibliography_meta() -> None:
         "Agents MUST cite ADR-080 rule 2 for every pin.\n",
         "Pins stay under ADR-080 until the next release.\n",
         "ADR-080 is the authority for model pins.\n",
+        "ADR-080 is used to decide the model pin and governs it.\n",
+        "Cross-origin rules are owned by ADR-080.\n",
     ],
 )
 def test_authority_signal_on_a_superseded_record_fails(text: str) -> None:
@@ -177,6 +179,7 @@ def test_fixed_adr_107_wording_passes() -> None:
         "Historically, ADR-080 governed model pins.\n",
         "Owner and expiry come from this record, not from ADR-080.\n",
         'The "Tier 1 per ADR-080" framing governs nothing.\n',
+        "Skills MUST NOT cite ADR-080 as authority.\n",
     ],
 )
 def test_historical_mention_passes(text: str) -> None:

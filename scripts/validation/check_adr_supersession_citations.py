@@ -39,10 +39,11 @@ counted, never failed.
   mention sits inside double quotes; a lineage clause wraps it ("superseded by
   ADR-111", "which supersedes ADR-080"); the sentence names a successor of the
   cited record anywhere in its `superseded-by` chain; the sentence says
-  history, historical, precedent, lineage, origin, originally, formerly,
-  previously, no longer, at the time or used to, or a past-tense "was
-  governed" (also owned, defined, required, mandated); or "not from", "not by",
-  "not under" or "not per" directly precedes the mention.
+  history, historical, precedent, lineage, originally, formerly, previously,
+  no longer, at the time, or used to (not after is, are or be), or a past-tense
+  "was", "were" or "had been" before governed, owned, defined, required or
+  mandated; or "not" or "never" plus from, by, under, per, cite, follow, use or
+  rely on directly precedes the mention.
 - AUTHORITY: the sentence carries MUST, SHALL or REQUIRED, or one of governs,
   governing, governed by, owns, owned by, current owner, owner of, binding,
   authority, in force or requires; or the mention follows a binding phrase
@@ -133,12 +134,14 @@ _AUTHORITY_RE = re.compile(
     re.IGNORECASE,
 )
 _HISTORY_RE = re.compile(
-    r"\b(?:histor(?:y|ical|ically)|precedent|lineage|origin|originally|formerly|"
-    r"previously|no longer|at the time|used to|"
+    r"\b(?:histor(?:y|ical|ically)|precedent|lineage|originally|formerly|"
+    r"previously|no longer|at the time|(?<!\bis )(?<!\bare )(?<!\bbe )used to|"
     r"(?:was|were|had been)\s+(?:governed|owned|defined|required|mandated))\b",
     re.IGNORECASE,
 )
-_NEGATED_BEFORE_RE = re.compile(r"\bnot\s+(?:from|by|under|per)\s+$", re.IGNORECASE)
+_NEGATED_BEFORE_RE = re.compile(
+    r"\b(?:not|never)\s+(?:from|by|under|per|cite|follow|use|rely on)\s+$", re.IGNORECASE
+)
 
 
 @dataclass(frozen=True, slots=True)
