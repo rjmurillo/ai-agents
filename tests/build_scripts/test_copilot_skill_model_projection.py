@@ -29,7 +29,6 @@ _PINNED_SKILLS = {
     "fix-markdown-fences",
     "metrics",
     "observability",
-    "pr-quality-all",
     "security-detection",
     "steering-matcher",
     "stuck-detection",

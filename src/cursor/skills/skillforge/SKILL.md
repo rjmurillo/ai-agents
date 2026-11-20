@@ -1,6 +1,6 @@
 ---
 name: skillforge
-description: "Intelligent skill router and creator. Analyzes ANY input to recommend existing skills, improve them, or create new ones. Use when you say \"create a skill\", \"do I have a skill for\", \"which skill should I use\", \"improve the X skill\", or \"SkillForge: {goal}\". Do NOT use for context optimization, placement analysis, markdown compression, extraction and indexing, or rule audits (use context-optimizer), eval-gated optimization of an existing skill (use skillopt), or saving finished work as a skill (use skillify)."
+description: "Intelligent skill router and creator. Analyzes ANY input to recommend existing skills, improve them, or create new ones. Use when you say \"create a skill\", \"do I have a skill for\", \"which skill should I use\", \"improve the X skill\", or \"SkillForge: {goal}\". Do NOT use for context optimization, placement analysis, markdown compression, extraction and indexing, or rule audits (use context-optimizer), eval-gated optimization of an existing skill (use skillopt), or saving finished work as a skill (use skillify). For a whole repository's skill library mined from history, use skill-bootstrap."
 license: MIT
 metadata:
   version: 4.1.0
@@ -8,8 +8,17 @@ metadata:
   capability:
     kind: orchestrator
     status: active
-  inputs: [any-input, user-goal, domain-hints]
-  outputs: [SKILL.md, references/, scripts/, SKILL_SPEC.md, recommendations]
+  inputs:
+    skill-request:
+      source: user
+    user-goal:
+      source: user
+    domain-hints:
+      source: user
+  outputs:
+    skill-package:
+    skill-spec:
+    skillforge-recommendations:
   routing:
     role: front-door
     invoker: autoplan
@@ -295,7 +304,7 @@ SKILL="$HOME/.claude/skills/my-skill"
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillforge/scripts/package_skill.py "$SKILL" ./dist; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
-Read [references/scripts-and-validation.md](references/scripts-and-validation.md) before you act on an exit code, use `--root DIR`, or judge conformance guidelines.
+Read [references/scripts-and-validation.md](references/scripts-and-validation.md) before you act on an exit code, use `--root DIR`, judge conformance, or lint frontmatter ([rules](references/frontmatter-and-limits.md)).
 
 ---
 
@@ -324,7 +333,7 @@ After creation:
 - [ ] Name is hyphen-case and <=64 chars
 - [ ] Description <=1024 chars, with no `<` or `>`
 - [ ] `SKILL.md` under 500 lines and 5,000 tokens, or the overage is stated
-- [ ] 3-5 trigger phrases defined
+- [ ] 3-5 trigger phrases, each matched by an `intents` entry
 - [ ] Timelessness score >=7
 - [ ] `quick_validate.py skills/my-skill/` passes
 - [ ] `validate-skill.py skills/my-skill/` passes
@@ -340,7 +349,7 @@ After creation:
 
 ## Scripts
 
-Entry scripts: `init_skill.py`, `triage_skill_request.py`, `discover_skills.py`, `quick_validate.py`, `validate-skill.py`, `conformance.py`, `check_docs_safety.py`, `skill_modularity_audit.py`, and `package_skill.py`. Each runs on the Python 3 standard library; `quick_validate.py` and `validate-skill.py` use PyYAML when it is installed and fall back to a stdlib parser when it is not. Exit codes differ by script; read [references/scripts-and-validation.md](references/scripts-and-validation.md) before you act on one.
+Entry scripts: `init_skill.py`, `triage_skill_request.py`, `discover_skills.py`, `quick_validate.py`, `validate-skill.py`, `conformance.py`, `lint_skill_frontmatter.py`, `check_docs_safety.py`, `skill_modularity_audit.py`, and `package_skill.py`. Each needs only the standard library; `quick_validate.py` and `validate-skill.py` use PyYAML when it is installed and fall back to a stdlib parser when it is not.
 
 ---
 

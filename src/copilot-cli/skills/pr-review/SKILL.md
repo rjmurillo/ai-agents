@@ -1,7 +1,7 @@
 ---
 name: pr-review
 version: 1.0.0
-description: Respond to review comments on one or more pull requests, then run the completion gate for a verdict. Runs pr-comment-responder per PR. Use when you say `pr-review 1234`, `pr-review 12 15 --parallel`, or `respond to review comments and tell me if it can merge`. Do NOT use to fix a red check with no review comments (use pr-autofix), or to work one PR's threads with no gate verdict (use pr-comment-responder).
+description: Respond to review comments on one or more pull requests, then run the completion gate for a verdict. Runs pr-comment-responder per PR. Use when you say `/pr-review 1234`, `/pr-review 12 15 --parallel`, or `respond to review comments and tell me if it can merge`. Do NOT use to fix a red check with no review comments (use pr-autofix), or to work one PR's threads with no gate verdict (use pr-comment-responder), or to review a diff before merge (use review) or before push (use pr-quality).
 license: MIT
 allowed-tools: Bash(git:*), Bash(gh:*), Bash(python3:*), Bash(pwsh:*), Task, Skill, Read, Write, Edit, Glob, Grep, github/pull_request_read, github/list_pull_requests, github/issue_read, github/get_check_run, github/get_job_logs, github/add_issue_comment, github/add_reply_to_pull_request_comment, github/resolve_review_thread, github/unresolve_review_thread
 argument-hint: '<PR_NUMBERS> [--parallel --cleanup --dry-run]'
@@ -12,10 +12,12 @@ metadata:
     depends-on: [review-conversation, review-thread-closure]
     status: active
   routing:
-    role: conditional-adjunct
-    invoker: pr-autofix
-    trigger: pr-autofix redirects an interactive reply to one PR's review comments here
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan routes a request to answer PR review comments and get a merge verdict
     user-facing: true
+    intents:
+      - comments and tell me if it can merge
 ---
 
 # PR Review
@@ -338,9 +340,6 @@ See `related_memories` in config for Serena memories to consult during PR review
   is the verdict, so the gate needs no code change to learn a new check.
 - **A different harness.** The `scripts` map is keyed by harness, so a new host
   gets its own section rather than a branch in this prose.
-- **A different trusted ref.** `--trusted-ref` accepts any remote-tracking ref
-  under `refs/remotes/*`. It refuses `HEAD` and local branches on purpose: the
-  checked-out PR can move those.
 - **Consumer-owned criteria.** The shipped config's commands are rooted in this
   repository. An installed consumer replaces `completion_criteria` with their own
   and keeps the dispatcher, which is the part that carries the trust boundary.

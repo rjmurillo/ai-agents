@@ -6,6 +6,7 @@ Runs CodeQL security scans on your Python and GitHub Actions code. It detects la
 
 - You need static security analysis of Python or GitHub Actions code.
 - [`security-scan`](security-scan.md) found issues or high-risk files and escalates to a full scan.
+- [`review`](review.md) step 4d runs the CodeQL pre-step when the security axis is selected.
 - Trigger phrases: `Run CodeQL scan`, `Check for vulnerabilities`, `Validate CodeQL configuration`, `Quick security scan`, `Scan for security issues`.
 
 ## When not to use it

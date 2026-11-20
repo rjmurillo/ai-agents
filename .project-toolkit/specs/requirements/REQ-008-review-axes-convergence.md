@@ -15,7 +15,7 @@ issues:
 retrospective: .project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md
 author: Richard Murillo
 created: 2026-05-09
-updated: 2026-05-10
+updated: 2026-11-19
 ---
 
 # REQ-008: review-axes-convergence
@@ -24,6 +24,16 @@ updated: 2026-05-10
 > Historical carrier notice. ADR-086 replaced the custom Git-hook carrier with
 > Lefthook. Any `.githooks/` path below records the original requirement.
 > Current drift scheduling lives in `lefthook.yml`.
+
+> [!IMPORTANT]
+> Amended 2026-11-19. REQ-008-02 and REQ-008-03 are retired. The ADR-109
+> amendment of that date deleted the `pr-quality-gate-{role}.md` prompts. It
+> also deleted their generator and every drift check in live code. The
+> `pr-quality` skill now reads `.claude/skills/review/references/{role}.md`
+> directly, so no derived prompt copy exists. `build_all.py --check` gates the
+> plugin mirrors of those files. REQ-008-01 still binds its file and section
+> rules. Its seed and CI-prompt criteria, and the generator and drift-hook
+> references in REQ-008-04 and REQ-008-07, are historical.
 
 ## Context
 

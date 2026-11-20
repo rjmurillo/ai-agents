@@ -2,19 +2,15 @@
 
 AI-REVIEW-MODEL-POLICY.md ("CONTEXT_MODE Header (REQUIRED)") forbids a PASS
 verdict when the reviewer model did not receive the full diff. The control has
-three load-bearing surfaces, each pinned here:
+two load-bearing surfaces, each pinned here:
 
 1. Canonical refs: every `.claude/skills/review/references/{role}.md` carries a
    "Context Mode Enforcement" section that forbids PASS when mode is not full.
 2. Copilot twins: every `src/copilot-cli/skills/review/references/{role}.md` is
    byte-identical to its canonical (the generator mirror, not a hand-edit).
-3. Committed CI prompts: every `.github/prompts/pr-quality-gate-{role}.md`
-   carries both the CONTEXT_MODE header line and the enforcement section.
 
-Surfaces 1 and 3 gate the SHIPPED artifact, not just the generator, so a manual
-edit that drops the control is caught (generated-artifacts.md: gate the
-artifact, not only the generator). Surface 2 is the canonical-source-mirror
-parity check.
+Both surfaces gate the SHIPPED artifact, not just the generator
+(generated-artifacts.md).
 
 Refs #1981, AI-REVIEW-MODEL-POLICY.md.
 """
@@ -28,7 +24,6 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CANONICAL_DIR = REPO_ROOT / ".claude" / "skills" / "review" / "references"
 TWIN_DIR = REPO_ROOT / "src" / "copilot-cli" / "skills" / "review" / "references"
-PROMPTS_DIR = REPO_ROOT / ".github" / "prompts"
 AI_REVIEW_CONTEXT_SCRIPT = REPO_ROOT / "scripts" / "ci" / "build_ai_review_context.py"
 AI_REVIEW_ACTION = REPO_ROOT / ".github" / "actions" / "ai-review" / "action.yml"
 REVIEW_SKILL_PATHS = (
@@ -40,7 +35,6 @@ REVIEW_SKILL_PATHS = (
 # tests stay aligned if the wording is revised.
 _SECTION_HEADER = "## Context Mode Enforcement (REQUIRED)"
 _FORBID_PASS = "you MUST NOT emit `PASS`"
-_HEADER_LINE_PREFIX = "<!-- CONTEXT_MODE: ${CONTEXT_MODE}"
 _LOCAL_INPUT_HEADER = (
     "Every delegated input for a canonical axis MUST begin with `CONTEXT_MODE: $CONTEXT_MODE`"
 )
@@ -52,17 +46,11 @@ def _canonical_roles() -> list[str]:
     return sorted(p.stem for p in CANONICAL_DIR.glob("*.md"))
 
 
-def _prompt_path(role: str) -> Path:
-    return PROMPTS_DIR / f"pr-quality-gate-{role}.md"
-
-
 def _shipped_review_surfaces() -> list[Path]:
     roles = _canonical_roles()
-    return (
-        [CANONICAL_DIR / f"{role}.md" for role in roles]
-        + [TWIN_DIR / f"{role}.md" for role in roles]
-        + [_prompt_path(role) for role in roles]
-    )
+    return [CANONICAL_DIR / f"{role}.md" for role in roles] + [
+        TWIN_DIR / f"{role}.md" for role in roles
+    ]
 
 
 def _spec_file_context_source() -> str:
@@ -94,18 +82,17 @@ def test_canonical_ref_has_enforcement_section(role: str) -> None:
     assert _FORBID_PASS in text, f"{role}.md does not forbid PASS when context is not full"
 
 
-@pytest.mark.parametrize("role", _canonical_roles())
-def test_committed_prompt_has_header_and_section(role: str) -> None:
-    """Gate the shipped artifact (generated-artifacts.md): the committed CI
-    prompt itself must carry the CONTEXT_MODE header line and the enforcement
-    section. A hand-edit that strips either is a control regression.
-    """
-    prompt = _prompt_path(role)
-    assert prompt.is_file(), f"missing generated prompt for role {role}"
-    text = prompt.read_text(encoding="utf-8")
-    assert _HEADER_LINE_PREFIX in text, f"{prompt.name} is missing the CONTEXT_MODE header line"
-    assert _SECTION_HEADER in text, f"{prompt.name} is missing the Context Mode Enforcement section"
-    assert _FORBID_PASS in text, f"{prompt.name} does not forbid PASS when context is not full"
+def test_a_reference_without_the_section_fails_the_membership_check() -> None:
+    """Negative control: drop the section from a real reference and the check sees it."""
+    role = _canonical_roles()[0]
+    text = (CANONICAL_DIR / f"{role}.md").read_text(encoding="utf-8")
+    start = text.index(_SECTION_HEADER)
+    end = text.find("\n## ", start + len(_SECTION_HEADER))
+    stripped = text[:start] + (text[end:] if end != -1 else "")
+
+    assert _SECTION_HEADER in text
+    assert _SECTION_HEADER not in stripped
+    assert _FORBID_PASS not in stripped
 
 
 # ---------------------------------------------------------------------------
@@ -127,26 +114,6 @@ def test_copilot_twin_matches_canonical(role: str) -> None:
         f"copilot twin {role}.md drifted from canonical; regenerate via "
         f"build/scripts/generate_skills.py"
     )
-
-
-# ---------------------------------------------------------------------------
-# NEGATIVE: a prompt without the section must be detectable by the same checks.
-# ---------------------------------------------------------------------------
-
-
-def test_section_absence_is_detected(tmp_path: Path) -> None:
-    """Guard against a vacuous positive test: a prompt that drops the section
-    must fail the membership check the positive tests rely on.
-    """
-    stale = tmp_path / "pr-quality-gate-fake.md"
-    stale.write_text(
-        "<!-- GENERATED -- DO NOT EDIT -->\n\n# Fake\n\nNo enforcement here.\n",
-        encoding="utf-8",
-    )
-    text = stale.read_text(encoding="utf-8")
-    assert _SECTION_HEADER not in text
-    assert _HEADER_LINE_PREFIX not in text
-    assert _FORBID_PASS not in text
 
 
 # ---------------------------------------------------------------------------

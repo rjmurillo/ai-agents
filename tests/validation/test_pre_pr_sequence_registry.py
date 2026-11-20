@@ -110,7 +110,6 @@ EXPECTED_ORDER: tuple[str, ...] = (
     "Hook Contracts",
     "Passive Context Budget",
     "Skillbook Validation",
-    "Review Axis Drift",
     "Skill Description Budget",
     "Import Boundaries",
     "Closure Manifest (advisory)",
@@ -176,6 +175,8 @@ EXPECTED_ORDER: tuple[str, ...] = (
     "External Contract Records (external-contract)",
     "NL Structural Debt Ratchet",
     "Skill Routing Roles (metadata.routing)",
+    "Skill Artifact Flow (metadata.inputs/outputs)",
+    "Skill Trigger Phrase Resolution (ratchet)",
     "Path-Local Effective Context Ratchet",
 )
 

@@ -17,9 +17,12 @@ ROLES: tuple[str, ...] = (
     "deprecated",
 )
 
-# The six lifecycle skills. autoplan routes to them (they are themselves
-# `front-door`); a skill *they* select is `lifecycle` (DESIGN-036).
-LIFECYCLE_SKILLS: frozenset[str] = frozenset({"spec", "plan", "build", "test", "review", "ship"})
+# The six lifecycle skills, in the order work moves through them. autoplan
+# routes to them (they are themselves `front-door`); a skill *they* select is
+# `lifecycle` (DESIGN-036). `check_skill_artifact_flow.py` checks that the data
+# each one declares connects in this order (ADR-123).
+LIFECYCLE_ORDER: tuple[str, ...] = ("spec", "plan", "build", "test", "review", "ship")
+LIFECYCLE_SKILLS: frozenset[str] = frozenset(LIFECYCLE_ORDER)
 
 RESERVED_INVOKERS: frozenset[str] = frozenset({"user", "harness"})
 

@@ -9,11 +9,12 @@ Tells you which document of record to write for a piece of work, and how to writ
 ## When to use it
 
 - You need to pick where something goes: `which document of record does this go in`.
-- You say `create an ADR`, `fill the retro`, or `save this to memory`.
+- You say `fill the retro` or `save this to memory`.
 - You say `write the session log` (the skill tells you creation is discontinued and what to use instead).
 
 ## When not to use it
 
+- You are writing an ADR: use [`adr-generator`](adr-generator.md) instead.
 - You are authoring a skill: use [`skillforge`](skillforge.md) instead.
 - You are writing up research: use [`ai-agents-research-methodology`](ai-agents-research-methodology.md) instead.
 

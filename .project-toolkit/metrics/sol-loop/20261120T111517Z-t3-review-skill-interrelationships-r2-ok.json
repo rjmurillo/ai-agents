@@ -1,0 +1,75 @@
+{
+  "author_family": "anthropic",
+  "branch": "t3/review-skill-interrelationships",
+  "counts": {
+    "dropped": 1,
+    "kept": 3,
+    "overlap": 0,
+    "raw": 4,
+    "sol_only": 3
+  },
+  "critic_sha256": "af902ba9a78c3238f08dd1f5aaa006464e3324684d6490d0b42ddb462d2bfefb",
+  "dropped": [
+    {
+      "finding": {
+        "claim": "Troubleshooting still points readers to a hyphenated command",
+        "file": "docs/training/migrate-v0-6-to-v0-7.md",
+        "fix": "direct readers to /pr-quality --axis <name>.",
+        "id": "S13",
+        "line": 234,
+        "repro": "",
+        "severity": "nit"
+      },
+      "reason": "nit"
+    }
+  ],
+  "failure_class": "",
+  "findings": [
+    {
+      "claim": "The trigger gate can pass a repo-local phrase that autoplan cannot resolve",
+      "evidence": "check_skill_trigger_resolution resolves phrases against src/claude/skills, the catalog autoplan's default invocation reads; it still enumerates all 121 skills from .claude/skills. TestAutoplanCatalog fails with the fallback removed (mutation-checked).",
+      "file": "scripts/validation/check_skill_trigger_resolution.py",
+      "fix": "use the same catalog in checkout routing and validation.",
+      "id": "S10",
+      "line": 253,
+      "outcome": "fixed",
+      "repro": "\"prove an ai-agents PR is complete\" selects repository-completion-proof with the gate's .claude/skills root and returns none using autoplan's default invocation",
+      "severity": "blocker",
+      "sol_only": true
+    },
+    {
+      "claim": "Moving an inherited parser error by one line blocks a skillopt candidate",
+      "evidence": "added_failures strips 'line N' from messages before comparing (_unplaced); test_moving_an_inherited_parse_error_is_not_an_added_failure.",
+      "file": "src/claude/skills/skillforge/scripts/lint_skill_frontmatter.py",
+      "fix": "compare parser diagnostics without their source line numbers.",
+      "id": "S11",
+      "line": 229,
+      "outcome": "fixed",
+      "repro": "insert a comment above an existing metadata: {outputs: {note: null}} line; new_failures returns fm.subset-parse because the diagnostic moved from line 3 to line 4",
+      "severity": "should",
+      "sol_only": true
+    },
+    {
+      "claim": "Narrowing the ADR intent broke spelled-out amendment requests",
+      "evidence": "adr-generator gains amend and supersede architecture decision record intents; fixture lt-adr-generator-spelled-out-amend; review-only negatives still route none.",
+      "file": "templates/skills/adr-generator.SKILL.md.tmpl",
+      "fix": "add both verb-qualified intents.",
+      "id": "S12",
+      "line": 33,
+      "outcome": "fixed",
+      "repro": "\"Amend this architecture decision record\" and \"Supersede this architecture decision record\" return none",
+      "severity": "should",
+      "sol_only": true
+    }
+  ],
+  "head_sha": "19cef90c4a5e62c4d7a9349fcc61cccace951242",
+  "key": "t3/review-skill-interrelationships",
+  "model": "gpt-6.2-sol",
+  "overlap_rule": "same file and line within 3 of a critic path:line or range",
+  "pr": "",
+  "round": 2,
+  "schema_version": 2,
+  "status": "ok",
+  "timestamp": "2026-11-20T11:15:17Z",
+  "verdict": "CHANGES"
+}

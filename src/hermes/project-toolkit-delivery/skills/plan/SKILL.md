@@ -248,6 +248,10 @@ Run this check only at decision points: starting a heavy action, switching tasks
 
 If any answer is "no" or "not sure," adjust before proceeding.
 
+## Handoff
+
+Writes: `execution-plan`. Next: `/build`.
+
 ## Verification
 
 - [ ] A spec exists for this work, or the user accepted planning an ungated idea
