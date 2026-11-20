@@ -673,6 +673,28 @@ class TestContentProtection:
         assert "The Configuration Is A Test" in result["compressed_content"]
         assert "An important specification" in result["compressed_content"]
 
+    def test_text_between_horizontal_rules_is_still_compressed(self):
+        """A file with no frontmatter: a `---` rule does not open a protected block.
+
+        The old line loop read the first `---` anywhere as an opening fence, so
+        everything between two horizontal rules was skipped. The shared parser
+        finds frontmatter only at the top of the file.
+        """
+        input_md = dedent("""
+            # Title
+
+            ---
+
+            This is a very important note.
+
+            ---
+        """).strip()
+
+        result = run_compression(input_md, "medium")
+
+        assert "This is a very important note." not in result["compressed_content"]
+        assert result["compressed_content"].count("---") == 2
+
     def test_preserve_mixed_inline_code_and_text(self):
         """Should skip entire line containing backtick-wrapped code."""
         input_md = "The `is_valid` function is a critical check."
