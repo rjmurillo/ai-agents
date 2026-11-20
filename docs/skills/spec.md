@@ -40,6 +40,8 @@ A structured requirements document that mirrors the PRD schema. Sections include
 - Complexity classification: engineering tier 1 to 5, plus problem domain (Clear, Complicated, Complex, Chaotic)
 - Operating Model Context (Tier 5 only) and ADR cross-reference (Tier 4 and 5 only)
 
+Hand-off (ADR-123): Writes `requirements-spec`, `design-spec`, and `task-spec` through `spec-generator`. Next: [`plan`](plan.md). `metadata.inputs` and `metadata.outputs` in the skill's frontmatter declare the same data.
+
 ## Advanced use
 
 **Step 0: first-principles gate.** This step is blocking and runs before any clarification. You answer six questions in order and the answers are written to a `## Step 0 First Principles` block with `### Q1` to `### Q6` subheads:

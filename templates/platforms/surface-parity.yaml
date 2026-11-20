@@ -562,17 +562,10 @@ surfaces:
     reason: Skills split across packs under the Hermes install cap; SKILL.md drops metadata, allowed-tools, and the model keys. Each pack also carries a byte-identical copy of the shared lib packages (lib_render.render_lib_files), its plugin.json, and the README index; one generator owns the whole tree, so no second row covers lib/.
 
   # ---- Prompts ------------------------------------------------------------
-  - id: prompts-pr-quality-gate
-    path: .github/prompts
-    relation: generated
-    authority: .claude/skills/review/references
-    generator: build/scripts/generate_pr_quality_prompts.py
-    include: ["pr-quality-gate-*.md"]
-    owner: build_all.py --check; run_drift_check_ci.py
   - id: prompts-authored
     path: .github/prompts
     relation: independent
-    reason: Authored in place; only the pr-quality-gate-*.md files are generated.
+    reason: Authored in place; no generator writes here.
 
   # ---- Generated notices and indexes --------------------------------------
   - id: third-party-notices-claude

@@ -28,7 +28,6 @@ matching "Source" instead.
 | `build/scripts/build_all.py` (`_build_lib`, via `build/scripts/lib_mirror.py`) | `scripts/{hook_utilities,github_core,ai_review_common}/`, `scripts/hook_utilities/bootstrap.py`, `scripts/validation/validate_review_marker.py` | `src/claude/lib/`, `src/copilot-cli/lib/`, `src/claude/skills/review/scripts/`, `src/copilot-cli/skills/review/scripts/` (then linked into `.claude/lib/` by the `lib` row of `templates/platforms/binplace.yaml`, ADR-119 decision 14; the `skills-sidecar` rows have no install tree, since `.claude/skills/review` links to the plugin directory, ADR-119) | REQ-003-001, REQ-003-002, ADR-109 B5 |
 | `build/generate_agent_catalog.py` (`agent-catalog` in `GENERATORS`) | `templates/agents/*.shared.md` | `docs/agent-catalog.md` | `build_all.py` |
 | `build/scripts/generate_adr_index.py` (`adr-index` in `GENERATORS`) | `.project-toolkit/architecture/ADR-*.md` frontmatter | `.project-toolkit/architecture/README.md` | `build_all.py` |
-| `build/scripts/generate_pr_quality_prompts.py` (not in `GENERATORS`; run by `run_drift_check_ci.py` and the lefthook dry run) | `.claude/skills/review/references/{role}.md` | `.github/prompts/pr-quality-gate-{role}.md` | REQ-008-01 |
 
 ## Hand-maintained sibling copies (NOT generated)
 
@@ -60,7 +59,7 @@ runs the same checks. A new output path in `binplace.yaml`, a platform YAML, or
 `OWNED_PREFIXES` with no row fails as `UNMANIFESTED`; a tracked file under
 `src/`, `.claude/`, or `.github/` that no row owns fails as `UNCLASSIFIED`.
 
-ADR-109 B1 moved `.claude/agents/<name>.md`, `.github/agents/<name>.agent.md`, and `src/claude/agents/<stem>.md` into generated output via the agent_templates.py and binplace_manifest.py generators above. ADR-109 B2 moved every `.claude/rules/<name>.md` file (28) the same way via rule_templates.py; `testing.md` is template-owned too, its GitHub Actions example written with the `\{{` escape. ADR-109 B3 gave skills the same two-hop shape: `skill_templates.compile_all` renders `src/claude/skills/<name>/SKILL.md`, and the binplace step copies it onto `.claude/skills/<name>/SKILL.md`; the manifest also gained a `prompts` row (`source: .claude/skills/review/references`, `compile: generate_pr_quality_prompts`, `plugin_tree: null`) that documents the twelve `pr-quality-gate-*.md` files without changing how they are generated. ADR-109 B4 moved the 16-file hooks class (14 executables, `hooks.json`, `dispatch_groups.json`) plus `.claude/settings.json` into generated output via hook_templates.py: `src/claude/hooks/` and `src/claude/hooks/hooks.json` render for the first time, `.github/hooks/*.json` is binplaced for the first time, and `.claude/settings.json` renders directly from `templates/hooks/settings.tmpl` with no plugin-tree hop, since it ships in no plugin.
+ADR-109 B1 moved `.claude/agents/<name>.md`, `.github/agents/<name>.agent.md`, and `src/claude/agents/<stem>.md` into generated output via the agent_templates.py and binplace_manifest.py generators above. ADR-109 B2 moved every `.claude/rules/<name>.md` file (28) the same way via rule_templates.py; `testing.md` is template-owned too, its GitHub Actions example written with the `\{{` escape. ADR-109 B3 gave skills the same two-hop shape: `skill_templates.compile_all` renders `src/claude/skills/<name>/SKILL.md`, and the binplace step copies it onto `.claude/skills/<name>/SKILL.md`. ADR-109 B4 moved the 16-file hooks class (14 executables, `hooks.json`, `dispatch_groups.json`) plus `.claude/settings.json` into generated output via hook_templates.py: `src/claude/hooks/` and `src/claude/hooks/hooks.json` render for the first time, `.github/hooks/*.json` is binplaced for the first time, and `.claude/settings.json` renders directly from `templates/hooks/settings.tmpl` with no plugin-tree hop, since it ships in no plugin.
 
 ## Equivalence predicates
 
@@ -90,7 +89,6 @@ There is no `byte` value. Byte equality is `derived` with an identity transform.
 | `skills` | `src/claude/skills/`, `.claude/skills/`, `src/copilot-cli/skills/`, `src/codex/skills/`, `src/muse/skills/` | `derived` | `build/scripts/build_all.py` with `--check` | - | - |
 | `rules` | `src/claude/rules/`, `.claude/rules/`, `.github/instructions/`, `src/copilot-cli/instructions/` | `derived` | `build/scripts/build_all.py` with `--check` | - | - |
 | `hooks` | `src/claude/hooks/`, `.claude/hooks/`, `.claude/settings.json`, `src/copilot-cli/hooks/`, `.github/hooks/` | `derived` | `build/scripts/build_all.py` with `--check` | - | - |
-| `pr-quality-prompts` | `.github/prompts/pr-quality-gate-*.md` | `derived` | `build/scripts/run_drift_check_ci.py` (runs the generator with `--dry-run`) | - | - |
 | `agent-sources` | `templates/agents/<stem>.shared.md`, `.claude.md.tmpl`, `.copilot.md.tmpl` | `normalized` | `build/scripts/check_agent_source_parity.py` (pre-PR gate Agent Source Parity) | - | - |
 | `copilot-lib-modules` | `src/copilot-cli/lib/*.py` top-level modules | `derived` | `build/scripts/check_surface_parity.py` (identity transform; `paths.py` is the one `divergent` file the manifest excuses) | - | - |
 
@@ -210,9 +208,6 @@ uv run python build/scripts/check_surface_parity.py
 
 # Agents only (also runnable standalone).
 uv run python build/generate_agents.py
-
-# PR-quality CI prompts only.
-python3 build/scripts/generate_pr_quality_prompts.py
 
 # Check template-owned SKILL.md files against templates/skills/ without
 # writing (ADR-108). The Skill Template Drift pre-PR gate runs this.

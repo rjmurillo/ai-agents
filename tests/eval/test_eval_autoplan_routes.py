@@ -27,12 +27,11 @@ def _restore_resolver_globals() -> Any:
     """Undo the resolver cache and module registration each test may change."""
     name = "autoplan_resolve_route"
     cache = ev._RESOLVER_CACHE.copy()
-    had_module = name in sys.modules
     module = sys.modules.get(name)
     yield
     ev._RESOLVER_CACHE.clear()
     ev._RESOLVER_CACHE.update(cache)
-    if had_module:
+    if module is not None:
         sys.modules[name] = module
     else:
         sys.modules.pop(name, None)
@@ -70,7 +69,7 @@ def _catalog(tmp_path: Path, name: str, intents: list[str]) -> Path:
 
 
 @pytest.mark.parametrize(
-    "fixture_path", sorted(ev.DEFAULT_FIXTURES.parent.glob("*.json")), ids=lambda path: path.name
+    "fixture_path", sorted(ev.DEFAULT_FIXTURES.glob("*.json")), ids=lambda path: path.name
 )
 def test_shipped_fixtures_all_pass(capsys: pytest.CaptureFixture[str], fixture_path: Path) -> None:
     assert ev.main(["--fixtures", str(fixture_path)]) == ev.EXIT_OK

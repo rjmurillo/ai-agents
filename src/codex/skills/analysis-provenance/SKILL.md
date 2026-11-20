@@ -1,7 +1,7 @@
 ---
 name: analysis-provenance
 version: 1.0.0
-description: Identify code ownership before modifying validators or linters. Checks file headers for provenance indicators, reviews documentation, and determines provenance as UPSTREAM, LOCAL, VENDOR, or UNKNOWN. Prevents accidental modification of upstream tools.
+description: Identify code ownership before modifying validators or linters. Checks file headers for provenance indicators, reviews documentation, and determines provenance as UPSTREAM, LOCAL, VENDOR, or UNKNOWN. Prevents accidental modification of upstream tools. Do NOT use to judge whether evidence is independent (use evidence-provenance).
 license: MIT
 user-invocable: true
 metadata:

@@ -331,17 +331,6 @@ def validate_closure_manifest(repo_root: Path) -> bool:
     )
 
 
-def validate_review_axis_drift(repo_root: Path) -> bool:
-    """Fail when ``.github/prompts/pr-quality-gate-*.md`` drifts from the review skill.
-
-    Runs the command the pre-push ``review-axis-drift`` job and the CI drift
-    check run. ``--dry-run`` writes nothing and exits 1 with a diff on drift.
-    """
-    return _run_workflow_validator(
-        repo_root, "build/scripts/generate_pr_quality_prompts.py", "--dry-run"
-    )
-
-
 def validate_skill_description_budget(repo_root: Path) -> bool:
     """Fail when the skill descriptions outgrow their per-root budget.
 

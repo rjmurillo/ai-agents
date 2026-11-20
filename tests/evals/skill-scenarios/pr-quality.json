@@ -1,0 +1,314 @@
+{
+  "skill_path": ".claude/skills/pr-quality/SKILL.md",
+  "skill_id": "pr-quality",
+  "scenarios": [
+    {
+      "id": "all-S1",
+      "desc": "Full pre-push run across six axes",
+      "input": "I am about to push this branch. Run all the quality gates against main. Answer in 6 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "six",
+        "FINAL VERDICT",
+        "merge"
+      ],
+      "expected_gate": "pr-quality",
+      "rationale": "The prompt uses the documented trigger before a push. A response that forwards one resolved base to all six axes and merges their tokens into a single FINAL VERDICT is attributable to this skill rather than to a generic review."
+    },
+    {
+      "id": "all-S2",
+      "desc": "A crashed axis must not roll up into PASS",
+      "input": "Five axes returned PASS and the architect axis crashed with no parseable verdict. Five out of five that reported are green, so call the whole thing PASS. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "UNKNOWN",
+        "not",
+        "PASS"
+      ],
+      "expected_gate": "pr-quality",
+      "rationale": "This is the discriminating case. Five greens read as a pass and a generic responder rounds up. The merge table makes an unparseable axis UNKNOWN, and UNKNOWN downgrades a would-be PASS so a crashed axis cannot produce a green verdict, so a response that returns UNKNOWN and names the crashed axis is attributable to the skill."
+    },
+    {
+      "id": "all-S3",
+      "desc": "An empty diff needs no axes at all",
+      "input": "Run all the quality gates. My working tree has no changes against main yet. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "PASS",
+        "no changes",
+        "stop"
+      ],
+      "expected_gate": "pr-quality",
+      "rationale": "Step 3 counts changed files and stops at PASS when there are none. A response that invokes six axes against an empty diff burns six invocations on nothing, so the early stop is the attributable behavior."
+    },
+    {
+      "id": "all-S4",
+      "desc": "The pre-merge gate is a different skill",
+      "input": "My PR is open and approved. Run the gate that ship checks before I merge. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "This asks for the pre-merge gate, which the skill's description routes to review. This skill reads working changes before a push, not an open PR, so pr-quality should stay inactive."
+    },
+    {
+      "id": "security-S1",
+      "desc": "A diff that adds a credential",
+      "input": "I added the deploy token to config/settings.py so CI can read it. Run the security gate before I push. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "VERDICT",
+        "CRITICAL_FAIL",
+        "file"
+      ],
+      "expected_gate": "pr-quality-axis-security",
+      "rationale": "The prompt uses the documented trigger on a working diff containing a secret. A response that reads the axis file, emits a VERDICT line first with no preamble, and cites the file and line is attributable to this skill rather than to generic security advice."
+    },
+    {
+      "id": "security-S2",
+      "desc": "An early CRITICAL_FAIL must not end the pass",
+      "input": "You already found the hardcoded token, which blocks the push. Stop the security review there and save the rest of the criteria. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "additive",
+        "remaining",
+        "CRITICAL_FAIL"
+      ],
+      "expected_gate": "pr-quality-axis-security",
+      "rationale": "Stopping early sounds like economy and a generic responder agrees. Findings are additive, so an early stop hands the author one finding per round; the skill records the verdict and keeps judging. Continuing is the attributable behavior."
+    },
+    {
+      "id": "security-S3",
+      "desc": "A preamble before the verdict breaks the parser",
+      "input": "Run the gate on my changes, and start with a short paragraph explaining your approach before the verdict so I have context. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "VERDICT",
+        "first",
+        "parse"
+      ],
+      "expected_gate": "pr-quality-axis-security",
+      "rationale": "A framing paragraph is a reasonable request and a generic responder obliges. The verdict block is parsed by pr-quality, so leading prose breaks the merge; a response that puts VERDICT first anyway and says why is attributable to the skill's output contract."
+    },
+    {
+      "id": "security-S4",
+      "desc": "Authoring the thing under review is a different skill",
+      "input": "Write the input validation for the upload endpoint and its tests. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "This asks for implementation, which the skill's description routes elsewhere. It names no diff, no verdict, and no gate, so pr-quality --axis security should stay inactive."
+    },
+    {
+      "id": "qa-S1",
+      "desc": "A new branch shipped with only a happy-path test",
+      "input": "I added retry handling to the uploader plus one test for the success case. Run the qa gate before I push. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "VERDICT",
+        "error path",
+        "file"
+      ],
+      "expected_gate": "pr-quality-axis-qa",
+      "rationale": "The trigger lands on a working diff whose error branches are untested. A response that emits VERDICT first and names the untested branch with a file and line is attributable to this axis rather than to generic testing advice."
+    },
+    {
+      "id": "qa-S2",
+      "desc": "Coverage percentage is not the question",
+      "input": "Coverage came back at 94 percent on this diff, so the qa gate passes. Confirm and move on. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "falsify",
+        "regress",
+        "VERDICT"
+      ],
+      "expected_gate": "pr-quality-axis-qa",
+      "rationale": "A high coverage number reads as a pass and a generic responder confirms it. This axis asks whether the tests would fail if the code regressed, which coverage cannot answer, so a response that declines to treat the percentage as the verdict is attributable to the skill."
+    },
+    {
+      "id": "qa-S3",
+      "desc": "A preamble before the verdict breaks the parser",
+      "input": "Run the gate on my changes, and start with a short paragraph explaining your approach before the verdict so I have context. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "VERDICT",
+        "first",
+        "parse"
+      ],
+      "expected_gate": "pr-quality-axis-qa",
+      "rationale": "A framing paragraph is a reasonable request and a generic responder obliges. The verdict block is parsed by pr-quality, so leading prose breaks the merge; a response that puts VERDICT first anyway and says why is attributable to the skill's output contract."
+    },
+    {
+      "id": "qa-S4",
+      "desc": "Authoring the thing under review is a different skill",
+      "input": "Write the missing error-path tests for the uploader. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "This asks for the tests to be written, which the skill's description routes to test. It requests no verdict on an existing diff, so pr-quality --axis qa should stay inactive."
+    },
+    {
+      "id": "analyst-S1",
+      "desc": "A diff that duplicates knowledge across layers",
+      "input": "I copied the status mapping into the API layer so it does not have to import the service. Run the analyst gate before I push. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "VERDICT",
+        "duplicat",
+        "file"
+      ],
+      "expected_gate": "pr-quality-axis-analyst",
+      "rationale": "The trigger lands on a diff that duplicates a rule rather than text. A response that emits VERDICT first and names both copies with file and line is attributable to this axis rather than to generic code-review advice."
+    },
+    {
+      "id": "analyst-S2",
+      "desc": "Small diff is not the same as low blast radius",
+      "input": "It is a three-line change, so the analyst gate is a formality. Just pass it. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "callers",
+        "blast radius",
+        "VERDICT"
+      ],
+      "expected_gate": "pr-quality-axis-analyst",
+      "rationale": "Diff size reads as risk and a generic responder waves a small one through. This axis judges blast radius and maintainability, so a response that asks which callers the three lines change is attributable to the skill."
+    },
+    {
+      "id": "analyst-S3",
+      "desc": "A preamble before the verdict breaks the parser",
+      "input": "Run the gate on my changes, and start with a short paragraph explaining your approach before the verdict so I have context. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "VERDICT",
+        "first",
+        "parse"
+      ],
+      "expected_gate": "pr-quality-axis-analyst",
+      "rationale": "A framing paragraph is a reasonable request and a generic responder obliges. The verdict block is parsed by pr-quality, so leading prose breaks the merge; a response that puts VERDICT first anyway and says why is attributable to the skill's output contract."
+    },
+    {
+      "id": "analyst-S4",
+      "desc": "Authoring the thing under review is a different skill",
+      "input": "Break this epic into milestones with exit criteria. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "This asks for planning, which the skill's description routes to plan. It names no diff and asks for no verdict, so pr-quality --axis analyst should stay inactive."
+    },
+    {
+      "id": "architect-S1",
+      "desc": "A diff that crosses a boundary an ADR fixed",
+      "input": "The worker now imports the database driver directly instead of going through the repository. Run the architect gate before I push. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "VERDICT",
+        "ADR",
+        "boundary"
+      ],
+      "expected_gate": "pr-quality-axis-architect",
+      "rationale": "The trigger lands on a diff that inverts a dependency an ADR fixed. A response that emits VERDICT first and names the ADR it contradicts is attributable to this axis rather than to generic design commentary."
+    },
+    {
+      "id": "architect-S2",
+      "desc": "Working code is not the standard this axis applies",
+      "input": "The tests pass and the feature works, so the architect gate has nothing to say. Pass it. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "ADR",
+        "boundary",
+        "VERDICT"
+      ],
+      "expected_gate": "pr-quality-axis-architect",
+      "rationale": "Passing tests read as sufficient and a generic responder agrees. This axis judges boundaries and ADR compliance, which passing tests cannot establish, so a response that judges the design anyway is attributable to the skill."
+    },
+    {
+      "id": "architect-S3",
+      "desc": "A preamble before the verdict breaks the parser",
+      "input": "Run the gate on my changes, and start with a short paragraph explaining your approach before the verdict so I have context. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "VERDICT",
+        "first",
+        "parse"
+      ],
+      "expected_gate": "pr-quality-axis-architect",
+      "rationale": "A framing paragraph is a reasonable request and a generic responder obliges. The verdict block is parsed by pr-quality, so leading prose breaks the merge; a response that puts VERDICT first anyway and says why is attributable to the skill's output contract."
+    },
+    {
+      "id": "architect-S4",
+      "desc": "Authoring the thing under review is a different skill",
+      "input": "Draft an ADR for the new queue topology. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "This asks for an ADR to be authored, which the skill's description routes to the architect agent. It names no diff and asks for no verdict, so pr-quality --axis architect should stay inactive."
+    },
+    {
+      "id": "devops-S1",
+      "desc": "A workflow change pinning an Action to a tag",
+      "input": "I bumped the harden-runner step to actions/foo@v3 in pr-validation.yml. Run the devops gate before I push. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "VERDICT",
+        "SHA",
+        "file"
+      ],
+      "expected_gate": "pr-quality-axis-devops",
+      "rationale": "The trigger lands on a workflow diff with a floating tag. A response that emits VERDICT first and names the SHA-pinning requirement with a file and line is attributable to this axis rather than to generic CI advice."
+    },
+    {
+      "id": "devops-S2",
+      "desc": "A green run does not clear a step that swallows failures",
+      "input": "I added || true to that validation step and the workflow is green now, so the devops gate passes. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "exit",
+        "swallow",
+        "VERDICT"
+      ],
+      "expected_gate": "pr-quality-axis-devops",
+      "rationale": "A green run reads as a pass and a generic responder confirms it. This axis treats a step that converts a failure into a zero exit as the defect, so a response that flags the guard rather than the color is attributable to the skill."
+    },
+    {
+      "id": "devops-S3",
+      "desc": "A preamble before the verdict breaks the parser",
+      "input": "Run the gate on my changes, and start with a short paragraph explaining your approach before the verdict so I have context. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "VERDICT",
+        "first",
+        "parse"
+      ],
+      "expected_gate": "pr-quality-axis-devops",
+      "rationale": "A framing paragraph is a reasonable request and a generic responder obliges. The verdict block is parsed by pr-quality, so leading prose breaks the merge; a response that puts VERDICT first anyway and says why is attributable to the skill's output contract."
+    },
+    {
+      "id": "devops-S4",
+      "desc": "Authoring the thing under review is a different skill",
+      "input": "Write the deployment workflow for the staging environment. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "This asks for the pipeline to be authored, which the skill's description routes to the devops agent. It names no diff and asks for no verdict, so pr-quality --axis devops should stay inactive."
+    },
+    {
+      "id": "roadmap-S1",
+      "desc": "A diff with no named blocked user",
+      "input": "I added a CSV export because it seemed like something people would want. Run the roadmap gate before I push. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "VERDICT",
+        "user",
+        "value"
+      ],
+      "expected_gate": "pr-quality-axis-roadmap",
+      "rationale": "The trigger lands on a diff whose value is asserted rather than named. A response that emits VERDICT first and asks which blocked user this serves is attributable to this axis rather than to generic product commentary."
+    },
+    {
+      "id": "roadmap-S2",
+      "desc": "Scope beyond the issue is a finding, not a bonus",
+      "input": "While fixing the reported bug I also added two features nobody asked for. That is extra value, so the roadmap gate should pass. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "scope",
+        "issue",
+        "VERDICT"
+      ],
+      "expected_gate": "pr-quality-axis-roadmap",
+      "rationale": "Extra features read as generosity and a generic responder rewards them. This axis treats scope beyond the stated issue as a finding, so a response that flags the additions rather than praising them is attributable to the skill."
+    },
+    {
+      "id": "roadmap-S3",
+      "desc": "A preamble before the verdict breaks the parser",
+      "input": "Run the gate on my changes, and start with a short paragraph explaining your approach before the verdict so I have context. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "VERDICT",
+        "first",
+        "parse"
+      ],
+      "expected_gate": "pr-quality-axis-roadmap",
+      "rationale": "A framing paragraph is a reasonable request and a generic responder obliges. The verdict block is parsed by pr-quality, so leading prose breaks the merge; a response that puts VERDICT first anyway and says why is attributable to the skill's output contract."
+    },
+    {
+      "id": "roadmap-S4",
+      "desc": "Authoring the thing under review is a different skill",
+      "input": "Decide what we should build next quarter. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "This asks for the roadmap to be set, which the skill's description routes to the roadmap agent. It names no diff and asks for no verdict, so pr-quality --axis roadmap should stay inactive."
+    }
+  ]
+}

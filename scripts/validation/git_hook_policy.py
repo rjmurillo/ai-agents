@@ -808,7 +808,6 @@ GENERATED_GLOBS = {
     ),
     "episodes": (".project-toolkit/memory/episodes/episode-*.json",),
     "memory": (".serena/memories/**/*.md",),
-    "prompts": (".github/prompts/pr-quality-gate-*.md",),
 }
 
 # Generated mirror trees, as (output prefix, source prefix, suffix rewrite).
@@ -867,10 +866,6 @@ _GENERATED_MIRRORS: tuple[tuple[str, str, tuple[str, str] | None], ...] = (
 # The sanitized segment never contains __ (non-alnum runs collapse to single _),
 # so the last __ in a stem always marks the suffix boundary. Refs #4857.
 _HOOK_MATCHER_SUFFIX_RE = re.compile(r"__(?:(?!__)[A-Za-z0-9_])*[0-9a-f]{6}(?=\.py$)")
-_PROMPT_OUTPUT_PREFIX = ".github/prompts/pr-quality-gate-"
-_PROMPT_SOURCE_PREFIX = ".claude/skills/review/references/"
-# build/scripts/generate_pr_quality_prompts.py:_FILENAME_RE
-_PROMPT_ROLE_FILE_RE = re.compile(r"^[a-z][a-z0-9_-]*\.md$")
 # templates/platforms/copilot-cli.yaml:artifacts.skills.excludeFilenames.
 # Reject every configured name before mirror mapping. Even top-level files that
 # the generator never visits must not gain an exemption merely because a
@@ -3448,11 +3443,6 @@ def _mirror_source(relative_path: str) -> str | None:
     Exempting by prefix alone would let anything written into an output tree
     escape the limit, which is a larger hole than the friction it removes.
     """
-    if relative_path.startswith(_PROMPT_OUTPUT_PREFIX):
-        role_file = relative_path[len(_PROMPT_OUTPUT_PREFIX) :]
-        if _PROMPT_ROLE_FILE_RE.fullmatch(role_file):
-            return _PROMPT_SOURCE_PREFIX + role_file
-        return None
     if relative_path.startswith("src/copilot-cli/skills/"):
         remainder = relative_path.removeprefix("src/copilot-cli/skills/")
         skill_name = PurePosixPath(remainder).parts[0] if remainder else ""

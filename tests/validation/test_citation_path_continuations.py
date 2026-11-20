@@ -38,6 +38,22 @@ def test_full_path_binds_a_later_bare_range() -> None:
     assert _expand_continuations(text, index) == f"See lib/{name}:3 and lib/{name}:99."
 
 
+def test_a_decimal_after_a_filename_is_not_a_bare_range() -> None:
+    """A JSON measurement's decimal value never binds to an earlier filename."""
+    name = "util.py"
+    index = {name: [f"lib/{name}"]}
+    text = f'{{"files":["lib/{name}"],"min":118.22,"max":128.43}}'
+    assert _expand_continuations(text, index) == text
+
+
+def test_a_bare_range_ending_a_sentence_still_binds() -> None:
+    """A trailing period after a bare range is punctuation, not a decimal."""
+    name = "util.py"
+    index = {name: [f"lib/{name}"]}
+    text = f"See lib/{name}:3 and :99. Then stop."
+    assert _expand_continuations(text, index) == f"See lib/{name}:3 and lib/{name}:99. Then stop."
+
+
 def test_url_and_parent_paths_do_not_bind_a_bare_range() -> None:
     """URLs, dot-slash paths, and parent paths do not donate a filename."""
     name = "util.py"
