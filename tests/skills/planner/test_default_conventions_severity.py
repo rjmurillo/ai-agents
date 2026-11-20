@@ -17,15 +17,15 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 CONTRACT = REPO_ROOT / "src" / "claude" / "skills" / "review" / "resources" / "technical-review.md"
 EXECUTOR = REPO_ROOT / "src" / "claude" / "skills" / "planner" / "scripts" / "executor.py"
 CONVENTIONS_REL = Path("skills") / "planner" / "resources" / "default-conventions.md"
-# Every tracked copy, found by glob so a new mirror cannot go unchecked.
-CONVENTIONS_FILES = tuple(
-    sorted(
-        {
-            *REPO_ROOT.glob(f"src/*/{CONVENTIONS_REL.as_posix()}"),
-            REPO_ROOT / ".claude" / CONVENTIONS_REL,
-        }
-    )
+# Every copy, found by glob so a new mirror cannot go unchecked. The
+# .claude/skills/planner link points into src/claude (ADR-119), so dedupe on
+# the resolved path to test each real file once.
+_CANDIDATES = (
+    *REPO_ROOT.glob(f"src/*/{CONVENTIONS_REL.as_posix()}"),
+    REPO_ROOT / ".claude" / CONVENTIONS_REL,
 )
+CONVENTIONS_FILES = tuple(sorted({path.resolve(): path for path in reversed(_CANDIDATES)}.values()))
+PARENTHETICAL = re.compile(r"\([^)]*\)")
 DISPOSITION_LINE = re.compile(r"^- \*\*disposition\*\*: (?P<values>.+)\.$", re.MULTILINE)
 SEVERITY_LINE = re.compile(r"^Severity: (?P<value>.+)$", re.MULTILINE)
 SEVERITY_TABLE = re.compile(
@@ -43,9 +43,8 @@ def severity_values(text: str) -> list[str]:
     """Each label named on a `Severity:` line, minus its parenthetical note."""
     labels: list[str] = []
     for match in SEVERITY_LINE.finditer(text):
-        for part in match.group("value").split(","):
-            label = re.sub(r"\s*\(.*\)\s*$", "", part).strip()
-            labels.append(label)
+        value = PARENTHETICAL.sub("", match.group("value"))
+        labels.extend(part.strip() for part in value.split(","))
     return labels
 
 
@@ -103,6 +102,16 @@ def test_no_retired_label_remains(path: Path) -> None:
 def test_severity_parser_strips_notes_and_splits_pairs() -> None:
     text = "Severity: non-blocking (violations), polish (missed opportunities)\n"
     assert severity_values(text) == ["non-blocking", "polish"]
+
+
+def test_severity_parser_ignores_commas_inside_notes() -> None:
+    text = "Severity: polish (for X, Y)\n"
+    assert severity_values(text) == ["polish"]
+
+
+def test_each_real_file_is_checked_once() -> None:
+    resolved = [path.resolve() for path in CONVENTIONS_FILES]
+    assert len(resolved) == len(set(resolved)), CONVENTIONS_FILES
 
 
 def test_severity_parser_rejects_unknown_label() -> None:

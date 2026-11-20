@@ -15,8 +15,8 @@ Higher tiers override lower. Cite backing source when auditing.
 
 ## Severity Levels
 
-These match the dispositions code-reviewer reports. A default convention has
-no blocking rule behind it, so it never yields `blocking`.
+These use the dispositions code-reviewer reports. Its review contract decides
+when a finding is `blocking`.
 
 | Level          | Meaning                          | Action          |
 | -------------- | -------------------------------- | --------------- |
