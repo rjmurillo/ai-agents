@@ -45,11 +45,13 @@ fill space.
 
 For a Hemingway pass, use the requested edit or audit mode. Lead with reader
 actions, cut repeated setup, and split overloaded sentences. Preserve commands,
-prerequisites, warnings, failure behavior, and rollback steps.
+prerequisites, warnings, failure behavior, and rollback steps. Keep their
+order and the conditions for each step. Do not invent recovery actions.
 
-Skip the authoring phases for a Hemingway pass. For an audit, inspect the
-source and suggest exact replacements. Apply file edits, run examples, or
-write evidence only when the user requests those actions.
+Skip the authoring phases for a Hemingway pass. Follow this section over
+Phase 5 and the Verification checklist. For an audit, verify through read-only
+inspection and suggest exact replacements. Apply file edits, run examples,
+or write evidence only when the user requests those actions.
 
 ## Process
 
