@@ -457,13 +457,16 @@ class TestLocalAxisNeedsThePathThatRoutedIt:
     said the axis passed without scanning the path that selected it.
     """
 
-    def test_effect_table_routes_no_local_axis(self):
-        """The premise: local selections come only from paths.
+    def test_effect_table_routes_only_doc_accuracy_as_a_local_axis(self):
+        """The premise: an effect-routed local axis still passes the path filter.
 
-        If an effect ever routes a local axis it has no path to check, and the
-        path filter would drop it. This reds first so that change is deliberate.
+        Only `comments-or-docstrings` routes one, `doc-accuracy`, and the scanner
+        filter (`scannable_local_axes`) still drops it when no changed path is
+        one `--same-pr` reads. This reds first so a new effect-routed local axis
+        is deliberate.
         """
-        assert not any(local for _canonical, local in mod._EFFECT_TABLE.values())
+        routed = {axis for _canonical, local in mod._EFFECT_TABLE.values() for axis in local}
+        assert routed == {"doc-accuracy"}
 
     def test_axis_dropped_when_only_an_unreadable_path_routed_it(self):
         result = select(["README.md", "src/main.rs"])

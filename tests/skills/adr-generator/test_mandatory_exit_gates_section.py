@@ -30,7 +30,8 @@ def test_mandatory_exit_gates_are_ordered_and_measurable() -> None:
     gate_text = text[gates:g6]
     assert "abort condition" in gate_text
     assert "read the cited range directly from the working tree" in gate_text
-    assert "checks only citations on" in gate_text
+    assert "both read committed revisions only" in gate_text
+    assert "citation_reverse_pass.py" in gate_text
     assert "the saved ADR as the documentation file" in gate_text
     assert "scans committed changes" in gate_text
     assert "Pass the ledger path and contents" in gate_text

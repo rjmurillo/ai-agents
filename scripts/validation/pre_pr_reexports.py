@@ -17,6 +17,10 @@ from __future__ import annotations
 
 from check_adr_exception_markers import validate_adr_exception_markers
 from check_agent_delegation import validate_agent_delegation
+from check_agent_skill_docs import (
+    validate_agent_skill_docs,
+    validate_skill_page_freshness,
+)
 from check_agent_tree_frontmatter import validate_agent_tree_frontmatter
 from check_agents_write_targets import validate_agents_write_targets
 from check_bypass_allowlist import validate_bypass_allowlist
@@ -121,6 +125,8 @@ __all__ = [
     "validate_host_marketplaces",
     "validate_skill_tree_layout",
     "validate_skill_trigger_resolution",
+    "validate_agent_skill_docs",
+    "validate_skill_page_freshness",
     "validate_template_repo_refs",
     "validate_tmp_worktrees",
     "validate_traceability",

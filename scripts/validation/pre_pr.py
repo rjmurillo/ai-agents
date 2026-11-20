@@ -55,10 +55,12 @@ from active_plan_closeout import validate_active_plan_closeout
 from check_adr_lifecycle import validate_adr_lifecycle
 from check_adr_links import validate_adr_links
 from check_citation_freshness import validate_citation_freshness
+from check_doc_date_drift import validate_doc_date_drift
 from check_doc_interpreter_portability import (
     validate_doc_interpreter_portability,
 )
 from check_io_portability import validate_io_portability
+from check_md_links import validate_md_links, validate_staged_md_links
 from check_measurement_anchoring import validate_measurement_anchoring
 from check_nested_tests import validate_no_nested_tests
 from check_rule_adr_citations import validate_rule_adr_citations
@@ -127,6 +129,7 @@ from checks_spec import (
     validate_agent_catalog,
     validate_build_gates,
     validate_canonical_citations,
+    validate_doc_accuracy_same_pr,
     validate_model_pins,
     validate_orchestrator_citations,
     validate_skill_md_portability,
@@ -149,6 +152,7 @@ from checks_tooling import (
     validate_workflow_yaml,
     validate_yaml_style,
 )
+from citation_reverse_pass import validate_citation_reverse_pass
 from pre_pr_console import enable_line_buffering
 from pre_pr_headroom import headroom_stage
 from pre_pr_held_output import HeldOutput
@@ -395,7 +399,13 @@ def _main(argv: list[str] | None) -> int:
     _reset_gh_base_cache()
 
     if args.markdown_lint_only:
-        return 0 if validate_markdown_lint(repo_root, args.markdown_files) else 1
+        lint_ok = validate_markdown_lint(repo_root, args.markdown_files)
+        # The link check runs on the non-autofix pass only (lefthook's
+        # markdown-check job sets SKIP_AUTOFIX=1), so the autofix job that
+        # stages fixes never fails on a link it cannot repair.
+        check_links = bool(args.markdown_files) and os.environ.get("SKIP_AUTOFIX") == "1"
+        links_ok = validate_staged_md_links(repo_root, args.markdown_files) if check_links else True
+        return 0 if lint_ok and links_ok else 1
     if args.markdown_files:
         parser.error("markdown files can only be passed with --markdown-lint-only")
 

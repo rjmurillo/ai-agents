@@ -245,7 +245,7 @@ and [references/specification-template.md](references/specification-template.md)
 ## Phase 3: Generation
 
 Generate the skill directory in this order: structure, `SKILL.md`, references,
-assets, then any scripts. Keep `SKILL.md` concise; move deep detail into
+assets, then any scripts and docs page. Keep `SKILL.md` concise; move deep detail into
 reference files. Choose map, GPS, or
 hybrid design with the Design Selection section of the script integration
 framework. Record that choice in the generated skill only where it changes the

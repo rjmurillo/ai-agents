@@ -44,10 +44,15 @@ from check_adr_exception_markers import validate_adr_exception_markers
 from check_adr_lifecycle import validate_adr_lifecycle
 from check_adr_links import validate_adr_links
 from check_agent_delegation import validate_agent_delegation
+from check_agent_skill_docs import (
+    validate_agent_skill_docs,
+    validate_skill_page_freshness,
+)
 from check_agent_tree_frontmatter import validate_agent_tree_frontmatter
 from check_agents_write_targets import validate_agents_write_targets
 from check_bypass_allowlist import validate_bypass_allowlist
 from check_citation_freshness import validate_citation_freshness
+from check_doc_date_drift import validate_doc_date_drift
 from check_doc_interpreter_portability import validate_doc_interpreter_portability
 from check_duplicate_test_helpers import validate_duplicate_test_helpers
 from check_equivalence_predicates import validate_equivalence_predicates
@@ -57,6 +62,7 @@ from check_host_marketplaces import validate_host_marketplaces
 from check_in_root_worktrees import validate_in_root_worktrees
 from check_index_line_endings import validate_index_line_endings
 from check_io_portability import validate_io_portability
+from check_md_links import validate_md_links
 from check_measurement_anchoring import validate_measurement_anchoring
 from check_nested_tests import validate_no_nested_tests
 from check_promotion_exceptions import validate_promotion_exceptions
@@ -133,6 +139,7 @@ from checks_spec import (
     validate_build_gates,
     validate_canonical_citations,
     validate_commands_retired,
+    validate_doc_accuracy_same_pr,
     validate_model_pins,
     validate_orchestrator_citations,
     validate_retired_ownership_claims,
@@ -168,6 +175,7 @@ from checks_tooling import (
     validate_workflow_yaml,
     validate_yaml_style,
 )
+from citation_reverse_pass import validate_citation_reverse_pass
 from stale_script_refs import validate_stale_script_refs
 from validate_argument_hint import validate_argument_hint
 from validate_design_review import validate_design_review_frontmatter
@@ -400,6 +408,7 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # text says ADR-NNN targets that number (issue #5197). Unwired, this gate
     # cannot stop the rot that produced the ADR-033 repairs it protects.
     _Gate("ADR Link Resolution", _root_only(validate_adr_links)),
+    _Gate("Markdown Link Resolution", _root_only(validate_md_links)),
     # Fails when a workflow's `# ADR-NNN Exception:` marker cites an ADR that does
     # not exist or that a later record retired (issue #5199). ADR-055 prescribed a
     # marker nothing read, and the retired spellings outlived their records.
@@ -424,6 +433,15 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # Fails when live docs command a removed script (issue #2916), the
     # PowerShell-to-Python migration regression behind issues #2914 and #2915.
     _Gate("Stale Script References", _root_only(validate_stale_script_refs)),
+    # Every skill and agent needs a docs/ page and a README row, in the sibling
+    # section order. PR #7416 and PR #7424 shipped skills with no page.
+    _Gate(
+        "Agent and Skill Reference Pages (docs/skills, docs/agents)",
+        _root_only(validate_agent_skill_docs),
+    ),
+    # Advisory: a skill's facts changed since the base ref and its page did not
+    # (rule agent-skill-docs MUST 2). pre_pr_policy licenses the FAIL.
+    _Gate("Skill Page Freshness (advisory)", _root_only(validate_skill_page_freshness)),
     # Fails when a line ADDED since the base ref cites a path-and-line
     # location that HEAD contradicts: file untracked, line out of range, or
     # the named anchor content living elsewhere. Automates the manual
@@ -431,12 +449,23 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # checkable claims were reaching paid AI review rounds instead (PR #5336
     # existed solely to repair four such citations; issue #5337).
     _Gate("Citation Freshness (added lines)", _root_only(validate_citation_freshness)),
+    # Fails when a citation on an UNCHANGED line points into a file this
+    # branch modified, renamed, or deleted, and the citation held at the
+    # merge base but fails at HEAD. The added-lines gate above cannot see
+    # these; a post-PR reviewer caught them by hand (PR #6689, PR #6584).
+    _Gate("Citation Freshness (reverse pass)", _root_only(validate_citation_reverse_pass)),
     # Fails when a line ADDED since the base ref states a tree-state count
     # ("109 skills in `.claude/skills/`", "9,765 tracked files") with no commit
     # SHA, ISO date, or version tag on the line. A count is a measurement of
     # one commit; unanchored, a later reader cannot tell "still true" from
     # "was true once" (issue #5771).
     _Gate("Measurement Anchoring (added lines)", _root_only(validate_measurement_anchoring)),
+    # Warns when a line ADDED since the base ref leaves a date or version out of
+    # step: Last Updated against Next Review, one URL or tool with two years or
+    # versions in a skill tree, or an as-of date older than a date added beside
+    # it. PR #7428 bumped one citation and left two stale; PR #6925 bumped Last
+    # Updated and left Next Review behind. Advisory: it returns a typed outcome.
+    _Gate("Doc Date Drift (advisory, added lines)", _root_only(validate_doc_date_drift)),
     # Fails when a Python line ADDED since the base ref decodes text with the
     # platform locale (subprocess text mode or read_text/write_text/open with no
     # encoding) or creates a test symlink with no Windows skip. Cursor Bugbot
@@ -618,6 +647,10 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # references locally; warn mode never blocks (enforcement stays in CI), but a
     # config error (exit 2) still fails.
     _Gate("Model Pin Governance (warn)", _root_only(validate_model_pins)),
+    # Advisory: prose that drifts from code changed in the same diff
+    # (doc_accuracy.py --same-pr, phase 1 only). Findings print, never block.
+    # Measured 2026-11-19 on this branch vs origin/main (34 changed files): 5.4s wall.
+    _Gate("Doc Accuracy Same-PR (advisory)", _root_only(validate_doc_accuracy_same_pr)),
     # Advisory warning when every tracking issue on an active execution plan is
     # closed, so stale plans do not silently refill .project-toolkit/plans/active/.
     # Issue #3426.

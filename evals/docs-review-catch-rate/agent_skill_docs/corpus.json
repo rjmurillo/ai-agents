@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "repository": "rjmurillo/ai-agents",
+  "selection": "Richard supplied real review misses and twelve docs-review-clean PRs.",
+  "scoring": "Match file, defect class, and line within three. Missing files use line one.",
+  "structural_scope": "Only sources added, renamed, or removed by the PR count. All freshness findings count.",
+  "cases": [
+    {
+      "id": "C2-01",
+      "pr": 7424,
+      "sha": "4581b858",
+      "scope": "automated",
+      "expected": [
+        {
+          "file": "docs/skills/technical-writing.md",
+          "defect_class": "missing-page",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "C2-02",
+      "pr": 7416,
+      "sha": "eadc40b2b0",
+      "scope": "automated",
+      "expected": [
+        {
+          "file": "docs/skills/sol-loop.md",
+          "defect_class": "missing-page",
+          "line": 1
+        },
+        {
+          "file": "docs/skills/llm-council.md",
+          "defect_class": "missing-page",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "C2-03",
+      "pr": 5342,
+      "sha": "2adfe5380d",
+      "scope": "manual",
+      "why": "Terminal-status semantics changed in an agent template, outside the SKILL.md fact heuristic.",
+      "expected": []
+    },
+    {
+      "id": "N-7452",
+      "pr": 7452,
+      "sha": "6b9340fa",
+      "scope": "negative",
+      "expected": []
+    },
+    {
+      "id": "N-7431",
+      "pr": 7431,
+      "sha": "e30fb229",
+      "scope": "negative",
+      "expected": []
+    },
+    {
+      "id": "N-7377",
+      "pr": 7377,
+      "sha": null,
+      "scope": "negative",
+      "expected": []
+    },
+    {
+      "id": "N-7412",
+      "pr": 7412,
+      "sha": "f9493d63",
+      "scope": "negative",
+      "expected": []
+    },
+    {
+      "id": "N-7146",
+      "pr": 7146,
+      "sha": "8fc3c747",
+      "scope": "negative",
+      "expected": []
+    },
+    {
+      "id": "N-7415",
+      "pr": 7415,
+      "sha": "c99aca0e",
+      "scope": "negative",
+      "expected": []
+    },
+    {
+      "id": "N-7174",
+      "pr": 7174,
+      "sha": "2bccad6a",
+      "scope": "negative",
+      "expected": []
+    },
+    {
+      "id": "N-7313",
+      "pr": 7313,
+      "sha": "773f9327",
+      "scope": "negative",
+      "expected": []
+    },
+    {
+      "id": "N-7324",
+      "pr": 7324,
+      "sha": "4d0d3900",
+      "scope": "negative",
+      "expected": []
+    },
+    {
+      "id": "N-7446",
+      "pr": 7446,
+      "sha": "3adae314",
+      "scope": "negative",
+      "expected": []
+    },
+    {
+      "id": "N-7294",
+      "pr": 7294,
+      "sha": "2d7585ba",
+      "scope": "negative",
+      "expected": []
+    },
+    {
+      "id": "N-7253",
+      "pr": 7253,
+      "sha": "dd303948",
+      "scope": "negative",
+      "expected": []
+    }
+  ]
+}

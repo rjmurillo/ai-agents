@@ -385,3 +385,104 @@ def validate_model_pins(repo_root: Path) -> bool:
     exit_code, stdout, stderr = _run_subprocess([sys.executable, str(script), "--mode", "warn"])
     _print_model_pin_report((stdout or "") + (stderr or ""))
     return bool(exit_code == 0)
+
+
+_SAME_PR_SCRIPT = Path("src/claude/skills/doc-accuracy/scripts/doc_accuracy.py")
+_SAME_PR_CODE_SUFFIXES = (
+    ".py",
+    ".cs",
+    ".ts",
+    ".tsx",
+    ".js",
+    ".ps1",
+    ".sh",
+    ".md",
+    ".tmpl",
+    ".json",
+    ".yaml",
+    ".yml",
+)
+
+
+def _branch_changes_code(repo_root: Path, base_ref: str) -> bool | None:
+    """True when the branch diff touches a scannable file.
+
+    None when git diff fails. False when no scannable file changed.
+    Docs-only and structured-data changes can contradict their own counts.
+    Source files can carry docstrings and comments.
+    """
+    exit_code, stdout, stderr = _run_subprocess(
+        ["git", "-C", str(repo_root), "diff", "--name-only", f"{base_ref}...HEAD"]
+    )
+    if exit_code != 0:
+        print((stderr or stdout or "git diff failed").strip()[-600:])
+        return None
+    return any(
+        line.strip().endswith(_SAME_PR_CODE_SUFFIXES) for line in (stdout or "").splitlines()
+    )
+
+
+def validate_doc_accuracy_same_pr(repo_root: Path) -> bool:
+    """Advisory same-PR doc accuracy scan (never blocks on findings).
+
+    Runs ``doc_accuracy.py --same-pr`` against the branch base when the branch
+    diff changes a code file, and prints the findings and checklist counts.
+    Exit 10 (findings at or above the threshold) is reported and still passes,
+    like ``validate_model_pins`` warn mode. Any other nonzero exit is a
+    configuration or crash defect and fails the gate.
+    """
+    script = repo_root / _SAME_PR_SCRIPT
+    if not script.exists():
+        raise MissingScriptSkip(f"{_SAME_PR_SCRIPT} not present")
+    base_ref = _resolve_branch_base_ref(repo_root)
+    if base_ref is None:
+        raise MissingScriptSkip("no branch base ref resolved")
+    changed = _branch_changes_code(repo_root, base_ref)
+    if changed is None:
+        return False
+    if not changed:
+        print("  same-pr: 0 scannable files changed against the base")
+        return True
+    import tempfile
+
+    with tempfile.TemporaryDirectory(prefix="same-pr-") as out_dir:
+        exit_code, stdout, stderr = _run_subprocess(
+            [
+                sys.executable,
+                str(script),
+                "--target",
+                str(repo_root),
+                "--output-dir",
+                out_dir,
+                "--diff-base",
+                base_ref,
+                "--same-pr",
+                "--phases",
+                "1",
+                "--format",
+                "summary",
+            ]
+        )
+        if exit_code not in (0, 10):
+            print((stderr or stdout or "").strip()[-600:])
+            return False
+        for line in (stdout or "").splitlines():
+            if line.startswith("Same-PR"):
+                print(f"  {line}")
+        _print_same_pr_findings(Path(out_dir) / "same-pr-findings.json")
+    return True
+
+
+def _print_same_pr_findings(path: Path) -> None:
+    import json
+
+    try:
+        findings = json.loads(path.read_text(encoding="utf-8"))["findings"]
+    except (OSError, ValueError, KeyError):
+        return
+    for item in findings:
+        prose, code = item["prose"], item["code"]
+        print(
+            f"  [{item['rule']}] {prose['file']}:{prose['line']} vs "
+            f"{code['file']}:{code['line']}: {item['message']}"
+        )

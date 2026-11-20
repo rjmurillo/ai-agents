@@ -1,0 +1,390 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-11-19T18:23:07.339001+00:00",
+  "corpus_sha256": "16a09c88e778f5ec023835680246165528af3a842f0eeb8dd52bdfb7c17f58ee",
+  "validator_sha256": {
+    "check_doc_date_drift.py": "ceddc2522aad432fc179c863735f86291f7249c3b61caffdd1413ce89382d800",
+    "doc_date_claims.py": "52469cdb78c666bd5756ee09a37dec50983696de0cbd26a74a8324ff4c73c6cd",
+    "doc_date_adr.py": "17c851a08aeaffb1c4fd7d35552524532db38498c7557666e100b1ee19faff94"
+  },
+  "summary": {
+    "caught": 8,
+    "in_scope_positives": 8,
+    "false_positives": 0,
+    "negatives": 12,
+    "manual": 2,
+    "recall": 1.0,
+    "passed": true,
+    "score_line": "caught 8 of 8 in-scope positives, 0 FP on 12 negatives, 2 manual with reasons"
+  },
+  "cases": [
+    {
+      "id": "C3-01",
+      "pr": 7428,
+      "sha": "457c86216b817674b2355c4fdbadb53a92c22e90",
+      "baseRefOid": "031b40d484d8f04c75bb0917e960aa96f78eb083",
+      "merge_base": "031b40d484d8f04c75bb0917e960aa96f78eb083",
+      "scope": "added lines vs 031b40d484d8f04c75bb0917e960aa96f78eb083",
+      "examined_lines": 54,
+      "examined_files": 1,
+      "findings": [
+        {
+          "path": "src/claude/skills/adr-review/references/zimmermann-review-guidance.md",
+          "line": 3,
+          "other_path": "docs/skills/adr-review.md",
+          "other_line": 65,
+          "rule": "subject-drift",
+          "suggested": "2026",
+          "detail": "The same URL or title reads 2025 here and 2026 elsewhere."
+        },
+        {
+          "path": "src/claude/skills/adr-review/references/zimmermann-review-guidance.md",
+          "line": 94,
+          "other_path": "docs/skills/adr-review.md",
+          "other_line": 65,
+          "rule": "subject-drift",
+          "suggested": "2026",
+          "detail": "The same URL or title reads 2025 here and 2026 elsewhere."
+        },
+        {
+          "path": "src/claude/skills/adr-review/references/zimmermann-review-guidance.md",
+          "line": 95,
+          "other_path": "docs/skills/adr-review.md",
+          "other_line": 65,
+          "rule": "subject-drift",
+          "suggested": "2026",
+          "detail": "The same URL or title reads 2023 here and 2026 elsewhere."
+        }
+      ]
+    },
+    {
+      "id": "C3-02",
+      "pr": 6925,
+      "sha": "28d461c9e23e01f6e923662057728cb395ab6fd1",
+      "baseRefOid": "88cc360a8637eebe243351373515c69b91ffaff7",
+      "merge_base": "4b6bec49d41a2d1678191d37d51342e6ca4d12d9",
+      "scope": "added lines vs 4b6bec49d41a2d1678191d37d51342e6ca4d12d9",
+      "examined_lines": 29,
+      "examined_files": 2,
+      "findings": [
+        {
+          "path": "docs/COST-GOVERNANCE.md",
+          "line": 271,
+          "other_path": "docs/COST-GOVERNANCE.md",
+          "other_line": 270,
+          "rule": "header-pair",
+          "suggested": "2026-11-24",
+          "detail": "Next Review 2026-01-22 is not after Last Updated 2026-10-24."
+        }
+      ]
+    },
+    {
+      "id": "C3-03",
+      "pr": 7027,
+      "sha": "d8729bf86f18e65446f0df685ea2a86665b2b51f",
+      "baseRefOid": "23ce9bda1e82529d2599d631295a4c6850bfd4d8",
+      "merge_base": "23ce9bda1e82529d2599d631295a4c6850bfd4d8",
+      "scope": "added lines vs 23ce9bda1e82529d2599d631295a4c6850bfd4d8",
+      "examined_lines": 3,
+      "examined_files": 2,
+      "findings": [
+        {
+          "path": ".project-toolkit/architecture/ADR-101-enforcement-planes.md",
+          "line": 4,
+          "other_path": ".project-toolkit/architecture/ADR-101-enforcement-planes.md",
+          "other_line": 39,
+          "rule": "adr-date",
+          "suggested": "2026-11-01",
+          "detail": "ADR frontmatter date predates the changed decision."
+        }
+      ]
+    },
+    {
+      "id": "C3-04",
+      "pr": 7136,
+      "sha": "7992ee43f6c2b6c13e4a8a095742b13eb7555035",
+      "baseRefOid": "61764b406556ac67617bf56d764afb42e8acb1d6",
+      "merge_base": "61764b406556ac67617bf56d764afb42e8acb1d6",
+      "scope": "added lines vs 61764b406556ac67617bf56d764afb42e8acb1d6",
+      "examined_lines": 4,
+      "examined_files": 1,
+      "findings": [
+        {
+          "path": ".project-toolkit/architecture/ADR-114-agent-workflows-approval-and-non-blocking.md",
+          "line": 4,
+          "other_path": ".project-toolkit/architecture/ADR-114-agent-workflows-approval-and-non-blocking.md",
+          "other_line": 63,
+          "rule": "adr-date",
+          "suggested": "2026-11-07",
+          "detail": "ADR frontmatter date predates the changed decision."
+        }
+      ]
+    },
+    {
+      "id": "C3-05",
+      "pr": 7196,
+      "sha": "e47d206e047ca8e12dd81cde54e66e9fb75f6b10",
+      "baseRefOid": "5c1276d6c9b425f75f40da7cd19e05235615ce7a",
+      "merge_base": "5c1276d6c9b425f75f40da7cd19e05235615ce7a",
+      "scope": "added lines vs 5c1276d6c9b425f75f40da7cd19e05235615ce7a",
+      "examined_lines": 8,
+      "examined_files": 1,
+      "findings": []
+    },
+    {
+      "id": "C3-06",
+      "pr": 7307,
+      "sha": "c4e4074531f50f2869a9fceef5db440d91933974",
+      "baseRefOid": "fa6a2025019162c9b651df3c77d226d9a1c0023b",
+      "merge_base": "fa6a2025019162c9b651df3c77d226d9a1c0023b",
+      "scope": "added lines vs fa6a2025019162c9b651df3c77d226d9a1c0023b",
+      "examined_lines": 31,
+      "examined_files": 2,
+      "findings": [
+        {
+          "path": ".project-toolkit/architecture/ADR-115-native-plugin-support-per-host.md",
+          "line": 4,
+          "other_path": ".project-toolkit/architecture/ADR-115-native-plugin-support-per-host.md",
+          "other_line": 19,
+          "rule": "adr-date",
+          "suggested": "2026-11-11",
+          "detail": "ADR frontmatter date predates the changed decision."
+        }
+      ]
+    },
+    {
+      "id": "C3-07",
+      "pr": 7370,
+      "sha": "38604d801022836ae08b020500378333513339b0",
+      "baseRefOid": "b2392aa66bee3f16205f6ebcc4d300ec03d73f30",
+      "merge_base": "646ae4228ec798e0d23311b4d2b0509e64f8c530",
+      "scope": "added lines vs 646ae4228ec798e0d23311b4d2b0509e64f8c530",
+      "examined_lines": 171,
+      "examined_files": 1,
+      "findings": [
+        {
+          "path": ".project-toolkit/architecture/ADR-121-one-resolver-for-plugin-root-commands.md",
+          "line": 4,
+          "other_path": ".project-toolkit/architecture/ADR-121-one-resolver-for-plugin-root-commands.md",
+          "other_line": 124,
+          "rule": "adr-date",
+          "suggested": "2026-11-14",
+          "detail": "ADR frontmatter date predates the changed decision."
+        }
+      ]
+    },
+    {
+      "id": "C3-08",
+      "pr": 7395,
+      "sha": "8af68d4caf06cf5eebedc579733b4d9c13e81cb0",
+      "baseRefOid": "b025f34ded73fa56fceb078c1a6e67d2eee1a180",
+      "merge_base": "b025f34ded73fa56fceb078c1a6e67d2eee1a180",
+      "scope": "added lines vs b025f34ded73fa56fceb078c1a6e67d2eee1a180",
+      "examined_lines": 10,
+      "examined_files": 1,
+      "findings": [
+        {
+          "path": ".project-toolkit/architecture/ADR-115-native-plugin-support-per-host.md",
+          "line": 4,
+          "other_path": ".project-toolkit/architecture/ADR-115-native-plugin-support-per-host.md",
+          "other_line": 21,
+          "rule": "adr-date",
+          "suggested": "2026-11-15",
+          "detail": "ADR frontmatter date predates the changed decision."
+        },
+        {
+          "path": ".project-toolkit/architecture/ADR-115-native-plugin-support-per-host.md",
+          "line": 154,
+          "other_path": ".project-toolkit/architecture/ADR-115-native-plugin-support-per-host.md",
+          "other_line": 155,
+          "rule": "stale-as-of",
+          "suggested": "2026-11-15",
+          "detail": "As-of date 2026-11-11 is older than 2026-11-15 added nearby."
+        },
+        {
+          "path": ".project-toolkit/architecture/ADR-115-native-plugin-support-per-host.md",
+          "line": 156,
+          "other_path": ".project-toolkit/architecture/ADR-115-native-plugin-support-per-host.md",
+          "other_line": 154,
+          "rule": "stale-as-of",
+          "suggested": "2026-11-15",
+          "detail": "As-of date 2026-11-11 is older than 2026-11-15 added nearby."
+        }
+      ]
+    },
+    {
+      "id": "C3-09",
+      "pr": 6978,
+      "sha": "881b4aa5a4646b8abc32ab067119e25e0a026909",
+      "baseRefOid": "c46202ad70fc9a6365494b961580b44940a98d10",
+      "merge_base": "c46202ad70fc9a6365494b961580b44940a98d10",
+      "scope": "added lines vs c46202ad70fc9a6365494b961580b44940a98d10",
+      "examined_lines": 17,
+      "examined_files": 3,
+      "findings": [
+        {
+          "path": ".project-toolkit/architecture/ADR-111-skill-model-pins-project-per-harness.md",
+          "line": 4,
+          "other_path": ".project-toolkit/architecture/ADR-111-skill-model-pins-project-per-harness.md",
+          "other_line": 137,
+          "rule": "adr-date",
+          "suggested": "2026-10-29",
+          "detail": "ADR frontmatter date predates the changed decision."
+        }
+      ]
+    },
+    {
+      "id": "C3-10",
+      "pr": 7092,
+      "sha": "d530e21390df879d7bad12ffbc4ba4be89e489c1",
+      "baseRefOid": "950f344824f1272eccda91fcc6a723119c957d05",
+      "merge_base": "e8fe2a9c1ca1b41a8197788f70d6b015c82bc48c",
+      "scope": "added lines vs e8fe2a9c1ca1b41a8197788f70d6b015c82bc48c",
+      "examined_lines": 146,
+      "examined_files": 30,
+      "findings": [
+        {
+          "path": ".project-toolkit/architecture/ADR-114-agent-workflows-approval-and-non-blocking.md",
+          "line": 4,
+          "other_path": ".project-toolkit/architecture/ADR-114-agent-workflows-approval-and-non-blocking.md",
+          "other_line": 74,
+          "rule": "adr-date",
+          "suggested": "2026-11-04",
+          "detail": "ADR frontmatter date predates the changed decision."
+        }
+      ]
+    },
+    {
+      "id": "N-7452",
+      "pr": 7452,
+      "sha": "6b9340fac0730c973cb27b1bbd8def16822b2bb4",
+      "baseRefOid": "498d4892a62a50d6624bc9315344dd9ef81e373d",
+      "merge_base": "da42adc4a7593906345f040d6a6a5d7b734bef04",
+      "scope": "added lines vs da42adc4a7593906345f040d6a6a5d7b734bef04",
+      "examined_lines": 91,
+      "examined_files": 4,
+      "findings": []
+    },
+    {
+      "id": "N-7431",
+      "pr": 7431,
+      "sha": "e30fb2297694dd5ca95d8913c0d0789d37b15ace",
+      "baseRefOid": "031b40d484d8f04c75bb0917e960aa96f78eb083",
+      "merge_base": "031b40d484d8f04c75bb0917e960aa96f78eb083",
+      "scope": "added lines vs 031b40d484d8f04c75bb0917e960aa96f78eb083",
+      "examined_lines": 97,
+      "examined_files": 1,
+      "findings": []
+    },
+    {
+      "id": "N-7377",
+      "pr": 7377,
+      "sha": "17e0aa089892a67db4a5dda5898be631224cc310",
+      "baseRefOid": "919a56dee13126cdcba48e6732f42fbf01963106",
+      "merge_base": "919a56dee13126cdcba48e6732f42fbf01963106",
+      "scope": "added lines vs 919a56dee13126cdcba48e6732f42fbf01963106",
+      "examined_lines": 0,
+      "examined_files": 0,
+      "findings": []
+    },
+    {
+      "id": "N-7412",
+      "pr": 7412,
+      "sha": "f9493d63c4e4efe7493d589940b7cd19ecd8cbfa",
+      "baseRefOid": "f2de906fa66e7287c845d3d4e5bfa5066a52d220",
+      "merge_base": "81953391200a290b610bc1f440fa2eba47a58624",
+      "scope": "added lines vs 81953391200a290b610bc1f440fa2eba47a58624",
+      "examined_lines": 0,
+      "examined_files": 0,
+      "findings": []
+    },
+    {
+      "id": "N-7146",
+      "pr": 7146,
+      "sha": "8fc3c74779bc5a4a363b8e12ae6f42ae1cd1d826",
+      "baseRefOid": "1483a697174329481230bf01b2c89d930b066fc3",
+      "merge_base": "1483a697174329481230bf01b2c89d930b066fc3",
+      "scope": "added lines vs 1483a697174329481230bf01b2c89d930b066fc3",
+      "examined_lines": 5,
+      "examined_files": 1,
+      "findings": []
+    },
+    {
+      "id": "N-7415",
+      "pr": 7415,
+      "sha": "c99aca0eb1795bef30e468a560579add8bd888ac",
+      "baseRefOid": "7aa43a0eb563cfb00a00de84361d5514b725cf66",
+      "merge_base": "7aa43a0eb563cfb00a00de84361d5514b725cf66",
+      "scope": "added lines vs 7aa43a0eb563cfb00a00de84361d5514b725cf66",
+      "examined_lines": 10,
+      "examined_files": 1,
+      "findings": []
+    },
+    {
+      "id": "N-7174",
+      "pr": 7174,
+      "sha": "2bccad6a6a7ec7ea6ea4cac5000fb17db7316745",
+      "baseRefOid": "2438d8def966511a7d58dcb8e20acabeb247801e",
+      "merge_base": "bfd68da913b67c2322561238a7ac3108638c2a10",
+      "scope": "added lines vs bfd68da913b67c2322561238a7ac3108638c2a10",
+      "examined_lines": 3,
+      "examined_files": 1,
+      "findings": []
+    },
+    {
+      "id": "N-7313",
+      "pr": 7313,
+      "sha": "773f93276e3291077e3c6f8fc0b9fd2514a66a2a",
+      "baseRefOid": "b22c1b126fe9c98fb5b6506ccefba2ba35e69175",
+      "merge_base": "b22c1b126fe9c98fb5b6506ccefba2ba35e69175",
+      "scope": "added lines vs b22c1b126fe9c98fb5b6506ccefba2ba35e69175",
+      "examined_lines": 2,
+      "examined_files": 1,
+      "findings": []
+    },
+    {
+      "id": "N-7324",
+      "pr": 7324,
+      "sha": "4d0d39000608e6ae031f9499ad9ad5d249372bc9",
+      "baseRefOid": "fc91afcf25a3d721a8f299c94851cc4d5139170d",
+      "merge_base": "e7f336d01251d0497efff18e378a4f9b0feee58f",
+      "scope": "added lines vs e7f336d01251d0497efff18e378a4f9b0feee58f",
+      "examined_lines": 0,
+      "examined_files": 0,
+      "findings": []
+    },
+    {
+      "id": "N-7446",
+      "pr": 7446,
+      "sha": "3adae314d51474f16ddd958d2a04cccf2e2697cf",
+      "baseRefOid": "e9acebe15f31d1f2ed0c5dae1d329d0af94632c5",
+      "merge_base": "e1702e456fe582eafefa7fbc1784a827488bf027",
+      "scope": "added lines vs e1702e456fe582eafefa7fbc1784a827488bf027",
+      "examined_lines": 2,
+      "examined_files": 2,
+      "findings": []
+    },
+    {
+      "id": "N-7294",
+      "pr": 7294,
+      "sha": "2d7585ba6c4e466560b250af5e3eceabcaa4b712",
+      "baseRefOid": "d82875e0cad26be4af0154c70bb42d6619162865",
+      "merge_base": "d82875e0cad26be4af0154c70bb42d6619162865",
+      "scope": "added lines vs d82875e0cad26be4af0154c70bb42d6619162865",
+      "examined_lines": 0,
+      "examined_files": 0,
+      "findings": []
+    },
+    {
+      "id": "N-7253",
+      "pr": 7253,
+      "sha": "dd30394857a80257981f640d0b910ca71d1642bd",
+      "baseRefOid": "a28131561d0f751457cf0eb19547e070edbfa2c7",
+      "merge_base": "a28131561d0f751457cf0eb19547e070edbfa2c7",
+      "scope": "added lines vs a28131561d0f751457cf0eb19547e070edbfa2c7",
+      "examined_lines": 1,
+      "examined_files": 1,
+      "findings": []
+    }
+  ]
+}

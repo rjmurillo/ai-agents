@@ -1,0 +1,36 @@
+{
+  "id": "C1-14",
+  "pr": 7461,
+  "sha": "2787132138",
+  "fix_sha": "39df73d11bcc173cf7447960b18c1c7e2b783ca1",
+  "kind": "positive",
+  "scope": "automatic",
+  "file": ".project-toolkit/specs/requirements/REQ-022-control-plane-disposition-ledger-v070.md",
+  "line": 71,
+  "defect_class": "stale-citation",
+  "defect": "The mechanism cite still names the old fast-stage line.",
+  "resolved_sha": "2787132138",
+  "pr_base": null,
+  "merge_base": "ae5acffcb3b9f9e00e4898d5bb0b0f9681a757d5",
+  "findings": [
+    {
+      "citing_file": ".project-toolkit/audit/2026-09-04-ponytail-audit-over-engineering.md",
+      "citing_line": 147,
+      "citation": "scripts/validation/pre_pr_sequence.py:257",
+      "reason": "none of the cited anchors ('git_hook_policy.py session', 'session-policy', 'Session End Validation') appear at lines 257-257; 'Session End Validation' first appears at line 371",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".project-toolkit/specs/requirements/REQ-022-control-plane-disposition-ledger-v070.md",
+      "citing_line": 71,
+      "citation": "scripts/validation/pre_pr_sequence.py:543",
+      "reason": "none of the cited anchors ('4e33c4baa', 'FAST_STAGE_RAN_ENV', 'fast_stage_ran = os.environ.get(FAST_STAGE_RAN_ENV) == \"1') appear at lines 543-543; 'FAST_STAGE_RAN_ENV' first appears at line 222",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    }
+  ],
+  "output": "[citation-freshness] examined 26 citation(s) across 33 changed file(s) vs ae5acffcb3b9f9e00e4898d5bb0b0f9681a757d5\n[citation-reverse-pass] examined 20 inbound citation(s) to 64 changed file(s) vs ae5acffcb3b9f9e00e4898d5bb0b0f9681a757d5; 14 already stale at the merge base (not blocking)\n",
+  "caught": true,
+  "false_positives": 0
+}

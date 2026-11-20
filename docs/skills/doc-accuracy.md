@@ -37,6 +37,8 @@ The script writes JSON artifacts to an output directory (default `<target>/.doc-
 | `compilability-findings.json` | Phase 3: run status and symbol resolution findings |
 | `gate-result.json` | Gate verdict, the reason when inconclusive, and severity counts |
 | `report.md` | Markdown summary, when you pass `--format markdown` |
+| `same-pr-findings.json` | With `--same-pr`: findings from rules R1 to R4 and what was examined |
+| `same-pr-checklist.json` | With `--same-pr`: changed prose claims with the code changed beside them, for Phase 4 |
 
 Every finding carries a file path, line number, severity, and evidence. Severities are Critical, High, Medium, and Low.
 
@@ -46,7 +48,7 @@ Exit codes of `doc_accuracy.py`:
 | --- | --- |
 | `0` | No findings at or above the severity threshold |
 | `1` | Error or inconclusive run, including no source symbols for Phase 3 |
-| `2` | Configuration error, including an invalid `--diff-base` |
+| `2` | Configuration error, including an invalid `--diff-base`, or `--same-pr` without `--diff-base` |
 | `3` | External dependency failure, including unavailable or failed Git |
 | `10` | Findings at or above the severity threshold |
 
@@ -60,6 +62,7 @@ From the root of a checkout of this repository:
 uv run python .claude/skills/doc-accuracy/scripts/doc_accuracy.py --help
 uv run python .claude/skills/doc-accuracy/scripts/doc_accuracy.py --target . --format summary
 uv run python .claude/skills/doc-accuracy/scripts/doc_accuracy.py --target . --diff-base origin/main --severity-threshold critical
+uv run python .claude/skills/doc-accuracy/scripts/doc_accuracy.py --target . --diff-base origin/main --same-pr
 uv run python .claude/skills/doc-accuracy/scripts/pr_snapshot.py --help
 ```
 
@@ -77,6 +80,24 @@ The six phases:
 Your trigger picks the phases: a full audit runs 1 to 6, `verify code examples` runs 1 to 3, `audit docs vs code` runs 1 to 4, and `check doc consistency` runs 1, 2, and 5. Use `--phases` to select phases and `--format json|gate|summary|markdown` to pick the output.
 
 `--diff-base REF` limits the run to files changed since `HEAD` forked from `REF`, and only claims on changed lines block. See [`references/diff-scoping.md`](../../src/claude/skills/doc-accuracy/references/diff-scoping.md).
+
+`--same-pr` (needs `--diff-base`) catches prose that drifts from code changed in the same diff, before a PR exists. Run it when a branch changes both prose and code. It reads changed Markdown and `.tmpl` lines, Python docstrings and comments, and JSON or YAML string values, and pairs each with the code symbols changed in the same diff. The deterministic rules contribute findings to the gate:
+
+| Rule | Catches |
+| --- | --- |
+| R1 | A touched exit table omits a literal process exit. Dynamic exits remain unjudged. |
+| R2 | A closed language or path enumeration omits a collection member. |
+| R3 | A named JSON key receives identifiers that contradict its claimed contents. |
+| R4 | A count beside a backticked collection name differs from its literal length. |
+| Repository cardinality | Changed prose counts disagree with enumerations, tables, or sibling JSON/YAML arrays. |
+
+Other claims enter `same-pr-checklist.json` with paired code locations.
+Unchanged prose naming changed functions, flags, or deleted headings also enters this checklist.
+Explicit script paths can resolve unchanged literal collections.
+Other behavioral contradictions require Phase 4 review.
+The pre-PR sequence runs this scan as `Doc Accuracy Same-PR (advisory)`.
+The repository cardinality integration also checks branches containing only documentation or structured data.
+Installed plugins use R1 through R4 without this repository integration.
 
 `pr_snapshot.py` captures an immutable head and base snapshot of a pull request for review. Its flags include `--owner`, `--repo`, `--pull-request`, `--output-dir`, `--check-stale`, `--identity-file`, and `--run-scanner`. Exit `0` is ok, `1` is a verification or stale result, `2` config, `3` external, `4` auth.
 
