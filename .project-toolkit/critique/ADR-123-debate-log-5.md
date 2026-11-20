@@ -69,5 +69,6 @@ The `/review` architect axis, round 2, found "guard tests" too vague.
 | 1 | ADR-109:264 did not name the content test that read the copies. | P2 | First rewrite named only `test_codeql_wiring.py`; both seats blocked because `test_context_mode_enforcement.py:103-105` also read the copies. Final text lists both tests and `validate_seed_parity.py`, and drops the exclusive "only" claim. |
 | 2 | "Skills and agents are now the only user-invoked prompt surfaces" was false: `metrics-analysis.prompt.md` survives as a workflow input. | P2 | Now says nine of the ten `.prompt.md` files went, and names the tenth and the workflow that reads it. |
 
+## Dissent
 
-None. The critic's round 2 P2 on "drift guards" wording was applied before commit.
+None. Every round 3 block was resolved by a text fix, then accepted.
