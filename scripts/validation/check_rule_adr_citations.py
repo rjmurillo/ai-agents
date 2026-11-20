@@ -526,5 +526,21 @@ def validate_rule_adr_citations(repo_root: Path) -> bool:
     return main(["--repo-root", str(repo_root)]) == EXIT_OK
 
 
+# Public names for check_adr_supersession_citations.py, which parses ADR prose
+# with this gate's masking, block, sentence, mention and lineage rules.
+BINDING_BEFORE_RE = _BINDING_BEFORE_RE
+CODE_SPAN_RE = _CODE_SPAN_RE
+COMMENT_RE = _COMMENT_RE
+FENCE_RE = _FENCE_RE
+FRONTMATTER_RE = _FRONTMATTER_RE
+LINEAGE_AFTER_RE = _LINEAGE_AFTER_RE
+LINEAGE_BEFORE_RE = _LINEAGE_BEFORE_RE
+MENTION_RE = _MENTION_RE
+blank = _blank
+blocks = _blocks
+readable = _readable
+sentence_spans = _sentence_spans
+
+
 if __name__ == "__main__":
     sys.exit(main())

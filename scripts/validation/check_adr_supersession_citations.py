@@ -46,7 +46,7 @@ counted, never failed.
 - AUTHORITY: the sentence carries MUST, SHALL or REQUIRED, or one of governs,
   governing, governed by, owns, owned by, current owner, owner of, binding,
   authority, in force or requires; or the mention follows a binding phrase
-  the rule gate's `_BINDING_BEFORE_RE` lists ("per", "under", "comply with").
+  the rule gate's `BINDING_BEFORE_RE` lists ("per", "under", "comply with").
 - UNCLASSIFIED: everything else. HISTORY wins when a sentence carries both.
 
 ## Not covered
@@ -86,23 +86,23 @@ _REPO_ROOT = _SCRIPT_DIR.parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-# The rule gate owns prose parsing for ADR citations. Its helpers are private by
-# name only; importing them keeps one parser instead of a drifting second copy.
+# The rule gate owns prose parsing for ADR citations; it exports these names so
+# both gates parse prose one way.
 from check_adr_lifecycle import Record, collect_records  # noqa: E402
 from check_rule_adr_citations import (  # noqa: E402
-    _BINDING_BEFORE_RE,
-    _CODE_SPAN_RE,
-    _COMMENT_RE,
-    _FENCE_RE,
-    _FRONTMATTER_RE,
-    _LINEAGE_AFTER_RE,
-    _LINEAGE_BEFORE_RE,
-    _MENTION_RE,
-    _blank,
-    _blocks,
-    _readable,
-    _sentence_spans,
+    BINDING_BEFORE_RE,
+    CODE_SPAN_RE,
+    COMMENT_RE,
+    FENCE_RE,
+    FRONTMATTER_RE,
+    LINEAGE_AFTER_RE,
+    LINEAGE_BEFORE_RE,
+    MENTION_RE,
+    blank,
+    blocks,
     read_baseline,
+    readable,
+    sentence_spans,
     unterminated_fence_line,
 )
 
@@ -227,10 +227,10 @@ def _soften_code_span(match: re.Match[str]) -> str:
 
 def mask_non_citations(text: str) -> str:
     """Blank what cannot hold a citation, preserving every offset."""
-    for pattern in (_FRONTMATTER_RE, _FENCE_RE, _COMMENT_RE):
-        text = pattern.sub(_blank, text)
+    for pattern in (FRONTMATTER_RE, FENCE_RE, COMMENT_RE):
+        text = pattern.sub(blank, text)
     # The shared patterns import untyped, so pin the result type here.
-    masked: str = _CODE_SPAN_RE.sub(_soften_code_span, text)
+    masked: str = CODE_SPAN_RE.sub(_soften_code_span, text)
     return masked
 
 
@@ -277,8 +277,8 @@ def classify(sentence: str, match: re.Match[str], tail_end: int, context: Classi
     if (
         adr in context.own_supersedes
         or context.quoted
-        or _LINEAGE_BEFORE_RE.search(before)
-        or _LINEAGE_AFTER_RE.match(after)
+        or LINEAGE_BEFORE_RE.search(before)
+        or LINEAGE_AFTER_RE.match(after)
         or _NEGATED_BEFORE_RE.search(before)
         or _names_successor(sentence, context.corpus.chain(adr))
         or _HISTORY_RE.search(sentence)
@@ -287,7 +287,7 @@ def classify(sentence: str, match: re.Match[str], tail_end: int, context: Classi
     if (
         _AUTHORITY_CASED_RE.search(sentence)
         or _AUTHORITY_RE.search(sentence)
-        or _BINDING_BEFORE_RE.search(before)
+        or BINDING_BEFORE_RE.search(before)
     ):
         return AUTHORITY
     return UNCLASSIFIED
@@ -306,16 +306,16 @@ def citations_in(path: str, own: int, text: str, corpus: Corpus) -> list[Citatio
     own_supersedes = corpus.supersedes.get(own, frozenset())
     masked = mask_non_citations(text)
     prefixes = _paragraph_prefixes(masked)
-    for _bibliography, block in _blocks(masked):
+    for _bibliography, block in blocks(masked):
         joined = " ".join(line for _, line in block)
         starts: list[tuple[int, int]] = []
         offset = 0
         for number, line in block:
             starts.append((offset, number))
             offset += len(line) + 1
-        for start, end in _sentence_spans(joined):
+        for start, end in sentence_spans(joined):
             sentence = joined[start:end]
-            matches = list(_MENTION_RE.finditer(sentence))
+            matches = list(MENTION_RE.finditer(sentence))
             for index, match in enumerate(matches):
                 adr = int(match.group(1))
                 if adr == own or corpus.status.get(adr) != SUPERSEDED:
@@ -364,7 +364,7 @@ def scan(repo_root: Path, records: list[Record], corpus: Corpus) -> ScanResult |
     examined = 0
     for rel in candidates:
         record = by_path.get(rel)
-        path = _readable(repo_root, rel)
+        path = readable(repo_root, rel)
         if record is None or path is None:
             absent.append(rel)
             continue
