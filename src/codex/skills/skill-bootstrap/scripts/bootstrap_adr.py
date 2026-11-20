@@ -60,16 +60,18 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from adr_commits import iso_day, sanitize, slugify
+from adr_commits import sanitize, slugify
 from adr_locate import (
     MAX_READ_BYTES,
+    NOT_RECORDED,
     Style,
     adr_files,
+    adr_title,
     folder_style,
     is_draft_target,
     locate,
     locate_folders,
-    render_h1,
+    render,
 )
 from adr_scan import ConfigError, GitError, git_bytes, git_text, repo_root, scan
 
@@ -88,27 +90,8 @@ __all__ = [
 # ADR drafting (src/lib/adr-writer.ts)
 # ---------------------------------------------------------------------------
 
-NOT_RECORDED = "Not recorded in the source."
-NO_REASON = "The source states no reason."
-_TYPE_PREFIX = re.compile(r"\A[a-z]+(?:\([^)]*\))?!?:[ \t]+", re.IGNORECASE | re.ASCII)
-_PR_SUFFIX = re.compile(r"[ \t]*\(#[0-9]+\)\Z", re.ASCII)
 _KINDS = frozenset({"commit", "pr", "decision-log"})
 _STATUS = re.compile(r"[A-Za-z][A-Za-z -]{0,39}\Z", re.ASCII)
-_URL = re.compile(r"https://[^\s<>`\"']+\Z", re.ASCII)
-_SECTIONS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
-    (re.compile(pattern, re.IGNORECASE | re.ASCII), kind)
-    for pattern, kind in (
-        (r"\bstatus\b", "status"),
-        (r"\bdate\b", "date"),
-        (
-            r"\b(?:drivers?|options?|consequences?|confirmation|pros|cons|information|related"
-            r"|links?|notes?)\b",
-            "",
-        ),
-        (r"\b(?:context|background|problem|motivation|situation)\b", "context"),
-        (r"\b(?:decision|outcome|chosen|resolution)\b", "decision"),
-    )
-)
 
 
 class ExistsError(Exception):
@@ -157,81 +140,11 @@ def load_candidate(path: str, ident: str) -> tuple[dict[str, Any], dict[str, Any
     raise ConfigError(f"no candidate with id {ident!r} in {path}")
 
 
-def _link(candidate: dict[str, Any]) -> str:
-    source = candidate.get("source")
-    source = source if isinstance(source, dict) else {}
-    url = source.get("url")
-    if isinstance(url, str) and _URL.fullmatch(url):
-        return url
-    if candidate["kind"] == "decision-log":
-        entry = sanitize(str(source.get("entry_id") or ""))
-        return f"{sanitize(str(source.get('file') or ''))} (entry {entry})".strip()
-    sha = source.get("sha")
-    return f"commit {sanitize(sha)}" if isinstance(sha, str) and sha else ""
-
-
-def _quote(text: str) -> str:
-    return "\n".join(f"> {line}" if line else ">" for line in text.split("\n"))
-
-
-def _context(candidate: dict[str, Any]) -> str:
-    reason = _text(candidate.get("reason"), "reason")
-    excerpt = (_text(candidate.get("excerpt"), "excerpt") or "").strip()
-    noun = {"pr": "pull request", "decision-log": "decision log entry"}.get(
-        candidate["kind"], "commit"
-    )
-    parts = [f"The reason given at the time: {reason}" if reason else NO_REASON]
-    if excerpt:
-        parts.append(f"From the source {noun}:\n\n{_quote(excerpt)}")
-    return "\n\n".join(parts)
-
-
-def _decision(candidate: dict[str, Any]) -> str:
-    link = _link(candidate)
-    return f"{candidate['title']}\n\n" + (
-        f"Decided in {link}" if link else "Where it was decided was not recorded."
-    )
-
-
-def _section_kind(heading: str) -> str:
-    return next((kind for pattern, kind in _SECTIONS if pattern.search(heading)), "")
-
-
-def render(style: Style, number: int, candidate: dict[str, Any], status: str) -> str:
-    """The ADR text. Headings come from ``style``; an unfilled heading says so."""
-    day = iso_day(candidate.get("date"))
-    kinds = [_section_kind(heading) for heading in style.headings]
-    lines = [render_h1(style.h1_form, number, candidate["title"]), ""]
-    header = ([f"Date: {day}"] if day and "date" not in kinds else []) + (
-        [f"Status: {status}"] if "status" not in kinds else []
-    )
-    if header:
-        lines += [*header, ""]
-    filled = {
-        "status": status,
-        "date": day or NOT_RECORDED,
-        "context": _context(candidate),
-        "decision": _decision(candidate),
+def _clean_source(source: object) -> dict[str, Any]:
+    cleaned = source if isinstance(source, dict) else {}
+    return {
+        key: sanitize(value) if isinstance(value, str) else value for key, value in cleaned.items()
     }
-    # The source text must always land somewhere: a folder whose newest ADR has no context or
-    # decision heading gets one appended. Only the first heading of each kind is filled.
-    sections = list(zip(style.headings, kinds, strict=True))
-    sections += [(name.capitalize(), name) for name in ("context", "decision") if name not in kinds]
-    used: set[str] = set()
-    for heading, kind in sections:
-        text = filled.get(kind, NOT_RECORDED) if kind not in used else NOT_RECORDED
-        used.add(kind)
-        lines += [f"## {heading}", "", text, ""]
-    return "\n".join(lines)
-
-
-def adr_title(kind: str, title: str) -> str:
-    """The ADR title for a source title: a commit or pull request loses its conventional
-    ``type(scope)!:`` prefix and its trailing ``(#N)``. Upstream keeps both."""
-    if kind == "decision-log":
-        return title
-    cleaned = _PR_SUFFIX.sub("", _TYPE_PREFIX.sub("", title, count=1)).strip()
-    return cleaned[:1].upper() + cleaned[1:] if cleaned else title
 
 
 def _check_candidate(candidate: dict[str, Any]) -> None:
@@ -239,6 +152,9 @@ def _check_candidate(candidate: dict[str, Any]) -> None:
         raise ConfigError(f"candidate {candidate.get('id')!r} has an unknown kind")
     title = (_text(candidate.get("title"), "title", True) or "").strip()
     candidate["title"] = adr_title(candidate["kind"], title)
+    for key in ("reason", "excerpt"):
+        candidate[key] = _text(candidate.get(key), key)
+    candidate["source"] = _clean_source(candidate.get("source"))
 
 
 def _git_path(directory: Path, flag: str) -> Path | None:

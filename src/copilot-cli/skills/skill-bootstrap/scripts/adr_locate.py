@@ -1,6 +1,7 @@
 # Port of aligndottech/align-cli at commit 8d758e9899677b61442b08ffda74b74887bfc42a
 # Ported upstream files:
-#   src/lib/adr-writer.ts          (adrDirFor and nextAdrNumber, lines 14-41)
+#   src/lib/adr-writer.ts          (adrDirFor and nextAdrNumber, lines 14-41; renderAdr, slug
+#                                   and the section kinds, lines 52-84, used by draft)
 #   src/lib/fetchers/docs.ts       (ADR_DIR_CANDIDATES, lines 43-48; title and heading
 #                                   reading of the ADR files, lines 70-110)
 # Sibling ports: adr_commits.py, adr_scan.py, bootstrap_adr.py, adr_docs.py.
@@ -33,20 +34,25 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from adr_commits import iso_day
+
 __all__ = [
     "ADR_EXTENSIONS",
     "KNOWN_FOLDERS",
-    "is_draft_target",
     "MAX_READ_BYTES",
+    "NOT_RECORDED",
     "NYGARD_HEADINGS",
     "AdrFile",
     "Style",
     "adr_files",
+    "adr_title",
     "folder_style",
+    "is_draft_target",
     "locate",
     "locate_folders",
     "read_adr_texts",
     "read_bounded",
+    "render",
     "render_h1",
 ]
 
@@ -338,3 +344,108 @@ def read_adr_texts(root: Path) -> tuple[list[tuple[str, str]], int]:
             else:
                 texts.append((f"{rel}/{item.name}", text))
     return texts, skipped
+
+
+# ---------------------------------------------------------------------------
+# Draft rendering (src/lib/adr-writer.ts, renderAdr)
+# ---------------------------------------------------------------------------
+
+NOT_RECORDED = "Not recorded in the source."
+NO_REASON = "The source states no reason."
+_TYPE_PREFIX = re.compile(r"\A[a-z]+(?:\([^)]*\))?!?:[ \t]+", re.IGNORECASE | re.ASCII)
+_PR_SUFFIX = re.compile(r"[ \t]*\(#[0-9]+\)\Z", re.ASCII)
+_URL = re.compile(r"https://[^\s<>`\"']+\Z", re.ASCII)
+_SECTIONS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
+    (re.compile(pattern, re.IGNORECASE | re.ASCII), kind)
+    for pattern, kind in (
+        (r"\bstatus\b", "status"),
+        (r"\bdate\b", "date"),
+        (
+            r"\b(?:drivers?|options?|consequences?|confirmation|pros|cons|information|related"
+            r"|links?|notes?)\b",
+            "",
+        ),
+        (r"\b(?:context|background|problem|motivation|situation)\b", "context"),
+        (r"\b(?:decision|outcome|chosen|resolution)\b", "decision"),
+    )
+)
+
+
+def _link(candidate: dict[str, Any]) -> str:
+    source = candidate.get("source")
+    source = source if isinstance(source, dict) else {}
+    url = source.get("url")
+    if isinstance(url, str) and _URL.fullmatch(url):
+        return url
+    if candidate["kind"] == "decision-log":
+        entry = str(source.get("entry_id") or "")
+        return f"{source.get('file') or ''} (entry {entry})".strip()
+    sha = source.get("sha")
+    return f"commit {sha}" if isinstance(sha, str) and sha else ""
+
+
+def _quote(text: str) -> str:
+    return "\n".join(f"> {line}" if line else ">" for line in text.split("\n"))
+
+
+def _context(candidate: dict[str, Any]) -> str:
+    reason = candidate.get("reason")
+    excerpt = (candidate.get("excerpt") or "").strip()
+    noun = {"pr": "pull request", "decision-log": "decision log entry"}.get(
+        candidate["kind"], "commit"
+    )
+    parts = [f"The reason given at the time: {reason}" if reason else NO_REASON]
+    if excerpt:
+        parts.append(f"From the source {noun}:\n\n{_quote(excerpt)}")
+    return "\n\n".join(parts)
+
+
+def _decision(candidate: dict[str, Any]) -> str:
+    link = _link(candidate)
+    return f"{candidate['title']}\n\n" + (
+        f"Decided in {link}" if link else "Where it was decided was not recorded."
+    )
+
+
+def _section_kind(heading: str) -> str:
+    return next((kind for pattern, kind in _SECTIONS if pattern.search(heading)), "")
+
+
+def render(style: Style, number: int, candidate: dict[str, Any], status: str) -> str:
+    """The ADR text. Headings come from ``style``; an unfilled heading says so.
+
+    The candidate's text fields must already be cleaned by the caller.
+    """
+    day = iso_day(candidate.get("date"))
+    kinds = [_section_kind(heading) for heading in style.headings]
+    lines = [render_h1(style.h1_form, number, candidate["title"]), ""]
+    header = ([f"Date: {day}"] if day and "date" not in kinds else []) + (
+        [f"Status: {status}"] if "status" not in kinds else []
+    )
+    if header:
+        lines += [*header, ""]
+    filled = {
+        "status": status,
+        "date": day or NOT_RECORDED,
+        "context": _context(candidate),
+        "decision": _decision(candidate),
+    }
+    # The source text must always land somewhere: a folder whose newest ADR has no context or
+    # decision heading gets one appended. Only the first heading of each kind is filled.
+    sections = list(zip(style.headings, kinds, strict=True))
+    sections += [(name.capitalize(), name) for name in ("context", "decision") if name not in kinds]
+    used: set[str] = set()
+    for heading, kind in sections:
+        text = filled.get(kind, NOT_RECORDED) if kind not in used else NOT_RECORDED
+        used.add(kind)
+        lines += [f"## {heading}", "", text, ""]
+    return "\n".join(lines)
+
+
+def adr_title(kind: str, title: str) -> str:
+    """The ADR title for a source title: a commit or pull request loses its conventional
+    ``type(scope)!:`` prefix and its trailing ``(#N)``. Upstream keeps both."""
+    if kind == "decision-log":
+        return title
+    cleaned = _PR_SUFFIX.sub("", _TYPE_PREFIX.sub("", title, count=1)).strip()
+    return cleaned[:1].upper() + cleaned[1:] if cleaned else title

@@ -82,6 +82,7 @@ from adr_reason import extract_reason
 from adr_shape import is_release_or_bump_subject
 
 __all__ = [
+    "EXCERPT_CHARS",
     "SLUG_MAX",
     "CommitRecord",
     "DecisionRow",
@@ -301,6 +302,7 @@ def _is_trailer_paragraph(paragraph: str) -> bool:
 # ---------------------------------------------------------------------------
 
 SLUG_MAX = 60
+EXCERPT_CHARS = 1200
 _CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", _A)
 _ISO_DAY = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", _A)
 _URL = re.compile(r"(?:https?|git)://[^\s<>()\[\]\"'`]+", _A)

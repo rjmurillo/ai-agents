@@ -4,6 +4,7 @@
 #   src/lib/fetchers/docs.ts              (splitIntoSections and the per-section filter,
 #                                          lines 162-170 and 275-279)
 #   src/lib/fetchers/docs-decision-log.ts (all of it, P12)
+#   src/lib/adr-writer.ts                 (linkedFromAdrs, lines 100-120: ExistingAdrs)
 # Sibling ports: adr_shape.py, adr_commits.py, adr_reason.py, adr_locate.py, adr_scan.py.
 # MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align
 """Pure classifiers for README, CONTRIBUTING and changelog sections that state a rule.
@@ -38,22 +39,33 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, NamedTuple
+from typing import Any, Literal, NamedTuple
 
-from adr_commits import iso_day
+from adr_commits import (
+    EXCERPT_CHARS,
+    hash_tokens,
+    iso_day,
+    issue_numbers,
+    sanitize,
+    urls_in,
+    word_present,
+)
 from adr_locate import read_bounded
+from adr_reason import extract_reason
 
 __all__ = [
     "CHANGELOG_FILES",
     "CONTRIBUTING_FILES",
     "README_FILES",
     "DocKind",
+    "ExistingAdrs",
     "LogEntry",
     "RuleSection",
     "entry_date",
     "find_log_files",
     "is_rule_section",
     "is_versioned_release_heading",
+    "log_candidates",
     "rule_sections",
     "section_body",
     "split_decision_log",
@@ -340,3 +352,71 @@ def read_log_entries(root: Path) -> list[tuple[str, LogEntry]]:
         if text is not None:
             entries.extend((rel, entry) for entry in split_decision_log(text))
     return entries
+
+
+class ExistingAdrs:
+    """What the existing ADRs name: hashes, URLs, ``#N`` numbers, and plain words."""
+
+    _MIN_SHA_PREFIX = 7
+
+    def __init__(self, texts: list[tuple[str, str]]) -> None:
+        self.texts = [text for _path, text in texts]
+        self.hashes: set[str] = set()
+        self.urls: set[str] = set()
+        self.numbers: set[int] = set()
+        for text in self.texts:
+            self.hashes |= hash_tokens(text)
+            self.urls |= urls_in(text)
+            self.numbers |= issue_numbers(text)
+
+    def _names_sha(self, sha: str) -> bool:
+        full = sha.lower()
+        return any(
+            full[:size] in self.hashes for size in range(self._MIN_SHA_PREFIX, len(full) + 1)
+        )
+
+    def names(self, shas: tuple[str, ...], urls: tuple[str, ...], number: int | None) -> bool:
+        """Does an ADR hold one of these SHAs (or a 7+ character prefix), one of these URLs, or ``#N``?"""
+        if any(self._names_sha(sha) for sha in shas):
+            return True
+        if any(url.rstrip("/") in self.urls for url in urls):
+            return True
+        return number is not None and number in self.numbers
+
+    def names_id(self, ident: str) -> bool:
+        """Does an ADR name this decision-log id as a whole word?"""
+        return any(word_present(ident, text) for text in self.texts)
+
+
+def log_candidates(
+    root: Path, existing: ExistingAdrs, dropped: dict[str, int]
+) -> list[dict[str, Any]]:
+    """E1: a decision-log entry that has an id and is named by no ADR is a candidate."""
+    found: list[dict[str, Any]] = []
+    taken: set[str] = set()
+    for rel, entry in read_log_entries(root):
+        if entry.id is None:
+            dropped["log_no_id"] += 1
+        elif existing.names_id(entry.id):
+            dropped["already_documented"] += 1
+        else:
+            ident = f"log-{entry.id}"
+            suffix = 1
+            while ident in taken:
+                suffix += 1
+                ident = f"log-{entry.id}.{suffix}"
+            taken.add(ident)
+            rest = entry.text.split("\n", 1)[1] if "\n" in entry.text else ""
+            found.append(
+                {
+                    "id": ident,
+                    "kind": "decision-log",
+                    "title": sanitize(entry.title).strip(),
+                    "reason": extract_reason(entry.title, rest),
+                    "excerpt": sanitize(entry.text, EXCERPT_CHARS),
+                    "date": entry_date(entry.text),
+                    "source": {"file": rel, "entry_id": entry.id},
+                    "signals": [],
+                }
+            )
+    return found

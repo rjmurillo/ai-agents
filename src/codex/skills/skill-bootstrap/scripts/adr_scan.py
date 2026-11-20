@@ -47,23 +47,20 @@ from pathlib import Path
 from typing import Any
 
 from adr_commits import (
+    EXCERPT_CHARS,
     CommitRecord,
     PrRow,
     breaking_change,
     covering_numbers,
-    hash_tokens,
     is_covered,
     is_decision_shaped_title,
     iso_day,
-    issue_numbers,
     parse_commit_object,
     sanitize,
     select_prs,
     trailing_pr_number,
-    urls_in,
-    word_present,
 )
-from adr_docs import entry_date, read_log_entries
+from adr_docs import ExistingAdrs, log_candidates
 from adr_locate import locate_folders, read_adr_texts
 from adr_reason import extract_reason
 from adr_shape import has_stated_rationale, is_decision_commit, resolve_commit_shape
@@ -86,7 +83,6 @@ __all__ = [
     "web_base",
 ]
 
-EXCERPT_CHARS = 1200
 DROP_KEYS = (
     "housekeeping",
     "no_rationale",
@@ -100,39 +96,8 @@ DROP_KEYS = (
     "pr_not_decision_shaped",
     "log_no_id",
 )
-_MIN_SHA_PREFIX = 7
 
 Candidate = dict[str, Any]
-
-
-class ExistingAdrs:
-    """What the existing ADRs name: hashes, URLs, ``#N`` numbers, and plain words."""
-
-    def __init__(self, texts: list[tuple[str, str]]) -> None:
-        self.texts = [text for _path, text in texts]
-        self.hashes: set[str] = set()
-        self.urls: set[str] = set()
-        self.numbers: set[int] = set()
-        for text in self.texts:
-            self.hashes |= hash_tokens(text)
-            self.urls |= urls_in(text)
-            self.numbers |= issue_numbers(text)
-
-    def _names_sha(self, sha: str) -> bool:
-        full = sha.lower()
-        return any(full[:size] in self.hashes for size in range(_MIN_SHA_PREFIX, len(full) + 1))
-
-    def names(self, shas: tuple[str, ...], urls: tuple[str, ...], number: int | None) -> bool:
-        """Does an ADR hold one of these SHAs (or a 7+ character prefix), one of these URLs, or ``#N``?"""
-        if any(self._names_sha(sha) for sha in shas):
-            return True
-        if any(url.rstrip("/") in self.urls for url in urls):
-            return True
-        return number is not None and number in self.numbers
-
-    def names_id(self, ident: str) -> bool:
-        """Does an ADR name this decision-log id as a whole word?"""
-        return any(word_present(ident, text) for text in self.texts)
 
 
 @dataclass
@@ -255,37 +220,6 @@ def _suppress(
     return kept
 
 
-def _log_candidates(root: Path, existing: ExistingAdrs, dropped: dict[str, int]) -> list[Candidate]:
-    found: list[Candidate] = []
-    taken: set[str] = set()
-    for rel, entry in read_log_entries(root):
-        if entry.id is None:
-            dropped["log_no_id"] += 1
-        elif existing.names_id(entry.id):
-            dropped["already_documented"] += 1
-        else:
-            ident = f"log-{entry.id}"
-            suffix = 1
-            while ident in taken:
-                suffix += 1
-                ident = f"log-{entry.id}.{suffix}"
-            taken.add(ident)
-            rest = entry.text.split("\n", 1)[1] if "\n" in entry.text else ""
-            found.append(
-                {
-                    "id": ident,
-                    "kind": "decision-log",
-                    "title": sanitize(entry.title).strip(),
-                    "reason": extract_reason(entry.title, rest),
-                    "excerpt": sanitize(entry.text, EXCERPT_CHARS),
-                    "date": entry_date(entry.text),
-                    "source": {"file": rel, "entry_id": entry.id},
-                    "signals": [],
-                }
-            )
-    return found
-
-
 def _unique_ids(candidates: list[Candidate]) -> None:
     """Keep ids unique. A commit whose 7-character id is taken gets a 12-character one."""
     seen: set[str] = set()
@@ -310,7 +244,7 @@ def scan(
     pending += _commit_candidates(records, covering_numbers(pr_rows), web, dropped)
     candidates = _suppress(pending, existing, dropped)
     candidates.sort(key=lambda item: item["date"] or "", reverse=True)
-    candidates += _log_candidates(root, existing, dropped)
+    candidates += log_candidates(root, existing, dropped)
     _unique_ids(candidates)
     return {
         "repo": str(root),
