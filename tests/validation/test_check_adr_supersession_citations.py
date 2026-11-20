@@ -8,8 +8,7 @@ paths, non-superseded targets, and retired citing records all pass. The fixed
 ADR-107 wording from PR #7482 passes.
 edge: a quotation split across a capitalised wrap, a mention that is neither
 (unclassified, never failed), and the rule gate's META verdict on that ADR-107 text.
-Ratchet and CLI: known passes, new fails, stale fails, unusable scope exits 2.
-Wiring: one pre_pr row that reaches this validator.
+CLI: known passes, new or stale fails, unusable scope exits 2; one pre_pr row.
 """
 
 from __future__ import annotations
@@ -408,10 +407,11 @@ def test_cli_exits_config_on_a_tracked_record_it_cannot_read(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     repo = _repo(tmp_path, "Clean.\n")
-    outside = tmp_path / "outside.md"
-    outside.write_text(_adr(121, "accepted", "Body.\n"), encoding="utf-8")
-    (repo / _ADR_DIR / "ADR-121-link.md").symlink_to(outside)
+    record = repo / _ADR_DIR / "ADR-121-link.md"
+    record.write_text(_adr(121, "accepted", "Body.\n"), encoding="utf-8")
     _git(repo, "add", "-A")
+    record.unlink()
+    record.mkdir()  # still tracked, but no longer a regular file on disk
     code = main(["--repo-root", str(repo), "--baseline", str(_baseline(tmp_path, []))])
     assert code == EXIT_CONFIG
     assert "ADR-121-link.md: [adr-supersession-citation] tracked ADR record" in (
