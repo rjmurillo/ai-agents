@@ -6,12 +6,12 @@ import json
 from pathlib import Path
 from typing import Any
 
-import adr_draft
 import adr_locate
 import adr_scan
+import bootstrap_adr
 import pytest
-from adr_git import ConfigError
 from adr_helpers import commit, new_repo, write
+from adr_scan import ConfigError
 
 
 def _candidate(title: str, kind: str = "commit") -> dict[str, Any]:
@@ -53,7 +53,7 @@ def test_draft_refuses_an_rfc_folder_in_the_repository(tmp_path: Path) -> None:
     scan = _scan_file(tmp_path, repo, _candidate("Adopt the queue"))
 
     with pytest.raises(ConfigError, match="not an ADR folder that takes drafts"):
-        adr_draft.draft(scan, "c-1234567", str(repo / "docs" / "rfcs"), "Proposed")
+        bootstrap_adr.draft(scan, "c-1234567", str(repo / "docs" / "rfcs"), "Proposed")
 
     assert sorted(p.name for p in (repo / "docs" / "rfcs").iterdir()) == ["0001-new-api.md"]
 
@@ -69,7 +69,7 @@ def test_draft_refuses_an_rfc_folder_in_the_repository(tmp_path: Path) -> None:
     ],
 )
 def test_the_adr_title_drops_commit_syntax_only(kind: str, title: str, expected: str) -> None:
-    assert adr_draft.adr_title(kind, title) == expected
+    assert bootstrap_adr.adr_title(kind, title) == expected
 
 
 def test_a_draft_h1_and_file_name_use_the_cleaned_title(tmp_path: Path) -> None:
@@ -78,7 +78,7 @@ def test_a_draft_h1_and_file_name_use_the_cleaned_title(tmp_path: Path) -> None:
     commit(repo, "Initial work")
     scan = _scan_file(tmp_path, repo, _candidate("feat(api): adopt grpc (#40)"))
 
-    result = adr_draft.draft(scan, "c-1234567", str(repo / "docs" / "adr"), "Proposed")
+    result = bootstrap_adr.draft(scan, "c-1234567", str(repo / "docs" / "adr"), "Proposed")
 
     assert Path(result["path"]).name == "0002-adopt-grpc.md"
     assert Path(result["path"]).read_text(encoding="utf-8").startswith("# 2. Adopt grpc\n")

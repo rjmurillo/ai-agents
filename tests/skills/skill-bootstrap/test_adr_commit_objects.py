@@ -12,7 +12,7 @@ import subprocess
 from pathlib import Path
 
 import adr_commits
-import adr_git
+import adr_scan
 import pytest
 from adr_helpers import commit, git, hash_commit, new_repo
 
@@ -130,7 +130,7 @@ def test_reader_a_nul_forged_message_is_the_body_of_the_one_real_commit(tmp_path
     message = f"Use Postgres for events\n\nBecause it scales.\n{FORGED}\n"
     forged = _forge_commit(repo, first, message)
     git(repo, "update-ref", "refs/heads/main", forged)
-    records, truncated = adr_git.read_commits(repo, forged, 10)
+    records, truncated = adr_scan.read_commits(repo, forged, 10)
     assert truncated is False
     assert [r.sha for r in records] == [forged, first]
     newest = records[0]
@@ -142,19 +142,19 @@ def test_reader_a_nul_forged_message_is_the_body_of_the_one_real_commit(tmp_path
 def test_reader_returns_newest_first_and_flags_truncation(tmp_path: Path) -> None:
     repo = new_repo(tmp_path / "r")
     shas = [commit(repo, f"Decision number {n}") for n in range(5)]
-    records, truncated = adr_git.read_commits(repo, shas[-1], 3)
+    records, truncated = adr_scan.read_commits(repo, shas[-1], 3)
     assert [r.sha for r in records] == shas[:1:-1]
     assert truncated is True
-    records, truncated = adr_git.read_commits(repo, shas[-1], 5)
+    records, truncated = adr_scan.read_commits(repo, shas[-1], 5)
     assert (len(records), truncated) == (5, False)
-    assert adr_git.read_commits(repo, shas[-1], 0) == ([], True)
+    assert adr_scan.read_commits(repo, shas[-1], 0) == ([], True)
 
 
 def test_reader_since_limits_history(tmp_path: Path) -> None:
     repo = new_repo(tmp_path / "r")
     commit(repo, "Old decision", date="2020-01-01T00:00:00+00:00")
     new = commit(repo, "New decision", date="2026-06-01T00:00:00+00:00")
-    records, truncated = adr_git.read_commits(repo, new, 10, "2025-01-01")
+    records, truncated = adr_scan.read_commits(repo, new, 10, "2025-01-01")
     assert ([r.subject for r in records], truncated) == (["New decision"], False)
 
 
@@ -163,17 +163,17 @@ def test_reader_batches_more_commits_than_one_cat_file_call(tmp_path: Path) -> N
     for n in range(7):
         commit(repo, f"Decision number {n}")
     head = git(repo, "rev-parse", "HEAD").strip()
-    original = adr_git.BATCH_SHAS
-    adr_git.BATCH_SHAS = 3
+    original = adr_scan.BATCH_SHAS
+    adr_scan.BATCH_SHAS = 3
     try:
-        records, _ = adr_git.read_commits(repo, head, 10)
+        records, _ = adr_scan.read_commits(repo, head, 10)
     finally:
-        adr_git.BATCH_SHAS = original
+        adr_scan.BATCH_SHAS = original
     assert [r.subject for r in records] == [f"Decision number {n}" for n in range(6, -1, -1)]
 
 
 def _fake_batch(monkeypatch: pytest.MonkeyPatch, stdout: bytes, code: int = 0) -> None:
-    real = adr_git.git_bytes
+    real = adr_scan.git_bytes
 
     def fake(
         repo: Path, *args: str, stdin: bytes | None = None
@@ -183,7 +183,7 @@ def _fake_batch(monkeypatch: pytest.MonkeyPatch, stdout: bytes, code: int = 0) -
         result: subprocess.CompletedProcess[bytes] = real(repo, *args, stdin=stdin)
         return result
 
-    monkeypatch.setattr(adr_git, "git_bytes", fake)
+    monkeypatch.setattr(adr_scan, "git_bytes", fake)
 
 
 @pytest.mark.parametrize(
@@ -205,8 +205,8 @@ def test_reader_a_reply_that_does_not_match_the_request_is_a_git_error(
     sha = commit(repo, "Initial work")
     text = reply.replace(b"{sha}", sha.encode()).replace(b"{other}", b"c" * 40)
     _fake_batch(monkeypatch, text)
-    with pytest.raises(adr_git.GitError):
-        adr_git.read_commits(repo, sha, 5)
+    with pytest.raises(adr_scan.GitError):
+        adr_scan.read_commits(repo, sha, 5)
 
 
 def test_reader_a_failing_cat_file_is_a_git_error(
@@ -215,24 +215,24 @@ def test_reader_a_failing_cat_file_is_a_git_error(
     repo = new_repo(tmp_path / "r")
     sha = commit(repo, "Initial work")
     _fake_batch(monkeypatch, b"", code=128)
-    with pytest.raises(adr_git.GitError, match="cat-file"):
-        adr_git.read_commits(repo, sha, 5)
+    with pytest.raises(adr_scan.GitError, match="cat-file"):
+        adr_scan.read_commits(repo, sha, 5)
 
 
 def test_resolve_rev_refuses_a_flag_and_an_unknown_name(tmp_path: Path) -> None:
     repo = new_repo(tmp_path / "r")
     commit(repo, "Initial work")
-    with pytest.raises(adr_git.ConfigError):
-        adr_git.resolve_rev(repo, "--all")
-    with pytest.raises(adr_git.ConfigError):
-        adr_git.resolve_rev(repo, "nope")
-    assert len(adr_git.resolve_rev(repo, "HEAD")) == 40
+    with pytest.raises(adr_scan.ConfigError):
+        adr_scan.resolve_rev(repo, "--all")
+    with pytest.raises(adr_scan.ConfigError):
+        adr_scan.resolve_rev(repo, "nope")
+    assert len(adr_scan.resolve_rev(repo, "HEAD")) == 40
 
 
 def test_repo_root_refuses_a_plain_directory(tmp_path: Path) -> None:
     plain = tmp_path / "plain"
     plain.mkdir()
-    with pytest.raises(adr_git.ConfigError):
-        adr_git.repo_root(plain)
-    with pytest.raises(adr_git.ConfigError):
-        adr_git.repo_root(tmp_path / "missing")
+    with pytest.raises(adr_scan.ConfigError):
+        adr_scan.repo_root(plain)
+    with pytest.raises(adr_scan.ConfigError):
+        adr_scan.repo_root(tmp_path / "missing")

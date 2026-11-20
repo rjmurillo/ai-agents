@@ -1,4 +1,4 @@
-"""Tests for adr_draft: rendering and the exclusive write (P16, P17).
+"""Tests for bootstrap_adr: rendering and the exclusive write (P16, P17).
 
 Ports tests/adr-writer.test.ts and tests/adr-command.test.ts of align-cli (MIT, Copyright
 (c) 2026 Align Tech Ltd, see LICENSE-align): the next number keeps the folder's width, the
@@ -13,13 +13,13 @@ import json
 from pathlib import Path
 from typing import Any
 
-import adr_draft
+import adr_commits
 import adr_locate
 import adr_scan
-import adr_text
+import bootstrap_adr
 import pytest
-from adr_git import ConfigError
 from adr_helpers import commit, git, new_repo, write
+from adr_scan import ConfigError
 
 WHY = "Because the team already runs it in production and a second system needs a second on-call."
 ADR_122 = (
@@ -72,7 +72,7 @@ def _text(result: dict[str, Any]) -> str:
 def test_the_first_draft_in_a_folder_whose_newest_is_adr_122_is_adr_123(tmp_path: Path) -> None:
     repo, folder = _toolkit_repo(tmp_path)
     scan = _scan_file(tmp_path, repo, _cand())
-    result = adr_draft.draft(scan, "c-1234567", str(folder), "Proposed")
+    result = bootstrap_adr.draft(scan, "c-1234567", str(folder), "Proposed")
     assert Path(result["path"]).name == "ADR-123-replace-eo-inference-with-the-per-copy-engine.md"
     assert (result["number"], result["status"], result["in_repo"]) == (123, "Proposed", True)
     text = _text(result)
@@ -82,7 +82,7 @@ def test_the_first_draft_in_a_folder_whose_newest_is_adr_122_is_adr_123(tmp_path
 
 def test_the_draft_carries_the_title_reason_source_link_and_invents_nothing(tmp_path: Path) -> None:
     repo, folder = _toolkit_repo(tmp_path)
-    result = adr_draft.draft(
+    result = bootstrap_adr.draft(
         _scan_file(tmp_path, repo, _cand()), "c-1234567", str(folder), "Proposed"
     )
     text = _text(result)
@@ -101,7 +101,7 @@ def test_a_source_with_no_reason_says_so_and_a_missing_link_falls_back_to_the_sh
     sha = "ab" * 20
     cand = _cand(reason=None, excerpt=None, date=None, source={"sha": sha, "url": None})
     text = _text(
-        adr_draft.draft(_scan_file(tmp_path, repo, cand), "c-1234567", str(folder), "Proposed")
+        bootstrap_adr.draft(_scan_file(tmp_path, repo, cand), "c-1234567", str(folder), "Proposed")
     )
     assert "The source states no reason." in text
     assert f"Decided in commit {sha}" in text
@@ -114,7 +114,7 @@ def test_a_source_with_no_link_at_all_says_where_it_was_decided_was_not_recorded
     repo, folder = _toolkit_repo(tmp_path)
     cand = _cand(source={"url": "http://insecure.example/x"})
     text = _text(
-        adr_draft.draft(_scan_file(tmp_path, repo, cand), "c-1234567", str(folder), "Proposed")
+        bootstrap_adr.draft(_scan_file(tmp_path, repo, cand), "c-1234567", str(folder), "Proposed")
     )
     assert "Where it was decided was not recorded." in text
 
@@ -130,8 +130,8 @@ def test_a_pull_request_and_a_log_entry_link_back_to_their_source(tmp_path: Path
         id="log-D17", kind="decision-log", source={"file": "DECISIONS.md", "entry_id": "D17"}
     )
     scan = _scan_file(tmp_path, repo, pull, entry)
-    first = _text(adr_draft.draft(scan, "pr-9", str(folder), "Proposed"))
-    second = _text(adr_draft.draft(scan, "log-D17", str(folder), "Proposed"))
+    first = _text(bootstrap_adr.draft(scan, "pr-9", str(folder), "Proposed"))
+    second = _text(bootstrap_adr.draft(scan, "log-D17", str(folder), "Proposed"))
     assert (
         "Decided in https://github.com/o/r/pull/9" in first
         and "From the source pull request:" in first
@@ -145,8 +145,8 @@ def test_two_accepted_ids_get_consecutive_numbers(tmp_path: Path) -> None:
     one = _cand(id="c-1", title="Use Redis for sessions")
     two = _cand(id="c-2", title="Use Kafka for events")
     scan = _scan_file(tmp_path, repo, one, two)
-    first = adr_draft.draft(scan, "c-1", str(folder), "Proposed")
-    second = adr_draft.draft(scan, "c-2", str(folder), "Proposed")
+    first = bootstrap_adr.draft(scan, "c-1", str(folder), "Proposed")
+    second = bootstrap_adr.draft(scan, "c-2", str(folder), "Proposed")
     assert (first["number"], second["number"]) == (123, 124)
     assert Path(second["path"]).name == "ADR-124-use-kafka-for-events.md"
     assert _text(second).startswith("# ADR-124: Use Kafka for events\n")
@@ -157,7 +157,7 @@ def test_the_number_keeps_the_folders_width_and_h1_style(tmp_path: Path) -> None
     write(repo, "docs/adr/0007-a.md", "# 7. A\n")
     write(repo, "docs/adr/0012-b.md", "# 12. B\n\n## Status\n\nok\n")
     commit(repo, "Initial work")
-    result = adr_draft.draft(
+    result = bootstrap_adr.draft(
         _scan_file(tmp_path, repo, _cand()), "c-1234567", str(repo / "docs" / "adr"), "Proposed"
     )
     assert Path(result["path"]).name.startswith("0013-")
@@ -171,7 +171,7 @@ def test_the_number_keeps_the_folders_width_and_h1_style(tmp_path: Path) -> None
 def test_an_outside_scratch_folder_starts_at_one_with_the_nygard_headings(tmp_path: Path) -> None:
     repo, _folder = _toolkit_repo(tmp_path)
     scratch = tmp_path / "scratch" / "adr"
-    result = adr_draft.draft(
+    result = bootstrap_adr.draft(
         _scan_file(tmp_path, repo, _cand()), "c-1234567", str(scratch), "Proposed"
     )
     text = _text(result)
@@ -191,7 +191,7 @@ def test_headings_follow_the_newest_adr_and_unfilled_ones_say_so(tmp_path: Path)
     )
     write(repo, "docs/decisions/0004-use-x.md", madr)
     commit(repo, "Initial work")
-    result = adr_draft.draft(
+    result = bootstrap_adr.draft(
         _scan_file(tmp_path, repo, _cand()),
         "c-1234567",
         str(repo / "docs" / "decisions"),
@@ -205,8 +205,10 @@ def test_headings_follow_the_newest_adr_and_unfilled_ones_say_so(tmp_path: Path)
         "Context and Problem Statement", "Decision Drivers", "Considered Options",
         "Decision Outcome", "Consequences", "Date",
     ]  # fmt: skip
-    assert sections["Decision Drivers"] == sections["Considered Options"] == adr_draft.NOT_RECORDED
-    assert sections["Consequences"] == adr_draft.NOT_RECORDED
+    assert (
+        sections["Decision Drivers"] == sections["Considered Options"] == bootstrap_adr.NOT_RECORDED
+    )
+    assert sections["Consequences"] == bootstrap_adr.NOT_RECORDED
     assert sections["Date"] == "2026-11-02"
     assert sections["Decision Outcome"].startswith("Replace eo-inference with the per-copy engine")
     assert "The reason given at the time:" in sections["Context and Problem Statement"]
@@ -216,14 +218,18 @@ def test_headings_follow_the_newest_adr_and_unfilled_ones_say_so(tmp_path: Path)
 def test_a_non_ascii_title_falls_back_to_decision_and_the_sha(tmp_path: Path) -> None:
     repo, folder = _toolkit_repo(tmp_path)
     cand = _cand(title="決定を記録する")
-    result = adr_draft.draft(_scan_file(tmp_path, repo, cand), "c-1234567", str(folder), "Proposed")
+    result = bootstrap_adr.draft(
+        _scan_file(tmp_path, repo, cand), "c-1234567", str(folder), "Proposed"
+    )
     assert Path(result["path"]).name == "ADR-123-decision-1234567.md"
 
 
 def test_a_non_ascii_title_without_a_sha_falls_back_to_the_id(tmp_path: Path) -> None:
     repo, folder = _toolkit_repo(tmp_path)
     cand = _cand(id="log-D17", kind="decision-log", title="決定", source={"file": "D.md"})
-    result = adr_draft.draft(_scan_file(tmp_path, repo, cand), "log-D17", str(folder), "Proposed")
+    result = bootstrap_adr.draft(
+        _scan_file(tmp_path, repo, cand), "log-D17", str(folder), "Proposed"
+    )
     assert Path(result["path"]).name == "ADR-123-decision-log-d17.md"
 
 
@@ -237,7 +243,7 @@ def test_a_non_ascii_title_without_a_sha_falls_back_to_the_id(tmp_path: Path) ->
     ],
 )
 def test_the_slug_is_ascii_lowercase_hyphenated_and_cut_at_sixty(title: str, slug: str) -> None:
-    assert adr_text.slugify(title) == slug
+    assert adr_commits.slugify(title) == slug
 
 
 def test_draft_never_overwrites_a_file_at_the_target(tmp_path: Path) -> None:
@@ -248,8 +254,10 @@ def test_draft_never_overwrites_a_file_at_the_target(tmp_path: Path) -> None:
         target.symlink_to(mine)
     except OSError:
         pytest.skip("symlinks unavailable")
-    with pytest.raises(adr_draft.ExistsError) as caught:
-        adr_draft.draft(_scan_file(tmp_path, repo, _cand()), "c-1234567", str(folder), "Proposed")
+    with pytest.raises(bootstrap_adr.ExistsError) as caught:
+        bootstrap_adr.draft(
+            _scan_file(tmp_path, repo, _cand()), "c-1234567", str(folder), "Proposed"
+        )
     assert caught.value.path == target and mine.read_text(encoding="utf-8") == "mine"
     assert sorted(p.name for p in folder.iterdir()) == sorted(
         ["ADR-122-use-postgres.md", target.name]
@@ -262,10 +270,10 @@ def test_draft_does_not_retry_with_another_number_when_the_target_exists(
     repo, folder = _toolkit_repo(tmp_path)
     stale = adr_locate.folder_style(folder)
     write(repo, ".project-toolkit/architecture/ADR-123-use-redis-for-sessions.md", "mine\n")
-    monkeypatch.setattr(adr_draft, "folder_style", lambda _dir: stale)
+    monkeypatch.setattr(bootstrap_adr, "folder_style", lambda _dir: stale)
     scan = _scan_file(tmp_path, repo, _cand(title="Use Redis for sessions"))
-    with pytest.raises(adr_draft.ExistsError):
-        adr_draft.draft(scan, "c-1234567", str(folder), "Proposed")
+    with pytest.raises(bootstrap_adr.ExistsError):
+        bootstrap_adr.draft(scan, "c-1234567", str(folder), "Proposed")
     assert (folder / "ADR-123-use-redis-for-sessions.md").read_text(encoding="utf-8") == "mine\n"
     assert not list(folder.glob("ADR-124-*"))
 
@@ -281,9 +289,11 @@ def test_two_adrs_with_one_number_are_reported_as_a_collision(
         (directory / "ADR-123-written-by-someone-else.md").write_text("theirs\n", encoding="utf-8")
         return style
 
-    monkeypatch.setattr(adr_draft, "folder_style", racing)
-    with pytest.raises(adr_draft.ExistsError) as caught:
-        adr_draft.draft(_scan_file(tmp_path, repo, _cand()), "c-1234567", str(folder), "Proposed")
+    monkeypatch.setattr(bootstrap_adr, "folder_style", racing)
+    with pytest.raises(bootstrap_adr.ExistsError) as caught:
+        bootstrap_adr.draft(
+            _scan_file(tmp_path, repo, _cand()), "c-1234567", str(folder), "Proposed"
+        )
     assert caught.value.others == ["ADR-123-written-by-someone-else.md"]
     assert (folder / "ADR-123-written-by-someone-else.md").read_text(encoding="utf-8") == "theirs\n"
 
@@ -292,7 +302,9 @@ def test_draft_into_a_git_ignored_path_is_refused(tmp_path: Path) -> None:
     repo, folder = _toolkit_repo(tmp_path)
     write(repo, ".gitignore", ".project-toolkit/architecture/ADR-123-*\n")
     with pytest.raises(ConfigError, match="ignored by git"):
-        adr_draft.draft(_scan_file(tmp_path, repo, _cand()), "c-1234567", str(folder), "Proposed")
+        bootstrap_adr.draft(
+            _scan_file(tmp_path, repo, _cand()), "c-1234567", str(folder), "Proposed"
+        )
     assert not list(folder.glob("ADR-123-*"))
 
 
@@ -305,7 +317,7 @@ def test_a_folder_in_the_repo_that_is_not_an_adr_folder_is_refused(
     (repo / "src").mkdir()
     before = git(repo, "status", "--porcelain", "-uall")
     with pytest.raises(ConfigError, match="not an ADR folder"):
-        adr_draft.draft(
+        bootstrap_adr.draft(
             _scan_file(tmp_path, repo, _cand()), "c-1234567", str(repo / rel), "Proposed"
         )
     assert git(repo, "status", "--porcelain", "-uall") == before
@@ -315,12 +327,14 @@ def test_a_folder_in_the_repo_that_is_not_an_adr_folder_is_refused(
 def test_a_status_that_is_not_a_short_plain_phrase_is_refused(tmp_path: Path, status: str) -> None:
     repo, folder = _toolkit_repo(tmp_path)
     with pytest.raises(ConfigError, match="--status"):
-        adr_draft.draft(_scan_file(tmp_path, repo, _cand()), "c-1234567", str(folder), status)
+        bootstrap_adr.draft(_scan_file(tmp_path, repo, _cand()), "c-1234567", str(folder), status)
 
 
 def test_status_can_be_set_to_another_word(tmp_path: Path) -> None:
     repo, folder = _toolkit_repo(tmp_path)
-    result = adr_draft.draft(_scan_file(tmp_path, repo, _cand()), "c-1234567", str(folder), "Draft")
+    result = bootstrap_adr.draft(
+        _scan_file(tmp_path, repo, _cand()), "c-1234567", str(folder), "Draft"
+    )
     assert "## Status\n\nDraft\n" in _text(result)
 
 
@@ -333,7 +347,7 @@ def test_text_from_the_scan_file_is_stripped_of_control_bytes(tmp_path: Path) ->
         date="2026-02-30",
     )
     text = _text(
-        adr_draft.draft(_scan_file(tmp_path, repo, cand), "c-1234567", str(folder), "Proposed")
+        bootstrap_adr.draft(_scan_file(tmp_path, repo, cand), "c-1234567", str(folder), "Proposed")
     )
     assert "\x00" not in text and "\x1b" not in text and "\r" not in text
     assert "Date:" not in text  # 2026-02-30 is not a real day
@@ -352,22 +366,22 @@ def test_text_from_the_scan_file_is_stripped_of_control_bytes(tmp_path: Path) ->
 def test_a_malformed_scan_file_is_refused(tmp_path: Path, body: str) -> None:
     path = write(tmp_path, "bad.json", body)
     with pytest.raises(ConfigError):
-        adr_draft.draft(str(path), "c-1", str(tmp_path / "out"), "Proposed")
+        bootstrap_adr.draft(str(path), "c-1", str(tmp_path / "out"), "Proposed")
 
 
 def test_a_missing_scan_file_an_unknown_id_and_a_bad_candidate_are_refused(tmp_path: Path) -> None:
     repo, folder = _toolkit_repo(tmp_path)
     with pytest.raises(ConfigError, match="cannot read"):
-        adr_draft.draft(str(tmp_path / "none.json"), "c-1", str(folder), "Proposed")
+        bootstrap_adr.draft(str(tmp_path / "none.json"), "c-1", str(folder), "Proposed")
     scan = _scan_file(
         tmp_path, repo, _cand(), _cand(id="c-bad", kind="mystery"), _cand(id="c-t", title=3)
     )
     with pytest.raises(ConfigError, match="no candidate"):
-        adr_draft.draft(scan, "c-other", str(folder), "Proposed")
+        bootstrap_adr.draft(scan, "c-other", str(folder), "Proposed")
     with pytest.raises(ConfigError, match="unknown kind"):
-        adr_draft.draft(scan, "c-bad", str(folder), "Proposed")
+        bootstrap_adr.draft(scan, "c-bad", str(folder), "Proposed")
     with pytest.raises(ConfigError, match="title"):
-        adr_draft.draft(scan, "c-t", str(folder), "Proposed")
+        bootstrap_adr.draft(scan, "c-t", str(folder), "Proposed")
 
 
 def test_a_scan_whose_repository_is_gone_is_refused_before_any_write(tmp_path: Path) -> None:
@@ -378,7 +392,7 @@ def test_a_scan_whose_repository_is_gone_is_refused_before_any_write(tmp_path: P
     Path(scan).write_text(json.dumps(ghost), encoding="utf-8")
     out = tmp_path / "scratch"
     with pytest.raises(ConfigError, match="not a directory"):
-        adr_draft.draft(scan, "c-1234567", str(out), "Proposed")
+        bootstrap_adr.draft(scan, "c-1234567", str(out), "Proposed")
     assert not out.exists()
 
 
@@ -386,7 +400,9 @@ def test_an_out_path_that_is_a_file_is_refused(tmp_path: Path) -> None:
     repo, _folder = _toolkit_repo(tmp_path)
     blocker = write(tmp_path, "blocker", "x")
     with pytest.raises(ConfigError, match="not a directory"):
-        adr_draft.draft(_scan_file(tmp_path, repo, _cand()), "c-1234567", str(blocker), "Proposed")
+        bootstrap_adr.draft(
+            _scan_file(tmp_path, repo, _cand()), "c-1234567", str(blocker), "Proposed"
+        )
 
 
 def test_a_rerun_after_drafting_proposes_none_of_the_drafted_decisions(tmp_path: Path) -> None:
@@ -411,7 +427,7 @@ def test_a_rerun_after_drafting_proposes_none_of_the_drafted_decisions(tmp_path:
     scan.write_text(json.dumps(first), encoding="utf-8")
     folder = repo / "docs" / "adr"
     numbers = [
-        adr_draft.draft(str(scan), item["id"], str(folder), "Proposed")["number"]
+        bootstrap_adr.draft(str(scan), item["id"], str(folder), "Proposed")["number"]
         for item in first["candidates"]
     ]
     assert numbers == [2, 3, 4]
@@ -431,7 +447,7 @@ def test_a_scan_lists_two_and_draft_writes_only_the_accepted_one(tmp_path: Path)
     scan = tmp_path / "scan.json"
     scan.write_text(json.dumps(payload), encoding="utf-8")
     accepted = payload["candidates"][0]
-    adr_draft.draft(str(scan), accepted["id"], str(repo / "docs" / "adr"), "Proposed")
+    bootstrap_adr.draft(str(scan), accepted["id"], str(repo / "docs" / "adr"), "Proposed")
     assert len(list((repo / "docs" / "adr").iterdir())) == 2
 
 
@@ -440,7 +456,7 @@ def test_only_the_first_heading_of_a_kind_is_filled(tmp_path: Path) -> None:
     write(repo, "docs/adr/0001-a.md", "# 1. A\n\n## Context\n\nc\n\n## Background\n\nb\n")
     commit(repo, "Initial work")
     scan = _scan_file(tmp_path, repo, _cand())
-    text = _text(adr_draft.draft(scan, "c-1234567", str(repo / "docs" / "adr"), "Proposed"))
+    text = _text(bootstrap_adr.draft(scan, "c-1234567", str(repo / "docs" / "adr"), "Proposed"))
     assert text.count("The reason given at the time:") == 1
     assert "## Background\n\nNot recorded in the source." in text
 
@@ -455,7 +471,7 @@ def test_section_matching_uses_whole_words(tmp_path: Path) -> None:
     )
     commit(repo, "Initial work")
     scan = _scan_file(tmp_path, repo, _cand())
-    text = _text(adr_draft.draft(scan, "c-1234567", str(repo / "docs" / "adr"), "Proposed"))
+    text = _text(bootstrap_adr.draft(scan, "c-1234567", str(repo / "docs" / "adr"), "Proposed"))
     assert "## Context and Constraints\n\nThe reason given at the time:" in text
     assert "## Updates\n\nNot recorded in the source." in text
     assert "## Candidates\n\nNot recorded in the source." in text
@@ -473,12 +489,12 @@ def test_a_draft_into_another_work_tree_of_the_repository_is_gated_on_that_tree(
     git(repo, "worktree", "add", "-q", str(side), "-b", "side")
     scan = _scan_file(tmp_path, repo, _cand())
     with pytest.raises(ConfigError, match="not an ADR folder"):
-        adr_draft.draft(scan, "c-1234567", str(side / "docs"), "Proposed")
+        bootstrap_adr.draft(scan, "c-1234567", str(side / "docs"), "Proposed")
     write(side, ".gitignore", "docs/adr/0002-*\n")
     with pytest.raises(ConfigError, match="ignored by git"):
-        adr_draft.draft(scan, "c-1234567", str(side / "docs" / "adr"), "Proposed")
+        bootstrap_adr.draft(scan, "c-1234567", str(side / "docs" / "adr"), "Proposed")
     (side / ".gitignore").unlink()
-    result = adr_draft.draft(scan, "c-1234567", str(side / "docs" / "adr"), "Proposed")
+    result = bootstrap_adr.draft(scan, "c-1234567", str(side / "docs" / "adr"), "Proposed")
     assert result["in_repo"] is True
     assert Path(result["path"]).resolve().is_relative_to(side.resolve())
     assert sorted(p.name for p in (repo / "docs" / "adr").iterdir()) == ["0001-a.md"]
@@ -487,7 +503,7 @@ def test_a_draft_into_another_work_tree_of_the_repository_is_gated_on_that_tree(
 def test_a_scratch_folder_inside_an_unrelated_repository_is_not_gated(tmp_path: Path) -> None:
     repo, _folder = _toolkit_repo(tmp_path)
     other = new_repo(tmp_path / "other")
-    result = adr_draft.draft(
+    result = bootstrap_adr.draft(
         _scan_file(tmp_path, repo, _cand()), "c-1234567", str(other / "scratch"), "Proposed"
     )
     assert (

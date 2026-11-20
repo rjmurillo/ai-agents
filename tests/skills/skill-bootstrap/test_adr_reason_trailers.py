@@ -1,4 +1,4 @@
-"""Tests for adr_reason and adr_trailers: trailers, strip_trailers, commit_sha_of, port fixes.
+"""Tests for adr_reason and adr_shape: trailers, strip_trailers, commit_sha_of, port fixes.
 
 Cases port tests/reason-extract.test.ts of align-cli (MIT, Copyright (c) 2026 Align Tech
 Ltd, see LICENSE-align): same inputs, same expected outputs, titles follow upstream. A
@@ -10,7 +10,7 @@ from __future__ import annotations
 import adr_reason
 import pytest
 from adr_reason import extract_reason
-from adr_trailers import strip_trailers
+from adr_shape import strip_trailers
 from reason_helpers import SHA, full
 
 # ---------------------------------------------------------------------------

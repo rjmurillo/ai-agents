@@ -3,7 +3,7 @@
 #   src/lib/adr-writer.ts          (adrDirFor and nextAdrNumber, lines 14-41)
 #   src/lib/fetchers/docs.ts       (ADR_DIR_CANDIDATES, lines 43-48; title and heading
 #                                   reading of the ADR files, lines 70-110)
-# Sibling ports: adr_text.py, adr_scan.py, adr_draft.py, adr_log.py.
+# Sibling ports: adr_commits.py, adr_scan.py, bootstrap_adr.py, adr_docs.py.
 # MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align
 """Find the repository's ADR folders and read their naming and heading style.
 
@@ -30,12 +30,13 @@ from __future__ import annotations
 import os
 import re
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 __all__ = [
     "ADR_EXTENSIONS",
     "KNOWN_FOLDERS",
+    "is_draft_target",
     "MAX_READ_BYTES",
     "NYGARD_HEADINGS",
     "AdrFile",
@@ -283,6 +284,15 @@ def locate_folders(root: Path) -> list[tuple[str, str]]:
     return sorted(found.items())
 
 
+_RFC_FOLDER = re.compile(r"rfcs?", re.IGNORECASE)
+
+
+def is_draft_target(rel: str) -> bool:
+    """Whether ``draft`` may write into the folder. An RFC folder is read, so its links still
+    hide decisions, but it never takes an ADR (upstream ``adr-writer.ts`` line 18 also skips it)."""
+    return _RFC_FOLDER.fullmatch(PurePosixPath(rel).name) is None
+
+
 def _folder_payload(root: Path, rel: str, source: str) -> dict[str, Any]:
     style = folder_style(root / rel)
     return {
@@ -296,13 +306,15 @@ def _folder_payload(root: Path, rel: str, source: str) -> dict[str, Any]:
         "newest": style.newest,
         "h1_form": style.h1_form,
         "headings": list(style.headings),
+        "draft_target": is_draft_target(rel),
     }
 
 
 def locate(root: Path) -> dict[str, Any]:
     """The ``locate`` payload: folders, the single primary folder or None, and the next number."""
     folders = [_folder_payload(root.resolve(), rel, source) for rel, source in locate_folders(root)]
-    primary = folders[0] if len(folders) == 1 else None
+    targets = [folder for folder in folders if folder["draft_target"]]
+    primary = targets[0] if len(targets) == 1 else None
     return {
         "folders": folders,
         "primary": primary["path"] if primary else None,

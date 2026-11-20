@@ -1,7 +1,7 @@
 # Port of aligndottech/align-cli at commit 8d758e9899677b61442b08ffda74b74887bfc42a
 # Ported upstream file: src/lib/reason-extract.ts (extractReason, commitShaOf, and the
 # helpers they use). Trailer and importer-text handling (stripTrailers, stripImporterMetadata,
-# hasImporterMetadata) lives in adr_trailers.py.
+# hasImporterMetadata) lives in adr_shape.py.
 # Not ported: withReasons, which shapes align's search JSON and has no consumer here.
 # MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align
 """The stated reason behind a decision, pulled out of its own text with no model.
@@ -19,7 +19,7 @@ Picks up to two sentences of a commit body that SAY why. Rules, all deterministi
 Regex notes. Module-level patterns compile with ``re.ASCII`` so ``\\b``, ``\\w``, ``\\d`` and
 case folding match the JavaScript source. ``$`` without a multiline flag is ``\\Z``
 here, because Python's ``$`` also matches before a trailing newline. ASCII ``\\s`` does not match Unicode spaces such as U+00A0, which JavaScript's ``\\s`` does. Whitespace
-normalisation (``flat`` in adr_trailers) stays Unicode-aware, as ``\\s`` is in JavaScript.
+normalisation (``flat`` in adr_shape) stays Unicode-aware, as ``\\s`` is in JavaScript.
 """
 
 from __future__ import annotations
@@ -27,9 +27,9 @@ from __future__ import annotations
 import re
 from typing import NamedTuple
 
-from adr_trailers import (
-    CONVENTIONAL_PREFIX,
+from adr_shape import (
     FIXES_ONLY,
+    REASON_CONVENTIONAL_PREFIX,
     TRAILER,
     flat,
     has_importer_metadata,
@@ -366,9 +366,9 @@ def _unit_text(unit: _Unit) -> tuple[str, bool, bool] | None:
         if _EMPTY_LABEL_BODY.search(text):
             return None
     # A squashed sub-commit title says what changed. Only a strong marker makes it a reason.
-    conventional = bool(CONVENTIONAL_PREFIX.search(text))
+    conventional = bool(REASON_CONVENTIONAL_PREFIX.search(text))
     if conventional:
-        text = CONVENTIONAL_PREFIX.sub("", text, count=1)
+        text = REASON_CONVENTIONAL_PREFIX.sub("", text, count=1)
     return text, labelled, conventional or unit.bullet
 
 
@@ -402,7 +402,7 @@ def _sentence_hit(
 
 def _score_units(text: str, flat_title: str) -> list[_Scored]:
     title_words = _words(flat_title)
-    title_body_words = _words(CONVENTIONAL_PREFIX.sub("", flat_title, count=1))
+    title_body_words = _words(REASON_CONVENTIONAL_PREFIX.sub("", flat_title, count=1))
     scored: list[_Scored] = []
     pos = 0
     for unit in _to_units(text):

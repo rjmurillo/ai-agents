@@ -7,7 +7,7 @@ wrong "reason" is worse than none, so every shape that is not a reason must give
 
 from __future__ import annotations
 
-import adr_trailers
+import adr_shape
 import pytest
 from adr_reason import extract_reason
 from reason_helpers import full
@@ -256,10 +256,10 @@ def test_a_body_that_is_only_a_title_echo_plus_metadata_is_none() -> None:
 
 def test_importer_metadata_helpers_detect_and_strip_the_block() -> None:
     text = full("fix: parser", "Body.")
-    assert adr_trailers.has_importer_metadata(text)
-    assert adr_trailers.strip_importer_metadata(text) == "fix: parser\n\nBody."
-    assert not adr_trailers.has_importer_metadata("fix: parser\n\nBody.")
-    assert adr_trailers.strip_importer_metadata("a\r\nb") == "a\nb"
+    assert adr_shape.has_importer_metadata(text)
+    assert adr_shape.strip_importer_metadata(text) == "fix: parser\n\nBody."
+    assert not adr_shape.has_importer_metadata("fix: parser\n\nBody.")
+    assert adr_shape.strip_importer_metadata("a\r\nb") == "a\nb"
 
 
 # ---------------------------------------------------------------------------

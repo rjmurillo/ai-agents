@@ -3,7 +3,7 @@
 #   src/lib/adr-writer.ts          (adrDirFor and nextAdrNumber, lines 14-41)
 #   src/lib/fetchers/docs.ts       (ADR_DIR_CANDIDATES, lines 43-48; title and heading
 #                                   reading of the ADR files, lines 70-110)
-# Sibling ports: adr_text.py, adr_scan.py, adr_draft.py, adr_log.py.
+# Sibling ports: adr_commits.py, adr_scan.py, bootstrap_adr.py, adr_docs.py.
 # MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align
 """Find the repository's ADR folders and read their naming and heading style.
 
