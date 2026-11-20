@@ -267,3 +267,15 @@ def test_verify_also_create_through_a_symlink_exits_two(
 
     assert code == 2
     assert "symlink" in payload["message"]
+
+
+def test_verify_new_gitignore_under_create_grant_is_create_only_changed(
+    repo: Path, capsys: Capsys, snap_path: Path
+) -> None:
+    take_snapshot(capsys, repo, snap_path)
+    write(repo, "docs/adr/.gitignore", "*.tmp\n")
+
+    code, payload = verify(capsys, repo, snap_path, "--also-create", ADR_DIR)
+
+    assert code == 1
+    assert kinds(payload) == [("create-only-changed", "docs/adr/.gitignore")]

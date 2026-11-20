@@ -84,13 +84,16 @@ def classify(path: str, rel: PurePosixPath, grants: Payload) -> str | None:
     """Return the violation kind for one changed path, or None when authorized.
 
     An `--also-allow` grant wins over an `--also-create` grant. A path under a create grant
-    is authorized only when it is a new untracked file.
+    is authorized only when it is a new untracked file. A new `.gitignore` there is refused:
+    verify does not hash ignored files under a grant, so one could hide later writes.
     """
     posix = PurePosixPath(path)
     if covered(posix, grants["also_allow"]):
         return None
     if covered(posix, grants["also_create"]):
-        return None if path in grants["created"] else "create-only-changed"
+        if posix.name == ".gitignore" or path not in grants["created"]:
+            return "create-only-changed"
+        return None
     if rel not in posix.parents or len(posix.relative_to(rel).parts) < 2:
         return "outside-boundary"
     skill = posix.relative_to(rel).parts[0]
