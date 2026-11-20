@@ -142,17 +142,19 @@ def test_verify_new_file_staged_under_create_grant_exits_one(
     assert kinds(payload) == [("create-only-changed", NEW_ADR)]
 
 
-def test_verify_ignored_new_file_under_create_grant_is_ignored_in_boundary(
+def test_verify_ignored_file_already_under_create_grant_does_not_fail(
     repo: Path, capsys: Capsys, snap_path: Path
 ) -> None:
-    ignore(repo, "*.tmp")
+    ignore(repo, ".DS_Store")
+    write(repo, "docs/adr/.DS_Store")
     take_snapshot(capsys, repo, snap_path)
-    write(repo, "docs/adr/draft.tmp")
+    write(repo, "docs/adr/.DS_Store", "changed by the desktop\n")
+    write(repo, NEW_ADR)
 
     code, payload = verify(capsys, repo, snap_path, "--also-create", ADR_DIR)
 
-    assert code == 1
-    assert kinds(payload) == [("ignored-in-boundary", "docs/adr/draft.tmp")]
+    assert code == 0
+    assert payload["violations"] == []
 
 
 def test_verify_new_file_outside_create_grant_is_outside_boundary(

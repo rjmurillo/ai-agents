@@ -7,8 +7,8 @@ directories it named. Paths the user authorized beyond that root, such as a
 canonical skill template, are passed with `--also-allow`. A folder where the
 run may only add new files, such as an ADR directory, is passed with
 `--also-create`: a new untracked file there is allowed, and any other change
-under it (edit, delete, mode change, or a file already untracked at snapshot
-that changed) is `create-only-changed`. A path matching both grants follows
+under it (edit, delete, mode change, a file already untracked at snapshot
+that changed, or a path the snapshot HEAD tracks) is `create-only-changed`. A path matching both grants follows
 `--also-allow`. This script makes the boundary checkable on Linux, macOS, and
 Windows.
 
@@ -39,10 +39,7 @@ Limits: verify compares the working tree, HEAD, the branch name, the index
 flags that hide changes (assume-unchanged, skip-worktree), and
 `info/exclude`. Inside the output root it also hashes files git ignores; a
 new or changed ignored file in an authorized skill is reported as
-`ignored-in-boundary`, because it would not ship. Under an `--also-create`
-grant it also reports every ignored file as `ignored-in-boundary`, since the
-snapshot does not record ignored files there and cannot show one predates the
-run. It does not see other ref
+`ignored-in-boundary`, because it would not ship. It does not see other ref
 changes (tags, other branches, config, push), other writes inside `.git/`,
 or gitignored paths outside the output root, so an ignored output root,
 skill directory, `--also-allow` path, or `--also-create` path is refused. A file grant authorizes
@@ -274,21 +271,14 @@ def _hash_tree(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _ignored_under(root: Path, *rels: PurePosixPath) -> dict[str, str]:
-    """Hash every untracked file git ignores under the given paths.
+def _ignored_under(root: Path, rel: PurePosixPath) -> dict[str, str]:
+    """Hash every untracked file git ignores under the output root.
 
     `git status` never reports these, so an authored file that a nested
     ignore rule matches would otherwise change without a trace.
     """
     raw = _git(
-        root,
-        "ls-files",
-        "-z",
-        "--others",
-        "--ignored",
-        "--exclude-standard",
-        "--",
-        *map(str, rels),
+        root, "ls-files", "-z", "--others", "--ignored", "--exclude-standard", "--", str(rel)
     )
     paths = [p for p in raw.split("\0") if p]
     return {p: _hash(root / Path(*PurePosixPath(p).parts)) for p in paths}
@@ -411,10 +401,10 @@ def verify(args: argparse.Namespace) -> tuple[int, Payload]:
         kind = classify(path, rel, grants)
         if kind:
             violations.append({"kind": kind, "path": path})
-    ignored_after = _ignored_under(root, rel, *(a for a, _ in also_create))
+    ignored_after = _ignored_under(root, rel)
     for path in sorted(set(before["ignored"]) | set(ignored_after)):
         if before["ignored"].get(path) != ignored_after.get(path):
-            kind = classify(path, rel, grants, ignored=True) or "ignored-in-boundary"
+            kind = classify(path, rel, grants) or "ignored-in-boundary"
             violations.append({"kind": kind, "path": path})
     return (1 if violations else 0), {
         "examined": len(examined),

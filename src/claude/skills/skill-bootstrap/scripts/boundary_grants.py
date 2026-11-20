@@ -80,18 +80,16 @@ def new_untracked(before: Payload, after: Payload, git: Callable[..., str]) -> s
     return fresh - set(listed.split("\0"))
 
 
-def classify(path: str, rel: PurePosixPath, grants: Payload, ignored: bool = False) -> str | None:
+def classify(path: str, rel: PurePosixPath, grants: Payload) -> str | None:
     """Return the violation kind for one changed path, or None when authorized.
 
     An `--also-allow` grant wins over an `--also-create` grant. A path under a create grant
-    is authorized only when it is a new untracked file; an ignored one never ships.
+    is authorized only when it is a new untracked file.
     """
     posix = PurePosixPath(path)
     if covered(posix, grants["also_allow"]):
         return None
     if covered(posix, grants["also_create"]):
-        if ignored:
-            return "ignored-in-boundary"
         return None if path in grants["created"] else "create-only-changed"
     if rel not in posix.parents or len(posix.relative_to(rel).parts) < 2:
         return "outside-boundary"
