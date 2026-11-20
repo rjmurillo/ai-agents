@@ -1,0 +1,83 @@
+{
+  "id": "C1-04",
+  "pr": 6332,
+  "sha": "727e9bf5f0",
+  "kind": "positive",
+  "scope": "automatic",
+  "file": ".project-toolkit/specs/design/DESIGN-026-memory-placement-validator.md",
+  "line": 78,
+  "defect_class": "stale-citation",
+  "defect": "lefthook.yml lines 328-350 no longer identifies the cited group.",
+  "resolved_sha": "727e9bf5f0adac36f21b7e99bb91fd8a73062502",
+  "pr_base": "adc6cc25220395bbef2d0b987a6c21e1b67d1277",
+  "merge_base": "ca616861c2cade76d304c5469b145871aa8b63ba",
+  "findings": [
+    {
+      "citing_file": ".project-toolkit/specs/design/DESIGN-026-memory-placement-validator.md",
+      "citing_line": 78,
+      "citation": "lefthook.yml:328-350",
+      "reason": "distinctive anchors ('parallel: true', 'memory-size', 'memory-index', 'memory-token-counts') sit outside lines 328-350; 'parallel: true' first appears at line 104",
+      "gate": "forward",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".project-toolkit/plans/active/5456-control-plane-subtraction-cohort-1.md",
+      "citing_line": 119,
+      "citation": "scripts/validation/pre_pr_sequence.py:252-254",
+      "reason": "the text at lines 252-254 at the merge base moved at HEAD; suggested citation scripts/validation/pre_pr_sequence.py:253-255",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".project-toolkit/specs/requirements/REQ-022-control-plane-disposition-ledger-v070.md",
+      "citing_line": 246,
+      "citation": "scripts/validation/pre_pr_sequence.py:543-556",
+      "reason": "the text at lines 543-556 at the merge base moved at HEAD; suggested citation scripts/validation/pre_pr_sequence.py:545-558",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".project-toolkit/specs/requirements/REQ-022-control-plane-disposition-ledger-v070.md",
+      "citing_line": 248,
+      "citation": "tests/validation/test_pre_pr_sequence_registry.py:133-266",
+      "reason": "the text at lines 133-266 at the merge base moved at HEAD; suggested citation tests/validation/test_pre_pr_sequence_registry.py:134-267",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".project-toolkit/specs/requirements/REQ-024-control-plane-baseline-v070.md",
+      "citing_line": 118,
+      "citation": "scripts/validation/pre_pr_sequence.py:543-556",
+      "reason": "the text at lines 543-556 at the merge base moved at HEAD; suggested citation scripts/validation/pre_pr_sequence.py:545-558",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".project-toolkit/specs/tasks/TASK-029-control-plane-disposition-ledger-v070.md",
+      "citing_line": 42,
+      "citation": "scripts/validation/pre_pr_sequence.py:543-556",
+      "reason": "the text at lines 543-556 at the merge base moved at HEAD; suggested citation scripts/validation/pre_pr_sequence.py:545-558",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".project-toolkit/specs/tasks/TASK-029-control-plane-disposition-ledger-v070.md",
+      "citing_line": 43,
+      "citation": "tests/validation/test_pre_pr_sequence_registry.py:133-266",
+      "reason": "the text at lines 133-266 at the merge base moved at HEAD; suggested citation tests/validation/test_pre_pr_sequence_registry.py:134-267",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": "scripts/validation/check_git_hook_health.py",
+      "citing_line": 460,
+      "citation": "scripts/validation/pre_pr_sequence.py:150",
+      "reason": "the text at lines 150-150 at the merge base moved at HEAD; suggested citation scripts/validation/pre_pr_sequence.py:151",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    }
+  ],
+  "output": "[citation-freshness] examined 1 citation(s) across 18 changed file(s) vs ca616861c2cade76d304c5469b145871aa8b63ba\n[citation-reverse-pass] examined 22 inbound citation(s) to 20 changed file(s) vs ca616861c2cade76d304c5469b145871aa8b63ba; 12 already stale at the merge base (not blocking)\n",
+  "caught": true,
+  "false_positives": 0
+}
