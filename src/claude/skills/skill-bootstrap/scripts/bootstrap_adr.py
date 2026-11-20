@@ -116,8 +116,18 @@ class ExistsError(Exception):
 
     def __init__(self, message: str, path: Path, others: list[str] | None = None) -> None:
         super().__init__(message)
-        self.path = path
-        self.others = others or []
+        self._path = path
+        self._others = tuple(others or ())
+
+    @property
+    def path(self) -> Path:
+        """The draft target that already existed or that this run wrote."""
+        return self._path
+
+    @property
+    def others(self) -> list[str]:
+        """Names of other ADRs that took the same number."""
+        return list(self._others)
 
 
 def _text(value: object, name: str, required: bool = False) -> str | None:
