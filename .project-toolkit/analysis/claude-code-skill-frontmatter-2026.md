@@ -581,13 +581,15 @@ curl https://api.anthropic.com/v1/models \
 **Lint YAML Frontmatter**:
 ```python
 # validate-skill.py
-import yaml
+import re
 import sys
+from pathlib import Path
+
+import yaml
 
 
-def validate_skill(path):
-    with open(path, "r") as f:
-        content = f.read()
+def validate_skill(path: Path) -> tuple[bool, str]:
+    content = path.read_text(encoding="utf-8")
 
     # Extract frontmatter
     if not content.startswith("---\n"):
@@ -603,23 +605,26 @@ def validate_skill(path):
         return False, f"Invalid YAML: {e}"
 
     # Validate required fields
-    if "name" not in meta:
+    if not isinstance(meta, dict):
+        return False, "Frontmatter must be a mapping"
+    if not isinstance(meta.get("name"), str) or not meta["name"].strip():
         return False, "Missing required field: name"
-    if "description" not in meta:
+    if not isinstance(meta.get("description"), str) or not meta["description"].strip():
         return False, "Missing required field: description"
 
     # Validate name format
-    import re
-
-    if not re.match(r"^[a-z0-9-]{1,64}$", meta["name"]):
+    if not re.fullmatch(r"[a-z0-9-]{1,64}", meta["name"]):
         return False, "Invalid name format"
 
     return True, "Valid"
 
 
 if __name__ == "__main__":
-    valid, message = validate_skill(sys.argv[1])
-    print(f"{sys.argv[1]}: {message}")
+    if len(sys.argv) != 2:
+        sys.exit("Usage: python validate-skill.py PATH")
+    path = Path(sys.argv[1])
+    valid, message = validate_skill(path)
+    print(f"{path}: {message}")
     sys.exit(0 if valid else 1)
 ```
 

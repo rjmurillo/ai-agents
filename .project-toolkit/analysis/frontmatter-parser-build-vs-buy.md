@@ -187,6 +187,10 @@ H4 and H5 together are the finding that most changes the plan: **the obvious
 one-line mitigation for H5 is exactly H4.** The correct pin is a handler subclass:
 
 ```python
+import yaml
+from frontmatter.default_handlers import YAMLHandler
+
+
 class _PinnedYAMLHandler(YAMLHandler):
     def load(self, fm, **kw):
         kw["Loader"] = yaml.SafeLoader  # match yaml.safe_load exactly, per ADR-073
