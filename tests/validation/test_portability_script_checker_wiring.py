@@ -1,8 +1,8 @@
 """Per-consumer wiring tests for `check_skill_portability.py` (#4252, #4454).
 
 `main()` reaches the baseline guards down two independent paths, and each one
-needs its own control. Every line number below is as of base `db5aab393`; the
-function names are what actually anchor the claims. Verbatim from
+needs its own control. The quoted block's line numbers are as of base `db5aab393`;
+the paragraph after it cites lines as of 2026-11-20. Function names anchor the claims. From
 `scripts/validation/check_skill_portability.py`::
 
     344:    baseline_path = _resolve_baseline_path(root, args.baseline)

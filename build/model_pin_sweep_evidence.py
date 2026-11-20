@@ -37,7 +37,7 @@ MIN_SHARED_FIXTURES = 8
 # Mirrors scripts/eval/_model_sweep_core.py:44 (DEFAULT_MIN_EFFECT = 0.05)
 # verbatim; the qualification formula it feeds
 # (``qualifies = delta >= min_effect and ci_low > 0.0``) is at that module's
-# line 291. Not imported: _model_sweep_core.py:35 does
+# line 291. Not imported: _model_sweep_core.py:37 does
 # ``from _report_aggregator import (...)``, a bare module-relative import
 # that requires scripts/eval on sys.path, the exact sys.path mutation
 # build/model_pin_manifest.py's own docstring already avoids for
