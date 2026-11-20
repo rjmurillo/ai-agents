@@ -1458,16 +1458,19 @@ def _first_ignored_sdk_marker(lines: list[str]) -> dict[str, int] | None:
     return None
 
 
-# Every pattern stays on one line and the modifier run is capped, so a crafted
-# block cannot make a match rescan to the end of a line from every start. A
-# declaration the cap misses keeps its finding, which is the safe direction.
+# Keyword and modifier patterns stay on one line, and the modifier run is
+# capped, so a crafted block cannot make a match rescan to the end of a line
+# from every start. The property pattern spans line breaks on purpose, because
+# a name, its ``{`` and ``get`` often sit on separate lines. Each whitespace
+# run there follows one word, so it stays linear. A declaration a pattern
+# misses keeps its finding, which is the safe direction.
 _DECLARED_NAME_PATTERNS: dict[str, tuple[re.Pattern[str], ...]] = {
     "csharp": (
         re.compile(r"\b(?:class|struct|interface|enum|record|namespace)[ \t]+([A-Za-z_][\w.]*)"),
         re.compile(r"\b([A-Za-z_]\w*)\s*\{\s*(?:get|set|init)\b"),
         re.compile(
             r"\b(?:public|private|protected|internal)\b[^;{}()=\n]{0,200}?"
-            r"(?<!operator )\b([A-Za-z_]\w*)[ \t]*\("
+            r"(?<!\boperator )(?<!\boperator\t)\b([A-Za-z_]\w*)[ \t]*\("
         ),
     ),
     "python": (re.compile(r"^[ \t]*(?:async[ \t]+)?(?:class|def)[ \t]+(\w+)", re.MULTILINE),),
