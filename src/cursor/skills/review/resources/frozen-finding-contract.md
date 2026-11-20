@@ -1,6 +1,6 @@
 # Frozen finding contract (rounds after the first)
 
-Round caps bound cost. They do not bound what a later round may count, so an open-ended re-scan raises new scope each round and the loop ends at the cap, not at clean (issue #6745). Round 1 scans the whole diff. The caller supplies `ROUND: N` context. In round 2 and 3 only two things count:
+Round caps bound cost. They do not bound what a later round may count, so an open-ended re-scan raises new scope each round and the loop ends at the cap, not at clean (issue #6745). Round 1 scans the whole diff. The caller supplies `ROUND: N` context. After round 1 only two things count:
 
 1. A defect the diff introduced. That covers lines the PR added or changed, the caller's own fix commits since round 1, and a regression the diff causes in code it did not touch.
 2. An acceptance criterion the PR claims (PR body or linked issue) that is still unmet.
@@ -18,6 +18,6 @@ Everything else is a **flagged note**: a pre-existing defect the diff neither ch
 
 ## Caps
 
-The caps stay as the backstop: 3 rounds for this skill, and the default 5 for `check_pr_round_cap.py`. Round 3 still escalates with every open counted finding, and the flagged notes ride along as their own list. A new invocation or human checkpoint resets the round count, as it resets the cap.
+The caps stay as the backstop: 5 rounds for this skill, and the default 5 for `check_pr_round_cap.py`. Round 5 still escalates with every open counted finding, and the flagged notes ride along as their own list. A new invocation or human checkpoint resets the round count, as it resets the cap.
 
 PR-comment loops (`pr-review`, `pr-comment-responder`) apply the same contract through the review-conversation protocol's "Bounded loops and handoff" section.
