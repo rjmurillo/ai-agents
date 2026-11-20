@@ -243,3 +243,31 @@ class TestRepositoryPolicyOptIn:
 
         assert core.base_adopts_principles("main") is True
         assert core.base_adopts_principles("no-such-ref") is False
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            FileNotFoundError("git"),
+            subprocess.TimeoutExpired(cmd="git", timeout=30),
+            RuntimeError("git rev-parse failed"),
+        ],
+    )
+    def test_base_adoption_is_false_when_git_fails(self, error: Exception) -> None:
+        # A git failure reads as "not adopted at base". The caller still checks
+        # HEAD, so this never relaxes an adopting working tree.
+        with patch.object(core, "_git_root", return_value="/repo"):
+            with patch("subprocess.run", side_effect=error):
+                assert core.base_adopts_principles("main") is False
+
+    def test_default_scan_reads_opt_in_from_cwd_repo(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # No arguments: scan the repository that holds cwd, and honor its document.
+        _make_repo_with_diff(tmp_path, adopts_principles=True)
+        (tmp_path / "tool.sh").write_text("echo hi\n", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+
+        with patch("sys.argv", ["scan_principles.py"]):
+            rc = main()
+
+        assert rc == EXIT_VIOLATIONS

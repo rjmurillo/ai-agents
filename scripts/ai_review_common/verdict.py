@@ -595,7 +595,7 @@ def adapt_local_axis_verdict(
         return "UNKNOWN"
     # Both scanners derive that status from this very field: `if
     # result.error_count > 0: return EXIT_VIOLATIONS` then `return
-    # EXIT_SUCCESS` (scan_principles.py main(), taste_lints.py:1122-1124).
+    # EXIT_SUCCESS` (scan_principles.py main(), taste_lints.py main()).
     # Exit 10 and a positive error_count are therefore one condition, so a
     # disagreement means the status and the payload describe different runs
     # and neither is evidence.

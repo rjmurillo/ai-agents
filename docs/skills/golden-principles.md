@@ -51,7 +51,7 @@ GP-002, GP-007, and GP-008 are enforced by existing tools (git hooks and [`taste
 
 ### Repository opt-in for GP-001
 
-GP-001 is a repository policy, not a code check. It is an error only when the scanned repository has `.agents/governance/golden-principles.md` at its root. Without that file, a new `.sh` or `.bash` file is a warning, and the scan exits 0. In `/review`, that warning maps to `WARN`, not `FAIL`. The JSON output reports the state as `principles_adopted`. The other rules apply in every repository.
+GP-001 is a repository policy, not a code check. It is an error when the scanned repository has `.agents/governance/golden-principles.md` at its root. A `--diff-scope` scan also counts that file at the base commit, so a branch cannot exempt itself by deleting it. Without that file, a new `.sh` or `.bash` file is a warning, and the scan exits 0. In `/review`, that warning maps to `WARN`, not `FAIL`. The JSON output reports the state as `principles_adopted`. The other rules apply in every repository.
 
 ### Run the scanner
 
