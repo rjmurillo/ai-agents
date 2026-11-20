@@ -90,7 +90,7 @@ The equality raise, in other words, blocks the whole QA-evidence check in order 
 
 ### The check is also the only thing touching `comparison.head`, and it is not a control
 
-`endingCommit` carries an independent, real check: `scripts/validate_session_json.py:719-729` calls `commit_reachability_problem()` and reports an error when the recorded SHA is unreachable. Nothing equivalent exists for `comparison.head`; the schema pattern is its only other validation.
+`endingCommit` carries an independent, real check: `scripts/validate_session_json.py:710-729` calls `commit_reachability_problem()` and reports an error when the recorded SHA is unreachable. Nothing equivalent exists for `comparison.head`; the schema pattern is its only other validation.
 
 That asymmetry is what makes the equality raise look like a control and behave like a false-positive generator. It cannot say which field is wrong, only that two fields disagree, and both fields live in the same self-attested file authored by the same actor the check judges. ADR-096 recorded the same trust model for the QA report itself ("the report is plain text in the working tree, authored by the same actor the check judges, with no signature or independent proof a QA run occurred"). It applies more strongly here: an actor who wanted to defeat this check would edit the second field.
 

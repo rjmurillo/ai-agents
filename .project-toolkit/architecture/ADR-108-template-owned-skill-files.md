@@ -30,7 +30,7 @@ The design in issue #5706 renders `templates/skills/<name>.SKILL.md.tmpl` into `
 
 | Constraint | Where | What it says |
 |---|---|---|
-| REQ-003-010 | `.project-toolkit/specs/requirements/REQ-003-multi-tool-artifact-build.md:369-370` | "The build shall never write to `.claude/<artifact>/` or `.claude/settings.json`." (`docs-say`) |
+| REQ-003-010 | `.project-toolkit/specs/requirements/REQ-003-multi-tool-artifact-build.md:370-371` | "The build shall never write to `.claude/<artifact>/` or `.claude/settings.json`." (`docs-say`) |
 | The guard | `build/scripts/build_all.py:1036` `assert_no_claude_writes`, called at `:2454`; a violation sets `overall_exit = 2` | A before-and-after content diff of the `.claude/` tree. A render that differs from the committed file is reported as `REQ-003-010 VIOLATION` (`repo-observed`). Introduced with REQ-003 in commit `c00a32e5f` (2026-04-30), hardened in issues #2613, #3773, #4632, #5464 (`repo-observed`, docstring) <!-- citation-freshness: ignore -- the call assert_no_claude_writes( is at build_all.py:2454 and the definition at :1036, verified 2026-11-20; the row anchors describe the whole guard, not one line --> |
 | ADR-107 property 1 | `ADR-107-canonical-skill-contracts-and-harness-projections.md:61` | "Generators read canonical trees and write mirror trees. They never write under `.claude/`." Listed as settled and not reopened (`docs-say`) |
 | REQ-003 decision D4 | `REQ-003-multi-tool-artifact-build.md:80` | "`.claude/<artifact>/` is canonical" (`docs-say`) |
@@ -158,7 +158,7 @@ One new dev dependency against writing a partial expander by hand. `chevron` is 
 | `build/scripts/skill_templates.py` (new) | Direct | Discovery, grammar check, render, compare | Medium |
 | `pyproject.toml`, `uv.lock` | Direct | `chevron==0.14.0` in `[project.optional-dependencies].dev` and `[dependency-groups].dev` | Low |
 | `.agents/governance/GENERATOR-FILES.md` | Direct | New generated-trees row for the class; the hand-maintained paragraph gains the exception | Low |
-| `.project-toolkit/specs/requirements/REQ-003-multi-tool-artifact-build.md:369-372` (`The build shall never write`, `Verification:`) | Direct | Exception clause in the requirement sentence and the verification sentence, plus a dated note. | Low |
+| `.project-toolkit/specs/requirements/REQ-003-multi-tool-artifact-build.md:370-373` (`The build shall never write`, `Verification:`) | Direct | Exception clause in the requirement sentence and the verification sentence, plus a dated note. | Low |
 | `.project-toolkit/architecture/ADR-107-canonical-skill-contracts-and-harness-projections.md:61-62` (`They never write under`) and its Related Decisions | Direct | Exception clause in property 1; re-anchored guard line numbers; one Related Decisions bullet. | Low |
 | `build/AGENTS.md:8` (`no generator may write under`) | Direct | The no-write sentence gains the exception. | Low <!-- citation-freshness: ignore -- historical Change Impact row: the quoted no-write sentence no longer exists in build/AGENTS.md, so no successor line can be cited --> |
 | `.claude/rules/generated-artifacts.md:196` (`REQ-003-010 forbids generators from writing under`), `.claude/rules/templates.md` | Direct | One sentence each: the exception, and the regeneration command for skill templates | Low <!-- citation-freshness: ignore -- historical Change Impact row: the quoted text was reworded; the successor sentence is generated-artifacts.md line 198 --> |

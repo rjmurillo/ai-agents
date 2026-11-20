@@ -63,7 +63,7 @@ Two properties of that pipeline are settled and are not reopened here.
    every path in ADR-109's binplace manifest, each path effective once its class's migration PR
    lands the manifest row, the guard update, and its tests (accepted 2026-09-11).
    `assert_no_claude_writes` at `build/scripts/build_all.py:1036` is called at `:2454`, and a <!-- citation-freshness: ignore -- the call assert_no_claude_writes( is at build_all.py:2454 and the definition at :1036, verified 2026-11-20; the sentence anchors describe the whole guard, not one line -->
-   violation sets `audit.overall_exit = 2` at `:2328` (`repo-observed`, re-anchored 2026-09-11).
+   violation sets `audit.overall_exit = 2` at `:2463` (`repo-observed`, re-anchored 2026-09-11).
 2. The seam is asymmetric. There is no single template-in, everything-out pipeline. Agents for
    Copilot CLI and VS Code come from `templates/agents/*.shared.md`; rules, skills, hooks, and lib
    come from `.claude/` directly; `src/claude/`, `.claude/agents/`, and `.github/agents/` are

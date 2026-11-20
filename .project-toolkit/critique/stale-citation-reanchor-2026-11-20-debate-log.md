@@ -2,13 +2,18 @@
 
 ## Summary
 
-- **Rounds**: 5 of 10
+- **Rounds**: 6 of 10
 - **Outcome**: Consensus
 - **Final Status**: unchanged (the edit changes no ADR status or decision)
 - **Scope**: line-number citations in ADR-036, ADR-052, ADR-080, ADR-083, ADR-096, ADR-101,
-  ADR-102, ADR-106, ADR-107, ADR-108, ADR-109, and ADR-116.
-- **Panel**: reduced panel, architect and critic. The edit changes citations only. No gate,
-  test, or validator reads the changed lines.
+  ADR-102, ADR-106, ADR-107, ADR-108, ADR-109, and ADR-116, plus two successor paths
+  (ADR-083 line 180 and ADR-109 line 303) and reasoned ignore markers.
+- **Panel**: reduced panel, architect and critic. The edit changes citations only. No
+  enforcement logic changes. The citation-freshness gates do read these lines, and the
+  markers change how those gates treat them.
+- **Marker trade-off**: a marker on a correct citation also stops the gate from catching
+  that line's next drift. ADR-080 line 58, ADR-101 line 274, ADR-107 line 65, and ADR-108
+  line 34 carry that cost. A marker also covers the line below it.
 
 A whole-tree run of the shipped `check_citation_freshness.py` scan found stale citations in
 these ADRs. Base: `origin/main` at `15c13340a`, read 2026-11-20.
@@ -130,6 +135,28 @@ with a reasoned same-line marker.
 |-------|----------|
 | architect | Accept. All three reasons verified against the blame commits and HEAD. |
 | critic | Accept. All three reasons hold. The diff matches the reviewed artifact byte for byte. |
+
+## Round 6 Summary
+
+The `/review` correctness and analyst axes found citations the earlier rounds missed.
+
+### Key Issues Addressed
+
+- ADR-102 line 93 says the range calls `commit_reachability_problem()`. The call sits at
+  `validate_session_json.py:710`, so the range is now `:710-729`. The range missed the call
+  even at the citing commit `6977b40f1`.
+- ADR-107 line 66 cites `audit.overall_exit = 2` at `:2328`. That text now sits at `:2463`,
+  inside the same guard block. The round 2 marker on line 65 also covered line 66 and hid it.
+- ADR-108 lines 33 and 161 cite REQ-003-010 one line early. Line 370 is the heading, 371 holds
+  the requirement, and 373 holds `Verification:`. The ranges are now `:370-371` and
+  `:370-373`. The original ranges were already one line early when written.
+
+### Agent Positions
+
+| Agent | Position |
+|-------|----------|
+| architect | Accept all three. Named the same off-by-one at ADR-108 line 161, now fixed. |
+| critic | Accept all three. ADR-107 line 66 still says "re-anchored 2026-09-11"; that dated prose stays unchanged. |
 
 ## Decision
 
