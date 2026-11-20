@@ -3,7 +3,7 @@
 ## Summary
 
 - **Rounds**: 2 of 10
-- **Prior debate log**: `.project-toolkit/critique/ADR-109-debate-log-3.md`
+- **Prior debate log**: [`ADR-109-debate-log-3.md`](ADR-109-debate-log-3.md)
 - **Outcome**: Consensus
 - **Final Status**: accepted (the edit changes no ADR status)
 - **Scope**: line numbers on ADR-109 lines 94 and 96.
@@ -14,9 +14,9 @@ ADR-109 line 96 cites ADR-107 line 663 for the Related Decisions bullet that rea
 MCP agent bullet. The quoted bullet sits at line 725. The citation was already stale.
 
 The same branch adds three lines to ADR-107 Related Decisions (see
-`.project-toolkit/critique/ADR-107-debate-log-3.md`). The quoted bullet moves to line 728. The
+[`ADR-107-debate-log-3.md`](ADR-107-debate-log-3.md)). The quoted bullet moves to line 728. The
 `Citation Freshness (reverse pass)` gate then blocks the branch. Its `_quote_moved_outside` check
-in `scripts/validation/citation_reverse_judge.py` flags a quoted line that changed number. It does
+in [`scripts/validation/citation_reverse_judge.py`](../../scripts/validation/citation_reverse_judge.py) flags a quoted line that changed number. It does
 not check that the quote sat inside the cited range at base. The owner chose to fix the citation
 rather than reshape the ADR-107 text.
 

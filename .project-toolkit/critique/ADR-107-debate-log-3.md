@@ -3,7 +3,7 @@
 ## Summary
 
 - **Rounds**: 2 of 10
-- **Prior debate log**: `.project-toolkit/critique/ADR-107-debate-log-2.md`
+- **Prior debate log**: [`ADR-107-debate-log-2.md`](ADR-107-debate-log-2.md)
 - **Outcome**: Consensus
 - **Final Status**: proposed (the edit changes no ADR status)
 - **Scope**: three ADR-080 mentions in ADR-107, found by the issue #7472 research.
@@ -50,7 +50,7 @@ record that owns `model:`. Base: `origin/main` at `7dab88e5c`, read 2026-11-20.
 | Agent | Position |
 |-------|----------|
 | architect | Accept. Both round 1 findings resolved. Optional P2: "behind the adapter exception process" overreaches, since that process never cites ADR-080. Applied: the clause now names only section 7's overlay rule. |
-| critic | Accept. Both P1 findings fixed. `check_adr_lifecycle.py` PASS with no violation outside the baseline. Leaving the scope wording P2 as is was reasonable. |
+| critic | Accept. Both P1 findings fixed. [`check_adr_lifecycle.py`](../../scripts/validation/check_adr_lifecycle.py) PASS with no violation outside the baseline. Leaving the scope wording P2 as is was reasonable. |
 
 ## Decision
 
@@ -62,5 +62,5 @@ three items.
 
 None for ADR-107. The three added lines moved a bullet that ADR-109 line 96 quotes. That
 citation was already stale on `main`. The owner chose to fix it on this branch, and ADR-109 line
-94 followed. See `.project-toolkit/critique/ADR-109-debate-log-4.md`. The "any authored
+94 followed. See [`ADR-109-debate-log-4.md`](ADR-109-debate-log-4.md). The "any authored
 artifact" scope wording is flagged in the pull request body for the owner, not changed here.
