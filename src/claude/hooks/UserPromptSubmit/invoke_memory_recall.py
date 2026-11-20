@@ -12,6 +12,7 @@ to the shipped tree).
 Customer value: a prompt that names a Serena memory in the user's own
 repository gets up to three matching memories injected, so the model starts
 the turn with decisions the team already recorded instead of re-deriving them.
+Off: AI_AGENTS_MEMORY_RECALL=0|off|false (read before anything is imported).
 
 Hook Type: UserPromptSubmit (non-blocking, fail-open). With
 ``--copilot-transformed`` it serves Copilot CLI's ``userPromptTransformed``
@@ -24,12 +25,13 @@ Exit Codes:
 
 Interpreter: the recall import closure needs no third-party package
 (``serena_integration`` guards its ``frontmatter`` and ``yaml`` imports), so
-it runs under the host's bare ``python3``. Only the project registration in
-``.claude/settings.json`` re-executes under the project ``.venv``, which keeps
-the full parser available for developers. Under a plugin install
-(``CLAUDE_PLUGIN_ROOT`` or ``COPILOT_PLUGIN_ROOT`` set) the hook never
-re-executes: the dispatcher has already read stdin, and a consumer's ``.venv``
-is the consumer's own code.
+it runs under the host's bare ``python3``. A direct run, which is the project
+registration in ``.claude/settings.json``, re-executes under the project
+``.venv`` so developers keep the full parser. Inside the grouped dispatcher
+(``claude_hook_dispatch`` already imported) the hook never re-executes: the
+dispatcher has already read stdin, and a consumer's ``.venv`` is the consumer's
+own code. The signal is the loaded module, not an exported plugin-root
+variable, so a direct run keeps working when the host exports one.
 
 References:
     - Issue #4011 (memory hooks were never registered)
@@ -46,7 +48,9 @@ from pathlib import Path
 
 HOOK_NAME = "memory-recall"
 COPILOT_TRANSFORMED_FLAG = "--copilot-transformed"
-PLUGIN_ROOT_ENVS = ("CLAUDE_PLUGIN_ROOT", "COPILOT_PLUGIN_ROOT")
+OPT_OUT_ENV = "AI_AGENTS_MEMORY_RECALL"
+OPT_OUT_VALUES = frozenset({"0", "off", "false"})
+DISPATCHER_MODULE = "claude_hook_dispatch"
 PROJECT_DIR_ENV = "CLAUDE_PROJECT_DIR"
 
 
@@ -61,6 +65,15 @@ def _project_dir() -> Path:
     return Path(env_dir) if env_dir else Path(__file__).resolve().parents[3]
 
 
+def _opted_out() -> bool:
+    return os.environ.get(OPT_OUT_ENV, "").strip().lower() in OPT_OUT_VALUES
+
+
+def _under_dispatcher() -> bool:
+    """True when the grouped dispatcher runs this shim in-process."""
+    return DISPATCHER_MODULE in sys.modules
+
+
 def _report_unavailable(lib_dir: Path, exc: ImportError) -> int:
     print(
         f"[WARNING] {HOOK_NAME}: memory_enhancement not importable from {lib_dir}: {exc}",
@@ -71,6 +84,8 @@ def _report_unavailable(lib_dir: Path, exc: ImportError) -> int:
 
 def main() -> int:
     """Delegate to the memory recall hook, failing open when unavailable."""
+    if _opted_out():
+        return 0
     lib_dir = _lib_dir()
     if str(lib_dir) not in sys.path:
         sys.path.insert(0, str(lib_dir))
@@ -82,8 +97,8 @@ def main() -> int:
 
     # settings.json registers this hook as `python3`. Re-run under the project
     # `.venv` there, so developers keep the full frontmatter parser (issue
-    # #4011). A plugin install sets a plugin-root variable and never re-executes.
-    if not any(os.environ.get(name, "").strip() for name in PLUGIN_ROOT_ENVS):
+    # #4011). Under the dispatcher stdin is already consumed, so never.
+    if not _under_dispatcher():
         reexec_under_project_venv(_project_dir())
 
     hook = (

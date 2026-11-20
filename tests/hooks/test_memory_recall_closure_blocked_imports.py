@@ -93,17 +93,36 @@ def test_the_closure_imports_and_recalls_without_yaml_or_frontmatter(tmp_path: P
     assert "closure-ok" in result.stdout
 
 
-@pytest.mark.parametrize(
-    "module", ["interpreter", "search", "serena_integration", "frontmatter_reader", "verification"]
-)
-def test_each_module_the_shim_can_reach_imports_without_yaml_or_frontmatter(
+def _shipped_modules() -> list[str]:
+    """Every module of the shipped package, found on disk. ``__main__`` is the CLI entry."""
+    package = SHIPPED_LIB / "memory_enhancement"
+    names = []
+    for path in sorted(package.rglob("*.py")):
+        relative = path.relative_to(SHIPPED_LIB).with_suffix("")
+        parts = relative.parts[:-1] if relative.name == "__init__" else relative.parts
+        if parts[-1] != "__main__":
+            names.append(".".join(parts))
+    return names
+
+
+def test_the_module_list_is_derived_from_the_tree() -> None:
+    names = _shipped_modules()
+
+    assert "memory_enhancement" in names
+    assert "memory_enhancement.hooks.user_prompt_submit_memory" in names
+    assert "memory_enhancement.frontmatter_reader" in names
+    assert not any(name.endswith("__main__") for name in names)
+
+
+@pytest.mark.parametrize("module", _shipped_modules())
+def test_each_shipped_module_imports_without_yaml_or_frontmatter(
     tmp_path: Path, module: str
 ) -> None:
     script = f"""
         import sys
         sys.path.insert(0, {str(SHIPPED_LIB)!r})
         import importlib
-        importlib.import_module("memory_enhancement.{module}")
+        importlib.import_module({module!r})
         print("ok")
     """
 

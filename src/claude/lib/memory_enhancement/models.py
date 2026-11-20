@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 
@@ -86,7 +86,7 @@ class VerificationResult:
     citation: Citation
     is_valid: bool
     reason: str
-    checked_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    checked_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     @classmethod
     def create(cls, citation: Citation, is_valid: bool, reason: str) -> VerificationResult:
@@ -95,7 +95,7 @@ class VerificationResult:
             citation=citation,
             is_valid=is_valid,
             reason=reason,
-            checked_at=datetime.now(UTC),
+            checked_at=datetime.now(timezone.utc),
         )
 
 
@@ -108,8 +108,8 @@ class MemoryWithCitations:
     content: str
     citations: Sequence[Citation] = field(default_factory=list)
     confidence: float = 0.0
-    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
-    updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     tags: Sequence[str] = field(default_factory=list)
     links: Sequence[MemoryLink] = field(default_factory=list)
 

@@ -1,8 +1,8 @@
-"""The stdlib frontmatter reader in serena_integration (issue #7493, ADR-109 amendment 2026-11-20).
+"""The stdlib frontmatter reader in frontmatter_reader (issue #7493, ADR-109 amendment 2026-11-20).
 
-``serena_integration`` guards its ``frontmatter`` and ``yaml`` imports so the
+``frontmatter_reader`` guards its ``frontmatter`` and ``yaml`` imports so the
 recall path runs under a consumer's bare ``python3``. Without
-python-frontmatter it falls back to ``_read_frontmatter_stdlib``. These tests
+python-frontmatter it falls back to ``read_frontmatter_stdlib``. These tests
 pin that reader to ``frontmatter.loads`` over this repository's memories, and
 load the module with each dependency blocked.
 """

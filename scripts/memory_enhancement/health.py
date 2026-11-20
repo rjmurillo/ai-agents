@@ -6,7 +6,7 @@ actionable recommendations.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .models import (
@@ -118,7 +118,7 @@ def _detect_stale_from_results(
     max_age_days: int = 30,
 ) -> list[str]:
     """Find stale memories using pre-computed verification results."""
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
     stale_ids: list[str] = []
 
     for memory in memories:

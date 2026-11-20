@@ -66,7 +66,8 @@ def _bare_venv_python_blocks(venv_python: Path, module: str) -> bool:
 class Harness:
     """One installed plugin, one consumer repository, one package-free interpreter."""
 
-    def __init__(self, base: Path) -> None:
+    def __init__(self, base: Path, base_python: str | None = None) -> None:
+        self.base_python = base_python
         self.plugin = base / "installed" / "project-toolkit"
         self.consumer = base / "consumer"
         self.workdir = self.consumer / "src" / "app"
@@ -99,7 +100,7 @@ class Harness:
         )
 
     def _create_bare_interpreter(self) -> None:
-        base_python = getattr(sys, "_base_executable", sys.executable)
+        base_python = self.base_python or getattr(sys, "_base_executable", sys.executable)
         subprocess.run(
             [base_python, "-m", "venv", "--without-pip", str(self.venv)],
             check=True,
@@ -121,7 +122,7 @@ class Harness:
         return str(doc["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"])
 
     def env(self) -> dict[str, str]:
-        return {
+        env = {
             "PATH": f"{self.venv_bin}{os.pathsep}/usr/bin{os.pathsep}/bin",
             "HOME": str(self.home),
             "CLAUDE_PLUGIN_ROOT": str(self.plugin),
@@ -129,6 +130,9 @@ class Harness:
             # CI redirects the temp root (run_pytest_non_tmp.py); keep it.
             "TMPDIR": tempfile.gettempdir(),
         }
+        if "AI_AGENTS_MEMORY_RECALL" in os.environ:
+            env["AI_AGENTS_MEMORY_RECALL"] = os.environ["AI_AGENTS_MEMORY_RECALL"]
+        return env
 
     def payload(self, prompt: str = PROMPT) -> str:
         return json.dumps(
@@ -171,6 +175,32 @@ def harness(tmp_path: Path) -> Harness:
     if shutil.which("git") is None:
         pytest.skip("git is required to create the consumer repository")
     return Harness(tmp_path)
+
+
+def _find_python_310() -> str | None:
+    """A uv-managed 3.10 interpreter, or None. ``--no-project`` skips the 3.14 pin."""
+    uv = shutil.which("uv")
+    if uv is None:
+        return None
+    result = subprocess.run(
+        [uv, "python", "find", "3.10", "--no-project"],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=TIMEOUT_SECONDS,
+    )
+    found = result.stdout.strip().splitlines()
+    return found[-1] if result.returncode == 0 and found else None
+
+
+@pytest.fixture
+def harness_310(tmp_path: Path) -> Harness:
+    python_310 = _find_python_310()
+    if python_310 is None:
+        pytest.skip("no Python 3.10 found by `uv python find 3.10`; the launcher floor is untested")
+    if shutil.which("git") is None:
+        pytest.skip("git is required to create the consumer repository")
+    return Harness(tmp_path, base_python=python_310)
 
 
 def test_interpreter_under_test_has_neither_yaml_nor_frontmatter(harness: Harness) -> None:
@@ -248,3 +278,62 @@ def test_unknown_recall_group_contract_error_still_exits_zero(harness: Harness) 
     result = harness.run_dispatcher(GROUP)
 
     assert result.returncode == 0, result.stderr
+
+
+def test_registered_command_injects_the_memory_under_python_310(harness_310: Harness) -> None:
+    """The launcher accepts 3.10, so the shipped closure must run there."""
+    version = subprocess.run(
+        [str(harness_310.venv_python), "-I", "-c", "import sys;print(sys.version_info[:2])"],
+        capture_output=True,
+        encoding="utf-8",
+        timeout=TIMEOUT_SECONDS,
+    )
+    assert version.stdout.strip() == "(3, 10)", version
+
+    result = harness_310.run()
+
+    assert result.returncode == 0, result.stderr
+    assert "<memory-context>" in result.stdout, (result.stdout, result.stderr)
+    assert "Traceback" not in result.stderr
+
+
+@pytest.mark.parametrize("value", ["0", "off", "false", "OFF"])
+def test_opt_out_env_disables_recall_through_the_registered_command(
+    harness: Harness, monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    monkeypatch.setenv("AI_AGENTS_MEMORY_RECALL", value)
+
+    result = harness.run()
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == ""
+
+
+def test_opt_out_env_set_to_another_value_still_recalls(
+    harness: Harness, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Negative control: the opt-out is the cause of the silence above."""
+    monkeypatch.setenv("AI_AGENTS_MEMORY_RECALL", "1")
+
+    result = harness.run()
+
+    assert "<memory-context>" in result.stdout
+
+
+def test_a_memories_symlink_out_of_the_repository_recalls_nothing(harness: Harness) -> None:
+    outside = harness.consumer.parent / "outside"
+    outside.mkdir()
+    (outside / f"{MEMORY_ID}.md").write_text(
+        f"---\ntitle: {MEMORY_TITLE}\n---\n\nMove every zebra service.\n", encoding="utf-8"
+    )
+    memories = harness.consumer / ".serena" / "memories"
+    shutil.rmtree(memories)
+    try:
+        memories.symlink_to(outside, target_is_directory=True)
+    except OSError as exc:  # pragma: no cover - Windows without developer mode
+        pytest.skip(f"symlinks unavailable: {exc}")
+
+    result = harness.run()
+
+    assert result.returncode == 0, result.stderr
+    assert "<memory-context>" not in result.stdout

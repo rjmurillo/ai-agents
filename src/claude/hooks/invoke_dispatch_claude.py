@@ -51,7 +51,10 @@ it, and the recall group enforces no policy, so nothing is lost when it fails.
 The id is reserved here because, when the manifest cannot be loaded, the event
 is unknown. For these ids every failure path (manifest load, self-host check,
 oversized stdin, an execution exception, a non-zero ``run_group`` result) writes
-one stderr line and exits 0. The group runs in ``gate_all`` mode, which
+one stderr line and exits 0. A shim's blocking decision document is suppressed
+to stderr (``suppress_decision``), so the group never blocks a prompt by
+construction, and a reserved id whose manifest event is not UserPromptSubmit is
+not run. The group runs in ``gate_all`` mode, which
 ``validate_group`` requires for UserPromptSubmit, and gets the same self-host
 double-fire check an advisory group gets. Every other group keeps the policy
 above.
@@ -101,6 +104,7 @@ _ADVISORY_GROUP_ID = "plugin-stop-1-reflect_nudge"
 # Groups whose failure must never erase the user's prompt (ADR-109 amendment
 # 2026-11-20). Reserved by id for the same reason as _ADVISORY_GROUP_ID.
 _PROMPT_PRESERVING_GROUP_IDS = frozenset({"plugin-userpromptsubmit-1-memory_recall"})
+_PROMPT_PRESERVING_EVENT = "UserPromptSubmit"
 _BLOCK_EXIT_CODE: int = BLOCK_EXIT
 _HOOK_STDIN_CEILING_MIB = 64
 _MAX_STDIN_BYTES = _HOOK_STDIN_CEILING_MIB * 1024 * 1024
@@ -210,6 +214,18 @@ def _load_group(group_id: str) -> tuple[str, str, list[str]]:
     return validated_group
 
 
+def _is_misbound_reserved_group(group_id: str, event: str) -> bool:
+    """True, after one stderr line, when a reserved id is registered for another event."""
+    if group_id not in _PROMPT_PRESERVING_GROUP_IDS or event == _PROMPT_PRESERVING_EVENT:
+        return False
+    print(
+        f"claude-hook-dispatch: reserved group {group_id!r} is registered for "
+        f"{event!r}, not {_PROMPT_PRESERVING_EVENT}; not running it",
+        file=sys.stderr,
+    )
+    return True
+
+
 def _failure_exit(advisory: bool, group_id: str = "") -> int:
     """Exit code for a launcher failure.
 
@@ -240,6 +256,31 @@ def _read_payload(
     return raw_stdin, _BLOCK_EXIT_CODE if blocks else 0
 
 
+def _dispatch(group_id: str, event: str, mode: str, shims: list[str], advisory: bool) -> int:
+    """Read the payload, run the group, and apply the prompt-preserving exit policy."""
+    raw_stdin, oversized_exit = _read_payload(mode, advisory, group_id)
+    if oversized_exit is not None:
+        return oversized_exit
+    preserving = group_id in _PROMPT_PRESERVING_GROUP_IDS
+    exit_code: int = run_group(
+        _HOOKS_DIR,
+        event,
+        mode,
+        shims,
+        raw_stdin,
+        advisory=advisory,
+        suppress_decision=preserving,
+    )
+    if exit_code != 0 and preserving:
+        print(
+            f"claude-hook-dispatch: group {group_id!r} returned {exit_code}; "
+            "exiting 0 to preserve the prompt",
+            file=sys.stderr,
+        )
+        return 0
+    return exit_code
+
+
 def main(argv: list[str] | None = None) -> int:
     _force_utf8_streams()
     parser = argparse.ArgumentParser(description=__doc__)
@@ -262,6 +303,9 @@ def main(argv: list[str] | None = None) -> int:
         )
         # Event unknown: fail open only for the reserved Stop group.
         return _failure_exit(advisory and args.group == _ADVISORY_GROUP_ID, args.group)
+
+    if _is_misbound_reserved_group(args.group, event):
+        return 0
 
     if advisory and event != ADVISORY_EVENT:
         print(
@@ -294,18 +338,7 @@ def main(argv: list[str] | None = None) -> int:
             return _failure_exit(advisory, args.group)
 
     try:
-        raw_stdin, oversized_exit = _read_payload(mode, advisory, args.group)
-        if oversized_exit is not None:
-            return oversized_exit
-        exit_code: int = run_group(_HOOKS_DIR, event, mode, shims, raw_stdin, advisory=advisory)
-        if exit_code != 0 and args.group in _PROMPT_PRESERVING_GROUP_IDS:
-            print(
-                f"claude-hook-dispatch: group {args.group!r} returned {exit_code}; "
-                "exiting 0 to preserve the prompt",
-                file=sys.stderr,
-            )
-            return 0
-        return exit_code
+        return _dispatch(args.group, event, mode, shims, advisory)
     except Exception as exc:
         print(
             f"claude-hook-dispatch: group {args.group!r} failed during execution: "

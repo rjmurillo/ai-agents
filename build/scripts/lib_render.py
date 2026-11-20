@@ -45,7 +45,7 @@ CLAUDE_ONLY_LIB_FILES: tuple[str, ...] = (
 )
 
 
-# Packages with a root override in ``lib_mirror.PACKAGE_ROOTS`` ship to the
+# Packages with a root override in ``lib_package_roots.PACKAGE_ROOTS`` ship to the
 # named plugin trees only. The Hermes packs are not among them, so they carry
 # none of these (ADR-109 amendment 2026-11-20: ``memory_enhancement`` is
 # Claude-only, and the delivery pack sits at its 400-file cap).
@@ -62,9 +62,10 @@ def render_lib_files(repo_root: Path) -> dict[str, bytes]:
     Each ``.py`` file of a :data:`PACKAGES` source, minus
     :data:`HERMES_EXCLUDED_PACKAGES`, goes through the import rewrite. Each
     :data:`SYNC_FILE_NAMES` and :data:`PLUGIN_LIB_FILES` source is a byte copy.
-    ``tests/build_scripts/test_hermes_packs.py`` pins this result byte for byte
-    to the committed ``src/claude/lib/`` tree that ``lib_mirror.compile_all``
-    writes.
+    ``tests/build_scripts/test_hermes_packs_conformance.py`` pins this result
+    byte for byte to the committed ``src/claude/lib/`` tree that
+    ``lib_mirror.compile_all`` writes, minus the Claude-only hand files
+    (:data:`CLAUDE_ONLY_LIB_FILES`) and the :data:`HERMES_EXCLUDED_PACKAGES`.
 
     Raises :class:`LibRenderError` instead of returning a partial tree.
     """

@@ -291,8 +291,14 @@ def run_group(
     raw_stdin: bytes,
     *,
     advisory: bool = False,
+    suppress_decision: bool = False,
 ) -> int:
     """Run every shim in ``shims`` in-process; return the group exit code.
+
+    ``suppress_decision`` drops a shim's blocking decision document to stderr
+    and never prints it, like observe mode does, while the group keeps its
+    gate mode. The launcher sets it for prompt-preserving groups, whose
+    contract is that they never block a prompt (ADR-109 amendment 2026-11-20).
 
     ``advisory`` is the Stop-only fail-open policy described in the module
     docstring: the result is always ``ALLOW_EXIT``, except that advisory on a
@@ -305,7 +311,7 @@ def run_group(
             file=sys.stderr,
         )
         return BLOCK_EXIT
-    exit_code = _run_group(hooks_dir, event, mode, shims, raw_stdin, advisory)
+    exit_code = _run_group(hooks_dir, event, mode, shims, raw_stdin, advisory, suppress_decision)
     return ALLOW_EXIT if advisory else exit_code
 
 
@@ -323,6 +329,7 @@ def _run_group(
     shims: list[str],
     raw_stdin: bytes,
     advisory: bool,
+    suppress_decision: bool = False,
 ) -> int:
     try:
         event, mode, shims = validate_group(event, mode, shims)
@@ -441,11 +448,17 @@ def _run_group(
                 )
 
             if outcome.decision is not None:
-                if mode == OBSERVE or advisory:
+                if mode == OBSERVE or advisory or suppress_decision:
+                    label = (
+                        "advisory"
+                        if advisory
+                        else "observe"
+                        if mode == OBSERVE
+                        else "prompt-preserving"
+                    )
                     print(
                         f"claude-hook-dispatch: shim {name} emitted a valid "
-                        "blocking decision; suppressing decision in "
-                        f"{'advisory' if advisory else 'observe'} mode",
+                        f"blocking decision; suppressing decision in {label} mode",
                         file=sys.stderr,
                     )
                     continue

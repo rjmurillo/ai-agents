@@ -370,6 +370,19 @@ def test_memory_enhancement_hooks_subpackage_is_its_own_pair() -> None:
     ]
 
 
+def test_package_subdirs_cover_every_subpackage_of_memory_enhancement() -> None:
+    """A new sub-package with an __init__.py must be registered, or it never ships."""
+    package = _REPO_ROOT / "scripts" / "memory_enhancement"
+    on_disk = {
+        path.parent.relative_to(package).as_posix()
+        for path in package.rglob("__init__.py")
+        if path.parent != package and "__pycache__" not in path.parts
+    }
+
+    assert on_disk
+    assert on_disk == set(lib_package_roots.PACKAGE_SUBDIRS["memory_enhancement"])
+
+
 def test_memory_enhancement_render_skips_pycache(tmp_path: Path) -> None:
     _write_full_sources(tmp_path)
     cache = tmp_path / "scripts/memory_enhancement/__pycache__"

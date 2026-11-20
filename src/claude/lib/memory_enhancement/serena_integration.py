@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 import sys
 from collections.abc import Sequence
-from datetime import UTC, date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from . import frontmatter_reader
@@ -21,6 +21,9 @@ from .models import (
     MemoryWithCitations,
     SourceType,
 )
+
+# Larger files are skipped before they are read (ADR-109 amendment 2026-11-20).
+MAX_MEMORY_BYTES = 256 * 1024
 
 _CITATION_PATTERN = re.compile(
     r"\[cite:(?P<source_type>\w+)\]\((?P<target>[^)]+)\)"
@@ -158,6 +161,9 @@ def load_memory(file_path: Path, memories_dir: Path | None = None) -> MemoryWith
         return None
 
     try:
+        if file_path.stat().st_size > MAX_MEMORY_BYTES:
+            print(f"Warning: skipping {file_path}: over {MAX_MEMORY_BYTES} bytes", file=sys.stderr)
+            return None
         raw_text = file_path.read_text(encoding="utf-8")
     except OSError as exc:
         print(f"Warning: cannot read {file_path}: {exc}", file=sys.stderr)
@@ -333,12 +339,15 @@ def _extract_metadata(
     Returns:
         Tuple of (title, created_at, updated_at, tags, confidence, content).
     """
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
 
     metadata, body, fallback_content = frontmatter_reader.read_frontmatter(raw_text)
 
     if metadata:
         title = metadata.get("title")
+        if not isinstance(title, str):
+            # A YAML alias or mapping is not a title. Never stringify it.
+            title = None
         tags = _parse_tags(metadata.get("tags"))
         raw_created = metadata.get("created_at")
         raw_updated = metadata.get("updated_at")
@@ -379,7 +388,7 @@ def _parse_datetime(value: object, default: datetime) -> datetime:
     if isinstance(value, datetime):
         return _ensure_utc(value)
     if isinstance(value, date):
-        return datetime(value.year, value.month, value.day, tzinfo=UTC)
+        return datetime(value.year, value.month, value.day, tzinfo=timezone.utc)
     if isinstance(value, str):
         try:
             return _ensure_utc(datetime.fromisoformat(value))
@@ -391,14 +400,14 @@ def _parse_datetime(value: object, default: datetime) -> datetime:
 def _ensure_utc(dt: datetime) -> datetime:
     """Attach UTC to naive datetimes; convert aware datetimes to UTC."""
     if dt.tzinfo is None:
-        return dt.replace(tzinfo=UTC)
-    return dt.astimezone(UTC)
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
 
 
 def _parse_date(date_str: str, default: datetime) -> datetime:
     """Parse a YYYY-MM-DD date string into a timezone-aware datetime."""
     try:
-        return datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=UTC)
+        return datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
     except ValueError:
         return default
 
@@ -436,7 +445,7 @@ def _parse_tags(value: object) -> list[str]:
     if isinstance(value, str):
         return [value] if value else []
     if isinstance(value, list):
-        return [str(tag) for tag in value if tag is not None]
+        return [str(tag) for tag in value if isinstance(tag, (str, int, float, bool))]
     return []
 
 
