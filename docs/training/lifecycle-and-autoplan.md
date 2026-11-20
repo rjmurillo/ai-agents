@@ -11,11 +11,14 @@ You know it worked when two things are true:
 
 This is a teaching run. `/autoplan` would size the example change as Trivial and skip `/spec` and `/plan`. We run every phase once so you see what each one produces. Step 11 shows what to drop on real work.
 
+The change runs against a fixed commit. Part 2 (steps 5 to 12) works on a branch cut from commit `81025e191` (`81025e1912dea575fb9123294c4efa76e6948506`, 2026-11-17). The practice defect exists there as this page describes it. Every command and expected output from step 5 on assumes that branch.
+
 ## Before you start
 
 - A clean checkout of this repository with `main` up to date. Set up first with [installation](../installation.md) and [getting started](../getting-started.md).
 - Claude Code with the checkout open. The steps run repo scripts, so a plugin-only install is not enough.
 - `uv` and `git` on your path.
+- Commit `81025e191` in your clone. `git fetch origin` gets it, and step 5 cuts your branch from it.
 - GitHub access for `/ship`, which opens the pull request for you. (`/ship` also supports Azure DevOps. This page shows GitHub.)
 
 Other docs cover the same ground. We link them and do not repeat them:
@@ -108,9 +111,9 @@ Other docs cover the same ground. We link them and do not repeat them:
 
 4. **Name a skill to skip the router.** Type the skill or its slash command, such as `/review` or `/spec Add a retry to the webhook sender`. Nothing reroutes you. Your choice beats every table row. Do not name a skill to dodge a question the router would stop and ask you. Those stops are on purpose: architecture, new ADRs, breaking changes, security posture, and anything external or irreversible ([Phase 3](../../src/claude/skills/autoplan/SKILL.md#phase-3-execute-with-defaults)).
 
-**Part 2: take one change through the lifecycle.**
+**Part 2: take one change through the lifecycle.** Steps 5 to 12 run on a branch cut from commit `81025e191`, not from the tip of `main`.
 
-5. **Pick the change and cut a branch.** We use a real defect that `main` has since fixed. `docs/workflow-commands.md` said `/ship` runs five pre-flight checks. The [ship skill](../../src/claude/skills/ship/SKILL.md) defines four: pipeline, security, reviewed, and tests. To keep every command and output on this page exact, cut your branch from commit `81025e191`. That `main` commit still has the defect. Steps 6 to 12 load the skills from your checkout, so they run as they were at that commit. If a skill acts differently from its page on `main`, the pin is the cause, not your setup. Never commit to `main`.
+5. **Pick the change and cut a branch.** At commit `81025e191`, `docs/workflow-commands.md` says `/ship` runs five pre-flight checks. The [ship skill](../../src/claude/skills/ship/SKILL.md) defines four: pipeline, security, reviewed, and tests. You fix that mismatch. `main` got the same fix later, so cut your branch from `81025e191` to keep every command and output on this page exact. Steps 6 to 12 load the skills from your checkout, so they run as they were at that commit. If a skill acts differently from its page on `main`, the pin is the cause, not your setup. Never commit to `main`.
 
    ```bash
    git fetch origin
