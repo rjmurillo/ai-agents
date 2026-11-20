@@ -83,6 +83,8 @@ from adr_shape import is_release_or_bump_subject
 
 __all__ = [
     "EXCERPT_CHARS",
+    "MAX_BODY_CHARS",
+    "MAX_SUBJECT_CHARS",
     "SLUG_MAX",
     "CommitRecord",
     "DecisionRow",
@@ -101,7 +103,7 @@ __all__ = [
     "slugify",
     "trailing_pr_number",
     "urls_in",
-    "word_present",
+    "word_tokens",
 ]
 
 _I = re.IGNORECASE | re.ASCII
@@ -115,6 +117,12 @@ _AUTHOR = re.compile(
     r"(?P<name>.*) <[^<>]*> (?P<ts>-?[0-9]{1,12}) (?P<sign>[+-])(?P<hh>[0-9]{2})(?P<mm>[0-9]{2})\Z",
     _A | re.DOTALL,
 )
+
+
+# Every pattern below runs on these cut texts, so a hostile message cannot cost more than a
+# fixed amount of work per commit or pull request.
+MAX_SUBJECT_CHARS = 1000
+MAX_BODY_CHARS = 64 * 1024
 
 
 @dataclass(frozen=True)
@@ -176,7 +184,7 @@ def _subject_and_body(message: str) -> tuple[str, str]:
     text = message.replace("\r\n", "\n").lstrip("\n")
     first, _, rest = text.partition("\n\n")
     subject = " ".join(part.strip() for part in first.split("\n") if part.strip())
-    return subject, rest.strip()
+    return subject[:MAX_SUBJECT_CHARS], rest.strip()[:MAX_BODY_CHARS]
 
 
 def parse_commit_object(sha: str, raw: bytes) -> CommitRecord:
@@ -213,7 +221,7 @@ _CODE_PLATFORMS = frozenset({"git", "github", "gitlab"})
 _ANY_TYPE_PREFIX = re.compile(r"^([a-z]+)(?:\([^)]*\))?!?:\s*(?:#\d+\s*)?", _I)
 # Words a choice is written in.
 _DECISION_SHAPED = re.compile(
-    r"\b(?:adopt|switch(?:ed)? to|move to|migrate|replace[sd]?\b.*\bwith|instead of|deprecate"
+    r"\b(?:adopt|switch(?:ed)? to|move to|migrate|replace[sd]?\b.{0,200}?\bwith|instead of|deprecate"
     r"|drop support|requires?|must|always|never|no longer|policy|convention|prefer"
     r"|standardi[sz]e|forbid|disallow)\b|^use\b",
     _I,
@@ -306,7 +314,7 @@ EXCERPT_CHARS = 1200
 _CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", _A)
 _ISO_DAY = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", _A)
 _URL = re.compile(r"(?:https?|git)://[^\s<>()\[\]\"'`]+", _A)
-_TRAILING_PUNCT = re.compile(r"[.,;:!?]+\Z", _A)
+_WORD_RUN = re.compile(r"[A-Za-z0-9_.-]+", _A)
 _HASH = re.compile(r"(?<![0-9A-Za-z_])[0-9a-fA-F]{7,64}(?![0-9A-Za-z_])", _A)
 _ISSUE = re.compile(r"(?<![0-9A-Za-z_/&])#([0-9]+)(?![0-9A-Za-z_])", _A)
 
@@ -340,7 +348,7 @@ def slugify(title: str) -> str:
 
 def urls_in(text: str) -> set[str]:
     """Every complete URL in ``text``, trailing sentence punctuation and slashes dropped."""
-    found = (_TRAILING_PUNCT.sub("", match.group(0)).rstrip("/") for match in _URL.finditer(text))
+    found = (match.group(0).rstrip(".,;:!?").rstrip("/") for match in _URL.finditer(text))
     return {url for url in found if url}
 
 
@@ -354,10 +362,21 @@ def issue_numbers(text: str) -> set[int]:
     return {int(match.group(1)) for match in _ISSUE.finditer(text)}
 
 
-def word_present(word: str, text: str) -> bool:
-    """Is ``word`` in ``text`` as a whole token, ignoring case? ``D-001`` is not in ``D-0010``."""
-    pattern = r"(?<![A-Za-z0-9_-])" + re.escape(word) + r"(?![A-Za-z0-9_-])"
-    return re.search(pattern, text, re.IGNORECASE | _A) is not None
+def word_tokens(text: str) -> set[str]:
+    """The whole words of ``text``, lowercased, so an id is found by set membership.
+
+    A word is a run of letters, digits, ``_`` and ``-``: ``D-001`` is in ``see d-001.`` and not
+    in ``D-0010``. A word that holds a dot (``v1.2``) is kept whole, without edge dots, so it
+    is found in ``(v1.2).`` and not in ``v1.25``.
+    """
+    words: set[str] = set()
+    for found in _WORD_RUN.findall(text):
+        run = found.lower()
+        words.update(piece for piece in run.split(".") if piece)
+        dotted = run.strip(".")
+        if "." in dotted:
+            words.add(dotted)
+    return words
 
 
 # ---------------------------------------------------------------------------
@@ -423,7 +442,7 @@ def _complete(item: dict[str, Any]) -> tuple[int, str, str, str, str] | None:
     if not isinstance(url, str) or not url.startswith("https://") or re.search(r"\s", url):
         return None
     text = body.replace("\r\n", "\n").replace("\r", "\n") if isinstance(body, str) else ""
-    return number, title.strip(), text, url, day
+    return number, title.strip()[:MAX_SUBJECT_CHARS], text[:MAX_BODY_CHARS], url, day
 
 
 def select_prs(items: list[Any], dropped: dict[str, int]) -> list[PrRow]:

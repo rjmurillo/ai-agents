@@ -191,10 +191,16 @@ def test_issue_numbers_need_a_whole_token_hash() -> None:
 
 
 def test_a_log_id_is_found_only_as_a_whole_word() -> None:
-    assert adr_commits.word_present("D-001", "see d-001.")
-    assert not adr_commits.word_present("D-001", "see D-0010")
-    assert not adr_commits.word_present("D1", "ID1 and D1-2")
-    assert adr_commits.word_present("D1", "(D1)")
+    assert "d-001" in adr_commits.word_tokens("see d-001.")
+    assert "d-001" not in adr_commits.word_tokens("see D-0010")
+    assert "d1" not in adr_commits.word_tokens("ID1 and D1-2")
+    assert "d1" in adr_commits.word_tokens("(D1)")
+
+
+def test_a_dotted_word_is_kept_whole_without_its_edge_dots() -> None:
+    assert "v1.2" in adr_commits.word_tokens("the v1.2 rule (v1.2).")
+    assert "v1.2" not in adr_commits.word_tokens("v1.25 is newer")
+    assert "v1" in adr_commits.word_tokens("v1.25 is newer")
 
 
 def test_sanitize_drops_control_bytes_and_cuts_to_the_limit() -> None:

@@ -98,7 +98,9 @@ def mechanical_subject_regex(prefixes: Iterable[str]) -> re.Pattern[str]:
 
 
 CONVENTIONAL_PREFIX = re.compile(r"^[a-z]+(?:\([^)]*\))?!?:\s*", _I)
-_PR_REFERENCE = re.compile(r"\s*\(#\d+[^)]*\)", _A)
+# No leading ``\s*`` and a bounded tail: both would make ``sub`` quadratic on a long run of
+# spaces or of ``(#1``. Callers strip the result, so the gap a removal leaves is harmless.
+_PR_REFERENCE = re.compile(r"\(#\d+[^)]{0,100}\)", _A)
 # "v5.9.0", "5.11.2", "Version 6.0.0-alpha.1": a subject that is only a version.
 _VERSION_ONLY = re.compile(r"^(?:v(?:ersion)?\s*)?\d+\.\d+(?:\.\d+)?(?:[-+.][\w.-]+)?\Z", _I)
 # "Bump", "Bumped v5.9.0", "Release 5.9.0": the word alone, or the word and a dotted version.
@@ -264,8 +266,10 @@ _GENERATED_WITH = re.compile(r"^(?:\U0001f916\s*)?generated (with|by)\b", _I)
 # GitHub's squash-merge body is the PR's own commit list, a `---------` rule before the
 # trailers, and "Modified 2 files" lines. All of it says WHAT changed.
 _SEPARATOR_LINE = re.compile(r"^-{3,}\Z", _A)
+# The lookahead asks for a ``/`` or ``.`` in the word. ``\S*[/.]\S*`` asks the same and is
+# quadratic on a long word with many dots.
 _FILE_ACTION_LINE = re.compile(
-    r"^(?:[*-]\s+)?(?:added|modified|deleted|renamed|removed)\s+(?:\d+\s+files?|\S*[/.]\S*)\s*\Z",
+    r"^(?:[*-]\s+)?(?:added|modified|deleted|renamed|removed)\s+(?:\d+\s+files?|(?=[^\s/.]*[/.])\S+)\s*\Z",
     _I,
 )
 _BULLET_LINE = re.compile(r"^[*-]\s+(.*)\Z", _A)
@@ -335,7 +339,7 @@ def _is_noise_line(line: str, subject_norm: str) -> bool:
 
 _MECHANICAL_SUBJECT = mechanical_subject_regex(MECHANICAL_SUBJECT_PREFIXES)
 _MERGE_SUBJECT = re.compile(r"^merge\b", _I)
-_TRAILING_PR_NUMBER = re.compile(r"\s*\(#\d+\)\s*\Z", _A)
+_TRAILING_PR_NUMBER = re.compile(r"\(#\d+\)\Z", _A)
 
 
 class CommitShape(NamedTuple):
@@ -351,7 +355,7 @@ def is_decision_commit(subject: str) -> bool:
     return (
         not _MECHANICAL_SUBJECT.search(trimmed)
         and not is_release_or_bump_subject(trimmed)
-        and not _FILE_ACTION_LINE.search(_TRAILING_PR_NUMBER.sub("", trimmed))
+        and not _FILE_ACTION_LINE.search(_TRAILING_PR_NUMBER.sub("", trimmed).rstrip())
     )
 
 

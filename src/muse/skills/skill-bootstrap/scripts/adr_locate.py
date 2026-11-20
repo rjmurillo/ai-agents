@@ -93,8 +93,10 @@ _ADR_NAME = re.compile(
     re.IGNORECASE | re.ASCII,
 )
 _FENCE = re.compile(r"\s{0,3}(?:`{3,}|~{3,})", re.ASCII)
-_H1 = re.compile(r"(?:#|=)[ \t]+(.+?)[ \t]*\Z", re.ASCII)
-_H2 = re.compile(r"(?:##|==)[ \t]+(.+?)[ \t#=]*\Z", re.ASCII)
+# The trailing blanks and closing marks come off in code: a lazy group followed by ``[ \t]*\Z``
+# is quadratic on a long run of spaces.
+_H1 = re.compile(r"(?:#|=)[ \t]+(.+)", re.ASCII)
+_H2 = re.compile(r"(?:##|==)[ \t]+(.+)", re.ASCII)
 _H1_NUMBERED = re.compile(
     r"(?P<lead>(?:ADR|RFC|DR|Decision)?[ _-]?)(?P<num>[0-9]+)"
     r"(?P<sep>[ \t]*[:.)\-\u2013\u2014][ \t]*|[ \t]+)(?P<title>\S.*)\Z",
@@ -172,13 +174,14 @@ def _first_h1(lines: list[str]) -> str | None:
     for line in lines:
         match = _H1.fullmatch(line.rstrip())
         if match and not line.startswith(("##", "==")):
-            return match[1]
+            return match[1].rstrip(" \t")
     return None
 
 
 def _headings(lines: list[str]) -> tuple[str, ...]:
     found = (_H2.fullmatch(line.rstrip()) for line in lines)
-    return tuple(match[1] for match in found if match and not match[1].startswith(("#", "=")))
+    titles = (match[1].rstrip(" \t#=") for match in found if match)
+    return tuple(title for title in titles if title and not title.startswith(("#", "=")))
 
 
 def _h1_form(h1: str | None, prefix: str, width: int) -> str:
@@ -329,14 +332,17 @@ def locate(root: Path) -> dict[str, Any]:
     }
 
 
-def read_adr_texts(root: Path) -> tuple[list[tuple[str, str]], int]:
+def read_adr_texts(
+    root: Path, folders: list[tuple[str, str]] | None = None
+) -> tuple[list[tuple[str, str]], int]:
     """``(relative path, text)`` of every ADR-named file in every folder, and how many were skipped.
 
+    ``folders`` is the result of ``locate_folders(root)`` when the caller already has it.
     A file over ``MAX_READ_BYTES`` or unreadable is skipped and counted.
     """
     texts: list[tuple[str, str]] = []
     skipped = 0
-    for rel, _source in locate_folders(root):
+    for rel, _source in locate_folders(root) if folders is None else folders:
         for item in adr_files(root.resolve() / rel):
             text = read_bounded(root.resolve() / rel / item.name)
             if text is None:
@@ -353,7 +359,7 @@ def read_adr_texts(root: Path) -> tuple[list[tuple[str, str]], int]:
 NOT_RECORDED = "Not recorded in the source."
 NO_REASON = "The source states no reason."
 _TYPE_PREFIX = re.compile(r"\A[a-z]+(?:\([^)]*\))?!?:[ \t]+", re.IGNORECASE | re.ASCII)
-_PR_SUFFIX = re.compile(r"[ \t]*\(#[0-9]+\)\Z", re.ASCII)
+_PR_SUFFIX = re.compile(r"\(#[0-9]+\)\Z", re.ASCII)
 _URL = re.compile(r"https://[^\s<>`\"']+\Z", re.ASCII)
 _SECTIONS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
     (re.compile(pattern, re.IGNORECASE | re.ASCII), kind)

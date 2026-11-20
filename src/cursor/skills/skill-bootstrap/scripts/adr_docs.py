@@ -48,7 +48,7 @@ from adr_commits import (
     issue_numbers,
     sanitize,
     urls_in,
-    word_present,
+    word_tokens,
 )
 from adr_locate import read_bounded
 from adr_reason import extract_reason
@@ -200,13 +200,16 @@ def rule_sections(kind: DocKind, markdown: str) -> list[RuleSection]:
 
 _LOG_FILE = re.compile(r"(?:decisions?[-_]log|decisions|.*ledger.*)\.md\Z", _I)
 _LOG_DIRS = ("", "docs")
-_HEADING = re.compile(r"#{1,6}[ \t]+(.+?)[ \t]*#*[ \t]*\Z", _A)
+# Blanks and closing marks come off in ``_heading_text``: a lazy group before ``[ \t]*#*[ \t]*\Z``
+# is quadratic on a long run of spaces.
+_HEADING = re.compile(r"#{1,6}[ \t]+(.+)", _A)
 # `id: X`, or a bare id-like token (D-001, D181, ADR-7), at the start of a top-level line.
 _ID_START = re.compile(r"(?:[-*][ \t]+)?(?:id:[ \t]*([\w.-]+)|([A-Za-z]{1,6}-?[0-9]+))(?!\w)", _I)
 _ID_IN_HEADING = re.compile(r"(?:id:[ \t]*([\w.-]+)|([A-Za-z]{1,6}-?[0-9]+))(?!\w)", _I)
 # `https://...` is a URL, not a field: a colon followed by // never starts a value.
 _FIELD = re.compile(r"([a-z_]+):(?!//)\s*(.*)\Z", _I | re.DOTALL)
-_FIELD_SEPARATOR = re.compile(r"\s*[·|]\s*")
+# No ``\s*`` around the mark: it is quadratic on a long run of spaces. Segments are stripped.
+_FIELD_SEPARATOR = re.compile(r"[·|]")
 _FENCE = re.compile(r"\s*(```|~~~)", _A)
 _MIN_ENTRY_CHARS = 20
 _TITLE_MAX = 120
@@ -241,6 +244,15 @@ def find_log_files(root: Path) -> list[str]:
     return sorted(found)
 
 
+def _heading_text(line: str) -> str | None:
+    """The text of a ``#`` heading line without its closing marks, or None for any other line."""
+    match = _HEADING.fullmatch(line)
+    if match is None:
+        return None
+    text = match[1].rstrip(" \t").rstrip("#").rstrip(" \t")
+    return text or match[1][:1]
+
+
 def _fields_of(line: str) -> dict[str, str]:
     fields: dict[str, str] = {}
     for segment in _FIELD_SEPARATOR.split(line):
@@ -252,7 +264,7 @@ def _fields_of(line: str) -> dict[str, str]:
 
 def _heading_title(heading: str) -> str:
     """The first line with its ``key: value`` segments removed."""
-    parts = re.split(r"\s*([·|])\s*", heading)
+    parts = re.split(r"([·|])", heading)
     out = parts[0].strip()
     for index in range(1, len(parts) - 1, 2):
         segment = parts[index + 1].strip()
@@ -267,7 +279,7 @@ def _text_outside_fields(line: str) -> str:
         for segment in _FIELD_SEPARATOR.split(line)
         if not re.fullmatch(r"[a-z_]+:(?:\s.*)?", segment.strip(), _I | re.DOTALL)
     ]
-    return " ".join(kept).strip()
+    return " ".join(segment.strip() for segment in kept).strip()
 
 
 def _blocks(content: str) -> list[_Block]:
@@ -282,19 +294,25 @@ def _blocks(content: str) -> list[_Block]:
             if blocks:
                 blocks[-1].lines.append(line)
             continue
-        heading = _HEADING.fullmatch(line)
+        heading = _heading_text(line)
         top_level = not line[:1].isspace()
         if heading:
-            found = _ID_IN_HEADING.match(heading[1])
+            found = _ID_IN_HEADING.match(heading)
         else:
             found = _ID_START.match(line) if top_level else None
         if heading or found:
             ident = (found[1] or found[2]) if found else None
             level = len(line) - len(line.lstrip("#")) if heading else 0
-            blocks.append(_Block(ident, heading[1] if heading else None, level, [line]))
+            blocks.append(_Block(ident, heading, level, [line]))
         elif blocks:
             blocks[-1].lines.append(line)
     return blocks
+
+
+def _without_closing_hashes(text: str) -> str:
+    """``## Title ##`` without its closing marks. ``\\s+#+\\Z`` is quadratic on spaces."""
+    body = text.rstrip("#")
+    return body.rstrip() if body != text and body[-1:].isspace() else text
 
 
 def _entry_of(block: _Block) -> LogEntry:
@@ -302,7 +320,7 @@ def _entry_of(block: _Block) -> LogEntry:
     first = re.sub(r"^#+[ \t]+", "", block.lines[0])
     first = re.sub(r"^[-*][ \t]+", "", first).strip()
     if block.heading:
-        remainder = _heading_title(re.sub(r"\s+#+\Z", "", first))
+        remainder = _heading_title(_without_closing_hashes(first))
     else:
         remainder = _text_outside_fields(first)
     body = next((line.strip() for line in block.lines[1:] if line.strip()), "")
@@ -360,11 +378,12 @@ class ExistingAdrs:
     _MIN_SHA_PREFIX = 7
 
     def __init__(self, texts: list[tuple[str, str]]) -> None:
-        self.texts = [text for _path, text in texts]
+        self.words: set[str] = set()
         self.hashes: set[str] = set()
         self.urls: set[str] = set()
         self.numbers: set[int] = set()
-        for text in self.texts:
+        for _path, text in texts:
+            self.words |= word_tokens(text)
             self.hashes |= hash_tokens(text)
             self.urls |= urls_in(text)
             self.numbers |= issue_numbers(text)
@@ -385,7 +404,7 @@ class ExistingAdrs:
 
     def names_id(self, ident: str) -> bool:
         """Does an ADR name this decision-log id as a whole word?"""
-        return any(word_present(ident, text) for text in self.texts)
+        return ident.lower() in self.words
 
 
 def log_candidates(

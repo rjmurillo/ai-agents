@@ -90,6 +90,7 @@ __all__ = [
 # ADR drafting (src/lib/adr-writer.ts)
 # ---------------------------------------------------------------------------
 
+MAX_JSON_BYTES = 16 * MAX_READ_BYTES
 _KINDS = frozenset({"commit", "pr", "decision-log"})
 _STATUS = re.compile(r"[A-Za-z][A-Za-z -]{0,39}\Z", re.ASCII)
 
@@ -121,15 +122,20 @@ def _text(value: object, name: str, required: bool = False) -> str | None:
     return sanitize(value)
 
 
-def load_candidate(path: str, ident: str) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Read a scan file and return ``(scan, candidate)`` for ``ident``, or raise ConfigError."""
+def _read_json(path: str, label: str) -> Any:
+    """Parse a JSON file of at most ``MAX_JSON_BYTES``, or raise ConfigError."""
     target = Path(path)
     try:
-        if target.stat().st_size > 16 * MAX_READ_BYTES:
-            raise ConfigError(f"scan file {path} is too large")
-        data = json.loads(target.read_text(encoding="utf-8", errors="replace"))
-    except (OSError, ValueError) as exc:
-        raise ConfigError(f"cannot read scan file {path}: {exc}") from exc
+        if target.stat().st_size > MAX_JSON_BYTES:
+            raise ConfigError(f"{label} {path} is too large")
+        return json.loads(target.read_text(encoding="utf-8", errors="replace"))
+    except (OSError, ValueError, RecursionError) as exc:
+        raise ConfigError(f"cannot read {label} {path}: {exc}") from exc
+
+
+def load_candidate(path: str, ident: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Read a scan file and return ``(scan, candidate)`` for ``ident``, or raise ConfigError."""
+    data = _read_json(path, "scan file")
     if not isinstance(data, dict) or not isinstance(data.get("candidates"), list):
         raise ConfigError(f"scan file {path} is not a scan result")
     if not isinstance(data.get("repo"), str):
@@ -284,10 +290,7 @@ def _positive(text: str) -> int:
 def _read_prs(path: str | None) -> list[Any] | None:
     if path is None:
         return None
-    try:
-        data = json.loads(Path(path).read_text(encoding="utf-8", errors="replace"))
-    except (OSError, ValueError) as exc:
-        raise ConfigError(f"cannot read --prs-json {path}: {exc}") from exc
+    data = _read_json(path, "--prs-json")
     if not isinstance(data, list):
         raise ConfigError(f"--prs-json {path} must hold a JSON list")
     return data

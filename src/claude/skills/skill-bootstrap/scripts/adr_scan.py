@@ -238,7 +238,8 @@ def scan(
     dropped = dict.fromkeys(DROP_KEYS, 0)
     pr_rows = select_prs(prs or [], dropped)
     web = origin_web_base(root)
-    texts, skipped = read_adr_texts(root)
+    folders = locate_folders(root)
+    texts, skipped = read_adr_texts(root, folders)
     existing = ExistingAdrs(texts)
     pending = _pr_pending(pr_rows, dropped)
     pending += _commit_candidates(records, covering_numbers(pr_rows), web, dropped)
@@ -259,7 +260,7 @@ def scan(
             "adr_files": len(texts),
             "adr_files_skipped": skipped,
         },
-        "adr_folders": [path for path, _source in locate_folders(root)],
+        "adr_folders": [path for path, _source in folders],
         "dropped": dropped,
         "candidates": candidates,
     }
