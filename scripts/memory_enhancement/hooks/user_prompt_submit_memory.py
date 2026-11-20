@@ -22,6 +22,7 @@ import json
 import os
 import re
 import sys
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -93,6 +94,13 @@ _STOP_WORDS = frozenset(
 
 _MAX_RECALL_RESULTS = 3
 
+# Wall-clock budget for one recall, from the start of recall_block. The hook
+# timeout is 10 s (dispatch_groups.json), so 8 s leaves room for interpreter
+# start and output. File-search timeouts shrink to the time left, no new file
+# loads once it is spent, and citation checks are skipped (ADR-109 amendment
+# 2026-11-20).
+RECALL_DEADLINE_SECONDS = 8.0
+
 # Recalled text is repository content the model reads as context. The preface
 # tells it to treat the block as data (ADR-109 amendment 2026-11-20).
 _PREFACE = (
@@ -124,7 +132,12 @@ def main() -> int:
 
 
 def recall_block(user_input: str) -> str:
-    """Return the memory context block for a prompt, or empty string."""
+    """Return the memory context block for a prompt, or empty string.
+
+    Never raises: out of time or on a search failure it returns what it has,
+    or an empty string.
+    """
+    deadline = time.monotonic() + RECALL_DEADLINE_SECONDS
     query = _extract_query(user_input) if user_input else ""
     if not query:
         return ""
@@ -137,7 +150,11 @@ def recall_block(user_input: str) -> str:
     if not _is_contained_directory(memories_dir, repo_root):
         return ""
 
-    return _search_and_format(query, memories_dir, repo_root)
+    try:
+        return _search_and_format(query, memories_dir, repo_root, deadline)
+    except Exception as exc:  # fail-open: recall must never block a prompt
+        print(f"[WARNING] memory recall failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return ""
 
 
 def _is_contained_directory(memories_dir: Path, repo_root: Path) -> bool:
@@ -215,13 +232,16 @@ def _find_repo_root(start: Path | None = None) -> Path | None:
     return find_repo_root(start)
 
 
-def _search_and_format(query: str, memories_dir: Path, repo_root: Path) -> str:
+def _search_and_format(
+    query: str, memories_dir: Path, repo_root: Path, deadline: float | None = None
+) -> str:
     """Search memories and format results as the memory context block.
 
     Args:
         query: Filtered search terms.
         memories_dir: Path to .serena/memories/.
         repo_root: Repository root for verification.
+        deadline: ``time.monotonic()`` value the search must finish by.
 
     Returns:
         Formatted memory context string, or empty string.
@@ -235,6 +255,7 @@ def _search_and_format(query: str, memories_dir: Path, repo_root: Path) -> str:
         max_results=_MAX_RECALL_RESULTS,
         repo_root=repo_root,
         min_relevance=_MIN_RELEVANCE,
+        deadline=deadline,
     )
 
     if not results:

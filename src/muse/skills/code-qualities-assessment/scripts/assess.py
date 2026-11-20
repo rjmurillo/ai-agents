@@ -165,6 +165,7 @@ _GENERATED_PATH_SEGMENTS = (
     ("src", "claude", "lib", "failure_classifier"),
     ("src", "claude", "lib", "github_core"),
     ("src", "claude", "lib", "hook_utilities"),
+    ("src", "claude", "lib", "memory_enhancement"),
     ("src", "claude", "rules"),
     ("src", "claude", "skills", "review", "scripts", "validate_review_marker.py"),
     ("src", "codex"),

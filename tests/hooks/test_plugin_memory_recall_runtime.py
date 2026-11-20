@@ -67,31 +67,31 @@ class Harness:
     """One installed plugin, one consumer repository, one package-free interpreter."""
 
     def __init__(self, base: Path, base_python: str | None = None) -> None:
-        self.base_python = base_python
-        self.plugin = base / "installed" / "project-toolkit"
-        self.consumer = base / "consumer"
-        self.workdir = self.consumer / "src" / "app"
-        self.home = base / "home"
-        self.venv = base / "bare-venv"
-        self.home.mkdir(parents=True)
-        self.workdir.mkdir(parents=True)
+        self._base_python = base_python
+        self._plugin = base / "installed" / "project-toolkit"
+        self._consumer = base / "consumer"
+        self._workdir = self._consumer / "src" / "app"
+        self._home = base / "home"
+        self._venv = base / "bare-venv"
+        self._home.mkdir(parents=True)
+        self._workdir.mkdir(parents=True)
         self._install_plugin()
         self._create_consumer_repository()
         self._create_bare_interpreter()
 
     def _install_plugin(self) -> None:
-        self.plugin.mkdir(parents=True)
+        self._plugin.mkdir(parents=True)
         for name in PLUGIN_DIRS:
             shutil.copytree(
                 PLUGIN_SOURCE / name,
-                self.plugin / name,
+                self._plugin / name,
                 symlinks=False,
                 ignore=shutil.ignore_patterns("__pycache__"),
             )
 
     def _create_consumer_repository(self) -> None:
-        _git(self.consumer, "init", "-q")
-        memories = self.consumer / ".serena" / "memories"
+        _git(self._consumer, "init", "-q")
+        memories = self._consumer / ".serena" / "memories"
         memories.mkdir(parents=True)
         (memories / f"{MEMORY_ID}.md").write_text(
             f"---\ntitle: {MEMORY_TITLE}\ntags: [migration]\nconfidence: 0.9\n---\n\n"
@@ -100,17 +100,25 @@ class Harness:
         )
 
     def _create_bare_interpreter(self) -> None:
-        base_python = self.base_python or getattr(sys, "_base_executable", sys.executable)
+        base_python = self._base_python or getattr(sys, "_base_executable", sys.executable)
         subprocess.run(
-            [base_python, "-m", "venv", "--without-pip", str(self.venv)],
+            [base_python, "-m", "venv", "--without-pip", str(self._venv)],
             check=True,
             capture_output=True,
             timeout=TIMEOUT_SECONDS,
         )
 
     @property
+    def plugin(self) -> Path:
+        return self._plugin
+
+    @property
+    def consumer(self) -> Path:
+        return self._consumer
+
+    @property
     def venv_bin(self) -> Path:
-        return self.venv / ("Scripts" if os.name == "nt" else "bin")
+        return self._venv / ("Scripts" if os.name == "nt" else "bin")
 
     @property
     def venv_python(self) -> Path:
@@ -118,15 +126,15 @@ class Harness:
 
     @property
     def command(self) -> str:
-        doc = json.loads((self.plugin / "hooks" / "hooks.json").read_text(encoding="utf-8"))
+        doc = json.loads((self._plugin / "hooks" / "hooks.json").read_text(encoding="utf-8"))
         return str(doc["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"])
 
     def env(self) -> dict[str, str]:
         env = {
             "PATH": f"{self.venv_bin}{os.pathsep}/usr/bin{os.pathsep}/bin",
-            "HOME": str(self.home),
-            "CLAUDE_PLUGIN_ROOT": str(self.plugin),
-            "CLAUDE_PROJECT_DIR": str(self.consumer),
+            "HOME": str(self._home),
+            "CLAUDE_PLUGIN_ROOT": str(self._plugin),
+            "CLAUDE_PROJECT_DIR": str(self._consumer),
             # CI redirects the temp root (run_pytest_non_tmp.py); keep it.
             "TMPDIR": tempfile.gettempdir(),
         }
@@ -136,7 +144,7 @@ class Harness:
 
     def payload(self, prompt: str = PROMPT) -> str:
         return json.dumps(
-            {"prompt": prompt, "hook_event_name": "UserPromptSubmit", "cwd": str(self.workdir)}
+            {"prompt": prompt, "hook_event_name": "UserPromptSubmit", "cwd": str(self._workdir)}
         )
 
     def run(
@@ -144,7 +152,7 @@ class Harness:
     ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             ["bash", "-c", command or self.command],
-            cwd=self.workdir,
+            cwd=self._workdir,
             env=self.env(),
             input=self.payload(prompt),
             capture_output=True,
@@ -154,13 +162,13 @@ class Harness:
         )
 
     def dispatcher_command(self, group: str) -> list[str]:
-        script = self.plugin / "hooks" / "invoke_dispatch_claude.py"
+        script = self._plugin / "hooks" / "invoke_dispatch_claude.py"
         return [str(self.venv_python), "-I", "-u", str(script), "--group", group]
 
     def run_dispatcher(self, group: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             self.dispatcher_command(group),
-            cwd=self.workdir,
+            cwd=self._workdir,
             env=self.env(),
             input=self.payload(),
             capture_output=True,

@@ -20,8 +20,7 @@ if str(_SCRIPT_DIR) not in sys.path:
 
 from atomic_write import read_bytes_no_redirect  # noqa: E402
 from lib_hand_files import PLUGIN_LIB_FILES, PLUGIN_LIB_SOURCE_DIR  # noqa: E402
-from lib_mirror import PACKAGES, SYNC_FILE_NAMES, _transform_file  # noqa: E402
-from lib_package_roots import PACKAGE_ROOTS  # noqa: E402
+from lib_mirror import PACKAGE_ROOTS, PACKAGES, SYNC_FILE_NAMES, _transform_file  # noqa: E402
 
 # PLUGIN_LIB_FILES (hand-maintained modules with no scripts/ source that live in
 # the Claude plugin's lib/; ADR-119: skill scripts import paths.py from there)
@@ -45,7 +44,7 @@ CLAUDE_ONLY_LIB_FILES: tuple[str, ...] = (
 )
 
 
-# Packages with a root override in ``lib_package_roots.PACKAGE_ROOTS`` ship to the
+# Packages with a root override in ``lib_mirror.PACKAGE_ROOTS`` ship to the
 # named plugin trees only. The Hermes packs are not among them, so they carry
 # none of these (ADR-109 amendment 2026-11-20: ``memory_enhancement`` is
 # Claude-only, and the delivery pack sits at its 400-file cap).

@@ -11,7 +11,6 @@ if _BUILD_SCRIPTS not in sys.path:
     sys.path.insert(0, _BUILD_SCRIPTS)
 
 import lib_mirror  # noqa: E402
-import lib_package_roots  # noqa: E402
 
 from scripts.ci import hermes_mirror  # noqa: E402
 
@@ -19,5 +18,5 @@ from scripts.ci import hermes_mirror  # noqa: E402
 def test_lib_mirror_packages_match_the_lib_mirror_registry() -> None:
     # A package with a root override (memory_enhancement, Claude plugin only)
     # never reaches a Hermes pack, so no Hermes copy of it can exist.
-    hermes_packages = set(lib_mirror.PACKAGES) - set(lib_package_roots.PACKAGE_ROOTS)
+    hermes_packages = set(lib_mirror.PACKAGES) - set(lib_mirror.PACKAGE_ROOTS)
     assert set(hermes_mirror.LIB_MIRROR_PACKAGES) == hermes_packages

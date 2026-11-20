@@ -58,7 +58,7 @@ if str(_SCRIPT_DIR) not in sys.path:
 
 from atomic_write import publish_bytes_atomically, read_bytes_no_redirect  # noqa: E402
 from lib_hand_files import PLUGIN_LIB_COPIES  # noqa: E402
-from lib_package_roots import iter_package_pairs  # noqa: E402
+from lib_package_roots import PACKAGE_ROOTS, PACKAGE_SUBDIRS, iter_package_pairs  # noqa: E402,F401
 
 # ---------------------------------------------------------------------------
 # Configuration (moved unchanged from scripts/sync_plugin_lib.py)
