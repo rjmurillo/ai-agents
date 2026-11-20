@@ -44,7 +44,7 @@ Today these artifacts live across many locations with no unified theory of why t
 
 This catalog is descriptive, not prescriptive. It names the territory as it existed on 2026-05-02. **This ADR does not propose reorganizing any of it.**
 
-The list is kept as that snapshot, not as a current inventory. As of 2026-11-20 (origin/main 15c13340a), four entries no longer exist: `.agents/HANDOFF.md`, `.agents/SESSION-PROTOCOL.md`, `.baseline/`, and `scripts/memory_sync/`. PR #5179 removed the session protocol on 2026-08-20 (see ADR-050). That drift is part of the evidence for this ADR's open questions. Issue #7468 owns the current inventory.
+The list is kept as that snapshot, not as a current inventory. As of 2026-11-20 (origin/main 15c13340a), four entries no longer exist: `.agents/HANDOFF.md`, `.agents/SESSION-PROTOCOL.md`, `.baseline/`, and `scripts/memory_sync/`. PR #5179 removed the session protocol on 2026-08-20 (see ADR-050). That drift is part of the evidence for this ADR's open questions. Issue #7468 closed on 2026-11-20. Implementation Notes item 1 names the current inventory.
 
 ## Frame: LLMs as Ghosts, Not Animals
 
@@ -160,14 +160,16 @@ This ADR is documentation-only. The ADR itself changed no code, schema, or migra
 1. Corpus catalog, issue #7468, closed completed. Partly answered: `scripts/validation/instruction_bytes.py --format json` (from #5400) is the machine-readable inventory of the instruction corpus. Retrieval surfaces have no inventory, and no measured need for one was found. PR #7475 closed unmerged.
 2. Schema spike, issue #7469, closed not planned. No canonical schema is needed. Main uses per-type contracts, plus cross-type slices owned by ADR-110 and ADR-111.
 3. Assembly-layer prototype, issue #7470, closed completed. No prototype is needed. Context assembly already runs as a hybrid of `paths:` rule scoping, skill progressive disclosure, and lexical memory recall.
-4. Telemetry-of-influence, issue #7471, closed completed. The influence signal is a counterfactual delta. Main measures it with `scripts/eval/eval-rule-activation.py`, `scripts/eval/eval_control_ablation.py`, and `scripts/eval/eval-knowledge-integration.py`.
+4. Telemetry-of-influence, issue #7471, closed completed. The influence signal is a counterfactual delta. Main measures it with `scripts/eval/eval-rule-activation.py`, `scripts/eval/eval_control_ablation.py`, and `scripts/eval/eval-knowledge-integration.py`. The closest test of this ADR's thesis is the 2026-09-28 control ablation (`.project-toolkit/metrics/control-ablation-v0.7.0.md`). It compared the full always-loaded control plane against a reduced one and returned `MIXED`. The reduced arm accepted 9 of 15 tasks durably, against 10 of 15, at 47 percent lower cost per accepted task. So this record is accepted as a principle, and its effect is unmeasured.
 5. Curation cadence, issue #7472, closed not planned. Main curates on events, not a calendar. `scripts/validation/check_adr_lifecycle.py`, `scripts/validation/check_rule_adr_citations.py`, and `scripts/validation/check_skill_adr_bindings.py` run on every PR. Two merged changes came from this thread: PR #7482 fixed a stale ADR citation in ADR-107, and PR #7489 added `scripts/validation/check_adr_supersession_citations.py`.
 
 None of the above were part of this ADR's acceptance criteria.
 
+**Revisit condition.** Revisit this record if the falsifiable milestone in the `ai-agents-research-frontier` skill (`templates/skills/ai-agents-research-frontier.SKILL.md.tmpl`, Program 1, Falsifiable milestone) returns a negative result. That skill defines a negative result as a gated corpus with no measurable difference from an ungated one. It says such a result would falsify the strong form of this ADR.
+
 **Why filing was late.** Issue #1859 listed the five issues as its second acceptance item. PR #1869 closed #1859 with that item unchecked, so nothing tracked the follow-ups. Issue #702 found this record ready for review on 2026-06-17, then closed on 2026-06-19 without reviewing it.
 
-**Why `implemented` is true.** ADR-073 defines `implemented` as flipping true at the first merged change. The ADR-073 Phase 2 backfill debate log (`.project-toolkit/critique/ADR-073-phase2-backfill-debate-log.md`) applied an artifact test instead: does the thing the decision called for exist? On that test it set this record false, before any follow-up issue existed. Decision items 1 to 3 are this document. Item 4 called for the five follow-up issues. Each issue closed with a verdict that names the existing artifacts that answer it, listed above. So the artifact test is met, and it is the whole basis for `true`. PR #7489 merged from the #7472 thread. PR #7482 cites this record only to exclude it.
+**Why `implemented` is true.** ADR-073 defines `implemented` as flipping true at the first merged change. The ADR-073 Phase 2 backfill debate log (`.project-toolkit/critique/ADR-073-phase2-backfill-debate-log.md`) applied an artifact test instead: does the thing the decision called for exist? On that test it set this record false, before any follow-up issue existed. Decision items 1 to 3 are this document. Item 4 called for the five follow-up issues. Each issue closed with a recorded verdict, listed above. So the artifact test is met, and it is the whole basis for `true`. Under ADR-073, `true` means a later material change to this decision needs a superseding record, not an amendment. PR #7489 merged from the #7472 thread. PR #7482 cites this record only to exclude it.
 
 ## Related Decisions
 

@@ -47,7 +47,7 @@ The decision table (decision, record, note, why) is in `references/adr-decisions
 - Memory: ADR-007 is superseded by ADR-106 (Serena-Only Memory Architecture). Cite ADR-106.
 - Agent templates: ADR-036 is superseded by ADR-052, which ADR-109 superseded. Cite ADR-109.
 - Hooks: ADR-097 retired every tool-call hook. ADR-066, ADR-068, and ADR-071 still own the policy and dispatcher rationale for a future re-add.
-- Proposed records: ADR-069, ADR-089, and ADR-119 are proposed. ADR-072 is accepted with `implemented: false`, so accepting it moved no code.
+- Proposed records: ADR-089 and ADR-119 are proposed. ADR-069 was accepted on 2026-11-20. ADR-072 is accepted with `implemented: false`, so accepting it moved no code.
 - ADR-030 is rejected. The skill-first rule lives in `SKILL-CREATION-CRITERIA.md`.
 
 The command does not say whether a mechanism is still enforced. Check the gate, not the status.
