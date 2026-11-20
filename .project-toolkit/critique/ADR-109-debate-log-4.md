@@ -1,0 +1,66 @@
+# ADR Debate Log: ADR-109 line 96 citation into ADR-107
+
+## Summary
+
+- **Rounds**: 2 of 10
+- **Prior debate log**: [`ADR-109-debate-log-3.md`](ADR-109-debate-log-3.md)
+- **Outcome**: Consensus
+- **Final Status**: accepted (the edit changes no ADR status)
+- **Scope**: line numbers on ADR-109 lines 94 and 96.
+- **Panel**: reduced panel, architect and critic. The edit is prose only.
+
+ADR-109 line 96 cites ADR-107 line 663 for the Related Decisions bullet that reads
+"`accepted` 2026-09-11): widens". On `origin/main` at `7dab88e5c` (2026-11-20), line 663 is an
+MCP agent bullet. The quoted bullet sits at line 725. The citation was already stale.
+
+The same branch adds three lines to ADR-107 Related Decisions (see
+[`ADR-107-debate-log-3.md`](ADR-107-debate-log-3.md)). The quoted bullet moves to line 728. The
+`Citation Freshness (reverse pass)` gate then blocks the branch. Its `_quote_moved_outside` check
+in [`scripts/validation/citation_reverse_judge.py`](../../scripts/validation/citation_reverse_judge.py) flags a quoted line that changed number. It does
+not check that the quote sat inside the cited range at base. The owner chose to fix the citation
+rather than reshape the ADR-107 text.
+
+## Round 1 Summary
+
+### Key Issues Addressed
+
+- Is line 728 the right target? Yes. Both seats read the quoted text at ADR-107 line 728.
+- Does the edit change an ADR-109 decision or its four-site amendment meaning? No. Only the
+  line number changes.
+- Do other ADR-109 citations into ADR-107 break? No. Line 95 cites ADR-107 line 63, above both
+  ADR-107 edits. The other ADR-109 mentions of ADR-107 carry no line number.
+
+### Agent Positions
+
+| Agent | Position |
+|-------|----------|
+| architect | Accept. Quote verified at ADR-107 line 728. The old target at `7dab88e5c` was stale. Land both ADR edits in one PR, since 728 holds only with the ADR-107 change. |
+| critic | Accept. Line 728 correct. No other ADR-109 citation breaks. Noted the gate prints "0 already stale at the merge base" for this citation. The cause: the quote-move check records a finding before the base-debt tally counts it. |
+
+## Round 2 Summary
+
+### Key Issues Addressed
+
+- The forward `Citation Freshness (added lines)` gate checks citations within three lines of an
+  edited line. It flagged ADR-109 line 94. That line cites REQ-003 line 368 for the quote "this
+  exception to every path in its binplace manifest, each path effective once". The quote sits
+  at REQ-003 line 379, on `main` and on this branch. That citation was already stale too.
+
+### Major Changes Made
+
+- ADR-109 line 94 now cites REQ-003 line 379. Only the line number changes.
+
+### Agent Positions
+
+| Agent | Position |
+|-------|----------|
+| architect | Accept. The quote occurs once, at REQ-003 line 379, on `7dab88e5c` and here. No ADR-109 meaning changes. |
+| critic | Accept. Line 379 is right. ADR-109 line 93 (REQ-003 line 80) still holds. Lines 95 and 96 are current. |
+
+## Decision
+
+Accepted by both seats. The two ADR edits ship in one commit series on one PR.
+
+### Next Steps
+
+The gate defect is flagged in the pull request body for the owner. This change does not fix it.
