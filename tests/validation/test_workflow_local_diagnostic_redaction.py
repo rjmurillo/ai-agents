@@ -66,7 +66,7 @@ def test_cli_redacts_captured_output(
             process.communicate.return_value = (STDOUT.rstrip(), STDERR)
         return process
 
-    monkeypatch.setattr(workflow.subprocess, "Popen", open_process)
+    monkeypatch.setattr(subprocess, "Popen", open_process)
     monkeypatch.setattr(workflow, "_terminate", Mock())
     exit_code = workflow.main(
         [

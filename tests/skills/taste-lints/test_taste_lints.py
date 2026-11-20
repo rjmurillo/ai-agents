@@ -17,7 +17,8 @@ if TESTS_SKILLS_DIR not in sys.path:
     sys.path.insert(0, TESTS_SKILLS_DIR)
 
 from claude_skills_import import import_skill_script
-from diff_scope_repo import DiffFileSelectionContract, make_repo_with_diff, run_git
+
+from tests.skills.diff_scope_repo import DiffFileSelectionContract, make_repo_with_diff, run_git
 
 mod = import_skill_script(".claude/skills/taste-lints/scripts/taste_lints.py")
 check_file_size = mod.check_file_size
