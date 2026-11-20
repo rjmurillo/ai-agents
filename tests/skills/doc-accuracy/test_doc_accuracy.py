@@ -307,6 +307,100 @@ class TestCsharpPreprocessorSymbols:
         assert "FakeWidget" in result
 
 
+class TestCsharpLiteralAndAttributeArguments:
+    """Names in C# literals and attribute arguments are data, not symbols."""
+
+    LITERALS = (
+        ('var s = "Hello WidgetFactory";', "WidgetFactory"),
+        ('var s = @"C:\\Temp\\VerbatimName";', "VerbatimName"),
+        ('var s = @"say ""QuotedName"" now";', "QuotedName"),
+        ('var s = $"Hi InterpText {x}";', "InterpText"),
+        ('var s = $@"Path InterpVerbatim {x}";', "InterpVerbatim"),
+        ('var s = """\nRawBlockName\n""";', "RawBlockName"),
+        ('var s = "Escaped \\" StillString";', "StillString"),
+        ("var c = 'Q'; var d = '\\'';", "Q"),
+    )
+
+    def test_names_in_literals_are_not_extracted(self) -> None:
+        for line, name in self.LITERALS:
+            code = f"{line}\nvar w = new RealWidget();"
+
+            result = _extract_identifiers(code, "csharp")
+
+            assert name not in result, line
+            assert "RealWidget" in result, line
+
+    def test_interpolation_hole_stays_code(self) -> None:
+        code = 'var s = $"Total {Ledger.Sum()} and {{Braced}}";'
+
+        result = _extract_identifiers(code, "csharp")
+
+        assert "Ledger" in result
+        assert "Total" not in result
+        assert "Braced" not in result
+
+    def test_unterminated_string_hides_only_its_own_line(self) -> None:
+        code = 'var s = "open TrailingName\nvar w = new FakeWidget();'
+
+        result = _extract_identifiers(code, "csharp")
+
+        assert "TrailingName" not in result
+        assert "FakeWidget" in result
+
+    def test_attribute_named_arguments_are_not_extracted(self) -> None:
+        code = '[DllImport("k32", EntryPoint = "Beep", SetLastError: true)]\nvoid F() {}'
+
+        result = _extract_identifiers(code, "csharp")
+
+        assert "EntryPoint" not in result
+        assert "SetLastError" not in result
+        assert "Beep" not in result
+
+    def test_attribute_name_and_typeof_argument_stay_code(self) -> None:
+        code = "[TypeConverter(typeof(FakeConverter), Mode = Kind.Fast)]\nclass C {}"
+
+        result = _extract_identifiers(code, "csharp")
+
+        assert "TypeConverter" in result
+        assert "FakeConverter" in result
+        assert "Kind" in result
+        assert "Mode" not in result
+
+    def test_parameter_attribute_named_argument_is_not_extracted(self) -> None:
+        code = "void F([Range(Minimum = 1)] int count) {}"
+
+        result = _extract_identifiers(code, "csharp")
+
+        assert "Minimum" not in result
+        assert "Range" in result
+
+    def test_unclosed_bracket_does_not_reach_later_statements(self) -> None:
+        code = "[Broken(\nvar a = 1;\nvar w = Build(Size: 3);"
+
+        result = _extract_identifiers(code, "csharp")
+
+        assert "Size" in result
+
+    def test_named_argument_in_ordinary_call_stays_code(self) -> None:
+        code = "var w = Build(Size: 3);"
+
+        result = _extract_identifiers(code, "csharp")
+
+        assert "Size" in result
+
+    def test_comment_quote_does_not_open_a_literal(self) -> None:
+        code = "// don't\nvar w = new FakeWidget();"
+
+        result = _extract_identifiers(code, "csharp")
+
+        assert "FakeWidget" in result
+
+    def test_other_languages_keep_string_text(self) -> None:
+        result = _extract_identifiers('let s = "Hello WidgetFactory";', "typescript")
+
+        assert "WidgetFactory" in result
+
+
 class TestExtractQuantitativeClaims:
     def test_percentage(self) -> None:
         result = _extract_quantitative_claims("Achieves 95.5% accuracy")
@@ -2412,6 +2506,49 @@ class TestMain:
         self._csharp_repo(
             tmp_path,
             "#if NETFRAMEWORK\nvar w = new FakeWidget();\n#endif",
+        )
+
+        rc = main(["--target", str(tmp_path), "--format", "json"])
+
+        payload = json.loads(capsys.readouterr().out)
+        assert rc == 10
+        assert payload["gate_result"]["blocking_findings"] == 1
+        symbols = [f["evidence"]["symbol"] for f in payload["compilability_data"]["findings"]]
+        assert symbols == ["FakeWidget"]
+
+    @staticmethod
+    def _csharp_attribute_repo(tmp_path: Path, body: str) -> None:
+        TestMain._csharp_repo(tmp_path, body)
+        (tmp_path / "Marker.cs").write_text(
+            "namespace Demo;\npublic class Marker : Attribute\n{\n}\n",
+            encoding="utf-8",
+        )
+
+    def test_names_in_strings_and_attribute_arguments_pass_gate(
+        self, tmp_path: Path, capsys
+    ) -> None:
+        """Names that sit only in literals or attribute arguments are data."""
+        self._csharp_attribute_repo(
+            tmp_path,
+            '[Marker("DEBUG", Label = "MadeUpLabel")]\n'
+            'var w = new RealWidget();\nvar s = "Hello WidgetFactory";',
+        )
+
+        rc = main(["--target", str(tmp_path), "--format", "json"])
+
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["compilability_data"]["findings"] == []
+        assert rc == 0
+        assert payload["gate_result"]["verdict"] == "PASS"
+
+    def test_unknown_type_beside_string_and_attribute_still_fails_gate(
+        self, tmp_path: Path, capsys
+    ) -> None:
+        """Control: a made-up type in real code in the same block still fails."""
+        self._csharp_attribute_repo(
+            tmp_path,
+            '[Marker("DEBUG", Label = "MadeUpLabel")]\n'
+            'var w = new FakeWidget();\nvar s = "Hello WidgetFactory";',
         )
 
         rc = main(["--target", str(tmp_path), "--format", "json"])
