@@ -13,6 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import adr_commits
+import adr_shape
 import pytest
 
 # ---------------------------------------------------------------------------
@@ -31,12 +32,12 @@ def _titles(rows: list[Row]) -> list[str]:
 
 
 def test_rows_docs_rows_are_left_out() -> None:
-    assert adr_commits.decision_shaped_rows([Row("Always sign commits", "docs")]) == []
+    assert adr_shape.decision_shaped_rows([Row("Always sign commits", "docs")]) == []
 
 
 def test_rows_chat_and_ticket_rows_are_never_filtered() -> None:
     rows = [Row("fix the thing", "slack"), Row("lunch plans", None), Row("#12 bug", "jira")]
-    assert adr_commits.decision_shaped_rows(rows) == rows
+    assert adr_shape.decision_shaped_rows(rows) == rows
 
 
 def test_rows_commits_and_prs_keep_decision_wording_and_drop_the_rest() -> None:
@@ -48,7 +49,7 @@ def test_rows_commits_and_prs_keep_decision_wording_and_drop_the_rest() -> None:
         Row("Rename the helper module", "github"),
         Row("#123 something", "git"),
     ]
-    assert _titles(adr_commits.decision_shaped_rows(rows)) == [
+    assert _titles(adr_shape.decision_shaped_rows(rows)) == [
         "Adopt token-bucket rate limiting",
         "Switch to gRPC for internal calls",
         "Use Postgres for the events store",
@@ -70,7 +71,7 @@ def test_rows_commits_and_prs_keep_decision_wording_and_drop_the_rest() -> None:
     ],
 )
 def test_rows_a_fix_shaped_type_or_lead_is_dropped(title: str) -> None:
-    assert adr_commits.decision_shaped_rows([Row(title, "github")]) == []
+    assert adr_shape.decision_shaped_rows([Row(title, "github")]) == []
 
 
 @pytest.mark.parametrize(
@@ -87,7 +88,7 @@ def test_rows_a_fix_shaped_type_or_lead_is_dropped(title: str) -> None:
     ],
 )
 def test_rows_a_scoped_commit_with_a_decision_wording_is_kept(title: str) -> None:
-    assert _titles(adr_commits.decision_shaped_rows([Row(title, "github")])) == [title]
+    assert _titles(adr_shape.decision_shaped_rows([Row(title, "github")])) == [title]
 
 
 def test_rows_names_every_active_decision_of_the_local_graph_test() -> None:
@@ -96,7 +97,7 @@ def test_rows_names_every_active_decision_of_the_local_graph_test() -> None:
         Row("Use Postgres 16 for the events store", "github"),
         Row("Always retry webhooks three times with backoff", "github"),
     ]
-    assert adr_commits.decision_shaped_rows(rows) == rows
+    assert adr_shape.decision_shaped_rows(rows) == rows
 
 
 def test_rows_the_superseded_pair_of_the_local_graph_test_both_pass_the_title_filter() -> None:
@@ -106,20 +107,20 @@ def test_rows_the_superseded_pair_of_the_local_graph_test_both_pass_the_title_fi
         Row("Use Redis to cache sessions", "github"),
         Row("Use Postgres to cache sessions", "github"),
     ]
-    assert adr_commits.decision_shaped_rows(rows) == rows
+    assert adr_shape.decision_shaped_rows(rows) == rows
 
 
 def test_rows_keep_the_input_objects_in_order() -> None:
     rows = [Row("Use A for storage today", "git"), Row("fix: x", "git"), Row("Use B", "git")]
-    result = adr_commits.decision_shaped_rows(rows)
+    result = adr_shape.decision_shaped_rows(rows)
     assert result == [rows[0], rows[2]]
     assert result[0] is rows[0]
 
 
 def test_decision_shaped_title_the_leading_issue_number_after_the_prefix_is_ignored() -> None:
-    assert adr_commits.is_decision_shaped_title("feat: #12 adopt the new router")
-    assert not adr_commits.is_decision_shaped_title("feat: #12 fix the router")
-    assert not adr_commits.is_decision_shaped_title("")
+    assert adr_shape.is_decision_shaped_title("feat: #12 adopt the new router")
+    assert not adr_shape.is_decision_shaped_title("feat: #12 fix the router")
+    assert not adr_shape.is_decision_shaped_title("")
 
 
 # ---------------------------------------------------------------------------

@@ -73,10 +73,9 @@ from __future__ import annotations
 import codecs
 import re
 import unicodedata
-from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
-from typing import Any, Protocol, TypeVar
+from typing import Any
 
 from adr_reason import extract_reason
 from adr_shape import is_release_or_bump_subject
@@ -87,14 +86,14 @@ __all__ = [
     "MAX_SUBJECT_CHARS",
     "SLUG_MAX",
     "CommitRecord",
-    "DecisionRow",
     "PrRow",
     "breaking_change",
+    "commit_pr_number",
+    "commit_urls",
     "covering_numbers",
-    "decision_shaped_rows",
+    "excerpt",
     "hash_tokens",
     "is_covered",
-    "is_decision_shaped_title",
     "iso_day",
     "issue_numbers",
     "parse_commit_object",
@@ -202,72 +201,6 @@ def parse_commit_object(sha: str, raw: bytes) -> CommitRecord:
     author, date = _author_fields(author_text)
     subject, body = _subject_and_body(_decode(message, headers.get(b"encoding")))
     return CommitRecord(sha, subject, author, date, body)
-
-
-# ---------------------------------------------------------------------------
-# P8: decision-shaped filter (src/lib/context-from-graph.ts)
-# ---------------------------------------------------------------------------
-
-# A commit or PR shaped like a fix, a test, a chore or an issue reference. Upstream also
-# dropped ``^\w+\([^)]*\):``, which removed every scoped commit. Here the word list is
-# applied to the conventional type instead.
-_FIX_SHAPED = re.compile(
-    r"^(?:fix(?:es|ed)?|bug|hotfix|tests?|ci|style|chore|build|docs?|refactor|perf|revert"
-    r"|bump|deps?)\b|^#\d+",
-    _I,
-)
-_CODE_PLATFORMS = frozenset({"git", "github", "gitlab"})
-# `type(scope)!:` with an optional leading issue number on what follows.
-_ANY_TYPE_PREFIX = re.compile(r"^([a-z]+)(?:\([^)]*\))?!?:\s*(?:#\d+\s*)?", _I)
-# Words a choice is written in.
-_DECISION_SHAPED = re.compile(
-    r"\b(?:adopt|switch(?:ed)? to|move to|migrate|replace[sd]?\b.{0,200}?\bwith|instead of|deprecate"
-    r"|drop support|requires?|must|always|never|no longer|policy|convention|prefer"
-    r"|standardi[sz]e|forbid|disallow)\b|^use\b",
-    _I,
-)
-
-
-class DecisionRow(Protocol):
-    """A listed decision: any object with a title and a source platform."""
-
-    @property
-    def title(self) -> str: ...
-
-    @property
-    def platform(self) -> str | None: ...
-
-
-_Row = TypeVar("_Row", bound=DecisionRow)
-
-
-def is_decision_shaped_title(title: str) -> bool:
-    """Does a commit or PR title read as a decision, and not as a fix?
-
-    Any ``type(scope)!:`` prefix is stripped. A fix-shaped type (fix, docs, chore, ...)
-    drops the title. Otherwise the rest is judged: "feat: fix retry policy" is the
-    fix it is, and "feat(api): switch to gRPC" is kept.
-    """
-    prefix = _ANY_TYPE_PREFIX.match(title)
-    rest = title[prefix.end() :] if prefix else title
-    if prefix and _FIX_SHAPED.search(prefix.group(1)):
-        return False
-    return not _FIX_SHAPED.search(rest) and bool(_DECISION_SHAPED.search(rest))
-
-
-def decision_shaped_rows(rows: Iterable[_Row]) -> list[_Row]:
-    """The non-docs rows that read as decisions.
-
-    Rows from chat and ticket importers are already chosen by the importer, so only
-    git, github and gitlab rows are filtered.
-    """
-    kept: list[_Row] = []
-    for row in rows:
-        if row.platform == "docs":
-            continue
-        if (row.platform or "") not in _CODE_PLATFORMS or is_decision_shaped_title(row.title):
-            kept.append(row)
-    return kept
 
 
 # ---------------------------------------------------------------------------
@@ -472,6 +405,43 @@ def select_prs(items: list[Any], dropped: dict[str, int]) -> list[PrRow]:
 def covering_numbers(rows: list[PrRow]) -> tuple[set[str], set[int]]:
     """The merge SHAs and numbers of the kept pull requests."""
     return {row.merge_sha for row in rows if row.merge_sha}, {row.number for row in rows}
+
+
+_HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
+_TASK_LINE = re.compile(r"^[ \t]*[-*][ \t]+\[[ xX]\][^\n]*\n?", re.MULTILINE)
+_BLANK_RUN = re.compile(r"\n{3,}")
+
+
+def excerpt(title: str, body: str) -> str:
+    """The quoted source text: template comments and checklist lines are form, not content.
+
+    The body is cut before any pattern runs. ``<!--.*?-->`` is quadratic on a body of many
+    unclosed ``<!--``, and only ``EXCERPT_CHARS`` of the result are kept.
+    """
+    body = body[: EXCERPT_CHARS * 4]
+    body = _BLANK_RUN.sub("\n\n", _TASK_LINE.sub("", _HTML_COMMENT.sub("", body)))
+    return sanitize(f"{title}\n\n{body}".strip(), EXCERPT_CHARS)
+
+
+def commit_urls(
+    web: tuple[str, str] | None, sha: str, number: int | None
+) -> tuple[str | None, str | None]:
+    """``(commit URL, pull request URL)`` on a GitHub or GitLab origin, else ``(None, None)``."""
+    if web is None:
+        return None, None
+    kind, base = web
+    commit = f"{base}/-/commit/{sha}" if kind == "gitlab" else f"{base}/commit/{sha}"
+    pull = f"{base}/pull/{number}" if kind == "github" and number is not None else None
+    return commit, pull
+
+
+def commit_pr_number(record: CommitRecord, promoted: str) -> int | None:
+    from_squash = trailing_pr_number(promoted) or trailing_pr_number(record.subject)
+    if from_squash is not None:
+        return from_squash
+    merge = record.subject.startswith("Merge pull request #")
+    digits = record.subject[len("Merge pull request #") :].split(" ", 1)[0]
+    return int(digits) if merge and digits.isdigit() else None
 
 
 def is_covered(sha: str, subjects: tuple[str, ...], shas: set[str], numbers: set[int]) -> bool:

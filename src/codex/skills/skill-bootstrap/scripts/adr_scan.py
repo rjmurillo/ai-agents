@@ -40,6 +40,7 @@ type ``commit``. Anything else raises ``GitError``; the reader never resynchroni
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 from dataclasses import dataclass
@@ -47,39 +48,46 @@ from pathlib import Path
 from typing import Any
 
 from adr_commits import (
-    EXCERPT_CHARS,
     CommitRecord,
     PrRow,
     breaking_change,
+    commit_pr_number,
+    commit_urls,
     covering_numbers,
+    excerpt,
     is_covered,
-    is_decision_shaped_title,
     iso_day,
     parse_commit_object,
     sanitize,
     select_prs,
-    trailing_pr_number,
 )
 from adr_docs import ExistingAdrs, log_candidates
 from adr_locate import locate_folders, read_adr_texts
 from adr_reason import extract_reason
-from adr_shape import has_stated_rationale, is_decision_commit, resolve_commit_shape
+from adr_shape import (
+    has_stated_rationale,
+    is_decision_commit,
+    is_decision_shaped_title,
+    resolve_commit_shape,
+)
 
 __all__ = [
     "DROP_KEYS",
-    "EXCERPT_CHARS",
     "GIT_TIMEOUT_S",
     "ConfigError",
     "ExistingAdrs",
     "GitError",
     "git_bytes",
+    "git_env",
     "git_text",
     "origin_web_base",
     "read_commits",
+    "refusal",
     "repo_root",
     "resolve_rev",
     "rev_list",
     "scan",
+    "stderr_text",
     "web_base",
 ]
 
@@ -108,54 +116,17 @@ class _Pending:
     number: int | None
 
 
-_HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
-_TASK_LINE = re.compile(r"^[ \t]*[-*][ \t]+\[[ xX]\][^\n]*\n?", re.MULTILINE)
-_BLANK_RUN = re.compile(r"\n{3,}")
-
-
-def _excerpt(title: str, body: str) -> str:
-    """The quoted source text: template comments and checklist lines are form, not content.
-
-    The body is cut before any pattern runs. ``<!--.*?-->`` is quadratic on a body of many
-    unclosed ``<!--``, and only ``EXCERPT_CHARS`` of the result are kept.
-    """
-    body = body[: EXCERPT_CHARS * 4]
-    body = _BLANK_RUN.sub("\n\n", _TASK_LINE.sub("", _HTML_COMMENT.sub("", body)))
-    return sanitize(f"{title}\n\n{body}".strip(), EXCERPT_CHARS)
-
-
-def _urls(
-    web: tuple[str, str] | None, sha: str, number: int | None
-) -> tuple[str | None, str | None]:
-    """``(commit URL, pull request URL)`` on a GitHub or GitLab origin, else ``(None, None)``."""
-    if web is None:
-        return None, None
-    kind, base = web
-    commit = f"{base}/-/commit/{sha}" if kind == "gitlab" else f"{base}/commit/{sha}"
-    pull = f"{base}/pull/{number}" if kind == "github" and number is not None else None
-    return commit, pull
-
-
-def _commit_pr_number(record: CommitRecord, promoted: str) -> int | None:
-    from_squash = trailing_pr_number(promoted) or trailing_pr_number(record.subject)
-    if from_squash is not None:
-        return from_squash
-    merge = record.subject.startswith("Merge pull request #")
-    digits = record.subject[len("Merge pull request #") :].split(" ", 1)[0]
-    return int(digits) if merge and digits.isdigit() else None
-
-
 def _commit_pending(
     record: CommitRecord, web: tuple[str, str] | None, breaking: bool, subject: str, body: str
 ) -> _Pending:
-    number = _commit_pr_number(record, subject)
-    commit_url, pull_url = _urls(web, record.sha, number)
+    number = commit_pr_number(record, subject)
+    commit_url, pull_url = commit_urls(web, record.sha, number)
     candidate: Candidate = {
         "id": f"c-{record.sha[:7]}",
         "kind": "commit",
         "title": sanitize(subject).strip(),
         "reason": extract_reason(subject, body),
-        "excerpt": _excerpt(subject, body),
+        "excerpt": excerpt(subject, body),
         "date": iso_day(record.date),
         "source": {"sha": record.sha, "url": commit_url, "pr_number": number, "pr_url": pull_url},
         "signals": ["breaking-change"] if breaking else [],
@@ -198,7 +169,7 @@ def _pr_pending(rows: list[PrRow], dropped: dict[str, int]) -> list[_Pending]:
             "kind": "pr",
             "title": sanitize(row.title).strip(),
             "reason": row.reason,
-            "excerpt": _excerpt(row.title, row.body),
+            "excerpt": excerpt(row.title, row.body),
             "date": row.merged_day,
             "source": {"number": row.number, "url": row.url, "sha": row.merge_sha},
             "signals": [],
@@ -284,6 +255,42 @@ class GitError(Exception):
     """git is missing, failed, or timed out: exit 3."""
 
 
+# What ``git rev-parse --local-env-vars`` lists, plus GIT_NAMESPACE. Hard-coded so no extra git
+# call is spent. Any of them in the parent environment would point the child at another
+# repository, whatever ``-C`` says.
+_LOCAL_GIT_ENV = frozenset(
+    {
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_COMMON_DIR",
+        "GIT_CONFIG",
+        "GIT_CONFIG_COUNT",
+        "GIT_CONFIG_PARAMETERS",
+        "GIT_DIR",
+        "GIT_GRAFT_FILE",
+        "GIT_IMPLICIT_WORK_TREE",
+        "GIT_INDEX_FILE",
+        "GIT_NAMESPACE",
+        "GIT_NO_REPLACE_OBJECTS",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_PREFIX",
+        "GIT_REPLACE_REF_BASE",
+        "GIT_SHALLOW_FILE",
+        "GIT_WORK_TREE",
+    }
+)
+
+
+def git_env() -> dict[str, str]:
+    """The environment for a git child: no repository redirection, no prompt, English messages.
+
+    ``LC_ALL=C`` keeps the stderr texts this module matches (``not a git repository``,
+    ``dubious ownership``) the same on every locale.
+    """
+    env = {key: value for key, value in os.environ.items() if key not in _LOCAL_GIT_ENV}
+    env.update(GIT_TERMINAL_PROMPT="0", GIT_NO_LAZY_FETCH="1", LC_ALL="C")
+    return env
+
+
 def git_bytes(
     repo: Path, *args: str, stdin: bytes | None = None
 ) -> subprocess.CompletedProcess[bytes]:
@@ -295,11 +302,14 @@ def git_bytes(
             capture_output=True,
             check=False,
             timeout=GIT_TIMEOUT_S,
+            env=git_env(),
         )
     except FileNotFoundError as exc:
         raise GitError("git is not installed or not on PATH") from exc
     except subprocess.TimeoutExpired as exc:
         raise GitError(f"git {' '.join(args)} timed out after {GIT_TIMEOUT_S} s") from exc
+    except OSError as exc:
+        raise GitError(f"cannot run git: {exc}") from exc
 
 
 def git_text(
@@ -318,13 +328,29 @@ def git_text(
     )
 
 
+def stderr_text(proc: subprocess.CompletedProcess[bytes]) -> str:
+    """git's stderr, decoded and trimmed."""
+    return proc.stderr.decode("utf-8", "replace").strip()
+
+
+def refusal(proc: subprocess.CompletedProcess[bytes], what: str) -> Exception:
+    """The error for a failed git call: a dubious-ownership refusal is git's, the rest is input.
+
+    ``what`` says what the caller asked. git's own words are always kept.
+    """
+    message = stderr_text(proc)
+    if "dubious ownership" in message:
+        return GitError(f"git refused to work in {what}: {message}")
+    return ConfigError(f"{what} ({message})" if message else what)
+
+
 def repo_root(path: Path) -> Path:
     """Return the work-tree root that contains ``path``, or raise ConfigError."""
     if not path.is_dir():
         raise ConfigError(f"repository path is not a directory: {path}")
     proc = git_bytes(path, "rev-parse", "--show-toplevel")
     if proc.returncode != 0:
-        raise ConfigError(f"not a git repository: {path}")
+        raise refusal(proc, f"not a git repository: {path}")
     return Path(proc.stdout.decode("utf-8", "replace").strip()).resolve()
 
 
@@ -334,7 +360,7 @@ def resolve_rev(root: Path, rev: str) -> str:
         raise ConfigError(f"rev may not start with '-': {rev!r}")
     proc = git_bytes(root, "rev-parse", "--verify", "--quiet", f"{rev}^{{commit}}")
     if proc.returncode != 0:
-        raise ConfigError(f"rev does not name a commit: {rev!r}")
+        raise refusal(proc, f"rev does not name a commit: {rev!r}")
     return proc.stdout.decode("ascii", "replace").strip()
 
 

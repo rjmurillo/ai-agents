@@ -1,42 +1,40 @@
 # Port of aligndottech/align-cli at commit 8d758e9899677b61442b08ffda74b74887bfc42a
 # Ported upstream files:
-#   src/lib/commit-shape.ts   (all of it)
-#   src/lib/git.ts            (hasStatedRationale, isReasonBearingLine, resolveCommitShape,
-#                              isDecisionCommit)
-#   src/lib/reason-extract.ts (stripTrailers, stripImporterMetadata, hasImporterMetadata, and
-#                              the patterns they use). The sentence scoring lives in adr_reason.py.
-# Sibling ports: adr_commits.py (git.ts record parser, context-from-graph.ts), adr_docs.py
-# (fetchers/docs-conventions.ts, fetchers/docs.ts), adr_reason.py (reason-extract.ts).
+#   src/lib/commit-shape.ts          (all of it except isHousekeepingTitle, isCutTitle and
+#                                     isNonBehaviouralType, which no ADR path calls)
+#   src/lib/git.ts                   (hasStatedRationale, isReasonBearingLine, resolveCommitShape,
+#                                     isDecisionCommit)
+#   src/lib/context-from-graph.ts    (decisionShapedRows, lines 84-109)
+#   src/lib/reason-extract.ts        (stripTrailers, stripImporterMetadata, hasImporterMetadata,
+#                                     and the patterns they use). The sentence scoring lives in
+#                                     adr_reason.py.
+# Sibling ports: adr_shape.py, adr_reason.py, adr_commits.py, adr_docs.py, adr_locate.py,
+# adr_scan.py, bootstrap_adr.py.
 # MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align
 """Pure classifiers for commit subjects: is this one a decision, and does it say why?
 
-No I/O, no subprocess, standard library only. Every function takes strings and
-returns values. Covers the mechanical-subject filter, release and bump detection,
-one-off titles, rule-stating subjects, numeric bounds, the commit rationale gate,
-merge promotion and the decision-commit floor.
+No I/O, no subprocess, standard library only. Every function takes strings and returns
+values. Covers the mechanical-subject filter, release and bump detection, one-off titles,
+rule-stating subjects, numeric bounds, the commit rationale gate, merge promotion, the
+decision-commit floor, the decision-shaped title filter, and the cleaning of importer
+metadata and trailers before reason extraction. A stored commit loses its trailers by
+shape, not by list: the run of ``Key: value`` lines that ends its last paragraph.
 
-Regex notes. Module-level patterns compile with ``re.ASCII`` so ``\\b``, ``\\w``, ``\\d`` and
-case folding match the JavaScript source. ``$`` without a multiline flag is ``\\Z``
-here, because Python's ``$`` also matches before a trailing newline. ASCII ``\\s`` does not match Unicode spaces such as U+00A0, which JavaScript's ``\\s`` does.
-
-Commit text cleaning for reason extraction (importer metadata and trailers):
-
-Commit text cleaning for reason extraction: importer metadata and trailers.
-
-A stored commit loses its trailers by shape, not by list: the run of ``Key: value``
-lines that ends its last paragraph. Standard library only, no I/O.
-
-Regex notes. Module-level patterns compile with ``re.ASCII`` so ``\\b``, ``\\w``, ``\\d`` and
-case folding match the JavaScript source. ``$`` without a multiline flag is ``\\Z``
-here, because Python's ``$`` also matches before a trailing newline. ASCII ``\\s`` does not match Unicode spaces such as U+00A0, which JavaScript's ``\\s`` does. ``flat`` stays
-Unicode-aware, as ``\\s`` is in JavaScript.
+Regex notes. Every module-level pattern in the ADR backfill modules compiles with
+``re.ASCII``, so ``\\b``, ``\\w``, ``\\d`` and case folding match JavaScript in the upstream
+source named above. ``$`` without a multiline flag is written ``\\Z``, because Python's ``$``
+also matches before a trailing newline. ASCII ``\\s`` does not match Unicode spaces such as
+U+00A0, which JavaScript's ``\\s`` does, so ``flat`` stays Unicode-aware. A pattern that
+upstream wrote with an unbounded ``.*`` or a leading ``\\s*`` is bounded or rewritten here,
+so that a hostile input of N characters costs linear time. ``test_adr_hostile_input.py`` pins
+each one.
 """
 
 from __future__ import annotations
 
 import re
 from collections.abc import Iterable
-from typing import NamedTuple
+from typing import NamedTuple, Protocol, TypeVar
 
 __all__ = [
     "CONVENTIONAL_PREFIX",
@@ -45,16 +43,15 @@ __all__ = [
     "MIN_DECISION_SUBJECT_CHARS",
     "REASON_CONVENTIONAL_PREFIX",
     "STATED_WHY",
-    "TITLE_CUT_AT",
     "TRAILER",
     "CommitShape",
+    "DecisionRow",
+    "decision_shaped_rows",
     "flat",
     "has_importer_metadata",
     "has_stated_rationale",
-    "is_cut_title",
     "is_decision_commit",
-    "is_housekeeping_title",
-    "is_non_behavioural_type",
+    "is_decision_shaped_title",
     "is_one_off_change_title",
     "is_reason_bearing_line",
     "is_release_or_bump_subject",
@@ -69,9 +66,7 @@ __all__ = [
 _I = re.IGNORECASE | re.ASCII
 _A = re.ASCII
 
-# ---------------------------------------------------------------------------
 # P1, P2, P3: commit subject shape (src/lib/commit-shape.ts)
-# ---------------------------------------------------------------------------
 
 MECHANICAL_SUBJECT_PREFIXES: tuple[str, ...] = (
     "chore",
@@ -137,38 +132,6 @@ def is_release_or_bump_subject(subject: str) -> bool:
         or _BARE_BUMP_OR_RELEASE.search(body)
         or _DEPENDENCY_MOVE.search(body)
     )
-
-
-# Conventional `type:` shapes only, git's own Merge subjects, and a [DRAFT/[WIP/[Backport
-# marker (a backport repeats a decision made in the original).
-_HOUSEKEEPING_SHAPE = re.compile(
-    r"^(?:(?:docs|chore|ci|test|style|build)(?:\([^)]*\))?!?:"
-    r"|merge\s+(?:pull request|branch|remote-tracking|tag)\b|\[(?:draft|wip|backport)\b)",
-    _I,
-)
-
-
-def is_housekeeping_title(title: str) -> bool:
-    """What a first-run listing must not show as a decision."""
-    return bool(_HOUSEKEEPING_SHAPE.search(title.strip())) or is_release_or_bump_subject(title)
-
-
-# The graph keeps a title as its first 80 characters, so one this long may be cut mid-word.
-TITLE_CUT_AT = 80
-
-
-def is_cut_title(title: str) -> bool:
-    return len(title.strip()) >= TITLE_CUT_AT
-
-
-_NON_BEHAVIOURAL_TYPE = re.compile(
-    r"^(?:docs|style|test|chore|ci|build|release|refactor)(?:\([^)]*\))?!?:", _I
-)
-
-
-def is_non_behavioural_type(title: str) -> bool:
-    """A conventional-commit type whose commits do not decide what the lines they touch do."""
-    return bool(_NON_BEHAVIOURAL_TYPE.search(title.strip()))
 
 
 _POLICY_WORD = re.compile(
@@ -250,9 +213,7 @@ def is_one_off_change_title(title: str) -> bool:
     )
 
 
-# ---------------------------------------------------------------------------
 # P4: commit rationale gate (src/lib/git.ts)
-# ---------------------------------------------------------------------------
 
 # A line that IS a git trailer, not a sentence that mentions one of these words mid-line.
 _TRAILER_LINE = re.compile(
@@ -333,9 +294,7 @@ def _is_noise_line(line: str, subject_norm: str) -> bool:
     )
 
 
-# ---------------------------------------------------------------------------
 # P6: merge promotion and the decision-commit floor (src/lib/git.ts)
-# ---------------------------------------------------------------------------
 
 _MECHANICAL_SUBJECT = mechanical_subject_regex(MECHANICAL_SUBJECT_PREFIXES)
 _MERGE_SUBJECT = re.compile(r"^merge\b", _I)
@@ -377,9 +336,7 @@ def resolve_commit_shape(subject: str, body: str) -> CommitShape:
     return CommitShape(first, "\n".join(part for part in (subject, rest) if part))
 
 
-# ---------------------------------------------------------------------------
 # Reason text cleaning: importer metadata and trailers (src/lib/reason-extract.ts)
-# ---------------------------------------------------------------------------
 
 # The importer appends: Author, Date, optional Files changed list, optional URL.
 _IMPORTER_METADATA = re.compile(
@@ -475,3 +432,67 @@ def strip_trailers(text: str, subject: str | None = None) -> str:
     while start > 0 and not lines[start - 1].strip():
         start -= 1
     return "\n".join(lines[:start])
+
+
+# P8: decision-shaped filter (src/lib/context-from-graph.ts)
+
+# A commit or PR shaped like a fix, a test, a chore or an issue reference. Upstream also
+# dropped ``^\w+\([^)]*\):``, which removed every scoped commit. Here the word list is
+# applied to the conventional type instead.
+_FIX_SHAPED = re.compile(
+    r"^(?:fix(?:es|ed)?|bug|hotfix|tests?|ci|style|chore|build|docs?|refactor|perf|revert"
+    r"|bump|deps?)\b|^#\d+",
+    _I,
+)
+_CODE_PLATFORMS = frozenset({"git", "github", "gitlab"})
+# `type(scope)!:` with an optional leading issue number on what follows.
+_ANY_TYPE_PREFIX = re.compile(r"^([a-z]+)(?:\([^)]*\))?!?:\s*(?:#\d+\s*)?", _I)
+# Words a choice is written in.
+_DECISION_SHAPED = re.compile(
+    r"\b(?:adopt|switch(?:ed)? to|move to|migrate|replace[sd]?\b.{0,200}?\bwith|instead of|deprecate"
+    r"|drop support|requires?|must|always|never|no longer|policy|convention|prefer"
+    r"|standardi[sz]e|forbid|disallow)\b|^use\b",
+    _I,
+)
+
+
+class DecisionRow(Protocol):
+    """A listed decision: any object with a title and a source platform."""
+
+    @property
+    def title(self) -> str: ...
+
+    @property
+    def platform(self) -> str | None: ...
+
+
+_Row = TypeVar("_Row", bound=DecisionRow)
+
+
+def is_decision_shaped_title(title: str) -> bool:
+    """Does a commit or PR title read as a decision, and not as a fix?
+
+    Any ``type(scope)!:`` prefix is stripped. A fix-shaped type (fix, docs, chore, ...)
+    drops the title. Otherwise the rest is judged: "feat: fix retry policy" is the
+    fix it is, and "feat(api): switch to gRPC" is kept.
+    """
+    prefix = _ANY_TYPE_PREFIX.match(title)
+    rest = title[prefix.end() :] if prefix else title
+    if prefix and _FIX_SHAPED.search(prefix.group(1)):
+        return False
+    return not _FIX_SHAPED.search(rest) and bool(_DECISION_SHAPED.search(rest))
+
+
+def decision_shaped_rows(rows: Iterable[_Row]) -> list[_Row]:
+    """The non-docs rows that read as decisions.
+
+    Rows from chat and ticket importers are already chosen by the importer, so only
+    git, github and gitlab rows are filtered.
+    """
+    kept: list[_Row] = []
+    for row in rows:
+        if row.platform == "docs":
+            continue
+        if (row.platform or "") not in _CODE_PLATFORMS or is_decision_shaped_title(row.title):
+            kept.append(row)
+    return kept

@@ -7,8 +7,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+import adr_commits
 import adr_locate
-import adr_scan
 import bootstrap_adr
 import pytest
 from adr_helpers import commit, new_repo, write
@@ -91,7 +91,7 @@ def test_an_excerpt_drops_template_comments_and_checklist_lines() -> None:
         "cannot stream.\n\n## Checklist\n\n- [x] Tests added\n- [ ] Docs updated\n"
     )
 
-    excerpt = adr_scan._excerpt("Adopt grpc", body)
+    excerpt = adr_commits.excerpt("Adopt grpc", body)
 
     assert "<!--" not in excerpt and "[x]" not in excerpt and "[ ]" not in excerpt
     assert "We adopt grpc because REST" in excerpt
@@ -102,9 +102,9 @@ def test_an_excerpt_of_many_unclosed_comment_openers_returns_quickly() -> None:
     assert len(body) == 200_000
 
     started = time.monotonic()
-    excerpt = adr_scan._excerpt("Adopt grpc", body)
+    excerpt = adr_commits.excerpt("Adopt grpc", body)
     elapsed = time.monotonic() - started
 
-    assert len(excerpt) <= adr_scan.EXCERPT_CHARS
+    assert len(excerpt) <= adr_commits.EXCERPT_CHARS
     assert excerpt.startswith("Adopt grpc")
     assert elapsed < 2.0

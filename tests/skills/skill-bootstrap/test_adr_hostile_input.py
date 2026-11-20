@@ -39,7 +39,7 @@ def _seconds(call: Callable[[], object]) -> float:
         ("is_decision_commit", lambda: adr_shape.is_decision_commit("Adopt x" + " " * N + "y")),
         ("pr reference marks", lambda: adr_shape.is_decision_commit("Adopt x" + "(#1" * (N // 3))),
         ("urls_in", lambda: adr_commits.urls_in("https://a" + "." * N + "b")),
-        ("replace", lambda: adr_commits.is_decision_shaped_title("replace " * (N // 5))),
+        ("replace", lambda: adr_shape.is_decision_shaped_title("replace " * (N // 5))),
         ("adr_title", lambda: adr_locate.adr_title("commit", "x" + " " * N + "y")),
         ("title with prefix", lambda: adr_locate.adr_title("pr", "feat: a" + " " * N + "(#1")),
         (
@@ -55,9 +55,9 @@ def test_a_hostile_200k_string_is_linear(name: str, call: Callable[[], object]) 
 
 
 def test_the_decision_shaped_filter_still_reads_a_replace_with_title() -> None:
-    assert adr_commits.is_decision_shaped_title("Replace the queue with a topic")
-    assert adr_commits.is_decision_shaped_title("replaces eo-inference with the per-copy engine")
-    assert not adr_commits.is_decision_shaped_title("Replace the queue")
+    assert adr_shape.is_decision_shaped_title("Replace the queue with a topic")
+    assert adr_shape.is_decision_shaped_title("replaces eo-inference with the per-copy engine")
+    assert not adr_shape.is_decision_shaped_title("Replace the queue")
 
 
 def test_the_pr_reference_still_comes_off_a_title() -> None:
