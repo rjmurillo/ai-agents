@@ -1,0 +1,14 @@
+{
+  "id": "N01",
+  "pr": 7452,
+  "sha": "6b9340fa",
+  "kind": "negative",
+  "scope": "automatic",
+  "resolved_sha": "6b9340fac0730c973cb27b1bbd8def16822b2bb4",
+  "pr_base": "498d4892a62a50d6624bc9315344dd9ef81e373d",
+  "merge_base": "da42adc4a7593906345f040d6a6a5d7b734bef04",
+  "findings": [],
+  "output": "[citation-freshness] examined 0 citation(s) across 5 changed file(s) vs da42adc4a7593906345f040d6a6a5d7b734bef04\n[citation-reverse-pass] examined 0 inbound citation(s) to 24 changed file(s) vs da42adc4a7593906345f040d6a6a5d7b734bef04; 0 already stale at the merge base (not blocking)\n",
+  "caught": false,
+  "false_positives": 0
+}
