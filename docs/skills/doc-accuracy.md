@@ -86,7 +86,7 @@ Your trigger picks the phases: a full audit runs 1 to 6, `verify code examples` 
 | Rule | Catches |
 | --- | --- |
 | R1 | A touched exit table omits a literal process exit. Dynamic exits remain unjudged. |
-| R2 | A closed language or path enumeration omits a collection member. |
+| R2 | A closed language or path enumeration omits a collection member. A path list binds only when its line names the collection or its script. |
 | R3 | A named JSON key receives identifiers that contradict its claimed contents. |
 | R4 | A count beside a backticked collection name differs from its literal length. |
 | Repository cardinality | Changed prose counts disagree with enumerations, tables, or sibling JSON/YAML arrays. |

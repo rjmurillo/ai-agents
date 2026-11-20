@@ -580,6 +580,7 @@ def check_literal_subset(prose: ProseLine, index: CodeIndex) -> list[dict[str, o
     if re.search(r"\b(?:example|including|such as|e\.g\.)\b", prose.text, re.I):
         return []
     named = {s.rstrip("/") for s in re.findall(r"`([^`]+)`", prose.text)}
+    scripts = set(_SCRIPT_MENTION.findall(prose.text))
     found = []
     for path, line, symbol, values in literal_collections(index):
         strings = [const_str(v) for v in values]
@@ -587,10 +588,14 @@ def check_literal_subset(prose: ProseLine, index: CodeIndex) -> list[dict[str, o
             continue
         members = {s.rstrip("/") for s in strings if s is not None}
         overlap = named & members
-        # Two literal paths and an explicit scope/list claim bind the collection.
+        # The line must name the collection, by symbol or by its file path.
+        # Two shared paths and a scope word alone matched unrelated table
+        # rows (issue #7484), because any changed or mentioned script joins
+        # the index for every prose line.
         explicit = symbol in prose.text
         paths = len(overlap) >= 2 and all(f"`{s}/`" in prose.text for s in overlap)
-        if not (explicit or paths and re.search(r"scope|root|prefix", prose.text, re.I)):
+        scoped = paths and path in scripts and re.search(r"scope|root|prefix", prose.text, re.I)
+        if not (explicit or scoped):
             continue
         if overlap and overlap < members:
             found.append(
