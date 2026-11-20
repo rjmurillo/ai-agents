@@ -20,6 +20,7 @@ import bootstrap_adr
 import pytest
 from adr_helpers import commit, git, new_repo, write
 from adr_scan import ConfigError
+from draft_helpers import _cand, _scan_file, _text
 
 WHY = "Because the team already runs it in production and a second system needs a second on-call."
 ADR_122 = (
@@ -28,45 +29,12 @@ ADR_122 = (
 )
 
 
-def _cand(**over: Any) -> dict[str, Any]:
-    base: dict[str, Any] = {
-        "id": "c-1234567",
-        "kind": "commit",
-        "title": "Replace eo-inference with the per-copy engine",
-        "reason": "the per-copy engine resolves each copy once, so inference stops repeating work",
-        "excerpt": (
-            "Replace eo-inference with the per-copy engine\n\nThe old engine re-read every copy."
-        ),
-        "date": "2026-11-02",
-        "source": {
-            "sha": "1234567" + "0" * 33,
-            "url": "https://github.com/objectionary/eo/commit/9d90b52",
-            "pr_number": None,
-            "pr_url": None,
-        },
-        "signals": [],
-    }
-    return {**base, **over}
-
-
-def _scan_file(tmp_path: Path, repo: Path, *candidates: dict[str, Any]) -> str:
-    path = tmp_path / f"scan-{len(list(tmp_path.glob('scan-*.json')))}.json"
-    path.write_text(
-        json.dumps({"repo": str(repo), "candidates": list(candidates)}), encoding="utf-8"
-    )
-    return str(path)
-
-
 def _toolkit_repo(tmp_path: Path) -> tuple[Path, Path]:
     repo = new_repo(tmp_path / "r")
     folder = repo / ".project-toolkit" / "architecture"
     write(repo, ".project-toolkit/architecture/ADR-122-use-postgres.md", ADR_122)
     commit(repo, "Initial work")
     return repo, folder
-
-
-def _text(result: dict[str, Any]) -> str:
-    return Path(result["path"]).read_text(encoding="utf-8")
 
 
 def test_the_first_draft_in_a_folder_whose_newest_is_adr_122_is_adr_123(tmp_path: Path) -> None:
@@ -449,34 +417,6 @@ def test_a_scan_lists_two_and_draft_writes_only_the_accepted_one(tmp_path: Path)
     accepted = payload["candidates"][0]
     bootstrap_adr.draft(str(scan), accepted["id"], str(repo / "docs" / "adr"), "Proposed")
     assert len(list((repo / "docs" / "adr").iterdir())) == 2
-
-
-def test_only_the_first_heading_of_a_kind_is_filled(tmp_path: Path) -> None:
-    repo = new_repo(tmp_path / "r")
-    write(repo, "docs/adr/0001-a.md", "# 1. A\n\n## Context\n\nc\n\n## Background\n\nb\n")
-    commit(repo, "Initial work")
-    scan = _scan_file(tmp_path, repo, _cand())
-    text = _text(bootstrap_adr.draft(scan, "c-1234567", str(repo / "docs" / "adr"), "Proposed"))
-    assert text.count("The reason given at the time:") == 1
-    assert "## Background\n\nNot recorded in the source." in text
-
-
-def test_section_matching_uses_whole_words(tmp_path: Path) -> None:
-    repo = new_repo(tmp_path / "r")
-    write(
-        repo,
-        "docs/adr/0001-a.md",
-        "# 1. A\n\n## Context and Constraints\n\nc\n\n## Updates\n\nu\n\n## Candidates\n\nk\n"
-        "\n## Decision\n\nd\n",
-    )
-    commit(repo, "Initial work")
-    scan = _scan_file(tmp_path, repo, _cand())
-    text = _text(bootstrap_adr.draft(scan, "c-1234567", str(repo / "docs" / "adr"), "Proposed"))
-    assert "## Context and Constraints\n\nThe reason given at the time:" in text
-    assert "## Updates\n\nNot recorded in the source." in text
-    assert "## Candidates\n\nNot recorded in the source." in text
-    assert "## Decision\n\nReplace eo-inference" in text
-    assert "Date: 2026-11-02" in text and "2026-11-02" not in text.split("## Updates")[1]
 
 
 def test_a_draft_into_another_work_tree_of_the_repository_is_gated_on_that_tree(
