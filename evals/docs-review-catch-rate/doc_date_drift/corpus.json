@@ -1,0 +1,287 @@
+{
+  "schema_version": 1,
+  "repository": "rjmurillo/ai-agents",
+  "selection": "Past docs review findings and twelve owner-supplied clean PRs.",
+  "line_tolerance": 3,
+  "cases": [
+    {
+      "id": "C3-01",
+      "pr": 7428,
+      "sha": "457c86216b817674b2355c4fdbadb53a92c22e90",
+      "baseRefOid": "031b40d484d8f04c75bb0917e960aa96f78eb083",
+      "url": "https://github.com/rjmurillo/ai-agents/pull/7428",
+      "kind": "positive",
+      "scope": "automatic",
+      "expected": [
+        {
+          "path": "src/claude/skills/adr-review/references/zimmermann-review-guidance.md",
+          "line": 3,
+          "rule": "subject-drift"
+        },
+        {
+          "path": "src/claude/skills/adr-review/references/zimmermann-review-guidance.md",
+          "line": 94,
+          "rule": "subject-drift"
+        }
+      ]
+    },
+    {
+      "id": "C3-02",
+      "pr": 6925,
+      "sha": "28d461c9e23e01f6e923662057728cb395ab6fd1",
+      "baseRefOid": "88cc360a8637eebe243351373515c69b91ffaff7",
+      "url": "https://github.com/rjmurillo/ai-agents/pull/6925",
+      "kind": "positive",
+      "scope": "automatic",
+      "expected": [
+        {
+          "path": "docs/COST-GOVERNANCE.md",
+          "line": 271,
+          "rule": "header-pair"
+        }
+      ],
+      "supplied_head": "e469c00c21c5eb5f2a88d26efcb88bf8adf012c0",
+      "revision_note": "The supplied head fixes the defect. Replay uses the introducing commit before fix 673f0e848ff3."
+    },
+    {
+      "id": "C3-03",
+      "pr": 7027,
+      "sha": "d8729bf86f18e65446f0df685ea2a86665b2b51f",
+      "baseRefOid": "23ce9bda1e82529d2599d631295a4c6850bfd4d8",
+      "url": "https://github.com/rjmurillo/ai-agents/pull/7027",
+      "kind": "positive",
+      "scope": "automatic",
+      "expected": [
+        {
+          "path": ".project-toolkit/architecture/ADR-101-enforcement-planes.md",
+          "line": 39,
+          "rule": "adr-date"
+        }
+      ]
+    },
+    {
+      "id": "C3-04",
+      "pr": 7136,
+      "sha": "7992ee43f6c2b6c13e4a8a095742b13eb7555035",
+      "baseRefOid": "61764b406556ac67617bf56d764afb42e8acb1d6",
+      "url": "https://github.com/rjmurillo/ai-agents/pull/7136",
+      "kind": "positive",
+      "scope": "automatic",
+      "expected": [
+        {
+          "path": ".project-toolkit/architecture/ADR-114-agent-workflows-approval-and-non-blocking.md",
+          "line": 63,
+          "rule": "adr-date"
+        }
+      ]
+    },
+    {
+      "id": "C3-05",
+      "pr": 7196,
+      "sha": "e47d206e047ca8e12dd81cde54e66e9fb75f6b10",
+      "baseRefOid": "5c1276d6c9b425f75f40da7cd19e05235615ce7a",
+      "url": "https://github.com/rjmurillo/ai-agents/pull/7196",
+      "kind": "positive",
+      "scope": "manual",
+      "expected": [
+        {
+          "path": ".project-toolkit/architecture/ADR-041-codeql-integration.md",
+          "line": 64,
+          "rule": "adr-date"
+        }
+      ],
+      "why": "Frontmatter date 2026-11-09 equals the commit day, and the diff adds no newer dated marker."
+    },
+    {
+      "id": "C3-06",
+      "pr": 7307,
+      "sha": "c4e4074531f50f2869a9fceef5db440d91933974",
+      "baseRefOid": "fa6a2025019162c9b651df3c77d226d9a1c0023b",
+      "url": "https://github.com/rjmurillo/ai-agents/pull/7307",
+      "kind": "positive",
+      "scope": "automatic",
+      "expected": [
+        {
+          "path": ".project-toolkit/architecture/ADR-115-native-plugin-support-per-host.md",
+          "line": 17,
+          "rule": "adr-date"
+        }
+      ]
+    },
+    {
+      "id": "C3-07",
+      "pr": 7370,
+      "sha": "38604d801022836ae08b020500378333513339b0",
+      "baseRefOid": "b2392aa66bee3f16205f6ebcc4d300ec03d73f30",
+      "url": "https://github.com/rjmurillo/ai-agents/pull/7370",
+      "kind": "positive",
+      "scope": "automatic",
+      "expected": [
+        {
+          "path": ".project-toolkit/architecture/ADR-121-one-resolver-for-plugin-root-commands.md",
+          "line": 124,
+          "rule": "adr-date"
+        }
+      ]
+    },
+    {
+      "id": "C3-08",
+      "pr": 7395,
+      "sha": "8af68d4caf06cf5eebedc579733b4d9c13e81cb0",
+      "baseRefOid": "b025f34ded73fa56fceb078c1a6e67d2eee1a180",
+      "url": "https://github.com/rjmurillo/ai-agents/pull/7395",
+      "kind": "positive",
+      "scope": "automatic",
+      "expected": [
+        {
+          "path": ".project-toolkit/architecture/ADR-115-native-plugin-support-per-host.md",
+          "line": 21,
+          "rule": "adr-date"
+        }
+      ]
+    },
+    {
+      "id": "C3-09",
+      "pr": 6978,
+      "sha": "881b4aa5a4646b8abc32ab067119e25e0a026909",
+      "baseRefOid": "c46202ad70fc9a6365494b961580b44940a98d10",
+      "url": "https://github.com/rjmurillo/ai-agents/pull/6978",
+      "kind": "positive",
+      "scope": "automatic",
+      "expected": [
+        {
+          "path": ".project-toolkit/architecture/ADR-111-skill-model-pins-project-per-harness.md",
+          "line": 137,
+          "rule": "adr-date"
+        }
+      ],
+      "supplied_context_line": 132,
+      "location_note": "The supplied context starts at line 132. The added dated amendment starts at line 137."
+    },
+    {
+      "id": "C3-10",
+      "pr": 7092,
+      "sha": "d530e21390df879d7bad12ffbc4ba4be89e489c1",
+      "baseRefOid": "950f344824f1272eccda91fcc6a723119c957d05",
+      "url": "https://github.com/rjmurillo/ai-agents/pull/7092",
+      "kind": "positive",
+      "scope": "manual",
+      "expected": [
+        {
+          "path": "templates/skills/ai-agents-architecture-contract.SKILL.md.tmpl",
+          "line": 159,
+          "rule": "stale-as-of"
+        }
+      ],
+      "why": "The count provenance and checklist date are 24 lines apart, outside the three-line as-of rule."
+    },
+    {
+      "id": "N-7452",
+      "pr": 7452,
+      "sha": "6b9340fac0730c973cb27b1bbd8def16822b2bb4",
+      "baseRefOid": "498d4892a62a50d6624bc9315344dd9ef81e373d",
+      "url": "https://github.com/rjmurillo/ai-agents/pull/7452",
+      "kind": "negative",
+      "scope": "automatic"
+    },
+    {
+      "id": "N-7431",
+      "pr": 7431,
+      "sha": "e30fb2297694dd5ca95d8913c0d0789d37b15ace",
+      "baseRefOid": "031b40d484d8f04c75bb0917e960aa96f78eb083",
+      "url": "https://github.com/rjmurillo/ai-agents/pull/7431",
+      "kind": "negative",
+      "scope": "automatic"
+    },
+    {
+      "id": "N-7377",
+      "pr": 7377,
+      "sha": "17e0aa089892a67db4a5dda5898be631224cc310",
+      "baseRefOid": "919a56dee13126cdcba48e6732f42fbf01963106",
+      "url": "https://github.com/rjmurillo/ai-agents/pull/7377",
+      "kind": "negative",
+      "scope": "automatic"
+    },
+    {
+      "id": "N-7412",
+      "pr": 7412,
+      "sha": "f9493d63c4e4efe7493d589940b7cd19ecd8cbfa",
+      "baseRefOid": "f2de906fa66e7287c845d3d4e5bfa5066a52d220",
+      "url": "https://github.com/rjmurillo/ai-agents/pull/7412",
+      "kind": "negative",
+      "scope": "automatic"
+    },
+    {
+      "id": "N-7146",
+      "pr": 7146,
+      "sha": "8fc3c74779bc5a4a363b8e12ae6f42ae1cd1d826",
+      "baseRefOid": "1483a697174329481230bf01b2c89d930b066fc3",
+      "url": "https://github.com/rjmurillo/ai-agents/pull/7146",
+      "kind": "negative",
+      "scope": "automatic"
+    },
+    {
+      "id": "N-7415",
+      "pr": 7415,
+      "sha": "c99aca0eb1795bef30e468a560579add8bd888ac",
+      "baseRefOid": "7aa43a0eb563cfb00a00de84361d5514b725cf66",
+      "url": "https://github.com/rjmurillo/ai-agents/pull/7415",
+      "kind": "negative",
+      "scope": "automatic"
+    },
+    {
+      "id": "N-7174",
+      "pr": 7174,
+      "sha": "2bccad6a6a7ec7ea6ea4cac5000fb17db7316745",
+      "baseRefOid": "2438d8def966511a7d58dcb8e20acabeb247801e",
+      "url": "https://github.com/rjmurillo/ai-agents/pull/7174",
+      "kind": "negative",
+      "scope": "automatic"
+    },
+    {
+      "id": "N-7313",
+      "pr": 7313,
+      "sha": "773f93276e3291077e3c6f8fc0b9fd2514a66a2a",
+      "baseRefOid": "b22c1b126fe9c98fb5b6506ccefba2ba35e69175",
+      "url": "https://github.com/rjmurillo/ai-agents/pull/7313",
+      "kind": "negative",
+      "scope": "automatic"
+    },
+    {
+      "id": "N-7324",
+      "pr": 7324,
+      "sha": "4d0d39000608e6ae031f9499ad9ad5d249372bc9",
+      "baseRefOid": "fc91afcf25a3d721a8f299c94851cc4d5139170d",
+      "url": "https://github.com/rjmurillo/ai-agents/pull/7324",
+      "kind": "negative",
+      "scope": "automatic"
+    },
+    {
+      "id": "N-7446",
+      "pr": 7446,
+      "sha": "3adae314d51474f16ddd958d2a04cccf2e2697cf",
+      "baseRefOid": "e9acebe15f31d1f2ed0c5dae1d329d0af94632c5",
+      "url": "https://github.com/rjmurillo/ai-agents/pull/7446",
+      "kind": "negative",
+      "scope": "automatic"
+    },
+    {
+      "id": "N-7294",
+      "pr": 7294,
+      "sha": "2d7585ba6c4e466560b250af5e3eceabcaa4b712",
+      "baseRefOid": "d82875e0cad26be4af0154c70bb42d6619162865",
+      "url": "https://github.com/rjmurillo/ai-agents/pull/7294",
+      "kind": "negative",
+      "scope": "automatic"
+    },
+    {
+      "id": "N-7253",
+      "pr": 7253,
+      "sha": "dd30394857a80257981f640d0b910ca71d1642bd",
+      "baseRefOid": "a28131561d0f751457cf0eb19547e070edbfa2c7",
+      "url": "https://github.com/rjmurillo/ai-agents/pull/7253",
+      "kind": "negative",
+      "scope": "automatic"
+    }
+  ]
+}

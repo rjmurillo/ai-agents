@@ -214,8 +214,8 @@ invent a correction when evidence is unavailable or a claim remains uncertain.
    Store it as `.project-toolkit/critique/ADR-NNN-claims-ledger.md` beside the debate log.
    An absence row needs a whole-repository search. For each `path:line` row,
    read the cited range directly from the working tree and record the observed
-   text. Do not use `check_citation_freshness.py`; it checks only citations on
-   lines added between committed revisions.
+   text. Do not use `check_citation_freshness.py` or `citation_reverse_pass.py`;
+   both read committed revisions only.
 2. **Documentation accuracy.** Run `Skill(skill="doc-accuracy")` Phase 4 with
    the saved ADR as the documentation file and its mapped source files as the
    source input. Do not use `--diff-base`; it scans committed changes and cannot

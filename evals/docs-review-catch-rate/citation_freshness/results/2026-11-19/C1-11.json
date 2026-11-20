@@ -1,0 +1,19 @@
+{
+  "id": "C1-11",
+  "pr": 6689,
+  "sha": null,
+  "kind": "positive",
+  "scope": "manual",
+  "file": ".project-toolkit/analysis/adr-101-requirement-2-publisher-app-spike.md",
+  "line": 153,
+  "defect_class": "stale-citation",
+  "defect": "The prose lines 265-271 citation should name lines 278-284.",
+  "why": "Prose line ranges lack a path:N citation and occur in a historical root.",
+  "resolved_sha": "66c5478efaec35f5e0319ce46610bcf58b8e8502",
+  "pr_base": "44fd46a46eda470b1645b139afce68fcda1b8175",
+  "merge_base": "44fd46a46eda470b1645b139afce68fcda1b8175",
+  "findings": [],
+  "output": "[citation-freshness] examined 0 citation(s) across 0 changed file(s) vs 44fd46a46eda470b1645b139afce68fcda1b8175\n[citation-reverse-pass] examined 0 inbound citation(s) to 1 changed file(s) vs 44fd46a46eda470b1645b139afce68fcda1b8175; 0 already stale at the merge base (not blocking)\n",
+  "caught": false,
+  "false_positives": 0
+}

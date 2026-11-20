@@ -294,7 +294,7 @@ output; nothing in this repo produces or reads that telemetry today.
 
 ### Scripts
 
-Run `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-research-methodology/scripts/instruments.py --repo . list; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )` to see every linked instrument and whether its file exists. It lists the retro counter above, the `file:line` claim check (`bootstrap_mine.py claims`), `scripts/validation/check_citation_freshness.py`, and the drift check. It answers presence only; whether a cited line still says what this skill claims is for `reverify.json`.
+Run `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-research-methodology/scripts/instruments.py --repo . list; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )` to see every linked instrument and whether its file exists. It lists the retro counter above, the `file:line` claim check (`bootstrap_mine.py claims`), `scripts/validation/check_citation_freshness.py` (citations on added lines), its sibling `citation_reverse_pass.py` (unchanged citations into files the branch changed; run it before you push a branch that moves, renames, or deletes a cited file), and the drift check. It answers presence only; whether a cited line still says what this skill claims is for `reverify.json`.
 
 Machine-checkable facts live in `reverify.json`. Run the drift check after any edit:
 

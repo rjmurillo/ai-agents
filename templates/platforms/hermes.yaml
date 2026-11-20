@@ -18,7 +18,8 @@ artifacts:
     # 397 adds room for references/typescript-parser.md (issue #7435).
     # 398 adds references/python-parser.md (issue #7436).
     # 399 adds references/powershell-parser.md (issue #7437), leaving 1 under the cap.
-    packMaxFiles: 399
+    # 400 adds doc-accuracy's scripts/same_pr.py (the --same-pr scan), leaving 0 under the cap.
+    packMaxFiles: 400
     # hermes-agent commit whose plugin_guard and install limits this table was
     # measured against. The guard test and the smoke test install this commit.
     hermesCommit: "63d0b94120027d487c9a5235b9ec64b696af1b26"

@@ -79,6 +79,7 @@ Phase 6: Structure         (Sonnet agent, 1-2m)  -> structure-findings.json
 | Script | Purpose |
 |--------|---------|
 | `scripts/doc_accuracy.py` | Phases 1-3: Assessment, claim extraction, compilability check |
+| `same_pr.py` (same directory as the row above) | Same-PR mode, loaded by `doc_accuracy.py --same-pr`: prose against code changed in the same diff. Not run on its own |
 | `pr_snapshot.py` (same directory as the row above) | Capture an immutable head and base snapshot of a PR for review, or re-check it with `--check-stale`. Exit 0 ok, 1 verification or stale, 2 config, 3 external, 4 auth. Flags: `--owner`, `--repo`, `--pull-request`, `--output-dir`, `--identity-file`, `--run-scanner` |
 
 ## Invocation
@@ -104,12 +105,20 @@ python3 scripts/doc_accuracy.py --target /path/to/repo --format markdown
 
 # Text summary to stdout
 python3 scripts/doc_accuracy.py --target /path/to/repo --format summary
+
 ```
 
 ### Line scoping with `--diff-base`
 
 With `--diff-base`, only claims on changed lines block. See
 `references/diff-scoping.md`.
+
+### Same-PR mode
+
+`--same-pr` (needs `--diff-base`, else exit 2) checks changed prose against code
+changed in the same diff. Before a PR changing both, run `doc_accuracy.py --target .
+--diff-base origin/main --same-pr`. R1 to R4 join the gate; other claims go to
+`same-pr-checklist.json`. See `references/diff-scoping.md`.
 
 ### Documenting another product's SDK
 
@@ -121,15 +130,7 @@ name. Declare the file with one HTML comment:
 <!-- doc-accuracy: external-sdk <name> -- <reason> -->
 ```
 
-- `<name>` is required. A missing `<reason>` stays valid and records "".
-- Put it right after the H1. It is honored only when `<!--` starts at column 0
-  and no earlier line contains three backticks or tildes. A marker below any
-  code fence is ignored. The first valid marker wins.
-- It silences `unresolved_symbol` for that file only. Other checks still run.
-- A missing, `-`-led, or placeholder name suppresses nothing and yields a
-  high `invalid_external_sdk_marker` finding.
-- `claims.json` records `sdk`, `reason`, and `line`. Phase 3 counts suppressed
-  symbols, and `summary` and `markdown` print one exemption line per file.
+Marker rules: `references/diff-scoping.md`.
 
 ---
 
@@ -141,6 +142,7 @@ name. Declare the file with one HTML comment:
 | `claims.json` | Phase 2: verifiable claims extracted from docs |
 | `compilability-findings.json` | Phase 3: run status and symbol resolution findings |
 | `gate-result.json` | Gate verdict, reason when inconclusive, and severity counts |
+| `same-pr-*.json` | `--same-pr` output |
 | `report.md` | Markdown summary (when `--format markdown`) |
 
 ---
@@ -163,6 +165,7 @@ Dispatch one Sonnet agent per file group. Each agent receives:
 - Documentation file content
 - Filtered claims from `claims.json`
 - Compilability findings (to avoid re-checking)
+- `same-pr-checklist.json`, if present
 
 Agent prompt:
 
