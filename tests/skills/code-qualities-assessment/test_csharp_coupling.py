@@ -1,4 +1,4 @@
-"""C# directive and resource classification regressions for issue #7406."""
+"""C# directive and resource classification regressions for issues #7406 and #7459."""
 
 import importlib.util
 import json
@@ -52,11 +52,14 @@ assess_content = _mod.assess_content
     ],
 )
 def test_csharp_directives_count_as_dependencies(directive: str) -> None:
-    """AC2: Namespace, alias, static, and global directives remain dependencies."""
+    """AC2: Namespace, alias, static, and global directives remain dependencies.
+
+    Whether a directive is scored depends on its namespace; see
+    test_csharp_system_namespace_directives_are_reported_not_scored.
+    """
     coupling = assess_content(Path("Imports.cs"), directive).coupling
 
     assert coupling.reasons[0] == "1 import/dependency statements"
-    assert coupling.value < 10
     assert coupling.confidence == 0.6
 
 
@@ -104,9 +107,9 @@ def test_csharp_resource_cleanup_preserves_coupling() -> None:
 @pytest.mark.parametrize(
     ("source", "expected"),
     [
-        ("using System.IO; using System.Text;", 2),
-        ("namespace Example {\nusing System.IO;\nclass C {}\n}", 1),
-        ("namespace Example;\nusing System.IO;\nclass C {}", 1),
+        ("using Company.IO; using Company.Text;", 2),
+        ("namespace Example {\nusing Company.IO;\nclass C {}\n}", 1),
+        ("namespace Example;\nusing Company.IO;\nclass C {}", 1),
         ("/*\nusing System.IO;\n*/", 0),
         ('class C { string text = @"\nusing System.IO;\n"; }', 0),
         ('class C { string text = """\nusing System.IO;\n"""; }', 0),
@@ -118,6 +121,159 @@ def test_csharp_counts_syntax_nodes_not_source_lines(source: str, expected: int)
 
     assert coupling.reasons[0] == f"{expected} import/dependency statements"
     assert coupling.value == 10.0 - expected
+
+
+_SYSTEM_NOTE = "1 C# System namespace (not scored), 0 application or third-party (scored)"
+
+
+@pytest.mark.parametrize(
+    "directive",
+    [
+        "using System;",
+        "using System.IO;",
+        "using @System.IO;",
+        "using global::System.Linq;",
+        "using/* namespace */System /* scope */ . IO;",
+        "using\n    System.IO\n    ;",
+        "using static System.Math;",
+        "using IO = System.IO;",
+        "using SB = global::System.Text.StringBuilder;",
+        "using Streams = System.Collections.Generic.List<Xunit.Fact>;",
+        "global using System.IO;",
+        "global /* shared */ using static System.Math;",
+        "namespace Example {\nusing System.IO;\nclass C {}\n}",
+    ],
+)
+def test_csharp_system_namespace_directives_are_reported_not_scored(directive: str) -> None:
+    """Issue #7459: System namespace directives ship with .NET, like Python's stdlib."""
+    coupling = assess_content(Path("Imports.cs"), directive).coupling
+
+    assert coupling.reasons[:2] == ["1 import/dependency statements", _SYSTEM_NOTE]
+    assert coupling.value == 10.0
+
+
+@pytest.mark.parametrize(
+    "directive",
+    [
+        "using Xunit;",
+        "using global::Xunit;",
+        "using Systematic.Tools;",
+        "using @Systematic;",
+        "using SystemX;",
+        "using Microsoft.Extensions.Logging;",
+        "using Company.System.IO;",
+        "using Lib::System.IO;",
+        "using System = Company.Core;",
+        "using static Example.Factory<System.IO.Stream>;",
+        "using Streams = List<System.IO.Stream>;",
+        "using Point = (int X, int Y);",
+        "using unsafe Pointer = int*;",
+    ],
+)
+def test_csharp_other_namespace_directives_are_scored(directive: str) -> None:
+    """Issue #7459: Only a target rooted at System is exempt, by segment, not prefix."""
+    coupling = assess_content(Path("Imports.cs"), directive).coupling
+
+    assert coupling.reasons[0] == "1 import/dependency statements"
+    assert "C# System namespace" not in " ".join(coupling.reasons)
+    assert coupling.value == 9.0
+
+
+_ISSUE_7459_TEST_FILE = (
+    "using System;\nusing System.IO;\nusing System.Linq;\nusing Xunit;\n\n"
+    "namespace Example.Tests;\n\npublic sealed class CollisionNamingContentTests\n{\n"
+    + "".join(
+        f"    [Fact]\n    public void Case{n}()\n    {{\n"
+        "        using var ws = new TempWorkspace();\n"
+        f"        Assert.True(ws.Check{n}());\n    }}\n\n"
+        for n in "ABCDEF"
+    )
+    + "}\n"
+)
+
+
+def test_issue_7459_test_file_scores_only_its_third_party_directive() -> None:
+    """Issue #7459: Four directives and six using var statements score one dependency."""
+    coupling = assess_content(
+        Path("CollisionNamingContentTests.cs"), _ISSUE_7459_TEST_FILE
+    ).coupling
+
+    assert coupling.reasons[:2] == [
+        "4 import/dependency statements",
+        "3 C# System namespace (not scored), 1 application or third-party (scored)",
+    ]
+    assert coupling.value == 9.0
+
+
+def test_issue_7459_test_file_passes_default_coupling_gate(tmp_path: Path) -> None:
+    """Issue #7459: Three System directives and Xunit pass default thresholds (coupling min 7).
+
+    The body is not repetitive, so only the coupling gate can decide the exit code.
+    """
+    target = tmp_path / "tests" / "CollisionNamingContentTests.cs"
+    target.parent.mkdir()
+    target.write_text(
+        "using System;\nusing System.IO;\nusing System.Linq;\nusing Xunit;\n\n"
+        "public sealed class CollisionNamingContentTests\n{\n"
+        "    [Fact]\n    public void NamesDoNotCollide()\n    {\n"
+        "        using var ws = new MemoryStream();\n"
+        "        Assert.Empty(Array.Empty<int>().Where(x => x > ws.Length));\n"
+        "    }\n}\n",
+        encoding="utf-8",
+    )
+    assert not (tmp_path / ".qualityrc.json").exists()
+
+    result = subprocess.run(
+        [sys.executable, str(_SCRIPT), "--target", str(target), "--format", "json"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+        timeout=60,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["files"][0]["coupling"]["value"] == 9.0
+
+
+def test_third_party_heavy_csharp_still_fails_default_coupling_gate(tmp_path: Path) -> None:
+    """Issue #7459 control: The exemption leaves the coupling gate live for other namespaces."""
+    target = tmp_path / "Heavy.cs"
+    target.write_text(
+        "".join(f"using Vendor{i}.Api;\n" for i in range(4)) + "class C {}\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [sys.executable, str(_SCRIPT), "--target", str(target), "--format", "json"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+        timeout=60,
+    )
+
+    assert result.returncode == 11
+    assert "Coupling 6.0 < 7" in result.stderr
+
+
+@pytest.mark.parametrize("failure", [AttributeError("no text"), StopIteration()])
+def test_unexpected_csharp_directive_shapes_fail_closed(
+    monkeypatch: pytest.MonkeyPatch, failure: BaseException
+) -> None:
+    """Issue #7459: A malformed directive node raises the parser error, never a guess."""
+
+    def malformed(node: object) -> str | None:
+        raise failure
+
+    monkeypatch.setattr(_mod, "_csharp_root_namespace", malformed)
+
+    with pytest.raises(_mod.CSharpParserError, match="unexpected parse-tree shape"):
+        _mod._count_csharp_imports("using System.IO;\n")
 
 
 @pytest.mark.parametrize("module_name", ["tree_sitter_c_sharp"])
@@ -258,7 +414,7 @@ def test_shipped_csharp_parser_runs_from_consumer_directory(
     )
     target = tmp_path / "Consumer.cs"
     target.write_text(
-        'global\nusing System.IO;\nclass C {\nstring text = @"\n'
+        'global\nusing Company.IO;\nclass C {\nstring text = @"\n'
         'using Not.AnImport;\nusing Another.NotImport;\n";\n'
         "void Cleanup() { using var stream = new MemoryStream(); }\n}\n",
         encoding="utf-8",
