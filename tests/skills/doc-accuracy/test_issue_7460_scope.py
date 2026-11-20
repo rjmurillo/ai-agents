@@ -71,13 +71,17 @@ def test_single_added_fence_above_example_still_blocks(tmp_path: Path) -> None:
 
 def test_balanced_block_above_honored_marker_keeps_findings_in_scope(tmp_path: Path) -> None:
     base = "# T\n" + MARKER + "\n" + example("Ghost")
+    head = base.replace("# T\n", "# T\n\n" + BALANCED_BLOCK, 1)
     repo = make_repo(tmp_path, {"doc.md": base})
-    edit_and_commit(repo, "doc.md", base.replace("# T\n", "# T\n\n" + BALANCED_BLOCK, 1))
+    edit_and_commit(repo, "doc.md", head)
 
     code, data = gate_diff(repo, tmp_path)
 
+    ghost = by_symbol(data)["Ghost"]
     assert code == 10
-    assert by_symbol(data)["Ghost"]["in_diff"] is True
+    assert ghost["in_diff"] is True
+    assert ghost["scope_reason"] == "ignored_external_sdk_marker"
+    assert ghost["scope_marker_line"] == head.split("\n").index(MARKER.rstrip("\n")) + 1
 
 
 def test_prose_edit_below_example_keeps_marker_honored(tmp_path: Path) -> None:
@@ -98,6 +102,34 @@ def test_sample_declaring_its_own_types_has_no_unresolved_symbols(tmp_path: Path
 
     assert code == 0
     assert [f for f in data["findings"] if f["category"] == "unresolved_symbol"] == []
+    # Demo, Order, Id, and Customer: every skip is counted, not silent.
+    assert data["declared_name_suppressed"] == {"doc.md": 4}
+
+
+@pytest.mark.parametrize(
+    ("lang", "block"),
+    [
+        ("csharp", "// this class Ghost is from the repo\nvar g = new Ghost();"),
+        ("csharp", "/* interface Ghost */\nvar g = new Ghost();"),
+        ("csharp", 'var s = "class Ghost";\nvar g = new Ghost();'),
+        ("typescript", "// class Ghost\nconst g = new Ghost();"),
+        ("typescript", "const s = `type Ghost`;\nconst g = new Ghost();"),
+        ("python", "# class Ghost\ng = Ghost()"),
+        ("python", 'doc = """\nclass Ghost:\n"""\ng = Ghost()'),
+    ],
+    ids=["cs-line", "cs-block", "cs-string", "ts-line", "ts-template", "py-comment", "py-doc"],
+)
+def test_declaration_keyword_in_comment_or_string_declares_nothing(
+    tmp_path: Path, lang: str, block: str
+) -> None:
+    doc = f"# T\n\n{FENCE}{lang}\n{block}\n{FENCE}\n"
+    repo = make_repo(tmp_path, {"doc.md": doc})
+
+    code, data = run_gate(repo, tmp_path)
+
+    assert code == 10
+    assert "Ghost" in by_symbol(data)
+    assert data["declared_name_suppressed"] == {}
 
 
 def test_undeclared_symbol_in_declaring_block_still_flags(tmp_path: Path) -> None:

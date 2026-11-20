@@ -1460,16 +1460,38 @@ _DECLARED_NAME_PATTERNS: dict[str, tuple[re.Pattern[str], ...]] = {
 }
 _DECLARED_NAME_PATTERNS["typescript"] = _DECLARED_NAME_PATTERNS["javascript"]
 
+# Comments and string literals in C#, JavaScript, and TypeScript. Blanking errs
+# toward hiding a declaration, which can only keep a finding, never drop one.
+_C_LIKE_NON_CODE_RE = re.compile(
+    r"(?s)/\*.*?(?:\*/|\Z)"
+    r"|//[^\n]*"
+    r"|\"(?:\\.|[^\"\\\n])*(?:\"|(?=\n)|\Z)"
+    r"|'(?:\\.|[^'\\\n])*(?:'|(?=\n)|\Z)"
+    r"|`(?:\\.|[^`\\])*(?:`|\Z)"
+)
+
+
+def _strip_non_code(code: str, lang: str) -> str:
+    """Blank comments and strings so a keyword in them declares nothing."""
+    if lang == "python":
+        return _strip_python_non_code(code)
+    return _C_LIKE_NON_CODE_RE.sub(lambda m: " " * len(m.group(0)), code)
+
 
 def _declared_names(code: str, lang: str) -> set[str]:
     """Names a code block declares itself, so they are not repo symbol claims.
 
     Conservative on purpose: every pattern needs a declaration keyword, an
     access modifier, or a property accessor, so a plain use never counts.
-    Dotted namespaces such as ``Foo.Bar`` contribute each part.
+    Comments and strings are blanked first, so ``// class Ghost`` declares
+    nothing. Dotted namespaces such as ``Foo.Bar`` contribute each part.
     """
+    patterns = _DECLARED_NAME_PATTERNS.get(lang, ())
+    if not patterns:
+        return set()
+    code = _strip_non_code(code, lang)
     names: set[str] = set()
-    for pattern in _DECLARED_NAME_PATTERNS.get(lang, ()):
+    for pattern in patterns:
         for found in pattern.findall(code):
             names.update(part for part in found.split(".") if part)
     return names
@@ -1498,6 +1520,15 @@ def _exemption_lines(
             )
         )
     return lines
+
+
+def _declared_skip_lines(compilability_data: dict[str, Any] | None) -> list[str]:
+    """One line per file whose examples declared names Phase 3 then skipped."""
+    declared = (compilability_data or {}).get("declared_name_suppressed", {})
+    return [
+        f"{path}: {count} unresolved_symbol skipped because the same code example declares them"
+        for path, count in sorted(declared.items())
+    ]
 
 
 def _extract_quantitative_claims(line: str) -> list[str]:
@@ -1722,6 +1753,9 @@ def _scope_findings(
             and any(lo <= marker_line for lo, _ in ranges or [])
         ):
             in_diff = True
+            # The claim's own lines did not change, so say why it gates.
+            finding["scope_reason"] = "ignored_external_sdk_marker"
+            finding["scope_marker_line"] = marker_line
         finding["in_diff"] = in_diff
         if not in_diff:
             finding["original_severity"] = finding["severity"]
@@ -1756,6 +1790,7 @@ def run_compilability_check(
 
     external_sdk_files: dict[str, Any] = claims_data.get("external_sdk_files", {})
     external_sdk_suppressed: dict[str, int] = {}
+    declared_name_suppressed: dict[str, int] = {}
 
     for claim_dict in claims_data.get("claims", []):
         if claim_dict["type"] == INVALID_SDK_MARKER_CLAIM:
@@ -1877,7 +1912,14 @@ def run_compilability_check(
                     "Error",
                     "Promise",
                 }
-                if sym_name in framework_types or sym_name in declared:
+                if sym_name in framework_types:
+                    continue
+
+                # The example declares this name itself; count the skip so the
+                # report shows what this rule hid.
+                if sym_name in declared:
+                    path = claim_dict["file"]
+                    declared_name_suppressed[path] = declared_name_suppressed.get(path, 0) + 1
                     continue
 
                 # Python builtins (ImportError, ValueError, ...) are never
@@ -1926,6 +1968,7 @@ def run_compilability_check(
             claims_data.get("external_sdk_ignored", {}),
         ),
         "external_sdk_suppressed": external_sdk_suppressed,
+        "declared_name_suppressed": declared_name_suppressed,
     }
 
 
@@ -2022,6 +2065,12 @@ def generate_markdown_report(
         lines.extend(f"- {text}" for text in exemptions)
         lines.append("")
 
+    if declared_skips := _declared_skip_lines(compilability_data):
+        lines.append("## Example-declared names")
+        lines.append("")
+        lines.extend(f"- {text}" for text in declared_skips)
+        lines.append("")
+
     if compilability_data and compilability_data["findings"]:
         lines.append("## Findings")
         lines.append("")
@@ -2062,6 +2111,8 @@ def _print_summary(
             print(f"  {ct}: {count}")
     for text in _exemption_lines(claims_data, compilability_data):
         print(text)
+    for text in _declared_skip_lines(compilability_data):
+        print(f"Example-declared names: {text}")
     if compilability_data:
         print(f"Findings: {gate_result['total_findings']} total")
         for sev in ("critical", "high", "medium", "low", "info"):

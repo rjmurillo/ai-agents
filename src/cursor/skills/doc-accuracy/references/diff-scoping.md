@@ -15,7 +15,8 @@ show what changed:
   into scope, so a balanced new block leaves later examples out of scope. A
   changed tilde or indented fence still puts the rest of the file in scope. A
   change at or above an ignored external-sdk marker keeps the file's
-  `unresolved_symbol` findings in scope.
+  `unresolved_symbol` findings in scope. Each such finding carries
+  `scope_reason: "ignored_external_sdk_marker"` and `scope_marker_line`.
 - A symlinked doc, or a doc under a symlinked directory, is changed in full,
   because git diffs only the link text.
 
@@ -96,9 +97,11 @@ The marker is `<!-- doc-accuracy: external-sdk <name> -- <reason> -->`.
   code fence is ignored. The first valid marker wins.
 - It silences `unresolved_symbol` for that file only. Other checks still run.
 - Without a marker, a code example's own declared names are not reported as
-  unresolved. These are types, namespaces, properties, and methods that the same
-  block declares in C#, Python, JavaScript, or TypeScript. Method signature
-  claims do not get this exemption.
+  unresolved. In C# these are types, namespaces, properties, and methods with
+  an access modifier. In Python they are classes and functions. In JavaScript
+  and TypeScript they are classes, interfaces, types, enums, and functions.
+  Comments and strings declare nothing. The report counts each skip per file
+  under `declared_name_suppressed`. Method signature claims get no exemption.
 - A missing, `-`-led, or placeholder name suppresses nothing and yields a
   high `invalid_external_sdk_marker` finding.
 - `claims.json` records `sdk`, `reason`, and `line`. Phase 3 counts suppressed

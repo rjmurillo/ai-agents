@@ -36,6 +36,16 @@ NO_NEWLINE = "\\ No newline at end of file\n"
             "+++ b/a.md\n@@ -1,0 +2 @@\n+```bash\n@@ -5,0 +7 @@\n+y\n@@ -9,0 +12 @@\n+```\n",
             {"a.md": [[2, 2], [3, 6], [7, 7], [8, 11], [12, 12]]},
         ),
+        # Removing a whole balanced block leaves later pairing unchanged.
+        (
+            "+++ b/a.md\n@@ -3,3 +2,0 @@\n-```\n-text\n-```\n@@ -9,0 +7 @@\n+y\n",
+            {"a.md": [[2, 3], [7, 7]]},
+        ),
+        # Swapping one fence line for another in one hunk is even parity.
+        (
+            "+++ b/a.md\n@@ -3 +3 @@\n-```bash\n+```python\n",
+            {"a.md": [[3, 3]]},
+        ),
         # A removed column-0 fence flips pairing for everything below it.
         (
             "+++ b/a.md\n@@ -5,2 +4,0 @@\n-```\n-text\n",
