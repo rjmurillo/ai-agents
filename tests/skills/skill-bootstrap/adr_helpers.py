@@ -39,6 +39,18 @@ def git(repo: Path, *args: str, date: str | None = None, stdin: str | None = Non
     return proc.stdout
 
 
+def hash_commit(repo: Path, raw: str) -> str:
+    """Write ``raw`` as a commit object with ``hash-object --literally``, as bytes."""
+    proc = subprocess.run(
+        ["git", "-C", str(repo), "hash-object", "-t", "commit", "-w", "--literally", "--stdin"],
+        input=raw.encode("utf-8"),
+        capture_output=True,
+        check=True,
+        env={**os.environ, **_BASE_ENV},
+    )
+    return proc.stdout.decode("ascii").strip()
+
+
 def new_repo(path: Path) -> Path:
     """An empty repository on branch ``main``."""
     path.mkdir(parents=True)

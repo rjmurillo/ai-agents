@@ -94,7 +94,8 @@ def _complete(item: dict[str, Any]) -> tuple[int, str, str, str, str] | None:
         return None
     if not isinstance(url, str) or not url.startswith("https://") or re.search(r"\s", url):
         return None
-    return number, title.strip(), body if isinstance(body, str) else "", url, day
+    text = body.replace("\r\n", "\n").replace("\r", "\n") if isinstance(body, str) else ""
+    return number, title.strip(), text, url, day
 
 
 def select_prs(items: list[Any], dropped: dict[str, int]) -> list[PrRow]:

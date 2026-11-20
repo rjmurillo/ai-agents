@@ -15,7 +15,7 @@ from typing import Any
 
 import adr_scan
 import pytest
-from adr_helpers import commit, git, new_repo, write
+from adr_helpers import commit, git, hash_commit, new_repo, write
 
 WHY = "Because the team already runs it in production and a second system needs a second on-call."
 
@@ -352,9 +352,7 @@ def test_a_commit_message_with_control_bytes_leaves_none_in_the_excerpt(tmp_path
     ident = "Ada <a@x> 1714557600 +0000"
     message = "Adopt Postgres instead of MySQL\n\nBecause it is\x00safe \x1b[31mred\x1b[0m here.\n"
     raw = f"tree {tree}\nparent {first}\nauthor {ident}\ncommitter {ident}\n\n{message}"
-    sha = git(
-        repo, "hash-object", "-t", "commit", "-w", "--literally", "--stdin", stdin=raw
-    ).strip()
+    sha = hash_commit(repo, raw)
     git(repo, "update-ref", "refs/heads/main", sha)
     (item,) = _scan(repo)["candidates"]
     assert "\x00" not in item["excerpt"] and "\x1b" not in item["excerpt"]
@@ -404,3 +402,68 @@ def test_scan_writes_nothing_in_the_repository(tmp_path: Path) -> None:
     before = git(repo, "status", "--porcelain=v1", "-uall")
     _scan(repo)
     assert git(repo, "status", "--porcelain=v1", "-uall") == before
+
+
+def test_an_adr_in_any_located_folder_hides_a_decision_not_only_the_output_one(
+    tmp_path: Path,
+) -> None:
+    repo = new_repo(tmp_path / "r")
+    first = commit(repo, f"Adopt Postgres instead of MySQL\n\n{WHY}\n")
+    second = commit(repo, f"Adopt Redis instead of Memcached\n\n{WHY}\n")
+    write(repo, "docs/adr/0001-a.md", f"# 1. A\n\nSee {first[:8]}.\n")
+    write(repo, "docs/decisions/0001-b.md", f"# 1. B\n\nSee {second[:8]}.\n")
+    payload = _scan(repo)
+    assert payload["candidates"] == []
+    assert payload["adr_folders"] == ["docs/adr", "docs/decisions"]
+    assert payload["dropped"]["already_documented"] == 2
+
+
+def test_a_pull_request_body_with_crlf_line_endings_gives_the_same_reason(tmp_path: Path) -> None:
+    repo = new_repo(tmp_path / "r")
+    commit(repo, "Initial work")
+    lf = f"We move to Postgres.\n\n{WHY}\n"
+    payload = _scan(repo, [_pr(1, body=lf), _pr(2, body=lf.replace("\n", "\r\n"))])
+    one, two = (item for item in payload["candidates"])
+    assert one["reason"] == two["reason"] and one["reason"]
+    assert "\r" not in two["excerpt"]
+
+
+def test_e1_a_decision_log_entry_with_an_id_and_no_adr_is_a_candidate(tmp_path: Path) -> None:
+    repo = new_repo(tmp_path / "r")
+    commit(repo, "Initial work")
+    write(
+        repo,
+        "DECISIONS.md",
+        f"## D17 - Use pnpm everywhere\n\nWe use pnpm because {WHY}\nDecided: 2026-03-04\n\n"
+        "## Misc notes without an id\n\nThis section has no id but is long enough to count.\n",
+    )
+    payload = _scan(repo)
+    (item,) = payload["candidates"]
+    assert (item["id"], item["kind"], item["title"]) == (
+        "log-D17",
+        "decision-log",
+        "D17 - Use pnpm everywhere",
+    )
+    assert item["source"] == {"file": "DECISIONS.md", "entry_id": "D17"}
+    assert item["date"] == "2026-03-04" and item["reason"] and item["signals"] == []
+    assert payload["dropped"]["log_no_id"] == 1
+
+
+def test_e1_an_adr_that_names_the_id_hides_the_entry_but_only_as_a_whole_word(
+    tmp_path: Path,
+) -> None:
+    repo = new_repo(tmp_path / "r")
+    commit(repo, "Initial work")
+    write(repo, "DECISIONS.md", "D17: Use pnpm everywhere\nD18: Use uv for Python tooling\n")
+    write(repo, "docs/adr/0001-a.md", "# 1. A\n\nThis follows D170, and also D18.\n")
+    payload = _scan(repo)
+    assert _ids(payload) == ["log-D17"]
+    assert payload["dropped"]["already_documented"] == 1
+
+
+def test_e1_an_entry_id_that_repeats_gets_a_distinct_candidate_id(tmp_path: Path) -> None:
+    repo = new_repo(tmp_path / "r")
+    commit(repo, "Initial work")
+    write(repo, "DECISIONS.md", "D1: Use pnpm everywhere\n")
+    write(repo, "docs/DECISIONS.md", "D1: Use uv for Python tooling\n")
+    assert _ids(_scan(repo)) == ["log-D1", "log-D1.2"]

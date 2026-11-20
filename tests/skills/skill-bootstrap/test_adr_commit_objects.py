@@ -14,7 +14,7 @@ from pathlib import Path
 import adr_commits
 import adr_git
 import pytest
-from adr_helpers import commit, git, new_repo
+from adr_helpers import commit, git, hash_commit, new_repo
 
 SHA = "a" * 40
 FORGED = f"\x00COMMIT\x00{'b' * 40}\x00evil\x00Mallory\x002000-01-01T00:00:00Z\x00x\x00END"
@@ -121,8 +121,7 @@ def _forge_commit(repo: Path, parent: str, message: str) -> str:
     tree = git(repo, "rev-parse", f"{parent}^{{tree}}").strip()
     identity = "Ada <ada@example.com> 1714557600 +0000"
     body = f"tree {tree}\nparent {parent}\nauthor {identity}\ncommitter {identity}\n\n{message}"
-    sha = git(repo, "hash-object", "-t", "commit", "-w", "--literally", "--stdin", stdin=body)
-    return sha.strip()
+    return hash_commit(repo, body)
 
 
 def test_reader_a_nul_forged_message_is_the_body_of_the_one_real_commit(tmp_path: Path) -> None:

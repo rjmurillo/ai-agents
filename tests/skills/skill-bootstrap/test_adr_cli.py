@@ -232,6 +232,8 @@ def test_draft_with_an_unknown_id_or_a_bad_status_exits_two(
 def test_git_missing_exits_three_with_a_git_error(tmp_path: Path) -> None:
     repo = _decision_repo(tmp_path)
     env = {"PATH": str(tmp_path / "empty-bin"), "HOME": str(tmp_path)}
+    if "SYSTEMROOT" in os.environ:
+        env["SYSTEMROOT"] = os.environ["SYSTEMROOT"]
     code, payload = run_cli("locate", "--repo", str(repo), env=env)
     assert code == 3 and payload["error"] == "git"
 

@@ -2,7 +2,7 @@
 
 The detail behind the Scripts section of `SKILL.md`.
 
-Each CLI uses only the Python standard library, prints JSON with an `examined` count, writes nothing inside the repository (`bootstrap_eval.py freeze` writes there only with `--allow-in-repo`; `bootstrap_adr.py draft` only creates a new file in a located ADR folder; `bootstrap_mine.py --out` refuses an in-repo path with no override), and runs on Linux, macOS, and Windows.
+Each CLI uses only the Python standard library, prints JSON (with an `examined` count, except `bootstrap_adr.py draft`), writes nothing inside the repository (`bootstrap_eval.py freeze` writes there only with `--allow-in-repo`; `bootstrap_adr.py draft` only creates a new file in a located ADR folder; `bootstrap_mine.py --out` refuses an in-repo path with no override), and runs on Linux, macOS, and Windows.
 
 `bootstrap_friction.py`, `bootstrap_review.py`, and `review_clusters.py` are modules the miner imports, not CLIs. `adr_shape.py`, `adr_commits.py`, `adr_docs.py`, `adr_reason.py`, `adr_trailers.py`, `adr_text.py`, and `adr_prs.py` are pure-function modules for ADR detection, ported from align-cli under MIT (`LICENSE-align`); they have no CLI and do no I/O. `adr_git.py`, `adr_locate.py`, `adr_log.py`, `adr_scan.py`, and `adr_draft.py` are the modules `bootstrap_adr.py` imports; they have no CLI either. `adr_git.py` runs git and reads commits with `git rev-list` and `git cat-file --batch`, so a commit message cannot forge a record.
 
@@ -37,7 +37,11 @@ The payload `error` names the cause: `config` for exit 2, `git` or `io` for exit
 
 `bootstrap_drift.py` runs a `command` check only with `--allow-commands`; review the argv first, because it executes repository code. The command gets no stdin, discarded output, and only `PATH`, `HOME`, `LANG`, `LC_ALL`, `SYSTEMROOT`, `TEMP`, and `TMP` from the environment, each only when set. Never pass `--allow-commands` in a job that holds secrets or runs on untrusted pull request content.
 
-`bootstrap_adr.py` exits 1 only when `draft` finds its target file or its number already taken (payload `error` is `exists`). It never retries with another number. `scan` reads git and the working tree, makes no network call, and needs `--out` outside the repository. `--prs-json` is a JSON list of merged pull requests. Each item needs `number`, `title`, `body`, `url` (or `html_url`), `merged_at` (or `mergedAt`), `author` (or `user`) with `login`, and optionally `merge_commit_sha` (or `mergeCommit.oid`). A location, `.adr-dir` first, then the known ADR folders, then any folder with three or more ADR-named files, decides where `draft` may write inside the repository.
+`bootstrap_adr.py` exits 1 only when `draft` finds its target file or its number already taken (payload `error` is `exists`). It never retries with another number.
+
+`bootstrap_adr.py scan` reads git and the working tree and makes no network call. `--out` must be outside the repository. `--prs-json` is a JSON list of merged pull requests. Each item needs `number`, `title`, `body`, `url` (or `html_url`), `merged_at` (or `mergedAt`), and `author` (or `user`) with `login`. `merge_commit_sha` (or `mergeCommit.oid`) is optional.
+
+`bootstrap_adr.py` finds ADR folders in three steps. It reads an `.adr-dir` file and checks the known folder names together. Only when those find nothing does it look for any folder with three or more ADR-named files. Inside the repository, `draft` writes only into a folder found this way, and a folder with no ADR-named file is not one. It refuses a path that git ignores.
 
 ## Windows PowerShell
 

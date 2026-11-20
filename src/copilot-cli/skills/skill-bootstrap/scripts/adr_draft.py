@@ -31,7 +31,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from adr_git import ConfigError, git_text, repo_root
+from adr_git import ConfigError, git_bytes, git_text, repo_root
 from adr_locate import MAX_READ_BYTES, Style, adr_files, folder_style, locate_folders, render_h1
 from adr_text import iso_day, sanitize, slugify
 
@@ -45,11 +45,15 @@ _URL = re.compile(r"https://[^\s<>`\"']+\Z", re.ASCII)
 _SECTIONS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
     (re.compile(pattern, re.IGNORECASE | re.ASCII), kind)
     for pattern, kind in (
-        (r"status", "status"),
-        (r"date", "date"),
-        (r"driver|option|consequence|confirmation|pros|cons|information|related|link|note", ""),
-        (r"context|background|problem|motivation|situation", "context"),
-        (r"decision|outcome|chosen|resolution", "decision"),
+        (r"\bstatus\b", "status"),
+        (r"\bdate\b", "date"),
+        (
+            r"\b(?:drivers?|options?|consequences?|confirmation|pros|cons|information|related"
+            r"|links?|notes?)\b",
+            "",
+        ),
+        (r"\b(?:context|background|problem|motivation|situation)\b", "context"),
+        (r"\b(?:decision|outcome|chosen|resolution)\b", "decision"),
     )
 )
 
@@ -164,14 +168,38 @@ def _check_candidate(candidate: dict[str, Any]) -> None:
     candidate["title"] = (_text(candidate.get("title"), "title", True) or "").strip()
 
 
-def _gate_target(root: Path, out_dir: Path) -> bool:
-    """True when ``out_dir`` is inside the repository. Then it must be a located ADR folder."""
-    inside = out_dir == root or root in out_dir.parents
-    if inside:
-        allowed = {(root / rel).resolve() for rel, _source in locate_folders(root)}
+def _git_path(directory: Path, flag: str) -> Path | None:
+    proc = git_bytes(directory, "rev-parse", flag)
+    text = proc.stdout.decode("utf-8", "replace").strip()
+    return (directory / text).resolve() if proc.returncode == 0 and text else None
+
+
+def _gate_tree(root: Path, out_dir: Path) -> Path | None:
+    """The work tree that ``out_dir`` lies in, when draft must gate on it.
+
+    That is the scanned work tree, or another work tree of the same repository (a linked
+    worktree), found by asking git where the nearest existing ancestor of ``out_dir`` lives.
+    An unrelated repository or a plain folder gives None: a scratch folder.
+    """
+    if out_dir == root or root in out_dir.parents:
+        return root
+    ancestor = next((path for path in (out_dir, *out_dir.parents) if path.is_dir()), None)
+    top = _git_path(ancestor, "--show-toplevel") if ancestor else None
+    if ancestor is None or top is None:
+        return None
+    common = _git_path(ancestor, "--git-common-dir")
+    return top if common is not None and common == _git_path(root, "--git-common-dir") else None
+
+
+def _gate_target(root: Path, out_dir: Path) -> Path | None:
+    """The work tree to gate on, or None for a scratch folder. In a work tree, ``out_dir``
+    must be one of its located ADR folders."""
+    tree = _gate_tree(root, out_dir)
+    if tree is not None:
+        allowed = {(tree / rel).resolve() for rel, _source in locate_folders(tree)}
         if out_dir not in allowed:
-            raise ConfigError(f"{out_dir} is inside the repository and is not an ADR folder")
-    return inside
+            raise ConfigError(f"{out_dir} is inside the repository {tree} and is not an ADR folder")
+    return tree
 
 
 def _refuse_ignored(root: Path, target: Path) -> None:
@@ -200,15 +228,15 @@ def draft(scan_path: str, ident: str, out: str, status: str) -> dict[str, Any]:
     _check_candidate(candidate)
     root = repo_root(Path(scan["repo"]))
     out_dir = Path(out).resolve()
-    inside = _gate_target(root, out_dir)
+    tree = _gate_target(root, out_dir)
     if out_dir.exists() and not out_dir.is_dir():
         raise ConfigError(f"--out {out_dir} is not a directory")
     out_dir.mkdir(parents=True, exist_ok=True)
     style = folder_style(out_dir)
     number = style.highest + 1
     target = out_dir / _file_name(style, number, candidate)
-    if inside:
-        _refuse_ignored(root, target)
+    if tree is not None:
+        _refuse_ignored(tree, target)
     text = render(style, number, candidate, status)
     try:
         with open(target, "x", encoding="utf-8", newline="\n") as handle:
@@ -222,4 +250,10 @@ def draft(scan_path: str, ident: str, out: str, status: str) -> dict[str, Any]:
     ]
     if twins:
         raise ExistsError(f"another ADR took number {number}", target, twins)
-    return {"path": str(target), "number": number, "id": ident, "status": status, "in_repo": inside}
+    return {
+        "path": str(target),
+        "number": number,
+        "id": ident,
+        "status": status,
+        "in_repo": tree is not None,
+    }

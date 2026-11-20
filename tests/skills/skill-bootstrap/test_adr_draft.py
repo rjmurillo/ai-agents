@@ -443,3 +443,53 @@ def test_only_the_first_heading_of_a_kind_is_filled(tmp_path: Path) -> None:
     text = _text(adr_draft.draft(scan, "c-1234567", str(repo / "docs" / "adr"), "Proposed"))
     assert text.count("The reason given at the time:") == 1
     assert "## Background\n\nNot recorded in the source." in text
+
+
+def test_section_matching_uses_whole_words(tmp_path: Path) -> None:
+    repo = new_repo(tmp_path / "r")
+    write(
+        repo,
+        "docs/adr/0001-a.md",
+        "# 1. A\n\n## Context and Constraints\n\nc\n\n## Updates\n\nu\n\n## Candidates\n\nk\n"
+        "\n## Decision\n\nd\n",
+    )
+    commit(repo, "Initial work")
+    scan = _scan_file(tmp_path, repo, _cand())
+    text = _text(adr_draft.draft(scan, "c-1234567", str(repo / "docs" / "adr"), "Proposed"))
+    assert "## Context and Constraints\n\nThe reason given at the time:" in text
+    assert "## Updates\n\nNot recorded in the source." in text
+    assert "## Candidates\n\nNot recorded in the source." in text
+    assert "## Decision\n\nReplace eo-inference" in text
+    assert "Date: 2026-11-02" in text and "2026-11-02" not in text.split("## Updates")[1]
+
+
+def test_a_draft_into_another_work_tree_of_the_repository_is_gated_on_that_tree(
+    tmp_path: Path,
+) -> None:
+    repo = new_repo(tmp_path / "r")
+    write(repo, "docs/adr/0001-a.md", "# 1. A\n\n## Status\n\nok\n")
+    commit(repo, "Initial work")
+    side = tmp_path / "side"
+    git(repo, "worktree", "add", "-q", str(side), "-b", "side")
+    scan = _scan_file(tmp_path, repo, _cand())
+    with pytest.raises(ConfigError, match="not an ADR folder"):
+        adr_draft.draft(scan, "c-1234567", str(side / "docs"), "Proposed")
+    write(side, ".gitignore", "docs/adr/0002-*\n")
+    with pytest.raises(ConfigError, match="ignored by git"):
+        adr_draft.draft(scan, "c-1234567", str(side / "docs" / "adr"), "Proposed")
+    (side / ".gitignore").unlink()
+    result = adr_draft.draft(scan, "c-1234567", str(side / "docs" / "adr"), "Proposed")
+    assert result["in_repo"] is True
+    assert Path(result["path"]).resolve().is_relative_to(side.resolve())
+    assert sorted(p.name for p in (repo / "docs" / "adr").iterdir()) == ["0001-a.md"]
+
+
+def test_a_scratch_folder_inside_an_unrelated_repository_is_not_gated(tmp_path: Path) -> None:
+    repo, _folder = _toolkit_repo(tmp_path)
+    other = new_repo(tmp_path / "other")
+    result = adr_draft.draft(
+        _scan_file(tmp_path, repo, _cand()), "c-1234567", str(other / "scratch"), "Proposed"
+    )
+    assert (
+        result["in_repo"] is False and Path(result["path"]).parent == (other / "scratch").resolve()
+    )
