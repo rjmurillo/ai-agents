@@ -12,9 +12,7 @@ from collections.abc import Sequence
 from datetime import UTC, date, datetime
 from pathlib import Path
 
-import frontmatter
-import yaml
-
+from . import frontmatter_reader
 from .code_masking import mask_code, original_context, sub_outside_code
 from .models import (
     Citation,
@@ -237,7 +235,17 @@ def save_memory(memory: MemoryWithCitations, memories_dir: Path) -> Path:
 
     Returns:
         Path to the written file.
+
+    Raises:
+        RuntimeError: python-frontmatter is not installed. Writing needs it;
+            reading does not.
     """
+    frontmatter = frontmatter_reader.frontmatter
+    if frontmatter is None:
+        raise RuntimeError(
+            "save_memory requires python-frontmatter, which is not installed "
+            "(pip install python-frontmatter)"
+        )
     try:
         memories_dir.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
@@ -327,37 +335,28 @@ def _extract_metadata(
     """
     now = datetime.now(UTC)
 
-    try:
-        post = frontmatter.loads(raw_text)
-    except yaml.YAMLError:
-        # Malformed YAML frontmatter; treat as plain markdown
-        print(
-            "Warning: malformed YAML frontmatter, treating as plain markdown",
-            file=sys.stderr,
-        )
-        post = frontmatter.Post(content=raw_text)
-    has_frontmatter = bool(post.metadata)
+    metadata, body, fallback_content = frontmatter_reader.read_frontmatter(raw_text)
 
-    if has_frontmatter:
-        title = post.metadata.get("title")
-        tags = _parse_tags(post.metadata.get("tags"))
-        raw_created = post.metadata.get("created_at")
-        raw_updated = post.metadata.get("updated_at")
+    if metadata:
+        title = metadata.get("title")
+        tags = _parse_tags(metadata.get("tags"))
+        raw_created = metadata.get("created_at")
+        raw_updated = metadata.get("updated_at")
         created_at = _parse_datetime(raw_created, now)
         updated_at = _parse_datetime(raw_updated, now)
         if raw_created is None and raw_updated is not None:
             created_at = updated_at
         elif raw_updated is None and raw_created is not None:
             updated_at = created_at
-        confidence = _parse_confidence(post.metadata.get("confidence"))
-        return title, created_at, updated_at, tags, confidence, post.content
+        confidence = _parse_confidence(metadata.get("confidence"))
+        return title, created_at, updated_at, tags, confidence, body
 
-    content = raw_text
+    content = fallback_content
     title = None
     created_at = now
     updated_at = now
 
-    first_line = raw_text.split("\n", 1)[0]
+    first_line = content.split("\n", 1)[0]
     header_match = _TITLE_DATE_PATTERN.match(first_line)
     if header_match:
         title = header_match.group("title")

@@ -69,7 +69,9 @@ rows:
     # repository: hook_templates.py renders them straight to .claude/hooks/
     # with no src/claude/hooks hop, and this row's copy skips them. The list
     # is directory-level: splitting one directory entry into file entries
-    # must precede shipping a single file from it.
+    # must precede shipping a single file from it. UserPromptSubmit left the
+    # list on 2026-11-20 (issue #7493): its one file, the memory recall shim,
+    # ships through a plugin-surface dispatcher group.
     source: templates/hooks
     plugin_tree: src/claude/hooks
     install_tree: .claude/hooks
@@ -78,7 +80,6 @@ rows:
       - PreToolUse
       - SessionEnd
       - SessionStart
-      - UserPromptSubmit
       - session-start.sh
   - class: hooks-github
     # No independent source: the Copilot plugin tree is rendered from the
@@ -213,6 +214,15 @@ rows:
   - class: lib-failure_classifier-codex
     source: scripts/failure_classifier
     plugin_tree: src/codex/lib/failure_classifier
+    install_tree: null
+    compile: lib_mirror
+  - class: lib-memory_enhancement
+    # ADR-109 amendment 2026-11-20 (issue #7493): per-prompt memory recall
+    # ships to Claude plugin consumers, so the package renders into the Claude
+    # lib tree only. No other harness has a caller. The `lib` row below links
+    # the rendered directory into .claude/lib/.
+    source: scripts/memory_enhancement
+    plugin_tree: src/claude/lib/memory_enhancement
     install_tree: null
     compile: lib_mirror
   # File-shaped rows (single registered file, not a package directory):

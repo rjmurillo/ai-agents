@@ -19,6 +19,7 @@ Exit Codes:
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -119,7 +120,7 @@ def recall_block(user_input: str) -> str:
     if not query:
         return ""
 
-    repo_root = _find_repo_root()
+    repo_root = _find_repo_root(_project_dir())
     if repo_root is None:
         return ""
 
@@ -167,6 +168,18 @@ def _extract_query(user_input: str) -> str:
 def _strip_punctuation(word: str) -> str:
     """Strip leading/trailing punctuation from a word."""
     return word.strip("?!.,;:\"'()[]{}*#@&^%$~`<>|\\/")
+
+
+def _project_dir() -> Path | None:
+    """The host's project directory, or None to search from the cwd.
+
+    Claude Code runs a plugin hook with the user's working directory, which can
+    sit in a subdirectory or outside the project, and exports
+    ``CLAUDE_PROJECT_DIR``. Searching from it finds the repository the user
+    opened (ADR-109 amendment 2026-11-20).
+    """
+    value = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
+    return Path(value) if value else None
 
 
 def _find_repo_root(start: Path | None = None) -> Path | None:

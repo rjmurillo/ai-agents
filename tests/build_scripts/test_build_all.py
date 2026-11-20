@@ -22,6 +22,7 @@ import binplace_manifest  # noqa: E402
 import build_all  # noqa: E402
 import lib_hand_files  # noqa: E402
 import lib_mirror  # noqa: E402
+import lib_package_roots  # noqa: E402
 
 _REAL_SURFACE_PARITY_EXIT = build_all._surface_parity_exit
 
@@ -118,6 +119,9 @@ def _write_minimal_lib_sources(repo_root: Path) -> None:
         init_file = pkg_dir / "__init__.py"
         if not init_file.exists():
             init_file.write_text("", encoding="utf-8")
+        for sub in lib_package_roots.PACKAGE_SUBDIRS.get(package, ()):
+            (pkg_dir / sub).mkdir(exist_ok=True)
+            (pkg_dir / sub / "__init__.py").touch()
 
     hook_utilities = repo_root / "scripts" / "hook_utilities"
     bootstrap = hook_utilities / "bootstrap.py"

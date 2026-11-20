@@ -21,6 +21,7 @@ if str(_SCRIPT_DIR) not in sys.path:
 from atomic_write import read_bytes_no_redirect  # noqa: E402
 from lib_hand_files import PLUGIN_LIB_FILES, PLUGIN_LIB_SOURCE_DIR  # noqa: E402
 from lib_mirror import PACKAGES, SYNC_FILE_NAMES, _transform_file  # noqa: E402
+from lib_package_roots import PACKAGE_ROOTS  # noqa: E402
 
 # PLUGIN_LIB_FILES (hand-maintained modules with no scripts/ source that live in
 # the Claude plugin's lib/; ADR-119: skill scripts import paths.py from there)
@@ -44,6 +45,13 @@ CLAUDE_ONLY_LIB_FILES: tuple[str, ...] = (
 )
 
 
+# Packages with a root override in ``lib_mirror.PACKAGE_ROOTS`` ship to the
+# named plugin trees only. The Hermes packs are not among them, so they carry
+# none of these (ADR-109 amendment 2026-11-20: ``memory_enhancement`` is
+# Claude-only, and the delivery pack sits at its 400-file cap).
+HERMES_EXCLUDED_PACKAGES: frozenset[str] = frozenset(PACKAGE_ROOTS)
+
+
 class LibRenderError(Exception):
     """A registered lib source is missing or unreadable."""
 
@@ -51,9 +59,9 @@ class LibRenderError(Exception):
 def render_lib_files(repo_root: Path) -> dict[str, bytes]:
     """Return every lib file as ``{path under a lib root: bytes}``, without writing.
 
-    Each ``.py`` file of a :data:`PACKAGES` source goes through the import
-    rewrite, and each :data:`SYNC_FILE_NAMES` and :data:`PLUGIN_LIB_FILES`
-    source is a byte copy.
+    Each ``.py`` file of a :data:`PACKAGES` source, minus
+    :data:`HERMES_EXCLUDED_PACKAGES`, goes through the import rewrite. Each
+    :data:`SYNC_FILE_NAMES` and :data:`PLUGIN_LIB_FILES` source is a byte copy.
     ``tests/build_scripts/test_hermes_packs.py`` pins this result byte for byte
     to the committed ``src/claude/lib/`` tree that ``lib_mirror.compile_all``
     writes.
@@ -62,6 +70,8 @@ def render_lib_files(repo_root: Path) -> dict[str, bytes]:
     """
     files: dict[str, bytes] = {}
     for package in PACKAGES:
+        if package in HERMES_EXCLUDED_PACKAGES:
+            continue
         src_dir = repo_root / "scripts" / package
         if not src_dir.is_dir():
             raise LibRenderError(f"Registered source directory missing: scripts/{package}")

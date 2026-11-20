@@ -22,6 +22,7 @@ for _extra_path in (_TEST_DIR, _REPO_ROOT / "build" / "scripts"):
 
 import lib_hand_files  # noqa: E402
 import lib_mirror  # noqa: E402
+import lib_package_roots  # noqa: E402
 
 # --- sync_pair (directory sync, import rewrite) -----------------------------
 
@@ -228,6 +229,9 @@ def _write_full_sources(root: Path) -> None:
         pkg_dir = root / "scripts" / pkg
         pkg_dir.mkdir(parents=True)
         (pkg_dir / "__init__.py").write_text("", encoding="utf-8")
+        for sub in lib_package_roots.PACKAGE_SUBDIRS.get(pkg, ()):
+            (pkg_dir / sub).mkdir()
+            (pkg_dir / sub / "__init__.py").write_text("", encoding="utf-8")
     (root / "scripts" / "hook_utilities" / "bootstrap.py").write_text(
         '"""Bootstrap."""\n', encoding="utf-8"
     )
@@ -248,7 +252,8 @@ def test_compile_all_renders_every_package_into_both_plugin_roots(tmp_path: Path
     assert not result.had_errors, result.errors
     for root in lib_mirror.PLUGIN_ROOTS:
         for pkg in lib_mirror.PACKAGES:
-            assert (tmp_path / root / pkg / "__init__.py").is_file()
+            if root in lib_package_roots.package_plugin_roots(pkg, lib_mirror.PLUGIN_ROOTS):
+                assert (tmp_path / root / pkg / "__init__.py").is_file()
         assert (tmp_path / root / "bootstrap.py").is_file()
     for sidecar in lib_mirror.SKILLS_SIDECAR_PLUGIN_TREES:
         assert (tmp_path / sidecar).is_file(), sidecar
@@ -328,6 +333,63 @@ def test_sync_pairs_constant_matches_packages() -> None:
     assert {dst for _, dst in lib_mirror.SYNC_PAIRS} == {
         f".claude/lib/{pkg}" for pkg in lib_mirror.PACKAGES
     }
+
+
+# --- memory_enhancement ships to the Claude plugin only (issue #7493) ---------
+
+
+def test_memory_enhancement_renders_only_into_the_claude_lib_root(tmp_path: Path) -> None:
+    _write_full_sources(tmp_path)
+
+    result = lib_mirror.compile_all(tmp_path)
+
+    assert not result.had_errors, result.errors
+    assert (tmp_path / "src/claude/lib/memory_enhancement/__init__.py").is_file()
+    assert (tmp_path / "src/claude/lib/memory_enhancement/hooks/__init__.py").is_file()
+    for root in lib_mirror.PLUGIN_ROOTS:
+        if root == "src/claude/lib":
+            continue
+        assert not (tmp_path / root / "memory_enhancement").exists(), root
+
+
+def test_package_without_a_root_override_renders_into_every_root() -> None:
+    assert lib_package_roots.package_plugin_roots("github_core", lib_mirror.PLUGIN_ROOTS) == (
+        lib_mirror.PLUGIN_ROOTS
+    )
+    assert lib_package_roots.package_plugin_roots(
+        "memory_enhancement", lib_mirror.PLUGIN_ROOTS
+    ) == ("src/claude/lib",)
+
+
+def test_memory_enhancement_hooks_subpackage_is_its_own_pair() -> None:
+    pairs = lib_package_roots.package_pairs("memory_enhancement", "src/claude/lib")
+
+    assert pairs == [
+        ("scripts/memory_enhancement", "src/claude/lib/memory_enhancement"),
+        ("scripts/memory_enhancement/hooks", "src/claude/lib/memory_enhancement/hooks"),
+    ]
+
+
+def test_memory_enhancement_render_skips_pycache(tmp_path: Path) -> None:
+    _write_full_sources(tmp_path)
+    cache = tmp_path / "scripts/memory_enhancement/__pycache__"
+    cache.mkdir()
+    (cache / "x.cpython-314.pyc").write_bytes(b"\x00")
+
+    result = lib_mirror.compile_all(tmp_path)
+
+    assert not result.had_errors, result.errors
+    assert not (tmp_path / "src/claude/lib/memory_enhancement/__pycache__").exists()
+
+
+def test_memory_enhancement_missing_hooks_source_fails_closed(tmp_path: Path) -> None:
+    _write_full_sources(tmp_path)
+    (tmp_path / "scripts/memory_enhancement/hooks/__init__.py").unlink()
+    (tmp_path / "scripts/memory_enhancement/hooks").rmdir()
+
+    result = lib_mirror.compile_all(tmp_path)
+
+    assert any("scripts/memory_enhancement/hooks" in e for e in result.errors)
 
 
 # --- hand-maintained lib files copied from src/claude/lib (issue #7221) ------

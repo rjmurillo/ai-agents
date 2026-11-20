@@ -28,6 +28,7 @@ The relevant fragment, copied verbatim:
         ("scripts/github_core", ".claude/lib/github_core"),
         ("scripts/ai_review_common", ".claude/lib/ai_review_common"),
         ("scripts/failure_classifier", ".claude/lib/failure_classifier"),
+        ("scripts/memory_enhancement", ".claude/lib/memory_enhancement"),
     ]
 
 See `.claude/rules/canonical-source-mirror.md`.

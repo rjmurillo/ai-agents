@@ -36,12 +36,25 @@ registration, not the manifest, so it is known even when the manifest cannot be
 loaded. It is valid for a ``Stop`` group only. Every failure path (manifest
 load, self-host check, oversized stdin, an execution exception, a hook that
 exits non-zero) writes one stderr status line and exits 0, because a failure of
-an advisory nudge must never block a Stop. Fail-open is allowed only for Stop:
-the flag on any other event exits 2 with one stderr line, and when the manifest
+an advisory nudge must never block a Stop. Fail-open is allowed for Stop
+advisory groups and for the prompt-preserving ids below: the flag on any other
+event exits 2 with one stderr line, and when the manifest
 cannot be loaded the event is unknown, so only the one reserved group id
 (``_ADVISORY_GROUP_ID``) fails open and any other id fails closed. The group's
 ``systemMessage`` prints as a ``systemMessage`` document. Groups without the
 flag keep the policy above.
+
+Prompt-preserving groups (ADR-109 amendment 2026-11-20, issue #7493). The ids
+in ``_PROMPT_PRESERVING_GROUP_IDS``, today the UserPromptSubmit memory recall
+group, also fail open. Exit 2 on UserPromptSubmit blocks the prompt and erases
+it, and the recall group enforces no policy, so nothing is lost when it fails.
+The id is reserved here because, when the manifest cannot be loaded, the event
+is unknown. For these ids every failure path (manifest load, self-host check,
+oversized stdin, an execution exception, a non-zero ``run_group`` result) writes
+one stderr line and exits 0. The group runs in ``gate_all`` mode, which
+``validate_group`` requires for UserPromptSubmit, and gets the same self-host
+double-fire check an advisory group gets. Every other group keeps the policy
+above.
 """
 
 from __future__ import annotations
@@ -85,6 +98,9 @@ _MANIFEST_NAME = "dispatch_groups.json"
 # The single group allowed to carry --advisory (ADR-071). Used only when the
 # manifest cannot be loaded and the event is therefore unknown.
 _ADVISORY_GROUP_ID = "plugin-stop-1-reflect_nudge"
+# Groups whose failure must never erase the user's prompt (ADR-109 amendment
+# 2026-11-20). Reserved by id for the same reason as _ADVISORY_GROUP_ID.
+_PROMPT_PRESERVING_GROUP_IDS = frozenset({"plugin-userpromptsubmit-1-memory_recall"})
 _BLOCK_EXIT_CODE: int = BLOCK_EXIT
 _HOOK_STDIN_CEILING_MIB = 64
 _MAX_STDIN_BYTES = _HOOK_STDIN_CEILING_MIB * 1024 * 1024
@@ -194,17 +210,28 @@ def _load_group(group_id: str) -> tuple[str, str, list[str]]:
     return validated_group
 
 
-def _failure_exit(advisory: bool) -> int:
-    """Exit code for a launcher failure: 0 for an advisory group, else block."""
-    return 0 if advisory else _BLOCK_EXIT_CODE
+def _failure_exit(advisory: bool, group_id: str = "") -> int:
+    """Exit code for a launcher failure.
+
+    0 for an advisory group or a prompt-preserving group, else block.
+    """
+    if advisory or group_id in _PROMPT_PRESERVING_GROUP_IDS:
+        return 0
+    return _BLOCK_EXIT_CODE
 
 
-def _read_payload(mode: str, advisory: bool = False) -> tuple[bytes, int | None]:
+def _read_payload(
+    mode: str, advisory: bool = False, group_id: str = ""
+) -> tuple[bytes, int | None]:
     """Read one bounded hook payload and return an oversized-input verdict."""
     raw_stdin = sys.stdin.buffer.read(_MAX_STDIN_BYTES + 1)
     if len(raw_stdin) <= _MAX_STDIN_BYTES:
         return raw_stdin, None
-    blocks = mode in {"gate", "gate_all"} and not advisory
+    blocks = (
+        mode in {"gate", "gate_all"}
+        and not advisory
+        and group_id not in _PROMPT_PRESERVING_GROUP_IDS
+    )
     verdict = "denying" if blocks else "allowing without observer dispatch"
     print(
         f"claude-hook-dispatch: stdin exceeds {_MAX_STDIN_BYTES} bytes; {verdict}",
@@ -234,7 +261,7 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         # Event unknown: fail open only for the reserved Stop group.
-        return _failure_exit(advisory and args.group == _ADVISORY_GROUP_ID)
+        return _failure_exit(advisory and args.group == _ADVISORY_GROUP_ID, args.group)
 
     if advisory and event != ADVISORY_EVENT:
         print(
@@ -242,7 +269,7 @@ def main(argv: list[str] | None = None) -> int:
             f"group {args.group!r} is {event!r}; denying",
             file=sys.stderr,
         )
-        return _BLOCK_EXIT_CODE
+        return _failure_exit(False, args.group)
 
     if advisory and args.group != _ADVISORY_GROUP_ID:
         # Reserved to one group (ADR-071). Exit 2 would block the Stop, so
@@ -254,7 +281,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         advisory = False
 
-    if advisory or mode not in {"gate", "gate_all"}:
+    if advisory or args.group in _PROMPT_PRESERVING_GROUP_IDS or mode not in {"gate", "gate_all"}:
         try:
             if _project_self_hosts_plugin():
                 return 0
@@ -264,13 +291,20 @@ def main(argv: list[str] | None = None) -> int:
                 f"{args.group!r}: {type(exc).__name__}: {exc}",
                 file=sys.stderr,
             )
-            return _failure_exit(advisory)
+            return _failure_exit(advisory, args.group)
 
     try:
-        raw_stdin, oversized_exit = _read_payload(mode, advisory)
+        raw_stdin, oversized_exit = _read_payload(mode, advisory, args.group)
         if oversized_exit is not None:
             return oversized_exit
         exit_code: int = run_group(_HOOKS_DIR, event, mode, shims, raw_stdin, advisory=advisory)
+        if exit_code != 0 and args.group in _PROMPT_PRESERVING_GROUP_IDS:
+            print(
+                f"claude-hook-dispatch: group {args.group!r} returned {exit_code}; "
+                "exiting 0 to preserve the prompt",
+                file=sys.stderr,
+            )
+            return 0
         return exit_code
     except Exception as exc:
         print(
@@ -278,7 +312,7 @@ def main(argv: list[str] | None = None) -> int:
             f"{type(exc).__name__}: {exc}",
             file=sys.stderr,
         )
-        return _failure_exit(advisory)
+        return _failure_exit(advisory, args.group)
 
 
 if __name__ == "__main__":
