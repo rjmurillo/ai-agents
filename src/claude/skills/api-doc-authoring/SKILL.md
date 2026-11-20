@@ -60,6 +60,18 @@ generated schema page, or the API is trivial or internal with one obvious call.
 Write the reference, mark it as reference, and stop. Do not invent a use case to
 fill space.
 
+## Hemingway pass
+
+For a Hemingway pass, use the requested edit or audit mode. Lead with reader
+actions, cut repeated setup, and split overloaded sentences. Preserve commands,
+prerequisites, warnings, failure behavior, and rollback steps. Keep their
+order and the conditions for each step. Do not invent recovery actions.
+
+Skip the authoring phases for a Hemingway pass. Follow this section over
+Phase 5 and the Verification checklist. For an audit, verify through read-only
+inspection and suggest exact replacements. Apply file edits, run examples,
+or write evidence only when the user requests those actions.
+
 ## Process
 
 ```text
