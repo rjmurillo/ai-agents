@@ -126,7 +126,7 @@ pressure.
   `evaluate_round_cap(` and then `_persist_verdict(`. The marker is written
   except for a repeat escalation already noted or recorded (`:414-415`). Never
   call it only to read state; read the latest marker comment instead. The `review` skill's self-audit cap
-  (3 rounds) is a separate counter, local to one invocation and not persisted.
+  (5 rounds) is a separate counter, local to one invocation and not persisted.
 - A resolved thread reopens only with new contradicting evidence cited in the
   reopening comment.
 - **Freeze the finding contract after round 1.** The round caps bound cost,
