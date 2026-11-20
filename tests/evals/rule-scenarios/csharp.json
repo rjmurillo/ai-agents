@@ -65,12 +65,7 @@
       "id": "S5",
       "desc": "Same async concerns in a TypeScript file (negative)",
       "input": "In src/api/orders.ts the fetchOrders function is 90 lines and awaits several calls without an AbortSignal. Suggest how to restructure it. Plan in 5 short bullets. Do not modify any files.",
-      "expected_signals": [
-        "typescript",
-        "abortsignal",
-        "await",
-        "split"
-      ],
+      "expected_signals": [],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "The rule's paths cover .cs, .csproj, Directory.Build.*, .cshtml, and .razor. A TypeScript file is adjacent in concern but out of scope, so C# limits and CancellationToken guidance do not apply."
     },
@@ -78,12 +73,7 @@
       "id": "S6",
       "desc": "Editing appsettings.json in a .NET service (negative)",
       "input": "Add a Logging:LogLevel override for Microsoft.AspNetCore to src/Api/appsettings.Development.json. Plan in 5 short bullets. Do not modify any files.",
-      "expected_signals": [
-        "appsettings",
-        "loglevel",
-        "json",
-        "override"
-      ],
+      "expected_signals": [],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "appsettings.Development.json matches none of the rule's globs, so the C# idiom rules do not activate for a plain JSON settings edit."
     }

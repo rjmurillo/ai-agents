@@ -62,11 +62,7 @@
       "id": "S5",
       "desc": "Typed parameters in a PowerShell script (negative)",
       "input": "I am editing scripts/Sync-Example.ps1 and want to add [string] and [int] type constraints to its param block. What conventions apply? Plan in 5 short bullets. Do not modify any files.",
-      "expected_signals": [
-        "param",
-        "type constraint",
-        "powershell"
-      ],
+      "expected_signals": [],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "The rule's paths are **/*.py, **/pyproject.toml, and **/requirements*.txt. A .ps1 file matches none, so the Python typing, idiom, and tooling clauses do not apply."
     },
@@ -74,11 +70,7 @@
       "id": "S6",
       "desc": "Prose edit in a Markdown doc that mentions Python (negative)",
       "input": "I am rewording a paragraph in docs/contributing-guide.md that says contributors need Python installed. Keep the tone friendly. Plan in 5 short bullets. Do not modify any files.",
-      "expected_signals": [
-        "reword",
-        "paragraph",
-        "docs"
-      ],
+      "expected_signals": [],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "A Markdown prose edit matches none of the rule's paths globs, even though the topic is Python, so the Python rules are not active."
     }

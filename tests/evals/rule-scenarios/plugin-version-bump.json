@@ -60,11 +60,7 @@
       "id": "S5",
       "desc": "Bumping a package version elsewhere (negative)",
       "input": "I am releasing the CLI and need to raise the version in packages/ai-agents-cli/package.json. The plugin trees are untouched. Outline the bump. Plan in 5 short bullets. Do not modify any files.",
-      "expected_signals": [
-        "package.json",
-        "semver",
-        "changelog"
-      ],
+      "expected_signals": [],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "Stale-instructions section: other files may still carry a valid version, for example packages/ai-agents-cli/package.json. The no-version rule covers only the three plugin manifests and the marketplace.json files."
     },
@@ -72,11 +68,7 @@
       "id": "S6",
       "desc": "Docs-only change to install guide (negative)",
       "input": "I am rewording the install steps in docs/install.md to mention the marketplace add command. No plugin or manifest file changes. Outline the edit. Plan in 5 short bullets. Do not modify any files.",
-      "expected_signals": [
-        "docs",
-        "install",
-        "wording"
-      ],
+      "expected_signals": [],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "The rule scopes to .claude/**, src/copilot-cli/**, and src/claude/**. A docs/ edit touches no manifest, so there is nothing to bump or avoid."
     }

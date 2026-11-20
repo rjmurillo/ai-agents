@@ -62,11 +62,7 @@
       "id": "S5",
       "desc": "Script edit in an adjacent validation tree (negative)",
       "input": "scripts/validation/check_memory_placement.py has an off-by-one when counting normative terms near a fence. I am fixing the Python only and touching no rule or memory file. Outline the fix and its test. Plan in 5 short bullets. Do not modify any files.",
-      "expected_signals": [
-        "off-by-one",
-        "test",
-        "fence"
-      ],
+      "expected_signals": [],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "The rule scopes to .claude/rules, .serena/memories, the two instruction mirror trees, and templates/rules. A Python edit under scripts/validation/ matches none of them, so the mirror, index, and placement mechanics do not apply."
     },

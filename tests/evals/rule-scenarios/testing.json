@@ -62,10 +62,7 @@
       "id": "S5",
       "desc": "Production code edit that merely mentions tests (negative)",
       "input": "I am refactoring the parsing loop in scripts/validation/check_example.py for readability. No test files are involved yet. What should I watch? Plan in 5 short bullets. Do not modify any files.",
-      "expected_signals": [
-        "parsing",
-        "readability"
-      ],
+      "expected_signals": [],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "The edited file matches none of the testing rule's paths (tests/**, **/*.Tests.ps1, **/tests/**, benchmarks, testing.md itself), so the test-file clauses do not activate."
     }

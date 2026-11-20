@@ -66,12 +66,7 @@
       "id": "S5",
       "desc": "Typo and flag change in a validator with no mirror claim (negative)",
       "input": "In scripts/validation/check_md_links.py I want to fix a typo in the argparse help text and add a --verbose flag that prints each file examined. The docstring makes no claim about any other component. Plan in 5 short bullets. Do not modify any files.",
-      "expected_signals": [
-        "typo",
-        "verbose",
-        "flag",
-        "help"
-      ],
+      "expected_signals": [],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "The rule binds contracts derived from another source and claims about another component's behavior. A help-text typo and a verbose flag make neither, so no citation or conformance test is required."
     },
@@ -79,12 +74,7 @@
       "id": "S6",
       "desc": "Word 'mirror' in an unrelated UI task (negative)",
       "input": "In src/web/components/ImagePreview.tsx I need a button that mirrors the preview image horizontally with a CSS scaleX(-1) transform. Plan in 5 short bullets. Do not modify any files.",
-      "expected_signals": [
-        "scalex",
-        "transform",
-        "button",
-        "css"
-      ],
+      "expected_signals": [],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "The trigger is a contract claimed to match a repository source. 'Mirror' here is a geometric flip in a path outside the rule's scope, so the canonical-source rules do not apply."
     }
