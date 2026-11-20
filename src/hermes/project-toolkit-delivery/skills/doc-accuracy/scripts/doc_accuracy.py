@@ -1305,8 +1305,10 @@ def _python_stdlib_imported_names(code: str) -> set[str]:
 _CSHARP_DIRECTIVE_LINE_RE = re.compile(r"^[ \t]*#[ \t]*[a-z]+\b.*$", re.MULTILINE)
 
 # The start of a C# comment or literal. A comment is consumed but kept, so a
-# quote inside it opens nothing. "prefix" holds the $ and @ markers of a string.
-_CSHARP_TOKEN_START_RE = re.compile(r"//|/\*|'|(?P<prefix>[$@]*)(?P<quotes>\"+)")
+# quote inside it opens nothing. "prefix" holds the $ and @ markers of a
+# string. The cap keeps a long marker run from being rescanned at every start.
+_CSHARP_TOKEN_START_RE = re.compile(r"//|/\*|'|(?P<prefix>[$@]{0,8})(?P<quotes>\"+)")
+_CSHARP_LITERAL_START_RE = re.compile(r"'|(?P<prefix>[$@]{0,8})(?P<quotes>\"+)")
 
 
 def _blank_span(chars: list[str], start: int, end: int) -> None:
@@ -1316,51 +1318,31 @@ def _blank_span(chars: list[str], start: int, end: int) -> None:
             chars[index] = " "
 
 
-def _csharp_hole_end(code: str, start: int) -> int:
-    """Index just past the "}" that closes the hole opened at ``start``."""
-    depth = 0
-    for index in range(start, len(code)):
+def _line_end(code: str, index: int) -> int:
+    """Index of the newline at or after ``index``, or the end of ``code``."""
+    end = code.find("\n", index)
+    return len(code) if end < 0 else end
+
+
+def _csharp_hole_end(code: str, start: int, chars: list[str]) -> int:
+    """Index just past the "}" that closes the hole opened at ``start``.
+
+    The hole is code and stays visible, but literals inside it are blanked,
+    so a brace or quote in them cannot end the hole early. An unclosed hole
+    runs to the end of the snippet and leaves it visible.
+    """
+    depth, index = 0, start
+    while index < len(code):
+        literal = _CSHARP_LITERAL_START_RE.match(code, index)
+        if literal is not None:
+            index = _blank_csharp_literal(code, literal, chars)
+            continue
         if code[index] == "{":
             depth += 1
         elif code[index] == "}":
             depth -= 1
             if depth == 0:
                 return index + 1
-    return len(code)
-
-
-def _csharp_string_end(
-    code: str, body: int, verbatim: bool, interpolated: bool, chars: list[str]
-) -> int:
-    """Blank a regular or verbatim string body; return the index past its end.
-
-    Interpolation holes stay visible because they hold code. A regular string
-    ends at an unescaped quote or at the end of its line, so an unterminated
-    literal hides only its own line.
-    """
-    index = body
-    while index < len(code):
-        char = code[index]
-        if interpolated and char == "{":
-            if code.startswith("{{", index):
-                _blank_span(chars, index, index + 2)
-                index += 2
-                continue
-            index = _csharp_hole_end(code, index)
-            continue
-        if char == '"':
-            if verbatim and code.startswith('""', index):
-                _blank_span(chars, index, index + 2)
-                index += 2
-                continue
-            return index + 1
-        if char == "\n" and not verbatim:
-            return index
-        if char == "\\" and not verbatim and index + 1 < len(code) and code[index + 1] != "\n":
-            _blank_span(chars, index, index + 2)
-            index += 2
-            continue
-        _blank_span(chars, index, index + 1)
         index += 1
     return index
 
@@ -1369,62 +1351,144 @@ def _csharp_char_end(code: str, start: int) -> int:
     """Index past the char literal opened at ``start``, or its line end."""
     index = start + 1
     while index < len(code) and code[index] != "\n":
-        if code[index] == "\\":
+        if code[index] == "\\" and code[index + 1 : index + 2] not in ("", "\n"):
             index += 2
             continue
         if code[index] == "'":
             return index + 1
         index += 1
-    return min(index, len(code))
+    return index
+
+
+def _csharp_string_end(code: str, body: int, prefix: str, chars: list[str]) -> int:
+    """Blank a regular or verbatim string body; return the index past it.
+
+    Interpolation holes stay visible because they hold code. A regular string
+    ends at an unescaped quote or at its line end. An unterminated verbatim
+    string blanks only its opening line, so later code stays checked.
+    """
+    verbatim, interpolated = "@" in prefix, "$" in prefix
+    index = body
+    while index < len(code):
+        char = code[index]
+        if interpolated and char == "{" and not code.startswith("{{", index):
+            index = _csharp_hole_end(code, index, chars)
+            continue
+        if char == '"' and not (verbatim and code.startswith('""', index)):
+            return index + 1
+        if char == "\n" and not verbatim:
+            return index
+        escaped = char == "\\" and not verbatim and code[index + 1 : index + 2] not in ("", "\n")
+        doubled = code.startswith(char * 2, index) and char in '{"'
+        step = 2 if escaped or doubled else 1
+        _blank_span(chars, index, index + step)
+        index += step
+    if verbatim:
+        end = _line_end(code, body)
+        chars[end:] = code[end:]
+        return end
+    return index
+
+
+def _csharp_raw_string_end(code: str, body: int, match: re.Match[str], chars: list[str]) -> int:
+    """Blank a raw string body; return the index past its closing quotes.
+
+    A raw string closes on the same quote run that opened it. With N "$"
+    markers, a run of N braces opens a hole, which stays visible; braces
+    before it in a longer run are literal text. An unterminated raw string
+    blanks only its opening line, so later code stays checked.
+    """
+    quotes, dollars = match.group("quotes"), match.group("prefix").count("$")
+    index = body
+    while True:
+        close = code.find(quotes, index)
+        if close < 0:
+            end = _line_end(code, index)
+            _blank_span(chars, index, end)
+            return end
+        hole = code.find("{" * dollars, index, close) if dollars else -1
+        if hole < 0:
+            _blank_span(chars, index, close)
+            return close + len(quotes)
+        while code.startswith("{" * (dollars + 1), hole):
+            hole += 1
+        _blank_span(chars, index, hole)
+        index = _csharp_hole_end(code, hole, chars)
+
+
+def _blank_csharp_string(code: str, match: re.Match[str], chars: list[str]) -> int:
+    """Blank the string literal ``match`` opens; return the index past it."""
+    prefix, quotes = match.group("prefix"), match.group("quotes")
+    if "@" not in prefix and len(quotes) >= 3:
+        return _csharp_raw_string_end(code, match.end(), match, chars)
+    if "@" not in prefix and len(quotes) == 2:
+        return match.end()
+    return _csharp_string_end(code, match.start("quotes") + 1, prefix, chars)
+
+
+def _blank_csharp_literal(code: str, match: re.Match[str], chars: list[str]) -> int:
+    """Blank the string or char literal ``match`` opens; return the index past it."""
+    if match.group(0) != "'":
+        return _blank_csharp_string(code, match, chars)
+    end = _csharp_char_end(code, match.start())
+    _blank_span(chars, match.start() + 1, max(match.start() + 1, end - 1))
+    return end
 
 
 def _blank_csharp_literals(code: str) -> str:
     """Blank C# string and char literal text, keeping every column.
 
     Covers regular, verbatim (@), interpolated ($, $@, @$) and raw (three or
-    more quotes) strings, plus char literals. Holes in regular and verbatim
-    interpolated strings stay visible. A raw string is blanked whole, holes
-    included, so a raw interpolated string can hide a name but never add one.
-    Comments are skipped unchanged.
+    more quotes, with any $ markers) strings, plus char literals. Holes stay
+    visible, and literals nested in a hole are blanked too. Comments are
+    skipped unchanged, so a quote inside one opens nothing.
     """
     chars = list(code)
     index = 0
     while (match := _CSHARP_TOKEN_START_RE.search(code, index)) is not None:
-        token = match.group(0)
-        if token == "//":
-            end = code.find("\n", match.end())
-            index = len(code) if end < 0 else end
-        elif token == "/*":
+        if match.group(0) == "//":
+            index = _line_end(code, match.end())
+        elif match.group(0) == "/*":
             end = code.find("*/", match.end())
             index = len(code) if end < 0 else end + 2
-        elif token == "'":
-            index = _csharp_char_end(code, match.start())
-            _blank_span(chars, match.start() + 1, max(match.start() + 1, index - 1))
         else:
-            index = _blank_csharp_string(code, match, chars)
+            index = _blank_csharp_literal(code, match, chars)
     return "".join(chars)
 
 
-def _blank_csharp_string(code: str, match: re.Match[str], chars: list[str]) -> int:
-    """Blank the string literal ``match`` opens; return the index past it."""
-    prefix, quotes = match.group("prefix"), match.group("quotes")
-    body = match.start("quotes") + 1
-    verbatim = "@" in prefix
-    if len(quotes) >= 3 and not verbatim:
-        end = code.find(quotes, match.end())
-        end = len(code) if end < 0 else end + len(quotes)
-        _blank_span(chars, match.end(), max(match.end(), end - len(quotes)))
-        return end
-    if len(quotes) == 2 and not verbatim:
-        return match.end()
-    return _csharp_string_end(code, body, verbatim, "$" in prefix, chars)
+# An attribute section opens at a line start or after "(", "," or "]" (a
+# parameter attribute or a chained section). It must close with "]" followed
+# by what a declaration starts with: a name, "[", a comment, or the line end.
+# A collection expression closes before ")", ",", ";" or ".", so it does not
+# qualify. Inside a section, a name right after "(" or "," and before "=" or
+# ":" names a property or parameter that the attribute's own type defines.
+# A ternary operand follows "?", so it stays visible.
+_CSHARP_ATTRIBUTE_OPEN_RE = re.compile(r"(?:^|[(,\]])[ \t]*\[", re.MULTILINE)
+_CSHARP_ATTRIBUTE_FOLLOWER_RE = re.compile(r"[ \t]*(?:$|[A-Za-z_@\[/])", re.MULTILINE)
+_CSHARP_ATTRIBUTE_NAMED_ARG_RE = re.compile(
+    r"[(,][ \t\r\n]*([A-Za-z_]\w*)(?=[ \t]*(?:=(?!=)|:(?!:)))"
+)
 
 
-# An attribute section starts a line or follows "(" or "," (a parameter
-# attribute). Inside its argument list, "Name =" and "Name:" name a property or
-# parameter of the attribute type, which the attribute's own type defines.
-_CSHARP_ATTRIBUTE_OPEN_RE = re.compile(r"(?:^|[(,])[ \t]*\[", re.MULTILINE)
-_CSHARP_ATTRIBUTE_NAMED_ARG_RE = re.compile(r"\b[A-Za-z_]\w*(?=[ \t]*(?:=(?!=)|:))")
+def _csharp_attribute_section_end(code: str, start: int) -> tuple[int, bool]:
+    """Scan a section opened just before ``start``; return (stop, closed).
+
+    ``stop`` is the index of the closing "]" when ``closed`` is true, else
+    where the scan gave up: a ";", a "{" outside the argument list, or the
+    end of the snippet. Attribute arguments hold no statements.
+    """
+    depth, paren = 1, 0
+    for index in range(start, len(code)):
+        char = code[index]
+        if char == ";" or (paren == 0 and char == "{"):
+            return index, False
+        if char in "()":
+            paren += 1 if char == "(" else -1
+        elif char in "[]":
+            depth += 1 if char == "[" else -1
+            if depth == 0:
+                return index, True
+    return len(code), False
 
 
 def _blank_csharp_attribute_named_args(code: str) -> str:
@@ -1432,26 +1496,20 @@ def _blank_csharp_attribute_named_args(code: str) -> str:
 
     Expects literals already blanked, so brackets and parentheses in strings
     do not move the section end. Attribute names, positional arguments, and
-    ``typeof``/``nameof`` operands stay visible.
+    ``typeof``/``nameof`` operands stay visible. Each character is scanned
+    by at most one section, so the pass stays linear.
     """
     chars = list(code)
+    scanned_to = 0
     for opening in _CSHARP_ATTRIBUTE_OPEN_RE.finditer(code):
-        depth_square, paren, index = 1, 0, opening.end()
-        while index < len(code) and depth_square:
-            char = code[index]
-            if char == ";" or (paren == 0 and char == "{"):
-                # Attribute arguments hold no statements; "{" may open an
-                # array initializer only inside the argument list.
-                break
-            if char in "[]":
-                depth_square += 1 if char == "[" else -1
-            elif char in "()":
-                paren += 1 if char == "(" else -1
-            elif paren > 0 and (named := _CSHARP_ATTRIBUTE_NAMED_ARG_RE.match(code, index)):
-                _blank_span(chars, named.start(), named.end())
-                index = named.end()
-                continue
-            index += 1
+        if opening.end() <= scanned_to:
+            continue
+        stop, closed = _csharp_attribute_section_end(code, opening.end())
+        scanned_to = stop
+        if not closed or not _CSHARP_ATTRIBUTE_FOLLOWER_RE.match(code, stop + 1):
+            continue
+        for named in _CSHARP_ATTRIBUTE_NAMED_ARG_RE.finditer(code, opening.end(), stop):
+            _blank_span(chars, named.start(1), named.end(1))
     return "".join(chars)
 
 
@@ -1470,9 +1528,11 @@ def _extract_identifiers(code: str, lang: str = "") -> list[str]:
     For C# (``lang == "csharp"``) preprocessor directive lines are blanked
     first, so ``#if NETFRAMEWORK`` does not report an unresolved symbol
     (issue #7453). Then string and char literal text is blanked, keeping
-    interpolation holes, and named arguments inside attribute argument lists
-    are blanked, so ``[Conditional("DEBUG")]`` does not report ``DEBUG``.
-    The attribute name itself stays a checked code reference. Comments are
+    interpolation holes, so ``[Conditional("DEBUG")]`` does not report
+    ``DEBUG``. Named-argument names in attribute argument lists are blanked
+    too, so ``EntryPoint`` in ``[DllImport("k32", EntryPoint = "Beep")]`` is
+    not reported. The attribute name itself stays a checked code reference.
+    Comments are
     still scanned. Other languages keep lines starting with ``#``, because
     JavaScript and TypeScript private members use that prefix, and keep the
     language-agnostic scan.

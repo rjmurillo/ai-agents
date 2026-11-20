@@ -374,6 +374,74 @@ class TestCsharpLiteralAndAttributeArguments:
         assert "Minimum" not in result
         assert "Range" in result
 
+    # Each case keeps a made-up name in real code visible next to a literal.
+    REAL_CODE_STAYS_VISIBLE = (
+        ('var s = $"""\n{FakeWidget.Make()}\n""";', "FakeWidget"),
+        ('var s = $$"""\n{x} {{FakeWidget.Make()}}\n""";', "FakeWidget"),
+        ('var s = @"open\nvar w = new FakeWidget();', "FakeWidget"),
+        ('var s = """\nvar w = new FakeWidget();', "FakeWidget"),
+        ("var c = '\\\nvar w = new FakeWidget(); var d = 'x';", "FakeWidget"),
+        ('var s = $"{F("}")} tail"; var w = new FakeWidget();', "FakeWidget"),
+        ("Run([Build(Size: 3)]);", "Size"),
+        ("Use([Pick(flag ? FakeType : other)]);", "FakeType"),
+        ("List<object> l =\n[\n    Make(flag ? MadeUpType : null),\n];", "MadeUpType"),
+        ("Run(\n    [Build(Size: 3)],\n    other);", "Size"),
+    )
+
+    def test_real_code_beside_literals_stays_visible(self) -> None:
+        for code, name in self.REAL_CODE_STAYS_VISIBLE:
+            result = _extract_identifiers(code, "csharp")
+
+            assert name in result, code
+
+    def test_raw_interpolated_text_is_blanked_around_holes(self) -> None:
+        code = 'var s = $$"""\nRawText {Literal} {{Ledger.Sum()}}\n""";'
+
+        result = _extract_identifiers(code, "csharp")
+
+        assert "Ledger" in result
+        assert "RawText" not in result
+        assert "Literal" not in result
+
+    def test_unterminated_verbatim_blanks_only_its_opening_line(self) -> None:
+        code = 'var s = @"open OpeningName\nvar w = new FakeWidget();'
+
+        result = _extract_identifiers(code, "csharp")
+
+        assert "OpeningName" not in result
+        assert "FakeWidget" in result
+
+    def test_literal_nested_in_a_hole_is_blanked(self) -> None:
+        code = 'var s = $"{Get("NestedKey")} and {Ledger.Sum()}";'
+
+        result = _extract_identifiers(code, "csharp")
+
+        assert "NestedKey" not in result
+        assert "Get" in result
+        assert "Ledger" in result
+
+    def test_empty_strings_and_block_comment_quotes_open_nothing(self) -> None:
+        code = 'var a = ""; /* don\'t " */ var w = new FakeWidget(); var b = @"";'
+
+        result = _extract_identifiers(code, "csharp")
+
+        assert "FakeWidget" in result
+
+    def test_chained_attribute_named_argument_is_not_extracted(self) -> None:
+        code = '[Fact][Trait(Category = "x")]\nvoid F() {}'
+
+        result = _extract_identifiers(code, "csharp")
+
+        assert "Category" not in result
+        assert "Trait" in result
+
+    def test_long_marker_run_finishes_quickly(self) -> None:
+        code = "$" * 20000 + "\n" + "([" * 20000 + "\nvar w = new FakeWidget();"
+
+        result = _extract_identifiers(code, "csharp")
+
+        assert "FakeWidget" in result
+
     def test_unclosed_bracket_does_not_reach_later_statements(self) -> None:
         code = "[Broken(\nvar a = 1;\nvar w = Build(Size: 3);"
 
