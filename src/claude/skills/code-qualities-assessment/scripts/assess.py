@@ -1813,9 +1813,71 @@ def _dependency_nodes(source: str, grammar: _DependencyGrammar) -> list[Any]:
         ) from exc
 
 
-def _count_csharp_imports(source: str) -> int:
-    """Count directive syntax nodes, not resource declarations or literal text."""
-    return _count_dependency_nodes(source, _CSHARP_GRAMMAR)
+def _csharp_root_namespace(node: Any) -> str | None:
+    """Return the first namespace segment a C# name node refers to.
+
+    ``global::`` is the root namespace, so ``global::System.IO`` starts with
+    ``System``. An extern alias (``Lib::System``) names another assembly, so it
+    returns None. A tuple, array, nullable, pointer, or keyword alias target is
+    not a name node, so it returns None and stays scored, even when its element
+    type is a ``System`` type such as ``System.Int32[]``.
+    """
+    while node.type in ("qualified_name", "generic_name"):
+        node = (
+            node.child_by_field_name("qualifier")
+            if node.type == "qualified_name"
+            else next(c for c in node.named_children if c.type == "identifier")
+        )
+    if node.type == "alias_qualified_name":
+        if node.child_by_field_name("alias").text != b"global":
+            return None
+        node = node.child_by_field_name("name")
+    if node.type != "identifier":
+        return None
+    name: str = node.text.decode("utf-8")
+    return name.removeprefix("@")
+
+
+def _is_csharp_standard_directive(directive: Any) -> bool:
+    """Classify one ``using`` directive as importing the ``System`` namespace tree.
+
+    The target is the directive's last non-comment named child; for an alias
+    directive the ``name`` field holds the alias, so the target follows it.
+    """
+    alias = directive.child_by_field_name("name")
+    targets = [
+        child
+        for child in directive.named_children
+        if child.type != "comment" and (alias is None or child.id != alias.id)
+    ]
+    if not targets:
+        # Defensive: the pinned grammar rejects `using ;` as a parse error
+        # first. A grammar change must still fail closed, not guess a score.
+        raise CSharpParserError(
+            f"Cannot count C# dependencies: the using directive on line "
+            f"{directive.start_point[0] + 1} has no target. "
+            f"Check the pinned versions ({_CSHARP_GRAMMAR.packages})"
+        )
+    return _csharp_root_namespace(targets[-1]) == "System"
+
+
+def _count_csharp_imports(source: str) -> tuple[int, int]:
+    """Count directive syntax nodes, not resource declarations or literal text.
+
+    Returns the directive count and how many of those have a target rooted at
+    the ``System`` namespace, whatever assembly provides it (issue #7459).
+    """
+    directives = _dependency_nodes(source, _CSHARP_GRAMMAR)
+    try:
+        # A list, not a generator: PEP 479 would turn StopIteration into RuntimeError.
+        standard = len([node for node in directives if _is_csharp_standard_directive(node)])
+    except (AttributeError, StopIteration) as exc:
+        # A node shape the pinned grammar should never produce: fail closed.
+        raise CSharpParserError(
+            f"Cannot count C# dependencies: unexpected parse-tree shape "
+            f"({type(exc).__name__}). Check the pinned versions ({_CSHARP_GRAMMAR.packages})"
+        ) from exc
+    return len(directives), standard
 
 
 def _count_python_imports(source: str) -> tuple[int, int]:
@@ -2000,19 +2062,20 @@ def _score_coupling(
 
     C#, TypeScript, JavaScript, Python, and PowerShell receive original source
     lines for syntax-tree parsing; *suffix* picks the TypeScript or TSX grammar.
-    Other languages receive filtered code lines. Go and Python standard-library imports are
-    reported but not scored: they are stable utilities, not application or
-    third-party coupling (issues #7047 and #7354).
+    Other languages receive filtered code lines. Go and Python standard-library
+    imports and C# ``System`` namespace directives are reported but not scored:
+    they are stable utilities, not application or third-party coupling
+    (issues #7047, #7354, and #7459).
     """
     pattern = _IMPORT_PATTERNS.get(language) if language else None
     standard_count = 0
-    if language == "python":
-        import_count, standard_count = _count_python_imports("\n".join(code_lines))
+    if language in ("python", "csharp"):
+        standard_counter = _count_python_imports if language == "python" else _count_csharp_imports
+        import_count, standard_count = standard_counter("\n".join(code_lines))
         confidence = 0.6
         tuned = True
     elif language in _PARSED_COUPLING_LANGUAGES:
         counters: dict[str, Callable[[str], int]] = {
-            "csharp": _count_csharp_imports,
             "javascript": _count_javascript_imports,
             "typescript": partial(_count_typescript_imports, suffix=suffix),
             "powershell": _count_powershell_imports,
@@ -2053,6 +2116,11 @@ def _score_coupling(
     elif language == "python" and standard_count:
         reasons.append(
             f"{standard_count} Python standard library (not scored), "
+            f"{scored_count} application or third-party (scored)"
+        )
+    elif language == "csharp" and standard_count:
+        reasons.append(
+            f"{standard_count} C# System namespace (not scored), "
             f"{scored_count} application or third-party (scored)"
         )
     reasons.append(detail)
