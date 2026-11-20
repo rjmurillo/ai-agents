@@ -212,7 +212,7 @@ The interrupted full documentation assessment provides no current acceptance.
 - **Objective**: Ship repository-side readiness repairs without adding client telemetry.
 - **Non-goals**: Hosted infrastructure, package releases, and security configuration changes.
 - **Risk tier**: shared-repository
-- **Acceptance**: New checks detect violations and pass the complete repository corpus.
+- **Acceptance**: New checks detect violations. Under D29, the full-corpus findings stay recorded in #7501.
 - **Phase**: D7 repair committed; full scanning reports unresolved findings.
 - **Next action**: Complete authorized main integration and classify full-scan residue.
 - **Validation run**: On 2026-11-18, scanner regression passed all 277 tests.
