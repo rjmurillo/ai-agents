@@ -302,14 +302,20 @@ def _line_cites(
     added: set[int],
     resolve: dict[str, str | None],
     head_tracked: set[str],
+    base_only_aliases: frozenset[str] = frozenset(),
 ) -> list[tuple[_Cite, str]]:
-    """Return (cite, same-line segment) for each reverse-pass citation on a line."""
+    """Return (cite, same-line segment) for each reverse-pass citation on a line.
+
+    An added line is left to the added-lines gate, except a cite that an
+    ``ADR-NNN:N`` alias expanded to an ADR deleted on this branch: that gate
+    aliases only ADRs present at HEAD, so it never sees the deleted number.
+    """
     scannable = _URL.sub(" ", text)
     matches = list(_CITATION.finditer(scannable))
     cites: list[tuple[_Cite, str]] = []
     for index, match in enumerate(matches):
         cited = match.group("path").removeprefix("./")
-        forward_reads = "/" in cited or cited in head_tracked
+        forward_reads = cited not in base_only_aliases and ("/" in cited or cited in head_tracked)
         if line_number in added and forward_reads:
             continue
         target = resolve.get(cited)
@@ -352,6 +358,7 @@ def _scan(
     for path in trees.head_tracked:
         head_by_name.setdefault(path.rsplit("/", 1)[-1], []).append(path)
     aliases = _citation_aliases_across(trees.base_tracked, trees.head_tracked)
+    gone = frozenset(path for path in aliases.values() if path not in trees.head_tracked)
     names = _basename_index(trees.head_tracked)
     hits = _grep_head(repo_root)
     added_map = _added_lines_since_base(repo_root, base_ref)
@@ -372,7 +379,7 @@ def _scan(
                 resolve_cache[cited] = _resolve_target(cited, changes, base_by_name, head_by_name)
         added = {number for number, _text in added_map.get(citing_file, [])}
         cites = _line_cites(
-            citing_file, line_number, expanded, added, resolve_cache, trees.head_tracked
+            citing_file, line_number, expanded, added, resolve_cache, trees.head_tracked, gone
         )
         if not cites:
             continue

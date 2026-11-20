@@ -82,3 +82,18 @@ def test_renamed_adr_is_judged_at_the_new_path(tmp_path: Path) -> None:
 
     assert code == 1, out
     assert "magic_token" in out
+
+
+def test_added_cite_to_an_adr_deleted_on_the_branch_is_judged(tmp_path: Path) -> None:
+    """The added-lines gate cannot alias a deleted number, so the reverse pass does."""
+    root = _repo(tmp_path)
+    _git(root, "checkout", "-q", "main")
+    _commit(root, _OLD, TARGET_CONTENT + "\n", "adr")
+    _git(root, "checkout", "-q", "-B", "feature")
+    _git(root, "rm", "-q", _OLD)
+    _commit(root, "docs/notes.md", _cite(), "delete adr and add a cite to it")
+
+    code, out = _run_reverse(root)
+
+    assert code == 1, out
+    assert "not tracked" in out
