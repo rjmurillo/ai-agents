@@ -255,6 +255,19 @@ The generated instruction trees preserve the difference between always-on and
 path-scoped rules. Use the generated mirrors to answer membership questions.
 Use the source rules to answer content questions.
 
+Use an instrument, not a hand-written list, to answer what the corpus holds.
+In the `rjmurillo/ai-agents` repository, run the instruction-size report that
+issue #5400 added, with `--format json`. Its
+`canonical.paths` lists every authored instruction file with its size. It also
+reports generated mirror counts, the always-on set per harness, and six fixture
+load paths. Its sibling `effective_context.py` lists what one harness
+loads for one target path (issue #4880). Both read the tree on demand, so they
+cannot drift. ADR-069's hand-written list, dated 2026-05-02, had lost four
+paths by 2026-11-20.
+Retrieval surfaces (Serena memories, ADRs, retrospectives, skill `references/`)
+have no inventory on purpose: issue #7468 found no measured need. Issues #7470,
+#7471, and #7472 own assembly, influence, and curation for those surfaces.
+
 No book rule loads on every file now. `code-quality.md` loads on code files.
 `unified-software-engineering.md` also loads on source files, trimmed to a
 tiebreaker (issue #5951 moved its forbidden-patterns blocklist and the whole
