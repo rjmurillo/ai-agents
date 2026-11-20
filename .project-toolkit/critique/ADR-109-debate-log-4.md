@@ -28,7 +28,7 @@ rather than reshape the ADR-107 text.
 - Does the edit change an ADR-109 decision or its four-site amendment meaning? No. Only the
   line number changes.
 - Do other ADR-109 citations into ADR-107 break? No. Line 95 cites ADR-107 line 63, above both
-  ADR-107 edits. Six other ADR-107 mentions carry no line number.
+  ADR-107 edits. The other ADR-109 mentions of ADR-107 carry no line number.
 
 ### Agent Positions
 
