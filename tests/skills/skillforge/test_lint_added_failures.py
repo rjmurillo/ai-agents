@@ -76,6 +76,20 @@ def test_new_failures_reports_a_second_bad_path_beside_an_inherited_one() -> Non
     assert all("new-note" in message for message in added[0].messages)
 
 
+def test_shrinking_an_oversized_skill_is_not_an_added_failure() -> None:
+    incumbent = _skill_text(body="a" * 25000 + "\n")
+    candidate = _skill_text(body="a" * 24900 + "\n")
+
+    assert lint.new_failures(incumbent, candidate) == []
+
+
+def test_crossing_the_size_cap_is_an_added_failure() -> None:
+    incumbent = _skill_text(body="a" * 100 + "\n")
+    candidate = _skill_text(body="a" * 25000 + "\n")
+
+    assert _ids(lint.new_failures(incumbent, candidate)) == ["fm.size.bytes"]
+
+
 def test_inherited_fail_is_not_an_added_failure() -> None:
     before = [_result("fm.capability.shape", "FAIL")]
     after = [_result("fm.capability.shape", "FAIL")]

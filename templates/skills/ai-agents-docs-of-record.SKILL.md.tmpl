@@ -23,7 +23,6 @@ and pull request evidence remain valid, and the ~1,500 historical logs under
 ## Triggers
 
 - `write the session log`
-- `create an ADR`
 - `fill the retro`
 - `save this to memory`
 - `which document of record does this go in`

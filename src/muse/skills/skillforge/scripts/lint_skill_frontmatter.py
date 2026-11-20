@@ -185,6 +185,12 @@ def lint_text(text: str) -> list[Result]:
     return evaluate(doc)
 
 
+# Rules whose FAIL message embeds a measurement (a byte count). Compare them by
+# rule identity, never by message text, or an edit that shrinks an oversized
+# skill would read as a new failure.
+MEASURED_RULES = frozenset({"fm.size.bytes", "fm.size.headroom"})
+
+
 def added_failures(before: list[Result], after: list[Result]) -> list[Result]:
     """Return MUST failures in `after` that `before` does not have.
 
@@ -199,7 +205,12 @@ def added_failures(before: list[Result], after: list[Result]) -> list[Result]:
     passing_before = {r.rule.id for r in before if r.status == "PASS"}
     added = []
     for result in after:
-        if result.status == "FAIL":
+        if result.status == "FAIL" and result.rule.id in MEASURED_RULES:
+            # The message carries a measurement, so it changes with any edit.
+            # Identity is the rule: failing before means inherited.
+            if result.rule.id not in failing_before:
+                added.append(result)
+        elif result.status == "FAIL":
             inherited = failing_before.get(result.rule.id, set())
             new_messages = tuple(m for m in result.messages if m not in inherited)
             if new_messages:

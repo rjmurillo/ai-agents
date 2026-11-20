@@ -95,6 +95,20 @@
         ]
       },
       "rationale": "Negative control: an ADR review request spelled out as architecture decision record must not reach the authoring skill."
+    },
+    {
+      "id": "lt-adr-generator-spelled-out-draft",
+      "family": "long-tail-single-domain",
+      "request": "Draft an architecture decision record for the queue choice.",
+      "expect": {
+        "kind": "specialist",
+        "route": "adr-generator",
+        "routes_absent": [
+          "orchestrator",
+          "adr-review"
+        ]
+      },
+      "rationale": "Spelled-out authoring requests must still reach adr-generator after the bare intent was narrowed."
     }
   ]
 }
