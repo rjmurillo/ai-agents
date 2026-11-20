@@ -38,6 +38,7 @@ import textwrap
 import tokenize
 import typing
 from dataclasses import dataclass
+from functools import cache
 from pathlib import Path
 from typing import Any, cast
 
@@ -1401,6 +1402,9 @@ class _PyScope:
         return (name in table), table.get(name)
 
 
+_PyImportResolver = typing.Callable[[str, str], "_PyScope | None"]
+
+
 def _py_scope_locals(nodes: list[Any]) -> tuple[set[str], set[str]]:
     """Names a scope binds anywhere, and names it declares global or nonlocal.
 
@@ -1441,11 +1445,14 @@ class _PyBindingCollector(ast.NodeVisitor):
     needs the body and every handler, and a binding inside a loop body,
     ``with`` body or ``match`` case does not survive the statement. A short-
     circuit or conditional-expression walrus never binds definitely.
-    Imports, ``global``/``nonlocal``, ``except`` aliases and match captures
-    never resolve, so their names stay checkable.
+    Imports resolve only when an exact repository module proves a class
+    binding. ``global``/``nonlocal``, ``except`` aliases and match captures
+    stay checkable.
     """
 
-    def __init__(self, lines: list[str], tree: ast.Module) -> None:
+    def __init__(
+        self, lines: list[str], tree: ast.Module, resolve_import: _PyImportResolver | None = None
+    ) -> None:
         self.lines = lines
         local, never = _py_scope_locals(tree.body)
         self.scope = _PyScope("module", None, local)
@@ -1453,6 +1460,7 @@ class _PyBindingCollector(ast.NodeVisitor):
         self.uses: list[tuple[_PyPos, str, bool]] = []
         self.conditional = 0  # depth inside short-circuit or ternary operands
         self.halted = False  # the last statement left its block
+        self.resolve_import = resolve_import
 
     def _pos(self, lineno: int, byte_col: int) -> _PyPos:
         line = self.lines[lineno - 1].encode("utf-8")
@@ -1507,6 +1515,29 @@ class _PyBindingCollector(ast.NodeVisitor):
         self.conditional -= 1
 
     # --- simple statements ----------------------------------------------------
+
+    def visit_Import(self, node: ast.Import) -> None:
+        for alias in node.names:
+            self.scope.defined.pop(alias.asname or alias.name.split(".")[0], None)
+
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+        for alias in node.names:
+            name = alias.asname or alias.name
+            if name == "*":
+                self.scope.defined.clear()
+                continue
+            # An unverified import still replaces any previous binding.
+            self.scope.defined.pop(name, None)
+            if self.resolve_import is None or node.module is None or node.level:
+                continue
+            class_scope = self.resolve_import(node.module, alias.name)
+            if class_scope is None or name in self.scope.never:
+                continue
+            self.uses.append((self._pos(alias.lineno, alias.col_offset), alias.name, True))
+            self._bind(name, None, class_scope)
+            if alias.asname:
+                end = cast(int, alias.end_col_offset) - len(name.encode("utf-8"))
+                self.uses.append((self._pos(cast(int, alias.end_lineno), end), name, True))
 
     def visit_Assign(self, node: ast.Assign) -> None:
         self.visit(node.value)
@@ -1732,13 +1763,13 @@ class _PyBindingCollector(ast.NodeVisitor):
         self._visit_comprehension(node)
 
 
-def _python_local_names(code: str) -> set[str]:
+def _python_local_names(code: str, resolve_import: _PyImportResolver | None = None) -> set[str]:
     """Names whose every code occurrence binds or resolves within the example.
 
     A read resolves only to a binding that every path reaching it has made,
     in a scope visible from the read; ``Owner.name`` resolves only when
-    ``Owner`` is a class the example declares whose body definitely binds
-    ``name``. One unresolved occurrence keeps the name checkable, so this
+    ``Owner`` is a declared or verified imported class whose body definitely
+    binds ``name``. One unresolved occurrence keeps the name checkable, so this
     never hides a use before binding, out of scope, or on a path that skips
     the binding.
     """
@@ -1747,7 +1778,7 @@ def _python_local_names(code: str) -> set[str]:
         tree = ast.parse(source)
     except (SyntaxError, ValueError):
         return set()
-    collector = _PyBindingCollector(source.split("\n"), tree)
+    collector = _PyBindingCollector(source.split("\n"), tree, resolve_import)
     collector.visit(tree)
     status: dict[tuple[_PyPos, str], bool] = {}
     for pos, name, resolved in collector.uses:
@@ -1764,6 +1795,43 @@ def _python_local_names(code: str) -> set[str]:
     }
 
 
+def _python_import_resolver(
+    repo_root: Path, source_symbols: list[dict[str, Any]]
+) -> _PyImportResolver:
+    """Resolve direct class bindings from an exact repo-root or src module.
+
+    Read indexed Python source without importing it. Leave ambiguous modules,
+    re-exports, and unindexed external modules checkable.
+    """
+    class_files = {
+        (symbol["file"], symbol["name"])
+        for symbol in source_symbols
+        if symbol["kind"] == "class" and symbol["file"].endswith(".py")
+    }
+
+    @cache
+    def resolve(module: str, name: str) -> _PyScope | None:
+        qualified = module.replace(".", "/")
+        paths = [
+            path
+            for prefix in ("", "src/")
+            for path in (f"{prefix}{qualified}.py", f"{prefix}{qualified}/__init__.py")
+            if (repo_root / path).is_file()
+        ]
+        if len(paths) != 1 or (paths[0], name) not in class_files:
+            return None
+        try:
+            source = (repo_root / paths[0]).read_text(encoding="utf-8")
+            tree = ast.parse(source)
+        except (OSError, UnicodeError, SyntaxError, ValueError):
+            return None
+        collector = _PyBindingCollector(source.split("\n"), tree)
+        collector.visit(tree)
+        return collector.scope.lookup(name)[1]
+
+    return resolve
+
+
 _PY_PLAIN_IMPORT_RE = re.compile(r"^[ \t]*import[ \t]+([^\n]+)$", re.MULTILINE)
 _PY_IMPORT_PART_RE = re.compile(r"([\w.]+)(?:\s+as\s+(\w+))?$")
 
@@ -1775,14 +1843,6 @@ _DECLARATION_RES: dict[str, re.Pattern[str]] = {
     "javascript": re.compile(r"\b(?:interface|class|enum|type|const|function)\s+([A-Z]\w*)"),
 }
 
-_CSHARP_METHOD_DECL_RE = re.compile(
-    r"^\s*(?:(?:public|private|protected|internal|static|sealed|abstract|virtual"
-    r"|override|async|extern|partial)\s+)*"
-    r"(?!new\b|return\b|if\b|for\b|foreach\b|while\b|switch\b|catch\b|using\b"
-    r"|lock\b|var\b|await\b|else\b|do\b)"
-    r"[A-Za-z_][\w<>\[\],.?]*\s+([A-Z]\w*)\s*\(",
-    re.MULTILINE,
-)
 _CSHARP_RECORD_PARAMS_RE = re.compile(r"\brecord\s+[A-Z]\w*\s*\(([^)]*)\)")
 _CSHARP_RECORD_PROP_RE = re.compile(r"\b[\w<>\[\],.?]+\s+([A-Z]\w*)")
 
@@ -1961,13 +2021,11 @@ def _example_declaration_names(code: str, lang: str) -> set[str]:
     pattern = _DECLARATION_RES.get(lang)
     if pattern is None:
         return set()
-    # C#, TypeScript, and JavaScript share the // and /* */ comment syntax.
-    stripped = _CSHARP_COMMENT_TOKENS.sub(lambda m: re.sub(r"[^\r\n]", " ", m[0]), code)
+    stripped = _c_family_code_view(code, lang)
     names = set(pattern.findall(stripped))
     for body in re.findall(r"\benum\s+[A-Z]\w*\s*\{([^{}]*)\}", stripped):
         names.update(re.findall(r"(?:^|,)\s*([A-Za-z]\w*)", body))
     if lang == "csharp":
-        names.update(_CSHARP_METHOD_DECL_RE.findall(stripped))
         for params in _CSHARP_RECORD_PARAMS_RE.findall(stripped):
             names.update(_CSHARP_RECORD_PROP_RE.findall(params))
     return names
@@ -2015,6 +2073,9 @@ def _scan_c_family(code: str, i: int, lang: str, *, in_hole: bool) -> tuple[int,
     """Scan code from ``i``; inside a hole, stop at its unmatched ``}``."""
     spans: _Spans = []
     depth = 0
+    previous = ""
+    control_parens: list[bool] = []
+    statement_braces: list[bool] = []
     while i < len(code):
         char = code[i]
         if code.startswith("//", i):
@@ -2029,16 +2090,19 @@ def _scan_c_family(code: str, i: int, lang: str, *, in_hole: bool) -> tuple[int,
                 spans.append((i, end + 2))
                 i = end + 2
                 continue
-        regex_end = _scan_js_regex(code, i) if lang != "csharp" else None
+        regex_end = (
+            _scan_js_regex(code, i) if lang != "csharp" and _js_regex_allowed(previous) else None
+        )
         if regex_end is not None:
-            # A regex body stays visible code; skipping it keeps its quotes
-            # from opening a string that would swallow the code after it.
+            spans.append((i, regex_end))
             i = regex_end
+            previous = "literal"
             continue
         literal = _scan_c_family_literal(code, i, lang)
         if literal is not None:
             i, literal_spans = literal
             spans.extend(literal_spans)
+            previous = "literal"
             continue
         if char == "{":
             depth += 1
@@ -2046,36 +2110,44 @@ def _scan_c_family(code: str, i: int, lang: str, *, in_hole: bool) -> tuple[int,
             if depth == 0 and in_hole:
                 return i, spans
             depth = max(depth - 1, 0)
+        if lang != "csharp" and not char.isspace():
+            match = cast(re.Match[str], _JS_SCAN_TOKEN.match(code, i))
+            token = match[0]
+            if token == "(":
+                control_parens.append(previous in _JS_CONTROL_HEADS)
+            elif token == ")" and control_parens and control_parens.pop():
+                token = "control-end"
+            elif token == "{":
+                statement_braces.append(previous in _JS_STATEMENT_BLOCK_PRECEDERS)
+            elif token == "}" and statement_braces and statement_braces.pop():
+                token = "statement-end"
+            elif previous in (".", "?.") and token in _JS_KEYWORDS:
+                token = "property"
+            elif token == "!" and lang == "typescript" and not _js_regex_allowed(previous):
+                token = "non-null"
+            previous = token
+            i = match.end()
+            continue
         i += 1
     return i, spans
 
 
 # Characters and keywords after which ``/`` starts a regex, not a division.
-_JS_REGEX_PRECEDERS = frozenset("(,=:[!&|?{};+-*%~^")
+_JS_REGEX_PRECEDERS = frozenset("(,=:[!&|?{;+-*/%~^") | {"=>", "control-end", "statement-end"}
 _JS_REGEX_KEYWORDS = frozenset(
-    {"return", "typeof", "instanceof", "in", "of", "new", "delete", "void", "throw", "case"}
-    | {"do", "else", "yield", "await"}
+    {"return", "typeof", "instanceof", "in", "new", "delete", "void", "throw", "case", "do", "else"}
 )
-_JS_WORD_BEFORE_RE = re.compile(r"(\w+)\s*$")
+_JS_CONTROL_HEADS = frozenset({"if", "for", "while", "with", "switch", "catch"})
+_JS_STATEMENT_BLOCK_PRECEDERS = frozenset(
+    {"", "control-end", "statement-end", ";", "try", "else", "finally", "do"}
+)
+_JS_KEYWORDS = _JS_REGEX_KEYWORDS | _JS_CONTROL_HEADS | _JS_STATEMENT_BLOCK_PRECEDERS
+_JS_SCAN_TOKEN = re.compile(r"[\w$]+|=>|\+\+|--|\?\.|[^\s]")
 
 
-def _js_regex_allowed(code: str, i: int) -> bool:
-    """Whether a ``/`` at ``i`` begins a regex by the preceding token.
-
-    After an identifier, a number, ``)`` or ``]`` it is a division, as in
-    JavaScript itself. ``<`` and a bare ``>`` are left out so JSX closing
-    tags never open a regex; ``=>`` is kept for arrow function bodies.
-    """
-    before = code[:i].rstrip()
-    if not before:
-        return True
-    last = before[-1]
-    if last in _JS_REGEX_PRECEDERS:
-        return True
-    if last == ">":
-        return before.endswith("=>")
-    word = _JS_WORD_BEFORE_RE.search(before)
-    return word is not None and word[1] in _JS_REGEX_KEYWORDS
+def _js_regex_allowed(previous: str) -> bool:
+    """Whether the last significant token can precede a regex expression."""
+    return not previous or previous in _JS_REGEX_PRECEDERS or previous in _JS_REGEX_KEYWORDS
 
 
 def _scan_js_regex(code: str, i: int) -> int | None:
@@ -2084,12 +2156,14 @@ def _scan_js_regex(code: str, i: int) -> int | None:
     Escapes and ``[...]`` classes may hold ``/``. A body that reaches a line
     end is not a regex, so the ``/`` stays ordinary code.
     """
-    if code[i] != "/" or code.startswith(("//", "/*"), i) or not _js_regex_allowed(code, i):
+    if code[i] != "/" or code.startswith(("//", "/*"), i):
         return None
     j, in_class = i + 1, False
-    while j < len(code) and code[j] != "\n":
+    while j < len(code) and code[j] not in "\r\n\u2028\u2029":
         char = code[j]
         if char == "\\":
+            if j + 1 < len(code) and code[j + 1] in "\r\n\u2028\u2029":
+                return None
             j += 2
             continue
         if char == "[":
@@ -2248,6 +2322,288 @@ _TS_TYPED_NAME_RE = re.compile(r"\b([a-z_$][\w$]*)\s*\??:\s*([A-Za-z_]\w*)")
 _NEW_ASSIGNED_RE = re.compile(r"\b([a-z_]\w*)\s*=\s*new\s+(?:\w+\s*\.\s*)*([A-Z]\w*)")
 
 
+_CSHARP_TYPE_PARAM = r"(?:\b(?:in|out)\s+)?\w+"
+_CSHARP_TYPE_PARAMS = (
+    rf"(?:\s*<(?P<params>\s*{_CSHARP_TYPE_PARAM}(?:\s*,\s*{_CSHARP_TYPE_PARAM})*\s*)>)?"
+)
+_CSHARP_TYPE_TOKEN = r"[A-Za-z_][\w.]*(?:\s*<[^;{}()=]*>)?(?:\s*\[\s*,*\s*\])*\??"
+_CSHARP_DECL_START = r"(?:^|(?<=[{};]))\s*"
+_CSHARP_DECL_MODIFIERS = (
+    r"(?:(?:public|private|protected|internal|static|sealed|abstract|virtual|override"
+    r"|async|extern|partial|unsafe|new|readonly)\s+)*"
+)
+_CSHARP_TYPE_HEADER_RE = re.compile(
+    r"\b(?P<kind>class|struct|interface|enum|record(?:\s+(?:class|struct))?)\s+\w+"
+    + _CSHARP_TYPE_PARAMS
+    + r"[^;{}]*\{"
+)
+_CSHARP_METHOD_HEAD_RE = re.compile(
+    _CSHARP_DECL_START + rf"(?P<modifiers>{_CSHARP_DECL_MODIFIERS})"
+    r"(?!(?:new|return|throw|yield|if|for|foreach|while|switch|catch|using|lock|var"
+    r"|await|else|do|case|goto)\b)"
+    rf"(?:ref\s+(?:readonly\s+)?)?{_CSHARP_TYPE_TOKEN}\s+(?P<name>\w+)"
+    + _CSHARP_TYPE_PARAMS
+    + r"\s*\(",
+    re.MULTILINE,
+)
+_CSHARP_METHOD_TAIL_RE = re.compile(r"\s*(?:where\s+[^;{}=]*)?(?P<body>\{|=>|;|\Z)")
+_CSHARP_METHOD_USE_RE = re.compile(r"\s*(?:<[^;{}()=]*>\s*)?\(")
+_CSHARP_CONST_HEAD_RE = re.compile(
+    _CSHARP_DECL_START
+    + _CSHARP_DECL_MODIFIERS
+    + rf"const\s+{_CSHARP_TYPE_TOKEN}\s+(\w+)\s*=(?!=|>)",
+    re.MULTILINE,
+)
+_CSHARP_CONST_NEXT_RE = re.compile(r",\s*(\w+)\s*=(?!=|>)")
+_CSHARP_NEW_RE = re.compile(rf"\bnew\b(?:\s+(?P<type>{_CSHARP_TYPE_TOKEN}))?\s*([({{])")
+_CSHARP_TARGET_TYPED_NEW_RE = re.compile(r"(?:[=(\[{]|=>|\breturn)\s*$")
+_CSHARP_INITIALIZER_KEY_RE = re.compile(r"[{,]\s*@?([A-Za-z_]\w*)\s*=(?!=|>)\s*")
+_CSHARP_SEMICOLON_RE = re.compile(";")
+_BALANCED_GROUP_OPENERS = {"}": "{", ")": "(", "]": "["}
+
+
+def _balanced_groups(view: str) -> tuple[list[int], dict[int, int]]:
+    """Innermost group at each character and closing indexes of balanced groups."""
+    owners: list[int] = []
+    ends: dict[int, int] = {}
+    stack: list[int] = []
+    for index, char in enumerate(view):
+        parent = stack[-1] if stack else -1
+        owners.append(parent)
+        if char in "{([":
+            stack.append(index)
+        elif stack and _BALANCED_GROUP_OPENERS.get(char) == view[parent]:
+            ends[stack.pop()] = index
+    return owners, ends
+
+
+def _csharp_type_parameters(header: re.Match[str]) -> set[str]:
+    return {part.split()[-1] for part in (header["params"] or "").split(",") if part.strip()}
+
+
+def _csharp_statement_end(view: str, owners: list[int], start: int, scope_end: int) -> int | None:
+    owner = owners[start]
+    return next(
+        (
+            m.start()
+            for m in _CSHARP_SEMICOLON_RE.finditer(view, start, scope_end)
+            if owners[m.start()] == owner
+        ),
+        None,
+    )
+
+
+def _csharp_initializer_keys(view: str, owners: list[int], ends: dict[int, int]) -> _Spans:
+    """Recognize assignments at an object initializer's own depth."""
+    pending: set[int] = set()
+    for constructor in _CSHARP_NEW_RE.finditer(view):
+        start = constructor.end() - 1
+        if view[start] == "(" and start in ends:
+            if not constructor["type"]:
+                prefix = view[: constructor.start()].rstrip()
+                parent = owners[start]
+                in_arguments = parent != -1 and view[parent] in "([" and prefix.endswith(",")
+                if not in_arguments and not _CSHARP_TARGET_TYPED_NEW_RE.search(prefix):
+                    continue
+            after_args = ends[start] + 1
+            start = after_args + len(view[after_args:]) - len(view[after_args:].lstrip())
+        if start in ends and view[start] == "{":
+            pending.add(start)
+
+    keys: _Spans = []
+    visited: set[int] = set()
+    while pending:
+        start = pending.pop()
+        if start in visited:
+            continue
+        visited.add(start)
+        for match in _CSHARP_INITIALIZER_KEY_RE.finditer(view, start, ends[start]):
+            delimiter = match.start()
+            if delimiter != start and (view[delimiter] != "," or owners[delimiter] != start):
+                continue
+            keys.append(match.span(1))
+            child = match.end()
+            if child in ends and view[child] == "{":
+                pending.add(child)
+    return keys
+
+
+def _csharp_method_bindings(
+    view: str, owners: list[int], ends: dict[int, int], type_bodies: dict[int, str]
+) -> _Spans:
+    """Use balanced parameter lists and the declaration's own body and scope."""
+    spans: _Spans = []
+    for head in _CSHARP_METHOD_HEAD_RE.finditer(view):
+        owner = owners[head.start("name")]
+        if owner != -1 and (view[owner] != "{" or owner not in ends):
+            continue
+        close = ends.get(head.end() - 1)
+        if close is None:
+            continue
+        tail = _CSHARP_METHOD_TAIL_RE.match(view, close + 1)
+        if tail is None:
+            continue
+        body = tail["body"]
+        body_start = tail.start("body")
+        end = ends.get(body_start) if body == "{" else body_start
+        modifiers = set(head["modifiers"].split())
+        # A fragment can end at an explicitly declared method signature.
+        if not body and (
+            owner != -1 or not ({"public", "private", "protected", "internal"} & modifiers)
+        ):
+            continue
+        if (
+            body == ";"
+            and type_bodies.get(owner) != "interface"
+            and not ({"abstract", "extern", "partial"} & modifiers)
+        ):
+            continue
+        scope_end = ends.get(owner, len(view))
+        if body == "=>":
+            end = _csharp_statement_end(view, owners, body_start, scope_end)
+        if end is None:
+            continue
+        declaring_type = _csharp_type_body(owner, owners, type_bodies)
+        spans.extend(
+            span
+            for span in _bare_binding_spans(view, owner + 1, scope_end, {head["name"]}, method=True)
+            if _csharp_type_body(span[0], owners, type_bodies) == declaring_type
+        )
+        spans.extend(
+            _bare_binding_spans(
+                view, head.start(), end, _csharp_type_parameters(head), type_parameter=True
+            )
+        )
+    return spans
+
+
+def _bare_binding_spans(
+    view: str,
+    start: int,
+    end: int,
+    names: set[str],
+    *,
+    method: bool = False,
+    type_parameter: bool = False,
+) -> _Spans:
+    if not names:
+        return []
+    spans: _Spans = []
+    for word in _WORD_RE.finditer(view, start, end):
+        if word[0] not in names:
+            continue
+        prefix = view[: word.start()].rstrip()
+        if prefix.endswith((".", "::")):
+            continue
+        if not type_parameter and _NEW_BEFORE_RE.search(prefix):
+            continue
+        if method and not _CSHARP_METHOD_USE_RE.match(view, word.end()):
+            continue
+        spans.append(word.span())
+    return spans
+
+
+def _blank_example_spans(view: str, spans: _Spans) -> str:
+    chars = list(view)
+    for start, end in spans:
+        chars[start:end] = " " * (end - start)
+    return "".join(chars)
+
+
+def _csharp_type_body(position: int, owners: list[int], type_bodies: dict[int, str]) -> int:
+    while position != -1 and position not in type_bodies:
+        position = owners[position]
+    return position
+
+
+def _csharp_binding_view(view: str) -> str:
+    owners, ends = _balanced_groups(view)
+    spans = _csharp_initializer_keys(view, owners, ends)
+    type_bodies: dict[int, str] = {}
+    for header in _CSHARP_TYPE_HEADER_RE.finditer(view):
+        body = header.end() - 1
+        if body not in ends or owners[body] != owners[header.start()]:
+            continue
+        type_bodies[body] = header["kind"]
+        spans.extend(
+            _bare_binding_spans(
+                view,
+                header.start(),
+                ends[body],
+                _csharp_type_parameters(header),
+                type_parameter=True,
+            )
+        )
+    spans.extend(_csharp_method_bindings(view, owners, ends, type_bodies))
+    for constant in _CSHARP_CONST_HEAD_RE.finditer(view):
+        start = constant.start(1)
+        if owners[start] != -1:
+            continue
+        end = _csharp_statement_end(view, owners, start, len(view))
+        if end is None:
+            continue
+        declarations = [
+            constant,
+            *(
+                other
+                for other in _CSHARP_CONST_NEXT_RE.finditer(view, constant.end(), end)
+                if owners[other.start()] == -1
+            ),
+        ]
+        for declaration in declarations:
+            spans.extend(
+                span
+                for span in _bare_binding_spans(
+                    view, declaration.start(1), len(view), {declaration[1]}
+                )
+                if _csharp_type_body(span[0], owners, type_bodies) == -1
+            )
+    return _blank_example_spans(view, spans)
+
+
+_JS_EXPORT_NAMES_RE = re.compile(r"(?<![\w$.])export\b\s*(?:type\b\s*)?\{([^{}]*)\}(\s*from\b)?")
+_JS_IMPORT_NAMES_RE = re.compile(r"(?<![\w$.])import\b\s*(?:[\w$]+\s*,\s*)?\{([^{}]*)\}\s*from\b")
+_JS_NAMED_ALIAS_RE = re.compile(
+    r"(?:^|(?<=,))\s*(?:(type)\s+)?[\w$]+\s+as\s+([A-Za-z_$][\w$]*)\s*(?=,|$)"
+)
+_JS_MODULE_SPECIFIER_RE = re.compile(
+    r"(?:\s|//[^\r\n]*(?:\r\n?|\n)|/\*(?:[^*]|\*(?!/))*\*/)*"
+    r"""(?:"(?:\\.|[^"\\\r\n])*"|'(?:\\.|[^'\\\r\n])*')"""
+)
+
+
+def _js_named_aliases(clause: re.Match[str], *, export: bool) -> _Spans:
+    offset = clause.start(1)
+    return [
+        (offset + m.start(2), offset + m.end(2))
+        for m in _JS_NAMED_ALIAS_RE.finditer(clause[1])
+        if export or m[1] is None
+    ]
+
+
+def _js_binding_view(view: str, source: str) -> str:
+    """An export alias labels an export. An import alias binds a local name."""
+    if "export" not in view and "import" not in view:
+        return view
+    owners, _ = _balanced_groups(view)
+    exports = [
+        clause for clause in _JS_EXPORT_NAMES_RE.finditer(view) if owners[clause.start()] == -1
+    ]
+    imports = [
+        clause
+        for clause in _JS_IMPORT_NAMES_RE.finditer(view)
+        if owners[clause.start()] == -1 and _JS_MODULE_SPECIFIER_RE.match(source, clause.end())
+    ]
+    aliases = [span for clause in imports for span in _js_named_aliases(clause, export=False)]
+    names = {view[start:end] for start, end in aliases}
+    uses = _bare_binding_spans(view, 0, len(view), names)
+    clauses = [*imports, *(clause for clause in exports if clause[2])]
+    spans = [span for span in uses if not any(c.start() <= span[0] < c.end() for c in clauses)]
+    spans.extend(aliases)
+    spans.extend(span for clause in exports for span in _js_named_aliases(clause, export=True))
+    return _blank_example_spans(view, spans)
+
+
 _TYPE_BODY_RE = re.compile(r"\b(?:class|struct|record|interface)\s+[A-Z]\w*[^{;]*\{")
 # A field or property declared directly in a type body: ``int Total;``,
 # ``decimal Total { get; set; }``, ``int Total => 1;`` or ``int Total = 0;``.
@@ -2387,7 +2743,11 @@ def _proven_member_names(
 
 
 def _extract_identifiers(
-    code: str, lang: str = "", doc_definitions: frozenset[str] | set[str] = frozenset()
+    code: str,
+    lang: str = "",
+    doc_definitions: frozenset[str] | set[str] = frozenset(),
+    *,
+    resolve_import: _PyImportResolver | None = None,
 ) -> list[str]:
     """Extract potential identifiers from a code snippet.
 
@@ -2401,7 +2761,7 @@ def _extract_identifiers(
     tokenizer splits f-strings. On 3.10 and 3.11 the whole f-string is one
     STRING token and is blanked, which can only miss a symbol, never add a
     false finding. C#, TypeScript, and JavaScript comments are blanked,
-    example-local declarations are dropped. Their string literal text stays
+    example-local declarations are dropped. C# string literal text stays
     in the extracted list; Phase 3 drops a name seen only in literals or
     comments (``_c_family_code_view``). Member calls stay visible for
     parameter checks against known methods. TypeScript object-literal keys
@@ -2411,14 +2771,14 @@ def _extract_identifiers(
     ignored_names: set[str] = set(doc_definitions)
     if lang == "python":
         ignored_names.update(_python_example_definitions(code))
-        ignored_names.update(_python_local_names(code))
+        ignored_names.update(_python_local_names(code, resolve_import))
         code = _strip_python_non_code(code)
         ignored_names.update(_python_stdlib_imported_names(code))
         code = _blank_stdlib_attribute_chains(code)
         code = _blank_stdlib_plain_import_lines(code)
     elif lang in _DECLARATION_RES:
-        code = _strip_csharp_comments(code)
         ignored_names.update(_example_declaration_names(code, lang))
+        code = _strip_csharp_comments(code) if lang == "csharp" else _c_family_code_view(code, lang)
     # Match CamelCase and snake_case identifiers (3+ chars)
     identifiers = re.findall(r"\b([A-Z][a-zA-Z0-9]+)\b", code)
     # Also match method calls
@@ -2574,8 +2934,10 @@ def run_claim_extraction(
 
     # Build symbol -> source file mapping
     symbol_to_source: dict[str, str] = {}
-    for sym in assessment.get("source_symbols", []):
+    source_symbols = assessment.get("source_symbols", [])
+    for sym in source_symbols:
         symbol_to_source[sym["name"]] = sym["file"]
+    resolve_import = _python_import_resolver(repo_root, source_symbols)
 
     for doc_info in assessment.get("documentation_files", []):
         doc_path = repo_root / doc_info["path"]
@@ -2631,7 +2993,10 @@ def run_claim_extraction(
                     continue
 
                 identifiers = _extract_identifiers(
-                    code_content, lang, doc_definitions.get(lang, set())
+                    code_content,
+                    lang,
+                    doc_definitions.get(lang, set()),
+                    resolve_import=resolve_import,
                 )
                 # Map identifiers to source files
                 mapped = default_source
@@ -2814,9 +3179,14 @@ def run_compilability_check(
         content = claim_dict["content"]
         lang = claim_dict.get("language", "")
         # Literal text and comments are data; interpolation holes stay code.
-        checked_content = (
+        lexical_content = (
             _c_family_code_view(content, lang) if lang in _DECLARATION_RES else content
         )
+        checked_content = lexical_content
+        if lang == "csharp":
+            checked_content = _csharp_binding_view(lexical_content)
+        elif lang in ("typescript", "javascript"):
+            checked_content = _js_binding_view(lexical_content, content)
         code_words = set(_WORD_RE.findall(checked_content))
         member_only: set[str] = set()
         if lang in _DECLARATION_RES:
@@ -2830,13 +3200,13 @@ def run_compilability_check(
             constructed = set(re.findall(r"\bnew\s+(?:\w+\s*\.\s*)*([A-Z]\w*)", checked_content))
             # A type named in code but absent from the claim's references was
             # dropped at extraction as example-local or doc-local.
-            local_types = {word for word in code_words if _TYPE_NAME_RE.fullmatch(word)} - set(
-                claim_dict.get("symbols_referenced", [])
-            )
+            local_types = {
+                word for word in _WORD_RE.findall(lexical_content) if _TYPE_NAME_RE.fullmatch(word)
+            } - set(claim_dict.get("symbols_referenced", []))
             # A member the example declares and never reaches through an
             # unproven receiver is example-local; so is a proven access.
             member_only = (
-                _proven_member_names(checked_content, lang, local_types, known_names)
+                _proven_member_names(lexical_content, lang, local_types, known_names)
                 | (declared_members - accessed_members)
             ) - (bare_names | constructed)
 
@@ -2852,6 +3222,8 @@ def run_compilability_check(
             continue
 
         for sym_name in symbols_ref:
+            if lang in _DECLARATION_RES and sym_name not in code_words:
+                continue
             if sym_name in known_names:
                 # Symbol exists, check for parameter accuracy
                 actual = symbol_index[sym_name]
@@ -2894,9 +3266,6 @@ def run_compilability_check(
                             )
             else:
                 if sym_name in member_only:
-                    continue
-                # A name only inside a literal or comment is data, not an API claim.
-                if lang in _DECLARATION_RES and sym_name not in code_words:
                     continue
                 # Symbol not found in codebase
                 # Only flag CamelCase identifiers (likely type/method names)

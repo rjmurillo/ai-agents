@@ -106,11 +106,9 @@ def test_regex_quotes_do_not_unbalance_later_literals(code: str) -> None:
         'function f(s) { return /"/.test(s) && GhostWidget(); }\n',
         'const t = `${/"/.test(s)} ${new GhostWidget()}`;\n',
         'const half = total / 2; const s = "a/b"; GhostWidget(); const t = "ok";\n',
-        "const re = /GhostWidget/;\n",
     ],
 )
 def test_code_beside_regex_and_division_stays_flagged(code: str) -> None:
-    # Regex bodies stay visible code, so a name inside one is still checked.
     assert "GhostWidget" in unresolved(code, "javascript")
 
 
