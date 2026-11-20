@@ -156,7 +156,7 @@ def _option_defects(where: str, field: str, entry: dict[object, object]) -> list
 
 
 def entry_defects(rel: str, field: str, artifact: object, entry: object) -> list[str]:
-    """Return shape defects for one `inputs` or `outputs` entry.
+    """Return shape defects for an entry of `inputs` or `outputs`.
 
     An entry is `artifact-name:` with no value (all defaults) or with a
     mapping of the optional keys.
@@ -174,7 +174,7 @@ def entry_defects(rel: str, field: str, artifact: object, entry: object) -> list
 
 
 def _mapping_or_defect(rel: str, field: str, value: object) -> list[str]:
-    """Return the defects of one `inputs` or `outputs` value, keyed by artifact."""
+    """Return the defects of an `inputs` or `outputs` value, keyed by artifact."""
     if not isinstance(value, dict):
         return [
             f"{rel}: {field} must be a mapping keyed by artifact name, not {type(value).__name__}"

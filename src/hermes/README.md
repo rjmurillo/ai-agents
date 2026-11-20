@@ -38,7 +38,6 @@ Project Toolkit skills for GitHub pull request work, build, test, and quality ga
 - `pr-autofix`
 - `pr-babysit`
 - `pr-comment-responder`
-- `pr-quality`
 - `pr-review`
 - `push-pr`
 - `quality-grades`
@@ -115,6 +114,7 @@ These skills ship in no pack.
 - `memory-reflexion`: Refers to excluded skill(s): memory-maintenance and memory-search.
 - `memory-search`: plugin_guard returns dangerous for this skill (ADR-115 Decision 6).
 - `planner`: plugin_guard returns dangerous for this skill (ADR-115 Decision 6).
+- `pr-quality`: Refers to excluded skill(s): review.
 - `review`: Refers to excluded skill(s): security-scan.
 - `security-detection`: Refers to excluded skill(s): review.
 - `security-scan`: plugin_guard returns dangerous for this skill (ADR-115 Decision 6).

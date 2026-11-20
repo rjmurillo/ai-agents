@@ -32,8 +32,9 @@ never opens, creates, or writes a declared `path`.
 Exit codes (ADR-035):
     0 - Success (every declaration is well-formed and the lifecycle connects)
     1 - Logic error (a declaration is malformed, unresolved, or disconnected)
-    2 - Config error (invalid repository root, or `templates/skills` is absent
-        or holds no skill templates, which would make a PASS vacuous)
+    2 - Config error (invalid repository root, a template that cannot be read,
+        or `templates/skills` is absent or holds no skill templates, which
+        would make a PASS vacuous). An invalid argument combination also exits 2.
 """
 
 from __future__ import annotations
@@ -134,7 +135,10 @@ def _split(text: str) -> tuple[dict[str, object], str]:
 def _read_skill(path: Path, rel: str) -> tuple[SkillFlow | None, list[str]]:
     """Read one template, returning its flow or the defects that prevented it."""
     name = path.name.removesuffix(TEMPLATE_SUFFIX)
-    text = path.read_text(encoding="utf-8")
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise TreeError(f"{rel}: unreadable: {exc}") from exc
     try:
         subset = subset_defect(rel, text)
     except SubsetParserUnavailableError as exc:
@@ -471,6 +475,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--format", choices=("text", "json"), default="text")
     args = parser.parse_args(argv if argv is not None else sys.argv[1:])
+    if args.report and args.format == "json":
+        # JSON output has no report section; accepting both would drop --report silently.
+        parser.error("--report cannot be combined with --format json")
     repo_root = (
         Path(args.repo_root).resolve() if args.repo_root else Path(__file__).resolve().parents[2]
     )

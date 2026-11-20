@@ -1,10 +1,10 @@
 # templates/
 
-Canonical source for five ADR-109 artifact classes: agents, rules, skills, hooks, settings; the `prompts` row's source sits outside this tree.
+Canonical source for five ADR-109 artifact classes: agents, rules, skills, hooks, settings.
 
 ## Matters
 
-Per-class render map. Compilers run inside `build_all.py` except `prompts`; binplace copies the plugin tree onto the install tree, or symlinks it (`link: true`: `agents`, `skills`, `rules`; ADR-119).
+Per-class render map. Compilers run inside `build_all.py`; binplace copies the plugin tree onto the install tree, or symlinks it (`link: true`: `agents`, `skills`, `rules`; ADR-119).
 
 | Class | Source here | Compiler | Plugin tree -> install tree |
 |---|---|---|---|

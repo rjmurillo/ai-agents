@@ -67,6 +67,9 @@ def check_candidate(incumbent: str, candidate: str) -> None:
         if result.status == "WARN" and result.rule.id not in before_warn:
             for message in result.messages:
                 sys.stderr.write(f"WARNING: {result.rule.id}: {message}\n")
+        elif result.status == "NOT_EVALUATED":
+            reason = " ".join(result.messages)
+            sys.stderr.write(f"WARNING: {result.rule.id}: NOT RUN ({reason})\n")
     if added:
         details = "; ".join(f"{r.rule.id}: {' '.join(r.messages)}" for r in added)
         raise SkillOptError(f"candidate adds frontmatter lint failures: {details}")

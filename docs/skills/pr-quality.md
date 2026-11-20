@@ -55,7 +55,7 @@ If the change set is empty, the skill prints `PASS` and stops. The count include
 
 How a run works:
 
-1. The skill resolves the base, rejecting an empty value or one that starts with `-`, then resolves it to a commit. A ref that does not resolve stops the run.
+1. The skill accepts the base only when it matches `^[A-Za-z0-9._/-]+$` and does not start with `-` or `/`. It resolves the base to a commit, then takes the merge base with `HEAD`. Either command failing, or exiting nonzero, stops the run.
 2. It counts changed files, tracked plus untracked, and takes the diff once.
 3. For each selected axis, it reads that axis's criteria file and judges the same diff. Findings are additive: a failed axis does not stop the run.
 4. With more than one axis, it merges the verdicts.

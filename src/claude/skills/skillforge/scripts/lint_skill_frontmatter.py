@@ -181,15 +181,7 @@ def lint_text(text: str) -> list[Result]:
     Parses the same way `load_skill` does, without the directory checks.
     """
     doc = subset.SkillDoc(directory=Path("."), skill_md=Path("SKILL.md"), text=text)
-    raw, doc.body, doc.frontmatter_error = subset.split_frontmatter(text)
-    if raw is not None:
-        doc.has_frontmatter = True
-        try:
-            doc.fields = subset.parse_frontmatter(raw)
-        except subset.UnsupportedError as exc:
-            doc.unsupported = str(exc)
-        except subset.ParseError as exc:
-            doc.parse_error = str(exc)
+    subset.parse_doc_text(doc)
     return evaluate(doc)
 
 

@@ -48,15 +48,16 @@ owns, so this gate and `/review` judge the same things.
 
 ## Axes
 
-Each axis reads its criteria from the `review` skill's references directory,
-resolved from the plugin root: one file per axis, named for the axis plus `.md`.
-That file is authoritative. The focus line only orients the read.
+Each axis reads its criteria file, `skills/review/references/<axis>.md`. Use
+the first path that exists: `.claude/skills/review/references/<axis>.md`, then
+`skills/review/references/<axis>.md` from the plugin root. That file is
+authoritative. The focus line only orients the read.
 
 | Axis | Criteria file | Reads the diff for |
 |------|---------------|--------------------|
 | security | `security.md` | Injected input reaching a sink, a credential in the diff, a widened authorization boundary, a path built from user data, an unvetted new dependency |
 | qa | `qa.md` | A new branch with no test, an error path asserted only on a return value, happy-path-only cases, a fixture that supplies the precondition, an assertion no input can falsify |
-| analyst | `analyst.md` | Duplicated knowledge, a function past the complexity ceiling, callers not updated, dead code left behind, a name that needs a comment |
+| analyst | `analyst.md` | Callers not updated, a claim with no measurable check, an unreadable local construct, an over-built solution |
 | architect | `architect.md` | A boundary crossed without an interface, a contradicted ADR, use mixed with creation, reaching into another module's internals, a premature abstraction |
 | devops | `devops.md` | An Action on a floating tag, logic in workflow YAML, a path filter on a whole-tree check, a step that swallows failure, a secret reachable from a fork |
 | roadmap | `roadmap.md` | No named blocked user, scope past the issue, a duplicate feature, asserted rather than measured value, an unrecorded deferral |
@@ -68,10 +69,12 @@ That file is authoritative. The focus line only orients the read.
    `^[A-Za-z0-9._/-]+$` and does not start with `-` or `/`. Anything else is a
    hard stop: never pass the value to a shell. Then run these as two separate
    commands, each on its own: `git rev-parse --verify --quiet --end-of-options
-   "<base>^{commit}"`, then `git merge-base HEAD <sha it printed>`. The merge
-   base keeps commits the base gained after you branched out of the diff. An
-   empty result or nonzero exit is a hard stop: report it and do not fall back
-   to an empty diff. Call the printed SHA `BASE_SHA` and type its literal value
+   "<base>^{commit}"`, then `git merge-base HEAD <sha it printed>`. Use the
+   printed SHA only when `rev-parse` exited 0. A range such as `main..HEAD`
+   prints a SHA and exits 1. The merge base keeps commits the base gained
+   after you branched out of the diff. An empty result or nonzero exit from
+   either command is a hard stop: report it and do not fall back to an empty
+   diff. Call the printed SHA `BASE_SHA` and type its literal value
    into every git command below. Shell variables do not carry between calls,
    and the branch can move during the run while the SHA cannot.
 3. Build the changed-file list from tracked changes

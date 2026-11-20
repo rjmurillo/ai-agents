@@ -1,8 +1,7 @@
 """Tests for scripts/validation/check_skill_trigger_resolution.py.
 
-Fake skill trees live in tmp_path and follow the shape `_catalog` builds in
-`tests/eval/test_eval_autoplan_routes.py`. The resolver under test is the real
-`resolve_route.py`, loaded by the gate itself.
+Fixtures live in `trigger_resolution_fixtures`; config and resolver failures are in
+`test_check_skill_trigger_resolution_config.py`.
 """
 
 from __future__ import annotations
@@ -13,26 +12,12 @@ from pathlib import Path
 import pytest
 
 from scripts.validation import check_skill_trigger_resolution as gate
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
-
-
-def _skill(
-    skills: Path,
-    name: str,
-    description: str,
-    intents: list[str] | None = None,
-    role: str = "front-door",
-) -> None:
-    folder = skills / name
-    folder.mkdir(parents=True)
-    lines = ["---", f"name: {name}", f"description: {json.dumps(description)}"]
-    lines += ["metadata:", "  routing:", f"    role: {role}", "    invoker: autoplan"]
-    lines += ["    trigger: t", "    user-facing: true"]
-    if intents is not None:
-        lines += ["    intents:"] + [f"      - {i}" for i in intents]
-    lines += ["---", "", "Body."]
-    (folder / "SKILL.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+from tests.validation.trigger_resolution_fixtures import (
+    _baseline,
+    _run,
+    _skill,
+    _skills,
+)
 
 
 @pytest.fixture
@@ -41,32 +26,7 @@ def repo(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def _skills(repo: Path) -> Path:
-    return repo / "src" / "claude" / "skills"
-
-
-def _baseline(
-    repo: Path,
-    own: dict | None = None,
-    sibling: dict | None = None,
-    no_intents: dict | None = None,
-) -> Path:
-    path = repo / "baseline.json"
-    payload = {
-        "schema_version": "1",
-        "violations": {
-            gate.CHECK_OWN: own or {},
-            gate.CHECK_SIBLING: sibling or {},
-            gate.CHECK_NO_INTENTS: no_intents or {},
-        },
-    }
-    path.write_text(json.dumps(payload), encoding="utf-8")
-    return path
-
-
-def _run(repo: Path, baseline: Path | None = None, *extra: str) -> int:
-    argv = ["--repo-root", str(repo), "--baseline", str(baseline or repo / "baseline.json")]
-    return gate.main([*argv, *extra])
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class TestExtractPhrases:
@@ -196,82 +156,6 @@ class TestBaseline:
         assert _run(repo, path, "--write-baseline") == gate.EXIT_OK
         assert path.read_bytes() == first
         assert not path.with_name("out.json.tmp").exists()
-
-
-class TestConfigErrors:
-    @pytest.mark.parametrize(
-        "content",
-        [
-            "not json",
-            "[]",
-            json.dumps({"schema_version": "9", "violations": {}}),
-            json.dumps({"schema_version": "1", "violations": {gate.CHECK_OWN: {}}}),
-            json.dumps(
-                {"schema_version": "1", "violations": {gate.CHECK_OWN: [], gate.CHECK_SIBLING: {}}}
-            ),
-            json.dumps(
-                {
-                    "schema_version": "1",
-                    "violations": {gate.CHECK_OWN: {"s": "p"}, gate.CHECK_SIBLING: {}},
-                }
-            ),
-        ],
-    )
-    def test_bad_baseline_exits_2(self, repo: Path, content: str) -> None:
-        _skill(_skills(repo), "w", "Makes widgets.", ["write widget"])
-        bad = repo / "bad.json"
-        bad.write_text(content, encoding="utf-8")
-        assert _run(repo, bad) == gate.EXIT_CONFIG
-
-    def test_missing_baseline_exits_2(self, repo: Path) -> None:
-        _skill(_skills(repo), "w", "Makes widgets.", ["write widget"])
-        assert _run(repo, repo / "absent.json") == gate.EXIT_CONFIG
-
-    def test_missing_skills_dir_exits_2(self, tmp_path: Path) -> None:
-        assert gate.main(["--repo-root", str(tmp_path), "--baseline", str(tmp_path / "b")]) == 2
-
-    def test_skill_without_frontmatter_exits_2(self, repo: Path) -> None:
-        folder = _skills(repo) / "broken"
-        folder.mkdir()
-        (folder / "SKILL.md").write_text("no frontmatter here\n", encoding="utf-8")
-        assert _run(repo, _baseline(repo)) == gate.EXIT_CONFIG
-
-    def test_skill_without_description_exits_2(self, repo: Path) -> None:
-        folder = _skills(repo) / "broken"
-        folder.mkdir()
-        (folder / "SKILL.md").write_text("---\nname: broken\n---\nBody\n", encoding="utf-8")
-        assert _run(repo, _baseline(repo)) == gate.EXIT_CONFIG
-
-    def test_non_list_intents_exit_2(self, repo: Path) -> None:
-        folder = _skills(repo) / "broken"
-        folder.mkdir()
-        (folder / "SKILL.md").write_text(
-            "---\nname: broken\ndescription: x y\nmetadata:\n  routing:\n"
-            "    role: front-door\n    intents: nope\n---\n",
-            encoding="utf-8",
-        )
-        assert _run(repo, _baseline(repo)) == gate.EXIT_CONFIG
-
-    def test_empty_skills_dir_exits_2(self, repo: Path) -> None:
-        assert _run(repo, _baseline(repo)) == gate.EXIT_CONFIG
-
-    def test_resolver_load_failure_exits_2(
-        self, repo: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-    ) -> None:
-        _skill(_skills(repo), "w", 'Use for "write a widget".', ["write widget"])
-        monkeypatch.setattr(gate, "RESOLVER", tmp_path / "missing_resolver.py")
-        monkeypatch.setattr(gate, "_RESOLVER_CACHE", {})
-        assert _run(repo, _baseline(repo)) == gate.EXIT_CONFIG
-
-    def test_resolver_without_main_exits_2(
-        self, repo: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-    ) -> None:
-        _skill(_skills(repo), "w", 'Use for "write a widget".', ["write widget"])
-        stub = tmp_path / "stub_resolver.py"
-        stub.write_text("VALUE = 1\n", encoding="utf-8")
-        monkeypatch.setattr(gate, "RESOLVER", stub)
-        monkeypatch.setattr(gate, "_RESOLVER_CACHE", {})
-        assert _run(repo, _baseline(repo)) == gate.EXIT_CONFIG
 
 
 class TestRealTree:

@@ -233,10 +233,12 @@ def _load_resolver_main() -> Callable[[list[str]], int]:
     sys.modules[spec.name] = module
     try:
         spec.loader.exec_module(module)
-    except (OSError, SyntaxError, ImportError) as exc:
-        raise ConfigError(f"cannot load resolver {RESOLVER}: {exc}") from exc
+    except Exception as exc:  # any import-time failure is a config error, not a crash
+        sys.modules.pop(spec.name, None)
+        raise ConfigError(f"cannot load resolver {RESOLVER}: {exc!r}") from exc
     main = getattr(module, "main", None)
     if not callable(main):
+        sys.modules.pop(spec.name, None)
         raise ConfigError(f"resolver {RESOLVER} defines no callable main")
     _memoize_catalog(module)
     _RESOLVER_CACHE[RESOLVER] = cast(Callable[[list[str]], int], main)
@@ -252,6 +254,10 @@ def resolve(request: str, skills_dir: Path) -> dict[str, Any]:
             code = _load_resolver_main()(argv)
     except SystemExit as exc:
         code = exc.code if isinstance(exc.code, int) else 2
+    except ConfigError:
+        raise
+    except Exception as exc:  # a resolver crash is a config error, never exit 1
+        raise ConfigError(f"resolver crashed for {request!r}: {exc!r}") from exc
     if code != 0:
         raise ConfigError(f"resolver exited {code} for {request!r}: {err.getvalue().strip()[:200]}")
     try:
@@ -318,8 +324,8 @@ def write_baseline(path: Path, identities: set[Identity]) -> None:
         "schema_version": SCHEMA_VERSION,
         "description": (
             "Skill description trigger phrases that do not route through autoplan as "
-            "advertised, one entry per check, skill, and phrase. An entry may be removed, "
-            "never added. Regenerate with: uv run python "
+            "advertised, one entry per check, skill, and phrase. Every added entry needs "
+            "reviewer approval in the PR. Regenerate with: uv run python "
             "scripts/validation/check_skill_trigger_resolution.py --write-baseline"
         ),
         "violations": violations,

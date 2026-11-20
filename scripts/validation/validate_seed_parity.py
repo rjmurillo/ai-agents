@@ -166,12 +166,12 @@ def check_role(role: str) -> tuple[bool, str]:
     ci_text_from_main = _ci_source_from_main(role)
     if ci_text_from_main is None:
         raise ParityError(
-            f"CI source on main missing or unreadable for role={role}; "
+            f"CI source at {_SEED_REF[:12]} missing or unreadable for role={role}; "
             "seed parity is a one-shot verification against the original "
             "CI prompts, NOT the regenerated working-tree copy"
         )
     ci_text = ci_text_from_main
-    source_label = "main"
+    source_label = _SEED_REF[:12]
 
     canonical_text = canonical.read_text(encoding="utf-8")
 

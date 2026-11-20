@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "description": "Skill description trigger phrases that do not route through autoplan as advertised, one entry per check, skill, and phrase. An entry may be removed, never added. Regenerate with: uv run python scripts/validation/check_skill_trigger_resolution.py --write-baseline",
+  "description": "Skill description trigger phrases that do not route through autoplan as advertised, one entry per check, skill, and phrase. Every added entry needs reviewer approval in the PR. Regenerate with: uv run python scripts/validation/check_skill_trigger_resolution.py --write-baseline",
   "violations": {
     "own-phrase-unrouted": {
       "dx-review": [

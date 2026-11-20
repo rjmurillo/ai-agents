@@ -27,12 +27,11 @@ def _restore_resolver_globals() -> Any:
     """Undo the resolver cache and module registration each test may change."""
     name = "autoplan_resolve_route"
     cache = ev._RESOLVER_CACHE.copy()
-    had_module = name in sys.modules
     module = sys.modules.get(name)
     yield
     ev._RESOLVER_CACHE.clear()
     ev._RESOLVER_CACHE.update(cache)
-    if had_module:
+    if module is not None:
         sys.modules[name] = module
     else:
         sys.modules.pop(name, None)

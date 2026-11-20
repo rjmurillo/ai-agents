@@ -7,6 +7,7 @@ An optimizer may keep a failure the incumbent already had; it may not add one.
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import _skillopt_lint
 import pytest
@@ -131,3 +132,39 @@ def test_apply_refuses_a_candidate_that_a_must_rule_cannot_evaluate(
 
     assert code == 2
     assert "fm.capability.shape" in capsys.readouterr().err
+
+
+def _fake_lint(results: list[SimpleNamespace]) -> SimpleNamespace:
+    return SimpleNamespace(lint_text=lambda _text: results, added_failures=lambda _b, _a: [])
+
+
+def test_check_candidate_reports_a_not_evaluated_rule_as_not_run(
+    capsys: Capture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rule = SimpleNamespace(id="fm.routing.phrases-routable", level="SHOULD")
+    result = SimpleNamespace(
+        rule=rule, status="NOT_EVALUATED", messages=("the resolver cannot load",)
+    )
+    monkeypatch.setattr(_skillopt_lint, "_load_lint", lambda: _fake_lint([result]))
+
+    _skillopt_lint.check_candidate(_INCUMBENT, _INCUMBENT)
+
+    assert (
+        "WARNING: fm.routing.phrases-routable: NOT RUN (the resolver cannot load)\n"
+        in capsys.readouterr().err
+    )
+
+
+def test_check_candidate_stays_silent_for_pass_and_not_applicable(
+    capsys: Capture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rule = SimpleNamespace(id="fm.size.headroom", level="SHOULD")
+    results = [
+        SimpleNamespace(rule=rule, status="PASS", messages=()),
+        SimpleNamespace(rule=rule, status="NOT_APPLICABLE", messages=("n/a",)),
+    ]
+    monkeypatch.setattr(_skillopt_lint, "_load_lint", lambda: _fake_lint(results))
+
+    _skillopt_lint.check_candidate(_INCUMBENT, _INCUMBENT)
+
+    assert capsys.readouterr().err == ""

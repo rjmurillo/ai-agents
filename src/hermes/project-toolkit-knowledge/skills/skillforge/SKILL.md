@@ -328,7 +328,7 @@ After creation:
 
 ## Scripts
 
-Entry scripts: `init_skill.py`, `triage_skill_request.py`, `discover_skills.py`, `quick_validate.py`, `validate-skill.py`, `conformance.py`, `lint_skill_frontmatter.py`, `check_docs_safety.py`, `skill_modularity_audit.py`, and `package_skill.py`. Each runs on the Python 3 standard library; `quick_validate.py` and `validate-skill.py` use PyYAML when it is installed and fall back to a stdlib parser when it is not.
+Entry scripts: `init_skill.py`, `triage_skill_request.py`, `discover_skills.py`, `quick_validate.py`, `validate-skill.py`, `conformance.py`, `lint_skill_frontmatter.py`, `check_docs_safety.py`, `skill_modularity_audit.py`, and `package_skill.py`. Each needs only the standard library; `quick_validate.py` and `validate-skill.py` use PyYAML when it is installed and fall back to a stdlib parser when it is not.
 
 ---
 

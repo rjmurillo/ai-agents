@@ -1,6 +1,6 @@
 ## Matters
 
-Per-class render map. Compilers run inside `build_all.py` except `prompts`; binplace copies the plugin tree onto the install tree, or symlinks it (`link: true`: `agents`, `skills`, `rules`; ADR-119).
+Per-class render map. Compilers run inside `build_all.py`; binplace copies the plugin tree onto the install tree, or symlinks it (`link: true`: `agents`, `skills`, `rules`; ADR-119).
 
 | Class | Source here | Compiler | Plugin tree -> install tree |
 |---|---|---|---|
