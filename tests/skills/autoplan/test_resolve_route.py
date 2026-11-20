@@ -208,6 +208,17 @@ def test_tied_specialists_return_ambiguous(tmp_path: Path) -> None:
     assert result["candidates"] == ["ns:alpha", "ns:beta"]
 
 
+def test_api_owner_takes_precedence_for_normalized_hemingway_intent(tmp_path: Path) -> None:
+    _write_skill(tmp_path, "api-doc-authoring", intents=["API documentation"])
+    _write_skill(tmp_path, "technical-writing", intents=["Hemingway Audit"])
+    roots = [resolver.Root(path=tmp_path, namespace="ns")]
+
+    result = resolver.resolve("Give this API documentation a Hemingway audit", roots)
+
+    assert result["route"] == "ns:api-doc-authoring"
+    assert "takes precedence" in result["rationale"]
+
+
 def test_non_front_door_skill_with_intents_is_never_returned(tmp_path: Path) -> None:
     """The routing-role gate refuses this shape upstream; the resolver must
     independently never select it, so a gate regression cannot silently
