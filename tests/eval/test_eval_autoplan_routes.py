@@ -81,6 +81,16 @@ def test_shipped_fixtures_all_pass(capsys: pytest.CaptureFixture[str], fixture_p
     assert "accuracy=not scored" in out
 
 
+def test_api_owner_takes_precedence_for_normalized_hemingway_intent(tmp_path: Path) -> None:
+    root = _catalog(tmp_path, "api-doc-authoring", ["API documentation"])
+    _catalog(tmp_path, "technical-writing", ["Hemingway Audit"])
+
+    result = ev.run_resolver("Give this API documentation a Hemingway audit", [f"{root}=ns"])
+
+    assert result["route"] == "ns:api-doc-authoring"
+    assert "takes precedence" in result["rationale"]
+
+
 def test_shipped_fixtures_cover_every_executed_family() -> None:
     families = {s.family for s in ev.load_scenarios(ev.DEFAULT_FIXTURES)}
     assert families == set(ev.EXECUTED_FAMILIES)
