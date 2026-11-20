@@ -326,6 +326,8 @@ class TestCsharpLiteralAndAttributeArguments:
         ('var s = $"{order?.Total:N2}";', "N2"),
         ('var s = $"{a ?? b:C2}";', "C2"),
         ('var s = $"{items?[0]:X8}";', "X8"),
+        ('var s = $"{d:HH\\"mm}";', "HH"),
+        ('var s = $@"{d:HH""mm}";', "HH"),
     )
 
     def test_names_in_literals_are_not_extracted(self) -> None:
@@ -429,6 +431,14 @@ class TestCsharpLiteralAndAttributeArguments:
         ('var s = $"{x; done: FakeWidget.Go(); }', "FakeWidget"),
         ('var s = $"{a ?? b ? c : FakeWidget.B}";', "FakeWidget"),
         ('var s = $"{x:N2\nvar w = new FakeWidget(); }";', "FakeWidget"),
+        ('var s = $"{d:HH\\"mm}"; } var w = new FakeWidget();', "FakeWidget"),
+        ('var s = $"{a?.b class A : FakeBase { }', "FakeBase"),
+        ('var s = $"{a ?? b class A : FakeBase { }', "FakeBase"),
+        ('var s = $"{x: {new FakeWidget()} }";', "FakeWidget"),
+        ('var s = $"{c ?[1] : FakeWidget.B}";', "FakeWidget"),
+        ('var s = $"{x /* a\n */ class A : FakeBase { }', "FakeBase"),
+        ('var s = $"{x?[0] case 1: FakeWidget.Go(); }', "FakeWidget"),
+        ('var s = $$"""\n{{done: FakeWidget.Go(); }\n"""', "FakeWidget"),
         ('var s = $@"{a // don\'t\n} {FakeWidget.Go()}";', "FakeWidget"),
     )
 

@@ -1323,36 +1323,32 @@ def _line_end(code: str, index: int) -> int:
     return len(code) if end < 0 else end
 
 
-def _csharp_hole_end(code: str, start: int, chars: list[str]) -> int:
+def _csharp_hole_end(code: str, start: int, chars: list[str], escape: str = "") -> int:
     """Index just past the "}" that closes the hole opened at ``start``.
 
     The hole is code and stays visible, but literals inside it are blanked
     and comments skipped, so a brace or quote in either cannot end the hole
     early. A format specifier, the text after a top-level ":" as in
     ``{price:N2}``, is literal text and is blanked once the "}" that ends it
-    is reached. Valid C# parenthesizes a ternary inside a hole, so its ":"
-    is never top-level. For malformed code the blanking stays conservative:
-    a ":" counts only before any newline, top-level ";", or ternary "?" in
-    the hole ("?." and "??" are not ternaries), and a specifier that meets a
-    newline or a quote before its "}" is dropped and left visible. An
-    unclosed hole runs to the end of the snippet and leaves it visible.
+    is reached. ``escape`` is the enclosing string's quote escape: "\\" for
+    a regular string, '"' (doubled) for a verbatim string, "" for raw.
+
+    Valid C# parenthesizes a ternary inside a hole, so its ":" is never
+    top-level. For malformed code the blanking stays conservative: a ":"
+    counts only before any newline, top-level ";", or ternary "?" in the
+    hole ("?.", "??" and an unspaced "?[" are not ternaries), and a
+    specifier that meets a newline, an unescaped quote, or a "{" before its
+    "}" is dropped and left visible. An unclosed hole runs to the end of
+    the snippet and leaves it visible. Accepted limit: a line that chains
+    several unclosed holes or unterminated literals can still blank code
+    that follows them on that line.
     """
     opening = start
     while opening < len(code) and code[opening] == "{":
         opening += 1
     base, depth, paren, index = opening - start, 0, 0, start
-    format_allowed, format_start = True, -1
+    format_allowed = True
     while index < len(code):
-        char = code[index]
-        if format_start >= 0:
-            if char == "}":
-                _blank_span(chars, format_start, index)
-                format_start = -1
-            elif char in '\n"':
-                format_start = -1
-            else:
-                index += 1
-                continue
         token = _CSHARP_TOKEN_START_RE.match(code, index)
         if token is not None:
             after = _skip_csharp_token(code, token, chars)
@@ -1360,6 +1356,7 @@ def _csharp_hole_end(code: str, start: int, chars: list[str]) -> int:
                 format_allowed = False
             index = after
             continue
+        char = code[index]
         if char == "\n" or (paren == 0 and depth == base and _ends_format_context(code, index)):
             format_allowed = False
         if char == "{":
@@ -1377,23 +1374,64 @@ def _csharp_hole_end(code: str, start: int, chars: list[str]) -> int:
             continue
         elif char == ":" and depth == base and paren == 0 and format_allowed:
             format_allowed = False
-            format_start = index + 1
+            stop = _csharp_format_span_end(code, index + 1, escape)
+            if code.startswith("}" * base, stop):
+                _blank_span(chars, index + 1, stop)
+            index = stop
+            continue
         index += 1
     return index
+
+
+def _csharp_format_span_end(code: str, start: int, escape: str) -> int:
+    """Index of the character that ends the format specifier at ``start``.
+
+    A specifier ends at "}". It cannot hold a newline, an unescaped quote,
+    or a "{", so meeting one first means the hole is malformed; the caller
+    then leaves the text visible. ``escape`` is as in ``_csharp_hole_end``.
+    """
+    index = start
+    while index < len(code):
+        if escape == "\\" and code[index] == "\\" and code[index + 1 : index + 2] not in ("", "\n"):
+            index += 2
+            continue
+        if escape == '"' and code.startswith('""', index):
+            index += 2
+            continue
+        if code[index] in '}{\n"':
+            return index
+        index += 1
+    return index
+
+
+# Words that start a statement or declaration. One at the top level of a hole
+# means the hole is malformed and its "}" belongs to other code.
+_CSHARP_STATEMENT_WORD_RE = re.compile(
+    r"(?:case|class|struct|interface|enum|record|where|goto|return|void|public"
+    r"|private|protected|internal|static|namespace|using|var)\b"
+)
 
 
 def _ends_format_context(code: str, index: int) -> bool:
     """Whether the top-level character at ``index`` rules out a later specifier.
 
-    A ";" means a statement, so the hole is malformed. A "?" may open an
-    unparenthesized ternary, unless it is part of "?.", "?[" or "??".
+    A ";" or a statement word such as ``case`` or ``class`` means the hole
+    is malformed. A "?" may open an
+    unparenthesized ternary, unless it is part of "?." or "??", or is an
+    unspaced "?[" such as ``items?[0]``. A spaced " ?[" reads as a ternary
+    over a collection expression.
     """
     char = code[index]
     if char == ";":
         return True
+    if char.isalpha() and not code[index - 1 : index].replace("_", "a").isalnum():
+        return _CSHARP_STATEMENT_WORD_RE.match(code, index) is not None
     if char != "?":
         return False
-    return code[index + 1 : index + 2] not in (".", "[", "?") and code[index - 1 : index] != "?"
+    before, after = code[index - 1 : index], code[index + 1 : index + 2]
+    if before == "?" or after in (".", "?"):
+        return False
+    return after != "[" or before.isspace()
 
 
 def _csharp_char_end(code: str, start: int) -> int:
@@ -1423,7 +1461,7 @@ def _csharp_string_end(code: str, body: int, prefix: str, chars: list[str]) -> i
     while index < len(code):
         char = code[index]
         if interpolated and char == "{" and not code.startswith("{{", index):
-            index = _csharp_hole_end(code, index, chars)
+            index = _csharp_hole_end(code, index, chars, '"' if verbatim else "\\")
             continue
         if char == '"' and not (verbatim and code.startswith('""', index)):
             return index + 1
