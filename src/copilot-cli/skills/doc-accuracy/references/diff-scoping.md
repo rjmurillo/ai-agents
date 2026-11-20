@@ -107,9 +107,9 @@ The marker is `<!-- doc-accuracy: external-sdk <name> -- <reason> -->`.
   modifiers. Comments, strings, and text in the middle of a line, such as a
   regex literal, declare nothing. A C# method needs a return type before its
   name, and a modifier word never counts as one. So a constructor or a
-  conversion operator does not declare its type. The report counts each skip
-  per file under `declared_name_suppressed`. Method signature claims get no
-  exemption.
+  conversion operator does not declare its type. Each skip is counted under
+  `declared_name_suppressed`, which maps a doc path to its count. Method
+  signature claims get no exemption.
 - A missing, `-`-led, or placeholder name suppresses nothing and yields a
   high `invalid_external_sdk_marker` finding.
 - `claims.json` records `sdk`, `reason`, and `line`. Phase 3 counts suppressed
