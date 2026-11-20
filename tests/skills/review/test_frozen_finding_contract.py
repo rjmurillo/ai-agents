@@ -301,9 +301,9 @@ class TestReviewSkillStatesTheContract:
     def test_existing_round_caps_stay(self) -> None:
         skill = _REVIEW.read_text(encoding="utf-8")
         text = _CONTRACT.read_text(encoding="utf-8")
-        assert "3 rounds for this skill" in text
+        assert "5 rounds for this skill" in text
         assert "default 5 for `check_pr_round_cap.py`" in text
-        assert "MUST NOT exceed 3 rounds" in skill
+        assert "MUST NOT exceed 5 rounds" in skill
 
     def test_resource_tells_axes_to_tag_diff_caused_regressions(self) -> None:
         text = _CONTRACT.read_text(encoding="utf-8")

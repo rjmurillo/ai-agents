@@ -37,7 +37,7 @@ You get a findings table with one row per axis, a final verdict line, and an opt
 | Final verdict | `PASS`, `WARN`, `CRITICAL_FAIL`, or `UNKNOWN`, merged from all axes. |
 | Correctness row | An always-on `correctness` row from the code-review pass. |
 | CodeQL status line | Printed under the table when the `security` axis ran. |
-| Flagged notes | In round 2 or 3 only: findings that do not count toward the verdict. |
+| Flagged notes | After round 1 only: findings that do not count toward the verdict. |
 | Marker commit | An empty commit on top of the reviewed tip, written only on a PASS, or a WARN where every WARN was acknowledged. |
 
 How the verdict forms:
@@ -60,7 +60,7 @@ The canonical axes are `analyst`, `architect`, `qa`, `security`, `devops`, `road
 
 ### Rounds
 
-`review` runs each axis once per invocation. If you chain "fix, then re-review", stop after 3 rounds. In round 3, `PASS` ships. Any other verdict goes to a human with every open finding. In round 2 or 3, only defects the diff introduced and unmet acceptance criteria count. The rest become flagged notes.
+`review` runs each axis once per invocation. If you chain "fix, then re-review", stop after 5 rounds. In round 5, `PASS` ships. Any other verdict goes to a human with every open finding. After round 1, only defects the diff introduced and unmet acceptance criteria count. The rest become flagged notes.
 
 ### The marker
 
