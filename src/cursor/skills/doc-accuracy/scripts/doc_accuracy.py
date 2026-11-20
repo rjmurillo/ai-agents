@@ -1494,6 +1494,9 @@ _DECLARED_NAME_PATTERNS["typescript"] = _DECLARED_NAME_PATTERNS["javascript"]
 _C_LIKE_NON_CODE_RE = re.compile(
     r"(?s)/\*.*?(?:\*/|\Z)"
     r"|//[^\n]*"
+    # C# raw (three or more quotes) and verbatim strings span lines.
+    r'|""".*?(?:"""|\Z)'
+    r'|(?:\$@|@\$?)"(?:""|[^"])*(?:"|\Z)'
     r"|\"(?:\\(?:.|\Z)|[^\"\\\n])*(?:\"|(?=\n)|\Z)"
     r"|'(?:\\(?:.|\Z)|[^'\\\n])*(?:'|(?=\n)|\Z)"
     r"|`(?:\\(?:.|\Z)|[^`\\])*(?:`|\Z)"
