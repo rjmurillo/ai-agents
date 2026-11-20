@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 import adr_draft
+import adr_locate
 import adr_scan
 import adr_text
 import pytest
@@ -259,7 +260,7 @@ def test_draft_does_not_retry_with_another_number_when_the_target_exists(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     repo, folder = _toolkit_repo(tmp_path)
-    stale = adr_draft.folder_style(folder)
+    stale = adr_locate.folder_style(folder)
     write(repo, ".project-toolkit/architecture/ADR-123-use-redis-for-sessions.md", "mine\n")
     monkeypatch.setattr(adr_draft, "folder_style", lambda _dir: stale)
     scan = _scan_file(tmp_path, repo, _cand(title="Use Redis for sessions"))
@@ -273,7 +274,7 @@ def test_two_adrs_with_one_number_are_reported_as_a_collision(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     repo, folder = _toolkit_repo(tmp_path)
-    real = adr_draft.folder_style
+    real = adr_locate.folder_style
 
     def racing(directory: Path) -> Any:
         style = real(directory)

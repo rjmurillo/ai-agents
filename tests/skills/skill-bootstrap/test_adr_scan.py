@@ -22,7 +22,10 @@ WHY = "Because the team already runs it in production and a second system needs 
 
 def _scan(repo: Path, prs: list[Any] | None = None, **kw: Any) -> dict[str, Any]:
     args = {"rev": "HEAD", "max_commits": 300, "since": None, **kw}
-    return adr_scan.scan(repo, args["rev"], args["max_commits"], args["since"], prs)
+    result: dict[str, Any] = adr_scan.scan(
+        repo, args["rev"], args["max_commits"], args["since"], prs
+    )
+    return result
 
 
 def _ids(payload: dict[str, Any]) -> list[str]:

@@ -9,6 +9,7 @@ plan, section 3, has a case that fails on upstream's rule.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import adr_locate
 import pytest
@@ -24,8 +25,9 @@ def _adr(repo: Path, rel: str, text: str = "# x\n") -> None:
     write(repo, rel, text)
 
 
-def _locate(repo: Path) -> dict[str, object]:
-    return adr_locate.locate(repo)
+def _locate(repo: Path) -> dict[str, Any]:
+    result: dict[str, Any] = adr_locate.locate(repo)
+    return result
 
 
 def test_a_repo_with_no_adr_folder_has_no_folders_and_no_primary(tmp_path: Path) -> None:
@@ -40,7 +42,7 @@ def test_the_project_toolkit_architecture_folder_is_found_with_prefix_and_width(
     _adr(repo, ".project-toolkit/architecture/ADR-121-a.md")
     _adr(repo, ".project-toolkit/architecture/ADR-122-use-postgres.md", ADR_122)
     result = _locate(repo)
-    (folder,) = result["folders"]  # type: ignore[misc]
+    (folder,) = result["folders"]
     assert result["primary"] == ".project-toolkit/architecture"
     assert result["next_number"] == 123
     assert result["examined"] == 2
@@ -92,7 +94,7 @@ def test_a_folder_holding_only_a_readme_is_not_an_adr_folder(tmp_path: Path) -> 
     _adr(repo, "docs/decisions/0001-use-postgres.md")
     result = _locate(repo)
     assert result["primary"] == "docs/decisions"
-    assert [f["path"] for f in result["folders"]] == ["docs/decisions"]  # type: ignore[attr-defined]
+    assert [f["path"] for f in result["folders"]] == ["docs/decisions"]
 
 
 def test_an_empty_known_folder_is_not_an_adr_folder(tmp_path: Path) -> None:
@@ -107,7 +109,7 @@ def test_two_folders_give_no_primary_and_no_next_number(tmp_path: Path) -> None:
     _adr(repo, "docs/adr/0001-a.md")
     _adr(repo, "docs/decisions/0001-b.md")
     result = _locate(repo)
-    assert [f["path"] for f in result["folders"]] == ["docs/adr", "docs/decisions"]  # type: ignore[attr-defined]
+    assert [f["path"] for f in result["folders"]] == ["docs/adr", "docs/decisions"]
     assert (result["primary"], result["next_number"]) == (None, None)
 
 
@@ -132,7 +134,7 @@ def test_adr_dir_file_names_the_folder_and_beats_nothing_else(tmp_path: Path) ->
     _adr(repo, "records/0001-a.md")
     write(repo, ".adr-dir", "records\n")
     result = _locate(repo)
-    (folder,) = result["folders"]  # type: ignore[misc]
+    (folder,) = result["folders"]
     assert (folder["path"], folder["source"]) == ("records", "adr-dir")
 
 
@@ -142,7 +144,7 @@ def test_adr_dir_and_a_known_folder_are_both_reported(tmp_path: Path) -> None:
     _adr(repo, "docs/adr/0001-b.md")
     write(repo, ".adr-dir", "records\n")
     result = _locate(repo)
-    assert [(f["path"], f["source"]) for f in result["folders"]] == [  # type: ignore[attr-defined]
+    assert [(f["path"], f["source"]) for f in result["folders"]] == [
         ("docs/adr", "known"),
         ("records", "adr-dir"),
     ]
@@ -165,7 +167,7 @@ def test_a_folder_of_three_adr_files_is_found_when_nothing_else_is(tmp_path: Pat
     _adr(repo, "other/0001-a.md")
     _adr(repo, "other/0002-b.md")
     result = _locate(repo)
-    assert [(f["path"], f["source"]) for f in result["folders"]] == [("team/records", "scan")]  # type: ignore[attr-defined]
+    assert [(f["path"], f["source"]) for f in result["folders"]] == [("team/records", "scan")]
 
 
 def test_the_scan_does_not_run_when_a_known_folder_exists(tmp_path: Path) -> None:
@@ -173,7 +175,7 @@ def test_the_scan_does_not_run_when_a_known_folder_exists(tmp_path: Path) -> Non
     _adr(repo, "docs/adr/0001-a.md")
     for n in (1, 2, 3):
         _adr(repo, f"team/records/{n:04d}-a.md")
-    assert [f["path"] for f in _locate(repo)["folders"]] == ["docs/adr"]  # type: ignore[attr-defined]
+    assert [f["path"] for f in _locate(repo)["folders"]] == ["docs/adr"]
 
 
 def test_the_scan_skips_dependency_and_build_folders(tmp_path: Path) -> None:
@@ -208,7 +210,7 @@ def test_a_symlinked_folder_is_reported_once(tmp_path: Path) -> None:
         (repo / "adr").symlink_to(repo / "docs" / "adr", target_is_directory=True)
     except OSError:
         pytest.skip("symlinks unavailable")
-    assert len(_locate(repo)["folders"]) == 1  # type: ignore[arg-type]
+    assert len(_locate(repo)["folders"]) == 1
 
 
 def test_a_symlinked_adr_file_is_not_read(tmp_path: Path) -> None:

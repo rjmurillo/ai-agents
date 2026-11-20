@@ -181,7 +181,8 @@ def _fake_batch(monkeypatch: pytest.MonkeyPatch, stdout: bytes, code: int = 0) -
     ) -> subprocess.CompletedProcess[bytes]:
         if args[:2] == ("cat-file", "--batch"):
             return subprocess.CompletedProcess(args, code, stdout, b"boom")
-        return real(repo, *args, stdin=stdin)
+        result: subprocess.CompletedProcess[bytes] = real(repo, *args, stdin=stdin)
+        return result
 
     monkeypatch.setattr(adr_git, "git_bytes", fake)
 

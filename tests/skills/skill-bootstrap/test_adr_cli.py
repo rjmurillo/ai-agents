@@ -17,7 +17,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-import adr_git
 import bootstrap_adr
 import pytest
 from adr_helpers import CLI, commit, git, new_repo, run_cli, write
@@ -120,7 +119,8 @@ def test_max_commits_must_be_a_positive_integer(tmp_path: Path, flag: str) -> No
         [sys.executable, str(CLI), "scan", "--repo", str(tmp_path), "--out", "o.json"]
         + ["--max-commits", flag],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     assert proc.returncode == 2 and "positive integer" in proc.stderr
@@ -242,7 +242,7 @@ def test_a_git_timeout_exits_three(
     def hang(*args: Any, **kwargs: Any) -> Any:
         raise subprocess.TimeoutExpired(["git"], 30)
 
-    monkeypatch.setattr(adr_git.subprocess, "run", hang)
+    monkeypatch.setattr(subprocess, "run", hang)
     assert bootstrap_adr.main(["locate", "--repo", str(tmp_path)]) == 3
     assert json.loads(capsys.readouterr().out)["error"] == "git"
 
@@ -307,7 +307,12 @@ def test_scan_succeeds_as_a_subprocess_with_no_proxy_and_no_sockets(tmp_path: Pa
         str(tmp_path / "o.json"),
     ]
     proc = subprocess.run(
-        cmd, capture_output=True, text=True, env=_offline_env(tmp_path), check=False
+        cmd,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        env=_offline_env(tmp_path),
+        check=False,
     )
     assert proc.returncode == 0, proc.stderr
     assert json.loads(proc.stdout)["candidates"]
@@ -416,7 +421,11 @@ def test_locate_runs_from_the_hermes_mirror_path(tmp_path: Path) -> None:
 
 def test_help_lists_the_exit_codes() -> None:
     proc = subprocess.run(
-        [sys.executable, str(CLI), "--help"], capture_output=True, text=True, check=False
+        [sys.executable, str(CLI), "--help"],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
     )
     assert proc.returncode == 0
     for fragment in ("locate", "scan", "draft", "exit codes", "3  git is missing"):

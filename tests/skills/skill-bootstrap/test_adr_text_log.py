@@ -32,7 +32,8 @@ Raw text stays in the source system; we keep a pointer only.
 
 
 def _entries(text: str) -> list[adr_log.LogEntry]:
-    return adr_log.split_decision_log(text)
+    entries: list[adr_log.LogEntry] = adr_log.split_decision_log(text)
+    return entries
 
 
 def test_a_ledger_splits_into_one_entry_per_id_line() -> None:
