@@ -1463,15 +1463,16 @@ def _first_ignored_sdk_marker(lines: list[str]) -> dict[str, int] | None:
 # declaration the cap misses keeps its finding, which is the safe direction.
 _DECLARED_NAME_PATTERNS: dict[str, tuple[re.Pattern[str], ...]] = {
     "csharp": (
-        re.compile(r"\b(?:class|struct|interface|enum|record|namespace)\s+([A-Za-z_][\w.]*)"),
+        re.compile(r"\b(?:class|struct|interface|enum|record|namespace)[ \t]+([A-Za-z_][\w.]*)"),
         re.compile(r"\b([A-Za-z_]\w*)\s*\{\s*(?:get|set|init)\b"),
         re.compile(
-            r"\b(?:public|private|protected|internal)\b[^;{}()=\n]{0,200}?\b([A-Za-z_]\w*)[ \t]*\("
+            r"\b(?:public|private|protected|internal)\b[^;{}()=\n]{0,200}?"
+            r"(?<!operator )\b([A-Za-z_]\w*)[ \t]*\("
         ),
     ),
     "python": (re.compile(r"^[ \t]*(?:async[ \t]+)?(?:class|def)[ \t]+(\w+)", re.MULTILINE),),
     "javascript": (
-        re.compile(r"\b(?:class|interface|enum|function)\s+([A-Za-z_$][\w$]*)"),
+        re.compile(r"\b(?:class|interface|enum|function)[ \t]+([A-Za-z_$][\w$]*)"),
         # A type alias is ``type Name =`` or ``type Name<...> =``. Requiring the
         # ``=`` or ``<`` keeps ``import type X`` and a wrapped
         # ``import {\n  type X,\n}`` list as claims about the repository.

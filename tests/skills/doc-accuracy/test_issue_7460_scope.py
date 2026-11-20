@@ -188,6 +188,9 @@ def test_plain_uses_without_declaration_still_flag(tmp_path: Path) -> None:
         ("csharp", "namespace Foo.Bar { class A {} }", {"Foo", "Bar", "A"}),
         ("csharp", "public int Run(int x) { }", {"Run"}),
         ("csharp", "var o = new Order();", set()),
+        ("csharp", "void F<T>() where T : class\nGhost x;", set()),
+        ("csharp", "public static implicit operator Ghost(Order o) => new();", set()),
+        ("javascript", "function\nGhost()", set()),
         ("python", "class A:\n    async def go(self): ...\nx = B()", {"A", "go"}),
         ("typescript", "interface I {}\ntype T = 1\nconst z = new Q()", {"I", "T"}),
         ("typescript", "export type T = 1\ndeclare type U = 2", {"T", "U"}),
@@ -236,3 +239,21 @@ def test_declared_names_stays_linear_on_crafted_blocks(lang: str, code: str) -> 
     mod._declared_names(code, lang)
 
     assert time.perf_counter() - start < 2.0
+
+
+def test_summary_and_markdown_reports_name_declared_skips(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(tmp_path, {"doc.md": "# T\n\n" + ORDER_SAMPLE})
+    out = tmp_path / "out"
+    base = ["--target", str(repo), "--output-dir", str(out)]
+
+    assert mod.main([*base, "--format", "summary"]) == 0
+    summary = capsys.readouterr().out
+    assert mod.main([*base, "--format", "markdown"]) == 0
+    report = (out / "report.md").read_text(encoding="utf-8")
+
+    line = "doc.md: 4 unresolved_symbol skipped because the same code example declares them"
+    assert f"Example-declared names: {line}" in summary
+    assert "## Example-declared names" in report
+    assert f"- {line}" in report
