@@ -148,7 +148,8 @@ later and the account has GitHub Event Streams access. It wakes on the next
 review, push, merge conflict, finished check suite, or state change. Otherwise
 (older gh, a waitlist refusal, or a non-github.com host) it sleeps `--interval`.
 Output and exit codes are the same on both paths. Events cut the wait; the
-worst case stays one interval. `AI_AGENTS_PR_EVENT_LISTEN=0` forces the sleep.
+worst case stays one interval. A `pr-event-wait:` line on stderr names the
+mode and why listening stopped. `AI_AGENTS_PR_EVENT_LISTEN=0` forces the sleep.
 
 Exit codes:
 

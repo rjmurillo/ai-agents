@@ -21,7 +21,8 @@ if _helpers is None:
 _gate = _helpers.gate_payload
 _pr = _helpers.pr_payload
 pw = _helpers.pw
-# pr_wait.py imports the helper at call time, from the lib copy it put on sys.path.
+# pr_wait.py binds github_core.api at import and reads its attributes at call time,
+# so patching this module object (the lib copy on sys.path) applies.
 gh_api = importlib.import_module("github_core.api")
 
 

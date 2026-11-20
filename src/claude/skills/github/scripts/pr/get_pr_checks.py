@@ -1280,8 +1280,10 @@ def _poll_checks(
     Once GraphQL has been rate limited, stay on REST: each GraphQL poll would
     spend its retry ladder (up to 45s) on the same refusal (issue #6391).
     """
+    # An event wake re-reads after 5 seconds at the soonest, so a PR with many
+    # check suites costs at most twice the reads of the old 10 second sleep.
     woke = wait_for_pr_event(
-        pr_url(owner, repo, args.pull_request), CHECK_EVENTS, 10, min_seconds=3
+        pr_url(owner, repo, args.pull_request), CHECK_EVENTS, 10, min_seconds=5
     )
     check_data = fetch_checks(
         owner,

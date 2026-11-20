@@ -62,7 +62,7 @@ class TestWaitUsesPrEventHelper:
             "https://github.com/o/r/pull/1",
             _mod.CHECK_EVENTS,
             10,
-            min_seconds=3,
+            min_seconds=5,
         )
 
     def test_window_timeout_spends_the_budget_like_a_sleep(self, capsys):
@@ -70,3 +70,26 @@ class TestWaitUsesPrEventHelper:
 
         assert rc == 7
         assert wait.call_count == 1
+
+
+def test_endless_events_still_stop_on_elapsed_time(capsys):
+    queued = _aged_rollup([_RUN_TESTS_OK], _FRESH)
+    ticks = iter(range(0, 1000, 5))
+    with (
+        patch("get_pr_checks.assert_gh_authenticated"),
+        patch(
+            "get_pr_checks.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ),
+        patch("get_pr_checks.gh_graphql", return_value=queued),
+        patch("get_pr_checks.fetch_ruleset_required_contexts", return_value=_RULESET),
+        patch("get_pr_checks.time.monotonic", side_effect=lambda: float(next(ticks))),
+        patch("get_pr_checks.wait_for_pr_event", return_value="event") as wait,
+    ):
+        rc = main(
+            ["--pull-request", "1", "--wait", "--timeout-seconds", "20", "--output-format", "json"]
+        )
+    capsys.readouterr()
+
+    assert rc == 7
+    assert 1 <= wait.call_count <= 4
