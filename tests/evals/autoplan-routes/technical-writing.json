@@ -51,7 +51,27 @@
           "orchestrator"
         ]
       },
-      "rationale": "The endpoint API guide intent routes to its documented owner."
+      "rationale": "The API guide audit intent routes to its documented owner."
+    },
+    {
+      "id": "lt-hemingway-audit-api-guide-named-endpoint",
+      "family": "long-tail-single-domain",
+      "request": "Give this API guide for the /users endpoint a Hemingway audit",
+      "expect": {
+        "kind": "specialist",
+        "route": "api-doc-authoring"
+      },
+      "rationale": "The audit routes to the API owner when the endpoint follows the page type."
+    },
+    {
+      "id": "lt-hemingway-audit-api-guide-audit-first",
+      "family": "long-tail-single-domain",
+      "request": "Do a Hemingway audit of this API guide",
+      "expect": {
+        "kind": "specialist",
+        "route": "api-doc-authoring"
+      },
+      "rationale": "The API owner also wins when the audit comes before the page type."
     }
   ]
 }

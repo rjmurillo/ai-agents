@@ -22,7 +22,8 @@ metadata:
       - document this api
       - api quickstart
       - api guide
-      - endpoint API guide
+      - api guide hemingway audit
+      - hemingway audit api guide
       - endpoint documentation
 ---
 
@@ -60,6 +61,13 @@ Skip the narrative when the artifact is a true reference listing, such as a
 generated schema page, or the API is trivial or internal with one obvious call.
 Write the reference, mark it as reference, and stop. Do not invent a use case to
 fill space.
+
+## Hemingway audit
+
+For a Hemingway audit of an API guide, inspect the source and suggest exact
+replacements. Preserve commands, prerequisites, warnings, failure behavior,
+and rollback steps. Skip the authoring phases for an audit. Run examples or
+write evidence only if the user also requests those actions.
 
 ## Process
 
