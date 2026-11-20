@@ -153,7 +153,7 @@ _logger.LogDebug($"Login attempt: {username}/{password}");
 _logger.LogDebug($"Request body: {JsonSerializer.Serialize(request)}");
 
 // BAD: Logging token
-_logger.LogInfo($"Generated token: {jwtToken}");
+_logger.LogInformation($"Generated token: {jwtToken}");
 ```
 
 ### Logging Checklist
@@ -189,12 +189,12 @@ _logger.LogInfo($"Generated token: {jwtToken}");
 
 ```csharp
 // GOOD: Using built-in secure password hashing
-using BCrypt.Net;
-var hash = BCrypt.HashPassword(password, BCrypt.GenerateSalt(12));
-var valid = BCrypt.Verify(password, storedHash);
+// Qualify the class: under `using BCrypt.Net;` the name BCrypt binds to the namespace.
+var hash = BCrypt.Net.BCrypt.HashPassword(password, BCrypt.Net.BCrypt.GenerateSalt(12));
+var valid = BCrypt.Net.BCrypt.Verify(password, storedHash);
 
 // GOOD: Using AES-GCM for encryption
-using var aesGcm = new AesGcm(key);
+using var aesGcm = new AesGcm(key, AesGcm.TagByteSizes.MaxSize);
 aesGcm.Encrypt(nonce, plaintext, ciphertext, tag);
 ```
 

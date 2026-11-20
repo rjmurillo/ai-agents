@@ -262,8 +262,9 @@ public void Dispose_DuringOperation_ShouldNotThrow()
 
     cache.Dispose();
 
-    // Should not throw - disposed state is handled gracefully
-    Assert.DoesNotThrow(() => Task.WaitAll(tasks.ToArray()));
+    // Should not throw - disposed state is handled gracefully.
+    // xUnit has no Assert.DoesNotThrow; an exception here fails the test.
+    Task.WaitAll(tasks.ToArray());
 }
 ```
 

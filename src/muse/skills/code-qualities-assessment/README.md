@@ -83,7 +83,7 @@ scripts, README, and other support files.
 
 ### CI/CD Pipeline
 
-```python
+```yaml
 # GitHub Actions
 - name: Check code quality
   run: |

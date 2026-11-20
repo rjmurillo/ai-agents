@@ -191,7 +191,7 @@ export { handler as GET, handler as POST }
 
 ### Database (Prisma)
 
-```typescript
+```prisma
 // prisma/schema.prisma
 generator client {
   provider = "prisma-client-js"
