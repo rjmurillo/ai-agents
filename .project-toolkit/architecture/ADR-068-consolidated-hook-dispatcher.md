@@ -861,7 +861,7 @@ generated surfaces. Sources:
 | `build/scripts/generate_hooks.py` | CLI facade and module-level generation contract | Medium |
 | `src/copilot-cli/hooks/**` | Generated manifests, entrypoints, bootstrap copies, and retained shims | Medium |
 | `.claude/settings.json` | Repository-only Claude registrations; not an input to Copilot plugin generation | Medium |
-| `.claude/hooks/hooks.json` | One vendored plugin registration after REQ-048 TASK-006 added the advisory Stop group `plugin-stop-1-reflect_nudge` (zero after ADR-097 retired every tool-call hook; three after merging issues #4917, #5061, and #5154; four before any of the three); must not carry removed or local-only hooks | Medium |
+| `.claude/hooks/hooks.json` | Two vendored plugin registrations: the advisory Stop group `plugin-stop-1-reflect_nudge` (REQ-048 TASK-006) and the UserPromptSubmit recall group `plugin-userpromptsubmit-1-memory_recall` (ADR-109 amendment 2026-11-20). History, oldest first: four before issues #4917, #5061, and #5154; three after merging them; zero after ADR-097 retired every tool-call hook; one after REQ-048 TASK-006; two after the recall group; must not carry removed or local-only hooks | Medium |
 | `.claude/hooks/dispatch_groups.json` | Grouped hook source; must not carry the removed approval producer | Medium |
 | `.github/hooks/require-subagent-model.json` | Retired by ADR-097; the file is deleted. Was a repo-local direct registration of the same canonical script (matcher `task`, repo-root cwd), with cloud coverage beginning at default-branch merge | Medium |
 | `.claude/rules/lsp-first.md` | Static cross-harness source for Serena symbolic-tool steering | Medium |

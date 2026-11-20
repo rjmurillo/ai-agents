@@ -17,7 +17,7 @@ Accepted (2026-06-02, six-agent adr-review: 2 Accept, 4 Disagree-and-Commit, 0
 Block). The P0 dissent proposed a committed launcher-level fail-open follow-up;
 that was subsequently rejected in favor of prevention plus loud failure (issue
 #2230 closed addressed-by-prevention), and Decision item 5 records the
-fail-closed position, except one advisory `Stop` group (2026-11-04 amendment). Debate log: `.project-toolkit/critique/ADR-071-debate-log.md`.
+fail-closed position, except one advisory `Stop` group (2026-11-04 amendment) and one prompt-preserving `UserPromptSubmit` group (2026-11-20 amendment). Debate log: `.project-toolkit/critique/ADR-071-debate-log.md`.
 The 2026-07-19 amendment review reached consensus with 3 Accept,
 3 Disagree-and-Commit, and 0 Block. Its durable record is the dated amendment
 section in the same debate log.
@@ -244,9 +244,10 @@ observe dispatcher captures nonblank stdout from one successful PostToolUse
 shim and emits one `additionalContext` object when captured output exists. It
 separates shim output with one blank line, does not preserve per-shim
 attribution, and discards partial stdout from failed observers. The vendored
-plugin currently has no active SessionStart,
+plugin had no active SessionStart,
 UserPromptSubmit, PreCompact, PostToolUseFailure, Stop, or PermissionRequest
-registration. Generator support for those event contracts is dormant and does
+registration when this paragraph was written. The 2026-11-04 and 2026-11-20
+amendments below each add one grouped registration, for Stop and UserPromptSubmit. Generator support for those event contracts is dormant and does
 not define current runtime behavior. Stderr is not a documented model-context
 path. A future `modifiedResult` or pre-structured JSON producer must add an
 event-specific merger or remain a direct registration.
@@ -650,11 +651,23 @@ This is the runtime contract for one advisory `Stop` group, the fresh contract t
 - Group `plugin-stop-1-reflect_nudge` (`templates/hooks/dispatch_groups.json`) runs `Stop/invoke_reflect_nudge.py` on `Stop` only. Its shim sets `copilotExclude: true`, so the Copilot tree has no entry for it.
 - The command hands `--advisory` to `invoke_dispatch_claude.py`. The flag rides the registration, not the manifest, so the policy holds when the manifest cannot load. The manifest's `advisory: true` must agree with it.
 - The hook's output leaves as one `{"systemMessage": ...}` document. A block decision from the hook is suppressed, with one stderr line.
-- `--advisory` is reserved to the single group `plugin-stop-1-reflect_nudge` on `Stop`. The launcher refuses it on any other event (exit 2, one stderr line), and `run_group` refuses it too. On any other Stop group the launcher drops the flag with one stderr line, since exit 2 would block the Stop. When the manifest cannot load the event is unknown, so only that group id fails open and any other id exits 2. `tests/hooks/test_plugin_stop_registration.py` pins the set: the registrations carrying `--advisory` in `templates/hooks/hooks.json` and `src/claude/hooks/hooks.json` are exactly that group, and all are `Stop`.
+- `--advisory` is reserved to the single group `plugin-stop-1-reflect_nudge` on `Stop`. The launcher refuses it on any other event (exit 2, one stderr line; the prompt-preserving id of the 2026-11-20 amendment below exits 0 instead), and `run_group` refuses it too. On any other Stop group the launcher drops the flag with one stderr line, since exit 2 would block the Stop. When the manifest cannot load the event is unknown, so only that group id fails open and any other id exits 2, apart from the prompt-preserving id added on 2026-11-20. `tests/hooks/test_plugin_stop_registration.py` pins the set: the registrations carrying `--advisory` in `templates/hooks/hooks.json` and `src/claude/hooks/hooks.json` are exactly that group, and all are `Stop`.
 - Every launcher failure path of that group exits 0 with one stderr line: manifest load, the self-host check, oversized stdin, an exception, an invalid contract, a missing shim, and a non-zero hook exit. A block decision never leaves an advisory group, in `gate_all` or `gate` mode. The self-host bail applies too: in the publishing checkout the launcher exits 0 and `.claude/settings.json` runs the hook instead.
 - Groups without the flag are unchanged, and Decision item 5 still binds them. This group exits 0 on failure because ADR-084 rule 2a condition a (proposed 2026-10-31, accepted 2026-11-04 by the REQ-048 TASK-006 owner decision, which ADR-084 calls D26 and which is unrelated to this ADR's D26) asks for exit 0 on every path, launcher included. Decision item 1 still binds the registration.
 - Rollback: remove the group from `dispatch_groups.json` and rebuild, or set `AI_AGENTS_RETRO_NUDGE_THRESHOLD=0` to silence the friction branch. REQ-048 AC-19 (the friction branch precision gate) was amended 2026-11-03 under REQ-048 owner decision D19: cross-validation scored 12 of 16 (75 percent), Wilson lower bound 0.505. `claude_hook_dispatch.py` ships as byte copies in `src/claude/lib/` and `src/copilot-cli/lib/`, pinned by the parity row `lib-claude-dispatch-copies`, not as symlinks. ADR-119 decision 14 links only five `lib` entries and keeps this module a real file, and ADR-119 Alternative D records that some installers do not preserve links (the npm bundler dropped linked skills).
 - Tests: `tests/hooks/test_advisory_stop_launcher.py` (each path, with a plain-group control), `tests/hooks/test_plugin_stop_registration.py`, and `tests/hooks/test_plugin_stop_runtime.py`. The real-CLI smoke `tests/e2e/test_cli_stop_nudge_e2e.py` is opt-in, absent from `plugin-cli-smoke.yml`, and run live 2026-11-04 on Claude Code 2.1.318, 3 passed; the first run failed because the plugin hooks file sat at the plugin root, fixed by owner decision D28 (2026-11-04, REQ-048 TASK-006, see ADR-109 section 2 amendment).
+
+### 2026-11-20 amendment: prompt-preserving plugin UserPromptSubmit group (issue #7493)
+
+This is the runtime contract for the per-prompt memory recall group that ADR-109's 2026-11-20 amendment ships to Claude plugin consumers. No tool-use contract returns.
+
+- Group `plugin-userpromptsubmit-1-memory_recall` (`templates/hooks/dispatch_groups.json`) runs `UserPromptSubmit/invoke_memory_recall.py` on `UserPromptSubmit` only, in `gate_all` mode, which `validate_group` requires for that event. Its shim sets `copilotExclude: true` with `copilotExcludeDecision: "ADR-109"`, so the Copilot tree has no entry for it.
+- The registration carries no `--advisory` flag. Recall output is plain text and reaches model context, not a `systemMessage`.
+- The group id is reserved in `_PROMPT_PRESERVING_GROUP_IDS` in `invoke_dispatch_claude.py`. The id rides the registration, so the policy holds when the manifest cannot load. Every failure path of that group exits 0 with one stderr line: manifest load, the self-host check, oversized stdin, an exception, and a non-zero group result. A blocking decision document from its shim is suppressed with one stderr line. If the manifest gives the reserved id any event other than `UserPromptSubmit`, the launcher exits 0 without running it.
+- The self-host bail applies: in the publishing checkout the launcher exits 0, and `.claude/settings.json` runs the shim directly instead.
+- Groups outside both reserved sets are unchanged, and Decision item 5 still binds them. Decision item 1 still binds the registration.
+- Rollback: remove the group from `dispatch_groups.json` and `hooks.json` and rebuild. A consumer can set `AI_AGENTS_MEMORY_RECALL=off` to silence the hook without uninstalling the plugin.
+- Tests: `tests/hooks/test_dispatch_prompt_preserving.py` (each failure path, with an unreserved-group control), `tests/hooks/test_plugin_memory_recall_runtime.py` (the shipped command under a bare interpreter, with a removed-package negative control), and the opt-in real-CLI smoke `tests/e2e/test_cli_memory_recall_e2e.py`, absent from `plugin-cli-smoke.yml` and run live 2026-11-20 on Claude Code 2.1.329, 3 passed.
 
 ## Decision
 
@@ -699,6 +712,10 @@ This is the runtime contract for one advisory `Stop` group, the fresh contract t
    is closed addressed-by-prevention. Carve-out: the advisory `Stop` group
    `plugin-stop-1-reflect_nudge` (2026-11-04 amendment) fails open, since a
    failed nudge must never block a Stop; `--advisory` is refused elsewhere.
+   Second carve-out: the prompt-preserving `UserPromptSubmit` group
+   `plugin-userpromptsubmit-1-memory_recall` (2026-11-20 amendment) fails open,
+   since exit 2 on that event erases the user's prompt and the group enforces no
+   policy.
 
 6. **Authenticated smoke MUST install reviewed top-level CLI versions before
    receiving credentials.** `.github/workflows/nightly-cli-smoke.yml` installs
