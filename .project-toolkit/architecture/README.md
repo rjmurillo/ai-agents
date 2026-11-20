@@ -97,7 +97,7 @@ These bind today.
 | [ADR-001](ADR-001-markdown-linting.md) | Markdown Linting Configuration | 2025-12-13 | Create `.markdownlint-cli2.yaml` in the repository root with rules appropriate for agent templates: |
 | [ADR-003](ADR-003-agent-tool-selection-criteria.md) | Role-Specific Tool Allocation for Multi-Agent System | 2025-12-16 | Chosen option: "Option 2: Role-specific tool allocation", because it provides the optimal balance of context efficiency, role clarity, and operational capability. |
 | [ADR-006](ADR-006-thin-workflows-testable-modules.md) | Thin Workflows, Testable Modules | 2026-04-29 | Chosen option: Option 1 - Thin Workflows, Testable Modules |
-| [ADR-008](ADR-008-protocol-automation-lifecycle-hooks.md) | Protocol Automation via Lifecycle Hooks | 2026-08-19 | Lifecycle hooks MUST automate SESSION-PROTOCOL enforcement. |
+| [ADR-008](ADR-008-protocol-automation-lifecycle-hooks.md) | Protocol Automation via Lifecycle Hooks | 2026-11-20 | Lifecycle hooks MUST automate SESSION-PROTOCOL enforcement. |
 | [ADR-009](ADR-009-parallel-safe-multi-agent-design.md) | Parallel-Safe Multi-Agent Design | 2025-12-20 | Multi-agent coordination MUST include consensus mechanisms for conflict resolution. |
 | [ADR-014](ADR-014-distributed-handoff-architecture.md) | Distributed Handoff Architecture | 2026-08-16 | Implement a three-tier distributed handoff architecture that eliminates centralized HANDOFF.md as a write target: |
 | [ADR-015](ADR-015-artifact-storage-minimization.md) | Artifact Storage Minimization Strategy | 2025-12-22 | Reduce artifact retention to minimum necessary duration: |

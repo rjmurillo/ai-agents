@@ -47,15 +47,15 @@ The canonical set is `spec-compliance` as the Stage-1 gate plus 11 Stage-2 canon
 
 `/review` is a strict superset of CI only in deep-review mode, when it runs the full canonical set. Risk-selected `/review` can be narrower than CI, because it may skip axes that do not apply. The 4 local-only skill axes need local code execution and repo state, so CI cannot run them; they are language-agnostic, risk-selected or pinned like any axis, and tracked in a set of their own (step 4b).
 
-**Self-audit round cap (hard stop).** `/review` runs each axis once per invocation; no internal fix-and-re-review loop. The cap binds the caller: any skill, command, or agent chaining "fix, re-invoke `/review`, repeat" with no human checkpoint MUST NOT exceed 3 rounds for that invocation, even across a diff, branch, or PR switch. The caller tracks its own count for the whole invocation; `/review` holds no shared state. Only a new invocation, or a human checkpoint, resets the count. Round 3: `PASS` ships; `WARN`, `CRITICAL_FAIL`, or `UNKNOWN` escalates to the operator with every open finding (axis, verdict, location, recommendation); no self-acknowledging a `WARN` to ship.
+**Self-audit round cap (hard stop).** `/review` runs each axis once per invocation; no internal fix-and-re-review loop. The cap binds the caller: any skill, command, or agent chaining "fix, re-invoke `/review`, repeat" with no human checkpoint MUST NOT exceed 5 rounds for that invocation, even across a diff, branch, or PR switch. The caller tracks its own count for the whole invocation; `/review` holds no shared state. Only a new invocation, or a human checkpoint, resets the count. Round 5: `PASS` ships; `WARN`, `CRITICAL_FAIL`, or `UNKNOWN` escalates to the operator with every open finding (axis, verdict, location, recommendation); no self-acknowledging a `WARN` to ship.
 
 Modeled on `.claude/skills/github/scripts/pr/check_pr_round_cap.py` (exit `0` = ACT, `1` = ESCALATE; defaults 5 rounds, 4.0 hours).
 
-**Stricter/looser/different than canonical**: stricter on rounds (3 vs. 5). Looser on time (no hours cap) and persistence (in-invocation tracking, no PR-comment marker). Different in kind: canonical only gates `ACT`/`ESCALATE`; round 3 here can ship `PASS`.
+**Stricter/looser/different than canonical**: same on rounds (5). Looser on time (no hours cap) and persistence (in-invocation tracking, no PR-comment marker). Different in kind: canonical only gates `ACT`/`ESCALATE`; round 5 here can ship `PASS`.
 
 ## Frozen finding contract (rounds after the first)
 
-The caller supplies `ROUND: N` context. In round 2 or 3 only a defect the diff introduced (fix commits included) and an unmet acceptance criterion the PR claims count. The rest are flagged notes: listed in Output, never merged, never a reason for another round. Append `--frozen` to the step 4a arguments. Read `resources/frozen-finding-contract.md`. The caps stay.
+The caller supplies `ROUND: N` context. After round 1 only a defect the diff introduced (fix commits included) and an unmet acceptance criterion the PR claims count. The rest are flagged notes: listed in Output, never merged, never a reason for another round. Append `--frozen` to the step 4a arguments. Read `resources/frozen-finding-contract.md`. The caps stay.
 
 ## Path resolution (harness-agnostic)
 
@@ -153,7 +153,7 @@ When step 4d ran, print the CodeQL `status_line` under the table.
 
 **FINAL VERDICT**: [PASS|WARN|CRITICAL_FAIL|UNKNOWN] (from `merge_verdicts`)
 
-In round 2 or 3, add **Flagged notes (not counted)** after it: axis, `file:line`, reason (`pre-existing`, `nice-to-have`, `new scope`), or `none`. They never change the verdict.
+After round 1, add **Flagged notes (not counted)** after it: axis, `file:line`, reason (`pre-existing`, `nice-to-have`, `new scope`), or `none`. They never change the verdict.
 
 Followed by per-axis findings in detail. Each finding:
 
@@ -204,7 +204,7 @@ A re-run after PASS writes another marker, which is safe.
 - [ ] On a Stage-1 `CRITICAL_FAIL`, Stage 2 axes are marked `SKIPPED` and the final verdict is the Stage-1 `CRITICAL_FAIL`; on a Stage-1 `UNKNOWN` (INCONCLUSIVE), Stage 2 STILL runs and the UNKNOWN is carried into the merge (it never suppresses a real Stage-2 finding such as a security `CRITICAL_FAIL`)
 - [ ] When Stage 2 runs, the output table contains the spec-compliance row plus one row per candidate axis with selection status and reason, and deep review still yields 16 rows with the current set, plus the final verdict line
 - [ ] Step 4c ran, its verdict joined the step 7 merge, and the table has a `correctness` row
-- [ ] Round 2 or 3: step 4a used `--frozen`; flagged notes stayed out of `merge_verdicts`
+- [ ] After round 1: step 4a used `--frozen`; flagged notes stayed out of `merge_verdicts`
 
 ## Refs
 

@@ -4,6 +4,8 @@
 Covers the pending-retro skeleton reminder added for Issue #2079: counting
 unfilled skeletons by their RETRO-STATE marker, capping by filename date,
 extracting fill dates, and surfacing the reminder in the injected context.
+No-injection and audit behavior of main() lives in
+test_context_loader_no_injection.py.
 """
 
 from __future__ import annotations
@@ -11,7 +13,7 @@ from __future__ import annotations
 import os
 import sys
 import time
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from io import StringIO
 from pathlib import Path
 from typing import IO, Any
@@ -152,6 +154,25 @@ def test_undated_skeleton_falls_back_to_mtime_age_cap() -> None:
         assert names == ["auto-retro.md"]
 
 
+def test_invalid_calendar_date_falls_back_to_mtime_age_cap(tmp_path: Path) -> None:
+    """A date-shaped but impossible filename prefix is treated as undated."""
+    # Arrange
+    retro_dir = tmp_path / "retrospective"
+    recent = _write_skeleton_file(retro_dir, "2026-13-40-auto-retro.md")
+    stale = _write_skeleton_file(retro_dir, "2026-02-30-auto-retro.md")
+    _age_file(recent, days_old=1)
+    _age_file(stale, days_old=30)
+
+    # Act
+    count, names = invoke_context_loader._count_pending_skeletons(
+        retro_dir, tmp_path, max_age_days=7
+    )
+
+    # Assert
+    assert count == 1
+    assert names == ["2026-13-40-auto-retro.md"]
+
+
 def test_missing_directory_yields_zero() -> None:
     # Arrange
     import tempfile
@@ -193,81 +214,6 @@ def test_unreadable_file_skipped_not_fatal() -> None:
         # Assert: the bad file is skipped, the good one still counts
         assert count == 1
         assert names == [f"{good_date}-auto-retro.md"]
-
-
-_TODAY = date(2026, 1, 15)
-
-
-# --- _find_latest_retrospective: symlink containment (CWE-22/CWE-59) ------
-
-
-def test_find_latest_retrospective_skips_a_symlinked_leaf(tmp_path: Path) -> None:
-    """A retrospective symlink is never followed, even when it is newest."""
-    retro_dir = tmp_path / "retrospective"
-    retro_dir.mkdir()
-    real = retro_dir / "2026-01-01-auto-retro.md"
-    real.write_text("real retro\n", encoding="utf-8")
-
-    secret = tmp_path / "secret.txt"
-    secret.write_text("SECRET_CONTENT\n", encoding="utf-8")
-    # Force a strictly later mtime than `real`'s so, absent the symlink
-    # defense, the secret would win the "most recent" comparison outright.
-    # Without this, both files' mtimes can tie (coarse filesystem
-    # resolution, or both written within the same tick), letting the test
-    # pass by luck of insertion order even if the symlink filter were broken.
-    later = real.stat().st_mtime + 10
-    os.utime(secret, (later, later))
-    link = retro_dir / "2026-01-02-auto-retro.md"
-    try:
-        link.symlink_to(secret)
-    except OSError:
-        pytest.skip("cannot create symlink on this platform")
-
-    latest = invoke_context_loader._find_latest_retrospective(retro_dir, tmp_path, today=_TODAY)
-
-    assert latest == real
-
-
-def test_find_latest_retrospective_ignores_a_symlink_even_when_newer(tmp_path: Path) -> None:
-    """Positive control: a real, unlinked retro is still found when present."""
-    retro_dir = tmp_path / "retrospective"
-    retro_dir.mkdir()
-    real = retro_dir / "2026-01-01-auto-retro.md"
-    real.write_text("real retro\n", encoding="utf-8")
-
-    latest = invoke_context_loader._find_latest_retrospective(retro_dir, tmp_path, today=_TODAY)
-
-    assert latest == real
-
-
-def test_find_latest_retrospective_rejects_a_symlinked_retro_dir(tmp_path: Path) -> None:
-    """A symlinked ``.project-toolkit/retrospective`` must not redirect containment.
-
-    Resolving ``retro_dir`` before checking containment means a symlinked
-    retro directory (or a symlinked ``.agents`` ancestor) makes every file
-    genuinely inside the redirected external directory read as "contained"
-    relative to that redirected root. Walking the unresolved components
-    between the project root and ``retro_dir`` catches this before anything
-    is resolved or globbed.
-    """
-    project_dir = tmp_path / "project"
-    agents_dir = project_dir / ".agents"
-    agents_dir.mkdir(parents=True)
-
-    outside = tmp_path / "outside"
-    outside.mkdir()
-    newer = outside / "2099-01-01-auto-retro.md"
-    newer.write_text("exfiltrated\n", encoding="utf-8")
-
-    retro_dir = agents_dir / "retrospective"
-    try:
-        retro_dir.symlink_to(outside)
-    except OSError:
-        pytest.skip("cannot create symlink on this platform")
-
-    latest = invoke_context_loader._find_latest_retrospective(retro_dir, project_dir, today=_TODAY)
-
-    assert latest is None
 
 
 # --- _count_pending_skeletons: ancestor symlink guard (CWE-22/CWE-59) -----

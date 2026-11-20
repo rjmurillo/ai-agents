@@ -129,9 +129,10 @@ _PARSED_COUPLING_LANGUAGES = frozenset(
     {"csharp", "javascript", "python", "typescript", "powershell"}
 )
 
-# Single-line comment prefixes, used to exclude comment lines from the
-# lines-of-code count. Block comments are intentionally not stripped: this is an
-# approximation, not a parser.
+# Single-line comment prefixes. ``assess_content`` drops these lines once, and
+# both the lines-of-code count and the non-redundancy ratio read the result.
+# Block comments are intentionally not stripped: this is an approximation, not
+# a parser.
 _LINE_COMMENT_PREFIXES = {
     "python": ("#",),
     "typescript": ("//",),
@@ -141,6 +142,13 @@ _LINE_COMMENT_PREFIXES = {
     "go": ("//",),
     "powershell": ("#",),
 }
+
+# Lines that repeat by syntax, not by copy-paste, so non-redundancy skips them
+# (issue #7454). One is made only of brackets and separators, such as `}`,
+# `});`, or `{ }`. The other is a bare attribute or annotation with no
+# arguments, such as `[Fact]` or `@Override`; with arguments it still counts.
+_STRUCTURAL_ONLY_LINE = re.compile(r"[{}()\[\];,]+(?:\s+[{}()\[\];,]+)*")
+_BARE_ATTRIBUTE_LINE = re.compile(r"\[[A-Za-z_][\w.]*\]|@[A-Za-z_][\w.]*")
 
 # Repo-root-anchored prefixes of build outputs (ADR-109, ADR-119). Under
 # ADR-119, src/claude/skills/<name>/ scripts and the top-level src/claude/lib
@@ -2105,22 +2113,32 @@ def _score_testability(language: str | None, code_lines: list[str]) -> QualitySc
     return QualityScore(value=round(score, 1), confidence=0.5, reasons=reasons)
 
 
-def _score_non_redundancy(lines: list[str], scored: bool) -> QualityScore:
-    """Approximate non-redundancy from the ratio of unique to total lines.
+def _is_syntax_only_line(line: str) -> bool:
+    """Return True when a stripped line repeats by syntax, not by copy-paste."""
+    return bool(_STRUCTURAL_ONLY_LINE.fullmatch(line) or _BARE_ATTRIBUTE_LINE.fullmatch(line))
 
-    This is language-agnostic and unchanged in spirit from the original
-    heuristic.
+
+def _score_non_redundancy(code_lines: list[str], scored: bool) -> QualityScore:
+    """Approximate non-redundancy from the ratio of unique to compared lines.
+
+    *code_lines* are non-blank and, for a tuned language, free of line
+    comments. Syntax-only lines are dropped too, so a brace or a `[Fact]`
+    that every member repeats does not read as duplication.
     """
     confidence = 0.5 if scored else 0.0
-    non_blank = [line.strip() for line in lines if line.strip()]
-    if not non_blank:
+    stripped = [line.strip() for line in code_lines if line.strip()]
+    compared = [line for line in stripped if not _is_syntax_only_line(line)]
+    if not compared:
         return QualityScore(
-            value=10.0, confidence=confidence, reasons=["Empty file, no duplication"]
+            value=10.0, confidence=confidence, reasons=["No lines left to compare, no duplication"]
         )
-    unique_lines = len(set(non_blank))
-    score = (unique_lines / len(non_blank)) * 10.0
+    skipped = f"{len(stripped) - len(compared)} syntax-only lines skipped"
+    if scored:
+        skipped = f"line comments and {skipped}"
+    unique_lines = len(set(compared))
+    score = (unique_lines / len(compared)) * 10.0
     reasons = [
-        f"{unique_lines}/{len(non_blank)} unique non-blank lines",
+        f"{unique_lines}/{len(compared)} unique lines ({skipped})",
         "High duplication detected" if score < 7 else "Low duplication",
     ]
     if not scored:
@@ -2228,7 +2246,7 @@ def assess_content(
         ),
         encapsulation=_score_encapsulation(language, code_lines),
         testability=_score_testability(language, code_lines),
-        non_redundancy=_score_non_redundancy(lines, language is not None),
+        non_redundancy=_score_non_redundancy(code_lines, language is not None),
     )
 
 
