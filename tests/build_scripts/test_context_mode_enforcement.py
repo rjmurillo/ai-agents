@@ -82,6 +82,19 @@ def test_canonical_ref_has_enforcement_section(role: str) -> None:
     assert _FORBID_PASS in text, f"{role}.md does not forbid PASS when context is not full"
 
 
+def test_a_reference_without_the_section_fails_the_membership_check() -> None:
+    """Negative control: drop the section from a real reference and the check sees it."""
+    role = _canonical_roles()[0]
+    text = (CANONICAL_DIR / f"{role}.md").read_text(encoding="utf-8")
+    start = text.index(_SECTION_HEADER)
+    end = text.find("\n## ", start + len(_SECTION_HEADER))
+    stripped = text[:start] + (text[end:] if end != -1 else "")
+
+    assert _SECTION_HEADER in text
+    assert _SECTION_HEADER not in stripped
+    assert _FORBID_PASS not in stripped
+
+
 # ---------------------------------------------------------------------------
 # PARITY: copilot twins are byte-identical mirrors of canonical.
 # ---------------------------------------------------------------------------

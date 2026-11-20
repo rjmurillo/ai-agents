@@ -32,9 +32,19 @@ def _allowlist() -> re.Pattern[str]:
     return re.compile(match.group(1))
 
 
+def _banned_leading_chars() -> tuple[str, ...]:
+    match = re.search(r"does not start with `(.)` or `(.)`", STEP_2)
+    assert match, "step 2 states no leading-character ban"
+    return match.groups()
+
+
 def _accepted(base: str) -> bool:
-    """Apply both stated conditions: the allowlist and the leading-character ban."""
-    return bool(_allowlist().fullmatch(base)) and not base.startswith(("-", "/"))
+    """Apply both conditions the skill states: the allowlist and the leading-character ban."""
+    return bool(_allowlist().fullmatch(base)) and not base.startswith(_banned_leading_chars())
+
+
+def test_the_ban_covers_option_and_absolute_path_prefixes() -> None:
+    assert set(_banned_leading_chars()) == {"-", "/"}
 
 
 @pytest.mark.parametrize("base", ["main", "origin/main", "release/1.2", "HEAD"])
