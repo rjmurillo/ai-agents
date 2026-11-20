@@ -10,8 +10,9 @@ run may only add new files, such as an ADR directory, is passed with
 change under it is `create-only-changed`: an edit, delete, or mode change; a
 file already untracked at snapshot that changed; a path the snapshot HEAD
 tracks; a new symlink or nested repository; or a new `.gitignore` or
-`.gitattributes`. A path matching both grants follows `--also-allow`. This
-script makes the boundary checkable on Linux, macOS, and Windows.
+`.gitattributes` in any letter case, even one that ignores itself. A path
+matching both grants follows `--also-allow`. This script makes the boundary
+checkable on Linux, macOS, and Windows.
 
 Subcommands:
 
@@ -69,6 +70,7 @@ from boundary_grants import (
     ConfigError,
     Payload,
     classify,
+    hidden_control_files,
     new_untracked,
     parse_grants,
     posix,
@@ -410,6 +412,8 @@ def verify(args: argparse.Namespace) -> tuple[int, Payload]:
         if before["ignored"].get(path) != ignored_after.get(path):
             kind = classify(path, rel, grants) or "ignored-in-boundary"
             violations.append({"kind": kind, "path": path})
+    for grant, _ in also_create:
+        violations.extend(hidden_control_files(_ignored_under(root, grant)))
     return (1 if violations else 0), {
         "examined": len(examined),
         "changed": changed,

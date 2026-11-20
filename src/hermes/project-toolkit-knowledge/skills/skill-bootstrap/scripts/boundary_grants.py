@@ -7,7 +7,7 @@ only, so it runs from any plugin root beside the script that imports it.
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -102,6 +102,29 @@ def new_untracked(
     return set(fresh) - tracked
 
 
+def is_git_control_file(path: str) -> bool:
+    """Return whether the path is a `.gitignore` or `.gitattributes`, in any letter case.
+
+    git honors `.GITIGNORE` on a case-insensitive filesystem, so the match ignores case.
+    """
+    return PurePosixPath(path).name.casefold() in _GIT_CONTROL_FILES
+
+
+def hidden_control_files(ignored: Iterable[str]) -> list[dict[str, str]]:
+    """Return a violation for each ignored `.gitignore` or `.gitattributes` under a create grant.
+
+    A `.gitignore` that ignores itself never shows in `git status`, so `classify` never sees
+    it. Verify lists the ignored files under each create grant and passes them here. The
+    snapshot does not record them, so a self-ignoring control file that predates the run
+    also fails; that is the safe side.
+    """
+    return [
+        {"kind": "create-only-changed", "path": path}
+        for path in sorted(ignored)
+        if is_git_control_file(path)
+    ]
+
+
 def classify(path: str, rel: PurePosixPath, grants: Payload) -> str | None:
     """Return the violation kind for one changed path, or None when authorized.
 
@@ -113,7 +136,7 @@ def classify(path: str, rel: PurePosixPath, grants: Payload) -> str | None:
     if covered(candidate, grants["also_allow"]):
         return None
     if covered(candidate, grants["also_create"]):
-        if candidate.name in _GIT_CONTROL_FILES or path not in grants["created"]:
+        if is_git_control_file(path) or path not in grants["created"]:
             return "create-only-changed"
         return None
     if rel not in candidate.parents or len(candidate.relative_to(rel).parts) < 2:

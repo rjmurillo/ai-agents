@@ -364,3 +364,27 @@ def test_new_untracked_checks_head_in_batches() -> None:
 
     assert created == set(paths)
     assert calls == [100, 100, 50]
+
+
+def test_verify_self_ignoring_gitignore_under_create_grant_is_create_only_changed(
+    repo: Path, capsys: Capsys, snap_path: Path
+) -> None:
+    take_snapshot(capsys, repo, snap_path)
+    write(repo, "docs/adr/.gitignore", ".gitignore\n*.tmp\n")
+
+    code, payload = verify(capsys, repo, snap_path, "--also-create", ADR_DIR)
+
+    assert code == 1
+    assert kinds(payload) == [("create-only-changed", "docs/adr/.gitignore")]
+
+
+def test_verify_upper_case_gitignore_under_create_grant_is_create_only_changed(
+    repo: Path, capsys: Capsys, snap_path: Path
+) -> None:
+    take_snapshot(capsys, repo, snap_path)
+    write(repo, "docs/adr/.GITIGNORE", "*.tmp\n")
+
+    code, payload = verify(capsys, repo, snap_path, "--also-create", ADR_DIR)
+
+    assert code == 1
+    assert kinds(payload) == [("create-only-changed", "docs/adr/.GITIGNORE")]
