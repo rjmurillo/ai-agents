@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -185,10 +186,25 @@ def lint_text(text: str) -> list[Result]:
     return evaluate(doc)
 
 
-# Rules whose FAIL message embeds a measurement (a byte count). Compare them by
-# rule identity, never by message text, or an edit that shrinks an oversized
-# skill would read as a new failure.
-MEASURED_RULES = frozenset({"fm.size.bytes", "fm.size.headroom"})
+# Rules whose FAIL message embeds a measurement (a byte count). Compare the
+# measurement, never the message text: shrinking an oversized skill is not a
+# new failure, and growing it further is.
+MEASURED_RULES = frozenset({"fm.size.bytes"})
+_MEASUREMENT = re.compile(r"(\d+) bytes")
+
+
+def _measurement(result: Result) -> int:
+    for message in result.messages:
+        match = _MEASUREMENT.search(message)
+        if match:
+            return int(match.group(1))
+    return 0
+
+
+def _grew(result: Result, before: list[Result]) -> bool:
+    """Return whether a measured FAIL is new, or larger than the incumbent's."""
+    prior = [r for r in before if r.rule.id == result.rule.id and r.status == "FAIL"]
+    return not prior or _measurement(result) > _measurement(prior[0])
 
 
 def added_failures(before: list[Result], after: list[Result]) -> list[Result]:
@@ -206,9 +222,7 @@ def added_failures(before: list[Result], after: list[Result]) -> list[Result]:
     added = []
     for result in after:
         if result.status == "FAIL" and result.rule.id in MEASURED_RULES:
-            # The message carries a measurement, so it changes with any edit.
-            # Identity is the rule: failing before means inherited.
-            if result.rule.id not in failing_before:
+            if _grew(result, before):
                 added.append(result)
         elif result.status == "FAIL":
             inherited = failing_before.get(result.rule.id, set())

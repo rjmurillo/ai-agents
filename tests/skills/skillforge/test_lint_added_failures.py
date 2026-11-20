@@ -83,6 +83,13 @@ def test_shrinking_an_oversized_skill_is_not_an_added_failure() -> None:
     assert lint.new_failures(incumbent, candidate) == []
 
 
+def test_growing_an_oversized_skill_is_an_added_failure() -> None:
+    incumbent = _skill_text(body="a" * 25000 + "\n")
+    candidate = _skill_text(body="a" * 40000 + "\n")
+
+    assert _ids(lint.new_failures(incumbent, candidate)) == ["fm.size.bytes"]
+
+
 def test_crossing_the_size_cap_is_an_added_failure() -> None:
     incumbent = _skill_text(body="a" * 100 + "\n")
     candidate = _skill_text(body="a" * 25000 + "\n")

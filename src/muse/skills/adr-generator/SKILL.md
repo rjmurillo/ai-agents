@@ -31,7 +31,6 @@ metadata:
       - supersede adr
       - write architecture decision record
       - create architecture decision record
-      - draft architecture decision record
       - document decision
       - document design choices
       - record why chose
