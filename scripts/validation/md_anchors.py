@@ -30,7 +30,6 @@ from md_link_parse import _live_lines, mask_inline_code
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.hook_utilities.frontmatter_block import (
-    FM_BOUNDARY,
     split_frontmatter,
 )
 
@@ -89,11 +88,9 @@ def _frontmatter_end(text: str) -> int:
     The fence comes from ``scripts/hook_utilities/frontmatter_block.py``.
     """
     split = split_frontmatter(text)
-    opening = FM_BOUNDARY.match(text)
-    if not split.found or opening is None:
+    if not split.found:
         return 0
-    closing_start = opening.end() + len(split.raw)
-    return len(text[:closing_start].splitlines()) + 1
+    return len(text[: split.raw_end].splitlines()) + 1
 
 
 def _heading_texts(body: str) -> list[str]:

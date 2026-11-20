@@ -78,7 +78,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from scripts.hook_utilities.frontmatter_block import FM_BOUNDARY, split_frontmatter  # noqa: E402
+from scripts.hook_utilities.frontmatter_block import split_frontmatter  # noqa: E402
 
 SECTIONS_TO_COMPARE = (
     "Core Identity",
@@ -371,9 +371,7 @@ def remove_yaml_frontmatter(content: str) -> str:
     split = split_frontmatter(content)
     if not split.found:
         return content
-    closing_start = FM_BOUNDARY.match(content).end() + len(split.raw)
-    fence_line_end = content.find("\n", closing_start)
-    return "" if fence_line_end < 0 else content[fence_line_end + 1 :]
+    return content[split.fence_end :]
 
 
 # CommonMark fenced code block opener/closer: 0-3 leading spaces, then three

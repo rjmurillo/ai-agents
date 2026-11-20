@@ -31,7 +31,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from scripts.hook_utilities.frontmatter_block import FM_BOUNDARY, split_frontmatter  # noqa: E402
+from scripts.hook_utilities.frontmatter_block import split_frontmatter  # noqa: E402
 
 SCHEMA_VERSION = 3
 ARM_CONTINUE = "continue_analyst"
@@ -181,12 +181,10 @@ def role_text(repo_root: Path, arm: str) -> str:
     """The existing role definition body, frontmatter stripped, injected verbatim."""
     text = (repo_root / ROLE_FILES[arm]).read_text(encoding="utf-8")
     block = split_frontmatter(text)
-    # split.body drops blank lines after the closing fence; keep them, this text is hashed.
-    opening = FM_BOUNDARY.match(text)
-    if not block.found or opening is None:
+    if not block.found:
         return text
-    closing_end = text.find("\n", opening.end() + len(block.raw))
-    return text[closing_end + 1 :] if closing_end != -1 else ""
+    # block.body drops blank lines after the closing fence; keep them, this text is hashed.
+    return text[block.fence_end :]
 
 
 def command_text(task: Task) -> str:

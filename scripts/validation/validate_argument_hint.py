@@ -28,7 +28,6 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.hook_utilities.frontmatter_block import (
-    FM_BOUNDARY,
     split_frontmatter,
 )
 
@@ -74,11 +73,9 @@ def _raw_frontmatter_lines(text: str) -> list[str] | None:
     """
 
     split = split_frontmatter(text)
-    opening = FM_BOUNDARY.match(text)
-    if not split.found or opening is None:
+    if not split.found:
         return None
-    closing_start = opening.end() + len(split.raw)
-    return text.splitlines()[1 : len(text[:closing_start].splitlines())]
+    return text.splitlines()[1 : len(text[: split.raw_end].splitlines())]
 
 
 def _strip_inline_comment(raw_value: str) -> str:

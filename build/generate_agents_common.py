@@ -156,12 +156,8 @@ def read_yaml_frontmatter(content: str) -> dict[str, str] | None:
     split = block.split_frontmatter(content)
     if not split.found:
         return None
-    opening_end = block.FM_BOUNDARY.match(content).end()
-    closing_start = opening_end + len(split.raw)
     raw = split.raw.removeprefix("\n").removesuffix("\n").removesuffix("\r")
-    fence_line_end = content.find("\n", closing_start)
-    body = "" if fence_line_end < 0 else content[fence_line_end + 1 :]
-    return {"frontmatter_raw": raw, "body": body}
+    return {"frontmatter_raw": raw, "body": content[split.fence_end :]}
 
 
 def parse_simple_frontmatter(frontmatter_raw: str) -> dict[str, str | None]:

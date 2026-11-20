@@ -144,7 +144,6 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from scripts.hook_utilities.frontmatter_block import (  # noqa: E402
-    FM_BOUNDARY,
     FrontmatterStatus,
     split_frontmatter,
 )
@@ -401,7 +400,7 @@ def agent_frontmatter(path: Path, reasons: list[str] | None = None) -> dict[str,
     except DuplicateFrontmatterKey as exc:
         # Marks are zero-based within the block text, which starts where the
         # opening fence ends, so file line = lines before the block + mark + 1.
-        offset = text.count("\n", 0, FM_BOUNDARY.match(text).end()) + 1
+        offset = text.count("\n", 0, split.raw_start) + 1
         _record(
             reasons,
             f"frontmatter repeats the {exc.key!r} key at lines "

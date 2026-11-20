@@ -11,7 +11,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from scripts.hook_utilities.frontmatter_block import FM_BOUNDARY, split_frontmatter
+from scripts.hook_utilities.frontmatter_block import split_frontmatter
 from scripts.traceability.traceability_cache import (
     get_cached_spec,
     get_file_hash,
@@ -129,17 +129,13 @@ def parse_frontmatter_with_content(
         return None
 
     split = split_frontmatter(content)
-    opening = FM_BOUNDARY.match(content)
-    if not split.found or opening is None:
+    # A closing fence with no newline after it is not a rewritable block.
+    if not split.found or content[split.fence_end - 1] != "\n":
         return None
 
     # Keep the fence lines and the original line endings: callers rewrite in place.
-    closing_start = opening.end() + len(split.raw)
-    fence_line_end = content.find("\n", closing_start)
-    if fence_line_end == -1:
-        return None
-    frontmatter = content[: fence_line_end + 1]
-    body = content[fence_line_end + 1 :]
+    frontmatter = content[: split.fence_end]
+    body = content[split.fence_end :]
     yaml_block = split.raw
 
     related: list[str] = []

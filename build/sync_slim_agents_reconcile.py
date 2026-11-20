@@ -57,7 +57,6 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from scripts.hook_utilities.frontmatter_block import (  # noqa: E402
-    FM_BOUNDARY,
     FrontmatterStatus,
 )
 from scripts.hook_utilities.frontmatter_block import (  # noqa: E402
@@ -132,18 +131,16 @@ def transformed_body(source_body: str, transforms: Iterable[Transform]) -> str:
 def _frontmatter_end(text: str) -> int | None:
     """Return the index just past the closing fence line, or None if absent.
 
-    The block is located by ``scripts/hook_utilities/frontmatter_block.py``. Its
-    ``body_start`` also swallows one blank line after the fence, so the end is
-    recomputed from the closing fence position: a sync must return the fence
-    line and every byte after it untouched. A closing fence that ends the file
-    with no trailing newline counts, and so does an empty block.
+    The block is located by ``scripts/hook_utilities/frontmatter_block.py``.
+    ``fence_end`` stops right after the closing fence line, before any blank
+    line, so a sync returns the fence line and every byte after it untouched. A
+    closing fence that ends the file with no trailing newline counts, and so
+    does an empty block.
     """
     block = _split_block(text)
     if not block.found:
         return None
-    closing_start = FM_BOUNDARY.match(text).end() + len(block.raw)
-    line_end = text.find("\n", closing_start)
-    return len(text) if line_end < 0 else line_end + 1
+    return block.fence_end
 
 
 def split_frontmatter(text: str) -> tuple[str, str]:

@@ -41,7 +41,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from scripts.hook_utilities.frontmatter_block import FM_BOUNDARY, split_frontmatter  # noqa: E402
+from scripts.hook_utilities.frontmatter_block import split_frontmatter  # noqa: E402
 
 SENTINEL = "PARITY_PROFILE_SENTINEL_4853"
 GIT_CONTEXT_VARIABLES = (
@@ -66,8 +66,7 @@ def _installed_agent_bytes(source: Path) -> bytes:
     with source.open(encoding="utf-8", newline="") as source_file:
         text = source_file.read()
     block = split_frontmatter(text)
-    opening = FM_BOUNDARY.match(text)
-    if not block.found or opening is None:
+    if not block.found:
         raise ParityConfigError(f"{source} has no frontmatter block")
     # Splice inside the block only, so every other byte round-trips exactly.
     lines = block.raw.splitlines(keepends=True)
@@ -80,8 +79,7 @@ def _installed_agent_bytes(source: Path) -> bytes:
             break
     if not renamed:
         raise ParityConfigError(f"{source} frontmatter has no name field")
-    block_end = opening.end() + len(block.raw)
-    return (text[: opening.end()] + "".join(lines) + text[block_end:]).encode("utf-8")
+    return (text[: block.raw_start] + "".join(lines) + text[block.raw_end :]).encode("utf-8")
 
 
 def hash_installed_agent(source: Path) -> str:

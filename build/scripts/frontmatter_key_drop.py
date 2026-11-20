@@ -28,7 +28,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from scripts.hook_utilities.frontmatter_block import FM_BOUNDARY, split_frontmatter  # noqa: E402
+from scripts.hook_utilities.frontmatter_block import split_frontmatter  # noqa: E402
 
 # A top-level frontmatter key line, bare or quoted, with optional space before
 # the colon. Group 2 is the key name. Its value lines are found by
@@ -39,19 +39,15 @@ _TOP_LEVEL_KEY_RE = re.compile(r"""^(["']?)([^\s"':#][^"':]*?)\1[ \t]*:(?:[ \t]|
 def _fence_offsets(text: str) -> tuple[int, int, int] | None:
     """Return (opening line end, closing line start, closing line end) of the block.
 
-    The block is located by ``scripts/hook_utilities/frontmatter_block.py``. The
-    core's ``body_start`` also swallows one blank line after the closing fence,
-    and these callers must leave every byte after that fence untouched, so the
-    closing line's end is recomputed from the closing fence position. Returns
-    None when ``text`` does not open a closed block.
+    The block is located by ``scripts/hook_utilities/frontmatter_block.py``.
+    ``fence_end`` stops right after the closing fence line, so every byte after
+    that fence stays untouched. Returns None when ``text`` does not open a
+    closed block.
     """
     block = split_frontmatter(text)
     if not block.found:
         return None
-    closing_start = FM_BOUNDARY.match(text).end() + len(block.raw)
-    closing_end = text.find("\n", closing_start)
-    closing_end = len(text) if closing_end < 0 else closing_end + 1
-    return text.index("\n") + 1, closing_start, closing_end
+    return text.index("\n") + 1, block.raw_end, block.fence_end
 
 
 def split_fenced_frontmatter(content: str) -> tuple[str, str] | None:

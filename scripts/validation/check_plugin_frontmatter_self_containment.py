@@ -153,7 +153,6 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.hook_utilities.frontmatter_block import (
-    FM_BOUNDARY,
     FrontmatterStatus,
     parse_frontmatter,
     split_frontmatter,
@@ -396,14 +395,12 @@ def frontmatter_lines(text: str) -> list[tuple[int, str]]:
     unseen while a real loader still hands the whole string to the consumer.
     """
     split = split_frontmatter(text)
-    opening = FM_BOUNDARY.match(text)
-    if not split.found or opening is None:
+    if not split.found:
         return []
     # The fences come from `scripts/hook_utilities/frontmatter_block.py`. The
     # closing fence starts where the raw block ends, and the first block line
     # is file line 2, so numbering holds even when blank lines follow a fence.
-    closing_start = opening.end() + len(split.raw)
-    block = text.splitlines()[1 : len(text[:closing_start].splitlines())]
+    block = text.splitlines()[1 : len(text[: split.raw_end].splitlines())]
     return [(n + 2, line) for n, line in enumerate(block)]
 
 

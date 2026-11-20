@@ -290,6 +290,25 @@ class TestSplit:
         assert text[result.body_start :] == "Body.\n"
         assert text.count("\n", 0, result.body_start) == 4
 
+    def test_offsets_locate_both_fences(self) -> None:
+        text = f"---\n{BODY}\n----\n\n\nBody.\n"
+
+        result = split_frontmatter(text)
+
+        assert text[: result.raw_start] == "---"
+        assert text[result.raw_start : result.raw_end] == result.raw
+        assert text[result.raw_end : result.fence_end] == "----\n"
+        assert text[result.fence_end :] == "\n\nBody.\n"
+        assert result.body == "Body.\n"
+
+    def test_fence_end_is_text_length_when_the_closing_fence_ends_the_file(self) -> None:
+        text = f"---\n{BODY}\n---"
+
+        result = split_frontmatter(text)
+
+        assert result.fence_end == len(text)
+        assert result.body == ""
+
     def test_absent_block_returns_whole_text(self) -> None:
         result = split_frontmatter("Body.\n")
 
@@ -299,6 +318,7 @@ class TestSplit:
             "Body.\n",
             0,
         )
+        assert (result.raw_start, result.raw_end, result.fence_end) == (0, 0, 0)
         assert not result.found
 
     def test_unterminated_block_returns_whole_text(self) -> None:
