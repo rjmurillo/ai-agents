@@ -85,7 +85,7 @@ def run_cli(
 ) -> tuple[int, dict[str, Any]]:
     """Run ``bootstrap_adr.py`` as a subprocess; return the exit code and the JSON it printed."""
     proc = subprocess.run(
-        [sys.executable, str(script), *args],
+        [sys.executable, "-B", str(script), *args],
         capture_output=True,
         encoding="utf-8",
         errors="replace",

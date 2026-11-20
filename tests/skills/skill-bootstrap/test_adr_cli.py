@@ -116,7 +116,7 @@ def test_a_bad_rev_or_since_exits_two(tmp_path: Path, args: list[str], message: 
 @pytest.mark.parametrize("flag", ["0", "-1", "many"])
 def test_max_commits_must_be_a_positive_integer(tmp_path: Path, flag: str) -> None:
     proc = subprocess.run(
-        [sys.executable, str(CLI), "scan", "--repo", str(tmp_path), "--out", "o.json"]
+        [sys.executable, "-B", str(CLI), "scan", "--repo", str(tmp_path), "--out", "o.json"]
         + ["--max-commits", flag],
         capture_output=True,
         encoding="utf-8",
@@ -299,6 +299,7 @@ def test_scan_succeeds_as_a_subprocess_with_no_proxy_and_no_sockets(tmp_path: Pa
     repo = _decision_repo(tmp_path)
     cmd = [
         sys.executable,
+        "-B",
         "-c",
         _NO_SOCKETS,
         str(CLI),
@@ -423,7 +424,7 @@ def test_locate_runs_from_the_hermes_mirror_path(tmp_path: Path) -> None:
 
 def test_help_lists_the_exit_codes() -> None:
     proc = subprocess.run(
-        [sys.executable, str(CLI), "--help"],
+        [sys.executable, "-B", str(CLI), "--help"],
         capture_output=True,
         encoding="utf-8",
         errors="replace",
