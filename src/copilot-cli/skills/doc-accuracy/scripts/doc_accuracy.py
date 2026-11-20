@@ -1330,8 +1330,9 @@ def _csharp_hole_end(code: str, start: int, chars: list[str], escape: str = "") 
     and comments skipped, so a brace or quote in either cannot end the hole
     early. A format specifier, the text after a top-level ":" as in
     ``{price:N2}``, is literal text and is blanked once the "}" that ends it
-    is reached. ``escape`` is the enclosing string's quote escape: "\\" for
-    a regular string, '"' (doubled) for a verbatim string, "" for raw.
+    is reached. ``escape`` describes the enclosing string: "\\" for a
+    regular string, '"' (doubled quote escape) for a verbatim string, and
+    the opening quote run for a raw string.
 
     Valid C# parenthesizes a ternary inside a hole, so its ":" is never
     top-level. For malformed code the blanking stays conservative: a ":"
@@ -1339,7 +1340,9 @@ def _csharp_hole_end(code: str, start: int, chars: list[str], escape: str = "") 
     hole ("?.", "??" and an unspaced "?[" are not ternaries), and a
     specifier that meets a newline, an unescaped quote, or a "{" before its
     "}" is dropped and left visible. An unclosed hole runs to the end of
-    the snippet and leaves it visible. Accepted limit: a line that chains
+    the snippet and leaves it visible; in a regular string, a quote in the
+    hole that closes nothing on its line ends the hole there instead,
+    because it is the outer string's close. Accepted limit: a line that chains
     several unclosed holes or unterminated literals can still blank code
     that follows them on that line.
     """
@@ -1352,6 +1355,12 @@ def _csharp_hole_end(code: str, start: int, chars: list[str], escape: str = "") 
         token = _CSHARP_TOKEN_START_RE.match(code, index)
         if token is not None:
             after = _skip_csharp_token(code, token, chars)
+            if _closes_outer_string(code, token, after, escape):
+                # A quote that opens nothing closable is the outer string's
+                # own close: the hole was never closed. Undo the nested
+                # blanking and end the hole at that quote.
+                chars[index:after] = code[index:after]
+                return index
             if format_allowed and code.find("\n", index, after) >= 0:
                 format_allowed = False
             index = after
@@ -1383,6 +1392,21 @@ def _csharp_hole_end(code: str, start: int, chars: list[str], escape: str = "") 
     return index
 
 
+def _closes_outer_string(code: str, token: re.Match[str], after: int, escape: str) -> bool:
+    """Whether ``token``, a quote inside a hole, is really the outer close.
+
+    It is when it opens a string that ends at its line end unterminated: a
+    plain "..." in a regular outer string, or a run of at least the outer
+    raw string's quotes in a raw outer string.
+    """
+    if escape == "\\" and token.group(0) == '"':
+        return after <= token.end() or code[after - 1] != '"'
+    quotes = token.group("quotes")
+    if len(escape) < 3 or not quotes or token.group("prefix") or len(quotes) < len(escape):
+        return False
+    return not code.startswith(quotes, after - len(quotes)) or after - len(quotes) < token.end()
+
+
 def _csharp_format_span_end(code: str, start: int, escape: str) -> int:
     """Index of the character that ends the format specifier at ``start``.
 
@@ -1392,7 +1416,11 @@ def _csharp_format_span_end(code: str, start: int, escape: str) -> int:
     """
     index = start
     while index < len(code):
-        if escape == "\\" and code[index] == "\\" and code[index + 1 : index + 2] not in ("", "\n"):
+        if (
+            escape == "\\"
+            and code[index] == "\\"
+            and code[index + 1 : index + 2] not in ("", "\n", "{", "}")
+        ):
             index += 2
             continue
         if escape == '"' and code.startswith('""', index):
@@ -1406,10 +1434,21 @@ def _csharp_format_span_end(code: str, start: int, escape: str) -> int:
 
 # Words that start a statement or declaration. One at the top level of a hole
 # means the hole is malformed and its "}" belongs to other code.
+# Only reserved words: contextual keywords such as record, where and var are
+# also legal names, as in {record.Total:N2}.
 _CSHARP_STATEMENT_WORD_RE = re.compile(
-    r"(?:case|class|struct|interface|enum|record|where|goto|return|void|public"
-    r"|private|protected|internal|static|namespace|using|var)\b"
+    r"(?:case|class|struct|interface|enum|goto|return|void|public"
+    r"|private|protected|internal|static|namespace|using)\b"
 )
+
+
+def _is_name_char_or_member(before: str) -> bool:
+    """Whether ``before`` continues a name, so the next word is not a keyword.
+
+    A word after "@" is a verbatim identifier. A reserved word after "."
+    stays a keyword, because only "@" lets one name a member.
+    """
+    return before.isalnum() or before in ("_", "@")
 
 
 def _ends_format_context(code: str, index: int) -> bool:
@@ -1424,7 +1463,7 @@ def _ends_format_context(code: str, index: int) -> bool:
     char = code[index]
     if char == ";":
         return True
-    if char.isalpha() and not code[index - 1 : index].replace("_", "a").isalnum():
+    if char.isalpha() and not _is_name_char_or_member(code[index - 1 : index]):
         return _CSHARP_STATEMENT_WORD_RE.match(code, index) is not None
     if char != "?":
         return False
@@ -1502,7 +1541,7 @@ def _csharp_raw_string_end(code: str, match: re.Match[str], chars: list[str]) ->
         while code.startswith("{" * (dollars + 1), hole):
             hole += 1
         _blank_span(chars, index, hole)
-        index = _csharp_hole_end(code, hole, chars)
+        index = _csharp_hole_end(code, hole, chars, quotes)
 
 
 def _blank_csharp_string(code: str, match: re.Match[str], chars: list[str]) -> int:
