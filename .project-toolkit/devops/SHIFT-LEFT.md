@@ -466,7 +466,7 @@ the commit and the push.
 `path-normalization`, and `planning-artifacts`. The `Review Axis Drift` gate and
 the `review-axis-drift` job were retired on 2026-11-19 with the generated
 review-axis prompts. `Colocated Skill Tests` wraps the script behind the pre-commit job
-`colocated-skill-tests`. Neither repeat is removed by this change.
+`colocated-skill-tests`. That repeat is not removed by this change.
 
 A required CI check repeats a local job, or a count form of it, when the CI
 counterpart cell says `Required`. The repeat is deliberate: CI is the backstop for pushes that skip

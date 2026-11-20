@@ -72,7 +72,7 @@ Merge rules (canonical source: `merge_verdicts` in [`.claude/lib/ai_review_commo
 
 [`pr-comment-responder`](pr-comment-responder.md) points local quality gates here before a push. `review` stays the pre-merge gate and writes the marker that [`ship`](ship.md) validates.
 
-To add a seventh axis, add its criteria file to the `review` skill's references, then add one row to the Axes table in `SKILL.md`.
+To add a seventh axis, add its criteria file to the `review` skill's references. Then, in `templates/skills/pr-quality.SKILL.md.tmpl`, add one row to the Axes table and one to the summary table, and run `uv run python build/scripts/build_all.py`.
 
 ## Where it runs
 
