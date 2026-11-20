@@ -22,25 +22,41 @@ This guide defines security best practices that should be enforced during code r
 #### Do: Allowlist Validation
 
 ```csharp
-// GOOD: Explicit allowlist
-var allowedRoles = new[] { "user", "admin", "moderator" };
-if (!allowedRoles.Contains(input.Role))
-    throw new ValidationException("Invalid role");
+using System;
+using System.ComponentModel.DataAnnotations;
+using System.Linq;
+using System.Text.RegularExpressions;
 
-// GOOD: Regex with bounded pattern
-var emailPattern = @"^[a-zA-Z0-9._%+-]{1,64}@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$";
-if (!Regex.IsMatch(input.Email, emailPattern))
-    throw new ValidationException("Invalid email");
+static void ValidateRegistration(RegistrationInput input)
+{
+    // Check allowed values here. Authorize privileged role assignments separately.
+    var allowedRoles = new[] { "user", "admin", "moderator" };
+    if (!allowedRoles.Contains(input.Role, StringComparer.Ordinal))
+        throw new ValidationException("Invalid role");
+
+    // This pattern describes the application's accepted subset of addresses.
+    const string emailPattern = @"\A[a-zA-Z0-9._%+-]{1,64}@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\z";
+    if (input.Email.Length > 254 ||
+        !Regex.IsMatch(input.Email, emailPattern, RegexOptions.NonBacktracking))
+        throw new ValidationException("Invalid email");
+}
+
+record RegistrationInput(string Role, string Email);
 ```
 
 #### Don't: Denylist Validation
 
 ```csharp
-// BAD: Denylist (can be bypassed)
-var blockedChars = new[] { '<', '>', '&', '"', '\'' };
-if (input.Any(c => blockedChars.Contains(c)))
-    throw new ValidationException("Invalid characters");
-// Attacker can use: %3C (URL-encoded <), &#60; (HTML entity), etc.
+using System.ComponentModel.DataAnnotations;
+using System.Linq;
+
+static void ValidateByDenylist(string input)
+{
+    // BAD: A list of literal characters misses encoded forms such as %3C and &#60;.
+    var blockedChars = new[] { '<', '>', '&', '"', '\'' };
+    if (input.Any(c => blockedChars.Contains(c)))
+        throw new ValidationException("Invalid characters");
+}
 ```
 
 ### Input Validation Checklist
@@ -76,30 +92,49 @@ if (input.Any(c => blockedChars.Contains(c)))
 #### Do: Safe Error Responses
 
 ```csharp
-// GOOD: Generic message, detailed logging
-try
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
+
+static async Task<IResult> AuthenticateAsync(
+    string userId,
+    Func<CancellationToken, Task<bool>> verifyCredentials,
+    ILogger logger,
+    CancellationToken cancellationToken)
 {
-    await AuthenticateUser(credentials);
-}
-catch (Exception ex)
-{
-    _logger.LogWarning(ex, "Authentication failed for user {UserId}", credentials.UserId);
-    return Unauthorized("Authentication failed");  // Generic
+    if (await verifyCredentials(cancellationToken))
+        return Results.NoContent();
+
+    logger.LogWarning("Authentication failed for user {UserId}", userId);
+    return Results.Unauthorized();
 }
 ```
 
 #### Don't: Verbose Error Responses
 
 ```csharp
-// BAD: Exposes system details
-catch (SqlException ex)
+using System;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Data.SqlClient;
+
+static IResult FindUser(Func<User?> queryUser)
 {
-    return BadRequest($"Database error: {ex.Message} - Stack: {ex.StackTrace}");
+    try
+    {
+        var user = queryUser();
+        // BAD: Reveals whether the supplied account exists.
+        return user is null ? Results.NotFound("User john@example.com not found") : Results.Ok(user);
+    }
+    catch (SqlException ex)
+    {
+        // BAD: Exposes system details.
+        return Results.BadRequest($"Database error: {ex.Message} - Stack: {ex.StackTrace}");
+    }
 }
 
-// BAD: Reveals user existence
-if (user == null)
-    return NotFound("User john@example.com not found");  // Information leak
+record User(string Id);
 ```
 
 ### Error Handling Checklist
@@ -134,26 +169,38 @@ if (user == null)
 #### Do: Structured, Safe Logging
 
 ```csharp
-// GOOD: Structured logging without sensitive data
-_logger.LogInformation(
-    "User {UserId} accessed resource {ResourceId} at {Timestamp}",
-    userId, resourceId, DateTime.UtcNow);
+using System;
+using Microsoft.Extensions.Logging;
 
-// GOOD: Masked sensitive data
-_logger.LogDebug("Processing payment for card ending in {CardLast4}", card.Last4);
+static void LogResourceAccess(ILogger logger, string userId, string resourceId) =>
+    logger.LogInformation(
+        "User {UserId} accessed resource {ResourceId} at {Timestamp}",
+        userId, resourceId, DateTimeOffset.UtcNow);
+
+// The payment provider gives this code only the masked suffix.
+static void LogPayment(ILogger logger, MaskedCard card) =>
+    logger.LogDebug("Processing payment for card ending in {CardLast4}", card.Last4);
+
+record MaskedCard(string Last4);
 ```
 
 #### Don't: Dangerous Logging
 
 ```csharp
-// BAD: Logging password
-_logger.LogDebug($"Login attempt: {username}/{password}");
+using System.Text.Json;
+using Microsoft.Extensions.Logging;
 
-// BAD: Logging full request
-_logger.LogDebug($"Request body: {JsonSerializer.Serialize(request)}");
+static void LogSecrets(ILogger logger, string username, string password, object request, string jwtToken)
+{
+    // BAD: Logging password
+    logger.LogDebug($"Login attempt: {username}/{password}");
 
-// BAD: Logging token
-_logger.LogInformation($"Generated token: {jwtToken}");
+    // BAD: Logging full request
+    logger.LogDebug($"Request body: {JsonSerializer.Serialize(request)}");
+
+    // BAD: Logging token
+    logger.LogInformation($"Generated token: {jwtToken}");
+}
 ```
 
 ### Logging Checklist
@@ -187,28 +234,53 @@ _logger.LogInformation($"Generated token: {jwtToken}");
 
 #### Do: Use Standard Libraries
 
-```csharp
-// GOOD: Using built-in secure password hashing
-// Qualify the class: under `using BCrypt.Net;` the name BCrypt binds to the namespace.
-var hash = BCrypt.Net.BCrypt.HashPassword(password, BCrypt.Net.BCrypt.GenerateSalt(12));
-var valid = BCrypt.Net.BCrypt.Verify(password, storedHash);
+The password example requires the `BCrypt.Net-Next` NuGet package.
+Store the nonce and authentication tag alongside the ciphertext.
 
-// GOOD: Using AES-GCM for encryption
-using var aesGcm = new AesGcm(key, AesGcm.TagByteSizes.MaxSize);
-aesGcm.Encrypt(nonce, plaintext, ciphertext, tag);
+```csharp
+using System;
+using System.Security.Cryptography;
+using PasswordHasher = BCrypt.Net.BCrypt;
+
+static string HashPassword(string password) => PasswordHasher.HashPassword(password, workFactor: 12);
+
+static bool VerifyPassword(string password, string storedHash) => PasswordHasher.Verify(password, storedHash);
+
+static (byte[] Nonce, byte[] Ciphertext, byte[] Tag) Encrypt(ReadOnlySpan<byte> key, ReadOnlySpan<byte> plaintext)
+{
+    if (key.Length != 32)
+        throw new ArgumentException("AES-256 requires a 32-byte key.", nameof(key));
+
+    var nonce = RandomNumberGenerator.GetBytes(AesGcm.NonceByteSizes.MaxSize);
+    var ciphertext = new byte[plaintext.Length];
+    var tag = new byte[AesGcm.TagByteSizes.MaxSize];
+    using var aesGcm = new AesGcm(key, tag.Length);
+    aesGcm.Encrypt(nonce, plaintext, ciphertext, tag);
+    return (nonce, ciphertext, tag);
+}
 ```
 
 #### Don't: Roll Your Own Crypto
 
 ```csharp
-// BAD: Custom encryption
-var encrypted = XorWithKey(data, secretKey);
+using System;
+using System.Security.Cryptography;
+using System.Text;
 
-// BAD: Weak hashing for passwords
-var hash = MD5.Create().ComputeHash(Encoding.UTF8.GetBytes(password));
+// BAD: Reusing the same XOR key exposes relationships between plaintexts.
+static byte[] XorWithKey(ReadOnlySpan<byte> data, byte key)
+{
+    var encrypted = new byte[data.Length];
+    for (int i = 0; i < data.Length; i++)
+        encrypted[i] = (byte)(data[i] ^ key);
+    return encrypted;
+}
 
-// BAD: Hardcoded IV
-var iv = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 };
+// BAD: Weak hashing for passwords.
+static byte[] WeakPasswordHash(string password) => MD5.HashData(Encoding.UTF8.GetBytes(password));
+
+// BAD: Every encryption would reuse the same IV.
+static byte[] FixedIv() => new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 };
 ```
 
 ### Cryptography Checklist
@@ -243,47 +315,137 @@ var iv = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 };
 
 #### Authentication Tests
 
+Derive a test class with an isolated application client for each test.
+Seed the active and locked accounts below and allow five failed attempts per account.
+
 ```csharp
-[Fact]
-public void Login_ValidCredentials_ReturnsToken() { ... }
+using System.Net;
+using System.Net.Http;
+using System.Net.Http.Json;
+using System.Threading.Tasks;
+using Xunit;
 
-[Fact]
-public void Login_InvalidPassword_ReturnsUnauthorized() { ... }
+public abstract class AuthenticationTests(HttpClient client)
+{
+    private const string ActiveAccount = "active@example.test";
+    private const string TestPassword = "local-fixture-password";
 
-[Fact]
-public void Login_NonexistentUser_ReturnsUnauthorized() { ... }
+    [Fact]
+    public async Task Login_ValidCredentials_ReturnsToken()
+    {
+        using var response = await Login(ActiveAccount, TestPassword);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var token = await response.Content.ReadFromJsonAsync<LoginResponse>();
+        Assert.False(string.IsNullOrWhiteSpace(token?.AccessToken));
+    }
 
-[Fact]
-public void Login_LockedAccount_ReturnsLocked() { ... }
+    [Fact]
+    public async Task Login_InvalidPassword_ReturnsUnauthorized()
+    {
+        using var response = await Login(ActiveAccount, "incorrect");
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
 
-[Fact]
-public void Login_BruteForce_RateLimits() { ... }
+    [Fact]
+    public async Task Login_NonexistentUser_ReturnsSameResponseAsInvalidPassword()
+    {
+        using var missing = await Login("missing@example.test", TestPassword);
+        using var invalid = await Login(ActiveAccount, "incorrect");
+        Assert.Equal(HttpStatusCode.Unauthorized, missing.StatusCode);
+        Assert.Equal(invalid.StatusCode, missing.StatusCode);
+        Assert.Equal(await invalid.Content.ReadAsStringAsync(), await missing.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Login_LockedAccount_DeniesValidCredentials()
+    {
+        using var response = await Login("locked@example.test", TestPassword);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Login_BruteForce_RateLimits()
+    {
+        for (int attempt = 0; attempt < 5; attempt++)
+        {
+            using var failure = await Login(ActiveAccount, "incorrect");
+            Assert.Equal(HttpStatusCode.Unauthorized, failure.StatusCode);
+        }
+
+        using var limited = await Login(ActiveAccount, "incorrect");
+        Assert.Equal(HttpStatusCode.TooManyRequests, limited.StatusCode);
+    }
+
+    private Task<HttpResponseMessage> Login(string email, string password) =>
+        client.PostAsJsonAsync("/login", new { email, password });
+
+    private sealed record LoginResponse(string AccessToken);
+}
 ```
 
 #### Authorization Tests
 
+Configure the fixture clients with distinct identities and seed resource `42` for the owner.
+
 ```csharp
-[Fact]
-public void GetResource_OwnerAccess_ReturnsOk() { ... }
+using System.Net;
+using System.Net.Http;
+using System.Threading.Tasks;
+using Xunit;
 
-[Fact]
-public void GetResource_OtherUserAccess_ReturnsForbidden() { ... }
+public abstract class AuthorizationTests(HttpClient owner, HttpClient otherUser, HttpClient admin)
+{
+    [Fact]
+    public async Task GetResource_OwnerAccess_ReturnsOk()
+    {
+        using var response = await owner.GetAsync("/resources/42");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
 
-[Fact]
-public void AdminEndpoint_NonAdmin_ReturnsForbidden() { ... }
+    [Fact]
+    public async Task GetResource_OtherUserAccess_ReturnsForbidden()
+    {
+        using var response = await otherUser.GetAsync("/resources/42");
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
 
-[Fact]
-public void AdminEndpoint_Admin_ReturnsOk() { ... }
+    [Fact]
+    public async Task AdminEndpoint_NonAdmin_ReturnsForbidden()
+    {
+        using var response = await owner.GetAsync("/admin");
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AdminEndpoint_Admin_ReturnsOk()
+    {
+        using var response = await admin.GetAsync("/admin");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+}
 ```
 
 #### Input Validation Tests
 
 ```csharp
-[Theory]
-[InlineData("<script>alert('xss')</script>")]
-[InlineData("'; DROP TABLE users; --")]
-[InlineData("../../../etc/passwd")]
-public void Endpoint_MaliciousInput_Sanitized(string input) { ... }
+using System.Net;
+using System.Net.Http;
+using System.Net.Http.Json;
+using System.Threading.Tasks;
+using Xunit;
+
+public abstract class InputValidationTests(HttpClient client)
+{
+    [Theory]
+    [InlineData("<script>alert('xss')</script>")]
+    [InlineData("'; DROP TABLE users; --")]
+    [InlineData("../../../etc/passwd")]
+    public async Task Endpoint_InvalidResourceName_RejectsInput(string input)
+    {
+        using var response = await client.PostAsJsonAsync("/resources", new { name = input });
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+}
 ```
 
 ### Security Testing Checklist
