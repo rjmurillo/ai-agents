@@ -15,10 +15,13 @@ Higher tiers override lower. Cite backing source when auditing.
 
 ## Severity Levels
 
-| Level      | Meaning                          | Action          |
-| ---------- | -------------------------------- | --------------- |
-| SHOULD_FIX | Likely to cause maintenance debt | Flag for fixing |
-| SUGGESTION | Improvement opportunity          | Note if time    |
+These match the dispositions code-reviewer reports. A default convention has
+no blocking rule behind it, so it never yields `blocking`.
+
+| Level          | Meaning                          | Action          |
+| -------------- | -------------------------------- | --------------- |
+| `non-blocking` | Likely to cause maintenance debt | Flag for fixing |
+| `polish`       | Improvement opportunity          | Note if time    |
 
 ---
 
@@ -26,28 +29,28 @@ Higher tiers override lower. Cite backing source when auditing.
 
 <default-conventions domain="god-object">
 **God Object**: >15 public methods OR >10 dependencies OR mixed concerns (networking + UI + data)
-Severity: SHOULD_FIX
+Severity: non-blocking
 </default-conventions>
 
 <default-conventions domain="god-function">
 **God Function**: >50 lines OR multiple abstraction levels OR >3 nesting levels
-Severity: SHOULD_FIX
+Severity: non-blocking
 Exception: Inherently sequential algorithms or state machines
 </default-conventions>
 
 <default-conventions domain="duplicate-logic">
 **Duplicate Logic**: Copy-pasted blocks, repeated error handling, parallel near-identical functions
-Severity: SHOULD_FIX
+Severity: non-blocking
 </default-conventions>
 
 <default-conventions domain="dead-code">
 **Dead Code**: No callers, impossible branches, unread variables, unused imports
-Severity: SUGGESTION
+Severity: polish
 </default-conventions>
 
 <default-conventions domain="inconsistent-error-handling">
 **Inconsistent Error Handling**: Mixed exceptions/error codes, inconsistent types, swallowed errors
-Severity: SUGGESTION
+Severity: polish
 Exception: Project specifies different handling per error category
 </default-conventions>
 
@@ -58,13 +61,13 @@ Exception: Project specifies different handling per error category
 <default-conventions domain="test-organization">
 **Test Organization**: Extend existing test files; create new only when:
 - Distinct module boundary OR >500 lines OR different fixtures required
-Severity: SHOULD_FIX (for unnecessary fragmentation)
+Severity: non-blocking (for unnecessary fragmentation)
 </default-conventions>
 
 <default-conventions domain="file-creation">
 **File Creation**: Prefer extending existing files; create new only when:
 - Clear module boundary OR >300-500 lines OR distinct responsibility
-Severity: SUGGESTION
+Severity: polish
 </default-conventions>
 
 ---
@@ -90,7 +93,7 @@ Severity: SUGGESTION
 - Test internals when public API covers them
 - Verify trivial behavior with no regression risk
 
-Severity: SHOULD_FIX (violations), SUGGESTION (missed opportunities)
+Severity: non-blocking (violations), polish (missed opportunities)
 </default-conventions>
 
 ---
@@ -100,11 +103,11 @@ Severity: SHOULD_FIX (violations), SUGGESTION (missed opportunities)
 <default-conventions domain="version-constraints">
 **Version Constraint Violation**: Features unavailable in project's documented target version
 Requires: Documented target version
-Severity: SHOULD_FIX
+Severity: non-blocking
 </default-conventions>
 
 <default-conventions domain="modernization">
 **Modernization Opportunity**: Legacy APIs, verbose patterns, manual stdlib reimplementations
-Severity: SUGGESTION
+Severity: polish
 Exception: Project requires legacy pattern
 </default-conventions>
