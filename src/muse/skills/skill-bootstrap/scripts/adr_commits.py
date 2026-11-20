@@ -101,6 +101,7 @@ __all__ = [
     "select_prs",
     "slugify",
     "trailing_pr_number",
+    "without_merge_lines",
     "urls_in",
     "word_tokens",
 ]
@@ -378,11 +379,15 @@ def _complete(item: dict[str, Any]) -> tuple[int, str, str, str, str] | None:
     return number, title.strip()[:MAX_SUBJECT_CHARS], text[:MAX_BODY_CHARS], url, day
 
 
-def select_prs(items: list[Any], dropped: dict[str, int]) -> list[PrRow]:
+def select_prs(items: list[Any], dropped: dict[str, int], base: str | None = None) -> list[PrRow]:
     """The merged, non-bot pull requests whose body states a reason (P9).
 
     Counts each rejection in ``dropped``: ``pr_incomplete`` (not merged or a field missing),
-    ``pr_bot``, ``pr_housekeeping`` (a release or version bump title) and ``pr_no_reason``.
+    ``pr_other_repo``, ``pr_bot``, ``pr_housekeeping`` (a release or version bump title) and
+    ``pr_no_reason``. ``base`` is the web address of this repository's origin. A row whose URL
+    is not under ``<base>/pull/``, compared without regard to case, is another repository's, so
+    it is dropped and covers no commit. With no known origin (``base`` is None) the export
+    cannot be checked and every complete row is kept.
     """
     rows: list[PrRow] = []
     for item in items:
@@ -391,7 +396,9 @@ def select_prs(items: list[Any], dropped: dict[str, int]) -> list[PrRow]:
             dropped["pr_incomplete"] = dropped.get("pr_incomplete", 0) + 1
             continue
         number, title, body, url, day = fields
-        if _is_bot(item):
+        if base is not None and not url.lower().startswith(f"{base.lower()}/pull/"):
+            dropped["pr_other_repo"] = dropped.get("pr_other_repo", 0) + 1
+        elif _is_bot(item):
             dropped["pr_bot"] = dropped.get("pr_bot", 0) + 1
         elif is_release_or_bump_subject(title):
             dropped["pr_housekeeping"] = dropped.get("pr_housekeeping", 0) + 1
@@ -442,6 +449,18 @@ def commit_pr_number(record: CommitRecord, promoted: str) -> int | None:
     merge = record.subject.startswith("Merge pull request #")
     digits = record.subject[len("Merge pull request #") :].split(" ", 1)[0]
     return int(digits) if merge and digits.isdigit() else None
+
+
+_MERGE_LINE = re.compile(r"merge (?:pull request|branch)\b", _I)
+
+
+def without_merge_lines(body: str) -> str:
+    """A promoted merge's body without its ``Merge pull request #N from x/y`` line.
+
+    ``resolve_commit_shape`` keeps that line so the ``#N`` survives. It names the pull request
+    and gives no reason, so the rationale check must not read it.
+    """
+    return "\n".join(line for line in body.split("\n") if not _MERGE_LINE.match(line.strip()))
 
 
 def is_covered(sha: str, subjects: tuple[str, ...], shas: set[str], numbers: set[int]) -> bool:

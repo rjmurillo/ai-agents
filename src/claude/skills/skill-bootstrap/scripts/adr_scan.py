@@ -60,14 +60,17 @@ from adr_commits import (
     parse_commit_object,
     sanitize,
     select_prs,
+    without_merge_lines,
 )
 from adr_docs import ExistingAdrs, log_candidates
 from adr_locate import locate_folders, read_adr_texts
 from adr_reason import extract_reason
 from adr_shape import (
+    CommitShape,
     has_stated_rationale,
     is_decision_commit,
     is_decision_shaped_title,
+    is_one_off_change_title,
     resolve_commit_shape,
 )
 
@@ -98,6 +101,7 @@ DROP_KEYS = (
     "covered_by_pr",
     "already_documented",
     "pr_incomplete",
+    "pr_other_repo",
     "pr_bot",
     "pr_housekeeping",
     "pr_no_reason",
@@ -135,6 +139,15 @@ def _commit_pending(
     return _Pending(candidate, (record.sha,), urls, number)
 
 
+def _states_reason(record: CommitRecord, shape: CommitShape) -> bool:
+    """The rationale gate. A promoted merge is read without its ``Merge pull request`` line, and
+    it also passes when its title is not a one-off change note: a title names a change, not why."""
+    if shape.subject == record.subject:
+        return has_stated_rationale(shape.subject, shape.body)
+    body = without_merge_lines(shape.body)
+    return has_stated_rationale(shape.subject, body) or not is_one_off_change_title(shape.subject)
+
+
 def _commit_candidates(
     records: list[CommitRecord],
     covering: tuple[set[str], set[int]],
@@ -147,7 +160,7 @@ def _commit_candidates(
         breaking = breaking_change(shape.subject, shape.body)
         if not is_decision_commit(shape.subject):
             dropped["housekeeping"] += 1
-        elif not breaking and not has_stated_rationale(shape.subject, shape.body):
+        elif not breaking and not _states_reason(record, shape):
             dropped["no_rationale"] += 1
         elif not breaking and not is_decision_shaped_title(shape.subject):
             dropped["not_decision_shaped"] += 1
@@ -158,10 +171,20 @@ def _commit_candidates(
     return pending
 
 
-def _pr_pending(rows: list[PrRow], dropped: dict[str, int]) -> list[_Pending]:
+def _pr_pending(rows: list[PrRow], dropped: dict[str, int]) -> tuple[list[_Pending], list[PrRow]]:
+    """The pull request candidates, and the rows that survived every filter.
+
+    A breaking change (E3) keeps a pull request whose title is not decision-shaped, as it keeps
+    a commit, once the commit floor has passed it (``chore!:`` stays out). Only the surviving
+    rows may cover a commit.
+    """
     pending: list[_Pending] = []
+    kept: list[PrRow] = []
     for row in rows:
-        if not is_decision_shaped_title(row.title):
+        breaking = breaking_change(row.title, row.body)
+        if not is_decision_shaped_title(row.title) and not (
+            breaking and is_decision_commit(row.title)
+        ):
             dropped["pr_not_decision_shaped"] += 1
             continue
         candidate: Candidate = {
@@ -172,11 +195,12 @@ def _pr_pending(rows: list[PrRow], dropped: dict[str, int]) -> list[_Pending]:
             "excerpt": excerpt(row.title, row.body),
             "date": row.merged_day,
             "source": {"number": row.number, "url": row.url, "sha": row.merge_sha},
-            "signals": [],
+            "signals": ["breaking-change"] if breaking else [],
         }
         shas = (row.merge_sha,) if row.merge_sha else ()
         pending.append(_Pending(candidate, shas, (row.url,), row.number))
-    return pending
+        kept.append(row)
+    return pending, kept
 
 
 def _suppress(
@@ -207,13 +231,13 @@ def scan(
     head = resolve_rev(root, rev)
     records, truncated = read_commits(root, head, max_commits, since)
     dropped = dict.fromkeys(DROP_KEYS, 0)
-    pr_rows = select_prs(prs or [], dropped)
     web = origin_web_base(root)
+    pr_rows = select_prs(prs or [], dropped, web[1] if web else None)
     folders = locate_folders(root)
     texts, skipped = read_adr_texts(root, folders)
     existing = ExistingAdrs(texts)
-    pending = _pr_pending(pr_rows, dropped)
-    pending += _commit_candidates(records, covering_numbers(pr_rows), web, dropped)
+    pending, kept_prs = _pr_pending(pr_rows, dropped)
+    pending += _commit_candidates(records, covering_numbers(kept_prs), web, dropped)
     candidates = _suppress(pending, existing, dropped)
     candidates.sort(key=lambda item: item["date"] or "", reverse=True)
     candidates += log_candidates(root, existing, dropped)
