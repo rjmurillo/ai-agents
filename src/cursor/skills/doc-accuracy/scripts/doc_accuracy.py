@@ -1494,8 +1494,9 @@ _DECLARED_NAME_PATTERNS["typescript"] = _DECLARED_NAME_PATTERNS["javascript"]
 _C_LIKE_NON_CODE_RE = re.compile(
     r"(?s)/\*.*?(?:\*/|\Z)"
     r"|//[^\n]*"
-    # C# raw (three or more quotes) and verbatim strings span lines.
-    r'|""".*?(?:"""|\Z)'
+    # C# raw strings (3 to 16 quotes, closed by the same run) and verbatim
+    # strings span lines. The cap keeps the backreference check linear.
+    r'|("{3,16}).*?(?:\1|\Z)'
     r'|(?:\$@|@\$?)"(?:""|[^"])*(?:"|\Z)'
     r"|\"(?:\\(?:.|\Z)|[^\"\\\n])*(?:\"|(?=\n)|\Z)"
     r"|'(?:\\(?:.|\Z)|[^'\\\n])*(?:'|(?=\n)|\Z)"
