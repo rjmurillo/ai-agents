@@ -146,6 +146,17 @@
       "expected_route": ["orchestrator"],
       "forbidden_routes": ["merge-resolver", "github"],
       "rationale": "The Phase 2 table maps multi-domain, cross-cutting work to Agent: orchestrator on every host. A response that hands it to one single-domain agent such as merge-resolver, or to the github skill, selected an adjacent route and fails."
+    },
+    {
+      "id": "R14",
+      "family": "high-traffic-direct",
+      "desc": "A plan step that needs an ADR routes to adr-generator before any file is written, not a hand-written draft",
+      "input": "We agreed on the plan. Option B needs an ADR that adds typed inputs and outputs to skill frontmatter, and the next free number is ADR-123. Go ahead with option B. Answer in 5 short bullets naming the route you pick for the ADR. Do not modify any files.",
+      "expected_signals": ["adr-generator"],
+      "expected_gate": "route-adr-generator",
+      "expected_route": ["adr-generator"],
+      "forbidden_routes": ["orchestrator"],
+      "rationale": "Miss 2026-11-19: a session approved a plan that needed ADR-123, then wrote the ADR by hand after copying ADR-122's format. The table row 'Document a decision, or a plan needs an ADR' maps this to Skill: adr-generator, which then hands off to adr-review. Handing a single ADR to the orchestrator selected an adjacent route and fails."
     }
   ]
 }

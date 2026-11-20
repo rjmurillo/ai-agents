@@ -363,9 +363,18 @@ def load_skill(directory: Path, root: Path | None = None) -> SkillDoc:
     except (OSError, UnicodeDecodeError) as exc:
         doc.frontmatter_error = f"cannot read {doc.skill_md.name} as UTF-8: {exc}"
         return doc
+    parse_doc_text(doc)
+    return doc
+
+
+def parse_doc_text(doc: SkillDoc) -> None:
+    """Split and parse doc.text, filling body, fields, and the error fields.
+
+    Shared by `load_skill` and callers that hold SKILL.md text not on disk.
+    """
     raw, doc.body, doc.frontmatter_error = split_frontmatter(doc.text)
     if raw is None:
-        return doc
+        return
     doc.has_frontmatter = True
     try:
         doc.fields = parse_frontmatter(raw)
@@ -373,7 +382,6 @@ def load_skill(directory: Path, root: Path | None = None) -> SkillDoc:
         doc.unsupported = str(exc)
     except ParseError as exc:
         doc.parse_error = str(exc)
-    return doc
 
 
 def file_id(path: Path) -> tuple[int, int] | None:

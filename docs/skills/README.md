@@ -64,17 +64,9 @@ The **Slash command** column tells you how the skill is meant to start:
 
 ## PR quality axes
 
-Each axis reviews your local diff and returns PASS, WARN, or CRITICAL_FAIL. Run them all with `/pr-quality-all`.
-
 | Skill | Slash command | Use it to |
 | --- | --- | --- |
-| [`pr-quality-all`](pr-quality-all.md) | `/pr-quality-all` | Run all six axes against your working diff |
-| [`pr-quality-analyst`](pr-quality-analyst.md) | `/pr-quality-analyst` | Judge code quality, blast radius, and upkeep cost |
-| [`pr-quality-architect`](pr-quality-architect.md) | `/pr-quality-architect` | Judge design, boundaries, coupling, and ADR fit |
-| [`pr-quality-devops`](pr-quality-devops.md) | `/pr-quality-devops` | Judge CI/CD, build, and infrastructure risk |
-| [`pr-quality-qa`](pr-quality-qa.md) | `/pr-quality-qa` | Judge test coverage and error handling |
-| [`pr-quality-roadmap`](pr-quality-roadmap.md) | `/pr-quality-roadmap` | Judge scope creep and user value |
-| [`pr-quality-security`](pr-quality-security.md) | `/pr-quality-security` | Scan for vulnerabilities and exposed secrets |
+| [`pr-quality`](pr-quality.md) | `/pr-quality` | Judge your working diff on six axes (security, QA, analyst, architect, DevOps, roadmap), or one with `--axis` |
 
 ## Memory and context
 

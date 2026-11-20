@@ -6,7 +6,7 @@ Answers the review comments on one or more pull requests, then runs a completion
 
 - You have review comments on a PR and want a merge verdict at the end.
 - You have comments on several PRs and want one run to cover them.
-- Trigger phrases: `pr-review 1234`, `pr-review 12 15 --parallel`, `respond to review comments and tell me if it can merge`, `address the review feedback`, `handle the bot comments on my PR`.
+- Trigger phrases: `/pr-review 1234`, `/pr-review 12 15 --parallel`, `respond to review comments and tell me if it can merge`, `address the review feedback`, `handle the bot comments on my PR`.
 
 ## When not to use it
 

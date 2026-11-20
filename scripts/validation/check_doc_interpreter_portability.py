@@ -54,8 +54,7 @@ Scope:
     decided or done, not instructions to follow. Rewriting a session log or an
     ADR body to change a command it quotes would falsify the record.
   * **Generated mirrors** (``src/copilot-cli/``, ``src/vs-code-agents/``,
-    ``.github/instructions/``, and generated
-    ``.github/prompts/pr-quality-gate-*.md`` files).
+    and ``.github/instructions/``).
     ``.agents/governance/GENERATOR-FILES.md`` names a generator for each. The
     fix belongs in the canonical source and arrives here by regeneration.
     ``src/claude/`` is deliberately NOT on that list. It looks like a mirror and
@@ -173,7 +172,6 @@ GENERATED_ROOTS: tuple[str, ...] = (
     "src/copilot-cli/",
     "src/vs-code-agents/",
 )
-GENERATED_PROMPT_PREFIX: str = ".github/prompts/pr-quality-gate-"
 
 # Test files build offending invocations on purpose, as fixtures for this guard
 # and its siblings. Same shape as the `tests/hooks/fixtures/` carve-out in
@@ -263,10 +261,7 @@ def tracked_py_with_links(repo_root: Path) -> set[str]:
 
 def is_in_scope(rel_path: str) -> bool:
     """Return whether a file carries instructions this guard should gate."""
-    generated_prompt = rel_path.startswith(GENERATED_PROMPT_PREFIX) and rel_path.endswith(".md")
-    return not (
-        rel_path.startswith(HISTORICAL_ROOTS + GENERATED_ROOTS + FIXTURE_ROOTS) or generated_prompt
-    )
+    return not rel_path.startswith(HISTORICAL_ROOTS + GENERATED_ROOTS + FIXTURE_ROOTS)
 
 
 def is_declared(lines: list[str], index: int) -> bool:

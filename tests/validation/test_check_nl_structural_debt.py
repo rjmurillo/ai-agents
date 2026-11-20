@@ -377,14 +377,12 @@ def test_partials_and_hand_maintained_prompts_are_authored(repo: Path) -> None:
     _write(repo, "templates/agents/partials/p.mustache", "Partial.\n" + _POLICY)
     _write(repo, "templates/skills/partials/q.mustache", "Partial.\n" + _POLICY)
     _write(repo, ".github/prompts/hand.md", "Prompt.\n" + _POLICY)
-    _write(repo, ".github/prompts/pr-quality-gate-x.md", "Generated.\n" + _POLICY)
     paths = {p.relative_to(repo).as_posix() for p in gate.authored_files(repo)}
     assert {
         "templates/agents/partials/p.mustache",
         "templates/skills/partials/q.mustache",
         ".github/prompts/hand.md",
     } <= paths
-    assert ".github/prompts/pr-quality-gate-x.md" not in paths
     pairs = gate.measure(repo)["duplicate_blocks"]
     assert any("templates/agents/partials/p.mustache" in key for key in pairs)
     assert any(".github/prompts/hand.md" in key for key in pairs)

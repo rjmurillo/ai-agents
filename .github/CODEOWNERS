@@ -7,16 +7,12 @@
 # Note: the former `.claude/review-axes/` was moved to
 # `.claude/skills/review/references/` in PR #2043; pin the current path.
 
-# Canonical /review axis criteria (CI prompts are generated from these).
+# Canonical /review axis criteria.
 /.claude/skills/review/references/        @rjmurillo
 # The link entry itself: retargeting it would swap every axis prompt.
 /.claude/skills/review                     @rjmurillo
 # .claude/skills/review links to src/claude/skills/review (ADR-119); edits land here.
 /src/claude/skills/review/references/     @rjmurillo
-
-# Generated CI review prompts (pr-quality gate, per role).
-/.github/prompts/pr-quality-gate-*.md     @rjmurillo
-/.github/prompts/pr-quality.*.prompt.md   @rjmurillo
 
 # Shared library backing the AI review gates and the plugin hook shims. The
 # canonical packages live under scripts/; .claude/lib/ holds relative links

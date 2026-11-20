@@ -75,6 +75,12 @@ so a trigger phrase listed only in the body never routes.
 To measure whether a description change helps, use `skillopt` and its
 `references/description-optimization.md`.
 
+### Limits and routing contract
+
+Frontmatter shapes, size limits, description length, and trigger-phrase routing
+live in [frontmatter-and-limits.md](frontmatter-and-limits.md), with a
+deterministic check for each rule in this skill's `lint_skill_frontmatter.py`.
+
 For scripts bundled in a skill, read `references/script-design-rules.md`. It owns
 the rules for prompts, `--help`, streams, exit codes, and `--dry-run`.
 

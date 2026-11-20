@@ -1,7 +1,7 @@
 ---
 name: skillopt
 version: 1.0.0
-description: Improve a skill, agent file, or prompt through bounded patches and a held-out, per-task acceptance gate. Use when you say `optimize this skill`, `make this skill better`, `compress these skills safely`, `tune this prompt against an eval`, or a skill keeps failing the same way. Do NOT use to create or route skills (use skillforge) or to decide skill placement or compress markdown without an eval (use context-optimizer).
+description: Improve a skill, agent file, or prompt through bounded patches and a held-out, per-task acceptance gate. Use when you say `optimize this skill`, `make this skill better`, `compress these skills safely`, `tune this prompt against an eval`, or a skill keeps failing the same way. To find why a skill failed in past sessions, use skill-doctor first. Do NOT use to create or route skills (use skillforge) or to decide skill placement or compress markdown without an eval (use context-optimizer).
 license: MIT
 metadata:
   capability:
@@ -196,7 +196,8 @@ One optimization step:
    incumbent is never written; an `--out` that resolves to the incumbent exits
    2. Exit 2 is a usage or validation error, not a gate loss: an empty `sel`
    split, an incumbent `--out`, budget overflow, a bad anchor, a protected
-   fence, or marker text inside a patch.
+   fence, marker text in a patch, or a new MUST failure from skillforge's
+   `lint_skill_frontmatter.py`.
 6. **Re-roll** every task on `candidate.md` into `candidate_results.json`.
    For a bundle, `apply` writes a new directory. Finish every edit to its
    scripts first, then run the command tasks, then `hash` the final

@@ -7,7 +7,7 @@ Runs health, size, and speed checks on the memory stores. It counts tokens, vali
 - You want to know which memory tiers are readable before a maintenance batch.
 - You want the token cost of a memory before you retrieve it.
 - You want to check that memory files stay small and focused.
-- Trigger phrases: `check memory health`, `count memory tokens`, `benchmark memory performance`.
+- Trigger phrases: `check memory tier health`, `count memory tokens`, `benchmark memory performance`.
 
 ## When not to use it
 

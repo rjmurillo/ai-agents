@@ -13,8 +13,10 @@ from stale_script_refs import HISTORICAL_ROOTS
 
 _FILENAME: re.Pattern[str] | None = None
 # A colon range that is not already the tail of a path citation. ``file.py:12``
-# has a word character before the colon, so it stays with the matcher.
-_BARE_RANGE = re.compile(r"(?<![\w./\\-]):(?P<start>\d+)(?:-(?P<end>\d+))?\b")
+# has a word character before the colon, so it stays with the matcher. A
+# decimal such as ``"min":118.22`` in a JSON measurement is a number, not a
+# line, so a range followed by ``.<digit>`` never binds.
+_BARE_RANGE = re.compile(r"(?<![\w./\\-]):(?P<start>\d+)(?:-(?P<end>\d+))?\b(?!\.\d)")
 # Text formats this repository actually cites; extend when a real
 # citation to a new format appears rather than enumerating every
 # extension in existence (each entry adds matcher surface).

@@ -492,6 +492,9 @@
         ]
       },
       "rationale": "An unknown skill reference resolves to none, never a guessed route."
-    }
+    },
+    {"id": "lt-pr-review-merge-verdict", "family": "long-tail-single-domain", "request": "Respond to review comments on PR 12 and tell me if it can merge.", "expect": {"kind": "specialist", "route": "pr-review", "routes_absent": ["orchestrator", "review"]}, "rationale": "pr-review is a routed front door (ADR-123 change); its intent covers the merge verdict."},
+    {"id": "lt-pr-review-code-review-negative", "family": "negative-noise", "request": "Do a PR review of my branch.", "expect": {"kind": "none", "route": null, "routes_absent": ["pr-review"]}, "rationale": "Negative control: a code-review request must not route to pr-review, which answers existing review comments."},
+    {"id": "lt-takeover-bare", "family": "long-tail-single-domain", "request": "Takeover the stalled branch from yesterday.", "expect": {"kind": "specialist", "route": "takeover", "routes_absent": ["orchestrator"]}, "rationale": "The description quotes the bare word takeover, so an intent now covers it."}
   ]
 }

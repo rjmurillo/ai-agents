@@ -7,11 +7,12 @@ Writes a new Architecture Decision Record (ADR) for a decision you describe. It 
 - You need to document a technical decision, with its context, alternatives, and consequences.
 - You want to capture the rationale so future maintainers can revisit a choice.
 - You are creating an ADR-like file under `.project-toolkit/architecture/`, `docs/adr/`, `docs/architecture/`, `docs/decisions/`, or `architecture/decisions/`.
-- You say `write an ADR`, `create an ADR`, `generate ADR for`, `document these design choices`, or `record why we chose this`.
+- You are about to write or edit any ADR file, even when nobody named an ADR, such as a plan step that needs one.
+- You say `draft ADR-NNN`, `amend ADR-NNN`, `supersede ADR-NNN`, `write an ADR`, `document these design choices`, or `record why we chose this`.
 
 ## When not to use it
 
-- You want to debate or review an ADR that exists: use [`adr-review`](adr-review.md) instead.
+- You want to review an ADR, or apply findings inside an open debate round: use [`adr-review`](adr-review.md) instead.
 - The decision is a minor implementation detail, trivially reversible, and local. The skill suggests you skip the ADR.
 - You are changing an existing system and need its history first: run [`chestertons-fence`](chestertons-fence.md), which this skill also calls for prior art.
 

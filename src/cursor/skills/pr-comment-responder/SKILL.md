@@ -7,7 +7,7 @@ description: Work the review threads on one pull request. Gathers every comment,
   "address the review feedback on this PR", "handle bot review comments", or "reply to reviewer".
   Do NOT use for several PRs at once or a completion-gate verdict (use pr-review), for a
   single known reply (use post_pr_comment_reply.py directly), for a full pre-merge review
-  (use review), or to run the local quality gates before pushing (use pr-quality-all).
+  (use review), or to run the local quality gates before pushing (use pr-quality).
 license: MIT
 metadata:
   capability:
@@ -21,6 +21,11 @@ metadata:
     invoker: autoplan
     trigger: autoplan routes requests to respond to PR review threads to pr-comment-responder
     user-facing: true
+    intents:
+      - respond to pr comments
+      - address the review feedback
+      - handle bot review comments
+      - reply to reviewer
 ---
 # PR Comment Responder
 

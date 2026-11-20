@@ -7,7 +7,7 @@ Checks a list of changed files against known security-critical patterns. It tell
 - You are about to commit changes that may touch infrastructure or security files.
 - You want a pre-commit or CI gate for security-sensitive paths.
 - You need to know whether a security agent review is warranted.
-- Trigger phrases: `scan for security changes`, `check security-critical files`, `run security scan on changes`, `do I need a security review`, `check infrastructure changes`, `did I touch security-critical files`.
+- Trigger phrases: `scan for security changes`, `check security-critical files`, `does this change need security review`, `do I need a security review`, `check infrastructure changes`, `did I touch security-critical files`.
 
 ## When not to use it
 
