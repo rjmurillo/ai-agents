@@ -44,7 +44,10 @@ class FrontDoor:
 
 
 def load_resolver(repo_root: Path) -> tuple[ModuleType, list[object]] | None:
-    """Import the shipped resolver and build its catalog root, or None.
+    """Import the shipped resolver and build its catalog root.
+
+    Returns None when the resolver script or the catalog is absent. Raises
+    when the resolver fails to import or to build its roots.
 
     The import executes only `resolve_route.py`, which reads `SKILL.md`
     frontmatter and runs no skill content (REQ-039 "Security").

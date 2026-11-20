@@ -229,7 +229,7 @@ _resolver_cache: list[ModuleType] = []
 
 
 def _resolver() -> ModuleType:
-    """Load autoplan's resolver from this plugin once per process.
+    """Load autoplan's resolver from this plugin once per module load.
 
     Any failure to find or load it is NotEvaluatedError, never a crash: the
     linter and `skillopt apply` must report the rule as not evaluated.
