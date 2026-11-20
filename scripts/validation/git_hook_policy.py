@@ -46,6 +46,7 @@ from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
 from scripts.ci import diff_line_scope
 from scripts.ci.run_pytest_partition import PYTEST_DIST_MODE
+from scripts.hook_utilities.frontmatter_block import parse_frontmatter, split_frontmatter
 from scripts.hook_utilities.utilities import recent_host_session_dates
 from scripts.validation import (
     cli_smoke_paths,
@@ -276,7 +277,6 @@ DEBATE_LOG_VERDICT_LABEL_RE = re.compile(
     re.IGNORECASE,
 )
 DEBATE_LOG_HEADING_RE = re.compile(r"(?m)^#{1,6} \S")
-FRONTMATTER_FIELD_RE = re.compile(r"^([A-Za-z0-9_-]+):(.*)$")
 # `type: ignore` is excluded because this gate owns security suppressions.
 # Issue #4039 tracks separate enforcement for typing suppressions.
 SECURITY_SUPPRESSION_RE = re.compile(
@@ -1567,48 +1567,37 @@ def _session_log_for_current_branch(sessions_dir: Path, repo_root: Path) -> Path
 
 
 def _split_frontmatter(content: bytes) -> tuple[bytes, bytes]:
-    """Split a document into its frontmatter and its body, without decoding.
+    """Split a document into its frontmatter and its body, byte for byte.
 
-    The body is what callers compare for "unchanged", and that question is
-    about bytes. Decoding first with ``errors="replace"`` maps every byte the
-    decoder cannot read to the same replacement character, so two bodies
-    holding different invalid bytes came back equal and a real body edit rode
-    in under a metadata change.
+    The fence rule is ``scripts/hook_utilities/frontmatter_block.py``'s. The
+    body is what callers compare for "unchanged", and that question is about
+    bytes. ``errors="surrogateescape"`` maps each byte UTF-8 cannot read to its
+    own code point and back, so two bodies holding different invalid bytes
+    still compare unequal. ``errors="replace"`` would map them all to one
+    replacement character and let a real body edit ride in under a metadata
+    change. Blank lines right after the closing fence belong to the fence under
+    the shared rule, so they are not part of the body.
     """
-    lines = content.splitlines(keepends=True)
-    if not lines or lines[0].strip() != b"---":
+    text = content.decode("utf-8", "surrogateescape")
+    split = split_frontmatter(text)
+    if not split.found:
         return b"", content
-    for index in range(1, len(lines)):
-        if lines[index].strip() == b"---":
-            return b"".join(lines[1:index]), b"".join(lines[index + 1 :])
-    return b"", content
-
-
-def _has_duplicate_frontmatter_keys(frontmatter: str) -> bool:
-    seen: set[str] = set()
-    for line in frontmatter.splitlines():
-        if line.startswith((" ", "\t")):
-            continue
-        match = FRONTMATTER_FIELD_RE.match(line)
-        if match is None:
-            continue
-        key = match.group(1)
-        if key in seen:
-            return True
-        seen.add(key)
-    return False
+    frontmatter = split.raw.removeprefix("\n")
+    body = text[split.body_start :]
+    return frontmatter.encode("utf-8", "surrogateescape"), body.encode("utf-8", "surrogateescape")
 
 
 def _parse_frontmatter(frontmatter: str) -> dict[str, object] | None:
-    if _has_duplicate_frontmatter_keys(frontmatter):
-        return None
-    try:
-        loaded = yaml.safe_load(frontmatter)
-    except yaml.YAMLError:
-        return None
-    if loaded is None:
-        return {}
-    return loaded if isinstance(loaded, dict) else None
+    """Load one block's text, cut by ``_split_frontmatter``, as a mapping.
+
+    The block is re-fenced and read by the shared parser, which rejects a
+    repeated key at any depth. An empty or comment-only block is ``{}``. A
+    block that is malformed or not a mapping is ``None``.
+    """
+    if frontmatter and not frontmatter.endswith("\n"):
+        frontmatter += "\n"
+    result = parse_frontmatter(f"---\n{frontmatter}---\n", yaml)
+    return result.metadata if result.ok else None
 
 
 def _only_implemented_field_changed(

@@ -68,7 +68,7 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from scripts.github_core.api import resolve_repo_params  # noqa: E402
-from scripts.validation import frontmatter_contract as _fc  # noqa: E402
+from scripts.hook_utilities.frontmatter_block import FrontmatterStatus, split_frontmatter  # noqa: E402
 
 # Valid model tiers per ADR-002 (agent model selection). A spec text that
 # names one tier while the committed agent frontmatter names another is the
@@ -215,19 +215,15 @@ def parse_frontmatter(text: str) -> dict[str, str]:
     comparison this feeds is string-based.
 
     Stricter/looser/different than canonical: the fence comes from
-    ``scripts/validation/frontmatter_contract.py``, so ONLY the fence is shared.
-    The value handling below is deliberately not the contract's, which loads
-    YAML. Replacing the old ``text.find("\n---", 3)`` tightens one shape, as
-    issue #5275 did elsewhere: ``--- trailing text`` no longer closes a block.
-    An earlier docstring claimed parity with
-    ``yaml_utils.py:_parse_yaml_frontmatter`` on being "top-level keys only, no
-    external YAML dependency"; both halves were false (it calls
-    ``yaml.safe_load``), and a wrong citation is worse than none.
+    ``scripts/hook_utilities/frontmatter_block.py``, so ONLY the fence is
+    shared. The value handling below deliberately does not load YAML, because
+    YAML would turn ``true`` and ``1`` into non-strings and this comparison is
+    string-based. ``--- trailing text`` does not close a block.
     """
-    parsed = _fc.parse_frontmatter(text, allow_duplicate_keys=True)
-    if not parsed.present or parsed.status is _fc.FrontmatterStatus.UNTERMINATED:
+    split = split_frontmatter(text)
+    if not split.found:
         return {}
-    block = parsed.raw
+    block = split.raw
     result: dict[str, str] = {}
     for line in block.splitlines():
         if not line.strip() or line.lstrip().startswith("#"):
@@ -319,7 +315,7 @@ def _changed_agent_files(repo_root: Path, base_ref: str) -> dict[str, str]:
 
     Reads each path from the HEAD blob (``git show HEAD:<path>``) rather than
     the working tree so the scan matches the committed state the CI gate sees.
-    Restricted to files that begin with a ``---`` frontmatter fence.
+    Restricted to files that open a frontmatter block, closed or not.
     """
     diff = subprocess.run(
         [
@@ -353,7 +349,7 @@ def _changed_agent_files(repo_root: Path, base_ref: str) -> dict[str, str]:
         )
         if show.returncode != 0:
             continue
-        if show.stdout.startswith("---"):
+        if split_frontmatter(show.stdout).status is not FrontmatterStatus.ABSENT:
             files[relpath] = show.stdout
     return files
 

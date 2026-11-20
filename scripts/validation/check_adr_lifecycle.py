@@ -167,7 +167,14 @@ from checks_common import (  # noqa: E402
     _resolve_default_base_ref,
     _run_subprocess,
 )
-from yaml_utils import _parse_yaml_frontmatter  # noqa: E402
+
+from scripts.hook_utilities.frontmatter_block import (  # noqa: E402
+    FrontmatterStatus,
+    load_frontmatter,
+)
+from scripts.hook_utilities.frontmatter_block import (  # noqa: E402
+    parse_frontmatter as _parse_frontmatter_block,
+)
 
 # Imported, not redefined, so the two ADR gates never disagree about which files are ADRs.
 from scripts.validation.adr_cited_paths import (  # noqa: E402
@@ -176,10 +183,6 @@ from scripts.validation.adr_cited_paths import (  # noqa: E402
     tracked_paths,
 )
 from scripts.validation.check_adr_uniqueness import ADR_FILENAME_RE  # noqa: E402
-from scripts.validation.frontmatter_contract import FrontmatterStatus  # noqa: E402
-from scripts.validation.frontmatter_contract import (  # noqa: E402
-    parse_frontmatter as _parse_frontmatter_block,
-)
 
 EXIT_OK = 0
 EXIT_REGRESSION = 1
@@ -303,8 +306,8 @@ class Record:
 def _split_frontmatter(text: str) -> tuple[str | None, str]:
     r"""Return ``(raw frontmatter block, body)``; the block is None when absent.
 
-    Delegates to ``scripts/validation/frontmatter_contract.parse_frontmatter``,
-    which delegates in turn to ``python-frontmatter``. This function used to
+    Delegates to ``scripts/hook_utilities/frontmatter_block.parse_frontmatter``,
+    the repository's one parser. This function used to
     carry its own boundary arithmetic, taken from
     ``_parse_yaml_frontmatter`` in ``scripts/validation/yaml_utils.py``::
 
@@ -332,7 +335,7 @@ def _split_frontmatter(text: str) -> tuple[str | None, str]:
     YAML loader or scans it for duplicate keys, and both tolerate the leading
     newline the block carries.
     """
-    result = _parse_frontmatter_block(text, allow_duplicate_keys=True)
+    result = _parse_frontmatter_block(text, yaml, allow_duplicate_keys=True)
     if not result.present or result.status is FrontmatterStatus.UNTERMINATED:
         return None, result.body
     return result.raw, result.body
@@ -364,7 +367,7 @@ def _frontmatter_reason(raw: str | None, text: str) -> str:
     reported as an unterminated block because that is how the splitter, and the
     canonical helper it mirrors, classify it.
     """
-    result = _parse_frontmatter_block(text, allow_duplicate_keys=True)
+    result = _parse_frontmatter_block(text, yaml, allow_duplicate_keys=True)
     if result.status is FrontmatterStatus.ABSENT:
         return "no leading `---` frontmatter block (ADR-073 schema absent)"
     if result.status is FrontmatterStatus.UNTERMINATED:
@@ -398,7 +401,7 @@ def _reject_duplicate_keys(loader: yaml.SafeLoader, node: yaml.MappingNode) -> d
 
     `_read_record` names the key in the violation. `build/scripts/generate_adr_index.py`
     no longer has its own duplicate-key loader: the three ADR parsers share the
-    contract in `frontmatter_contract`, so this loader is the only one here.
+    parser in `scripts/hook_utilities/frontmatter_block.py`, so this loader is the only one here.
 
     A list compared with `==`, not a set: a YAML key need not be hashable
     (`? [a, b]` builds a list key), and a set raises `TypeError` on it.
@@ -492,7 +495,7 @@ def _read_record(path: Path, number: int, rel: str) -> tuple[Record, Violation |
                 f"silently, so the visible declaration and the enforced one differ",
             ),
         )
-    frontmatter = _parse_yaml_frontmatter(text)
+    frontmatter = load_frontmatter(text, yaml)
     if frontmatter is None:
         return (
             Record(number, rel, None, body, lines),

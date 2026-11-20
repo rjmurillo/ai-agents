@@ -6,11 +6,15 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 
-from scripts.validation.pre_pr import (
-    _parse_yaml_frontmatter,
-    validate_design_review_frontmatter,
-)
+from scripts.hook_utilities.frontmatter_block import load_frontmatter
+from scripts.validation.pre_pr import validate_design_review_frontmatter
+
+
+def _parse_yaml_frontmatter(text: str) -> dict[str, Any] | None:
+    """The ``dict | None`` view the DESIGN-REVIEW gate reads, from the one parser."""
+    return load_frontmatter(text, yaml)
 
 
 class TestParseYamlFrontmatter:
@@ -184,14 +188,12 @@ class TestValidateDesignReviewFrontmatter:
 
 
 class TestDelegatesToTheSharedContract:
-    """Issue #5275 follow-up: this helper no longer parses fences itself.
+    """Issue #5275 follow-up: the dict-or-None view reads the one shared parser.
 
-    It delegates to `scripts/validation/frontmatter_contract.py`, and through it
-    to `python-frontmatter`. These tests pin what that changed and, more
-    importantly, what it did not, because the helper has four call sites
-    (`pre_pr.py`, `check_adr_lifecycle.py`, `validate_design_review.py`,
-    `validate_copilot_agent_frontmatter.py`) whose behaviour #5275's third
-    acceptance criterion holds fixed.
+    `scripts/hook_utilities/frontmatter_block.py` owns the fence and the load.
+    These tests pin what the old `yaml_utils._parse_yaml_frontmatter` callers
+    (`check_adr_lifecycle.py`, `validate_design_review.py`,
+    `validate_copilot_agent_frontmatter.py`) still rely on.
     """
 
     def test_trailing_text_after_the_fence_no_longer_closes_the_block(self) -> None:
@@ -250,20 +252,3 @@ class TestDelegatesToTheSharedContract:
         assert _parse_yaml_frontmatter('---\nid: "unclosed\n---\nBody.\n') is None
         assert _parse_yaml_frontmatter("---\n- a\n- b\n---\nBody.\n") is None
         assert _parse_yaml_frontmatter("---\nid: A\nBody.\n") is None
-
-    def test_helper_defines_no_fence_logic_of_its_own(self) -> None:
-        """Checked with `ast`: the module docstring quotes the old expression."""
-        import ast
-        from pathlib import Path
-
-        import scripts.validation.yaml_utils as mod
-
-        tree = ast.parse(Path(mod.__file__).read_text(encoding="utf-8"))
-        imported: set[str] = set()
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                imported.update(a.name for a in node.names)
-            elif isinstance(node, ast.ImportFrom) and node.module:
-                imported.add(node.module)
-        assert "re" not in imported
-        assert "yaml" not in imported, "the helper should no longer load YAML itself"

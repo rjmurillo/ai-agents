@@ -1554,9 +1554,9 @@ def test_the_documented_recipe_agrees_with_the_generator_on_a_padded_closing_fen
     would notice, passed the governance gate and crashed the index build. Three
     parsers, three answers.
 
-    Both sides now delegate to `scripts/validation/frontmatter_contract.py` and
-    therefore to `python-frontmatter`'s boundary, `^-{3,}\\s*$`, which treats a
-    padded fence as a close. The expected value flipped deliberately, in the
+    Both sides now call `scripts/hook_utilities/frontmatter_block.py`, which
+    uses `python-frontmatter`'s boundary, `^-{3,}\\s*$`, and treats a padded
+    fence as a close. The expected value flipped deliberately, in the
     commit that migrated the parsers, and not incidentally: what this test
     asserts is still that the shipped recipe and the generator agree, which is
     the property that was broken. `test_the_recipe_and_generator_agree_on_an_
@@ -1579,8 +1579,8 @@ def test_the_recipe_and_generator_agree_on_an_unterminated_block(tmp_path):
 
     `frontmatter.loads` alone would regress this: it returns empty metadata for
     an absent block and for an unterminated one alike, so a record with a broken
-    schema would land silently in Needs backfill. The recipe calls `detect` and
-    `split` precisely so the two stay distinguishable.
+    schema would land silently in Needs backfill. The recipe checks for
+    `FrontmatterStatus.ABSENT` precisely so the two stay distinguishable.
     """
     from generate_adr_index import AdrIndexError
 

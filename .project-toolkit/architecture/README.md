@@ -10,23 +10,22 @@ Regenerate after any ADR change with `uv run python build/scripts/build_all.py`.
 ## Querying the corpus directly
 
 This table is a convenience, not the source of truth. The frontmatter is, and
-Python reads it with no extra dependency:
+Python reads it with the repository's one frontmatter parser. Run it from the
+repository root:
 
 ```python
-import pathlib, yaml
-from frontmatter.default_handlers import YAMLHandler
+import pathlib, sys, yaml
 
-_HANDLER = YAMLHandler()
+sys.path.insert(0, ".")
+from scripts.hook_utilities.frontmatter_block import FrontmatterStatus, parse_frontmatter
 
 for path in sorted(pathlib.Path(".project-toolkit/architecture").glob("ADR-[0-9]*.md")):
-    text = path.read_text(encoding="utf-8")
-    if not _HANDLER.detect(text):
+    result = parse_frontmatter(path.read_text(encoding="utf-8"), yaml)
+    if result.status is FrontmatterStatus.ABSENT:
         continue  # no frontmatter: see Needs backfill below
-    try:
-        raw, _body = _HANDLER.split(text)
-    except ValueError:
-        raise ValueError(f"{path.name}: opens with --- but never closes it")
-    front = yaml.safe_load(raw) or {}
+    if not result.ok:
+        raise ValueError(f"{path.name}: {result.error}")
+    front = result.metadata
     if str(front.get("status", "")).strip().lower() == "accepted":
         print(front.get("id") or path.name)
 ```
@@ -40,14 +39,12 @@ the table below, while a bare `== 'accepted'` misses it. Every record carries
 a lowercase value today, which is exactly why the mismatch would not announce
 itself.
 
-**This snippet does not detect duplicate keys, and the gates do.**
-`yaml.safe_load` resolves a repeated `status:` last-wins and silently, so a
-record declaring `proposed` in the line a human reads and `accepted` lower in
-the same block would print as accepted here. `check_adr_lifecycle` and this
-generator both reject that at the parser, so a corpus passing the gates has
-none. Run the gate before trusting a query on a tree you have not validated;
-the snippet is a convenience for reading a known-good corpus, not an
-independent check.
+**This snippet rejects duplicate keys, as the gates do.** `yaml.safe_load`
+would resolve a repeated `status:` last-wins and silently, so a record
+declaring `proposed` in the line a human reads and `accepted` lower in the
+same block would print as accepted. `parse_frontmatter` rejects that by
+default, and so do `check_adr_lifecycle` and this generator. The snippet is a
+convenience for reading a corpus, not a replacement for the gate.
 
 Python rather than `yq` deliberately. Python is the repo's native tooling
 (ADR-042) and `yaml` is already a dependency, so this adds nothing. The `yq` on
@@ -61,18 +58,13 @@ records that have it while appearing to answer for all of them. The Needs
 backfill section below is the honest denominator, and issue #5190 closes it.
 
 **This snippet crashes on unterminated frontmatter; it does not silently
-drop it.** `detect()` is false only for a record with no schema at all,
-which `continue`s past. A record whose opening `---` fence never closes
-still opens one, so it skips that `continue`, and `split()` raises
-`ValueError` because it cannot find a second boundary. The real
-generator's `parse_frontmatter` raises the same way, on purpose: a
-malformed schema is an author's defect to see, not a record to drop
-quietly into Needs backfill. The distinction matters because
-`frontmatter.loads` alone does NOT make it: an absent block and an
-unterminated one both come back with empty metadata, which is why this
-snippet calls `detect` and `split` rather than the convenience API
-(issue #5275). Run the gate rather than this snippet when that
-distinction matters.
+drop it.** `ABSENT` is the status only for a record with no schema at all,
+which `continue`s past. A record whose opening `---` fence never closes is
+`UNTERMINATED`, so it raises `ValueError`. The real generator raises the
+same way, on purpose: a malformed schema is an author's defect to see, not a
+record to drop quietly into Needs backfill. `frontmatter.loads` alone does
+NOT make that distinction: an absent block and an unterminated one both come
+back with empty metadata (issue #5275).
 
 **One fence contract, shared, and it is the library's.** Issue #5275 found
 three ADR parsers disagreeing on which closing fences they accept: a
@@ -80,11 +72,11 @@ closing line padded with one trailing space (`"--- \n"` instead of
 `"---\n"`, a plausible editor artifact) parsed cleanly in
 `check_adr_lifecycle.py` and crashed this generator, so the same corpus
 could pass the lifecycle gate and break the index build. A repo-wide sweep
-found at least 11 distinct fence contracts. Both now delegate to
-`scripts/validation/frontmatter_contract.py`, which delegates in turn to
+found at least 11 distinct fence contracts. Both now call
+`scripts/hook_utilities/frontmatter_block.py`, which uses
 `python-frontmatter`'s own boundary, `^-{3,}\s*$`. That accepts a padded
 fence, a tab, and four or more dashes, and still rejects `--- trailing
-text`. The snippet above uses the same handler, so it and the generator
+text`. The snippet above calls the same function, so it and the generator
 cannot drift: agreement is a property of calling one parser, not of
 keeping two regexes in step by hand.
 

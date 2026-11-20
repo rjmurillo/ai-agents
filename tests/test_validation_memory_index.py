@@ -7,7 +7,6 @@ duplicate detection, orphan detection, memory-index references, and output forma
 
 from __future__ import annotations
 
-import re
 import subprocess
 from collections import Counter
 from pathlib import Path
@@ -17,8 +16,8 @@ import frontmatter
 import pytest
 import yaml
 
+from scripts.hook_utilities.frontmatter_block import FM_BOUNDARY
 from scripts.validation.memory_index import (
-    _FM_BOUNDARY,
     DomainIndex,
     IndexEntry,
     _load_base_reference_counts,
@@ -2620,7 +2619,7 @@ class TestCheckFrontmatterValidity:
         result = check_frontmatter_validity(tmp_path)
         assert result.passed is False
         assert result.invalid_files == ["list-memory.md"]
-        assert "must be a mapping" in result.issues[0]
+        assert "not a mapping" in result.issues[0]
 
     def test_scalar_metadata_detected(self, tmp_path: Path) -> None:
         # A bare scalar is not a metadata mapping; must be flagged (issue #4918).
@@ -2628,7 +2627,7 @@ class TestCheckFrontmatterValidity:
         result = check_frontmatter_validity(tmp_path)
         assert result.passed is False
         assert result.invalid_files == ["scalar-memory.md"]
-        assert "must be a mapping" in result.issues[0]
+        assert "not a mapping" in result.issues[0]
 
     def test_empty_frontmatter_block_passes(self, tmp_path: Path) -> None:
         # An empty block carries no corruption; optional frontmatter (#4900).
@@ -2706,22 +2705,15 @@ class TestCheckFrontmatterValidity:
         assert result.passed is False
         assert result.invalid_files == ["leading-space-memory.md"]
 
-    def test_local_boundary_pattern_matches_canonical(self) -> None:
-        """Pin the copied delimiter to the parser's own constant.
+    def test_gate_reads_the_shared_parser_with_the_canonical_boundary(self) -> None:
+        """The gate has no delimiter of its own; the shared one is the library's.
 
-        The behavior cases below use fixed inputs, so an upstream `FM_BOUNDARY`
-        that still recognizes those inputs would leave them green while the
-        local copy drifts (PR #5004 review). Comparing the pattern text catches
-        the drift itself.
-
-        The flags differ on purpose: the canonical constant carries
-        `re.MULTILINE` because it scans a whole document, while `_FM_BOUNDARY`
-        matches one already-split line.
+        Fixed-input cases stay green when upstream changes a pattern that still
+        matches those inputs (PR #5004 review), so the pattern text is pinned.
         """
         canonical = frontmatter.default_handlers.YAMLHandler.FM_BOUNDARY
-        assert _FM_BOUNDARY.pattern == canonical.pattern
-        assert canonical.flags & re.MULTILINE
-        assert not _FM_BOUNDARY.flags & re.MULTILINE
+        assert FM_BOUNDARY.pattern == canonical.pattern
+        assert FM_BOUNDARY.flags == canonical.flags
 
     def test_bom_before_valid_frontmatter_is_flagged(self, tmp_path: Path) -> None:
         """A BOM loses valid metadata as surely as a malformed block does.
