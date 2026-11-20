@@ -1,6 +1,8 @@
 """C# directive and resource classification regressions for issues #7406 and #7459."""
 
 import importlib.util
+import json
+import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -233,7 +235,7 @@ def test_default_coupling_gate_scores_only_non_system_directives(
     assert not (tmp_path / ".qualityrc.json").exists()
 
     result = subprocess.run(
-        [sys.executable, str(_SCRIPT), "--target", str(target), "--format", "json"],
+        [sys.executable, str(_mod.__file__), "--target", str(target), "--format", "json"],
         cwd=tmp_path,
         capture_output=True,
         text=True,
