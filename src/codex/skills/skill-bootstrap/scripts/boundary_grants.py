@@ -116,15 +116,18 @@ def hidden_control_files(
     """Return one violation per ignored `.gitignore` or `.gitattributes` under a create grant.
 
     A `.gitignore` that ignores itself never shows in `git status`, so `classify` never sees
-    it. Verify lists the ignored file names under the create grants and passes them here. A
-    path an `--also-allow` grant covers, or one already reported, is skipped. The snapshot
+    it. Verify lists the ignored file names under the create grants and passes them here.
+    Only a path a create grant covers counts; one an `--also-allow` grant covers, or one
+    already reported, is skipped. The snapshot
     does not record these files, so a self-ignoring control file that predates the run
     also fails; that is the safe side.
     """
     return [
         {"kind": "create-only-changed", "path": path}
         for path in sorted(set(ignored) - reported)
-        if is_git_control_file(path) and not covered(PurePosixPath(path), grants["also_allow"])
+        if is_git_control_file(path)
+        and covered(PurePosixPath(path), grants["also_create"])
+        and not covered(PurePosixPath(path), grants["also_allow"])
     ]
 
 

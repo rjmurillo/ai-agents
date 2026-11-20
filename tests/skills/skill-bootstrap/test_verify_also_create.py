@@ -416,3 +416,30 @@ def test_verify_overlapping_create_grants_report_a_hidden_gitignore_once(
 
     assert code == 1
     assert kinds(payload) == [("create-only-changed", "docs/adr/.gitignore")]
+
+
+def test_verify_untracked_self_ignoring_gitignore_is_reported_once(
+    repo: Path, capsys: Capsys, snap_path: Path
+) -> None:
+    write(repo, "docs/adr/.gitignore", ".gitignore\n")
+    run_git(repo, "add", "-f", "docs/adr/.gitignore")
+    run_git(repo, "commit", "-q", "-m", "docs: add self-ignoring gitignore")
+    take_snapshot(capsys, repo, snap_path)
+    run_git(repo, "rm", "-q", "--cached", "docs/adr/.gitignore")
+
+    code, payload = verify(capsys, repo, snap_path, "--also-create", ADR_DIR)
+
+    assert code == 1
+    assert kinds(payload) == [("create-only-changed", "docs/adr/.gitignore")]
+
+
+def test_verify_ignored_gitignore_present_before_the_run_still_fails(
+    repo: Path, capsys: Capsys, snap_path: Path
+) -> None:
+    write(repo, "docs/adr/.gitignore", ".gitignore\n")
+    take_snapshot(capsys, repo, snap_path)
+
+    code, payload = verify(capsys, repo, snap_path, "--also-create", ADR_DIR)
+
+    assert code == 1
+    assert kinds(payload) == [("create-only-changed", "docs/adr/.gitignore")]
