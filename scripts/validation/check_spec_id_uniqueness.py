@@ -23,6 +23,10 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from scripts.hook_utilities.frontmatter_block import split_frontmatter
+
 CATEGORIES = ("requirements", "design", "tasks")
 # Anchored top-level `id:` key with optional single or double quotes and an
 # optional trailing `# comment`. Captures bare token, drops quotes and comment.
@@ -35,20 +39,19 @@ ID_RE = re.compile(
 def _read_id(path: Path) -> str | None:
     """Extract the top-level `id:` value from a spec markdown file.
 
-    Only looks inside the YAML frontmatter (the first `---`-delimited block)
-    so a stray `id:` mention later in prose does not produce a false match.
+    Only looks inside the YAML frontmatter, found by
+    `scripts/hook_utilities/frontmatter_block.py`, so a stray `id:` mention
+    later in prose does not produce a false match. The value stays a text
+    match on the raw block so `id: 001` reads as `001`, not the integer 1.
     """
     try:
         text = path.read_text(encoding="utf-8")
     except OSError:
         return None
-    if not text.startswith("---"):
+    split = split_frontmatter(text)
+    if not split.found:
         return None
-    end = text.find("\n---", 3)
-    if end == -1:
-        return None
-    frontmatter = text[3:end]
-    m = ID_RE.search(frontmatter)
+    m = ID_RE.search(split.raw)
     return m.group(1) if m else None
 
 

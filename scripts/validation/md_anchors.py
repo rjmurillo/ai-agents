@@ -21,9 +21,18 @@ is not recognized.
 from __future__ import annotations
 
 import re
+import sys
 import unicodedata
+from pathlib import Path
 
 from md_link_parse import _live_lines, mask_inline_code
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from scripts.hook_utilities.frontmatter_block import (
+    FM_BOUNDARY,
+    split_frontmatter,
+)
 
 _ATX = re.compile(r"^ {0,3}#{1,6}(?:[ \t]+(?P<text>.*?))?(?:[ \t]+#+)?[ \t]*$")
 _SETEXT_UNDERLINE = re.compile(r"^ {0,3}(?:=+|-+)[ \t]*$")
@@ -74,20 +83,22 @@ def slugify(text: str) -> str:
     return kept.replace(" ", "-")
 
 
-def _frontmatter_end(lines: list[str]) -> int:
-    """Return the 1-indexed line of the closing ``---`` of YAML frontmatter, or 0."""
-    if not lines or lines[0].rstrip() != "---":
+def _frontmatter_end(text: str) -> int:
+    """Return the 1-indexed line of the closing fence of YAML frontmatter, or 0.
+
+    The fence comes from ``scripts/hook_utilities/frontmatter_block.py``.
+    """
+    split = split_frontmatter(text)
+    opening = FM_BOUNDARY.match(text)
+    if not split.found or opening is None:
         return 0
-    for number, line in enumerate(lines[1:], start=2):
-        if line.rstrip() in ("---", "..."):
-            return number
-    return 0
+    closing_start = opening.end() + len(split.raw)
+    return len(text[:closing_start].splitlines()) + 1
 
 
 def _heading_texts(body: str) -> list[str]:
     """Return the raw text of every ATX and setext heading outside fences."""
-    all_lines = body.splitlines()
-    skip_through = _frontmatter_end(all_lines)
+    skip_through = _frontmatter_end(body)
     live = [(n, line) for n, line in _live_lines(body) if n > skip_through]
     by_number = dict(live)
     headings: list[str] = []
