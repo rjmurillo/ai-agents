@@ -1308,7 +1308,6 @@ _CSHARP_DIRECTIVE_LINE_RE = re.compile(r"^[ \t]*#[ \t]*[a-z]+\b.*$", re.MULTILIN
 # quote inside it opens nothing. "prefix" holds the $ and @ markers of a
 # string. The cap keeps a long marker run from being rescanned at every start.
 _CSHARP_TOKEN_START_RE = re.compile(r"//|/\*|'|(?P<prefix>[$@]{0,8})(?P<quotes>\"+)")
-_CSHARP_LITERAL_START_RE = re.compile(r"'|(?P<prefix>[$@]{0,8})(?P<quotes>\"+)")
 
 
 def _blank_span(chars: list[str], start: int, end: int) -> None:
@@ -1327,15 +1326,16 @@ def _line_end(code: str, index: int) -> int:
 def _csharp_hole_end(code: str, start: int, chars: list[str]) -> int:
     """Index just past the "}" that closes the hole opened at ``start``.
 
-    The hole is code and stays visible, but literals inside it are blanked,
-    so a brace or quote in them cannot end the hole early. An unclosed hole
-    runs to the end of the snippet and leaves it visible.
+    The hole is code and stays visible, but literals inside it are blanked
+    and comments skipped, so a brace or quote in either cannot end the hole
+    early. An unclosed hole runs to the end of the snippet and leaves it
+    visible.
     """
     depth, index = 0, start
     while index < len(code):
-        literal = _CSHARP_LITERAL_START_RE.match(code, index)
-        if literal is not None:
-            index = _blank_csharp_literal(code, literal, chars)
+        token = _CSHARP_TOKEN_START_RE.match(code, index)
+        if token is not None:
+            index = _skip_csharp_token(code, token, chars)
             continue
         if code[index] == "{":
             depth += 1
@@ -1437,6 +1437,19 @@ def _blank_csharp_literal(code: str, match: re.Match[str], chars: list[str]) -> 
     return end
 
 
+def _skip_csharp_token(code: str, match: re.Match[str], chars: list[str]) -> int:
+    """Pass the comment or literal ``match`` opens; return the index past it.
+
+    A comment is left unchanged. A literal is blanked.
+    """
+    if match.group(0) == "//":
+        return _line_end(code, match.end())
+    if match.group(0) == "/*":
+        end = code.find("*/", match.end())
+        return len(code) if end < 0 else end + 2
+    return _blank_csharp_literal(code, match, chars)
+
+
 def _blank_csharp_literals(code: str) -> str | None:
     """Blank C# string and char literal text, keeping every column.
 
@@ -1453,13 +1466,7 @@ def _blank_csharp_literals(code: str) -> str | None:
     index = 0
     try:
         while (match := _CSHARP_TOKEN_START_RE.search(code, index)) is not None:
-            if match.group(0) == "//":
-                index = _line_end(code, match.end())
-            elif match.group(0) == "/*":
-                end = code.find("*/", match.end())
-                index = len(code) if end < 0 else end + 2
-            else:
-                index = _blank_csharp_literal(code, match, chars)
+            index = _skip_csharp_token(code, match, chars)
     except RecursionError:
         return None
     return "".join(chars)

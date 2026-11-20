@@ -397,6 +397,8 @@ class TestCsharpLiteralAndAttributeArguments:
         ("var v = grid[i][Compute(FakeArg: 2)]\n    is int n;", "FakeArg"),
         ("var d = new Dictionary<K, int> {\n    [Key(FakeName: 1)] = 2,\n};", "FakeName"),
         ("handlers[i](FakeParam: 1);", "FakeParam"),
+        ('var s = $"{\n/* " */ var z = FakeWidget.Go();', "FakeWidget"),
+        ('var s = $@"{a // don\'t\n} {FakeWidget.Go()}";', "FakeWidget"),
     )
 
     # Real attribute sections whose named arguments are blanked.
