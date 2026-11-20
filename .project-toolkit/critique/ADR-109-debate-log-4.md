@@ -2,11 +2,11 @@
 
 ## Summary
 
-- **Rounds**: 1 of 10
+- **Rounds**: 2 of 10
 - **Prior debate log**: `.project-toolkit/critique/ADR-109-debate-log-3.md`
 - **Outcome**: Consensus
 - **Final Status**: accepted (the edit changes no ADR status)
-- **Scope**: one line number on ADR-109 line 96.
+- **Scope**: line numbers on ADR-109 lines 94 and 96.
 - **Panel**: reduced panel, architect and critic. The edit is prose only.
 
 ADR-109 line 96 cites ADR-107 line 663 for the Related Decisions bullet that reads
@@ -36,6 +36,26 @@ rather than reshape the ADR-107 text.
 |-------|----------|
 | architect | Accept. Quote verified at ADR-107 line 728. The old target at `7dab88e5c` was stale. Land both ADR edits in one PR, since 728 holds only with the ADR-107 change. |
 | critic | Accept. Line 728 correct. No other ADR-109 citation breaks. Noted the gate prints "0 already stale at the merge base" for this citation. The cause: the quote-move check records a finding before the base-debt tally counts it. |
+
+## Round 2 Summary
+
+### Key Issues Addressed
+
+- The forward `Citation Freshness (added lines)` gate checks citations within three lines of an
+  edited line. It flagged ADR-109 line 94. That line cites REQ-003 line 368 for the quote "this
+  exception to every path in its binplace manifest, each path effective once". The quote sits
+  at REQ-003 line 379, on `main` and on this branch. That citation was already stale too.
+
+### Major Changes Made
+
+- ADR-109 line 94 now cites REQ-003 line 379. Only the line number changes.
+
+### Agent Positions
+
+| Agent | Position |
+|-------|----------|
+| architect | Accept. The quote occurs once, at REQ-003 line 379, on `7dab88e5c` and here. No ADR-109 meaning changes. |
+| critic | Accept. Line 379 is right. ADR-109 line 93 (REQ-003 line 80) still holds. Lines 95 and 96 are current. |
 
 ## Decision
 

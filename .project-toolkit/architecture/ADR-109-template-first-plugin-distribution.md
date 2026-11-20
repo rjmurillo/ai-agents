@@ -91,7 +91,7 @@ REQ-003 D4 (`.claude/<artifact>/` is canonical) becomes: `templates/<class>/` is
 The text carries these amendments as unconditional, in effect at this acceptance:
 
 - The D4 row at `.project-toolkit/specs/requirements/REQ-003-multi-tool-artifact-build.md:80` says `ADR-109 (accepted 2026-09-11) generalizes this`, and the D9 row five lines below it names the manifest move.
-- The REQ-003-010 note at `.project-toolkit/specs/requirements/REQ-003-multi-tool-artifact-build.md:368` reads "this exception to every path in its binplace manifest, each path effective once".
+- The REQ-003-010 note at `.project-toolkit/specs/requirements/REQ-003-multi-tool-artifact-build.md:379` reads "this exception to every path in its binplace manifest, each path effective once".
 - ADR-107 property 1 at `.project-toolkit/architecture/ADR-107-canonical-skill-contracts-and-harness-projections.md:63` reads "every path in ADR-109's binplace manifest".
 - The matching Related Decisions bullet at `.project-toolkit/architecture/ADR-107-canonical-skill-contracts-and-harness-projections.md:728` reads "`accepted` 2026-09-11): widens".
 
