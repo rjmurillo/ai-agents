@@ -412,8 +412,12 @@ def verify(args: argparse.Namespace) -> tuple[int, Payload]:
         if before["ignored"].get(path) != ignored_after.get(path):
             kind = classify(path, rel, grants) or "ignored-in-boundary"
             violations.append({"kind": kind, "path": path})
-    for grant, _ in also_create:
-        violations.extend(hidden_control_files(_ignored_under(root, grant)))
+    if also_create:
+        grant_paths = (str(a) for a, _ in also_create)
+        listing = ("ls-files", "-z", "--others", "--ignored", "--exclude-standard", "--")
+        ignored = _git(root, "--literal-pathspecs", *listing, *grant_paths).split("\0")
+        reported = {v["path"] for v in violations if "path" in v}
+        violations.extend(hidden_control_files(filter(None, ignored), grants, reported))
     return (1 if violations else 0), {
         "examined": len(examined),
         "changed": changed,

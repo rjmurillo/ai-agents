@@ -388,3 +388,31 @@ def test_verify_upper_case_gitignore_under_create_grant_is_create_only_changed(
 
     assert code == 1
     assert kinds(payload) == [("create-only-changed", "docs/adr/.GITIGNORE")]
+
+
+def test_verify_self_ignoring_gitignore_under_both_grants_follows_also_allow(
+    repo: Path, capsys: Capsys, snap_path: Path
+) -> None:
+    take_snapshot(capsys, repo, snap_path)
+    write(repo, "docs/adr/.gitignore", ".gitignore\n")
+
+    code, payload = verify(
+        capsys, repo, snap_path, "--also-allow", ADR_DIR, "--also-create", ADR_DIR
+    )
+
+    assert code == 0
+    assert payload["violations"] == []
+
+
+def test_verify_overlapping_create_grants_report_a_hidden_gitignore_once(
+    repo: Path, capsys: Capsys, snap_path: Path
+) -> None:
+    take_snapshot(capsys, repo, snap_path)
+    write(repo, "docs/adr/.gitignore", ".gitignore\n")
+
+    code, payload = verify(
+        capsys, repo, snap_path, "--also-create", "docs/", "--also-create", ADR_DIR
+    )
+
+    assert code == 1
+    assert kinds(payload) == [("create-only-changed", "docs/adr/.gitignore")]
