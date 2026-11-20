@@ -26,6 +26,19 @@
         ]
       },
       "rationale": "The named audit routes to technical-writing without an explicit skill name."
+    },
+    {
+      "id": "lt-technical-writing-hemingway-audit-direct",
+      "family": "long-tail-single-domain",
+      "request": "Give docs/install.md a Hemingway audit",
+      "expect": {
+        "kind": "specialist",
+        "route": "technical-writing",
+        "routes_absent": [
+          "orchestrator"
+        ]
+      },
+      "rationale": "The Hemingway audit phrase routes without the word pass."
     }
   ]
 }

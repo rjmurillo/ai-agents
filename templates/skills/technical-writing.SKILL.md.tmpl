@@ -22,6 +22,7 @@ metadata:
       - write rule documentation
       - edit docs prose
       - hemingway pass
+      - hemingway audit
       - pick a stylebook
       - choose a stylebook
 ---
