@@ -65,8 +65,13 @@ def test_extract_frontmatter_parses_crlf_fences():
     assert budget.extract_frontmatter(text) == {"name": "foo", "description": "bar"}
 
 
-def test_extract_frontmatter_parses_padded_closing_fence():
-    assert budget.extract_frontmatter("---\nname: foo\n   ---\n# body\n") == {"name": "foo"}
+def test_extract_frontmatter_parses_trailing_padded_closing_fence():
+    assert budget.extract_frontmatter("---\nname: foo\n---   \n# body\n") == {"name": "foo"}
+
+
+def test_extract_frontmatter_rejects_indented_closing_fence():
+    # The shared fence rule (FM_BOUNDARY, ^-{3,}\\s*$) anchors at column 0.
+    assert budget.extract_frontmatter("---\nname: foo\n   ---\n# body\n") is None
 
 
 def test_extract_frontmatter_none_on_malformed_yaml():

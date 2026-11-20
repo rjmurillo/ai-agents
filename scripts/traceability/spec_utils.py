@@ -11,6 +11,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from scripts.hook_utilities.frontmatter_block import FM_BOUNDARY, split_frontmatter
 from scripts.traceability.traceability_cache import (
     get_cached_spec,
     get_file_hash,
@@ -73,11 +74,11 @@ def parse_yaml_frontmatter(file_path: Path, use_cache: bool = True) -> dict[str,
     if not content:
         return None
 
-    match = re.match(r"(?s)^---\r?\n(.+?)\r?\n---", content)
-    if not match:
+    split = split_frontmatter(content)
+    if not split.found or not split.raw.strip():
         return None
 
-    yaml_block = match.group(1)
+    yaml_block = split.raw.strip("\r\n")
     result: dict[str, Any] = {
         "type": "",
         "id": "",
@@ -127,15 +128,19 @@ def parse_frontmatter_with_content(
     if not content:
         return None
 
-    match = re.match(r"(?s)^(---\r?\n.+?\r?\n---\r?\n)(.*)", content)
-    if not match:
+    split = split_frontmatter(content)
+    opening = FM_BOUNDARY.match(content)
+    if not split.found or opening is None:
         return None
 
-    frontmatter = match.group(1)
-    body = match.group(2)
-
-    yaml_block = re.sub(r"^---\r?\n", "", frontmatter)
-    yaml_block = re.sub(r"\r?\n---\r?\n$", "", yaml_block)
+    # Keep the fence lines and the original line endings: callers rewrite in place.
+    closing_start = opening.end() + len(split.raw)
+    fence_line_end = content.find("\n", closing_start)
+    if fence_line_end == -1:
+        return None
+    frontmatter = content[: fence_line_end + 1]
+    body = content[fence_line_end + 1 :]
+    yaml_block = split.raw
 
     related: list[str] = []
     related_match = re.search(r"(?s)related:\s*\r?\n((?:\s+-\s+.+\r?\n?)+)", yaml_block)

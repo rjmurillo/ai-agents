@@ -62,6 +62,11 @@ from _eval_common import (
 RATE_LIMIT_SLEEP_SEC = 1.0  # fixed inter-call delay; no 429 backoff (dev tool)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.hook_utilities.frontmatter_block import FrontmatterStatus, split_frontmatter  # noqa: E402
+
 AGENTS_DIR = REPO_ROOT / ".claude" / "agents"
 if not AGENTS_DIR.is_dir():
     raise RuntimeError(
@@ -72,16 +77,16 @@ if not AGENTS_DIR.is_dir():
 def list_agents() -> list[str]:
     """List agent names under AGENTS_DIR.
 
-    Only includes markdown files whose content starts with a `---` frontmatter
-    block. Index files, READMEs, and CLAUDE.md are skipped automatically.
+    Only includes markdown files that open a frontmatter block (found by
+    `scripts/hook_utilities/frontmatter_block.py`). Index files, READMEs, and CLAUDE.md are skipped automatically.
     """
     agents = []
     for f in sorted(AGENTS_DIR.iterdir()):
         if not (f.is_file() and f.suffix == ".md"):
             continue
-        with f.open(encoding="utf-8") as fh:
-            if fh.read(3) == "---":
-                agents.append(f.stem)
+        status = split_frontmatter(f.read_text(encoding="utf-8")).status
+        if status is not FrontmatterStatus.ABSENT:
+            agents.append(f.stem)
     return agents
 
 
@@ -101,16 +106,12 @@ def extract_agent_meta(agent_name: str) -> dict[str, str]:
     above.
     """
     text = load_agent_context(agent_name)
-    if not text.startswith("---"):
+    block = split_frontmatter(text)
+    if not block.found:
         return {"name": agent_name}
 
-    end = text.find("---", 3)
-    if end == -1:
-        return {"name": agent_name}
-
-    frontmatter = text[3:end].strip()
     meta: dict[str, str] = {"name": agent_name}
-    for line in frontmatter.splitlines():
+    for line in block.raw.splitlines():
         if ":" in line:
             k, v = line.split(":", 1)
             k = k.strip()

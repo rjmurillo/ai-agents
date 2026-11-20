@@ -91,6 +91,10 @@ ALLOWED_PROVENANCE = frozenset({"synthetic", "public-cve", "paraphrased-from-pub
 TAG_RE = re.compile(r"^[a-z0-9][a-z0-9_:-]{0,63}$")
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.hook_utilities.frontmatter_block import FM_BOUNDARY, split_frontmatter  # noqa: E402
 
 # DESIGN-004 §Technology Decisions: deliberately naive baseline. Role-
 # neutralization only. The output-shape contract (verdict vocabulary and
@@ -383,12 +387,13 @@ def _strip_frontmatter(text: str) -> str:
 
     A document without a leading frontmatter fence is returned unchanged.
     """
-    if not text.startswith("---"):
+    block = split_frontmatter(text)
+    # split.body drops blank lines after the closing fence; keep them, this text is hashed.
+    opening = FM_BOUNDARY.match(text)
+    if not block.found or opening is None:
         return text
-    match = re.match(r"^---[ \t]*\r?\n.*?\r?\n---[ \t]*\r?\n", text, re.DOTALL)
-    if match is None:
-        return text
-    return text[match.end() :]
+    closing_end = text.find("\n", opening.end() + len(block.raw))
+    return text[closing_end + 1 :] if closing_end != -1 else ""
 
 
 def _read_agent_prompt(agent: str) -> tuple[str, str]:
