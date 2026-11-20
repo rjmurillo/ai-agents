@@ -467,24 +467,6 @@ def test_rare_anchor_inside_the_range_keeps_the_citation(
     assert code == 0, out
 
 
-def test_four_moved_lines_report_a_cluster_when_the_base_cite_was_stale(
-    tmp_path: Path,
-) -> None:
-    """Already-stale text still blocks when this change moved four unique lines."""
-    base = "alpha_line_aaaa\nbeta_line_bbbb\ngamma_line_cccc\ndelta_line_dddd\n"
-    root = _repo(tmp_path)
-    _git(root, "checkout", "-q", "main")
-    _commit_file(root, TARGET, base)
-    _commit_file(root, DOC, f"See `{TARGET}:1-4` (`not_in_file_zzzz`).\n")
-    _git(root, "checkout", "-q", "-B", "feature")
-    _commit_file(root, TARGET, "# pad one\n# pad two\n# pad three\n" + base)
-
-    code, output = _run_reverse(root)
-
-    assert code == 1, output
-    assert f"suggested citation {TARGET}:4-7" in output
-
-
 def test_added_bare_colon_is_checked_against_the_unique_file(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

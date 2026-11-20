@@ -74,7 +74,7 @@ The skill never picks business policy for the owner. Without repository evidence
 
 ### Chaining
 
-[`spec-generator`](spec-generator.md) invokes this skill to walk the design tree before analysis. The caller (typically `/spec`) passes every PRD section to `spec-generator` unchanged, so it does not re-ask answered questions. Related skills: [`decision-critic`](decision-critic.md), [`pre-mortem`](pre-mortem.md), and [`cynefin-classifier`](cynefin-classifier.md).
+[`spec`](spec.md) Step 2 invokes this skill to walk the design tree before analysis. The caller (`/spec`) passes every PRD section to `spec-generator` unchanged, so it does not re-ask answered questions. Related skills: [`decision-critic`](decision-critic.md), [`pre-mortem`](pre-mortem.md), and [`cynefin-classifier`](cynefin-classifier.md).
 
 Reference files: [`ambiguity-audit.md`](../../src/claude/skills/requirements-interview/references/ambiguity-audit.md) covers the ledger schema, question rules, batching, and rebuild verification.
 

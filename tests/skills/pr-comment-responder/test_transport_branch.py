@@ -34,7 +34,6 @@ REVIEW_SURFACES = [
     REPO_ROOT / ".claude" / "skills" / "pr-review" / "SKILL.md",
     REPO_ROOT / "src" / "claude" / "skills" / "pr-review" / "SKILL.md",
     REPO_ROOT / "src" / "copilot-cli" / "skills" / "pr-review" / "SKILL.md",
-    REPO_ROOT / ".github" / "prompts" / "pr-review.prompt.md",
 ]
 RESPONDER_SURFACES = [
     SKILL,

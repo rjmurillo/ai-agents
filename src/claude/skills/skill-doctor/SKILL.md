@@ -2,7 +2,7 @@
 name: "skill-doctor"
 version: 1.0.0
 license: MIT
-description: "Score how installed skills performed in recent local agent sessions and draft evidence-backed skill edits. Use when you say `diagnose skill usage`, `grade my agent setup`, or `run skill-doctor`, or ask why a skill did not fire or keeps failing. Do NOT use for skill creation (use skill-bootstrap) or tuning (use skillopt)."
+description: "Score how installed skills performed in recent local agent sessions and draft evidence-backed skill edits. Use when you say `diagnose skill usage`, `grade my agent setup`, or `run skill-doctor`, or ask why a skill did not fire or keeps failing. Do NOT use for skill creation (use skill-bootstrap) or tuning (use skillopt). Diagnosis only, never edits: for a measured fix use skillopt."
 user-invocable: true
 metadata:
   routing:
@@ -14,6 +14,7 @@ metadata:
       - diagnose skill usage from sessions
       - grade my agent setup
       - run skill-doctor
+      - diagnose skill usage
 ---
 # skill-doctor
 

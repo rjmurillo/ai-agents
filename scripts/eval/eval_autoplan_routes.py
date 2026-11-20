@@ -51,7 +51,9 @@ from typing import Any, cast
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 RESOLVER = REPO_ROOT / ".claude" / "skills" / "autoplan" / "scripts" / "resolve_route.py"
-DEFAULT_FIXTURES = REPO_ROOT / "tests" / "evals" / "autoplan-routes" / "routes.json"
+# A directory: every `*.json` file in it is one fixture shard. Shards keep
+# each file under the 500-line file-size taste lint, which JSON cannot suppress.
+DEFAULT_FIXTURES = REPO_ROOT / "tests" / "evals" / "autoplan-routes"
 DEFAULT_MODEL_SCENARIOS = REPO_ROOT / "tests" / "evals" / "skill-scenarios" / "autoplan.json"
 SKILLS_DIR = REPO_ROOT / ".claude" / "skills"
 AGENTS_DIR = REPO_ROOT / ".claude" / "agents"
@@ -165,7 +167,26 @@ def _scenario_from(raw: object, index: int) -> Scenario:
 
 
 def load_scenarios(path: Path) -> list[Scenario]:
-    """Read and validate a fixture file. Any defect raises, none is skipped."""
+    """Read and validate a fixture file, or every `*.json` shard in a directory.
+
+    Any defect raises, none is skipped. Scenario ids must be unique across
+    all shards, so a shard cannot shadow another shard's scenario.
+    """
+    if path.is_dir():
+        shards = sorted(path.glob("*.json"))
+        if not shards:
+            raise EvalConfigError(f"{path}: no *.json fixture files")
+        scenarios = [s for shard in shards for s in _load_fixture_file(shard)]
+        ids = [s.id for s in scenarios]
+        if len(set(ids)) != len(ids):
+            dupes = sorted({i for i in ids if ids.count(i) > 1})
+            raise EvalConfigError(f"{path}: duplicate scenario ids across shards: {dupes}")
+        return scenarios
+    return _load_fixture_file(path)
+
+
+def _load_fixture_file(path: Path) -> list[Scenario]:
+    """Read and validate one fixture file. Any defect raises, none is skipped."""
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:

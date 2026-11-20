@@ -1035,6 +1035,26 @@ def validate_skill_routing_roles_declarations(repo_root: Path) -> bool:
     return bool(validate_skill_routing_roles(repo_root))
 
 
+def validate_skill_artifact_flow_declarations(repo_root: Path) -> bool:
+    """Gate typed `metadata.inputs` and `metadata.outputs` declarations (ADR-123).
+
+    Refuses a malformed entry, two producers of one artifact, a skill-sourced
+    input with no producer, a shipped input with only a repo-local producer,
+    an invoker cycle holding a skill with outputs, lifecycle skills whose data
+    does not connect in order, and a lifecycle `## Handoff` line that disagrees
+    with the data. SKIP when `templates/` is absent (downstream install).
+    """
+    if not (repo_root / "templates" / "skills").is_dir():
+        raise MissingScriptSkip(
+            "templates/skills not present (downstream install); no artifact flow to check"
+        )
+    from check_skill_artifact_flow import validate_skill_artifact_flow
+
+    # bool() for the same reason the wrappers above coerce: the flat import
+    # resolves untyped, so mypy reads the result as Any.
+    return bool(validate_skill_artifact_flow(repo_root))
+
+
 def validate_always_on_corpus_claims(repo_root: Path) -> bool:
     """Pin the numeric claims in model-context-doctrine.md to live measurements.
 

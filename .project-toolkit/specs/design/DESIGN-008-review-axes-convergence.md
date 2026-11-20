@@ -5,7 +5,7 @@ title: review-axes-convergence
 status: implemented
 priority: high
 created: 2026-05-09
-updated: 2026-05-10
+updated: 2026-11-19
 related:
   - REQ-008
   - TASK-008
@@ -24,6 +24,14 @@ date: 2026-05-09
 > Historical carrier notice. ADR-086 replaced the custom Git-hook carrier with
 > Lefthook. Any `.githooks/` path below records the implemented design before
 > that migration and is not a current source path.
+
+> [!IMPORTANT]
+> Amended 2026-11-19. The Generator and Drift Check components below are
+> retired. The ADR-109 amendment of that date deleted
+> `generate_pr_quality_prompts.py`, the `pr-quality-gate-{role}.md` prompts,
+> and their drift checks. The `pr-quality` skill reads the canonical axis files
+> directly, so no derived prompt copy exists. `build_all.py --check` gates the
+> plugin mirrors of those files.
 
 ## Requirements Addressed
 

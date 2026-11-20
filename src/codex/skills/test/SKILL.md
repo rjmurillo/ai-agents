@@ -7,6 +7,18 @@ allowed-tools: Task, Skill, Read, Glob, Grep, Bash(*)
 argument-hint: component-or-failure-description
 user-invocable: true
 metadata:
+  capability:
+    kind: orchestrator
+    owns:
+      - pre-merge-verification
+    status: active
+  inputs:
+    implementation-change:
+    requirements-spec:
+    validation-record:
+      required: false
+  outputs:
+    test-gate-report:
   routing:
     role: front-door
     invoker: autoplan
@@ -293,6 +305,10 @@ Run this check only at decision points: starting a heavy action, switching tasks
 - If I am about to call Bash, is there a dedicated tool that would do this better?
 
 If any answer is "no" or "not sure," adjust before proceeding.
+
+## Handoff
+
+Writes: `test-gate-report`. Next: `/review`.
 
 ## Verification
 

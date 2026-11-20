@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
-"""Bare ``:N`` continuations and moved-line clusters for citation freshness.
+"""Bare ``:N`` continuations and moved-line checks for citation freshness.
 
 Extracted from ``citation_anchors.py`` at the file-size ceiling. A bare
 colon range binds to the preceding filename when that basename is unique.
-A cited block that was already stale can still be a move when enough of
-its lines each relocated once.
 """
 
 from __future__ import annotations
@@ -15,8 +13,10 @@ from stale_script_refs import HISTORICAL_ROOTS
 
 _FILENAME: re.Pattern[str] | None = None
 # A colon range that is not already the tail of a path citation. ``file.py:12``
-# has a word character before the colon, so it stays with the matcher.
-_BARE_RANGE = re.compile(r"(?<![\w./\\-]):(?P<start>\d+)(?:-(?P<end>\d+))?\b")
+# has a word character before the colon, so it stays with the matcher. A
+# decimal such as ``"min":118.22`` in a JSON measurement is a number, not a
+# line, so a range followed by ``.<digit>`` never binds.
+_BARE_RANGE = re.compile(r"(?<![\w./\\-]):(?P<start>\d+)(?:-(?P<end>\d+))?\b(?!\.\d)")
 # Text formats this repository actually cites; extend when a real
 # citation to a new format appears rather than enumerating every
 # extension in existence (each entry adds matcher surface).
@@ -118,40 +118,6 @@ def _unique_move(block: list[str], start: int, base: list[str], head: list[str])
     if len(_block_positions(block, base)) != 1 or len(at_head) != 1:
         return None
     return None if at_head[0] == start else at_head[0]
-
-
-def _moved_cluster(
-    start: int, end: int, base: list[str], head: list[str]
-) -> tuple[int, int] | None:
-    """Return where a stale range's unique lines went, when enough of them moved.
-
-    The ordinary ratchet ignores a citation that was already wrong at the
-    merge base. Four or more cited lines that each occur once at the base
-    and once elsewhere at HEAD are evidence this change moved that text.
-    The suggestion is the densest run of those new positions.
-    """
-    if not (1 <= start <= end <= len(base)) or not head:
-        return None
-    destinations: list[int] = []
-    for number in range(start, end + 1):
-        moved = _unique_move([base[number - 1]], number, base, head)
-        if moved is not None:
-            destinations.append(moved)
-    if len(destinations) < 4:
-        return None
-    destinations.sort()
-    width = max(end - start, 1)
-    best: list[int] = []
-    left = 0
-    for right, dest in enumerate(destinations):
-        while dest - destinations[left] > width:
-            left += 1
-        group = destinations[left : right + 1]
-        if len(group) > len(best):
-            best = group
-    if len(best) < 2:
-        return None
-    return best[0], best[-1]
 
 
 def _token_hit(anchor: str, text: str) -> bool:

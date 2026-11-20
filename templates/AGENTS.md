@@ -1,10 +1,10 @@
 # templates/
 
-Canonical source for five ADR-109 artifact classes: agents, rules, skills, hooks, settings; the `prompts` row's source sits outside this tree.
+Canonical source for five ADR-109 artifact classes: agents, rules, skills, hooks, settings.
 
 ## Matters
 
-Per-class render map. Compilers run inside `build_all.py` except `prompts`; binplace copies the plugin tree onto the install tree, or symlinks it (`link: true`: `agents`, `skills`, `rules`; ADR-119).
+Per-class render map. Compilers run inside `build_all.py`; binplace copies the plugin tree onto the install tree, or symlinks it (`link: true`: `agents`, `skills`, `rules`; ADR-119).
 
 | Class | Source here | Compiler | Plugin tree -> install tree |
 |---|---|---|---|
@@ -13,7 +13,6 @@ Per-class render map. Compilers run inside `build_all.py` except `prompts`; binp
 | skills | `skills/<name>.SKILL.md.tmpl`, `skills/partials/` | `skill_templates.py` | `src/claude/skills/<name>/` -> `.claude/skills/<name>` (link) |
 | hooks | `hooks/` minus `settings.tmpl`: 14 executables plus 2 data files | `hook_templates.py` | Shipped entries: `src/claude/hooks/` (includes `hooks.json`) -> `.claude/hooks/` (`hooks.json` is a symlink, ADR-119). Repo-only entries (the `hooks` row's `repo_only` list in `binplace.yaml`: `PreCompact`, `PreToolUse`, `SessionEnd`, `SessionStart`, `UserPromptSubmit`, `session-start.sh`): straight to `.claude/hooks/`, no plugin hop |
 | settings | `hooks/settings.tmpl` | `hook_templates.py` | none -> `.claude/settings.json` |
-| prompts | `.claude/skills/review/references` | `generate_pr_quality_prompts.py` | none -> `.github/prompts/` |
 
 - `generate_agents.py` renders `src/copilot-cli/agents/`, `src/vs-code-agents/`; `.github/agents/*.agent.md` link to the former (inherit-only, no `model:`).
 - `generate_rules.py` mirrors `src/claude/rules/` to `src/copilot-cli/instructions/` (linked into `.github/instructions/`).
@@ -24,7 +23,7 @@ Per-class render map. Compilers run inside `build_all.py` except `prompts`; binp
 
 ## Entry points
 
-`uv run python build/scripts/build_all.py` renders every class but `prompts` (`generate_pr_quality_prompts.py`, standalone) and binplaces. Binplace has no standalone CLI.
+`uv run python build/scripts/build_all.py` renders every class and binplaces. Binplace has no standalone CLI.
 
 ## Where to look
 

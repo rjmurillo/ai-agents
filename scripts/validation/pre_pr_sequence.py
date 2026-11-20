@@ -77,6 +77,7 @@ from check_skill_adr_bindings import validate_skill_adr_bindings
 from check_skill_output_envelopes import validate_skill_output_envelopes
 from check_skill_shell_placeholders import validate_skill_shell_placeholders
 from check_skill_tree_layout import validate_skill_tree_layout
+from check_skill_trigger_resolution import validate_skill_trigger_resolution
 from check_subprocess_encoding import validate_subprocess_encoding
 from check_template_repo_refs import validate_template_repo_refs
 from check_test_tree_writes import validate_test_tree_writes
@@ -96,7 +97,6 @@ from checks_ci_parity import (
     validate_placeholder_identity,
     validate_plugin_frontmatter_self_containment,
     validate_python3_entrypoints,
-    validate_review_axis_drift,
     validate_route_scenario_coverage,
     validate_security_suppressions_diff,
     validate_sha_pinning,
@@ -171,6 +171,7 @@ from checks_tooling import (
     validate_planning_artifacts,
     validate_rule_scope_declarations,
     validate_session_end,
+    validate_skill_artifact_flow_declarations,
     validate_skill_routing_roles_declarations,
     validate_workflow_yaml,
     validate_yaml_style,
@@ -533,10 +534,9 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Hook Contracts", _root_only(validate_hook_contracts)),
     _Gate("Passive Context Budget", _root_only(validate_passive_context_budget)),
     _Gate("Skillbook Validation", _root_only(validate_skillbook)),
-    # The pre-push `review-axis-drift` job and the aggregate skill description
-    # budget, which pytest asserts in the pre-push test job. Both took seconds to
-    # run and cost a rejected push when pre_pr skipped them (issue #6426).
-    _Gate("Review Axis Drift", _root_only(validate_review_axis_drift)),
+    # The aggregate skill description budget, which pytest asserts in the
+    # pre-push test job. It took seconds to run and cost a rejected push when
+    # pre_pr skipped it (issue #6426).
     _Gate("Skill Description Budget", _root_only(validate_skill_description_budget)),
     # Module boundaries in pyproject.toml [tool.importlinter]. The pytest.yml
     # step and the pre-push import-boundaries job run the same command.
@@ -633,7 +633,7 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # Heuristic; soft warn unless STRICT_CANONICAL_CHECK=1. PR #1887
     # retrospective, Layer 4.
     _Gate("Canonical Citation Check", _root_only(validate_canonical_citations)),
-    # Fails when a backtick path citation in .claude/skills/pr-quality-all/SKILL.md
+    # Fails when a backtick path citation in .claude/skills/pr-quality/SKILL.md
     # points to a file that no longer exists. Issue #1966.
     _Gate("Orchestrator Citation Check", _root_only(validate_orchestrator_citations)),
     # Branch-wide em/en-dash check (issue #1923, REQ-006-AC7). Deferred to the
@@ -805,6 +805,22 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate(
         "Skill Routing Roles (metadata.routing)",
         _root_only(validate_skill_routing_roles_declarations),
+    ),
+    # Refuses a malformed typed `inputs`/`outputs` declaration, an unresolved
+    # or doubly produced artifact, and lifecycle skills whose declared data
+    # does not connect in LIFECYCLE_ORDER or disagrees with their Handoff
+    # line (ADR-123).
+    _Gate(
+        "Skill Artifact Flow (metadata.inputs/outputs)",
+        _root_only(validate_skill_artifact_flow_declarations),
+    ),
+    # Ratchet: each trigger phrase a skill description advertises must route
+    # through the autoplan resolver to that skill, never to a sibling or to
+    # `none`. Born from adr-generator advertising "write an ADR" with no
+    # intents, so autoplan never selected it.
+    _Gate(
+        "Skill Trigger Phrase Resolution (ratchet)",
+        _root_only(validate_skill_trigger_resolution),
     ),
     # Non-regression ratchet on path-local effective context (SPEC-4880,
     # issue #4880): the nested AGENTS.md/CLAUDE.md bytes a harness loads for

@@ -1,0 +1,35 @@
+{
+  "id": "C1-02",
+  "pr": 6492,
+  "sha": "2580325a93",
+  "kind": "positive",
+  "scope": "automatic",
+  "file": ".agents/governance/FAIL-OPEN-INVENTORY.md",
+  "line": 147,
+  "defect_class": "stale-citation",
+  "defect": "checks_coverage.py lines 70-135 no longer covers validate_review_marker.",
+  "resolved_sha": "2580325a93bd8196476cc44086ac1afaae1cb11b",
+  "pr_base": "070e4017ee9960cba0a411a4aa7a5f9d689dad3d",
+  "merge_base": "ff1a471f25ff93b5375f8c0f5d019cc9822a7542",
+  "findings": [
+    {
+      "citing_file": ".agents/governance/FAIL-OPEN-INVENTORY.md",
+      "citing_line": 148,
+      "citation": "scripts/validation/check_git_hook_health.py:468",
+      "reason": "none of the cited anchors ('validate_copilot_routing_exclusions', 'FileNotFoundError', 'RoutingConfigError', 'SKIP') appear at lines 468-468; 'SKIP' first appears at line 393",
+      "gate": "forward",
+      "defect_class": "stale-citation"
+    },
+    {
+      "citing_file": ".agents/governance/FAIL-OPEN-INVENTORY.md",
+      "citing_line": 147,
+      "citation": "scripts/validation/checks_coverage.py:70-135",
+      "reason": "the text at lines 70-135 at the merge base moved at HEAD; suggested citation scripts/validation/checks_coverage.py:72-144",
+      "gate": "reverse",
+      "defect_class": "stale-citation"
+    }
+  ],
+  "output": "[citation-freshness] examined 2 citation(s) across 9 changed file(s) vs ff1a471f25ff93b5375f8c0f5d019cc9822a7542\n[citation-reverse-pass] examined 7 inbound citation(s) to 15 changed file(s) vs ff1a471f25ff93b5375f8c0f5d019cc9822a7542; 1 already stale at the merge base (not blocking)\n",
+  "caught": true,
+  "false_positives": 0
+}

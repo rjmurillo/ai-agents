@@ -197,11 +197,9 @@ def _generated_by_path(path: Path) -> bool:
     parts = _repo_relative_parts(path)
     if any(parts[: len(segment)] == segment for segment in _GENERATED_PATH_SEGMENTS):
         return True
-    if len(parts) == len(_PLUGIN_SKILL_MD) and all(
+    return len(parts) == len(_PLUGIN_SKILL_MD) and all(
         want is None or got == want for got, want in zip(parts, _PLUGIN_SKILL_MD, strict=True)
-    ):
-        return True
-    return path.name.startswith("pr-quality-gate-") and ".github" in parts
+    )
 
 
 def classify_file_category(filepath: str, lines: list[str]) -> str:

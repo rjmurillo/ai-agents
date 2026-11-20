@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "scenarios": [
+    {
+      "id": "lt-pr-review-status-only-negative",
+      "family": "negative-noise",
+      "request": "For PR 123, tell me if it can merge. Just report the status.",
+      "expect": {
+        "kind": "none",
+        "route": null,
+        "routes_absent": [
+          "pr-review"
+        ]
+      },
+      "rationale": "Negative control: pr-review starts the comment responder, so a status-only merge question must not route to it."
+    },
+    {
+      "id": "lt-pr-quality-axis-gate-security",
+      "family": "long-tail-single-domain",
+      "request": "Run the security gate before I push.",
+      "expect": {
+        "kind": "specialist",
+        "route": "pr-quality",
+        "routes_absent": [
+          "orchestrator",
+          "security-review"
+        ]
+      },
+      "rationale": "The retired pr-quality-security skill answered this phrase; pr-quality must keep it after the collapse."
+    },
+    {
+      "id": "lt-pr-quality-axis-gate-qa",
+      "family": "long-tail-single-domain",
+      "request": "Run the qa gate before I push.",
+      "expect": {
+        "kind": "specialist",
+        "route": "pr-quality",
+        "routes_absent": [
+          "orchestrator",
+          "test"
+        ]
+      },
+      "rationale": "The retired pr-quality-qa skill answered this phrase; pr-quality must keep it after the collapse."
+    },
+    {
+      "id": "lt-pr-review-gate-verdict-status-negative",
+      "family": "negative-noise",
+      "request": "For PR 123, show me the completion gate verdict. Just report the status.",
+      "expect": {
+        "kind": "none",
+        "route": null,
+        "routes_absent": [
+          "pr-review"
+        ]
+      },
+      "rationale": "Negative control: a status-only gate question must not start pr-review, which runs the comment responder."
+    }
+  ]
+}

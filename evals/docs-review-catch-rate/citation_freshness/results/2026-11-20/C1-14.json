@@ -1,0 +1,20 @@
+{
+  "id": "C1-14",
+  "pr": 7461,
+  "sha": "2787132138",
+  "fix_sha": "39df73d11bcc173cf7447960b18c1c7e2b783ca1",
+  "kind": "positive",
+  "scope": "manual",
+  "file": ".project-toolkit/specs/requirements/REQ-022-control-plane-disposition-ledger-v070.md",
+  "line": 71,
+  "defect_class": "stale-citation",
+  "defect": "The mechanism cite still names the old fast-stage line.",
+  "why": "Already stale at the merge base (line 543, quote at 796); base debt never blocks.",
+  "resolved_sha": "2787132138642996c46faea12722c6760c5448af",
+  "pr_base": "800ade0750065334e2cae08f0f981de805f78d3d",
+  "merge_base": "ae5acffcb3b9f9e00e4898d5bb0b0f9681a757d5",
+  "findings": [],
+  "output": "[citation-freshness] examined 26 citation(s) across 33 changed file(s) vs ae5acffcb3b9f9e00e4898d5bb0b0f9681a757d5\n[citation-reverse-pass] examined 20 inbound citation(s) to 64 changed file(s) vs ae5acffcb3b9f9e00e4898d5bb0b0f9681a757d5; 16 already stale at the merge base (not blocking)\n",
+  "caught": false,
+  "false_positives": 0
+}

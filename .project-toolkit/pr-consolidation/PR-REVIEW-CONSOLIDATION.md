@@ -123,7 +123,7 @@ Copilot identified 3 groups of duplicate content:
 
 #### Comment 2636679803 (gemini-code-assist[bot])
 
-**File**: `.github/prompts/pr-quality-gate-qa.md:127`
+**File**: `.github/prompts/pr-quality-gate-qa.md:127` <!-- citation-freshness: ignore -- historical record of a review on the generated prompt, deleted on 2026-11-19 with the pr-quality collapse (ADR-109 amendment); the citation describes that file as it was -->
 **Issue**: HIGH severity → WARN verdict relationship ambiguous
 
 **Details**:
@@ -136,7 +136,7 @@ Copilot identified 3 groups of duplicate content:
 
 #### Comment 2636680854 (Copilot)
 
-**File**: `.github/prompts/pr-quality-gate-qa.md:152`
+**File**: `.github/prompts/pr-quality-gate-qa.md:152` <!-- citation-freshness: ignore -- historical record of a review on the generated prompt, deleted on 2026-11-19 with the pr-quality collapse (ADR-109 amendment); the citation describes that file as it was -->
 **Issue**: Verdict options inconsistency
 
 **Details**:
@@ -162,7 +162,7 @@ Copilot identified 3 groups of duplicate content:
 
 #### Comment 2636680859 (Copilot)
 
-**File**: `.github/prompts/pr-quality-gate-qa.md:81`
+**File**: `.github/prompts/pr-quality-gate-qa.md:81` <!-- citation-freshness: ignore -- historical record of a review on the generated prompt, deleted on 2026-11-19 with the pr-quality collapse (ADR-109 amendment); the citation describes that file as it was -->
 **Issue**: Test Coverage Assessment format ambiguity
 
 **Details**:
@@ -203,10 +203,10 @@ Copilot identified 3 groups of duplicate content:
 
 | Item | Status | Priority | Owner | Est. Effort |
 |------|--------|----------|-------|-------------|
-| Fix HIGH→WARN clarity in pr-quality-gate-qa.md:127 | ✅ RESOLVED | P1 | - | - |
-| Add FAIL to verdict options in pr-quality-gate-qa.md:152 | ✅ RESOLVED | P1 | - | - |
+| Fix HIGH→WARN clarity in pr-quality-gate-qa.md:127 <!-- citation-freshness: ignore -- historical record of a review on the generated prompt, deleted on 2026-11-19 with the pr-quality collapse (ADR-109 amendment); the citation describes that file as it was --> | ✅ RESOLVED | P1 | - | - |
+| Add FAIL to verdict options in pr-quality-gate-qa.md:152 <!-- citation-freshness: ignore -- historical record of a review on the generated prompt, deleted on 2026-11-19 with the pr-quality collapse (ADR-109 amendment); the citation describes that file as it was --> | ✅ RESOLVED | P1 | - | - |
 | Improve comment wording in ai-spec-validation.yml:233 | ✅ RESOLVED | P1 | - | - |
-| Clarify Test Coverage Assessment format in pr-quality-gate-qa.md:81 | ✅ RESOLVED | P1 | - | - |
+| Clarify Test Coverage Assessment format in pr-quality-gate-qa.md:81 <!-- citation-freshness: ignore -- historical record of a review on the generated prompt, deleted on 2026-11-19 with the pr-quality collapse (ADR-109 amendment); the citation describes that file as it was --> | ✅ RESOLVED | P1 | - | - |
 | Update Get-VerdictExitCode documentation in AIReviewCommon.psm1:475 | ✅ RESOLVED | P1 | - | - |
 | **Add explicit FAIL verdict test in AIReviewCommon.Tests.ps1** | **⚠️ PENDING** | **P1** | **QA** | **5-10 min** |
 

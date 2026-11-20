@@ -32,6 +32,8 @@ Working code and tests committed in atomic commits, one logical change each, wit
 
 The build ends with the four exit gates reported as clean, or each failing gate reported as FAILED with its disposition.
 
+Hand-off (ADR-123): Writes `implementation-change` and `validation-record`. Next: [`test`](test.md). `metadata.inputs` and `metadata.outputs` in the skill's frontmatter declare the same data.
+
 ## Advanced use
 
 **Phases.**

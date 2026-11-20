@@ -1,0 +1,14 @@
+{
+  "id": "N11",
+  "pr": 7294,
+  "sha": "2d7585ba",
+  "kind": "negative",
+  "scope": "automatic",
+  "resolved_sha": "2d7585ba6c4e466560b250af5e3eceabcaa4b712",
+  "pr_base": "d82875e0cad26be4af0154c70bb42d6619162865",
+  "merge_base": "d82875e0cad26be4af0154c70bb42d6619162865",
+  "findings": [],
+  "output": "[citation-freshness] examined 0 citation(s) across 1 changed file(s) vs d82875e0cad26be4af0154c70bb42d6619162865\n[citation-reverse-pass] examined 0 inbound citation(s) to 13 changed file(s) vs d82875e0cad26be4af0154c70bb42d6619162865; 0 already stale at the merge base (not blocking)\n",
+  "caught": false,
+  "false_positives": 0
+}
