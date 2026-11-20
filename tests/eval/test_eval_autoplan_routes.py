@@ -69,9 +69,10 @@ def _catalog(tmp_path: Path, name: str, intents: list[str]) -> Path:
     return root
 
 
-@pytest.mark.parametrize("fixture_name", ["routes.json", "technical-writing.json"])
-def test_shipped_fixtures_all_pass(capsys: pytest.CaptureFixture[str], fixture_name: str) -> None:
-    fixture_path = ev.DEFAULT_FIXTURES.with_name(fixture_name)
+@pytest.mark.parametrize(
+    "fixture_path", sorted(ev.DEFAULT_FIXTURES.parent.glob("*.json")), ids=lambda path: path.name
+)
+def test_shipped_fixtures_all_pass(capsys: pytest.CaptureFixture[str], fixture_path: Path) -> None:
     assert ev.main(["--fixtures", str(fixture_path)]) == ev.EXIT_OK
     out = capsys.readouterr().out
     assert "orchestrator fallback: 0/" in out
