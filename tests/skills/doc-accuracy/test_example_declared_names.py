@@ -94,6 +94,18 @@ def test_undeclared_symbol_in_declaring_block_still_flags(tmp_path: Path) -> Non
     assert "Order" not in by_symbol(data)
 
 
+def test_constructor_excerpt_still_flags_its_type(tmp_path: Path) -> None:
+    """A constructor with no class line is a claim that the type exists."""
+    block = f"{FENCE}csharp\npublic Ghost(int id)\n{{\n    Id = id;\n}}\n{FENCE}\n"
+    repo = make_repo(tmp_path, {"doc.md": "# T\n\n" + block})
+
+    code, data = run_gate(repo, tmp_path)
+
+    assert code == 10
+    assert "Ghost" in by_symbol(data)
+    assert data["declared_name_suppressed"] == {}
+
+
 def test_plain_uses_without_declaration_still_flag(tmp_path: Path) -> None:
     block = f"{FENCE}csharp\nvar o = new Order();\nreturn Customer;\n{FENCE}\n"
     repo = make_repo(tmp_path, {"doc.md": "# T\n\n" + block})
@@ -124,6 +136,11 @@ def test_plain_uses_without_declaration_still_flag(tmp_path: Path) -> None:
         ("csharp", "var o = new Order();", set()),
         ("csharp", "void F<T>() where T : class\nGhost x;", set()),
         ("csharp", "public static implicit operator Ghost(Order o) => new();", set()),
+        # A constructor names a type it does not declare.
+        ("csharp", "public Order(int id) { }", set()),
+        ("csharp", "public Order (int id) { }", set()),
+        ("csharp", "internal Ghost(string s) : base(s) { }", set()),
+        ("csharp", "protected internal override string ToString() { }", {"ToString"}),
         ("csharp", "public static explicit operator\tGhost(Order o) => new();", set()),
         ("csharp", "public Cooperator Hire(int id) { }", {"Hire"}),
         ("csharp", "public int Id\n{\n    get;\n}", {"Id"}),

@@ -105,8 +105,8 @@ The marker is `<!-- doc-accuracy: external-sdk <name> -- <reason> -->`.
   aliases (`type X =`), so `import type X` and `import { type X }` stay claims.
   A declaration counts only at the start of a line, after any attributes and
   modifiers. Comments, strings, and text in the middle of a line, such as a
-  regex literal, declare nothing. A conversion operator does not declare its
-  target type. The report counts each skip per file under
+  regex literal, declare nothing. A C# method needs a return type before its
+  name, so a constructor or a conversion operator does not declare its type. The report counts each skip per file under
   `declared_name_suppressed`. Method signature claims get no exemption.
 - A missing, `-`-led, or placeholder name suppresses nothing and yields a
   high `invalid_external_sdk_marker` finding.

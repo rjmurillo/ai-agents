@@ -1485,6 +1485,10 @@ _CS_MODIFIERS = (
     r"(?:(?:public|private|protected|internal|static|sealed|abstract|partial"
     r"|readonly|unsafe|file|new|ref)[ \t]+)*"
 )
+_CS_METHOD_MODIFIERS = (
+    r"(?:(?:public|private|protected|internal|static|virtual|override|abstract"
+    r"|sealed|async|extern|unsafe|new|partial|readonly)[ \t]+)*"
+)
 _DECLARED_NAME_PATTERNS: dict[str, tuple[re.Pattern[str], ...]] = {
     "csharp": (
         re.compile(
@@ -1496,11 +1500,18 @@ _DECLARED_NAME_PATTERNS: dict[str, tuple[re.Pattern[str], ...]] = {
             r"^[ \t]*(?:[\w<>\[\],.?]+[ \t]+)+([A-Za-z_]\w*)\s*\{\s*(?:get|set|init)\b",
             re.MULTILINE,
         ),
-        # A conversion operator names its target type, it does not declare it,
-        # so the run before the method name may not cross an ``operator`` token.
+        # A method has a return type token between its modifiers and its name.
+        # A constructor (``public Order(``) has none: it names a type it does
+        # not declare. A conversion operator names its target type the same
+        # way, so ``implicit``, ``explicit`` and ``operator`` are never a
+        # return type here. Each token is one run of non-space characters.
         re.compile(
-            r"^[ \t]*" + _CS_ATTRIBUTES + r"(?:public|private|protected|internal)\b"
-            r"(?:(?!\boperator\b)[^;{}()=\n]){0,200}?\b([A-Za-z_]\w*)[ \t]*\(",
+            r"^[ \t]*"
+            + _CS_ATTRIBUTES
+            + r"(?:public|private|protected|internal)[ \t]+"
+            + _CS_METHOD_MODIFIERS
+            + r"(?!(?:implicit|explicit|operator)\b)[\w<>\[\],.?]{1,200}[ \t]+"
+            r"([A-Za-z_]\w*)[ \t]*\(",
             re.MULTILINE,
         ),
     ),
