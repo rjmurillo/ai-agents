@@ -37,8 +37,8 @@ Each mention of a superseded ADR lands in one class; only AUTHORITY fails.
   (2026-11-20) judged 25 of them live authority, so recall is partial.
 - A stray straight `"` (an inch mark) earlier in a paragraph reads later
   mentions as quoted, so they pass as HISTORY.
-- Only text within `WINDOW` characters of a mention is classified, so cost stays
-  linear; the longest ADR sentence was 695 characters at `36f056888`.
+- Only text within `WINDOW` characters of a mention is classified. That bounds
+  work per mention; one huge line still costs more (longest sentence: 695 chars).
 
 ## Ratchet
 
@@ -107,7 +107,7 @@ UNCLASSIFIED = "unclassified"
 
 _BASELINE_PATH = Path(__file__).with_name("adr_supersession_citations_baseline.json")
 
-_ADR_ID_RE = re.compile(r"(?:ADR-)?0*(\d{1,4})\b")
+_ADR_ID_RE = re.compile(r"\bADR-0*(\d{1,4})\b")  # a date in the value is not an id
 _AUTHORITY_CASED_RE = re.compile(r"\b(?:MUST|SHALL|REQUIRED)\b")
 _AUTHORITY_RE = re.compile(
     r"\b(?:governs|governing|governed by|owns|owned by|current owner|owner of|binding|"
@@ -266,11 +266,11 @@ class ClassifyContext:
     quoted: bool
 
 
-def classify(sentence: str, match: re.Match[str], tail_end: int, context: ClassifyContext) -> str:
-    """Class of ``match``, a mention of a superseded ADR in ``sentence``."""
-    adr = int(match.group(1))
-    before = sentence[: match.start()]
-    after = sentence[match.end() : tail_end]
+def classify(sentence: str, span: tuple[int, int], tail_end: int, context: ClassifyContext) -> str:
+    """Class of the `ADR-NNN` mention at ``span`` in ``sentence``."""
+    adr = int(sentence[span[0] + 4 : span[1]])
+    before = sentence[: span[0]]
+    after = sentence[span[1] : tail_end]
     if (
         adr in context.own_supersedes
         or context.quoted
@@ -327,9 +327,9 @@ def citations_in(path: str, own: int, text: str, corpus: Corpus) -> list[Citatio
                 context = ClassifyContext(corpus, own_supersedes, quoted)
                 lo = max(0, match.start() - WINDOW)
                 window = sentence[lo : match.end() + WINDOW]
-                wmatch = MENTION_RE.match(window, match.start() - lo)
+                span = (match.start() - lo, match.end() - lo)
                 tail = min(tail_end, match.end() + WINDOW) - lo
-                found.append((lineno, adr, classify(window, wmatch, tail, context)))
+                found.append((lineno, adr, classify(window, span, tail, context)))
     lines = text.split("\n")
     return [Citation(path, n, adr, kind, _excerpt(lines[n - 1], adr)) for n, adr, kind in found]
 

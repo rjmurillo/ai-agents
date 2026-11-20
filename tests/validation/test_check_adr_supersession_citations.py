@@ -4,9 +4,8 @@ pos: the ADR-107 Related Decisions text as it stood on main, and MUST, "per",
 "governs" and "current owner" citations of a superseded record, fail.
 neg: lineage, named successors, own `supersedes`, quotes, history words,
 negation, code, fences, paths, other statuses and retired citers pass, as does
-the PR #7482 ADR-107 wording. edge: split quotes, unclassified mentions, the
-rule gate's META verdict, and a long negated list in linear time.
-CLI: known passes, new or stale fails, unusable scope exits 2; one pre_pr row.
+the PR #7482 ADR-107 wording. edge: split quotes, unclassified mentions, the rule
+gate's META verdict, a long negated list. CLI exits and the pre_pr row.
 """
 
 from __future__ import annotations
@@ -238,8 +237,9 @@ def test_successor_chain_is_transitive() -> None:
 
 
 def test_successor_read_from_the_other_side_when_superseded_by_is_missing() -> None:
-    corpus = build_corpus([_record(5, "superseded"), _record(42, "accepted", supersedes="ADR-005")])
-    assert corpus.chain(5) == [42]
+    dated = _record(42, "accepted", "ADR-005 (2026-05-01)")
+    corpus = build_corpus([_record(5, "superseded"), dated])
+    assert corpus.chain(5) == [42] and corpus.supersedes[42] == {5}  # the date is not an id
 
 
 def test_successor_cycle_terminates() -> None:
