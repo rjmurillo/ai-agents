@@ -64,12 +64,15 @@ A change to a safety control, a permission boundary, a shipped default, or anyth
 uv run python .claude/skills/skillforge/scripts/quick_validate.py "$SKILL" --root "$HOME/.claude"
 uv run python .claude/skills/skillforge/scripts/validate-skill.py "$SKILL" --root "$HOME/.claude"
 uv run python .claude/skills/skillforge/scripts/conformance.py "$SKILL" --root "$HOME/.claude"
+uv run python .claude/skills/skillforge/scripts/lint_skill_frontmatter.py "$SKILL" --root "$HOME/.claude"
 uv run python .claude/skills/skillforge/scripts/check_docs_safety.py "$SKILL"
 uv run python .claude/skills/skillforge/scripts/skill_modularity_audit.py "$SKILL" --ci
 uv run python .claude/skills/skillforge/scripts/package_skill.py "$SKILL" ./dist
 ```
 
 Other scripts: `init_skill.py` (scaffold, `--path`, `--dry-run`, `--docs-section`; when `--path` is a folder named `skills` in a repository with `docs/skills/README.md`, it also writes `docs/skills/<name>.md` and adds or prints the README row), `triage_skill_request.py` (`--json`, `--verbose`; exits `2` if the skill index is missing), and `discover_skills.py` (builds the index; `--extra-root`, `--output`, `--json`). Validators enforce a path guard: the skill directory must sit under the current directory or under `--root`. Read [`references/scripts-and-validation.md`](../../src/claude/skills/skillforge/references/scripts-and-validation.md) before you act on an exit code.
+
+`lint_skill_frontmatter.py` runs nine deterministic rules: frontmatter the stdlib parser can read, the 24576-byte cap with 256 bytes of headroom for generated mirrors, artifact and capability shapes, routable trigger phrases, the Handoff line, and a description redirect. It exits `0` with no MUST failure, `1` on a MUST failure (or any SHOULD warning with `--strict`), and `2` on a usage error. `--list` prints the rules. [`references/frontmatter-and-limits.md`](../../src/claude/skills/skillforge/references/frontmatter-and-limits.md) explains each rule and its fix.
 
 Checklist limits: name is hyphen-case and 64 characters or fewer, description is 1024 characters or fewer, `SKILL.md` stays under 500 lines, and the skill defines 3 to 5 trigger phrases. Start with least-privilege tools (`Read`, `Glob`, `Grep`, `Write`, `Edit`) and add others only when the skill needs them. Write only what the model cannot already know.
 

@@ -2934,6 +2934,13 @@ def _qualified_member_checks(
     return _blank_example_spans(checked, spans), unresolved, wrong_parameters
 
 
+# A C# preprocessor directive occupies its whole line, optionally indented,
+# with optional whitespace after "#". Directive lines name build symbols
+# (NETFRAMEWORK, NET472, DEBUG) or tooling text (#region, #pragma), never a
+# repository declaration.
+_CSHARP_DIRECTIVE_LINE_RE = re.compile(r"^[ \t]*#[ \t]*[a-z]+\b.*$", re.MULTILINE)
+
+
 def _extract_identifiers(
     code: str,
     lang: str = "",
@@ -2957,7 +2964,12 @@ def _extract_identifiers(
     in the extracted list; Phase 3 drops a name seen only in literals or
     comments (``_c_family_code_view``). Member calls stay visible for
     parameter checks against known methods. TypeScript object-literal keys
-    are data, not named parameters. Other languages keep the
+    are data, not named parameters.
+
+    For C# (``lang == "csharp"``) preprocessor directive lines are blanked
+    first, so ``#if NETFRAMEWORK`` does not report an unresolved symbol
+    (issue #7453). Other languages keep lines starting with ``#``, because
+    JavaScript and TypeScript private members use that prefix, and keep the
     language-agnostic scan.
     """
     ignored_names: set[str] = set(doc_definitions)
@@ -2967,6 +2979,8 @@ def _extract_identifiers(
         ignored_names.update(excluded_names)
         code = _blank_stdlib_plain_import_lines(code)
     elif lang in _DECLARATION_RES:
+        if lang == "csharp":
+            code = _CSHARP_DIRECTIVE_LINE_RE.sub("", code)
         ignored_names.update(_example_declaration_names(code, lang))
         code = _strip_csharp_comments(code) if lang == "csharp" else _c_family_code_view(code, lang)
     # Match CamelCase and snake_case identifiers (3+ chars)

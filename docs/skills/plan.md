@@ -41,6 +41,8 @@ With no argument, it looks for recent spec output in the conversation. If it fin
 
 Sizing is by complexity (S, M, L), never by time. The plan is persisted through [`execution-plans`](execution-plans.md) instead of staying in the conversation.
 
+Hand-off (ADR-123): Writes `execution-plan` under `plans/active/` through `execution-plans`. Next: [`build`](build.md). `metadata.inputs` and `metadata.outputs` in the skill's frontmatter declare the same data.
+
 ## Advanced use
 
 **Process.** The skill runs seven steps:

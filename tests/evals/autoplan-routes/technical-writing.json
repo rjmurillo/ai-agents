@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "scenarios": [
+    {
+      "id": "lt-technical-writing-hemingway",
+      "family": "long-tail-single-domain",
+      "request": "Give this migration guide a Hemingway pass.",
+      "expect": {
+        "kind": "specialist",
+        "route": "technical-writing",
+        "routes_absent": [
+          "orchestrator"
+        ]
+      },
+      "rationale": "The named edit routes to technical-writing without an explicit skill name."
+    },
+    {
+      "id": "lt-technical-writing-hemingway-audit",
+      "family": "long-tail-single-domain",
+      "request": "Audit docs/refresh.md using a Hemingway pass. Suggest replacements.",
+      "expect": {
+        "kind": "specialist",
+        "route": "technical-writing",
+        "routes_absent": [
+          "orchestrator"
+        ]
+      },
+      "rationale": "The named audit routes to technical-writing without an explicit skill name."
+    },
+    {
+      "id": "lt-technical-writing-hemingway-audit-direct",
+      "family": "long-tail-single-domain",
+      "request": "Give docs/install.md a Hemingway audit",
+      "expect": {
+        "kind": "specialist",
+        "route": "technical-writing",
+        "routes_absent": [
+          "orchestrator"
+        ]
+      },
+      "rationale": "The Hemingway audit phrase routes without the word pass."
+    },
+    {
+      "id": "lt-hemingway-audit-endpoint-api-guide",
+      "family": "long-tail-single-domain",
+      "request": "Give this endpoint API guide a Hemingway audit",
+      "expect": {
+        "kind": "specialist",
+        "route": "api-doc-authoring",
+        "routes_absent": [
+          "orchestrator"
+        ]
+      },
+      "rationale": "The API guide audit intent routes to its documented owner."
+    },
+    {
+      "id": "lt-hemingway-audit-api-guide-named-endpoint",
+      "family": "long-tail-single-domain",
+      "request": "Give this API guide for the /users endpoint a Hemingway audit",
+      "expect": {
+        "kind": "specialist",
+        "route": "api-doc-authoring"
+      },
+      "rationale": "The audit routes to the API owner when the endpoint follows the page type."
+    },
+    {
+      "id": "lt-hemingway-audit-api-guide-audit-first",
+      "family": "long-tail-single-domain",
+      "request": "Do a Hemingway audit of this API guide",
+      "expect": {
+        "kind": "specialist",
+        "route": "api-doc-authoring"
+      },
+      "rationale": "The API owner also wins when the audit comes before the page type."
+    },
+    {
+      "id": "lt-hemingway-pass-endpoint-api-guide-audit",
+      "family": "long-tail-single-domain",
+      "request": "Audit this endpoint API guide using a Hemingway pass",
+      "expect": {
+        "kind": "specialist",
+        "route": "api-doc-authoring"
+      },
+      "rationale": "An audit phrased as a Hemingway pass retains API guide ownership."
+    },
+    {
+      "id": "lt-hemingway-pass-api-guide-pass-first",
+      "family": "long-tail-single-domain",
+      "request": "Do a Hemingway pass on this API guide",
+      "expect": {
+        "kind": "specialist",
+        "route": "api-doc-authoring"
+      },
+      "rationale": "The API owner also wins when the pass comes before the page type."
+    },
+    {
+      "id": "lt-hemingway-audit-api-documentation",
+      "family": "long-tail-single-domain",
+      "request": "Give this API documentation a Hemingway audit",
+      "expect": {
+        "kind": "specialist",
+        "route": "api-doc-authoring"
+      },
+      "rationale": "The API owner also handles requests that say API documentation."
+    },
+    {
+      "id": "lt-hemingway-audit-api-guide-far-apart",
+      "family": "long-tail-single-domain",
+      "request": "Give this endpoint API guide for users of our billing service a Hemingway audit",
+      "expect": {
+        "kind": "specialist",
+        "route": "api-doc-authoring"
+      },
+      "rationale": "API ownership holds when the document type and audit phrase are far apart."
+    }
+  ]
+}

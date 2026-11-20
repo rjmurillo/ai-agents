@@ -3,7 +3,7 @@
 Asserts that `/review` works when only the .claude/ subtree ships
 (project-toolkit plugin distribution surface). Does NOT invoke the
 Claude Code harness; tests the Python surface and file structure that
-`/review` and `/pr-quality:all` depend on.
+`/review` and `/pr-quality` depend on.
 
 The harness-side behavioral check (does `/review` actually load axes
 and chain skills end-to-end) is out of scope for pytest. This test

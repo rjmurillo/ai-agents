@@ -67,12 +67,63 @@
       "rationale": "The aspire.dev profile requires AppHost language parity with synced tabs. A response that applies that convention after detecting the site is attributable to the profile."
     },
     {
+      "id": "S7464-contrast",
+      "desc": "Regression: an audit must catch lint-clean rhetorical contrast",
+      "input": "Use technical-writing to audit this synthetic docs excerpt for style. Prose lint reported zero findings. The preview creates only drafts, and users publish them in a separate step. Return any findings with exact replacement text. Do not edit files.\n\npreview.md:14: This preview creates a draft, not a published report.",
+      "expected_signals": [
+        "preview.md:14",
+        "polish",
+        "draft",
+        "publish separately"
+      ],
+      "expected_gate": "technical-writing-audit-lint-clean-contrast",
+      "rationale": "Known regression from issue #7464, not held-out evidence. Pass only if the audit locates the contrast as polish and supplies exact, direct replacement text that preserves draft-only behavior and separate publication. A generic tip, a clean-lint verdict, loss of a fact, or a claim that files were edited does not pass."
+    },
+    {
+      "id": "S7464-literal",
+      "desc": "Regression control: an audit must keep literal restrictions",
+      "input": "Use technical-writing to audit this synthetic docs excerpt for style. Prose lint reported zero findings. Both statements match product behavior. A matching checksum permits deletion but never requires it. Return any findings with exact replacement text. Do not edit files.\n\narchive.md:8: Standard accounts cannot restore archived reports.\narchive.md:9: Do not delete the original file until the checksum matches.",
+      "expected_signals": [
+        "no style change needed",
+        "account exclusion",
+        "checksum prerequisite"
+      ],
+      "expected_gate": "technical-writing-audit-preserve-literal-restrictions",
+      "rationale": "Regression control for issue #7464, not held-out evidence. The audit should leave the exclusion and warning unchanged. Fail if it treats either negative as rhetorical, drops a limit, or turns permission to delete into a command."
+    },
+    {
       "id": "S6",
       "desc": "Endpoint API guide belongs to api-doc-authoring",
       "input": "Write the quickstart for POST /orders and GET /orders/{id}. Answer in 3 short bullets. Do not modify any files.",
       "expected_signals": [],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "Endpoint-driven API guides are owned by api-doc-authoring. The documentation-page workflow must not run."
+    },
+    {
+      "id": "hemingway-edit",
+      "desc": "The named edit shortens a migration procedure without changing reader actions",
+      "input": "Give this Markdown procedure a Hemingway pass. Return only the revised procedure in chat. Treat the commands as examples; do not run them.\n\nBefore the migration can get underway, what operators need to do in advance is pause incoming jobs and save a snapshot by running `tile snapshot --name before-layout`. It is only when the snapshot has finished successfully that `tile migrate --layout grid` should be run. In the event that the migration exits nonzero, leave incoming jobs paused and restore the snapshot with `tile restore --name before-layout`. Resuming incoming jobs before the restore succeeds may drop queued jobs. For a successful migration, incoming jobs can be resumed once `tile status --layout grid` reports `ready`.",
+      "expected_signals": [
+        "pause incoming jobs",
+        "snapshot succeeds before migration",
+        "nonzero exit triggers restore",
+        "ready before resuming"
+      ],
+      "expected_gate": "technical-writing-hemingway-edit",
+      "rationale": "Award full credit only for a usable, action-first rewrite that cuts filler, keeps all four commands verbatim, and preserves both paths. Before migration, pause jobs and wait for snapshot success. On nonzero exit, keep jobs paused and restore the same snapshot. Keep the warning about dropped jobs if resumed before restore succeeds. On migration success, resume only after the status command reports ready. Do not reward short sentences if meaning, sequence, or conditions change."
+    },
+    {
+      "id": "hemingway-audit",
+      "desc": "The named audit offers an exact replacement without editing or inventing procedure",
+      "input": "Audit line 18 of this fictional docs/refresh.md excerpt using a Hemingway pass. Report the finding and proposed replacement.\n\n18: It is necessary for the signed catalog to have been downloaded before the command `mosaic refresh --signed` is run, and if the command reports `STALE`, it is necessary to leave the existing catalog in place.",
+      "expected_signals": [
+        "docs/refresh.md and line 18",
+        "polish",
+        "signed catalog before refresh",
+        "STALE leaves existing catalog in place"
+      ],
+      "expected_gate": "technical-writing-hemingway-audit",
+      "rationale": "Award full credit only for a located style finding and an exact, action-first replacement. Keep the signed catalog prerequisite, the verbatim command, the literal STALE condition, and the instruction to leave the existing catalog in place. Do not add a retry or recovery action. A claimed file change or command run fails the read-only requirement."
     }
   ]
 }

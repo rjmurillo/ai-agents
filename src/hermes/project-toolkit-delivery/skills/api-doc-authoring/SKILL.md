@@ -1,7 +1,7 @@
 ---
 name: api-doc-authoring
 version: 1.0.0
-description: Write API docs around a developer use case, with executed examples and failure recovery. Use when you say `document this API` or `write the API guide`. Do NOT use to verify doc claims (use doc-accuracy) or design the API.
+description: Write API docs around a developer use case, with executed examples and failure recovery. Use when you say `document this API` or `write the API guide`. Do NOT use to verify doc claims (use doc-accuracy), design the API, or write tutorials, concepts, or non-endpoint pages (use technical-writing).
 license: MIT
 user-invocable: true
 ---
@@ -40,6 +40,18 @@ Skip the narrative when the artifact is a true reference listing, such as a
 generated schema page, or the API is trivial or internal with one obvious call.
 Write the reference, mark it as reference, and stop. Do not invent a use case to
 fill space.
+
+## Hemingway pass
+
+For a Hemingway pass, use the requested edit or audit mode. Lead with reader
+actions, cut repeated setup, and split overloaded sentences. Preserve commands,
+prerequisites, warnings, failure behavior, and rollback steps. Keep their
+order and the conditions for each step. Do not invent recovery actions.
+
+Skip the authoring phases for a Hemingway pass. Follow this section over
+Phase 5 and the Verification checklist. For an audit, verify through read-only
+inspection and suggest exact replacements. Apply file edits, run examples,
+or write evidence only when the user requests those actions.
 
 ## Process
 

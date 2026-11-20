@@ -357,7 +357,6 @@ _NEW_GATES: dict[str, str] = {
     "Tracked Conflict Markers": "tracked-conflict-markers",
     "Security Suppressions Diff": "security-suppressions-diff",
     "Memory Placement": "check_memory_placement.py",
-    "Review Axis Drift": "generate_pr_quality_prompts.py",
     "Skill Description Budget": "skill_description_budget.py",
     "Import Boundaries": "lint_imports_command",
 }

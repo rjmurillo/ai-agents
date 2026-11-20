@@ -1,7 +1,7 @@
 ---
 name: requirements-interview
 version: 0.2.0
-description: Adversarial requirements interview that walks the design tree to elicit testable requirements before any code is written (the grill-me pattern), or audits an existing multi-section spec for ambiguity with source-anchored questions. Skip any question the codebase can already answer. Use when you say "interview me on this", "grill me on the requirements", "walk the design tree", or "audit this spec for ambiguity".
+description: Adversarial requirements interview that walks the design tree to elicit testable requirements before any code is written (the grill-me pattern), or audits an existing multi-section spec for ambiguity with source-anchored questions. Skip any question the codebase can already answer. Use when you say "interview me on this", "grill me on the requirements", "walk the design tree", or "audit this spec for ambiguity". Do NOT use to run the first-principles gate or write the PRD (use spec), or to emit REQ/DESIGN/TASK files (use spec-generator).
 allowed-tools:
   - Read
   - Glob
@@ -13,8 +13,8 @@ user-invocable: true
 metadata:
   routing:
     role: nested-helper
-    invoker: spec-generator
-    trigger: spec-generator invokes requirements-interview to walk the design tree before analysis
+    invoker: spec
+    trigger: spec Step 2 invokes requirements-interview for a design-tree interview or an ambiguity audit
     user-facing: true
 ---
 

@@ -5,6 +5,9 @@ inbound-zero ("does any skill or agent text mention it?"), and scenario
 coverage are reported, never refused: a route is prose, and a common-word
 skill name makes an exact-token match an upper bound rather than proof.
 Scored routing accuracy is not measured here; issue #5389 owns it.
+
+The resolver-backed intent reachability layer lives in
+`skill_routing_resolver_evidence.py` and is report-only as well.
 """
 
 from __future__ import annotations
@@ -21,16 +24,22 @@ if str(_SCRIPT_DIR) not in sys.path:
 
 import yaml  # noqa: E402
 from skill_routing_model import RESERVED_INVOKERS, ROLES, SkillDecl  # noqa: E402
+from skill_routing_resolver_evidence import intents_reached  # noqa: E402
 
 
 @dataclass(frozen=True)
 class Evidence:
-    """The three reported (non-refusing) evidence layers, sorted by name."""
+    """The four reported (non-refusing) evidence layers plus the checked set, sorted by name.
+
+    Layers: `unresolved`, `inbound_zero`, `scenario_covered`, `intent_reached`.
+    `checked` is the examined set, not a layer.
+    """
 
     unresolved: tuple[str, ...]
     inbound_zero: tuple[str, ...]
     scenario_covered: tuple[str, ...]
     checked: tuple[str, ...]
+    intent_reached: tuple[str, ...] = ()
 
 
 _REACHABLE_ROLES = frozenset({"front-door", "lifecycle", "conditional-adjunct", "nested-helper"})
@@ -157,16 +166,26 @@ def compute_evidence(
     skill_templates: dict[str, Path],
     agent_templates: dict[str, Path],
 ) -> Evidence:
-    """Return the three reported evidence layers, sorted for determinism."""
+    """Return the four reported evidence layers and the checked set, sorted for determinism."""
     skill_text, agent_text = _canonical_texts(repo_root, skill_templates, agent_templates)
     checked, unresolved = _unresolved_skills(skills, skill_text, agent_text)
     inbound_zero = _inbound_zero_skills(skills, skill_text, agent_text)
     scenario_covered = [skill.name for skill in skills if (repo_root / skill.scenario).is_file()]
+    autoplan_doors = {
+        skill.name: skill_templates[skill.name]
+        for skill in skills
+        if skill.name in unresolved
+        and skill.role == "front-door"
+        and skill.invoker == "autoplan"
+        and skill.name in skill_templates
+    }
+    reached = intents_reached(repo_root, autoplan_doors)
     return Evidence(
-        unresolved=tuple(sorted(unresolved)),
+        unresolved=tuple(sorted(set(unresolved) - set(reached))),
         inbound_zero=tuple(sorted(inbound_zero)),
         scenario_covered=tuple(sorted(scenario_covered)),
         checked=tuple(sorted(checked)),
+        intent_reached=tuple(sorted(reached)),
     )
 
 
@@ -182,6 +201,8 @@ def render(skills: list[SkillDecl], evidence: Evidence, fmt: str) -> str:
     lines = [f"skills: {total}", f"classified: {classified}/{total}"]
     lines.extend(f"role {role}: {count}" for role, count in sorted(by_role.items()))
     lines.append(f"structurally reachable: {reachable}/{checked}")
+    lines.append(f"reached by intents: {len(evidence.intent_reached)}")
+    lines.extend(f"reached by intents {name}" for name in evidence.intent_reached)
     lines.append(f"unresolved: {len(evidence.unresolved)}")
     lines.extend(f"unresolved {name}" for name in evidence.unresolved)
     lines.append(f"scenario coverage: {len(evidence.scenario_covered)}/{total}")
@@ -215,6 +236,7 @@ def _render_json(
             "scenario_covered": len(evidence.scenario_covered),
         },
         "unresolved": list(evidence.unresolved),
+        "intent_reached": list(evidence.intent_reached),
         "inbound_zero": list(evidence.inbound_zero),
         "scored_accuracy": "not measured",
     }

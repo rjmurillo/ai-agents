@@ -129,9 +129,10 @@ _PARSED_COUPLING_LANGUAGES = frozenset(
     {"csharp", "javascript", "python", "typescript", "powershell"}
 )
 
-# Single-line comment prefixes, used to exclude comment lines from the
-# lines-of-code count. Block comments are intentionally not stripped: this is an
-# approximation, not a parser.
+# Single-line comment prefixes. ``assess_content`` drops these lines once, and
+# both the lines-of-code count and the non-redundancy ratio read the result.
+# Block comments are intentionally not stripped: this is an approximation, not
+# a parser.
 _LINE_COMMENT_PREFIXES = {
     "python": ("#",),
     "typescript": ("//",),
@@ -141,6 +142,13 @@ _LINE_COMMENT_PREFIXES = {
     "go": ("//",),
     "powershell": ("#",),
 }
+
+# Lines that repeat by syntax, not by copy-paste, so non-redundancy skips them
+# (issue #7454). One is made only of brackets and separators, such as `}`,
+# `});`, or `{ }`. The other is a bare attribute or annotation with no
+# arguments, such as `[Fact]` or `@Override`; with arguments it still counts.
+_STRUCTURAL_ONLY_LINE = re.compile(r"[{}()\[\];,]+(?:\s+[{}()\[\];,]+)*")
+_BARE_ATTRIBUTE_LINE = re.compile(r"\[[A-Za-z_][\w.]*\]|@[A-Za-z_][\w.]*")
 
 # Repo-root-anchored prefixes of build outputs (ADR-109, ADR-119). Under
 # ADR-119, src/claude/skills/<name>/ scripts and the top-level src/claude/lib
@@ -207,8 +215,6 @@ def classify_file_category(file_path: Path, content: str | None = None) -> str:
     """
     parts = _repo_relative_parts(file_path)
     if any(parts[: len(segment)] == segment for segment in _GENERATED_PATH_SEGMENTS):
-        return "generated"
-    if file_path.name.startswith("pr-quality-gate-") and ".github" in parts:
         return "generated"
     if content is None:
         try:
@@ -1805,9 +1811,71 @@ def _dependency_nodes(source: str, grammar: _DependencyGrammar) -> list[Any]:
         ) from exc
 
 
-def _count_csharp_imports(source: str) -> int:
-    """Count directive syntax nodes, not resource declarations or literal text."""
-    return _count_dependency_nodes(source, _CSHARP_GRAMMAR)
+def _csharp_root_namespace(node: Any) -> str | None:
+    """Return the first namespace segment a C# name node refers to.
+
+    ``global::`` is the root namespace, so ``global::System.IO`` starts with
+    ``System``. An extern alias (``Lib::System``) names another assembly, so it
+    returns None. A tuple, array, nullable, pointer, or keyword alias target is
+    not a name node, so it returns None and stays scored, even when its element
+    type is a ``System`` type such as ``System.Int32[]``.
+    """
+    while node.type in ("qualified_name", "generic_name"):
+        node = (
+            node.child_by_field_name("qualifier")
+            if node.type == "qualified_name"
+            else next(c for c in node.named_children if c.type == "identifier")
+        )
+    if node.type == "alias_qualified_name":
+        if node.child_by_field_name("alias").text != b"global":
+            return None
+        node = node.child_by_field_name("name")
+    if node.type != "identifier":
+        return None
+    name: str = node.text.decode("utf-8")
+    return name.removeprefix("@")
+
+
+def _is_csharp_standard_directive(directive: Any) -> bool:
+    """Classify one ``using`` directive as importing the ``System`` namespace tree.
+
+    The target is the directive's last non-comment named child; for an alias
+    directive the ``name`` field holds the alias, so the target follows it.
+    """
+    alias = directive.child_by_field_name("name")
+    targets = [
+        child
+        for child in directive.named_children
+        if child.type != "comment" and (alias is None or child.id != alias.id)
+    ]
+    if not targets:
+        # Defensive: the pinned grammar rejects `using ;` as a parse error
+        # first. A grammar change must still fail closed, not guess a score.
+        raise CSharpParserError(
+            f"Cannot count C# dependencies: the using directive on line "
+            f"{directive.start_point[0] + 1} has no target. "
+            f"Check the pinned versions ({_CSHARP_GRAMMAR.packages})"
+        )
+    return _csharp_root_namespace(targets[-1]) == "System"
+
+
+def _count_csharp_imports(source: str) -> tuple[int, int]:
+    """Count directive syntax nodes, not resource declarations or literal text.
+
+    Returns the directive count and how many of those have a target rooted at
+    the ``System`` namespace, whatever assembly provides it (issue #7459).
+    """
+    directives = _dependency_nodes(source, _CSHARP_GRAMMAR)
+    try:
+        # A list, not a generator: PEP 479 would turn StopIteration into RuntimeError.
+        standard = len([node for node in directives if _is_csharp_standard_directive(node)])
+    except (AttributeError, StopIteration) as exc:
+        # A node shape the pinned grammar should never produce: fail closed.
+        raise CSharpParserError(
+            f"Cannot count C# dependencies: unexpected parse-tree shape "
+            f"({type(exc).__name__}). Check the pinned versions ({_CSHARP_GRAMMAR.packages})"
+        ) from exc
+    return len(directives), standard
 
 
 def _count_python_imports(source: str) -> tuple[int, int]:
@@ -1992,19 +2060,20 @@ def _score_coupling(
 
     C#, TypeScript, JavaScript, Python, and PowerShell receive original source
     lines for syntax-tree parsing; *suffix* picks the TypeScript or TSX grammar.
-    Other languages receive filtered code lines. Go and Python standard-library imports are
-    reported but not scored: they are stable utilities, not application or
-    third-party coupling (issues #7047 and #7354).
+    Other languages receive filtered code lines. Go and Python standard-library
+    imports and C# ``System`` namespace directives are reported but not scored:
+    they are stable utilities, not application or third-party coupling
+    (issues #7047, #7354, and #7459).
     """
     pattern = _IMPORT_PATTERNS.get(language) if language else None
     standard_count = 0
-    if language == "python":
-        import_count, standard_count = _count_python_imports("\n".join(code_lines))
+    if language in ("python", "csharp"):
+        standard_counter = _count_python_imports if language == "python" else _count_csharp_imports
+        import_count, standard_count = standard_counter("\n".join(code_lines))
         confidence = 0.6
         tuned = True
     elif language in _PARSED_COUPLING_LANGUAGES:
         counters: dict[str, Callable[[str], int]] = {
-            "csharp": _count_csharp_imports,
             "javascript": _count_javascript_imports,
             "typescript": partial(_count_typescript_imports, suffix=suffix),
             "powershell": _count_powershell_imports,
@@ -2045,6 +2114,11 @@ def _score_coupling(
     elif language == "python" and standard_count:
         reasons.append(
             f"{standard_count} Python standard library (not scored), "
+            f"{scored_count} application or third-party (scored)"
+        )
+    elif language == "csharp" and standard_count:
+        reasons.append(
+            f"{standard_count} C# System namespace (not scored), "
             f"{scored_count} application or third-party (scored)"
         )
     reasons.append(detail)
@@ -2107,22 +2181,32 @@ def _score_testability(language: str | None, code_lines: list[str]) -> QualitySc
     return QualityScore(value=round(score, 1), confidence=0.5, reasons=reasons)
 
 
-def _score_non_redundancy(lines: list[str], scored: bool) -> QualityScore:
-    """Approximate non-redundancy from the ratio of unique to total lines.
+def _is_syntax_only_line(line: str) -> bool:
+    """Return True when a stripped line repeats by syntax, not by copy-paste."""
+    return bool(_STRUCTURAL_ONLY_LINE.fullmatch(line) or _BARE_ATTRIBUTE_LINE.fullmatch(line))
 
-    This is language-agnostic and unchanged in spirit from the original
-    heuristic.
+
+def _score_non_redundancy(code_lines: list[str], scored: bool) -> QualityScore:
+    """Approximate non-redundancy from the ratio of unique to compared lines.
+
+    *code_lines* are non-blank and, for a tuned language, free of line
+    comments. Syntax-only lines are dropped too, so a brace or a `[Fact]`
+    that every member repeats does not read as duplication.
     """
     confidence = 0.5 if scored else 0.0
-    non_blank = [line.strip() for line in lines if line.strip()]
-    if not non_blank:
+    stripped = [line.strip() for line in code_lines if line.strip()]
+    compared = [line for line in stripped if not _is_syntax_only_line(line)]
+    if not compared:
         return QualityScore(
-            value=10.0, confidence=confidence, reasons=["Empty file, no duplication"]
+            value=10.0, confidence=confidence, reasons=["No lines left to compare, no duplication"]
         )
-    unique_lines = len(set(non_blank))
-    score = (unique_lines / len(non_blank)) * 10.0
+    skipped = f"{len(stripped) - len(compared)} syntax-only lines skipped"
+    if scored:
+        skipped = f"line comments and {skipped}"
+    unique_lines = len(set(compared))
+    score = (unique_lines / len(compared)) * 10.0
     reasons = [
-        f"{unique_lines}/{len(non_blank)} unique non-blank lines",
+        f"{unique_lines}/{len(compared)} unique lines ({skipped})",
         "High duplication detected" if score < 7 else "Low duplication",
     ]
     if not scored:
@@ -2230,7 +2314,7 @@ def assess_content(
         ),
         encapsulation=_score_encapsulation(language, code_lines),
         testability=_score_testability(language, code_lines),
-        non_redundancy=_score_non_redundancy(lines, language is not None),
+        non_redundancy=_score_non_redundancy(code_lines, language is not None),
     )
 
 
@@ -2408,11 +2492,18 @@ def generate_json_report(
     assessments: list[FileAssessment],
     comparisons: list[FileComparison] | None = None,
     gate_mode: str = "absolute",
+    threshold_gates: dict[str, dict[str, Any]] | None = None,
 ) -> str:
-    """Generate JSON report"""
+    """Generate JSON report.
+
+    Each file carries ``threshold_gate``: its absolute threshold verdict, or
+    null when the absolute gate did not examine it (a regression-mode file
+    with a comparable base).
+    """
+    gates = threshold_gates or {}
     return json.dumps(
         {
-            "files": [asdict(a) for a in assessments],
+            "files": [{**asdict(a), "threshold_gate": gates.get(a.file_path)} for a in assessments],
             "gate_mode": gate_mode,
             "comparisons": [asdict(c) for c in (comparisons or [])],
             "summary": {
@@ -2458,50 +2549,102 @@ def check_thresholds(
     ``context`` is an explicit override applied to every file. When it is
     None, each file uses the context named by its own category.
 
+    Every file and every quality is checked before the verdict, so one run
+    reports every failure (issue #7481).
+
     Returns:
         0: All thresholds met
         11: Below thresholds
     """
     floor = _confidence_floor(config)
+    failed = False
     for assessment in assessments:
-        thresholds = _thresholds_for(config, context, assessment)
-        if (
-            fail_unscored_supported
-            and assessment.category != "generated"
-            and detect_language(Path(assessment.file_path)) is not None
-            and not _has_scored_quality(assessment)
-        ):
+        gate = evaluate_threshold_gate(
+            assessment,
+            config,
+            context,
+            fail_unscored_supported=fail_unscored_supported,
+        )
+        if gate["unscored_supported_source"]:
             print(
                 f"❌ {assessment.file_path}: supported authored source could not be scored",
                 file=sys.stderr,
             )
-            return 11
-
-        quality_checks = (
-            ("Cohesion", assessment.cohesion, thresholds["cohesion"].get("min")),
-            # Coupling uses "min" semantics: higher score = looser coupling =
-            # better. Legacy configs that only specify "max" are skipped rather
-            # than gated incorrectly.
-            ("Coupling", assessment.coupling, thresholds["coupling"].get("min")),
-            ("Encapsulation", assessment.encapsulation, thresholds["encapsulation"].get("min")),
-            ("Testability", assessment.testability, thresholds["testability"].get("min")),
-            ("Non-Redundancy", assessment.non_redundancy, thresholds["nonRedundancy"].get("min")),
-        )
-        for label, score, minimum in quality_checks:
-            if not _score_below_threshold(score, minimum):
-                continue
-            message = f"{assessment.file_path}: {label} {score.value} < {minimum}"
-            if _is_advisory(score, floor):
+        for miss in gate["below_threshold"]:
+            label = _QUALITY_LABELS[miss["quality"]]
+            message = f"{assessment.file_path}: {label} {miss['score']} < {miss['minimum']}"
+            if miss["advisory"]:
                 print(
-                    f"⚠️ {message} (advisory: confidence {score.confidence} "
+                    f"⚠️ {message} (advisory: confidence {miss['confidence']} "
                     f"< minConfidence {floor})",
                     file=sys.stderr,
                 )
                 continue
             print(f"❌ {message}", file=sys.stderr)
-            return 11
+        failed = failed or gate["failed"]
 
-    return 0
+    return 11 if failed else 0
+
+
+# Gate order, JSON key (the FileAssessment field name), config key, and the
+# label the stderr lines print. Coupling uses "min" semantics: higher score =
+# looser coupling = better. Legacy configs that only specify "max" are skipped
+# rather than gated incorrectly.
+_GATED_QUALITIES = (
+    ("cohesion", "cohesion", "Cohesion"),
+    ("coupling", "coupling", "Coupling"),
+    ("encapsulation", "encapsulation", "Encapsulation"),
+    ("testability", "testability", "Testability"),
+    ("non_redundancy", "nonRedundancy", "Non-Redundancy"),
+)
+_QUALITY_LABELS = {field: label for field, _, label in _GATED_QUALITIES}
+
+
+def evaluate_threshold_gate(
+    assessment: FileAssessment,
+    config: dict[str, Any],
+    context: str | None,
+    *,
+    fail_unscored_supported: bool = False,
+) -> dict[str, Any]:
+    """Return the absolute threshold verdict for one file.
+
+    This is the single source for both the stderr lines ``check_thresholds``
+    prints and the ``threshold_gate`` object the JSON report carries, so a
+    caller reading the JSON gets the same verdict the exit code reflects.
+    ``failed`` is true when the file is unscored supported source, or when any
+    ``below_threshold`` entry is not advisory.
+    """
+    if (
+        fail_unscored_supported
+        and assessment.category != "generated"
+        and detect_language(Path(assessment.file_path)) is not None
+        and not _has_scored_quality(assessment)
+    ):
+        return {"failed": True, "unscored_supported_source": True, "below_threshold": []}
+
+    thresholds = _thresholds_for(config, context, assessment)
+    floor = _confidence_floor(config)
+    misses: list[dict[str, Any]] = []
+    for field_name, config_key, _ in _GATED_QUALITIES:
+        score: QualityScore = getattr(assessment, field_name)
+        minimum = thresholds[config_key].get("min")
+        if not _score_below_threshold(score, minimum):
+            continue
+        misses.append(
+            {
+                "quality": field_name,
+                "score": score.value,
+                "minimum": minimum,
+                "confidence": score.confidence,
+                "advisory": _is_advisory(score, floor),
+            }
+        )
+    return {
+        "failed": any(not miss["advisory"] for miss in misses),
+        "unscored_supported_source": False,
+        "below_threshold": misses,
+    }
 
 
 def _resolve_target_path(target: str) -> str:
@@ -2553,6 +2696,19 @@ def _build_regression_inputs(
     return build_comparisons(assessments, base, tolerance, changed_files)
 
 
+def _absolute_gate_inputs(
+    gate_mode: str,
+    assessments: list[FileAssessment],
+    new_file_assessments: list[FileAssessment],
+) -> tuple[list[FileAssessment], bool]:
+    """Return the files the absolute threshold gate examines, and whether an
+    unscored supported file fails it. Regression mode gates only files with
+    no comparable base; absolute mode gates every file."""
+    if gate_mode == "regression":
+        return new_file_assessments, True
+    return assessments, False
+
+
 def _render_report(
     output_format: str,
     assessments: list[FileAssessment],
@@ -2560,6 +2716,7 @@ def _render_report(
     config: dict[str, Any],
     gate_mode: str,
     context: str | None = None,
+    new_file_assessments: list[FileAssessment] | None = None,
 ) -> str:
     """Render the selected report format."""
     if output_format == "markdown":
@@ -2567,7 +2724,16 @@ def _render_report(
         section = generate_regression_section(comparisons)
         return f"{report}\n\n{section}" if section else report
     if output_format == "json":
-        return generate_json_report(assessments, comparisons, gate_mode)
+        gated, fail_unscored = _absolute_gate_inputs(
+            gate_mode, assessments, new_file_assessments or []
+        )
+        gates = {
+            a.file_path: evaluate_threshold_gate(
+                a, config, context, fail_unscored_supported=fail_unscored
+            )
+            for a in gated
+        }
+        return generate_json_report(assessments, comparisons, gate_mode, gates)
     return "HTML format not yet implemented"
 
 
@@ -2592,7 +2758,8 @@ def _gate_result(
     """Apply the gate policy selected for this run."""
     if gate_mode == "regression":
         return check_regression(comparisons, new_file_assessments, config, context)
-    return check_thresholds(assessments, config, context)
+    gated, fail_unscored = _absolute_gate_inputs(gate_mode, assessments, new_file_assessments)
+    return check_thresholds(gated, config, context, fail_unscored_supported=fail_unscored)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -2665,7 +2832,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1
 
-    report = _render_report(args.format, assessments, comparisons, config, gate_mode, args.context)
+    report = _render_report(
+        args.format,
+        assessments,
+        comparisons,
+        config,
+        gate_mode,
+        args.context,
+        new_file_assessments,
+    )
     _write_report(report, args.output)
     return _gate_result(
         gate_mode,

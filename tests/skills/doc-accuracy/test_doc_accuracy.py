@@ -254,6 +254,61 @@ class TestExtractIdentifiers:
         assert "name" in result
 
 
+class TestCsharpPreprocessorSymbols:
+    """Issue #7453: SDK preprocessor symbols are not repository symbols."""
+
+    DIRECTIVES = (
+        ("#elif NET472", "NET472"),
+        ("#define TRACE", "TRACE"),
+        ("#undef DEBUG", "DEBUG"),
+        ("    #if NETFRAMEWORK", "NETFRAMEWORK"),
+        ("# if Net472", "Net472"),
+        ("#if DEBUG && !NETFRAMEWORK", "NETFRAMEWORK"),
+        ("#region SetupHelpers", "SetupHelpers"),
+        ("#pragma warning disable CS0618", "CS0618"),
+        ("#warning ObsoleteApi is going away", "ObsoleteApi"),
+        ("#error UnsupportedTarget", "UnsupportedTarget"),
+    )
+
+    def test_if_symbol_is_not_extracted(self) -> None:
+        code = "#if NETFRAMEWORK\nvar x = new RealWidget();\n#endif"
+
+        result = _extract_identifiers(code, "csharp")
+
+        assert "NETFRAMEWORK" not in result
+        assert "RealWidget" in result
+
+    def test_directive_line_symbols_are_not_extracted(self) -> None:
+        for directive, symbol in self.DIRECTIVES:
+            code = f"{directive}\nvar x = new RealWidget();"
+
+            result = _extract_identifiers(code, "csharp")
+
+            assert symbol not in result, directive
+            assert "RealWidget" in result, directive
+
+    def test_directive_shaped_line_is_kept_for_other_languages(self) -> None:
+        """A TypeScript private method line matches the directive shape."""
+        code = "class Counter {\n  #parse(input: RealWidget) {}\n}"
+
+        result = _extract_identifiers(code, "typescript")
+
+        # ``input`` is a parameter the example declares, so binding drops it.
+        assert "RealWidget" in result
+
+    def test_unlabeled_snippet_keeps_directive_text(self) -> None:
+        result = _extract_identifiers("#if NETFRAMEWORK")
+
+        assert "NETFRAMEWORK" in result
+
+    def test_hash_inside_a_code_line_is_not_a_directive(self) -> None:
+        code = 'var tag = "#if"; var y = new FakeWidget();'
+
+        result = _extract_identifiers(code, "csharp")
+
+        assert "FakeWidget" in result
+
+
 class TestExtractQuantitativeClaims:
     def test_percentage(self) -> None:
         result = _extract_quantitative_claims("Achieves 95.5% accuracy")
@@ -2403,6 +2458,51 @@ class TestMain:
         payload = json.loads(captured.out)
         assert payload["gate_result"]["verdict"] == "PASS"
         assert payload["gate_result"]["blocking_findings"] == 0
+
+    @staticmethod
+    def _csharp_repo(tmp_path: Path, body: str) -> None:
+        subprocess.run(
+            ["git", "init", str(tmp_path)],
+            check=True,
+            capture_output=True,
+        )
+        (tmp_path / "Widget.cs").write_text(
+            "namespace Demo;\npublic class RealWidget\n{\n}\n",
+            encoding="utf-8",
+        )
+        (tmp_path / "README.md").write_text(
+            f"```csharp\n{body}\n```\n",
+            encoding="utf-8",
+        )
+
+    def test_preprocessor_symbol_passes_gate(self, tmp_path: Path, capsys) -> None:
+        """Issue #7453: '#if NETFRAMEWORK' must not fail the gate."""
+        self._csharp_repo(
+            tmp_path,
+            "#if NETFRAMEWORK\nvar w = new RealWidget();\n#elif NET472\n#endif",
+        )
+
+        rc = main(["--target", str(tmp_path), "--format", "json"])
+
+        payload = json.loads(capsys.readouterr().out)
+        assert rc == 0
+        assert payload["gate_result"]["verdict"] == "PASS"
+        assert payload["gate_result"]["blocking_findings"] == 0
+
+    def test_unknown_type_beside_directive_still_fails_gate(self, tmp_path: Path, capsys) -> None:
+        """Control: the same block with a phantom type is still checked."""
+        self._csharp_repo(
+            tmp_path,
+            "#if NETFRAMEWORK\nvar w = new FakeWidget();\n#endif",
+        )
+
+        rc = main(["--target", str(tmp_path), "--format", "json"])
+
+        payload = json.loads(capsys.readouterr().out)
+        assert rc == 10
+        assert payload["gate_result"]["blocking_findings"] == 1
+        symbols = [f["evidence"]["symbol"] for f in payload["compilability_data"]["findings"]]
+        assert symbols == ["FakeWidget"]
 
     def test_custom_output_dir(self, tmp_path: Path) -> None:
         out = tmp_path / "custom-output"

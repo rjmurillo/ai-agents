@@ -83,6 +83,11 @@ def sequence_with_passing_corpus_gates() -> tuple[Any, ...]:
         # tests/validation/test_check_rule_adr_citations.py and its registration
         # in tests/validation/test_rule_adr_citations_wiring.py.
         "Rule ADR Citations (ratchet)",
+        # Same mock artifact: check_adr_supersession_citations.py lists ADR
+        # records through count_ratchet.tracked_files and fails closed on zero.
+        # Its behavior is covered in
+        # tests/validation/test_check_adr_supersession_citations.py.
+        "ADR Supersession Citations (ratchet)",
         # Pipes a malformed envelope through the validator CLI with
         # `subprocess.run` and requires a non-zero exit. The tests that use
         # these stubs patch `subprocess.run` with `healthy_git_run`, which answers every call

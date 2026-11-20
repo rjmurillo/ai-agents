@@ -42,10 +42,13 @@ from skill_bootstrap import ensure_plugin_paths
 ensure_plugin_paths(__file__, (".claude", "lib"))
 
 from github_core.api import (
+    CHECK_EVENTS,
     assert_gh_authenticated,
     gh_graphql,
     is_rate_limit_refusal,
+    pr_url,
     resolve_repo_params,
+    wait_for_pr_event,
 )
 from github_core.checks_rest import (
     PullRequestNotFoundError,
@@ -1255,13 +1258,21 @@ def _poll_checks(
     ruleset_contexts: list[str] | None,
     args: argparse.Namespace,
     fmt: object,
-) -> tuple[dict, int | None]:
-    """Sleep, refetch the checks, and return (check_data, exit_code).
+) -> tuple[dict, int | None, bool]:
+    """Wait, refetch the checks, and return (check_data, exit_code, woke_early).
+
+    The wait ends at the next check suite or head event when ``gh event
+    listen`` is available, and after 10 seconds at the latest
+    (github_core.api.wait_for_pr_event). ``woke_early`` is True for an event wake.
 
     Once GraphQL has been rate limited, stay on REST: each GraphQL poll would
     spend its retry ladder (up to 45s) on the same refusal (issue #6391).
     """
-    time.sleep(10)
+    # An event wake re-reads after 5 seconds at the soonest, so a PR with many
+    # check suites costs at most twice the reads of the old 10 second sleep.
+    woke = wait_for_pr_event(
+        pr_url(owner, repo, args.pull_request), CHECK_EVENTS, 10, min_seconds=5
+    )
     check_data = fetch_checks(
         owner,
         repo,
@@ -1273,7 +1284,7 @@ def _poll_checks(
         rc = _mark_rest_required(
             check_data, ruleset_contexts, args.required_only, args.pull_request, fmt, owner, repo
         )
-    return check_data, rc
+    return check_data, rc, woke == "event"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1344,9 +1355,15 @@ def main(argv: list[str] | None = None) -> int:
                 checks_incomplete = True
             break
 
-        check_data, rc = _poll_checks(owner, repo, check_data, ruleset_contexts, args, fmt)
+        check_data, rc, woke_early = _poll_checks(
+            owner, repo, check_data, ruleset_contexts, args, fmt
+        )
         if rc is not None:
             return rc
+        if woke_early:
+            # The iteration budget counts 10 second windows; an event wake is
+            # shorter, so it must not spend one. Elapsed time still bounds it.
+            iteration -= 1
 
     output["ChecksIncomplete"] = checks_incomplete
     _downgrade_required_state(output, checks_incomplete)

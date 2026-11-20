@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # taste-lint: ignore file-size -- git diff-line helpers added for #4007 pushed
-# this file from 440 to 513 lines. They cannot be extracted without circular
-# imports: they depend on _git_root, _GIT_TIMEOUT_SECONDS, is_safe_path, and
-# subprocess, all defined here. A further split is tracked separately.
+# this file past 500 lines, and the #7483 opt-in helpers added to it. They
+# cannot be extracted without circular imports: they depend on _git_root,
+# _GIT_TIMEOUT_SECONDS, is_safe_path, and subprocess, all defined here. A
+# further split is tracked separately.
 """Core types, utilities, and git helpers for the golden-principles scanner.
 
 Split from ``scan_principles.py`` (issue #4028). Rule checkers and the CLI
@@ -18,7 +19,7 @@ from __future__ import annotations
 import os
 import re
 import subprocess
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 
 __all__ = [
@@ -45,6 +46,11 @@ __all__ = [
     "_check_skill_model_adr080",
     "check_script_language",
     "check_agent_definition",
+    "GOVERNANCE_DOC",
+    "REPO_POLICY_RULES",
+    "repo_adopts_principles",
+    "base_adopts_principles",
+    "as_advisory",
 ]
 
 EXIT_SUCCESS = 0
@@ -120,6 +126,7 @@ class ScanResult:
     files_scanned: int = 0
     applicable_files: int = 0
     violations: list[Violation] = field(default_factory=list)
+    principles_adopted: bool = True
 
     @property
     def error_count(self) -> int:
@@ -363,6 +370,53 @@ def check_script_language(filepath: str, lines: list[str]) -> list[Violation]:
             ),
         )
     ]
+
+
+# GP-001 enforces the toolkit repository's own ADR-042 (Python-first scripts).
+# A repository adopts that policy by carrying the governance document at its
+# root. Elsewhere the rule reports a warning, never an error, so /review does
+# not block a consumer repository on a policy it never adopted (issue #7483).
+GOVERNANCE_DOC = ".agents/governance/golden-principles.md"
+REPO_POLICY_RULES = frozenset({"script-language"})
+
+
+def repo_adopts_principles(root: str | None) -> bool:
+    """Return True when the repository root carries the governance document."""
+    return root is not None and Path(root, GOVERNANCE_DOC).is_file()
+
+
+def base_adopts_principles(base: str) -> bool:
+    """Return True when the diff base commit carries the governance document.
+
+    A branch that deletes the document must not exempt its own changes, so a
+    diff-scoped scan treats the repository as adopting when either side does.
+    ``base`` was already validated by ``get_diff_files``. Any git failure
+    reads as "not adopted at base"; HEAD is still checked by the caller.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "cat-file", "-e", f"{base}:{GOVERNANCE_DOC}"],
+            capture_output=True,
+            check=False,
+            cwd=_git_root(),
+            timeout=_GIT_TIMEOUT_SECONDS,
+        )
+    except (OSError, RuntimeError, subprocess.TimeoutExpired):
+        return False
+    return result.returncode == 0
+
+
+def as_advisory(violation: Violation) -> Violation:
+    """Downgrade a repository-policy violation to an advisory warning."""
+    return replace(
+        violation,
+        severity="warning",
+        remediation=(
+            "AGENT_REMEDIATION: Advisory only. This repository has no "
+            f"{GOVERNANCE_DOC}, so the golden-principles {violation.rule} policy "
+            "does not bind it. No change is required."
+        ),
+    )
 
 
 def _check_skill_model_adr080(filepath: str, frontmatter: str) -> list[Violation]:

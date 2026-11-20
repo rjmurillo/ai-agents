@@ -63,12 +63,6 @@ INSTRUMENTS: list[dict[str, Any]] = [
         "source": "SKILL.md CI reds",
     },
     {
-        "id": "drift-ci",
-        "answers": "Do the generated agent trees drift from their sources (CI drift step)?",
-        "argv": ["uv", "run", "python", "build/scripts/run_drift_check_ci.py"],
-        "source": "SKILL.md CI reds",
-    },
-    {
         "id": "drift-self-check",
         "answers": "Has this skill drifted from its reverify.json checks?",
         "argv": [

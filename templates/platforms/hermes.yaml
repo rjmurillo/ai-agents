@@ -47,9 +47,7 @@ artifacts:
            doc-accuracy, dx-review, execution-plans, git-advanced-workflows,
            github, github-url-intercept, maintainer-review, merge-resolver,
            modernize, orphan-ref-validator, pipeline-validator, plan,
-           pr-autofix, pr-babysit, pr-comment-responder, pr-quality-all, pr-quality-analyst,
-           pr-quality-architect,
-           pr-quality-devops, pr-quality-qa, pr-quality-roadmap, pr-quality-security, pr-review,
+           pr-autofix, pr-babysit, pr-comment-responder, pr-review,
            push-pr, quality-grades, research, reviewer-findings,
            steering-matcher, sync, takeover, taste-lints, test,
            validate-pr-description, validation-authority, windows-image-updater]
@@ -90,6 +88,7 @@ artifacts:
       memory-gate: "Refers to excluded skill(s): memory-search."
       memory-reflexion: "Refers to excluded skill(s): memory-maintenance and memory-search."
       review: "Refers to excluded skill(s): security-scan."
+      pr-quality: "Refers to excluded skill(s): review."
       security-detection: "Refers to excluded skill(s): review."
       spec-generator: "Refers to excluded skill(s): review."
       ship: "Refers to excluded skill(s): review."

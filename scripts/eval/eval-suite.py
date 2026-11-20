@@ -73,7 +73,6 @@ EXIT_AUTH = 4
 # Security-critical path patterns (ADR-057: 5 runs, 100% pass)
 SECURITY_PATTERNS = [
     ".project-toolkit/security/",
-    "pr-quality-gate-security",
     "security-review",
     "security-scan",
 ]
@@ -383,18 +382,14 @@ def classify_path(path: str) -> str:
 def classify_changes(files: list[str]) -> dict[str, list[str]]:
     """Classify changed files into categories for eval routing.
 
-    Categories are exclusive except `structural_test_targets`, which is an
-    additional tag applied to quality-gate prompts per ADR-023 and which the
-    pre-#4882 code also applied alongside the exclusive category.
+    Categories are exclusive. `structural_test_targets` is kept in the result
+    shape but no path populates it since the generated quality-gate prompts
+    were deleted.
     """
     classified: dict[str, list[str]] = {category: [] for category in CATEGORIES}
 
     for f in files:
         classified[classify_path(f)].append(f)
-
-        # Structural test targets (quality gate prompts per ADR-023)
-        if f.startswith(".github/prompts/pr-quality-gate-"):
-            classified["structural_test_targets"].append(f)
 
     return classified
 

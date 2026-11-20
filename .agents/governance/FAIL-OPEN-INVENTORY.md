@@ -100,7 +100,7 @@ the repository machine-verifies who may use it.
 | `.claude/rules/universal.md` MUST NOT item 2 | `LEFTHOOK`, `LEFTHOOK_EXCLUDE`, `LEFTHOOK_BIN`, config override, direct hook edit, `--no-verify` | hook execution wholesale | anyone with local shell access | NONE by construction; these are lefthook's own variables, so grepping this repository for them returns nothing and no repo-side audit exists | no repo-side audit found | forbidden by rule already; enforcement surface B: keep bypass. Forbidden by rule already; the audit-hook-bypass workflow is the trail. | rjmurillo | 2026-12-31 |
 
 One decoy, recorded so a later reader does not mistake it for a hatch:
-`git_hook_policy.py:8973-8978` reads `SKIP_CLI_E2E`, then rejects it, printing
+`git_hook_policy.py:8963-8968` reads `SKIP_CLI_E2E`, then rejects it, printing
 `ERROR: SKIP_CLI_E2E=true cannot bypass a required CLI E2E gate` and exiting 2.
 Setting it hardens the gate rather than skipping it.
 

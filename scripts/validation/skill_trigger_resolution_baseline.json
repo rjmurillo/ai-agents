@@ -1,0 +1,125 @@
+{
+  "schema_version": "1",
+  "description": "Skill description trigger phrases that do not route through autoplan as advertised, one entry per check, skill, and phrase. Every added entry needs reviewer approval in the PR. Regenerate with: uv run python scripts/validation/check_skill_trigger_resolution.py --write-baseline",
+  "violations": {
+    "own-phrase-unrouted": {
+      "dx-review": [
+        "evaluate developer ergonomics",
+        "test the developer experience"
+      ],
+      "programming-advisor": [
+        "do we already have this",
+        "is there a library for this",
+        "is there existing code for X in this repo"
+      ]
+    },
+    "phrase-routes-to-sibling": {},
+    "front-door-phrases-without-intents": {
+      "agent-harness-reference": [
+        "copilot cli hook behavior",
+        "harness contract",
+        "hook payload format",
+        "stale plugin root"
+      ],
+      "ai-agents-portability-campaign": [
+        "copilot hook timeout regression",
+        "new copilot cli release, recheck the contract",
+        "port hooks to a new harness",
+        "run the portability campaign"
+      ],
+      "analyze": [
+        "analyze this codebase",
+        "architecture review of this system",
+        "find code smells",
+        "review code quality",
+        "run security assessment"
+      ],
+      "autoplan": [
+        "do it",
+        "figure this out",
+        "handle it"
+      ],
+      "build": [
+        "build this",
+        "implement this slice",
+        "write the code for this task"
+      ],
+      "context-gather": [
+        "gather context before planning",
+        "what do we know before I start"
+      ],
+      "github": [
+        "add label to issue",
+        "check CI status",
+        "create a PR"
+      ],
+      "github-url-intercept": [
+        "analyze this PR",
+        "look at this issue",
+        "what does this commit do"
+      ],
+      "memory-search": [
+        "recall prior context",
+        "search memory",
+        "what do we know about X"
+      ],
+      "plan": [
+        "break this into milestones",
+        "decompose this spec",
+        "plan how to build this"
+      ],
+      "planner": [
+        "pick up where the plan left off",
+        "resume execution",
+        "run the planner workflow"
+      ],
+      "push-pr": [
+        "open a pull request",
+        "push and open a PR",
+        "push this branch"
+      ],
+      "quality-grades": [
+        "audit domain quality",
+        "domain quality report",
+        "grade quality",
+        "run quality grades",
+        "show quality gaps"
+      ],
+      "research": [
+        "analyze this external practice for us",
+        "research this topic",
+        "what does the literature say about X"
+      ],
+      "security-detection": [
+        "did I touch security-critical files",
+        "should the security agent review this"
+      ],
+      "security-scan": [
+        "CWE-78 check before PR",
+        "scan for command injection"
+      ],
+      "ship": [
+        "run pre-flight and open the PR",
+        "ship it",
+        "ship this branch"
+      ],
+      "skillforge": [
+        "SkillForge: {goal}",
+        "create a skill",
+        "do I have a skill for",
+        "improve the X skill",
+        "which skill should I use"
+      ],
+      "spec": [
+        "define the requirements",
+        "spec this out",
+        "what should we build"
+      ],
+      "test": [
+        "prove this works",
+        "run the test gates",
+        "validate this change"
+      ]
+    }
+  }
+}

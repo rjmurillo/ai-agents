@@ -9,7 +9,7 @@ This repository uses two distinct file types to define AI behaviors: `.agent.md`
 | Purpose | Defines a runnable agent | Defines a VS Code slash command | Source template for agent generation |
 | Frontmatter | `name:`, `tools:`, `model:` | `description:`, `tools:`, `model:` | `description:`, `tools_vscode:`, `tools_copilot:` |
 | Model format | `claude-opus-4.5` (SDK) | `Claude Opus 4.5 (anthropic)` (display) | Omitted (injected by generator) |
-| Invocation | Called by other agents via `agent` tool | Called by user as slash command (e.g., `/pr-quality:all`) | Not invoked directly |
+| Invocation | Called by other agents via `agent` tool | Called by user as slash command (e.g., `/pr-quality`) | Not invoked directly |
 | Locations | `.github/agents/`, `src/copilot-cli/`, `src/vs-code-agents/` | `.github/prompts/` | `templates/agents/` |
 | Can delegate | Yes, to other agents | Yes, via `agent` tool | N/A |
 
@@ -83,7 +83,7 @@ Toolset references (`$toolset:editor`) are expanded from `templates/toolsets.yam
 
 ## Prompt Files in `.github/prompts/`
 
-These define standalone VS Code slash commands. They do not use the `agent` tool. For example, `.github/prompts/pr-quality.all.prompt.md` runs as `/pr-quality:all` and executes six review agents sequentially against your working directory.
+These define standalone VS Code slash commands. They do not use the `agent` tool.
 
 The `.github/agents/` directory holds `.agent.md` files. VS Code reads both `.agent.md` and `.md` files in that folder as custom agents ([VS Code custom agent file reference](https://code.visualstudio.com/docs/agents/reference/custom-agent-file-reference), retrieved 2026-11-09), so a `.prompt.md` placed there loads as an agent, not as a slash command. Put prompt files in `.github/prompts/`.
 

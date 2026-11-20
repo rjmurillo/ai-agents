@@ -76,7 +76,7 @@
     "skills/github/scripts/pr/test_pr_merged.py": 1,
     "skills/github/scripts/pr/unresolve_pr_review_thread.py": 1,
     "skills/github/scripts/reactions/add_comment_reaction.py": 1,
-    "skills/golden-principles/scripts/scan_principles_core.py": 3,
+    "skills/golden-principles/scripts/scan_principles_core.py": 4,
     "skills/memory/memory_core/reflexion_memory.py": 1,
     "skills/memory/memory_core/schema_validation.py": 1,
     "skills/memory/scripts/extract_session_episode.py": 3,

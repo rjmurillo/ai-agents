@@ -119,20 +119,22 @@ def _normalize_for_compare(text: str) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _ci_source_from_main(role: str) -> str | None:
-    """Read the CI prompt as it existed on the main branch (pre-PR seed).
+_SEED_REF = "ae5acffcb3b9f9e00e4898d5bb0b0f9681a757d5"
 
-    The current PR's generator overwrites .github/prompts/pr-quality-gate-{role}.md
-    with regenerated content. To verify SEED parity (canonical body matches
-    what was on main before this PR), we compare against git's historical
-    copy, not the current working-tree copy.
+
+def _ci_source_from_main(role: str) -> str | None:
+    """Read the CI prompt as it existed before the prompts were retired.
+
+    The ADR-109 amendment of 2026-11-19 deleted
+    .github/prompts/pr-quality-gate-{role}.md from main, so this reads the
+    historical copy at _SEED_REF, the last main commit that still held them.
     """
     import subprocess
 
     rel = f".github/prompts/pr-quality-gate-{role}.md"
     try:
         result = subprocess.run(
-            ["git", "show", f"main:{rel}"],
+            ["git", "show", f"{_SEED_REF}:{rel}"],
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -164,12 +166,12 @@ def check_role(role: str) -> tuple[bool, str]:
     ci_text_from_main = _ci_source_from_main(role)
     if ci_text_from_main is None:
         raise ParityError(
-            f"CI source on main missing or unreadable for role={role}; "
+            f"CI source at {_SEED_REF[:12]} missing or unreadable for role={role}; "
             "seed parity is a one-shot verification against the original "
             "CI prompts, NOT the regenerated working-tree copy"
         )
     ci_text = ci_text_from_main
-    source_label = "main"
+    source_label = _SEED_REF[:12]
 
     canonical_text = canonical.read_text(encoding="utf-8")
 

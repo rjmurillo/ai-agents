@@ -22,6 +22,18 @@ Check a draft for these before you finish and rewrite each hit.
 - Write "is" where "serves as", "stands as", or "represents" adds nothing.
 - Replace "The first... The second... The third..." prose with a list or the site's steps component.
 
+## Negative contrast
+
+Read the page for phrases that explain a fact by contrasting it with something
+it is not. Check forms the linter can miss, such as a trailing `, not ...`.
+Ask what the reader needs to know or do. If direct wording keeps every fact,
+quote the exact replacement in the audit.
+
+- "This preview creates a draft, not a published report." When publication
+  limits matter, write "The preview creates draft reports. Publish them separately."
+- Keep "Do not delete the original file until the checksum matches."
+  The warning states a prerequisite and does not tell readers to delete the file.
+
 ## Openings and endings
 
 - Do not count before a list ("Four reasons to..."). State the list.

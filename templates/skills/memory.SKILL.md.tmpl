@@ -5,10 +5,14 @@ description: Thin router for the tiered memory system. Points callers at the
   focused sub-skills for each operation, Tier 1 search, the reflexion write path,
   the memory-first gate, maintenance, and consolidation. Use when you ask "what
   do we know about X", "recall prior context", or "search memory" and are not
-  sure which operation you need. Do NOT use for adding citations (use
-  memory-enhancement) or narrative cross-system reports (use memory-documentary).
+  sure which operation you need. Do NOT use for adding citations (use memory-enhancement), narrative cross-system reports (use memory-documentary), or a plain lookup (use memory-search).
 license: MIT
 metadata:
+  capability:
+    kind: orchestrator
+    owns:
+      - memory-operation-routing
+    status: active
   adr: ADR-038, ADR-063, ADR-106
   timelessness: 8/10
   routing:
@@ -67,7 +71,7 @@ matches your task; each carries a smaller context than the full memory surface.
 Use this skill when the user says:
 
 - `search memory` for semantic search across tiers (routes to memory-search)
-- `check memory health` for system status (routes to memory-maintenance)
+- `check memory tier health` for system status (routes to memory-maintenance)
 - `extract episode from session` for session replay (routes to memory-reflexion)
 - `memory-first gate` before changing an existing system (routes to memory-gate)
 - `consolidate memory` for a periodic durable/dated review and index tidy (routes to memory-consolidate)

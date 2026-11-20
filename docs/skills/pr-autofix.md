@@ -13,7 +13,7 @@ Walks your open pull requests, sorts them into tiers, fixes failing CI and unres
 
 - You want to watch a single PR: use [`pr-babysit`](pr-babysit.md) instead.
 - You want to answer one PR's review comments: use [`pr-review`](pr-review.md) instead.
-- You want to run the quality axes before pushing: use [`pr-quality-all`](pr-quality-all.md) instead.
+- You want to run the quality axes before pushing: use [`pr-quality`](pr-quality.md) instead.
 
 ## Quick start
 
@@ -152,7 +152,7 @@ Three procedures load on demand from `references/`:
 
 - [`pr-babysit`](pr-babysit.md): watch one PR.
 - [`pr-review`](pr-review.md): answer one PR's review comments and run the completion gate. It redirects a red check with no review comments to this skill.
-- [`pr-quality-all`](pr-quality-all.md): run the quality axes before you push.
+- [`pr-quality`](pr-quality.md): run the quality axes before you push.
 - [`merge-resolver`](merge-resolver.md): resolve a real merge conflict on a `DIRTY` PR.
 - [`github`](github.md): provides the PR scripts and the transport preflight.
 - Source: [`SKILL.md`](../../src/claude/skills/pr-autofix/SKILL.md)

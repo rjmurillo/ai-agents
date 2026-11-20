@@ -12,13 +12,7 @@ from collections.abc import Callable
 from typing import Protocol, cast
 
 from check_citation_freshness import Finding, _citation_anchors
-from citation_anchors import (
-    _CITATION,
-    _adr_base_path,
-    _anchor_matches,
-    _expand_adr_citations,
-    _moved_cluster,
-)
+from citation_anchors import _CITATION, _adr_base_path, _expand_adr_citations
 from citation_head_state import _ChangeSet, _HeadFileCache, _reworded_line_pairs
 
 
@@ -96,53 +90,6 @@ def _gate() -> _ReversePass:
     return cast(_ReversePass, module)
 
 
-def _cluster_finding(
-    cite: _CiteView, base_lines: list[str] | None, trees: _TreesView
-) -> Finding | None:
-    """Return a move finding when four or more cited lines relocated together."""
-    if base_lines is None or cite.target not in trees.head_tracked:
-        return None
-    cluster = _moved_cluster(cite.start, cite.end, base_lines, trees.head_files.lines(cite.target))
-    if cluster is None:
-        return None
-    new_start, new_end = cluster
-    span = f"{new_start}-{new_end}" if new_end != new_start else str(new_start)
-    reason = (
-        f"the text at lines {cite.start}-{cite.end} at the merge base moved at HEAD; "
-        f"suggested citation {cite.target}:{span}"
-    )
-    return Finding(cite.citing_file, cite.line_number, cite.label, reason)
-
-
-def _quote_moved_outside(
-    anchors: list[str],
-    base_lines: list[str] | None,
-    head_lines: list[str] | None,
-    start: int,
-    end: int,
-) -> bool:
-    """Return whether a quoted anchor's only line changed and left the range.
-
-    A bare name is not enough. Debt stays quiet when that quoted line
-    keeps its number. A quote that occurs once, on a new line, is a finding.
-    """
-    if not base_lines or not head_lines:
-        return False
-    for anchor in anchors:
-        if " " not in anchor or len(anchor) < 12:
-            continue
-        base_hits = [
-            number for number, text in enumerate(base_lines, 1) if _anchor_matches(anchor, text)
-        ]
-        head_hits = [
-            number for number, text in enumerate(head_lines, 1) if _anchor_matches(anchor, text)
-        ]
-        moved = len(base_hits) == 1 and len(head_hits) == 1 and base_hits[0] != head_hits[0]
-        if moved and not start <= head_hits[0] <= end:
-            return True
-    return False
-
-
 def _judge_one(
     cite: _CiteView,
     segment: str,
@@ -193,23 +140,9 @@ def _judge_one(
     )
     base_ok = base_finding is None and base_lines is not None
     if not base_ok and not touched:
-        finding = _cluster_finding(cite, base_lines, trees)
-        if finding is not None:
-            findings.append(finding)
-            return
-        head_finding, head_lines = gate._judge(
-            cite,
-            cite.target,
-            anchors,
-            trees.head_tracked,
-            trees.head_files,
-            segment,
-        )
-        if head_finding is not None and _quote_moved_outside(
-            anchors, base_lines, head_lines, cite.start, cite.end
-        ):
-            findings.append(head_finding)
-            return
+        # Debt this branch did not write. Moving lines under it, even the
+        # quoted line or a block of cited lines, does not make it the
+        # branch's citation (PR #7482). Count it; never block on it.
         tally.stale_at_base += 1
         return
     if base_ok:

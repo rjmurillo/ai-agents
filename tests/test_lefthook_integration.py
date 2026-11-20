@@ -534,7 +534,6 @@ def test_configuration_uses_named_native_jobs() -> None:
         "additions-advisory",
         "hook-anchoring-e2e",
         "plugin-load-e2e",
-        "review-axis-drift",
         "bot-cascade-advisory",
     }
     assert expected_pre_commit <= set(_job_map(config, "pre-commit"))

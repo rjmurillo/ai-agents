@@ -16,10 +16,22 @@ code, or validate a skill that lives in another checkout.
 | `package_skill.py` | Package a completed skill for distribution |
 | `check_docs_safety.py` | Safety scan of generated documentation |
 | `conformance.py` | agentskills.io conformance: every spec and guide rule, with its level and source |
+| `lint_skill_frontmatter.py` | Deterministic lint: stdlib-parsable frontmatter, byte cap and mirror headroom, artifact and capability shapes, routable trigger phrases, Handoff line, description redirect. Rules and fixes: [frontmatter-and-limits.md](frontmatter-and-limits.md) |
 | `frontmatter.py` | Internal helper module: shared YAML frontmatter parsing (imported, not run directly) |
 | `_constants.py` | Internal helper module: shared constants and thresholds (imported, not run directly) |
 | `_inflection.py` | Internal helper module: shared word-inflection matching for discovery and triage (imported, not run directly) |
 | `_conformance_parse.py`, `_conformance_checks.py`, `_conformance_files.py`, `_conformance_rules.py`, `_conformance_guides.py` | Internal helper modules for `conformance.py`: the frontmatter reader, the static checks, and the spec and guide rule catalogs (imported, not run directly) |
+
+## Frontmatter lint
+
+Run it before packaging and after any edit to frontmatter, intents, or size. Exit `0` means
+no MUST failure, `1` means a MUST failed (or, with `--strict`, a SHOULD warned), and `2` is a
+usage error. `--list` prints the rules. [frontmatter-and-limits.md](frontmatter-and-limits.md)
+explains each rule and how to fix it.
+
+```bash
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillforge/scripts/lint_skill_frontmatter.py "$SKILL" --root "$HOME/.claude"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+```
 
 ## Validator exit codes and `--root`
 

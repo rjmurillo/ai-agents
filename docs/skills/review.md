@@ -37,7 +37,7 @@ You get a findings table with one row per axis, a final verdict line, and an opt
 | Final verdict | `PASS`, `WARN`, `CRITICAL_FAIL`, or `UNKNOWN`, merged from all axes. |
 | Correctness row | An always-on `correctness` row from the code-review pass. |
 | CodeQL status line | Printed under the table when the `security` axis ran. |
-| Flagged notes | In round 2 or 3 only: findings that do not count toward the verdict. |
+| Flagged notes | After round 1 only: findings that do not count toward the verdict. |
 | Marker commit | An empty commit on top of the reviewed tip, written only on a PASS, or a WARN where every WARN was acknowledged. |
 
 How the verdict forms:
@@ -47,20 +47,22 @@ How the verdict forms:
 - Otherwise any `WARN` or `PARTIAL` gives `WARN`, then any `UNKNOWN`, `DID_NOT_RUN`, or unrecognized token gives `UNKNOWN`. All `PASS` gives `PASS`.
 - `UNKNOWN` never hides a real finding. `WARN` plus `UNKNOWN` merges to `WARN`.
 
+Hand-off (ADR-123): Writes `review-marker`. Next: [`ship`](ship.md). `metadata.inputs` and `metadata.outputs` in the skill's frontmatter declare the same data.
+
 ## Advanced use
 
 ### Stages
 
 1. Stage 1 is the `spec-compliance` gate. A Stage-1 `CRITICAL_FAIL` stops the review. Every other axis shows `SKIPPED`. A Stage-1 `UNKNOWN` (no spec found) does not stop it.
 2. Stage 2 runs the axes that `select_axes.py` picks from the changed paths and diff effects. `analyst` always runs. Callers can pin more axes.
-3. Local-only axes (`code-qualities-assessment`, `doc-accuracy`, `golden-principles`, `taste-lints`) run as sibling skills after the canonical axes.
+3. Local-only axes (`code-qualities-assessment`, `doc-accuracy`, `golden-principles`, `taste-lints`) run as sibling skills after the canonical axes. In a repository without `.agents/governance/golden-principles.md`, a new shell script yields `WARN` on the `golden-principles` axis, not `FAIL`.
 4. A deep review runs every canonical axis. Ask for a "deep" or "full" review, or run it as a pre-merge gate.
 
 The canonical axes are `analyst`, `architect`, `qa`, `security`, `devops`, `roadmap`, `reliability`, `observability`, `agent-safety`, `decision-rigor`, and `code-quality`. Each has a prompt at `references/<axis>.md`.
 
 ### Rounds
 
-`review` runs each axis once per invocation. If you chain "fix, then re-review", stop after 3 rounds. In round 3, `PASS` ships. Any other verdict goes to a human with every open finding. In round 2 or 3, only defects the diff introduced and unmet acceptance criteria count. The rest become flagged notes.
+`review` runs each axis once per invocation. If you chain "fix, then re-review", stop after 5 rounds. In round 5, `PASS` ships. Any other verdict goes to a human with every open finding. After round 1, only defects the diff introduced and unmet acceptance criteria count. The rest become flagged notes.
 
 ### The marker
 

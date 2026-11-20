@@ -37,6 +37,7 @@ from check_required_context_conditions import validate_required_context_conditio
 from check_serena_memory_worktree_scope import validate_serena_memory_worktree_scope
 from check_skill_shell_placeholders import validate_skill_shell_placeholders
 from check_skill_tree_layout import validate_skill_tree_layout
+from check_skill_trigger_resolution import validate_skill_trigger_resolution
 from check_template_repo_refs import validate_template_repo_refs
 from check_tmp_worktrees import validate_tmp_worktrees
 from check_unused_arguments import validate_unused_arguments
@@ -44,7 +45,6 @@ from check_worktree_recipes import validate_worktree_recipes
 from checks_ci_parity import (
     validate_closure_manifest,
     validate_memory_placement,
-    validate_review_axis_drift,
     validate_route_scenario_coverage,
     validate_skill_description_budget,
 )
@@ -74,6 +74,7 @@ from checks_tooling import (
     validate_instruction_bytes,
     validate_nl_structural_debt_ratchet,
     validate_rule_scope_declarations,
+    validate_skill_artifact_flow_declarations,
     validate_skill_routing_roles_declarations,
 )
 
@@ -111,18 +112,19 @@ __all__ = [
     "validate_push_lock_paths",
     "validate_required_context_conditions",
     "validate_retired_ownership_claims",
-    "validate_review_axis_drift",
     "validate_route_scenario_coverage",
     "validate_rule_activation_coverage",
     "validate_rule_scope_declarations",
     "validate_serena_memory_worktree_scope",
     "validate_skill_description_budget",
     "validate_skill_memory_references",
+    "validate_skill_artifact_flow_declarations",
     "validate_skill_routing_roles_declarations",
     "validate_skill_shell_placeholders",
     "validate_skill_skip_clauses",
     "validate_host_marketplaces",
     "validate_skill_tree_layout",
+    "validate_skill_trigger_resolution",
     "validate_agent_skill_docs",
     "validate_skill_page_freshness",
     "validate_template_repo_refs",

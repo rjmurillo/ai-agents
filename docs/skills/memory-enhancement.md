@@ -7,7 +7,7 @@ Manages citations in Serena memories. It checks that the code a memory points to
 - You want to link a memory to a file, function, issue, PR, ADR, memory, or URL.
 - You want to check that a memory's code references are still valid.
 - You want a staleness report across all memories.
-- Trigger phrases: `add citation to memory`, `verify memory citations`, `check memory health`, `update memory confidence`.
+- Trigger phrases: `add citation to memory`, `verify memory citations`, `check citation health`, `update memory confidence`.
 
 ## When not to use it
 
