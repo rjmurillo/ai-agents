@@ -36,13 +36,16 @@ from scan_principles_core import (  # noqa: E402
     EXIT_SUCCESS,
     EXIT_VIOLATIONS,
     FIRST_PARTY_ACTIONS,
+    REPO_POLICY_RULES,
     REQUIRED_SKILL_FIELDS,
     SHA_PIN_PATTERN,
     TAG_PIN_PATTERN,
     ScanResult,
     Violation,
     _check_skill_model_adr080,
+    _git_root,
     _has_path_parts,
+    as_advisory,
     check_agent_definition,
     check_script_language,
     get_diff_files,
@@ -51,6 +54,7 @@ from scan_principles_core import (  # noqa: E402
     has_suppression,
     is_safe_path,
     read_file_lines,
+    repo_adopts_principles,
 )
 
 
@@ -274,9 +278,14 @@ def run_scan(
     files: list[str],
     rules: tuple[str, ...],
     diff_lines: dict[str, set[int]] | None = None,
+    principles_adopted: bool = True,
 ) -> ScanResult:
-    """Run golden principle scan on the given files."""
-    result = ScanResult()
+    """Run golden principle scan on the given files.
+
+    When ``principles_adopted`` is False, REPO_POLICY_RULES findings are
+    downgraded to warnings (issue #7483).
+    """
+    result = ScanResult(principles_adopted=principles_adopted)
 
     for filepath in files:
         if not is_safe_path(filepath):
@@ -299,6 +308,8 @@ def run_scan(
                     violations = [v for v in violations if v.line == 0 or v.line in changed]
                 elif diff_lines is not None:
                     violations = []
+                if not principles_adopted and rule in REPO_POLICY_RULES:
+                    violations = [as_advisory(v) for v in violations]
                 result.violations.extend(violations)
 
     return result
@@ -340,6 +351,7 @@ def format_json(result: ScanResult) -> str:
         "applicable_files": result.applicable_files,
         "error_count": result.error_count,
         "warning_count": result.warning_count,
+        "principles_adopted": result.principles_adopted,
         "violations": [
             {
                 "rule": v.rule,
@@ -369,9 +381,9 @@ def parse_rules(rules_str: str) -> tuple[str, ...]:
     return rules
 
 
-def _find_repo_root() -> str | None:
-    """Walk up from cwd to find .git directory."""
-    current = Path.cwd()
+def _find_repo_root(start: Path | None = None) -> str | None:
+    """Walk up from start (default: cwd) to find .git directory."""
+    current = (start or Path.cwd()).resolve()
     for parent in [current, *current.parents]:
         if (parent / ".git").exists():
             return str(parent)
@@ -432,10 +444,12 @@ def main() -> int:
 
     files: list[str] = []
     diff_lines: dict[str, set[int]] | None = None
+    repo_root = _find_repo_root(Path(args.directory) if args.directory else None)
     if args.diff_scope is not None:
         try:
             files = get_diff_files(args.diff_scope)
             diff_lines = get_diff_line_numbers(args.diff_scope)
+            repo_root = _git_root()
         except (ValueError, RuntimeError) as exc:
             print(f"golden-principles: {exc}", file=sys.stderr)
             return EXIT_ERROR
@@ -444,17 +458,13 @@ def main() -> int:
     elif args.files:
         files = args.files
     else:
-        repo_root = _find_repo_root()
-        if repo_root:
-            files = get_repo_files(repo_root)
-        else:
-            files = get_repo_files(".")
+        files = get_repo_files(repo_root or ".")
 
     if not files:
         print("golden-principles: no files to scan.")
         return EXIT_SUCCESS
 
-    result = run_scan(files, rules, diff_lines)
+    result = run_scan(files, rules, diff_lines, repo_adopts_principles(repo_root))
 
     output = format_json(result) if args.format == "json" else format_text(result)
 
