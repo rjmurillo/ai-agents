@@ -4,7 +4,7 @@ The detail behind the Scripts section of `SKILL.md`.
 
 Each CLI uses only the Python standard library, prints JSON with an `examined` count, writes nothing inside the repository (`bootstrap_eval.py freeze` writes there only with `--allow-in-repo`; `bootstrap_mine.py --out` refuses an in-repo path with no override), and runs on Linux, macOS, and Windows.
 
-`bootstrap_friction.py`, `bootstrap_review.py`, and `review_clusters.py` are modules the miner imports, not CLIs.
+`bootstrap_friction.py`, `bootstrap_review.py`, and `review_clusters.py` are modules the miner imports, not CLIs. `adr_shape.py`, `adr_commits.py`, `adr_docs.py`, `adr_reason.py`, and `adr_trailers.py` are pure-function classifiers for ADR detection, ported from align-cli under MIT (`LICENSE-align`); they have no CLI and do no I/O.
 
 Exit code 0 means success and exit code 1 means findings that need action, for every script. Exit codes 2 and 3 differ by script:
 

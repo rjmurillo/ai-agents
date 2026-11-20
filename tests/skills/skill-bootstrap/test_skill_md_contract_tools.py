@@ -44,6 +44,11 @@ def test_every_script_on_disk_is_bundled_and_documented() -> None:
     text = _skill_md()
 
     helpers = {
+        "scripts/adr_commits.py",
+        "scripts/adr_docs.py",
+        "scripts/adr_reason.py",
+        "scripts/adr_shape.py",
+        "scripts/adr_trailers.py",
         "scripts/bootstrap_friction.py",
         "scripts/bootstrap_sweep.py",
         "scripts/bootstrap_sweep_import.py",
