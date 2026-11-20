@@ -21,6 +21,7 @@ metadata:
       - document this api
       - api quickstart
       - api guide
+      - endpoint API guide
       - endpoint documentation
 ---
 
