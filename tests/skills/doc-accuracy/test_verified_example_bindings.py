@@ -142,7 +142,9 @@ def test_cli_keeps_constructor_and_exports_only_real_references(tmp_path: Path) 
 
 
 def test_cli_repo_type_only_import(tmp_path: Path) -> None:
-    (tmp_path / "types.ts").write_text("export interface Heading { title: string }\n")
+    (tmp_path / "types.ts").write_text(
+        "export interface Heading { title: string }\n", encoding="utf-8"
+    )
     assert run_cli(
         tmp_path, "typescript", "import type { Heading } from './types'; const x: Heading = load();"
     ) == (0, set())
@@ -207,8 +209,8 @@ def test_cli_python_class_import_bindings(tmp_path: Path, code: str, expected: s
 def test_cli_python_resolves_the_qualified_module(tmp_path: Path) -> None:
     package = tmp_path / "src" / "config"
     package.mkdir(parents=True)
-    (package / "modes.py").write_text("class Options:\n    StartMode = 'on'\n")
-    (tmp_path / "modes.py").write_text("class Options:\n    StopMode = 'off'\n")
+    (package / "modes.py").write_text("class Options:\n    StartMode = 'on'\n", encoding="utf-8")
+    (tmp_path / "modes.py").write_text("class Options:\n    StopMode = 'off'\n", encoding="utf-8")
     code = "from config.modes import Options as Settings\nvalue = Settings.StartMode"
     assert run_cli(tmp_path, "python", code) == (0, set())
     assert run_cli(tmp_path, "python", code.replace("StartMode", "StopMode")) == (

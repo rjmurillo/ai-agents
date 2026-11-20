@@ -111,12 +111,15 @@ def test_symlinked_installed_script_uses_real_plugin(
     use_resolver: bool,
 ) -> None:
     link = tmp_path / "linked" / entry
-    if link_file:
-        link.parent.mkdir(parents=True)
-        link.symlink_to(installed / entry)
-    else:
-        link.parent.parent.parent.mkdir(parents=True)
-        link.parent.parent.symlink_to(installed / entry.parent.parent, target_is_directory=True)
+    try:
+        if link_file:
+            link.parent.mkdir(parents=True)
+            link.symlink_to(installed / entry)
+        else:
+            link.parent.parent.parent.mkdir(parents=True)
+            link.parent.parent.symlink_to(installed / entry.parent.parent, target_is_directory=True)
+    except (OSError, NotImplementedError) as exc:
+        pytest.skip(f"Symlinks unavailable: {exc}")
 
     resolver = None
     if use_resolver:
