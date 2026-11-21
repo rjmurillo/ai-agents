@@ -223,7 +223,7 @@ class TestSweepReportContentValidation:
 
     def test_artifact_wrong_schema_version_returns_none(self, tmp_path: Path) -> None:
         """build_report's schemaVersion "gates future shape changes"
-        (scripts/eval/_model_sweep_core.py:474-475); a report claiming a
+        (scripts/eval/_model_sweep_core.py:602-603); a report claiming a
         different version has not committed to the field set this module
         reads, even if every other field looks otherwise valid."""
         manifest = {
@@ -248,7 +248,7 @@ class TestSweepReportContentValidation:
 
     def test_artifact_agent_mismatch_returns_none(self, tmp_path: Path) -> None:
         """build_report records an "agent" field
-        (scripts/eval/_model_sweep_core.py:481); without cross-checking it,
+        (scripts/eval/_model_sweep_core.py:609); without cross-checking it,
         a sweep for a DIFFERENT agent could justify this manifest entry
         whenever winner, fixtures_sha, and default_model happen to
         coincide, since none of those three fields are unit-specific by

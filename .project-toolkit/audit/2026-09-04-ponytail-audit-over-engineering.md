@@ -212,7 +212,7 @@ but `scripts/sync_plugin_lib.py` generates the copies from a single source and
 `.claude/rules/plugin-self-containment.md` requires each plugin root to ship
 self-contained. The apparent drift between `.github/instructions/` and
 `src/copilot-cli/instructions/` (11 of 24 files differ) is also by design:
-the `keep_internal` switch documented at `build/scripts/generate_rules.py:306-312`
+the `keep_internal` switch documented at `build/scripts/generate_rules.py:313-319`
 strips upstream-only path globs from the distributed copy, because a consumer
 does not have the internal directories. Cutting to one tree would be a packaging
 rewrite, which is ocean, not lake.

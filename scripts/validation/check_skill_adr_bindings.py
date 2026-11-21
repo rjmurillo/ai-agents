@@ -85,7 +85,7 @@ double-report the same file.
 Candidate paths come from the index, through ``tracked_files`` in
 `scripts/ci/count_ratchet.py`, and each path's content is then read off disk. A
 filesystem walk was the first implementation and is wrong for a ratchet.
-`scripts/ci/count_ratchet.py:18-21` states why, verbatim::
+`scripts/ci/count_ratchet.py:22-25` states why, verbatim::
 
     Scope is git-TRACKED files, never a directory walk. ``os.walk`` also visits
     untracked scratch, nested worktrees, and vendored caches that a contributor
