@@ -373,10 +373,10 @@ def _extract_metadata(
     created_at = now
     updated_at = now
 
-    first_line = content.split("\n", 1)[0]
+    first_line = content.split("\n", 1)[0][: MAX_TITLE_CHARS + 32]  # regex backtracks cubically
     header_match = _TITLE_DATE_PATTERN.match(first_line)
     if header_match:
-        title = header_match.group("title")
+        title = header_match.group("title")[:MAX_TITLE_CHARS]
         date_str = header_match.group("date")
         created_at = _parse_date(date_str, now)
         updated_at = created_at

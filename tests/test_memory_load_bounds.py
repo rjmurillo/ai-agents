@@ -109,3 +109,35 @@ def test_a_scalar_string_tag_still_wraps_and_non_lists_are_empty() -> None:
     assert si._parse_tags("solo") == ["solo"]
     assert si._parse_tags({"k": "v"}) == []
     assert si._parse_tags(None) == []
+
+
+def test_a_whitespace_flooded_h1_line_parses_in_well_under_a_second(tmp_path: Path) -> None:
+    # The title-date regex backtracks cubically on "#" plus whitespace: 4000
+    # characters took about 31 seconds before the line was cut to title size.
+    path = _write(tmp_path, "#" + " " * 100_000 + "x\n\nbody\n")
+
+    started = time.monotonic()
+    memory = si.load_memory(path, tmp_path, si.MAX_MEMORY_BYTES)
+
+    assert time.monotonic() - started < 1.0
+    assert memory is not None
+
+
+def test_an_h1_title_is_capped_like_a_frontmatter_title(tmp_path: Path) -> None:
+    path = _write(tmp_path, "# " + "t" * 210 + " (2026-11-20)\n\nbody\n")
+
+    memory = si.load_memory(path, tmp_path, si.MAX_MEMORY_BYTES)
+
+    assert memory is not None
+    assert memory.title is not None
+    assert len(memory.title) <= si.MAX_TITLE_CHARS
+
+
+def test_a_normal_h1_title_and_date_still_parse(tmp_path: Path) -> None:
+    path = _write(tmp_path, "# Gateway cutover (2026-11-20)\n\nbody\n")
+
+    memory = si.load_memory(path, tmp_path, si.MAX_MEMORY_BYTES)
+
+    assert memory is not None
+    assert memory.title == "Gateway cutover"
+    assert memory.created_at.date().isoformat() == "2026-11-20"
