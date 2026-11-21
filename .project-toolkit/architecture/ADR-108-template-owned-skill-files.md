@@ -24,7 +24,7 @@ Same vocabulary as ADR-107. `repo-observed`: read from the tree at `cd0f9561d` o
 
 Issue #5706, a sub-issue of epic #5698, asks for `SKILL.md` to be compiled from mustache templates so rule guidance can be bundled into the skill that needs it, at the step that needs it, from one source. The epic names the outcome: "Skill guidance is compiled into SKILL.md from templates so the always-on rule set can shrink without losing ordering" (`docs-say`, issue #5698).
 
-Eight canonical skill files carry the line `@CLAUDE.md` today: `sync`, `test`, `spec`, `ship`, `research`, `plan`, `checkpoint`, `build` (`repo-observed`, `grep -n '^@CLAUDE.md$' .claude/skills/*/SKILL.md`). Copilot CLI 1.0.66-1 treats that line as literal text; `build/scripts/copilot_body_translation.py:14` records the probe and the include-line transform at `:140` rewrites it into an HTML comment for the mirror (`repo-observed`). No templating step for skills exists anywhere under `build/` (`repo-observed`: `templates/` holds `agents/`, `platforms/`, `toolsets.yaml`, and three guide files, none of them a skill template).
+Eight canonical skill files carry the line `@CLAUDE.md` today: `sync`, `test`, `spec`, `ship`, `research`, `plan`, `checkpoint`, `build` (`repo-observed`, `grep -n '^@CLAUDE.md$' .claude/skills/*/SKILL.md`). Copilot CLI 1.0.66-1 treats that line as literal text; `build/scripts/copilot_body_translation.py:14` records the probe and the include-line transform at `:151` rewrites it into an HTML comment for the mirror (`repo-observed`). No templating step for skills exists anywhere under `build/` (`repo-observed`: `templates/` holds `agents/`, `platforms/`, `toolsets.yaml`, and three guide files, none of them a skill template).
 
 The design in issue #5706 renders `templates/skills/<name>.SKILL.md.tmpl` into `.claude/skills/<name>/SKILL.md` from inside `build/scripts/generate_skills.py`, wired through `build_all.py`. Four constraints block that on the current tree, and the issue's own step 1 says what to do when they do: "stop and route an ADR amendment through the repository review process; do not create a second ADR or implement around the conflict" (`docs-say`, issue #5706).
 
@@ -198,6 +198,6 @@ Rollback: revert A2, then A1, then move this record to `rejected`. A rejection b
 
 - Issue #5706 and epic #5698, read with `gh issue view` on 2026-09-11.
 - `.project-toolkit/specs/requirements/REQ-025-skill-guidance-excerpts.md`, `.project-toolkit/specs/design/DESIGN-024-skill-guidance-excerpt-sync.md`, `.project-toolkit/plans/active/5706-skill-guidance-excerpts.md`.
-- `build/scripts/build_all.py:793` and `:2226`; `build/scripts/generate_skills.py:76-124`; `build/scripts/regen_guard.py:52`; `build/scripts/copilot_body_translation.py:14`, `:140`.
+- `build/scripts/build_all.py:793` and `:2226`; `build/scripts/generate_skills.py:76-124`; `build/scripts/regen_guard.py:52`; `build/scripts/copilot_body_translation.py:14`, `:151`.
 - `build/scripts/copilot_body_translation.py:9-14`, the recorded Copilot CLI 1.0.66-1 probe: "`@CLAUDE.md` first line -> treated as LITERAL-TEXT (not auto-inlined)". That docstring names a Serena memory as its source; the memory directory it points at is empty in the tree, so the docstring is the citable source.
 - `chevron` on PyPI: version 0.14.0, uploaded 2021-01-02, MIT, no `requires_dist`.
