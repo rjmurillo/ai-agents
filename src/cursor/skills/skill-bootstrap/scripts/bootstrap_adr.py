@@ -101,7 +101,9 @@ MAX_JSON_BYTES = 16 * MAX_READ_BYTES
 _KINDS = frozenset({"commit", "pr", "decision-log"})
 _WHITESPACE = re.compile(r"\s+")
 _SHA = re.compile(r"[0-9A-Fa-f]{40}|[0-9A-Fa-f]{64}", re.ASCII)
-_STATUS = re.compile(r"[A-Za-z][A-Za-z -]{0,39}\Z", re.ASCII)
+# ADR-073's status enum, without "accepted": a draft never asserts its own approval.
+# Acceptance needs a review, so a person sets it after the draft is written.
+DRAFT_STATUSES: tuple[str, ...] = ("Proposed", "Rejected", "Deprecated", "Superseded")
 
 
 class ExistsError(Exception):
@@ -283,8 +285,13 @@ def _create_new(target: Path, data: bytes) -> None:
 
 def draft(scan_path: str, ident: str, out: str, status: str) -> dict[str, Any]:
     """Write one ADR for candidate ``ident`` into ``out`` and return the ``draft`` payload."""
-    if not _STATUS.fullmatch(status):
-        raise ConfigError(f"--status {status!r} must be a short plain word or phrase")
+    matched = [name for name in DRAFT_STATUSES if name.lower() == status.strip().lower()]
+    if not matched:
+        allowed = ", ".join(DRAFT_STATUSES)
+        raise ConfigError(
+            f"--status {status!r} must be one of {allowed}; a draft is never Accepted"
+        )
+    status = matched[0]
     scan, loaded = load_candidate(scan_path, ident)
     candidate = _prepare_candidate(loaded)
     repo_root(Path(scan["repo"]))  # the scan file must name a real repository; it gates nothing
@@ -423,7 +430,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_draft.add_argument("--scan", required=True, metavar="FILE")
     p_draft.add_argument("--id", required=True)
     p_draft.add_argument("--out", required=True, metavar="DIR")
-    p_draft.add_argument("--status", default="Proposed")
+    p_draft.add_argument(
+        "--status",
+        default="Proposed",
+        help="one of " + ", ".join(DRAFT_STATUSES) + "; a draft is never Accepted",
+    )
     return parser
 
 

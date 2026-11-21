@@ -291,19 +291,24 @@ def test_a_folder_in_the_repo_that_is_not_an_adr_folder_is_refused(
     assert git(repo, "status", "--porcelain", "-uall") == before
 
 
-@pytest.mark.parametrize("status", ["", "Proposed\n## Evil", "x" * 41, "1st", "Accepted <b>"])
+@pytest.mark.parametrize(
+    "status",
+    ["", "Proposed\n## Evil", "x" * 41, "1st", "Accepted <b>", "Accepted", "accepted", "Draft"],
+)
 def test_a_status_that_is_not_a_short_plain_phrase_is_refused(tmp_path: Path, status: str) -> None:
     repo, folder = _toolkit_repo(tmp_path)
     with pytest.raises(ConfigError, match="--status"):
         bootstrap_adr.draft(_scan_file(tmp_path, repo, _cand()), "c-1234567", str(folder), status)
 
 
-def test_status_can_be_set_to_another_word(tmp_path: Path) -> None:
+def test_status_can_be_set_to_another_draft_status_in_any_case(tmp_path: Path) -> None:
     repo, folder = _toolkit_repo(tmp_path)
+
     result = bootstrap_adr.draft(
-        _scan_file(tmp_path, repo, _cand()), "c-1234567", str(folder), "Draft"
+        _scan_file(tmp_path, repo, _cand()), "c-1234567", str(folder), "superseded"
     )
-    assert "## Status\n\nDraft\n" in _text(result)
+
+    assert "## Status\n\nSuperseded\n" in _text(result)
 
 
 def test_text_from_the_scan_file_is_stripped_of_control_bytes(tmp_path: Path) -> None:
