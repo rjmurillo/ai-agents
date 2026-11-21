@@ -151,7 +151,7 @@ _normalize_id, _sweep_report_satisfies_rule2 = _load_sweep_evidence_exports()
 def _artifact_within_repo(artifact: str, repo_root: Path) -> bool:
     """Reject a path-traversal artifact path (CWE-22).
 
-    Mirrors ``scripts/validation/check_model_pins.py:348-355``
+    Mirrors ``scripts/validation/check_model_pins.py:366-373``
     (``_artifact_within_repo``) verbatim: resolve the artifact path against
     ``repo_root`` and confirm it stays a descendant. This is a path-safety
     check only, not an existence check; the canonical function performs
@@ -168,7 +168,7 @@ def _artifact_within_repo(artifact: str, repo_root: Path) -> bool:
 def load_pin_manifest(manifest_path: Path) -> dict[str, dict[str, object]]:
     """Load ADR-080 sidecar manifest pins keyed by unit path.
 
-    Mirrors ``scripts/validation/check_model_pins.py:479-489``
+    Mirrors ``scripts/validation/check_model_pins.py:497-507``
     (``load_manifest``) for the missing-file and shape-parsing behavior: a
     missing file, or a ``pins`` value that is not a list, or a list entry
     that is not a dict with a string ``unit``, is skipped or treated as

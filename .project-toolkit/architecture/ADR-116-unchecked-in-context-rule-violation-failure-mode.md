@@ -23,7 +23,7 @@ Proposed. The owner has not accepted the class, and `FAILURE-MODES.md` is unchan
 Two retrospectives describe the same shape and fit no class:
 
 1. `.project-toolkit/retrospective/2026-08-21-pr-automerge-goal-session-2.md`, Finding 2. A PR body held an em dash. The session had loaded `.claude/rules/universal.md` all session. `pr_description.py:validate_no_dashes` failed the PR at its first validation run, a CI round. One body edit fixed it.
-2. `.project-toolkit/retrospective/2026-08-25-issue-5192-adr-052-036-reciprocity.md`, Finding 1. The same dash rule was broken again in a different session, across nine files. The staged-dash pre-commit job (`lefthook.yml:119`, `staged-dash-policy`) failed the first commit attempt. No CI round ran. A mechanical substitution fixed it.
+2. `.project-toolkit/retrospective/2026-08-25-issue-5192-adr-052-036-reciprocity.md`, Finding 1. The same dash rule was broken again in a different session, across nine files. The staged-dash pre-commit job (`lefthook.yml:122`, `staged-dash-policy`) failed the first commit attempt. No CI round ran. A mechanical substitution fixed it.
 
 Both retros cite the dash ban as MUST NOT 5. It is MUST NOT 4 now.
 
@@ -121,7 +121,7 @@ Fully reversible. A `proposed` record can move to `rejected` by a frontmatter ed
 - PR #5506, which added FM #12 with no ADR in that PR.
 - `.claude/rules/universal.md`, MUST NOT 4, the dash ban.
 - `.claude/rules/voice.md`, Quick Self-Review.
-- `lefthook.yml:119`, the `staged-dash-policy` job.
+- `lefthook.yml:122`, the `staged-dash-policy` job.
 - `pr_description.py:validate_no_dashes`, the PR validation check.
 - `.project-toolkit/retrospective/2026-08-21-pr-automerge-goal-session-2.md`, Finding 2.
 - `.project-toolkit/retrospective/2026-08-25-issue-5192-adr-052-036-reciprocity.md`, Finding 1 and Learning 1.
