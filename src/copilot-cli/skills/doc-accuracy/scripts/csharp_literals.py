@@ -2,8 +2,8 @@
 
 The doc-accuracy scanner uses this before it looks for C# identifiers, so a
 name that appears only inside a literal is not reported as an unresolved
-symbol. ``csharp_holes.py`` scans interpolation holes, and
-``csharp_attributes.py`` then blanks attribute named arguments.
+symbol. ``csharp_holes.py`` scans interpolation holes, and its
+``blank_csharp_attribute_named_args`` then blanks attribute named arguments.
 
 Every function works on ``chars``, a list copy of the snippet with one
 entry per character, so columns and newlines never move. Rule for that
@@ -69,7 +69,7 @@ def _csharp_string_end(code: str, body: int, prefix: str, chars: list[str]) -> t
             continue
         if char == '"' and not (verbatim and code.startswith('""', index)):
             if verbatim and _distrusts_verbatim_close(code, body, index):
-                return _union_verbatim_readings(code, body, index, chars), True
+                _union_verbatim_readings(code, body, index, chars)
             return index + 1, True
         if char == "\n" and not verbatim:
             chars[body:index] = code[body:index]
@@ -85,30 +85,67 @@ def _csharp_string_end(code: str, body: int, prefix: str, chars: list[str]) -> t
     return index, False
 
 
-def _union_verbatim_readings(code: str, body: int, close: int, chars: list[str]) -> int:
-    """Settle a doubtful multi-line verbatim close; return where to resume.
+def _union_verbatim_readings(code: str, body: int, close: int, chars: list[str]) -> None:
+    """Keep text visible that a misread verbatim close could hide.
 
-    Two readings cover the text from the body to the end of the close's
-    line. In one, the close is real: the body is literal text and the rest
-    of that line is code. In the other, the opening quote was a typo: the
-    whole span is code. A character stays visible when either reading shows
-    it, so a name is hidden only when both readings hide it. One reading is
-    the true one, so this can over-report but never hides real code.
+    A doubtful close has two readings. In one, the close is real: the main
+    scan already blanked the body and goes on lexing after the close. In
+    the other, the opening quote was a typo: the text from the body is code.
+    That code reading opens tokens up to the end of the close's line and
+    finishes each one, within ``_MAX_EXTRA_LINES`` more lines. It covers the
+    text to the end of the line where its last token ends. A character
+    stays visible when either reading shows it. In the body that applies
+    now. After the close, the code reading's visible text joins
+    ``chars.keep``, which ``blank_csharp_literals`` restores after its pass,
+    so the main scan keeps its own state. One reading is the true one, so
+    this can over-report but never hides the code the code reading covers.
+
+    Inside a re-lex the body is restored and nothing more is read, so a
+    re-lex never starts another one and the cost stays linear. A hole
+    rescan can meet the same close again, so each close's visible body
+    indices are kept in ``chars.shown`` and the re-lex runs once.
+    """
+    if not isinstance(chars, _Chars) or chars.nested:
+        chars[body:close] = code[body:close]
+        return
+    shown = chars.shown.get(close)
+    if shown is None:
+        shown = chars.shown[close] = _code_reading(code, body, close, chars.keep)
+    for index in shown:
+        chars[index] = code[index]
+
+
+def _code_reading(code: str, body: int, close: int, keep: list[int]) -> list[int]:
+    """Read the text from ``body`` as code; return the body indices it shows.
+
+    Indices it shows after the close go to ``keep``. The reading stops at
+    the close's line end. When its last token there is an unclosed
+    verbatim, raw, or block-comment opener, which can span lines, that one
+    token is read again with up to ``_MAX_EXTRA_LINES`` more lines, and the
+    reading covers the rest of the line where it ends.
     """
     stop = line_end(code, close)
-    as_closed = chars[body : close + 1] + list(_lex_span(code, close + 1, stop))
-    as_code = _lex_span(code, body, stop)
-    for offset, (closed_char, code_char) in enumerate(zip(as_closed, as_code, strict=True)):
-        original = code[body + offset]
-        chars[body + offset] = original if original in (closed_char, code_char) else " "
-    return stop
-
-
-def _lex_span(code: str, start: int, end: int) -> str:
-    """Blank literals in code[start:end] read alone; unreadable spans stay visible."""
-    span = code[start:end]
-    blanked = blank_csharp_literals(span)
-    return span if blanked is None else blanked
+    scanned = _scan(code[body:stop], nested=True, limit=stop - body)
+    if scanned is None:
+        return [index for index in range(body, close) if not code[index].isspace()]
+    as_code, _, open_start = scanned
+    if open_start >= 0:
+        start, cap = body + open_start, stop
+        for _ in range(_MAX_EXTRA_LINES):
+            cap = line_end(code, cap + 1) if cap < len(code) else cap
+        token = _scan(code[start:cap], nested=True, limit=1)
+        if token is not None:
+            text, end, _ = token
+            as_code = as_code[:open_start] + text[: line_end(code, start + end) - start]
+    shown = []
+    for offset, char in enumerate(as_code):
+        index = body + offset
+        if char == code[index] and not char.isspace():
+            if index < close:
+                shown.append(index)
+            elif index > close:
+                keep.append(index)
+    return shown
 
 
 def _distrusts_verbatim_close(code: str, body: int, close: int) -> bool:
@@ -141,8 +178,12 @@ def _distrusts_verbatim_close(code: str, body: int, close: int) -> bool:
     return bool(prefix) and prefix[-1] in _LITERAL_OPENER_CHARS
 
 
+# How far past a doubtful close's line the code reading may finish a token.
+_MAX_EXTRA_LINES = 16
+
 # Characters and keywords that end the text right before a literal opens.
-_LITERAL_OPENER_CHARS = frozenset("=([{)]},:?+-*/%<>!&|^~;$@")
+# ")" covers a cast such as (string)"x".
+_LITERAL_OPENER_CHARS = frozenset("=([{),:?+-*/%<>!&|^~;$@")
 _LITERAL_KEYWORDS = frozenset(
     {"return", "case", "yield", "in", "is", "when", "and", "or", "not", "throw", "await"}
 )
@@ -248,6 +289,21 @@ def _skip_csharp_token(code: str, match: re.Match[str], chars: list[str]) -> tup
     return _blank_csharp_literal(code, match, chars)
 
 
+class _Chars(list[str]):
+    """The scan buffer, plus restores applied once the pass ends.
+
+    ``keep`` lists indices a doubtful verbatim close must leave visible.
+    ``shown`` maps each doubtful close to the body indices it shows.
+    ``nested`` marks a re-lex, which never starts another one.
+    """
+
+    def __init__(self, code: str, *, nested: bool) -> None:
+        super().__init__(code)
+        self.keep: list[int] = []
+        self.shown: dict[int, list[int]] = {}
+        self.nested = nested
+
+
 def blank_csharp_literals(code: str) -> str | None:
     """Blank C# string and char literal text, keeping every column.
 
@@ -260,11 +316,37 @@ def blank_csharp_literals(code: str) -> str | None:
     recursion, and only hundreds of nested $"{ levels reach the limit, which
     no real snippet does.
     """
-    chars = list(code)
-    index = 0
+    scanned = _scan(code, nested=False, limit=len(code))
+    return None if scanned is None else scanned[0]
+
+
+def _scan(code: str, *, nested: bool, limit: int) -> tuple[str, int, int] | None:
+    """Run one blanking pass; return (text, end, open_start).
+
+    ``nested`` marks a re-lex of a doubtful span. Only tokens that start
+    before ``limit`` are read, and each is finished even past it. ``end``
+    is where the last token ended. ``open_start`` is where the last token
+    starts when it is an unclosed verbatim, raw, or block-comment opener,
+    else -1.
+    """
+    chars = _Chars(code, nested=nested)
+    index, open_start = 0, -1
     try:
         while (match := CSHARP_TOKEN_START_RE.search(code, index)) is not None:
-            index, _ = _skip_csharp_token(code, match, chars)
+            if match.start() >= limit:
+                break
+            index, closed = _skip_csharp_token(code, match, chars)
+            open_start = match.start() if not closed and _may_span_lines(match) else -1
     except RecursionError:
         return None
-    return "".join(chars)
+    for keep in chars.keep:
+        chars[keep] = code[keep]
+    return "".join(chars), index, open_start
+
+
+def _may_span_lines(match: re.Match[str]) -> bool:
+    """Whether the token ``match`` opens may run onto later lines."""
+    if match.group(0) == "/*":
+        return True
+    quotes = match.group("quotes") or ""
+    return "@" in (match.group("prefix") or "") or len(quotes) >= 3

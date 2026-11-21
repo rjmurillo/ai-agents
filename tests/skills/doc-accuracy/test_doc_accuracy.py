@@ -520,6 +520,7 @@ class TestCsharpLiteralAndAttributeArguments:
                 "var w = new FakeWidget();",
                 "SqlCol",
             ),
+            ('var j = @"{\n  ""JsonKey"": 1\n}";\nvar w = new FakeWidget();', "JsonKey"),
             ('var u = @"Line1\nLineHid"u8;\nvar w = new FakeWidget();', "LineHid"),
             ('var a = @"x\nVerbTail"; var b = "HidAq";\nvar w = new FakeWidget();', "HidAq"),
             ('var a = @"x\n WHERE a = HidZ' + '"""' + ";\nvar w = new FakeWidget();", "HidZ"),
@@ -630,6 +631,14 @@ class TestCsharpLiteralAndAttributeArguments:
             'var s0 = @"a ""q"" b;\nFakeWidget.Go();\n/* " { */ Other.Go();',
             'var s0 = @"a ""q"" b;\nFakeWidget.Go();\nvar c5 = \'"\';',
             'var s1 = $@"x {A.X} ""q"";\nFakeWidget.Go();\nvar c2 = \'{\';',
+            'var sql = @"SELECT *\nFROM t WHERE a = (" + @"SELECT id\nFROM u)"; FakeWidget.Run();',
+            'var a = @"x\nk=" + y; /* a\nsay "hi */ FakeWidget.Go(); var s = "z";',
+            'var a = @"SELECT\nWHERE x ="; var b = @"multi\nline" + FakeWidget.Go() + @"z";',
+            'var b = @"x\ny =" + $@"multi {\nk} line" + FakeWidget.Go() + "z";',
+            'var a = @"x\ny =" + @"p\nq" + FakeWidget.Go() + "z";',
+            'Run(@"a\nb)", @"\nc"); FakeWidget.Go("x");',
+            'var a = @"x;\nvar b = @"multi\nline" + FakeWidget.Go() + @"z";',
+            'var a = @"x;\nFakeWidget.Go(); var b = @"line1\nline2"; Real.Run(); var c = "z";',
         ):
             result = _extract_identifiers(code, "csharp")
 
@@ -697,6 +706,7 @@ class TestCsharpLiteralAndAttributeArguments:
             + ("x = " + '"""' + "\n") * 20000
             + "var w = new FakeWidget();",
             ("x = $$" + '"""' + "\n{{ a\n") * 3000 + "var w = new FakeWidget();",
+            "var x = " + '$@"{' * 60 + "q" + '\n}"a' * 60 + ";\nvar w = new FakeWidget();",
         )
         for code in cases:
             started = time.monotonic()

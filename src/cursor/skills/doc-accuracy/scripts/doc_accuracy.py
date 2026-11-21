@@ -1386,8 +1386,8 @@ def _extract_identifiers(code: str, lang: str = "") -> list[str]:
             # Scanning the unblanked code can only report extra names.
             logger.warning("C# literal scan hit the recursion limit; scanning raw code")
         else:
-            attributes = _sibling_module("csharp_attributes")
-            code = attributes.blank_csharp_attribute_named_args(blanked)
+            holes = _sibling_module("csharp_holes")
+            code = holes.blank_csharp_attribute_named_args(blanked)
     # Match CamelCase and snake_case identifiers (3+ chars)
     identifiers = re.findall(r"\b([A-Z][a-zA-Z0-9]+)\b", code)
     # Also match method calls
