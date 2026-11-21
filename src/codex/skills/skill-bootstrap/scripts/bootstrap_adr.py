@@ -162,11 +162,16 @@ def _clean_source(source: object) -> dict[str, Any]:
     }
 
 
+def _one_line(text: str | None) -> str | None:
+    return _WHITESPACE.sub(" ", text).strip() if text is not None else None
+
+
 def _prepare_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
     """A cleaned copy of a scan candidate, or ConfigError. The scan data is left as it was.
 
-    Every text field is stripped of control bytes. The title also loses every line break:
-    whitespace runs become one space, so it cannot start a heading in the draft.
+    Every text field is stripped of control bytes. The title and the reason also lose every
+    line break: whitespace runs become one space, so neither can start a heading in the
+    draft. The excerpt keeps its lines, because the renderer quotes every one of them.
     """
     kind = candidate.get("kind")
     if not isinstance(kind, str) or kind not in _KINDS:
@@ -175,7 +180,7 @@ def _prepare_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
     return {
         **candidate,
         "title": adr_title(kind, title),
-        "reason": _text(candidate.get("reason"), "reason"),
+        "reason": _one_line(_text(candidate.get("reason"), "reason")),
         "excerpt": _text(candidate.get("excerpt"), "excerpt"),
         "source": _clean_source(candidate.get("source")),
     }

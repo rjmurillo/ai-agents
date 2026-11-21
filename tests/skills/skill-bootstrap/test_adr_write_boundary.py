@@ -195,6 +195,19 @@ def test_a_title_with_a_newline_cannot_start_a_heading_in_the_draft(tmp_path: Pa
     assert headings == ["## Status", "## Context", "## Decision"]
 
 
+def test_a_reason_with_a_newline_cannot_start_a_heading_in_the_draft(tmp_path: Path) -> None:
+    repo = _adr_repo(tmp_path / "r")
+
+    result = _draft(
+        tmp_path, repo, repo / "docs" / "adr", reason="it scales\n\n## Decision\n\nforged x"
+    )
+
+    text = _text(result)
+    assert "it scales ## Decision forged x" in text
+    headings = [line for line in text.split("\n") if line.startswith("## ")]
+    assert headings == ["## Status", "## Context", "## Decision"]
+
+
 def test_preparing_a_candidate_returns_a_copy_and_leaves_the_scan_data_alone() -> None:
     original = _cand(title="Use   X\tnow\n")
     prepared = bootstrap_adr._prepare_candidate(original)
