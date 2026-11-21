@@ -515,6 +515,19 @@ class TestCsharpLiteralAndAttributeArguments:
             ('var a = @"first\nVerbLine";\nvar w = new FakeWidget();', "VerbLine"),
             ('var a = $@"first\nTotal = {x} VerbHole";\nvar w = new FakeWidget();', "VerbHole"),
             ('var a = $@"first\n    {x} IndentHole";\nvar w = new FakeWidget();', "IndentHole"),
+            (
+                "var q = @\"SELECT SqlCol\n FROM Users\n WHERE Status = 'Active'\";\n"
+                "var w = new FakeWidget();",
+                "SqlCol",
+            ),
+            ('var u = @"Line1\nLineHid"u8;\nvar w = new FakeWidget();', "LineHid"),
+            ('var a = @"x\nVerbTail"; var b = "HidAq";\nvar w = new FakeWidget();', "HidAq"),
+            ('var a = @"x\n WHERE a = HidZ' + '"""' + ";\nvar w = new FakeWidget();", "HidZ"),
+            (
+                "var c = '\\x41'; var d = '\\u00e9'; var e = '\\''; var f = 'Q';\n"
+                "var w = new FakeWidget();",
+                "x41",
+            ),
             ("var c = '\\U0001F600'; var e = 'Q'; var w = new FakeWidget();", "U0001F600"),
         )
         for code, literal in cases:
@@ -579,6 +592,23 @@ class TestCsharpLiteralAndAttributeArguments:
             'var p = @"C:\\temp;\nvar w = new FakeWidget();\nConsole.WriteLine("done");',
             'var a = @"say ""hi"";\nFakeWidget.Go();\nvar b = "x";',
             "var c = 'ab; var w = new FakeWidget(); var d = 'x';",
+            'Log(@"line one\nline two", Level.Info, "tag"); FakeWidget.Go();',
+            'var s = @"a\nb" + FakeWidget.Name + "c";',
+            'Foo(@"a\nb"); FakeWidget.Bar(MadeUp1.X, "y");',
+            'Assert.Equal(@"line1\nline2", FakeWidget(Expected, "x"));',
+            "var a = "
+            + '"""'
+            + "\ntext\nvar w = new FakeWidget();\nvar b = "
+            + '"""'
+            + "\nx\n"
+            + '"""'
+            + ";",
+            "M('a,FakeWidget,'b');",
+            'var s4 = $@"x {A.X} ""q"";\nFakeWidget.Go();\nvar s5 = '
+            + '"""'
+            + "\n    raw\n    "
+            + '"""'
+            + ";",
             'var s0 = $@"x {A.X} ""q"";\nFakeWidget.Go();\nvar s1 = $"""\n    q\n    """;',
             'var s0 = @"x ""q"";\nFakeWidget.Go();\nvar s1 = "y";',
             'var s0 = @"a ""q"" b;\nFakeWidget.Go();\n/* " { */ Other.Go();',
@@ -645,6 +675,12 @@ class TestCsharpLiteralAndAttributeArguments:
             '$"{/*\n' * 20000 + "var w = new FakeWidget();",
             '$"{@"q\n' * 20000 + "var w = new FakeWidget();",
             'x = $"{a\n' * 3000 + "var w = new FakeWidget();",
+            "x = "
+            + '"""'
+            + "\n" * 1
+            + ("x = " + '"""' + "\n") * 20000
+            + "var w = new FakeWidget();",
+            ("x = $$" + '"""' + "\n{{ a\n") * 3000 + "var w = new FakeWidget();",
         )
         for code in cases:
             started = time.monotonic()

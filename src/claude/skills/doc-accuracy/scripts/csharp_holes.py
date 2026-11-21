@@ -132,7 +132,7 @@ class _HoleScan:
 
     def _token(self, token: re.Match[str]) -> int | None:
         code, index = self._code, self._index
-        if self._line_bound and self._lines and "$" in (token.group("prefix") or ""):
+        if self._lines and "$" in (token.group("prefix") or ""):
             # An interpolated string opening on a later line of this hole
             # would nest one hole per line. Treat this hole as broken here.
             return self._unclosed(index, resume=index)
