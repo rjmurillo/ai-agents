@@ -2,7 +2,7 @@
 
 ## Summary
 
-- **Rounds**: 4 of 10
+- **Rounds**: 5 of 10
 - **Prior debate log**: none
 - **Outcome**: Consensus
 - **Final Status**: accepted
@@ -101,6 +101,38 @@ citations below as newly stale. No decision, status or prose meaning changes.
 - Critic verified that both ADR-108 lines name the HTML-comment `return (` and
   that the other 7 renumbers are unchanged from round 3.
 
+## Round 5 Summary
+
+The pre-PR "Citation Freshness (added lines)" gate also checks citations on and
+near changed lines. It flagged two more ADR-108 citations on lines this change
+touched.
+
+### Agent Positions
+
+| Agent | Position |
+|-------|----------|
+| architect | Block, then Accept after rechecking a line it had misread |
+| critic | Block, then the remedy it named was applied |
+
+### Key Issues Addressed
+
+- ADR-108:201 cited `build_all.py` at `:793` and `:2226`. Both were stale before
+  this branch. At authoring commit 5159f30da they were `def assert_no_claude_writes(`
+  and its call site, and both now sit at lines 1036 and 2454.
+- The checker reads prose between code spans as anchors. On ADR-108:27 it
+  rejected a correct citation. On line 201 it rejected the word "and" between two
+  citations.
+- The architect first claimed `copilot_body_translation.py:14` had moved to 13.
+  On recheck it confirmed line 14 is still the `@CLAUDE.md` probe and withdrew
+  the claim.
+
+### Major Changes Made
+
+- ADR-108:201 cites both `build_all.py` lines as full paths, with no prose between them.
+- ADR-108:27 carries an inline `citation-freshness: ignore` marker with a reason.
+  The reason holds no citation-shaped token, because a token in the reason would
+  itself be read as a citation.
+
 ### Final Diff
 
 | Citing line | Old | New |
@@ -112,9 +144,11 @@ citations below as newly stale. No decision, status or prose meaning changes.
 | ADR-102:355 | `git_hook_policy.py:2774` | `2763` |
 | ADR-108:27 | `copilot_body_translation.py` `:140` | `:151` |
 | ADR-108:201 | `copilot_body_translation.py` `:140` | `:151` |
+| ADR-108:201 | `build_all.py:793` and `:2226` | `:1036` and `:2454` |
 
-The same commit fixes two non-ADR citations the gate flagged:
-`.agents/governance/FAIL-OPEN-INVENTORY.md:155` and `scripts/eval/eval-suite.py:810`.
+The same change fixes three non-ADR citations the gates flagged:
+`.agents/governance/FAIL-OPEN-INVENTORY.md:148` and `:155`, and
+`scripts/eval/eval-suite.py:810`.
 
 ### Next Steps
 
