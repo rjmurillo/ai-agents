@@ -10,8 +10,15 @@ show what changed:
 
 - A renamed doc is an added file. A pure rename gates every claim in it, so a
   doc moved out of an unassessed path cannot carry unchecked claims.
-- Adding, editing, or deleting a fence line re-pairs every later fence. Claims
-  from the first changed fence to the end of the file are in scope.
+- Adding or removing a column-0 backtick fence line flips fence pairing only
+  where the count of such changed lines above is odd. Only those stretches come
+  into scope, so a balanced new block leaves later examples out of scope. A
+  changed tilde or indented fence still puts the rest of the file in scope. A
+  change to an ignored external-sdk marker line, or to the first fence-like
+  line above it, keeps the file's `unresolved_symbol` findings in scope,
+  because only those edits can flip the marker's status. Each such finding
+  carries `scope_reason: "ignored_external_sdk_marker"` and
+  `scope_marker_line`.
 - A symlinked doc, or a doc under a symlinked directory, is changed in full,
   because git diffs only the link text.
 
@@ -91,6 +98,18 @@ The marker is `<!-- doc-accuracy: external-sdk <name> -- <reason> -->`.
   and no earlier line contains three backticks or tildes. A marker below any
   code fence is ignored. The first valid marker wins.
 - It silences `unresolved_symbol` for that file only. Other checks still run.
+- Without a marker, a code example's own declared names are not reported as
+  unresolved. In C# these are types, namespaces, properties, and methods with
+  an access modifier. In Python they are classes and functions. In JavaScript
+  and TypeScript they are classes, interfaces, enums, functions, and type
+  aliases (`type X =`), so `import type X` and `import { type X }` stay claims.
+  A declaration counts only at the start of a line, after any attributes and
+  modifiers. Comments, strings, and text in the middle of a line, such as a
+  regex literal, declare nothing. A C# method needs a return type before its
+  name, and a modifier word never counts as one. So a constructor or a
+  conversion operator does not declare its type. Each skip is counted under
+  `declared_name_suppressed`, which maps a doc path to its count. Method
+  signature claims get no exemption.
 - A missing, `-`-led, or placeholder name suppresses nothing and yields a
   high `invalid_external_sdk_marker` finding.
 - `claims.json` records `sdk`, `reason`, and `line`. Phase 3 counts suppressed
