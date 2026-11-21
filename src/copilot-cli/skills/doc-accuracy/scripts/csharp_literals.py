@@ -50,28 +50,26 @@ def _csharp_string_end(code: str, body: int, prefix: str, chars: list[str]) -> t
     ends at an unescaped quote. One that reaches its line end instead was
     never closed, so its quote is a typo: the body is restored and stays
     visible, which can over-report a name but never hide one. An
-    unterminated verbatim string is restored the same way, and the scan
-    resumes at its opening line end.
+    unterminated verbatim string, or one whose hole never closes, is
+    restored the same way. A multi-line verbatim close that may be borrowed
+    from a later literal is settled by ``_union_verbatim_readings``.
     """
     verbatim, interpolated = "@" in prefix, "$" in prefix
     index = body
     while index < len(code):
         char = code[index]
         if interpolated and char == "{" and not code.startswith("{{", index):
-            if verbatim and _in_code_context(code, body, index, index + 1):
-                chars[body:index] = code[body:index]
-                return line_end(code, body), False
             index, closed = csharp_hole_end(
                 code, index, chars, '"' if verbatim else "\\", _skip_csharp_token
             )
             if not closed:
+                if verbatim:
+                    chars[body:index] = code[body:index]
                 return index, False
             continue
         if char == '"' and not (verbatim and code.startswith('""', index)):
             if verbatim and _distrusts_verbatim_close(code, body, index):
-                # Leave the text visible but still end the string here, so the
-                # quote can never open a new string over real code.
-                chars[body:index] = code[body:index]
+                return _union_verbatim_readings(code, body, index, chars), True
             return index + 1, True
         if char == "\n" and not verbatim:
             chars[body:index] = code[body:index]
@@ -87,51 +85,67 @@ def _csharp_string_end(code: str, body: int, prefix: str, chars: list[str]) -> t
     return index, False
 
 
-def _distrusts_verbatim_close(code: str, body: int, close: int) -> bool:
-    """Whether a verbatim string's closing quote on a later line is a pairing.
+def _union_verbatim_readings(code: str, body: int, close: int, chars: list[str]) -> int:
+    """Settle a doubtful multi-line verbatim close; return where to resume.
 
-    A multi-line verbatim string is valid C#, but a missing close quote
-    makes the string borrow a later literal's quote. A borrowed quote is
-    followed by name text (other than a ``u8`` suffix), sits in a char
-    literal or comment, or is a lone quote, a raw-string opener (three or
-    more quotes ending the line), or a run after a "$" or "@" prefix, right
-    after text that opens a literal such as "= ". The caller
-    only stops blanking on a distrusted close, so this can over-report but
-    never hide code.
+    Two readings cover the text from the body to the end of the close's
+    line. In one, the close is real: the body is literal text and the rest
+    of that line is code. In the other, the opening quote was a typo: the
+    whole span is code. A character stays visible when either reading shows
+    it, so a name is hidden only when both readings hide it. One reading is
+    the true one, so this can over-report but never hides real code.
+    """
+    stop = line_end(code, close)
+    as_closed = chars[body : close + 1] + list(_lex_span(code, close + 1, stop))
+    as_code = _lex_span(code, body, stop)
+    for offset, (closed_char, code_char) in enumerate(zip(as_closed, as_code, strict=True)):
+        original = code[body + offset]
+        chars[body + offset] = original if original in (closed_char, code_char) else " "
+    return stop
+
+
+def _lex_span(code: str, start: int, end: int) -> str:
+    """Blank literals in code[start:end] read alone; unreadable spans stay visible."""
+    span = code[start:end]
+    blanked = blank_csharp_literals(span)
+    return span if blanked is None else blanked
+
+
+def _distrusts_verbatim_close(code: str, body: int, close: int) -> bool:
+    """Whether a verbatim string's closing quote on a later line may be borrowed.
+
+    A missing close quote makes a multi-line verbatim string borrow a later
+    literal's quote. A borrowed quote is followed by name text (other than a
+    ``u8`` suffix), or it opens a literal: it is a lone quote or a raw
+    opener after an operator, a bracket, a separator, or a keyword such as
+    ``return``. A doubtful close is settled by reading the span both ways,
+    so a false alarm only over-reports.
     """
     if code.find("\n", body, close) < 0:
         return False
-    following = code[close + 1 : close + 3]
-    if following[:1].isalnum() or following[:1] == "_":
-        return not (following == "u8" and not code[close + 3 : close + 4].isalnum())
+    rest = code[close + 1 : line_end(code, close)]
+    if rest[:1].isalnum() or rest[:1] == "_":
+        return not (rest[:2] == "u8" and not rest[2:3].isalnum())
+    if code[close - 1 : close] == "'" and rest[:1] == "'":
+        return True  # the quote is a char literal such as '"'
     run_start = close
     while run_start > body and code[run_start - 1] == '"':
         run_start -= 1
-    line_start = code.rfind("\n", 0, run_start) + 1
-    prefix = code[line_start:run_start].rstrip()
-    raw_opener = close - run_start >= 2 and not code[close + 1 : line_end(code, close)].strip()
-    lone_or_prefixed = close == run_start or raw_opener or prefix.endswith(("$", "@"))
-    opens_literal = lone_or_prefixed and prefix.endswith(_LITERAL_OPENERS)
-    return _in_code_context(code, body, run_start, close + 1) or opens_literal
-
-
-def _in_code_context(code: str, body: int, index: int, after: int) -> bool:
-    """Whether code[index:after], on a later line of a verbatim string, is code.
-
-    It is when it sits between apostrophes (a char literal such as '"') or
-    after a "//" or "/*" on its line (a comment). A verbatim string that
-    runs on to such a spot has lost its closing quote.
-    """
-    if code.find("\n", body, index) < 0:
+    raw_opener = close - run_start >= 2 and not rest.strip()
+    if close != run_start and not raw_opener:
         return False
-    prefix = code[code.rfind("\n", 0, index) + 1 : index]
-    in_char = prefix.endswith("'") and code[after : after + 1] == "'"
-    return in_char or "//" in prefix or "/*" in prefix
+    prefix = code[code.rfind("\n", 0, run_start) + 1 : run_start].rstrip()
+    last_word = re.search(r"[A-Za-z_]\w*$", prefix)
+    if last_word is not None:
+        return last_word.group(0) in _LITERAL_KEYWORDS
+    return bool(prefix) and prefix[-1] in _LITERAL_OPENER_CHARS
 
 
-# Text that ends right before a literal opens: an assignment, an argument,
-# an interpolation or verbatim prefix, or an initializer.
-_LITERAL_OPENERS = ("=", "(", ",", "$", "@", "[", "{", ":", "?", "return")
+# Characters and keywords that end the text right before a literal opens.
+_LITERAL_OPENER_CHARS = frozenset("=([{)]},:?+-*/%<>!&|^~;$@")
+_LITERAL_KEYWORDS = frozenset(
+    {"return", "case", "yield", "in", "is", "when", "and", "or", "not", "throw", "await"}
+)
 
 
 def _csharp_raw_string_end(code: str, match: re.Match[str], chars: list[str]) -> tuple[int, bool]:
@@ -139,8 +153,8 @@ def _csharp_raw_string_end(code: str, match: re.Match[str], chars: list[str]) ->
 
     A raw string closes on the same quote run that opened it. With N "$"
     markers, a run of N braces opens a hole, which stays visible; braces
-    before it in a longer run are literal text. An unterminated raw string
-    is left visible, so no code after it is hidden.
+    before it in a longer run are literal text. An unterminated raw string,
+    or one whose hole never closes, is left visible, so no code is hidden.
     """
     quotes, dollars = match.group("quotes"), match.group("prefix").count("$")
     index, close = match.end(), -1
@@ -160,7 +174,14 @@ def _csharp_raw_string_end(code: str, match: re.Match[str], chars: list[str]) ->
         while code.startswith("{" * (dollars + 1), hole):
             hole += 1
         blank_span(chars, index, hole)
-        index, _ = csharp_hole_end(code, hole, chars, quotes, _skip_csharp_token)
+        index, closed = csharp_hole_end(code, hole, chars, quotes, _skip_csharp_token)
+        if not closed:
+            # A broken hole means the raw string cannot be read reliably, so
+            # its whole text stays visible up to its close or line end.
+            close = _csharp_raw_close(code, quotes, match.end(), index)
+            end = line_end(code, index) if close < 0 else close + len(quotes)
+            chars[match.end() : end] = code[match.end() : end]
+            return end, close >= 0
 
 
 def _csharp_raw_close(code: str, quotes: str, body: int, index: int) -> int:

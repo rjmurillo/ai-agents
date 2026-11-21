@@ -57,9 +57,10 @@ def csharp_hole_end(
     In regular and verbatim strings a hole may span ``_MAX_HOLE_LINES``
     lines. It is unclosed at that cap, at the snippet end, when a nested
     literal or comment lacks its close, or when an interpolated string
-    opens on a later line. An unclosed hole is restored and the enclosing
-    string stops at its opening line end. In a raw string, a quote run that
-    closes nothing ends the hole there.
+    opens on a later line (in any string kind). An unclosed hole is
+    restored and the enclosing string stops at its opening line end. In a
+    raw string, a quote run that closes nothing ends the hole there, and
+    any unclosed hole leaves the whole raw string visible.
 
     Accepted limits: chained unclosed holes or literals on one line, a
     string missing its close quote that pairs with a later quote on that

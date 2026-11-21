@@ -604,6 +604,22 @@ class TestCsharpLiteralAndAttributeArguments:
             + '"""'
             + ";",
             "M('a,FakeWidget,'b');",
+            'Log($@"first\nsee http://host/{id}\nthird", FakeWidget.X, "y");',
+            'var a = @"x;\nvar w = new FakeWidget();\nLog(p + " done");',
+            'var a = @"x;\nFakeWidget.Go();\nvar s = a + ", " + b;',
+            'var a = @"x;\nFakeWidget.Go();\nstring Sep() => " ";',
+            'var a = @"x;\nFakeWidget.Go();\nswitch (k) { case ".": break; }',
+            'var a = @"x;\nFakeWidget.Go();\nreturn a + " ";',
+            'var a = $@"x {y};\nFakeWidget.Go();\nvar s = a + " ";',
+            'var a = @"x;\nvar b = "lit"; FakeWidget.Go(); var c = "z";',
+            'var a = @"x;\nM("lit", FakeWidget.Go(), "z");',
+            'var a = @"say ""hi"";\nvar b = "x"; FakeWidget.Go("y");',
+            'var a = @"say ""hi"";\nFakeWidget.Go();\nvar b = c + ", ";',
+            "var s = $"
+            + '"""'
+            + '\n    {Wrap(\n        $"x", FakeWidget.Name)}\n    '
+            + '"""'
+            + ";",
             'var s4 = $@"x {A.X} ""q"";\nFakeWidget.Go();\nvar s5 = '
             + '"""'
             + "\n    raw\n    "
