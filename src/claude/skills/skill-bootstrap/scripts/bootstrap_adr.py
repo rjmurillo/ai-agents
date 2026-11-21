@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 # Port of aligndottech/align-cli at commit 8d758e9899677b61442b08ffda74b74887bfc42a
-# Ported upstream files: src/commands/adr.ts (the list-then-accept flow, lines 25-48) and,
-#   through the sibling modules, src/lib/first-run-pr-import.ts and
-#   src/lib/fetchers/docs-decision-log.ts. This file adds the command line around them.
-#   src/lib/adr-writer.ts (renderAdr, slug and writeAdr, lines 52-84 and 137-148) is ported
-#   here. The trailing "Drafted by" comment of renderAdr is not ported.
-# Sibling ports: adr_locate.py, adr_scan.py, adr_commits.py, adr_docs.py.
+# Ported upstream files:
+#   src/commands/adr.ts   (runAdr, the list-then-accept flow, lines 25-48; this file adds the
+#                          command line around it)
+#   src/lib/adr-writer.ts (writeAdr, lines 137-148; renderAdr and slug live in adr_locate.py
+#                          and adr_commits.py. The trailing "Drafted by" comment is not ported.)
+# Sibling ports: adr_shape.py, adr_reason.py, adr_commits.py, adr_docs.py, adr_locate.py,
+# adr_scan.py, bootstrap_adr.py.
 # MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align
 """Find the decisions in a repository that have no ADR, and draft one ADR for each you accept.
 
@@ -13,29 +14,26 @@ Standard library only. Subcommands:
 
 ``locate --repo PATH``
     Print the ADR folders (path, count, prefix, width, highest number, H1 form, headings),
-    the single ``primary`` folder (null for none or several), and ``next_number``.
+    the single ``primary`` folder (null for none or several), ``next_number``, and
+    ``walk_truncated``.
 
 ``scan --repo PATH [--rev HEAD] [--max-commits 300] [--since DATE] [--prs-json FILE] --out FILE``
     List candidate decisions as JSON. Reads git and the working tree, makes no network call,
-    and writes nothing in the repository. ``--out`` must resolve outside it. ``--prs-json`` is an
-    offline export (see ``adr_commits.py`` for its shape).
+    and writes nothing in the repository. ``--out`` must resolve outside every work tree of the
+    repository. ``--prs-json`` is an offline export (see ``adr_commits.py`` for its shape).
 
 ``draft --scan FILE --id ID --out DIR [--status Proposed]``
-    Render one candidate as an ADR and create it with mode ``x``. Inside the repository, DIR
-    must be a located ADR folder and the file must not be ignored by git.
+    Render one candidate as an ADR and create it with mode ``x``, never replacing a file.
+    Everything in the draft comes from the source: its title, the reason it stated, an
+    excerpt of its text, and a link to where it was decided. A section the source never
+    covered says so. If git finds a work tree around DIR, DIR must be one of that work
+    tree's located ADR folders and the file must not be ignored by git, whatever repository
+    the scan file names.
 
 Every command prints JSON. Exit codes: 0 done; 1 the draft target exists or another ADR took
 its number (``error`` is ``exists``; after the second case the draft stays on disk); 2 bad
 arguments, unreadable or malformed input, a refused ``--out`` (``config`` or ``io``), or an
 internal error (``internal``); 3 git is missing, failed, or timed out (``git``).
-
-Drafting an ADR from a scan candidate:
-
-Render one candidate from a scan file as an ADR and create it. Never replaces a file.
-
-Everything in the draft comes from the source: its title, the reason it stated, an excerpt
-of its text, and a link to where it was decided. Nothing is generated, so a section the
-source never covered says so.
 
 Departures from the upstream source, each pinned by a test:
 
@@ -48,8 +46,6 @@ Departures from the upstream source, each pinned by a test:
 - The number is chosen at write time from the folder, then the file is created with mode
   ``x``. A name that exists is reported and never retried with another number.
 - A title with no ASCII letter or digit gives the slug ``decision-<sha7>`` (or the id), not ``""``.
-- A target inside the repository must be one of the located ADR folders and must not be
-  ignored by git.
 """
 
 from __future__ import annotations

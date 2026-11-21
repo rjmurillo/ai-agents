@@ -6,7 +6,8 @@
 #   src/lib/fetchers/docs-decision-log.ts (through adr_docs.py)
 #   src/lib/git.ts                     (replaced here by the raw-object commit reader)
 # Extensions E1 (decision-log candidates) and E3 (breaking-change signal) have no upstream source.
-# Sibling ports: adr_commits.py, adr_docs.py, adr_locate.py, bootstrap_adr.py.
+# Sibling ports: adr_shape.py, adr_reason.py, adr_commits.py, adr_docs.py, adr_locate.py,
+# adr_scan.py, bootstrap_adr.py.
 # MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align
 """List the decisions in a repository that have no ADR yet. Read-only, no network.
 
@@ -27,11 +28,8 @@ Departures from the upstream source, each pinned by a test:
   ``chore!:`` subject or a release stays out. Its ``signals`` hold ``breaking-change``.
 - E1: a decision-log entry that has an id and is not named by any ADR is a candidate.
 
-Git access:
-
-Run git with a timeout and read commits without trusting message text.
-
-Commits are read in two steps. ``git rev-list`` gives the SHAs in history order. Those
+Git runs with a timeout, a clean environment, and no trust in message text. Commits are
+read in two steps. ``git rev-list`` gives the SHAs in history order. Those
 SHAs go to ``git cat-file --batch``, whose reply is size-prefixed
 (``<sha> commit <size>`` then exactly ``size`` bytes), so a commit message cannot add
 or hide a record. Every reply must name the SHA that was asked for, in order, with the

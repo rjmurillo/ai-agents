@@ -2,16 +2,16 @@
 # Ported upstream files:
 #   src/lib/git.ts                 (the record parser of getCommitHistoryDetailed, lines
 #                                   110-242, replaced here by a parser over raw commit objects)
-#   src/lib/context-from-graph.ts  (decisionShapedRows, lines 84-109)
 #   src/lib/adr-writer.ts          (slug, line 137; link extraction, line 100)
 #   src/lib/fetchers/adr-date.ts   (isoOrNull, the real-calendar-day rule, lines 43-52)
 #   src/lib/first-run-pr-import.ts (isBot, the selection loop of read, dropCoveredCommits and
 #                                   dropCommitsOfStoredPrs, lines 73-130 and 160-207)
 # Not ported: unquoteGitPath, because the port reads no per-commit file lists.
 # Extension E3, breaking_change, has no upstream source.
-# Sibling ports: adr_shape.py, adr_docs.py, adr_reason.py, adr_locate.py, adr_scan.py.
+# Sibling ports: adr_shape.py, adr_reason.py, adr_commits.py, adr_docs.py, adr_locate.py,
+# adr_scan.py, bootstrap_adr.py.
 # MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align
-"""Pure classifiers over commit records: parse a commit object, filter, flag breaking changes.
+"""Commit records, text helpers, pull request selection, and the breaking-change flag.
 
 No I/O, no subprocess, standard library only. The reader in ``adr_scan.py`` lists commit
 SHAs with ``git rev-list``, feeds them to ``git cat-file --batch``, and passes each raw
@@ -19,40 +19,25 @@ object to ``parse_commit_object``.
 
 Departures from the upstream source, each pinned by a test:
 
-- ``is_decision_shaped_title`` strips any ``type(scope)!:`` prefix and applies the
-  fix-shaped test to the type. Upstream's ``^\\w+\\([^)]*\\):`` alternative dropped
-  every scoped commit except ``feat(...)``.
 - Commits are parsed from raw objects, never from delimited ``git log`` text. The
   ``cat-file --batch`` output is size-prefixed and the SHA order comes from ``rev-list``,
   so no commit message can forge a record, even one holding NUL bytes that
   ``git hash-object`` wrote past git's own checks. Upstream guarded with a 40-hex
   header check on delimited text.
-- ``breaking_change`` is new (extension E3, Conventional Commits 1.0.0).
-
-Regex notes. Module-level patterns compile with ``re.ASCII`` so ``\\b``, ``\\w``, ``\\d`` and
-case folding match the JavaScript source. ``$`` without a multiline flag is ``\\Z``
-here, because Python's ``$`` also matches before a trailing newline. ASCII ``\\s`` does not match Unicode spaces such as U+00A0, which JavaScript's ``\\s`` does.
-
-Small text helpers shared by the ADR backfill modules:
-
-Small text helpers shared by the ADR backfill modules. No I/O, standard library only.
-
-Departures from the upstream source, each pinned by a test:
-
+- A subject is cut at ``MAX_SUBJECT_CHARS`` and a body at ``MAX_BODY_CHARS``, so every
+  pattern that runs later has bounded input.
 - ``slugify`` folds accented Latin letters to ASCII before it cuts at the first other
-  character, so ``Café policy`` is ``cafe-policy`` and not ``caf-policy``. A title with no
+  character, so ``Cafe policy`` is ``cafe-policy`` and not ``caf-policy``. A title with no
   ASCII letter or digit gives ``""``, and the caller falls back to ``decision-<sha7>``.
 - ``iso_day`` accepts only a real calendar day, as upstream does, and returns the day.
 - ``hash_tokens`` reads hex words whole, so ``abc1234`` inside a longer word is not a SHA.
+- ``breaking_change`` is new (extension E3, Conventional Commits 1.0.0).
+- The commit/PR dedup matches both the merge SHA and a subject ending ``(#N)``. Upstream
+  used the SHA for a fresh read and ``(#N)`` for stored rows.
 
-Pull request selection:
-
-Select decision pull requests from an offline export and drop the commits they replace.
-
-Upstream fetched merged pull requests from the GitHub API. This port makes no network call:
-the caller passes a JSON list exported through the host's own tooling (``--prs-json``).
-
-Export shape, a list of objects. Each object needs these fields, under either name:
+Pull request selection takes an offline export, a JSON list passed with ``--prs-json``.
+Upstream fetched merged pull requests from the GitHub API, and this port makes no network
+call. Each object needs these fields, under either name:
 
 - ``number``: integer.
 - ``title``: string. ``body``: string or null.
@@ -64,8 +49,7 @@ Export shape, a list of objects. Each object needs these fields, under either na
 Extra fields are ignored, so the export that ``bootstrap_mine.py --prs-json`` reads works here
 when it also carries these fields.
 
-Departures from the upstream source: the commit/PR dedup matches both the merge SHA and a
-subject ending ``(#N)``. Upstream used the SHA for a fresh read and ``(#N)`` for stored rows.
+Regex notes: see the module docstring of ``adr_shape.py``; they apply to every module here.
 """
 
 from __future__ import annotations

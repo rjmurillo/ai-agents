@@ -5,33 +5,30 @@
 #                                          lines 162-170 and 275-279)
 #   src/lib/fetchers/docs-decision-log.ts (all of it, P12)
 #   src/lib/adr-writer.ts                 (linkedFromAdrs, lines 100-120: ExistingAdrs)
-# Sibling ports: adr_shape.py, adr_commits.py, adr_reason.py, adr_locate.py, adr_scan.py.
+# Extension E1, log_candidates, has no upstream source.
+# Sibling ports: adr_shape.py, adr_reason.py, adr_commits.py, adr_docs.py, adr_locate.py,
+# adr_scan.py, bootstrap_adr.py.
 # MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align
-"""Pure classifiers for README, CONTRIBUTING and changelog sections that state a rule.
+"""Rule sections of README, CONTRIBUTING and changelog, decision logs, and ADR suppression.
 
-No file reads, no I/O, standard library only. The caller reads the Markdown and
-passes the text. Upstream's minimum chunk length and co-change rule inference are
-not ported.
+Standard library only. The rule-section classifiers take Markdown text and do no I/O.
+``read_log_entries`` reads the decision log and ledger files a repository keeps by hand,
+never a file over 1 MiB. A numbered log (``## D17 - title``, ``D181: ...``) or a ledger
+(``id: D-001 | status: test | modified: 2026-10-27``, then text) is listed from the repository
+root and ``docs/`` only, because ``docs/decisions/`` is an ADR folder that ``adr_locate.py``
+reads. ``ExistingAdrs`` holds what the existing ADRs name, so a decision they cover is hidden.
 
-Regex notes. Module-level patterns compile with ``re.ASCII`` so ``\\b``, ``\\w``, ``\\d`` and
-case folding match the JavaScript source. ``$`` without a multiline flag is ``\\Z``
-here, because Python's ``$`` also matches before a trailing newline. ASCII ``\\s`` does not match Unicode spaces such as U+00A0, which JavaScript's ``\\s`` does.
+Departures from the upstream source, each pinned by a test:
 
-Decision logs and ledgers:
-
-Read decision log and ledger files a repository keeps by hand.
-
-A numbered log (``## D17 - title``, ``D181: ...``) or a ledger
-(``id: D-001 | status: test | modified: 2026-10-27``, then text). Only the repository root and
-``docs/`` are listed. ``docs/decisions/`` is an ADR folder and ``adr_locate.py`` reads it.
-Reads the working tree, never a file over 1 MiB. Standard library only.
-
-Departures from the upstream source:
-
-- Upstream used these entries as context. Extension E1 makes an entry that has an id a
-  candidate when no existing ADR names that id (``adr_scan.py``).
+- Upstream used log entries as context. Extension E1 makes an entry that has an id a
+  candidate when no existing ADR names that id (``log_candidates``).
 - ``entry_date`` returns the day (``YYYY-MM-DD``) through ``adr_commits.iso_day``, which accepts
   only a real calendar day. Upstream returned an ISO instant.
+- Upstream's minimum chunk length and co-change rule inference are not ported.
+- The log and heading patterns trim blanks in code instead of in a lazy group, so a long run
+  of spaces costs linear time.
+
+Regex notes: see the module docstring of ``adr_shape.py``; they apply to every module here.
 """
 
 from __future__ import annotations

@@ -182,7 +182,7 @@ def test_scan_locates_the_adr_folders_once(tmp_path: Path, monkeypatch: pytest.M
     calls: list[Path] = []
     real = adr_locate.locate_folders
 
-    def counting(root: Path) -> list[tuple[str, str]]:
+    def counting(root: Path) -> tuple[list[tuple[str, str]], bool]:
         calls.append(root)
         return real(root)
 

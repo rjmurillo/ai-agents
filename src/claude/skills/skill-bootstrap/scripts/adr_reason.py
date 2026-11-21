@@ -3,6 +3,8 @@
 # helpers they use). Trailer and importer-text handling (stripTrailers, stripImporterMetadata,
 # hasImporterMetadata) lives in adr_shape.py.
 # Not ported: withReasons, which shapes align's search JSON and has no consumer here.
+# Sibling ports: adr_shape.py, adr_reason.py, adr_commits.py, adr_docs.py, adr_locate.py,
+# adr_scan.py, bootstrap_adr.py.
 # MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align
 """The stated reason behind a decision, pulled out of its own text with no model.
 
@@ -16,10 +18,7 @@ Picks up to two sentences of a commit body that SAY why. Rules, all deterministi
 - A sentence that only repeats the title is dropped.
 - None when nothing qualifies. A wrong reason is worse than none.
 
-Regex notes. Module-level patterns compile with ``re.ASCII`` so ``\\b``, ``\\w``, ``\\d`` and
-case folding match the JavaScript source. ``$`` without a multiline flag is ``\\Z``
-here, because Python's ``$`` also matches before a trailing newline. ASCII ``\\s`` does not match Unicode spaces such as U+00A0, which JavaScript's ``\\s`` does. Whitespace
-normalisation (``flat`` in adr_shape) stays Unicode-aware, as ``\\s`` is in JavaScript.
+Regex notes: see the module docstring of ``adr_shape.py``; they apply to every module here.
 """
 
 from __future__ import annotations

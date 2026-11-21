@@ -4,12 +4,14 @@
 #                                   and the section kinds, lines 52-84, used by draft)
 #   src/lib/fetchers/docs.ts       (ADR_DIR_CANDIDATES, lines 43-48; title and heading
 #                                   reading of the ADR files, lines 70-110)
-# Sibling ports: adr_commits.py, adr_scan.py, bootstrap_adr.py, adr_docs.py.
+# Sibling ports: adr_shape.py, adr_reason.py, adr_commits.py, adr_docs.py, adr_locate.py,
+# adr_scan.py, bootstrap_adr.py.
 # MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align
 """Find the repository's ADR folders and read their naming and heading style.
 
 Reads the working tree only: directory listings and the newest ADR of each folder, never
-a file over 1 MiB. Standard library only.
+a file over 1 MiB. Standard library only. Also holds the draft renderer, which fills the
+newest ADR's headings from a scan candidate.
 
 Departures from the upstream source, each pinned by a test:
 
