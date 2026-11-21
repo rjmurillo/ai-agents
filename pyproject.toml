@@ -75,6 +75,10 @@ override-dependencies = [
     "pyjwt[crypto]==2.15.0",
     # setuptools 84.0.0 has GHSA-xmj3-9gf7-h52w, fixed in 84.1.0.
     "setuptools==84.1.0",
+    # semgrep 1.185.0 caps wcmatch~=8.3. 8.5.2 has CVE-2026-132276, fixed in
+    # 11.2. semgrep calls only glob.globmatch with GLOBSTAR | DOTGLOB, and
+    # tests/metrics/test_gate_latency_classes.py uses GLOBSTAR | BRACE.
+    "wcmatch==11.2",
 ]
 
 [tool.uv.exclude-newer-package]

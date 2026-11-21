@@ -2550,7 +2550,7 @@ class TestUnsupportedMergeStatesNeverReachT1:
     # has not defined yet.  The last one is the point of the allowlist: an
     # enumeration of blockers cannot cover it.  HAS_HOOKS is deliberately NOT
     # here: GitHub defines it as "Mergeable with passing commit status and
-    # pre-receive hooks", and `scripts/ci/check_pr_merge_state.py:27` lists it
+    # pre-receive hooks", and `scripts/ci/check_pr_merge_state.py:29` lists it
     # in PASS_STATES, so it is covered by the positive cases below instead.
     _UNSUPPORTED = ("UNKNOWN", "DRAFT", "A_STATE_GITHUB_ADDS_LATER")
 
