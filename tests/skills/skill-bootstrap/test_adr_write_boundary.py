@@ -29,7 +29,8 @@ def _adr_repo(path: Path) -> Path:
 
 def _draft(tmp_path: Path, scan_repo: Path, out: Path, **cand: Any) -> dict[str, Any]:
     scan = _scan_file(tmp_path, scan_repo, _cand(**cand))
-    return bootstrap_adr.draft(scan, "c-1234567", str(out), "Proposed")
+    result: dict[str, Any] = bootstrap_adr.draft(scan, "c-1234567", str(out), "Proposed")
+    return result
 
 
 # ---------------------------------------------------------------------------

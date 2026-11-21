@@ -38,7 +38,8 @@ def _pr(number: int, title: str, **over: Any) -> dict[str, Any]:
 
 
 def _scan(repo: Path, prs: list[dict[str, Any]] | None = None) -> dict[str, Any]:
-    return adr_scan.scan(repo, "HEAD", 300, None, prs)
+    payload: dict[str, Any] = adr_scan.scan(repo, "HEAD", 300, None, prs)
+    return payload
 
 
 # ---------------------------------------------------------------------------
