@@ -1,14 +1,9 @@
 #!/usr/bin/env python3
 # taste-lint: ignore complexity -- pre-existing debt, unlinted before the ADR-119 source classification
-"""Unified memory search across Serena and the episode store.
+"""Search repository notes, legacy memories, and session episodes.
 
-Agent-facing script that searches the two file-based memory stores and
+Agent-facing script that searches local memory stores and
 reports a token budget warning for large memories.
-
-The semantic backend this script also queried is decommissioned (issue
-#5574), and with it the two flags that chose between the stores. Both
-remaining stores are local files, so there is nothing left to select
-between and nothing that can be unavailable.
 
 The lexical path also searches the Tier 2 episode store. Before that was
 wired, nothing outside the episode tests read those records, so the write
@@ -82,16 +77,27 @@ def estimate_tokens(file_path: Path) -> int:
         return 0
     try:
         return round(len(file_path.read_text(encoding="utf-8")) / 4)
-    except OSError:
+    except (OSError, UnicodeError):
         return 0
+
+
+def _corpus_scope(corpus: Path) -> Path:
+    resolved = corpus.resolve()
+    return _find_checkout(resolved) or resolved
+
+
+def _is_corpus_file(path: Path, scope: Path) -> bool:
+    return path.is_file() and (not path.is_symlink() or path.resolve().is_relative_to(scope))
 
 
 def search_serena(
     query: str,
     memory_path: Path,
     max_results: int,
+    *,
+    source: str = "Serena",
 ) -> list[dict[str, Any]]:
-    """Search Serena memories by keyword matching on memory names.
+    """Search Markdown memories by keyword matching on memory names.
 
     A name is the path relative to ``memory_path``, without ``.md``. Content
     is read only for the result preview and is never matched.
@@ -100,9 +106,12 @@ def search_serena(
         return []
 
     keywords = query_keywords(query)
+    scope = _corpus_scope(memory_path)
 
     results: list[dict[str, Any]] = []
     for md_file in sorted(memory_path.rglob("*.md")):
+        if not _is_corpus_file(md_file, scope):
+            continue
         rel = md_file.relative_to(memory_path).with_suffix("")
         name = rel.as_posix().lower()
         stem = name.rpartition("/")[2]
@@ -114,13 +123,13 @@ def search_serena(
         score = weighted / len(keywords) if keywords else 0
         try:
             content = md_file.read_text(encoding="utf-8")
-        except OSError:
-            content = ""
+        except (OSError, UnicodeError):
+            continue
         preview = re.sub(r"\s+", " ", content).strip()
         results.append(
             {
                 "Name": rel.as_posix(),
-                "Source": "Serena",
+                "Source": source,
                 "Score": round(score, 2),
                 "Path": str(md_file),
                 "Content": preview[:200] if preview else "",
@@ -197,12 +206,12 @@ def search_episodes(
 
 
 def get_memory_router_status(
-    serena_path: Path, episodes_path: Path | None = None
+    serena_path: Path | None, episodes_path: Path | None = None, notes_path: Path | None = None
 ) -> dict[str, dict[str, object]]:
     """Return diagnostic status of memory systems."""
-    serena_available = serena_path.is_dir()
+    serena_available = serena_path is not None and serena_path.is_dir()
     serena_count = 0
-    if serena_available:
+    if serena_available and serena_path is not None:
         serena_count = len(list(serena_path.rglob("*.md")))
 
     episodes_available = False
@@ -211,11 +220,11 @@ def get_memory_router_status(
         episodes_available = True
         episode_count = len(list(episodes_path.glob("episode-*.json")))
 
-    return {
+    status: dict[str, dict[str, object]] = {
         "Serena": {
             "Available": serena_available,
             "MemoryCount": serena_count,
-            "Path": str(serena_path),
+            "Path": str(serena_path) if serena_path is not None else "",
         },
         "Episodes": {
             "Available": episodes_available,
@@ -223,6 +232,16 @@ def get_memory_router_status(
             "Path": str(episodes_path) if episodes_path is not None else "",
         },
     }
+    if notes_path is not None:
+        notes_scope = _corpus_scope(notes_path)
+        status["RepositoryNotes"] = {
+            "Available": True,
+            "MemoryCount": sum(
+                1 for path in notes_path.rglob("*.md") if _is_corpus_file(path, notes_scope)
+            ),
+            "Path": str(notes_path),
+        }
+    return status
 
 
 _HELP_EPILOG = """\
@@ -239,7 +258,7 @@ exit codes:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Unified memory search across Serena and episodes.",
+        description="Search repository notes, legacy memories, and session episodes.",
         epilog=_HELP_EPILOG,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -286,6 +305,20 @@ def validate_query(query: str) -> str | None:
 
 SERENA_REL = Path(".serena", "memories")
 EPISODES_REL = Path(".project-toolkit", "memory", "episodes")
+NOTES_REL = EPISODES_REL.with_name("notes")
+
+
+def _find_checkout(start: Path) -> Path | None:
+    return next(
+        (
+            parent
+            for parent in (start, *start.parents)
+            if (parent / ".git").exists()
+            or (parent / SERENA_REL).is_dir()
+            or (parent / EPISODES_REL.parent).is_dir()
+        ),
+        None,
+    )
 
 
 def resolve_repo_root(script_dir: Path) -> Path:
@@ -293,17 +326,25 @@ def resolve_repo_root(script_dir: Path) -> Path:
 
     An installed plugin lives outside the consumer checkout, so the path
     relative to this file points at the plugin directory. Prefer the
-    consumer project (CLAUDE_PROJECT_DIR, then the working directory) when
-    it holds a memory store; fall back to the path relative to this file.
+    consumer project (CLAUDE_PROJECT_DIR, then the working directory).
     """
     candidates = [os.environ.get("CLAUDE_PROJECT_DIR", ""), str(Path.cwd())]
     for candidate in candidates:
         if not candidate:
             continue
-        root = Path(candidate).resolve()
-        if (root / SERENA_REL).is_dir() or (root / EPISODES_REL.parent).is_dir():
+        root = _find_checkout(Path(candidate).resolve())
+        if root is not None:
             return root
     return script_dir.parent.parent.parent.parent
+
+
+def checkout_corpus(repo_root: Path, relative: Path) -> Path | None:
+    """Find an existing corpus whose resolved path stays inside the checkout."""
+    path = repo_root / relative
+    if not path.is_dir():
+        return None
+    resolved = path.resolve()
+    return resolved if resolved != repo_root and resolved.is_relative_to(repo_root) else None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -330,7 +371,7 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         serena_path = args.serena_path.resolve()
     else:
-        serena_path = repo_root / SERENA_REL
+        serena_path = checkout_corpus(repo_root, SERENA_REL)
 
     if args.episodes_path:
         if ".." in args.episodes_path.parts:
@@ -348,8 +389,13 @@ def main(argv: list[str] | None = None) -> int:
         "EpisodesSucceeded": False,
     }
 
-    results = search_serena(query, serena_path, max_results)
+    results = search_serena(query, serena_path, max_results) if serena_path else []
     search_status["SerenaSucceeded"] = True
+    notes_path = checkout_corpus(repo_root, NOTES_REL) if serena_path is None else None
+    if notes_path is not None:
+        results = search_serena(query, notes_path, max_results, source="RepositoryNotes")
+        search_status["RepositoryNotesQueried"] = True
+        search_status["RepositoryNotesSucceeded"] = True
     results += search_episodes(query, episodes_path, max_results)
     search_status["EpisodesSucceeded"] = True
     results.sort(key=lambda r: float(r["Score"]), reverse=True)
@@ -402,7 +448,7 @@ def main(argv: list[str] | None = None) -> int:
             "SearchStatus": search_status,
             "TokenBudget": token_budget,
             "Results": results,
-            "Diagnostic": get_memory_router_status(serena_path, episodes_path),
+            "Diagnostic": get_memory_router_status(serena_path, episodes_path, notes_path),
         }
         print(json.dumps(output, indent=2))
 

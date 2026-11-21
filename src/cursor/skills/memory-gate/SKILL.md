@@ -29,10 +29,8 @@ The Memory-First Gate and its investigation protocol, extracted from the
 here; an agent about to change an existing system loads this sub-skill instead
 of the full memory surface.
 
-The gate is one operation with a single rule: before you change something that
-already exists, search memory for why it exists. The search uses the canonical
-Tier 1 script; this sub-skill owns the enforcement semantics (ADR-070) and the
-Chesterton's Fence framing, not the search implementation.
+Before changing an existing system, use `memory-search` to recover its rationale.
+This skill owns enforcement and the Chesterton's Fence investigation.
 
 ## Triggers
 
@@ -46,9 +44,9 @@ Use this skill when the user says:
 
 Before changing existing systems, you MUST:
 
-1. Search memory for the topic you are about to change.
+1. Run `memory-search` for the topic you are about to change.
 2. Review results for historical context.
-3. If Tier 1 is insufficient, escalate to Tier 2 (episodes).
+3. If Tier 1 is insufficient, check episodes and current repository evidence.
 4. Document findings in your decision rationale.
 5. Only then proceed with the change.
 
@@ -64,10 +62,9 @@ the session protocol gates (ADR-070 gate semantics).
 **Verification**: the transcript, pull request, handoff, Serena memory, or an
 optional log must show the search before the decision.
 
-The canonical Tier 1 script is `search_memory.py`. It is shared with the
-`memory` router and lives at
-`skills/memory/scripts/search_memory.py`, which the locator above runs. This sub-skill
-delegates to it and does not reimplement search.
+The command above is the repository-file route. If tools or the script are
+unavailable, use file search and git history. Record the coverage gap.
+A search with no hits still satisfies the search step.
 
 ## Memory-First as Chesterton's Fence
 
@@ -173,7 +170,7 @@ row in the Investigation Protocol table.
 
 ### Phase 2: Search
 
-Run `search_memory.py` for the topic. Escalate to Tier 2 only when
+Use `memory-search` for the topic. Check episodes and git history when
 Tier 1 is insufficient.
 
 ### Phase 3: Decide

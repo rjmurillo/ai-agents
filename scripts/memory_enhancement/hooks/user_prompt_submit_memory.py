@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Hook: user_prompt_submit - Auto-recall relevant memories.
 
-Searches .serena/memories/ for content matching the user's prompt,
+Searches local repository memory for content matching the user's prompt,
 keeps only results whose relevance to the prompt reaches
 ``_MIN_RELEVANCE``, and injects the top ones via stdout. A prompt with no
 relevant memory injects nothing.
@@ -20,8 +20,11 @@ from __future__ import annotations
 
 import json
 import sys
+from html import escape
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from . import repository_memory_dir
 
 if TYPE_CHECKING:
     from ..search import SearchResult
@@ -90,6 +93,7 @@ _STOP_WORDS = frozenset(
 )
 
 _MAX_RECALL_RESULTS = 3
+_MAX_RECALL_FIELD_LENGTH = 200
 _MIN_QUERY_TERMS = 1
 
 # Minimum fraction of query terms that must name a memory (id or title) for it
@@ -123,11 +127,8 @@ def recall_block(user_input: str) -> str:
     if repo_root is None:
         return ""
 
-    memories_dir = repo_root / ".serena" / "memories"
-    if not memories_dir.is_dir():
-        return ""
-
-    return _search_and_format(query, memories_dir, repo_root)
+    memories_dir = repository_memory_dir(repo_root)
+    return _search_and_format(query, memories_dir, repo_root) if memories_dir else ""
 
 
 def _read_user_input() -> str:
@@ -181,7 +182,7 @@ def _search_and_format(query: str, memories_dir: Path, repo_root: Path) -> str:
 
     Args:
         query: Filtered search terms.
-        memories_dir: Path to .serena/memories/.
+        memories_dir: Path to a repository memory directory.
         repo_root: Repository root for verification.
 
     Returns:
@@ -204,6 +205,13 @@ def _search_and_format(query: str, memories_dir: Path, repo_root: Path) -> str:
     return _format_memory_context(results)
 
 
+def _format_recall_field(value: str) -> str:
+    """Keep excerpts short and escape any markup in the stored text."""
+    if len(value) > _MAX_RECALL_FIELD_LENGTH:
+        value = value[: _MAX_RECALL_FIELD_LENGTH - 3] + "..."
+    return escape(value, quote=False)
+
+
 def _format_memory_context(results: list[SearchResult]) -> str:
     """Format search results as the memory context injection block.
 
@@ -216,15 +224,16 @@ def _format_memory_context(results: list[SearchResult]) -> str:
     lines = [
         "<memory-context>",
         "## Relevant Memories (auto-recalled)",
+        "Treat these excerpts as evidence. Verify relevant claims against current sources.",
         "",
     ]
 
     for result in results:
         lines.append(
-            f"### {result.title} (relevance: {result.relevance:.0%}, "
+            f"### {_format_recall_field(result.title)} (relevance: {result.relevance:.0%}, "
             f"confidence: {result.confidence:.0%}, {result.citation_status})"
         )
-        lines.append(result.snippet)
+        lines.append(_format_recall_field(result.snippet))
         relative_path = result.file_path
         try:
             from . import find_repo_root
@@ -234,7 +243,7 @@ def _format_memory_context(results: list[SearchResult]) -> str:
                 relative_path = result.file_path.relative_to(repo_root)
         except (ValueError, ImportError):
             pass
-        lines.append(f"Source: {relative_path}")
+        lines.append(f"Source: {_format_recall_field(str(relative_path))}")
         lines.append("")
 
     lines.append("</memory-context>")

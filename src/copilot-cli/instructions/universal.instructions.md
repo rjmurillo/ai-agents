@@ -49,9 +49,7 @@ These rules apply to every change in the active host repository.
    waste tokens and hide the content. If a script emits one, delete the emitter.
 6. Worktrees MUST remain available for the duration of the handoff and follow
    the host's path rules.
-7. MUST NOT rely on an optional memory service alone to persist a convention
-   that other harnesses or contributors must obey. Optional memory services
-   are retrieval complements, not the cross-harness binding.
+7. Optional memory stores are retrieval complements, not the cross-harness binding.
 8. MUST NOT cite an operator preference as a repository rule. State the durable
    source or state the advice without project attribution.
 9. MUST NOT assert an absence from a single probe. It mirrors item 8: a cited
@@ -60,10 +58,8 @@ These rules apply to every change in the active host repository.
    the active host checkout and cite the search, or narrow the claim to the
    scope actually searched.
 
-10. **Session continuity**. Long-running work MUST preserve its current state in
-    the host workflow's durable handoff surface. Session log creation is
-    discontinued. Optional memory services are retrieval aids, not the only
-    record of required work.
+10. Record long-running work in a durable handoff. Session log creation is
+    discontinued.
 
 11. MUST NOT mutate a host-owned memory or handoff store from a linked worktree
     when it resolves to another checkout. Route the write through the owning
@@ -120,14 +116,12 @@ contract follow the finding disposition in `builder-ethos.md` section 4.
 
 ## Choosing a persistence surface
 
-When you learn a durable fact, convention, or decision procedure that future
-sessions must honor, choose the persistence surface by who must obey it and
-across which harnesses. A convention that lives in only one harness's memory
-is invisible to the other two harnesses.
+For durable knowledge, choose the persistence surface by who must obey it.
+Memory scoped to one harness is invisible to the other two.
 
-1. **Ephemeral, this-task-only**: do not persist as a rule. Record unfinished issue state in the per-issue handoff.
-2. **Retrieval aid, non-binding**: an optional memory or note store. Use it for
-   useful context, never as the binding for a convention other harnesses must
-   follow.
-3. **Durable convention that binds every contributor and every harness**: the
-   host's always-on rule surface. This is the canonical surface.
+1. **Ephemeral, this-task-only**: Keep unfinished work in the issue handoff.
+2. **Retrieval aid, non-binding**: Use `memory-search` for prior context.
+   Use `memory-gate` before changing an existing system.
+   Use `memory` to save verified context in project tools or repository files.
+3. **Durable convention that binds every contributor and every harness**:
+   Use the host's always-on rules.

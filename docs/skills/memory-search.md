@@ -1,6 +1,6 @@
 # memory-search
 
-Searches project memory (Tier 1) for facts, patterns, and rules. It returns the relevant index and the atomic entries it links, so you read only what answers your question.
+Searches project memory (Tier 1) for facts, patterns, and rules. It reports relevant entries with their sources and any coverage gaps.
 
 ## When to use it
 
@@ -22,21 +22,16 @@ This skill has no short slash command, so the agent usually loads it for you. In
 Use the memory-search skill to find what we know about git hooks.
 ```
 
-The skill returns the matching index name and the memory entries it links, with sources.
+Read the matching entries and verify their claims against current sources.
 
 ## What you get
 
-The search keyword-ranks Serena memory names, also searches the Tier 2 episode store, flags large memories by token estimate, and returns the relevant `*-index`. Read that index, then follow its links to the atomic file.
+The skill can use a project-scoped recall tool already available to your agent.
+It checks local memory when the tool is unavailable or returns no relevant hits.
 
-A search that matches nothing returns an empty result list plus a coverage note, not an error. Log a zero-result search as "no results". The skill reads committed markdown, so no service has to be up.
-
-Progressive disclosure keeps cost low:
-
-| Layer | Tool | Cost | When |
-| --- | --- | --- | --- |
-| Index | `search_memory.py` | about 100 to 500 tokens | Always start here. |
-| Details | `read_memory` | about 500 to 10,000 tokens | After the index confirms relevance. |
-| Deep dive | Follow cross-references | Variable | For complete understanding. |
+The bundled script ranks Markdown filenames and episode names by keyword.
+Use the repository's established corpus or `.project-toolkit/memory/notes/`.
+A search that finds zero entries still completes successfully.
 
 ## Advanced use
 
@@ -54,7 +49,7 @@ uv run python .claude/skills/memory/scripts/search_memory.py "git hooks" --max-r
 | `--serena-path` | Path to the Serena memories directory. |
 | `--episodes-path` | Path to the Tier 2 episode store directory. |
 
-For a scripted fallback, guess `read_memory("<intuitive-name>")` (a miss is a cheap "not found"), then the domain `*-index`, then `read_memory("memory-index")`. Prefer these over a bare `list_memories`.
+Without the script, search the corpus by filename or consult its index.
 
 | Symptom | Cause | Recovery |
 | --- | --- | --- |

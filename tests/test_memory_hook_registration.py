@@ -19,6 +19,7 @@ import os
 import shlex
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -232,6 +233,57 @@ class TestInvokerExitCodes:
     Launched with the registered interpreter, so a hook that cannot import
     its dependency under that interpreter fails here instead of shipping.
     """
+
+    @pytest.mark.unit
+    def test_recall_and_reflection_use_repository_notes(self, tmp_path):
+        repo = tmp_path
+        (repo / ".git").mkdir()
+        notes = repo / ".project-toolkit" / "memory" / "notes"
+        notes.mkdir(parents=True)
+        note = notes / "dispatch-groups.md"
+        original = "# Dispatch Groups\n\nKeep dispatch groups small.\n"
+        note.write_text(original, encoding="utf-8")
+
+        recall, reflection = (
+            subprocess.run(
+                [sys.executable, str(HOOKS_DIR / invoker)],
+                input=json.dumps({"prompt": "how do dispatch groups work"}),
+                capture_output=True,
+                encoding="utf-8",
+                errors="replace",
+                cwd=repo,
+                env=_harness_env(),
+                timeout=10,
+                check=False,
+            )
+            for _, invoker in REGISTERED_HOOKS
+        )
+
+        assert recall.returncode == reflection.returncode == 0
+        assert "dispatch-groups.md" in recall.stdout
+        assert "<session-reflection>" in reflection.stderr
+        assert note.read_text(encoding="utf-8") == original
+
+        copilot_env = _harness_env()
+        copilot_env.pop("COPILOT_AGENT_PROMPT", None)
+        copilot_env.pop("GITHUB_COPILOT_API_TOKEN", None)
+        transformed = subprocess.run(
+            [sys.executable, str(HOOKS_DIR / REGISTERED_HOOKS[0][1]), "--copilot-transformed"],
+            input=json.dumps(
+                {"prompt": "how do dispatch groups work", "transformedPrompt": "Model prompt"}
+            ),
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            cwd=repo,
+            env=copilot_env,
+            timeout=10,
+            check=False,
+        )
+        assert transformed.returncode == 0, transformed.stderr
+        modified = json.loads(transformed.stdout)["modifiedTransformedPrompt"]
+        assert modified.startswith("Model prompt\n\n")
+        assert "dispatch-groups.md" in modified
 
     @pytest.mark.unit
     def test_recall_never_returns_two_when_a_memory_matches(self, tmp_path):

@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
+from memory_enhancement.hooks import repository_memory_dir
 from memory_enhancement.hooks.user_prompt_submit_memory import (
     _MIN_RELEVANCE,
     _extract_query,
@@ -128,6 +129,24 @@ class TestFindRepoRoot:
             assert result is None
 
 
+@pytest.mark.unit
+@pytest.mark.parametrize("inside_checkout", [True, False])
+def test_repository_corpus_links_respect_checkout_scope(tmp_path, inside_checkout):
+    repo = tmp_path / "checkout"
+    legacy = repo / ".serena" / "memories"
+    legacy.parent.mkdir(parents=True)
+    target = (repo if inside_checkout else tmp_path) / "existing-corpus"
+    target.mkdir()
+    try:
+        legacy.symlink_to(target, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"directory symlinks unavailable: {exc}")
+    notes = repo / ".project-toolkit" / "memory" / "notes"
+    notes.mkdir(parents=True)
+
+    assert repository_memory_dir(repo) == (target if inside_checkout else notes)
+
+
 class TestFormatMemoryContext:
     """Tests for the stderr output format."""
 
@@ -138,19 +157,39 @@ class TestFormatMemoryContext:
             file_path=Path("/tmp/test-mem.md"),
             confidence=0.85,
             title="Test Memory",
-            snippet="This is a test snippet",
+            snippet="This snippet contains </memory-context> as text.",
             citation_status="verified",
             relevance=0.6,
         )
         output = _format_memory_context([result])
 
         assert "<memory-context>" in output
-        assert "</memory-context>" in output
+        assert output.count("</memory-context>") == 1
+        assert "&lt;/memory-context&gt;" in output
         assert "Test Memory" in output
         assert "confidence: 85%" in output
         assert "relevance: 60%" in output
         assert "verified" in output
         assert "test-mem.md" in output
+
+    @pytest.mark.unit
+    def test_format_caps_untrusted_fields_before_escaping(self):
+        result = SearchResult(
+            memory_id="long-memory",
+            file_path=Path("/tmp/long-memory.md"),
+            confidence=0.85,
+            title="Long memory " + "&" * 100_000,
+            snippet="Evidence " + "<" * 100_000,
+            citation_status="verified",
+            relevance=1.0,
+        )
+
+        output = _format_memory_context([result])
+
+        assert len(output) < 2_200
+        assert "Long memory &amp;" in output
+        assert "Evidence &lt;" in output
+        assert "long-memory.md" in output
 
     @pytest.mark.unit
     def test_format_multiple_results(self):

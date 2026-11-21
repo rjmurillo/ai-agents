@@ -153,7 +153,7 @@ Delegate to `devops` (Claude Code Task, Copilot CLI task, Codex spawn_agent, Mus
 ## Process
 
 1. Run all 4 pre-flight checks, branching by `host`, `mode`, and `pr`.
-2. If any blocking check fails: report what failed, why, and how to fix. Stop. (In `mode=contributor`, check 3 is advisory and never blocks. A `Pipeline: DEFERRED` result from check 1 is not a failure and does not stop the run.)
+2. Report any blocking failure and stop. A deferred pipeline check can continue.
 3. If no blocking check failed:
    - `mode=owner`, `host=github`: run /validate-pr-description to validate PR metadata, then run /push-pr to commit, push, and open the GitHub PR.
 
@@ -164,6 +164,7 @@ Delegate to `devops` (Claude Code Task, Copilot CLI task, Codex spawn_agent, Mus
 
    For `host=ado`, use the `pullRequestId` captured from `az repos pr create` as `pr_id`. Run the wait block in `references/ado-policy-wait.md` until the PR's blocking build evaluations exist and none is `queued` or `running` (30 minutes total, re-run on exit 75). Then run the ADO policy evaluation from pre-flight check 1 with that `pr_id`. Exit 0 from the wait and exit 0 from the evaluation make the check `DEFERRED->PASS`. Any other result, including the 30-minute timeout, an `az` query failure (exit 3), or a PR with no blocking build policy evaluation, is `DEFERRED->FAIL` with `RESULT: BLOCKED`; the report names the failing policies and the PR stays open.
 5. Report: host, mode, `pr` at pre-flight time, what was validated or shipped, PR link, any warnings.
+6. Use `memory` for durable outcomes. Cite the PR and its rationale.
 
 ## Principles
 

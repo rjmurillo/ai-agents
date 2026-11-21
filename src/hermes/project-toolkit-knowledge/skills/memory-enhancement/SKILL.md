@@ -41,6 +41,10 @@ Need memory enhancement?
 
 ## Command Surface
 
+Set `--memories-dir` to the repository's Markdown corpus when using a
+directory other than the default. Verify remotely stored claims against
+their original sources.
+
 Global options come **before** the subcommand. Placing `--repo-root` or
 `--memories-dir` after the subcommand exits 2.
 

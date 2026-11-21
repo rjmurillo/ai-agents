@@ -67,33 +67,9 @@ After user approval:
 2. **Append new learnings** with timestamp and session reference
 3. **Preserve existing content** - never remove without explicit request
 4. **Extract code citations** (Phase 4 Enhancement - see below)
-5. **Write to file**: `.serena/memories/{skill-name}-observations.md`
-
-**Storage Strategy**:
-
-1. **Serena MCP (canonical)**:
-
-   > Serena writes to the checkout active at server start, not your current
-   > directory. In a linked git worktree, or when you cannot tell, do not call
-   > Serena memory mutation tools. Make the same change to this checkout's
-   > `.serena/memories/` files, or return it to the parent session
-   > (`universal.md` MUST NOT 11, issue #5061).
-
-   ```text
-   mcp__serena__write_memory(memory_file_name="{name}-observations", memory_content="...")
-   ```
-
-2. **If Serena unavailable** (contingency):
-
-   ```bash
-   path=".serena/memories/{name}-observations.md"
-   # Append new learnings to existing file (create if missing)
-   echo "$newLearnings" >> "$path"
-   git add "$path"
-   git commit -m "chore(memory): update {name} skill sidecar learnings"
-   ```
-
-   Record the manual edit in the session log so Serena MCP can replay the update when the service is available again.
+5. **Save through the `memory` skill** in the authorized project scope.
+   Use the existing skill observations record if one exists. For a new
+   Markdown record, use the descriptive name `<skill-name>-observations.md`.
 
 **Memory Format**:
 

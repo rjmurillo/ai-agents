@@ -33,6 +33,11 @@ operation delegates to a canonical script under `.claude/skills/memory/scripts/`
 this sub-skill owns the operator guidance, not the script implementations. The
 scripts are shared with the router and are not reimplemented here.
 
+For local Markdown, use the current repository's corpus path. Pass the
+individual file or directory to the token and size checks. The benchmark
+measures the Serena corpus. Use a connected service's own health capability
+for its remote store, when available.
+
 ## Triggers
 
 Use this skill when the user says:

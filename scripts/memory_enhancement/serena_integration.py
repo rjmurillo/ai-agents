@@ -158,10 +158,24 @@ def load_memory(file_path: Path, memories_dir: Path | None = None) -> MemoryWith
     """
     if not file_path.is_file():
         return None
+    if memories_dir is not None and file_path.is_symlink():
+        corpus = memories_dir.resolve()
+        scope = next(
+            (
+                parent
+                for parent in (corpus, *corpus.parents)
+                if (parent / ".git").exists()
+                or (parent / ".serena/memories").resolve() == corpus
+                or (parent / ".project-toolkit/memory/notes").resolve() == corpus
+            ),
+            corpus,
+        )
+        if not file_path.resolve().is_relative_to(scope):
+            return None
 
     try:
         raw_text = file_path.read_text(encoding="utf-8")
-    except OSError as exc:
+    except (OSError, UnicodeError) as exc:
         print(f"Warning: cannot read {file_path}: {exc}", file=sys.stderr)
         return None
     memory_id = memory_id_from_path(file_path, memories_dir)

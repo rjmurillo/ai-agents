@@ -25,13 +25,13 @@ The skill scans the conversation for learning signals, shows a confidence-labele
 
 ## What you get
 
-A proposal with items labeled `[HIGH]`, `[MED]`, or `[LOW]`. After you approve, the skill appends the learnings with a timestamp and session reference to `.serena/memories/{skill-name}-observations.md`. It preserves existing content and extracts code citations. It always shows changes before applying them.
+A proposal with items labeled `[HIGH]`, `[MED]`, or `[LOW]`. After you approve, the skill adds dated observations and their sources to project memory. It preserves existing content and extracts code citations. It always shows changes before applying them.
 
 | Check | Verification |
 | --- | --- |
 | Analysis complete | Signals are categorized by confidence. |
 | You approved | An explicit `Y` or approval statement. |
-| Memory updated | The file was written to `.serena/memories/`. |
+| Memory updated | The approved entry exists in the selected project store. |
 | Changes preserved | Existing content was not lost. |
 | Commit ready | Changes are staged and a message is drafted. |
 
@@ -39,10 +39,10 @@ A proposal with items labeled `[HIGH]`, `[MED]`, or `[LOW]`. After you approve, 
 
 The skill runs four phases:
 
-1. **Identify the target skill.** Look for `*-observations.md` files in `.serena/memories/`, infer the skill from context, or propose `{skill-name}-observations.md` if none exists.
+1. **Identify the target skill.** Use `memory-search` for existing observations on the skill.
 2. **Analyze the conversation.** Propose changes only when the threshold is met: at least 1 HIGH, 2 MED, or 3 LOW signals.
 3. **Propose learnings.** Present the labeled summary and wait for approval.
-4. **Persist.** Write to the memory file. If Serena is unavailable, edit the same file in Git and note the manual update in the per-issue handoff.
+4. **Persist.** Use [memory](memory.md) to update the record or save a Markdown note.
 
 Serena writes go to the checkout where the server started. Do not call Serena write tools from a linked worktree. Edit `.serena/memories/` in your own checkout, or hand the change to the parent session.
 

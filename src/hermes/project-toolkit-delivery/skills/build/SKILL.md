@@ -121,6 +121,10 @@ project's tech stack, coding patterns, and test conventions by reading the
 codebase. Build in thin vertical slices. Test-first when the project has tests.
 Commit atomically.
 
+Before changing existing behavior, reuse the spec's prior-art evidence for
+the same scope. Invoke `memory-gate` when that evidence is missing or the
+slice exposes a new dependency. Verify recalled constraints in current code.
+
 For each slice:
 
 1. Read the spec AC for this slice. Every test must trace to an AC number from
@@ -294,7 +298,7 @@ Writes: `implementation-change`, `validation-record`. Next: `/test`.
 ## Guardrails
 
 - Atomic commits. Each commit is one logical change, rollback-safe.
-- Read existing patterns, memory (Serena, else `Grep`/`Read`), and canonical source before writing code that touches them.
+- Use `memory-search` for existing rationale. Verify it in canonical sources.
 - No feature flags or compat shims when you can change the code. Validate only at boundaries.
 - No generated headers, timestamps, or "do not edit" banners in any file. If a script emits one, delete the emitter.
 - .NET projects: target net10.0 (C# 14 implied; do not pin LangVersion). Use central package management, global.json to pin the SDK, and standard .editorconfig, .gitattributes, and .gitignore files.

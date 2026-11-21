@@ -2,7 +2,7 @@
 """Hook: session_end - Reflection and confidence decay.
 
 Recalculates confidence scores for every memory and prints a health summary
-to stderr. Read-only: it writes nothing under ``.serena/memories``.
+to stderr. The hook reads repository memory without modifying it.
 
 Confidence is a pure function of citation validity, age, update recency, and
 link count, recomputed on every read (``search._score_memory_file``). Nothing
@@ -26,6 +26,7 @@ from pathlib import Path
 from ..confidence import update_confidence_scores_with_memories
 from ..models import HealthReport
 from ..reflection import apply_confidence_decay, extract_session_facts
+from . import repository_memory_dir
 
 
 def main() -> int:
@@ -34,8 +35,8 @@ def main() -> int:
     if repo_root is None:
         return 0
 
-    memories_dir = repo_root / ".serena" / "memories"
-    if not memories_dir.is_dir():
+    memories_dir = repository_memory_dir(repo_root)
+    if memories_dir is None:
         return 0
 
     summary = _generate_reflection(memories_dir, repo_root)
@@ -56,7 +57,7 @@ def _generate_reflection(memories_dir: Path, repo_root: Path) -> str:
     """Score every memory and produce a health summary. Writes nothing.
 
     Args:
-        memories_dir: Path to .serena/memories/.
+        memories_dir: Path to a repository memory directory.
         repo_root: Repository root for verification.
 
     Returns:

@@ -424,6 +424,25 @@ class TestMainFunction:
         }
         assert set(output["Diagnostic"]) == {"Serena", "Episodes"}
 
+    def test_searches_repository_notes_from_subdirectory(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        (tmp_path / ".git").mkdir()
+        notes = tmp_path / ".project-toolkit" / "memory" / "notes"
+        notes.mkdir(parents=True)
+        note = notes / "client-retry.md"
+        note.write_text("# Client retries\n\nRetry on rate limiting.\n", encoding="utf-8")
+        monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+        monkeypatch.chdir(notes)
+
+        assert main(["client retry"]) == 0
+
+        output = json.loads(capsys.readouterr().out)
+        (result,) = output["Results"]
+        assert result["Path"] == str(note)
+        assert result["Source"] == "RepositoryNotes"
+        assert output["Diagnostic"]["RepositoryNotes"]["MemoryCount"] == 1
+
     def test_empty_results(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         serena = tmp_path / "memories"
         serena.mkdir()

@@ -63,18 +63,9 @@ Use [retrospective](../retrospective/SKILL.md) instead when:
 
 ### Phase 1: Identify the Target Skill
 
-Locate the skill-based memory to update:
-
-1. **Check Serena memories**: Look for files ending with `-observations.md` in `.serena/memories/`
-2. **Infer from context**: Identify which skill(s) were used in the conversation
-3. **Create if needed**: If missing, propose `{skill-name}-observations.md` (skill observations pattern)
-
-**Storage Locations**:
-
-- **Serena MCP (canonical)**: `.serena/memories/{skill-name}-observations.md` via `mcp__serena__write_memory`
-- **Contingency (Serena unavailable)**: Manually edit the same file in Git and note the manual update in the per-issue handoff for later Serena sync
-
-{{> serena-worktree-write-guard}}
+Identify the skill used in the conversation. Use `memory-search` to find its
+existing observations in the project scope. Propose a descriptive sidecar name
+when none exists.
 
 ### Phase 2: Analyze the Conversation
 
@@ -94,10 +85,9 @@ show changes before applying.**
 
 ### Phase 4: Persist Learnings to Memory
 
-After approval: read existing memory, append new learnings with timestamp and
-session reference, preserve existing content, extract code citations, and write
-to `.serena/memories/{skill-name}-observations.md` (Serena MCP canonical; Git
-fallback when Serena is unavailable).
+After approval, use the `memory` write procedure. Update the existing record
+with dated observations and source citations. For Markdown, use the established
+project corpus or the default repository notes directory.
 
 See [references/phase3-4-propose-persist.md](references/phase3-4-propose-persist.md)
 for the proposal display format, user-response handling, persistence strategy,

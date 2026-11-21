@@ -10,9 +10,30 @@ You will know it worked when your output matches the blocks under "Check your re
 
 - A clean checkout of `rjmurillo/ai-agents` on `main`. See [installation](../installation.md) if you do not have one.
 - `uv` and `git` on your path. Every repo command below uses `uv run python`.
-- Serena running in your agent session is optional for steps 1 to 4. You need it only to write memory.
+- Local file tools can read and write the project corpus without Serena.
 
-Serena is the only memory backend ([ADR-106](../../.project-toolkit/architecture/ADR-106-serena-only-memory-architecture.md)). A memory is a plain Markdown file under `.serena/memories/`. It travels with the repository, so it stays readable when the MCP server is down. The second memory server was removed in [#5575](https://github.com/rjmurillo/ai-agents/pull/5575). The decision record landed in [#5656](https://github.com/rjmurillo/ai-agents/pull/5656).
+This repository keeps its project corpus in `.serena/memories/`.
+The files travel with the repository.
+[ADR-106](../../.project-toolkit/architecture/ADR-106-serena-only-memory-architecture.md)
+records that choice.
+
+The skills also work in repositories with a different store. They can use a
+project-scoped memory capability already available to the agent. Repositories
+without an established corpus can keep Markdown notes under
+`.project-toolkit/memory/notes/`.
+
+For a host that supports connector prompts or workspace instructions, use
+this prompt with your chosen project scope.
+
+> Use the memory tools already available for this project.
+> Recall relevant decisions before changing existing work.
+> Save verified outcomes with their date, rationale, and evidence.
+> Keep credentials, personal data, and transcripts out of memory.
+> When no project memory tool is available, use the project's Markdown notes.
+
+Claude's prompt recall and Copilot CLI's transformed-prompt hook use local
+files in this checkout. Claude's session-end hook reports corpus health.
+On hosts without either hook, use the skills directly.
 
 The reading rule is: search first, then read by name. Do not list every memory. One full `list_memories` call costs thousands of tokens, as the [memory README](../../.serena/memories/README.md) measures.
 
@@ -22,7 +43,7 @@ These skills do the work:
 |---|---|
 | `memory-search` | Find memories by keyword. |
 | `memory-gate` | Check memory before you change something that already exists. |
-| `memory` | Route to the right memory skill when you are not sure which. |
+| `memory` | Retain a verified project finding or choose a memory operation. |
 | `memory-consolidate` | Merge duplicates and tidy the index ([#4832](https://github.com/rjmurillo/ai-agents/pull/4832)). |
 | `memory-reflexion` | Extract an episode from an existing session log. New session logs are no longer created, so you rarely need it. |
 
@@ -111,7 +132,7 @@ These skills do the work:
    | The friction nudge fired. | `retrospective` |
    | You want a Markdown artifact under `.project-toolkit/retrospective/`. | `retrospective` |
 
-   `reflect` is small. It scans the conversation and shows you HIGH, MED, and LOW findings. It writes to Serena only after you approve, into `.serena/memories/<skill>-observations.md`.
+   `reflect` presents findings with HIGH, MED, and LOW confidence. After approval, it saves observations in the project memory scope.
 
    `retrospective` is large. It gathers evidence from git, runs root-cause analysis, and scores each learning for atomicity. It writes one artifact. Learnings at or above 70 percent atomicity go to Serena memory.
 

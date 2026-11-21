@@ -157,6 +157,17 @@
       "expected_route": ["adr-generator"],
       "forbidden_routes": ["orchestrator"],
       "rationale": "Miss 2026-11-19: a session approved a plan that needed ADR-123, then wrote the ADR by hand after copying ADR-122's format. The table row 'Document a decision, or a plan needs an ADR' maps this to Skill: adr-generator, which then hands off to adr-review. Handing a single ADR to the orchestrator selected an adjacent route and fails."
+    },
+    {
+      "id": "R15",
+      "family": "high-traffic-direct",
+      "desc": "Retaining a project decision routes to memory",
+      "input": "Remember this project decision. We cap client retries at three to avoid request spikes. State the route you would use without writing any files.",
+      "expected_signals": ["memory"],
+      "expected_gate": "route-memory-retain",
+      "expected_route": ["memory"],
+      "forbidden_routes": ["memory-search", "memory-reflexion", "orchestrator"],
+      "rationale": "The memory skill owns durable fact retention. Search and episode extraction serve different requests."
     }
   ]
 }

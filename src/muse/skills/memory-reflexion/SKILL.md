@@ -120,10 +120,10 @@ is committed, so it outlives the session that produced it.
 
 ## Graceful Degradation
 
-The reflexion write path is local-only. Serena is the canonical store and
-travels with the repository (ADR-007). Episode extraction reads a session log
-and writes an episode record. It requires no network store, so there is no
-fallback to invoke here.
+Episode extraction reads a completed session log and writes a repository
+episode. Use `memory` for a durable fact or outcome when no episode source
+exists. Host hooks may prompt for reflection or report corpus health. Use the
+skill when you need to extract an episode.
 
 ## Verification
 

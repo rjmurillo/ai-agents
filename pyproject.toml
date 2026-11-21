@@ -423,8 +423,8 @@ module = "chevron.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-# Pre-existing type debt (arg-type at serena_integration.py:246,
-# return-value at :326) unrelated to the atomic-write hardening. Scoped
+# Pre-existing arg-type and return-value debt in the Serena integration.
+# The override keeps this separate from atomic-write hardening. Scoped
 # here rather than suppressed in-file so the debt stays visible and
 # tracked separately. The importer that first surfaced it,
 # scripts.memory_sync, is gone; the debt in the module itself is not.

@@ -1,10 +1,6 @@
 # Step 0.5: the memory-first gate
 
-<!-- vendor-portability: two declared paths, neither an upstream-only dependency.
-     .claude/skills/memory/scripts/search_memory.py is a BUNDLED sibling reached
-     only as the second rung of a documented resolution order, after
-     <skill_dir>/../memory/scripts/, and the prose gates it on the repo being this
-     toolkit's own checkout. .agents/dictionaries/spec-entity-aliases.json is the
+<!-- vendor-portability: .agents/dictionaries/spec-entity-aliases.json is the
      canonical source of the alias table and the SECOND rung of that table's
      resolution order; the first is this skill's own data/ directory, which is
      what an installed plugin reads. Declared so the ratchet records them rather
@@ -21,7 +17,9 @@ spec a skill, which gave it a `references/` directory.
 
 After Step 0 passes, surface the backward-looking context the proposer should have read before drafting requirements. Step 0 asks "is this work demanded?" Step 0.5 asks "do we already know why the current state is the way it is?" Both gates fire, in order. The `memory-gate` skill declares the gate as BLOCKING under its `## Memory-First Gate (BLOCKING)` section ("Before changing existing systems, you MUST..."); this section wires it into `/spec`.
 
-The gate composes two skills in sequence: `chestertons-fence` (frame: do not change without understanding why, and surface the dependencies the target is wired into), `memory` (point-search prior decisions). Each answers a distinct question; the two layered together form the "Prior Art / Constraints" output that Step 6 carries into the PRD as its first section.
+The gate runs `chestertons-fence` to identify rationale and dependencies.
+It then runs `memory-search` to find prior decisions. Step 6 carries both
+results into the PRD's "Prior Art / Constraints" section.
 
 ### Step 0.5 ProvisionalTier (auto-classified, no user prompt)
 
@@ -79,9 +77,14 @@ The agent lists the derived topics explicitly in the Step 0.5 preamble before ru
 Invoke the two skills in order. Each emits content into a named subsection of the PriorArtBlock.
 
 1. **chestertons-fence (frame)**. Invoke `skill: "chestertons-fence"` with `target` set to the Q3 system path and `change` set to the Q4 wedge description. The skill runs git archaeology, PR/ADR search, and dependency analysis on the target. Output (PRESERVE | MODIFY | REPLACE | REMOVE recommendation plus rationale) feeds the `### Direct prior art from memory` subsection.
-2. **memory (point search)**. For each topic from the topic-extraction step, invoke the memory skill via `skill: "memory"` with at minimum 3 distinct query variants per topic. The skill internally calls `search_memory.py`. Distinct queries share no significant token roots; for example, for topic `spec-pipeline`: `spec pipeline`, `spec command BLOCKING`, `clarification gate why`. Result entries with non-zero matches feed the `### Direct prior art from memory` subsection.
+2. **`memory-search` (point search)**. Use at least three distinct query
+   variants per topic. Query variants should exercise different vocabulary.
+   Follow the skill's project scope and repository fallback. Cite relevant
+   results in the direct prior-art subsection. Record each source and gap.
 
-   **Invocation contract (security)**: the canonical flow is `skill: "memory"`, which already passes topics via argv-vector internally. If the agent's environment lacks the `Skill` tool and must invoke the script directly as a fallback, resolve `search_memory.py` in this order: (1) `<skill_dir>/../memory/scripts/search_memory.py`, where `<skill_dir>` is the base directory printed when this spec skill loads; (2) `.claude/skills/memory/scripts/search_memory.py`, only after confirming the current repo is this toolkit source checkout. If neither path exists, emit a coverage note naming both paths tried and skip the direct memory point-search fallback. When invoking the resolved script, the agent MUST use an argv list, not shell string concatenation: `subprocess.run(["python3", resolved_search_memory_py, topic], shell=False, ...)`. String concatenation of topics into a shell command line is forbidden because Q3+Q4 entity strings are author-controlled and the topic normalization rule does not strip shell metacharacters. CWE-78 (OS Command Injection) applies. If the agent cannot use either the Skill wrapper OR argv-vector invocation, it MUST first reject any topic matching `[^\w\-\./ ]` and emit a coverage note explaining the rejection.
+   If you run the bundled `search_memory.py` directly, resolve it relative
+   to the installed `memory` skill. Pass each topic as an argv element
+   with `shell=False`. Use file search if the runner is unavailable.
 
 Prior-art search depth matches ProvisionalTier. Each row is cumulative over the two steps above:
 
