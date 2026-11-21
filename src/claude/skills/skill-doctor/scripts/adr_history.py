@@ -247,19 +247,36 @@ class AdrText:
 def _signals(
     commit: Commit, pr: dict[str, Any] | None, deps: tuple[set[str], set[str]] | None
 ) -> tuple[list[str], list[str]]:
-    """Return (commit-level signals, dependency signals)."""
-    text = commit.text
+    """Return (commit-level signals, dependency signals).
+
+    A decision verb in the subject or PR title is a signal. A verb found only in a
+    body is recorded as `body-verb` context and never makes a finding by itself:
+    squash merges carry whole PR descriptions, and body verbs alone flagged over a
+    third of ordinary commits when measured on this skill's home repository.
+    """
+    headline = commit.subject
+    body = commit.body
     if pr:
-        text += f"\n{pr.get('title') or ''}\n{pr.get('body') or ''}"
+        headline += f"\n{pr.get('title') or ''}"
+        body += f"\n{pr.get('body') or ''}"
     found = []
     if BREAKING_SUBJECT.match(commit.subject) or BREAKING_FOOTER.search(commit.body):
         found.append("breaking-change")
-    found.extend(f"verb: {label}" for label, rx in VERB_REGEXES if rx.search(text))
+    for label, rx in VERB_REGEXES:
+        if rx.search(headline):
+            found.append(f"verb: {label}")
+        elif rx.search(body):
+            found.append(f"body-verb: {label}")
     dep_signals: list[str] = []
     if deps:
         dep_signals += [f"dependency-added: {n}" for n in sorted(deps[0])]
         dep_signals += [f"dependency-removed: {n}" for n in sorted(deps[1])]
     return found, dep_signals
+
+
+def _decisive(signals: Sequence[str]) -> bool:
+    """True when a signal other than body-only verb context is present."""
+    return any(not s.startswith("body-verb") for s in signals)
 
 
 def _touches_adr(commit: Commit, dirs: Sequence[AdrDir]) -> bool:
@@ -318,16 +335,18 @@ def undocumented_decisions(
         pr = prs.get(number) if number is not None else None
         url = (pr or {}).get("url") or (pr or {}).get("html_url")
         signals, dep_signals = _signals(commit, pr, deps.get(commit.sha))
-        if not (signals or dep_signals):
+        if not (_decisive(signals) or dep_signals):
             continue
         if corpus.names_commit(commit.sha, number, url):
             suppressed += 1
             continue
         dep_signals = [s for s in dep_signals if not corpus.names_dependency(s.split(": ", 1)[1])]
-        remaining = signals + dep_signals[:MAX_DEPENDENCY_SIGNALS]
-        if not (signals or dep_signals):
+        if not (_decisive(signals) or dep_signals):
+            suppressed += 1
             continue
-        findings.append(_undocumented(commit, pr, remaining, number))
+        findings.append(
+            _undocumented(commit, pr, signals + dep_signals[:MAX_DEPENDENCY_SIGNALS], number)
+        )
     return findings, suppressed
 
 

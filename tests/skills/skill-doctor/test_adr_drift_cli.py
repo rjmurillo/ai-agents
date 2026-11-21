@@ -26,6 +26,7 @@ from adr_drift_helpers import (
     run_cli,
     scan,
     seeded_repo,
+    symlink_or_skip,
 )
 
 SCRIPT = Path(__file__).resolve().parents[3] / "src/claude/skills/skill-doctor/scripts/adr_drift.py"
@@ -86,7 +87,7 @@ def test_locate_skips_a_known_folder_symlinked_outside_the_repo(tmp_path, capsys
     (outside / "ADR-007-x.md").write_text(adr_text(7), encoding="utf-8")
     repo = seeded_repo(tmp_path / "repo")
     (repo / "docs").mkdir(exist_ok=True)
-    (repo / "docs" / "decisions").symlink_to(outside, target_is_directory=True)
+    symlink_or_skip(repo / "docs" / "decisions", outside)
 
     paths = [d["path"] for d in _locate(capsys, repo)["adr_dirs"]]
 
@@ -301,7 +302,7 @@ def test_draft_refuses_an_in_repo_out_that_resolves_outside(tmp_path, capsys):
     finding = kinds(result, "undocumented-decision")[0]
     target = tmp_path / "escape"
     target.mkdir()
-    (repo / "link").symlink_to(target, target_is_directory=True)
+    symlink_or_skip(repo / "link", target)
 
     code, _, err = _draft(capsys, scan_file, finding, repo / "link")
 

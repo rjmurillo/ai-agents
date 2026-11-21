@@ -98,3 +98,11 @@ def scan(
 
 def kinds(result: dict[str, Any], kind: str) -> list[dict[str, Any]]:
     return [f for f in result["findings"] if f["kind"] == kind]
+
+
+def symlink_or_skip(link: Path, target: Path) -> None:
+    """Create a directory symlink, or skip where the platform denies symlink creation."""
+    try:
+        link.symlink_to(target, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"symlinks unavailable: {exc}")

@@ -174,8 +174,8 @@ def test_prs_json_body_with_a_decision_verb_yields_a_finding_with_the_url(tmp_pa
             [
                 {
                     "number": 12,
-                    "title": "Cache layer",
-                    "body": "We decided to use Redis.",
+                    "title": "Switch to Redis for the cache layer",
+                    "body": "Details in the design doc.",
                     "url": "https://github.com/o/r/pull/12",
                     "review_rounds": 2,
                 }
@@ -190,6 +190,26 @@ def test_prs_json_body_with_a_decision_verb_yields_a_finding_with_the_url(tmp_pa
     assert len(found) == 1
     assert found[0]["evidence"]["pr_url"] == "https://github.com/o/r/pull/12"
     assert result["prs_json"] == {"items": 1, "matched": 1}
+
+
+def test_a_decision_verb_only_in_a_body_is_context_not_a_finding(tmp_path, capsys):
+    repo = _repo(tmp_path)
+    commit(
+        repo,
+        {"a.txt": "1"},
+        "chore: tidy the cache layer\n\nWe decided to use Redis instead of memcached.",
+    )
+
+    assert kinds(scan(capsys, repo), "undocumented-decision") == []
+
+
+def test_body_verbs_ride_along_as_context_on_a_subject_signal(tmp_path, capsys):
+    repo = _repo(tmp_path)
+    commit(repo, {"a.txt": "1"}, "feat: migrate the cache layer\n\nWe decided to use Redis.")
+
+    signals = kinds(scan(capsys, repo), "undocumented-decision")[0]["evidence"]["signals"]
+
+    assert "verb: migrate" in signals and "body-verb: decide" in signals
 
 
 def test_the_same_commit_without_prs_json_has_no_finding(tmp_path, capsys):
