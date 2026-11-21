@@ -25,20 +25,22 @@ def test_template_routes_adr_drift_to_its_step() -> None:
     assert "adr_drift.py" in body.split("## Scripts", 1)[1].split("\n## ", 1)[0]
 
 
-def test_known_adr_folders_cover_the_adr_review_folders() -> None:
-    """adr-review and adr_drift must agree on where ADRs live."""
-    import adr_corpus
-
-    tree = ast.parse(
-        (REPO / "src/claude/skills/adr-review/scripts/detect_adr_changes.py").read_text(
-            encoding="utf-8"
-        )
-    )
-    review_dirs = next(
+def _module_tuple(relative: str, name: str) -> list[str]:
+    """The literal list or tuple assigned to NAME at the top level of a script."""
+    tree = ast.parse((REPO / relative).read_text(encoding="utf-8"))
+    return next(
         ast.literal_eval(node.value)
         for node in tree.body
         if isinstance(node, ast.Assign)
-        and any(isinstance(t, ast.Name) and t.id == "ADR_DIRECTORIES" for t in node.targets)
+        and any(isinstance(t, ast.Name) and t.id == name for t in node.targets)
     )
 
-    assert set(review_dirs) <= set(adr_corpus.KNOWN_DIRS)
+
+def test_known_adr_folders_cover_the_adr_review_folders() -> None:
+    """adr-review and adr_drift must agree on where ADRs live."""
+    review_dirs = _module_tuple(
+        "src/claude/skills/adr-review/scripts/detect_adr_changes.py", "ADR_DIRECTORIES"
+    )
+    known_dirs = _module_tuple("src/claude/skills/skill-doctor/scripts/adr_corpus.py", "KNOWN_DIRS")
+
+    assert review_dirs and set(review_dirs) <= set(known_dirs)
