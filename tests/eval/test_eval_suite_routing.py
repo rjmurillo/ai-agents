@@ -533,6 +533,27 @@ def _plan_for(paths: list[str]) -> list[dict]:
     return suite.build_routing_plan(suite.classify_changes(paths))
 
 
+# Every rule in the tree now has a scenario (issue #7502), so no real rule can
+# stand in for "a rule with no scenario". Hide one real rule's scenario instead.
+_SCENARIOLESS_RULE_ID = "canonical-source-mirror"
+_SCENARIOLESS_RULE = f".claude/rules/{_SCENARIOLESS_RULE_ID}.md"
+
+
+@pytest.fixture
+def scenarioless_rule(monkeypatch: pytest.MonkeyPatch) -> str:
+    """Return a real rule path whose scenario the lookup no longer reports."""
+    real_lookup = suite.find_rule_scenarios
+
+    def lookup_without_rule() -> dict[str, str]:
+        scenarios = real_lookup()
+        scenarios.pop(_SCENARIOLESS_RULE_ID, None)
+        return scenarios
+
+    monkeypatch.setattr(suite, "find_rule_scenarios", lookup_without_rule)
+    assert _SCENARIOLESS_RULE_ID not in suite.find_rule_scenarios()
+    return _SCENARIOLESS_RULE
+
+
 def test_plan_marks_a_scenario_backed_rule_as_scenario_defined() -> None:
     entries = _plan_for([".claude/rules/code-quality.md"])
     assert len(entries) == 1
@@ -540,24 +561,24 @@ def test_plan_marks_a_scenario_backed_rule_as_scenario_defined() -> None:
     assert entries[0]["runner"] == "eval-rule-activation.py"
 
 
-def test_plan_marks_a_scenarioless_rule_as_not_evaluated() -> None:
-    entries = _plan_for([".claude/rules/canonical-source-mirror.md"])
+def test_plan_marks_a_scenarioless_rule_as_not_evaluated(scenarioless_rule: str) -> None:
+    entries = _plan_for([scenarioless_rule])
     assert len(entries) == 1
     assert entries[0]["evidence"] == suite.EVIDENCE_NONE
     assert entries[0]["runner"] is None
     assert "no activation scenario" in entries[0]["reason"]
 
 
-def test_plan_splits_scenario_backed_and_scenarioless_rules() -> None:
+def test_plan_splits_scenario_backed_and_scenarioless_rules(scenarioless_rule: str) -> None:
     entries = _plan_for(
         [
             ".claude/rules/code-quality.md",
-            ".claude/rules/canonical-source-mirror.md",
+            scenarioless_rule,
         ]
     )
     by_evidence = {e["evidence"]: e["files"] for e in entries}
     assert by_evidence[suite.EVIDENCE_SCENARIO] == [".claude/rules/code-quality.md"]
-    assert by_evidence[suite.EVIDENCE_NONE] == [".claude/rules/canonical-source-mirror.md"]
+    assert by_evidence[suite.EVIDENCE_NONE] == [scenarioless_rule]
 
 
 def test_plan_never_leaves_a_populated_category_without_a_reason() -> None:
@@ -1043,10 +1064,11 @@ def test_run_rule_activation_dedupes_a_rule_and_its_two_mirrors(
 
 def test_run_rule_activation_reports_a_scenarioless_rule_as_not_evaluated(
     monkeypatch: pytest.MonkeyPatch,
+    scenarioless_rule: str,
 ) -> None:
     calls = _stub_child(monkeypatch)
-    result = suite.run_rule_activation([".claude/rules/canonical-source-mirror.md"], "test-model")
-    entry = result["rules"]["canonical-source-mirror"]
+    result = suite.run_rule_activation([scenarioless_rule], "test-model")
+    entry = result["rules"][_SCENARIOLESS_RULE_ID]
     assert entry["skipped"] is True
     assert entry["evidence"] == suite.EVIDENCE_NONE
     assert "no activation scenario" in entry["reason"]
@@ -1538,11 +1560,9 @@ def test_reconcile_never_promotes_a_run_that_produced_no_verdict(outcome: dict, 
     ), label
 
 
-def test_reconcile_leaves_a_scenarioless_rule_entry_untouched() -> None:
+def test_reconcile_leaves_a_scenarioless_rule_entry_untouched(scenarioless_rule: str) -> None:
     """A rules entry already at not_evaluated has nothing to promote."""
-    plan = suite.build_routing_plan(
-        suite.classify_changes([".claude/rules/canonical-source-mirror.md"]), "all"
-    )
+    plan = suite.build_routing_plan(suite.classify_changes([scenarioless_rule]), "all")
     assert plan[0]["evidence"] == suite.EVIDENCE_NONE
     results = {"rules": {"rules": {"code-quality": {"passed": True}}}}
     assert suite.reconcile_routing_plan(plan, results) == plan
