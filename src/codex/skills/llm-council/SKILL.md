@@ -241,7 +241,7 @@ alone.
 ### Model IDs
 
 The script uses the installed Claude or Codex CLI for matching model families.
-Its Copilot allowlist lives in `scripts/council_core.py` as `COPILOT_MODELS`.
+The bundled council core defines the Copilot allowlist as `COPILOT_MODELS`.
 Copilot charges AI Credits.
 
 GitHub Models REST (free tier): `meta/llama-3.3-70b-instruct`,
