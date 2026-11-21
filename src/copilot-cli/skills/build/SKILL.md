@@ -141,8 +141,9 @@ codebase. Build in thin vertical slices. Test-first when the project has tests.
 Commit atomically.
 
 Before changing existing behavior, reuse the spec's prior-art evidence for
-the same scope. If it leaves a gap, use `memory-gate` when available.
-Otherwise search repository memory and Git history for the rationale.
+the same scope. If it leaves a gap, use `memory-gate` or the `memory` skill's
+recall procedure. When both are absent, try a scoped recall tool. Search
+repository memory and Git history for missing rationale.
 Verify recalled constraints in current code before changing behavior.
 
 For each slice:
