@@ -35,6 +35,16 @@ from adr_text import STATUS_HEADING, h1_number, prose_lines, status_word
 
 ACTIVE_STATUSES = frozenset({"", "accepted", "proposed", "draft", "approved"})
 GAP_EVIDENCE_CAP = 50
+KIND_PROFILE = {
+    "adr-duplicate-number": (NUMBERING, "high"),
+    "adr-title-number-mismatch": (NUMBERING, "medium"),
+    "adr-unparseable-name": (NUMBERING, "low"),
+    "adr-number-gap": (NUMBERING, "low"),
+    "adr-broken-link": (LINKS, "medium"),
+    "adr-supersedes-missing-target": (LINKS, "medium"),
+    "adr-supersession-not-reciprocal": (LINKS, "medium"),
+    "adr-cited-path-missing": (LINKS, "low"),
+}
 
 INLINE_LINK = re.compile(r"\[[^\]\n]*\]\(\s*<?([^)\s>]+)>?(?:\s+\"[^\"]*\")?\s*\)")
 REF_LINK = re.compile(r"^\s{0,3}\[[^\]]+\]:\s*<?(\S+?)>?(?:\s|$)")
@@ -68,15 +78,9 @@ def pad(number: int, folder: AdrDir) -> str:
     return f"{number:0{width}d}"
 
 
-def _found(
-    kind: str,
-    group: str,
-    severity: str,
-    evidence: dict[str, Any],
-    suggested_fix: str,
-    key: Sequence[str],
-) -> Finding:
+def _found(kind: str, evidence: dict[str, Any], suggested_fix: str, key: Sequence[str]) -> Finding:
     """A finding from a check that reads only files, so its confidence is deterministic."""
+    group, severity = KIND_PROFILE[kind]
     return make_finding(kind, group, severity, "deterministic", evidence, suggested_fix, key)
 
 
@@ -111,8 +115,6 @@ def _duplicates(folder: AdrDir, upcoming: int) -> list[Finding]:
         findings.append(
             _found(
                 "adr-duplicate-number",
-                NUMBERING,
-                "high",
                 evidence,
                 fix,
                 (folder.rel, str(number)),
@@ -133,8 +135,6 @@ def _unparseable(folder: AdrDir) -> list[Finding]:
         findings.append(
             _found(
                 "adr-unparseable-name",
-                NUMBERING,
-                "low",
                 {"path": rel},
                 fix,
                 (rel,),
@@ -158,7 +158,7 @@ def _gaps(folder: AdrDir) -> list[Finding]:
         "truncated": len(missing) > GAP_EVIDENCE_CAP,
     }
     fix = "None needed. Report only: gaps are usually withdrawn or renumbered records."
-    return [_found("adr-number-gap", NUMBERING, "low", evidence, fix, (folder.rel,))]
+    return [_found("adr-number-gap", evidence, fix, (folder.rel,))]
 
 
 def _title_mismatch(doc: AdrDoc) -> Finding | None:
@@ -181,8 +181,6 @@ def _title_mismatch(doc: AdrDoc) -> Finding | None:
     )
     return _found(
         "adr-title-number-mismatch",
-        NUMBERING,
-        "medium",
         evidence,
         fix,
         (doc.file.rel, str(found)),
@@ -245,8 +243,6 @@ def _broken_link(
     evidence = {"path": doc.file.rel, "line": line, "target": target, "number": number}
     return _found(
         "adr-broken-link",
-        LINKS,
-        "medium",
         evidence,
         fix,
         (doc.file.rel, str(line), target),
@@ -358,8 +354,6 @@ def _missing_target(doc: AdrDoc, edge: Edge) -> Finding:
     fix = f"Fix the number: no file holds ADR-{edge.number}. Drop the {edge.kind} edge if it is stale."
     return _found(
         "adr-supersedes-missing-target",
-        LINKS,
-        "medium",
         evidence,
         fix,
         (doc.file.rel, edge.kind, str(edge.number)),
@@ -385,8 +379,6 @@ def _reciprocity(
     )
     return _found(
         "adr-supersession-not-reciprocal",
-        LINKS,
-        "medium",
         evidence,
         fix,
         (target.file.rel, doc.file.rel, wanted),
@@ -412,8 +404,6 @@ def check_cited_paths(repo: Path, docs: Sequence[AdrDoc]) -> list[Finding]:
             findings.append(
                 _found(
                     "adr-cited-path-missing",
-                    LINKS,
-                    "low",
                     evidence,
                     fix,
                     (doc.file.rel, path),
