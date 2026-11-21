@@ -1390,9 +1390,15 @@ def _csharp_hole_end(code: str, start: int, chars: list[str], escape: str = "") 
     that line stays visible code. In a raw string, a quote run that closes
     nothing ends the hole at that run.
 
+    An interpolated string that opens on a later line of the hole also
+    marks the hole broken, so holes never nest one per line.
+
     Accepted limits: a line that chains several unclosed holes or
     unterminated literals, or a string missing its close quote that pairs
     with a later quote on the same line, can still blank the code between.
+    A valid hole longer than ``_MAX_HOLE_LINES`` lines, or one holding an
+    interpolated string on a later line, is treated as broken; the code
+    after its real close can then be blanked up to the next quote.
     """
     return _HoleScan(code, chars, escape, start).run()
 
@@ -1450,19 +1456,24 @@ class _HoleScan:
 
     def _token(self, token: re.Match[str]) -> int | None:
         code, index = self._code, self._index
-        after = _skip_csharp_token(code, token, self._chars)
+        if self._line_bound and self._lines and "$" in (token.group("prefix") or ""):
+            # An interpolated string opening on a later line of this hole
+            # would nest one hole per line. Treat this hole as broken here.
+            return self._unclosed(index, resume=index)
+        after, closed = _skip_csharp_token(code, token, self._chars)
         if _closes_outer_raw_string(code, token, after, self._escape):
             self._chars[index:after] = code[index:after]
             return index
-        if self._line_bound and _string_token_unterminated(code, token, after):
-            # A nested string with no close means this hole is broken: its
-            # quote was the outer close, or an inner hole never closed.
-            return self._unclosed(after)
+        if self._line_bound and not closed:
+            # A nested literal or comment with no close means this hole is
+            # broken: its quote was the outer close, or an inner hole never
+            # closed. Resume at that token so it is scanned once, at top level.
+            return self._unclosed(after, resume=index)
         newlines = code.count("\n", index, after)
         if newlines:
             self._format_allowed = False
             if self._count_lines(newlines):
-                return self._unclosed(after)
+                return self._unclosed(after, resume=index)
         self._index = after
         return None
 
@@ -1486,38 +1497,24 @@ class _HoleScan:
             _blank_span(self._chars, self._index + 1, stop)
         self._index = stop
 
-    def _unclosed(self, end: int) -> int:
-        """Undo blanking up to ``end``; return the hole's opening line end."""
-        return _end_unclosed_hole(self._code, self._start, end, self._chars)
+    def _unclosed(self, end: int, resume: int | None = None) -> int:
+        """Undo blanking up to ``end``; return where the enclosing string stops.
+
+        That is the hole's opening line end, or ``resume`` when earlier: the
+        start of a token that broke the hole, so it is rescanned only once.
+        """
+        line_end = _end_unclosed_hole(self._code, self._start, end, self._chars)
+        return line_end if resume is None else min(resume, line_end)
 
 
 def _end_unclosed_hole(code: str, start: int, end: int, chars: list[str]) -> int:
     """Undo blanking in a hole that never closed; return its line's end.
 
-    ``end`` is how far the hole scan reached, at or past that line end.
+    ``end`` is how far the hole scan reached.
     """
     chars[start:end] = code[start:end]
     newline = code.find("\n", start, end)
     return end if newline < 0 else newline
-
-
-def _string_token_unterminated(code: str, token: re.Match[str], after: int) -> bool:
-    """Whether a regular or verbatim string ``token`` ended without its quote.
-
-    Raw strings and char literals report False; they have their own rules.
-    """
-    quotes = token.group("quotes")
-    if not quotes or (len(quotes) >= 3 and "@" not in token.group("prefix")):
-        return False
-    close = after - 1
-    if close <= token.start("quotes") or code[close] != '"':
-        return True
-    if "@" in token.group("prefix"):
-        return False
-    backslashes = 0
-    while close - 1 - backslashes > token.start("quotes") and code[close - 1 - backslashes] == "\\":
-        backslashes += 1
-    return backslashes % 2 == 1
 
 
 def _closes_outer_raw_string(code: str, token: re.Match[str], after: int, escape: str) -> bool:
@@ -1611,16 +1608,17 @@ def _csharp_char_end(code: str, start: int) -> int:
     return index
 
 
-def _csharp_string_end(code: str, body: int, prefix: str, chars: list[str]) -> int:
-    """Blank a regular or verbatim string body; return the index past it.
+def _csharp_string_end(code: str, body: int, prefix: str, chars: list[str]) -> tuple[int, bool]:
+    """Blank a regular or verbatim string body; return (end, closed).
+
+    ``closed`` is true only when the string ended at its closing quote.
 
     Interpolation holes stay visible because they hold code. A regular string
     ends at an unescaped quote. One that reaches its line end instead was
     never closed, so its quote is a typo: the body is restored and stays
-    visible, which can over-report a name but never hide one. An unterminated verbatim
-    string blanks only its opening line and leaves the rest of the snippet
-    visible and unscanned. Later code stays checked, and returning the end
-    means no enclosing hole rescans it.
+    visible, which can over-report a name but never hide one. An
+    unterminated verbatim string is restored the same way, and the scan
+    resumes at its opening line end.
     """
     verbatim, interpolated = "@" in prefix, "$" in prefix
     index = body
@@ -1629,33 +1627,31 @@ def _csharp_string_end(code: str, body: int, prefix: str, chars: list[str]) -> i
         if interpolated and char == "{" and not code.startswith("{{", index):
             index, closed = _csharp_hole_end(code, index, chars, '"' if verbatim else "\\")
             if not closed:
-                return index
+                return index, False
             continue
         if char == '"' and not (verbatim and code.startswith('""', index)):
-            return index + 1
+            return index + 1, True
         if char == "\n" and not verbatim:
             chars[body:index] = code[body:index]
-            return index
+            return index, False
         escaped = char == "\\" and not verbatim and code[index + 1 : index + 2] not in ("", "\n")
         doubled = code.startswith(char * 2, index) and char in '{"'
         step = 2 if escaped or doubled else 1
         _blank_span(chars, index, index + step)
         index += step
+    chars[body:index] = code[body:index]
     if verbatim:
-        end = _line_end(code, body)
-        chars[end:] = code[end:]
-    else:
-        chars[body:index] = code[body:index]
-    return index
+        return _line_end(code, body), False
+    return index, False
 
 
-def _csharp_raw_string_end(code: str, match: re.Match[str], chars: list[str]) -> int:
-    """Blank a raw string body; return the index past its closing quotes.
+def _csharp_raw_string_end(code: str, match: re.Match[str], chars: list[str]) -> tuple[int, bool]:
+    """Blank a raw string body; return (end, closed) for its closing quotes.
 
     A raw string closes on the same quote run that opened it. With N "$"
     markers, a run of N braces opens a hole, which stays visible; braces
     before it in a longer run are literal text. An unterminated raw string
-    blanks only its opening line, so later code stays checked.
+    is left visible, so no code after it is hidden.
     """
     quotes, dollars = match.group("quotes"), match.group("prefix").count("$")
     index, close = match.end(), -1
@@ -1663,49 +1659,54 @@ def _csharp_raw_string_end(code: str, match: re.Match[str], chars: list[str]) ->
         if close < index:
             close = code.find(quotes, index)
         if close < 0:
+            # No closing run anywhere: the opening quotes are a typo, so the
+            # text stays visible. That can over-report but never hides code.
             end = _line_end(code, index)
-            _blank_span(chars, index, end)
-            return end
+            chars[match.end() : end] = code[match.end() : end]
+            return end, False
         hole = code.find("{" * dollars, index, close) if dollars else -1
         if hole < 0:
             _blank_span(chars, index, close)
-            return close + len(quotes)
+            return close + len(quotes), True
         while code.startswith("{" * (dollars + 1), hole):
             hole += 1
         _blank_span(chars, index, hole)
         index, _ = _csharp_hole_end(code, hole, chars, quotes)
 
 
-def _blank_csharp_string(code: str, match: re.Match[str], chars: list[str]) -> int:
-    """Blank the string literal ``match`` opens; return the index past it."""
+def _blank_csharp_string(code: str, match: re.Match[str], chars: list[str]) -> tuple[int, bool]:
+    """Blank the string literal ``match`` opens; return (end, closed)."""
     prefix, quotes = match.group("prefix"), match.group("quotes")
     if "@" not in prefix and len(quotes) >= 3:
         return _csharp_raw_string_end(code, match, chars)
     if "@" not in prefix and len(quotes) == 2:
-        return match.end()
+        return match.end(), True
     return _csharp_string_end(code, match.start("quotes") + 1, prefix, chars)
 
 
-def _blank_csharp_literal(code: str, match: re.Match[str], chars: list[str]) -> int:
-    """Blank the string or char literal ``match`` opens; return the index past it."""
+def _blank_csharp_literal(code: str, match: re.Match[str], chars: list[str]) -> tuple[int, bool]:
+    """Blank the string or char literal ``match`` opens; return (end, closed)."""
     if match.group(0) != "'":
         return _blank_csharp_string(code, match, chars)
     end = _csharp_char_end(code, match.start())
-    if end - 1 > match.start() and code[end - 1] == "'":
+    closed = end - 1 > match.start() and code[end - 1] == "'"
+    if closed:
         _blank_span(chars, match.start() + 1, end - 1)
-    return end
+    return end, closed
 
 
-def _skip_csharp_token(code: str, match: re.Match[str], chars: list[str]) -> int:
-    """Pass the comment or literal ``match`` opens; return the index past it.
+def _skip_csharp_token(code: str, match: re.Match[str], chars: list[str]) -> tuple[int, bool]:
+    """Pass the comment or literal ``match`` opens; return (end, closed).
 
-    A comment is left unchanged. A literal is blanked.
+    A comment is left unchanged. A literal is blanked. ``closed`` is false
+    for a literal without its closing quote or a block comment without
+    "*/".
     """
     if match.group(0) == "//":
-        return _line_end(code, match.end())
+        return _line_end(code, match.end()), True
     if match.group(0) == "/*":
         end = code.find("*/", match.end())
-        return len(code) if end < 0 else end + 2
+        return (len(code), False) if end < 0 else (end + 2, True)
     return _blank_csharp_literal(code, match, chars)
 
 
@@ -1725,7 +1726,7 @@ def _blank_csharp_literals(code: str) -> str | None:
     index = 0
     try:
         while (match := _CSHARP_TOKEN_START_RE.search(code, index)) is not None:
-            index = _skip_csharp_token(code, match, chars)
+            index, _ = _skip_csharp_token(code, match, chars)
     except RecursionError:
         return None
     return "".join(chars)

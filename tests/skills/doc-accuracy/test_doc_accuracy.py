@@ -466,6 +466,9 @@ class TestCsharpLiteralAndAttributeArguments:
         ('var s = $"{d"; var w = new FakeWidget(); // C:\\"', "FakeWidget"),
         ('var s = $"{\n    FakeWidget.Make() }";', "FakeWidget"),
         ('var s = $"{F("x)}"; var w = new FakeWidget();', "FakeWidget"),
+        ('var s = $"{ $"{x "\n} FakeWidget.Go(); var t = "y";', "FakeWidget"),
+        ('var s = $"{ $"{x"\nvar a = 1;\n} var t = new FakeThing("x");', "FakeThing"),
+        ('var s = $"{F(@"FakeLit")}"; var w = new FakeWidget();', "FakeWidget"),
         ('var s = $"{\n    F("x")\n}"; FakeWidget.Go();', "FakeWidget"),
         ('var s = $"{x:N2\n}"; FakeWidget.Go();', "FakeWidget"),
         ('var s = $"{d"; var w = new FakeWidget();\nif (x) { y(); }\n}', "FakeWidget"),
@@ -496,6 +499,32 @@ class TestCsharpLiteralAndAttributeArguments:
             assert "EntryPoint" not in result, code
             assert attribute in result, code
 
+    def test_stacked_unclosed_holes_keep_literal_blanking(self, caplog) -> None:
+        code = 'x = $"{a\n' * 200 + '[Conditional("DEBUG")]\nvoid Log() {}'
+
+        with caplog.at_level("WARNING"):
+            result = _extract_identifiers(code, "csharp")
+
+        assert "DEBUG" not in result
+        assert "recursion limit" not in caplog.text
+
+    def test_nested_verbatim_string_in_hole_is_blanked(self) -> None:
+        result = _extract_identifiers('var s = $"{F(@"FakeLit")}";', "csharp")
+
+        assert "FakeLit" not in result
+
+    def test_hole_over_the_line_cap_is_left_visible(self) -> None:
+        body = "    a +\n" * 17
+        code = 'var s = $"{\n' + body + '    FakeOperand\n} LitText";'
+        short = 'var s = $"{\n' + "    a +\n" * 3 + '    FakeOperand\n} LitText";'
+
+        over = _extract_identifiers(code, "csharp")
+        under = _extract_identifiers(short, "csharp")
+
+        assert "FakeOperand" in over
+        assert "FakeOperand" in under
+        assert "LitText" not in under
+
     def test_recursion_limit_falls_back_to_unblanked_code(self, caplog) -> None:
         code = '$"{' * 2000 + '"Quoted" [Attr(Named = 1)]' + '}"' * 2000
 
@@ -521,13 +550,17 @@ class TestCsharpLiteralAndAttributeArguments:
         assert "RawText" not in result
         assert "Literal" not in result
 
-    def test_unterminated_verbatim_blanks_only_its_opening_line(self) -> None:
-        code = 'var s = @"open OpeningName\nvar w = new FakeWidget();'
+    def test_unterminated_verbatim_and_raw_stay_visible(self) -> None:
+        """A verbatim or raw string with no close is a typo; nothing is hidden."""
+        for code in (
+            'var s = @"open OpeningName\nvar w = new FakeWidget();',
+            'var s = """open OpeningName var w = new FakeWidget();',
+            'var s = $"{x?.y : $$"""{{ var a = new FakeWidget(); }',
+        ):
+            result = _extract_identifiers(code, "csharp")
 
-        result = _extract_identifiers(code, "csharp")
-
-        assert "OpeningName" not in result
-        assert "FakeWidget" in result
+            assert "FakeWidget" in result, code
+            assert "OpeningName" in result or "OpeningName" not in code, code
 
     def test_literal_nested_in_a_hole_is_blanked(self) -> None:
         code = 'var s = $"{Get("NestedKey")} and {Ledger.Sum()}";'
@@ -581,6 +614,9 @@ class TestCsharpLiteralAndAttributeArguments:
             '$"{d"\n' * 20000 + "var w = new FakeWidget();",
             '$"{a"' * 20000 + "\nvar w = new FakeWidget();",
             '$@"{d\n' * 3000 + "var w = new FakeWidget();",
+            '$"{/*\n' * 20000 + "var w = new FakeWidget();",
+            '$"{@"q\n' * 20000 + "var w = new FakeWidget();",
+            'x = $"{a\n' * 3000 + "var w = new FakeWidget();",
         )
         for code in cases:
             started = time.monotonic()
