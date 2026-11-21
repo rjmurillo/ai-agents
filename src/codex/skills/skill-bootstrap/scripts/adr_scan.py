@@ -52,8 +52,8 @@ from adr_commits import (
     commit_pr_number,
     commit_urls,
     covering_numbers,
+    covering_pr,
     excerpt,
-    is_covered,
     iso_day,
     parse_commit_object,
     sanitize,
@@ -75,6 +75,7 @@ from adr_shape import (
 __all__ = [
     "DROP_KEYS",
     "GIT_TIMEOUT_S",
+    "MAX_COMMITS",
     "ConfigError",
     "ExistingAdrs",
     "GitError",
@@ -93,6 +94,7 @@ __all__ = [
     "web_base",
 ]
 
+MAX_COMMITS = 100_000
 Candidate = dict[str, Any]
 
 
@@ -105,16 +107,16 @@ class _Pending:
 
 
 def _commit_pending(
-    record: CommitRecord, web: tuple[str, str] | None, breaking: bool, subject: str, body: str
+    record: CommitRecord, web: tuple[str, str] | None, breaking: bool, shape: CommitShape
 ) -> _Pending:
-    number = commit_pr_number(record, subject)
+    number = commit_pr_number(record, shape.subject)
     commit_url, pull_url = commit_urls(web, record.sha, number)
     candidate: Candidate = {
         "id": f"c-{record.sha[:7]}",
         "kind": "commit",
-        "title": sanitize(subject).strip(),
-        "reason": extract_reason(subject, body),
-        "excerpt": excerpt(subject, body),
+        "title": sanitize(shape.subject).strip(),
+        "reason": extract_reason(shape.subject, shape.body),
+        "excerpt": excerpt(shape.subject, shape.body),
         "date": iso_day(record.date),
         "source": {"sha": record.sha, "url": commit_url, "pr_number": number, "pr_url": pull_url},
         "signals": ["breaking-change"] if breaking else [],
@@ -134,25 +136,31 @@ def _states_reason(record: CommitRecord, shape: CommitShape) -> bool:
 
 def _commit_candidates(
     records: list[CommitRecord],
-    covering: tuple[set[str], set[int]],
+    covering: tuple[dict[str, int], set[int]],
     web: tuple[str, str] | None,
     dropped: dict[str, int],
-) -> list[_Pending]:
+) -> tuple[list[_Pending], set[int]]:
+    """The commit candidates, and the numbers of the kept pull requests that cover a breaking
+    commit (E3): such a pull request carries the signal, because the commit is dropped."""
     pending: list[_Pending] = []
+    carried: set[int] = set()
     for record in records:
         shape = resolve_commit_shape(record.subject, record.body)
         breaking = breaking_change(shape.subject, shape.body)
+        covered = covering_pr(record, shape.subject, *covering)
         if not is_decision_commit(shape.subject):
             dropped["housekeeping"] += 1
         elif not breaking and not _states_reason(record, shape):
             dropped["no_rationale"] += 1
         elif not breaking and not is_decision_shaped_title(shape.subject):
             dropped["not_decision_shaped"] += 1
-        elif is_covered(record.sha, (record.subject, shape.subject), *covering):
+        elif covered is not None:
             dropped["covered_by_pr"] += 1
+            if breaking:
+                carried.add(covered)
         else:
-            pending.append(_commit_pending(record, web, breaking, shape.subject, shape.body))
-    return pending
+            pending.append(_commit_pending(record, web, breaking, shape))
+    return pending, carried
 
 
 def _pr_pending(rows: list[PrRow], dropped: dict[str, int]) -> tuple[list[_Pending], list[PrRow]]:
@@ -212,6 +220,8 @@ def scan(
     root: Path, rev: str, max_commits: int, since: str | None, prs: list[Any] | None
 ) -> dict[str, Any]:
     """The ``scan`` payload for the repository at ``root``. Reads git and the working tree only."""
+    if not 1 <= max_commits <= MAX_COMMITS:
+        raise ConfigError(f"max commits must be from 1 to {MAX_COMMITS}, not {max_commits}")
     head = resolve_rev(root, rev)
     records, truncated = read_commits(root, head, max_commits, since)
     dropped = dict.fromkeys(DROP_KEYS, 0)
@@ -221,7 +231,11 @@ def scan(
     texts, skipped = read_adr_texts(root, folders)
     existing = ExistingAdrs(texts)
     pending, kept_prs = _pr_pending(pr_rows, dropped)
-    pending += _commit_candidates(records, covering_numbers(kept_prs), web, dropped)
+    commits, carried = _commit_candidates(records, covering_numbers(kept_prs), web, dropped)
+    for item in pending:
+        if item.number in carried and not item.candidate["signals"]:
+            item.candidate["signals"].append("breaking-change")
+    pending += commits
     candidates = _suppress(pending, existing, dropped)
     candidates.sort(key=lambda item: item["date"] or "", reverse=True)
     log_found, log_files, log_skipped = log_candidates(root, existing, dropped)
@@ -268,17 +282,19 @@ class GitError(Exception):
     """git is missing, failed, or timed out: exit 3."""
 
 
-# What ``git rev-parse --local-env-vars`` lists, plus GIT_NAMESPACE. Hard-coded so no extra git
-# call is spent. Any of them in the parent environment would point the child at another
-# repository, whatever ``-C`` says.
+# What ``git rev-parse --local-env-vars`` lists, plus GIT_NAMESPACE and the two discovery limits.
+# Hard-coded so no extra git call is spent. Any of them in the parent environment would point the
+# child at another repository, or hide the work tree around a folder, whatever ``-C`` says.
 _LOCAL_GIT_ENV = frozenset(
     {
         "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_CEILING_DIRECTORIES",
         "GIT_COMMON_DIR",
         "GIT_CONFIG",
         "GIT_CONFIG_COUNT",
         "GIT_CONFIG_PARAMETERS",
         "GIT_DIR",
+        "GIT_DISCOVERY_ACROSS_FILESYSTEM",
         "GIT_GRAFT_FILE",
         "GIT_IMPLICIT_WORK_TREE",
         "GIT_INDEX_FILE",

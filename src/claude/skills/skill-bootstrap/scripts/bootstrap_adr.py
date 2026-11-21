@@ -31,7 +31,7 @@ Standard library only. Subcommands:
     the scan file names.
 
 Every command prints JSON. Exit codes: 0 done; 1 the draft target exists or another ADR took
-its number (``error`` is ``exists``; after the second case the draft stays on disk); 2 bad
+its number (``error`` is ``exists``, and ``written`` is true when the draft stays on disk); 2 bad
 arguments, unreadable or malformed input, a refused ``--out`` (``config`` or ``io``), or an
 internal error (``internal``); 3 git is missing, failed, or timed out (``git``).
 
@@ -54,17 +54,19 @@ import argparse
 import json
 import os
 import re
+import stat
 import sys
 from pathlib import Path
 from typing import Any
 
-from adr_commits import sanitize, slugify
+from adr_commits import one_line, sanitize, slugify
 from adr_locate import (
     MAX_READ_BYTES,
     NOT_RECORDED,
     Style,
     adr_files,
     adr_title,
+    clean_source,
     folder_style,
     is_draft_target,
     locate,
@@ -99,20 +101,24 @@ __all__ = [
 
 MAX_JSON_BYTES = 16 * MAX_READ_BYTES
 _KINDS = frozenset({"commit", "pr", "decision-log"})
-_WHITESPACE = re.compile(r"\s+")
 _SHA = re.compile(r"[0-9A-Fa-f]{40}|[0-9A-Fa-f]{64}", re.ASCII)
 # ADR-073's status enum, without "accepted": a draft never asserts its own approval.
-# Acceptance needs a review, so a person sets it after the draft is written.
+# Acceptance needs a review, so a person sets it after the draft is written. Superseded is
+# allowed on a draft for compatibility, but a person must add the superseding reference by
+# hand, because a draft has no front matter.
 DRAFT_STATUSES: tuple[str, ...] = ("Proposed", "Rejected", "Deprecated", "Superseded")
 
 
 class ExistsError(Exception):
     """The target exists, or another ADR took the same number. Exit 1."""
 
-    def __init__(self, message: str, path: Path, others: list[str] | None = None) -> None:
+    def __init__(
+        self, message: str, path: Path, others: list[str] | None = None, written: bool = False
+    ) -> None:
         super().__init__(message)
         self._path = path
         self._others = tuple(others or ())
+        self._written = written
 
     @property
     def path(self) -> Path:
@@ -124,6 +130,11 @@ class ExistsError(Exception):
         """Names of other ADRs that took the same number."""
         return list(self._others)
 
+    @property
+    def written(self) -> bool:
+        """True when this run wrote the draft before it found a twin number."""
+        return self._written
+
 
 def _text(value: object, name: str, required: bool = False) -> str | None:
     if value is None and not required:
@@ -134,12 +145,21 @@ def _text(value: object, name: str, required: bool = False) -> str | None:
 
 
 def _read_json(path: str, label: str) -> Any:
-    """Parse a JSON file of at most ``MAX_JSON_BYTES``, or raise ConfigError."""
-    target = Path(path)
+    """Parse a regular JSON file of at most ``MAX_JSON_BYTES``, or raise ConfigError.
+
+    The file opens without blocking and ``fstat`` checks the open descriptor, so a named pipe is
+    refused, never waited on. The read stops one byte past the limit, whatever size the file
+    reports.
+    """
     try:
-        if target.stat().st_size > MAX_JSON_BYTES:
+        fd = os.open(path, os.O_RDONLY | getattr(os, "O_NONBLOCK", 0))
+        with os.fdopen(fd, "rb") as handle:
+            if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+                raise ConfigError(f"{label} {path} is not a regular file")
+            data = handle.read(MAX_JSON_BYTES + 1)
+        if len(data) > MAX_JSON_BYTES:
             raise ConfigError(f"{label} {path} is too large")
-        return json.loads(target.read_text(encoding="utf-8", errors="replace"))
+        return json.loads(data.decode("utf-8", errors="replace"))
     except (OSError, ValueError, RecursionError) as exc:
         raise ConfigError(f"cannot read {label} {path}: {exc}") from exc
 
@@ -157,34 +177,25 @@ def load_candidate(path: str, ident: str) -> tuple[dict[str, Any], dict[str, Any
     raise ConfigError(f"no candidate with id {ident!r} in {path}")
 
 
-def _clean_source(source: object) -> dict[str, Any]:
-    cleaned = source if isinstance(source, dict) else {}
-    return {
-        key: sanitize(value) if isinstance(value, str) else value for key, value in cleaned.items()
-    }
-
-
-def _one_line(text: str | None) -> str | None:
-    return _WHITESPACE.sub(" ", text).strip() if text is not None else None
-
-
 def _prepare_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
     """A cleaned copy of a scan candidate, or ConfigError. The scan data is left as it was.
 
-    Every text field is stripped of control bytes. The title and the reason also lose every
-    line break: whitespace runs become one space, so neither can start a heading in the
-    draft. The excerpt keeps its lines, because the renderer quotes every one of them.
+    Every text field is stripped of control bytes. The title, the reason and every ``source``
+    string also lose each line break, so none of them can start a new line of the draft. The
+    renderer escapes a title that starts with Markdown syntax. The excerpt keeps its lines,
+    because the renderer quotes every one of them.
     """
     kind = candidate.get("kind")
     if not isinstance(kind, str) or kind not in _KINDS:
         raise ConfigError(f"candidate {candidate.get('id')!r} has an unknown kind")
-    title = _WHITESPACE.sub(" ", _text(candidate.get("title"), "title", True) or "").strip()
+    title = one_line(_text(candidate.get("title"), "title", True) or "")
+    reason = _text(candidate.get("reason"), "reason")
     return {
         **candidate,
         "title": adr_title(kind, title),
-        "reason": _one_line(_text(candidate.get("reason"), "reason")),
+        "reason": None if reason is None else one_line(reason),
         "excerpt": _text(candidate.get("excerpt"), "excerpt"),
-        "source": _clean_source(candidate.get("source")),
+        "source": clean_source(candidate.get("source")),
     }
 
 
@@ -292,9 +303,7 @@ def draft(scan_path: str, ident: str, out: str, status: str) -> dict[str, Any]:
             f"--status {status!r} must be one of {allowed}; a draft is never Accepted"
         )
     status = matched[0]
-    scan, loaded = load_candidate(scan_path, ident)
-    candidate = _prepare_candidate(loaded)
-    repo_root(Path(scan["repo"]))  # the scan file must name a real repository; it gates nothing
+    candidate = _prepare_candidate(load_candidate(scan_path, ident)[1])
     tree, out_dir = _gate_target(Path(out).resolve())
     if out_dir.exists() and not out_dir.is_dir():
         raise ConfigError(f"--out {out_dir} is not a directory")
@@ -319,6 +328,7 @@ def draft(scan_path: str, ident: str, out: str, status: str) -> dict[str, Any]:
             f"({', '.join(twins)}); renumber or remove one of the two files",
             target,
             twins,
+            written=True,
         )
     return {
         "path": str(target),
@@ -451,7 +461,9 @@ def main(argv: list[str] | None = None) -> int:
     try:
         payload = _HANDLERS[args.command](args)
     except ExistsError as exc:
-        return _fail(1, "exists", str(exc), path=str(exc.path), others=exc.others)
+        return _fail(
+            1, "exists", str(exc), path=str(exc.path), others=exc.others, written=exc.written
+        )
     except ConfigError as exc:
         return _fail(2, "config", str(exc))
     except GitError as exc:

@@ -60,6 +60,7 @@ import unicodedata
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
+from urllib.parse import urlsplit
 
 from adr_reason import extract_reason
 from adr_shape import is_release_or_bump_subject
@@ -75,11 +76,12 @@ __all__ = [
     "commit_pr_number",
     "commit_urls",
     "covering_numbers",
+    "covering_pr",
     "excerpt",
     "hash_tokens",
-    "is_covered",
     "iso_day",
     "issue_numbers",
+    "one_line",
     "parse_commit_object",
     "sanitize",
     "select_prs",
@@ -235,12 +237,18 @@ _URL = re.compile(r"(?:https?|git)://[^\s<>()\[\]\"'`]+", _A)
 _WORD_RUN = re.compile(r"[A-Za-z0-9_.-]+", _A)
 _HASH = re.compile(r"(?<![0-9A-Za-z_])[0-9a-fA-F]{7,64}(?![0-9A-Za-z_])", _A)
 _ISSUE = re.compile(r"(?<![0-9A-Za-z_/&])#([0-9]+)(?![0-9A-Za-z_])", _A)
+_SPACE_RUN = re.compile(r"\s+")
 
 
 def sanitize(text: str, limit: int | None = None) -> str:
     """Normalize line endings, drop NUL and other control bytes, and cut to ``limit`` chars."""
     cleaned = _CONTROL.sub("", text.replace("\r\n", "\n").replace("\r", "\n"))
     return cleaned if limit is None else cleaned[:limit]
+
+
+def one_line(text: str) -> str:
+    """``text`` with each whitespace run, line breaks included, as one space, and trimmed."""
+    return _SPACE_RUN.sub(" ", text).strip()
 
 
 def iso_day(value: object) -> str | None:
@@ -346,11 +354,27 @@ def _merge_sha(item: dict[str, Any]) -> str | None:
     return text if _HEX_SHA.fullmatch(text) else None
 
 
+def _page_url(item: dict[str, Any]) -> object:
+    """The pull request page: ``html_url``, else ``url`` unless that is a REST API address.
+
+    A raw GitHub pull object holds both. Its ``url`` is the API endpoint, on an ``api.`` host
+    or under ``/repos/``, and is not the page a reader opens.
+    """
+    if item.get("html_url"):
+        return item["html_url"]
+    url = item.get("url")
+    if isinstance(url, str):
+        parts = urlsplit(url)
+        if (parts.hostname or "").startswith("api.") or "/repos/" in parts.path:
+            return None
+    return url
+
+
 def _complete(item: dict[str, Any]) -> tuple[int, str, str, str, str] | None:
     """``(number, title, body, url, merged day)`` when the item has every required field."""
     number = item.get("number")
     title = item.get("title")
-    url = item.get("url") or item.get("html_url")
+    url = _page_url(item)
     day = iso_day(item.get("merged_at") or item.get("mergedAt"))
     body = item.get("body")
     if not (isinstance(number, int) and not isinstance(number, bool) and number > 0):
@@ -393,9 +417,11 @@ def select_prs(items: list[Any], dropped: dict[str, int], base: str | None = Non
     return rows
 
 
-def covering_numbers(rows: list[PrRow]) -> tuple[set[str], set[int]]:
-    """The merge SHAs and numbers of the kept pull requests."""
-    return {row.merge_sha for row in rows if row.merge_sha}, {row.number for row in rows}
+def covering_numbers(rows: list[PrRow]) -> tuple[dict[str, int], set[int]]:
+    """The merge SHA to number map, and the numbers, of the kept pull requests."""
+    return {row.merge_sha: row.number for row in rows if row.merge_sha}, {
+        row.number for row in rows
+    }
 
 
 _HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
@@ -447,12 +473,19 @@ def without_merge_lines(body: str) -> str:
     return "\n".join(line for line in body.split("\n") if not _MERGE_LINE.match(line.strip()))
 
 
-def is_covered(sha: str, subjects: tuple[str, ...], shas: set[str], numbers: set[int]) -> bool:
-    """Is this commit the one a kept pull request became (P10)?
+def covering_pr(
+    record: CommitRecord, promoted: str, by_sha: dict[str, int], numbers: set[int]
+) -> int | None:
+    """The number of the kept pull request this commit became (P10), or None.
 
-    True when the SHA is a kept pull request's merge commit, or a subject ends ``(#N)`` for
-    a kept pull request. ``subjects`` holds the subject as stored and the promoted subject.
+    The commit's SHA is a kept pull request's merge commit, or a number it names is kept: a
+    subject ending ``(#N)``, as stored or promoted, or ``Merge pull request #N``.
     """
-    if sha.lower() in shas:
-        return True
-    return any(trailing_pr_number(subject) in numbers for subject in subjects)
+    if record.sha.lower() in by_sha:
+        return by_sha[record.sha.lower()]
+    named = (
+        trailing_pr_number(promoted),
+        trailing_pr_number(record.subject),
+        commit_pr_number(record, promoted),
+    )
+    return next((number for number in named if number in numbers), None)

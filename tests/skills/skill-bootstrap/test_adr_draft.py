@@ -357,16 +357,15 @@ def test_a_missing_scan_file_an_unknown_id_and_a_bad_candidate_are_refused(tmp_p
         bootstrap_adr.draft(scan, "c-t", str(folder), "Proposed")
 
 
-def test_a_scan_whose_repository_is_gone_is_refused_before_any_write(tmp_path: Path) -> None:
+def test_a_scan_whose_repository_is_gone_still_allows_a_scratch_draft(tmp_path: Path) -> None:
     repo, _folder = _toolkit_repo(tmp_path)
     scan = _scan_file(tmp_path, repo, _cand())
     ghost = json.loads(Path(scan).read_text(encoding="utf-8"))
     ghost["repo"] = str(tmp_path / "gone")
     Path(scan).write_text(json.dumps(ghost), encoding="utf-8")
     out = tmp_path / "scratch"
-    with pytest.raises(ConfigError, match="not a directory"):
-        bootstrap_adr.draft(scan, "c-1234567", str(out), "Proposed")
-    assert not out.exists()
+    result = bootstrap_adr.draft(scan, "c-1234567", str(out), "Proposed")
+    assert result["in_repo"] is False and Path(result["path"]).parent == out.resolve()
 
 
 def test_an_out_path_that_is_a_file_is_refused(tmp_path: Path) -> None:

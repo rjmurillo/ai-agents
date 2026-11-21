@@ -36,7 +36,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from adr_commits import iso_day
+from adr_commits import iso_day, one_line, sanitize
 
 __all__ = [
     "ADR_EXTENSIONS",
@@ -48,6 +48,7 @@ __all__ = [
     "Style",
     "adr_files",
     "adr_title",
+    "clean_source",
     "folder_style",
     "is_draft_target",
     "locate",
@@ -377,6 +378,9 @@ NO_REASON = "The source states no reason."
 _TYPE_PREFIX = re.compile(r"\A[a-z]+(?:\([^)]*\))?!?:[ \t]+", re.IGNORECASE | re.ASCII)
 _PR_SUFFIX = re.compile(r"\(#[0-9]+\)\Z", re.ASCII)
 _URL = re.compile(r"https://[^\s<>`\"']+\Z", re.ASCII)
+_SHA = re.compile(r"[0-9A-Fa-f]{40}|[0-9A-Fa-f]{64}", re.ASCII)
+# A mark that starts a heading, quote, list, fence, rule or table, or a list number.
+_MD_LEAD = re.compile(r"[#>+*=`~|-]|[0-9]+[.)](?=[ \t]|\Z)", re.ASCII)
 _SECTIONS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
     (re.compile(pattern, re.IGNORECASE | re.ASCII), kind)
     for pattern, kind in (
@@ -391,6 +395,27 @@ _SECTIONS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
         (r"\b(?:decision|outcome|chosen|resolution)\b", "decision"),
     )
 )
+
+
+def clean_source(source: object) -> dict[str, Any]:
+    """The source fields the draft quotes, each string on one line.
+
+    A ``sha`` that is not 40 or 64 hex digits is dropped, and so is a ``url`` or ``pr_url`` that
+    is not one ``https://`` word, so no source field can add a line to the draft.
+    """
+    cleaned: dict[str, Any] = {}
+    for key, value in (source if isinstance(source, dict) else {}).items():
+        text = one_line(sanitize(value)) if isinstance(value, str) else value
+        pattern = {"sha": _SHA, "url": _URL, "pr_url": _URL}.get(key)
+        if pattern is None or (isinstance(text, str) and pattern.fullmatch(text)):
+            cleaned[key] = text
+    return cleaned
+
+
+def _plain(text: str) -> str:
+    """One line of ``text`` that cannot start Markdown structure: a backslash goes in front of a
+    leading mark, so ``## x`` or a code fence shows as text."""
+    return f"\\{text}" if _MD_LEAD.match(text) else text
 
 
 def _link(candidate: dict[str, Any]) -> str:
@@ -424,7 +449,7 @@ def _context(candidate: dict[str, Any]) -> str:
 
 def _decision(candidate: dict[str, Any]) -> str:
     link = _link(candidate)
-    return f"{candidate['title']}\n\n" + (
+    return f"{_plain(candidate['title'])}\n\n" + (
         f"Decided in {link}" if link else "Where it was decided was not recorded."
     )
 
