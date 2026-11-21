@@ -47,7 +47,7 @@ Unlabeled prose is argument, not evidence.
 ## Context
 
 The repository authors behavior once and ships it to several harnesses. Seven generators run from
-the `GENERATORS` list at `build/scripts/build_all.py:497-505` (`repo-observed`).
+the `GENERATORS` list at `build/scripts/build_all.py:683-691` (`repo-observed`).
 `.agents/governance/GENERATOR-FILES.md:13-20` indexes source-to-output pairs under the header
 `Source (edit here)` (`repo-observed`).
 **The two sets differ**, which matters later: the index has six rows and names
@@ -62,8 +62,8 @@ Two properties of that pipeline are settled and are not reopened here.
    except the template-owned skill files ADR-108 enumerates (amended 2026-09-11), and
    every path in ADR-109's binplace manifest, each path effective once its class's migration PR
    lands the manifest row, the guard update, and its tests (accepted 2026-09-11).
-   `assert_no_claude_writes` at `build/scripts/build_all.py:841` is called at `:2319`, and a
-   violation sets `audit.overall_exit = 2` at `:2328` (`repo-observed`, re-anchored 2026-09-11).
+   `assert_no_claude_writes` at `build/scripts/build_all.py:1036` is called at `:2454`, and a <!-- citation-freshness: ignore -- the call assert_no_claude_writes( is at build_all.py:2454 and the definition at :1036, verified 2026-11-20; the sentence anchors describe the whole guard, not one line -->
+   violation sets `audit.overall_exit = 2` at `:2463` (`repo-observed`, re-anchored 2026-09-11).
 2. The seam is asymmetric. There is no single template-in, everything-out pipeline. Agents for
    Copilot CLI and VS Code come from `templates/agents/*.shared.md`; rules, skills, hooks, and lib
    come from `.claude/` directly; `src/claude/`, `.claude/agents/`, and `.github/agents/` are
@@ -97,11 +97,11 @@ Each current gate substitutes a proxy for equivalence, because no predicate is d
   drift as advisory unless `--fail-on-install-drift`, and runs that flag only in the weekly
   `.github/workflows/drift-detection.yml`. The hardcoded score is recorded as
   `match zero sections and return a hardcoded 100.0` (`docs-say`,
-  `.claude/rules/claude-agents.md:84`, `:120-122`).
+  `.claude/rules/claude-agents.md:89`, `:125-127`).
 - A lexical floor cannot see a contradiction. Sixty appended identical lines move the score by
   zero, and the rule states the surviving claim as
   `contradiction that reuses the surrounding vocabulary scores high and passes`
-  (`docs-say`, `.claude/rules/claude-agents.md:104-118`).
+  (`docs-say`, `.claude/rules/claude-agents.md:109-123`).
 
 So the honest scope of the claim is: **the contract is missing for the hand-maintained agent
 trees**, three of the five agent surfaces. It is not missing for the generated classes, which
@@ -157,7 +157,7 @@ pros and cons with no shared criterion to compare them on.
 | D2 | **Single mechanism.** No second registry, routing authority, or generation system. | Issue #5391's scope correction and issue #5396's ownership rule both forbid it, and the repository already carries one orphaned second mechanism (see R3). |
 | D3 | **Debt visibility.** Unchecked classes must be countable, not implicit. | Three of five agent surfaces have no equivalence check today and nothing says so in a machine-readable place. |
 | D4 | **Blast radius.** Prefer the change that reverts in one commit. | 27 of 108 records in this corpus are decided and unbuilt. A record that moves generators before it is proven compounds that. |
-| D5 | **Cost to the schema validator and the generators.** | `build/scripts/validate_templates_schema.py:151` reports `unknown keys` for anything outside its allowlist, so any config-declared field is a code change, not a config change. |
+| D5 | **Cost to the schema validator and the generators.** | `build/scripts/validate_templates_schema.py:191` reports `unknown keys` for anything outside its allowlist, so any config-declared field is a code change, not a config change. |
 
 ## Decision
 
@@ -556,7 +556,7 @@ No flag day. Each step is a separate pull request with its own issue.
 | M6 | #5691 | Settle the invariant-6 status of argument-scoped `allowed-tools` under Copilot | The section 5 case |
 
 M4's scope is narrower than the first revision claimed. Issue #3465 is **closed as completed**,
-and `scripts/validation/check_skill_md_portability.py:315-318` puts `templates/agents` in
+and `scripts/validation/check_skill_md_portability.py:353-356` puts `templates/agents` in
 `EXTRA_SCAN_ROOTS`, so canonical agent prose is scanned (`repo-observed`). What remains uncovered
 is agent outputs, stated verbatim at `:52`: "this validator does not scan agent outputs, so the
 template source is the only covered surface". M4 covers `src/claude/*.md`,

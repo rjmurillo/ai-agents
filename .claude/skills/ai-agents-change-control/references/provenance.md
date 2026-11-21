@@ -21,6 +21,6 @@ Verified against the working tree on 2026-07-30. Volatile facts and their re-ver
 | Drift allowlist contract (no commit-message bypass) | `drift-allowlist.json`; `drift_allowlist.py` | `git ls-files '*drift-allowlist.json' '*drift_allowlist.py'` |
 | Pinned required contexts (no LLM blocker) | `scripts/ci/ruleset_required_contexts.py:REQUIRED_CONTEXTS`, `RETIRED_AI_REVIEW_CONTEXTS` | `grep -n "CONTEXTS" scripts/ci/ruleset_required_contexts.py` |
 | ADR-006 amendment scope and conditions | `.project-toolkit/architecture/ADR-006-thin-workflows-testable-modules.md:255-309` | `grep -n "Amendment 2026-04-28" .project-toolkit/architecture/ADR-006-thin-workflows-testable-modules.md` |
-| Hook-install check rationale | `scripts/validation/checks_plugin.py:174-180` | `grep -n "def validate_lefthook_installed" scripts/validation/checks_plugin.py` |
+| Hook-install check rationale | `scripts/validation/checks_plugin.py:230-236` | `grep -n "def validate_lefthook_installed" scripts/validation/checks_plugin.py` |
 
 Maintenance rule: any edit to a cited source line number or ADR status invalidates the matching row. Re-run the re-verify command and update the row in the same commit. This file is plugin content, so regenerate the Copilot mirror (`uv run python build/scripts/build_all.py`) in the same commit. No manifest bump: the manifests carry no version (ADR-092).

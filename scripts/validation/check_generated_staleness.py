@@ -45,7 +45,7 @@ Bounded deadlines with cleanup-preserving termination
 -----------------------------------------------------
 
 ``build_all.py --check`` is read-only only because its ``finally`` at
-``build/scripts/build_all.py:1123-1128`` restores the generated trees it
+``build/scripts/build_all.py:2279-2284`` restores the generated trees it
 snapshotted. ``subprocess.run(timeout=...)`` kills with SIGKILL, which never
 runs that block, so a kill landing mid-write leaves partial generated writes
 in the caller's worktree (reproduced: 15 dirty paths when killed at the first

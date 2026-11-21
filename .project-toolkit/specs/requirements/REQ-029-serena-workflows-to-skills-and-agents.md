@@ -77,7 +77,7 @@ One PR, about 4 hours AI-assisted:
   `agent-workflow-post-implementation-critic-validation.md` point at
   `agent-workflow-004-proactive-template-sync-verification.md` and
   `agent-workflow-005-structured-handoff-formats.md`, which do not exist.
-- `templates/agents/critic.shared.md:236` routes `NEEDS_REVISION` to
+- `templates/agents/critic.shared.md:237` routes `NEEDS_REVISION` to
   `planner`, an agent that is not registered; the registered agents are
   `milestone-planner` and `task-decomposer`.
 
