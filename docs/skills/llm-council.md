@@ -108,7 +108,8 @@ Put the `## Council review` section in the PR description. A member with no read
 - Anonymous labels block direct self-recognition, but models still recognize their own style. The chairman may also be a councillor, so it is not an independent judge. Pass a `--chairman` that is not on the council when you need one.
 - Unanimity is not proof. Models with shared training data can agree on the same wrong frame. Read the Stage 1 reasoning, not only the ranking.
 - Codex `-s read-only` blocks writes but not reads. A member steered by an earlier reply could read files outside its temp directory.
-- Copilot runs in an empty directory with only the `view` tool, but `view` can still read the system temp directory.
+- The CLI route uses Copilot for Grok 4.7 and Gemini 4 Argon.
+  On long prompts, Copilot's `view` tool can read the system temp directory.
 - Copilot CLI adds 22k to 35k input tokens of overhead per call, so each Copilot councillor takes 15 to 20 seconds.
 - Questions over 24 KB may exceed a model's context. There is no streaming.
 - Four frontier runs in a row burn about 250 AI Credits. Use `--cheap` for low-stakes questions.
