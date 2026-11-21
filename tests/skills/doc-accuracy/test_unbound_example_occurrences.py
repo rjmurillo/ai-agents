@@ -120,3 +120,44 @@ def test_bound_repo_call_checks_named_parameter(tmp_path: Path) -> None:
     assert _scan(
         tmp_path, "csharp", "var validator = new Validator();\nvalidator.Validate(wrong: 1);"
     ) == (10, [("phantom_parameter", "")])
+
+
+@pytest.mark.parametrize("namespace", ["", "namespace First;\n", "namespace Other;\n"])
+def test_partial_repository_type_keeps_only_unambiguous_members(
+    tmp_path: Path, namespace: str
+) -> None:
+    (tmp_path / "part.cs").write_text(
+        f"{namespace}public partial class Validator {{\n    public void Reset() {{ }}\n}}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "validator.cs").write_text(
+        "namespace First;\npublic partial class Validator { }\n", encoding="utf-8"
+    )
+    (tmp_path / "README.md").write_text(
+        "```csharp\nvar validator = new Validator();\nvalidator.Reset();\n```\n", encoding="utf-8"
+    )
+
+    code = mod.main(["--target", str(tmp_path), "--output-dir", str(tmp_path / "out")])
+
+    assert code == (0 if namespace == "namespace First;\n" else 10)
+
+
+@pytest.mark.parametrize(("parameter", "expected"), [("timeout", 0), ("Validator", 10)])
+def test_named_argument_must_match_a_parameter_declaration(
+    tmp_path: Path, parameter: str, expected: int
+) -> None:
+    (tmp_path / "validator.cs").write_text(
+        "public class Validator {\n"
+        "    public Validator Validate(\n"
+        "        Dictionary<string, int> values,\n"
+        "        int timeout = 1) => this;\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "README.md").write_text(
+        "```csharp\nvar validator = new Validator();\n"
+        f"validator.Validate(null, {parameter}: 1);\n```\n",
+        encoding="utf-8",
+    )
+
+    assert mod.main(["--target", str(tmp_path), "--output-dir", str(tmp_path / "out")]) == expected

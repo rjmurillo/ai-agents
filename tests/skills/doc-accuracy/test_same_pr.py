@@ -12,6 +12,8 @@ import sys
 from pathlib import Path
 from typing import cast
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from diff_scope_helpers import Json, edit_files_and_commit, make_repo, run_same_pr
@@ -57,6 +59,23 @@ def test_literal_count_and_unchanged_option_reference(tmp_path: Path) -> None:
     assert any(f["rule"] == "R4" for f in findings["findings"])
     entry = _entry(checklist, "guide.md", "--preflight")
     assert any(p["symbol"] == "_preflight" for p in entry["pairs"])
+
+
+def test_local_collection_does_not_bind_to_unrelated_prose(tmp_path: Path) -> None:
+    script = "scripts/tool.py"
+    repo = make_repo(tmp_path, {script: "", "guide.md": "# Guide\n"})
+    edit_files_and_commit(
+        repo,
+        {
+            script: 'git = ["git", "-c", "user.name=smoke"]\nclaims = []\n',
+            "guide.md": "Use the `git` CLI for checks.\nThe one `claims` record is sufficient.\n",
+        },
+    )
+
+    code, findings, _ = run_same_pr(repo, tmp_path, "--phases", "1")
+
+    assert code == 0
+    assert _rule(findings, "R2") == _rule(findings, "R4") == []
 
 
 def test_repo_cardinality_reaches_markdown_templates_and_json(tmp_path: Path) -> None:
@@ -293,6 +312,30 @@ def test_r3_without_an_assignment_goes_to_the_checklist(tmp_path: Path) -> None:
     assert code == 0
     entry = _entry(checklist, CSHARP_DOC, "unassigned_key")
     assert any("unassigned_key" in reason for reason in entry["reasons"])
+
+
+@pytest.mark.parametrize(
+    ("prose", "ambiguous"),
+    [
+        ("The regression is under `parser_dependency_admission`.", False),
+        ("JSON `parser_dependency_admission` keeps only admitted dependencies.", False),
+        ("JSON retains the regression under `parser_dependency_admission`.", True),
+    ],
+)
+def test_r3_leaves_non_json_or_ambiguous_claims_to_the_checklist(
+    tmp_path: Path, prose: str, ambiguous: bool
+) -> None:
+    repo = make_repo(tmp_path, {CSHARP_DOC: "# C# parser\n", ASSESS: COMPARISON_BASE})
+    changes = {CSHARP_DOC: f"# C# parser\n\n{prose}\n", ASSESS: COMPARISON_HEAD}
+    if ambiguous:
+        changes["another_writer.py"] = COMPARISON_HEAD
+    edit_files_and_commit(repo, changes)
+
+    code, findings, checklist = run_same_pr(repo, tmp_path)
+
+    assert code == 0
+    assert _rule(findings, "R3") == []
+    assert _entry(checklist, CSHARP_DOC, "parser_dependency_admission")
 
 
 # -- R1: Exit Codes table against literal exit integers ------------------------

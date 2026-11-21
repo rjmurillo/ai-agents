@@ -60,6 +60,8 @@ class SourceSymbol:
     signature: str
     visibility: str = "public"
     declaring_type: str = ""
+    partial_scope: str = ""
+    parameter_names: list[str] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -70,6 +72,12 @@ class SourceSymbol:
             "signature": self.signature,
             "visibility": self.visibility,
             **({"declaring_type": self.declaring_type} if self.declaring_type else {}),
+            **({"partial_scope": self.partial_scope} if self.partial_scope else {}),
+            **(
+                {"parameter_names": self.parameter_names}
+                if self.parameter_names is not None
+                else {}
+            ),
         }
 
 
@@ -367,6 +375,37 @@ def _should_exclude(
     return False
 
 
+_CSHARP_NAMESPACE_RE = re.compile(r"\bnamespace\s+([\w.]+)\s*([;{])")
+_CSHARP_PARAMETER_NAME_RE = re.compile(r"\b([A-Za-z_]\w*)\s*$")
+
+
+def _csharp_parameter_names(
+    view: str, opening: int, owners: list[int], ends: dict[int, int]
+) -> list[str] | None:
+    close = ends.get(opening)
+    if close is None:
+        return None
+    names: list[str] = []
+    start, generic_depth, default_at = opening + 1, 0, None
+    for token in re.finditer(r"[<>=,)]", view[start : close + 1]):
+        index = opening + 1 + token.start()
+        if owners[index] != opening:
+            continue
+        match token[0]:
+            case "<" if default_at is None:
+                generic_depth += 1
+            case ">" if generic_depth:
+                generic_depth -= 1
+            case "=" if not generic_depth and default_at is None:
+                default_at = index
+            case "," | ")" if not generic_depth:
+                parameter = view[start : default_at if default_at is not None else index]
+                if name := _CSHARP_PARAMETER_NAME_RE.search(parameter):
+                    names.append(name[1])
+                start, default_at = index + 1, None
+    return names
+
+
 def _extract_csharp_symbols(content: str, file_path: str) -> list[SourceSymbol]:
     """Extract public symbols from C# source."""
     symbols: list[SourceSymbol] = []
@@ -382,6 +421,8 @@ def _extract_csharp_symbols(content: str, file_path: str) -> list[SourceSymbol]:
 
     view = _c_family_code_view(content, "csharp")
     owners, ends = _balanced_groups(view)
+    namespaces = {m.end() - 1: m[1] for m in _CSHARP_NAMESPACE_RE.finditer(view) if m[2] == "{"}
+    file_namespaces = [m[1] for m in _CSHARP_NAMESPACE_RE.finditer(view) if m[2] == ";"]
     type_bodies = {
         header.end() - 1: header["name"]
         for header in _CSHARP_TYPE_HEADER_RE.finditer(view)
@@ -396,20 +437,34 @@ def _extract_csharp_symbols(content: str, file_path: str) -> list[SourceSymbol]:
             continue
 
         declaring_type = ""
+        partial_scope = ""
+        parameter_names = None
+        checked_match = pattern.match(checked_line)
         if match.group(1):
             # Type declaration
             kind = match.group(1)
             name = match.group(2)
             sig = line.strip()
+            if checked_match and "partial" in checked_line[: match.start(1)].split():
+                owner = owners[start + match.start(2)]
+                if owner in namespaces and owners[owner] == -1:
+                    partial_scope = f"{Path(file_path).parent}:{namespaces[owner]}"
+                elif owner == -1 and len(file_namespaces) <= 1:
+                    namespace = file_namespaces[0] if file_namespaces else ""
+                    partial_scope = f"{Path(file_path).parent}:{namespace}"
+                if checked_line[match.end(2) :].lstrip().startswith("<"):
+                    partial_scope = ""
         else:
             # Method or property
             name = match.group(3)
             kind = "method" if "(" in line else "property"
             sig = line.strip()
-            if pattern.match(checked_line) and (position := start + match.start(3)) < len(view):
+            if checked_match and (position := start + match.start(3)) < len(view):
                 declaring_type = type_bodies.get(
                     _csharp_type_body(position, owners, type_bodies), ""
                 )
+                if method := _CSHARP_METHOD_USE_RE.match(view, position + len(name)):
+                    parameter_names = _csharp_parameter_names(view, method.end() - 1, owners, ends)
 
         symbols.append(
             SourceSymbol(
@@ -419,6 +474,8 @@ def _extract_csharp_symbols(content: str, file_path: str) -> list[SourceSymbol]:
                 line=i + 1,
                 signature=sig,
                 declaring_type=declaring_type,
+                partial_scope=partial_scope,
+                parameter_names=parameter_names,
             )
         )
 
@@ -2960,12 +3017,14 @@ def _qualified_member_checks(
             )
             if owners[param.start(1)] == opening
         ]
+        if not params:
+            continue
+        methods = [method for method in methods if method.parameter_names is not None]
+        if not methods:
+            unresolved.add(name)
+            continue
         missing_by_overload = [
-            [
-                param
-                for param in params
-                if not re.search(rf"\b{re.escape(param)}\b", method.signature)
-            ]
+            [param for param in params if param not in (method.parameter_names or [])]
             for method in methods
         ]
         best = min(range(len(methods)), key=lambda index: len(missing_by_overload[index]))
@@ -3597,7 +3656,7 @@ def run_compilability_check(
 
     # Build symbol index from assessment
     symbol_index: dict[str, SourceSymbol] = {}
-    csharp_types: dict[str, int] = {}
+    csharp_types: dict[str, list[tuple[str, str]]] = {}
     repo_methods: _RepoMethods = {}
     for sym_dict in source_symbols:
         sym = SourceSymbol(**sym_dict)
@@ -3608,12 +3667,15 @@ def run_compilability_check(
             "record",
             "interface",
         }:
-            csharp_types[sym.name] = csharp_types.get(sym.name, 0) + 1
+            csharp_types.setdefault(sym.name, []).append((sym.kind, sym.partial_scope))
         if sym.declaring_type and sym.kind == "method":
             repo_methods.setdefault((sym.declaring_type, sym.name), []).append(sym)
-    repo_methods = {
-        key: methods for key, methods in repo_methods.items() if csharp_types.get(key[0]) == 1
+    unambiguous = {
+        name
+        for name, declarations in csharp_types.items()
+        if len(declarations) == 1 or (declarations[0][1] and len(set(declarations)) == 1)
     }
+    repo_methods = {key: methods for key, methods in repo_methods.items() if key[0] in unambiguous}
 
     # Build a set of all known symbol names for quick lookup
     known_names = set(symbol_index.keys())

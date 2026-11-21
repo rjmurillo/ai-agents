@@ -593,6 +593,7 @@ def literal_collections(index: CodeIndex) -> list[tuple[str, int, str, list[ast.
 
 def _same_script(path: str, mention: str) -> bool:
     """True when ``mention`` names ``path`` by its full path or a trailing part."""
+    mention = mention.removeprefix("./")
     return path == mention or path.endswith("/" + mention)
 
 
@@ -660,7 +661,7 @@ def check_literal_subset(prose: ProseLine, index: CodeIndex) -> list[dict[str, o
     candidate_ids = sorted({i for token in named for i in by_member.get(token, ())})
     if not candidate_ids:
         return []
-    scripts = {m.removeprefix("./") for m in _SCRIPT_MENTION.findall(prose.text)}
+    scripts = _SCRIPT_MENTION.findall(prose.text)
     scoped = bool(_SCOPE_WORD.search(prose.text))
     found = []
     for entry_id in candidate_ids:
@@ -670,9 +671,9 @@ def check_literal_subset(prose: ProseLine, index: CodeIndex) -> list[dict[str, o
         # in that file. Two shared paths and a scope word alone matched
         # unrelated table rows (issue #7484), because any changed or
         # mentioned script joins the index for every prose line.
-        explicit = symbol in prose.text
         paths = len(overlap) >= 2 and all(f"`{s}/`" in prose.text for s in overlap)
         own_file = prose.file == path or any(_same_script(path, m) for m in scripts)
+        explicit = symbol in named and (symbol.isupper() or own_file)
         if not (explicit or paths and own_file and scoped):
             continue
         if overlap and overlap < members:
@@ -728,8 +729,13 @@ def check_literal_count(prose: ProseLine, index: CodeIndex) -> list[dict[str, ob
     if not matches:
         return []
     matches.sort(key=lambda item: item[0])
+    scripts = _SCRIPT_MENTION.findall(prose.text)
     found = []
     for _pos, path, line, symbol, length in matches:
+        if not symbol.isupper() and not (
+            length and (path == prose.file or any(_same_script(path, script) for script in scripts))
+        ):
+            continue
         count = _count_beside_symbol(prose.text, symbol, _COUNT_WORD_VALUES)
         if count is None or count == length:
             continue
@@ -756,7 +762,14 @@ _KEY_HOLDS_NOUN = re.compile(
 # Placeholder names that docs use to describe the pattern itself, not a real JSON key.
 _PLACEHOLDER_KEYS = {"key", "field", "name", "value", "k", "x"}
 _PRONOUNS = {"it", "them", "this", "that", "these", "those", "all", "everything", "both"}
-_NON_NOUNS = {"recorded", "listed", "stored", "written", "retained", "reported"}
+_NON_NOUNS = {"recorded", "listed", "stored", "written", "retained", "reported"} | {
+    "at",
+    "are",
+    "is",
+    "its",
+    "only",
+}
+_JSON_MENTION = re.compile(r"\bjson\b", re.IGNORECASE)
 
 
 def _stem5(word: str) -> str:
@@ -777,6 +790,9 @@ def check_json_key(prose: ProseLine, index: CodeIndex) -> tuple[list[dict[str, o
     """
     found: list[dict[str, object]] = []
     notes: list[str] = []
+    if not _JSON_MENTION.search(prose.text):
+        return found, notes
+    scripts = _SCRIPT_MENTION.findall(prose.text)
     pairs = [
         m.groupdict() for p in (_NOUN_UNDER_KEY, _KEY_HOLDS_NOUN) for m in p.finditer(prose.text)
     ]
@@ -785,6 +801,16 @@ def check_json_key(prose: ProseLine, index: CodeIndex) -> tuple[list[dict[str, o
         if noun.lower() in _PRONOUNS | _NON_NOUNS or key in _PLACEHOLDER_KEYS:
             continue
         writes = [w for w in index.assignments(key) if w[2]]
+        bound_writes = [
+            write
+            for write in writes
+            if write[0] == prose.file or any(_same_script(write[0], script) for script in scripts)
+        ]
+        if bound_writes:
+            writes = bound_writes
+        elif scripts or len({path for path, _, _ in writes}) > 1:
+            notes.append(f"R3: no unique source for `{key}` in changed code")
+            continue
         if not writes:
             notes.append(f"R3: no assignment to `{key}` with identifiers in changed code")
             continue
