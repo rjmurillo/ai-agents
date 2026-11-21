@@ -87,7 +87,7 @@ def test_the_listed_names_are_found_at_the_root_and_in_docs(tmp_path: Path) -> N
     write(tmp_path, "README.md", "D9: not a log\n")
     write(tmp_path, "docs/guide.md", "D9: not a log\n")
     assert adr_docs.find_log_files(tmp_path) == sorted(names)
-    entries = adr_docs.read_log_entries(tmp_path)
+    entries, _files, _skipped = adr_docs.read_log_entries(tmp_path)
     assert sorted(entry.id or "" for _file, entry in entries) == ["D1", "D2", "D3", "D4"]
 
 

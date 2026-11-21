@@ -25,8 +25,9 @@ Standard library only. Subcommands:
     must be a located ADR folder and the file must not be ignored by git.
 
 Every command prints JSON. Exit codes: 0 done; 1 the draft target exists or another ADR took
-its number (``error`` is ``exists``); 2 bad arguments, unreadable or malformed input, or a
-refused ``--out`` (``config`` or ``io``); 3 git is missing, failed, or timed out (``git``).
+its number (``error`` is ``exists``; after the second case the draft stays on disk); 2 bad
+arguments, unreadable or malformed input, a refused ``--out`` (``config`` or ``io``), or an
+internal error (``internal``); 3 git is missing, failed, or timed out (``git``).
 
 Drafting an ADR from a scan candidate:
 
@@ -234,7 +235,7 @@ def _gate_target(out_dir: Path) -> tuple[Path | None, Path]:
         raise ConfigError(f"{out_dir} is not an ADR folder that takes drafts: {exc}") from exc
     if tree is None:
         return None, out_dir
-    for rel, _source in locate_folders(tree):
+    for rel, _source in locate_folders(tree)[0]:
         folder = (tree / rel).resolve()
         if is_draft_target(rel) and _same_file(folder, out_dir):
             return tree, folder
@@ -305,7 +306,12 @@ def draft(scan_path: str, ident: str, out: str, status: str) -> dict[str, Any]:
         if item.number == number and item.name != target.name
     ]
     if twins:
-        raise ExistsError(f"another ADR took number {number}", target, twins)
+        raise ExistsError(
+            f"the draft was written to {target}, but another ADR has number {number} "
+            f"({', '.join(twins)}); renumber or remove one of the two files",
+            target,
+            twins,
+        )
     return {
         "path": str(target),
         "number": number,
@@ -328,8 +334,10 @@ examples:
   %(prog)s draft --scan ~/scan.json --id c-1a2b3c4 --out docs/adr
 exit codes:
   0  done
-  1  the draft target exists, or another ADR took its number
-  2  bad arguments, unreadable or malformed input, or a refused --out
+  1  the draft target exists, or another ADR took its number (in the second case
+     the draft stays on disk: renumber or remove one file)
+  2  bad arguments, unreadable or malformed input, a refused --out, or an internal
+     error (the error field is "internal")
   3  git is missing, failed, or timed out
 """
 
@@ -421,23 +429,29 @@ def build_parser() -> argparse.ArgumentParser:
 _HANDLERS = {"locate": _cmd_locate, "scan": _cmd_scan, "draft": _cmd_draft}
 
 
+def _fail(code: int, error: str, message: str, **extra: Any) -> int:
+    print(json.dumps({"error": error, "message": message, **extra}))
+    return code
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         payload = _HANDLERS[args.command](args)
     except ExistsError as exc:
-        body = {"error": "exists", "message": str(exc), "path": str(exc.path), "others": exc.others}
-        print(json.dumps(body))
-        return 1
+        return _fail(1, "exists", str(exc), path=str(exc.path), others=exc.others)
     except ConfigError as exc:
-        print(json.dumps({"error": "config", "message": str(exc)}))
-        return 2
+        return _fail(2, "config", str(exc))
     except GitError as exc:
-        print(json.dumps({"error": "git", "message": str(exc)}))
-        return 3
+        return _fail(3, "git", str(exc))
     except OSError as exc:
-        print(json.dumps({"error": "io", "message": str(exc)}))
-        return 2
+        return _fail(2, "io", str(exc))
+    except (RecursionError, ValueError) as exc:  # UnicodeError is a ValueError
+        return _fail(2, "config", f"bad input: {type(exc).__name__}: {exc}")
+    except Exception as exc:  # last resort: JSON on stdout, never a traceback
+        # The standard's logic-error code, 1, is reserved here for ``exists``, and 3 and 4 mean
+        # external and auth. Nothing fits, so an internal error shares exit 2 and says so.
+        return _fail(2, "internal", f"{type(exc).__name__}: {exc}")
     print(json.dumps(payload, indent=2))
     return 0
 

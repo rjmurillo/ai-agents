@@ -362,14 +362,22 @@ def entry_date(text: str) -> str | None:
     return None
 
 
-def read_log_entries(root: Path) -> list[tuple[str, LogEntry]]:
-    """``(relative file, entry)`` for every entry of every decision log file under ``root``."""
+def read_log_entries(root: Path) -> tuple[list[tuple[str, LogEntry]], int, int]:
+    """``(entries, files, skipped)`` for the decision log files under ``root``.
+
+    An entry is ``(relative file, entry)``. ``files`` counts the log files found, and
+    ``skipped`` counts those that were unreadable or over ``MAX_READ_BYTES``.
+    """
     entries: list[tuple[str, LogEntry]] = []
-    for rel in find_log_files(root):
+    files = find_log_files(root)
+    skipped = 0
+    for rel in files:
         text = read_bounded(root / rel)
-        if text is not None:
+        if text is None:
+            skipped += 1
+        else:
             entries.extend((rel, entry) for entry in split_decision_log(text))
-    return entries
+    return entries, len(files), skipped
 
 
 class ExistingAdrs:
@@ -409,11 +417,15 @@ class ExistingAdrs:
 
 def log_candidates(
     root: Path, existing: ExistingAdrs, dropped: dict[str, int]
-) -> list[dict[str, Any]]:
-    """E1: a decision-log entry that has an id and is named by no ADR is a candidate."""
+) -> tuple[list[dict[str, Any]], int, int]:
+    """E1: ``(candidates, log files, log files skipped)``.
+
+    A decision-log entry that has an id and is named by no ADR is a candidate.
+    """
     found: list[dict[str, Any]] = []
     taken: set[str] = set()
-    for rel, entry in read_log_entries(root):
+    entries, files, skipped = read_log_entries(root)
+    for rel, entry in entries:
         if entry.id is None:
             dropped["log_no_id"] += 1
         elif existing.names_id(entry.id):
@@ -438,4 +450,4 @@ def log_candidates(
                     "signals": [],
                 }
             )
-    return found
+    return found, files, skipped

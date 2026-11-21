@@ -236,20 +236,29 @@ def _adr_dir_file(root: Path) -> str | None:
     return name
 
 
-def _walk_candidates(root: Path) -> list[str]:
-    """Folders holding ``MIN_SCAN_FILES`` or more ADR-named files, bounded and sorted."""
+def _walk_candidates(root: Path) -> tuple[list[str], bool]:
+    """Folders holding ``MIN_SCAN_FILES`` or more ADR-named files, bounded and sorted.
+
+    The flag is True when the walk stopped at ``_MAX_WALK_DIRS`` folders or did not enter the
+    folders below ``_MAX_WALK_DEPTH`` levels. Folders in ``_SKIP_DIRS`` are never entered and
+    never count as a cut.
+    """
     found: list[str] = []
     visited = 0
+    truncated = False
     for current, dirs, _files in os.walk(root, followlinks=False):
         visited += 1
         here = Path(current)
         depth = len(here.relative_to(root).parts)
-        dirs[:] = sorted(d for d in dirs if d not in _SKIP_DIRS and depth < _MAX_WALK_DEPTH)
+        below = sorted(d for d in dirs if d not in _SKIP_DIRS)
+        if below and depth >= _MAX_WALK_DEPTH:
+            truncated, below = True, []
+        dirs[:] = below
         if visited > _MAX_WALK_DIRS:
-            break
+            return found, True
         if len(adr_files(here)) >= MIN_SCAN_FILES and here != root:
             found.append(here.relative_to(root).as_posix())
-    return found
+    return found, truncated
 
 
 def _declared(root: Path) -> list[tuple[str, str]]:
@@ -272,8 +281,9 @@ def _accept(root: Path, rel: str, seen: set[Path]) -> Path | None:
     return target
 
 
-def locate_folders(root: Path) -> list[tuple[str, str]]:
-    """Every ADR folder as ``(path relative to the root, source)``, sorted by path.
+def locate_folders(root: Path) -> tuple[list[tuple[str, str]], bool]:
+    """Every ADR folder as ``(path relative to the root, source)``, sorted by path, and whether
+    the directory walk was cut short (see ``_walk_candidates``).
 
     ``source`` is ``adr-dir``, ``known`` or ``scan``. The scan runs only when the first
     two sources find nothing.
@@ -285,12 +295,14 @@ def locate_folders(root: Path) -> list[tuple[str, str]]:
         target = _accept(root, rel, seen)
         if target is not None:
             found.setdefault(target.relative_to(root).as_posix(), source)
+    truncated = False
     if not found:
-        for rel in _walk_candidates(root):
+        walked, truncated = _walk_candidates(root)
+        for rel in walked:
             target = _accept(root, rel, seen)
             if target is not None:
                 found[target.relative_to(root).as_posix()] = "scan"
-    return sorted(found.items())
+    return sorted(found.items()), truncated
 
 
 _RFC_FOLDER = re.compile(r"rfcs?", re.IGNORECASE)
@@ -321,7 +333,8 @@ def _folder_payload(root: Path, rel: str, source: str) -> dict[str, Any]:
 
 def locate(root: Path) -> dict[str, Any]:
     """The ``locate`` payload: folders, the single primary folder or None, and the next number."""
-    folders = [_folder_payload(root.resolve(), rel, source) for rel, source in locate_folders(root)]
+    found, truncated = locate_folders(root)
+    folders = [_folder_payload(root.resolve(), rel, source) for rel, source in found]
     targets = [folder for folder in folders if folder["draft_target"]]
     primary = targets[0] if len(targets) == 1 else None
     return {
@@ -329,6 +342,7 @@ def locate(root: Path) -> dict[str, Any]:
         "primary": primary["path"] if primary else None,
         "next_number": primary["next_number"] if primary else None,
         "examined": sum(folder["count"] for folder in folders),
+        "walk_truncated": truncated,
     }
 
 
@@ -342,7 +356,7 @@ def read_adr_texts(
     """
     texts: list[tuple[str, str]] = []
     skipped = 0
-    for rel, _source in locate_folders(root) if folders is None else folders:
+    for rel, _source in locate_folders(root)[0] if folders is None else folders:
         for item in adr_files(root.resolve() / rel):
             text = read_bounded(root.resolve() / rel / item.name)
             if text is None:

@@ -37,7 +37,7 @@ The payload `error` names the cause: `config` for exit 2, `git` or `io` for exit
 
 `bootstrap_drift.py` runs a `command` check only with `--allow-commands`; review the argv first, because it executes repository code. The command gets no stdin, discarded output, and only `PATH`, `HOME`, `LANG`, `LC_ALL`, `SYSTEMROOT`, `TEMP`, and `TMP` from the environment, each only when set. Never pass `--allow-commands` in a job that holds secrets or runs on untrusted pull request content.
 
-`bootstrap_adr.py` exits 1 only when `draft` finds its target file or its number already taken (payload `error` is `exists`). It never retries with another number.
+`bootstrap_adr.py` exits 1 only when `draft` finds its target file already there, or finds another ADR with the same number after it wrote (payload `error` is `exists`). In the second case it leaves the draft on disk: `path` names it, `others` names the other ADRs, and the caller must renumber or remove one of the two. It never retries with another number.
 
 `bootstrap_adr.py scan` reads git and the working tree and makes no network call. `--out` must be outside the repository. `--prs-json` is a JSON list of merged pull requests. Each item needs `number`, `title`, `body`, `url` (or `html_url`), `merged_at` (or `mergedAt`), and `author` (or `user`) with `login`. `merge_commit_sha` (or `mergeCommit.oid`) is optional.
 

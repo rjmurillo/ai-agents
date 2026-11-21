@@ -32,7 +32,13 @@ def _locate(repo: Path) -> dict[str, Any]:
 
 def test_a_repo_with_no_adr_folder_has_no_folders_and_no_primary(tmp_path: Path) -> None:
     repo = new_repo(tmp_path / "r")
-    assert _locate(repo) == {"folders": [], "primary": None, "next_number": None, "examined": 0}
+    assert _locate(repo) == {
+        "folders": [],
+        "primary": None,
+        "next_number": None,
+        "examined": 0,
+        "walk_truncated": False,
+    }
 
 
 def test_the_project_toolkit_architecture_folder_is_found_with_prefix_and_width(

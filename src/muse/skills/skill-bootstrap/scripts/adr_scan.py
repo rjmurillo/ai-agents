@@ -83,6 +83,7 @@ __all__ = [
     "git_bytes",
     "git_env",
     "git_text",
+    "is_shallow",
     "origin_web_base",
     "read_commits",
     "refusal",
@@ -233,14 +234,15 @@ def scan(
     dropped = dict.fromkeys(DROP_KEYS, 0)
     web = origin_web_base(root)
     pr_rows = select_prs(prs or [], dropped, web[1] if web else None)
-    folders = locate_folders(root)
+    folders, walk_truncated = locate_folders(root)
     texts, skipped = read_adr_texts(root, folders)
     existing = ExistingAdrs(texts)
     pending, kept_prs = _pr_pending(pr_rows, dropped)
     pending += _commit_candidates(records, covering_numbers(kept_prs), web, dropped)
     candidates = _suppress(pending, existing, dropped)
     candidates.sort(key=lambda item: item["date"] or "", reverse=True)
-    candidates += log_candidates(root, existing, dropped)
+    log_found, log_files, log_skipped = log_candidates(root, existing, dropped)
+    candidates += log_found
     _unique_ids(candidates)
     return {
         "repo": str(root),
@@ -249,11 +251,15 @@ def scan(
         "max_commits": max_commits,
         "since": since,
         "truncated": truncated,
+        "shallow": is_shallow(root),
+        "walk_truncated": walk_truncated,
         "examined": {
             "commits": len(records),
             "prs": len(prs or []),
             "adr_files": len(texts),
             "adr_files_skipped": skipped,
+            "log_files": log_files,
+            "log_files_skipped": log_skipped,
         },
         "adr_folders": [path for path, _source in folders],
         "dropped": dropped,
@@ -451,6 +457,11 @@ def origin_web_base(root: Path) -> tuple[str, str] | None:
     """``web_base`` of the ``origin`` remote. A repository with no origin gives None."""
     proc = git_text(root, "config", "--get", "remote.origin.url", ok=(0, 1))
     return web_base(proc.stdout) if proc.returncode == 0 else None
+
+
+def is_shallow(root: Path) -> bool:
+    """True for a shallow clone: history older than its boundary was never fetched."""
+    return git_text(root, "rev-parse", "--is-shallow-repository").stdout.strip() == "true"
 
 
 def read_commits(

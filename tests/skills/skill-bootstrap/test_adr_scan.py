@@ -341,7 +341,15 @@ def test_the_scan_result_names_its_repository_head_and_adr_folders(tmp_path: Pat
     payload = _scan(repo)
     assert payload["repo"] == str(repo) and payload["head"] == head
     assert payload["adr_folders"] == ["docs/adr"]
-    assert payload["examined"] == {"commits": 1, "prs": 0, "adr_files": 1, "adr_files_skipped": 0}
+    assert payload["examined"] == {
+        "commits": 1,
+        "prs": 0,
+        "adr_files": 1,
+        "adr_files_skipped": 0,
+        "log_files": 0,
+        "log_files_skipped": 0,
+    }
+    assert payload["shallow"] is False and payload["walk_truncated"] is False
     assert set(payload["dropped"]) == set(adr_scan.DROP_KEYS)
 
 
