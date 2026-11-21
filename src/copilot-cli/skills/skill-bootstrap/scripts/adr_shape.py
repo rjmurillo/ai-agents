@@ -4,7 +4,7 @@
 #                                     isNonBehaviouralType, which no ADR path calls)
 #   src/lib/git.ts                   (hasStatedRationale, isReasonBearingLine, resolveCommitShape,
 #                                     isDecisionCommit)
-#   src/lib/context-from-graph.ts    (decisionShapedRows, lines 84-109)
+#   src/lib/context-from-graph.ts    (the title filter of decisionShapedRows, lines 84-109)
 #   src/lib/reason-extract.ts        (stripTrailers, stripImporterMetadata, hasImporterMetadata,
 #                                     and the patterns they use). The sentence scoring lives in
 #                                     adr_reason.py.
@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
-from typing import NamedTuple, Protocol, TypeVar
+from typing import NamedTuple
 
 __all__ = [
     "CONVENTIONAL_PREFIX",
@@ -45,8 +45,6 @@ __all__ = [
     "STATED_WHY",
     "TRAILER",
     "CommitShape",
-    "DecisionRow",
-    "decision_shaped_rows",
     "flat",
     "has_importer_metadata",
     "has_stated_rationale",
@@ -444,7 +442,6 @@ _FIX_SHAPED = re.compile(
     r"|bump|deps?)\b|^#\d+",
     _I,
 )
-_CODE_PLATFORMS = frozenset({"git", "github", "gitlab"})
 # `type(scope)!:` with an optional leading issue number on what follows.
 _ANY_TYPE_PREFIX = re.compile(r"^([a-z]+)(?:\([^)]*\))?!?:\s*(?:#\d+\s*)?", _I)
 # Words a choice is written in.
@@ -454,19 +451,6 @@ _DECISION_SHAPED = re.compile(
     r"|standardi[sz]e|forbid|disallow)\b|^use\b",
     _I,
 )
-
-
-class DecisionRow(Protocol):
-    """A listed decision: any object with a title and a source platform."""
-
-    @property
-    def title(self) -> str: ...
-
-    @property
-    def platform(self) -> str | None: ...
-
-
-_Row = TypeVar("_Row", bound=DecisionRow)
 
 
 def is_decision_shaped_title(title: str) -> bool:
@@ -481,18 +465,3 @@ def is_decision_shaped_title(title: str) -> bool:
     if prefix and _FIX_SHAPED.search(prefix.group(1)):
         return False
     return not _FIX_SHAPED.search(rest) and bool(_DECISION_SHAPED.search(rest))
-
-
-def decision_shaped_rows(rows: Iterable[_Row]) -> list[_Row]:
-    """The non-docs rows that read as decisions.
-
-    Rows from chat and ticket importers are already chosen by the importer, so only
-    git, github and gitlab rows are filtered.
-    """
-    kept: list[_Row] = []
-    for row in rows:
-        if row.platform == "docs":
-            continue
-        if (row.platform or "") not in _CODE_PLATFORMS or is_decision_shaped_title(row.title):
-            kept.append(row)
-    return kept

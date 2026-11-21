@@ -53,6 +53,7 @@ from adr_reason import extract_reason
 __all__ = [
     "CHANGELOG_FILES",
     "CONTRIBUTING_FILES",
+    "DROP_KEYS",
     "README_FILES",
     "DocKind",
     "ExistingAdrs",
@@ -189,6 +190,23 @@ def rule_sections(kind: DocKind, markdown: str) -> list[RuleSection]:
         if is_rule_section(kind, heading, body):
             found.append(RuleSection(heading, body))
     return found
+
+
+# Every key of the scan payload's ``dropped`` counts. ``adr_scan`` re-exports it.
+DROP_KEYS = (
+    "housekeeping",
+    "no_rationale",
+    "not_decision_shaped",
+    "covered_by_pr",
+    "already_documented",
+    "pr_incomplete",
+    "pr_other_repo",
+    "pr_bot",
+    "pr_housekeeping",
+    "pr_no_reason",
+    "pr_not_decision_shaped",
+    "log_no_id",
+)
 
 
 # ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
-"""Tests for adr_commits: decision-shaped rows and breaking changes.
+"""Tests for the decision-shaped title filter and breaking changes.
 
 The decision-shaped cases port the seeded titles of align-cli tests/context-from-graph.test.ts
-(MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align) at the filter level: upstream
+(MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align) at the title level: upstream
 seeds them as github rows and reads them back through selectForFile, which calls
 decisionShapedRows. The graph, database and embedding parts of those tests are not ported.
 The commit object parser lives in test_adr_commit_objects.py. The breaking-change signal is
@@ -10,55 +10,38 @@ added by this port, so those cases are new.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import adr_commits
 import adr_shape
 import pytest
 
 # ---------------------------------------------------------------------------
-# P8: decision_shaped_rows
+# P8: is_decision_shaped_title
 # ---------------------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class Row:
-    title: str
-    platform: str | None = None
-
-
-def _titles(rows: list[Row]) -> list[str]:
-    return [row.title for row in rows]
-
-
-def test_rows_docs_rows_are_left_out() -> None:
-    assert adr_shape.decision_shaped_rows([Row("Always sign commits", "docs")]) == []
-
-
-def test_rows_chat_and_ticket_rows_are_never_filtered() -> None:
-    rows = [Row("fix the thing", "slack"), Row("lunch plans", None), Row("#12 bug", "jira")]
-    assert adr_shape.decision_shaped_rows(rows) == rows
-
-
-def test_rows_commits_and_prs_keep_decision_wording_and_drop_the_rest() -> None:
-    rows = [
-        Row("Adopt token-bucket rate limiting", "github"),
-        Row("Switch to gRPC for internal calls", "git"),
-        Row("Use Postgres for the events store", "gitlab"),
-        Row("Fix retry on 503", "github"),
-        Row("Rename the helper module", "github"),
-        Row("#123 something", "git"),
-    ]
-    assert _titles(adr_shape.decision_shaped_rows(rows)) == [
-        "Adopt token-bucket rate limiting",
-        "Switch to gRPC for internal calls",
-        "Use Postgres for the events store",
-    ]
 
 
 @pytest.mark.parametrize(
     "title",
     [
+        "Adopt token-bucket rate limiting",
+        "Switch to gRPC for internal calls",
+        "Use Postgres for the events store",
+        # Upstream: "names every active decision in the local graph" and the superseded pair.
+        "Use Postgres 16 for the events store",
+        "Always retry webhooks three times with backoff",
+        "Use Redis to cache sessions",
+        "Use Postgres to cache sessions",
+    ],
+)
+def test_title_decision_wording_is_kept(title: str) -> None:
+    assert adr_shape.is_decision_shaped_title(title)
+
+
+@pytest.mark.parametrize(
+    "title",
+    [
+        "Fix retry on 503",
+        "Rename the helper module",
+        "#123 something",
         "fix: adopt nothing, this is a fix",
         "docs: always sign commits",
         "chore: never mind the policy",
@@ -70,8 +53,8 @@ def test_rows_commits_and_prs_keep_decision_wording_and_drop_the_rest() -> None:
         "feat: fix retry policy",
     ],
 )
-def test_rows_a_fix_shaped_type_or_lead_is_dropped(title: str) -> None:
-    assert adr_shape.decision_shaped_rows([Row(title, "github")]) == []
+def test_title_a_fix_shaped_type_or_lead_is_dropped(title: str) -> None:
+    assert not adr_shape.is_decision_shaped_title(title)
 
 
 @pytest.mark.parametrize(
@@ -87,34 +70,8 @@ def test_rows_a_fix_shaped_type_or_lead_is_dropped(title: str) -> None:
         "feature(core): prefer streams over buffers",
     ],
 )
-def test_rows_a_scoped_commit_with_a_decision_wording_is_kept(title: str) -> None:
-    assert _titles(adr_shape.decision_shaped_rows([Row(title, "github")])) == [title]
-
-
-def test_rows_names_every_active_decision_of_the_local_graph_test() -> None:
-    # Upstream: "names every active decision in the local graph" seeds these two titles.
-    rows = [
-        Row("Use Postgres 16 for the events store", "github"),
-        Row("Always retry webhooks three times with backoff", "github"),
-    ]
-    assert adr_shape.decision_shaped_rows(rows) == rows
-
-
-def test_rows_the_superseded_pair_of_the_local_graph_test_both_pass_the_title_filter() -> None:
-    # Upstream: "leaves out a decision that was superseded". Supersession comes from graph
-    # links, which this port does not have, so the filter alone keeps both titles.
-    rows = [
-        Row("Use Redis to cache sessions", "github"),
-        Row("Use Postgres to cache sessions", "github"),
-    ]
-    assert adr_shape.decision_shaped_rows(rows) == rows
-
-
-def test_rows_keep_the_input_objects_in_order() -> None:
-    rows = [Row("Use A for storage today", "git"), Row("fix: x", "git"), Row("Use B", "git")]
-    result = adr_shape.decision_shaped_rows(rows)
-    assert result == [rows[0], rows[2]]
-    assert result[0] is rows[0]
+def test_title_a_scoped_commit_with_a_decision_wording_is_kept(title: str) -> None:
+    assert adr_shape.is_decision_shaped_title(title)
 
 
 def test_decision_shaped_title_the_leading_issue_number_after_the_prefix_is_ignored() -> None:

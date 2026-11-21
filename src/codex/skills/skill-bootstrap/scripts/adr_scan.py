@@ -60,7 +60,7 @@ from adr_commits import (
     select_prs,
     without_merge_lines,
 )
-from adr_docs import ExistingAdrs, log_candidates
+from adr_docs import DROP_KEYS, ExistingAdrs, log_candidates
 from adr_locate import locate_folders, read_adr_texts
 from adr_reason import extract_reason
 from adr_shape import (
@@ -92,21 +92,6 @@ __all__ = [
     "stderr_text",
     "web_base",
 ]
-
-DROP_KEYS = (
-    "housekeeping",
-    "no_rationale",
-    "not_decision_shaped",
-    "covered_by_pr",
-    "already_documented",
-    "pr_incomplete",
-    "pr_other_repo",
-    "pr_bot",
-    "pr_housekeeping",
-    "pr_no_reason",
-    "pr_not_decision_shaped",
-    "log_no_id",
-)
 
 Candidate = dict[str, Any]
 
