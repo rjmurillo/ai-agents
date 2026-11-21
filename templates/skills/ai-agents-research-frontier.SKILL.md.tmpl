@@ -141,8 +141,8 @@ You have a result when a controlled eval shows a gated-corpus session
 outperforms an ungated session on N pre-registered scenarios with statistically
 defensible evidence (pre-declared N, pre-declared success metric, variance
 controls per `scripts/eval/variance-control.py`). You have a negative result,
-equally worth publishing, if the gated corpus shows no measurable difference:
-that would falsify the strong form of ADR-069.
+equally worth publishing, if the gated corpus shows no measurable difference,
+or does measurably worse: either would falsify the strong form of ADR-069.
 
 ## Program 2: Cross-Harness Abstraction (ADR-072 seam, ADR-068)
 

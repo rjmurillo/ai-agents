@@ -26,5 +26,5 @@ The command prints `status`, `superseded_by`, `implemented`, and `date` for ever
 | Consolidated per-event hook dispatcher for Copilot CLI | ADR-068 | Rationale narrowed after the 2026-07-22 hook purge; ADR-097 then retired every tool-call hook. Issue #3218 closed after confirming the generation machinery stays live | Historical matcher and timeout behavior made one process per shim unsafe |
 | Zero tool-use hooks | ADR-097 | `.claude/settings.json` keeps only session-boundary events | Per-call hooks were retired; see Phase 3 counts from `hook_inventory.py` |
 | JTBD plugin slicing, per-harness emission | ADR-072 | Accepted with `implemented: false`: accepting the direction moves no code. Plugins are still sliced by directory | Plugins are sliced by directory today, not by job-to-be-done |
-| Context corpus is the product | ADR-069 | A thesis; do not cite as settled | Thesis only |
+| Context corpus is the product | ADR-069 | Accepted as a principle; do not cite it as a measured effect | The one controlled test (2026-09-28 control ablation) returned `MIXED` |
 | LSP-first navigation (static steering) | ADR-062 | Runtime enforcement retired (#3216) | Symbol queries beat grep on token cost |
