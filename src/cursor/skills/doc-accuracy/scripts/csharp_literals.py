@@ -108,9 +108,9 @@ def _union_verbatim_readings(code: str, body: int, close: int, chars: list[str])
     if not isinstance(chars, _Chars) or chars.nested:
         chars[body:close] = code[body:close]
         return
-    shown = chars.shown.get(close)
+    shown = chars.shown.get((body, close))
     if shown is None:
-        shown = chars.shown[close] = _code_reading(code, body, close, chars.keep)
+        shown = chars.shown[body, close] = _code_reading(code, body, close, chars.keep)
     for index in shown:
         chars[index] = code[index]
 
@@ -293,14 +293,15 @@ class _Chars(list[str]):
     """The scan buffer, plus restores applied once the pass ends.
 
     ``keep`` lists indices a doubtful verbatim close must leave visible.
-    ``shown`` maps each doubtful close to the body indices it shows.
+    ``shown`` maps each doubtful (body, close) pair to the body indices it
+    shows.
     ``nested`` marks a re-lex, which never starts another one.
     """
 
     def __init__(self, code: str, *, nested: bool) -> None:
         super().__init__(code)
         self.keep: list[int] = []
-        self.shown: dict[int, list[int]] = {}
+        self.shown: dict[tuple[int, int], list[int]] = {}
         self.nested = nested
 
 

@@ -537,6 +537,17 @@ class TestCsharpLiteralAndAttributeArguments:
             assert literal not in result, code
             assert "FakeWidget" in result, code
 
+    def test_valid_verbatim_ending_like_an_opener_stays_visible(self) -> None:
+        """Accepted over-report: a close after "=", ")" or "," is doubted."""
+        for code in (
+            'var q = @"SqlB\nWHERE (x)";',
+            'var q = @"SqlC\nb =";',
+            'var q = @"SqlD\nb,";',
+        ):
+            result = _extract_identifiers(code, "csharp")
+
+            assert code.split('"')[1][:4] in result, code
+
     def test_nested_verbatim_string_in_hole_is_blanked(self) -> None:
         result = _extract_identifiers('var s = $"{F(@"FakeLit")}";', "csharp")
 
@@ -631,14 +642,15 @@ class TestCsharpLiteralAndAttributeArguments:
             'var s0 = @"a ""q"" b;\nFakeWidget.Go();\n/* " { */ Other.Go();',
             'var s0 = @"a ""q"" b;\nFakeWidget.Go();\nvar c5 = \'"\';',
             'var s1 = $@"x {A.X} ""q"";\nFakeWidget.Go();\nvar c2 = \'{\';',
-            'var sql = @"SELECT *\nFROM t WHERE a = (" + @"SELECT id\nFROM u)"; FakeWidget.Run();',
+            'var sql = @"SELECT *\nFROM t WHERE a = (" + @"SELECT id\nFROM u)"; '
+            'FakeWidget.Run(sql); Log("done");',
             'var a = @"x\nk=" + y; /* a\nsay "hi */ FakeWidget.Go(); var s = "z";',
             'var a = @"SELECT\nWHERE x ="; var b = @"multi\nline" + FakeWidget.Go() + @"z";',
             'var b = @"x\ny =" + $@"multi {\nk} line" + FakeWidget.Go() + "z";',
             'var a = @"x\ny =" + @"p\nq" + FakeWidget.Go() + "z";',
             'Run(@"a\nb)", @"\nc"); FakeWidget.Go("x");',
             'var a = @"x;\nvar b = @"multi\nline" + FakeWidget.Go() + @"z";',
-            'var a = @"x;\nFakeWidget.Go(); var b = @"line1\nline2"; Real.Run(); var c = "z";',
+            'var a = @"x;\nM(); var b = @"line1\nline2"; FakeWidget.Run(); var c = "z";',
         ):
             result = _extract_identifiers(code, "csharp")
 

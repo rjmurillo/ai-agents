@@ -78,7 +78,10 @@ def csharp_hole_end(
     Accepted limits: chained unclosed holes or literals on one line, a
     string missing its close quote that pairs with a later quote on that
     line, and a valid hole over the line cap or holding an interpolated
-    string on a later line can still blank code up to the next quote.
+    string on a later line can still blank code up to the next quote. A
+    valid multi-line verbatim string whose last line ends in an operator,
+    bracket, separator, or keyword such as ``in`` before its close quote
+    stays visible, so its words can be reported.
     """
     return _HoleScan(code, chars, escape, start, skip_token).run()
 
