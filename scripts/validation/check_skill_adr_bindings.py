@@ -611,7 +611,7 @@ def _report_absent(result: ScanResult) -> None:
 def _corpus_is_empty(adr_dir: Path) -> bool:
     """True when no `ADR-NNN-*.md` is present, so no status can resolve.
 
-    Mirrors the corpus-presence half of `check_adr_lifecycle.py:1258`, quoted
+    Mirrors the corpus-presence half of `check_adr_lifecycle.py:1261`, quoted
     verbatim::
 
         if not any(ADR_FILENAME_RE.match(md.name) for md in adr_dir.glob("ADR-*.md")):

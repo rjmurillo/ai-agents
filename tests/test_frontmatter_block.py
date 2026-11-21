@@ -13,6 +13,7 @@ import ast
 import functools
 import re
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -154,7 +155,7 @@ class TestDuplicateKeys:
     def test_unhashable_key_does_not_raise_typeerror(self) -> None:
         """`? [a, b]` builds a list key. A set-based duplicate check raises
         TypeError here, escaping the caller's YAMLError handling and turning a
-        documented exit code into a traceback (generate_adr_index.py:202)."""
+        documented exit code into a traceback."""
         result = parse("---\n? [a, b]\n: value\n---\nBody.\n")
         assert result.status in (FrontmatterStatus.VALID, FrontmatterStatus.MALFORMED)
 
@@ -365,14 +366,14 @@ class TestLoaderOverride:
     """A caller may name its loader, but only a SafeLoader subclass."""
 
     def test_custom_safe_loader_is_used(self) -> None:
-        class UpperLoader(yaml.SafeLoader):
-            pass
-
-        UpperLoader.add_constructor(
+        # Any: mypy sees yaml.SafeLoader as Any in tests, so a class statement
+        # subclassing it fails the strict "subclass Any" check.
+        upper_loader: Any = type("upper_loader", (yaml.SafeLoader,), {})
+        upper_loader.add_constructor(
             "tag:yaml.org,2002:str", lambda loader, node: loader.construct_scalar(node).upper()
         )
 
-        result = parse("---\nid: abc\n---\n", loader=UpperLoader)
+        result = parse("---\nid: abc\n---\n", loader=upper_loader)
 
         assert result.metadata == {"ID": "ABC"}
 

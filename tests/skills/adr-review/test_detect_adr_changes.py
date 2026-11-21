@@ -36,11 +36,12 @@ def _doc(frontmatter: str) -> str:
 
 
 def _frontmatter_fields(frontmatter: str) -> dict[str, object] | None:
-    return mod._parse_frontmatter(_doc(frontmatter))
+    fields: dict[str, object] | None = mod._parse_frontmatter(_doc(frontmatter))
+    return fields
 
 
 def _only_non_decision_fields_changed(old: str, new: str) -> bool:
-    return mod._only_non_decision_fields_changed(_doc(old), _doc(new))
+    return bool(mod._only_non_decision_fields_changed(_doc(old), _doc(new)))
 
 
 class TestGetAdrStatus:
@@ -369,6 +370,7 @@ class TestFrontmatterFields:
 
     def test_captures_indented_block_value(self) -> None:
         fields = _frontmatter_fields("supersedes:\n  - ADR-001\n  - ADR-002\nstatus: proposed\n")
+        assert fields is not None
         assert fields["supersedes"] == ["ADR-001", "ADR-002"]
         assert fields["status"] == "proposed"
 

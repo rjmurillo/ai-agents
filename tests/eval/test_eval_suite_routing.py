@@ -796,7 +796,7 @@ class _FakeCompleted:
 # The real child prints a human table to stdout. Any mock that returns JSON on
 # stdout encodes the imagined contract that shipped the first version of this
 # runner; keep the stub faithful to
-# `scripts/eval/eval-rule-activation.py:2450-2452`.
+# `scripts/eval/eval-rule-activation.py:2456-2458`.
 _CHILD_STDOUT = "code-quality  activation 4.2  citation 3.9\n\nWrote results: /tmp/x.json\n"
 
 

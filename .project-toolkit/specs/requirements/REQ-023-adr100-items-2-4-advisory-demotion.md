@@ -45,7 +45,7 @@ flag with a recorded abuse history
 (`.project-toolkit/retrospective/2026-08-07-pr-4402-scope-bypass.md`, cited directly
 in ADR-100's own text) (item 4 target). ADR-100 itself documents that item 1
 (the two commit-ceiling CI/pre-push enforcement sites) is already delivered
-by ADR-099, verified 2026-09-10 against `git_hook_policy.py:6717` and
+by ADR-099, verified 2026-09-10 against `git_hook_policy.py:6706` and
 `scripts/ci/enforce_pr_validation.py`. Items 2-4 are the unclaimed remainder
 of an already-accepted decision.
 

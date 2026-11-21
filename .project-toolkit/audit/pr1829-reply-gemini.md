@@ -7,7 +7,7 @@ $ grep -rln "markdownlint" .github/workflows/
 (no matches)
 
 $ grep -rn "markdownlint-cli2" scripts/ .github/workflows/ | grep -v "install\|--help\|--version\|setup\|comment"
-scripts/validation/pre_pr.py:199:    exit_code, _, _ = _run_subprocess(["npx", "markdownlint-cli2", "--fix", "**/*.md"])
+scripts/validation/pre_pr.py:198:    exit_code, _, _ = _run_subprocess(["npx", "markdownlint-cli2", "--fix", "**/*.md"])
 ```
 
 The only lint caller in the repository is `scripts/validation/pre_pr.py:199`, which already passes `**/*.md` explicitly. It is unaffected by the config-globs removal. The remaining `markdownlint-cli2` references in `scripts/bootstrap-vm.sh` and `.github/actions/setup-code-env/action.yml` are installer/availability checks (`--help`), not lint runs.

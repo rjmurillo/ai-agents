@@ -24,6 +24,7 @@ import subprocess
 import sys
 from pathlib import Path
 from textwrap import dedent
+from typing import Any
 
 import pytest
 
@@ -39,7 +40,7 @@ SCRIPT_PATH = (
 )
 
 
-def run_compression(content: str, level: str = "medium") -> dict:
+def run_compression(content: str, level: str = "medium") -> dict[str, Any]:
     """
     Run compression on content and return parsed result.
 

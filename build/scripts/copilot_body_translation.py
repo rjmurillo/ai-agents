@@ -440,7 +440,7 @@ def translate_reference_file(content: str, skills_output_dir: Path) -> str:
     it gets the same body transforms (1 to 3). It has no ``allowed-tools`` or
     droppable keys: any frontmatter passes through untouched.
     """
-    parts = split_fenced_frontmatter(content)
+    parts: tuple[str, str] | None = split_fenced_frontmatter(content)
     if parts is None:
         return translate_body(content, skills_output_dir)
     return parts[0] + translate_body(parts[1], skills_output_dir)
@@ -458,7 +458,7 @@ def translate_skill_file(
     passed through. When no frontmatter is present, the
     whole content is treated as body.
     """
-    parts = split_fenced_frontmatter(content)
+    parts: tuple[str, str] | None = split_fenced_frontmatter(content)
     if parts is None:
         return translate_body(content, skills_output_dir)
     frontmatter, body = parts
@@ -477,7 +477,7 @@ def drop_skill_frontmatter_keys(content: str, drop_keys: frozenset[str]) -> str:
     Claude-only ``model`` pin goes. Content with no frontmatter is returned
     unchanged.
     """
-    parts = split_fenced_frontmatter(content)
+    parts: tuple[str, str] | None = split_fenced_frontmatter(content)
     if parts is None:
         return content
     frontmatter, body = parts

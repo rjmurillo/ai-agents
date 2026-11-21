@@ -257,7 +257,9 @@ def parse_frontmatter(content: str) -> FrontmatterResult:
     if "\t" in frontmatter_content:
         result.errors.append("Frontmatter must use spaces for indentation (tabs not allowed)")
 
-    typed_frontmatter: dict[object, object] = parsed.metadata or {}
+    typed_frontmatter: dict[object, object] = {
+        key: value for key, value in (parsed.metadata or {}).items()
+    }
     if parsed.status is FrontmatterStatus.MALFORMED:
         detail = (parsed.error or "").removeprefix("invalid YAML frontmatter: ")
         result.errors.append(f"Frontmatter YAML parse error: {detail}")

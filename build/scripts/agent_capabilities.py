@@ -324,7 +324,7 @@ def expand_frontmatter(text: str, table: dict[str, object]) -> str:
     would ship the literal text as a tool name. A bare ``mcp__*`` entry raises
     too: it grants nothing on Claude Code 2.1.302.
     """
-    parts = split_fenced_frontmatter(text)
+    parts: tuple[str, str] | None = split_fenced_frontmatter(text)
     if parts is None:
         return text
     block, rest = parts
