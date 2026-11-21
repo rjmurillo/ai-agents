@@ -1579,8 +1579,8 @@ def test_the_recipe_and_generator_agree_on_an_unterminated_block(tmp_path):
 
     `frontmatter.loads` alone would regress this: it returns empty metadata for
     an absent block and for an unterminated one alike, so a record with a broken
-    schema would land silently in Needs backfill. The recipe checks for
-    `FrontmatterStatus.ABSENT` precisely so the two stay distinguishable.
+    schema would land silently in Needs backfill. The recipe checks
+    `result.present` precisely so the two stay distinguishable.
     """
     from generate_adr_index import AdrIndexError
 

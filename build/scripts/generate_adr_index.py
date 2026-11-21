@@ -704,11 +704,11 @@ _INTRO = (
     "import pathlib, sys, yaml\n"
     "\n"
     'sys.path.insert(0, ".")\n'
-    "from scripts.hook_utilities.frontmatter_block import FrontmatterStatus, parse_frontmatter\n"
+    "from scripts.hook_utilities.frontmatter_block import parse_frontmatter\n"
     "\n"
     'for path in sorted(pathlib.Path(".project-toolkit/architecture").glob("ADR-[0-9]*.md")):\n'
     '    result = parse_frontmatter(path.read_text(encoding="utf-8"), yaml)\n'
-    "    if result.status is FrontmatterStatus.ABSENT:\n"
+    "    if not result.present:\n"
     "        continue  # no frontmatter: see Needs backfill below\n"
     "    if not result.ok:\n"
     '        raise ValueError(f"{path.name}: {result.error}")\n'
@@ -740,9 +740,9 @@ _INTRO = (
     "records that have it while appearing to answer for all of them. The Needs\n"
     "backfill section below is the honest denominator, and issue #5190 closes it.\n\n"
     "**This snippet crashes on unterminated frontmatter; it does not silently\n"
-    "drop it.** `ABSENT` is the status only for a record with no schema at all,\n"
-    "which `continue`s past. A record whose opening `---` fence never closes is\n"
-    "`UNTERMINATED`, so it raises `ValueError`. The real generator raises the\n"
+    "drop it.** `result.present` is false only for a record with no schema at\n"
+    "all, which `continue`s past. A record whose opening `---` fence never closes\n"
+    "is present but not `ok`, so it raises `ValueError`. The real generator raises the\n"
     "same way, on purpose: a malformed schema is an author's defect to see, not a\n"
     "record to drop quietly into Needs backfill. `frontmatter.loads` alone does\n"
     "NOT make that distinction: an absent block and an unterminated one both come\n"

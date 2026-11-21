@@ -17,11 +17,11 @@ repository root:
 import pathlib, sys, yaml
 
 sys.path.insert(0, ".")
-from scripts.hook_utilities.frontmatter_block import FrontmatterStatus, parse_frontmatter
+from scripts.hook_utilities.frontmatter_block import parse_frontmatter
 
 for path in sorted(pathlib.Path(".project-toolkit/architecture").glob("ADR-[0-9]*.md")):
     result = parse_frontmatter(path.read_text(encoding="utf-8"), yaml)
-    if result.status is FrontmatterStatus.ABSENT:
+    if not result.present:
         continue  # no frontmatter: see Needs backfill below
     if not result.ok:
         raise ValueError(f"{path.name}: {result.error}")
@@ -58,9 +58,9 @@ records that have it while appearing to answer for all of them. The Needs
 backfill section below is the honest denominator, and issue #5190 closes it.
 
 **This snippet crashes on unterminated frontmatter; it does not silently
-drop it.** `ABSENT` is the status only for a record with no schema at all,
-which `continue`s past. A record whose opening `---` fence never closes is
-`UNTERMINATED`, so it raises `ValueError`. The real generator raises the
+drop it.** `result.present` is false only for a record with no schema at
+all, which `continue`s past. A record whose opening `---` fence never closes
+is present but not `ok`, so it raises `ValueError`. The real generator raises the
 same way, on purpose: a malformed schema is an author's defect to see, not a
 record to drop quietly into Needs backfill. `frontmatter.loads` alone does
 NOT make that distinction: an absent block and an unterminated one both come
