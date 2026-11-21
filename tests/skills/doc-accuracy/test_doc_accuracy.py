@@ -499,31 +499,27 @@ class TestCsharpLiteralAndAttributeArguments:
             assert "EntryPoint" not in result, code
             assert attribute in result, code
 
-    def test_stacked_unclosed_holes_keep_literal_blanking(self, caplog) -> None:
-        code = 'x = $"{a\n' * 200 + '[Conditional("DEBUG")]\nvoid Log() {}'
+    def test_unclosed_string_leaves_the_snippet_unblanked(self, caplog) -> None:
+        """Accepted over-report: a string that never closes stops all blanking."""
+        code = 'x = $"{a\n' * 200 + '[Conditional("DEBUG")]\nvar w = new FakeWidget();'
+        closed = '[Conditional("DEBUG")]\nvar w = new FakeWidget();'
 
-        with caplog.at_level("WARNING"):
+        with caplog.at_level("INFO"):
             result = _extract_identifiers(code, "csharp")
+            control = _extract_identifiers(closed, "csharp")
 
-        assert "DEBUG" not in result
-        assert "recursion limit" not in caplog.text
+        assert "DEBUG" in result
+        assert "FakeWidget" in result
+        assert "DEBUG" not in control
+        assert "could not read the snippet" in caplog.text
 
     def test_valid_raw_verbatim_and_char_literals_still_blank(self) -> None:
         cases = (
             ('var a = """\n    RawLine\n    """;\nvar w = new FakeWidget();', "RawLine"),
             ('var a = """Single RawWord""";\nvar w = new FakeWidget();', "RawWord"),
-            ('var a = @"first\nVerbLine";\nvar w = new FakeWidget();', "VerbLine"),
-            ('var a = $@"first\nTotal = {x} VerbHole";\nvar w = new FakeWidget();', "VerbHole"),
-            ('var a = $@"first\n    {x} IndentHole";\nvar w = new FakeWidget();', "IndentHole"),
-            (
-                "var q = @\"SELECT SqlCol\n FROM Users\n WHERE Status = 'Active'\";\n"
-                "var w = new FakeWidget();",
-                "SqlCol",
-            ),
-            ('var j = @"{\n  ""JsonKey"": 1\n}";\nvar w = new FakeWidget();', "JsonKey"),
-            ('var u = @"Line1\nLineHid"u8;\nvar w = new FakeWidget();', "LineHid"),
-            ('var a = @"x\nVerbTail"; var b = "HidAq";\nvar w = new FakeWidget();', "HidAq"),
-            ('var a = @"x\n WHERE a = HidZ' + '"""' + ";\nvar w = new FakeWidget();", "HidZ"),
+            ('var a = @"single VerbWord";\nvar w = new FakeWidget();', "VerbWord"),
+            ('var a = $@"one {x} VerbHole ""q""";\nvar w = new FakeWidget();', "VerbHole"),
+            ('var u = @"one LineHid"u8;\nvar w = new FakeWidget();', "LineHid"),
             (
                 "var c = '\\x41'; var d = '\\u00e9'; var e = '\\''; var f = 'Q';\n"
                 "var w = new FakeWidget();",
@@ -537,16 +533,29 @@ class TestCsharpLiteralAndAttributeArguments:
             assert literal not in result, code
             assert "FakeWidget" in result, code
 
-    def test_valid_verbatim_ending_like_an_opener_stays_visible(self) -> None:
-        """Accepted over-report: a close after "=", ")" or "," is doubted."""
-        for code in (
-            'var q = @"SqlB\nWHERE (x)";',
-            'var q = @"SqlC\nb =";',
-            'var q = @"SqlD\nb,";',
-        ):
+    def test_multi_line_verbatim_leaves_the_snippet_unblanked(self) -> None:
+        """Accepted over-report: a verbatim string that spans lines is not blanked.
+
+        Its close may be a later literal's quote, borrowed because its own
+        close is missing, so the whole snippet is scanned as raw code.
+        """
+        cases = (
+            ('var a = @"first\nVerbLine";\nvar w = new FakeWidget();', "VerbLine"),
+            ('var a = $@"first\nTotal = {x} VerbHole";\nvar w = new FakeWidget();', "VerbHole"),
+            (
+                "var q = @\"SELECT SqlCol\n FROM Users\n WHERE Status = 'Active'\";\n"
+                "var w = new FakeWidget();",
+                "SqlCol",
+            ),
+            ('var j = @"{\n  ""JsonKey"": 1\n}";\nvar w = new FakeWidget();', "JsonKey"),
+            ('var a = @"x\nVerbTail"; var b = "HidAq";\nvar w = new FakeWidget();', "HidAq"),
+            ('var q = @"SqlB\nWHERE (x)";\nvar w = new FakeWidget();', "SqlB"),
+        )
+        for code, literal in cases:
             result = _extract_identifiers(code, "csharp")
 
-            assert code.split('"')[1][:4] in result, code
+            assert literal in result, code
+            assert "FakeWidget" in result, code
 
     def test_nested_verbatim_string_in_hole_is_blanked(self) -> None:
         result = _extract_identifiers('var s = $"{F(@"FakeLit")}";', "csharp")
@@ -568,12 +577,12 @@ class TestCsharpLiteralAndAttributeArguments:
     def test_recursion_limit_falls_back_to_unblanked_code(self, caplog) -> None:
         code = '$"{' * 2000 + '"Quoted" [Attr(Named = 1)]' + '}"' * 2000
 
-        with caplog.at_level("WARNING"):
+        with caplog.at_level("INFO"):
             result = _extract_identifiers(code, "csharp")
 
         assert "Quoted" in result
         assert "Named" in result
-        assert "recursion limit" in caplog.text
+        assert "could not read the snippet" in caplog.text
 
     def test_real_code_beside_literals_stays_visible(self) -> None:
         for code, name in self.REAL_CODE_STAYS_VISIBLE:
@@ -651,6 +660,9 @@ class TestCsharpLiteralAndAttributeArguments:
             'Run(@"a\nb)", @"\nc"); FakeWidget.Go("x");',
             'var a = @"x;\nvar b = @"multi\nline" + FakeWidget.Go() + @"z";',
             'var a = @"x;\nM(); var b = @"line1\nline2"; FakeWidget.Run(); var c = "z";',
+            'var a = @"x;\nFakeWidget.Go();\nLog(\n    ".");',
+            'var a = @"x;\nLog(" + @");\nFakeWidget.Go();\nLog(\n    ".");',
+            'var a = @"x;\nFakeWidget.Go();\nvar q = from c in xs select ".";',
         ):
             result = _extract_identifiers(code, "csharp")
 

@@ -71,17 +71,13 @@ def csharp_hole_end(
     lines. It is unclosed at that cap, at the snippet end, when a nested
     literal or comment lacks its close, or when an interpolated string
     opens on a later line (in any string kind). An unclosed hole is
-    restored and the enclosing string stops at its opening line end. In a
-    raw string, a quote run that closes nothing ends the hole there, and
-    any unclosed hole leaves the whole raw string visible.
+    restored, and the enclosing string reports itself unclosed, so
+    ``blank_csharp_literals`` leaves the whole snippet unblanked. In a raw
+    string, a quote run that closes nothing ends the hole there.
 
-    Accepted limits: chained unclosed holes or literals on one line, a
-    string missing its close quote that pairs with a later quote on that
-    line, and a valid hole over the line cap or holding an interpolated
-    string on a later line can still blank code up to the next quote. A
-    valid multi-line verbatim string whose last line ends in an operator,
-    bracket, separator, or keyword such as ``in`` before its close quote
-    stays visible, so its words can be reported.
+    Accepted limit: a string missing its close quote that pairs with a
+    later quote on its own line looks closed, so code between the two
+    quotes, and after them on that line, can still be blanked.
     """
     return _HoleScan(code, chars, escape, start, skip_token).run()
 
