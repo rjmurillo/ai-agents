@@ -810,8 +810,8 @@ def get_files_to_assess(
 def _skip_directory(path: Path, changed_only: bool, statuses: dict[Path, str]) -> bool:
     """Return True when a directory path is not a source file to score.
 
-    git diff can list a directory on disk: a symlink to a directory or a
-    submodule. In changed-only mode that is reported on stderr, except for a
+    git diff can list a symlink to a directory as one changed path. In
+    changed-only mode that is reported on stderr, except for a
     type change (status ``T``), which still reaches scoring so the review
     adapter sees the failed score. Outside changed-only mode a glob can match
     directories as a matter of course, so they are skipped silently.

@@ -244,25 +244,24 @@ def _scanner_records() -> list[dict[str, Any]]:
     return list(module._CHANGE_ADMISSIONS)
 
 
+def _copies_agree(adapter: list[Any], scanner: list[Any], config: list[Any]) -> bool:
+    """The conformance rule: all three copies hold the same records in the same order."""
+    return len(scanner) == 8 and adapter == scanner == config
+
+
 def test_scanner_adapter_and_config_hold_the_same_list_in_the_same_order() -> None:
     config = json.loads((_ROOT / ".qualityrc.json").read_text(encoding="utf-8"))
 
-    scanner = _scanner_records()
-
-    assert len(scanner) == 8
-    assert scanner == _RECORDS
-    assert config["changeAdmissions"] == scanner
+    assert _copies_agree(_RECORDS, _scanner_records(), config["changeAdmissions"])
 
 
-def test_the_conformance_check_would_notice_a_drifted_adapter_copy(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Negative control: changing one adapter field breaks equality with the scanner."""
+def test_the_conformance_check_would_notice_a_drifted_adapter_copy() -> None:
+    """Negative control: the same check fails when one adapter field drifts."""
+    config = json.loads((_ROOT / ".qualityrc.json").read_text(encoding="utf-8"))
     drifted = copy.deepcopy(_RECORDS)
-    drifted[0]["headScore"] = 6.0
-    monkeypatch.setattr(verdict_module, "_CHANGE_ADMISSIONS", tuple(drifted))
+    drifted[0]["headBlob"] = "f" * 40
 
-    assert list(verdict_module._CHANGE_ADMISSIONS) != _scanner_records()
+    assert not _copies_agree(drifted, _scanner_records(), config["changeAdmissions"])
 
 
 def test_a_head_blob_mismatch_is_unknown() -> None:

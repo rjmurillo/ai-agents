@@ -59,3 +59,38 @@ Both subprocess captures now explicitly select UTF-8 and replacement decoding.
 Direct working-tree checks report zero complexity violations and zero I/O portability violations.
 Canonical generation completed again with exit 0.
 Normal independent review and protected CI remain separate requirements.
+
+## Item 10 (2026-11-20, issue #7493)
+
+Evidence date: 2026-11-20. Rows were rerun at branch head `80f5ca22c` (2026-11-20), after the panel's round-1 fixes. That head merges `origin/main` at `bdcae2eaa` (2026-11-20).
+
+| Claim | Kind | Command or source | Result |
+|---|---|---|---|
+| The maintainer authorized the waiver in decisions D1 and D2, choice A each. | quote | Issue #7493 comment 7050456436 (https://github.com/rjmurillo/ai-agents/issues/7493#issuecomment-7050456436) quotes both choices. | VERIFIED. The comment records the session decisions. It is not a GitHub review approval. |
+| Eight comparable scores dropped by more than 0.5 on this change. | behavior | Control: copy `.qualityrc.json` without `changeAdmissions`, then `uv run --frozen python .claude/skills/code-qualities-assessment/scripts/assess.py --target . --changed-only --base origin/main --config <copy> --format json`. | VERIFIED. Exit 10. Stderr lists exactly the eight transitions in the item 10 table and no `ADMITTED` line. |
+| The exact records admit all eight and keep the raw evidence. | behavior | The same command with the real `.qualityrc.json`. | VERIFIED. Exit 0. Each of the eight regression lines prints, each followed by one `ADMITTED: issue #7493` line. JSON keeps `regressions` and adds `change_admissions`. |
+| Configuration cannot widen the records. | behavior | Copy `.qualityrc.json`, change the first record's `headBlob` to forty zeros, rerun with `--config <copy>`. | VERIFIED. Exit 1 with `ERROR: Invalid changeAdmissions: scope or authorization differs`. `test_change_admission.py` covers field, order, and partial-match cases. |
+| The review adapter reports `WARN` for the admitted run, never `PASS`. | behavior | `adapt_local_axis_verdict("code-qualities-assessment", <scanner JSON>, 0)` from `.claude/lib/ai_review_common/verdict.py`. | VERIFIED. Returns `WARN`. `test_verdict_change_admission.py` covers `UNKNOWN` for tampered, mismatched, and mixed records, and `FAIL` on exit 10. |
+| The scanner and adapter changes do not regress their own scores. | behavior | The admitted scanner run above, then `grep -E "assess.py|verdict.py" <stderr>` on its output. | VERIFIED. No regression line names `assess.py` or `verdict.py`. Neither file gained an import; both sat at the cohesion floor of 1.0 before the change. |
+| The three record copies are equal. | behavior | `uv run --frozen pytest tests/test_verdict_change_admission.py -k "conformance or same_list" -q`. Both tests call one `_copies_agree` helper; the control drifts one blob and expects it to fail. | VERIFIED. Passes; the control fails on a drifted adapter copy. |
+| Coupling 6.0 to 3.0 is the largest drop any ADR-122 record admits. | count | `uv run --frozen python -c` that loads `assess.py` and prints `max(b - h)` over `_PARSER_DEPENDENCY_ADMISSIONS` and `_CHANGE_ADMISSIONS` scores. | VERIFIED. The largest prior drop is 2.0. |
+| An added symlink to a directory is skipped with a stderr line; a type change is not. | behavior | `test_an_added_directory_link_is_skipped_with_a_stderr_line` and `test_a_type_change_to_a_directory_link_still_reaches_scoring` in `test_change_admission_blobs.py`. The real scan prints `SKIPPED (directory): .claude/lib/memory_enhancement`. | VERIFIED. Before the skip, that link scored `scoring_failed: true` and the adapter returned `UNKNOWN`. |
+| The record paths are plain literals with a documented baseline entry. | behavior | `uv run --frozen python scripts/validation/check_vendor_portability.py` and the comment above the `assess.py` entry in `scripts/validation/vendor_portability_baseline.txt`. | VERIFIED. Exit 0. |
+| Records pin scores and blobs, not import sets. | behavior | `grep -n "imports" ` over `_change_admission_mismatch` in `assess.py` finds nothing; `test_a_same_score_edit_with_other_content_stays_blocking_end_to_end` exercises the blob check. | VERIFIED. Matching compares change status, absolute-gate reason, evidence loss, the quality's base, head, delta, and status, and both blob ids. No import set is read. |
+| Without the `changeAdmissions` key, no record applies. | behavior | `_apply_change_admissions` returns before matching when the key is absent; `test_change_admission.py` pins it. | VERIFIED. |
+| A scan that assesses no file exits 0 before admissions are read. | behavior | `main` in `assess.py` returns 0 for an empty regression run before `_apply_change_admissions`. | VERIFIED. This predates item 10 and applies to the parser records too. On that path a tampered `changeAdmissions` is never validated. No comparison exists, so nothing is admitted. |
+| A branch whose base predates a later change to these files matches no record. | behavior | The matching rule requires the record's exact base score; a later change to the file on main moves the base score. | INFERRED from the matching rule. Not observed. |
+| The eight records name six distinct files. | count | Read the item 10 table and `_CHANGE_ADMISSIONS` in `assess.py`. | VERIFIED. Two files carry two records each. None is the scanner. |
+| Records go inactive once these files merge. | behavior | Item 2 matching requires the exact base score; after merge the base holds the head score. | INFERRED from the matching rule. Not observed, because the change has not merged. |
+| Each record pins the base and head blob ids, and all eight match git. | behavior | For each record: `git rev-parse --verify --quiet --end-of-options origin/main:<file>` and `git hash-object -- <file>`. | VERIFIED. 8 of 8 match at `80f5ca22c`. |
+| An edit that keeps both scores still voids a record. | behavior | `test_a_same_score_edit_with_other_content_stays_blocking_end_to_end` in `test_change_admission_blobs.py` builds the pinned 8.0 to 7.0 scores with other content and restores the real blob lookup. | VERIFIED. Exit 10 with `NOT ADMITTED` and `differs from the pinned blobs`. |
+| The base blob lookup returns only the object id. | behavior | `test_blob_ids_reads_git_for_base_and_working_tree`. | VERIFIED. It caught `rev-parse --end-of-options` echoing that option as an output line; the scanner now passes `--verify --quiet`. |
+| The admission and adapter suites pass. | behavior | `uv run --frozen pytest tests/skills/code-qualities-assessment/test_change_admission.py tests/skills/code-qualities-assessment/test_change_admission_blobs.py tests/test_verdict_change_admission.py tests/skills/code-qualities-assessment/test_parser_admission.py tests/test_verdict.py -q` | VERIFIED. 372 passed at `80f5ca22c`. |
+
+### Item 10 documentation accuracy
+
+VERIFIED for every behavior sentence in item 10, each mapped to a row above. The provenance sentences (security fixes added the code; D2 widened D1 after three more drops) rest on the session decisions recorded in the issue #7493 comment, not on a command. The stale-base sentence is INFERRED from the matching rule.
+
+### Item 10 self-consistency
+
+VERIFIED with one stated conflict. Item 5 says not to extend admission to another repository or another quality. Item 10 admits another quality, and it also admits files other than the scanner, which item 2 had limited to the scanner. It says so, on the maintainer's decision, and admits nothing beyond its eight records. The Rationale table rejects a generic framework; item 10 keeps fixed in-code records, so that rejection still holds.
