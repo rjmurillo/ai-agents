@@ -1,8 +1,8 @@
 """Per-consumer wiring tests for `check_skill_portability.py` (#4252, #4454).
 
 `main()` reaches the baseline guards down two independent paths, and each one
-needs its own control. Every line number below is as of base `db5aab393`; the
-function names are what actually anchor the claims. Verbatim from
+needs its own control. The quoted block's line numbers are as of base `db5aab393`;
+the paragraph after it cites lines as of 2026-11-20. Function names anchor the claims. From
 `scripts/validation/check_skill_portability.py`::
 
     344:    baseline_path = _resolve_baseline_path(root, args.baseline)
@@ -14,12 +14,12 @@ function names are what actually anchor the claims. Verbatim from
 
 `_resolve_baseline_path` delegates to `resolve_checked_baseline`, which runs
 `if refuse_symlinked_baseline(root, resolved):` at
-`scripts/validation/portability_common.py:190`. `write_baseline` reaches
-`write_baseline_json` at `portability_common.py:217`, which runs
+`scripts/validation/portability_common.py:235`. `write_baseline` reaches
+`write_baseline_json` at `portability_common.py:264`, which runs
 `if refuse_symlinked_baseline(repo_root, baseline_path):` again at
-`scripts/validation/portability_baseline.py:428` and
+`scripts/validation/portability_baseline.py:424` and
 `if refuse_dropped_entries(previous, counted, unit, allow_shrink, problem):` at
-`:435`.
+`:431`.
 
 So the symlink condition is refused by *both* paths, and the resolver runs
 first. A single symlinked-baseline control therefore observes neither: unwire

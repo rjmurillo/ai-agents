@@ -45,7 +45,7 @@ The project distributes agent prompts to three platforms: Claude Code, VS Code (
 2. **Claude Code agents** in `src/claude/` (23 files at authoring; ~32 as of 2026-08-25, source of truth)
 3. **VS Code / Copilot CLI agents** generated from templates in `src/vs-code-agents/` and `src/copilot-cli/`
 
-The repository has also since grown two additional hand-or-generated agent surfaces this ADR's Migration Plan does not account for: `.claude/agents/` and `.github/agents/` (see `build/AGENTS.md:240`). The Migration Plan below targets the four-surface topology as it stood on 2026-03-01; re-scoping against the current six surfaces is tracked at issue #5282 and must happen before Phase 1 executes.
+The repository has also since grown two additional hand-or-generated agent surfaces this ADR's Migration Plan does not account for: `.claude/agents/` and `.github/agents/` (see `build/AGENTS.md:33`). The Migration Plan below targets the four-surface topology as it stood on 2026-03-01; re-scoping against the current six surfaces is tracked at issue #5282 and must happen before Phase 1 executes.
 
 A drift detection script (`build/scripts/detect_agent_drift.py`) compares Claude agents against VS Code variants (and separately, the `.claude/agents`/`.github/agents` install copies) using Jaccard similarity on word tokens across a named-section allowlist. **Correction (2026-08-25, review): the script does not compare against Copilot CLI agents at all** (module docstring, lines 4-33): `src/copilot-cli/agents` is held to an exact string match against its template source by `generate_agents.py --validate` instead. The allowlist currently has 23 entries, not 16; both figures are volatile and should be re-measured against the live script rather than trusted from this ADR.
 
