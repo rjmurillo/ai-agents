@@ -34,7 +34,7 @@ For `check ADR drift` alone, the skill skips both questions, confirms the reposi
 - A grade across efficiency, code quality, procedure compliance, verbosity, and skill coverage, plus an overall score.
 - Candidate edits, each with status `unevaluated`, a unified diff, and handoff prompts for [`skillopt`](skillopt.md) or [`skillforge`](skillforge.md).
 - A spoken summary of the grade and three findings, plus the renderer's `evaluation:` line.
-- For ADR drift, an `ADR drift` section: findings by group (Setup, Numbering, Links, History) with a suggested fix each. History findings are candidates, not verdicts. The section never changes the grade.
+- For ADR drift, an `ADR drift` section: findings by group (Setup, Numbering, Links, History) with a suggested fix each. History findings are candidates, not verdicts. Truncated history and unreadable paths are shown. The section never changes the grade.
 
 Overall weights: efficiency 0.25, code quality 0.25, procedure compliance 0.20, verbosity 0.15, skill coverage 0.15. The skill notes that coverage rewards skill adoption and does not prove skills improved outcomes.
 
@@ -62,7 +62,7 @@ uv run python .claude/skills/skill-doctor/scripts/render_report.py --help
 
 Collector scope flags: `--repo PATH` (repeatable), `--all-conversations`, `--include-global-skills`, `--harness auto|all|claude|codex|copilot|warp|pi|grok|zcode|hermes|droid`, `--days`, `--max-sessions`, `--min-idle-minutes` (default 15; sessions newer than that are skipped), and `--out`. Exit `0` is success, `1` is invalid input or an unsupported claim, and `2` is bad arguments or an unreadable file.
 
-`adr_drift.py` never writes into the scanned repository; `scan` writes only its `--out` file, which must sit outside it. Exit codes: `0` ok, `2` bad arguments, unreadable input, a disallowed `--out`, or not a git repository, `3` a git command failed. `scan` reads 300 commits by default and reports `truncated` when it stopped early.
+`adr_drift.py` never writes into the scanned repository; `scan` writes only its `--out` file, which must sit outside it, and writes it whole or not at all. Exit codes: `0` ok, `2` bad arguments, unreadable input, a disallowed `--out`, or not a git repository, `3` a git command failed or timed out. `scan` reads 300 commits by default (`--max-commits`, `--since`) and reports `truncated` when it stopped early. The scan file also lists `read_errors` for files and folders it could not read. `report.json` names each scan file by path, and `render_report.py` reads it from the report folder (exit `2` on a missing, unreadable, or outside path). An ADR-only report needs `"mode": "adr_only"`. This skill checks ADR health only: finding decisions that no ADR records is skill-bootstrap's job.
 
 A conversation counts as failed when any applicable raw score is below 0.5. A failure caused only by a provider cutoff does not count. A passing conversation can support only a `Cut:` candidate, which removes a wasted instruction or step.
 

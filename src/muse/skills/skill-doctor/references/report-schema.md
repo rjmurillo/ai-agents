@@ -94,6 +94,7 @@ The renderer reads these fields from each candidate and ignores the rest:
 
 An ADR-only report has no scorecard. It needs `"mode": "adr_only"` and an
 `adr_drift` object. Without the marker, a report with no `scores.overall` exits
+
 1. `title` and `generated_at` are optional. The smallest valid file:
 
 ```json
