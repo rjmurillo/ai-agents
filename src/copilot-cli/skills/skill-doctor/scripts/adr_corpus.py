@@ -221,8 +221,9 @@ def find_adr_dirs(repo: Path) -> tuple[list[AdrDir], list[str]]:
     found: list[AdrDir] = []
     markers: list[str] = []
     for rel in KNOWN_DIRS:
-        path = repo / rel
-        if not path.is_dir():
+        path = (repo / rel).resolve()
+        # A symlinked folder that leaves the repository is not this repo's ADR folder.
+        if not path.is_dir() or not within(path, repo):
             continue
         loaded = load_dir(path, rel)
         templates = [n for n in loaded.other_md if is_template_name(n)]

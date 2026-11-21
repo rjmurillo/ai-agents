@@ -80,6 +80,19 @@ def test_locate_ignores_a_marker_that_points_outside_the_repo(tmp_path, capsys):
     assert _locate(capsys, repo)["primary"] == "docs/adr"
 
 
+def test_locate_skips_a_known_folder_symlinked_outside_the_repo(tmp_path, capsys):
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "ADR-007-x.md").write_text(adr_text(7), encoding="utf-8")
+    repo = seeded_repo(tmp_path / "repo")
+    (repo / "docs").mkdir(exist_ok=True)
+    (repo / "docs" / "decisions").symlink_to(outside, target_is_directory=True)
+
+    paths = [d["path"] for d in _locate(capsys, repo)["adr_dirs"]]
+
+    assert "docs/decisions" not in paths
+
+
 def test_locate_reports_adr_tools_naming(tmp_path, capsys):
     repo = seeded_repo(
         tmp_path / "repo",
@@ -279,6 +292,21 @@ def test_draft_into_a_repo_adr_folder_and_outside_the_repo_both_work(tmp_path, c
     outside = _draft(capsys, scan_file, finding, tmp_path / "elsewhere")[0]
 
     assert (inside, outside) == (0, 0)
+
+
+def test_draft_refuses_an_in_repo_out_that_resolves_outside(tmp_path, capsys):
+    repo, result, scan_file = _draft_source(
+        tmp_path, capsys, {adr_path(1): adr_text(1)}, ["adopt a"]
+    )
+    finding = kinds(result, "undocumented-decision")[0]
+    target = tmp_path / "escape"
+    target.mkdir()
+    (repo / "link").symlink_to(target, target_is_directory=True)
+
+    code, _, err = _draft(capsys, scan_file, finding, repo / "link")
+
+    assert code == 2 and "resolves outside" in err
+    assert list(target.iterdir()) == []
 
 
 def test_existing_target_exits_1_and_keeps_its_bytes(tmp_path, capsys, monkeypatch):

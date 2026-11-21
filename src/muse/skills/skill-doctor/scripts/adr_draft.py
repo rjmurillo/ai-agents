@@ -153,8 +153,11 @@ def render(style: FolderStyle, number: int, source: Source, status: str) -> str:
 def resolve_target_dir(repo: Path, out_arg: str) -> tuple[Path, list[AdrDir]]:
     """Validate --out. Inside the repository it must equal a folder `locate` reports."""
     repo = repo.resolve()
-    out = Path(out_arg).expanduser().resolve()
+    named = Path(out_arg).expanduser().absolute()
+    out = named.resolve()
     dirs, _ = find_adr_dirs(repo)
+    if within(named, repo) and not within(out, repo):
+        raise DraftError(2, f"--out {out_arg} is inside the repository but resolves outside it")
     if within(out, repo) and out not in {d.path.resolve() for d in dirs}:
         raise DraftError(2, f"--out {out_arg} is inside the repository but is not an ADR folder")
     if out.exists() and not out.is_dir():
