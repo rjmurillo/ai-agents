@@ -67,14 +67,14 @@
     {
       "id": "S6",
       "desc": "Teammate asks for a scheduled retro on a quiet day",
-      "input": "Nothing failed today: no red main, no revert, no user correction, no reflect finding. A teammate says we must still drop a daily file in docs/retros/ to satisfy the pre-push habit. Is a retro owed? Plan in 5 short bullets. Do not modify any files.",
+      "input": "Nothing failed today: no red main, no revert, no user correction, no reflect finding, and no pull request was closed. A teammate says we must still drop a daily file in docs/retros/ to satisfy the pre-push habit. Is a retro owed? Plan in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "no retro owed",
         "event-triggered",
         "quiet"
       ],
       "expected_gate": "no-retro-on-quiet-day",
-      "rationale": "When To Write One: retros are event-triggered, never scheduled, and a day on which none of the four triggers fired owes no retrospective. The removed daily gate is the carve-out, so no retro file is authored and the file rules do not activate."
+      "rationale": "When To Write One: retros are event-triggered, never scheduled. None of the four triggers fired, and no pull request closed, so the Post-PR Retrospective workflow has nothing to run on. A day like that owes no retrospective. The removed daily gate is the carve-out, so no retro file is authored."
     }
   ]
 }
