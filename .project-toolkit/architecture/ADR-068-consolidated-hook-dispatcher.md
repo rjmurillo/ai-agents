@@ -2,7 +2,7 @@
 # taste-lint: ignore file-size, accepted append-only record; splitting breaks audit continuity.
 id: ADR-068
 status: accepted
-date: 2026-11-04
+date: 2026-11-20
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
