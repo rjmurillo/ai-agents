@@ -28,7 +28,7 @@ An interim panel vote on an intermediate text was recorded inside the first log.
 
 ### Carried-Forward Issue
 
-The first debate's critic recorded one reservation. `implemented: true` routes later material change to supersession, while the principle's effect is unmeasured.
+The first log's closing vote has the critic at Disagree-and-Commit. Its "Resolution Of The Split" explains why the critic moved to `true`, and it records no separate reservation. The issue carried here comes from the interim vote this change removed from the first log. In that vote the critic recorded one reservation: `implemented: true` routes later material change to supersession, while the principle's effect is unmeasured.
 
 ## Round 1 Summary
 
@@ -70,7 +70,7 @@ The first debate's critic recorded one reservation. `implemented: true` routes l
 
 ### Resolution Of The Carried-Forward Issue
 
-The critic withdrew the reservation. A negative Program 1 result now requires a superseding record, so the open effect has a defined exit.
+The critic judged the carried-forward issue resolved. A negative Program 1 result now requires a superseding record, so the open effect has a defined exit.
 
 ### Finding Not Applied
 
