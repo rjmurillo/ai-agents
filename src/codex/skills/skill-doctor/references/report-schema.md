@@ -57,8 +57,8 @@ go in `scores`.
 ## Optional `adr_drift` section
 
 Add this object only when Step 1a ran. Reports without it render unchanged.
-The section never feeds `scores.overall`. `render_report.py` exits 1 when any
-finding has an empty `suggested_fix`.
+The section never feeds `scores.overall`. The report reads findings from the
+scan files by path, so do not copy findings into `report.json`.
 
 ```json
 "adr_drift": {
@@ -66,23 +66,44 @@ finding has an empty `suggested_fix`.
   "repos": [
     {
       "repo": "<repo slug>",
-      "head": "<commit SHA the scan read>",
-      "examined": 300,
-      "truncated": false,
-      "findings": [
-        {
-          "id": "<id from the scan file>",
-          "kind": "<finding kind>",
-          "group": "Numbering | Links | History",
-          "severity": "info | low | medium | high",
-          "confidence": "deterministic | heuristic",
-          "evidence": {"path": "", "line": 0, "sha": "", "subject": ""},
-          "suggested_fix": "<non-empty text>"
-        }
-      ]
+      "scan": "adr_drift/<repo-slug>.json",
+      "decisions": "adr_drift/<repo-slug>-decisions.json"
     }
   ]
 }
 ```
 
-Copy `findings` from the scan file. Kinds and fixes are in `adr-drift.md`.
+- `scan` is the file `adr_drift.py scan` wrote. Required for each repo.
+- `decisions` is optional: a candidate list from another tool, rendered as a
+  table without grading it.
+
+Paths are relative to the folder that holds `report.json` and must resolve
+inside it. A path outside it, a missing or unreadable file, invalid JSON, or an
+unexpected shape makes `render_report.py` exit 2.
+
+From the scan file the renderer reads `findings` (a list, required), `head`,
+`examined`, `truncated`, and `read_errors`. A truncated scan and any unreadable
+paths are shown in the report. Each finding needs a non-empty `suggested_fix`,
+or `render_report.py` exits 1.
+
+The `decisions` file holds a JSON list, or an object with a `candidates` list.
+The renderer reads these fields from each candidate and ignores the rest:
+`subject`, `sha`, `pr_url` (or `url`), and `reason`.
+
+### ADR-only report
+
+An ADR-only report has no scorecard. It needs `"mode": "adr_only"` and an
+`adr_drift` object. Without the marker, a report with no `scores.overall` exits
+
+1. `title` and `generated_at` are optional. The smallest valid file:
+
+```json
+{
+  "mode": "adr_only",
+  "adr_drift": {
+    "repos": [{"repo": "my-repo", "scan": "adr_drift/my-repo.json"}]
+  }
+}
+```
+
+Kinds and fixes are in `adr-drift.md`.

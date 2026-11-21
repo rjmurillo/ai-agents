@@ -34,7 +34,7 @@ For `check ADR drift` alone, the skill skips both questions, confirms the reposi
 - A grade across efficiency, code quality, procedure compliance, verbosity, and skill coverage, plus an overall score.
 - Candidate edits, each with status `unevaluated`, a unified diff, and handoff prompts for [`skillopt`](skillopt.md) or [`skillforge`](skillforge.md).
 - A spoken summary of the grade and three findings, plus the renderer's `evaluation:` line.
-- For ADR drift, an `ADR drift` section: findings by group (Numbering, Links, History) with a suggested fix each. History findings are candidates, not verdicts. The section never changes the grade.
+- For ADR drift, an `ADR drift` section: findings by group (Setup, Numbering, Links, History) with a suggested fix each. History findings are candidates, not verdicts. The section never changes the grade.
 
 Overall weights: efficiency 0.25, code quality 0.25, procedure compliance 0.20, verbosity 0.15, skill coverage 0.15. The skill notes that coverage rewards skill adoption and does not prove skills improved outcomes.
 

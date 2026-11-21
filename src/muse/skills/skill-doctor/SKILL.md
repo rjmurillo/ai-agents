@@ -301,7 +301,7 @@ python (Join-Path $SKILL_ROOT 'scripts\render_report.py') (Join-Path $REPORT_DIR
 
 For a bootstrap child run, omit `--open` and return the report path.
 
-When Step 1a ran, add the optional `adr_drift` section from `$SKILL_ROOT/references/report-schema.md`: copy each scan's `findings`. The section never feeds `overall`. `render_report.py` exits 1 when a finding has an empty `suggested_fix`. An ADR-only report carries `adr_drift` and no `scores`; it renders the ADR drift section alone, without the scorecard, and `--open` has no effect on it.
+When Step 1a ran, add the optional `adr_drift` section from `$SKILL_ROOT/references/report-schema.md`: for each repository, name its scan file with `scan`. `render_report.py` reads the findings, `head`, `examined`, `truncated`, and `read_errors` from that file, so do not retype them. The section never feeds `overall`. `render_report.py` exits 1 when a finding has an empty `suggested_fix`, and exits 2 when a named file cannot be read. An ADR-only report sets `"mode": "adr_only"` and carries `adr_drift` with no `scores`; it renders the ADR drift section alone, without the scorecard, and `--open` has no effect on it.
 
 This writes a single self-contained `$REPORT_DIR/report.html` and attempts to open it in the default browser. The scorecard, findings, and suggested skill edits appear on one page. Long diffs are collapsed behind a "Show more" toggle, and a "Share" button saves a 2400x1350 PNG locally. There is no separate card file to open or screenshot.
 
@@ -311,7 +311,7 @@ Tell the user the grade and the three findings, in text.
 Then state the `evaluation:` line that `render_report.py` printed, verbatim. It matches the report's evaluation status.
 Name each candidate with its status. Never describe an empty or static-only suggestion list as evidence that no change would help.
 
-When Step 1a ran, add one line with the finding counts by group (Numbering, Links, History). For an ADR-only run, that line and the report path are the whole output.
+When Step 1a ran, add one line with the finding counts by group (Setup, Numbering, Links, History). For an ADR-only run, that line and the report path are the whole output.
 
 Finish with the absolute path to `REPORT_DIR/report.html`.
 Do not apply suggested edits without the user's explicit instruction.
