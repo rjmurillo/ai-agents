@@ -39,7 +39,7 @@ A proposal with items labeled `[HIGH]`, `[MED]`, or `[LOW]`. After you approve, 
 
 The skill runs four phases:
 
-1. **Identify the target skill.** Use `memory-search` for existing observations on the skill.
+1. **Identify the target skill.** Use `memory-search` or `memory` to find existing observations.
 2. **Analyze the conversation.** Propose changes only when the threshold is met: at least 1 HIGH, 2 MED, or 3 LOW signals.
 3. **Propose learnings.** Present the labeled summary and wait for approval.
 4. **Persist.** Use [memory](memory.md) to update the record or save a Markdown note.

@@ -63,9 +63,9 @@ Use [retrospective](../retrospective/SKILL.md) instead when:
 
 ### Phase 1: Identify the Target Skill
 
-Identify the skill used in the conversation. Use `memory-search` to find its
-existing observations in the project scope. Propose a descriptive sidecar name
-when none exists.
+Identify the skill used in the conversation. Find its observations through
+`memory-search` or the `memory` skill's recall procedure. Use the project
+scope. Propose a descriptive sidecar name when no record exists.
 
 ### Phase 2: Analyze the Conversation
 

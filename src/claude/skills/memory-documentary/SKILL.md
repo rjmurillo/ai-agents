@@ -79,7 +79,8 @@ Use `memory` skill instead when:
 
 ## Process
 
-Use `memory-search` to find relevant project records. Use timeline and
+Find project records through `memory-search` or the `memory` skill's recall
+procedure. Use timeline and
 documentation tools when their project scope is clear. Choose sources that
 answer the question and record coverage gaps.
 

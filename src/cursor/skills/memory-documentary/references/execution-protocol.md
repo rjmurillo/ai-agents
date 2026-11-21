@@ -23,8 +23,9 @@ Create an explicit search plan BEFORE executing queries:
 
 ### Memory and Sources
 
-Use `memory-search` for project records. Use an available timeline capability
-when sequence matters. Look up documentation when it helps verify a claim.
+Use `memory-search` or the `memory` skill's recall procedure for project
+records. Use an available timeline capability when sequence matters.
+Look up documentation when it helps verify a claim.
 Capture the record ID or path, date, and relevant excerpt.
 
 ### Project Artifacts
