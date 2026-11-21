@@ -1,0 +1,65 @@
+{
+  "skill_path": ".claude/skills/software-engineering-library/SKILL.md",
+  "skill_id": "software-engineering-library",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Legacy file with low coverage",
+      "input": "I must change a 900-line legacy module that has almost no tests and is hard to instantiate. Which engineering reference applies and what comes before the change? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "working-with-legacy-code",
+        "seam",
+        "characterization test"
+      ],
+      "expected_gate": "engineering-reference-routing",
+      "rationale": "The Task To Reference Router sends legacy code, seams, and characterization tests to references/working-with-legacy-code.md."
+    },
+    {
+      "id": "S2",
+      "desc": "Resilience for external API calls",
+      "input": "Our service calls a partner API with no timeouts and unlimited retries. Which reference should drive the fix? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "release-it",
+        "circuit breaker",
+        "bulkhead"
+      ],
+      "expected_gate": "engineering-reference-routing",
+      "rationale": "The router sends production resilience, timeouts, and bulkheads to references/release-it.md."
+    },
+    {
+      "id": "S3",
+      "desc": "Diff review against the blocklist",
+      "input": "Review this diff against the forbidden patterns for design, data and production, and change and legacy risk. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "forbidden-patterns",
+        "blocklist"
+      ],
+      "expected_gate": "engineering-reference-routing",
+      "rationale": "When Each Reference Applies assigns reviewing a diff against the blocklist to references/forbidden-patterns.md."
+    },
+    {
+      "id": "S4",
+      "desc": "Build versus buy is programming-advisor (negative)",
+      "input": "Has someone already solved this? Should we buy a library or build our own scheduler? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "working-with-legacy-code",
+        "forbidden-patterns",
+        "release-it"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "Anti-Patterns says do not use this skill for build-vs-buy or wheel detection; use programming-advisor."
+    },
+    {
+      "id": "S5",
+      "desc": "CVA is cva-analysis (negative)",
+      "input": "Run a Commonality Variability Analysis on our three payment providers. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "working-with-legacy-code",
+        "forbidden-patterns",
+        "release-it"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "Anti-Patterns says CVA belongs to cva-analysis."
+    }
+  ]
+}

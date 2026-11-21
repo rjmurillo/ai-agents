@@ -1,0 +1,71 @@
+{
+  "skill_path": ".claude/skills/pr-comment-responder/SKILL.md",
+  "skill_id": "pr-comment-responder",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Mixed security and style comments on one PR",
+      "input": "PR 908 has review comments from coderabbitai[bot], a human, and cursor[bot]. One is a style naming nit from the human and one is a CWE-78 injection note from coderabbitai[bot]. Address the review feedback on this PR. What order do you process them in and how is each one closed? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "security first",
+        "domain",
+        "[complete]",
+        "[wontfix]",
+        "every thread"
+      ],
+      "expected_gate": "triage-by-domain-then-reviewer",
+      "rationale": "Processing Order sorts by domain first (P0 Security, P1 Bug, P2 Style) and breaks ties by reviewer priority, so a coderabbitai security comment precedes a human style comment. Obligations require a terminal status per thread."
+    },
+    {
+      "id": "S2",
+      "desc": "Many threads that share one root cause",
+      "input": "Respond to PR comments on PR 1897. There are 17 unresolved threads and about 8 of them restate the same framing on different files. Patching file by file has not worked for two rounds. What do you do first? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "cluster_threads.py",
+        "phase 0",
+        "4",
+        "source artifact"
+      ],
+      "expected_gate": "cluster-threads-first",
+      "rationale": "Phase 0 runs scripts/cluster_threads.py and, when a cluster of 4 or more threads is reported, stops the per-thread loop and fixes the framing in the source artifact first."
+    },
+    {
+      "id": "S3",
+      "desc": "Reply and resolve mutation order",
+      "input": "Reply to reviewer on PR 908: I fixed a bot thread and pushed commit abc1234. In what order do I react, reply, resolve and record status, and which threads am I allowed to resolve? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "eyes",
+        "in-thread",
+        "resolve",
+        "bot-authored",
+        "gate 3"
+      ],
+      "expected_gate": "follow-mutation-order",
+      "rationale": "Obligations, Mutation order: react with eyes before analysis, reply in-thread, push the fix, post the reply with the commit SHA, resolve, then record status through Gate 3. Only bot-authored or explicitly approved threads are resolved."
+    },
+    {
+      "id": "S4",
+      "desc": "Several PRs plus a completion verdict (negative)",
+      "input": "Go through my five open PRs, work the review threads on each in its own worktree, and give me a completion-gate verdict for every one. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "cluster_threads.py",
+        "bot-authored",
+        "in-thread"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The description says Do NOT use for several PRs at once or a completion-gate verdict (use pr-review). Boundary with pr-review: pr-review owns PR selection, worktrees and the verdict."
+    },
+    {
+      "id": "S5",
+      "desc": "One known reply (negative)",
+      "input": "Reviewer asked why I used a set on line 40 of PR 908. I already know the answer: it dedupes ids. Just post that single reply to that one comment. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "cluster_threads.py",
+        "bot-authored",
+        "in-thread"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The description and When to Use say to use post_pr_comment_reply.py directly for a single known reply with no triage needed."
+    }
+  ]
+}

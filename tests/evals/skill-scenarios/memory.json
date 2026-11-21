@@ -1,0 +1,53 @@
+{
+  "skill_path": ".claude/skills/memory/SKILL.md",
+  "skill_id": "memory",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Unsure which memory operation: start at Tier 1",
+      "input": "What do we know about how hooks are dispatched here? I am not sure which memory operation I need. Tell me where to start and what to escalate to. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "memory-search",
+        "tier 1",
+        "search_memory.py"
+      ],
+      "expected_gate": "memory-router",
+      "rationale": "Decision Tree ends 'Not sure which tier? Start with memory-search (Tier 1), escalate if insufficient', and the Serena Protocol names search_memory.py."
+    },
+    {
+      "id": "S2",
+      "desc": "About to change an existing system",
+      "input": "I am about to change an existing validator and am unsure which memory step applies first. Which sub-skill, and is it advisory or blocking? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "memory-gate",
+        "blocking",
+        "why"
+      ],
+      "expected_gate": "memory-router",
+      "rationale": "Decision Tree routes 'About to change existing code, a constraint, or a protocol' to memory-gate, described as 'search the why first, BLOCKING'."
+    },
+    {
+      "id": "S3",
+      "desc": "Periodic memory cleanup pass",
+      "input": "I want to merge overlapping memories, separate durable from dated facts, and tidy the index. Which memory sub-skill handles that? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "memory-consolidate",
+        "index"
+      ],
+      "expected_gate": "memory-router",
+      "rationale": "The Related Sub-Skills table maps the periodic durable/dated pass, overlap merge, and index tidy to memory-consolidate."
+    },
+    {
+      "id": "S4",
+      "desc": "Adding citations is memory-enhancement (negative)",
+      "input": "Add source citations to an existing memory file so each claim links to a code reference. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "memory-consolidate",
+        "search_memory.py",
+        "memory-search"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The description says 'Do NOT use for adding citations (use memory-enhancement)'."
+    }
+  ]
+}

@@ -1,0 +1,70 @@
+{
+  "skill_path": ".claude/skills/memory-search/SKILL.md",
+  "skill_id": "memory-search",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Tier 1 search runs search_memory.py and returns an index",
+      "input": "search memory for what we know about git hooks. Which script runs, which flags control result count and output format, and what do I read after it returns? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "search_memory.py",
+        "--max-results",
+        "--format",
+        "index",
+        "read_memory"
+      ],
+      "expected_gate": "memory-search-tier1",
+      "rationale": "Quick Start, Quick Reference, and Routing: search_memory.py takes query, --max-results, and --format, returns the relevant *-index, and the caller then follows links to the atomic file."
+    },
+    {
+      "id": "S2",
+      "desc": "A zero-result search is a valid outcome, not an error",
+      "input": "My memory search for 'obsolete cache flag' returned nothing. Is that a failure, and should I fall back to a second semantic backend? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "not an error",
+        "coverage note",
+        "serena",
+        "log"
+      ],
+      "expected_gate": "memory-search-zero-results",
+      "rationale": "Graceful Degradation and Anti-Patterns: a search that matches nothing returns an empty list plus a coverage note, never an error, and Serena is the only store, so there is no semantic tier to fall back from."
+    },
+    {
+      "id": "S3",
+      "desc": "Progressive disclosure avoids eager full reads",
+      "input": "recall prior context on the hook dispatcher before I change it. A few memories are huge. How do I avoid loading all of them? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "index",
+        "read_memory",
+        "tokens",
+        "list names first"
+      ],
+      "expected_gate": "memory-search-progressive-disclosure",
+      "rationale": "Progressive Disclosure table: index costs about 100 to 500 tokens, details about 500 to 10K, and the skill says to list names first and read only the entry the query needs."
+    },
+    {
+      "id": "S4",
+      "desc": "Adding citations to a memory belongs to memory-enhancement (negative)",
+      "input": "Add code citations to the hook-dispatch memory and verify the references still resolve. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "search_memory.py",
+        "--max-results",
+        "read_memory"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The description says `Do NOT use to extract session episodes (use memory-reflexion) or add citations (use memory-enhancement)`."
+    },
+    {
+      "id": "S5",
+      "desc": "Extracting a session episode belongs to memory-reflexion (negative)",
+      "input": "Extract the episode from the session we just finished and store it as a reflexion entry. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "search_memory.py",
+        "--max-results",
+        "read_memory"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "Same description clause: session episode extraction routes to memory-reflexion, not to the search operation."
+    }
+  ]
+}

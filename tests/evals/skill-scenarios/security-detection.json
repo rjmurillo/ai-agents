@@ -1,0 +1,57 @@
+{
+  "skill_path": ".claude/skills/security-detection/SKILL.md",
+  "skill_id": "security-detection",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Did staged changes touch security-critical files",
+      "input": "I am about to commit. I staged .github/workflows/deploy.yml and src/Controllers/AuthController.cs. Did I touch security-critical files, and do I need the security agent to review? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "critical",
+        "high",
+        "review required",
+        "recommended"
+      ],
+      "expected_gate": "flag-security-critical-files",
+      "rationale": "Detected Patterns lists .github/workflows/* as Critical (Review Required) and **/Controllers/** as High (Review Recommended). The two risk levels are the distinguishing output."
+    },
+    {
+      "id": "S2",
+      "desc": "Run the detector on staged files",
+      "input": "How do I check my staged files for infrastructure and security-critical changes before committing? Name the script and the flag. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "detect_infrastructure.py",
+        "--use-git-staged",
+        "--files"
+      ],
+      "expected_gate": "run-detect-infrastructure",
+      "rationale": "Usage section gives python detect_infrastructure.py --use-git-staged and --files. A generic answer would not name that script."
+    },
+    {
+      "id": "S3",
+      "desc": "Classify a mixed file list by risk level",
+      "input": "Which of these need a security review: .husky/pre-commit, infra/main.tf, certs/server.pem, docs/readme.md? Give each a risk level. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "critical",
+        ".husky",
+        "*.pem",
+        "*.tf",
+        "high"
+      ],
+      "expected_gate": "classify-by-risk-level",
+      "rationale": "Detected Patterns puts .husky/* and *.pem in Critical and *.tf in High. A markdown doc matches neither list, so the output is No infrastructure/security files detected for it."
+    },
+    {
+      "id": "S4",
+      "desc": "Scan source for injection patterns (negative)",
+      "input": "Scan my Python source for command injection patterns such as shell=True with interpolated strings before I submit. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "detect_infrastructure.py",
+        "--use-git-staged",
+        "--files"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The description says Detection only. Do NOT use to scan source for injection patterns (use security-scan). This skill matches file paths, not code content."
+    }
+  ]
+}

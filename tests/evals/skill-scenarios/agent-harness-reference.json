@@ -1,0 +1,57 @@
+{
+  "skill_path": ".claude/skills/agent-harness-reference/SKILL.md",
+  "skill_id": "agent-harness-reference",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Copilot CLI exit code 2 and timeout semantics for hooks",
+      "input": "I am about to change a cross-harness hook. What does exit code 2 do in GitHub Copilot CLI, and what happens when a PreToolUse hook times out? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "warns and continues",
+        "pretooluse",
+        "permissionrequest",
+        "fail open",
+        "timeout"
+      ],
+      "expected_gate": "state-copilot-exit-and-timeout-contract",
+      "rationale": "SKILL.md 'GitHub Copilot CLI Contract': exit 2 warns and continues by default and denies only for PreToolUse and PermissionRequest; timeouts fail open on every event. A generic Claude-hook answer would say exit 2 always blocks."
+    },
+    {
+      "id": "S2",
+      "desc": "Decision payload shape differs between Claude Code and Copilot CLI",
+      "input": "What is the hook payload format for a PreToolUse permission decision on Claude Code versus Copilot CLI? Which envelope field do I emit on each harness? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "hookspecificoutput",
+        "permissiondecision",
+        "top-level",
+        "nested"
+      ],
+      "expected_gate": "distinguish-decision-envelopes",
+      "rationale": "SKILL.md contract table and Copilot section: Claude uses nested hookSpecificOutput.permissionDecision, Copilot uses a top-level permissionDecision, never the nested envelope and never a top-level decision."
+    },
+    {
+      "id": "S3",
+      "desc": "Errno 2 on _dispatch.py mid-session",
+      "input": "Every tool call in my Copilot CLI session now fails with \"can't open file '.../project-toolkit/hooks/PreToolUse/_dispatch.py': [Errno 2] No such file or directory\". What is going on and what is the fix? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "stale plugin root",
+        "restart",
+        "fail closed",
+        "exported"
+      ],
+      "expected_gate": "diagnose-stale-plugin-root",
+      "rationale": "SKILL.md 'Stale plugin root wedges a running session': the plugin root is resolved once and exported, so moving it breaks every hook; the remedy is restarting the Copilot session, and reinstalling does not help."
+    },
+    {
+      "id": "S4",
+      "desc": "Run the porting campaign, which belongs to ai-agents-portability-campaign (negative)",
+      "input": "Run the portability campaign end to end: port our hooks to a new harness, regenerate the mirrors, and execute the runtime tests. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "warns and continues",
+        "hookspecificoutput"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The description says 'Do NOT use to run the porting campaign (in the ai-agents repository, use ai-agents-portability-campaign)'. This skill is the fact lookup, not the executor."
+    }
+  ]
+}
