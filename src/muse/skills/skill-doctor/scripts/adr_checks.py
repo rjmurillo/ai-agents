@@ -19,21 +19,18 @@ from urllib.parse import unquote
 from adr_corpus import (
     LINKS,
     NUMBERING,
-    STATUS_HEADING,
     AdrDir,
     AdrDoc,
     AdrFile,
     Finding,
     cited_paths,
     find_h1,
-    h1_number,
     is_non_record_name,
     make_finding,
     next_number,
     parse_name,
-    prose_lines,
-    status_word,
 )
+from adr_text import STATUS_HEADING, h1_number, prose_lines, status_word
 
 ACTIVE_STATUSES = frozenset({"", "accepted", "proposed", "draft", "approved"})
 GAP_EVIDENCE_CAP = 50

@@ -1,0 +1,126 @@
+"""Text parsing for ADR files: frontmatter, prose lines, status, and cited-path cleaning.
+
+Stdlib only. Pure functions over lines and strings; no filesystem or git access.
+"""
+
+from __future__ import annotations
+
+import re
+from collections.abc import Iterator, Sequence
+from typing import Any
+
+STATUS_HEADING = re.compile(r"^#{2,3}\s+status\b", re.IGNORECASE)
+BACKTICK = re.compile(r"`([^`\n]+)`")
+PATHLIKE = re.compile(r"^[A-Za-z0-9_.@+-][A-Za-z0-9_.@+/-]*$")
+PLACEHOLDER = re.compile(r"YYYY|MM-DD|NNN|XXX|path/to", re.IGNORECASE)
+FILE_EXTENSION = re.compile(r"\.[A-Za-z0-9]{1,8}$")
+
+
+def _strip_comment(value: str) -> str:
+    return re.sub(r"\s+#.*$", "", value).strip().strip("'\"")
+
+
+def _scalar(raw: str) -> Any:
+    value = _strip_comment(raw)
+    if value.startswith("[") and value.endswith("]"):
+        return [v.strip().strip("'\"") for v in value[1:-1].split(",") if v.strip()]
+    return value
+
+
+def parse_frontmatter(lines: Sequence[str]) -> tuple[dict[str, Any], dict[str, int], int]:
+    """Parse simple top-level YAML keys: (keys, 1-based line of each key, first body line index)."""
+    if not lines or lines[0].strip() != "---":
+        return {}, {}, 0
+    keys: dict[str, Any] = {}
+    key_lines: dict[str, int] = {}
+    current: str | None = None
+    for index in range(1, min(len(lines), 80)):
+        line = lines[index]
+        if line.strip() == "---":
+            return keys, key_lines, index + 1
+        top = re.match(r"^([A-Za-z_][\w-]*):\s*(.*)$", line)
+        if top:
+            current = top.group(1)
+            keys[current] = _scalar(top.group(2))
+            key_lines[current] = index + 1
+            continue
+        item = re.match(r"^\s+-\s+(.*)$", line)
+        if item and current is not None:
+            existing = keys[current]
+            values = existing if isinstance(existing, list) else []
+            values.append(_strip_comment(item.group(1)))
+            keys[current] = values
+    return {}, {}, 0
+
+
+def prose_lines(lines: Sequence[str], start: int = 0) -> Iterator[tuple[int, str]]:
+    """Yield (1-based line number, text), skipping fenced code and HTML comments."""
+    fenced = False
+    commented = False
+    for index in range(start, len(lines)):
+        line = lines[index]
+        stripped = line.lstrip()
+        if stripped.startswith(("```", "~~~")):
+            fenced = not fenced
+            continue
+        if fenced:
+            continue
+        if commented:
+            commented = "-->" not in line
+            continue
+        if stripped.startswith("<!--") and "-->" not in line:
+            commented = True
+            continue
+        yield index + 1, line
+
+
+def h1_number(text: str) -> int | None:
+    match = re.match(r"^#\s+ADR-0*(\d+)\b", text) or re.match(r"^#\s+0*(\d+)\.\s", text)
+    return int(match.group(1)) if match else None
+
+
+def h1_form(text: str) -> str | None:
+    if re.match(r"^#\s+ADR-\d+\s*:", text):
+        return "adr-colon"
+    if re.match(r"^#\s+\d+\.\s", text):
+        return "number-dot"
+    return None
+
+
+def doc_status(frontmatter: dict[str, Any], lines: Sequence[str], start: int) -> str:
+    """Lowercase status text: frontmatter first, then a Status section or line."""
+    value = frontmatter.get("status")
+    if isinstance(value, str) and value:
+        return value.lower()
+    in_section = False
+    for _, line in prose_lines(lines, start):
+        if STATUS_HEADING.match(line):
+            in_section = True
+            continue
+        if in_section:
+            if line.startswith("#"):
+                return ""
+            if line.strip():
+                return line.strip().lower()
+            continue
+        inline = re.match(r"^\s*(?:[-*]\s+)?\**status\**\s*[:|]\s*\**\s*(.+)$", line, re.IGNORECASE)
+        if inline:
+            return inline.group(1).strip().lower()
+    return ""
+
+
+def status_word(status: str) -> str:
+    match = re.match(r"[a-z]+", status.strip("*_ ").lower())
+    return match.group(0) if match else ""
+
+
+def clean_path(token: str) -> str | None:
+    value = re.sub(r":\d+(?:-\d+)?$", "", token.strip())
+    if not PATHLIKE.match(value) or "/" not in value or PLACEHOLDER.search(value):
+        return None
+    if value.startswith(("/", "~", "./", "..")) or ".." in value or "//" in value:
+        return None
+    last = value.rstrip("/").rsplit("/", 1)[-1]
+    if not (value.endswith("/") or FILE_EXTENSION.search(last)):
+        return None
+    return value

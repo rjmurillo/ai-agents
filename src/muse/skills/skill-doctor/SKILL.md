@@ -82,7 +82,7 @@ Create the report directory only after the startup gate and scope choices.
 | `audit_manifest.py` | Validate an `audit_manifest.json` written by `collect_sessions.py --audit-manifest`. |
 | `audit_batches.py` | `assign` immutable review batches from `inventory.json`; `import` one batch of score rows into an accepted file. |
 | `public_export.py` | Write an aggregate-only summary of `report.json` that is safe to share. |
-| `adr_drift.py` | `locate` ADR folders, `scan` a repository for ADR drift into a JSON file. Imports `adr_corpus.py`, `adr_checks.py`, and `adr_history.py`. |
+| `adr_drift.py` | `locate` ADR folders, `scan` a repository for ADR drift into a JSON file. Imports `adr_corpus.py`, `adr_text.py`, `adr_checks.py`, and `adr_history.py`. |
 | `warp_decoder.py` | Imported Warp protobuf decoder, not a standalone CLI. |
 
 Every CLI accepts `--help`.

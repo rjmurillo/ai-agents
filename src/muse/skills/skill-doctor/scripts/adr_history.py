@@ -21,8 +21,8 @@ from adr_corpus import (
     cited_paths,
     make_finding,
     run_git,
-    status_word,
 )
+from adr_text import status_word
 
 MAX_CITED_EVIDENCE = 10
 SUPERSEDE_VERB = r"(?:supersed\w*|replac\w*|revert\w*|deprecat\w*|drop\w*)"
