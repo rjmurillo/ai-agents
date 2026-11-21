@@ -1,4 +1,4 @@
-"""rg and grep resolution ignores the cwd and the repository (issue #7493).
+"""rg and grep resolution skips relative PATH entries and the repository (issue #7493).
 
 Portable: an explicit PATH value, a planted executable, and the ``windows``
 switch stand in for a Windows host.
@@ -52,10 +52,29 @@ def test_an_absolute_entry_inside_the_repository_is_rejected(layout) -> None:
     assert found is None
 
 
-def test_an_absolute_entry_inside_the_cwd_is_rejected(layout) -> None:
-    _plant(layout["work"] / "bin", "rg")
+def test_a_cwd_above_the_tool_directory_does_not_hide_the_tool(
+    layout, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A user who launches from $HOME keeps ~/.cargo/bin/rg. Refusing hits under
+    # the cwd turned recall off for every such user.
+    planted = _plant(layout["outside"], "rg")
+    monkeypatch.chdir(layout["outside"].parent.parent)
 
-    assert resolve_tool("rg", [], path_value=str(layout["work"] / "bin")) is None
+    found = resolve_tool("rg", [layout["repo"]], path_value=str(layout["outside"]))
+
+    assert found == str(planted)
+
+
+def test_a_refused_candidate_prints_one_recall_note(
+    layout, capsys: pytest.CaptureFixture[str]
+) -> None:
+    planted = _plant(layout["repo"] / "tools", "rg")
+
+    assert resolve_tool("rg", [layout["repo"]], path_value=str(planted.parent)) is None
+
+    assert (
+        f"memory-recall: ignoring {planted}: it is inside the repository" in capsys.readouterr().err
+    )
 
 
 def test_a_rejected_entry_does_not_hide_a_later_good_one(layout) -> None:

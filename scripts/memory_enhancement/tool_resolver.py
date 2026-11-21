@@ -4,7 +4,13 @@
 a relative ``PATH`` entry resolves against the cwd on every platform. Recall
 runs with the cwd inside a repository the user just opened, so a planted
 ``rg.exe`` there would run on the next prompt. This resolver walks absolute
-``PATH`` entries only and refuses any hit inside the repository or the cwd.
+``PATH`` entries only and refuses any hit inside the forbidden roots the caller
+passes, which recall sets to the repository and its memories directory.
+
+The cwd is not a forbidden root. A cwd of ``$HOME`` or ``/`` contains every
+installed tool, so refusing hits under it turned recall off for those users.
+The cwd threat is the implicit and relative lookup, which this resolver never
+does.
 """
 
 from __future__ import annotations
@@ -13,6 +19,8 @@ import os
 import sys
 from collections.abc import Iterable
 from pathlib import Path
+
+from .recall_log import note_once
 
 _DEFAULT_PATHEXT = ".COM;.EXE;.BAT;.CMD"
 
@@ -57,13 +65,6 @@ def _resolved_roots(forbidden_roots: Iterable[Path | None]) -> list[Path]:
     return roots
 
 
-def _cwd() -> Path | None:
-    try:
-        return Path.cwd()
-    except OSError:
-        return None
-
-
 def resolve_tool(
     name: str,
     forbidden_roots: Iterable[Path | None] = (),
@@ -74,15 +75,15 @@ def resolve_tool(
 ) -> str | None:
     """Return the first executable *name* on an absolute ``PATH`` entry, or None.
 
-    A candidate whose resolved path is inside any of *forbidden_roots* or inside
-    the current working directory is rejected, so a binary planted in the
+    A candidate whose resolved path is inside any of *forbidden_roots* is
+    rejected with one ``memory-recall:`` note, so a binary planted in the
     repository cannot be chosen even through an absolute ``PATH`` entry.
     ``path_value``, ``pathext`` and ``windows`` default to the process values.
     """
     is_windows = sys.platform == "win32" if windows is None else windows
     search_path = os.environ.get("PATH", "") if path_value is None else path_value
     extensions = os.environ.get("PATHEXT", _DEFAULT_PATHEXT) if pathext is None else pathext
-    roots = _resolved_roots([*forbidden_roots, _cwd()])
+    roots = _resolved_roots(forbidden_roots)
 
     for entry in _absolute_path_entries(search_path):
         for candidate_name in _candidate_names(name, is_windows, extensions):
@@ -94,6 +95,9 @@ def resolve_tool(
             except OSError:
                 continue
             if _is_inside(resolved, roots):
+                note_once(
+                    f"refused-{candidate}", f"ignoring {candidate}: it is inside the repository"
+                )
                 continue
             return str(candidate)
     return None
