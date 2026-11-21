@@ -211,11 +211,15 @@ class SkillValidator:
             import yaml
 
             result = parse_frontmatter(self.content, yaml, allow_duplicate_keys=True)
+            error = result.error or ""
             if result.status is FrontmatterStatus.NOT_A_MAPPING:
-                self.errors.append(f"Frontmatter must be a YAML dictionary: {result.error}")
+                self.errors.append(
+                    f"Frontmatter must be a YAML dictionary, got {result.value_type}"
+                )
                 return False
             if result.status is FrontmatterStatus.MALFORMED:
-                self.errors.append(f"Failed to parse frontmatter: {result.error}")
+                detail = error.removeprefix("invalid YAML frontmatter: ")
+                self.errors.append(f"Failed to parse frontmatter: {detail}")
                 return False
             self.frontmatter = result.metadata or {}
             return True
@@ -764,7 +768,8 @@ class SkillValidator:
     def validate_structure(self):
         """Validate overall document structure."""
         # Check for H1 title
-        has_h1 = bool(re.match(r"---.*?---\s*\n#\s+", self.content, re.DOTALL))
+        split = split_frontmatter(self.content)
+        has_h1 = split.found and bool(re.match(r"#\s+", split.body))
         self.check("structure.h1_title", has_h1, "Missing H1 title after frontmatter")
 
         # Check for tables (should prefer tables over prose)
@@ -801,8 +806,8 @@ class SkillValidator:
         except ImportError:
             BODY_TOKEN_BUDGET = 5000  # noqa: N806
             CHARS_PER_TOKEN_ESTIMATE = 4  # noqa: N806
-        match = re.match(r"---\r?\n.*?\r?\n---\r?\n?", self.content, re.DOTALL)
-        body = self.content[match.end() :] if match else self.content
+        split = split_frontmatter(self.content)
+        body = self.content[split.fence_end :] if split.found else self.content
         estimate = len(body) // CHARS_PER_TOKEN_ESTIMATE
         self.check(
             "structure.body_token_budget",

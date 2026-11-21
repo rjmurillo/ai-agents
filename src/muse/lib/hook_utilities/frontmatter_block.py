@@ -123,6 +123,8 @@ class FrontmatterResult:
     ``metadata`` is the parsed mapping. It is ``None`` for every status except
     VALID and EMPTY. EMPTY yields ``{}``, because a block that closed and held
     nothing did parse. ``raw`` and ``body`` follow :class:`FrontmatterSplit`.
+    ``value_type`` names the type YAML produced when the block is
+    NOT_A_MAPPING (for example ``list``), and is ``None`` otherwise.
     """
 
     status: FrontmatterStatus
@@ -130,6 +132,7 @@ class FrontmatterResult:
     raw: str
     body: str
     error: str | None = None
+    value_type: str | None = None
 
     @property
     def ok(self) -> bool:
@@ -262,6 +265,7 @@ def parse_frontmatter(
             split.raw,
             split.body,
             f"frontmatter is not a mapping (got {type(parsed).__name__})",
+            value_type=type(parsed).__name__,
         )
         return _maybe_raise(result, strict)
     return FrontmatterResult(FrontmatterStatus.VALID, parsed, split.raw, split.body)
