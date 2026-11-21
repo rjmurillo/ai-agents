@@ -337,6 +337,23 @@ class TestSplit:
         assert result.body == "Body.\n"
 
 
+class TestValueType:
+    """A non-mapping block names the type YAML built, so callers need no reparse."""
+
+    @pytest.mark.parametrize(
+        ("text", "expected"), [("---\n- a\n---\n", "list"), ("---\nhello\n---\n", "str")]
+    )
+    def test_not_a_mapping_names_the_type(self, text: str, expected: str) -> None:
+        result = parse(text)
+
+        assert result.status is FrontmatterStatus.NOT_A_MAPPING
+        assert result.value_type == expected
+
+    def test_other_statuses_carry_no_type(self) -> None:
+        assert parse(f"---\n{BODY}\n---\n").value_type is None
+        assert parse("---\na: [\n---\n").value_type is None
+
+
 class TestLoad:
     """load_frontmatter returns only a mapping, last-one-wins by default."""
 

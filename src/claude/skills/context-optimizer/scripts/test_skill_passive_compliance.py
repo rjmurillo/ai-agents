@@ -14,6 +14,7 @@ Exit codes:
 
 import argparse
 import json
+import os
 import re
 import sys
 from dataclasses import dataclass, field
@@ -22,6 +23,24 @@ from pathlib import Path
 from typing import Any
 
 from path_validation import validate_path_within_repo
+
+# ADR-047 keeps this bootstrap inline because imports need sys.path first.
+_PLUGIN_ROOT = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+if _PLUGIN_ROOT:
+    _LIB_DIR = Path(_PLUGIN_ROOT) / "lib"
+else:
+    _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+
+if not os.path.isdir(_LIB_DIR):
+    raise RuntimeError(
+        "Expected portability helper lib directory not found: "
+        f"{_LIB_DIR}. Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT to the "
+        "plugin root, or run from an ai-agents checkout."
+    )
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from hook_utilities.frontmatter_block import FrontmatterStatus, split_frontmatter  # noqa: E402
 
 
 @dataclass
@@ -232,22 +251,16 @@ def audit_size_exception(skill_path: Path) -> CheckResult | None:
     """Audit structured evidence for a declared skill size exception."""
     skill_md = skill_path / "SKILL.md"
     content = skill_md.read_text()
-    # Parse only YAML frontmatter for size-exception declaration,
-    # matching the canonical parser at SkillForge/scripts/frontmatter.py.
-    has_exception = False
-    if content.startswith("---"):
-        fm_lines = content.split("\n")
-        for i in range(1, len(fm_lines)):
-            if fm_lines[i].strip() == "---":
-                frontmatter_block = "\n".join(fm_lines[1:i])
-                has_exception = bool(
-                    re.search(
-                        r"^\s*size-exception:\s*true\s*(?:#.*)?$",
-                        frontmatter_block,
-                        re.IGNORECASE | re.MULTILINE,
-                    )
-                )
-                break
+    # Parse only YAML frontmatter for size-exception declaration; the block
+    # comes from hook_utilities.frontmatter_block, the repository's one parser.
+    split = split_frontmatter(content)
+    has_exception = split.found and bool(
+        re.search(
+            r"^\s*size-exception:\s*true\s*(?:#.*)?$",
+            split.raw,
+            re.IGNORECASE | re.MULTILINE,
+        )
+    )
     if not has_exception:
         return None
 
@@ -394,24 +407,22 @@ def check_skill_frontmatter(skill_path: Path) -> CheckResult:
 
     content = skill_md.read_text()
 
-    # Check for frontmatter start
-    if not content.startswith("---\n"):
+    split = split_frontmatter(content)
+    if split.status is FrontmatterStatus.ABSENT:
         return CheckResult(
             passed=False,
             severity="error",
             message="Frontmatter not found (must start with --- on line 1)",
         )
 
-    # Extract frontmatter
-    match = re.match(r"^---\n(.*?)\n---", content, re.DOTALL)
-    if not match:
+    if split.status is FrontmatterStatus.UNTERMINATED:
         return CheckResult(
             passed=False,
             severity="error",
             message="Frontmatter end delimiter (---) not found",
         )
 
-    frontmatter = match.group(1)
+    frontmatter = split.raw.removeprefix("\n").removesuffix("\n")
 
     # Check for required fields
     has_name = re.search(r"^name:\s*\S+|^\s+name:\s*\S+", frontmatter, re.MULTILINE)
@@ -464,8 +475,8 @@ def check_no_duplicate_content(skill_path: Path, passive_context_files: list[Pat
 
     # Extract significant phrases (3+ words) from skill content
     # Skip frontmatter
-    match = re.match(r"^---\n.*?\n---\n(.*)$", skill_content, re.DOTALL)
-    skill_body = match.group(1) if match else skill_content
+    split = split_frontmatter(skill_content)
+    skill_body = split.body if split.found else skill_content
 
     # Extract phrases (simple heuristic: lines with 20+ chars that aren't code blocks)
     skill_phrases = [

@@ -10,6 +10,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from ai_review_common.verdict import extract_verdict
+from hook_utilities.frontmatter_block import FrontmatterStatus, split_frontmatter
 
 _FULL_COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 _SHORT_COMMIT_PATTERN = re.compile(r"^[0-9a-f]{7,40}$")
@@ -96,16 +97,14 @@ def resolve_session_log_path(
 
 def _qa_fields(text: str) -> dict[str, str]:
     """Return strict QA fields from leading YAML frontmatter."""
-    lines = text.splitlines()
-    if not lines or lines[0] != "---":
+    split = split_frontmatter(text)
+    if split.status is FrontmatterStatus.ABSENT:
         raise ValueError("QA report is missing leading YAML frontmatter")
-    try:
-        closing_index = lines.index("---", 1)
-    except ValueError as exc:
-        raise ValueError("QA report YAML frontmatter is not closed") from exc
+    if split.status is FrontmatterStatus.UNTERMINATED:
+        raise ValueError("QA report YAML frontmatter is not closed")
 
     fields: dict[str, str] = {}
-    for line in lines[1:closing_index]:
+    for line in split.raw.splitlines():
         match = _QA_FIELD_PATTERN.fullmatch(line)
         if match is None:
             continue

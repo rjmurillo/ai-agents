@@ -240,9 +240,8 @@ def parse_frontmatter(text: str) -> dict[str, str]:
             continue
         # Strip inline YAML comments (e.g. "model: opus  # override") so the
         # trailing comment is not captured as part of the value, which would
-        # cause silent false negatives. Uses the same behavior as
-        # scripts/validation/yaml_utils.py:_parse_yaml_frontmatter (only strip
-        # when the value does not open with a quote; cut at the first "#").
+        # cause silent false negatives. Strip only when the value does not open
+        # with a quote, and cut at the first "#", as YAML treats a plain scalar.
         if value[0] not in ('"', "'"):
             comment_pos = value.find("#")
             if comment_pos > 0:

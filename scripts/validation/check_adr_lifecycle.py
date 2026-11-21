@@ -341,20 +341,21 @@ def _split_frontmatter(text: str) -> tuple[str | None, str]:
     return result.raw, result.body
 
 
-def _frontmatter_reason(raw: str | None, text: str) -> str:
+def _frontmatter_reason(text: str) -> str:
     """Human-readable reason a frontmatter block is unusable.
 
-    ``_parse_yaml_frontmatter`` collapses "absent", "malformed", and "not a
+    ``load_frontmatter`` collapses "absent", "malformed", and "not a
     mapping" into one None and discards the YAML parser error. Re-deriving the
     reason follows the precedent of ``_frontmatter_error`` in
     ``scripts/validation/validate_copilot_agent_frontmatter.py``, whose comment
     states the same rationale: "that helper swallows the error to None, but
     issue #2500 requires the YAML parser error in the message".
 
-    ``raw`` is None for two different defects, and ``text`` is what separates
-    them. ``_split_frontmatter`` returns None when the file does not start with
-    ``---`` (the block is absent) and also when it starts with ``---`` but no
-    closing fence follows (the block is unterminated). Reporting both as
+    The split returns no block for two different defects, and the shared
+    parser's status is what separates them. ``_split_frontmatter`` returns
+    None when the file does not start with ``---`` (the block is absent) and
+    also when it starts with ``---`` but no closing fence follows (the block is
+    unterminated). Reporting both as
     "no leading `---` frontmatter block" sends an author to add frontmatter that
     is already there: a record can open with ``---`` and carry ``id``,
     ``status`` and ``date``, and still be told its schema is absent. The record
@@ -380,8 +381,7 @@ def _frontmatter_reason(raw: str | None, text: str) -> str:
     if result.status is FrontmatterStatus.MALFORMED:
         detail = " ".join(str(result.error or "").split())
         return f"frontmatter YAML did not parse: {detail}"
-    parsed = yaml.safe_load(raw) if raw is not None else None
-    return f"frontmatter is a {type(parsed).__name__}, not a YAML mapping"
+    return f"frontmatter is a {result.value_type}, not a YAML mapping"
 
 
 class _DuplicateKey(yaml.YAMLError):
@@ -499,7 +499,7 @@ def _read_record(path: Path, number: int, rel: str) -> tuple[Record, Violation |
     if frontmatter is None:
         return (
             Record(number, rel, None, body, lines),
-            Violation("frontmatter-parses", rel, _frontmatter_reason(raw, text)),
+            Violation("frontmatter-parses", rel, _frontmatter_reason(text)),
         )
     return Record(number, rel, frontmatter, body, lines), None
 
