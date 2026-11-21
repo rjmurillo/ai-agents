@@ -150,8 +150,8 @@ The other two pre-push cells had no start above 2.
 ## What the numbers say
 
 **`count-ratchets` runs at its own deadline.**
-`scripts/validation/checks_ratchet.py:177` sets `_AGGREGATE_TIMEOUT_SECONDS = 85`,
-an aggregate deadline under the job's 90s lefthook cap (`lefthook.yml:545-546`). Across the 60 complete warm pre-push
+`scripts/validation/checks_ratchet.py:177` sets `_AGGREGATE_TIMEOUT_SECONDS = 85`, <!-- citation-freshness: ignore -- measurement record: the value 85 was the setting when measured; checks_ratchet.py now sets _AGGREGATE_TIMEOUT_SECONDS = 600 at line 174 -->
+an aggregate deadline under the job's 90s lefthook cap (`lefthook.yml:545-546`). Across the 60 complete warm pre-push <!-- citation-freshness: ignore -- measurement record: 90s was the count-ratchets cap when measured; that job now sits at lefthook.yml line 746 with a 660s cap -->
 repetitions, the job measured p50 72.5s, p95 80.5s, and max 82.8s. Those
 figures are censored: the job was killed at its deadline in 4 of 66 warm
 attempts, and a killed run has no finishing time, so its true tail runs to
@@ -209,7 +209,7 @@ unknown. The headroom wait is not the cause: in the
 diagnostic run only semgrep waited for host headroom, 15.0s at load 4.8.
 
 **Pre-commit is one job.** `agents-write-targets` runs on any staged file
-matching its broad glob and then scans the whole index (`lefthook.yml:229`).
+matching its broad glob and then scans the whole index (`lefthook.yml:236`).
 It costs 27.8s of the 30s to 34s pre-commit wall clock in every class, and
 `pre_pr.py` runs the same scan again at push time. It entered `lefthook.yml` on
 2026-09-22 (#5887), after the v0.7.0 capture. That plausibly accounts for most

@@ -177,7 +177,7 @@ protocol, though even those are usable by customers and have earned their keep
 here. The genuinely-internal skill set is small, possibly empty. The point is
 that no mechanism records the decision per item, and the current separation is a
 crude filename filter (`_DEFAULT_EXCLUDES = ("AGENTS.md", "CLAUDE.md")` in
-`build/scripts/generate_skills.py:39`, plus an `excludeFilenames` list in
+`build/scripts/skill_support_mirror.py:45`, plus an `excludeFilenames` list in
 `templates/platforms/copilot-cli.yaml`). That filter cannot express a borderline
 item, and it cannot keep an internal item available to us while withholding it
 from customers.
