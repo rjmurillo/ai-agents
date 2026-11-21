@@ -866,6 +866,10 @@ class _PatchParser:
     def __init__(self) -> None:
         self.ranges: dict[str, list[list[int]]] = {}
         self._fence_from: dict[str, int] = {}
+        # Per file: parity of changed column-0 backtick fence lines so far, and
+        # the first new-side line after the last hunk (start of the open gap).
+        self._parity: dict[str, int] = {}
+        self._gap_from: dict[str, int] = {}
         self._new_cursor = 0
         self._poisoned: set[str] = set()
         self._path: str | None = None
@@ -884,15 +888,12 @@ class _PatchParser:
         kind = line[:1]
         if kind == "\\":
             return True  # "\ No newline at end of file" marker, uncounted
-        fence = _FENCE_LINE.match(line[1:]) is not None
         if kind == "-" and self._old_left:
             self._old_left -= 1
-            if fence:
-                self._note_fence(self._new_cursor)
+            self._note_fence_text(line[1:])
         elif kind == "+" and self._new_left:
             self._new_left -= 1
-            if fence:
-                self._note_fence(self._new_cursor)
+            self._note_fence_text(line[1:])
             self._new_cursor += 1
         elif kind == " " and self._old_left and self._new_left:
             self._old_left -= 1
@@ -902,12 +903,41 @@ class _PatchParser:
             return False
         return True
 
-    def _note_fence(self, line_no: int) -> None:
-        """Remember the earliest changed fence line.
+    def _note_fence_text(self, text: str) -> None:
+        """Classify one added or removed line by its fence effect.
 
-        Adding, editing, or deleting a fence re-pairs every later fence, so
-        claims from that line to the end of the file are no longer the
-        author's unchanged text.
+        The claim extractor pairs fences by a toggle on lines that start with
+        three backticks at column 0. Such a line flips the in-fence state of
+        every unchanged line below it, so it only moves the parity that
+        ``_close_gap`` reads. Any other fence-like shape (tildes, indented)
+        stays fail closed through ``_note_fence``, because ``same_pr.py`` and
+        the external-sdk scan read those shapes too.
+        """
+        if text.startswith("```"):
+            if self._path is not None:
+                self._parity[self._path] = self._parity.get(self._path, 0) ^ 1
+        elif _FENCE_LINE.match(text):
+            self._note_fence(self._new_cursor)
+
+    def _close_gap(self, next_lo: int) -> None:
+        """Emit the unchanged stretch before the next hunk when parity is odd.
+
+        An odd count of changed column-0 fence lines above a stretch means its
+        fence pairing flipped, so claims there are no longer the author's
+        unchanged text. An even count leaves pairing as it was.
+        """
+        if self._path is None or self._current is None:
+            return
+        first = self._gap_from.get(self._path)
+        if first is not None and self._parity.get(self._path, 0) and first < next_lo:
+            self._current.append([first, next_lo - 1])
+
+    def _note_fence(self, line_no: int) -> None:
+        """Remember the earliest changed non-column-0 fence line.
+
+        Editing a tilde or indented fence re-pairs every later fence for the
+        readers that honor those shapes, so claims from that line to the end
+        of the file are no longer the author's unchanged text.
         """
         if self._path is not None:
             known = self._fence_from.get(self._path, line_no)
@@ -942,7 +972,11 @@ class _PatchParser:
         old = 1 if match.group(1) is None else int(match.group(1))
         start = int(match.group(2))
         new = 1 if match.group(3) is None else int(match.group(3))
-        self._current.append(_hunk_range(start, new))
+        span = _hunk_range(start, new)
+        self._close_gap(span[0])
+        self._current.append(span)
+        if self._path is not None:
+            self._gap_from[self._path] = span[1] + 1
         self._old_left, self._new_left = old, new
         # A deletion-only hunk (new == 0) removes text after line ``start``.
         self._new_cursor = start + 1 if new == 0 else start
@@ -957,7 +991,10 @@ class _PatchParser:
         for path, found in self.ranges.items():
             if path in self._poisoned or not found:
                 self.ranges[path] = [[1, _WHOLE_FILE_END]]
-            elif path in self._fence_from:
+                continue
+            if self._parity.get(path, 0) and path in self._gap_from:
+                found.append([self._gap_from[path], _WHOLE_FILE_END])
+            if path in self._fence_from:
                 found.append([self._fence_from[path], _WHOLE_FILE_END])
         return self.ranges
 
@@ -1395,15 +1432,159 @@ def _find_external_sdk_markers(lines: list[str]) -> list[tuple[int, str, str]]:
     text inside a fence. ``sdk name`` is "" for a nameless marker, which the
     caller reports. A marker split across LF-terminated lines is not recognized.
     """
+    stop = _sdk_marker_scan_stop(lines)
+    scanned = lines if stop is None else lines[: stop + 1]
     markers: list[tuple[int, str, str]] = []
-    for number, line in enumerate(lines, start=1):
+    for number, line in enumerate(scanned, start=1):
         marker = _EXTERNAL_SDK_MARKER_RE.match(line)
         if marker:
             name, reason = _parse_sdk_marker_body(marker.group("body"))
             markers.append((number, name, reason))
-        if any(run in line for run in _FENCE_LIKE_RUNS):
-            break
     return markers
+
+
+def _sdk_marker_scan_stop(lines: list[str]) -> int | None:
+    """0-based index of the first line holding a fence-like run, or None.
+
+    The marker scan reads up to and including this line and no further.
+    """
+    for index, line in enumerate(lines):
+        if any(run in line for run in _FENCE_LIKE_RUNS):
+            return index
+    return None
+
+
+def _first_ignored_sdk_marker(lines: list[str]) -> dict[str, int] | None:
+    """Locate the first well-formed marker the scan ignored, and the stop line.
+
+    Returns 1-based ``{"line": marker, "stop_line": stop}`` or None. Lines
+    above an unchanged marker keep their order, so the marker can only have
+    been honored at the base when the diff changed the marker line or the
+    stop line (the first fence-like line, which must then be new).
+    """
+    stop = _sdk_marker_scan_stop(lines)
+    if stop is None:
+        return None
+    for number, line in enumerate(lines[stop + 1 :], start=stop + 2):
+        marker = _EXTERNAL_SDK_MARKER_RE.match(line)
+        if marker and _parse_sdk_marker_body(marker.group("body"))[0]:
+            return {"line": number, "stop_line": stop + 1}
+    return None
+
+
+# Every pattern is anchored at the start of a line, so a declaration counts
+# only where a statement begins. Text in the middle of a line, such as a regex
+# literal or a string the blanking pass could not parse, declares nothing.
+# Keyword and modifier runs stay on one line, and no two adjacent parts can
+# share a run of spaces, so a crafted line costs linear time per line. The
+# property pattern crosses line breaks on purpose, because a name, its ``{``
+# and ``get`` often sit on separate lines. A declaration a pattern misses
+# keeps its finding, which is the safe direction.
+_CS_ATTRIBUTES = r"(?:\[[^\]\n]*\][ \t]*)*"
+_CS_MODIFIERS = (
+    r"(?:(?:public|private|protected|internal|static|sealed|abstract|partial"
+    r"|readonly|unsafe|file|new|ref)[ \t]+)*"
+)
+_CS_METHOD_MODIFIER_WORDS = (
+    r"public|private|protected|internal|static|virtual|override|abstract"
+    r"|sealed|async|extern|unsafe|new|partial|readonly"
+)
+_CS_METHOD_MODIFIERS = r"(?:(?:" + _CS_METHOD_MODIFIER_WORDS + r")[ \t]+)*"
+# A return type: no modifier or conversion keyword, then type characters. A
+# comma inside a generic may be followed by one space (``Dictionary<string,
+# int>``). The comma is only in the second branch, so each character has one
+# parse. One space at most keeps that branch from sharing a run of spaces with
+# the ``[ \t]+`` before the method name, which would make a match quadratic.
+_CS_RETURN_TYPE = (
+    r"(?!(?:" + _CS_METHOD_MODIFIER_WORDS + r"|implicit|explicit|operator)\b)"
+    r"(?:[\w<>\[\].?]|,[ \t]?){1,200}"
+)
+_DECLARED_NAME_PATTERNS: dict[str, tuple[re.Pattern[str], ...]] = {
+    "csharp": (
+        re.compile(
+            r"^[ \t]*" + _CS_ATTRIBUTES + _CS_MODIFIERS + r"(?:class|struct|interface|enum"
+            r"|record(?:[ \t]+(?:class|struct))?|namespace)[ \t]+([A-Za-z_][\w.]*)",
+            re.MULTILINE,
+        ),
+        re.compile(
+            r"^[ \t]*(?:[\w<>\[\],.?]+[ \t]+)+([A-Za-z_]\w*)\s*\{\s*(?:get|set|init)\b",
+            re.MULTILINE,
+        ),
+        # A method has a return type between its modifiers and its name. A
+        # constructor (``protected internal Order(``) has none: it names a type
+        # it does not declare. A modifier word is never a return type, so no
+        # modifier can stand in for one. A conversion operator names its target
+        # type the same way, so ``implicit``, ``explicit`` and ``operator`` are
+        # never a return type either.
+        re.compile(
+            r"^[ \t]*"
+            + _CS_ATTRIBUTES
+            + r"(?:public|private|protected|internal)[ \t]+"
+            + _CS_METHOD_MODIFIERS
+            + _CS_RETURN_TYPE
+            + r"[ \t]+([A-Za-z_]\w*)[ \t]*\(",
+            re.MULTILINE,
+        ),
+    ),
+    "python": (re.compile(r"^[ \t]*(?:async[ \t]+)?(?:class|def)[ \t]+(\w+)", re.MULTILINE),),
+    "javascript": (
+        re.compile(
+            r"^[ \t]*(?:export[ \t]+)?(?:default[ \t]+)?(?:declare[ \t]+)?(?:abstract[ \t]+)?"
+            r"(?:async[ \t]+)?(?:class|interface|enum|function)[ \t]+([A-Za-z_$][\w$]*)",
+            re.MULTILINE,
+        ),
+        # A type alias is ``type Name =`` or ``type Name<...> =``. Requiring the
+        # ``=`` or ``<`` keeps ``import type X`` and a wrapped
+        # ``import {\n  type X,\n}`` list as claims about the repository.
+        re.compile(
+            r"^[ \t]*(?:export[ \t]+)?(?:declare[ \t]+)?type[ \t]+([A-Za-z_$][\w$]*)[ \t]*[=<]",
+            re.MULTILINE,
+        ),
+    ),
+}
+_DECLARED_NAME_PATTERNS["typescript"] = _DECLARED_NAME_PATTERNS["javascript"]
+
+# Comments and string literals in C#, JavaScript, and TypeScript. Blanking errs
+# toward hiding a declaration, which can only keep a finding, never drop one.
+# A backslash always consumes the next character (or the end of the block), so
+# each string body has one parse and every alternative ends without failing.
+_C_LIKE_NON_CODE_RE = re.compile(
+    r"(?s)/\*.*?(?:\*/|\Z)"
+    r"|//[^\n]*"
+    # C# raw strings (3 to 16 quotes, closed by the same run) and verbatim
+    # strings span lines. The cap keeps the backreference check linear.
+    r'|("{3,16}).*?(?:\1|\Z)'
+    r'|(?:\$@|@\$?)"(?:""|[^"])*(?:"|\Z)'
+    r"|\"(?:\\(?:.|\Z)|[^\"\\\n])*(?:\"|(?=\n)|\Z)"
+    r"|'(?:\\(?:.|\Z)|[^'\\\n])*(?:'|(?=\n)|\Z)"
+    r"|`(?:\\(?:.|\Z)|[^`\\])*(?:`|\Z)"
+)
+
+
+def _strip_non_code(code: str, lang: str) -> str:
+    """Blank comments and strings so a keyword in them declares nothing."""
+    if lang == "python":
+        return _strip_python_non_code(code)
+    return _C_LIKE_NON_CODE_RE.sub(lambda m: " " * len(m.group(0)), code)
+
+
+def _declared_names(code: str, lang: str) -> set[str]:
+    """Names a code block declares itself, so they are not repo symbol claims.
+
+    Conservative on purpose: every pattern needs a declaration keyword, an
+    access modifier, or a property accessor, so a plain use never counts.
+    Comments and strings are blanked first, so ``// class Ghost`` declares
+    nothing. Dotted namespaces such as ``Foo.Bar`` contribute each part.
+    """
+    patterns = _DECLARED_NAME_PATTERNS.get(lang, ())
+    if not patterns:
+        return set()
+    code = _strip_non_code(code, lang)
+    names: set[str] = set()
+    for pattern in patterns:
+        for found in pattern.findall(code):
+            names.update(part for part in found.split(".") if part)
+    return names
 
 
 def _exemption_lines(
@@ -1431,6 +1612,15 @@ def _exemption_lines(
     return lines
 
 
+def _declared_skip_lines(compilability_data: dict[str, Any] | None) -> list[str]:
+    """One line per file whose examples declared names Phase 3 then skipped."""
+    declared = (compilability_data or {}).get("declared_name_suppressed", {})
+    return [
+        f"{path}: {count} unresolved_symbol skipped because the same code example declares them"
+        for path, count in sorted(declared.items())
+    ]
+
+
 def _extract_quantitative_claims(line: str) -> list[str]:
     """Find quantitative claims in a line of text."""
     patterns = [
@@ -1454,6 +1644,7 @@ def run_claim_extraction(
     claims: list[Claim] = []
     claim_counter = 0
     external_sdk_files: dict[str, dict[str, Any]] = {}
+    external_sdk_ignored: dict[str, dict[str, int]] = {}
 
     # Build symbol -> source file mapping
     symbol_to_source: dict[str, str] = {}
@@ -1471,6 +1662,10 @@ def run_claim_extraction(
         lines = [ln[:-1] if ln.endswith("\r") else ln for ln in content.split("\n")]
         mapped_sources = doc_info.get("mapped_source_files", [])
         default_source = mapped_sources[0] if mapped_sources else ""
+
+        ignored_marker = _first_ignored_sdk_marker(lines)
+        if ignored_marker is not None:
+            external_sdk_ignored[doc_info["path"]] = ignored_marker
 
         for marker_line, sdk_name, reason in _find_external_sdk_markers(lines):
             if sdk_name:
@@ -1603,6 +1798,7 @@ def run_claim_extraction(
     return {
         "claims": [c.to_dict() for c in claims],
         "external_sdk_files": external_sdk_files,
+        "external_sdk_ignored": external_sdk_ignored,
     }
 
 
@@ -1611,10 +1807,17 @@ def run_claim_extraction(
 # ---------------------------------------------------------------------------
 
 
+def _marker_may_have_flipped(marker: dict[str, int], ranges: list[list[int]]) -> bool:
+    """True when a changed range covers the ignored marker or the scan stop line."""
+    watched = (marker["line"], marker["stop_line"])
+    return any(lo <= line <= hi for lo, hi in ranges for line in watched)
+
+
 def _scope_findings(
     findings: list[dict[str, Any]],
     claims_by_id: dict[str, dict[str, Any]],
     changed_lines: dict[str, list[list[int]]] | None,
+    ignored_markers: dict[str, dict[str, int]] | None = None,
 ) -> list[dict[str, Any]]:
     """Mark findings in or out of the PR's changed lines (``--diff-base`` only).
 
@@ -1623,15 +1826,32 @@ def _scope_findings(
     ``in_diff``. One whose claim span misses every changed range is downgraded
     to ``info`` (``original_severity`` keeps the old value), so it stays
     visible but never reaches the gate.
+
+    ``ignored_markers`` maps a file to its first well-formed external-sdk
+    marker that the scan ignored, as ``{"line", "stop_line"}``. When the diff
+    changed either line, the marker may have been honored at the base, so an
+    ``unresolved_symbol`` finding in that file stays in scope.
     """
     if changed_lines is None:
         return findings
+    markers = ignored_markers or {}
     for finding in findings:
         claim = claims_by_id[finding["claim_id"]]
         ranges = changed_lines.get(_norm_path(claim["file"]))
         # Fail closed: a file with no entry, or an empty list, is changed in
         # full.
         in_diff = not ranges or _claim_in_ranges(claim, ranges)
+        marker = markers.get(claim["file"])
+        if (
+            not in_diff
+            and marker is not None
+            and finding["category"] == "unresolved_symbol"
+            and _marker_may_have_flipped(marker, ranges or [])
+        ):
+            in_diff = True
+            # The claim's own lines did not change, so say why it gates.
+            finding["scope_reason"] = "ignored_external_sdk_marker"
+            finding["scope_marker_line"] = marker["line"]
         finding["in_diff"] = in_diff
         if not in_diff:
             finding["original_severity"] = finding["severity"]
@@ -1666,6 +1886,7 @@ def run_compilability_check(
 
     external_sdk_files: dict[str, Any] = claims_data.get("external_sdk_files", {})
     external_sdk_suppressed: dict[str, int] = {}
+    declared_name_suppressed: dict[str, int] = {}
 
     for claim_dict in claims_data.get("claims", []):
         if claim_dict["type"] == INVALID_SDK_MARKER_CLAIM:
@@ -1704,6 +1925,10 @@ def run_compilability_check(
         symbols_ref = claim_dict.get("symbols_referenced", [])
         if not symbols_ref:
             continue
+
+        # A code example may declare its own types, namespaces, properties and
+        # methods. Those are not claims about the repository.
+        declared = _declared_names(content, lang) if claim_dict["type"] == "code_example" else set()
 
         for sym_name in symbols_ref:
             if sym_name in known_names:
@@ -1786,6 +2011,13 @@ def run_compilability_check(
                 if sym_name in framework_types:
                     continue
 
+                # The example declares this name itself; count the skip so the
+                # report shows what this rule hid.
+                if sym_name in declared:
+                    path = claim_dict["file"]
+                    declared_name_suppressed[path] = declared_name_suppressed.get(path, 0) + 1
+                    continue
+
                 # Python builtins (ImportError, ValueError, ...) are never
                 # repo symbols.
                 if lang == "python" and hasattr(builtins, sym_name):
@@ -1829,8 +2061,10 @@ def run_compilability_check(
             [f.to_dict() for f in findings],
             claims_by_id,
             assessment.get("changed_lines"),
+            claims_data.get("external_sdk_ignored", {}),
         ),
         "external_sdk_suppressed": external_sdk_suppressed,
+        "declared_name_suppressed": declared_name_suppressed,
     }
 
 
@@ -1927,6 +2161,12 @@ def generate_markdown_report(
         lines.extend(f"- {text}" for text in exemptions)
         lines.append("")
 
+    if declared_skips := _declared_skip_lines(compilability_data):
+        lines.append("## Example-declared names")
+        lines.append("")
+        lines.extend(f"- {text}" for text in declared_skips)
+        lines.append("")
+
     if compilability_data and compilability_data["findings"]:
         lines.append("## Findings")
         lines.append("")
@@ -1967,6 +2207,8 @@ def _print_summary(
             print(f"  {ct}: {count}")
     for text in _exemption_lines(claims_data, compilability_data):
         print(text)
+    for text in _declared_skip_lines(compilability_data):
+        print(f"Example-declared names: {text}")
     if compilability_data:
         print(f"Findings: {gate_result['total_findings']} total")
         for sev in ("critical", "high", "medium", "low", "info"):
