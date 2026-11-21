@@ -159,7 +159,7 @@ evidence (failing tests, widening diff), not on speculation.
 | Respond to PR review threads | Skill: pr-comment-responder |
 | Merge conflicts | Agent: merge-resolver |
 | Push, ship, "open a PR" | /ship (or /push-pr for push-only) |
-| "what do we know about X", "recall prior context" | Skill: memory-search |
+| "what do we know about X", "recall prior context" | Skill: memory-search when installed, otherwise the `memory` skill's recall procedure |
 | "remember this", "retain a decision" | Skill: memory |
 | Research an unfamiliar topic | Skill: context-gather, then Skill: research (its claim gate composes ai-agents-external-claims before any durable write) |
 | Ask about Claude Code or Copilot CLI hook contracts | Skill: agent-harness-reference |

@@ -42,8 +42,7 @@ retired knowledge-graph skill).
 ## Related Sub-Skills
 
 Use this skill to retain durable project facts. For other operations, load the
-focused sub-skill when available. For recall or a pre-change check without
-the sub-skill, search repository memory and Git history for the rationale.
+focused sub-skill when available.
 
 | Sub-Skill | Operation | Load When |
 |-----------|-----------|-----------|
@@ -73,10 +72,10 @@ Use this skill when the user says:
 What do you need?
 │
 ├─► Current facts, patterns, or rules?
-│   └─► memory-search sub-skill (Tier 1)
+│   └─► memory-search, or the recall procedure below
 │
 ├─► About to change existing code, a constraint, or a protocol?
-│   └─► memory-gate sub-skill (search the "why" first, BLOCKING)
+│   └─► memory-gate, or the recall procedure below before changing anything
 │
 ├─► Record what happened in a completed session?
 │   └─► memory-reflexion sub-skill (Tier 2 episode extraction)
@@ -91,7 +90,7 @@ What do you need?
 │   └─► memory-consolidate sub-skill
 │
 └─► Not sure which tier?
-    └─► Start with memory-search (Tier 1), escalate if insufficient
+    └─► Start with recall, then check episodes if needed
 ```
 
 For deeper guidance on picking a tier, see
@@ -271,8 +270,16 @@ Match the request to an operation using the decision tree.
 
 ### Phase 2: Delegate
 
-Use the write procedure above to retain facts. For other operations, load the
-selected sub-skill and follow its procedure.
+Use the write procedure above to retain facts. Follow the selected sub-skill's
+procedure when available.
+
+### Recall without a sub-skill
+
+Query an available recall capability when its project scope is clear.
+Otherwise search the established repository corpus or repository notes.
+Run the bundled `search_memory.py` or use file tools. Before changing
+an existing system, check Git history for missing rationale. Verify claims
+against current sources and record the sources and coverage gaps.
 
 ### Phase 3: Report
 

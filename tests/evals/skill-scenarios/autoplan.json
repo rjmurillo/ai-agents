@@ -168,6 +168,28 @@
       "expected_route": ["memory"],
       "forbidden_routes": ["memory-search", "memory-reflexion", "orchestrator"],
       "rationale": "The memory skill owns durable fact retention. Search and episode extraction serve different requests."
+    },
+    {
+      "id": "R16",
+      "family": "high-traffic-direct",
+      "desc": "Direct recall uses the focused search skill when installed",
+      "input": "Recall prior context on the retry policy. Both memory and memory-search are installed. State which skill you would use without making changes.",
+      "expected_signals": ["memory-search"],
+      "expected_gate": "route-memory-search",
+      "expected_route": ["memory-search"],
+      "forbidden_routes": ["memory-reflexion", "orchestrator"],
+      "rationale": "The focused skill handles lookup when it is installed."
+    },
+    {
+      "id": "R17",
+      "family": "high-traffic-direct",
+      "desc": "Direct recall uses the memory router on a host missing memory-search",
+      "input": "Recall prior context on the retry policy. Only the memory router is installed. State which skill and procedure you would use without making changes.",
+      "expected_signals": ["memory", "recall"],
+      "expected_gate": "route-memory-recall-fallback",
+      "expected_route": ["memory"],
+      "forbidden_routes": ["memory-search", "memory-reflexion", "orchestrator"],
+      "rationale": "The router supplies a recall procedure when the focused skill is absent."
     }
   ]
 }
