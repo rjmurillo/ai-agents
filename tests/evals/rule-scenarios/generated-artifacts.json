@@ -1,0 +1,90 @@
+{
+  "rule_path": ".claude/rules/generated-artifacts.md",
+  "rule_id": "generated-artifacts",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Generator change tested only by asserting its own output",
+      "input": "In build/scripts/generate_hooks.py I am changing the Copilot hooks.json command to './hooks/session_start.py'. My test asserts that the generator emits exactly that string. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "runtime-contract test",
+        "negative control",
+        "cwd",
+        "not the plugin root",
+        "bare relative path",
+        "pr-2205"
+      ],
+      "expected_gate": "require-runtime-contract-test",
+      "rationale": "MUST 2 and MUST NOT 1: ship a test that executes the artifact under the host's cwd (not the plugin root) with a negative control, and a test asserting the generator produced its own string is self-referential. The P0 wedge shipped for 33 days across six releases."
+    },
+    {
+      "id": "S2",
+      "desc": "Mirrored lib edit made in the rendered tree, followed by an old two-step sync",
+      "input": "I changed src/claude/lib/hook_utilities/bootstrap.py directly. I plan to run a standalone lib sync script and then the build, and trust the zero exit codes. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "scripts/hook_utilities",
+        "lib_mirror.py",
+        "build_all.py",
+        "--check",
+        "src/copilot-cli/lib",
+        "retired"
+      ],
+      "expected_gate": "single-command-build-all",
+      "rationale": "Generator order section and References: lib_mirror.py renders scripts/{hook_utilities,github_core,ai_review_common}/ into every lib plugin tree, so an edit made in src/claude/lib/ is overwritten by the next build and must move to scripts/hook_utilities/. build_all.py is the one command, build_all.py --check verifies byte identity, the standalone sync is retired (issue #5790), and the lib trees should be compared rather than trusted by exit code."
+    },
+    {
+      "id": "S3",
+      "desc": "Consolidating two hooks that both print structured JSON",
+      "input": "I am merging two source hooks into one Copilot command in src/copilot-cli/hooks/hooks.json. Both print JSON with a decision field and additionalContext, and I will just concatenate their stdout. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "one json document",
+        "classify every stdout producer",
+        "merge",
+        "direct registrations",
+        "event-specific",
+        "byte passthrough"
+      ],
+      "expected_gate": "single-structured-output-per-hook",
+      "rationale": "MUST 5: Copilot CLI parses at most one final JSON document per command hook. Classify each stdout producer, then merge fields with event-specific semantics and tests, or keep direct registrations. Byte passthrough is not output merging."
+    },
+    {
+      "id": "S4",
+      "desc": "Launcher wrapper that swallows its own resolution failure",
+      "input": "To avoid ever wedging a customer, I want build/scripts/plugin_run_launcher.py to render a launcher that exits 0 when it cannot find the script path. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "fail loud",
+        "silent",
+        "architect review",
+        "prevention",
+        "exit 2",
+        "ptk_run"
+      ],
+      "expected_gate": "launcher-fails-loud",
+      "rationale": "Blast radius section: do not add a wrapper that swallows its resolution failure, since a silent exit 0 hides a disabled hook. The locator exits 2 with the ptk_run: prefix, and a change to launcher shape is architecture that goes through architect review."
+    },
+    {
+      "id": "S5",
+      "desc": "CI-only report artifact (negative, drawn from the scope carve-out)",
+      "input": "scripts/ci/render_step_summary.py writes a markdown job summary that is read only inside this repository's CI run. Add a section listing skipped checks. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "runtime-contract test",
+        "negative control",
+        "ptk_run"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The rule binds artifacts installed into a customer's environment and says it does not bind artifacts consumed only inside this repo's own CI. scripts/ci/ is also outside its paths."
+    },
+    {
+      "id": "S6",
+      "desc": "Prose command fix in a docs page (negative)",
+      "input": "Fix a wrong command in docs/WORKFLOW-VALIDATION.md where 'uv sync' is written as 'uv syn'. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "runtime-contract test",
+        "negative control",
+        "ptk_run"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "docs/ matches none of the rule's paths and the page is not a generated customer-facing artifact, so the runtime-contract gates do not apply."
+    }
+  ]
+}
