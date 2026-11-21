@@ -21,7 +21,7 @@ import re
 import subprocess
 from collections import Counter
 from collections.abc import Iterator, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, TypedDict
 
@@ -35,6 +35,8 @@ KNOWN_DIRS = (
 )
 PREFIXED_NAME = re.compile(r"^ADR-(\d+)-(.+)\.md$")
 PLAIN_NAME = re.compile(r"^(\d+)-(.+)\.md$")
+DATE_PREFIX = re.compile(r"^(?:\d{4}-\d{2}-\d{2}|\d{8})(?!\d)")
+INDEX_STEMS = frozenset({"readme", "index", "adr-index", "adr-log"})
 DEFAULT_HEADINGS = ("Status", "Context", "Decision", "Consequences")
 GIT_TIMEOUT_SECONDS = 120
 
@@ -168,6 +170,7 @@ class AdrDoc:
     file: AdrFile
     lines: list[str]
     frontmatter: dict[str, Any]
+    frontmatter_lines: dict[str, int]
     body_start: int
     status: str
 
@@ -177,7 +180,7 @@ def parse_name(name: str) -> tuple[str, int, int, str] | None:
     match = PREFIXED_NAME.match(name)
     if match:
         return "ADR-NNN", int(match.group(1)), len(match.group(1)), match.group(2)
-    match = PLAIN_NAME.match(name)
+    match = None if DATE_PREFIX.match(name) else PLAIN_NAME.match(name)
     if match:
         return "NNNN", int(match.group(1)), len(match.group(1)), match.group(2)
     return None
@@ -185,6 +188,12 @@ def parse_name(name: str) -> tuple[str, int, int, str] | None:
 
 def is_template_name(name: str) -> bool:
     return "template" in name.lower()
+
+
+def is_non_record_name(name: str) -> bool:
+    """A template, an index or log file, or a date-prefixed note: never a numbered ADR."""
+    stem = name.lower().removesuffix(".md")
+    return is_template_name(name) or stem in INDEX_STEMS or bool(DATE_PREFIX.match(name))
 
 
 def within(path: Path, root: Path) -> bool:
@@ -195,16 +204,41 @@ def within(path: Path, root: Path) -> bool:
     return True
 
 
-def load_dir(path: Path, rel: str, explicit: bool = False) -> AdrDir:
-    """List one ADR folder, non-recursive. Unreadable folders list as empty."""
+@dataclass
+class Survey:
+    """Folders found, plus what could not be used or read, so no gap is silent."""
+
+    dirs: list[AdrDir] = field(default_factory=list)
+    markers: list[str] = field(default_factory=list)
+    rejected: list[dict[str, str]] = field(default_factory=list)
+    read_errors: list[dict[str, str]] = field(default_factory=list)
+
+
+def _resolve(path: Path) -> Path | None:
+    try:
+        return path.resolve()
+    except (OSError, RuntimeError):
+        return None
+
+
+def load_dir(path: Path, rel: str, survey: Survey, explicit: bool = False) -> AdrDir:
+    """List one ADR folder, non-recursive. An entry that resolves outside the folder is rejected."""
     files: list[AdrFile] = []
     other: list[str] = []
     try:
         entries = sorted(path.iterdir(), key=lambda p: p.name)
-    except OSError:
+    except OSError as exc:
+        survey.read_errors.append({"path": rel, "error": str(exc)})
         entries = []
+    root = _resolve(path)
     for entry in entries:
         if entry.suffix != ".md" or not entry.is_file():
+            continue
+        target = _resolve(entry)
+        if root is None or target is None or not within(target, root):
+            survey.rejected.append(
+                {"path": f"{rel}/{entry.name}", "reason": "resolves outside the folder"}
+            )
             continue
         parsed = parse_name(entry.name)
         if parsed is None:
@@ -225,45 +259,71 @@ def load_dir(path: Path, rel: str, explicit: bool = False) -> AdrDir:
     return AdrDir(path, rel, files, other, explicit)
 
 
-def _read_marker(repo: Path) -> Path | None:
-    """Return the folder named by an adr-tools `.adr-dir` file, when valid."""
+def _read_marker(repo: Path, survey: Survey) -> Path | None:
+    """Return the folder named by an adr-tools `.adr-dir` file, or record why it is unusable."""
     try:
         text = (repo / ".adr-dir").read_text(encoding="utf-8", errors="replace")
-    except OSError:
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        survey.read_errors.append({"path": ".adr-dir", "error": str(exc)})
         return None
     first = next((ln.strip() for ln in text.splitlines() if ln.strip()), "")
     if not first:
+        survey.rejected.append({"path": ".adr-dir", "reason": "names no folder"})
         return None
-    candidate = (repo / first).resolve()
-    if candidate.is_dir() and within(candidate, repo):
-        return candidate
-    return None
+    candidate = _resolve(repo / first)
+    if candidate is None or not within(candidate, repo):
+        survey.rejected.append(
+            {"path": ".adr-dir", "reason": f"target {first} resolves outside the repository"}
+        )
+        return None
+    if not candidate.is_dir():
+        survey.rejected.append(
+            {"path": ".adr-dir", "reason": f"target {first} is not a directory or is missing"}
+        )
+        return None
+    return candidate
 
 
-def find_adr_dirs(repo: Path) -> tuple[list[AdrDir], list[str]]:
+def _known_folder(repo: Path, rel: str, survey: Survey) -> Path | None:
+    """The resolved known folder when it exists inside the repository, else None."""
+    link = repo / rel
+    path = _resolve(link)
+    if path is None or not path.is_dir():
+        if link.is_symlink():
+            survey.rejected.append({"path": rel, "reason": "symlink target is missing"})
+        return None
+    if not within(path, repo):
+        survey.rejected.append({"path": rel, "reason": "resolves outside the repository"})
+        return None
+    return path
+
+
+def find_adr_dirs(repo: Path) -> Survey:
     """Find ADR folders and the markers that led to them.
 
     A valid `.adr-dir` is authoritative and the only folder returned. Otherwise
     every known folder that holds a numbered ADR or a template counts.
     """
     repo = repo.resolve()
-    marker = _read_marker(repo)
+    survey = Survey()
+    marker = _read_marker(repo, survey)
     if marker is not None:
         rel = marker.relative_to(repo).as_posix()
-        return [load_dir(marker, rel, explicit=True)], [".adr-dir"]
-    found: list[AdrDir] = []
-    markers: list[str] = []
+        survey.dirs.append(load_dir(marker, rel, survey, explicit=True))
+        survey.markers.append(".adr-dir")
+        return survey
     for rel in KNOWN_DIRS:
-        path = (repo / rel).resolve()
-        # A symlinked folder that leaves the repository is not this repo's ADR folder.
-        if not path.is_dir() or not within(path, repo):
+        path = _known_folder(repo, rel, survey)
+        if path is None:
             continue
-        loaded = load_dir(path, rel)
+        loaded = load_dir(path, rel, survey)
         templates = [n for n in loaded.other_md if is_template_name(n)]
         if loaded.files or templates:
-            found.append(loaded)
-        markers.extend(f"template:{rel}/{name}" for name in templates)
-    return found, markers
+            survey.dirs.append(loaded)
+        survey.markers.extend(f"template:{rel}/{name}" for name in templates)
+    return survey
 
 
 def next_number(dirs: Sequence[AdrDir]) -> int:
@@ -281,20 +341,22 @@ def newest_file(dirs: Sequence[AdrDir]) -> AdrFile | None:
     return best
 
 
-def parse_frontmatter(lines: Sequence[str]) -> tuple[dict[str, Any], int]:
-    """Parse simple top-level YAML keys. Returns (keys, index of first body line)."""
+def parse_frontmatter(lines: Sequence[str]) -> tuple[dict[str, Any], dict[str, int], int]:
+    """Parse simple top-level YAML keys: (keys, 1-based line of each key, first body line index)."""
     if not lines or lines[0].strip() != "---":
-        return {}, 0
+        return {}, {}, 0
     keys: dict[str, Any] = {}
+    key_lines: dict[str, int] = {}
     current: str | None = None
     for index in range(1, min(len(lines), 80)):
         line = lines[index]
         if line.strip() == "---":
-            return keys, index + 1
+            return keys, key_lines, index + 1
         top = re.match(r"^([A-Za-z_][\w-]*):\s*(.*)$", line)
         if top:
             current = top.group(1)
             keys[current] = _scalar(top.group(2))
+            key_lines[current] = index + 1
             continue
         item = re.match(r"^\s+-\s+(.*)$", line)
         if item and current is not None:
@@ -302,7 +364,7 @@ def parse_frontmatter(lines: Sequence[str]) -> tuple[dict[str, Any], int]:
             values = existing if isinstance(existing, list) else []
             values.append(_strip_comment(item.group(1)))
             keys[current] = values
-    return {}, 0
+    return {}, {}, 0
 
 
 def _strip_comment(value: str) -> str:
@@ -385,19 +447,25 @@ def status_word(status: str) -> str:
     return match.group(0) if match else ""
 
 
-def read_doc(file: AdrFile) -> AdrDoc | None:
-    try:
-        text = file.path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return None
+def read_doc(file: AdrFile) -> AdrDoc:
+    """Read and parse one ADR file. Raises OSError when it cannot be read."""
+    text = file.path.read_text(encoding="utf-8", errors="replace")
     lines = text.splitlines()
-    frontmatter, body_start = parse_frontmatter(lines)
-    return AdrDoc(file, lines, frontmatter, body_start, doc_status(frontmatter, lines, body_start))
+    frontmatter, key_lines, body_start = parse_frontmatter(lines)
+    status = doc_status(frontmatter, lines, body_start)
+    return AdrDoc(file, lines, frontmatter, key_lines, body_start, status)
 
 
-def read_docs(dirs: Sequence[AdrDir]) -> list[AdrDoc]:
-    docs = (read_doc(f) for folder in dirs for f in folder.files)
-    return [doc for doc in docs if doc is not None]
+def read_docs(survey: Survey) -> list[AdrDoc]:
+    """Read every ADR file. An unreadable file is recorded in `survey.read_errors`."""
+    docs: list[AdrDoc] = []
+    for folder in survey.dirs:
+        for file in folder.files:
+            try:
+                docs.append(read_doc(file))
+            except OSError as exc:
+                survey.read_errors.append({"path": file.rel, "error": str(exc)})
+    return docs
 
 
 def folder_style(folder: AdrDir | None, dirs: Sequence[AdrDir] = ()) -> FolderStyle:
@@ -410,7 +478,10 @@ def folder_style(folder: AdrDir | None, dirs: Sequence[AdrDir] = ()) -> FolderSt
     best = max(counts.values())
     convention = "ADR-NNN" if counts.get("ADR-NNN", 0) == best else "NNNN"
     prefix = "ADR-" if convention == "ADR-NNN" else ""
-    doc = read_doc(newest)
+    try:
+        doc: AdrDoc | None = read_doc(newest)
+    except OSError:
+        doc = None
     form = "adr-colon" if convention == "ADR-NNN" else "number-dot"
     headings: tuple[str, ...] = DEFAULT_HEADINGS
     keys: tuple[str, ...] = ()
@@ -430,8 +501,9 @@ def _h2_headings(doc: AdrDoc) -> Iterator[str]:
             yield match.group(1)
 
 
-def locate(repo: Path, dirs: Sequence[AdrDir], markers: Sequence[str]) -> dict[str, Any]:
+def locate(repo: Path, survey: Survey) -> dict[str, Any]:
     """The `locate` subcommand result for a repository root and the folders found in it."""
+    dirs = survey.dirs
     entries = []
     for folder in dirs:
         style = folder_style(folder)
@@ -452,7 +524,8 @@ def locate(repo: Path, dirs: Sequence[AdrDir], markers: Sequence[str]) -> dict[s
         "primary": entries[0]["path"] if len(entries) == 1 else None,
         "next_number": next_number(dirs),
         "template_headings": list(reference.headings) if dirs else [],
-        "markers": list(markers),
+        "markers": list(survey.markers),
+        "rejected": list(survey.rejected),
     }
 
 

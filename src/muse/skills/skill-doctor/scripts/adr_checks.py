@@ -27,7 +27,7 @@ from adr_corpus import (
     cited_paths,
     find_h1,
     h1_number,
-    is_template_name,
+    is_non_record_name,
     make_finding,
     next_number,
     parse_name,
@@ -44,7 +44,17 @@ CODE_SPAN = re.compile(r"`[^`\n]*`")
 EDGE_LINE = re.compile(
     r"^\s*(?:[-*>]\s+)*\**(supersedes|superseded[ -]by|status)\**\s*[:|-]\s*(.*)$", re.IGNORECASE
 )
+LINKED_EDGE = re.compile(
+    r"^\s*(?:[-*>]\s+)*\**(supersedes|superseded[ -]by)\**\s+(?=\[)(.*)$", re.IGNORECASE
+)
 SUPERSEDED_BY_TEXT = re.compile(r"supersed\w*\s+by\s+(.*)", re.IGNORECASE)
+MD_PATH = re.compile(r"[\w./-]+\.md")
+BARE_NUMBER = re.compile(r"^\d+$")
+EDGE_KEYS = (
+    ("supersedes", "supersedes"),
+    ("superseded-by", "superseded_by"),
+    ("superseded_by", "superseded_by"),
+)
 ADR_REF = re.compile(r"\bADR-0*(\d+)\b")
 
 
@@ -105,7 +115,7 @@ def _duplicates(folder: AdrDir, upcoming: int) -> list[Finding]:
 def _unparseable(folder: AdrDir) -> list[Finding]:
     findings = []
     for name in folder.other_md:
-        if is_template_name(name) or not re.match(r"(?i)^(adr|\d)", name):
+        if is_non_record_name(name) or not re.match(r"(?i)^(adr|\d)", name):
             continue
         if parse_name(name) is not None:
             continue
@@ -241,21 +251,45 @@ def _broken_link(
     )
 
 
-def _numbers(value: str) -> list[int]:
-    return [int(n) for n in re.findall(r"\d+", value)]
+def _refs(text: str, include_paths: bool) -> list[int]:
+    """ADR numbers named by `ADR-N`, by link targets, and (when asked) by bare .md paths."""
+    numbers = {int(n) for n in ADR_REF.findall(text)}
+    targets = _targets(text) + (MD_PATH.findall(text) if include_paths else [])
+    for raw in targets:
+        parsed = _adr_link_target(raw)
+        if parsed is not None:
+            numbers.add(parsed[1])
+    return sorted(numbers)
+
+
+def _frontmatter_numbers(item: str) -> list[int]:
+    """Numbers in one frontmatter value: ADR refs, link or path targets, or a whole bare integer."""
+    found = _refs(item, include_paths=True)
+    if not found and BARE_NUMBER.match(item.strip()):
+        return [int(item.strip())]
+    return found
+
+
+def _frontmatter_edges(doc: AdrDoc) -> list[Edge]:
+    found: list[Edge] = []
+    for key, kind in EDGE_KEYS:
+        raw = doc.frontmatter.get(key)
+        items = raw if isinstance(raw, list) else [raw]
+        line = doc.frontmatter_lines.get(key)
+        for item in items:
+            if isinstance(item, str):
+                found.extend(Edge(kind, n, line) for n in _frontmatter_numbers(item))
+    status = doc.frontmatter.get("status")
+    by = SUPERSEDED_BY_TEXT.search(status) if isinstance(status, str) else None
+    if by:
+        line = doc.frontmatter_lines.get("status")
+        found.extend(Edge("superseded_by", n, line) for n in _refs(by.group(1), False))
+    return found
 
 
 def edges(doc: AdrDoc) -> list[Edge]:
-    """Supersession edges from frontmatter and from Status-style prose lines."""
-    found: list[Edge] = []
-    for key, kind in (
-        ("supersedes", "supersedes"),
-        ("superseded-by", "superseded_by"),
-        ("superseded_by", "superseded_by"),
-    ):
-        raw = doc.frontmatter.get(key)
-        text = " ".join(raw) if isinstance(raw, list) else str(raw or "")
-        found.extend(Edge(kind, n, None) for n in _numbers(text))
+    """Supersession edges from frontmatter and Status-style prose, one per (kind, number)."""
+    found = _frontmatter_edges(doc)
     in_status = False
     for number, line in prose_lines(doc.lines, doc.body_start):
         if STATUS_HEADING.match(line):
@@ -264,24 +298,29 @@ def edges(doc: AdrDoc) -> list[Edge]:
         if line.startswith("#"):
             in_status = False
         found.extend(_prose_edges(line, number, in_status))
-    return found
+    unique: dict[tuple[str, int], Edge] = {}
+    for edge in found:
+        unique.setdefault((edge.kind, edge.number), edge)
+    return list(unique.values())
+
+
+def _edges_of(kind: str, text: str, line: int) -> list[Edge]:
+    return [Edge(kind, n, line) for n in _refs(text, include_paths=False)]
 
 
 def _prose_edges(line: str, number: int, in_status: bool) -> list[Edge]:
-    match = EDGE_LINE.match(line)
+    match = EDGE_LINE.match(line) or LINKED_EDGE.match(line)
     if match:
         word, value = match.group(1).lower(), match.group(2)
         if word == "supersedes":
-            return [Edge("supersedes", int(n), number) for n in ADR_REF.findall(value)]
+            return _edges_of("supersedes", value, number)
         if word.startswith("superseded"):
-            return [Edge("superseded_by", int(n), number) for n in ADR_REF.findall(value)]
+            return _edges_of("superseded_by", value, number)
         line = value
     elif not in_status:
         return []
     by = SUPERSEDED_BY_TEXT.search(line)
-    return (
-        [Edge("superseded_by", int(n), number) for n in ADR_REF.findall(by.group(1))] if by else []
-    )
+    return _edges_of("superseded_by", by.group(1), number) if by else []
 
 
 def check_supersession(docs: Sequence[AdrDoc]) -> list[Finding]:
@@ -296,10 +335,11 @@ def check_supersession(docs: Sequence[AdrDoc]) -> list[Finding]:
             if edge.number == doc.file.number:
                 continue
             target = by_number.get(edge.number)
-            if target is None:
-                findings.append(_missing_target(doc, edge))
-                continue
-            finding = _reciprocity(doc, edge, target, graph[target.file.rel])
+            finding = (
+                _missing_target(doc, edge)
+                if target is None
+                else _reciprocity(doc, edge, target, graph[target.file.rel])
+            )
             if finding is not None and finding["id"] not in seen:
                 seen.add(finding["id"])
                 findings.append(finding)

@@ -101,8 +101,8 @@ def kinds(result: dict[str, Any], kind: str) -> list[dict[str, Any]]:
 
 
 def symlink_or_skip(link: Path, target: Path) -> None:
-    """Create a directory symlink, or skip where the platform denies symlink creation."""
+    """Create a file or directory symlink, or skip where the platform denies symlinks."""
     try:
-        link.symlink_to(target, target_is_directory=True)
+        link.symlink_to(target, target_is_directory=target.is_dir())
     except OSError as exc:
         pytest.skip(f"symlinks unavailable: {exc}")

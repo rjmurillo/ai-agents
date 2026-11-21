@@ -23,8 +23,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import sys
+import tempfile
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -124,6 +126,19 @@ def _history(repo: Path, args: argparse.Namespace, docs: Sequence[AdrDoc]) -> di
     }
 
 
+def _write_json(out: Path, result: dict[str, Any]) -> None:
+    """Write JSON to a temp file beside OUT, then replace OUT, so a failure leaves no partial file."""
+    out.parent.mkdir(parents=True, exist_ok=True)
+    handle, temp_name = tempfile.mkstemp(dir=out.parent, prefix=f".{out.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8") as stream:
+            stream.write(json.dumps(result, indent=2) + "\n")
+        os.replace(temp_name, out)
+    except OSError:
+        Path(temp_name).unlink(missing_ok=True)
+        raise
+
+
 def run_scan(args: argparse.Namespace) -> int:
     if args.max_commits < 1:
         raise ExitError(2, "--max-commits must be at least 1")
@@ -131,10 +146,12 @@ def run_scan(args: argparse.Namespace) -> int:
     out = Path(args.out).expanduser().resolve()
     if within(out, repo):
         raise ExitError(2, f"--out {args.out} is inside the repository; scan never writes there")
-    dirs, markers = find_adr_dirs(repo)
-    docs = read_docs(dirs)
-    findings: list[Finding] = [] if dirs else [_no_directory_finding()]
-    findings += check_numbering(dirs, docs) + check_links(docs, dirs)
+    survey = find_adr_dirs(repo)
+    docs = read_docs(survey)
+    findings: list[Finding] = []
+    if not survey.dirs and not survey.read_errors:
+        findings.append(_no_directory_finding())
+    findings += check_numbering(survey.dirs, docs) + check_links(docs, survey.dirs)
     findings += check_supersession(docs) + check_cited_paths(repo, docs)
     try:
         history = _history(repo, args, docs)
@@ -150,25 +167,28 @@ def run_scan(args: argparse.Namespace) -> int:
         "truncated": history["truncated"],
         "max_commits": args.max_commits,
         "since": args.since,
-        "locate": locate(repo, dirs, markers),
+        "locate": locate(repo, survey),
+        "read_errors": survey.read_errors,
         "findings": findings,
         "counts": _counts(findings),
     }
     try:
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+        _write_json(out, result)
     except OSError as exc:
         raise ExitError(2, f"cannot write {args.out}: {exc}") from exc
     print(
-        f"adr drift: {result['counts']['total']} finding(s), {result['examined']} commit(s) examined: {out}"
+        f"adr drift: {result['counts']['total']} finding(s), {result['examined']} commit(s) "
+        f"examined, truncated: {str(result['truncated']).lower()}, "
+        f"read_errors: {len(survey.read_errors)}: {out}"
     )
     return 0
 
 
 def run_locate(args: argparse.Namespace) -> int:
     repo = repo_root(args.repo)
-    dirs, markers = find_adr_dirs(repo)
-    print(json.dumps(locate(repo, dirs, markers), indent=2))
+    survey = find_adr_dirs(repo)
+    result = {**locate(repo, survey), "read_errors": survey.read_errors}
+    print(json.dumps(result, indent=2))
     return 0
 
 
