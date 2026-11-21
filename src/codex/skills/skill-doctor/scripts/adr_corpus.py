@@ -16,13 +16,14 @@ Conventions:
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import subprocess
 from collections import Counter
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 KNOWN_DIRS = (
     ".project-toolkit/architecture",
@@ -37,7 +38,27 @@ PLAIN_NAME = re.compile(r"^(\d+)-(.+)\.md$")
 DEFAULT_HEADINGS = ("Status", "Context", "Decision", "Consequences")
 GIT_TIMEOUT_SECONDS = 120
 
-Finding = dict[str, Any]
+SETUP = "Setup"
+NUMBERING = "Numbering"
+LINKS = "Links"
+HISTORY = "History"
+GROUPS = (SETUP, NUMBERING, LINKS, HISTORY)
+
+STATUS_HEADING = re.compile(r"^#{2,3}\s+status\b", re.IGNORECASE)
+BACKTICK = re.compile(r"`([^`\n]+)`")
+PATHLIKE = re.compile(r"^[A-Za-z0-9_.@+-][A-Za-z0-9_.@+/-]*$")
+PLACEHOLDER = re.compile(r"YYYY|MM-DD|NNN|XXX|path/to", re.IGNORECASE)
+FILE_EXTENSION = re.compile(r"\.[A-Za-z0-9]{1,8}$")
+
+
+class Finding(TypedDict):
+    id: str
+    kind: str
+    group: str
+    severity: str
+    confidence: str
+    evidence: dict[str, Any]
+    suggested_fix: str
 
 
 class GitError(Exception):
@@ -68,8 +89,6 @@ def run_git(repo: Path, args: Sequence[str]) -> str:
 
 
 def _git_env() -> dict[str, str]:
-    import os
-
     env = dict(os.environ)
     env["GIT_OPTIONAL_LOCKS"] = "0"
     env["GIT_TERMINAL_PROMPT"] = "0"
@@ -230,6 +249,12 @@ def find_adr_dirs(repo: Path) -> tuple[list[AdrDir], list[str]]:
     return found, markers
 
 
+def next_number(dirs: Sequence[AdrDir]) -> int:
+    """One more than the highest ADR number across every folder, or 1 when none."""
+    numbers = [f.number for folder in dirs for f in folder.files]
+    return (max(numbers) + 1) if numbers else 1
+
+
 def newest_file(dirs: Sequence[AdrDir]) -> AdrFile | None:
     best: AdrFile | None = None
     for folder in dirs:
@@ -323,7 +348,7 @@ def doc_status(frontmatter: dict[str, Any], lines: Sequence[str], start: int) ->
         return value.lower()
     in_section = False
     for _, line in prose_lines(lines, start):
-        if re.match(r"^#{2,3}\s+status\b", line, re.IGNORECASE):
+        if STATUS_HEADING.match(line):
             in_section = True
             continue
         if in_section:
@@ -388,9 +413,8 @@ def _h2_headings(doc: AdrDoc) -> Iterator[str]:
             yield match.group(1)
 
 
-def locate(repo: Path) -> dict[str, Any]:
-    """The `locate` subcommand result for a repository root."""
-    dirs, markers = find_adr_dirs(repo)
+def locate(repo: Path, dirs: Sequence[AdrDir], markers: Sequence[str]) -> dict[str, Any]:
+    """The `locate` subcommand result for a repository root and the folders found in it."""
     entries = []
     for folder in dirs:
         style = folder_style(folder)
@@ -404,13 +428,37 @@ def locate(repo: Path) -> dict[str, Any]:
                 "count": len(folder.files),
             }
         )
-    numbers = [f.number for folder in dirs for f in folder.files]
     reference = folder_style(None, dirs)
     return {
         "repo": str(repo.resolve()),
         "adr_dirs": entries,
         "primary": entries[0]["path"] if len(entries) == 1 else None,
-        "next_number": (max(numbers) + 1) if numbers else 1,
+        "next_number": next_number(dirs),
         "template_headings": list(reference.headings) if dirs else [],
-        "markers": markers,
+        "markers": list(markers),
     }
+
+
+def _clean_path(token: str) -> str | None:
+    value = re.sub(r":\d+(?:-\d+)?$", "", token.strip())
+    if not PATHLIKE.match(value) or "/" not in value or PLACEHOLDER.search(value):
+        return None
+    if value.startswith(("/", "~", "./", "..")) or ".." in value or "//" in value:
+        return None
+    last = value.rstrip("/").rsplit("/", 1)[-1]
+    if not (value.endswith("/") or FILE_EXTENSION.search(last)):
+        return None
+    return value
+
+
+def cited_paths(doc: AdrDoc) -> list[tuple[int, str]]:
+    """Backticked repo-relative paths in prose, as (line, path), first sighting only."""
+    seen: set[str] = set()
+    found: list[tuple[int, str]] = []
+    for number, line in prose_lines(doc.lines, doc.body_start):
+        for token in BACKTICK.findall(line):
+            path = _clean_path(token)
+            if path is not None and path not in seen:
+                seen.add(path)
+                found.append((number, path))
+    return found

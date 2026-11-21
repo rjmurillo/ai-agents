@@ -13,10 +13,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from adr_checks import cited_paths
-from adr_corpus import AdrDoc, Finding, make_finding, run_git, status_word
+from adr_corpus import HISTORY, AdrDoc, Finding, cited_paths, make_finding, run_git, status_word
 
-HISTORY = "History"
 MAX_CITED_EVIDENCE = 10
 SUPERSEDE_VERB = r"(?:supersed\w*|replac\w*|revert\w*|deprecat\w*|drop\w*)"
 VERB_THEN_ADR = re.compile(rf"{SUPERSEDE_VERB}[^.\n]{{0,60}}?\bADR-0*(\d+)\b", re.IGNORECASE)
@@ -82,7 +80,7 @@ def superseded_by_commits(commits: Sequence[Commit], docs: Sequence[AdrDoc]) -> 
         numbers = {int(n) for rx in (VERB_THEN_ADR, ADR_THEN_VERB) for n in rx.findall(commit.text)}
         for number in sorted(numbers & by_number.keys()):
             doc = by_number[number]
-            if any(path == doc.file.rel for _, path in commit.paths):
+            if _touches_doc(commit, doc):
                 continue
             evidence = {**_commit_evidence(commit), "adr": doc.file.rel, "number": number}
             fix = (

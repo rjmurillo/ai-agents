@@ -2,9 +2,8 @@
 
 Stdlib only. Every check reads the working tree and never writes.
 
-Mirrors `scripts/validation/check_adr_uniqueness.py` for duplicate numbers
-(same rule, same "next free" arithmetic). It is looser on filenames (any digit
-run, two conventions) and scans every ADR folder, not one.
+Conventions: filenames are `ADR-NNN-slug.md` or `NNNN-slug.md` with a digit run
+of any length, and every ADR folder found is scanned, not only the first.
 """
 
 from __future__ import annotations
@@ -18,36 +17,35 @@ from pathlib import Path
 from urllib.parse import unquote
 
 from adr_corpus import (
+    LINKS,
+    NUMBERING,
+    STATUS_HEADING,
     AdrDir,
     AdrDoc,
     AdrFile,
     Finding,
+    cited_paths,
     find_h1,
     h1_number,
     is_template_name,
     make_finding,
+    next_number,
     parse_name,
     prose_lines,
     status_word,
 )
 
-NUMBERING = "Numbering"
-LINKS = "Links"
 ACTIVE_STATUSES = frozenset({"", "accepted", "proposed", "draft", "approved"})
 GAP_EVIDENCE_CAP = 50
 
 INLINE_LINK = re.compile(r"\[[^\]\n]*\]\(\s*<?([^)\s>]+)>?(?:\s+\"[^\"]*\")?\s*\)")
 REF_LINK = re.compile(r"^\s{0,3}\[[^\]]+\]:\s*<?(\S+?)>?(?:\s|$)")
 CODE_SPAN = re.compile(r"`[^`\n]*`")
-BACKTICK = re.compile(r"`([^`\n]+)`")
 EDGE_LINE = re.compile(
     r"^\s*(?:[-*>]\s+)*\**(supersedes|superseded[ -]by|status)\**\s*[:|-]\s*(.*)$", re.IGNORECASE
 )
 SUPERSEDED_BY_TEXT = re.compile(r"supersed\w*\s+by\s+(.*)", re.IGNORECASE)
 ADR_REF = re.compile(r"\bADR-0*(\d+)\b")
-PATHLIKE = re.compile(r"^[A-Za-z0-9_.@+-][A-Za-z0-9_.@+/-]*$")
-PLACEHOLDER = re.compile(r"YYYY|MM-DD|NNN|XXX|path/to", re.IGNORECASE)
-FILE_EXTENSION = re.compile(r"\.[A-Za-z0-9]{1,8}$")
 
 
 @dataclass(frozen=True)
@@ -60,11 +58,6 @@ class Edge:
 def pad(number: int, folder: AdrDir) -> str:
     width = folder.files[-1].digits if folder.files else 3
     return f"{number:0{width}d}"
-
-
-def next_number(dirs: Sequence[AdrDir]) -> int:
-    numbers = [f.number for folder in dirs for f in folder.files]
-    return (max(numbers) + 1) if numbers else 1
 
 
 def check_numbering(dirs: Sequence[AdrDir], docs: Sequence[AdrDoc]) -> list[Finding]:
@@ -265,7 +258,7 @@ def edges(doc: AdrDoc) -> list[Edge]:
         found.extend(Edge(kind, n, None) for n in _numbers(text))
     in_status = False
     for number, line in prose_lines(doc.lines, doc.body_start):
-        if re.match(r"^#{2,3}\s+status\b", line, re.IGNORECASE):
+        if STATUS_HEADING.match(line):
             in_status = True
             continue
         if line.startswith("#"):
@@ -307,9 +300,8 @@ def check_supersession(docs: Sequence[AdrDoc]) -> list[Finding]:
                 findings.append(_missing_target(doc, edge))
                 continue
             finding = _reciprocity(doc, edge, target, graph[target.file.rel])
-            marker = (finding or {}).get("id", "")
-            if finding is not None and marker not in seen:
-                seen.add(marker)
+            if finding is not None and finding["id"] not in seen:
+                seen.add(finding["id"])
                 findings.append(finding)
     return findings
 
@@ -359,31 +351,6 @@ def _reciprocity(
         fix,
         (target.file.rel, doc.file.rel, wanted),
     )
-
-
-def _clean_path(token: str) -> str | None:
-    value = re.sub(r":\d+(?:-\d+)?$", "", token.strip())
-    if not PATHLIKE.match(value) or "/" not in value or PLACEHOLDER.search(value):
-        return None
-    if value.startswith(("/", "~", "./", "..")) or ".." in value or "//" in value:
-        return None
-    last = value.rstrip("/").rsplit("/", 1)[-1]
-    if not (value.endswith("/") or FILE_EXTENSION.search(last)):
-        return None
-    return value
-
-
-def cited_paths(doc: AdrDoc) -> list[tuple[int, str]]:
-    """Backticked repo-relative paths in prose, as (line, path), first sighting only."""
-    seen: set[str] = set()
-    found: list[tuple[int, str]] = []
-    for number, line in prose_lines(doc.lines, doc.body_start):
-        for token in BACKTICK.findall(line):
-            path = _clean_path(token)
-            if path is not None and path not in seen:
-                seen.add(path)
-                found.append((number, path))
-    return found
 
 
 def check_cited_paths(repo: Path, docs: Sequence[AdrDoc]) -> list[Finding]:

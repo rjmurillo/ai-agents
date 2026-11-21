@@ -30,13 +30,15 @@ from pathlib import Path
 from typing import Any
 
 from adr_checks import (
-    NUMBERING,
     check_cited_paths,
     check_links,
     check_numbering,
     check_supersession,
 )
 from adr_corpus import (
+    GROUPS,
+    SETUP,
+    AdrDoc,
     Finding,
     GitError,
     find_adr_dirs,
@@ -50,7 +52,7 @@ from adr_history import history_findings, read_commits
 
 SCHEMA_VERSION = 1
 DEFAULT_MAX_COMMITS = 300
-GROUP_ORDER = {"Numbering": 0, "Links": 1, "History": 2}
+GROUP_ORDER = {group: index for index, group in enumerate(GROUPS)}
 
 
 class ExitError(Exception):
@@ -98,7 +100,7 @@ def _no_directory_finding() -> Finding:
     fix = "Create docs/adr/ and record the decisions the repository has already made there."
     return make_finding(
         "no-adr-directory",
-        NUMBERING,
+        SETUP,
         "info",
         "deterministic",
         {"searched": "known ADR folders"},
@@ -107,7 +109,7 @@ def _no_directory_finding() -> Finding:
     )
 
 
-def _history(repo: Path, args: argparse.Namespace, dirs: Any, docs: Any) -> dict[str, Any]:
+def _history(repo: Path, args: argparse.Namespace, docs: Sequence[AdrDoc]) -> dict[str, Any]:
     try:
         head = run_git(repo, ["rev-parse", "--verify", "--quiet", "HEAD^{commit}"]).strip()
     except GitError:
@@ -128,13 +130,13 @@ def run_scan(args: argparse.Namespace) -> int:
     out = Path(args.out).expanduser().resolve()
     if within(out, repo):
         raise ExitError(2, f"--out {args.out} is inside the repository; scan never writes there")
-    dirs, _ = find_adr_dirs(repo)
+    dirs, markers = find_adr_dirs(repo)
     docs = read_docs(dirs)
     findings: list[Finding] = [] if dirs else [_no_directory_finding()]
     findings += check_numbering(dirs, docs) + check_links(docs, dirs)
     findings += check_supersession(docs) + check_cited_paths(repo, docs)
     try:
-        history = _history(repo, args, dirs, docs)
+        history = _history(repo, args, docs)
     except GitError as exc:
         raise ExitError(3, str(exc)) from exc
     findings += history["findings"]
@@ -147,7 +149,7 @@ def run_scan(args: argparse.Namespace) -> int:
         "truncated": history["truncated"],
         "max_commits": args.max_commits,
         "since": args.since,
-        "locate": locate(repo),
+        "locate": locate(repo, dirs, markers),
         "findings": findings,
         "counts": _counts(findings),
     }
@@ -163,7 +165,9 @@ def run_scan(args: argparse.Namespace) -> int:
 
 
 def run_locate(args: argparse.Namespace) -> int:
-    print(json.dumps(locate(repo_root(args.repo)), indent=2))
+    repo = repo_root(args.repo)
+    dirs, markers = find_adr_dirs(repo)
+    print(json.dumps(locate(repo, dirs, markers), indent=2))
     return 0
 
 

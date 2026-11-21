@@ -17,9 +17,8 @@ from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from adr_corpus import GROUPS
 from report_audit import Code, Escape, details_html, table_html
-
-GROUPS = ("Numbering", "Links", "History")
 
 
 def _repos(report: Mapping[str, Any]) -> list[Mapping[str, Any]]:

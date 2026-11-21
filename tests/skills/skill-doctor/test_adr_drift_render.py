@@ -56,7 +56,7 @@ def test_section_renders_counts_findings_and_the_fix(tmp_path, capsys):
     assert code == 0
     assert "ADR drift" in html and "adr-duplicate-number" in html
     assert "Rename the later file to 124." in html and "docs/adr/ADR-001-b.md:3" in html
-    assert "1 findings: 1 numbering, 0 links, 0 history. 300 commits examined." in html
+    assert "1 findings: 0 setup, 1 numbering, 0 links, 0 history. 300 commits examined." in html
 
 
 def test_page_without_the_section_equals_the_page_with_the_section_cut_out():

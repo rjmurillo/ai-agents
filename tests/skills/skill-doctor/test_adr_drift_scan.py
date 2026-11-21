@@ -28,6 +28,7 @@ def test_no_adr_directory_is_an_info_finding_not_an_error(tmp_path, capsys):
     found = kinds(scan(capsys, repo), "no-adr-directory")
 
     assert len(found) == 1 and found[0]["severity"] == "info"
+    assert found[0]["group"] == "Setup"
     assert found[0]["suggested_fix"]
 
 
