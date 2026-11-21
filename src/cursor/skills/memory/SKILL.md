@@ -6,8 +6,8 @@ description: Thin router for the tiered memory system. Points callers at the
   the memory-first gate, maintenance, consolidation, and durable fact retention. Use when you ask "remember this", "retain a decision", "what
   do we know about X", "recall prior context", or "search memory" and are not
   sure which operation you need. Use memory-search for a plain lookup when
-  available. Use memory-enhancement for citations or memory-documentary for
-  narrative reports across systems.
+  available. Do NOT use for citations (use memory-enhancement) or narrative
+  reports across systems (use memory-documentary).
 license: MIT
 metadata:
   capability:
