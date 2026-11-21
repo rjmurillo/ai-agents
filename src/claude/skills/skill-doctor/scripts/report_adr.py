@@ -25,7 +25,6 @@ from report_audit import Code, Escape, details_html, table_html
 
 ADR_ONLY_MODE = "adr_only"
 MAX_FILE_BYTES = 5_000_000
-DECISION_FIELDS = ("subject", "sha", "pr_url", "reason")
 
 
 class AdrInputError(Exception):
@@ -57,16 +56,29 @@ def _dicts(value: Any) -> list[dict[str, Any]]:
     return [item for item in (value if isinstance(value, list) else []) if isinstance(item, dict)]
 
 
+def _text(value: Any) -> str:
+    return "" if value is None else str(value)
+
+
 def _load_decisions(base: Path, name: Any) -> list[dict[str, str]]:
+    """Load skill-bootstrap's `bootstrap_adr.py scan` output: an object with a `candidates` list."""
     data = _read_json(base, name, "adr_drift decisions")
-    items = data.get("candidates") if isinstance(data, dict) else data
+    items = data.get("candidates") if isinstance(data, dict) else None
     if not isinstance(items, list):
-        raise AdrInputError(f"adr_drift decisions {name} holds no candidate list")
+        raise AdrInputError(f"adr_drift decisions {name} has no `candidates` list")
     candidates = []
     for item in _dicts(items):
-        row = {field: str(item.get(field) or "") for field in DECISION_FIELDS}
-        row["pr_url"] = row["pr_url"] or str(item.get("url") or "")
-        candidates.append(row)
+        source = item.get("source") if isinstance(item.get("source"), dict) else {}
+        candidates.append(
+            {
+                "id": _text(item.get("id")),
+                "kind": _text(item.get("kind")),
+                "title": _text(item.get("title")),
+                "sha": _text(source.get("sha")),
+                "url": _text(source.get("pr_url") or source.get("url")),
+                "reason": _text(item.get("reason")),
+            }
+        )
     return candidates
 
 
@@ -155,12 +167,12 @@ def _finding_table(esc: Escape, repo: Mapping[str, Any]) -> str:
 
 def _decision_table(esc: Escape, repo: Mapping[str, Any]) -> str:
     rows = [
-        [row["subject"], Code(row["sha"][:10]), row["pr_url"], row["reason"]]
+        [row["title"], Code(row["id"]), Code(row["sha"][:10]), row["url"], row["reason"]]
         for row in _dicts(repo.get("decisions"))
     ]
     if not rows:
         return ""
-    headers = ["Subject", "Commit", "PR", "Reason"]
+    headers = ["Title", "Candidate", "Commit", "Link", "Reason"]
     title = f"Candidate undocumented decisions for {repo.get('repo', '')}"
     return table_html(esc, title, headers, rows)
 

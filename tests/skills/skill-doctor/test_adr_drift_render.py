@@ -274,37 +274,57 @@ def test_a_report_html_that_cannot_be_written_exits_2_for_adr_only_and_scored_re
     assert "cannot write" in adr_only[2] and "cannot write" in scored[2]
 
 
-def test_decisions_render_as_an_escaped_candidate_table_from_a_list_or_an_object(tmp_path, capsys):
-    candidate = {
-        "subject": "switch <b>to</b> uv",
-        "sha": "a" * 40,
-        "url": "https://example.com/pull/7",
-        "reason": "dependency changed",
+def _bootstrap_candidate(**source: str) -> dict:
+    """One candidate in skill-bootstrap's `bootstrap_adr.py scan` output shape."""
+    return {
+        "id": "c-aaaaaaa",
+        "kind": "commit",
+        "title": "switch <b>to</b> uv",
+        "reason": "faster installs",
+        "excerpt": "body",
+        "date": "2026-11-20",
+        "source": source or {"sha": "a" * 40, "pr_url": "https://example.com/pull/7"},
+        "signals": [],
     }
-    for payload in ([candidate], {"candidates": [candidate]}):
-        _scan_file(tmp_path, [])
-        _write(tmp_path / "adr_drift" / "decisions.json", payload)
-
-        code, html, _ = _run(
-            tmp_path,
-            _adr_only(repos=[_section(decisions="adr_drift/decisions.json")["repos"][0]]),
-            capsys,
-        )
-
-        assert code == 0 and "Candidate undocumented decisions for my-repo" in html
-        assert "switch &lt;b&gt;to&lt;/b&gt; uv" in html and "<b>to</b>" not in html
-        assert "https://example.com/pull/7" in html and "dependency changed" in html
-        assert "a" * 10 in html and "a" * 11 not in html
 
 
-def test_a_decisions_file_with_no_candidate_list_exits_2(tmp_path, capsys):
+def _render_decisions(tmp_path, capsys, payload):
     _scan_file(tmp_path, [])
-    _write(tmp_path / "adr_drift" / "decisions.json", {"count": 0})
+    _write(tmp_path / "adr_drift" / "decisions.json", payload)
     entry = _section(decisions="adr_drift/decisions.json")["repos"][0]
+    return _run(tmp_path, _adr_only(repos=[entry]), capsys)
 
-    code, _, err = _run(tmp_path, _adr_only(repos=[entry]), capsys)
 
-    assert code == 2 and "holds no candidate list" in err
+def test_bootstrap_candidates_render_as_an_escaped_table(tmp_path, capsys):
+    code, html, _ = _render_decisions(tmp_path, capsys, {"candidates": [_bootstrap_candidate()]})
+
+    assert code == 0 and "Candidate undocumented decisions for my-repo" in html
+    assert "switch &lt;b&gt;to&lt;/b&gt; uv" in html and "<b>to</b>" not in html
+    assert "https://example.com/pull/7" in html and "faster installs" in html
+    assert "c-aaaaaaa" in html and "a" * 10 in html and "a" * 11 not in html
+
+
+def test_a_candidate_without_pr_url_links_its_source_url(tmp_path, capsys):
+    candidate = _bootstrap_candidate(sha="b" * 40, url="https://example.com/commit/b")
+
+    _, html, _ = _render_decisions(tmp_path, capsys, {"candidates": [candidate]})
+
+    assert "https://example.com/commit/b" in html
+
+
+def test_a_null_reason_renders_empty_not_none(tmp_path, capsys):
+    candidate = {**_bootstrap_candidate(), "reason": None}
+
+    _, html, _ = _render_decisions(tmp_path, capsys, {"candidates": [candidate]})
+
+    assert ">None<" not in html
+
+
+@pytest.mark.parametrize("payload", [{"count": 0}, [_bootstrap_candidate()]])
+def test_a_decisions_file_without_a_candidates_object_exits_2(tmp_path, capsys, payload):
+    code, _, err = _render_decisions(tmp_path, capsys, payload)
+
+    assert code == 2 and "has no `candidates` list" in err
 
 
 def test_a_repo_without_decisions_renders_no_candidate_table(tmp_path, capsys):

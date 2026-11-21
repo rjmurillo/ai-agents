@@ -64,6 +64,8 @@ Collector scope flags: `--repo PATH` (repeatable), `--all-conversations`, `--inc
 
 `adr_drift.py` never writes into the scanned repository; `scan` writes only its `--out` file, which must sit outside it, and writes it whole or not at all. Exit codes: `0` ok, `2` bad arguments, unreadable input, a disallowed `--out`, or not a git repository, `3` a git command failed or timed out. `scan` reads 300 commits by default (`--max-commits`, `--since`) and reports `truncated` when it stopped early. The scan file also lists `read_errors` for files and folders it could not read. `report.json` names each scan file by path, and `render_report.py` reads it from the report folder (exit `2` on a missing, unreadable, or outside path). An ADR-only report needs `"mode": "adr_only"`. This skill checks ADR health only: finding decisions that no ADR records is skill-bootstrap's job.
 
+Undocumented decisions come from [`skill-bootstrap`](skill-bootstrap.md): Step 1a runs its `bootstrap_adr.py scan` and shows the candidates in the report. Drafts go to the report folder only. Without skill-bootstrap installed, the report says that part is unavailable.
+
 A conversation counts as failed when any applicable raw score is below 0.5. A failure caused only by a provider cutoff does not count. A passing conversation can support only a `Cut:` candidate, which removes a wasted instruction or step.
 
 If the executing harness is unsupported, the skill stops before it reads any history. If no sessions are sampled, it reports that and does not invent scores. It also discloses sampling and partial collection.

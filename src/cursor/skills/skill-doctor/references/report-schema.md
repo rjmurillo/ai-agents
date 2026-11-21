@@ -74,8 +74,8 @@ scan files by path, so do not copy findings into `report.json`.
 ```
 
 - `scan` is the file `adr_drift.py scan` wrote. Required for each repo.
-- `decisions` is optional: a candidate list from another tool, rendered as a
-  table without grading it.
+- `decisions` is optional: the file skill-bootstrap's `bootstrap_adr.py scan`
+  wrote, rendered as a candidate table without grading it.
 
 Paths are relative to the folder that holds `report.json` and must resolve
 inside it. A path outside it, a missing or unreadable file, invalid JSON, or an
@@ -86,9 +86,10 @@ From the scan file the renderer reads `findings` (a list, required), `head`,
 paths are shown in the report. Each finding needs a non-empty `suggested_fix`,
 or `render_report.py` exits 1.
 
-The `decisions` file holds a JSON list, or an object with a `candidates` list.
-The renderer reads these fields from each candidate and ignores the rest:
-`subject`, `sha`, `pr_url` (or `url`), and `reason`.
+The `decisions` file is an object with a `candidates` list. The renderer reads
+these fields from each candidate and ignores the rest: `id`, `title`, `reason`,
+and from `source`, `sha` and `pr_url` (or `url`). A file with no `candidates`
+list makes `render_report.py` exit 2.
 
 ### ADR-only report
 
