@@ -52,6 +52,22 @@ def _comparison(file: str, moves: dict[str, tuple[float, float]], **overrides: A
     return _mod.FileComparison(**fields)
 
 
+_REAL_BLOB_IDS = _mod._blob_ids
+
+
+def _pinned_blobs(path: str, base_revision: str | None) -> tuple[str | None, str | None]:
+    """Return the record blobs for *path*, so fixture files match their pins."""
+    record = next((r for r in _RECORDS if r["file"] == path), None)
+    return (record["baseBlob"], record["headBlob"]) if record else (None, None)
+
+
+@pytest.fixture(autouse=True)
+def _use_pinned_blobs(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Fixture files cannot carry the real repository blobs. Tests of the blob
+    # gate itself restore the real lookup with monkeypatch.setattr.
+    monkeypatch.setattr(_mod, "_blob_ids", _pinned_blobs)
+
+
 def _admit(comparison: Any) -> Any:
     _mod._apply_change_admissions([comparison], {"changeAdmissions": list(_RECORDS)})
     return comparison
@@ -276,14 +292,18 @@ def test_without_records_the_same_regressions_block(capsys: pytest.CaptureFixtur
 # --- end to end through main -------------------------------------------------------
 
 
-@pytest.fixture
-def lib_mirror_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+def _build_lib_mirror_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Base scores coupling 8.0 with two parser imports, head 7.0 with three."""
     (tmp_path / _LIB_MIRROR).parent.mkdir(parents=True)
     _repo_with_change(
         tmp_path, monkeypatch, _PARSER_IMPORTS + _BODY, _TYPESCRIPT_IMPORTS + _BODY, _LIB_MIRROR
     )
     return tmp_path
+
+
+@pytest.fixture
+def lib_mirror_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    return _build_lib_mirror_repo(tmp_path, monkeypatch)
 
 
 def _run(tmp_path: Path, config: dict[str, Any]) -> int:

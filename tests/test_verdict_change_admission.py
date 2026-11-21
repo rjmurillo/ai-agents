@@ -41,6 +41,8 @@ def _comparison(file: str, moves: dict[str, tuple[float, float]], **extra: Any) 
         ],
         "change_admissions": [_record(file, q) for q in moves],
     }
+    first = _record(file, next(iter(moves)))
+    comparison["base_blob"], comparison["head_blob"] = first["baseBlob"], first["headBlob"]
     comparison.update(extra)
     return comparison
 
@@ -261,3 +263,34 @@ def test_the_conformance_check_would_notice_a_drifted_adapter_copy(
     monkeypatch.setattr(verdict_module, "_CHANGE_ADMISSIONS", tuple(drifted))
 
     assert list(verdict_module._CHANGE_ADMISSIONS) != _scanner_records()
+
+
+def test_a_head_blob_mismatch_is_unknown() -> None:
+    comparison = _comparison(_LIB_MIRROR, {"coupling": (8.0, 7.0)}, head_blob="0" * 40)
+
+    assert _verdict(comparison) == "UNKNOWN"
+
+
+def test_missing_blob_ids_are_unknown() -> None:
+    comparison = _comparison(_LIB_MIRROR, {"coupling": (8.0, 7.0)})
+    del comparison["base_blob"], comparison["head_blob"]
+
+    assert _verdict(comparison) == "UNKNOWN"
+
+
+def test_an_integer_score_record_is_unknown_not_an_error() -> None:
+    comparison = _comparison(_LIB_MIRROR, {"coupling": (8.0, 7.0)})
+    comparison["change_admissions"][0]["baseScore"] = 8
+
+    assert _verdict(comparison) == "UNKNOWN"
+
+
+def test_a_drifted_adapter_copy_turns_a_real_record_into_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    comparison = _comparison(_LIB_MIRROR, {"coupling": (8.0, 7.0)})
+    drifted = copy.deepcopy(list(verdict_module._CHANGE_ADMISSIONS))
+    drifted[0]["headBlob"] = "f" * 40
+    monkeypatch.setattr(verdict_module, "_CHANGE_ADMISSIONS", tuple(drifted))
+
+    assert _verdict(comparison) == "UNKNOWN"

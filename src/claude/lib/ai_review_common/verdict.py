@@ -309,6 +309,8 @@ _CHANGE_ADMISSIONS: tuple[dict[str, object], ...] = tuple(
         "quality": quality,
         "baseScore": base,
         "headScore": head,
+        "baseBlob": base_blob,
+        "headBlob": head_blob,
         "authorizedBy": "rjmurillo",
         "authorizedOn": "2026-11-20",
         "authorization": (
@@ -316,15 +318,71 @@ _CHANGE_ADMISSIONS: tuple[dict[str, object], ...] = tuple(
             "admit all 8 transitions as fixed records in one ADR-122 item."
         ),
     }
-    for file, quality, base, head in (
-        ("build/scripts/lib_mirror.py", "coupling", 8.0, 7.0),
-        ("scripts/memory_enhancement/hooks/user_prompt_submit_memory.py", "cohesion", 6.3, 4.2),
-        ("scripts/memory_enhancement/hooks/user_prompt_submit_memory.py", "coupling", 6.0, 3.0),
-        ("scripts/memory_enhancement/search.py", "cohesion", 4.2, 2.1),
-        ("scripts/memory_enhancement/search.py", "coupling", 5.0, 3.0),
-        ("templates/hooks/UserPromptSubmit/invoke_memory_recall.py", "cohesion", 9.2, 7.7),
-        ("templates/hooks/invoke_dispatch_claude.py", "cohesion", 5.7, 4.6),
-        ("tests/build_scripts/test_lib_mirror.py", "coupling", 7.0, 6.0),
+    for file, quality, base, head, base_blob, head_blob in (
+        (
+            "build/scripts/lib_mirror.py",
+            "coupling",
+            8.0,
+            7.0,
+            "7477415f3dd715ef624f6cb14f5233d3afda9c48",
+            "83f7c976ca63a7af312b05294281f084c5dea7a2",
+        ),
+        (
+            "scripts/memory_enhancement/hooks/user_prompt_submit_memory.py",
+            "cohesion",
+            6.3,
+            4.2,
+            "32c45daf664cb0ace70a540d2fbd7088bc03cca8",
+            "3d8a383a59c4b6b0ad5a5a6e7cd8cf33fc3d4a88",
+        ),
+        (
+            "scripts/memory_enhancement/hooks/user_prompt_submit_memory.py",
+            "coupling",
+            6.0,
+            3.0,
+            "32c45daf664cb0ace70a540d2fbd7088bc03cca8",
+            "3d8a383a59c4b6b0ad5a5a6e7cd8cf33fc3d4a88",
+        ),
+        (
+            "scripts/memory_enhancement/search.py",
+            "cohesion",
+            4.2,
+            2.1,
+            "1dcb875cc1a14544bf3ff6294a45894fe2ae1106",
+            "2bf7d6191af918d4fefc0ed8b6c4520ff8d5f7bf",
+        ),
+        (
+            "scripts/memory_enhancement/search.py",
+            "coupling",
+            5.0,
+            3.0,
+            "1dcb875cc1a14544bf3ff6294a45894fe2ae1106",
+            "2bf7d6191af918d4fefc0ed8b6c4520ff8d5f7bf",
+        ),
+        (
+            "templates/hooks/UserPromptSubmit/invoke_memory_recall.py",
+            "cohesion",
+            9.2,
+            7.7,
+            "a828ad1f7182aa81effb649de69f5a8b81ff2f1e",
+            "633448a550fef177b68fbf37a24dfa0972c7aad8",
+        ),
+        (
+            "templates/hooks/invoke_dispatch_claude.py",
+            "cohesion",
+            5.7,
+            4.6,
+            "0672c74a1924030150352d7c96a04c0a60024d52",
+            "6c83d8f9257a717d614173604abb4a7f4cb83d1c",
+        ),
+        (
+            "tests/build_scripts/test_lib_mirror.py",
+            "coupling",
+            7.0,
+            6.0,
+            "e4259bb802bf1c14290e0fca6c425e9611caf532",
+            "c8214f85fb74aa7b18ad5f611e88e3a1220cd8b2",
+        ),
     )
 )
 
@@ -335,7 +393,8 @@ def _delta_matches_record(comparison: dict[str, object], record: dict[str, objec
     if not isinstance(deltas, list):
         return False
     base, head = record["baseScore"], record["headScore"]
-    assert isinstance(base, float) and isinstance(head, float)
+    if not (isinstance(base, float) and isinstance(head, float)):
+        return False
     expected = (base, head, round(head - base, 4), "compared")
     return any(
         isinstance(d, dict)
@@ -356,6 +415,7 @@ def _is_admitted_change(comparison: dict[str, object]) -> bool:
     if comparison.get("is_new_file") is not False or comparison.get("change_status") != "M":
         return False
     path = str(comparison.get("file_path", "")).replace("\\", "/")
+    blobs = (comparison.get("base_blob"), comparison.get("head_blob"))
     qualities = [r.get("quality") if isinstance(r, dict) else None for r in records]
     if len(set(qualities)) != len(qualities) or set(qualities) != set(regressions):
         return False
@@ -363,6 +423,7 @@ def _is_admitted_change(comparison: dict[str, object]) -> bool:
         isinstance(r, dict)
         and r in _CHANGE_ADMISSIONS
         and r["file"] == path
+        and blobs == (r["baseBlob"], r["headBlob"])
         and _delta_matches_record(comparison, r)
         for r in records
     )

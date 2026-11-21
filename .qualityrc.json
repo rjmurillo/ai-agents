@@ -8,6 +8,8 @@
       "quality": "coupling",
       "baseScore": 8.0,
       "headScore": 7.0,
+      "baseBlob": "7477415f3dd715ef624f6cb14f5233d3afda9c48",
+      "headBlob": "83f7c976ca63a7af312b05294281f084c5dea7a2",
       "authorizedBy": "rjmurillo",
       "authorizedOn": "2026-11-20",
       "authorization": "Maintainer decisions D1 and D2, choice A: admit all 8 transitions as fixed records in one ADR-122 item."
@@ -18,6 +20,8 @@
       "quality": "cohesion",
       "baseScore": 6.3,
       "headScore": 4.2,
+      "baseBlob": "32c45daf664cb0ace70a540d2fbd7088bc03cca8",
+      "headBlob": "3d8a383a59c4b6b0ad5a5a6e7cd8cf33fc3d4a88",
       "authorizedBy": "rjmurillo",
       "authorizedOn": "2026-11-20",
       "authorization": "Maintainer decisions D1 and D2, choice A: admit all 8 transitions as fixed records in one ADR-122 item."
@@ -28,6 +32,8 @@
       "quality": "coupling",
       "baseScore": 6.0,
       "headScore": 3.0,
+      "baseBlob": "32c45daf664cb0ace70a540d2fbd7088bc03cca8",
+      "headBlob": "3d8a383a59c4b6b0ad5a5a6e7cd8cf33fc3d4a88",
       "authorizedBy": "rjmurillo",
       "authorizedOn": "2026-11-20",
       "authorization": "Maintainer decisions D1 and D2, choice A: admit all 8 transitions as fixed records in one ADR-122 item."
@@ -38,6 +44,8 @@
       "quality": "cohesion",
       "baseScore": 4.2,
       "headScore": 2.1,
+      "baseBlob": "1dcb875cc1a14544bf3ff6294a45894fe2ae1106",
+      "headBlob": "2bf7d6191af918d4fefc0ed8b6c4520ff8d5f7bf",
       "authorizedBy": "rjmurillo",
       "authorizedOn": "2026-11-20",
       "authorization": "Maintainer decisions D1 and D2, choice A: admit all 8 transitions as fixed records in one ADR-122 item."
@@ -48,6 +56,8 @@
       "quality": "coupling",
       "baseScore": 5.0,
       "headScore": 3.0,
+      "baseBlob": "1dcb875cc1a14544bf3ff6294a45894fe2ae1106",
+      "headBlob": "2bf7d6191af918d4fefc0ed8b6c4520ff8d5f7bf",
       "authorizedBy": "rjmurillo",
       "authorizedOn": "2026-11-20",
       "authorization": "Maintainer decisions D1 and D2, choice A: admit all 8 transitions as fixed records in one ADR-122 item."
@@ -58,6 +68,8 @@
       "quality": "cohesion",
       "baseScore": 9.2,
       "headScore": 7.7,
+      "baseBlob": "a828ad1f7182aa81effb649de69f5a8b81ff2f1e",
+      "headBlob": "633448a550fef177b68fbf37a24dfa0972c7aad8",
       "authorizedBy": "rjmurillo",
       "authorizedOn": "2026-11-20",
       "authorization": "Maintainer decisions D1 and D2, choice A: admit all 8 transitions as fixed records in one ADR-122 item."
@@ -68,6 +80,8 @@
       "quality": "cohesion",
       "baseScore": 5.7,
       "headScore": 4.6,
+      "baseBlob": "0672c74a1924030150352d7c96a04c0a60024d52",
+      "headBlob": "6c83d8f9257a717d614173604abb4a7f4cb83d1c",
       "authorizedBy": "rjmurillo",
       "authorizedOn": "2026-11-20",
       "authorization": "Maintainer decisions D1 and D2, choice A: admit all 8 transitions as fixed records in one ADR-122 item."
@@ -78,6 +92,8 @@
       "quality": "coupling",
       "baseScore": 7.0,
       "headScore": 6.0,
+      "baseBlob": "e4259bb802bf1c14290e0fca6c425e9611caf532",
+      "headBlob": "c8214f85fb74aa7b18ad5f611e88e3a1220cd8b2",
       "authorizedBy": "rjmurillo",
       "authorizedOn": "2026-11-20",
       "authorization": "Maintainer decisions D1 and D2, choice A: admit all 8 transitions as fixed records in one ADR-122 item."

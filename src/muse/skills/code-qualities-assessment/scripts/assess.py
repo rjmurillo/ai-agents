@@ -122,19 +122,17 @@ _PARSER_DEPENDENCY_ADMISSIONS = {
     ),
 }
 
-# ADR-122 item 10: eight change-scoped transitions from issue #7493, each
-# pinned to its base and head score. Matching, config equality, and the review
-# adapter's own copy are described there.
-# Each row splits its path into directory and name, so no string literal starts
-# with the upstream-only ``scripts/`` prefix that the vendor portability
-# check flags in shipped skill scripts.
+# ADR-122 item 10: eight change-scoped transitions from issue #7493. Each record
+# pins the file, the quality, both scores, and both git blob ids.
 _CHANGE_ADMISSIONS = tuple(
     {
         "issue": 7493,
-        "file": f"{directory}/{name}",
+        "file": file,
         "quality": quality,
         "baseScore": base,
         "headScore": head,
+        "baseBlob": base_blob,
+        "headBlob": head_blob,
         "authorizedBy": "rjmurillo",
         "authorizedOn": "2026-11-20",
         "authorization": (
@@ -142,15 +140,71 @@ _CHANGE_ADMISSIONS = tuple(
             "admit all 8 transitions as fixed records in one ADR-122 item."
         ),
     }
-    for directory, name, quality, base, head in (
-        ("build/scripts", "lib_mirror.py", "coupling", 8.0, 7.0),
-        ("scripts", "memory_enhancement/hooks/user_prompt_submit_memory.py", "cohesion", 6.3, 4.2),
-        ("scripts", "memory_enhancement/hooks/user_prompt_submit_memory.py", "coupling", 6.0, 3.0),
-        ("scripts", "memory_enhancement/search.py", "cohesion", 4.2, 2.1),
-        ("scripts", "memory_enhancement/search.py", "coupling", 5.0, 3.0),
-        ("templates/hooks", "UserPromptSubmit/invoke_memory_recall.py", "cohesion", 9.2, 7.7),
-        ("templates/hooks", "invoke_dispatch_claude.py", "cohesion", 5.7, 4.6),
-        ("tests/build_scripts", "test_lib_mirror.py", "coupling", 7.0, 6.0),
+    for file, quality, base, head, base_blob, head_blob in (
+        (
+            "build/scripts/lib_mirror.py",
+            "coupling",
+            8.0,
+            7.0,
+            "7477415f3dd715ef624f6cb14f5233d3afda9c48",
+            "83f7c976ca63a7af312b05294281f084c5dea7a2",
+        ),
+        (
+            "scripts/memory_enhancement/hooks/user_prompt_submit_memory.py",
+            "cohesion",
+            6.3,
+            4.2,
+            "32c45daf664cb0ace70a540d2fbd7088bc03cca8",
+            "3d8a383a59c4b6b0ad5a5a6e7cd8cf33fc3d4a88",
+        ),
+        (
+            "scripts/memory_enhancement/hooks/user_prompt_submit_memory.py",
+            "coupling",
+            6.0,
+            3.0,
+            "32c45daf664cb0ace70a540d2fbd7088bc03cca8",
+            "3d8a383a59c4b6b0ad5a5a6e7cd8cf33fc3d4a88",
+        ),
+        (
+            "scripts/memory_enhancement/search.py",
+            "cohesion",
+            4.2,
+            2.1,
+            "1dcb875cc1a14544bf3ff6294a45894fe2ae1106",
+            "2bf7d6191af918d4fefc0ed8b6c4520ff8d5f7bf",
+        ),
+        (
+            "scripts/memory_enhancement/search.py",
+            "coupling",
+            5.0,
+            3.0,
+            "1dcb875cc1a14544bf3ff6294a45894fe2ae1106",
+            "2bf7d6191af918d4fefc0ed8b6c4520ff8d5f7bf",
+        ),
+        (
+            "templates/hooks/UserPromptSubmit/invoke_memory_recall.py",
+            "cohesion",
+            9.2,
+            7.7,
+            "a828ad1f7182aa81effb649de69f5a8b81ff2f1e",
+            "633448a550fef177b68fbf37a24dfa0972c7aad8",
+        ),
+        (
+            "templates/hooks/invoke_dispatch_claude.py",
+            "cohesion",
+            5.7,
+            4.6,
+            "0672c74a1924030150352d7c96a04c0a60024d52",
+            "6c83d8f9257a717d614173604abb4a7f4cb83d1c",
+        ),
+        (
+            "tests/build_scripts/test_lib_mirror.py",
+            "coupling",
+            7.0,
+            6.0,
+            "e4259bb802bf1c14290e0fca6c425e9611caf532",
+            "c8214f85fb74aa7b18ad5f611e88e3a1220cd8b2",
+        ),
     )
 )
 
@@ -739,15 +793,35 @@ def get_files_to_assess(
             # Glob pattern
             files = [Path(f) for f in glob(target, recursive=True)]
 
+    statuses = (
+        {c.head_path: c.status for c in changes if c.head_path is not None} if changed_only else {}
+    )
     existing_files: list[Path] = []
     for file_path in files:
-        # git diff can list a path that is a directory on disk: a symlink to a
-        # directory or a submodule. Neither is a source file to score.
-        if not file_path.exists() or file_path.is_dir():
+        if not file_path.exists():
+            continue
+        if file_path.is_dir() and _skip_directory(file_path, changed_only, statuses):
             continue
         _resolve_in_workspace(file_path, "assessment candidate")
         existing_files.append(file_path)
     return existing_files
+
+
+def _skip_directory(path: Path, changed_only: bool, statuses: dict[Path, str]) -> bool:
+    """Return True when a directory path is not a source file to score.
+
+    git diff can list a directory on disk: a symlink to a directory or a
+    submodule. In changed-only mode that is reported on stderr, except for a
+    type change (status ``T``), which still reaches scoring so the review
+    adapter sees the failed score. Outside changed-only mode a glob can match
+    directories as a matter of course, so they are skipped silently.
+    """
+    if not changed_only:
+        return True
+    if statuses.get(path, "").startswith("T"):
+        return False
+    print(f"SKIPPED (directory): {path}", file=sys.stderr)
+    return True
 
 
 def _resolve_in_workspace(path: Path, label: str) -> Path:
@@ -1033,6 +1107,8 @@ class FileComparison:
     typescript_parser_dependency_admission: dict[str, Any] | None = None
     python_parser_dependency_admission: dict[str, Any] | None = None
     change_admissions: list[dict[str, Any]] | None = None
+    base_blob: str | None = None
+    head_blob: str | None = None
 
     def parser_dependency_admission(self) -> dict[str, Any] | None:
         """Return the admission record attached to this comparison, if any."""
@@ -1116,7 +1192,36 @@ def _apply_parser_dependency_admissions(
                 print(f"NOT ADMITTED: {comparison.file_path}: {reason}", file=sys.stderr)
 
 
-def _change_admission_mismatch(comparison: FileComparison, record: dict[str, Any]) -> str | None:
+def _git_blob(*args: str) -> str | None:
+    """Run a git blob-id command and return its first output line, or None on failure."""
+    import subprocess
+
+    result = subprocess.run(
+        ["git", *args],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    lines = result.stdout.split()
+    return lines[0] if result.returncode == 0 and lines else None
+
+
+def _blob_ids(path: str, base_revision: str | None) -> tuple[str | None, str | None]:
+    """Return the git blob ids of *path* at *base_revision* and in the working tree."""
+    base = None
+    if base_revision is not None:
+        # Without --verify, rev-parse echoes --end-of-options as an output line.
+        base = _git_blob(
+            "rev-parse", "--verify", "--quiet", "--end-of-options", f"{base_revision}:{path}"
+        )
+    return base, _git_blob("hash-object", "--", path)
+
+
+def _change_admission_mismatch(
+    comparison: FileComparison, record: dict[str, Any], blobs: tuple[str | None, str | None]
+) -> str | None:
     """Return why *comparison* is outside the record's transition, or None if it matches."""
     if comparison.is_new_file or comparison.change_status != "M":
         return f"change status is {comparison.change_status}, not a modified file"
@@ -1131,10 +1236,16 @@ def _change_admission_mismatch(comparison: FileComparison, record: dict[str, Any
     observed = (delta.base, delta.head, delta.delta, delta.status)
     if observed != (base, head, round(head - base, 4), "compared"):
         return f"{quality} transition {observed} differs from {base} -> {head}"
+    if blobs != (record["baseBlob"], record["headBlob"]):
+        return f"file content differs from the pinned blobs {blobs}"
     return None
 
 
-def _apply_change_admissions(comparisons: list[FileComparison], config: dict[str, Any]) -> None:
+def _apply_change_admissions(
+    comparisons: list[FileComparison],
+    config: dict[str, Any],
+    base_revision: str | None = None,
+) -> None:
     """Admit a comparison only when every regressed quality has a matching record."""
     if "changeAdmissions" not in config:
         return
@@ -1145,11 +1256,12 @@ def _apply_change_admissions(comparisons: list[FileComparison], config: dict[str
         records = [r for r in _CHANGE_ADMISSIONS if r["file"] == path]
         if not records or not comparison.regressions:
             continue
+        blobs = _blob_ids(path, base_revision)
         matched: list[dict[str, Any]] = []
         for quality in comparison.regressions:
             reasons = ["no record for this file and quality"]
             for record in (r for r in records if r["quality"] == quality):
-                reason = _change_admission_mismatch(comparison, record)
+                reason = _change_admission_mismatch(comparison, record, blobs)
                 if reason is None:
                     matched.append(dict(record))
                     break
@@ -1158,6 +1270,7 @@ def _apply_change_admissions(comparisons: list[FileComparison], config: dict[str
                 print(f"NOT ADMITTED: {path}: {quality}: {reasons[0]}", file=sys.stderr)
         if len(matched) == len(comparison.regressions):
             comparison.change_admissions = matched
+            comparison.base_blob, comparison.head_blob = blobs
 
 
 def _admission_notice(comparison: FileComparison, quality: str) -> str | None:
@@ -2919,7 +3032,7 @@ def main(argv: list[str] | None = None) -> int:
             changed_files,
         )
         _apply_parser_dependency_admissions(comparisons, config)
-        _apply_change_admissions(comparisons, config)
+        _apply_change_admissions(comparisons, config, comparison_base)
     except (RuntimeError, ValueError) as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1
