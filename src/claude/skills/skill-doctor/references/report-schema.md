@@ -77,16 +77,12 @@ finding has an empty `suggested_fix`.
           "severity": "info | low | medium | high",
           "confidence": "deterministic | heuristic",
           "evidence": {"path": "", "line": 0, "sha": "", "subject": ""},
-          "suggested_fix": "<non-empty text>",
-          "draft": "<path under proposed/adr/, relative to REPORT_DIR, when a draft was written>"
+          "suggested_fix": "<non-empty text>"
         }
-      ],
-      "align": {"status": "absent | detected | no_graph | ran | failed",
-                "text": "", "exit_code": null, "command_hint": "", "advisory_note": ""}
+      ]
     }
   ]
 }
 ```
 
-Copy `findings` and `align` from the scan file. Add `draft` only after `draft`
-wrote a file. Kinds, fixes, and align states are in `adr-drift.md`.
+Copy `findings` from the scan file. Kinds and fixes are in `adr-drift.md`.

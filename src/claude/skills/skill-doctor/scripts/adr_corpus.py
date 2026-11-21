@@ -84,7 +84,6 @@ def make_finding(
     evidence: dict[str, Any],
     suggested_fix: str,
     key: Sequence[str],
-    fix: list[str] | None = None,
 ) -> Finding:
     """Build one finding. `key` names the evidence fields that identify it."""
     digest = hashlib.sha256("\x1f".join((kind, *key)).encode("utf-8")).hexdigest()
@@ -96,7 +95,6 @@ def make_finding(
         "confidence": confidence,
         "evidence": evidence,
         "suggested_fix": suggested_fix,
-        "fix": fix,
     }
 
 

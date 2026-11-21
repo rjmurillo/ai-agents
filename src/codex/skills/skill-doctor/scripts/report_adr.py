@@ -12,7 +12,6 @@ python3, stdlib only.
 
 from __future__ import annotations
 
-import re
 import sys
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
@@ -21,17 +20,6 @@ from typing import Any
 from report_audit import Code, Escape, details_html, table_html
 
 GROUPS = ("Numbering", "Links", "History")
-ALIGN_LINES = {
-    "absent": (
-        "align not installed. Deterministic check complete. "
-        "Optional cross-check: github.com/aligndottech/align-cli."
-    ),
-    "detected": "align found. Not run. To cross-check: `{hint}`.",
-    "no_graph": (
-        "align found, no graph. Not built, because building reads api.github.com "
-        "and downloads a model."
-    ),
-}
 
 
 def _repos(report: Mapping[str, Any]) -> list[Mapping[str, Any]]:
@@ -71,14 +59,6 @@ def _where(finding: Mapping[str, Any]) -> str:
     return ""
 
 
-def _draft_cell(esc: Escape, draft: Any) -> str:
-    if not isinstance(draft, str) or not draft:
-        return ""
-    if re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", draft) or draft.startswith("/") or ".." in draft:
-        return esc(draft)
-    return f'<a href="{esc(draft)}">{esc(draft)}</a>'
-
-
 def _finding_table(esc: Escape, repo: Mapping[str, Any]) -> str:
     rows = []
     for finding in _findings(repo):
@@ -107,32 +87,6 @@ def _counts_line(repo: Mapping[str, Any]) -> str:
     return f"{len(findings)} findings: " + ", ".join(parts) + f". {scope}."
 
 
-def _drafts(esc: Escape, repo: Mapping[str, Any]) -> str:
-    links = [
-        f"<li>{esc(f.get('id', ''))}: {_draft_cell(esc, f.get('draft'))}</li>"
-        for f in _findings(repo)
-        if f.get("draft")
-    ]
-    if not links:
-        return ""
-    return "<h4>Draft ADRs</h4><ul>" + "".join(links) + "</ul>"
-
-
-def align_block(esc: Escape, align: Any) -> str:
-    """The align line, plus advisory text under its own heading when align ran."""
-    align = align if isinstance(align, dict) else {"status": "absent"}
-    status = str(align.get("status", "absent"))
-    hint = str(align.get("command_hint") or "DO_NOT_TRACK=1 align adr")
-    if status in ALIGN_LINES:
-        return f'<p class="muted">{esc(ALIGN_LINES[status].format(hint=hint))}</p>'
-    text = str(align.get("text") or "")
-    if status == "ran":
-        note = str(align.get("advisory_note") or "advisory")
-        return f'<h4>align cross-check</h4><p class="muted">{esc(note)}</p><pre>{esc(text)}</pre>'
-    code = align.get("exit_code")
-    return f'<p class="muted">{esc(f"align failed (exit {code}): {text}")}</p>'
-
-
 def render_adr_drift(report: Mapping[str, Any], esc: Escape) -> str:
     section = report.get("adr_drift")
     if not isinstance(section, dict):
@@ -146,7 +100,6 @@ def render_adr_drift(report: Mapping[str, Any], esc: Escape) -> str:
         parts = [f"<h3>{esc(repo.get('repo', ''))}</h3>", f"<p>{esc(_counts_line(repo))}</p>"]
         if _findings(repo):
             parts.append(_finding_table(esc, repo))
-        parts += [_drafts(esc, repo), align_block(esc, repo.get("align"))]
         blocks.append("".join(parts))
     return _wrap("".join(blocks), esc)
 
@@ -215,7 +168,6 @@ def write_adr_only(
 __all__: Sequence[str] = (
     "render_adr_drift",
     "validate_adr_drift",
-    "align_block",
     "is_adr_only",
     "write_adr_only",
 )

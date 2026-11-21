@@ -24,14 +24,13 @@ def _finding(**overrides: Any) -> dict[str, Any]:
     return {**base, **overrides}
 
 
-def _section(findings: list[dict[str, Any]], align: dict[str, Any] | None = None) -> dict[str, Any]:
+def _section(findings: list[dict[str, Any]]) -> dict[str, Any]:
     repo = {
         "repo": "my-repo",
         "head": "abc",
         "examined": 300,
         "truncated": False,
         "findings": findings,
-        "align": align or {"status": "absent"},
     }
     return {"repos": [repo]}
 
@@ -134,36 +133,6 @@ def test_finding_text_is_escaped(tmp_path):
     assert "<b>x</b>" not in html
 
 
-@pytest.mark.parametrize(
-    ("align", "expected"),
-    [
-        ({"status": "absent"}, "align not installed. Deterministic check complete."),
-        (
-            {"status": "detected", "command_hint": "DO_NOT_TRACK=1 align adr"},
-            "align found. Not run. To cross-check: `DO_NOT_TRACK=1 align adr`.",
-        ),
-        (
-            {"status": "no_graph"},
-            "align found, no graph. Not built, because building reads api.github.com",
-        ),
-        ({"status": "failed", "exit_code": 3, "text": "boom"}, "align failed (exit 3): boom"),
-    ],
-)
-def test_align_state_lines(align, expected):
-    html = report_adr.render_adr_drift({"adr_drift": _section([], align)}, esc)
-
-    assert esc(expected) in html
-
-
-def test_align_ran_prints_advisory_text_under_its_own_heading():
-    align = {"status": "ran", "text": "ADR-001 listed", "advisory_note": "advisory; naming differs"}
-
-    html = report_adr.render_adr_drift({"adr_drift": _section([], align)}, esc)
-
-    assert "<h4>align cross-check</h4>" in html and "ADR-001 listed" in html
-    assert "advisory; naming differs" in html
-
-
 def test_skipped_section_states_the_reason():
     html = report_adr.render_adr_drift({"adr_drift": {"skipped": "all-conversations run"}}, esc)
 
@@ -177,16 +146,3 @@ def test_truncated_history_is_disclosed():
     html = report_adr.render_adr_drift({"adr_drift": section}, esc)
 
     assert "history truncated at the commit limit" in html
-
-
-def test_draft_links_are_relative_only():
-    findings = [
-        _finding(id="a1", draft="proposed/adr/ADR-124-x.md"),
-        _finding(id="b2", draft="/etc/passwd"),
-        _finding(id="c3", draft="https://evil.example/x"),
-    ]
-
-    html = report_adr.render_adr_drift({"adr_drift": _section(findings)}, esc)
-
-    assert '<a href="proposed/adr/ADR-124-x.md">' in html
-    assert 'href="/etc/passwd"' not in html and 'href="https://evil.example/x"' not in html

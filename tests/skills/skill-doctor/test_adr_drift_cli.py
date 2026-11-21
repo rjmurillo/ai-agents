@@ -1,4 +1,4 @@
-"""adr_drift.py locate, draft, exit codes, read-only scan, no network, and --help."""
+"""adr_drift.py locate, exit codes, read-only scan, no network, and --help."""
 
 from __future__ import annotations
 
@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import Any
 
 import adr_corpus
-import adr_draft
 import adr_drift
 import pytest
 from adr_drift_helpers import (
@@ -155,197 +154,6 @@ def test_locate_from_a_subdirectory_resolves_the_repo_root(tmp_path, capsys):
     assert _locate(capsys, repo / "sub")["primary"] == ADR_DIR
 
 
-def _draft_source(tmp_path: Path, capsys, adrs: dict[str, str], subjects: list[str]):
-    repo = seeded_repo(tmp_path / "repo", adrs)
-    for index, subject in enumerate(subjects):
-        commit(repo, {f"f{index}.txt": "1"}, f"feat: {subject}\n\nBody for {subject}.")
-    result = scan(capsys, repo)
-    return repo, result, tmp_path / "out" / "scan.json"
-
-
-def _draft(
-    capsys: pytest.CaptureFixture[str],
-    scan_file: Path,
-    finding: dict[str, Any],
-    out: Path,
-    *extra: str,
-) -> tuple[int, str, str]:
-    return run_cli(
-        capsys, "draft", "--scan", str(scan_file), "--id", finding["id"], "--out", str(out), *extra
-    )
-
-
-def test_two_drafts_in_one_run_get_consecutive_numbers_after_the_highest(tmp_path, capsys):
-    repo, result, scan_file = _draft_source(
-        tmp_path,
-        capsys,
-        {adr_path(n): adr_text(n) for n in (1, 2, 3)},
-        ["switch to alpha", "adopt beta"],
-    )
-    out = tmp_path / "drafts"
-    findings = kinds(result, "undocumented-decision")
-
-    codes = [_draft(capsys, scan_file, f, out)[0] for f in findings]
-
-    assert codes == [0, 0]
-    assert sorted(p.name[:7] for p in out.iterdir()) == ["ADR-004", "ADR-005"]
-
-
-def test_draft_number_ignores_the_scan_file_and_counts_repo_adrs_added_later(tmp_path, capsys):
-    repo, result, scan_file = _draft_source(
-        tmp_path, capsys, {adr_path(1): adr_text(1)}, ["adopt beta"]
-    )
-    commit(repo, {adr_path(9): adr_text(9)}, "docs: add ADR-009")
-
-    code, out, err = _draft(
-        capsys, scan_file, kinds(result, "undocumented-decision")[0], tmp_path / "d"
-    )
-
-    assert code == 0, err
-    assert json.loads(out)["number"] == 10
-
-
-def test_adr_nnn_convention_gives_prefix_padding_and_h1(tmp_path, capsys):
-    repo, result, scan_file = _draft_source(
-        tmp_path, capsys, {adr_path(1): adr_text(1)}, ["adopt structured logging"]
-    )
-    target = repo / ADR_DIR
-
-    code, out, _ = _draft(capsys, scan_file, kinds(result, "undocumented-decision")[0], target)
-
-    path = Path(json.loads(out)["written"])
-    text = path.read_text(encoding="utf-8")
-    assert code == 0 and path.name == "ADR-002-adopt-structured-logging.md"
-    assert "# ADR-002: Adopt structured logging" in text
-    assert text.startswith("---\nid: ADR-002\nstatus: proposed\n")
-
-
-def test_nnnn_convention_gives_plain_prefix_width_four_and_number_dot_h1(tmp_path, capsys):
-    adrs = {"docs/adr/0001-first.md": "# 1. First\n\n## Status\n\nAccepted\n\n## Context\n\nx\n"}
-    repo, result, scan_file = _draft_source(tmp_path, capsys, adrs, ["adopt structured logging"])
-
-    code, out, _ = _draft(
-        capsys, scan_file, kinds(result, "undocumented-decision")[0], repo / "docs/adr"
-    )
-
-    path = Path(json.loads(out)["written"])
-    assert code == 0 and path.name == "0002-adopt-structured-logging.md"
-    text = path.read_text(encoding="utf-8")
-    assert text.startswith("# 2. Adopt structured logging") and "---" not in text
-
-
-def test_default_status_is_proposed_and_status_can_be_set(tmp_path, capsys):
-    repo, result, scan_file = _draft_source(
-        tmp_path, capsys, {adr_path(1): adr_text(1)}, ["adopt a", "adopt b"]
-    )
-    first, second = kinds(result, "undocumented-decision")
-
-    _, out_default, _ = _draft(capsys, scan_file, first, tmp_path / "d")
-    _, out_set, _ = _draft(capsys, scan_file, second, tmp_path / "d", "--status", "Accepted")
-
-    default_text = Path(json.loads(out_default)["written"]).read_text(encoding="utf-8")
-    set_text = Path(json.loads(out_set)["written"]).read_text(encoding="utf-8")
-    assert "## Status\n\nProposed\n" in default_text and "## Status\n\nAccepted\n" in set_text
-
-
-def test_uncovered_heading_reads_not_recorded_and_sources_are_linked(tmp_path, capsys):
-    adrs = {adr_path(1): adr_text(1).replace("## Decision", "## Consequences\n\nx\n\n## Decision")}
-    repo, result, scan_file = _draft_source(tmp_path, capsys, adrs, ["adopt structured logging"])
-    finding = kinds(result, "undocumented-decision")[0]
-
-    _, out, _ = _draft(capsys, scan_file, finding, tmp_path / "d")
-
-    text = Path(json.loads(out)["written"]).read_text(encoding="utf-8")
-    assert "## Consequences\n\nNot recorded in the source.\n" in text
-    assert "## Context\n\nBody for adopt structured logging." in text
-    assert f"Commit: {finding['evidence']['sha']}" in text
-
-
-def test_draft_without_a_references_heading_appends_a_source_section(tmp_path, capsys):
-    repo, result, scan_file = _draft_source(
-        tmp_path, capsys, {adr_path(1): adr_text(1)}, ["adopt a"]
-    )
-
-    _, out, _ = _draft(capsys, scan_file, kinds(result, "undocumented-decision")[0], tmp_path / "d")
-
-    assert "## Source\n\n- Commit: " in Path(json.loads(out)["written"]).read_text(encoding="utf-8")
-
-
-def test_draft_into_a_repo_folder_that_is_not_an_adr_folder_exits_2(tmp_path, capsys):
-    repo, result, scan_file = _draft_source(
-        tmp_path, capsys, {adr_path(1): adr_text(1)}, ["adopt a"]
-    )
-    finding = kinds(result, "undocumented-decision")[0]
-
-    code, _, err = _draft(capsys, scan_file, finding, repo / "docs" / "notes")
-
-    assert code == 2 and "not an ADR folder" in err
-    assert not (repo / "docs").exists()
-
-
-def test_draft_into_a_repo_adr_folder_and_outside_the_repo_both_work(tmp_path, capsys):
-    repo, result, scan_file = _draft_source(
-        tmp_path, capsys, {adr_path(1): adr_text(1)}, ["adopt a"]
-    )
-    finding = kinds(result, "undocumented-decision")[0]
-
-    inside = _draft(capsys, scan_file, finding, repo / ADR_DIR)[0]
-    outside = _draft(capsys, scan_file, finding, tmp_path / "elsewhere")[0]
-
-    assert (inside, outside) == (0, 0)
-
-
-def test_draft_refuses_an_in_repo_out_that_resolves_outside(tmp_path, capsys):
-    repo, result, scan_file = _draft_source(
-        tmp_path, capsys, {adr_path(1): adr_text(1)}, ["adopt a"]
-    )
-    finding = kinds(result, "undocumented-decision")[0]
-    target = tmp_path / "escape"
-    target.mkdir()
-    symlink_or_skip(repo / "link", target)
-
-    code, _, err = _draft(capsys, scan_file, finding, repo / "link")
-
-    assert code == 2 and "resolves outside" in err
-    assert list(target.iterdir()) == []
-
-
-def test_existing_target_exits_1_and_keeps_its_bytes(tmp_path, capsys, monkeypatch):
-    repo, result, scan_file = _draft_source(
-        tmp_path, capsys, {adr_path(1): adr_text(1)}, ["adopt a"]
-    )
-    finding = kinds(result, "undocumented-decision")[0]
-    out = tmp_path / "d"
-    out.mkdir()
-    taken = out / "ADR-002-adopt-a.md"
-    taken.write_bytes(b"precious")
-    # Simulate the race: another writer took the number between the listing and the open.
-    monkeypatch.setattr(adr_draft, "_highest_number", lambda *folders: 1)
-
-    code, _, err = _draft(capsys, scan_file, finding, out)
-
-    assert code == 1 and "already exists" in err
-    assert taken.read_bytes() == b"precious"
-
-
-def test_draft_rejects_unknown_id_unreadable_scan_and_non_draftable_kind(tmp_path, capsys):
-    repo, result, scan_file = _draft_source(
-        tmp_path, capsys, {adr_path(1): adr_text(1), adr_path(4): adr_text(4)}, ["adopt a"]
-    )
-    gap = kinds(result, "adr-number-gap")[0]
-
-    unknown = run_cli(
-        capsys, "draft", "--scan", str(scan_file), "--id", "nope", "--out", str(tmp_path / "d")
-    )
-    unreadable = run_cli(
-        capsys, "draft", "--scan", str(tmp_path / "x"), "--id", "a", "--out", str(tmp_path / "d")
-    )
-    not_draftable = _draft(capsys, scan_file, gap, tmp_path / "d")
-
-    assert unknown[0] == unreadable[0] == not_draftable[0] == 2
-    assert "not draftable" in not_draftable[2]
-
-
 def _digest(repo: Path) -> dict[str, str]:
     return {
         str(p.relative_to(repo)): hashlib.sha256(p.read_bytes()).hexdigest()
@@ -355,7 +163,8 @@ def _digest(repo: Path) -> dict[str, str]:
 
 
 def test_scan_is_read_only_even_with_a_dirty_tree(tmp_path, capsys):
-    repo, _, _ = _draft_source(tmp_path, capsys, {adr_path(1): adr_text(1)}, ["adopt a"])
+    repo = seeded_repo(tmp_path / "repo")
+    commit(repo, {"a.txt": "a"}, "feat: adopt a")
     (repo / "dirty.txt").write_text("untracked", encoding="utf-8")
     (repo / adr_path(1)).write_text(adr_text(1, body="edited"), encoding="utf-8")
     before = (_digest(repo), git(repo, "status", "--porcelain"))
@@ -439,9 +248,7 @@ def test_exit_3_when_a_git_command_fails_or_git_is_missing(tmp_path, capsys, mon
     assert missing[0] == 3 and "git is not on PATH" in missing[2]
 
 
-@pytest.mark.parametrize(
-    ("command", "flag"), [("locate", "--repo"), ("scan", "--with-align"), ("draft", "--status")]
-)
+@pytest.mark.parametrize(("command", "flag"), [("locate", "--repo"), ("scan", "--max-commits")])
 def test_every_subcommand_has_help(command, flag):
     proc = subprocess.run(
         [sys.executable, str(SCRIPT), command, "--help"],
@@ -471,3 +278,33 @@ def test_the_script_runs_as_a_process_and_scan_exit_codes_match_main(tmp_path):
 
     assert located.returncode == 0 and json.loads(located.stdout)["primary"] == ADR_DIR
     assert bad.returncode == 2 and bad.stderr.startswith("error:")
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["draft", "--scan", "x.json", "--id", "a", "--out", "d"],
+        ["scan", "--repo", ".", "--out", "o.json", "--prs-json", "prs.json"],
+        ["scan", "--repo", ".", "--out", "o.json", "--with-align"],
+    ],
+    ids=["draft", "prs-json", "with-align"],
+)
+def test_removed_subcommand_and_flags_exit_2(capsys, argv):
+    with pytest.raises(SystemExit) as raised:
+        adr_drift.main(argv)
+
+    err = capsys.readouterr().err
+
+    assert raised.value.code == 2
+    assert "invalid choice" in err or "unrecognized arguments" in err
+
+
+def test_scan_result_carries_no_decision_align_or_pr_keys(tmp_path, capsys):
+    repo = seeded_repo(tmp_path / "repo")
+    commit(repo, {"a.txt": "a"}, "feat: switch to uv instead of pip")
+
+    result = scan(capsys, repo)
+
+    assert not {"align", "prs_json", "suppressed"} & set(result)
+    assert not kinds(result, "undocumented-decision")
+    assert all("fix" not in finding for finding in result["findings"])

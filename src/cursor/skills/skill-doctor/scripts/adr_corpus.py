@@ -2,16 +2,15 @@
 
 Stdlib only, Python 3.10+, no network. Git runs through argument lists, never a shell.
 
-Mirrors, with these differences:
+Conventions:
 
-- The known-folder list is the one in `src/claude/skills/adr-review/scripts/
-  detect_adr_changes.py` (`.project-toolkit/architecture`, `docs/adr`,
-  `docs/architecture`, `docs/decisions`, `architecture/decisions`) plus the
-  adr-tools default `doc/adr`.
-- Filenames follow `scripts/validation/check_adr_uniqueness.py`
-  (`ADR-NNN-slug.md`), widened to digit runs of any length and to the plain
-  `NNNN-slug.md` form that adr-tools and MADR use.
-- The repo gate scans one folder. This module scans every folder it finds.
+- The known-folder list matches the adr-review skill's `detect_adr_changes.py`
+  (`.project-toolkit/architecture`, `docs/adr`, `docs/architecture`,
+  `docs/decisions`, `architecture/decisions`) plus the adr-tools default
+  `doc/adr`. A test pins that the adr-review folders stay a subset.
+- Filenames follow `ADR-NNN-slug.md`, widened to digit runs of any length and
+  to the plain `NNNN-slug.md` form that adr-tools and MADR use.
+- Every folder found is scanned, not only the first.
 """
 
 from __future__ import annotations
@@ -85,7 +84,6 @@ def make_finding(
     evidence: dict[str, Any],
     suggested_fix: str,
     key: Sequence[str],
-    fix: list[str] | None = None,
 ) -> Finding:
     """Build one finding. `key` names the evidence fields that identify it."""
     digest = hashlib.sha256("\x1f".join((kind, *key)).encode("utf-8")).hexdigest()
@@ -97,7 +95,6 @@ def make_finding(
         "confidence": confidence,
         "evidence": evidence,
         "suggested_fix": suggested_fix,
-        "fix": fix,
     }
 
 

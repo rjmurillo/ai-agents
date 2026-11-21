@@ -26,7 +26,7 @@ Grade the user's agent setup by scoring recent local agent conversations, then s
 
 The report can cover conversations in the current repository, conversations in selected projects, or all local conversations. It can evaluate project skills alone or project and global skills together.
 
-Rationale: this skill holds two read-only diagnostics, session scoring and ADR drift, because both inspect a repository's agent-facing setup and both end in one evidence-backed report with a suggested fix per finding. ADR drift reads git history and ADR files, not conversations, so Step 0 has a fast path that skips the scoring questions. skill-bootstrap calls the same `adr_drift.py`, which keeps one copy of the detection instead of two.
+Rationale: this skill holds two read-only diagnostics, session scoring and ADR drift, because both inspect a repository's agent-facing setup and both end in one evidence-backed report with a suggested fix per finding. ADR drift reads git history and ADR files, not conversations, so Step 0 has a fast path that skips the scoring questions.
 
 Collection and rendering run locally.
 Scoring uses the active agent's configured model provider.
@@ -82,11 +82,11 @@ Create the report directory only after the startup gate and scope choices.
 | `audit_manifest.py` | Validate an `audit_manifest.json` written by `collect_sessions.py --audit-manifest`. |
 | `audit_batches.py` | `assign` immutable review batches from `inventory.json`; `import` one batch of score rows into an accepted file. |
 | `public_export.py` | Write an aggregate-only summary of `report.json` that is safe to share. |
-| `adr_drift.py` | `locate` ADR folders, `scan` a repository for ADR drift into a JSON file, `draft` one ADR from a finding. Imports `adr_corpus.py`, `adr_checks.py`, `adr_history.py`, and `adr_draft.py`. |
+| `adr_drift.py` | `locate` ADR folders, `scan` a repository for ADR drift into a JSON file. Imports `adr_corpus.py`, `adr_checks.py`, and `adr_history.py`. |
 | `warp_decoder.py` | Imported Warp protobuf decoder, not a standalone CLI. |
 
 Every CLI accepts `--help`.
-Exit 0 means success, 1 means failure (for `audit_scores.py`, `audit_manifest.py`, `audit_batches.py`, `public_export.py`, and `render_report.py`: invalid input, an unsupported claim, or a private value in an export; nothing is written; for `adr_drift.py`: a logic error, or a `draft` target that already exists), 2 means invalid CLI arguments or an unreadable file (for `adr_drift.py` also an `--out` that is not allowed or a path that is not a git repository), and 3 means a git command failed in `adr_drift.py`.
+Exit 0 means success, 1 means failure (for `audit_scores.py`, `audit_manifest.py`, `audit_batches.py`, `public_export.py`, and `render_report.py`: invalid input, an unsupported claim, or a private value in an export; nothing is written), 2 means invalid CLI arguments or an unreadable file (for `adr_drift.py` also an `--out` that is not allowed or a path that is not a git repository), and 3 means a git command failed in `adr_drift.py`.
 Use absolute script paths, as shown below, from any working directory.
 
 ## Process
@@ -199,7 +199,7 @@ When the run covered exactly one repository, you can pass the inventory to `skil
 
 ### Step 1a: ADR drift
 
-Run this step for an ADR drift request, and for a scoring run when the user also asks for it. Read `$SKILL_ROOT/references/adr-drift.md` first. It lists the finding kinds, the suppression rules, and the align states.
+Run this step for an ADR drift request, and for a scoring run when the user also asks for it. Read `$SKILL_ROOT/references/adr-drift.md` first. It lists the finding kinds and what each check reads.
 
 Skip this step for `--all-conversations` runs and say why: there is no single repository to check.
 
@@ -213,15 +213,7 @@ python3 "$SKILL_ROOT/scripts/adr_drift.py" scan --repo "$REPO" \
 
 Read the scan file. Say when `truncated` is true. Every finding carries a `suggested_fix`. History findings are heuristic: call them candidates and cite the commit.
 
-For each `undocumented-decision` finding the user wants drafted, write the draft under `$REPORT_DIR/proposed/adr/`, never into the repository:
-
-```bash
-python3 "$SKILL_ROOT/scripts/adr_drift.py" draft \
-  --scan "$REPORT_DIR/adr_drift/<repo-slug>.json" --id <finding-id> \
-  --out "$REPORT_DIR/proposed/adr"
-```
-
-Do not pass `--with-align` unless the user opts in. Before they do, state the residual risk: in cloud mode `align adr` calls the Align gateway, and this skill cannot check the mode. Without the flag, the report prints the command for the user to run.
+Undocumented decisions: see the skill-bootstrap integration note.
 
 ### Step 2: Score each sampled transcript
 
@@ -309,7 +301,7 @@ python (Join-Path $SKILL_ROOT 'scripts\render_report.py') (Join-Path $REPORT_DIR
 
 For a bootstrap child run, omit `--open` and return the report path.
 
-When Step 1a ran, add the optional `adr_drift` section from `$SKILL_ROOT/references/report-schema.md`: copy each scan's `findings` and `align`, and set `draft` on a finding once its draft exists. The section never feeds `overall`. `render_report.py` exits 1 when a finding has an empty `suggested_fix`. An ADR-only report carries `adr_drift` and no `scores`; it renders the ADR drift section alone, without the scorecard, and `--open` has no effect on it.
+When Step 1a ran, add the optional `adr_drift` section from `$SKILL_ROOT/references/report-schema.md`: copy each scan's `findings`. The section never feeds `overall`. `render_report.py` exits 1 when a finding has an empty `suggested_fix`. An ADR-only report carries `adr_drift` and no `scores`; it renders the ADR drift section alone, without the scorecard, and `--open` has no effect on it.
 
 This writes a single self-contained `$REPORT_DIR/report.html` and attempts to open it in the default browser. The scorecard, findings, and suggested skill edits appear on one page. Long diffs are collapsed behind a "Show more" toggle, and a "Share" button saves a 2400x1350 PNG locally. There is no separate card file to open or screenshot.
 
@@ -319,7 +311,7 @@ Tell the user the grade and the three findings, in text.
 Then state the `evaluation:` line that `render_report.py` printed, verbatim. It matches the report's evaluation status.
 Name each candidate with its status. Never describe an empty or static-only suggestion list as evidence that no change would help.
 
-When Step 1a ran, add one line with the finding counts by group (Numbering, Links, History) and the align line from `references/adr-drift.md`. For an ADR-only run, that line and the report path are the whole output.
+When Step 1a ran, add one line with the finding counts by group (Numbering, Links, History). For an ADR-only run, that line and the report path are the whole output.
 
 Finish with the absolute path to `REPORT_DIR/report.html`.
 Do not apply suggested edits without the user's explicit instruction.
@@ -336,6 +328,6 @@ The report carries no vendor branding. The fork's MIT attribution remains in `LI
 - [ ] Standalone runs open the report; bootstrap child runs return its path.
 - [ ] Original skill files remain unchanged.
 - [ ] ADR drift ran read-only: `git status --porcelain` is unchanged in each scanned repository.
-- [ ] Every ADR drift finding has a suggested fix, and drafts sit only under `$REPORT_DIR/proposed/adr/`.
+- [ ] Every ADR drift finding has a suggested fix.
 
 If no sessions were sampled, report that result instead of fabricating scores.
