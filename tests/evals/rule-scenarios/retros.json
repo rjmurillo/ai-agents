@@ -60,7 +60,11 @@
       "id": "S5",
       "desc": "Fixing a typo in an existing failure-mode taxonomy row (negative)",
       "input": "I want to fix a typo in a row of .agents/governance/FAILURE-MODES.md. Which steps apply? Plan in 5 short bullets. Do not modify any files.",
-      "expected_signals": [],
+      "expected_signals": [
+        "yyyy-mm-dd",
+        "remediation commit",
+        "new class"
+      ],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "The rule's paths are .project-toolkit/retrospective/** and docs/retros/**. The taxonomy file sits in neither, so the retro file clauses do not apply."
     },

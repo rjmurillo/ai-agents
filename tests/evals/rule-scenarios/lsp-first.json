@@ -56,7 +56,11 @@
       "id": "S5",
       "desc": "Grep for a flag string across scripts (negative)",
       "input": "Find every place the literal flag string --dry-run appears across the scripts/**/*.py files. It is an option string, not a symbol name. Plan in 5 short bullets. Do not modify any files.",
-      "expected_signals": [],
+      "expected_signals": [
+        "find_symbol",
+        "find_referencing_symbols",
+        "goToDefinition"
+      ],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "When grep is correct: a pattern that is not a symbol (prose, a flag, a regex, a constant) is a legitimate grep target, so the LSP preference does not apply."
     },
@@ -64,7 +68,11 @@
       "id": "S6",
       "desc": "Search commit history for a removed function (negative)",
       "input": "I need to know which commit removed the function parse_legacy_header from a Python module last year. Outline how to find it. Plan in 5 short bullets. Do not modify any files.",
-      "expected_signals": [],
+      "expected_signals": [
+        "find_symbol",
+        "find_referencing_symbols",
+        "goToDefinition"
+      ],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "When grep is correct: git grep for history search. A history question has no live symbol to navigate to, so an LSP query cannot answer it."
     }

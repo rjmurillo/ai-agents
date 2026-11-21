@@ -66,7 +66,11 @@
       "id": "S5",
       "desc": "CI-only report artifact (negative, drawn from the scope carve-out)",
       "input": "scripts/ci/render_step_summary.py writes a markdown job summary that is read only inside this repository's CI run. Add a section listing skipped checks. Plan in 5 short bullets. Do not modify any files.",
-      "expected_signals": [],
+      "expected_signals": [
+        "runtime-contract test",
+        "negative control",
+        "ptk_run"
+      ],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "The rule binds artifacts installed into a customer's environment and says it does not bind artifacts consumed only inside this repo's own CI. scripts/ci/ is also outside its paths."
     },
@@ -74,7 +78,11 @@
       "id": "S6",
       "desc": "Prose command fix in a docs page (negative)",
       "input": "Fix a wrong command in docs/WORKFLOW-VALIDATION.md where 'uv sync' is written as 'uv syn'. Plan in 5 short bullets. Do not modify any files.",
-      "expected_signals": [],
+      "expected_signals": [
+        "runtime-contract test",
+        "negative control",
+        "ptk_run"
+      ],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "docs/ matches none of the rule's paths and the page is not a generated customer-facing artifact, so the runtime-contract gates do not apply."
     }

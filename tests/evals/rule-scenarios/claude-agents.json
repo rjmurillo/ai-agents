@@ -66,7 +66,11 @@
       "id": "S5",
       "desc": "Typo fix in a hand-maintained skill reference (negative)",
       "input": "Fix a typo in .claude/skills/software-engineering-library/references/clean-architecture.md. It is a reference file, not a SKILL.md and not a template-owned file. Plan in 5 short bullets. Do not modify any files.",
-      "expected_signals": [],
+      "expected_signals": [
+        "templates/agents",
+        "check_agent_delegation",
+        "DELEGATORS"
+      ],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "The rule's regenerate requirement covers agent files and template-owned SKILL.md files. A non-SKILL.md reference under a skill is hand-maintained, so the template and build_all.py steps do not apply."
     },
@@ -74,7 +78,11 @@
       "id": "S6",
       "desc": "Validator regex bug outside the agent and skill trees (negative)",
       "input": "scripts/validation/check_md_links.py has a regex that misses links wrapped in angle brackets. Fix the pattern and add a test. Plan in 5 short bullets. Do not modify any files.",
-      "expected_signals": [],
+      "expected_signals": [
+        "templates/agents",
+        "check_agent_delegation",
+        "DELEGATORS"
+      ],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "scripts/validation/ is not in this rule's paths (src/claude, .claude/agents, .claude/skills). The task touches no agent, skill, or template, so the rule does not apply."
     }

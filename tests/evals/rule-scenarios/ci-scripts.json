@@ -24,7 +24,7 @@
       "expected_signals": [
         "emit both names",
         "required",
-        "branch protection",
+        "branch-protection",
         "alias",
         "gh api",
         "main"
@@ -66,7 +66,11 @@
       "id": "S5",
       "desc": "Documentation link fix outside any CI path (negative)",
       "input": "I need to fix a broken in-page anchor link in the table of contents of CONTRIBUTING.md. Plan in 5 short bullets. Do not modify any files.",
-      "expected_signals": [],
+      "expected_signals": [
+        "set -e",
+        "sys.exit",
+        "cli_exit_contract_ratchet"
+      ],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "CONTRIBUTING.md is hand-written and matches none of the rule's paths globs, and the task touches no script, workflow, or gate, so none of the CI MUST items apply."
     },
@@ -74,7 +78,11 @@
       "id": "S6",
       "desc": "Human-only log lines in a script (negative, drawn from SHOULD 2)",
       "input": "In scripts/utils/print_worktree_summary.py I want friendlier progress messages on stdout. Only a person reads this output, and no script, step, or test parses it. Plan in 5 short bullets. Do not modify any files.",
-      "expected_signals": [],
+      "expected_signals": [
+        "cli_exit_contract_ratchet",
+        "branch-protection",
+        "merge origin/main"
+      ],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "SHOULD 2 requires JSON or key=value lines only when another script, step, or test parses stdout, and says human-only logs are exempt. This case sits in that carve-out."
     }

@@ -86,7 +86,11 @@
       "id": "S7",
       "desc": "Docstring in an upstream-only maintenance script names a repo path (negative)",
       "input": "I am rewriting the module docstring of scripts/maintenance/gc_worktrees.py so it explains which worktree directories it scans. Outline the new docstring. Plan in 5 short bullets. Do not modify any files.",
-      "expected_signals": [],
+      "expected_signals": [
+        "vendor-portability",
+        "check_plugin_frontmatter_self_containment",
+        "plugin_run_launcher"
+      ],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "The rule's paths cover .claude/**, src/claude/**, src/copilot-cli/**, and templates/agents/**. scripts/maintenance/ is upstream-only and never ships, so no path in it can break a consumer install and the self-containment checks do not apply."
     }

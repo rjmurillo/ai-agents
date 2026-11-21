@@ -62,7 +62,11 @@
       "id": "S5",
       "desc": "Analysis note outside governance (negative)",
       "input": "I am writing a new analysis note at .agents/analysis/cache-miss-investigation.md summarizing why the CI cache missed last week. Outline the sections it needs. Plan in 5 short bullets. Do not modify any files.",
-      "expected_signals": [],
+      "expected_signals": [
+        "evidence anchor",
+        "git diff -U3",
+        "consensus.md"
+      ],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "The rule scopes to .agents/governance/**. A sibling .agents/analysis/ path is an adjacent area that does not carry the human-approval, ADR, or consensus requirements."
     },
@@ -70,7 +74,11 @@
       "id": "S6",
       "desc": "Python script that reads a governance file (negative)",
       "input": "scripts/validation/check_constraints_index.py reads .agents/governance/PROJECT-CONSTRAINTS.md and crashes on an empty file. I am only changing the Python reader, not the governance file. Outline the fix. Plan in 5 short bullets. Do not modify any files.",
-      "expected_signals": [],
+      "expected_signals": [
+        "evidence anchor",
+        "git diff -U3",
+        "consensus.md"
+      ],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "The rule binds edits to files under .agents/governance/. Editing a script that only reads the file leaves every governance file unchanged, so no approval, ADR, or consensus step applies."
     }
