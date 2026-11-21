@@ -8,7 +8,7 @@
       "shims": [
         {
           "file": "SessionStart/invoke_context_loader.py",
-          "statusMessage": "Checking for unfilled retrospective skeletons (#2079)"
+          "statusMessage": "Pointing at past retrospectives and checking for unfilled skeletons (#2079)"
         }
       ]
     },

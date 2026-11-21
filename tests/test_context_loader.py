@@ -163,13 +163,13 @@ class TestMain:
         # Regression guard for Issue #5168: HANDOFF.md exists in project_tree
         # but must never be read or injected.
         assert "HANDOFF.md" not in captured.out
-        assert captured.out == ""
+        assert captured.out == invoke_context_loader.RETRO_LOOKUP_GUIDE + "\n"
 
     def test_ignores_handoff_when_no_retro_present(
         self, project_tree: Path, capsys: pytest.CaptureFixture
     ) -> None:
         """With only a (stale, unloaded) HANDOFF.md and no pending skeleton,
-        the hook prints nothing."""
+        the hook prints only the static lookup guide."""
         with (
             patch.object(invoke_context_loader, "skip_if_consumer_repo", return_value=False),
             patch.object(
@@ -179,7 +179,7 @@ class TestMain:
             invoke_context_loader.main()
 
         captured = capsys.readouterr()
-        assert captured.out == ""
+        assert captured.out == invoke_context_loader.RETRO_LOOKUP_GUIDE + "\n"
         assert "HANDOFF.md" not in captured.out
 
     def test_handles_missing_handoff(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
