@@ -5,7 +5,7 @@ answers one question the rest of `scripts/eval/` does not: did an accepted
 result stay correct after integration, or did it only pass its first check?
 
 Fail-closed contract, mirrored from `_harness_capability.py::CapabilityStatus`
-(read 2026-09-27, `scripts/eval/_harness_capability.py:52-57`):
+(read 2026-09-27, `scripts/eval/_harness_capability.py:62-67`):
 
     class CapabilityStatus(str, Enum):
         VERIFIED = "VERIFIED"

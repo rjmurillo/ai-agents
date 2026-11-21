@@ -20,7 +20,7 @@ render wrong in the index.
    ```
 
    applied by `_blocking_condition` at
-   `build/scripts/generate_adr_index.py:503-514` to the first paragraph of the
+   `build/scripts/generate_adr_index.py:453-464` to the first paragraph of the
    `## Status` section. It consumes the word plus at most one trailing `.`,
    `:` or `-`. It does not consume a comma, so a record opening
    `Proposed, and concluded without consensus.` renders in the index as

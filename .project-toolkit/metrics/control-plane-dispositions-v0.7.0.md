@@ -111,7 +111,7 @@ merge after it.
   `fa0b0258eea37deb19d5cf5c50a386a01031fca1`, state `MERGED`); `gh issue
   view 5404` state `OPEN` (the issue tracks the design, the contract it
   requested has already shipped). Live guard, not provenance alone:
-  `tests/test_completion_terminal_contracts.py:112-114`, function
+  `tests/test_completion_terminal_contracts.py:140-142`, function
   `test_builder_ethos_carries_the_terminal_contract`, asserts
   `TERMINAL_CONTRACT_PHRASES` are present in every `builder-ethos.md`
   path; `tests/evals/completion-terminal-runtime-fixtures.json` exists on
@@ -416,7 +416,7 @@ different owners and states.
   `.claude/rules/canonical-source-mirror.md` (read this session) is the
   rule that governs this exact pattern: a mirrored surface must cite and
   quote the canonical source verbatim, or document a stricter/looser/
-  different divergence. `build/scripts/generate_rules.py:23` ("Emit to
+  different divergence. `build/scripts/generate_rules.py:24` ("Emit to
   ``.github/instructions/<name>.instructions.md``") is the generator that
   produces the `.github/instructions` tree from `.claude/rules/`.
 - **Current outcome protected**: Copilot CLI sessions and vendored Copilot
