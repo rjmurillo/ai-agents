@@ -48,10 +48,17 @@ Each mode picks a council and a chairman. `--models` replaces the council. `--ch
 
 | Mode | Council | Chairman |
 | --- | --- | --- |
-| `general`, `design` | `gpt-6-astra`, `claude-opus-5.5`, `gpt-6-sol`, `claude-sonnet-5` | `gpt-6-astra` |
-| `plan` | `gpt-6-astra`, `gpt-6-sol`, `claude-sonnet-5`, `claude-opus-5.5` | `gpt-6-astra` |
-| `research`, `review` | `gpt-6-sol`, `claude-opus-5.5`, `claude-sonnet-5`, `gpt-6-astra` | `claude-opus-5.5` |
+| `general`, `design` | `gpt-6.2-astra`, `claude-opus-5.5`, `gpt-6.2-sol`, `grok-4.7` | `gpt-6.2-astra` |
+| `plan` | `gpt-6.2-astra`, `gpt-6.2-sol`, `grok-4.7`, `claude-opus-5.5` | `gpt-6.2-astra` |
+| `research`, `review` | `gpt-6.2-sol`, `claude-opus-5.5`, `grok-4.7`, `gpt-6.2-astra` | `claude-opus-5.5` |
 | `--cheap` | `meta/llama-3.3-70b-instruct`, `deepseek/deepseek-v3-0324`, `mistral-ai/mistral-medium-2505`, `openai/gpt-4.1` | `openai/gpt-4.1` |
+
+Add `gemini-4-argon` to the full `--models` list for a Google perspective.
+T3 Code runs Argon through Antigravity.
+
+```text
+/llm-council Should we build or buy? --mode design --models gpt-6.2-astra,claude-opus-5.5,gpt-6.2-sol,grok-4.7,gemini-4-argon
+```
 
 If a member is unavailable, the skill reports it and never swaps in another model. The run goes on only while at least 3 members remain, or the whole council if it is smaller.
 

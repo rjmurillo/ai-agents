@@ -60,23 +60,24 @@ available.** Councils are task-shaped:
 
 | Mode | Council | Chairman |
 |---|---|---|
-| `general`, `design` | Astra, Opus 5.5, Sol, Sonnet 5 | Astra |
-| `plan` | Astra, Sol, Sonnet 5, Opus 5.5 | Astra |
-| `research`, `review` | Sol, Opus 5.5, Sonnet 5, Astra | Opus 5.5 |
+| `general`, `design` | GPT-6.2 Astra, Opus 5.5, GPT-6.2 Sol, Grok 4.7 | GPT-6.2 Astra |
+| `plan` | GPT-6.2 Astra, GPT-6.2 Sol, Grok 4.7, Opus 5.5 | GPT-6.2 Astra |
+| `research`, `review` | GPT-6.2 Sol, Opus 5.5, Grok 4.7, GPT-6.2 Astra | Opus 5.5 |
 | `--cheap` | Llama 3.3 70B, DeepSeek V3, Mistral Medium, GPT-4.1 | GPT-4.1 |
 
-- **Ambiguous judgment or architecture:** GPT-6 Astra owns ambiguity and
-  acceptance; Opus 5.5 supplies broad frontier judgment; Sol supplies a
-  technical counterweight; Sonnet 5 supplies an investigation-heavy take.
-- **Clear implementation plan:** Astra owns the plan and acceptance criteria;
-  Sol handles hard technical reasoning; Sonnet 5 probes failure modes; Opus 5.5
-  provides a broad alternative.
-- **Technical research or review:** Sol leads the specialist lane; Opus 5.5
-  checks broad reasoning; Sonnet 5 checks evidence; Astra adjudicates scope.
+- **Ambiguous judgment or architecture.** Astra resolves ambiguity and sets acceptance criteria.
+  Opus weighs tradeoffs. Sol checks technical feasibility. Grok challenges assumptions.
+- **Clear implementation plan.** Astra owns the plan and acceptance criteria.
+  Sol handles technical reasoning. Grok probes failure modes. Opus considers alternatives.
+- **Technical research or review.** Sol leads the technical analysis.
+  Opus checks the reasoning. Grok checks evidence. Astra adjudicates scope.
 
 These are routing defaults, not claims that one model wins every harness. The
 member list is configurable: `--models` replaces the council and `--chairman`
 replaces the chairman. If the user names members, use those.
+
+For a Google perspective, add Gemini 4 Argon (`gemini-4-argon`) to the chosen roster.
+Pass the full roster to `--models`, including Argon.
 
 ## Process
 
@@ -90,10 +91,11 @@ stop and report which members were missing.
 ### Route 1: T3 Code delegates
 
 1. Call `orchestrator_capabilities` and resolve each member to the catalog
-   model with the same family and version (`gpt-6-sol` may be listed as
-   `gpt-6-sol` or `GPT-6 Sol`). A search by family name finds candidates, but
+   model with the same family and version (`gpt-6.2-sol` may be listed as
+   `gpt-6.2-sol` or `GPT-6.2 Sol`). A search by family name finds candidates, but
    a different version, such as `claude-opus-4.7` for `claude-opus-5.5`, is not
    the member: treat the member as unavailable.
+   Use the Antigravity provider for `gemini-4-argon`.
 2. Write the question to a file and run `council_steps.py init` on a new
    `--run-dir` with
    `--unavailable MODEL=REASON` for each missing member. It writes the Stage 1
