@@ -1,0 +1,84 @@
+{
+  "rule_path": ".claude/rules/retros.md",
+  "rule_id": "retros",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Main went red and a retro is needed",
+      "input": "`main` went red yesterday after a merge and I am writing the retro at .project-toolkit/retrospective/main-red.md. What must the file contain? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "yyyy-mm-dd",
+        "failure-modes.md",
+        "evidence",
+        "remediation",
+        "owner"
+      ],
+      "expected_gate": "require-retro-structure",
+      "rationale": "MUST 1 to 4: the filename is YYYY-MM-DD-<slug>.md, the failure is classified against .agents/governance/FAILURE-MODES.md, evidence links commits, PRs, or CI runs, and remediation lists follow-ups with owners or issues. 'main went red' is one of the four triggers."
+    },
+    {
+      "id": "S2",
+      "desc": "Request to soften a landed retro",
+      "input": "A landed retro docs/retros/2026-10-02-bad-deploy.md names a teammate's decision harshly. I want to edit the existing sentences to soften it. How do I proceed? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "append",
+        "dated section",
+        "rationale",
+        "process",
+        "not individuals"
+      ],
+      "expected_gate": "append-correction-never-edit-landed-retro",
+      "rationale": "MUST NOT 1 forbids deleting or editing landed retros to soften criticism, so corrections append a new dated section with rationale. MUST 5 requires critiquing processes and artifacts, never individuals."
+    },
+    {
+      "id": "S3",
+      "desc": "Remediation commit for a retro finding",
+      "input": "The retro .project-toolkit/retrospective/2026-11-02-hook-wedge.md lists a governance fix. I am about to commit the fix with the message `fix(rules): tighten hook path rule`. Anything missing? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "link",
+        "retro",
+        "commit body",
+        "pr"
+      ],
+      "expected_gate": "link-retro-in-remediation-commit",
+      "rationale": "MUST NOT 2: remediation commits must not ship without linking the retro in the commit body or PR."
+    },
+    {
+      "id": "S4",
+      "desc": "Failure matches no existing class",
+      "input": "I am writing .project-toolkit/retrospective/2026-11-10-stale-mirror.md. Nothing in the failure taxonomy fits the problem. Can I just label it 'other'? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "new class",
+        "adr",
+        "failure-modes",
+        "linked"
+      ],
+      "expected_gate": "propose-new-failure-class-via-adr",
+      "rationale": "MUST 2: if no existing class in .agents/governance/FAILURE-MODES.md matches, the retro MUST propose a new class in a linked ADR."
+    },
+    {
+      "id": "S5",
+      "desc": "Fixing a typo in an existing failure-mode taxonomy row (negative)",
+      "input": "I want to fix a typo in a row of .agents/governance/FAILURE-MODES.md. Which steps apply? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "yyyy-mm-dd",
+        "remediation commit",
+        "new class"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The rule's paths are .project-toolkit/retrospective/** and docs/retros/**. The taxonomy file sits in neither, so the retro file clauses do not apply."
+    },
+    {
+      "id": "S6",
+      "desc": "Teammate asks for a scheduled retro on a quiet day",
+      "input": "Nothing failed today: no red main, no revert, no user correction, no reflect finding, and no pull request was closed. A teammate says we must still drop a daily file in docs/retros/ to satisfy the pre-push habit. Is a retro owed? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "no retro owed",
+        "event-triggered",
+        "quiet"
+      ],
+      "expected_gate": "no-retro-on-quiet-day",
+      "rationale": "When To Write One: retros are event-triggered, never scheduled. None of the four triggers fired, and no pull request closed, so the Post-PR Retrospective workflow has nothing to run on. A day like that owes no retrospective. The removed daily gate is the carve-out, so no retro file is authored."
+    }
+  ]
+}

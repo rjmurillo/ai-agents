@@ -1,0 +1,86 @@
+{
+  "rule_path": ".claude/rules/python.md",
+  "rule_id": "python",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "New helper uses PEP 695 generics because the repo targets 3.14",
+      "input": "I am adding a helper to scripts/validation/check_example.py and want to write `def first[T](items: list[T]) -> T:` since our dev target is Python 3.14. Is that syntax allowed? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "3.10",
+        "syntax floor",
+        "validate_python_syntax",
+        "hook",
+        "interpreter"
+      ],
+      "expected_gate": "respect-python-syntax-floor",
+      "rationale": "Opening paragraph: plugin hooks and skill scripts run under the host's ambient interpreter, so the blocking gate validate_python_syntax.py (issue #2655) requires every tracked file to parse at the 3.10 floor. PEP 695 generics (3.12+) and PEP 758 unparenthesized except (3.14) are named as forbidden."
+    },
+    {
+      "id": "S2",
+      "desc": "Formatting before commit of a Python edit",
+      "input": "I edited scripts/validation/check_example.py and ran plain `ruff check`. I plan to commit now since the python-format hook will fix formatting. What should I run first? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "--frozen",
+        "--extra dev",
+        "--force-exclude",
+        "format --check",
+        "pinned"
+      ],
+      "expected_gate": "run-locked-ruff-format",
+      "rationale": "Tooling section: ruff format --check is a blocking gate, the locked command `uv run --frozen --extra dev ruff format --force-exclude <files>` uses CI's pinned ruff, and the python-format hook runs --check only, so it does not fix anything (issue #5304)."
+    },
+    {
+      "id": "S3",
+      "desc": "Reading a nullable JSON field with a .get default",
+      "input": "In scripts/github_core/example_client.py a GraphQL payload can contain `\"assignee\": null`. I wrote `node = data.get(\"assignee\", {})` and then `node[\"login\"]`. A teammate suggests `data.get(\"assignee\") or {}` instead. Which is right? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "explicit null",
+        "is none",
+        "falsy",
+        "bypassed",
+        "0"
+      ],
+      "expected_gate": "collapse-only-explicit-none",
+      "rationale": "Anti-Patterns: .get(key, default) is bypassed when the key exists with value None, and `data.get(key) or default` also overrides valid falsy values such as 0, False, and empty string. The rule prescribes `v = data.get(key); v = default if v is None else v`."
+    },
+    {
+      "id": "S4",
+      "desc": "Reviewing a PEP 604 isinstance union against the declared floor",
+      "input": "I am reviewing a diff to scripts/validation/check_example.py that uses `isinstance(value, int | str)`. I am inclined to flag it as a Python version compatibility problem. Should I? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "requires-python",
+        "pyproject.toml",
+        "valid",
+        "pep 604",
+        "cite"
+      ],
+      "expected_gate": "cite-declared-python-floor-before-flagging",
+      "rationale": "Version Compatibility Reviews: read project.requires-python first, PEP 604 isinstance unions are valid since 3.10 and must not be flagged, and any compatibility finding must cite the detected floor. A parameterized generic such as `isinstance(value, list[int])` still warrants a finding at any floor."
+    },
+    {
+      "id": "S5",
+      "desc": "Typed parameters in a PowerShell script (negative)",
+      "input": "I am editing scripts/Sync-Example.ps1 and want to add [string] and [int] type constraints to its param block. What conventions apply? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "validate_python_syntax",
+        "pep 604",
+        "ruff format"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The rule's paths are **/*.py, **/pyproject.toml, and **/requirements*.txt. A .ps1 file matches none, so the Python typing, idiom, and tooling clauses do not apply."
+    },
+    {
+      "id": "S6",
+      "desc": "Prose edit in a Markdown doc that mentions Python (negative)",
+      "input": "I am rewording a paragraph in docs/contributing-guide.md that says contributors need Python installed. Keep the tone friendly. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "validate_python_syntax",
+        "syntax floor",
+        "--force-exclude"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "A Markdown prose edit matches none of the rule's paths globs, even though the topic is Python, so the Python rules are not active."
+    }
+  ]
+}

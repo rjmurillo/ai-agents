@@ -1,0 +1,90 @@
+{
+  "rule_path": ".claude/rules/claude-agents.md",
+  "rule_id": "claude-agents",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Hand-editing a generated agent file",
+      "input": "I want to add two lines to the Constraints section of src/claude/agents/architect.md directly, since it is the quickest place to change that agent. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "template",
+        "templates/agents",
+        "build_all.py",
+        "regenerate",
+        "partials",
+        "generated"
+      ],
+      "expected_gate": "edit-template-then-regenerate",
+      "rationale": "MUST 1 and MUST NOT 1: src/claude/agents/*.md is generated from templates/agents/<stem>.claude.md.tmpl per ADR-109. Edit the template (or a shared partial), run build_all.py, and commit the regenerated outputs."
+    },
+    {
+      "id": "S2",
+      "desc": "Worker agent text says it cannot delegate but the grant is silent",
+      "input": "I am adding a new worker agent, src/claude/agents/summarizer.md, from a new template templates/agents/summarizer.claude.md.tmpl. Its body says 'you CANNOT delegate' and its frontmatter has no tools list. I plan to leave the grant out because the prose already says it. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "disallowedTools",
+        "Agent",
+        "check_agent_delegation",
+        "DELEGATORS",
+        "grant",
+        "inherit"
+      ],
+      "expected_gate": "delegation-statement-matches-grant",
+      "rationale": "MUST 9: omitting tools inherits Agent, so the grant is the source of truth. A worker that says it cannot delegate MUST have disallowedTools: Agent or a tools list without Agent or Task. check_agent_delegation.py and DELEGATORS decide worker versus delegator."
+    },
+    {
+      "id": "S3",
+      "desc": "New skill documents an exit code with no test",
+      "input": "I am adding src/claude/skills/label-audit/SKILL.md. It says scripts/audit.py exits 2 on a config error and 1 on a finding. I plan to ship only the script and the SKILL.md. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "check_skill_contract_tests",
+        "tests/skills",
+        "assert",
+        "exit code",
+        "pytest",
+        "contract"
+      ],
+      "expected_gate": "test-documented-exit-code-contract",
+      "rationale": "MUST 7: when a SKILL.md names a script, an exit code, and its meaning, at least one file under tests/ MUST assert that behavior, enforced by check_skill_contract_tests.py. MUST 3 puts skill tests under tests/skills/<name>/ so they do not ship."
+    },
+    {
+      "id": "S4",
+      "desc": "Reading a green drift detector as agent parity",
+      "input": "I rewrote the whole body of src/claude/agents/analyst.md by hand and copied it into the install copy under .github/agents. detect_agent_drift.py exits 0 with OK, so I will report the two copies as in sync. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "template",
+        "regenerate",
+        "jaccard",
+        "similarity floor",
+        "zero sections",
+        "not parity"
+      ],
+      "expected_gate": "do-not-read-drift-green-as-parity",
+      "rationale": "MUST 1: src/claude/agents/*.md is generated from templates/agents/<stem>.claude.md.tmpl, so a hand edit is lost on the next build and must move to the template. The drift-detector section: analyst has no allowlisted sections in SECTIONS_TO_COMPARE, so the content-similarity score falls back to 100.0 and cannot fall below the floor. The score is a Jaccard similarity floor on word sets, not an equality check, so a green run is not parity."
+    },
+    {
+      "id": "S5",
+      "desc": "Typo fix in a hand-maintained skill reference (negative)",
+      "input": "Fix a typo in .claude/skills/software-engineering-library/references/clean-architecture.md. It is a reference file, not a SKILL.md and not a template-owned file. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "templates/agents",
+        "check_agent_delegation",
+        "DELEGATORS"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The rule's regenerate requirement covers agent files and template-owned SKILL.md files. A non-SKILL.md reference under a skill is hand-maintained, so the template and build_all.py steps do not apply."
+    },
+    {
+      "id": "S6",
+      "desc": "Validator regex bug outside the agent and skill trees (negative)",
+      "input": "scripts/validation/check_md_links.py has a regex that misses links wrapped in angle brackets. Fix the pattern and add a test. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "templates/agents",
+        "check_agent_delegation",
+        "DELEGATORS"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "scripts/validation/ is not in this rule's paths (src/claude, .claude/agents, .claude/skills). The task touches no agent, skill, or template, so the rule does not apply."
+    }
+  ]
+}

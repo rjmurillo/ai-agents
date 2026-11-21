@@ -107,8 +107,8 @@ per-job tables in `gate-latency-v0.7.0/`, so any reader can recompute this.
 
 | Job | Declared cap | Worst observed | Cap over observed |
 |---|---|---|---|
-| `pre-pr-validation` | 4m (`lefthook.yml:570`) | 93.80s | 2.6x |
-| `count-ratchets` | 90s (`lefthook.yml:491`) | 23.68s | 3.8x |
+| `pre-pr-validation` | 4m (`lefthook.yml:570`) | 93.80s | 2.6x <!-- citation-freshness: ignore -- measurement record: 4m was the pre-pr-validation cap when measured; that job now sits at lefthook.yml line 718 with a 9m cap --> |
+| `count-ratchets` | 90s (`lefthook.yml:491`) | 23.68s | 3.8x <!-- citation-freshness: ignore -- measurement record: 90s was the count-ratchets cap when measured; that job now sits at lefthook.yml line 746 with a 660s cap --> |
 | `python-unreachable-statements` | 90s | 11.06s | 8.1x |
 | `zero-collection-tests` | 4m | 18.71s | 12.8x |
 | `path-normalization` | 90s | 3.57s | 25.2x |

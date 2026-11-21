@@ -1,0 +1,80 @@
+{
+  "rule_path": ".claude/rules/lsp-first.md",
+  "rule_id": "lsp-first",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Find every caller of a Python function",
+      "input": "I need every caller of resolve_artifact_root defined in src/claude/lib/paths.py before I change its signature. Serena is active in this session. How do I find them? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "find_referencing_symbols",
+        "find_symbol",
+        "serena",
+        "not grep"
+      ],
+      "expected_gate": "use-serena-symbolic-tools",
+      "rationale": "Tier 1: when Serena is active use find_symbol and find_referencing_symbols. The When it applies section says a symbol search in a programming-language file uses those tools, not Grep or a symbol-shaped Glob."
+    },
+    {
+      "id": "S2",
+      "desc": "Read a large code file",
+      "input": "I need to understand scripts/validation/check_push_lock_paths.py, a large Python file, to change one function. Serena is active. How do I read it without loading the whole file? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "get_symbols_overview",
+        "symbol",
+        "body"
+      ],
+      "expected_gate": "overview-before-reading-code-file",
+      "rationale": "When it applies: reading a code file means calling get_symbols_overview (or a navigation tool) first, then reading only the symbol needed, not the whole file."
+    },
+    {
+      "id": "S3",
+      "desc": "Serena not active, native LSP on Claude harness",
+      "input": "Serena is not configured in this harness. I need the definition of _resolve_paths in build/scripts/generate_rules.py and every caller. What do I use before falling back to grep? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "goToDefinition",
+        "findReferences",
+        "workspaceSymbol",
+        "native lsp"
+      ],
+      "expected_gate": "fall-back-to-native-lsp-before-grep",
+      "rationale": "Tier 2: when Serena is not active use the built-in LSP tool (goToDefinition, findReferences, workspaceSymbol, hover, diagnostics). Tier 3 grep is only for files no LSP can navigate."
+    },
+    {
+      "id": "S4",
+      "desc": "Delegating an implementation task to a subagent",
+      "input": "I will hand the change to src/claude/lib/paths.py to an implementation subagent. I found the relevant function with Serena. What must the delegation prompt include? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "pre-resolve",
+        "file:line",
+        "subagents cannot reach mcp"
+      ],
+      "expected_gate": "pre-resolve-symbols-for-delegation",
+      "rationale": "When it applies, third bullet: subagents cannot reach MCP tools, so the delegator pre-resolves the symbols (file:line) into the delegation prompt."
+    },
+    {
+      "id": "S5",
+      "desc": "Grep for a flag string across scripts (negative)",
+      "input": "Find every place the literal flag string --dry-run appears across the scripts/**/*.py files. It is an option string, not a symbol name. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "find_symbol",
+        "find_referencing_symbols",
+        "goToDefinition"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "When grep is correct: a pattern that is not a symbol (prose, a flag, a regex, a constant) is a legitimate grep target, so the LSP preference does not apply."
+    },
+    {
+      "id": "S6",
+      "desc": "Search commit history for a removed function (negative)",
+      "input": "I need to know which commit removed the function parse_legacy_header from a Python module last year. Outline how to find it. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "find_symbol",
+        "find_referencing_symbols",
+        "goToDefinition"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "When grep is correct: git grep for history search. A history question has no live symbol to navigate to, so an LSP query cannot answer it."
+    }
+  ]
+}

@@ -142,7 +142,7 @@ def load_open_prs_with_retry(
     or negative budget previously skipped the loop and then read unassigned
     locals; a non-integer raised out of range().
 
-    Canonical bound, scripts/validate_pr_review_config.py:284-290, quoted:
+    Canonical bound, scripts/validate_pr_review_config.py:248-254, quoted:
 
         retries = il.get("completion_gate_max_retries")
         if retries is not None and (
