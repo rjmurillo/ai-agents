@@ -24,7 +24,7 @@ Exit Codes:
 
 import argparse
 import builtins
-import importlib.util
+import importlib
 import io
 import json
 import logging
@@ -1344,22 +1344,12 @@ def _python_stdlib_imported_names(code: str) -> set[str]:
 _CSHARP_DIRECTIVE_LINE_RE = re.compile(r"^[ \t]*#[ \t]*[a-z]+\b.*$", re.MULTILINE)
 
 
-def _csharp_literals() -> ModuleType:
-    """Load the sibling C# literal lexer once, by path, without touching sys.path."""
-    module = sys.modules.get(_CSHARP_LEXER_MODULE)
-    if module is not None:
-        return module
-    path = Path(__file__).resolve().with_name("csharp_literals.py")
-    spec = importlib.util.spec_from_file_location(_CSHARP_LEXER_MODULE, path)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"cannot load {path}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[_CSHARP_LEXER_MODULE] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-_CSHARP_LEXER_MODULE = "doc_accuracy_csharp_literals"
+def _sibling_module(stem: str) -> ModuleType:
+    """Import a sibling script module by name, as ``_same_pr_scan`` does."""
+    scripts_dir = str(Path(__file__).resolve().parent)
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    return importlib.import_module(stem)
 
 
 def _extract_identifiers(code: str, lang: str = "") -> list[str]:
@@ -1391,13 +1381,13 @@ def _extract_identifiers(code: str, lang: str = "") -> list[str]:
         stdlib_names = _python_stdlib_imported_names(code)
     elif lang == "csharp":
         code = _CSHARP_DIRECTIVE_LINE_RE.sub("", code)
-        lexer = _csharp_literals()
-        blanked = lexer.blank_csharp_literals(code)
+        blanked = _sibling_module("csharp_literals").blank_csharp_literals(code)
         if blanked is None:
             # Scanning the unblanked code can only report extra names.
             logger.warning("C# literal scan hit the recursion limit; scanning raw code")
         else:
-            code = lexer.blank_csharp_attribute_named_args(blanked)
+            attributes = _sibling_module("csharp_attributes")
+            code = attributes.blank_csharp_attribute_named_args(blanked)
     # Match CamelCase and snake_case identifiers (3+ chars)
     identifiers = re.findall(r"\b([A-Z][a-zA-Z0-9]+)\b", code)
     # Also match method calls
