@@ -99,8 +99,8 @@ documentation), and the anti-patterns table.
 ## Integration, Design Decisions, and Commit Convention
 
 See [references/integration-and-design.md](references/integration-and-design.md)
-for integration with the session protocol, the memory skill, and Serena; the
-design-decision rationale (sidecar naming, the Serena sidecar contract,
+for integration with the session protocol and memory skill; the
+design-decision rationale (sidecar naming, the project store,
 relationship to `curating-memories`); extension points; and the commit
 convention for skill observation updates.
 
@@ -112,9 +112,9 @@ convention for skill observation updates.
 |--------|--------------|
 | Analysis complete | Signals categorized by confidence |
 | User approved | Explicit Y or approval statement |
-| Memory updated | File written to `.serena/memories/` |
+| Memory updated | Approved observations exist in the selected project store |
 | Changes preserved | Existing content not lost |
-| Commit ready | Changes staged, message drafted |
+| Repository files | Follow the project's version control policy |
 
 ---
 
