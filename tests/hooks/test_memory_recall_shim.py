@@ -10,6 +10,7 @@ plugin-root variable the host exports.
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -150,7 +151,7 @@ def test_execv_is_called_on_a_direct_run_when_the_dependency_is_missing(
     import memory_enhancement.interpreter as interpreter
 
     execv = MagicMock()
-    monkeypatch.setattr(interpreter.os, "execv", execv)
+    monkeypatch.setattr(os, "execv", execv)
     monkeypatch.setattr(interpreter, "dependency_available", lambda *_a: False)
     monkeypatch.setattr(interpreter, "running_under_venv", lambda _d: False)
     monkeypatch.delenv(interpreter.REENTRY_GUARD, raising=False)
@@ -169,7 +170,7 @@ def test_execv_is_not_called_under_the_dispatcher_even_with_a_venv_and_a_missing
     import memory_enhancement.interpreter as interpreter
 
     execv = MagicMock()
-    monkeypatch.setattr(interpreter.os, "execv", execv)
+    monkeypatch.setattr(os, "execv", execv)
     monkeypatch.setattr(interpreter, "dependency_available", lambda *_a: False)
     monkeypatch.setattr(interpreter, "running_under_venv", lambda _d: False)
     monkeypatch.delenv(interpreter.REENTRY_GUARD, raising=False)

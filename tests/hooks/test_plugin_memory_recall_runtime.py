@@ -100,7 +100,7 @@ class Harness:
         )
 
     def _create_bare_interpreter(self) -> None:
-        base_python = self._base_python or getattr(sys, "_base_executable", sys.executable)
+        base_python = str(self._base_python or getattr(sys, "_base_executable", sys.executable))
         subprocess.run(
             [base_python, "-m", "venv", "--without-pip", str(self._venv)],
             check=True,
@@ -294,6 +294,7 @@ def test_registered_command_injects_the_memory_under_python_310(harness_310: Har
         [str(harness_310.venv_python), "-I", "-c", "import sys;print(sys.version_info[:2])"],
         capture_output=True,
         encoding="utf-8",
+        errors="replace",
         timeout=TIMEOUT_SECONDS,
     )
     assert version.stdout.strip() == "(3, 10)", version

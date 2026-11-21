@@ -7,6 +7,7 @@ switch stand in for a Windows host.
 from __future__ import annotations
 
 import os
+import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -162,7 +163,7 @@ def test_search_returns_no_results_when_neither_tool_resolves(
     (memories / "gateway-cutover.md").write_text("# Gateway cutover\n\ngateway\n", encoding="utf-8")
     monkeypatch.setattr(search, "resolve_tool", lambda name, roots=(): None)
     run = MagicMock()
-    monkeypatch.setattr(search.subprocess, "run", run)
+    monkeypatch.setattr(subprocess, "run", run)
 
     assert search.search_memories("gateway", memories, repo_root=tmp_path) == []
     run.assert_not_called()

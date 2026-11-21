@@ -2183,6 +2183,7 @@ def test_every_lib_mirror_destination_is_generated(destination: str) -> None:
     assert classify_file_category(Path(destination), content="x = 1\n") == "generated"
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need Developer Mode on Windows")
 def test_a_changed_path_that_is_a_directory_link_is_not_assessed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

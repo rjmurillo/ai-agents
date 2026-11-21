@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import io
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -25,6 +26,16 @@ import invoke_dispatch_claude as entry
 RECALL = "plugin-userpromptsubmit-1-memory_recall"
 OTHER = "userpromptsubmit-1-other"
 SHIM = "UserPromptSubmit/s.py"
+
+
+def _recording_run_group(ran: list[object]) -> Callable[..., int]:
+    """A run_group stand-in that records its call and allows the prompt."""
+
+    def run_group(*args: object, **kwargs: object) -> int:
+        ran.append(args)
+        return 0
+
+    return run_group
 
 
 def _group(
@@ -53,7 +64,9 @@ def test_the_reserved_set_names_exactly_the_recall_group() -> None:
 def test_the_reserved_id_is_a_group_in_the_manifest() -> None:
     import json
 
-    manifest = json.loads((REPO_ROOT / ".claude" / "hooks" / "dispatch_groups.json").read_text())
+    manifest = json.loads(
+        (REPO_ROOT / ".claude" / "hooks" / "dispatch_groups.json").read_text(encoding="utf-8")
+    )
 
     assert manifest["groups"][RECALL]["event"] == "UserPromptSubmit"
 
@@ -77,7 +90,7 @@ def _explode_self_host(monkeypatch: pytest.MonkeyPatch) -> list[object]:
 
     monkeypatch.setattr(entry, "_project_self_hosts_plugin", explode)
     ran: list[object] = []
-    monkeypatch.setattr(entry, "run_group", lambda *a, **k: ran.append(a) or 0)
+    monkeypatch.setattr(entry, "run_group", _recording_run_group(ran))
     return ran
 
 
@@ -112,7 +125,7 @@ def test_the_recall_group_gets_the_self_host_check(monkeypatch, capsys) -> None:
     """Inside the publishing checkout the project registration already runs recall."""
     _group(monkeypatch, self_hosts=True)
     ran: list[object] = []
-    monkeypatch.setattr(entry, "run_group", lambda *a, **k: ran.append(a) or 0)
+    monkeypatch.setattr(entry, "run_group", _recording_run_group(ran))
 
     code = entry.main(["--group", RECALL])
 
@@ -124,7 +137,7 @@ def test_control_an_unreserved_gate_group_skips_the_self_host_check(monkeypatch,
     _group(monkeypatch, self_hosts=True)
     _stdin(monkeypatch, b"{}")
     ran: list[object] = []
-    monkeypatch.setattr(entry, "run_group", lambda *a, **k: ran.append(a) or 0)
+    monkeypatch.setattr(entry, "run_group", _recording_run_group(ran))
 
     code = entry.main(["--group", OTHER])
 
@@ -187,7 +200,7 @@ def test_the_advisory_flag_on_the_recall_group_still_exits_zero(monkeypatch, cap
 # `decision: block` is the shape the brief names. For UserPromptSubmit the
 # protocol module treats it as unsupported (a gate failure). `continue: false`
 # is the shape it accepts as a real block, so both are exercised.
-DECISION_BLOCK = {"decision": "block", "reason": "x"}
+DECISION_BLOCK: dict[str, object] = {"decision": "block", "reason": "x"}
 CONTINUE_FALSE = {"continue": False, "stopReason": "x"}
 
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+import time
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -247,7 +248,7 @@ def test_the_search_cli_scores_all_sixty_matches(
     for i in range(60):
         _memory(directory, f"note-{i:02d}")
     loaded: list[Path] = []
-    real = search.load_memory
+    real = si.load_memory
 
     def counting(file_path, memories_dir=None, max_bytes=None):
         loaded.append(file_path)
@@ -345,7 +346,7 @@ def test_deadline_reached_notes_one_line(
     directory = _repo(tmp_path)
     paths = [_memory(directory, f"note-{i}") for i in range(3)]
     clock = Clock()
-    monkeypatch.setattr(search.time, "monotonic", clock)
+    monkeypatch.setattr(time, "monotonic", clock)
 
     search.rank_results(paths, tmp_path, deadline=clock.now - 1.0)
 
@@ -358,7 +359,7 @@ def test_deadline_spent_before_the_file_search_notes_one_line(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     clock = Clock()
-    monkeypatch.setattr(search.time, "monotonic", clock)
+    monkeypatch.setattr(time, "monotonic", clock)
     monkeypatch.setattr(search, "resolve_tool", lambda name, roots=(): f"/usr/bin/{name}")
 
     assert search._search_with_ripgrep("gateway", tmp_path, clock.now - 1.0, tmp_path) is None
@@ -375,7 +376,7 @@ def test_a_tool_timeout_notes_one_line(
     def timeout(cmd, **kwargs):
         raise subprocess.TimeoutExpired(cmd, kwargs["timeout"])
 
-    monkeypatch.setattr(search.subprocess, "run", timeout)
+    monkeypatch.setattr(subprocess, "run", timeout)
     function = search._search_with_ripgrep if tool == "rg" else search._search_with_grep
 
     assert function("gateway", tmp_path, None, tmp_path) is None

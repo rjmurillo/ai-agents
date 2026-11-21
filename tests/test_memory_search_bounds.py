@@ -6,6 +6,8 @@
 from __future__ import annotations
 
 import subprocess
+import time
+from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -14,6 +16,7 @@ import pytest
 from memory_enhancement import search
 from memory_enhancement.hooks import user_prompt_submit_memory as hook
 from memory_enhancement.models import VerificationResult
+from memory_enhancement.serena_integration import load_memory as _real_load_memory
 
 
 class Clock:
@@ -32,7 +35,7 @@ class Clock:
 @pytest.fixture
 def clock(monkeypatch: pytest.MonkeyPatch) -> Clock:
     fake = Clock()
-    monkeypatch.setattr(search.time, "monotonic", fake)
+    monkeypatch.setattr(time, "monotonic", fake)
     return fake
 
 
@@ -48,7 +51,7 @@ def _memories(tmp_path: Path, names: list[str]) -> Path:
 
 def _count_loads(monkeypatch: pytest.MonkeyPatch, on_load=None) -> list[Path]:
     loaded: list[Path] = []
-    real = search.load_memory
+    real = _real_load_memory
 
     def counting(file_path: Path, memories_dir: Path | None = None, max_bytes=None):
         loaded.append(file_path)
@@ -176,7 +179,7 @@ def test_recall_block_gives_the_search_an_eight_second_deadline(
     (tmp_path / ".git").mkdir()
     _memories(tmp_path, ["gateway-cutover"])
     monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
-    monkeypatch.setattr(hook.time, "monotonic", clock)
+    monkeypatch.setattr(time, "monotonic", clock)
     seen: list[float | None] = []
     real = search.search_memories
 
@@ -225,7 +228,7 @@ def _fake_run(monkeypatch: pytest.MonkeyPatch, outcomes: list) -> list[float]:
             outcome()
         return MagicMock(returncode=1, stdout="")
 
-    monkeypatch.setattr(search.subprocess, "run", run)
+    monkeypatch.setattr(subprocess, "run", run)
     monkeypatch.setattr(search, "resolve_tool", lambda name, roots=(): f"/usr/bin/{name}")
     return timeouts
 
@@ -249,6 +252,16 @@ def test_ripgrep_timeout_stays_five_seconds_when_more_budget_remains(
     assert timeouts == [5]
 
 
+def _advance_then_time_out(clock: Clock) -> Callable[[], None]:
+    """A fake rg run that spends 5 seconds of the budget, then times out."""
+
+    def run() -> None:
+        clock.advance(5.0)
+        raise subprocess.TimeoutExpired("rg", 5)
+
+    return run
+
+
 def test_the_grep_fallback_gets_only_what_ripgrep_left(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, clock: Clock
 ) -> None:
@@ -256,9 +269,7 @@ def test_the_grep_fallback_gets_only_what_ripgrep_left(
     timeouts = _fake_run(
         monkeypatch,
         [
-            lambda: (clock.advance(5.0), (_ for _ in ()).throw(subprocess.TimeoutExpired("rg", 5)))[
-                1
-            ],
+            _advance_then_time_out(clock),
             None,
         ],
     )
@@ -335,7 +346,7 @@ def test_a_spent_deadline_before_verification_makes_no_verify_call(
     path = _memory_with_citations(tmp_path, 2)
     verify = MagicMock()
     monkeypatch.setattr(search, "verify_citation", verify)
-    real_load = search.load_memory
+    real_load = _real_load_memory
 
     def load_then_expire(file_path, memories_dir=None, max_bytes=None):
         memory = real_load(file_path, memories_dir, max_bytes)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -24,9 +25,12 @@ def test_a_file_over_the_limit_is_skipped_before_it_is_read(
     path = _write(tmp_path, "x" * (si.MAX_MEMORY_BYTES + 1))
     reads: list[Path] = []
     original = Path.read_text
-    monkeypatch.setattr(
-        Path, "read_text", lambda self, *a, **k: reads.append(self) or original(self, *a, **k)
-    )
+
+    def counting_read(self: Path, *args: Any, **kwargs: Any) -> str:
+        reads.append(self)
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", counting_read)
 
     assert si.load_memory(path, tmp_path, si.MAX_MEMORY_BYTES) is None
 

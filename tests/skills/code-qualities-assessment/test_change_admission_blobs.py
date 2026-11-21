@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -22,7 +23,7 @@ from .test_change_admission import (
 
 @pytest.fixture
 def blob_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    return _build_lib_mirror_repo(tmp_path, monkeypatch)
+    return Path(_build_lib_mirror_repo(tmp_path, monkeypatch))
 
 
 @pytest.fixture(autouse=True)
@@ -110,6 +111,7 @@ def test_a_same_score_edit_with_other_content_stays_blocking_end_to_end(
 # --- directory skip ----------------------------------------------------------------
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need Developer Mode on Windows")
 def test_an_added_directory_link_is_skipped_with_a_stderr_line(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -124,6 +126,7 @@ def test_an_added_directory_link_is_skipped_with_a_stderr_line(
     assert "SKIPPED (directory): linked_pkg" in capsys.readouterr().err
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need Developer Mode on Windows")
 def test_a_type_change_to_a_directory_link_still_reaches_scoring(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

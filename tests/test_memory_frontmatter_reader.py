@@ -149,7 +149,7 @@ def test_title_is_read_when_only_frontmatter_is_blocked(
 def test_extract_metadata_is_unchanged_when_frontmatter_is_available() -> None:
     title, _created, _updated, tags, confidence, content = si._extract_metadata(_MEMORY_TEXT)
 
-    assert si.frontmatter_reader.frontmatter is not None
+    assert fr.frontmatter is not None
     assert title == "Gateway cutover"
     assert tags == ["migration", "gateway"]
     assert confidence == pytest.approx(0.8)
