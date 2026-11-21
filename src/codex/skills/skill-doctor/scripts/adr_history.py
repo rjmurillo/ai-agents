@@ -13,13 +13,35 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from adr_corpus import HISTORY, AdrDoc, Finding, cited_paths, make_finding, run_git, status_word
+from adr_corpus import (
+    HISTORY,
+    AdrDoc,
+    Finding,
+    GitError,
+    cited_paths,
+    make_finding,
+    run_git,
+    status_word,
+)
 
 MAX_CITED_EVIDENCE = 10
 SUPERSEDE_VERB = r"(?:supersed\w*|replac\w*|revert\w*|deprecat\w*|drop\w*)"
 VERB_THEN_ADR = re.compile(rf"{SUPERSEDE_VERB}[^.\n]{{0,60}}?\bADR-0*(\d+)\b", re.IGNORECASE)
 ADR_THEN_VERB = re.compile(rf"\bADR-0*(\d+)\b[^.\n]{{0,60}}?{SUPERSEDE_VERB}", re.IGNORECASE)
-RECORD_SEP, FIELD_SEP, HEADER_END = "\x1e", "\x1f", "\x1d"
+SHA_TOKEN = re.compile(r"^[0-9a-f]{40,64}$")
+STATUS_TOKEN = re.compile(r"^[A-Z]\d*$")
+LOG_ARGS = (
+    "log",
+    "-z",
+    "--no-show-signature",
+    "--no-ext-diff",
+    "--no-textconv",
+    "--no-color",
+    "--diff-merges=first-parent",
+    "-M",
+    "--name-status",
+)
+LOG_FORMAT = "--format=%H%x00%aI%x00%s%x00%b"
 
 
 @dataclass(frozen=True)
@@ -35,38 +57,69 @@ class Commit:
         return f"{self.subject}\n{self.body}"
 
 
+def head_commit(repo: Path) -> str | None:
+    """The commit HEAD names, or None for an unborn branch. Any other failure raises GitError."""
+    try:
+        return run_git(repo, ["rev-parse", "--verify", "--quiet", "HEAD^{commit}"]).strip()
+    except GitError as exc:
+        if exc.returncode != 1:
+            raise
+    try:
+        ref = run_git(repo, ["symbolic-ref", "-q", "HEAD"]).strip()
+    except GitError as exc:
+        raise GitError("HEAD is detached and names no commit", exc.returncode) from exc
+    try:
+        run_git(repo, ["show-ref", "--verify", "--quiet", ref])
+    except GitError as exc:
+        if exc.returncode == 1:
+            return None
+        raise
+    raise GitError(f"{ref} exists but is not a commit")
+
+
 def read_commits(repo: Path, max_commits: int, since: str | None) -> tuple[list[Commit], bool]:
     """Walk HEAD. Returns (commits, truncated). Asks for one extra to detect truncation."""
-    args = [
-        "log",
-        "--no-show-signature",
-        "-M",
-        "--name-status",
-        "--no-color",
-        f"--max-count={max_commits + 1}",
-        f"--format={RECORD_SEP}%H{FIELD_SEP}%aI{FIELD_SEP}%s{FIELD_SEP}%b{HEADER_END}",
-    ]
+    args = [*LOG_ARGS, f"--max-count={max_commits + 1}", LOG_FORMAT]
     if since:
         args.append(f"--since={since}")
-    commits = [_parse_commit(chunk) for chunk in run_git(repo, args).split(RECORD_SEP)[1:]]
+    commits = _parse_log(run_git(repo, args))
     return commits[:max_commits], len(commits) > max_commits
 
 
-def _parse_commit(chunk: str) -> Commit:
-    header, _, rest = chunk.partition(HEADER_END)
-    sha, date, subject, body = (header.split(FIELD_SEP) + ["", "", "", ""])[:4]
+def _parse_log(output: str) -> list[Commit]:
+    """Parse `git log -z` output. NUL cannot occur in a message, so a body cannot forge a record."""
+    tokens = output.split("\0")
+    commits: list[Commit] = []
+    index = 0
+    while index < len(tokens):
+        if index == len(tokens) - 1 and not tokens[index].strip():
+            break
+        sha = tokens[index].strip()
+        if not SHA_TOKEN.match(sha) or index + 4 > len(tokens):
+            raise GitError(f"unexpected git log output at token {index}")
+        date, subject, body = tokens[index + 1 : index + 4]
+        paths, index = _parse_paths(tokens, index + 4)
+        commits.append(Commit(sha, date.strip(), subject.strip(), body.strip(), paths))
+    return commits
+
+
+def _parse_paths(tokens: list[str], index: int) -> tuple[tuple[tuple[str, str], ...], int]:
     paths: list[tuple[str, str]] = []
-    for line in rest.splitlines():
-        parts = line.split("\t")
-        if len(parts) < 2:
-            continue
-        letter = parts[0][:1]
-        if letter in "RC" and len(parts) >= 3:
-            paths.append(("D" if letter == "R" else "M", parts[1]))
-            paths.append(("A", parts[2]))
+    while index < len(tokens):
+        status = tokens[index].strip()
+        if not STATUS_TOKEN.match(status):
+            break
+        width = 2 if status[0] in "RC" else 1
+        names = tokens[index + 1 : index + 1 + width]
+        if len(names) < width:
+            raise GitError(f"unexpected git log output at token {index}")
+        if width == 2:
+            paths.append(("D" if status[0] == "R" else "M", names[0]))
+            paths.append(("A", names[1]))
         else:
-            paths.append((letter, parts[1]))
-    return Commit(sha.strip(), date.strip(), subject.strip(), body.strip(), tuple(paths))
+            paths.append((status[0], names[0]))
+        index += 1 + width
+    return tuple(paths), index
 
 
 def _commit_evidence(commit: Commit) -> dict[str, Any]:
@@ -177,4 +230,4 @@ def history_findings(commits: Sequence[Commit], docs: Sequence[AdrDoc]) -> list[
     return superseded_by_commits(commits, docs) + contradiction_candidates(commits, docs)
 
 
-__all__ = ["Commit", "history_findings", "read_commits"]
+__all__ = ["Commit", "head_commit", "history_findings", "read_commits"]

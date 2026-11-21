@@ -62,7 +62,18 @@ class Finding(TypedDict):
 
 
 class GitError(Exception):
-    """A git command failed or git is missing."""
+    """A git command failed, timed out, or could not run.
+
+    `returncode` is git's exit status when it ran and failed, else None.
+    `timed_out` is True when the command hit GIT_TIMEOUT_SECONDS.
+    """
+
+    def __init__(
+        self, message: str, returncode: int | None = None, timed_out: bool = False
+    ) -> None:
+        super().__init__(message)
+        self.returncode = returncode
+        self.timed_out = timed_out
 
 
 def run_git(repo: Path, args: Sequence[str]) -> str:
@@ -80,11 +91,17 @@ def run_git(repo: Path, args: Sequence[str]) -> str:
             env=_git_env(),
             check=False,
         )
-    except (OSError, subprocess.TimeoutExpired) as exc:
+    except subprocess.TimeoutExpired as exc:
+        raise GitError(
+            f"git {args[0] if args else ''} timed out after {GIT_TIMEOUT_SECONDS} s", timed_out=True
+        ) from exc
+    except OSError as exc:
         raise GitError(f"git {args[0] if args else ''} could not run: {exc}") from exc
     if proc.returncode != 0:
         tail = proc.stderr.strip().splitlines()[-1:] or ["no stderr"]
-        raise GitError(f"git {args[0] if args else ''} exited {proc.returncode}: {tail[0]}")
+        raise GitError(
+            f"git {args[0] if args else ''} exited {proc.returncode}: {tail[0]}", proc.returncode
+        )
     return proc.stdout
 
 

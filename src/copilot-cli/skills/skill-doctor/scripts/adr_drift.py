@@ -48,7 +48,7 @@ from adr_corpus import (
     run_git,
     within,
 )
-from adr_history import history_findings, read_commits
+from adr_history import head_commit, history_findings, read_commits
 
 SCHEMA_VERSION = 1
 DEFAULT_MAX_COMMITS = 300
@@ -71,6 +71,8 @@ def repo_root(path_arg: str) -> Path:
     try:
         top = run_git(path, ["rev-parse", "--show-toplevel"]).strip()
     except GitError as exc:
+        if exc.timed_out:
+            raise ExitError(3, f"git could not read {path_arg}: {exc}") from exc
         raise ExitError(2, f"{path_arg} is not a git repository ({exc})") from exc
     return Path(top).resolve()
 
@@ -110,9 +112,8 @@ def _no_directory_finding() -> Finding:
 
 
 def _history(repo: Path, args: argparse.Namespace, docs: Sequence[AdrDoc]) -> dict[str, Any]:
-    try:
-        head = run_git(repo, ["rev-parse", "--verify", "--quiet", "HEAD^{commit}"]).strip()
-    except GitError:
+    head = head_commit(repo)
+    if head is None:
         return {"head": None, "examined": 0, "truncated": False, "findings": []}
     commits, truncated = read_commits(repo, args.max_commits, args.since)
     return {
