@@ -99,6 +99,8 @@ The pre-PR sequence runs this scan as `Doc Accuracy Same-PR (advisory)`.
 The repository cardinality integration also checks branches containing only documentation or structured data.
 Installed plugins use R1 through R4 without this repository integration.
 
+In C# code blocks, Phase 3 skips names that appear only inside string or char literals, format specifiers, or attribute named arguments. For example, `DEBUG` in `[Conditional("DEBUG")]` is not reported. Attribute type names, code inside interpolation holes, and comments are still checked. A literal with no closing quote is left visible, so a typo can over-report a name but not hide one. The scanner in `csharp_literals.py` does this work, and its module docstring lists the known limits.
+
 `pr_snapshot.py` captures an immutable head and base snapshot of a pull request for review. Its flags include `--owner`, `--repo`, `--pull-request`, `--output-dir`, `--check-stale`, `--identity-file`, and `--run-scanner`. Exit `0` is ok, `1` is a verification or stale result, `2` config, `3` external, `4` auth.
 
 The skill states that Haiku agents are too shallow for Phase 4 and requires Sonnet agents, one per file group, so each agent keeps cross-cutting context. It replaces the earlier `incoherence`, `doc-coverage`, and `doc-sync` skills. <!-- orphan-ref-ignore -->

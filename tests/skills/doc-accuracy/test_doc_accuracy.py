@@ -508,6 +508,21 @@ class TestCsharpLiteralAndAttributeArguments:
         assert "DEBUG" not in result
         assert "recursion limit" not in caplog.text
 
+    def test_valid_raw_verbatim_and_char_literals_still_blank(self) -> None:
+        cases = (
+            ('var a = """\n    RawLine\n    """;\nvar w = new FakeWidget();', "RawLine"),
+            ('var a = """Single RawWord""";\nvar w = new FakeWidget();', "RawWord"),
+            ('var a = @"first\nVerbLine";\nvar w = new FakeWidget();', "VerbLine"),
+            ('var a = $@"first\nTotal = {x} VerbHole";\nvar w = new FakeWidget();', "VerbHole"),
+            ('var a = $@"first\n    {x} IndentHole";\nvar w = new FakeWidget();', "IndentHole"),
+            ("var c = '\\U0001F600'; var e = 'Q'; var w = new FakeWidget();", "U0001F600"),
+        )
+        for code, literal in cases:
+            result = _extract_identifiers(code, "csharp")
+
+            assert literal not in result, code
+            assert "FakeWidget" in result, code
+
     def test_nested_verbatim_string_in_hole_is_blanked(self) -> None:
         result = _extract_identifiers('var s = $"{F(@"FakeLit")}";', "csharp")
 
@@ -556,6 +571,19 @@ class TestCsharpLiteralAndAttributeArguments:
             'var s = @"open OpeningName\nvar w = new FakeWidget();',
             'var s = """open OpeningName var w = new FakeWidget();',
             'var s = $"{x?.y : $$"""{{ var a = new FakeWidget(); }',
+            'var a = """x;\nvar w = new FakeWidget();\nvar b = """\nok\n""";',
+            'var a = """\n    text\nvar w = new FakeWidget();\nvar b = """\n    x\n    """;',
+            'var s = $"""\n    {Order.Total\n    """;\n'
+            'FakeWidget.Go();\nvar t = """\n    x\n    """;',
+            'var a = """abc;\nFakeWidget.Go();\nvar b = """\n    x\n    """;',
+            'var p = @"C:\\temp;\nvar w = new FakeWidget();\nConsole.WriteLine("done");',
+            'var a = @"say ""hi"";\nFakeWidget.Go();\nvar b = "x";',
+            "var c = 'ab; var w = new FakeWidget(); var d = 'x';",
+            'var s0 = $@"x {A.X} ""q"";\nFakeWidget.Go();\nvar s1 = $"""\n    q\n    """;',
+            'var s0 = @"x ""q"";\nFakeWidget.Go();\nvar s1 = "y";',
+            'var s0 = @"a ""q"" b;\nFakeWidget.Go();\n/* " { */ Other.Go();',
+            'var s0 = @"a ""q"" b;\nFakeWidget.Go();\nvar c5 = \'"\';',
+            'var s1 = $@"x {A.X} ""q"";\nFakeWidget.Go();\nvar c2 = \'{\';',
         ):
             result = _extract_identifiers(code, "csharp")
 
