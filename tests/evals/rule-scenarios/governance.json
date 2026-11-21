@@ -1,0 +1,86 @@
+{
+  "rule_path": ".claude/rules/governance.md",
+  "rule_id": "governance",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "New normative line added to a governance file with no evidence",
+      "input": "I am adding a new line to .agents/governance/PROJECT-CONSTRAINTS.md saying agents MUST run the linter before every commit. I have not linked a source for it. What does the line need before review, and how will a reviewer check it? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "evidence anchor",
+        "source:",
+        "why:",
+        "git diff -U3",
+        "same section"
+      ],
+      "expected_gate": "require-evidence-anchor-for-governance-line",
+      "rationale": "MUST 4: every added or changed normative line under .agents/governance/ needs one nearby evidence anchor (Source line, Refs issue or PR, ADR link, retrospective link, or Why paragraph) in the same section. Reviewers verify with git diff -U3 -- .agents/governance/."
+    },
+    {
+      "id": "S2",
+      "desc": "Removing a security review requirement from governance",
+      "input": "The code review step in .agents/governance/PROJECT-CONSTRAINTS.md slows the team down. I want to delete the security review requirement and the link that justified it. What does that change need? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "unanimous",
+        "adr",
+        "supersession",
+        "evidence link",
+        "silent deletion"
+      ],
+      "expected_gate": "require-unanimous-adr-to-reduce-requirements",
+      "rationale": "MUST NOT 1 forbids reducing security or review requirements without a unanimous-consensus ADR. MUST NOT 2 forbids removing the evidence link of an existing rule; supersession needs a new ADR, not silent deletion."
+    },
+    {
+      "id": "S3",
+      "desc": "Cross-role governance change with auto-merge requested",
+      "input": "I edited .agents/governance/CONSENSUS.md to change how the architect and implementer roles vote, and I want the PR to auto-merge once CI is green. How do I get this through? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "consensus.md",
+        "domain-weighted",
+        "2.0x",
+        "human maintainer",
+        "auto-merge"
+      ],
+      "expected_gate": "require-consensus-and-human-approval",
+      "rationale": "MUST 1 requires human maintainer approval and prohibits auto-merge for governance files. MUST 3 requires the CONSENSUS.md protocol with domain-weighted voting (security gets 2.0x on security decisions) for changes affecting multiple roles. MUST 5 bars unilateral changes by one specialist agent."
+    },
+    {
+      "id": "S4",
+      "desc": "New constraint landing in governance files",
+      "input": "I am adding a new constraint about worktree cleanup as a new file .agents/governance/WORKTREE-CLEANUP.md. Where else do I record it and how should I word the requirements? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "project-constraints.md",
+        "index of record",
+        "agents.md",
+        "claude.md",
+        "rfc 2119"
+      ],
+      "expected_gate": "update-canonical-index-and-cross-link",
+      "rationale": "SHOULD 1 says PROJECT-CONSTRAINTS.md is the index of record and new constraints land there with details in a dedicated file. SHOULD 2 says to cross-link from AGENTS.md and CLAUDE.md. SHOULD 3 says to use MUST / SHOULD / MAY."
+    },
+    {
+      "id": "S5",
+      "desc": "Analysis note outside governance (negative)",
+      "input": "I am writing a new analysis note at .agents/analysis/cache-miss-investigation.md summarizing why the CI cache missed last week. Outline the sections it needs. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "evidence anchor",
+        "git diff -U3",
+        "consensus.md"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The rule scopes to .agents/governance/**. A sibling .agents/analysis/ path is an adjacent area that does not carry the human-approval, ADR, or consensus requirements."
+    },
+    {
+      "id": "S6",
+      "desc": "Python script that reads a governance file (negative)",
+      "input": "scripts/validation/check_constraints_index.py reads .agents/governance/PROJECT-CONSTRAINTS.md and crashes on an empty file. I am only changing the Python reader, not the governance file. Outline the fix. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "evidence anchor",
+        "git diff -U3",
+        "consensus.md"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The rule binds edits to files under .agents/governance/. Editing a script that only reads the file leaves every governance file unchanged, so no approval, ADR, or consensus step applies."
+    }
+  ]
+}
