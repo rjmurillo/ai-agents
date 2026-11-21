@@ -5,7 +5,9 @@ description: Thin router for the tiered memory system. Points callers at the
   focused sub-skills for each operation, Tier 1 search, the reflexion write path,
   the memory-first gate, maintenance, consolidation, and durable fact retention. Use when you ask "remember this", "retain a decision", "what
   do we know about X", "recall prior context", or "search memory" and are not
-  sure which operation you need. Do NOT use for adding citations (use memory-enhancement), narrative cross-system reports (use memory-documentary), or a plain lookup (use memory-search).
+  sure which operation you need. Use memory-search for a plain lookup when
+  available. Use memory-enhancement for citations or memory-documentary for
+  narrative reports across systems.
 license: MIT
 ---
 # Memory System Skill
@@ -22,9 +24,9 @@ right one so a caller loads only the surface it needs.
 |----------|-------------------|-------------|
 | Not sure which memory operation you need | Yes | - |
 | Retain a durable project fact | Yes | Write procedure below |
-| Tier 1 search only | No | `memory-search` sub-skill |
+| Tier 1 search only | If `memory-search` is unavailable | `memory-search` sub-skill |
 | Record a completed session | No | `memory-reflexion` sub-skill |
-| Pre-change memory-first gate | No | `memory-gate` sub-skill |
+| Pre-change memory-first gate | If `memory-gate` is unavailable | `memory-gate` sub-skill |
 | Health, token count, benchmark | No | `memory-maintenance` sub-skill |
 | Periodic durable/dated consolidation, index tidy | No | `memory-consolidate` sub-skill |
 | Agent needs deep multi-source context | No | `context-gather` skill |
