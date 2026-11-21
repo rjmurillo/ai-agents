@@ -97,6 +97,7 @@ def resolve_session_log_path(
 
 def _qa_fields(text: str) -> dict[str, str]:
     """Return strict QA fields from leading YAML frontmatter."""
+    # Fences come from the shared parser, hook_utilities.frontmatter_block.
     split = split_frontmatter(text)
     if split.status is FrontmatterStatus.ABSENT:
         raise ValueError("QA report is missing leading YAML frontmatter")
