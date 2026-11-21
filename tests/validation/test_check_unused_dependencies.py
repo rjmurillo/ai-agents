@@ -482,10 +482,12 @@ def test_cli_rejects_failed_or_malformed_deptry_reports(
 ):
     policy = _project(tmp_path, '"pyyaml"', "import yaml\n")
 
-    def fake_run(argv, **_kwargs):
+    def fake_run(argv, **kwargs):
         if argv[0] == "git":
             return subprocess.CompletedProcess(argv, 0, b"pyproject.toml\0app.py\0", b"")
-        assert argv[1:3] == ["-m", "deptry"]
+        assert argv[1] == "-c"
+        extra_args = json.loads(kwargs["input"])
+        assert extra_args[extra_args.index("--known-first-party") + 1] == "app"
         output = Path(argv[argv.index("--json-output") + 1])
         output.write_text(json.dumps(report), encoding="utf-8")
         return subprocess.CompletedProcess(argv, returncode, "", "scanner error")

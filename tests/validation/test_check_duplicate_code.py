@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shlex
 import shutil
 import subprocess
 import sys
@@ -274,10 +275,10 @@ class TestEntryPoint:
 
     def test_locked_runner_is_resolved_locally(self, tmp_path, monkeypatch) -> None:
         monkeypatch.delenv("JSCPD_BIN", raising=False)
-        binary = tmp_path / "node_modules" / ".bin" / "jscpd"
+        binary = tmp_path / "node_modules" / "jscpd" / "run-jscpd.js"
         binary.parent.mkdir(parents=True)
         binary.write_text("locked scanner", encoding="utf-8")
-        assert gate.resolve_runner(tmp_path) == [str(binary)]
+        assert gate.resolve_runner(tmp_path) == ["node", str(binary)]
 
     def test_passes_when_scan_matches_baseline(self, tmp_path, monkeypatch, capsys) -> None:
         repo = _repo(tmp_path, {"a": 1})
@@ -400,7 +401,7 @@ class TestRealJscpd:
     BLOCK = "".join(f"def f{i}(a, b):\n    return a * {i} + b - {i}\n\n" for i in range(12))
 
     def test_injected_copy_is_caught_and_ignored_mirror_is_not(self, tmp_path, monkeypatch) -> None:
-        runner = " ".join(gate.resolve_runner(REPO_ROOT))
+        runner = shlex.join(gate.resolve_runner(REPO_ROOT))
         repo = tmp_path / "repo"
         (repo / "scripts").mkdir(parents=True)
         (repo / "src" / "codex").mkdir(parents=True)

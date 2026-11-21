@@ -19,8 +19,8 @@ that ref, intersected with the working-tree baseline. A branch that hand-edits
 the baseline to cover its own new duplication still fails (same loophole closed
 as ``check_nl_structural_debt.py``, issue #6506).
 
-The jscpd runner is ``JSCPD_BIN`` (whitespace-split command) or the locked
-``node_modules/.bin/jscpd`` installation. The checker never downloads tools.
+The jscpd runner is ``JSCPD_BIN`` (shell-quoted command) or the locked npm
+package's JavaScript entry point. The checker never downloads tools.
 
 Exit codes (ADR-035):
     0 - Success (no new duplication and no stale baseline entry)
@@ -118,9 +118,9 @@ def resolve_runner(root: Path) -> list[str]:
     override = os.environ.get("JSCPD_BIN", "").strip()
     if override:
         return shlex.split(override)
-    local = root / "node_modules" / ".bin" / "jscpd"
+    local = root / "node_modules" / "jscpd" / "run-jscpd.js"
     if local.is_file():
-        return [str(local)]
+        return ["node", str(local)]
     raise GateError("no locked jscpd runner: run 'npm ci --ignore-scripts' first", 2)
 
 

@@ -214,7 +214,7 @@ def _dirname_depth(node: ast.AST) -> int | None:
     """N for ``os.path.dirname`` applied N times to ``os.path.abspath(__file__)``."""
     depth = 0
     current = node
-    while isinstance(current, ast.Call) and len(current.args) == 1:
+    while isinstance(current, ast.Call) and len(current.args) == 1 and not current.keywords:
         if _is_os_path(current, frozenset({"abspath"})):
             arg = current.args[0]
             return depth if isinstance(arg, ast.Name) and arg.id == "__file__" else None
@@ -225,7 +225,24 @@ def _dirname_depth(node: ast.AST) -> int | None:
     return None
 
 
-def _sys_path_inserts(path: Path, parsed: ast.Module) -> list[tuple[int, Path]]:
+def _bootstrap_arg(node: ast.expr) -> ast.expr | None:
+    match node:
+        case ast.Call(
+            func=ast.Attribute(
+                value=ast.Attribute(value=ast.Name(id="sys"), attr="path"), attr=method
+            ),
+            args=args,
+            keywords=[],
+        ):
+            match method, args:
+                case "append", [arg]:
+                    return arg
+                case "insert", [ast.Constant(value=0), arg]:
+                    return arg
+    return None
+
+
+def _sys_path_inserts(tree: Path, path: Path, parsed: ast.Module) -> list[tuple[int, Path]]:
     """Return ``(statement index, directory)`` for modeled top-level path inserts.
 
     Only the explicit idiom ``sys.path.insert(0, os.path.dirname(...`` chain
@@ -234,26 +251,15 @@ def _sys_path_inserts(path: Path, parsed: ast.Module) -> list[tuple[int, Path]]:
     """
     inserts: list[tuple[int, Path]] = []
     for index, stmt in enumerate(parsed.body):
-        call = stmt.value if isinstance(stmt, ast.Expr) else None
-        if not isinstance(call, ast.Call) or not call.args:
-            continue
-        func = call.func
-        if not (
-            isinstance(func, ast.Attribute)
-            and func.attr in {"insert", "append"}
-            and isinstance(func.value, ast.Attribute)
-            and func.value.attr == "path"
-            and isinstance(func.value.value, ast.Name)
-            and func.value.value.id == "sys"
-        ):
-            continue
-        depth = _dirname_depth(call.args[-1])
-        if depth is None:
+        arg = _bootstrap_arg(stmt.value) if isinstance(stmt, ast.Expr) else None
+        depth = _dirname_depth(arg) if arg is not None else None
+        if not depth:
             continue
         directory = path.parent
         for _ in range(depth - 1):
             directory = directory.parent
-        inserts.append((index, directory))
+        if directory.is_relative_to(tree):
+            inserts.append((index, directory))
     return inserts
 
 
@@ -277,7 +283,7 @@ def _module_findings(
         return []
     rel = path.relative_to(repo_root).as_posix()
     tree_rel = tree.relative_to(repo_root).as_posix()
-    inserts = _sys_path_inserts(path, parsed)
+    inserts = _sys_path_inserts(tree, path, parsed)
     findings: list[Finding] = []
     for index, stmt in enumerate(parsed.body):
         for node, deferred in _unguarded_imports(stmt):

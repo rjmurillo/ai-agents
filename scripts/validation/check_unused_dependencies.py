@@ -239,18 +239,24 @@ def deptry_args(manifest: Manifest, first_party: list[str]) -> list[str]:
 def run_deptry(manifest_dir: Path, extra_args: list[str]) -> list[dict[str, Any]]:
     with tempfile.TemporaryDirectory(prefix="deptry-") as tmp:
         report = Path(tmp) / "report.json"
+        # Keep the tracked module inventory off the OS command line.
+        launch = (
+            "import json, runpy, sys; "
+            "sys.argv.extend(json.load(sys.stdin)); "
+            "runpy.run_module('deptry', run_name='__main__', alter_sys=True)"
+        )
         try:
             result = subprocess.run(
                 [
                     sys.executable,
-                    "-m",
-                    "deptry",
+                    "-c",
+                    launch,
                     str(manifest_dir),
                     "--no-ansi",
                     "--json-output",
                     str(report),
-                    *extra_args,
                 ],
+                input=json.dumps(extra_args),
                 capture_output=True,
                 encoding="utf-8",
                 errors="replace",
