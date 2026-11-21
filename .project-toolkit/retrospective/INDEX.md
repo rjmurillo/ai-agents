@@ -12,7 +12,9 @@
 > current numbers, run
 > `python3 .claude/skills/ai-agents-failure-archaeology/scripts/corpus_index.py`.
 > Its `retro_files` field counts the retrospectives, excluding this index, and
-> `retro_index_covered` counts the ones this index names.
+> `retro_index_covered` counts the ones this index names. The script exits 1
+> while any retrospective is missing from this index. That is the normal state
+> for a curated subset, and the JSON it prints is still complete.
 
 | Date | File | Summary |
 |------|------|---------|
