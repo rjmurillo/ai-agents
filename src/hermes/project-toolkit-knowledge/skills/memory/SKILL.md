@@ -41,8 +41,9 @@ retired knowledge-graph skill).
 
 ## Related Sub-Skills
 
-The router delegates every operation to a focused sub-skill. Load the one that
-matches your task; each carries a smaller context than the full memory surface.
+Use this skill to retain durable project facts. For other operations, load the
+focused sub-skill when available. For recall or a pre-change check without
+the sub-skill, search repository memory and Git history for the rationale.
 
 | Sub-Skill | Operation | Load When |
 |-----------|-----------|-----------|

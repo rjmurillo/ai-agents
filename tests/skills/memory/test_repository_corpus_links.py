@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from memory_enhancement.hooks import repository_memory_dir
 from memory_enhancement.serena_integration import load_memory
 
 SCRIPTS = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "memory" / "scripts"
@@ -39,6 +40,7 @@ def test_search_keeps_only_local_default_corpus_links(
     monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
     monkeypatch.chdir(repo)
 
+    assert repository_memory_dir(repo) == (target if inside_checkout else notes)
     assert main(["retry"]) == 0
 
     (result,) = json.loads(capsys.readouterr().out)["Results"]

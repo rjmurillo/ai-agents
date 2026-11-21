@@ -24,7 +24,7 @@ from html import escape
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from . import repository_memory_dir
+from . import find_repo_root, repository_memory_dir
 
 if TYPE_CHECKING:
     from ..search import SearchResult
@@ -172,8 +172,6 @@ def _strip_punctuation(word: str) -> str:
 
 def _find_repo_root(start: Path | None = None) -> Path | None:
     """Walk up from start to find repo root. Delegates to shared utility."""
-    from . import find_repo_root
-
     return find_repo_root(start)
 
 
@@ -236,12 +234,10 @@ def _format_memory_context(results: list[SearchResult]) -> str:
         lines.append(_format_recall_field(result.snippet))
         relative_path = result.file_path
         try:
-            from . import find_repo_root
-
             repo_root = find_repo_root(result.file_path)
             if repo_root is not None:
                 relative_path = result.file_path.relative_to(repo_root)
-        except (ValueError, ImportError):
+        except ValueError:
             pass
         lines.append(f"Source: {_format_recall_field(str(relative_path))}")
         lines.append("")

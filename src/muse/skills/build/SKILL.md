@@ -138,8 +138,9 @@ codebase. Build in thin vertical slices. Test-first when the project has tests.
 Commit atomically.
 
 Before changing existing behavior, reuse the spec's prior-art evidence for
-the same scope. Invoke `memory-gate` when that evidence is missing or the
-slice exposes a new dependency. Verify recalled constraints in current code.
+the same scope. If it leaves a gap, use `memory-gate` when available.
+Otherwise search repository memory and Git history for the rationale.
+Verify recalled constraints in current code before changing behavior.
 
 For each slice:
 
@@ -314,11 +315,11 @@ Writes: `implementation-change`, `validation-record`. Next: `/test`.
 ## Guardrails
 
 - Atomic commits. Each commit is one logical change, rollback-safe.
-- Use `memory-search` for existing rationale. Verify it in canonical sources.
+- Follow the Phase 3 memory check for existing rationale.
 - No feature flags or compat shims when you can change the code. Validate only at boundaries.
 - No generated headers, timestamps, or "do not edit" banners in any file. If a script emits one, delete the emitter.
 - .NET projects: target net10.0 (C# 14 implied; do not pin LangVersion). Use central package management, global.json to pin the SDK, and standard .editorconfig, .gitattributes, and .gitignore files.
-- Before changing the behavior of a validator, hook, ADR constraint, or shared infrastructure, invoke `Skill(skill="memory-gate")`. If it returns findings, address or acknowledge them in the plan or issue handoff first.
+- Apply the Phase 3 memory check before changing validators, hooks, ADR constraints, or shared infrastructure. Record findings in the plan or handoff.
 - Favor delegation over inheritance. A makes B, or A uses B. Never both.
 - Verify CLI flags and argparse patterns against live output before committing.
 - Use the real repo as the integration test bed. Run new scripts against an open or recent PR before declaring done. Synthetic fixtures can only validate the wrapper; real data validates the semantic.

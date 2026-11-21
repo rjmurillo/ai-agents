@@ -81,13 +81,14 @@ def estimate_tokens(file_path: Path) -> int:
         return 0
 
 
-def _corpus_scope(corpus: Path) -> Path:
+def _corpus_files(corpus: Path) -> list[Path]:
     resolved = corpus.resolve()
-    return _find_checkout(resolved) or resolved
-
-
-def _is_corpus_file(path: Path, scope: Path) -> bool:
-    return path.is_file() and (not path.is_symlink() or path.resolve().is_relative_to(scope))
+    scope = _find_checkout(resolved) or resolved
+    return [
+        path
+        for path in corpus.rglob("*.md")
+        if path.is_file() and (not path.is_symlink() or path.resolve().is_relative_to(scope))
+    ]
 
 
 def search_serena(
@@ -106,12 +107,9 @@ def search_serena(
         return []
 
     keywords = query_keywords(query)
-    scope = _corpus_scope(memory_path)
 
     results: list[dict[str, Any]] = []
-    for md_file in sorted(memory_path.rglob("*.md")):
-        if not _is_corpus_file(md_file, scope):
-            continue
+    for md_file in sorted(_corpus_files(memory_path)):
         rel = md_file.relative_to(memory_path).with_suffix("")
         name = rel.as_posix().lower()
         stem = name.rpartition("/")[2]
@@ -209,37 +207,22 @@ def get_memory_router_status(
     serena_path: Path | None, episodes_path: Path | None = None, notes_path: Path | None = None
 ) -> dict[str, dict[str, object]]:
     """Return diagnostic status of memory systems."""
-    serena_available = serena_path is not None and serena_path.is_dir()
-    serena_count = 0
-    if serena_available and serena_path is not None:
-        serena_count = len(list(serena_path.rglob("*.md")))
-
-    episodes_available = False
-    episode_count = 0
-    if episodes_path is not None and episodes_path.is_dir():
-        episodes_available = True
-        episode_count = len(list(episodes_path.glob("episode-*.json")))
-
-    status: dict[str, dict[str, object]] = {
-        "Serena": {
-            "Available": serena_available,
-            "MemoryCount": serena_count,
-            "Path": str(serena_path) if serena_path is not None else "",
-        },
-        "Episodes": {
-            "Available": episodes_available,
-            "MemoryCount": episode_count,
-            "Path": str(episodes_path) if episodes_path is not None else "",
-        },
-    }
+    stores = {"Serena": serena_path, "Episodes": episodes_path}
     if notes_path is not None:
-        notes_scope = _corpus_scope(notes_path)
-        status["RepositoryNotes"] = {
-            "Available": True,
-            "MemoryCount": sum(
-                1 for path in notes_path.rglob("*.md") if _is_corpus_file(path, notes_scope)
-            ),
-            "Path": str(notes_path),
+        stores["RepositoryNotes"] = notes_path
+    status: dict[str, dict[str, object]] = {}
+    for name, path in stores.items():
+        count = 0
+        if path is not None and path.is_dir():
+            count = (
+                len(list(path.glob("episode-*.json")))
+                if name == "Episodes"
+                else len(_corpus_files(path))
+            )
+        status[name] = {
+            "Available": path is not None and path.is_dir(),
+            "MemoryCount": count,
+            "Path": str(path) if path is not None else "",
         }
     return status
 
@@ -321,32 +304,6 @@ def _find_checkout(start: Path) -> Path | None:
     )
 
 
-def resolve_repo_root(script_dir: Path) -> Path:
-    """Pick the checkout that owns the memory stores.
-
-    An installed plugin lives outside the consumer checkout, so the path
-    relative to this file points at the plugin directory. Prefer the
-    consumer project (CLAUDE_PROJECT_DIR, then the working directory).
-    """
-    candidates = [os.environ.get("CLAUDE_PROJECT_DIR", ""), str(Path.cwd())]
-    for candidate in candidates:
-        if not candidate:
-            continue
-        root = _find_checkout(Path(candidate).resolve())
-        if root is not None:
-            return root
-    return script_dir.parent.parent.parent.parent
-
-
-def checkout_corpus(repo_root: Path, relative: Path) -> Path | None:
-    """Find an existing corpus whose resolved path stays inside the checkout."""
-    path = repo_root / relative
-    if not path.is_dir():
-        return None
-    resolved = path.resolve()
-    return resolved if resolved != repo_root and resolved.is_relative_to(repo_root) else None
-
-
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
@@ -360,44 +317,35 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(error_output, indent=2))
         return 1
 
-    # Determine store paths
-    script_dir = Path(__file__).resolve().parent
-    repo_root = resolve_repo_root(script_dir)
-
-    if args.serena_path:
-        if ".." in args.serena_path.parts:
-            msg = "Security: path must not contain traversal sequences."
-            print(json.dumps({"Error": msg}, indent=2))
-            return 2
-        serena_path = args.serena_path.resolve()
-    else:
-        serena_path = checkout_corpus(repo_root, SERENA_REL)
-
-    if args.episodes_path:
-        if ".." in args.episodes_path.parts:
-            msg = "Security: path must not contain traversal sequences."
-            print(json.dumps({"Error": msg}, indent=2))
-            return 2
-        episodes_path = args.episodes_path.resolve()
-    else:
-        episodes_path = repo_root / EPISODES_REL
-
-    search_status: dict[str, Any] = {
-        "SerenaQueried": True,
-        "EpisodesQueried": True,
-        "SerenaSucceeded": False,
-        "EpisodesSucceeded": False,
+    if any(path and ".." in path.parts for path in (args.serena_path, args.episodes_path)):
+        print(
+            json.dumps({"Error": "Security: path must not contain traversal sequences."}, indent=2)
+        )
+        return 2
+    # Keep the consumer checkout ahead of the installed plugin directory.
+    project_dir = os.environ.get("CLAUDE_PROJECT_DIR")
+    repo_root = _find_checkout(Path(project_dir).resolve()) if project_dir else None
+    repo_root = (
+        repo_root or _find_checkout(Path.cwd().resolve()) or Path(__file__).resolve().parents[4]
+    )
+    declared_corpora = (repo_root / relative for relative in (SERENA_REL, NOTES_REL))
+    resolved_corpora = {
+        path.relative_to(repo_root): path.resolve() for path in declared_corpora if path.is_dir()
     }
+    corpora = {
+        relative: path
+        for relative, path in resolved_corpora.items()
+        if path != repo_root and path.is_relative_to(repo_root)
+    }
+    serena_path = args.serena_path.resolve() if args.serena_path else corpora.get(SERENA_REL)
+    episodes_path = args.episodes_path.resolve() if args.episodes_path else repo_root / EPISODES_REL
+    notes_path = corpora.get(NOTES_REL) if serena_path is None else None
 
-    results = search_serena(query, serena_path, max_results) if serena_path else []
-    search_status["SerenaSucceeded"] = True
-    notes_path = checkout_corpus(repo_root, NOTES_REL) if serena_path is None else None
+    results = search_episodes(query, episodes_path, max_results)
+    if serena_path is not None:
+        results = search_serena(query, serena_path, max_results) + results
     if notes_path is not None:
-        results = search_serena(query, notes_path, max_results, source="RepositoryNotes")
-        search_status["RepositoryNotesQueried"] = True
-        search_status["RepositoryNotesSucceeded"] = True
-    results += search_episodes(query, episodes_path, max_results)
-    search_status["EpisodesSucceeded"] = True
+        results = search_serena(query, notes_path, max_results, source="RepositoryNotes") + results
     results.sort(key=lambda r: float(r["Score"]), reverse=True)
     results = results[:max_results]
 
@@ -440,6 +388,14 @@ def main(argv: list[str] | None = None) -> int:
             for warning in token_budget["Warnings"]:
                 print(f"WARNING: {warning}", file=sys.stderr)
     else:
+        search_status = {
+            "SerenaQueried": serena_path is not None,
+            "SerenaSucceeded": serena_path is not None,
+            "EpisodesQueried": True,
+            "EpisodesSucceeded": True,
+        }
+        if notes_path is not None:
+            search_status.update(RepositoryNotesQueried=True, RepositoryNotesSucceeded=True)
         output = {
             "Query": query,
             "Count": len(results),

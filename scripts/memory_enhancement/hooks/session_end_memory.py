@@ -26,7 +26,7 @@ from pathlib import Path
 from ..confidence import update_confidence_scores_with_memories
 from ..models import HealthReport
 from ..reflection import apply_confidence_decay, extract_session_facts
-from . import repository_memory_dir
+from . import find_repo_root, repository_memory_dir
 
 
 def main() -> int:
@@ -48,8 +48,6 @@ def main() -> int:
 
 def _find_repo_root(start: Path | None = None) -> Path | None:
     """Walk up from start to find repo root. Delegates to shared utility."""
-    from . import find_repo_root
-
     return find_repo_root(start)
 
 

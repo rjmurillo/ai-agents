@@ -18,7 +18,7 @@ spec a skill, which gave it a `references/` directory.
 After Step 0 passes, surface the backward-looking context the proposer should have read before drafting requirements. Step 0 asks "is this work demanded?" Step 0.5 asks "do we already know why the current state is the way it is?" Both gates fire, in order. The `memory-gate` skill declares the gate as BLOCKING under its `## Memory-First Gate (BLOCKING)` section ("Before changing existing systems, you MUST..."); this section wires it into `/spec`.
 
 The gate runs `chestertons-fence` to identify rationale and dependencies.
-It then runs `memory-search` to find prior decisions. Step 6 carries both
+It then searches project memory for prior decisions. Step 6 carries both
 results into the PRD's "Prior Art / Constraints" section.
 
 ### Step 0.5 ProvisionalTier (auto-classified, no user prompt)
@@ -77,9 +77,9 @@ The agent lists the derived topics explicitly in the Step 0.5 preamble before ru
 Invoke the two skills in order. Each emits content into a named subsection of the PriorArtBlock.
 
 1. **chestertons-fence (frame)**. Invoke `Skill(skill="chestertons-fence")` with `target` set to the Q3 system path and `change` set to the Q4 wedge description. The skill runs git archaeology, PR/ADR search, and dependency analysis on the target. Output (PRESERVE | MODIFY | REPLACE | REMOVE recommendation plus rationale) feeds the `### Direct prior art from memory` subsection.
-2. **`memory-search` (point search)**. Use at least three distinct query
-   variants per topic. Query variants should exercise different vocabulary.
-   Follow the skill's project scope and repository fallback. Cite relevant
+2. **Project memory (point search).** Use `memory-search` when available.
+   Otherwise search repository memory with the bundled helper or file tools.
+   Use at least three distinct query variants per topic. Cite relevant
    results in the direct prior-art subsection. Record each source and gap.
 
    If you run the bundled `search_memory.py` directly, resolve it relative

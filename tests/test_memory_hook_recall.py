@@ -9,7 +9,6 @@ from unittest.mock import patch
 
 import pytest
 
-from memory_enhancement.hooks import repository_memory_dir
 from memory_enhancement.hooks.user_prompt_submit_memory import (
     _MIN_RELEVANCE,
     _extract_query,
@@ -127,24 +126,6 @@ class TestFindRepoRoot:
         with patch.object(Path, "exists", return_value=False):
             result = _find_repo_root(tmp_path)
             assert result is None
-
-
-@pytest.mark.unit
-@pytest.mark.parametrize("inside_checkout", [True, False])
-def test_repository_corpus_links_respect_checkout_scope(tmp_path, inside_checkout):
-    repo = tmp_path / "checkout"
-    legacy = repo / ".serena" / "memories"
-    legacy.parent.mkdir(parents=True)
-    target = (repo if inside_checkout else tmp_path) / "existing-corpus"
-    target.mkdir()
-    try:
-        legacy.symlink_to(target, target_is_directory=True)
-    except OSError as exc:
-        pytest.skip(f"directory symlinks unavailable: {exc}")
-    notes = repo / ".project-toolkit" / "memory" / "notes"
-    notes.mkdir(parents=True)
-
-    assert repository_memory_dir(repo) == (target if inside_checkout else notes)
 
 
 class TestFormatMemoryContext:

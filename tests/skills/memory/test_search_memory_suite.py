@@ -441,6 +441,9 @@ class TestMainFunction:
         (result,) = output["Results"]
         assert result["Path"] == str(note)
         assert result["Source"] == "RepositoryNotes"
+        assert output["SearchStatus"]["RepositoryNotesSucceeded"] is True
+        assert output["SearchStatus"]["SerenaQueried"] is False
+        assert output["SearchStatus"]["SerenaSucceeded"] is False
         assert output["Diagnostic"]["RepositoryNotes"]["MemoryCount"] == 1
 
     def test_empty_results(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
