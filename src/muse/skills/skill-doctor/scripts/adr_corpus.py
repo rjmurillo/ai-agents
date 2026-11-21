@@ -78,8 +78,16 @@ class GitError(Exception):
         self, message: str, returncode: int | None = None, timed_out: bool = False
     ) -> None:
         super().__init__(message)
-        self.returncode = returncode
-        self.timed_out = timed_out
+        self._returncode = returncode
+        self._timed_out = timed_out
+
+    @property
+    def returncode(self) -> int | None:
+        return self._returncode
+
+    @property
+    def timed_out(self) -> bool:
+        return self._timed_out
 
 
 def run_git(repo: Path, args: Sequence[str]) -> str:

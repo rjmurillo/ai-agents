@@ -14,6 +14,7 @@ from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 from urllib.parse import unquote
 
 from adr_corpus import (
@@ -67,6 +68,18 @@ def pad(number: int, folder: AdrDir) -> str:
     return f"{number:0{width}d}"
 
 
+def _found(
+    kind: str,
+    group: str,
+    severity: str,
+    evidence: dict[str, Any],
+    suggested_fix: str,
+    key: Sequence[str],
+) -> Finding:
+    """A finding from a check that reads only files, so its confidence is deterministic."""
+    return make_finding(kind, group, severity, "deterministic", evidence, suggested_fix, key)
+
+
 def check_numbering(dirs: Sequence[AdrDir], docs: Sequence[AdrDoc]) -> list[Finding]:
     findings: list[Finding] = []
     upcoming = next_number(dirs)
@@ -96,11 +109,10 @@ def _duplicates(folder: AdrDir, upcoming: int) -> list[Finding]:
         )
         evidence = {"path": later.rel, "paths": [f.rel for f in files], "number": number}
         findings.append(
-            make_finding(
+            _found(
                 "adr-duplicate-number",
                 NUMBERING,
                 "high",
-                "deterministic",
                 evidence,
                 fix,
                 (folder.rel, str(number)),
@@ -119,11 +131,10 @@ def _unparseable(folder: AdrDir) -> list[Finding]:
         rel = f"{folder.rel}/{name}"
         fix = f"Rename {rel} to the folder convention, for example ADR-NNN-short-title.md."
         findings.append(
-            make_finding(
+            _found(
                 "adr-unparseable-name",
                 NUMBERING,
                 "low",
-                "deterministic",
                 {"path": rel},
                 fix,
                 (rel,),
@@ -147,11 +158,7 @@ def _gaps(folder: AdrDir) -> list[Finding]:
         "truncated": len(missing) > GAP_EVIDENCE_CAP,
     }
     fix = "None needed. Report only: gaps are usually withdrawn or renumbered records."
-    return [
-        make_finding(
-            "adr-number-gap", NUMBERING, "low", "deterministic", evidence, fix, (folder.rel,)
-        )
-    ]
+    return [_found("adr-number-gap", NUMBERING, "low", evidence, fix, (folder.rel,))]
 
 
 def _title_mismatch(doc: AdrDoc) -> Finding | None:
@@ -172,11 +179,10 @@ def _title_mismatch(doc: AdrDoc) -> Finding | None:
         f"Make the H1 on line {line} of {doc.file.rel} name {doc.file.number}, "
         "the number in the filename, or rename the file to match the H1."
     )
-    return make_finding(
+    return _found(
         "adr-title-number-mismatch",
         NUMBERING,
         "medium",
-        "deterministic",
         evidence,
         fix,
         (doc.file.rel, str(found)),
@@ -237,11 +243,10 @@ def _broken_link(
     else:
         fix = f"No file holds ADR-{number}. Remove the link or restore that record."
     evidence = {"path": doc.file.rel, "line": line, "target": target, "number": number}
-    return make_finding(
+    return _found(
         "adr-broken-link",
         LINKS,
         "medium",
-        "deterministic",
         evidence,
         fix,
         (doc.file.rel, str(line), target),
@@ -351,11 +356,10 @@ def _missing_target(doc: AdrDoc, edge: Edge) -> Finding:
         "number": edge.number,
     }
     fix = f"Fix the number: no file holds ADR-{edge.number}. Drop the {edge.kind} edge if it is stale."
-    return make_finding(
+    return _found(
         "adr-supersedes-missing-target",
         LINKS,
         "medium",
-        "deterministic",
         evidence,
         fix,
         (doc.file.rel, edge.kind, str(edge.number)),
@@ -379,11 +383,10 @@ def _reciprocity(
         f"Add `{label}: ADR-{doc.file.number}` to {target.file.rel} "
         f"(or a matching status line), because {doc.file.rel} declares the {edge.kind} edge."
     )
-    return make_finding(
+    return _found(
         "adr-supersession-not-reciprocal",
         LINKS,
         "medium",
-        "deterministic",
         evidence,
         fix,
         (target.file.rel, doc.file.rel, wanted),
@@ -407,11 +410,10 @@ def check_cited_paths(repo: Path, docs: Sequence[AdrDoc]) -> list[Finding]:
                 "Name its replacement or mark the record superseded."
             )
             findings.append(
-                make_finding(
+                _found(
                     "adr-cited-path-missing",
                     LINKS,
                     "low",
-                    "deterministic",
                     evidence,
                     fix,
                     (doc.file.rel, path),
