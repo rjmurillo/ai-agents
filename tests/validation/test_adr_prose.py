@@ -3,7 +3,7 @@
 Covers the two places it differs from the rule gate on purpose (PR #7489 review):
 frontmatter fences the lifecycle parser accepts, and sentences soft-wrapped
 before a mention. Each has a positive and a negative case, and the frontmatter
-mask is pinned to ``frontmatter_block.parse_frontmatter`` on the same input.
+mask is pinned to ``frontmatter_block.split_frontmatter`` on the same input.
 """
 
 from __future__ import annotations
@@ -12,7 +12,6 @@ import sys
 from pathlib import Path
 
 import pytest
-import yaml
 
 _VALIDATION_DIR = Path(__file__).resolve().parents[2] / "scripts" / "validation"
 if str(_VALIDATION_DIR) not in sys.path:
@@ -21,7 +20,7 @@ if str(_VALIDATION_DIR) not in sys.path:
 from adr_prose import mask_frontmatter, paragraph_blocks
 from check_adr_supersession_citations import AUTHORITY, HISTORY, citations_in
 
-from scripts.hook_utilities.frontmatter_block import FrontmatterStatus, parse_frontmatter
+from scripts.hook_utilities.frontmatter_block import split_frontmatter
 from tests.validation.test_check_adr_supersession_citations import CORPUS
 
 _META = "id: ADR-107\ntitle: ADR-080 governs pins\n"
@@ -33,7 +32,7 @@ _META = "id: ADR-107\ntitle: ADR-080 governs pins\n"
 )
 def test_metadata_under_any_accepted_fence_is_never_a_citation(opening: str, closing: str) -> None:
     text = f"{opening}\n{_META}{closing}\n\nBody with no citation.\n"
-    assert parse_frontmatter(text, yaml).status is FrontmatterStatus.VALID
+    assert split_frontmatter(text).found
     assert citations_in("f.md", 107, text, CORPUS) == []
     assert "ADR-080" not in mask_frontmatter(text)
 
