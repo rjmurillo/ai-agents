@@ -45,15 +45,15 @@
     },
     {
       "id": "S4",
-      "desc": "Several PRs plus a completion verdict (negative)",
-      "input": "Go through my five open PRs, work the review threads on each in its own worktree, and give me a completion-gate verdict for every one. Answer in 5 short bullets. Do not modify any files.",
+      "desc": "Run local pre-push quality gates instead of working PR review threads (negative)",
+      "input": "Run the six local PR quality gates (security, QA, analyst, architect, DevOps, roadmap) against my uncommitted working tree before I push. Answer in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "cluster_threads.py",
-        "bot-authored",
-        "in-thread"
+        "[wontfix]",
+        "gate 3"
       ],
       "expected_gate": "skip-rule-not-applicable",
-      "rationale": "The description says Do NOT use for several PRs at once or a completion-gate verdict (use pr-review). Boundary with pr-review: pr-review owns PR selection, worktrees and the verdict."
+      "rationale": "The description says Do NOT use to run the local quality gates before pushing (use pr-quality). Running local pre-push axes does not work PR review threads."
     },
     {
       "id": "S5",
@@ -61,8 +61,8 @@
       "input": "Reviewer asked why I used a set on line 40 of PR 908. I already know the answer: it dedupes ids. Just post that single reply to that one comment. Answer in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "cluster_threads.py",
-        "bot-authored",
-        "in-thread"
+        "[wontfix]",
+        "gate 3"
       ],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "The description and When to Use say to use post_pr_comment_reply.py directly for a single known reply with no triage needed."

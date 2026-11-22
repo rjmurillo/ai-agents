@@ -21,11 +21,10 @@
       "input": "How do I check my staged files for infrastructure and security-critical changes before committing? Name the script and the flag. Answer in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "detect_infrastructure.py",
-        "--use-git-staged",
-        "--files"
+        "--use-git-staged"
       ],
       "expected_gate": "run-detect-infrastructure",
-      "rationale": "Usage section gives python detect_infrastructure.py --use-git-staged and --files. A generic answer would not name that script."
+      "rationale": "Usage section gives python detect_infrastructure.py --use-git-staged for staged files. A generic answer would not name that script or flag."
     },
     {
       "id": "S3",
@@ -48,7 +47,7 @@
       "expected_signals": [
         "detect_infrastructure.py",
         "--use-git-staged",
-        "--files"
+        "--require-security-review"
       ],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "The description says Detection only. Do NOT use to scan source for injection patterns (use security-scan). This skill matches file paths, not code content."

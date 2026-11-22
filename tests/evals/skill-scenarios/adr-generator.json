@@ -48,7 +48,7 @@
       "expected_signals": [
         "check_adr_uniqueness.py",
         "--print-next",
-        "debate-log-2"
+        "claims ledger"
       ],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "The description says `Do NOT use to review an ADR or apply findings in an open debate round (use adr-review)`, and When to Use says adr-review owns those edits."

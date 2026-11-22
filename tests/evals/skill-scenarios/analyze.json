@@ -31,15 +31,16 @@
     {
       "id": "S3",
       "desc": "Find code smells with severity and file:line evidence",
-      "input": "Find code smells across the repo and report findings. What phases will you go through and what must each finding contain? Answer in 5 short bullets. Do not modify any files.",
+      "input": "Find code smells across the repo and report findings. Which script drives the workflow, how many minimum steps apply, what happens at step N-1, and what must each finding contain? Answer in 5 short bullets. Do not modify any files.",
       "expected_signals": [
-        "file:line",
-        "severity",
-        "verification",
-        "synthesis"
+        "analyze.py",
+        "6-7",
+        "step n-1",
+        "step 3",
+        "file:line"
       ],
       "expected_gate": "produce-prioritized-findings",
-      "rationale": "SKILL.md Process and Verification: exploration, focus selection, investigation planning, deep analysis, verification at step N-1, synthesis at step N, with critical, high, medium, low severity and file:line references on every finding."
+      "rationale": "SKILL.md Quick Reference sets Code quality to 6-7 minimum steps driven by scripts/analyze.py, Phase 5 (Step N-1) audits completeness against Step 3 commitments, and Verification requires file:line references and severity on every finding."
     },
     {
       "id": "S4",

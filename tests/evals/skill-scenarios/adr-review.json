@@ -59,9 +59,9 @@
       "desc": "Authoring a new ADR belongs to adr-generator (negative)",
       "input": "Write a new ADR for our event sourcing decision, starting from the context and alternatives I give you. Nothing exists yet. Answer in 5 short bullets. Do not modify any files.",
       "expected_signals": [
-        "debate-log",
-        "adr-073",
-        "architect and critic"
+        "disagree-and-commit",
+        "detect_adr_changes.py",
+        "10 rounds"
       ],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "The description says `Do NOT use to author a new ADR or amend one outside a debate round (use adr-generator first, which hands off here)`."

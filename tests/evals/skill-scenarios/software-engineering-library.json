@@ -29,7 +29,7 @@
     {
       "id": "S3",
       "desc": "Diff review against the blocklist",
-      "input": "Review this diff against the forbidden patterns for design, data and production, and change and legacy risk. Answer in 5 short bullets. Do not modify any files.",
+      "input": "I need to review a PR diff against the forbidden patterns for design, data and production, and change and legacy risk. Which engineering reference applies and what does it check? Answer in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "forbidden-patterns",
         "blocklist"

@@ -32,26 +32,27 @@
     {
       "id": "S3",
       "desc": "Errno 2 on _dispatch.py mid-session",
-      "input": "Every tool call in my Copilot CLI session now fails with \"can't open file '.../project-toolkit/hooks/PreToolUse/_dispatch.py': [Errno 2] No such file or directory\". What is going on and what is the fix? Answer in 5 short bullets. Do not modify any files.",
+      "input": "Every tool call in my Copilot CLI session now fails with \"can't open file '.../project-toolkit/hooks/PreToolUse/_dispatch.py': [Errno 2] No such file or directory\". What causes this, how do I fix the wedged session, and what does the current PreToolUse launcher contract require for a stale root? Answer in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "stale plugin root",
         "restart",
-        "fail closed",
-        "exported"
+        "reinstalling",
+        "fail-open"
       ],
       "expected_gate": "diagnose-stale-plugin-root",
-      "rationale": "SKILL.md 'Stale plugin root wedges a running session': the plugin root is resolved once and exported, so moving it breaks every hook; the remedy is restarting the Copilot session, and reinstalling does not help."
+      "rationale": "SKILL.md 'Stale plugin root wedges a running session': the plugin root is resolved once and exported, restarting fixes the session while reinstalling without restarting does not, and the SUPERSEDED PreToolUse/PostToolUse contract requires fail-open-with-warning (exit 0 with stderr warning) on a stale root."
     },
     {
       "id": "S4",
-      "desc": "Run the porting campaign, which belongs to ai-agents-portability-campaign (negative)",
-      "input": "Run the portability campaign end to end: port our hooks to a new harness, regenerate the mirrors, and execute the runtime tests. Answer in 5 short bullets. Do not modify any files.",
+      "desc": "Regenerate generated mirrors and verify release manifests without hook contract lookup (negative)",
+      "input": "I edited a shared template under templates/skills/ and need to regenerate the generated mirrors and verify manifest counts before committing. Which build script and flags run that regeneration? Answer in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "warns and continues",
-        "hookspecificoutput"
+        "docs silent",
+        "stale plugin root"
       ],
       "expected_gate": "skip-rule-not-applicable",
-      "rationale": "The description says 'Do NOT use to run the porting campaign (in the ai-agents repository, use ai-agents-portability-campaign)'. This skill is the fact lookup, not the executor."
+      "rationale": "This skill is a hook-contract fact lookup for Claude Code and GitHub Copilot CLI hooks, not the mirror-regeneration build workflow (handled by ai-agents-generation-and-release)."
     }
   ]
 }

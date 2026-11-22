@@ -42,9 +42,9 @@
       "desc": "Adding citations is memory-enhancement (negative)",
       "input": "Add source citations to an existing memory file so each claim links to a code reference. Answer in 5 short bullets. Do not modify any files.",
       "expected_signals": [
-        "memory-consolidate",
-        "search_memory.py",
-        "memory-search"
+        "tier-selection-guide.md",
+        "index-table insertion",
+        "adr-063"
       ],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "The description says 'Do NOT use for adding citations (use memory-enhancement)'."

@@ -34,15 +34,15 @@
     {
       "id": "S3",
       "desc": "Inversion analysis as the final check on an ADR",
-      "input": "Criticize this approach before we approve the ADR: all agents hand off through free-form chat messages with no explicit protocol. Apply your inversion step to it. What does the inversion analysis produce? Answer in 5 short bullets. Do not modify any files.",
+      "input": "Criticize this approach before we approve the ADR: all agents hand off through free-form chat messages with no explicit protocol. Run the final check that asks how to guarantee this decision fails, and tell me the minimum count and structure it produces. Answer in 5 short bullets. Do not modify any files.",
       "expected_signals": [
-        "inversion",
-        "failure modes",
+        "invert",
+        "at least 3",
         "success criteria",
-        "invert the goal"
+        "decision validation"
       ],
       "expected_gate": "apply-inversion-analysis",
-      "rationale": "SKILL.md 'Inversion Thinking Protocol': state the goal, invert it, list failure scenarios (at least 3 failure modes), reverse each to a success criterion, then validate the decision against them."
+      "rationale": "SKILL.md 'Inversion Thinking Protocol' and Verification: invert the goal, list at least 3 failure modes, reverse each to a success criterion, and complete the Decision Validation section."
     },
     {
       "id": "S4",

@@ -49,7 +49,7 @@
       "expected_signals": [
         "search_memory.py",
         "--max-results",
-        "read_memory"
+        "coverage note"
       ],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "The description says `Do NOT use to extract session episodes (use memory-reflexion) or add citations (use memory-enhancement)`."
@@ -61,7 +61,7 @@
       "expected_signals": [
         "search_memory.py",
         "--max-results",
-        "read_memory"
+        "coverage note"
       ],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "Same description clause: session episode extraction routes to memory-reflexion, not to the search operation."

@@ -18,7 +18,7 @@
     {
       "id": "S2",
       "desc": "Generate the threat matrix with the bundled script",
-      "input": "I need the STRIDE threat matrix scaffold for the Authentication Service scope written to a markdown file. Which script do you use and with what arguments? Answer in 5 short bullets. Do not modify any files.",
+      "input": "I need the STRIDE threat matrix scaffold for the Authentication Service scope written to a markdown file. Which script do you use, with what arguments, and what risk columns does the matrix track? Answer in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "generate_threat_matrix.py",
         "--scope",
@@ -26,7 +26,7 @@
         "likelihood"
       ],
       "expected_gate": "use-threat-matrix-script",
-      "rationale": "Scripts table names generate_threat_matrix.py --scope \"Name\" --output path.md, and Phase 2 rates Risk as Likelihood x Impact."
+      "rationale": "Scripts table names generate_threat_matrix.py --scope \"Name\" --output path.md, Phase 2.2 builds the Threat Matrix with Likelihood, Impact, and Risk columns, and Phase 3.1 rates Risk = Likelihood x Impact."
     },
     {
       "id": "S3",

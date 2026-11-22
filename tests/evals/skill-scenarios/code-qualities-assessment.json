@@ -44,15 +44,15 @@
     },
     {
       "id": "S4",
-      "desc": "Full pre-merge review request (negative)",
-      "input": "Run a full pre-merge review of my branch: spec compliance, security, docs and test coverage, and give me a merge verdict. Answer in 5 short bullets. Do not modify any files.",
+      "desc": "Run risk-scoped pre-merge review on a docs-only branch (negative)",
+      "input": "Run a pre-merge review of my docs-only PR that edits README.md and docs/getting-started.md, checking spec compliance and documentation accuracy for a merge verdict. Answer in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "--gate-mode regression",
         "regression-tolerance",
-        "--base origin/main"
+        "non-redundancy"
       ],
       "expected_gate": "skip-rule-not-applicable",
-      "rationale": "The description says Do NOT use for a full pre-merge review (use review). code-qualities-assessment is one of review's four local quality axes, not the review itself."
+      "rationale": "The description says Do NOT use for a full pre-merge review (use review), and on a docs-only PR risk-scoped review skips code-qualities-assessment because no source files changed."
     },
     {
       "id": "S5",
@@ -61,7 +61,7 @@
       "expected_signals": [
         "--gate-mode regression",
         "regression-tolerance",
-        "--base origin/main"
+        "non-redundancy"
       ],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "The description says Do NOT use for repo-wide domain grading (use quality-grades). This skill scores maintainability of specific code, not domains."

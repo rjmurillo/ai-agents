@@ -43,9 +43,9 @@
       "desc": "Reading a pasted github.com URL is not this skill (negative)",
       "input": "Here is a link: https://github.com/example/repo/issues/12 . Read it and summarize what it says. Answer in 5 short bullets. Do not modify any files.",
       "expected_signals": [
-        "detect_stale_bot_review",
-        "expected-head-sha",
-        "triage_red_check"
+        "get_issue_context.py",
+        "check_github_transport.py",
+        "adr-051"
       ],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "The description says 'Do NOT use to read a pasted github.com URL (use github-url-intercept)'. This is the adjacent near-miss."
