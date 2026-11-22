@@ -1,0 +1,84 @@
+{
+  "rule_path": ".claude/rules/plugin-version-bump.md",
+  "rule_id": "plugin-version-bump",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Stale instruction to bump plugin manifests",
+      "input": "I changed a skill under src/claude/skills/ and an older checklist says to bump version in src/claude/.claude-plugin/plugin.json and src/copilot-cli/.claude-plugin/plugin.json. Which versions do I set? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "no version",
+        "commit sha",
+        "adr-092",
+        "validate_plugin_version_bump",
+        "stale"
+      ],
+      "expected_gate": "do-not-add-manifest-version",
+      "rationale": "Plugin manifests carry no version; a PR must never add one back. Claude Code then resolves freshness from the commit SHA. 'If instructions say to bump, they are stale'; adding or raising version fails validate_plugin_version_bump.py. See ADR-092."
+    },
+    {
+      "id": "S2",
+      "desc": "Rebase conflict on the version line",
+      "input": "Rebasing an old branch onto main, git reports CONFLICT (content) in src/claude/.claude-plugin/plugin.json on the version line, and the incoming side is empty. How do I resolve it? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "empty side",
+        "take the empty",
+        "version line",
+        "gate"
+      ],
+      "expected_gate": "take-empty-side-on-version-conflict",
+      "rationale": "What a PR does now: on an older branch with a bump hunk the conflict happens exactly once with the incoming side empty. Take the empty side; keeping the line fails the gate before merge."
+    },
+    {
+      "id": "S3",
+      "desc": "Verifying the manifests are version-free",
+      "input": "I edited src/claude/.claude-plugin/plugin.json to fix the description. How do I confirm no version field is present, and why might the check still pass or fail unexpectedly right after my edit? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "validate_plugin_version_bump.py",
+        "plugin-version-bump: ok",
+        "git ref",
+        "commit before"
+      ],
+      "expected_gate": "run-version-bump-validator-after-commit",
+      "rationale": "Checking: run build/scripts/validate_plugin_version_bump.py, which prints plugin-version-bump: OK and exits 0. It reads manifests from a git ref, not the working tree, so commit before re-running."
+    },
+    {
+      "id": "S4",
+      "desc": "Version added to a marketplace entry",
+      "input": "I am editing .github/plugin/marketplace.json to add a version field to the project-toolkit entry so users see releases. Is that allowed? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "version-free",
+        "test_validate_plugin_version_bump",
+        "marketplace",
+        "4080",
+        "commit sha"
+      ],
+      "expected_gate": "keep-marketplace-version-free",
+      "rationale": "Each marketplace.json under .claude-plugin/, .github/plugin/, and .grok-plugin/ must stay version-free, and tests/build_scripts/test_validate_plugin_version_bump.py fails if a version appears. Issue #4080 measured 14 of 22 PRs conflicting only on the version line."
+    },
+    {
+      "id": "S5",
+      "desc": "Bumping a package version elsewhere (negative)",
+      "input": "I am releasing the CLI and need to raise the version in packages/ai-agents-cli/package.json. The plugin trees are untouched. Outline the bump. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "adr-092",
+        "validate_plugin_version_bump",
+        "version-free"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "Stale-instructions section: other files may still carry a valid version, for example packages/ai-agents-cli/package.json. The no-version rule covers only the three plugin manifests and the marketplace.json files."
+    },
+    {
+      "id": "S6",
+      "desc": "Docs-only change to install guide (negative)",
+      "input": "I am rewording the install steps in docs/install.md to mention the marketplace add command. No plugin or manifest file changes. Outline the edit. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "adr-092",
+        "validate_plugin_version_bump",
+        "version-free"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The rule scopes to .claude/**, src/copilot-cli/**, and src/claude/**. A docs/ edit touches no manifest, so there is nothing to bump or avoid."
+    }
+  ]
+}

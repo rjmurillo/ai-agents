@@ -115,25 +115,25 @@ def test_borda_label_with_no_votes_gets_sentinel():
 
 
 def test_copilot_model_recognition():
-    for model in ("claude-opus-5.5", "gpt-6-astra", "gpt-6-sol", "claude-sonnet-5"):
+    for model in ("claude-opus-5.5", "gpt-6.2-astra", "gpt-6.2-sol", "grok-4.7"):
         assert core.is_copilot_model(model)
     for model in ("openai/gpt-4.1", "meta/llama-3.3-70b-instruct", "deepseek/deepseek-v3-0324"):
         assert not core.is_copilot_model(model)
 
 
-def test_task_shaped_frontier_defaults_are_unchanged():
-    expected = {"claude-opus-5.5", "gpt-6-astra", "gpt-6-sol", "claude-sonnet-5"}
+def test_task_shaped_frontier_defaults():
+    expected = {"claude-opus-5.5", "gpt-6.2-astra", "gpt-6.2-sol", "grok-4.7"}
     for mode, models in core.COUNCILS_BY_MODE.items():
         assert set(models) == expected, mode
         assert len(models) == 4, mode
-    assert core.CHAIRMEN_BY_MODE["general"] == "gpt-6-astra"
+    assert core.CHAIRMEN_BY_MODE["general"] == "gpt-6.2-astra"
     assert core.CHAIRMEN_BY_MODE["research"] == "claude-opus-5.5"
 
 
 @pytest.mark.parametrize(
     ("mode", "models", "cheap", "chairman", "expected"),
     [
-        ("plan", None, False, None, (core.COUNCILS_BY_MODE["plan"], "gpt-6-astra")),
+        ("plan", None, False, None, (core.COUNCILS_BY_MODE["plan"], "gpt-6.2-astra")),
         ("review", None, False, None, (core.COUNCILS_BY_MODE["review"], "claude-opus-5.5")),
         ("general", None, True, None, (core.CHEAP_COUNCIL, core.CHEAP_CHAIRMAN)),
         ("general", " a, b ,", False, "c", (["a", "b"], "c")),

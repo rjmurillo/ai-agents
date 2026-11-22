@@ -3,9 +3,18 @@
 > Maintained by hand. The auto-retrospective Stop hook that once appended rows
 > (Issue #1703) was deleted in #3349, so nothing writes here automatically.
 >
-> This index is a curated subset, not a census: it lists 11 of the 140 files in
-> this directory. Do not read an absent retrospective as an absent incident. To
-> search the whole corpus, use `grep -rli "<term>" .project-toolkit/retrospective/`.
+> This index is a curated subset, not a census: it lists a small share of the
+> retrospectives in this directory. Do not read an absent retrospective as an
+> absent incident. To search the whole corpus, use
+> `grep -rli "<term>" .project-toolkit/retrospective/`.
+>
+> This note names no counts on purpose, because hand-typed counts go stale. For
+> current numbers, run
+> `python3 .claude/skills/ai-agents-failure-archaeology/scripts/corpus_index.py`.
+> Its `retro_files` field counts the retrospectives, excluding this index, and
+> `retro_index_covered` counts the ones this index names. The script exits 1
+> while any retrospective is missing from this index. That is the normal state
+> for a curated subset, and the JSON it prints is still complete.
 
 | Date | File | Summary |
 |------|------|---------|
