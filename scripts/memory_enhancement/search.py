@@ -277,7 +277,7 @@ def _search_with_ripgrep(
     if not terms:
         return None
 
-    cmd: list[str] = [rg_path, "-il", "--no-ignore", "--glob", "*.md"]
+    cmd: list[str] = [rg_path, "-il", "--no-config", "--no-ignore", "--glob", "*.md"]
     for term in terms:
         cmd.extend(["-e", term])
     cmd.extend(["--", str(memories_dir)])

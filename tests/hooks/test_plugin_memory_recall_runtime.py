@@ -236,6 +236,41 @@ def test_registered_command_runs_without_the_advisory_flag(harness: Harness) -> 
     assert "--advisory" not in harness.command
 
 
+@pytest.mark.parametrize("path_entry", ["empty", "relative", "checkout", "symlink"])
+def test_registered_command_skips_checkout_interpreters(
+    harness: Harness, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, path_entry: str
+) -> None:
+    cwd = harness.consumer / "src" / "app"
+    tools = harness.consumer / "tools"
+    tools.mkdir()
+    interpreter = (cwd if path_entry == "empty" else tools) / "python3"
+    interpreter.write_text(
+        "#!/bin/sh\nprintf 'unexpected interpreter' > \"$PROBE_MARKER\"\n", encoding="utf-8"
+    )
+    interpreter.chmod(0o755)
+    marker = tmp_path / "interpreter-probed"
+    env = harness.env()
+    env["PROBE_MARKER"] = str(marker)
+    env["CLAUDE_PROJECT_DIR"] = str(cwd)
+    entry = {"empty": "", "relative": "../../tools", "checkout": str(tools)}
+    if path_entry == "symlink":
+        external = tmp_path / "external-tools"
+        external.mkdir()
+        try:
+            (external / interpreter.name).symlink_to(os.path.relpath(interpreter, start=external))
+        except OSError as exc:
+            pytest.skip(f"symlinks unavailable: {exc}")
+        entry["symlink"] = str(external)
+    env["PATH"] = os.pathsep.join([entry[path_entry], env["PATH"]])
+    monkeypatch.setattr(harness, "env", lambda: env)
+
+    result = harness.run()
+
+    assert result.returncode == 0, result.stderr
+    assert not marker.exists()
+    assert "<memory-context>" in result.stdout
+
+
 def test_prompt_naming_no_memory_injects_nothing(harness: Harness) -> None:
     result = harness.run(prompt="quokka telemetry exporter")
 

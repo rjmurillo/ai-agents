@@ -86,6 +86,7 @@ class TestSearchWithRipgrep:
         mock_run.return_value = MagicMock(returncode=0, stdout=f"{f1}\n")
         result = _search_with_ripgrep("test", tmp_path)
         assert result == [f1]
+        assert "--no-config" in mock_run.call_args.args[0]
 
     @pytest.mark.unit
     @patch("memory_enhancement.search.subprocess.run")
