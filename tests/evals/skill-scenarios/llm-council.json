@@ -19,7 +19,7 @@
     {
       "id": "S2",
       "desc": "A council member is missing from the harness",
-      "input": "orchestrator_capabilities has no GPT-6 Astra in this session. Should I use Gemini instead for the council? Answer in 3 short bullets. Do not run anything.",
+      "input": "orchestrator_capabilities has no GPT-6.2 Astra in this session. Should I use Gemini instead for the council? Answer in 3 short bullets. Do not run anything.",
       "expected_signals": [
         "report",
         "do not substitute",
