@@ -547,14 +547,15 @@ def _subset_finding(
     clause: str,
     sites: list[Site],
 ) -> list[dict[str, object]]:
-    if not named or set(named) >= members:
+    named_members = set(named)
+    if len(named_members) < 2 or named_members >= members:
         return []
     scored = sorted(((len(_stems(clause) & site[2]), site) for site in sites), key=lambda s: -s[0])
     best = scored[0] if scored else (0, ("", 0, set()))
     if best[0] < 2 or (len(scored) > 1 and scored[1][0] == best[0]):
         return []
     function, line, _ = best[1]
-    missing = sorted(members - set(named))
+    missing = sorted(members - named_members)
     evidence = {"named": named, "missing": missing, "clause": clause, "raise_in": function}
     return [
         make_finding(
