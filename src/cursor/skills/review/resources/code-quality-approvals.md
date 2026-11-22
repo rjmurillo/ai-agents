@@ -1,5 +1,9 @@
 # Exact code-quality review approvals
 
+<!-- vendor-portability: scripts/validation/check_code_quality_review_approval.py
+     lives in the pinned integration commit of the ai-agents repository.
+     Other repositories use the ordinary review procedure. -->
+
 This procedure applies to the ai-agents repository and its main branch.
 It keeps the raw assessor output and uses one trusted run for review.
 Use it only for an owner-approved exit 10 with comparable regressions.
@@ -29,7 +33,7 @@ The assessor compares scores against the merge base of those pins.
 Set `QUALITY_PYTHON` to the interpreter from a trusted integration environment.
 Choose an absolute scratch path for `QUALITY_ASSESSMENT`.
 Use those pinned SHAs as `quality_base` and `quality_head`.
-Extract the verifier from the pinned integration commit.
+Extract `scripts/validation/check_code_quality_review_approval.py` from the pinned integration commit.
 
 ```sh
 quality_verifier=$(mktemp)
@@ -39,8 +43,10 @@ git --no-replace-objects show "$quality_base:scripts/validation/check_code_quali
 ```
 
 The inventory includes both commits, the reported regressions, and an approval digest.
-Prepare the inventory and evidence for every row locally.
-Justify each row before requesting approval.
+Prepare the inventory and justify every regression locally.
+Before requesting approval, record the inventory and evidence in the tracking issue.
+Publish only with user authorization.
+Otherwise, have the owner record the evidence and supply the links.
 Keep the axis blocking when any regression lacks justification.
 The owner approves the inventory by posting a new comment with exactly this body.
 
@@ -55,7 +61,9 @@ The verifier uses committed files and the trusted assessor configuration.
 It checks the owner comment from the canonical GitHub repository.
 An edited comment, unavailable API, or revision mismatch blocks approval.
 
-Use the assessment file, `raw_exit`, and standard error as the raw evidence.
+Use `raw_exit`, `QUALITY_ASSESSMENT`, and its `.stderr` companion as raw evidence.
+The verifier appends `.stderr` to the assessment path.
+Process stderr carries verifier diagnostics.
 An approval denial preserves raw exit 10 or 11 as FAIL.
 Missing raw evidence leaves the axis UNKNOWN and prevents a marker.
 Do not use output from a separate run as the approved assessment.

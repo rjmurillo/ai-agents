@@ -251,7 +251,8 @@ def main(argv: list[str] | None = None) -> int:
             assessment_sha256=hashlib.sha256(assessment.stdout).hexdigest(),
             stderr_sha256=hashlib.sha256(assessment.stderr).hexdigest(),
         )
-        sys.stderr.buffer.write(assessment.stderr)
+        stderr_path = args.assessment.with_suffix(f"{args.assessment.suffix}.stderr")
+        stderr_path.write_bytes(assessment.stderr)
         args.assessment.write_bytes(assessment.stdout)
         inventory = _inventory(args.base, args.head, assessment)
         digest = hashlib.sha256(

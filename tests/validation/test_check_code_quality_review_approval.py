@@ -104,7 +104,9 @@ def test_trusted_approval_keeps_raw_scores_and_reports_warn(repo, capsys, monkey
     output = capsys.readouterr()
     report = json.loads(output.out)
     assert report["verdict"] == "WARN"
-    assert report["stderr_sha256"] == hashlib.sha256(output.err.encode()).hexdigest()
+    assert not output.err
+    raw_stderr = (repo.parent / "raw.json.stderr").read_bytes()
+    assert report["stderr_sha256"] == hashlib.sha256(raw_stderr).hexdigest()
     assert report["regressions"] == inventory["regressions"]
     assert report["reviewed_sha"] == _git(repo, "rev-parse", "HEAD")
     raw_bytes = (repo.parent / "raw.json").read_bytes()
@@ -131,7 +133,12 @@ def test_unverified_comment_leaves_failure(repo, capsys, monkeypatch, key, value
     assert _verify(repo) == 1
     output = capsys.readouterr()
     assert "no matching approval" in output.err
-    assert json.loads(output.out)["raw_exit"] == 10
+    report = json.loads(output.out)
+    assert report["raw_exit"] == 10
+    raw_stderr = (repo.parent / "raw.json.stderr").read_bytes()
+    assert b"coupling regressed" in raw_stderr
+    assert b"no matching approval" not in raw_stderr
+    assert report["stderr_sha256"] == hashlib.sha256(raw_stderr).hexdigest()
 
 
 def test_source_change_invalidates_approval_even_with_same_scores(repo, capsys, monkeypatch):
@@ -250,7 +257,7 @@ def test_unwritable_assessment_path_keeps_raw_exit_and_stderr(repo, capsys):
 
     output = capsys.readouterr()
     assert json.loads(output.out)["raw_exit"] == 10
-    assert "coupling regressed" in output.err
+    assert b"coupling regressed" in (repo.parent / "raw.json.stderr").read_bytes()
 
 
 def test_evidence_loss_blocks_otherwise_comparable_regression(repo, capsys):
