@@ -79,6 +79,7 @@ Create the report directory only after the startup gate and scope choices.
 | `audit_batches.py` | `assign` immutable review batches from `inventory.json`; `import` one batch of score rows into an accepted file. |
 | `public_export.py` | Write an aggregate-only summary of `report.json` that is safe to share. |
 | `warp_decoder.py` | Imported Warp protobuf decoder, not a standalone CLI. |
+| `session_muse.py` | Muse session journal adapter, not a standalone CLI. |
 
 Every CLI accepts `--help`.
 Exit 0 means success, 1 means failure (for `audit_scores.py`, `audit_manifest.py`, `audit_batches.py`, `public_export.py`, and `render_report.py`: invalid input, an unsupported claim, or a private value in an export; nothing is written), and 2 means invalid CLI arguments or an unreadable file.

@@ -29,6 +29,7 @@ Unencodable diagnostic characters are escaped when a legacy output encoding requ
 | ZCode | `zcode` | ZCode model-io rollout (`~/.zcode/cli/rollout`) |
 | Hermes | `hermes` | Hermes Agent state.db (SQLite: `sessions` + `messages`) |
 | Factory Droid | `droid` | Droid session JSONL (`~/.factory/sessions/<encoded-cwd>/<id>.jsonl`) |
+| Muse | `muse` | Muse session JSONL (`~/.local/share/muse/sessions/YYYY/MM/DD/<id>/session.jsonl`) |
 
 Known but unsupported, with no collector:
 
@@ -63,6 +64,7 @@ Harness-specific source overrides:
 - `--zcode-home PATH` - nonstandard ZCode home (default `~/.zcode`).
 - `--factory-home PATH` - nonstandard Factory Droid home containing `sessions` (default `~/.factory`).
 - `--hermes-home PATH` - Hermes Agent home containing `state.db` (default discovery checks `HERMES_HOME`, `~/.hermes`, then `~`).
+- `--muse-home PATH` - Muse data home containing `sessions` (default `MUSE_HOME`, then `~/.local/share/muse`).
 
 ## Skill locations
 
@@ -81,6 +83,9 @@ The collector's `discover_skills` function defines the exact search roots.
 
 Copilot also scans `<copilot-home>/skills` and
 `<copilot-home>/installed-plugins/*/*/skills` when global discovery is enabled.
+
+Muse also scans `<muse-home>/skills` and
+`<muse-home>/plugins/cache/*/*/*/package/skills` when global discovery is enabled.
 
 Identical definitions share one content fingerprint and keep every path as an alias.
 Different same-name definitions all stay discoverable and count toward usage and coverage.
@@ -127,3 +132,23 @@ Storage verified against Copilot CLI 1.0.108-1 on 2026-11-09.
 Event field shapes were checked against this CLI's local journal.
 These journal fields are version-sensitive, not a promised stable API.
 These are CLI journals, not GitHub cloud coding-agent logs.
+
+## Muse event handling
+
+The Muse journal is event-sourced. Each `session.jsonl` line carries a
+`payload_type` and `payload`; the first line can wrap child records as JSON
+strings under `children[].record_json`. The collector reads
+`runtime.session.metadata` and `runtime.session.route_facts` for the workspace,
+`runtime.user_intent.accepted` for user prompts, and
+`tool_batch.effect.started` / `tool_batch.effect.terminal` for tool names and
+outcomes. Timestamps are epoch microseconds in `recorded_at`.
+
+Some records are marked omitted in the journal and never reach the collector.
+The journal does not retain assistant prose, tool arguments, or tool output
+text. Muse transcripts therefore contain user prompts and tool names only,
+`assistant_turns` counts distinct tool-batch runs, and a session with no tool
+calls is not scoreable. Skill invocations name no skill in the journal, so
+Muse sessions report no detected skill usage.
+
+Storage verified against Muse 1.4.25 on 2026-11-22.
+These journal fields are version-sensitive, not a promised stable API.

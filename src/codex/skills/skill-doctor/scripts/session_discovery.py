@@ -52,6 +52,7 @@ def _skill_roots(
     include_global: bool,
     homes: tuple[Path | None, ...],
     copilot_home: Path | None,
+    muse_home: Path | None = None,
 ) -> list[Path]:
     if isinstance(repos, Path):
         repos = [repos]
@@ -62,6 +63,9 @@ def _skill_roots(
         if copilot_home is not None:
             roots.append(copilot_home / "skills")
             roots.extend(sorted((copilot_home / "installed-plugins").glob("*/*/skills")))
+        if muse_home is not None:
+            roots.append(muse_home / "skills")
+            roots.extend(sorted((muse_home / "plugins" / "cache").glob("*/*/*/package/skills")))
     roots.extend(Path(directory).expanduser() for directory in extra_dirs)
     return roots
 
@@ -97,6 +101,7 @@ def discover_skills(
     copilot_home: Path | None = None,
     claude_home: Path | None = None,
     factory_home: Path | None = None,
+    muse_home: Path | None = None,
 ) -> dict[str, Any]:
     roots = _skill_roots(
         repos,
@@ -112,6 +117,7 @@ def discover_skills(
             factory_home,
         ),
         copilot_home,
+        muse_home,
     )
     skills: dict[str, dict[str, Any]] = {}
     for root in roots:
@@ -191,6 +197,10 @@ def find_droid_session_files(factory_home: Path, cutoff: datetime) -> Any:
 
 def find_zcode_session_files(zcode_home: Path, cutoff: datetime) -> Any:
     return _recent_files((zcode_home / "cli" / "rollout").glob("model-io-*.jsonl"), cutoff)
+
+
+def find_muse_session_files(muse_home: Path, cutoff: datetime) -> Any:
+    return _recent_files((muse_home / "sessions").glob("*/*/*/*/session.jsonl"), cutoff)
 
 
 def warp_data_roots(data_dir: Any, platform: str, os_name: str, environ: Any) -> list[Path]:
@@ -412,6 +422,7 @@ def _add_source_arguments(parser: argparse.ArgumentParser) -> None:
             "zcode",
             "hermes",
             "droid",
+            "muse",
         ),
         default="auto",
         help="session source (default: auto; scans every locally available source)",
@@ -441,6 +452,11 @@ def _add_source_arguments(parser: argparse.ArgumentParser) -> None:
         "--hermes-home",
         default=None,
         help="Hermes Agent home containing state.db (default: HERMES_HOME, ~/.hermes, then ~)",
+    )
+    parser.add_argument(
+        "--muse-home",
+        default=os.environ.get("MUSE_HOME", "~/.local/share/muse"),
+        help="Muse data home containing sessions (default: MUSE_HOME or ~/.local/share/muse)",
     )
     parser.add_argument(
         "--warp-db", action="append", default=[], help="explicit Warp warp.sqlite path (repeatable)"

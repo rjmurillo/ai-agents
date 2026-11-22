@@ -2,8 +2,9 @@
 """Collect local agent sessions and skills for scoring, including Copilot CLI.
 
 Scans Claude Code project history, Codex rollout files, Warp's local conversation databases,
-Pi agent session JSONL, Grok Build chat history, ZCode model-io rollouts, and/or Factory Droid
-sessions, discovers installed skills, detects which sessions used which skills, and emits:
+Pi agent session JSONL, Grok Build chat history, ZCode model-io rollouts, Factory Droid
+sessions, and/or Muse session journals, discovers installed skills, detects which
+sessions used which skills, and emits:
 
   <out>/inventory.json        - skills, per-session stats, sampling decisions
   <out>/transcripts/<id>.md   - condensed transcripts for sampled sessions
@@ -81,6 +82,7 @@ from session_discovery import (
     find_copilot_session_files,
     find_droid_session_files,
     find_grok_session_files,
+    find_muse_session_files,
     find_pi_session_files,
     find_zcode_session_files,
     infer_session_repos,
@@ -103,6 +105,7 @@ from session_json import (
     parse_pi_session,
     parse_zcode_session,
 )
+from session_muse import parse_muse_session
 from session_sampling import apply_strata, sample_sessions
 
 __all__ = [
@@ -129,6 +132,7 @@ __all__ = [
     "find_copilot_session_files",
     "find_grok_session_files",
     "find_hermes_sessions",
+    "find_muse_session_files",
     "find_pi_session_files",
     "find_warp_conversations",
     "find_zcode_session_files",
@@ -146,6 +150,7 @@ __all__ = [
     "parse_epoch_timestamp",
     "parse_grok_session",
     "parse_hermes_session",
+    "parse_muse_session",
     "parse_pi_session",
     "parse_sqlite_timestamp",
     "parse_warp_conversation",
@@ -324,6 +329,13 @@ def _collect(collection: Collection, homes: Any, cutoff: datetime) -> None:
             "ZCode model-io rollouts not found at",
         ),
         ("droid", "sessions", find_droid_session_files, parse_droid_session, "Droid not found at"),
+        (
+            "muse",
+            "sessions",
+            find_muse_session_files,
+            parse_muse_session,
+            "Muse session history not found at",
+        ),
     )
     for name, subdir, finder, parser, message in specs:
         if name == "pi":
@@ -347,6 +359,7 @@ def _discover(args: Any, repos: Any, homes: Any) -> Any:
         copilot_home=homes["copilot"],
         claude_home=homes["claude"],
         factory_home=homes["droid"],
+        muse_home=homes["muse"],
     )
 
 
@@ -457,7 +470,7 @@ def _run() -> None:
         sys.exit(2)
     homes = {
         name: Path(getattr(args, f"{name}_home")).expanduser()
-        for name in ("claude", "codex", "copilot", "pi", "grok", "zcode")
+        for name in ("claude", "codex", "copilot", "pi", "grok", "zcode", "muse")
     }
     homes["droid"] = Path(args.factory_home).expanduser()
     homes["hermes"] = resolve_hermes_home(args.hermes_home)
@@ -469,7 +482,7 @@ def _run() -> None:
     if not collection.sources:
         _fatal(
             "no supported session source found "
-            "(Copilot, Claude Code, Codex, Warp, Pi, Grok, ZCode, Droid, or Hermes)"
+            "(Copilot, Claude Code, Codex, Warp, Pi, Grok, ZCode, Droid, Hermes, or Muse)"
         )
     if args.all_conversations:
         collection.repos = infer_session_repos(collection.sessions)
