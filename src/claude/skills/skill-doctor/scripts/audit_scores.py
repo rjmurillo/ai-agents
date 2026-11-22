@@ -47,6 +47,12 @@ QUALITY_LIMIT_NOTE = (
 )
 LIMIT_NOTES = {
     "code_quality": QUALITY_LIMIT_NOTE,
+    "efficiency": (
+        "No applicable efficiency evidence; raw 0.5 is a neutral fallback, not a measured result."
+    ),
+    "procedure_compliance": (
+        "No applicable procedure evidence; raw 0.5 is a neutral fallback, not a measured result."
+    ),
     "verbosity": (
         "No applicable verbosity evidence; raw 0.5 is a neutral fallback, not a measured result."
     ),
