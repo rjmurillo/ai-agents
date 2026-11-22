@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path, PureWindowsPath
 from typing import Any
 
-from session_common import record_collection_issue
+from session_common import _recent_files, record_collection_issue
 
 CLAUDE_DIRECTORY = ".claude"
 PROJECT_HARNESS_DIRS = (CLAUDE_DIRECTORY, ".codex", ".github", ".factory")
@@ -64,8 +64,8 @@ def _skill_roots(
             roots.append(copilot_home / "skills")
             roots.extend(sorted((copilot_home / "installed-plugins").glob("*/*/skills")))
         if muse_home is not None:
-            roots.append(muse_home / "skills")
-            roots.extend(sorted((muse_home / "plugins" / "cache").glob("*/*/*/package/skills")))
+            cache = muse_home / "plugins" / "cache"
+            roots.extend([muse_home / "skills", *sorted(cache.glob("*/*/*/package/skills"))])
     roots.extend(Path(directory).expanduser() for directory in extra_dirs)
     return roots
 
@@ -149,18 +149,6 @@ def _add_definition(skills: dict[str, dict[str, Any]], metadata: dict[str, Any])
         definition["paths"].append(metadata["path"])
 
 
-def _recent_files(paths: Any, cutoff: datetime) -> list[tuple[datetime, Path]]:
-    files = []
-    for path in paths:
-        try:
-            mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
-        except OSError:
-            continue
-        if mtime >= cutoff:
-            files.append((mtime, path))
-    return sorted(files, key=lambda item: item[0], reverse=True)
-
-
 def find_codex_session_files(codex_home: Path, cutoff: datetime) -> Any:
     paths = (
         path
@@ -197,10 +185,6 @@ def find_droid_session_files(factory_home: Path, cutoff: datetime) -> Any:
 
 def find_zcode_session_files(zcode_home: Path, cutoff: datetime) -> Any:
     return _recent_files((zcode_home / "cli" / "rollout").glob("model-io-*.jsonl"), cutoff)
-
-
-def find_muse_session_files(muse_home: Path, cutoff: datetime) -> Any:
-    return _recent_files((muse_home / "sessions").glob("*/*/*/*/session.jsonl"), cutoff)
 
 
 def warp_data_roots(data_dir: Any, platform: str, os_name: str, environ: Any) -> list[Path]:
@@ -456,7 +440,7 @@ def _add_source_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--muse-home",
         default=os.environ.get("MUSE_HOME", "~/.local/share/muse"),
-        help="Muse data home containing sessions (default: MUSE_HOME or ~/.local/share/muse)",
+        help="Muse data home containing sessions",
     )
     parser.add_argument(
         "--warp-db", action="append", default=[], help="explicit Warp warp.sqlite path (repeatable)"

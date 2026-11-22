@@ -21,7 +21,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from session_common import GENERIC_EDIT_TOOLS, SessionState, iter_jsonl_records
+from session_common import GENERIC_EDIT_TOOLS, SessionState, _recent_files, iter_jsonl_records
+
+
+def find_muse_session_files(muse_home: Path, cutoff: datetime) -> Any:
+    return _recent_files((muse_home / "sessions").glob("*/*/*/*/session.jsonl"), cutoff)
 
 
 def _muse_timestamp(value: Any) -> str | None:
@@ -75,6 +79,36 @@ def _record_cwd(payload: Any) -> Any:
     return record.get("workspace_root") or record.get("cwd")
 
 
+def _muse_event(
+    state: SessionState, meta: dict[str, Any], kind: Any, payload: Any, runs: set[Any]
+) -> None:
+    if kind in (
+        "runtime.session.metadata",
+        "runtime.session.route_facts",
+        "session.workspace_branch.observed",
+    ):
+        meta["cwd"] = meta["cwd"] or _record_cwd(payload)
+        record = payload.get("record") or {}
+        build = record.get("build") or {}
+        if isinstance(build, dict) and build.get("semver"):
+            meta["cli_version"] = meta.get("cli_version") or build["semver"]
+    elif kind == "runtime.user_intent.accepted":
+        if state.text("user", _intent_text(payload)):
+            state.stats["user_turns"] += 1
+    elif kind == "tool_batch.effect.started":
+        record = payload.get("record") or {}
+        if payload.get("run_id") is not None:
+            runs.add(payload["run_id"])
+        name = str(record.get("tool_name") or "unknown")
+        state.tool(name, f"call_id {record.get('call_id') or ''}".strip())
+    elif kind == "tool_batch.effect.terminal":
+        record = payload.get("record") or {}
+        outcome = record.get("outcome") or {}
+        failed = isinstance(outcome, dict) and outcome.get("kind") == "failed"
+        label = outcome.get("kind") if isinstance(outcome, dict) else "unknown"
+        state.output(f"tool outcome: {label}", failed)
+
+
 def parse_muse_session(path: Path, _skill_names: Any, _include_subagents: bool) -> Any:
     try:
         records = list(_muse_records(path))
@@ -90,40 +124,10 @@ def parse_muse_session(path: Path, _skill_names: Any, _include_subagents: bool) 
     }
     runs: set[Any] = set()
     for obj in records:
-        ts = _muse_timestamp(obj.get("recorded_at"))
-        state.timestamp(ts)
+        state.timestamp(_muse_timestamp(obj.get("recorded_at")))
         payload = obj.get("payload")
-        if not isinstance(payload, dict):
-            continue
-        kind = obj.get("payload_type")
-        if kind in (
-            "runtime.session.metadata",
-            "runtime.session.route_facts",
-            "session.workspace_branch.observed",
-        ):
-            meta["cwd"] = meta["cwd"] or _record_cwd(payload)
-            record = payload.get("record") or {}
-            build = record.get("build") or {}
-            if isinstance(build, dict) and build.get("semver"):
-                meta["cli_version"] = meta.get("cli_version") or build["semver"]
-        elif kind == "runtime.user_intent.accepted":
-            if state.text("user", _intent_text(payload)):
-                state.stats["user_turns"] += 1
-        elif kind == "tool_batch.effect.started":
-            record = payload.get("record") or {}
-            run_id = payload.get("run_id")
-            if run_id is not None:
-                runs.add(run_id)
-            name = str(record.get("tool_name") or "unknown")
-            state.tool(name, f"call_id {record.get('call_id') or ''}".strip())
-        elif kind == "tool_batch.effect.terminal":
-            record = payload.get("record") or {}
-            outcome = record.get("outcome") or {}
-            failed = isinstance(outcome, dict) and outcome.get("kind") == "failed"
-            state.output(
-                f"tool outcome: {outcome.get('kind') if isinstance(outcome, dict) else 'unknown'}",
-                failed,
-            )
+        if isinstance(payload, dict):
+            _muse_event(state, meta, obj.get("payload_type"), payload, runs)
     state.stats["assistant_turns"] = len(runs)
     meta["started_at"] = state.first_ts
     result = state.finish(meta, GENERIC_EDIT_TOOLS)

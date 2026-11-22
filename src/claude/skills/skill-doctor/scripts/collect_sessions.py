@@ -3,8 +3,7 @@
 
 Scans Claude Code project history, Codex rollout files, Warp's local conversation databases,
 Pi agent session JSONL, Grok Build chat history, ZCode model-io rollouts, Factory Droid
-sessions, and/or Muse session journals, discovers installed skills, detects which
-sessions used which skills, and emits:
+sessions, and/or Muse session journals, discovers installed skills, and emits:
 
   <out>/inventory.json        - skills, per-session stats, sampling decisions
   <out>/transcripts/<id>.md   - condensed transcripts for sampled sessions
@@ -82,7 +81,6 @@ from session_discovery import (
     find_copilot_session_files,
     find_droid_session_files,
     find_grok_session_files,
-    find_muse_session_files,
     find_pi_session_files,
     find_zcode_session_files,
     infer_session_repos,
@@ -105,7 +103,7 @@ from session_json import (
     parse_pi_session,
     parse_zcode_session,
 )
-from session_muse import parse_muse_session
+from session_muse import find_muse_session_files, parse_muse_session
 from session_sampling import apply_strata, sample_sessions
 
 __all__ = [
@@ -314,13 +312,7 @@ def _collect(collection: Collection, homes: Any, cutoff: datetime) -> None:
         ),
         ("codex", "", find_codex_session_files, parse_codex_session, "Codex home not found at"),
         ("pi", "sessions", find_pi_session_files, parse_pi_session, "Pi session home not found at"),
-        (
-            "grok",
-            "sessions",
-            find_grok_session_files,
-            parse_grok_session,
-            "Grok Build session home not found at",
-        ),
+        ("grok", "sessions", find_grok_session_files, parse_grok_session, "Grok home not found at"),
         (
             "zcode",
             "cli/rollout",
@@ -329,13 +321,7 @@ def _collect(collection: Collection, homes: Any, cutoff: datetime) -> None:
             "ZCode model-io rollouts not found at",
         ),
         ("droid", "sessions", find_droid_session_files, parse_droid_session, "Droid not found at"),
-        (
-            "muse",
-            "sessions",
-            find_muse_session_files,
-            parse_muse_session,
-            "Muse session history not found at",
-        ),
+        ("muse", "sessions", find_muse_session_files, parse_muse_session, "Muse not found at"),
     )
     for name, subdir, finder, parser, message in specs:
         if name == "pi":
