@@ -66,10 +66,12 @@ def _bare_venv_python_blocks(venv_python: Path, module: str) -> bool:
 class Harness:
     """One installed plugin, one consumer repository, one package-free interpreter."""
 
-    def __init__(self, base: Path, base_python: str | None = None) -> None:
+    def __init__(
+        self, base: Path, base_python: str | None = None, *, consumer_name: str = "consumer"
+    ) -> None:
         self._base_python = base_python
         self._plugin = base / "installed" / "project-toolkit"
-        self._consumer = base / "consumer"
+        self._consumer = base / consumer_name
         self._workdir = self._consumer / "src" / "app"
         self._home = base / "home"
         self._venv = base / "bare-venv"
@@ -236,10 +238,22 @@ def test_registered_command_runs_without_the_advisory_flag(harness: Harness) -> 
     assert "--advisory" not in harness.command
 
 
+def _forward_to_test_python(interpreter: Path) -> None:
+    interpreter.write_text(
+        '#!/bin/sh\nprintf "selected" > "$TRUSTED_PROBE_MARKER"\nexec "$TRUSTED_PYTHON" "$@"\n',
+        encoding="utf-8",
+    )
+    interpreter.chmod(0o755)
+
+
 @pytest.mark.parametrize("path_entry", ["empty", "relative", "checkout", "symlink"])
+@pytest.mark.parametrize("consumer_name", ["consumer", "consumer\n"])
 def test_registered_command_skips_checkout_interpreters(
-    harness: Harness, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, path_entry: str
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, path_entry: str, consumer_name: str
 ) -> None:
+    if os.name == "nt" and consumer_name.endswith("\n"):
+        pytest.skip("Windows filenames cannot contain a newline")
+    harness = Harness(tmp_path, consumer_name=consumer_name)
     cwd = harness.consumer / "src" / "app"
     tools = harness.consumer / "tools"
     tools.mkdir()
@@ -249,8 +263,14 @@ def test_registered_command_skips_checkout_interpreters(
     )
     interpreter.chmod(0o755)
     marker = tmp_path / "interpreter-probed"
+    trusted_marker = tmp_path / "trusted-interpreter-probed"
+    trusted_tools = tmp_path / "trusted-tools"
+    trusted_tools.mkdir()
+    _forward_to_test_python(trusted_tools / "python3")
     env = harness.env()
     env["PROBE_MARKER"] = str(marker)
+    env["TRUSTED_PROBE_MARKER"] = str(trusted_marker)
+    env["TRUSTED_PYTHON"] = str(harness.venv_python)
     env["CLAUDE_PROJECT_DIR"] = str(cwd)
     entry = {"empty": "", "relative": "../../tools", "checkout": str(tools)}
     if path_entry == "symlink":
@@ -261,13 +281,38 @@ def test_registered_command_skips_checkout_interpreters(
         except OSError as exc:
             pytest.skip(f"symlinks unavailable: {exc}")
         entry["symlink"] = str(external)
-    env["PATH"] = os.pathsep.join([entry[path_entry], env["PATH"]])
+    env["PATH"] = os.pathsep.join([entry[path_entry], str(trusted_tools), env["PATH"]])
     monkeypatch.setattr(harness, "env", lambda: env)
 
     result = harness.run()
 
     assert result.returncode == 0, result.stderr
     assert not marker.exists()
+    assert trusted_marker.read_text(encoding="utf-8") == "selected"
+    if not consumer_name.endswith("\n"):
+        assert "<memory-context>" in result.stdout
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows filenames cannot contain a newline")
+def test_registered_command_preserves_newline_in_external_symlink_target(
+    harness: Harness, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    marker = tmp_path / "external-interpreter-probed"
+    external = tmp_path / "trusted-tools"
+    external.mkdir()
+    interpreter = external / "interpreter\n"
+    _forward_to_test_python(interpreter)
+    (external / "python3").symlink_to(interpreter.name)
+    env = harness.env()
+    env["PATH"] = os.pathsep.join([str(external), env["PATH"]])
+    env["TRUSTED_PROBE_MARKER"] = str(marker)
+    env["TRUSTED_PYTHON"] = str(harness.venv_python)
+    monkeypatch.setattr(harness, "env", lambda: env)
+
+    result = harness.run()
+
+    assert result.returncode == 0, result.stderr
+    assert marker.read_text(encoding="utf-8") == "selected"
     assert "<memory-context>" in result.stdout
 
 
