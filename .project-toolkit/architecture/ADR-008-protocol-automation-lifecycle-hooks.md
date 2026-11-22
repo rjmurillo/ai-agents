@@ -266,11 +266,13 @@ Two alternatives were measured or weighed and rejected:
   numbered files, and only prompts that cite a number. The owner chose the
   guide alone.
 
-At `122d56c74` the guide costs 770 bytes in every Claude Code session in this
-repository, an estimated 190 tokens at four characters per token. The first
-entry set that cost to zero; this entry raises it from zero to 770 bytes,
-under a fifth of the 4,000-character injection the first entry removed. The
-hook ships to no Copilot or plugin consumer. No eval has measured whether it
+At `122d56c74` the guide costs 770 bytes per `SessionStart` event in Claude Code
+in this repository, an estimated 190 tokens at four characters per token.
+`SessionStart` can repeat within a session (for example, at startup and after
+compaction), so a session can pay that cost more than once. The first entry set
+that per-event cost to zero; this entry raises it from zero to 770 bytes per
+event, under a fifth of the 4,000-character injection the first entry removed.
+The hook ships to no Copilot or plugin consumer. No eval has measured whether it
 changes a session. #7471 names the signal that would: a counterfactual delta,
 the same scenario run with and without the guide.
 `tests/hooks/test_context_loader_no_injection.py` pins that the output is

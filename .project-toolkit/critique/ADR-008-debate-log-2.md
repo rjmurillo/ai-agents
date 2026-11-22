@@ -82,3 +82,15 @@ records 21 claims and the four `adr-generator` exit gates.
 - Noticed, outside this change: `.project-toolkit/retrospective/INDEX.md`
   line 6 says it lists "11 of the 140 files". The directory held 244 at
   `15c13340a` (2026-11-20).
+
+## Post-Consensus PR Review Correction (2026-11-22)
+
+- CodeRabbit (PR #7503, review on `1be21fc33`, P2): the second amendment stated
+  the guide cost as "770 bytes in every Claude Code session", but the hook
+  registers on `SessionStart` with no matcher (`.claude/settings.json`,
+  `dispatch_groups.json`) and emits on every `SessionStart` event without
+  filtering by trigger source. Because `SessionStart` can repeat within a
+  session (for example, at startup and after compaction), ADR-008 now states
+  the cost as 770 bytes (estimated 190 tokens) per `SessionStart` event and
+  notes that a session can pay that cost more than once. No behavioral or
+  decision change.
