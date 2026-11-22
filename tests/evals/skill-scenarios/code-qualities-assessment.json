@@ -49,7 +49,7 @@
       "expected_signals": [
         "--gate-mode regression",
         "regression-tolerance",
-        "non-redundancy"
+        ".qualityrc.json"
       ],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "The description says Do NOT use for a full pre-merge review (use review), and on a docs-only PR risk-scoped review skips code-qualities-assessment because no source files changed."
@@ -61,7 +61,7 @@
       "expected_signals": [
         "--gate-mode regression",
         "regression-tolerance",
-        "non-redundancy"
+        ".qualityrc.json"
       ],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "The description says Do NOT use for repo-wide domain grading (use quality-grades). This skill scores maintainability of specific code, not domains."

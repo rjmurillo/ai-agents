@@ -41,9 +41,9 @@
     {
       "id": "S4",
       "desc": "Reading a pasted github.com URL is not this skill (negative)",
-      "input": "Here is a link: https://github.com/example/repo/issues/12 . Read it and summarize what it says. Answer in 5 short bullets. Do not modify any files.",
+      "input": "Here is a link: https://github.com/example/repo/blob/main/README.md . Read it and summarize what it says. Answer in 5 short bullets. Do not modify any files.",
       "expected_signals": [
-        "get_issue_context.py",
+        "set_issue_relationship.py",
         "check_github_transport.py",
         "adr-051"
       ],
