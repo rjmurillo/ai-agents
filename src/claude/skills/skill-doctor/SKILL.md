@@ -24,7 +24,7 @@ Maintainers: read `references/upstream-sync.md` before reconciling upstream chan
 
 Grade the user's agent setup by scoring recent local agent conversations, then surface unevaluated improvement candidates with handoff prompts and render one shareable report page.
 
-The report can cover conversations in the current repository, conversations in selected projects, or all local conversations. It can evaluate project skills alone or project and global skills together.
+The report can cover conversations in the current repository, in selected projects, or all local conversations, and can evaluate project skills alone or with global skills.
 
 Collection and rendering run locally.
 Scoring uses the active agent's configured model provider.
@@ -33,9 +33,7 @@ Share only artifacts the user explicitly authorizes.
 
 ## Operating systems
 
-The collector and renderer support Linux, macOS, and Windows.
-They run on python3 and use only its standard library.
-Git enables automatic repository discovery.
+The collector and renderer support Linux, macOS, and Windows, run on python3 (standard library only), and use Git for automatic repository discovery.
 Use the Bash examples on Linux and macOS, or PowerShell examples on Windows.
 Use `python3` on POSIX and `python` on Windows.
 If Windows exposes only the Python launcher, substitute `py -3` for `python`.
@@ -80,6 +78,7 @@ Create the report directory only after the startup gate and scope choices.
 | `audit_batches.py` | `assign` immutable review batches from `inventory.json`; `import` one batch of score rows into an accepted file. |
 | `public_export.py` | Write an aggregate-only summary of `report.json` that is safe to share. |
 | `warp_decoder.py` | Imported Warp protobuf decoder, not a standalone CLI. |
+| `session_muse.py` | Muse journal adapter. |
 
 Every CLI accepts `--help`.
 Exit 0 means success, 1 means failure (for `audit_scores.py`, `audit_manifest.py`, `audit_batches.py`, `public_export.py`, and `render_report.py`: invalid input, an unsupported claim, or a private value in an export; nothing is written), and 2 means invalid CLI arguments or an unreadable file.
@@ -143,7 +142,7 @@ Build the collector arguments from the startup answers:
 
 - Current repository: `--repo "$REPO"`. The run adds the main checkout and registered worktrees from Git metadata.
 - Selected projects: repeat `--repo PATH` for every project.
-- Many checkouts of one repository: pass each authorized checkout as `--repo PATH`. The collector expands each Git common directory once and resolves each working directory once per run. Do not write a custom discovery or traversal script.
+- Many checkouts of one repository: pass each authorized checkout as `--repo PATH`. The collector expands each Git common directory once and resolves each working directory once per run. Do not write a custom discovery script.
 - All conversations: `--all-conversations`.
 - Project and global skills: add `--include-global-skills`.
 - Project skills only: do not add `--include-global-skills`.
@@ -185,7 +184,7 @@ Recommend creation only when a failed conversation demonstrates a capability gap
 
 #### Sampling disclosure
 
-Read `$SKILL_ROOT/references/collection.md` (Sampling disclosure) before you write the sampling part of the report. It holds the deterministic per-harness rule, the `inventory.json` fields to report for each harness, the wording to use when the cap prevented full harness coverage, and the skill-bootstrap seed handoff.
+Read `$SKILL_ROOT/references/collection.md` (Sampling disclosure) before you write the sampling part of the report. It holds the per-harness rule, the `inventory.json` fields to report per harness, the cap-coverage wording, and the skill-bootstrap seed handoff.
 
 When the run covered exactly one repository, you can pass the inventory to `skill-bootstrap` as a candidate seed under that handoff contract. In a bootstrap child run, return it to the caller instead of starting another run.
 
@@ -198,7 +197,7 @@ Scoring is based on efficiency, code quality, procedure compliance, and verbosit
 - `$SKILL_ROOT/scorers/procedure-compliance.md`
 - `$SKILL_ROOT/scorers/verbosity.md`
 
-Instructions: For each session in `inventory.json` with `sampled: true`, read its `transcript_path`. Ignore other files in `$REPORT_DIR/transcripts/`, which can be left over from an earlier run. Read each transcript and judge it against all four rubrics. For each scorer record: label, numeric score (from the rubric's label table), and a 1-3 sentence reason citing specifics from the transcript. Apply the code-quality scorer only where the transcript shows code changes; otherwise record `insufficient_evidence` and exclude that result from the code-quality average and failed-conversation filter.
+Instructions: For each session in `inventory.json` with `sampled: true`, read its `transcript_path`. Ignore other files in `$REPORT_DIR/transcripts/`, which can be left over from an earlier run. Read each transcript and judge it against all four rubrics. For each scorer record: label, numeric score (from the rubric's label table), and a 1-3 sentence reason citing specifics from the transcript. Where a transcript lacks the evidence a scorer needs (no code changes, no assistant prose, no rule or tool detail), record `insufficient_evidence` for that scorer and exclude it from its average and the failed-conversation filter.
 
 ### Step 3: Aggregate
 
@@ -208,12 +207,12 @@ Write every scored result to `$REPORT_DIR/scores.json` in the shape `$SKILL_ROOT
 python3 "$SKILL_ROOT/scripts/audit_scores.py" "$REPORT_DIR/scores.json" --out "$REPORT_DIR/score_artifact.json"
 ```
 
-Step 5 fills the `report.json` numbers; use the artifact's `failed_conversations` for findings. The reference also covers `pre_cutoff` on terminated sessions and batched reviews. The formulas below define what the script computes:
+Step 5 fills the `report.json` numbers from the artifact. The reference also covers `pre_cutoff` and batched reviews. The formulas below define what the script computes:
 
-- `raw_efficiency` = mean of efficiency scores across all scored sessions.
+- `raw_efficiency` = mean of efficiency scores, excluding `insufficient_evidence` (0.5 if none, noted in findings).
 - `raw_code_quality` = mean of code-quality scores, excluding `insufficient_evidence`. If no session had enough evidence, set it to 0.5 and say so in the findings.
-- `raw_procedure_compliance` = mean of procedure-compliance scores across all scored sessions.
-- `raw_verbosity` = mean of verbosity scores across all scored sessions.
+- `raw_procedure_compliance` = mean of procedure-compliance scores, excluding `insufficient_evidence` (0.5 if none, noted in findings).
+- `raw_verbosity` = mean of verbosity scores, excluding `insufficient_evidence` (0.5 if none, noted in findings).
 - Curve qualitative rubric means into letter-grade report scores with `curve(score) = 0.5 + 0.5 * score`.
 - `efficiency = curve(raw_efficiency)`.
 - `code_quality = curve(raw_code_quality)`.
@@ -275,7 +274,7 @@ python (Join-Path $SKILL_ROOT 'scripts\render_report.py') (Join-Path $REPORT_DIR
 
 For a bootstrap child run, omit `--open` and return the report path.
 
-This writes a single self-contained `$REPORT_DIR/report.html` and attempts to open it in the default browser. The scorecard, findings, and suggested skill edits appear on one page. Long diffs are collapsed behind a "Show more" toggle, and a "Share" button saves a 2400x1350 PNG locally. There is no separate card file to open or screenshot.
+This writes one self-contained `$REPORT_DIR/report.html` and attempts to open it in the default browser. The scorecard, findings, and suggested edits appear on one page. Long diffs collapse behind a "Show more" toggle, and a "Share" button saves a 2400x1350 PNG locally. There is no separate card file.
 
 ### Step 6: Output
 
