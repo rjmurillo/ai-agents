@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path, PureWindowsPath
 from typing import Any
 
-from session_common import record_collection_issue
+from session_common import _recent_files, record_collection_issue
 
 CLAUDE_DIRECTORY = ".claude"
 PROJECT_HARNESS_DIRS = (CLAUDE_DIRECTORY, ".codex", ".github", ".factory")
@@ -52,6 +52,7 @@ def _skill_roots(
     include_global: bool,
     homes: tuple[Path | None, ...],
     copilot_home: Path | None,
+    muse_home: Path | None = None,
 ) -> list[Path]:
     if isinstance(repos, Path):
         repos = [repos]
@@ -62,6 +63,9 @@ def _skill_roots(
         if copilot_home is not None:
             roots.append(copilot_home / "skills")
             roots.extend(sorted((copilot_home / "installed-plugins").glob("*/*/skills")))
+        if muse_home is not None:
+            cache = muse_home / "plugins" / "cache"
+            roots.extend([muse_home / "skills", *sorted(cache.glob("*/*/*/package/skills"))])
     roots.extend(Path(directory).expanduser() for directory in extra_dirs)
     return roots
 
@@ -97,6 +101,9 @@ def discover_skills(
     copilot_home: Path | None = None,
     claude_home: Path | None = None,
     factory_home: Path | None = None,
+    muse_home: Path | None = None,
+    muse_config_home: Path | None = None,
+    agents_home: Path | None = None,
 ) -> dict[str, Any]:
     roots = _skill_roots(
         repos,
@@ -110,8 +117,11 @@ def discover_skills(
             zcode_home,
             hermes_home,
             factory_home,
+            muse_config_home,
+            agents_home or Path.home() / ".agents",
         ),
         copilot_home,
+        muse_home,
     )
     skills: dict[str, dict[str, Any]] = {}
     for root in roots:
@@ -141,18 +151,6 @@ def _add_definition(skills: dict[str, dict[str, Any]], metadata: dict[str, Any])
         chosen["definitions"].append(definition)
     if metadata["path"] not in definition["paths"]:
         definition["paths"].append(metadata["path"])
-
-
-def _recent_files(paths: Any, cutoff: datetime) -> list[tuple[datetime, Path]]:
-    files = []
-    for path in paths:
-        try:
-            mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
-        except OSError:
-            continue
-        if mtime >= cutoff:
-            files.append((mtime, path))
-    return sorted(files, key=lambda item: item[0], reverse=True)
 
 
 def find_codex_session_files(codex_home: Path, cutoff: datetime) -> Any:
@@ -412,6 +410,7 @@ def _add_source_arguments(parser: argparse.ArgumentParser) -> None:
             "zcode",
             "hermes",
             "droid",
+            "muse",
         ),
         default="auto",
         help="session source (default: auto; scans every locally available source)",
@@ -441,6 +440,16 @@ def _add_source_arguments(parser: argparse.ArgumentParser) -> None:
         "--hermes-home",
         default=None,
         help="Hermes Agent home containing state.db (default: HERMES_HOME, ~/.hermes, then ~)",
+    )
+    parser.add_argument(
+        "--muse-home",
+        default=os.environ.get("MUSE_HOME", "~/.local/share/muse"),
+        help="Muse data home containing sessions",
+    )
+    parser.add_argument(
+        "--muse-config-home",
+        default=str(Path(os.environ.get("XDG_CONFIG_HOME", "~/.config")) / "muse"),
+        help="Muse config home containing skills (default: XDG_CONFIG_HOME/muse or ~/.config/muse)",
     )
     parser.add_argument(
         "--warp-db", action="append", default=[], help="explicit Warp warp.sqlite path (repeatable)"
