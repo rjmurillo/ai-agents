@@ -66,12 +66,12 @@ def test_full_run_writes_artifact_and_prints_synthesis(tmp_path, monkeypatch, ca
     assert "# LLM Council: design mode" in md
     assert "## Borda Ranking (lower = better)" in md
     models = [m for m, _ in calls]
-    assert models.count("gpt-6-astra") == 3  # councillor, ranker, chairman
+    assert models.count("gpt-6.2-astra") == 3  # councillor, ranker, chairman
     assert len(models) == 4 + 4 + 1
 
 
 def test_too_few_answers_exits_2(tmp_path, monkeypatch):
-    fake, _ = _fake(fail=("gpt-6-sol", "claude-opus-5.5"))
+    fake, _ = _fake(fail=("gpt-6.2-sol", "claude-opus-5.5"))
     monkeypatch.setattr(council, "call_model", fake)
 
     code = council.main(["Q?", "--out", str(tmp_path / "r.md"), "--quiet"])
@@ -81,7 +81,7 @@ def test_too_few_answers_exits_2(tmp_path, monkeypatch):
 
 
 def test_failed_and_empty_councillors_are_reported_in_artifact(tmp_path, monkeypatch):
-    fake, _ = _fake(fail=("gpt-6-sol",), empty=("claude-sonnet-5",))
+    fake, _ = _fake(fail=("gpt-6.2-sol",), empty=("grok-4.7",))
     monkeypatch.setattr(council, "call_model", fake)
     out = tmp_path / "r.md"
 
@@ -89,8 +89,8 @@ def test_failed_and_empty_councillors_are_reported_in_artifact(tmp_path, monkeyp
 
     md = out.read_text(encoding="utf-8")
     assert code == 0
-    assert "`gpt-6-sol`: gpt-6-sol is down" in md
-    assert "`claude-sonnet-5`: empty response" in md
+    assert "`gpt-6.2-sol`: gpt-6.2-sol is down" in md
+    assert "`grok-4.7`: empty response" in md
 
 
 def test_min_responses_clamps_to_council_size(tmp_path, monkeypatch):
@@ -98,7 +98,14 @@ def test_min_responses_clamps_to_council_size(tmp_path, monkeypatch):
     monkeypatch.setattr(council, "call_model", fake)
 
     code = council.main(
-        ["Q?", "--models", "gpt-6-sol,claude-opus-5.5", "--out", str(tmp_path / "r.md"), "--quiet"]
+        [
+            "Q?",
+            "--models",
+            "gpt-6.2-sol,claude-opus-5.5",
+            "--out",
+            str(tmp_path / "r.md"),
+            "--quiet",
+        ]
     )
 
     assert code == 0
@@ -176,7 +183,7 @@ def test_min_responses_below_one_exits_2_before_any_model_call(
 
 
 def test_min_responses_of_one_is_accepted(tmp_path, monkeypatch):
-    fake, _ = _fake(fail=("gpt-6-sol", "claude-opus-5.5", "claude-sonnet-5"))
+    fake, _ = _fake(fail=("gpt-6.2-sol", "claude-opus-5.5", "grok-4.7"))
     monkeypatch.setattr(council, "call_model", fake)
 
     code = council.main(
@@ -234,9 +241,9 @@ def test_distinct_member_slugs_are_accepted(tmp_path, monkeypatch):
         [
             "q",
             "--models",
-            "claude-opus-5.5,gpt-6-sol",
+            "claude-opus-5.5,gpt-6.2-sol",
             "--chairman",
-            "gpt-6-astra",
+            "gpt-6.2-astra",
             "--out",
             str(tmp_path / "r.md"),
             "--quiet",

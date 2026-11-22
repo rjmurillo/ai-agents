@@ -73,6 +73,7 @@ SAFE_SEMGREP_OVERRIDES = frozenset(
         "opentelemetry-util-http==0.66b2",
         "pyjwt[crypto]==2.15.0",
         "setuptools==84.1.0",
+        "wcmatch==11.2",
     }
 )
 # certifi is exempt from the cooldown for PYSEC-2026-4320, so an exact
