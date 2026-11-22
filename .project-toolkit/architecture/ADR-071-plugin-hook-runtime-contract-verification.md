@@ -1,7 +1,7 @@
 ---
 id: ADR-071
 status: accepted
-date: 2026-11-20
+date: 2026-11-22
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -698,7 +698,7 @@ This is the runtime contract for one advisory `Stop` group, the fresh contract t
    Launcher-level fail-open was proposed and rejected on this basis; issue #2230
    is closed addressed-by-prevention. Carve-out: the advisory `Stop` group
    `plugin-stop-1-reflect_nudge` (2026-11-04 amendment) fails open, since a
-   failed nudge must never block a Stop; `--advisory` is refused elsewhere. Second carve-out (2026-11-20, issue #7493): the `UserPromptSubmit` group `plugin-userpromptsubmit-1-memory_recall`, reserved by id in `_PROMPT_PRESERVING_GROUP_IDS`, exits 0 with one stderr line on every launcher failure path and drops a shim's blocking decision document, since exit 2 on that event erases the user's prompt and the group enforces no policy; ADR-109's 2026-11-20 amendment, item 6, records the contract, and `tests/hooks/test_dispatch_prompt_preserving.py` pins it.
+   failed nudge must never block a Stop; `--advisory` is refused elsewhere. Second carve-out (2026-11-20, issue #7493): the `UserPromptSubmit` group `plugin-userpromptsubmit-1-memory_recall`, reserved by id in `_PROMPT_PRESERVING_GROUP_IDS`, reports launcher failures on stderr and exits 0. It also drops a shim's blocking decision document, since exit 2 on that event erases the user's prompt and the group enforces no policy; ADR-109's 2026-11-20 amendment, item 6, records the contract, and `tests/hooks/test_dispatch_prompt_preserving.py` pins it.
 
 6. **Authenticated smoke MUST install reviewed top-level CLI versions before
    receiving credentials.** `.github/workflows/nightly-cli-smoke.yml` installs
