@@ -45,6 +45,12 @@ SCORE_TOLERANCE = 1e-9
 QUALITY_LIMIT_NOTE = (
     "No applicable code-quality evidence; raw 0.5 is a neutral fallback, not a measured result."
 )
+LIMIT_NOTES = {
+    "code_quality": QUALITY_LIMIT_NOTE,
+    "verbosity": (
+        "No applicable verbosity evidence; raw 0.5 is a neutral fallback, not a measured result."
+    ),
+}
 
 _VALUE_RE = re.compile(r'^\s*-\s*value:\s*"?([A-Za-z0-9_]+)"?\s*$')
 _SCORE_RE = re.compile(r"^\s*score:\s*([0-9]*\.?[0-9]+)\s*$")
@@ -216,7 +222,7 @@ def _dimension(sessions: Sequence[Mapping[str, Any]], scorer: str) -> dict[str, 
         "fallback_used": fallback,
     }
     if fallback:
-        dim["evidence_limit"] = QUALITY_LIMIT_NOTE
+        dim["evidence_limit"] = LIMIT_NOTES.get(scorer, QUALITY_LIMIT_NOTE)
     return dim
 
 

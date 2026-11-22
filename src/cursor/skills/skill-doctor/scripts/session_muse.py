@@ -21,7 +21,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from session_common import GENERIC_EDIT_TOOLS, SessionState, _recent_files, iter_jsonl_records
+from session_common import (
+    GENERIC_EDIT_TOOLS,
+    SessionState,
+    _recent_files,
+    iter_jsonl_records,
+    record_collection_issue,
+)
 
 
 def find_muse_session_files(muse_home: Path, cutoff: datetime) -> Any:
@@ -52,9 +58,12 @@ def _muse_records(path: Path) -> Any:
             try:
                 record = json.loads(raw)
             except (json.JSONDecodeError, ValueError):
+                record_collection_issue("malformed_records")
                 continue
             if isinstance(record, dict) and record.get("payload_type"):
                 yield record
+            else:
+                record_collection_issue("malformed_records")
 
 
 def _intent_text(payload: Any) -> str:
@@ -72,10 +81,17 @@ def _intent_text(payload: Any) -> str:
     return "\n".join(parts)
 
 
-def _record_cwd(payload: Any) -> Any:
+def _record(payload: Any) -> dict[str, Any]:
     record = payload.get("record")
-    if not isinstance(record, dict):
-        return None
+    if isinstance(record, dict):
+        return record
+    if record is not None:
+        record_collection_issue("malformed_records")
+    return {}
+
+
+def _record_cwd(payload: Any) -> Any:
+    record = _record(payload)
     return record.get("workspace_root") or record.get("cwd")
 
 
@@ -88,7 +104,7 @@ def _muse_event(
         "session.workspace_branch.observed",
     ):
         meta["cwd"] = meta["cwd"] or _record_cwd(payload)
-        record = payload.get("record") or {}
+        record = _record(payload)
         build = record.get("build") or {}
         if isinstance(build, dict) and build.get("semver"):
             meta["cli_version"] = meta.get("cli_version") or build["semver"]
@@ -96,13 +112,13 @@ def _muse_event(
         if state.text("user", _intent_text(payload)):
             state.stats["user_turns"] += 1
     elif kind == "tool_batch.effect.started":
-        record = payload.get("record") or {}
+        record = _record(payload)
         if payload.get("run_id") is not None:
             runs.add(payload["run_id"])
         name = str(record.get("tool_name") or "unknown")
         state.tool(name, f"call_id {record.get('call_id') or ''}".strip())
     elif kind == "tool_batch.effect.terminal":
-        record = payload.get("record") or {}
+        record = _record(payload)
         outcome = record.get("outcome") or {}
         failed = isinstance(outcome, dict) and outcome.get("kind") == "failed"
         label = outcome.get("kind") if isinstance(outcome, dict) else "unknown"

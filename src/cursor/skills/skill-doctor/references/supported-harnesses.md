@@ -84,8 +84,13 @@ The collector's `discover_skills` function defines the exact search roots.
 Copilot also scans `<copilot-home>/skills` and
 `<copilot-home>/installed-plugins/*/*/skills` when global discovery is enabled.
 
-Muse also scans `<muse-home>/skills` and
-`<muse-home>/plugins/cache/*/*/*/package/skills` when global discovery is enabled.
+Muse also scans `<muse-home>/skills`,
+`<muse-home>/plugins/cache/*/*/*/package/skills`, the Muse config home
+skills directory (default `$XDG_CONFIG_HOME/muse/skills` or
+`~/.config/muse/skills`, override with `--muse-config-home`), and
+the shared agents home skills directory when global discovery is enabled.
+Project skills under a repository's shared agents directory are not scanned
+automatically; pass that directory with `--skills-dir`.
 
 Identical definitions share one content fingerprint and keep every path as an alias.
 Different same-name definitions all stay discoverable and count toward usage and coverage.

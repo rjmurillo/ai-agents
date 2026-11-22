@@ -346,6 +346,7 @@ def _discover(args: Any, repos: Any, homes: Any) -> Any:
         claude_home=homes["claude"],
         factory_home=homes["droid"],
         muse_home=homes["muse"],
+        muse_config_home=Path(args.muse_config_home).expanduser(),
     )
 
 

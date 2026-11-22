@@ -102,6 +102,8 @@ def discover_skills(
     claude_home: Path | None = None,
     factory_home: Path | None = None,
     muse_home: Path | None = None,
+    muse_config_home: Path | None = None,
+    agents_home: Path | None = None,
 ) -> dict[str, Any]:
     roots = _skill_roots(
         repos,
@@ -115,6 +117,8 @@ def discover_skills(
             zcode_home,
             hermes_home,
             factory_home,
+            muse_config_home,
+            agents_home or Path.home() / ".agents",
         ),
         copilot_home,
         muse_home,
@@ -441,6 +445,11 @@ def _add_source_arguments(parser: argparse.ArgumentParser) -> None:
         "--muse-home",
         default=os.environ.get("MUSE_HOME", "~/.local/share/muse"),
         help="Muse data home containing sessions",
+    )
+    parser.add_argument(
+        "--muse-config-home",
+        default=str(Path(os.environ.get("XDG_CONFIG_HOME", "~/.config")) / "muse"),
+        help="Muse config home containing skills (default: XDG_CONFIG_HOME/muse or ~/.config/muse)",
     )
     parser.add_argument(
         "--warp-db", action="append", default=[], help="explicit Warp warp.sqlite path (repeatable)"

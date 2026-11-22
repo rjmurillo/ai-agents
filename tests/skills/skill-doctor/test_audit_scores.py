@@ -19,7 +19,7 @@ EXPECTED_TABLES = {
     },
     "code_quality": {"approve": 1, "block": 0.2, "insufficient_evidence": 0.5},
     "procedure_compliance": {"fully_compliant": 1, "mostly_compliant": 0.8, "noncompliant": 0.2},
-    "verbosity": {"proportionate": 1, "verbose": 0.2, "terse": 0.1},
+    "verbosity": {"proportionate": 1, "verbose": 0.2, "terse": 0.1, "insufficient_evidence": 0.5},
 }
 
 
@@ -55,7 +55,11 @@ def session(
                 "code_quality", q, **({"applicable": False} if q == "insufficient_evidence" else {})
             ),
             "procedure_compliance": result("procedure_compliance", proc),
-            "verbosity": result("verbosity", verb),
+            "verbosity": result(
+                "verbosity",
+                verb,
+                **({"applicable": False} if verb == "insufficient_evidence" else {}),
+            ),
         },
     }
     if stratum:
@@ -227,6 +231,15 @@ def test_unknown_label_for_scorer_fails():
     s = session("a")
     s["scores"]["verbosity"]["label"] = "approve"
     assert any("unknown label" in e for e in errors_for([s]))
+
+
+def test_verbosity_insufficient_evidence_valid_and_excluded():
+    s = session("a", verb="insufficient_evidence")
+    assert errors_for([s]) == []
+    agg = a.aggregate([s])
+    assert agg["dimensions"]["verbosity"]["inapplicable"] == 1
+    assert agg["dimensions"]["verbosity"]["fallback_used"] is True
+    assert agg["failed_conversations"]["count"] == 0
 
 
 def test_insufficient_evidence_only_valid_for_code_quality():

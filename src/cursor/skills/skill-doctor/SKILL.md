@@ -198,7 +198,7 @@ Scoring is based on efficiency, code quality, procedure compliance, and verbosit
 - `$SKILL_ROOT/scorers/procedure-compliance.md`
 - `$SKILL_ROOT/scorers/verbosity.md`
 
-Instructions: For each session in `inventory.json` with `sampled: true`, read its `transcript_path`. Ignore other files in `$REPORT_DIR/transcripts/`, which can be left over from an earlier run. Read each transcript and judge it against all four rubrics. For each scorer record: label, numeric score (from the rubric's label table), and a 1-3 sentence reason citing specifics from the transcript. Apply the code-quality scorer only where the transcript shows code changes; otherwise record `insufficient_evidence` and exclude that result from the code-quality average and failed-conversation filter.
+Instructions: For each session in `inventory.json` with `sampled: true`, read its `transcript_path`. Ignore other files in `$REPORT_DIR/transcripts/`, which can be left over from an earlier run. Read each transcript and judge it against all four rubrics. For each scorer record: label, numeric score (from the rubric's label table), and a 1-3 sentence reason citing specifics from the transcript. Apply the code-quality scorer only where the transcript shows code changes; otherwise record `insufficient_evidence` and exclude that result from the code-quality average and failed-conversation filter. Apply the verbosity scorer only where the transcript retains assistant prose; otherwise record `insufficient_evidence` and exclude that result from the verbosity average and failed-conversation filter.
 
 ### Step 3: Aggregate
 
@@ -213,7 +213,7 @@ Step 5 fills the `report.json` numbers; use the artifact's `failed_conversations
 - `raw_efficiency` = mean of efficiency scores across all scored sessions.
 - `raw_code_quality` = mean of code-quality scores, excluding `insufficient_evidence`. If no session had enough evidence, set it to 0.5 and say so in the findings.
 - `raw_procedure_compliance` = mean of procedure-compliance scores across all scored sessions.
-- `raw_verbosity` = mean of verbosity scores across all scored sessions.
+- `raw_verbosity` = mean of verbosity scores, excluding `insufficient_evidence`. If no session had enough evidence, set it to 0.5 and say so in the findings.
 - Curve qualitative rubric means into letter-grade report scores with `curve(score) = 0.5 + 0.5 * score`.
 - `efficiency = curve(raw_efficiency)`.
 - `code_quality = curve(raw_code_quality)`.
