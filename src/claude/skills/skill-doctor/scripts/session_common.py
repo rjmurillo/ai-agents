@@ -118,6 +118,18 @@ def iter_jsonl_records(path: Path) -> Iterator[dict[str, Any]]:
     return records()
 
 
+def _recent_files(paths: Any, cutoff: datetime) -> list[tuple[datetime, Path]]:
+    files = []
+    for path in paths:
+        try:
+            mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+        except OSError:
+            continue
+        if mtime >= cutoff:
+            files.append((mtime, path))
+    return sorted(files, key=lambda item: item[0], reverse=True)
+
+
 class TranscriptBuffer:
     """Keep complete short transcripts and a bounded head/tail for long ones."""
 
