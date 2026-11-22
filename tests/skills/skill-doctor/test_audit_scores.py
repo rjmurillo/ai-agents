@@ -16,10 +16,16 @@ EXPECTED_TABLES = {
         "mostly_efficient": 0.8,
         "mostly_inefficient": 0.4,
         "highly_inefficient": 0.2,
+        "insufficient_evidence": 0.5,
     },
     "code_quality": {"approve": 1, "block": 0.2, "insufficient_evidence": 0.5},
-    "procedure_compliance": {"fully_compliant": 1, "mostly_compliant": 0.8, "noncompliant": 0.2},
-    "verbosity": {"proportionate": 1, "verbose": 0.2, "terse": 0.1},
+    "procedure_compliance": {
+        "fully_compliant": 1,
+        "mostly_compliant": 0.8,
+        "noncompliant": 0.2,
+        "insufficient_evidence": 0.5,
+    },
+    "verbosity": {"proportionate": 1, "verbose": 0.2, "terse": 0.1, "insufficient_evidence": 0.5},
 }
 
 
@@ -50,12 +56,24 @@ def session(
         "harness": harness,
         "skills_detected": detected,
         "scores": {
-            "efficiency": result("efficiency", eff),
+            "efficiency": result(
+                "efficiency",
+                eff,
+                **({"applicable": False} if eff == "insufficient_evidence" else {}),
+            ),
             "code_quality": result(
                 "code_quality", q, **({"applicable": False} if q == "insufficient_evidence" else {})
             ),
-            "procedure_compliance": result("procedure_compliance", proc),
-            "verbosity": result("verbosity", verb),
+            "procedure_compliance": result(
+                "procedure_compliance",
+                proc,
+                **({"applicable": False} if proc == "insufficient_evidence" else {}),
+            ),
+            "verbosity": result(
+                "verbosity",
+                verb,
+                **({"applicable": False} if verb == "insufficient_evidence" else {}),
+            ),
         },
     }
     if stratum:
@@ -229,15 +247,29 @@ def test_unknown_label_for_scorer_fails():
     assert any("unknown label" in e for e in errors_for([s]))
 
 
-def test_insufficient_evidence_only_valid_for_code_quality():
-    s = session("a")
-    s["scores"]["efficiency"] = {
-        "label": "insufficient_evidence",
-        "score": 0.5,
-        "reason": "x",
-        "applicable": False,
-    }
-    assert any("unknown label" in e for e in errors_for([s]))
+def test_verbosity_insufficient_evidence_valid_and_excluded():
+    s = session("a", verb="insufficient_evidence")
+    assert errors_for([s]) == []
+    agg = a.aggregate([s])
+    assert agg["dimensions"]["verbosity"]["inapplicable"] == 1
+    assert agg["dimensions"]["verbosity"]["fallback_used"] is True
+    assert agg["failed_conversations"]["count"] == 0
+
+
+def test_insufficient_evidence_valid_for_every_scorer():
+    s = session(
+        "a",
+        eff="insufficient_evidence",
+        q="insufficient_evidence",
+        proc="insufficient_evidence",
+        verb="insufficient_evidence",
+    )
+    assert errors_for([s]) == []
+    agg = a.aggregate([s])
+    assert agg["failed_conversations"]["count"] == 0
+    assert all(
+        d["inapplicable"] == 1 for k, d in agg["dimensions"].items() if k != "skill_coverage"
+    )
 
 
 @pytest.mark.parametrize("reason", ["", "   ", None, 3])
