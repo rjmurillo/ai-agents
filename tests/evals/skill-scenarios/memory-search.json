@@ -5,29 +5,29 @@
     {
       "id": "S1",
       "desc": "Tier 1 search runs search_memory.py and returns an index",
-      "input": "search memory for what we know about git hooks. Which script runs, which flags control result count and output format, and what do I read after it returns? Answer in 5 short bullets. Do not modify any files.",
+      "input": "Search memory for what we know about git hooks. Which command limits the query to three JSON hits? How are the results ranked, and what should I read next? Answer in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "search_memory.py",
-        "--max-results",
-        "--format",
-        "index",
+        "--max-results 3",
+        "--format json",
+        "ranked",
         "read_memory"
       ],
       "expected_gate": "memory-search-tier1",
-      "rationale": "Quick Start, Quick Reference, and Routing: search_memory.py takes query, --max-results, and --format, returns the relevant *-index, and the caller then follows links to the atomic file."
+      "rationale": "Quick Reference names the flags. The CLI sorts individual hits by descending score. Progressive Disclosure says to read only the relevant entry."
     },
     {
       "id": "S2",
       "desc": "A zero-result search is a valid outcome, not an error",
-      "input": "My memory search for 'obsolete cache flag' returned nothing. Is that a failure, and should I fall back to a second semantic backend? Answer in 4 short bullets. Do not modify any files.",
+      "input": "I ran the Tier 1 search for an obsolete cache flag and found no matches. What would the JSON show, and what should I record? Should I switch to another semantic backend? Answer in 4 short bullets. Do not modify any files.",
       "expected_signals": [
-        "not an error",
-        "coverage note",
+        "no results",
+        "empty result",
         "serena",
         "log"
       ],
       "expected_gate": "memory-search-zero-results",
-      "rationale": "Graceful Degradation and Anti-Patterns: a search that matches nothing returns an empty list plus a coverage note, never an error, and Serena is the only store, so there is no semantic tier to fall back from."
+      "rationale": "Verification accepts a logged no-results outcome. The CLI prints a no-results message in table mode or an empty Results list in JSON. Anti-Patterns says Serena is the only semantic store."
     },
     {
       "id": "S3",
@@ -59,12 +59,12 @@
       "desc": "Extracting a session episode belongs to memory-reflexion (negative)",
       "input": "Extract the episode from the session we just finished and store it as a reflexion entry. Answer in 4 short bullets. Do not modify any files.",
       "expected_signals": [
-        "search_memory.py",
         "--max-results",
-        "coverage note"
+        "follow cross-references",
+        "list names first"
       ],
       "expected_gate": "skip-rule-not-applicable",
-      "rationale": "Same description clause: session episode extraction routes to memory-reflexion, not to the search operation."
+      "rationale": "Session episode extraction routes to memory-reflexion. Its integration guide also names the shared search script, so the negative tests for the search-specific retrieval workflow instead."
     }
   ]
 }

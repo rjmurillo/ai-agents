@@ -31,16 +31,16 @@
     },
     {
       "id": "S3",
-      "desc": "Errno 2 on _dispatch.py mid-session",
-      "input": "Every tool call in my Copilot CLI session now fails with \"can't open file '.../project-toolkit/hooks/PreToolUse/_dispatch.py': [Errno 2] No such file or directory\". What causes this, how do I fix the wedged session, and what does the current PreToolUse launcher contract require for a stale root? Answer in 5 short bullets. Do not modify any files.",
+      "desc": "Distinguish a stale dispatcher reference from a shipped hook",
+      "input": "A Copilot CLI session tries to open project-toolkit/hooks/PreToolUse/_dispatch.py and fails. Should a current plugin install contain that file? Which repository decision and registration evidence explain this? Answer in 5 short bullets. Do not modify any files.",
       "expected_signals": [
-        "stale plugin root",
-        "restart",
-        "reinstalling",
-        "fail-open"
+        "adr-097",
+        "zero registrations",
+        "retired",
+        "restart"
       ],
-      "expected_gate": "diagnose-stale-plugin-root",
-      "rationale": "SKILL.md 'Stale plugin root wedges a running session': the plugin root is resolved once and exported, restarting fixes the session while reinstalling without restarting does not, and the SUPERSEDED PreToolUse/PostToolUse contract requires fail-open-with-warning (exit 0 with stderr warning) on a stale root."
+      "expected_gate": "diagnose-retired-dispatcher-reference",
+      "rationale": "Shipped registrations says ADR-097 retired the dispatcher and no registrations remain. Stale plugin root wedges a running session explains why a restart is needed after fixing stale configuration."
     },
     {
       "id": "S4",

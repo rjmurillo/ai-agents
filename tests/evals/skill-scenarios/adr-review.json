@@ -5,7 +5,7 @@
     {
       "id": "S1",
       "desc": "Review an ADR under the canonical architecture directory",
-      "input": "Review this ADR: .project-toolkit/architecture/ADR-005-api-versioning.md. It changes how a rule other gates read is enforced. Say who reviews it, how a debate ends, and what artifact must exist afterward. Answer in 6 short bullets. Do not modify any files.",
+      "input": "Review this proposed ADR for an API versioning policy. This is a hypothetical draft. It changes executable enforcement for a rule other gates read. Who reviews it, how does debate end, and what artifact must exist afterward? Answer in 6 short bullets. Do not modify any files.",
       "expected_signals": [
         "architect",
         "critic",
@@ -44,7 +44,7 @@
     {
       "id": "S4",
       "desc": "Deleting an accepted ADR runs the D1 to D4 workflow",
-      "input": "delete ADR-031. It is accepted and two other ADRs cite it. What steps does the review follow before the file goes away? Answer in 5 short bullets. Do not modify any files.",
+      "input": "A hypothetical accepted ADR has two dependent ADRs. I want to delete it. What steps does ADR review require before the file goes away? Answer in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "archive",
         "dependenc",
