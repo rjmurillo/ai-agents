@@ -288,10 +288,12 @@ Decision.
 6. On a dispatcher failure, this group reports diagnostics on stderr and exits 0. On `UserPromptSubmit`, exit 2 blocks the prompt and erases it. The recall group carries no policy, so no protection is lost when it fails open. The group id is reserved in the dispatcher (`_PROMPT_PRESERVING_GROUP_IDS`), because the event is unknown when the manifest cannot be loaded. The group also runs the self-host double-fire check, which the dispatcher otherwise skips for `gate_all` groups. The dispatcher suppresses blocking decisions from the shim. It reports the suppression on stderr. A manifest that binds the reserved id to another event runs nothing and exits 0. Every other non-advisory group keeps the fail-closed policy. ADR-071 Decision item 5 carries the matching carve-out. The host owns the 15-second registration timeout. The dispatcher does not enforce the per-shim `timeout: 10`. Claude Code's treatment of a timed-out `UserPromptSubmit` hook remains unverified.
 7. Copilot CLI is excluded (`copilotExclude`, with `copilotExcludeDecision: "ADR-109"`). Copilot drops config-file `userPromptSubmitted` output. The `userPromptTransformed` route has no verified live delivery. The exclusion is lifted when either route has verified live delivery and its own gate. Until then, Copilot consumers get no recall.
 
+The launcher filters PATH to absolute directories outside the checkout. It checks candidate symlink targets before probing Python. Ripgrep ignores inherited configuration.
+
 Trust boundary. A consumer's `.serena/memories/` is repository content, and a cloned repository may be hostile. Recall puts it into model context on every matching prompt, so the hook treats it as untrusted data.
 
 - It refuses a memories directory whose real path leaves the repository, which blocks a symlink that points at the user's home directory.
-- It skips any memory file over 256 KiB without reading it.
+- The Python loader skips memory files over 256 KiB before reading them. Candidate search can still read larger files within its timeout.
 - It scores at most 50 candidate memories per prompt. No new search, file load, or citation check starts after one 8-second deadline, and the `rg` or `grep` timeout shrinks to the time left. A file read already running is not interrupted. `tests/test_memory_search_bounds.py` pins both.
 - It accepts only a string title and scalar tags, so a YAML alias bomb is never turned into a string.
 - It flattens titles to one line and neutralizes the `<memory-context>` sentinels in recalled text.
