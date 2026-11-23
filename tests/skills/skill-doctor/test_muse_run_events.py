@@ -238,6 +238,90 @@ class MuseRunEventTests(unittest.TestCase):
             self.assertEqual(stats["assistant_turns"], 1)
             self.assertEqual(stats["tool_calls"], 0)
 
+    def test_repeated_commit_only_id_emits_once(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            session_dir = Path(tmp) / "sessions" / "2026" / "11" / "23" / "session-dup"
+            path = session_dir / "session.jsonl"
+            commit = muse_record(
+                "runtime.session",
+                {
+                    "kind": "run",
+                    "run_id": "run-1",
+                    "event": {
+                        "kind": "assistant_tool_calls_committed",
+                        "tool_calls": [
+                            {"name": "bash", "args": '{"x": 1}', "call_id": "dup-1"},
+                            {"name": "bash", "args": '{"x": 1}', "call_id": "dup-1"},
+                        ],
+                    },
+                },
+            )
+            write_jsonl(
+                path,
+                [
+                    muse_record(
+                        "runtime.session.metadata",
+                        {"kind": "metadata", "record": {"workspace_root": "/tmp/repo"}},
+                    ),
+                    muse_record(
+                        "runtime.user_intent.accepted",
+                        {"model_messages": [{"content": [{"kind": "text", "text": "Go"}]}]},
+                        1000000,
+                    ),
+                    commit,
+                    commit,
+                ],
+            )
+
+            _meta, stats, entries, _skills = parse_muse_session(path, set(), False)
+
+            self.assertEqual(stats["tool_calls"], 1)
+            self.assertEqual(stats["repeated_tool_calls"], 0)
+            self.assertEqual(sum(1 for role, _ in entries if role == "tool:bash"), 1)
+
+    def test_malformed_run_id_keeps_tool_call(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            session_dir = Path(tmp) / "sessions" / "2026" / "11" / "23" / "session-bad-run"
+            path = session_dir / "session.jsonl"
+            write_jsonl(
+                path,
+                [
+                    muse_record(
+                        "runtime.session.metadata",
+                        {"kind": "metadata", "record": {"workspace_root": "/tmp/repo"}},
+                    ),
+                    muse_record(
+                        "runtime.user_intent.accepted",
+                        {"model_messages": [{"content": [{"kind": "text", "text": "Go"}]}]},
+                        1000000,
+                    ),
+                    muse_record(
+                        "runtime.session",
+                        {
+                            "kind": "run",
+                            "run_id": [],
+                            "event": {
+                                "kind": "assistant_tool_calls_committed",
+                                "tool_calls": [
+                                    {"name": "bash", "args": '{"x": 1}', "call_id": "c-1"}
+                                ],
+                            },
+                        },
+                        2000000,
+                    ),
+                    muse_record(
+                        "tool_batch.effect.started",
+                        {"run_id": [], "record": {"tool_name": "bash", "call_id": "c-2"}},
+                        3000000,
+                    ),
+                ],
+            )
+
+            _meta, stats, _entries, _skills = parse_muse_session(path, set(), False)
+
+            self.assertEqual(stats["tool_calls"], 2)
+            self.assertEqual(stats["assistant_turns"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -102,9 +102,23 @@ def _record_cwd(payload: Any) -> Any:
     return record.get("workspace_root") or record.get("cwd")
 
 
-def _valid_call_id(value: Any) -> bool:
-    """Call ids are strings; tolerate integers as hashable identifiers."""
+def _valid_record_id(value: Any) -> bool:
+    """Call and run ids are strings; tolerate integers as hashable identifiers."""
     return isinstance(value, str) or (isinstance(value, int) and not isinstance(value, bool))
+
+
+def _valid_call_id(value: Any) -> bool:
+    return _valid_record_id(value)
+
+
+def _add_run(runs: set[Any], run_id: Any) -> None:
+    """Count a run id, reporting malformed values without raising."""
+    if run_id is None:
+        return
+    if _valid_record_id(run_id):
+        runs.add(run_id)
+    else:
+        record_collection_issue("malformed_records")
 
 
 def _run_calls(records: list[dict[str, Any]]) -> dict[Any, str]:
@@ -160,8 +174,7 @@ def _muse_run_event(state: SessionState, payload: dict[str, Any], runs: set[Any]
         return
     kind = event.get("kind")
     if kind == "model_completed":
-        if payload.get("run_id") is not None:
-            runs.add(payload["run_id"])
+        _add_run(runs, payload.get("run_id"))
     elif kind == "assistant_message_committed":
         state.text("assistant", event.get("text") or "")
     elif kind == "tool_result_batch_committed":
@@ -176,8 +189,12 @@ def _emit_commit_only_call(
     runs: set[Any],
     calls: dict[Any, str],
     started_ids: set[Any],
+    emitted: set[Any],
 ) -> None:
-    """Emit run-commit calls that no batch started record names, counting the turn."""
+    """Emit run-commit calls that no batch started record names, counting the turn.
+
+    Each call id emits once no matter how often commits repeat it.
+    """
     event = payload.get("event")
     if not isinstance(event, dict) or event.get("kind") != "assistant_tool_calls_committed":
         return
@@ -188,11 +205,11 @@ def _emit_commit_only_call(
         if not _valid_call_id(call_id):
             record_collection_issue("malformed_records")
             continue
-        if call_id in started_ids or call_id not in calls:
+        if call_id in started_ids or call_id not in calls or call_id in emitted:
             continue
         state.tool(str(call.get("name") or "unknown"), calls[call_id])
-        if payload.get("run_id") is not None:
-            runs.add(payload["run_id"])
+        emitted.add(call_id)
+        _add_run(runs, payload.get("run_id"))
 
 
 def _muse_event(
@@ -203,6 +220,7 @@ def _muse_event(
     runs: set[Any],
     calls: dict[Any, str],
     started_ids: set[Any],
+    emitted: set[Any],
 ) -> None:
     if kind in (
         "runtime.session.metadata",
@@ -219,11 +237,10 @@ def _muse_event(
             state.stats["user_turns"] += 1
     elif kind == "runtime.session" and isinstance(payload, dict):
         _muse_run_event(state, payload, runs)
-        _emit_commit_only_call(state, payload, runs, calls, started_ids)
+        _emit_commit_only_call(state, payload, runs, calls, started_ids, emitted)
     elif kind == "tool_batch.effect.started":
         record = _record(payload)
-        if payload.get("run_id") is not None:
-            runs.add(payload["run_id"])
+        _add_run(runs, payload.get("run_id"))
         name = str(record.get("tool_name") or "unknown")
         call_id = record.get("call_id")
         if not _valid_call_id(call_id):
@@ -255,11 +272,14 @@ def parse_muse_session(path: Path, _skill_names: Any, _include_subagents: bool) 
     runs: set[Any] = set()
     calls = _run_calls(records)
     started_ids = _started_call_ids(records)
+    emitted: set[Any] = set()
     for obj in records:
         state.timestamp(_muse_timestamp(obj.get("recorded_at")))
         payload = obj.get("payload")
         if isinstance(payload, dict):
-            _muse_event(state, meta, obj.get("payload_type"), payload, runs, calls, started_ids)
+            _muse_event(
+                state, meta, obj.get("payload_type"), payload, runs, calls, started_ids, emitted
+            )
     state.stats["assistant_turns"] = len(runs)
     meta["started_at"] = state.first_ts
     result = state.finish(meta, GENERIC_EDIT_TOOLS)
