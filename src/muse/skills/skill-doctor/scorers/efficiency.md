@@ -14,12 +14,15 @@ labels:
   - value: "highly_inefficient"
     description: "The agent's waste dominated the run: the same defect reworked across cycles, repeated user correction, or extended flailing / looping."
     score: 0.2
+  - value: "insufficient_evidence"
+    description: "The transcript lacks the tool arguments or output needed to judge wasted effort."
+    score: 0.5
 ---
 # Efficiency
 
 ## Rubric
 
-You are scoring one condensed transcript of a local coding-agent conversation. Evaluate the full cost of reaching the result: the steps the agent took, rework it caused, and human attention it consumed. Score against what a competent engineer with the same tools would have needed, not against what was achievable with only what the agent happened to have. A mistake that looks unavoidable in context still counts if better tooling, a skill, or a check would have prevented it - name that cause in the reason. The bullets below are common sources of waste, not an exhaustive checklist - judge any other way the run cost more than it should have.
+When the transcript lacks tool arguments or output (for example a Muse journal, which keeps user prompts and tool names only), record `insufficient_evidence` and exclude that result from the efficiency average and the failed-conversation filter. You are scoring one condensed transcript of a local coding-agent conversation. Evaluate the full cost of reaching the result: the steps the agent took, rework it caused, and human attention it consumed. Score against what a competent engineer with the same tools would have needed, not against what was achievable with only what the agent happened to have. A mistake that looks unavoidable in context still counts if better tooling, a skill, or a check would have prevented it - name that cause in the reason. The bullets below are common sources of waste, not an exhaustive checklist - judge any other way the run cost more than it should have.
 
 Assess:
 
