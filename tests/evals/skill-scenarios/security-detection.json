@@ -5,15 +5,15 @@
     {
       "id": "S1",
       "desc": "Did staged changes touch security-critical files",
-      "input": "I am about to commit. I staged .github/workflows/deploy.yml and src/Controllers/AuthController.cs. Did I touch security-critical files, and do I need the security agent to review? Answer in 5 short bullets. Do not modify any files.",
+      "input": "I staged .github/workflows/deploy.yml and src/Auth/Login.cs. What is the risk level for each file? Does the staged change require security review? Answer in 5 short bullets. Do not modify any files.",
       "expected_signals": [
-        "critical",
-        "authcontroller.cs",
+        "both critical",
+        "auth/login.cs",
         "workflow",
         "review required"
       ],
       "expected_gate": "flag-security-critical-files",
-      "rationale": "The detector checks Critical patterns first. The workflow path and the Auth filename both match, so both require review."
+      "rationale": "The detector and the skill both classify files under .github/workflows and Auth directories as Critical. Both matches require review."
     },
     {
       "id": "S2",

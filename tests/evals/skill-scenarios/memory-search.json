@@ -5,29 +5,28 @@
     {
       "id": "S1",
       "desc": "Tier 1 search returns ranked memory hits",
-      "input": "Search memory for what we know about git hooks. Which command limits the query to three JSON hits? How are the results ranked, and what should I read next? Answer in 5 short bullets. Do not modify any files.",
+      "input": "My git hooks memory search returned ranked entries. Which command would repeat it with three JSON hits, and how should I load the details for the one relevant hit? Answer in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "search_memory.py",
         "--max-results 3",
         "--format json",
-        "ranked",
         "read_memory"
       ],
       "expected_gate": "memory-search-tier1",
-      "rationale": "Quick Reference names the flags. The CLI sorts individual hits by descending score. Progressive Disclosure says to read only the relevant entry."
+      "rationale": "Quick Reference names the flags. The CLI returns individual ranked hits. Progressive Disclosure says to use read_memory for the relevant entry."
     },
     {
       "id": "S2",
       "desc": "A zero-result search is a valid outcome, not an error",
-      "input": "I ran the Tier 1 search for an obsolete cache flag and found no matches. What would the JSON show, and what should I record? Should I switch to another semantic backend? Answer in 4 short bullets. Do not modify any files.",
+      "input": "My Tier 1 search for an obsolete cache flag returned an empty JSON Results list. Is this a query failure? What should I record, and does a second semantic backend apply? Answer in 4 short bullets. Do not modify any files.",
       "expected_signals": [
         "no results",
-        "empty result",
+        "not an error",
         "serena",
         "log"
       ],
       "expected_gate": "memory-search-zero-results",
-      "rationale": "Verification accepts a logged no-results outcome. The CLI prints a no-results message in table mode or an empty Results list in JSON. Anti-Patterns says Serena is the only semantic store."
+      "rationale": "The CLI returns an empty Results list for a valid query with no hits. Verification accepts a logged no-results outcome. Anti-Patterns says Serena is the only semantic store."
     },
     {
       "id": "S3",
