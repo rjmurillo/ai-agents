@@ -425,6 +425,8 @@ def _is_admitted_change(comparison: dict[str, object]) -> bool:
     path = str(comparison.get("file_path", "")).replace("\\", "/")
     blobs = (comparison.get("base_blob"), comparison.get("head_blob"))
     qualities = [r.get("quality") if isinstance(r, dict) else None for r in records]
+    if any(not isinstance(quality, str) for quality in qualities + regressions):
+        return False
     if len(set(qualities)) != len(qualities) or set(qualities) != set(regressions):
         return False
     return all(

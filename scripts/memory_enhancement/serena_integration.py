@@ -48,9 +48,7 @@ _INLINE_LINK_PATTERN = re.compile(
 _CITATIONS_HEADER_PATTERN = re.compile(r"^##\s+Citations\s*$", re.MULTILINE)
 _LINKS_HEADER_PATTERN = re.compile(r"^##\s+Links\s*$", re.MULTILINE)
 
-_TITLE_DATE_PATTERN = re.compile(
-    r"^#\s+(?P<title>.+?)\s*\((?P<date>\d{4}-\d{2}-\d{2})\)\s*$",
-)
+_TITLE_DATE_PATTERN = re.compile(r"\((\d{4}-\d{2}-\d{2})\)")
 
 
 def parse_citation_block(text: str) -> list[Citation]:
@@ -373,13 +371,13 @@ def _extract_metadata(
     created_at = now
     updated_at = now
 
-    first_line = content.split("\n", 1)[0][: MAX_TITLE_CHARS + 32]  # regex backtracks cubically
-    header_match = _TITLE_DATE_PATTERN.match(first_line)
-    if header_match:
-        title = header_match.group("title")[:MAX_TITLE_CHARS]
-        date_str = header_match.group("date")
-        created_at = _parse_date(date_str, now)
-        updated_at = created_at
+    heading = content.partition("\n")[0].rstrip()
+    date_suffix_length = len("(YYYY-MM-DD)")
+    header_date = _TITLE_DATE_PATTERN.fullmatch(heading[-date_suffix_length:])
+    if header_date and heading.startswith("#") and heading[1:2].isspace():
+        title = heading[1:-date_suffix_length].strip()[:MAX_TITLE_CHARS] or None
+        if title:
+            updated_at = created_at = _parse_date(header_date[1], now)
 
     return title, created_at, updated_at, [], 0.0, content
 

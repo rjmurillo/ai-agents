@@ -112,8 +112,7 @@ def test_a_scalar_string_tag_still_wraps_and_non_lists_are_empty() -> None:
 
 
 def test_a_whitespace_flooded_h1_line_parses_in_well_under_a_second(tmp_path: Path) -> None:
-    # The title-date regex backtracks cubically on "#" plus whitespace: 4000
-    # characters took about 31 seconds before the line was cut to title size.
+    # The previous regex took about 31 seconds on "#" plus 4,000 spaces.
     path = _write(tmp_path, "#" + " " * 100_000 + "x\n\nbody\n")
 
     started = time.monotonic()
@@ -124,13 +123,14 @@ def test_a_whitespace_flooded_h1_line_parses_in_well_under_a_second(tmp_path: Pa
 
 
 def test_an_h1_title_is_capped_like_a_frontmatter_title(tmp_path: Path) -> None:
-    path = _write(tmp_path, "# " + "t" * 210 + " (2026-11-20)\n\nbody\n")
+    path = _write(tmp_path, "# " + "t" * 273 + " (2026-11-20)\n\nbody\n")
 
     memory = si.load_memory(path, tmp_path, si.MAX_MEMORY_BYTES)
 
     assert memory is not None
-    assert memory.title is not None
-    assert len(memory.title) <= si.MAX_TITLE_CHARS
+    assert memory.title == "t" * si.MAX_TITLE_CHARS
+    assert memory.created_at.date().isoformat() == "2026-11-20"
+    assert memory.updated_at == memory.created_at
 
 
 def test_a_normal_h1_title_and_date_still_parse(tmp_path: Path) -> None:

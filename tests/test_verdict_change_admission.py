@@ -110,6 +110,16 @@ def test_an_extra_key_on_a_record_is_unknown() -> None:
     assert _verdict(comparison) == "UNKNOWN"
 
 
+@pytest.mark.parametrize("malformed", [[], {}, 1])
+def test_malformed_quality_names_make_admission_unknown(malformed: object) -> None:
+    comparison = _comparison(_LIB_MIRROR, {"coupling": (8.0, 7.0)})
+    regressions = {**comparison, "regressions": [malformed]}
+    assert _verdict(regressions) == "UNKNOWN"
+
+    comparison["change_admissions"][0]["quality"] = malformed
+    assert _verdict(comparison) == "UNKNOWN"
+
+
 def test_a_record_for_a_different_file_is_unknown() -> None:
     comparison = _comparison(_LIB_MIRROR, {"coupling": (8.0, 7.0)})
     comparison["file_path"] = "tests/build_scripts/test_lib_mirror.py"
