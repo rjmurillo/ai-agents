@@ -144,16 +144,20 @@ The Muse journal is event-sourced. Each `session.jsonl` line carries a
 `payload_type` and `payload`; the first line can wrap child records as JSON
 strings under `children[].record_json`. The collector reads
 `runtime.session.metadata` and `runtime.session.route_facts` for the workspace,
-`runtime.user_intent.accepted` for user prompts, and
+`runtime.user_intent.accepted` for user prompts, run records for assistant
+prose (`assistant_message_committed`), tool calls with arguments
+(`assistant_tool_calls_committed`), outputs (`tool_result_batch_committed`),
+and per-response completion (`model_completed`), plus
 `tool_batch.effect.started` / `tool_batch.effect.terminal` for tool names and
-outcomes. Timestamps are epoch microseconds in `recorded_at`.
+outcomes. Each tool call is emitted once, with arguments when a run record
+names the same `call_id`. Timestamps are epoch microseconds in `recorded_at`.
 
 Some records are marked omitted in the journal and never reach the collector.
-The journal does not retain assistant prose, tool arguments, or tool output
-text. Muse transcripts therefore contain user prompts and tool names only,
-`assistant_turns` counts distinct tool-batch runs, and a session with no tool
-calls is not scoreable. Skill invocations name no skill in the journal, so
-Muse sessions report no detected skill usage.
+`assistant_turns` counts distinct run ids; a session with no tool calls and
+no model responses is not scoreable. Skill names come from tool arguments
+(`read_skill` takes `{"name": ...}`), so journals without run records report
+no detected skill usage.
 
-Storage verified against Muse 1.4.25 on 2026-11-22.
+Storage verified against Muse 1.4.25 on 2026-11-22. Run-event mapping
+verified against 1.4.15 and 1.4.25 journals on 2026-11-23.
 These journal fields are version-sensitive, not a promised stable API.

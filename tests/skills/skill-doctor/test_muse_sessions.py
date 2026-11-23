@@ -109,6 +109,170 @@ class MuseSessionTests(unittest.TestCase):
             self.assertIn(("user", "Fix the collector"), entries)
             self.assertTrue(any(role == "tool:read_file" for role, _ in entries))
 
+    def test_run_events_map_prose_args_outputs_and_skills(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            session_dir = Path(tmp) / "sessions" / "2026" / "11" / "23" / "session-run"
+            path = session_dir / "session.jsonl"
+            write_jsonl(
+                path,
+                [
+                    muse_record(
+                        "runtime.session.metadata",
+                        {"kind": "metadata", "record": {"workspace_root": "/tmp/repo"}},
+                    ),
+                    muse_record(
+                        "runtime.user_intent.accepted",
+                        {"model_messages": [{"content": [{"kind": "text", "text": "Do it"}]}]},
+                        1000000,
+                    ),
+                    muse_record(
+                        "runtime.session",
+                        {
+                            "kind": "run",
+                            "run_id": "run-1",
+                            "event": {"kind": "assistant_message_committed", "text": "On it."},
+                        },
+                        2000000,
+                    ),
+                    muse_record(
+                        "runtime.session",
+                        {
+                            "kind": "run",
+                            "run_id": "run-1",
+                            "event": {
+                                "kind": "assistant_tool_calls_committed",
+                                "tool_calls": [
+                                    {
+                                        "name": "read_skill",
+                                        "args": '{"name": "update-skill"}',
+                                        "call_id": "call-1",
+                                    }
+                                ],
+                            },
+                        },
+                        3000000,
+                    ),
+                    muse_record(
+                        "tool_batch.effect.started",
+                        {
+                            "run_id": "run-1",
+                            "record": {"tool_name": "read_skill", "call_id": "call-1"},
+                        },
+                        4000000,
+                    ),
+                    muse_record(
+                        "tool_batch.effect.terminal",
+                        {"run_id": "run-1", "record": {"outcome": {"kind": "completed"}}},
+                        5000000,
+                    ),
+                    muse_record(
+                        "runtime.session",
+                        {
+                            "kind": "run",
+                            "run_id": "run-1",
+                            "event": {
+                                "kind": "tool_result_batch_committed",
+                                "results": [{"text": "skill body here"}],
+                            },
+                        },
+                        6000000,
+                    ),
+                    muse_record(
+                        "runtime.session",
+                        {
+                            "kind": "run",
+                            "run_id": "run-1",
+                            "event": {"kind": "model_completed", "finish_reason": "stop"},
+                        },
+                        7000000,
+                    ),
+                ],
+            )
+
+            meta, stats, entries, skills = parse_muse_session(path, {"update-skill"}, False)
+
+            self.assertEqual(stats["user_turns"], 1)
+            self.assertEqual(stats["assistant_turns"], 1)
+            self.assertEqual(stats["tool_calls"], 1)
+            self.assertEqual(skills, ["update-skill"])
+            self.assertIn(("assistant", "On it."), entries)
+            self.assertTrue(
+                any(role == "tool:read_skill" and "update-skill" in text for role, text in entries)
+            )
+            self.assertTrue(
+                any(role == "output" and "skill body here" in text for role, text in entries)
+            )
+
+    def test_run_commit_without_batch_still_emits_tool_once(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            session_dir = Path(tmp) / "sessions" / "2026" / "11" / "23" / "session-commit-only"
+            path = session_dir / "session.jsonl"
+            write_jsonl(
+                path,
+                [
+                    muse_record(
+                        "runtime.session.metadata",
+                        {"kind": "metadata", "record": {"workspace_root": "/tmp/repo"}},
+                    ),
+                    muse_record(
+                        "runtime.session",
+                        {
+                            "kind": "run",
+                            "run_id": "run-1",
+                            "event": {
+                                "kind": "assistant_tool_calls_committed",
+                                "tool_calls": [
+                                    {
+                                        "name": "bash",
+                                        "args": '{"command": "ls"}',
+                                        "call_id": "call-9",
+                                    }
+                                ],
+                            },
+                        },
+                        1000000,
+                    ),
+                ],
+            )
+
+            _meta, stats, entries, _skills = parse_muse_session(path, set(), False)
+
+            self.assertEqual(stats["tool_calls"], 1)
+            self.assertEqual(sum(1 for role, _ in entries if role == "tool:bash"), 1)
+
+    def test_model_completed_counts_text_only_turn(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            session_dir = Path(tmp) / "sessions" / "2026" / "11" / "23" / "session-text-only"
+            path = session_dir / "session.jsonl"
+            write_jsonl(
+                path,
+                [
+                    muse_record(
+                        "runtime.session.metadata",
+                        {"kind": "metadata", "record": {"workspace_root": "/tmp/repo"}},
+                    ),
+                    muse_record(
+                        "runtime.user_intent.accepted",
+                        {"model_messages": [{"content": [{"kind": "text", "text": "Hi"}]}]},
+                        1000000,
+                    ),
+                    muse_record(
+                        "runtime.session",
+                        {
+                            "kind": "run",
+                            "run_id": "run-9",
+                            "event": {"kind": "model_completed", "finish_reason": "stop"},
+                        },
+                        2000000,
+                    ),
+                ],
+            )
+
+            _meta, stats, _entries, _skills = parse_muse_session(path, set(), False)
+
+            self.assertEqual(stats["assistant_turns"], 1)
+            self.assertEqual(stats["tool_calls"], 0)
+
     def test_malformed_nested_records_do_not_halt_parsing(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "session-bad" / "session.jsonl"

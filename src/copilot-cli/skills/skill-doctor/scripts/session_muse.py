@@ -5,11 +5,16 @@ Muse stores one event-sourced journal per session at
 a record with a ``payload_type`` and a ``payload``; the first line may wrap
 child records as JSON strings under ``children[].record_json``.
 
-The journal retains user prompts, tool names, and tool outcomes. It does not
-retain assistant prose, tool arguments, or tool output text, so transcripts
-built from it contain user turns and tool names only. ``assistant_turns``
-counts distinct tool-batch runs: one run is one model response that issued
-tools. A session with no tool calls is not scoreable by the collector.
+Run records (``runtime.session`` with ``kind: run``) carry assistant prose
+(``assistant_message_committed``), tool calls with JSON arguments
+(``assistant_tool_calls_committed``), tool outputs
+(``tool_result_batch_committed``), and per-response completion
+(``model_completed``). Tool calls also appear as
+``tool_batch.effect.started`` / ``tool_batch.effect.terminal`` records with
+names and outcomes; the parser emits each call once, enriched with arguments
+when a run record names the same ``call_id``, so journals without run records
+still yield tool names. ``assistant_turns`` counts distinct run ids. A session
+with no tool calls and no model responses is not scoreable by the collector.
 
 Copyright (c) 2026 Denver Technologies, Inc. MIT license, see ../LICENSE.
 """
@@ -95,8 +100,74 @@ def _record_cwd(payload: Any) -> Any:
     return record.get("workspace_root") or record.get("cwd")
 
 
+def _run_calls(records: list[dict[str, Any]]) -> dict[Any, str]:
+    """Map tool ``call_id`` to ``name args`` text from run commit records."""
+    calls: dict[Any, str] = {}
+    for obj in records:
+        if obj.get("payload_type") != "runtime.session":
+            continue
+        payload = obj.get("payload")
+        if not isinstance(payload, dict) or payload.get("kind") != "run":
+            continue
+        event = payload.get("event")
+        if not isinstance(event, dict) or event.get("kind") != "assistant_tool_calls_committed":
+            continue
+        for call in event.get("tool_calls") or []:
+            if not isinstance(call, dict) or call.get("call_id") is None:
+                continue
+            name = str(call.get("name") or "unknown")
+            args = call.get("args")
+            text = args if isinstance(args, str) else json.dumps(args, ensure_ascii=False)
+            calls.setdefault(call.get("call_id"), f"{name} {text}")
+    return calls
+
+
+def _started_call_ids(records: list[dict[str, Any]]) -> set[Any]:
+    """Collect ``call_id`` values emitted through batch started records."""
+    seen: set[Any] = set()
+    for obj in records:
+        if obj.get("payload_type") != "tool_batch.effect.started":
+            continue
+        payload = obj.get("payload")
+        if not isinstance(payload, dict):
+            continue
+        call_id = _record(payload).get("call_id")
+        if call_id is not None:
+            seen.add(call_id)
+    return seen
+
+
+def _muse_run_event(state: SessionState, payload: dict[str, Any], runs: set[Any]) -> None:
+    """Map one ``kind: run`` event: prose, completion, outputs.
+
+    Tool calls are emitted at their batch started records (enriched with
+    arguments) or, when no started record names the call, here.
+    """
+    if payload.get("kind") != "run":
+        return
+    event = payload.get("event")
+    if not isinstance(event, dict):
+        return
+    kind = event.get("kind")
+    if kind == "model_completed":
+        if payload.get("run_id") is not None:
+            runs.add(payload["run_id"])
+    elif kind == "assistant_message_committed":
+        state.text("assistant", event.get("text") or "")
+    elif kind == "tool_result_batch_committed":
+        for result in event.get("results") or []:
+            if isinstance(result, dict) and result.get("text"):
+                state.output(str(result["text"]))
+
+
 def _muse_event(
-    state: SessionState, meta: dict[str, Any], kind: Any, payload: Any, runs: set[Any]
+    state: SessionState,
+    meta: dict[str, Any],
+    kind: Any,
+    payload: Any,
+    runs: set[Any],
+    calls: dict[Any, str],
+    started_ids: set[Any],
 ) -> None:
     if kind in (
         "runtime.session.metadata",
@@ -111,12 +182,26 @@ def _muse_event(
     elif kind == "runtime.user_intent.accepted":
         if state.text("user", _intent_text(payload)):
             state.stats["user_turns"] += 1
+    elif kind == "runtime.session" and isinstance(payload, dict):
+        _muse_run_event(state, payload, runs)
+        event = payload.get("event")
+        if isinstance(event, dict) and event.get("kind") == "assistant_tool_calls_committed":
+            for call in event.get("tool_calls") or []:
+                if not isinstance(call, dict):
+                    continue
+                call_id = call.get("call_id")
+                if call_id in started_ids or call_id not in calls:
+                    continue
+                name = str(call.get("name") or "unknown")
+                state.tool(name, calls[call_id])
     elif kind == "tool_batch.effect.started":
         record = _record(payload)
         if payload.get("run_id") is not None:
             runs.add(payload["run_id"])
         name = str(record.get("tool_name") or "unknown")
-        state.tool(name, f"call_id {record.get('call_id') or ''}".strip())
+        call_id = record.get("call_id")
+        text = calls.get(call_id, f"call_id {call_id or ''}".strip())
+        state.tool(name, text)
     elif kind == "tool_batch.effect.terminal":
         record = _record(payload)
         outcome = record.get("outcome") or {}
@@ -139,11 +224,13 @@ def parse_muse_session(path: Path, _skill_names: Any, _include_subagents: bool) 
         "thread_source": None,
     }
     runs: set[Any] = set()
+    calls = _run_calls(records)
+    started_ids = _started_call_ids(records)
     for obj in records:
         state.timestamp(_muse_timestamp(obj.get("recorded_at")))
         payload = obj.get("payload")
         if isinstance(payload, dict):
-            _muse_event(state, meta, obj.get("payload_type"), payload, runs)
+            _muse_event(state, meta, obj.get("payload_type"), payload, runs, calls, started_ids)
     state.stats["assistant_turns"] = len(runs)
     meta["started_at"] = state.first_ts
     result = state.finish(meta, GENERIC_EDIT_TOOLS)
