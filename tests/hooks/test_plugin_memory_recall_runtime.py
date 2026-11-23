@@ -240,7 +240,9 @@ def test_registered_command_runs_without_the_advisory_flag(harness: Harness) -> 
 
 def _forward_to_test_python(interpreter: Path) -> None:
     interpreter.write_text(
-        '#!/bin/sh\nprintf "selected" > "$TRUSTED_PROBE_MARKER"\nexec "$TRUSTED_PYTHON" "$@"\n',
+        '#!/bin/sh\nprintf "selected" > "$TRUSTED_PROBE_MARKER"\n'
+        'if [ -n "$PROBE_PATH_MARKER" ]; then printf "%s" "$PATH" > "$PROBE_PATH_MARKER"; fi\n'
+        'exec "$TRUSTED_PYTHON" "$@"\n',
         encoding="utf-8",
     )
     interpreter.chmod(0o755)
@@ -314,6 +316,34 @@ def test_registered_command_preserves_newline_in_external_symlink_target(
     assert result.returncode == 0, result.stderr
     assert marker.read_text(encoding="utf-8") == "selected"
     assert "<memory-context>" in result.stdout
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows filenames cannot contain a colon")
+def test_registered_command_skips_path_alias_with_unrepresentable_target(
+    harness: Harness, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    tools = tmp_path / "trusted-tools"
+    tools.mkdir()
+    _forward_to_test_python(tools / "python3")
+    ambiguous = tmp_path / "tool:directory"
+    ambiguous.mkdir()
+    alias = tmp_path / "tools-alias"
+    alias.symlink_to(ambiguous, target_is_directory=True)
+    env = harness.env()
+    env["PATH"] = os.pathsep.join([str(alias), str(tools), env["PATH"]])
+    env["TRUSTED_PROBE_MARKER"] = str(tmp_path / "trusted-probed")
+    env["TRUSTED_PYTHON"] = str(harness.venv_python)
+    path_marker = tmp_path / "received-path"
+    env["PROBE_PATH_MARKER"] = str(path_marker)
+    monkeypatch.setattr(harness, "env", lambda: env)
+
+    result = harness.run()
+
+    assert result.returncode == 0, result.stderr
+    assert "<memory-context>" in result.stdout
+    entries = path_marker.read_text(encoding="utf-8").split(os.pathsep)
+    assert str(tools) in entries
+    assert all(os.path.isabs(entry) and Path(entry).is_dir() for entry in entries)
 
 
 def test_prompt_naming_no_memory_injects_nothing(harness: Harness) -> None:
