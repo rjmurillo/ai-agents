@@ -32,7 +32,7 @@
     {
       "id": "S3",
       "desc": "Distinguish a stale dispatcher reference from a shipped hook",
-      "input": "A Copilot CLI session tries to open project-toolkit/hooks/PreToolUse/_dispatch.py and fails. Should a current plugin install contain that file? Which repository decision and registration evidence explain this? Answer in 5 short bullets. Do not modify any files.",
+      "input": "A Copilot CLI session tries to open project-toolkit/hooks/PreToolUse/_dispatch.py and fails. Should a current plugin install contain that file? Which repository decision and registration evidence explain this? What should I do after correcting the stale reference? Answer in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "adr-097",
         "zero registrations",

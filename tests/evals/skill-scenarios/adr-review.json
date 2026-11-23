@@ -4,7 +4,7 @@
   "scenarios": [
     {
       "id": "S1",
-      "desc": "Review an ADR under the canonical architecture directory",
+      "desc": "Review a proposed ADR that changes executable enforcement",
       "input": "Review this proposed ADR for an API versioning policy. This is a hypothetical draft. It changes executable enforcement for a rule other gates read. Who reviews it, how does debate end, and what artifact must exist afterward? Answer in 6 short bullets. Do not modify any files.",
       "expected_signals": [
         "architect",
