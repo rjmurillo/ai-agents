@@ -170,6 +170,31 @@ def _muse_run_event(state: SessionState, payload: dict[str, Any], runs: set[Any]
                 state.output(str(result["text"]))
 
 
+def _emit_commit_only_call(
+    state: SessionState,
+    payload: dict[str, Any],
+    runs: set[Any],
+    calls: dict[Any, str],
+    started_ids: set[Any],
+) -> None:
+    """Emit run-commit calls that no batch started record names, counting the turn."""
+    event = payload.get("event")
+    if not isinstance(event, dict) or event.get("kind") != "assistant_tool_calls_committed":
+        return
+    for call in event.get("tool_calls") or []:
+        if not isinstance(call, dict):
+            continue
+        call_id = call.get("call_id")
+        if not _valid_call_id(call_id):
+            record_collection_issue("malformed_records")
+            continue
+        if call_id in started_ids or call_id not in calls:
+            continue
+        state.tool(str(call.get("name") or "unknown"), calls[call_id])
+        if payload.get("run_id") is not None:
+            runs.add(payload["run_id"])
+
+
 def _muse_event(
     state: SessionState,
     meta: dict[str, Any],
@@ -194,21 +219,7 @@ def _muse_event(
             state.stats["user_turns"] += 1
     elif kind == "runtime.session" and isinstance(payload, dict):
         _muse_run_event(state, payload, runs)
-        event = payload.get("event")
-        if isinstance(event, dict) and event.get("kind") == "assistant_tool_calls_committed":
-            for call in event.get("tool_calls") or []:
-                if not isinstance(call, dict):
-                    continue
-                call_id = call.get("call_id")
-                if not _valid_call_id(call_id):
-                    record_collection_issue("malformed_records")
-                    continue
-                if call_id in started_ids or call_id not in calls:
-                    continue
-                name = str(call.get("name") or "unknown")
-                state.tool(name, calls[call_id])
-                if payload.get("run_id") is not None:
-                    runs.add(payload["run_id"])
+        _emit_commit_only_call(state, payload, runs, calls, started_ids)
     elif kind == "tool_batch.effect.started":
         record = _record(payload)
         if payload.get("run_id") is not None:
