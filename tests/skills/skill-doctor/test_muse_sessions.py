@@ -238,7 +238,61 @@ class MuseSessionTests(unittest.TestCase):
             _meta, stats, entries, _skills = parse_muse_session(path, set(), False)
 
             self.assertEqual(stats["tool_calls"], 1)
+            self.assertEqual(stats["assistant_turns"], 1)
             self.assertEqual(sum(1 for role, _ in entries if role == "tool:bash"), 1)
+
+    def test_malformed_call_ids_do_not_halt_parsing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            session_dir = Path(tmp) / "sessions" / "2026" / "11" / "23" / "session-bad-ids"
+            path = session_dir / "session.jsonl"
+            write_jsonl(
+                path,
+                [
+                    muse_record(
+                        "runtime.session.metadata",
+                        {"kind": "metadata", "record": {"workspace_root": "/tmp/repo"}},
+                    ),
+                    muse_record(
+                        "runtime.user_intent.accepted",
+                        {"model_messages": [{"content": [{"kind": "text", "text": "Go"}]}]},
+                        1000000,
+                    ),
+                    muse_record(
+                        "runtime.session",
+                        {
+                            "kind": "run",
+                            "run_id": "run-1",
+                            "event": {
+                                "kind": "assistant_tool_calls_committed",
+                                "tool_calls": [
+                                    {"name": "bash", "args": "{}", "call_id": []},
+                                    {"name": "bash", "args": '{"x": 1}', "call_id": "ok-1"},
+                                ],
+                            },
+                        },
+                        2000000,
+                    ),
+                    muse_record(
+                        "tool_batch.effect.started",
+                        {"run_id": "run-1", "record": {"tool_name": "bash", "call_id": []}},
+                        3000000,
+                    ),
+                    muse_record(
+                        "tool_batch.effect.started",
+                        {"run_id": "run-1", "record": {"tool_name": "bash", "call_id": "ok-1"}},
+                        4000000,
+                    ),
+                ],
+            )
+
+            _meta, stats, entries, _skills = parse_muse_session(path, set(), False)
+
+            self.assertEqual(stats["user_turns"], 1)
+            self.assertEqual(stats["assistant_turns"], 1)
+            self.assertEqual(stats["tool_calls"], 2)
+            self.assertTrue(
+                any(role == "tool:bash" and '{"x": 1}' in text for role, text in entries)
+            )
 
     def test_model_completed_counts_text_only_turn(self):
         with tempfile.TemporaryDirectory() as tmp:

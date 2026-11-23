@@ -14,7 +14,9 @@ Run records (``runtime.session`` with ``kind: run``) carry assistant prose
 names and outcomes; the parser emits each call once, enriched with arguments
 when a run record names the same ``call_id``, so journals without run records
 still yield tool names. ``assistant_turns`` counts distinct run ids. A session
-with no tool calls and no model responses is not scoreable by the collector.
+is scoreable only when it has at least one assistant turn and at least one
+tool call. ``call_id`` values that are not strings or integers are malformed
+and counted as such; their records never abort parsing of the session.
 
 Copyright (c) 2026 Denver Technologies, Inc. MIT license, see ../LICENSE.
 """
@@ -100,8 +102,16 @@ def _record_cwd(payload: Any) -> Any:
     return record.get("workspace_root") or record.get("cwd")
 
 
+def _valid_call_id(value: Any) -> bool:
+    """Call ids are strings; tolerate integers as hashable identifiers."""
+    return isinstance(value, str) or (isinstance(value, int) and not isinstance(value, bool))
+
+
 def _run_calls(records: list[dict[str, Any]]) -> dict[Any, str]:
-    """Map tool ``call_id`` to ``name args`` text from run commit records."""
+    """Map tool ``call_id`` to ``name args`` text from run commit records.
+
+    Invalid ids are skipped here; the emission site counts the record once.
+    """
     calls: dict[Any, str] = {}
     for obj in records:
         if obj.get("payload_type") != "runtime.session":
@@ -113,7 +123,7 @@ def _run_calls(records: list[dict[str, Any]]) -> dict[Any, str]:
         if not isinstance(event, dict) or event.get("kind") != "assistant_tool_calls_committed":
             continue
         for call in event.get("tool_calls") or []:
-            if not isinstance(call, dict) or call.get("call_id") is None:
+            if not isinstance(call, dict) or not _valid_call_id(call.get("call_id")):
                 continue
             name = str(call.get("name") or "unknown")
             args = call.get("args")
@@ -132,7 +142,7 @@ def _started_call_ids(records: list[dict[str, Any]]) -> set[Any]:
         if not isinstance(payload, dict):
             continue
         call_id = _record(payload).get("call_id")
-        if call_id is not None:
+        if _valid_call_id(call_id):
             seen.add(call_id)
     return seen
 
@@ -190,18 +200,26 @@ def _muse_event(
                 if not isinstance(call, dict):
                     continue
                 call_id = call.get("call_id")
+                if not _valid_call_id(call_id):
+                    record_collection_issue("malformed_records")
+                    continue
                 if call_id in started_ids or call_id not in calls:
                     continue
                 name = str(call.get("name") or "unknown")
                 state.tool(name, calls[call_id])
+                if payload.get("run_id") is not None:
+                    runs.add(payload["run_id"])
     elif kind == "tool_batch.effect.started":
         record = _record(payload)
         if payload.get("run_id") is not None:
             runs.add(payload["run_id"])
         name = str(record.get("tool_name") or "unknown")
         call_id = record.get("call_id")
-        text = calls.get(call_id, f"call_id {call_id or ''}".strip())
-        state.tool(name, text)
+        if not _valid_call_id(call_id):
+            record_collection_issue("malformed_records")
+            state.tool(name, "call_id invalid")
+        else:
+            state.tool(name, calls.get(call_id, f"call_id {call_id}".strip()))
     elif kind == "tool_batch.effect.terminal":
         record = _record(payload)
         outcome = record.get("outcome") or {}

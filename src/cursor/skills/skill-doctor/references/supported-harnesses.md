@@ -153,8 +153,9 @@ outcomes. Each tool call is emitted once, with arguments when a run record
 names the same `call_id`. Timestamps are epoch microseconds in `recorded_at`.
 
 Some records are marked omitted in the journal and never reach the collector.
-`assistant_turns` counts distinct run ids; a session with no tool calls and
-no model responses is not scoreable. Skill names come from tool arguments
+`assistant_turns` counts distinct run ids. A session is scoreable only when it
+has at least one assistant turn and at least one tool call. Skill names come
+from tool arguments
 (`read_skill` takes `{"name": ...}`), so journals without run records report
 no detected skill usage.
 
