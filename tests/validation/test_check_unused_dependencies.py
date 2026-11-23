@@ -348,6 +348,28 @@ def test_tracked_files_without_git_binary_raises(tmp_path, monkeypatch):
         cud.tracked_files(tmp_path)
 
 
+def test_tracked_files_timeout_raises(tmp_path, monkeypatch):
+    def slow(*_a, **_k):
+        raise subprocess.TimeoutExpired(cmd="git", timeout=600)
+
+    monkeypatch.setattr(cud.subprocess, "run", slow)
+    with pytest.raises(RuntimeError, match="timed out"):
+        cud.tracked_files(tmp_path)
+
+
+def test_cli_deptry_timeout_exits_three(tmp_path, monkeypatch, capsys):
+    policy = _project(tmp_path, '"pyyaml"', "import yaml\n")
+
+    def fake_run(argv, **kwargs):
+        if argv[0] == "git":
+            return subprocess.CompletedProcess(argv, 0, b"pyproject.toml\0app.py\0", b"")
+        raise subprocess.TimeoutExpired(cmd="deptry", timeout=600)
+
+    monkeypatch.setattr(cud.subprocess, "run", fake_run)
+    assert cud.main(["--root", str(tmp_path), "--policy", str(policy)]) == 3
+    assert "EXTERNAL ERROR" in capsys.readouterr().err
+
+
 def test_cli_outside_git_exits_three(tmp_path, capsys):
     policy = _policy(tmp_path, '[[manifest]]\npath = "."\n')
     (tmp_path / "pyproject.toml").write_text('[project]\nname="x"\nversion="0"\n', encoding="utf-8")

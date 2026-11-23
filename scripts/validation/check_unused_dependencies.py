@@ -77,6 +77,8 @@ EXIT_LOGIC = 1
 EXIT_CONFIG = 2
 EXIT_EXTERNAL = 3
 
+RUN_TIMEOUT_SECONDS = 600
+
 DEFAULT_POLICY = Path(".github") / "dependency-hygiene" / "policy.toml"
 
 _REQ_NAME_RE = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)")
@@ -160,7 +162,10 @@ def tracked_files(root: Path) -> list[str]:
             ],
             capture_output=True,
             check=False,
+            timeout=RUN_TIMEOUT_SECONDS,
         )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"git ls-files timed out after {RUN_TIMEOUT_SECONDS}s") from exc
     except OSError as exc:
         raise RuntimeError(f"cannot list tracked files: {exc}") from exc
     if result.returncode != 0:
@@ -262,7 +267,10 @@ def run_deptry(manifest_dir: Path, extra_args: list[str]) -> list[dict[str, Any]
                 errors="replace",
                 check=False,
                 cwd=manifest_dir,
+                timeout=RUN_TIMEOUT_SECONDS,
             )
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(f"deptry timed out after {RUN_TIMEOUT_SECONDS}s") from exc
         except OSError as exc:
             raise RuntimeError(f"cannot launch deptry: {exc}") from exc
         if result.returncode not in (0, 1):
