@@ -94,3 +94,12 @@ VERIFIED for every behavior sentence in item 10, each mapped to a row above. The
 ### Item 10 self-consistency
 
 VERIFIED with one stated conflict. Item 5 says not to extend admission to another repository or another quality. Item 10 admits another quality, and it also admits files other than the scanner, which item 2 had limited to the scanner. It says so, on the maintainer's decision, and admits nothing beyond its eight records. The Rationale table rejects a generic framework; item 10 keeps fixed in-code records, so that rejection still holds.
+
+## Item 10 pin renewal (2026-11-22, issue #7493)
+
+| Claim | Kind | Check | Result |
+| --- | --- | --- | --- |
+| Decision D5 renews two search pins. | Quote | Read issue #7493 comment 7086682234. | VERIFIED. The receipt names the exact replacement blob and both scores. |
+| All eight admissions still match file content. | Behavior | Run `git rev-parse origin/main:<file>` and `git hash-object -- <file>` for each record. | VERIFIED. Every base and head blob matches. |
+| The assessor retains every regression and reports the new receipt. | Behavior | Run `assess.py --target . --changed-only --base origin/main --format json`. | VERIFIED. Exit zero with eight raw drops and eight admissions. Two admissions cite the D5 receipt. |
+| The renewal preserves fail-closed behavior. | Behavior | Remove `changeAdmissions` from a temporary config and rerun the assessor. | VERIFIED. Exit 10 with all eight drops. The adapter reports FAIL. |

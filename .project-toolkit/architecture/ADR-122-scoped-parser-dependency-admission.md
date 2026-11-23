@@ -1,7 +1,7 @@
 ---
 id: ADR-122
 status: accepted
-date: 2026-11-20
+date: 2026-11-22
 decision-makers:
   - rjmurillo
 supersedes: []
@@ -120,8 +120,8 @@ Item 10 admits eight score drops in issue #7493, outside the scanner file and be
    | `build/scripts/lib_mirror.py` | coupling | 8.0 | 7.0 | `7477415f3dd7` | `83f7c976ca63` |
    | `scripts/memory_enhancement/hooks/user_prompt_submit_memory.py` | cohesion | 6.3 | 4.2 | `32c45daf664c` | `3d8a383a59c4` |
    | `scripts/memory_enhancement/hooks/user_prompt_submit_memory.py` | coupling | 6.0 | 3.0 | `32c45daf664c` | `3d8a383a59c4` |
-   | `scripts/memory_enhancement/search.py` | cohesion | 4.2 | 2.1 | `1dcb875cc1a1` | `2bf7d6191af9` |
-   | `scripts/memory_enhancement/search.py` | coupling | 5.0 | 3.0 | `1dcb875cc1a1` | `2bf7d6191af9` |
+   | `scripts/memory_enhancement/search.py` | cohesion | 4.2 | 2.1 | `1dcb875cc1a1` | `e8b99efd13cc` |
+   | `scripts/memory_enhancement/search.py` | coupling | 5.0 | 3.0 | `1dcb875cc1a1` | `e8b99efd13cc` |
    | `templates/hooks/UserPromptSubmit/invoke_memory_recall.py` | cohesion | 9.2 | 7.7 | `a828ad1f7182` | `633448a550fe` |
    | `templates/hooks/invoke_dispatch_claude.py` | cohesion | 5.7 | 4.6 | `0672c74a1924` | `6c83d8f9257a` |
    | `tests/build_scripts/test_lib_mirror.py` | coupling | 7.0 | 6.0 | `e4259bb802bf` | `c8214f85fb74` |
@@ -135,7 +135,10 @@ Item 10 admits eight score drops in issue #7493, outside the scanner file and be
    Each record also pins two git blob ids: the file at the comparison base and the file at head.
    The table shows the first 12 characters of each; the records hold all 40.
    Scores alone are not enough. Swapping one import for another, or a few lines, can leave a score unchanged.
-   With both blob ids pinned, any edit to the file, or any move of its base, voids the record.
+   A change to either pinned file blob voids its record.
+   The owner renewed only the two search.py head blob pins on 2026-11-22.
+   Decision D5 covers the hardened file and preserves both score drops.
+   [Issue #7493 approval](https://github.com/rjmurillo/ai-agents/issues/7493#issuecomment-7086682234)
    Records pin no import set.
    A file with two dropped qualities passes only when each quality has its own matching record.
    Items 3 and 4 apply: raw evidence stays, `ADMITTED` prints, and the adapter reports `WARN`, never `PASS`.

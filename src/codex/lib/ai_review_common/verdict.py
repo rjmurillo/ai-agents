@@ -302,6 +302,8 @@ _PARSER_DEPENDENCY_ADMISSIONS: dict[str, dict[str, object]] = {
 
 # ADR-122 item 10: the adapter's own copy of the eight issue #7493 change
 # records. The scanner holds a second copy; a conformance test keeps them equal.
+_RENEWED_SEARCH_HEAD = "e8b99efd13cc07a5cf6f7b9d74ca838ec6221029"
+
 _CHANGE_ADMISSIONS: tuple[dict[str, object], ...] = tuple(
     {
         "issue": 7493,
@@ -312,10 +314,16 @@ _CHANGE_ADMISSIONS: tuple[dict[str, object], ...] = tuple(
         "baseBlob": base_blob,
         "headBlob": head_blob,
         "authorizedBy": "rjmurillo",
-        "authorizedOn": "2026-11-20",
+        "authorizedOn": "2026-11-22" if head_blob == _RENEWED_SEARCH_HEAD else "2026-11-20",
         "authorization": (
             "Maintainer decisions D1 and D2, choice A: "
             "admit all 8 transitions as fixed records in one ADR-122 item."
+            + (
+                " Maintainer decision D5 renewed this head pin on 2026-11-22"
+                " (issue #7493 comment 7086682234)."
+                if head_blob == _RENEWED_SEARCH_HEAD
+                else ""
+            )
         ),
     }
     for file, quality, base, head, base_blob, head_blob in (
@@ -349,7 +357,7 @@ _CHANGE_ADMISSIONS: tuple[dict[str, object], ...] = tuple(
             4.2,
             2.1,
             "1dcb875cc1a14544bf3ff6294a45894fe2ae1106",
-            "2bf7d6191af918d4fefc0ed8b6c4520ff8d5f7bf",
+            _RENEWED_SEARCH_HEAD,
         ),
         (
             "scripts/memory_enhancement/search.py",
@@ -357,7 +365,7 @@ _CHANGE_ADMISSIONS: tuple[dict[str, object], ...] = tuple(
             5.0,
             3.0,
             "1dcb875cc1a14544bf3ff6294a45894fe2ae1106",
-            "2bf7d6191af918d4fefc0ed8b6c4520ff8d5f7bf",
+            _RENEWED_SEARCH_HEAD,
         ),
         (
             "templates/hooks/UserPromptSubmit/invoke_memory_recall.py",
