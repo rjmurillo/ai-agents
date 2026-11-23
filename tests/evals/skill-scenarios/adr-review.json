@@ -44,15 +44,16 @@
     {
       "id": "S4",
       "desc": "Deleting an accepted ADR runs the D1 to D4 workflow",
-      "input": "A hypothetical accepted ADR has two dependent ADRs. I want to delete it. What steps does ADR review require before the file goes away? Answer in 5 short bullets. Do not modify any files.",
+      "input": "A hypothetical accepted ADR has two dependent ADRs. Before deleting it, outline the four ADR review phases. Where do I find the detailed deletion rules? Answer in 5 short bullets. Do not modify any files.",
       "expected_signals": [
+        "impact assessment",
+        "dependencies",
         "archive",
-        "dependenc",
-        "d2",
-        "supersession"
+        "cleanup",
+        "deletion-workflow.md"
       ],
       "expected_gate": "adr-review-deletion",
-      "rationale": "Triggers row `delete ADR-NNN` and the Deletion Workflow table: D1 detection, D2 impact assessment, D3 archival decision, D4 cleanup. Anti-Patterns also bar deleting accepted ADRs without archive."
+      "rationale": "The Deletion Workflow table gives the four phases and links the detailed reference. This scenario tests that routing even when the hypothetical record has dependents."
     },
     {
       "id": "S5",

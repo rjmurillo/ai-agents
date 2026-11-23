@@ -40,7 +40,7 @@
         "restart"
       ],
       "expected_gate": "diagnose-retired-dispatcher-reference",
-      "rationale": "Shipped registrations says ADR-097 retired the dispatcher and no registrations remain. Stale plugin root wedges a running session explains why a restart is needed after fixing stale configuration."
+      "rationale": "Shipped registrations says ADR-097 retired the dispatcher. The generated Copilot plugin has zero registrations. The stale-root section describes restarting Copilot after correcting the stale reference."
     },
     {
       "id": "S4",
