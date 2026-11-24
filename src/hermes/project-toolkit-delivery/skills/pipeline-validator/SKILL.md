@@ -467,4 +467,4 @@ After complete execution:
 - [Azure DevOps CLI: Pipelines](https://learn.microsoft.com/en-us/cli/azure/pipelines)
 - [Azure DevOps CLI: Build logs](https://learn.microsoft.com/en-us/cli/azure/devops)
 
-Folded rules, read before editing what they govern: [ci-scripts](references/rule-ci-scripts.md).
+Folded rule: before you author or edit a CI workflow, composite action, or validation script, read [ci-scripts](references/rule-ci-scripts.md). Reading it runs no pipeline.

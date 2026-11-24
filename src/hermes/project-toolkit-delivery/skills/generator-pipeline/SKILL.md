@@ -35,4 +35,4 @@ Use this skill when the user says:
 
 - The pre-PR runner (`pre_pr.py`) reports `Generated Artifact Staleness` as passed.
 
-Folded rules, read before editing what they govern: [generated-artifacts](references/rule-generated-artifacts.md).
+Folded rule: before you change a generator or a customer-facing generated artifact, read [generated-artifacts](references/rule-generated-artifacts.md).

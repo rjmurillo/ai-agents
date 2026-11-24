@@ -316,4 +316,4 @@ Writes: `implementation-change`, `validation-record`. Next: `/test`.
 - **Non-pytest stacks.** Phase 3 step 3 names pytest because this project uses
   it. The unconditional-TDD rule is stack-independent; swap the runner.
 
-Folded rules, read before editing what they govern: [code-quality](references/rule-code-quality.md), [powershell](references/rule-powershell.md), [csharp](references/rule-csharp.md).
+Folded rules: before you write or change code, read [code-quality](references/rule-code-quality.md); for PowerShell files also read [powershell](references/rule-powershell.md), and for C# files [csharp](references/rule-csharp.md). For an edit under `templates/` or to a generated file, use the `generator-pipeline` skill.

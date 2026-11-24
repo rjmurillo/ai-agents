@@ -2,7 +2,7 @@
 
 ## Summary
 
-- **Rounds**: 4 of 10
+- **Rounds**: 5 of 10 (round 5 was critic only)
 - **Outcome**: Consensus
 - **Final Status**: unchanged (the edit changes no ADR status or decision)
 - **Scope**: citations of three moved rules in ADR-062, ADR-071, ADR-096, ADR-100, ADR-102,
@@ -129,4 +129,5 @@ text, along with the architecture README row for ADR-093.
 
 - `check_adr_lifecycle.py`: cited-paths-exist at 57/57, at baseline.
 - `tests/validation/test_adr107_conformance_gates.py`: 24 passed.
-- `citation_reverse_pass.py`: reads HEAD, so it is checked again after this commit.
+- `citation_reverse_pass.py`: passes at `c06b7c100e` (returns True).
+- `check_citation_freshness.py`: passes at `c06b7c100e`, 8 citations examined.

@@ -23,7 +23,7 @@ Choosing which surface a fact belongs on binds earlier, before you know which tr
    uv run python build/scripts/build_all.py
    ```
 
-   This command compiles the template, binplaces it, and regenerates both instruction mirrors; a stale mirror is torn state (see `.claude/rules/generated-artifacts.md`).
+   This command compiles the template, binplaces it, and regenerates both instruction mirrors; a stale mirror is torn state (see the `generator-pipeline` skill's `references/rule-generated-artifacts.md`).
 3. **Leave the plugin manifests alone**. `.claude/` and `src/copilot-cli/` ship in the project-toolkit plugin, but the manifests carry no `version` field: Claude Code resolves freshness from the commit SHA instead, so a rule change needs no manifest edit. Adding a `version` back fails `validate_plugin_version_bump.py` (see `.claude/rules/plugin-version-bump.md` and ADR-092).
 4. **Scope by `paths:`**. Set `paths:` to the narrowest glob that fires where the convention applies (`tests/**`, `**/*.ps1`). A universally-binding convention sets `paths: ["**"]`.
 5. **Index a new Serena memory by hand**. A memory under `.serena/memories/` MUST get a keyword line in `memory-index.md` in the same change, or keyword retrieval cannot reach it. `memory_index.py --ci` checks only that index rows resolve to files, never the reverse, so nothing catches the omission. Write `(0)` as the token placeholder; the `memory-token-update` pre-commit job rewrites it to the real count.
@@ -128,6 +128,6 @@ Three further MUST NOT items moved to the always-on Universal Rules (items 7, 8,
 
 - `AGENTS.md`. Directs every harness to read `.claude/rules/*.md` by `paths` first; the Codex common denominator.
 - `generate_rules.py`. Generates both instruction mirrors from `.claude/rules/`.
-- `.claude/rules/generated-artifacts.md`. Regenerate-and-commit-in-the-same-change discipline.
+- The `generator-pipeline` skill's `references/rule-generated-artifacts.md`. Regenerate-and-commit-in-the-same-change discipline.
 - `.claude/rules/plugin-version-bump.md`. Why the manifests carry no version field.
 - `.claude/rules/canonical-source-mirror.md`. Load-bearing "mirrors" claims must cite and quote the source.

@@ -128,10 +128,10 @@ These skills ship in no pack.
 
 These files of a shipped skill ship in no pack.
 
-- `build/references/rule-code-quality.md`: A folded path rule. Hermes never shipped rules, and the delivery pack is at the 400-file cap.
-- `build/references/rule-csharp.md`: A folded path rule. Hermes never shipped rules, and the delivery pack is at the 400-file cap.
-- `build/references/rule-powershell.md`: A folded path rule. Hermes never shipped rules, and the delivery pack is at the 400-file cap.
-- `generator-pipeline/references/rule-generated-artifacts.md`: A folded path rule. Hermes never shipped rules, and the delivery pack is at the 400-file cap.
-- `pipeline-validator/references/rule-ci-scripts.md`: A folded path rule. Hermes never shipped rules, and the delivery pack is at the 400-file cap.
-- `pr-comment-responder/references/rule-lossless-queue-reads.md`: A folded path rule. Hermes never shipped rules, and the delivery pack is at the 400-file cap.
+- `build/references/rule-code-quality.md`: Folded path rule; the delivery pack is at its 400-file cap.
+- `build/references/rule-csharp.md`: Folded path rule; the delivery pack is at its 400-file cap.
+- `build/references/rule-powershell.md`: Folded path rule; the delivery pack is at its 400-file cap.
+- `generator-pipeline/references/rule-generated-artifacts.md`: Folded path rule; the delivery pack is at its 400-file cap.
+- `pipeline-validator/references/rule-ci-scripts.md`: Folded path rule; the delivery pack is at its 400-file cap.
+- `pr-comment-responder/references/rule-lossless-queue-reads.md`: Folded path rule; the delivery pack is at its 400-file cap.
 - `retrospective/scripts/copilot_journal.py`: Needs the skill-doctor parser, which Hermes does not ship, so --journal always reports unavailable there.

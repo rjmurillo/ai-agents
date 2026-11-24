@@ -421,4 +421,4 @@ See [references/bitter-lesson-llms.md](references/bitter-lesson-llms.md) for why
 
 See [references/search-before-building.md](references/search-before-building.md) for when to trigger a search, the three layers of knowledge, and the pre-code self-review checklist.
 
-Folded rules, read before editing what they govern: [efficiency](references/rule-efficiency.md).
+Folded rule: before you add code, a dependency, or an abstraction, read [efficiency](references/rule-efficiency.md).

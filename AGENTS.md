@@ -14,8 +14,8 @@ Skills|route autoplan|no skill -> autoplan|multi -> orchestrator|conflict -> Git
 
 ## Routing
 
-Routing|named skill wins|else `/autoplan` (ADR-078)|retro->retrospective|lifecycle: spec, plan, build, test, review, ship
-Delegate|orchestrator|Explore|implementer/architect/analyst
+Routing|named skill wins|else `/autoplan` (ADR-078; table in its SKILL.md)|retro->retrospective|lifecycle: spec, plan, build, test, review, ship
+Delegate|non-trivial->orchestrator|Explore|implementer/architect/analyst
 Install|`~/.claude/` or `.claude/`|no `commands/` (ADR-064)
 Rules|read `.claude/rules/*.md` first|source `templates/rules/`|`paths:` only
 

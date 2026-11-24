@@ -285,4 +285,4 @@ Serena works with any language that has an LSP server configured:
 
 The specific features available depend on the language server's capabilities.
 
-Folded rules, read before editing what they govern: [lsp-first](references/rule-lsp-first.md).
+Folded rule: before you navigate or search code, read [lsp-first](references/rule-lsp-first.md).

@@ -1,6 +1,6 @@
 [AGENTS]
 |Serena|active at start (`.mcp.json --project`)|`initial_instructions` once|co... (see: .project-toolkit/context/AGENTS-details/agents.md)
 [Routing]
-|Routing|named skill wins|else `/autoplan` (ADR-078)|retro->retrospective|life... (see: .project-toolkit/context/AGENTS-details/routing.md)
+|Routing|named skill wins|else `/autoplan` (ADR-078; table in its SKILL.md)|re... (see: .project-toolkit/context/AGENTS-details/routing.md)
 [Standards]
 |Commits: type(scope): desc + Co-Authored-By|exit: 0/1/2/3/4 = ok/logic/config... (see: .project-toolkit/context/AGENTS-details/standards.md)

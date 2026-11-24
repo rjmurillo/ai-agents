@@ -198,10 +198,10 @@ def test_discovery_excludes_the_folded_lossless_queue_reads_rule() -> None:
     assert folded.is_file()
 
 
-def test_claude_md_keeps_orchestrator_default_for_non_trivial_work() -> None:
-    # The Claude Code Specifics section of CLAUDE.md merged into AGENTS.md (context diet).
+def test_agents_md_keeps_orchestrator_default_for_non_trivial_work() -> None:
+    # CLAUDE.md's Claude Code Specifics section merged into AGENTS.md (context diet).
     text = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
-    assert "\nDelegate|orchestrator|" in text
+    assert "\nDelegate|non-trivial->orchestrator|" in text
 
 
 @pytest.mark.parametrize("rule", ALWAYS_ON_RULES, ids=lambda p: p.name)
