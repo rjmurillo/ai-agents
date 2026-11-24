@@ -29,6 +29,9 @@ uv run --frozen python scripts/validation/check_repo_health.py
 A healthy checkout prints `4 of 4 found` from the hook health check and
 `none set true` from the repository health check.
 
+If PowerShell tests fail, these checks can pass while `pwsh` still cannot
+start. Run the `pwsh` check under Recover as well.
+
 ## Recover
 
 **A job failed.** Read the job output above the summary block. It names the file,
@@ -99,8 +102,8 @@ On 2026-11-24 a Linux workstation showed this case:
   held only 9.0.13. `COREHOST_TRACE=1` showed
   `Using dotnet root path [/usr/share/dotnet]`.
 
-The failed run was 85 failed, 113 passed, 1 skipped at commit 161cf5abd3
-(2026-11-24). It covered five test files:
+At commit 161cf5abd3 (2026-11-24) the failed run had 85 failed, 113 passed,
+and 1 skipped across five files (counts at 161cf5abd3, 2026-11-24):
 
 | File | Failed |
 |---|---|
@@ -127,8 +130,8 @@ PATH="/snap/bin:$PATH" git push
 ```
 
 The lasting fix is a machine change, and the machine owner picks it. Only the
-two prefixes above were tested on 2026-11-24. None of these profile or install
-changes was tested:
+two `pytest` prefixes above were measured on 2026-11-24. None of these profile
+or install changes was tested:
 
 - Put `/snap/bin` before `~/.dotnet/tools` on `PATH` in the shell profile.
 - Remove the shim with `dotnet tool uninstall -g PowerShell`. Other tools that
