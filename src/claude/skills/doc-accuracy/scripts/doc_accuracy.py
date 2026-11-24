@@ -2660,16 +2660,6 @@ def _csharp_type_body(position: int, owners: list[int], type_bodies: dict[int, s
 def _csharp_binding_view(view: str) -> str:
     owners, ends = _balanced_groups(view)
     spans = _csharp_initializer_keys(view, owners, ends)
-    spans.extend(
-        directive.span()
-        for directive in _CSHARP_USING_RE.finditer(view)
-        if directive[1] in _CSHARP_NAMESPACE_TYPES
-    )
-    spans.extend(
-        directive.span()
-        for directive in _CSHARP_USING_ALIAS_RE.finditer(view)
-        if _known_csharp_import_target(directive[2])
-    )
     type_bodies: dict[int, str] = {}
     for header in _CSHARP_TYPE_HEADER_RE.finditer(view):
         body = header.end() - 1
@@ -2976,7 +2966,6 @@ def _qualified_member_checks(
     local_types: set[str],
     repo_methods: _RepoMethods,
     literal_ends: set[int],
-    external_types: dict[str, str],
 ) -> tuple[str, set[str], list[tuple[SourceSymbol, str]]]:
     """Consume member occurrences before bare names reach the global index."""
     resolve_receiver = _receiver_bindings(lexical, lang)
@@ -3005,13 +2994,9 @@ def _qualified_member_checks(
         if receiver_type in unchecked_types:
             unresolved.add(name)
             continue
-        receiver_name = receiver_type.rsplit(".", 1)[-1]
-        if receiver_name in concrete_types or (receiver.name in {"this", "base"} and local_types):
-            continue
-        external_type = external_types.get(receiver_name)
-        if external_type is not None and receiver_type in (receiver_name, external_type):
-            if name not in _CSHARP_IMPORTED_MEMBERS.get(external_type, frozenset()):
-                unresolved.add(name)
+        if receiver_type.rsplit(".", 1)[-1] in concrete_types or (
+            receiver.name in {"this", "base"} and local_types
+        ):
             continue
 
         methods = repo_methods.get((receiver_type, name), []) if receiver.direct else []
@@ -3052,197 +3037,6 @@ def _qualified_member_checks(
 # (NETFRAMEWORK, NET472, DEBUG) or tooling text (#region, #pragma), never a
 # repository declaration.
 _CSHARP_DIRECTIVE_LINE_RE = re.compile(r"^[ \t]*#[ \t]*[a-z]+\b.*$", re.MULTILINE)
-
-_CSHARP_USING_RE = re.compile(r"^[ \t]*using[ \t]+([A-Za-z_][\w.]*)[ \t]*;", re.MULTILINE)
-
-# Types from the .NET and ASP.NET Core reference assemblies, grouped by namespace.
-# The snippet must import the namespace or alias a known qualified type.
-_CSHARP_NAMESPACE_TYPES: dict[str, frozenset[str]] = {
-    "System": frozenset(
-        {
-            "Array",
-            "Console",
-            "DateTime",
-            "DateTimeOffset",
-            "Enum",
-            "Environment",
-            "Exception",
-            "GC",
-            "Guid",
-            "Math",
-            "ObjectDisposedException",
-            "Random",
-            "ReadOnlySpan",
-            "Span",
-            "String",
-            "StringComparer",
-            "StringComparison",
-            "TimeSpan",
-            "Tuple",
-            "Type",
-            "Uri",
-            "Version",
-        }
-    ),
-    "System.Buffers": frozenset({"ArrayPool", "MemoryPool"}),
-    "System.Collections.Concurrent": frozenset(
-        {
-            "BlockingCollection",
-            "ConcurrentBag",
-            "ConcurrentDictionary",
-            "ConcurrentQueue",
-            "ConcurrentStack",
-        }
-    ),
-    "System.Collections.Generic": frozenset(
-        {
-            "Dictionary",
-            "HashSet",
-            "IReadOnlyCollection",
-            "IReadOnlyDictionary",
-            "IReadOnlyList",
-            "KeyNotFoundException",
-            "KeyValuePair",
-            "LinkedList",
-            "List",
-            "Queue",
-            "Stack",
-        }
-    ),
-    "System.IO": frozenset(
-        {"File", "Directory", "MemoryStream", "Path", "Stream", "StreamReader", "StreamWriter"}
-    ),
-    "System.Linq": frozenset({"Enumerable"}),
-    "System.Net.Http": frozenset({"HttpClient", "HttpRequestMessage", "HttpResponseMessage"}),
-    "System.Runtime.InteropServices": frozenset({"Marshal"}),
-    "System.Text": frozenset({"Encoding", "StringBuilder"}),
-    "System.Text.Json": frozenset({"JsonSerializer", "JsonDocument", "JsonElement"}),
-    "System.Threading": frozenset(
-        {
-            "CancellationToken",
-            "CancellationTokenSource",
-            "Interlocked",
-            "SemaphoreSlim",
-            "Thread",
-            "Timer",
-            "Volatile",
-        }
-    ),
-    "System.Threading.Tasks": frozenset(
-        {
-            "Parallel",
-            "ParallelOptions",
-            "Task",
-            "TaskCompletionSource",
-            "TaskCreationOptions",
-            "ValueTask",
-        }
-    ),
-    "Microsoft.AspNetCore.Http": frozenset(
-        {"IResult", "Results", "HttpContext", "HttpRequest", "HttpResponse"}
-    ),
-    "Microsoft.Extensions.Logging": frozenset({"ILogger", "LogLevel"}),
-    "Microsoft.Extensions.Caching.Memory": frozenset(
-        {"IMemoryCache", "MemoryCache", "CacheItemPriority"}
-    ),
-    "Microsoft.Extensions.Configuration": frozenset({"IConfiguration", "ConfigurationBuilder"}),
-    "Microsoft.AspNetCore.Builder": frozenset({"WebApplication", "WebApplicationBuilder"}),
-    "Microsoft.AspNetCore.DataProtection": frozenset({"IDataProtectionProvider", "IDataProtector"}),
-    "System.Data.Common": frozenset(
-        {"DbConnection", "DbProviderFactory", "DbCommand", "DbDataReader", "DbTransaction"}
-    ),
-    "System.ComponentModel.DataAnnotations": frozenset(
-        {"ValidationException", "RequiredAttribute", "StringLengthAttribute", "RangeAttribute"}
-    ),
-    "System.Diagnostics": frozenset(
-        {"Debug", "Trace", "Stopwatch", "Process", "ActivitySource", "Activity"}
-    ),
-    "System.Net": frozenset({"IPAddress", "Dns", "WebRequest", "HttpStatusCode"}),
-    "System.Net.Http.Headers": frozenset({"MediaTypeWithQualityHeaderValue"}),
-    "System.Security.Cryptography": frozenset(
-        {
-            "AesGcm",
-            "RandomNumberGenerator",
-            "HashAlgorithm",
-            "SHA256",
-            "SHA384",
-            "SHA512",
-            "MD5",
-            "SHA1",
-            "HMACSHA256",
-            "RSA",
-            "ECDsa",
-        }
-    ),
-    "System.Text.RegularExpressions": frozenset({"Regex", "RegexOptions", "Match"}),
-}
-
-_CSHARP_USING_ALIAS_RE = re.compile(
-    r"^[ \t]*using[ \t]+([A-Za-z_]\w*)[ \t]*=[ \t]*([A-Za-z_][\w.]*)[ \t]*;", re.MULTILINE
-)
-
-
-# Selected members of imported types from the .NET reference declarations.
-_CSHARP_IMPORTED_MEMBERS = {
-    "Microsoft.AspNetCore.DataProtection.IDataProtectionProvider": frozenset({"CreateProtector"}),
-    "Microsoft.AspNetCore.DataProtection.IDataProtector": frozenset({"Protect"}),
-    "Microsoft.AspNetCore.Http.Results": frozenset(
-        {"BadRequest", "NoContent", "NotFound", "Ok", "Unauthorized"}
-    ),
-    "System.Array": frozenset({"Empty"}),
-    "System.Buffers.ArrayPool": frozenset({"Rent", "Return"}),
-    "System.Collections.Concurrent.ConcurrentDictionary": frozenset({"TryGetValue"}),
-    "System.Collections.Generic.Dictionary": frozenset({"Add", "Clear"}),
-    "System.Collections.Generic.HashSet": frozenset({"Add"}),
-    "System.Collections.Generic.IReadOnlyDictionary": frozenset({"TryGetValue"}),
-    "System.Collections.Generic.List": frozenset({"Add", "Clear", "ToArray"}),
-    "System.Console": frozenset({"ReadLine", "WriteLine"}),
-    "System.Data.Common.DbProviderFactory": frozenset({"CreateConnection"}),
-    "System.Diagnostics.ActivitySource": frozenset({"StartActivity"}),
-    "System.Environment": frozenset({"GetEnvironmentVariable"}),
-    "System.GC": frozenset({"SuppressFinalize"}),
-    "System.IO.File": frozenset({"OpenWrite", "ReadAllTextAsync"}),
-    "System.IO.Path": frozenset({"GetFullPath", "GetRelativePath", "IsPathRooted"}),
-    "System.IO.Stream": frozenset({"Read"}),
-    "System.Linq.Enumerable": frozenset({"Count", "Range", "Select", "ToArray"}),
-    "System.Net.Http.HttpClient": frozenset({"GetAsync"}),
-    "System.ObjectDisposedException": frozenset({"ThrowIf"}),
-    "System.ReadOnlySpan": frozenset({"CopyTo"}),
-    "System.Runtime.InteropServices.Marshal": frozenset({"AllocHGlobal", "FreeHGlobal"}),
-    "System.Security.Cryptography.AesGcm": frozenset({"Encrypt"}),
-    "System.Security.Cryptography.MD5": frozenset({"HashData"}),
-    "System.Security.Cryptography.RandomNumberGenerator": frozenset({"GetBytes"}),
-    "System.Security.Cryptography.SHA256": frozenset({"HashData"}),
-    "System.Text.Encoding": frozenset({"GetBytes"}),
-    "System.Text.Json.JsonSerializer": frozenset({"Serialize"}),
-    "System.Text.RegularExpressions.Regex": frozenset({"IsMatch"}),
-    "System.Text.StringBuilder": frozenset({"Append", "ToString"}),
-    "System.Threading.CancellationToken": frozenset({"ThrowIfCancellationRequested"}),
-    "System.Threading.Interlocked": frozenset({"Exchange", "Increment"}),
-    "System.Threading.Tasks.Parallel": frozenset({"ForEachAsync"}),
-    "System.Threading.Tasks.Task": frozenset({"Delay", "Run", "WhenAll"}),
-    "System.Threading.Tasks.TaskCompletionSource": frozenset({"SetResult"}),
-    "System.Threading.Volatile": frozenset({"Read", "Write"}),
-    "System.TimeSpan": frozenset({"FromSeconds"}),
-    "System.Uri": frozenset({"TryCreate"}),
-}
-
-
-def _known_csharp_import_target(target: str) -> bool:
-    namespace, _, name = target.rpartition(".")
-    return name in _CSHARP_NAMESPACE_TYPES.get(namespace, ())
-
-
-def _csharp_using_proven_types(code: str) -> dict[str, str]:
-    """Resolve known external names through this example's using directives."""
-    candidates: dict[str, set[str]] = {}
-    for namespace in _CSHARP_USING_RE.findall(code):
-        for name in _CSHARP_NAMESPACE_TYPES.get(namespace, ()):
-            candidates.setdefault(name, set()).add(f"{namespace}.{name}")
-    for alias, target in _CSHARP_USING_ALIAS_RE.findall(code):
-        if _known_csharp_import_target(target):
-            candidates.setdefault(alias, set()).add(target)
-    return {name: next(iter(matches)) for name, matches in candidates.items() if len(matches) == 1}
 
 
 def _extract_identifiers(
@@ -3924,7 +3718,6 @@ def run_compilability_check(
             else content
         )
         checked_content = lexical_content
-        external_types = _csharp_using_proven_types(lexical_content) if lang == "csharp" else {}
         if lang == "csharp":
             checked_content = _csharp_binding_view(lexical_content)
         elif lang in ("typescript", "javascript"):
@@ -3947,7 +3740,6 @@ def run_compilability_check(
                     declared_types | (local_types - known_names),
                     repo_methods if lang == "csharp" else {},
                     literal_ends,
-                    external_types,
                 )
                 for actual, param in wrong_parameters:
                     finding_counter += 1
@@ -4060,10 +3852,6 @@ def run_compilability_check(
 
                 # Common base class library types beyond the pinned set.
                 if lang == "csharp" and sym_name in _CSHARP_FRAMEWORK_TYPES_EXTRA:
-                    continue
-
-                # Framework types the example's using directives import.
-                if sym_name in external_types:
                     continue
 
             # The file declares itself documentation for another SDK, so a

@@ -90,30 +90,6 @@ def test_csharp_example_bindings(code: str, expected: set[str]) -> None:
 @pytest.mark.parametrize(
     ("code", "expected"),
     [
-        ("using System.Threading;\nInterlocked.Increment(ref n);", set()),
-        ("using System.Threading;\nInterlocked.InventedMember(ref n);", {"InventedMember"}),
-        ("using System;\nInterlocked.Increment(ref n);", {"Interlocked", "Increment"}),
-        (
-            "using System.Collections.Generic;\nIReadOnlyDictionary<string, int> m = null;",
-            set(),
-        ),
-        ("using System;\nReadOnlySpan<byte> s = default;", set()),
-        ("using System.Threading.Tasks;\nValueTask<int> v = default;", set()),
-        ("using Xunit;\nAssert.Equal(1, 1);", {"Assert", "Equal", "Xunit"}),
-        ("using Hasher = System.Security.Cryptography.SHA256;\nHasher.HashData(data);", set()),
-        (
-            "using Hasher = Unknown.Security.SHA256;\nHasher.HashData(data);",
-            {"Hasher", "HashData", "Unknown", "Security", "SHA256"},
-        ),
-    ],
-)
-def test_csharp_using_directive_proves_bcl_names(code: str, expected: set[str]) -> None:
-    assert unresolved(code, "csharp") == expected
-
-
-@pytest.mark.parametrize(
-    ("code", "expected"),
-    [
         ("const rules = [{ pattern: /design|ADR/i }];", set()),
         (r"const pattern = /[A-Z/]+\/GhostWidget/g; MissingWidget();", {"MissingWidget"}),
         (

@@ -1,5 +1,7 @@
 # Law of Demeter (Principle of Least Knowledge)
 
+<!-- doc-accuracy: external-sdk dotnet -- C# examples use the .NET base class library, not this repository -->
+
 **Created**: 2026-01-10
 **Category**: Mental Models / Coupling
 

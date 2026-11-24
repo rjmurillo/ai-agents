@@ -1,5 +1,7 @@
 # Design by Contract
 
+<!-- doc-accuracy: external-sdk dotnet -- C# examples use the .NET base class library, not this repository -->
+
 **Category**: Software Design
 **Source**: `.project-toolkit/analysis/senior-engineering-knowledge.md`
 **Origin**: Bertrand Meyer, Eiffel programming language

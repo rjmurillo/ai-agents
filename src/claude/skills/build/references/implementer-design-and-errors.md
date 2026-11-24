@@ -1,5 +1,7 @@
 # Design Qualities and Error Handling
 
+<!-- doc-accuracy: external-sdk dotnet -- C# examples use the .NET base class library, not this repository -->
+
 Loaded by the `implementer` agent when it designs or refactors code. The agent body keeps a working rule for each topic.
 
 Bottom-up. Design emerges from qualities, not from pattern selection.

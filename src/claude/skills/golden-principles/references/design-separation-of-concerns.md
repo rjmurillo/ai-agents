@@ -6,6 +6,8 @@ review-by: 2026-07-11
 
 # Separation of Concerns
 
+<!-- doc-accuracy: external-sdk dotnet -- C# examples use the .NET base class library, not this repository -->
+
 Decompose a system into distinct sections, each addressing a separate concern. Attribution: Edsger W. Dijkstra, "On the role of scientific thought" (1974).
 
 A **concern** is a set of information that affects the code. Each section should address one concern, be independent, and be modifiable without affecting unrelated sections.

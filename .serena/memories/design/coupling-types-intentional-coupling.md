@@ -1,5 +1,7 @@
 # Coupling Types and Intentional Coupling
 
+<!-- doc-accuracy: external-sdk dotnet -- C# examples use the .NET base class library, not this repository -->
+
 ## Four Types of Coupling
 
 ### Identity Coupling
