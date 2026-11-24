@@ -2,7 +2,7 @@
 name: technical-writing
 version: 1.0.0
 description: Write, edit, or audit docs pages in the site's conventions and one stylebook. Use for fact-preserving Hemingway passes. Do NOT use for endpoint API guides (use api-doc-authoring) or claim checks (use doc-accuracy).
-license: MIT
+license: Apache-2.0
 user-invocable: true
 metadata:
   capability:

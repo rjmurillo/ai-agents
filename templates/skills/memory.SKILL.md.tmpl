@@ -6,7 +6,7 @@ description: Thin router for the tiered memory system. Points callers at the
   the memory-first gate, maintenance, and consolidation. Use when you ask "what
   do we know about X", "recall prior context", or "search memory" and are not
   sure which operation you need. Do NOT use for adding citations (use memory-enhancement), narrative cross-system reports (use memory-documentary), or a plain lookup (use memory-search).
-license: MIT
+license: Apache-2.0
 metadata:
   capability:
     kind: orchestrator

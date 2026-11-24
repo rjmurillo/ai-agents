@@ -1,7 +1,7 @@
 ---
 name: ai-agents-research-methodology
 version: 1.0.0
-license: MIT
+license: Apache-2.0
 description: How a hunch becomes an accepted result in this repo. Covers the
   evidence bar, hypothesis-predicts-numbers discipline, and the idea lifecycle
   from contradiction log through probe, eval baseline, ADR debate, calibrated

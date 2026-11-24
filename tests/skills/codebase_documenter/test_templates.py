@@ -70,7 +70,7 @@ class TestSkillFrontmatter:
         assert first_word in VALID_DESCRIPTION_VERBS, (
             f"description must start with an action verb; got '{first_word}'"
         )
-        assert fm.get("license") == "MIT"
+        assert fm.get("license") == "Apache-2.0"
 
     def test_model_is_optional(self) -> None:
         # ADR-080: model is optional; skills inherit the harness default. When

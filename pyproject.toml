@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "AI agent orchestration framework"
 readme = "README.md"
 requires-python = ">=3.14"
-license = {text = "MIT"}
+license = {text = "Apache-2.0"}
 
 dependencies = [
     "anthropic==2.9.0",

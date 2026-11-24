@@ -7,7 +7,7 @@ description: Memory-system maintenance operations, split out of the memory route
   canonical memory scripts. Use when you say `check memory tier health`, `count memory
   tokens`, or `benchmark memory performance`. Do NOT use for Tier 1 search (use
   memory-search) or recording a session (use memory-reflexion).
-license: MIT
+license: Apache-2.0
 metadata:
   adr: ADR-063, ADR-106
   capability:

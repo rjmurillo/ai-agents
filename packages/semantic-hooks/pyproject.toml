@@ -7,7 +7,7 @@ name = "semantic-hooks"
 version = "0.1.0"
 description = "Semantic tension tracking hooks for Claude Code CLI"
 readme = "README.md"
-license = "MIT"
+license = "Apache-2.0"
 requires-python = ">=3.11"
 authors = [
     { name = "Richard Murillo", email = "rjmurillo@gmail.com" }
@@ -16,7 +16,7 @@ keywords = ["claude", "hooks", "semantic", "ai", "agents"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
