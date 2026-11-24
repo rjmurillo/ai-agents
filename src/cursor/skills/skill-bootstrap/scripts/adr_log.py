@@ -16,10 +16,11 @@ that ``adr_locate.py`` reads.
 Departures from the upstream source, each pinned by a test:
 
 - Upstream used log entries as context. Extension E1 makes an entry that has an id a
-  candidate when no existing ADR names that id (``log_candidates``).
+  candidate when no existing ADR names its key (``log_candidates``).
 - ``entry_date`` returns the day (``YYYY-MM-DD``) through ``adr_commits.iso_day``, which accepts
   only a real calendar day. Upstream returned an ISO instant.
-- A sub-heading deeper than its decision's heading (``### Rationale``) stays inside it.
+- A sub-heading deeper than its decision's heading (``### Rationale``), or any id-less heading
+  after a ledger line, stays inside that decision.
 - Upstream's minimum chunk length is not ported.
 - The log and heading patterns trim blanks in code instead of in a lazy group, so a long run
   of spaces costs linear time.
@@ -37,7 +38,7 @@ from pathlib import Path
 from typing import Any
 
 from adr_commits import EXCERPT_CHARS, iso_day, sanitize
-from adr_docs import ExistingAdrs
+from adr_docs import ExistingAdrs, fence_after
 from adr_locate import read_bounded
 from adr_reason import extract_reason
 
@@ -63,20 +64,21 @@ MAX_LOG_ENTRIES = 5000
 # Blanks and closing marks come off in ``_heading_text``: a lazy group before ``[ \t]*#*[ \t]*\Z``
 # is quadratic on a long run of spaces.
 _HEADING = re.compile(r"#{1,6}[ \t]+(.+)", _A)
-# `id: X`, or a bare id-like token (D-001, D181, ADR-7), at the start of a top-level line.
-_ID_START = re.compile(r"(?:[-*][ \t]+)?(?:id:[ \t]*([\w.-]+)|([A-Za-z]{1,6}-?[0-9]+))(?!\w)", _I)
-_ID_IN_HEADING = re.compile(r"(?:id:[ \t]*([\w.-]+)|([A-Za-z]{1,6}-?[0-9]+))(?!\w)", _I)
+# `id: X`, or a bare id-like token (D-001, D181, ADR-7, D-1.2), at the start of a top-level line.
+# A dot joins a bare id only before a digit, so the dot of `D-1.` or `D-1.md` stays out.
+_BARE_ID = r"[A-Za-z]{1,6}-?[0-9]+(?:\.[0-9]+)*"
+_ID_IN_HEADING = re.compile(rf"(?:id:[ \t]*([\w.-]+)|({_BARE_ID}))(?!\w)", _I)
+_ID_START = re.compile(rf"(?:[-*][ \t]+)?(?:id:[ \t]*([\w.-]+)|({_BARE_ID}))(?!\w)", _I)
 # `https://...` is a URL, not a field: a colon followed by // never starts a value.
 _FIELD = re.compile(r"([a-z_]+):(?!//)\s*(.*)\Z", _I | re.DOTALL)
 # No ``\s*`` around the mark: it is quadratic on a long run of spaces. Segments are stripped.
 _FIELD_SEPARATOR = re.compile(r"[·|]")
-_FENCE = re.compile(r"\s*(`{3,}|~{3,})(.*)", _A)
 _MIN_ENTRY_CHARS = 20
 _TITLE_MAX = 120
 _DATE_KEYS = ("date", "decided", "modified")
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class LogEntry:
     id: str | None
     heading: str | None
@@ -93,7 +95,10 @@ class _Block:
 
 
 def find_log_files(root: Path) -> list[str]:
-    """Decision log file paths, relative to ``root``, at the root and in ``docs/``."""
+    """Decision log file paths, relative to ``root``, at the root and in ``docs/``.
+
+    A symlinked file is left out here, before the ``MAX_LOG_FILES`` quota, because
+    ``read_bounded`` refuses it and it would take a real log's place."""
     found: list[str] = []
     for folder in _LOG_DIRS:
         try:
@@ -103,6 +108,7 @@ def find_log_files(root: Path) -> list[str]:
                 for entry in (root / folder).iterdir()
                 if _LOG_FILE.fullmatch(entry.name)
                 and entry.is_file()
+                and not entry.is_symlink()
                 and base in entry.resolve().parents
             ]
         except OSError:
@@ -120,13 +126,10 @@ def _heading_text(line: str) -> str | None:
     return text or match[1][:1]
 
 
-def _fields_of(line: str) -> dict[str, str]:
-    fields: dict[str, str] = {}
-    for segment in _FIELD_SEPARATOR.split(line):
-        match = _FIELD.fullmatch(segment.strip())
-        if match:
-            fields[match[1].lower()] = match[2].strip()
-    return fields
+def _fields_of(line: str) -> list[tuple[str, str]]:
+    """The ``key: value`` segments of ``line`` in source order; a key may repeat."""
+    found = (_FIELD.fullmatch(segment.strip()) for segment in _FIELD_SEPARATOR.split(line))
+    return [(match[1].lower(), match[2].strip()) for match in found if match]
 
 
 def _heading_title(heading: str) -> str:
@@ -149,21 +152,11 @@ def _text_outside_fields(line: str) -> str:
     return " ".join(segment.strip() for segment in kept).strip()
 
 
-def _fence_after(fence: str | None, line: str) -> str | None:
-    """The open fence after ``line``. A closing fence uses the opener's mark, at least as many
-    times, and nothing after it, so a three-backtick line inside a four-backtick fence is text."""
-    mark = _FENCE.match(line)
-    if fence is None:
-        return mark[1] if mark else None
-    closes = mark and mark[1][0] == fence[0] and len(mark[1]) >= len(fence) and not mark[2].strip()
-    return None if closes else fence
-
-
 def _blocks(content: str) -> list[_Block]:
     blocks: list[_Block] = []
     fence: str | None = None
     for line in content.replace("\r\n", "\n").split("\n"):
-        after = _fence_after(fence, line)
+        after = fence_after(fence, line, any_indent=True)
         if fence is not None or after is not None:
             # Lines inside a fenced block belong to the enclosing entry, whatever they look like.
             fence = after
@@ -177,8 +170,10 @@ def _blocks(content: str) -> list[_Block]:
         else:
             found = _ID_START.match(line) if top_level else None
         level = len(line) - len(line.lstrip("#")) if heading else 0
-        if heading and not found and blocks and blocks[-1].id and 0 < blocks[-1].level < level:
-            blocks[-1].lines.append(line)  # a sub-heading such as ``### Rationale`` stays inside
+        if heading and not found and blocks and blocks[-1].id and blocks[-1].level < level:
+            # ``### Rationale`` stays inside a deeper-level decision, and inside a ledger record
+            # (level 0) until the next entry.
+            blocks[-1].lines.append(line)
         elif heading or found:
             ident = (
                 (found[1] or found[2]).rstrip(".") or None if found else None
@@ -234,11 +229,11 @@ def entry_date(text: str) -> str | None:
     fields: dict[str, str] = {}
     fence: str | None = None
     for line in text.split("\n"):
-        after = _fence_after(fence, line)
+        after = fence_after(fence, line, any_indent=True)
         if fence is not None or after is not None:  # an example in a fence is not metadata
             fence = after
             continue
-        for key, value in _fields_of(re.sub(r"^\s*[-*][ \t]+", "", line)).items():
+        for key, value in _fields_of(re.sub(r"^\s*[-*][ \t]+", "", line)):
             if key not in fields and iso_day(value):  # the first valid day per key
                 fields[key] = value
     for key in _DATE_KEYS:
@@ -277,25 +272,25 @@ MAX_LOG_CANDIDATES = 1000
 
 
 def _entry_keys(entries: list[tuple[str, LogEntry]]) -> list[str]:
-    """The id a draft records for each entry: the bare id when it names one entry, else
-    ``<id>--<hash>`` of the entry's title, one word that reordering the log does not change.
-    Ids compare without regard to case, as ``ExistingAdrs.names_id`` does. A key already taken,
-    by a same-title twin or a literal id, gets ``-2``, ``-3`` and so on, so no key repeats."""
-    total = Counter((e.id or "").lower() for _rel, e in entries if e.id)
+    """The key a draft records for each entry with an id: ``<id>--`` and 8 hex digits of the
+    SHA-256 of its title, one word that adding, removing, or reordering other entries does not
+    change. An entry with no id gets ``""``. Keys compare without regard to case, as
+    ``ExistingAdrs.names_id`` does. A key already taken, by a same-title twin or a literal id,
+    gets ``-2``, ``-3`` and so on, so no key repeats; same-title twins differ only by order."""
     keys: list[str] = []
     taken: set[str] = set()
     following: dict[str, int] = {}
     for _rel, e in entries:
-        key = e.id or ""
-        if e.id and total[e.id.lower()] > 1:
-            key = f"{e.id}--{sha256(e.title.encode()).hexdigest()[:8]}"
-        if e.id:
-            base, count = key, following.get(key.lower(), 1)
-            while key.lower() in taken:
-                count += 1
-                key = f"{base}-{count}"
-            following[base.lower()] = count
-            taken.add(key.lower())
+        if not e.id:
+            keys.append("")
+            continue
+        base = key = f"{e.id}--{sha256(e.title.encode()).hexdigest()[:8]}"
+        count = following.get(base.lower(), 1)
+        while key.lower() in taken:
+            count += 1
+            key = f"{base}-{count}"
+        following[base.lower()] = count
+        taken.add(key.lower())
         keys.append(key)
     return keys
 
@@ -319,7 +314,8 @@ def log_candidates(
 ) -> tuple[list[dict[str, Any]], int, int]:
     """E1: ``(candidates, log files, log files skipped)``.
 
-    A decision-log entry that has an id and is named by no ADR is a candidate. A log file yields
+    An entry with an id is documented when an ADR names its key, or names the bare id while that
+    id is unique, case aside, in the logs read; otherwise it is a candidate. A log file yields
     at most ``MAX_LOG_CANDIDATES``, and the rest count under ``log_over_limit``. The candidate id
     is ``log-`` plus the entry key, so twins of one id get distinct ids.
     """
@@ -327,10 +323,13 @@ def log_candidates(
     per_file: dict[str, int] = {}
     entries, files, skipped = read_log_entries(root, dropped)
     keys = _entry_keys(entries)
+    total = Counter(e.id.lower() for _rel, e in entries if e.id)
     for (rel, entry), key in zip(entries, keys, strict=True):
         if entry.id is None:
             dropped["log_no_id"] += 1
-        elif existing.names_id(key):
+        elif existing.names_id(key) or (
+            total[entry.id.lower()] == 1 and existing.names_id(entry.id)
+        ):
             dropped["already_documented"] += 1
         elif per_file.get(rel, 0) >= MAX_LOG_CANDIDATES:
             dropped["log_over_limit"] += 1

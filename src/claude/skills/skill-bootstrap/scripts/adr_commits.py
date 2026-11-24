@@ -31,10 +31,9 @@ Departures from the upstream source, each pinned by a test:
 - The commit/PR dedup matches both the merge SHA and a subject ending ``(#N)``. Upstream used
   the SHA for a fresh read and ``(#N)`` for stored rows.
 
-Pull request selection reads an offline JSON list (``--prs-json``) and makes no network call;
-upstream fetched from the GitHub API. Each object needs these fields, under either name; extra
-fields are ignored, so a ``bootstrap_mine.py --prs-json`` export that carries them works. A bad
-number, title, body, URL or merge time is ``pr_incomplete``.
+Pull request selection reads an offline JSON list (``--prs-json``); upstream used the network. Each
+object needs these fields, under either name; other fields, as in a ``bootstrap_mine.py`` export,
+are ignored. A bad number, title, body, URL or merge time is ``pr_incomplete``.
 
 - ``number``: integer. ``title``: string. ``body``: string or null.
 - ``url`` or ``html_url``: an ``https://`` page whose path ends in ``number``, as
@@ -110,6 +109,7 @@ class CommitRecord:
     author: str
     date: str
     body: str
+    breaking: bool = False  # E3, read from the whole message before the body cap
 
 
 def _split_object(raw: bytes) -> tuple[bytes, bytes]:
@@ -157,12 +157,12 @@ def _author_fields(author: str) -> tuple[str, str]:
     return match["name"], date
 
 
-def _subject_and_body(message: str) -> tuple[str, str]:
+def _subject_and_body(message: str, cap: int | None = MAX_BODY_CHARS) -> tuple[str, str]:
     """Subject is the first paragraph (ends at an empty or blank-only line), body is the rest."""
     first, *others = _BLANK_LINE.split(message.replace("\r\n", "\n").lstrip("\n"), maxsplit=1)
     rest = "".join(others)
     subject = " ".join(part.strip() for part in first.split("\n") if part.strip())
-    return subject[:MAX_SUBJECT_CHARS], rest.strip()[:MAX_BODY_CHARS]
+    return subject[:MAX_SUBJECT_CHARS], rest.strip()[:cap]
 
 
 def parse_commit_object(sha: str, raw: bytes) -> CommitRecord:
@@ -177,8 +177,9 @@ def parse_commit_object(sha: str, raw: bytes) -> CommitRecord:
     author_text = _decode(headers.get(b"author", b""), headers.get(b"encoding"))
     author, date = _author_fields(author_text)  # the date sits at the end, so read it all
     author = author[:MAX_SUBJECT_CHARS]
-    subject, body = _subject_and_body(_decode(message, headers.get(b"encoding")))
-    return CommitRecord(sha, subject, author, date, body)
+    subject, full = _subject_and_body(_decode(message, headers.get(b"encoding")), None)
+    breaking = breaking_change(subject, full)  # a cut body can leave a fence open
+    return CommitRecord(sha, subject, author, date, full[:MAX_BODY_CHARS], breaking)
 
 
 # --- Text helpers (src/lib/adr-writer.ts, src/lib/fetchers/adr-date.ts) ---
@@ -272,6 +273,7 @@ class PrRow:
     merged_day: str
     merge_sha: str | None
     reason: str | None
+    breaking: bool = False  # E3, read from the whole body before the cap
 
 
 def trailing_pr_number(subject: str) -> int | None:
@@ -305,9 +307,8 @@ _API_PULLS = re.compile(r"/repos/[^/]+/[^/]+/pulls/", re.ASCII)
 
 
 def _page_url(item: dict[str, Any]) -> object:
-    """The pull request page: ``html_url``, else ``url`` unless that is a REST API address. A raw
-    GitHub pull object holds both, and its ``url`` is the API endpoint (on an ``api.`` host or
-    under ``/repos/<owner>/<repo>/pulls/``), not the page a reader opens."""
+    """The PR page: ``html_url``, else ``url`` unless that is the REST API address a raw GitHub pull
+    object also holds (an ``api.`` host or ``/repos/<owner>/<repo>/pulls/``)."""
     if item.get("html_url"):
         return item["html_url"]
     url = item.get("url")
@@ -364,7 +365,7 @@ def _complete(item: dict[str, Any]) -> tuple[int, str, str, str, str] | None:
     if not (body is None or isinstance(body, str)) or not _names_number(url, number):
         return None
     text = body.replace("\r\n", "\n").replace("\r", "\n") if isinstance(body, str) else ""
-    return number, title.strip()[:MAX_SUBJECT_CHARS], text[:MAX_BODY_CHARS], str(url), day
+    return number, title.strip()[:MAX_SUBJECT_CHARS], text, str(url), day  # the caller caps text
 
 
 def select_prs(items: list[Any], dropped: dict[str, int], base: str | None = None) -> list[PrRow]:
@@ -386,6 +387,7 @@ def select_prs(items: list[Any], dropped: dict[str, int], base: str | None = Non
             dropped["pr_incomplete"] = dropped.get("pr_incomplete", 0) + 1
             continue
         number, title, body, url, day = fields
+        breaking, body = breaking_change(title, body), body[:MAX_BODY_CHARS]  # before the cap
         if base is not None and _origin(base, f"/pull/{number}") != _origin(url):
             dropped["pr_other_repo"] = dropped.get("pr_other_repo", 0) + 1
         elif number in seen:
@@ -394,13 +396,11 @@ def select_prs(items: list[Any], dropped: dict[str, int], base: str | None = Non
             dropped["pr_bot"] = dropped.get("pr_bot", 0) + 1
         elif is_release_or_bump_subject(title):
             dropped["pr_housekeeping"] = dropped.get("pr_housekeeping", 0) + 1
-        elif not (reason := extract_reason(title, body[:BODY_CAP])) and not breaking_change(
-            title, body
-        ):
+        elif not (reason := extract_reason(title, body[:BODY_CAP])) and not breaking:
             dropped["pr_no_reason"] = dropped.get("pr_no_reason", 0) + 1
         else:
             seen.add(number)
-            rows.append(PrRow(number, title, body, url, day, _merge_sha(item), reason))
+            rows.append(PrRow(number, title, body, url, day, _merge_sha(item), reason, breaking))
     return rows
 
 

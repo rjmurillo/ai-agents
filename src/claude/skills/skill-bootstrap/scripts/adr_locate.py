@@ -42,7 +42,7 @@ from typing import Any
 
 from adr_commits import iso_day, sanitize
 from adr_docs import lines_outside_fences
-from adr_shape import flat, section_kind
+from adr_shape import section_kind
 
 __all__ = [
     "KNOWN_FOLDERS",
@@ -415,7 +415,7 @@ def clean_source(source: object) -> dict[str, Any]:
     ``reason_url``) not one ``https://`` word, is dropped, so no field can add a draft line."""
     cleaned: dict[str, Any] = {}
     for key, value in (source if isinstance(source, dict) else {}).items():
-        text = flat(sanitize(value)) if isinstance(value, str) else value
+        text = " ".join(sanitize(value).splitlines()) if isinstance(value, str) else value
         pattern = {"sha": FULL_SHA, "url": _URL}.get(key.split("_")[-1])
         if pattern is None or (isinstance(text, str) and pattern.fullmatch(text)):
             cleaned[key] = text

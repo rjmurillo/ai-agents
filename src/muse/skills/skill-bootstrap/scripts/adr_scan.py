@@ -144,7 +144,7 @@ def _commit_candidates(
     carried: dict[int, list[_Pending]] = {}
     for record in records:
         shape = resolve_commit_shape(record.subject, record.body)
-        breaking = breaking_change(shape.subject, shape.body)
+        breaking = record.breaking or breaking_change(shape.subject, "")  # promoted ``type!:``
         covered = covering_pr(record, shape.subject, *covering)
         if not is_decision_commit(shape.subject):
             dropped["housekeeping"] += 1
@@ -166,16 +166,13 @@ def _commit_candidates(
 
 
 def _pr_pending(rows: list[PrRow], dropped: dict[str, int]) -> tuple[list[_Pending], list[PrRow]]:
-    """The pull request candidates, and the rows that survived every filter.
-
-    A breaking change (E3) keeps a pull request whose title is not decision-shaped, as it keeps
-    a commit, once the commit floor has passed it (``chore!:`` stays out). Only the surviving
-    rows may cover a commit.
-    """
+    """The pull request candidates, and the rows that survived every filter (only those may cover
+    a commit). A breaking change (E3) keeps a pull request whose title is not decision-shaped, as
+    it keeps a commit, once the commit floor has passed it (``chore!:`` stays out)."""
     pending: list[_Pending] = []
     kept: list[PrRow] = []
     for row in rows:
-        breaking = breaking_change(row.title, row.body)
+        breaking = row.breaking
         if not is_decision_shaped_title(row.title) and not (
             breaking and is_decision_commit(row.title)
         ):
@@ -198,11 +195,15 @@ def _pr_pending(rows: list[PrRow], dropped: dict[str, int]) -> tuple[list[_Pendi
 
 
 def _absorb(pr: _Pending, commit: _Pending) -> None:
-    """A pull request takes from a covered commit its E3 signal, a reason it lacks, its SHA and its
-    commit URL (not a PR URL its subject names), so an ADR citing the commit hides the PR."""
+    """A pull request takes from a covered commit its E3 signal, its SHA and its commit URL (not a
+    PR URL its subject names), so an ADR citing the commit hides the PR. A reason the PR lacks is
+    taken too, and ``source.reason_sha`` and ``reason_url`` name the commit that stated it."""
     if commit.candidate["signals"] and not pr.candidate["signals"]:
         pr.candidate["signals"].append("breaking-change")
-    pr.candidate["reason"] = pr.candidate["reason"] or commit.candidate["reason"]
+    if not pr.candidate["reason"] and commit.candidate["reason"]:
+        pr.candidate["reason"] = commit.candidate["reason"]
+        cited = commit.candidate["source"]
+        pr.candidate["source"].update(reason_sha=cited["sha"], reason_url=cited["url"])
     pr.shas += commit.shas
     pr.urls += tuple(url for url in (commit.candidate["source"]["url"],) if url)
 
@@ -302,10 +303,10 @@ class GitError(Exception):
     """git is missing, failed, or timed out: exit 3."""
 
 
-# What ``git rev-parse --local-env-vars`` lists, plus GIT_NAMESPACE and the discovery ceiling.
-# Hard-coded so no extra git call is spent. Any of them in the parent environment would point the
-# child at another repository, or hide the work tree around a folder, whatever ``-C`` says.
-# GIT_DISCOVERY_ACROSS_FILESYSTEM is not here: ``git_env`` forces it on, never scrubs it.
+# What ``git rev-parse --local-env-vars`` lists, plus GIT_NAMESPACE and the discovery ceiling,
+# hard-coded to spare a git call. Any of them in the parent environment would point the child at
+# another repository, or hide the work tree around a folder, whatever ``-C`` says. ``git_env``
+# forces GIT_DISCOVERY_ACROSS_FILESYSTEM on, never scrubs it.
 _LOCAL_GIT_ENV = frozenset(
     "GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_CEILING_DIRECTORIES GIT_COMMON_DIR GIT_CONFIG "
     "GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS GIT_DIR "
@@ -368,9 +369,7 @@ def stderr_text(proc: subprocess.CompletedProcess[bytes]) -> str:
 
 def refusal(proc: subprocess.CompletedProcess[bytes], what: str) -> Exception:
     """The error for a failed git call: a dubious-ownership refusal is git's, the rest is input.
-
-    ``what`` says what the caller asked. git's own words are always kept.
-    """
+    ``what`` says what the caller asked. git's own words are always kept."""
     message = stderr_text(proc)
     if "dubious ownership" in message:
         return GitError(f"git refused to work in {what}: {message}")
@@ -378,13 +377,22 @@ def refusal(proc: subprocess.CompletedProcess[bytes], what: str) -> Exception:
 
 
 def repo_root(path: Path) -> Path:
-    """Return the work-tree root that contains ``path``, or raise ConfigError."""
+    """Return the work-tree root that contains ``path``, or raise ConfigError. git honors a
+    ``core.worktree`` that names another folder, so the root must hold ``path``."""
     if not path.is_dir():
         raise ConfigError(f"repository path is not a directory: {path}")
     proc = git_bytes(path, "rev-parse", "--show-toplevel")
     if proc.returncode != 0:
         raise refusal(proc, f"not a git repository: {path}")
-    return Path(proc.stdout.decode("utf-8", "replace").removesuffix("\n")).resolve()
+    top = Path(os.fsdecode(proc.stdout.removesuffix(b"\n"))).resolve()  # the bytes, unchanged
+    here = path.resolve()
+    try:  # samefile, so a link or a case variant of the root still counts
+        inside = any(os.path.samefile(top, item) for item in (here, *here.parents))
+    except OSError:  # the root git named does not exist
+        inside = False
+    if not inside:
+        raise ConfigError(f"git names the work tree {top}, which does not contain {path}")
+    return top
 
 
 def resolve_rev(root: Path, rev: str) -> str:
@@ -401,7 +409,7 @@ def rev_list(root: Path, sha: str, max_count: int, since: str | None) -> list[st
     """Up to ``max_count`` commit SHAs reachable from ``sha``, newest first."""
     args = ["rev-list", f"--max-count={max_count}"]
     if since:
-        args.append(f"--since={since}")
+        args.append(f"--since-as-filter={since}")  # --since stops at an older child; git 2.37
     out = git_text(root, *args, sha, "--").stdout
     shas = out.split()
     if any(not _SHA.fullmatch(item) for item in shas):
@@ -410,11 +418,8 @@ def rev_list(root: Path, sha: str, max_count: int, since: str | None) -> list[st
 
 
 def _sizes(root: Path, shas: list[str]) -> list[int]:
-    """The object size of each SHA from ``git cat-file --batch-check``.
-
-    The reply gets the same strict check as the batch read: one ``<sha> commit <size>`` line per
-    SHA, in order, and nothing else.
-    """
+    """The object size of each SHA from ``git cat-file --batch-check``. The reply gets the batch
+    read's strict check: one ``<sha> commit <size>`` line per SHA, in order, and nothing else."""
     if not shas:
         return []
     stdin = ("\n".join(shas) + "\n").encode("ascii")
@@ -428,12 +433,9 @@ def _sizes(root: Path, shas: list[str]) -> list[int]:
 
 
 def _batches(shas: list[str], sizes: list[int], dropped: dict[str, int]) -> list[list[str]]:
-    """The SHAs to read, in order, grouped into batches.
-
-    A batch holds at most ``BATCH_SHAS`` SHAs and ``MAX_BATCH_BYTES`` of objects, but one object
-    always forms a batch of its own. A commit over ``MAX_COMMIT_BYTES`` is counted under
-    ``commit_too_large`` and left out.
-    """
+    """The SHAs to read, in order, in batches of at most ``BATCH_SHAS`` SHAs and
+    ``MAX_BATCH_BYTES`` of objects, though one object always forms a batch of its own. A commit
+    over ``MAX_COMMIT_BYTES`` is counted under ``commit_too_large`` and left out."""
     batches: list[list[str]] = []
     total = 0
     for sha, size in zip(shas, sizes, strict=True):
@@ -486,11 +488,9 @@ def read_commits(
     since: str | None = None,
     dropped: dict[str, int] | None = None,
 ) -> tuple[list[CommitRecord], bool]:
-    """Read up to ``max_commits`` commits from ``sha``. The flag is True when more exist.
-
-    Object sizes are read first, so no batch holds more than ``MAX_BATCH_BYTES``. A commit over
-    ``MAX_COMMIT_BYTES`` is counted in ``dropped`` and not read.
-    """
+    """Read up to ``max_commits`` commits from ``sha``. The flag is True when more exist. Sizes are
+    read first, so no batch holds more than ``MAX_BATCH_BYTES``; a commit over
+    ``MAX_COMMIT_BYTES`` is counted in ``dropped`` and not read."""
     shas = rev_list(root, sha, max_commits + 1, since)
     truncated = len(shas) > max_commits
     shas = shas[:max_commits]

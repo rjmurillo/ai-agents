@@ -25,6 +25,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 from typing import Literal, NamedTuple
+from urllib.parse import urlsplit
 
 from adr_commits import (
     hash_tokens,
@@ -40,6 +41,8 @@ __all__ = [
     "DocKind",
     "ExistingAdrs",
     "RuleSection",
+    "fence_after",
+    "lines_outside_fences",
     "is_rule_section",
     "is_versioned_release_heading",
     "rule_sections",
@@ -88,13 +91,20 @@ _CHANGELOG_POLICY_HEADING = re.compile(
 )
 # Keep a Changelog's category headings: entries of one release, never policy.
 _CHANGELOG_CATEGORY = re.compile(r"^(?:added|changed|deprecated|removed|fixed|security)\Z", _I)
-# `[1.2.0] - 2026-01-01`, `2026-07-07`, `v2`, `Unreleased`: a release entry, never a rule.
-_RELEASE_HEADING = re.compile(r"^\[?v?\d+(?:\.\d+)|^\[?unreleased\b|\d{4}-\d{2}(?:-\d{2})?", _I)
+# `[1.2.0] - 2026-01-01`, `2026-07-07`, `v2`, `Unreleased`: a release entry, never a rule. A
+# major-only version needs its `v` and a token boundary, so `v2a` and `2 rules` stay headings.
+_RELEASE_HEADING = re.compile(
+    r"^\[?(?:v?\d+\.\d|v\d+\b)|^\[?unreleased\b|\d{4}-\d{2}(?:-\d{2})?", _I
+)
 _VERSIONED_RELEASE_HEADING = re.compile(r"^release:?\s+v?\d", _I)
 _H2_HEADING = re.compile(r"##\s+(.+)\Z", _A)
-_NEXT_TOP_HEADING = re.compile(r"(?:\A|\n)(?=#\s)", _A)
+_TOP_HEADING = re.compile(r"#(?:\s|\Z)", _A)
+# CommonMark 0.31.2, section 4.5: three or more backticks or tildes after at most three spaces.
+_FENCE = re.compile(r" {0,3}(`{3,}|~{3,})(.*)", _A)
 _ID_RUN = re.compile(r"[\w.-]+", _A)
-_ID_END = re.compile(r"\.(?![0-9])", _A)  # a dot before a non-digit ends an id: D-1.md
+_DOC_EXTENSION = re.compile(r"\.(?:md|mdx|markdown|adoc|rst|txt)\Z", _A)
+# A pull request page: the query, fragment, and trailing slash are not part of its identity.
+_PR_PAGE = re.compile(r"/[^/]+/[^/]+/pull/[0-9]+/?\Z", _A)
 
 
 class RuleSection(NamedTuple):
@@ -111,20 +121,55 @@ def is_versioned_release_heading(heading: str) -> bool:
     return bool(_VERSIONED_RELEASE_HEADING.search(heading.strip()))
 
 
+def fence_after(fence: str | None, line: str, any_indent: bool = False) -> str | None:
+    """The fence still open after ``line``, or None (CommonMark 0.31.2, section 4.5).
+
+    An opener is three or more backticks or tildes after at most three spaces, or any indent
+    when ``any_indent``. A backtick opener's info string holds no backtick, so a line that is
+    only a code span opens nothing. A closer uses the opener's mark, at least as many times,
+    with nothing after it, so a three-backtick line inside a four-backtick fence is text.
+    """
+    mark = _FENCE.match(line.lstrip() if any_indent else line)
+    if fence is None:
+        return mark[1] if mark and (mark[1][0] == "~" or "`" not in mark[2]) else None
+    closes = mark and mark[1][0] == fence[0] and len(mark[1]) >= len(fence) and not mark[2].strip()
+    return None if closes else fence
+
+
+def lines_outside_fences(text: str) -> list[str]:
+    """The lines of ``text`` outside its fenced code blocks, fence lines left out too."""
+    kept: list[str] = []
+    fence: str | None = None
+    for line in text.replace("\r\n", "\n").split("\n"):
+        after = fence_after(fence, line)
+        if fence is None and after is None:
+            kept.append(line)
+        fence = after
+    return kept
+
+
 def section_body(kind: DocKind, body: str) -> str:
-    """Cut a changelog section where the next top-level heading starts.
+    """Cut a changelog section where the next top-level heading outside a fence starts.
 
     A changelog that uses ``# 1.2.0`` as a release heading puts the whole release
-    inside the previous section's text.
+    inside the previous section's text. ``# Set up`` inside a code example is no heading.
     """
-    return _NEXT_TOP_HEADING.split(body)[0].strip() if kind == "changelog" else body
+    if kind != "changelog":
+        return body
+    lines = body.split("\n")
+    fence: str | None = None
+    for index, line in enumerate(lines):
+        if fence is None and _TOP_HEADING.match(line):
+            return "\n".join(lines[:index]).strip()
+        fence = fence_after(fence, line)
+    return body.strip()
 
 
 def is_rule_section(kind: DocKind, heading: str, body: str) -> bool:
     """Does this section state a rule of the repository?
 
     A changelog policy section is a rule by its heading. Other kinds need a rule marker
-    in the body, and a README also needs a convention heading.
+    in the body outside fenced code, and a README also needs a convention heading.
     """
     if kind == "changelog":
         h = heading.strip()
@@ -133,24 +178,26 @@ def is_rule_section(kind: DocKind, heading: str, body: str) -> bool:
             or _CHANGELOG_CATEGORY.search(h)
             or not _CHANGELOG_POLICY_HEADING.search(h)
         )
-    if not _RULE_MARKER.search(body):
+    if not _RULE_MARKER.search("\n".join(lines_outside_fences(body))):
         return False
     return kind == "contributing" or bool(_CONVENTION_HEADING.search(heading))
 
 
 def split_into_sections(content: str) -> list[tuple[str | None, str]]:
-    """Split Markdown on ``## `` headings into (heading, body) pairs.
+    """Split Markdown on ``## `` headings outside fenced code into (heading, body) pairs.
 
     Content before the first heading is its own section with heading None. Line
     endings are normalised first, which upstream does not do for CRLF files.
     """
     sections: list[tuple[str | None, list[str]]] = [(None, [])]
+    fence: str | None = None
     for line in content.replace("\r\n", "\n").split("\n"):
-        heading = _H2_HEADING.match(line)
+        heading = _H2_HEADING.match(line) if fence is None else None
         if heading:
             sections.append((heading.group(1).strip(), []))
         else:
             sections[-1][1].append(line)
+        fence = fence_after(fence, line)
     return [(heading, "\n".join(lines).strip()) for heading, lines in sections]
 
 
@@ -197,6 +244,19 @@ DROP_KEYS = (
 )
 
 
+def _url_identity(url: str) -> str:
+    """``url`` without a trailing slash; a pull request page also loses its query and fragment,
+    and keeps its scheme, host and repository path. Other URLs compare as written."""
+    url = url.rstrip("/")
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return url
+    if not _PR_PAGE.fullmatch(parts.path):
+        return url
+    return f"{parts.scheme}://{parts.netloc}{parts.path.rstrip('/')}"
+
+
 class ExistingAdrs:
     """What the existing ADRs name: hashes, URLs, ``#N`` numbers, and plain words."""
 
@@ -209,13 +269,12 @@ class ExistingAdrs:
         self.numbers: set[int] = set()
         for _path, text in texts:
             for run in _ID_RUN.findall(text):
-                token = run.strip(".").lower()
-                self.ids.add(token)
-                ends = [m.start() for m in _ID_END.finditer(token)]
-                if ends:  # first and last only, so memory stays linear: auth.session.md
-                    self.ids.update((token[: ends[0]], token[: ends[-1]]))
+                token = run.rstrip(".").lower()
+                if token.startswith(".."):  # an ellipsis, while one dot may start an id: .cache
+                    token = token.lstrip(".")
+                self.ids.update((token, _DOC_EXTENSION.sub("", token) or token))
             self.hashes |= hash_tokens(text)
-            self.urls |= urls_in(text)
+            self.urls |= {_url_identity(url) for url in urls_in(text)}
             self.numbers |= issue_numbers(text)
 
     def _names_sha(self, sha: str) -> bool:
@@ -228,12 +287,13 @@ class ExistingAdrs:
         """Does an ADR hold one of these SHAs (or a 7+ character prefix), one of these URLs, or ``#N``?"""
         if any(self._names_sha(sha) for sha in shas):
             return True
-        if any(url.rstrip("/") in self.urls for url in urls):
+        if any(_url_identity(url) in self.urls for url in urls):
             return True
         return number is not None and number in self.numbers
 
     def names_id(self, ident: str) -> bool:
-        """Does an ADR name this decision-log id as a whole token? Edge dots are sentence marks and
-        a dot before a non-digit ends an id, so ``D-1.`` and ``D-1.md`` name ``D-1``, and
-        ``D-1.2`` names only ``D-1.2``."""
+        """Does an ADR name this decision-log id as a whole token? Trailing dots are sentence marks
+        and a document extension (``.md``, ``.mdx``, ``.markdown``, ``.adoc``, ``.rst``, ``.txt``)
+        comes off, so ``D-1.`` and ``D-1.md`` name ``D-1``, while ``D-1.2`` and ``D-1.alpha``
+        name only themselves. A leading dot stays: ``.cache`` never names ``cache``."""
         return ident.lower() in self.ids

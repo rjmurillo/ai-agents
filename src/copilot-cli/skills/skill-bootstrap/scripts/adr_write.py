@@ -12,7 +12,7 @@ import os
 from pathlib import Path
 
 from adr_locate import is_draft_target, locate_folders
-from adr_scan import ConfigError, git_bytes, git_text, refusal, stderr_text
+from adr_scan import ConfigError, GitError, git_bytes, git_text, refusal, stderr_text
 
 __all__ = [
     "create_new",
@@ -36,7 +36,9 @@ def same_file(first: Path, second: Path) -> bool:
 
 def _git_path(directory: Path, flag: str) -> Path | None:
     proc = git_bytes(directory, "rev-parse", "--path-format=absolute", flag)
-    text = proc.stdout.decode("utf-8", "replace").removesuffix("\n")  # a path may end in a space
+    # fsdecode keeps bytes that are not UTF-8, so the next git call gets the same folder. Only
+    # the newline git adds is removed: a path may end in a space.
+    text = os.fsdecode(proc.stdout.removesuffix(b"\n"))
     return Path(text).resolve() if proc.returncode == 0 and text else None
 
 
@@ -48,7 +50,7 @@ def enclosing_tree(path: Path) -> Path | None:
     """
     ancestor = next(item for item in (path, *path.parents) if item.is_dir())
     proc = git_bytes(ancestor, "rev-parse", "--path-format=absolute", "--show-toplevel")
-    top = proc.stdout.decode("utf-8", "replace").removesuffix("\n")
+    top = os.fsdecode(proc.stdout.removesuffix(b"\n"))
     if proc.returncode == 0 and top:
         return Path(top).resolve()
     if "not a git repository" in stderr_text(proc):
@@ -68,12 +70,37 @@ def work_trees(root: Path) -> list[Path]:
     A linked work tree can hold another repository, such as a submodule. git names that one
     as the tree around a path inside it, so the common-dir check alone would miss it.
     """
-    proc = git_text(root, "worktree", "list", "--porcelain", "-z", ok=(0, 129))
-    if proc.returncode == 0:
-        items = proc.stdout.split("\0")
-    else:  # git before 2.36 has no -z; a path holding a newline is then misread
-        items = git_text(root, "worktree", "list", "--porcelain").stdout.split("\n")
-    return [Path(item[9:]).resolve() for item in items if item.startswith("worktree ")]
+    proc = git_bytes(root, "worktree", "list", "--porcelain", "-z")
+    if proc.returncode == 129:  # git before 2.36 has no -z
+        return _admin_trees(root)
+    if proc.returncode != 0:
+        raise GitError(f"git worktree list --porcelain -z failed: {stderr_text(proc)}")
+    items = proc.stdout.split(b"\0")
+    return [
+        Path(os.fsdecode(item[9:])).resolve() for item in items if item.startswith(b"worktree ")
+    ]
+
+
+def _admin_trees(root: Path) -> list[Path]:
+    """The work trees from the files git keeps, for a git with no ``worktree list -z``.
+
+    Without ``-z`` git prints a path literally, so a path holding a newline would cut a record
+    and lose the real root. Instead the main tree is the common dir without its ``/.git`` (the
+    common dir itself when bare). Each linked tree comes from ``worktrees/<id>/gitdir`` in the
+    common dir, which holds the absolute path of that tree's ``.git`` file (gitrepository-layout).
+    """
+    common = _git_path(root, "--git-common-dir")
+    if common is None:
+        raise ConfigError(f"git reports no common dir for {root}; cannot list its work trees")
+    trees = [common.parent if common.name == ".git" else common]
+    try:
+        for record in sorted((common / "worktrees").glob("*/gitdir")):
+            trees.append(
+                Path(os.fsdecode(record.read_bytes().removesuffix(b"\n"))).parent.resolve()
+            )
+    except OSError as exc:
+        raise ConfigError(f"cannot read the work trees of {root}: {exc}") from exc
+    return trees
 
 
 def gate_target(out_dir: Path) -> tuple[Path | None, Path]:

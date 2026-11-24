@@ -40,7 +40,8 @@ Departures from the upstream source, each pinned by a test:
 - The headings follow the newest ADR in the folder. A heading the source does not fill says
   ``Not recorded in the source.`` Upstream wrote fixed Nygard headings.
 - The number is taken at write time and the file created with mode ``x``. A name that
-  exists is reported, never retried with another number.
+  exists is reported, never retried with another number. Past ``MAX_ADR_NUMBER`` the draft is
+  refused, because the locator reads only one to six digits.
 - A title with no ASCII letter or digit gives the slug ``decision-<sha7>`` (or the id), not ``""``.
 """
 
@@ -81,6 +82,7 @@ from adr_write import create_new, encode, gate_target, out_outside_repo, refuse_
 
 __all__ = [
     "DEFAULT_MAX_COMMITS",
+    "MAX_ADR_NUMBER",
     "NOT_RECORDED",
     "ExistsError",
     "build_parser",
@@ -98,6 +100,9 @@ MAX_JSON_BYTES = 16 * MAX_READ_BYTES
 # scan refuses to write a report over this, so draft can always read what scan wrote.
 MAX_SCAN_BYTES = 128 * MAX_READ_BYTES
 _KINDS = frozenset({"commit", "pr", "decision-log"})
+# The highest number ``adr_locate.adr_files`` reads: its ``_ADR_NAME`` takes one to six digits.
+# A seven-digit draft would be invisible to the next ``locate`` and to the twin check below.
+MAX_ADR_NUMBER = 999_999
 # ADR-073's status enum, without "accepted": a draft never asserts its own approval.
 # Acceptance needs a review, so a person sets it after the draft is written. Superseded is
 # allowed on a draft for compatibility, but a person must add the superseding reference by
@@ -155,7 +160,7 @@ def _read_json(path: str, label: str, limit: int) -> Any:
             data = handle.read(limit + 1)
         if len(data) > limit:
             raise ConfigError(f"{label} {path} is too large")
-        return json.loads(data.decode("utf-8", errors="replace"))
+        return json.loads(data.decode("utf-8"))  # strict: a bad byte is bad input, not U+FFFD
     except (OSError, ValueError, RecursionError) as exc:
         raise ConfigError(f"cannot read {label} {path}: {exc}") from exc
 
@@ -224,6 +229,10 @@ def draft(scan_path: str, ident: str, out: str, status: str) -> dict[str, Any]:
         raise ConfigError(f"--out {out_dir} is not a directory")
     style = folder_style(out_dir)
     number = style.highest + 1
+    if number > MAX_ADR_NUMBER:
+        raise ConfigError(
+            f"{out_dir} has ADR {style.highest}; the numbers stop at {MAX_ADR_NUMBER}"
+        )
     target = out_dir / _file_name(style, number, candidate)
     if tree is not None:
         refuse_ignored(tree, target)

@@ -144,7 +144,7 @@ def _commit_candidates(
     carried: dict[int, list[_Pending]] = {}
     for record in records:
         shape = resolve_commit_shape(record.subject, record.body)
-        breaking = breaking_change(shape.subject, shape.body)
+        breaking = record.breaking or breaking_change(shape.subject, "")  # promoted ``type!:``
         covered = covering_pr(record, shape.subject, *covering)
         if not is_decision_commit(shape.subject):
             dropped["housekeeping"] += 1
@@ -172,7 +172,7 @@ def _pr_pending(rows: list[PrRow], dropped: dict[str, int]) -> tuple[list[_Pendi
     pending: list[_Pending] = []
     kept: list[PrRow] = []
     for row in rows:
-        breaking = breaking_change(row.title, row.body)
+        breaking = row.breaking
         if not is_decision_shaped_title(row.title) and not (
             breaking and is_decision_commit(row.title)
         ):

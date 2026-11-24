@@ -7,19 +7,17 @@
 #   src/lib/context-from-graph.ts    (the title filter of decisionShapedRows, lines 84-109)
 #   src/lib/adr-writer.ts            (the section kinds of renderAdr, lines 52-84)
 #   src/lib/reason-extract.ts        (stripTrailers, stripImporterMetadata, hasImporterMetadata,
-#                                     and the patterns they use). The sentence scoring lives in
-#                                     adr_reason.py.
+#                                     and their patterns; sentence scoring is in adr_reason.py)
 # Sibling ports: adr_shape.py, adr_reason.py, adr_commits.py, adr_docs.py, adr_locate.py,
 # adr_log.py, adr_scan.py, bootstrap_adr.py.
 # MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align
 """Pure classifiers for commit subjects: is this one a decision, and does it say why?
 
-No I/O, no subprocess, standard library only. Every function takes strings and returns
-values. Covers the mechanical-subject filter, release and bump detection, one-off titles,
-rule-stating subjects, numeric bounds, the commit rationale gate, merge promotion, the
-decision-commit floor, the decision-shaped title filter, and the cleaning of importer
-metadata and trailers before reason extraction. A stored commit loses its trailers by
-shape, not by list: the run of ``Key: value`` lines that ends its last paragraph.
+No I/O, no subprocess, standard library only; every function takes strings and returns values.
+Covers the mechanical-subject filter, release and bump detection, one-off titles, rule-stating
+subjects, numeric bounds, the rationale gate, merge promotion, the decision-commit floor, the
+decision-shaped title filter, and importer metadata and trailer cleaning. A stored commit loses
+its trailers by shape, not by list: the run of ``Key: value`` lines that ends its last paragraph.
 
 Regex notes. Every module-level pattern in the ADR backfill modules compiles with
 ``re.ASCII``, so ``\\b``, ``\\w``, ``\\d`` and case folding match JavaScript in the upstream
@@ -45,6 +43,7 @@ __all__ = [
     "REASON_CONVENTIONAL_PREFIX",
     "STATED_WHY",
     "TRAILER",
+    "FENCED_BLOCK",
     "CommitShape",
     "flat",
     "has_importer_metadata",
@@ -85,10 +84,8 @@ MIN_DECISION_SUBJECT_CHARS = 20
 
 
 def mechanical_subject_regex(prefixes: Iterable[str]) -> re.Pattern[str]:
-    """The predicate's regex, built from the list with every prefix escaped.
-
-    Anchored and case-insensitive. A prefix such as ``c++`` is matched literally.
-    """
+    """The predicate's regex, built from the list with every prefix escaped. Anchored and
+    case-insensitive. A prefix such as ``c++`` is matched literally."""
     escaped = "|".join(re.escape(p) for p in prefixes)
     return re.compile(f"^({escaped})", _I)
 
@@ -124,6 +121,8 @@ def is_release_or_bump_subject(subject: str) -> bool:
     bump/update/upgrade of something from or to a version, unless it states why.
     Dependency replacements ("replace a with b") are decisions and never match.
     """
+    if (head := CONVENTIONAL_PREFIX.match(subject.strip())) and head.group(0).rstrip()[-2:] == "!:":
+        return False  # ``type!:`` marks a breaking change, a decision, as a stated reason does
     body = CONVENTIONAL_PREFIX.sub("", subject.strip(), count=1)
     body = _PR_REFERENCE.sub("", body).strip()
     if STATED_WHY.search(body):
@@ -216,6 +215,13 @@ def is_one_off_change_title(title: str) -> bool:
 
 # P4: commit rationale gate (src/lib/git.ts)
 
+# A fenced code block (CommonMark): closed by a run of its own mark at least as long, alone on
+# its line, or else by the end of the text. A backtick opener holds no other backtick.
+FENCED_BLOCK = re.compile(
+    r"^[ \t]*(?:(`{3,})(?=[^`\n]*$)[\s\S]*?(?:^[ \t]*\1`*[ \t]*$|\Z)"
+    r"|(~{3,})[\s\S]*?(?:^[ \t]*\2~*[ \t]*$|\Z))",
+    _A | re.MULTILINE,
+)
 # A line that IS a git trailer, not a sentence that mentions one of these words mid-line.
 _TRAILER_LINE = re.compile(
     r"^(co-authored-by|signed-off-by|reviewed-by|acked-by|helped-by|cc|refs?|closes?|fixes?"
@@ -272,14 +278,11 @@ def has_stated_rationale(subject: str, body: str) -> bool:
     """
     if states_numeric_bound(subject) or states_subject_rule(subject):
         return True
-    if not body.strip():
-        return False
     subject_norm = _normalize_for_echo(subject)
-    for raw in body.split("\n"):
+    # A fenced line is code, never a reason. Prose after the closing fence still counts.
+    for raw in FENCED_BLOCK.sub("\n", body).split("\n"):
         line = raw.strip()
-        if _is_noise_line(line, subject_norm):
-            continue
-        if is_reason_bearing_line(line):
+        if not _is_noise_line(line, subject_norm) and is_reason_bearing_line(line):
             return True
     return False
 
@@ -298,8 +301,10 @@ def _is_noise_line(line: str, subject_norm: str) -> bool:
 
 # P6: merge promotion and the decision-commit floor (src/lib/git.ts)
 
-_MECHANICAL_SUBJECT = mechanical_subject_regex(MECHANICAL_SUBJECT_PREFIXES)
+# A "release" lead goes to the release predicate: "Release provenance must ..." is policy.
+_MECHANICAL = mechanical_subject_regex(sorted(set(MECHANICAL_SUBJECT_PREFIXES) - {"release"}))
 _MERGE_SUBJECT = re.compile(r"^merge\b", _I)
+_RELEASE_TYPE = re.compile(r"^release(?:\([^)]*\))?!?:", _I)
 _TRAILING_PR_NUMBER = re.compile(r"\(#\d+\)\Z", _A)
 
 
@@ -314,7 +319,8 @@ def is_decision_commit(subject: str) -> bool:
     if len(trimmed) < MIN_DECISION_SUBJECT_CHARS:
         return False
     return (
-        not _MECHANICAL_SUBJECT.search(trimmed)
+        not _MECHANICAL.search(trimmed)
+        and not _RELEASE_TYPE.search(trimmed)
         and not is_release_or_bump_subject(trimmed)
         and not _FILE_ACTION_LINE.search(_TRAILING_PR_NUMBER.sub("", trimmed).rstrip())
     )
@@ -402,26 +408,22 @@ def is_trailer_line(line: str) -> bool:
     match = _TRAILER_SHAPE.match(line)
     if not match:
         return False
-    key = match.group(1)
-    value = match.group(2).strip()
-    # "fix: retry on 503": conventional-commit form is a sub-commit subject in a squash body.
-    if _PROSE_KEY.search(key) or REASON_CONVENTIONAL_PREFIX.search(line.strip()):
-        return False
-    if _REFERENCE_KEY.search(key):
+    key, value = match.group(1), match.group(2).strip()
+    if _REFERENCE_KEY.search(key):  # by value, so "issue: #42" is not read as a subject
         return len(value) <= _MAX_REFERENCE_VALUE_CHARS and bool(_REFERENCES_ONLY.search(value))
-    return True
+    # "fix: retry on 503": conventional-commit form is a sub-commit subject in a squash body.
+    return not (_PROSE_KEY.search(key) or REASON_CONVENTIONAL_PREFIX.search(line.strip()))
 
 
 def strip_trailers(text: str, subject: str | None = None) -> str:
     """A commit message without its trailers.
 
-    Removes the run of ``Key: value`` lines that ends the last paragraph, with the
-    blank lines above it. A ``Key: value`` line in an earlier paragraph, or with a
-    prose line under it, stays. Never a trailer: a prose label (Why, Reason,
-    Rationale, Motivation, Note), ``Issue:`` or ``Bug:`` followed by prose, and a
-    line in conventional-commit form. ``subject``, when given, is the commit's own
-    first line, which is never a trailer whatever its shape. Text with no trailer is
-    returned unchanged.
+    Removes the run of ``Key: value`` lines that ends the last paragraph, with the blank
+    lines above it. A ``Key: value`` line in an earlier paragraph, or with a prose line
+    under it, stays. Never a trailer: a prose label (Why, Reason, Rationale, Motivation,
+    Note), ``Issue:`` or ``Bug:`` followed by prose, and other conventional-commit lines;
+    ``issue: #42`` is one. ``subject``, when given, is the commit's own first line, never
+    a trailer whatever its shape. Text with no trailer is returned unchanged.
     """
     lines = text.split("\n")
     end = len(lines)
@@ -464,14 +466,15 @@ def is_decision_shaped_title(title: str) -> bool:
     """Does a commit or PR title read as a decision, and not as a fix?
 
     Any ``type(scope)!:`` prefix is stripped. A fix-shaped type (fix, docs, chore, ...)
-    drops the title. Otherwise the rest is judged: "feat: fix retry policy" is the
-    fix it is, "feat(api): switch to gRPC" is kept, and so is a stated numeric bound.
+    drops the title. Otherwise the rest is judged: "feat: fix retry policy" is the fix it
+    is, "feat(api): switch to gRPC" is kept, so is a numeric bound, and a stated rule.
     """
     prefix = _ANY_TYPE_PREFIX.match(title)
     rest = title[prefix.end() :] if prefix else title
     if (prefix and _FIX_SHAPED.search(prefix.group(1))) or _FIX_SHAPED.search(rest):
         return False
-    return bool(_DECISION_SHAPED.search(rest)) or states_numeric_bound(rest)
+    rule = states_subject_rule(title)
+    return rule or bool(_DECISION_SHAPED.search(rest)) or states_numeric_bound(rest)
 
 
 # Draft headings (src/lib/adr-writer.ts, the section kinds)

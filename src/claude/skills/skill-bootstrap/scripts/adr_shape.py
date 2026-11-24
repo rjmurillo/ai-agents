@@ -7,19 +7,17 @@
 #   src/lib/context-from-graph.ts    (the title filter of decisionShapedRows, lines 84-109)
 #   src/lib/adr-writer.ts            (the section kinds of renderAdr, lines 52-84)
 #   src/lib/reason-extract.ts        (stripTrailers, stripImporterMetadata, hasImporterMetadata,
-#                                     and the patterns they use). The sentence scoring lives in
-#                                     adr_reason.py.
+#                                     and their patterns; sentence scoring is in adr_reason.py)
 # Sibling ports: adr_shape.py, adr_reason.py, adr_commits.py, adr_docs.py, adr_locate.py,
 # adr_log.py, adr_scan.py, bootstrap_adr.py.
 # MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align
 """Pure classifiers for commit subjects: is this one a decision, and does it say why?
 
-No I/O, no subprocess, standard library only. Every function takes strings and returns
-values. Covers the mechanical-subject filter, release and bump detection, one-off titles,
-rule-stating subjects, numeric bounds, the commit rationale gate, merge promotion, the
-decision-commit floor, the decision-shaped title filter, and the cleaning of importer
-metadata and trailers before reason extraction. A stored commit loses its trailers by
-shape, not by list: the run of ``Key: value`` lines that ends its last paragraph.
+No I/O, no subprocess, standard library only; every function takes strings and returns values.
+Covers the mechanical-subject filter, release and bump detection, one-off titles, rule-stating
+subjects, numeric bounds, the rationale gate, merge promotion, the decision-commit floor, the
+decision-shaped title filter, and importer metadata and trailer cleaning. A stored commit loses
+its trailers by shape, not by list: the run of ``Key: value`` lines that ends its last paragraph.
 
 Regex notes. Every module-level pattern in the ADR backfill modules compiles with
 ``re.ASCII``, so ``\\b``, ``\\w``, ``\\d`` and case folding match JavaScript in the upstream
@@ -123,6 +121,8 @@ def is_release_or_bump_subject(subject: str) -> bool:
     bump/update/upgrade of something from or to a version, unless it states why.
     Dependency replacements ("replace a with b") are decisions and never match.
     """
+    if (head := CONVENTIONAL_PREFIX.match(subject.strip())) and head.group(0).rstrip()[-2:] == "!:":
+        return False  # ``type!:`` marks a breaking change, a decision, as a stated reason does
     body = CONVENTIONAL_PREFIX.sub("", subject.strip(), count=1)
     body = _PR_REFERENCE.sub("", body).strip()
     if STATED_WHY.search(body):
