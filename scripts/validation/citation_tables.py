@@ -25,10 +25,10 @@ _CELL_PIPE = re.compile(r"(?<!\\)\|")
 # a thematic break, a list item, or an HTML block of GFM types 1 to 6.
 _INTERRUPTER = re.compile(
     r"""^\ {0,3}(?:
-        \#{1,6}(?:\s|$)
+        \#{1,6}(?:[\ \t\r]|$)
         | `{3,}[^`]*$ | ~{3,}
-        | (?:(?:-[\ \t]*){3,}|(?:\*[\ \t]*){3,}|(?:_[\ \t]*){3,})\s*$
-        | (?:[-+*]|\d{1,9}[.)])(?:\s|$)
+        | (?:-(?:[\ \t]*-){2,}|\*(?:[\ \t]*\*){2,}|_(?:[\ \t]*_){2,})[\ \t\r]*$
+        | (?:[-+*]|\d{1,9}[.)])(?:[\ \t\r]|$)
         | (?i:<(?:script|pre|style|textarea)(?:\s|>|$))
         | <!-- | <\? | <![A-Za-z] | <!\[CDATA\[
         | (?i:</?(?:address|article|aside|base|basefont|blockquote|body|caption|center
