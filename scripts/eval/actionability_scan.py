@@ -15,7 +15,8 @@ A row is blocked when any of these fire:
   ``--allow-hex-rows``.
 
 Hex runs of exactly 40 or 64 characters are git object ids. They never block and
-are reported by row id for review.
+are reported by row id for review. A 32-hex run right after a known reviewer-bot
+prefix is a public identifier and is counted, not reported (``_PUBLIC_HEX_ID_PREFIXES``).
 
 Stricter than ``redact_secrets.redact``: that function flags every 32+ hex run, so
 it fires on each quoted commit SHA. This scan allows the two git lengths.
@@ -33,6 +34,17 @@ from scripts.redact_secrets import redact_ci_sink
 
 HEX_SECRET_REASON = "hex-secret"
 HEX_ALLOWED_LENGTHS = frozenset({40, 64})
+
+# Public identifiers that reviewer bots embed in their comments. A hex run counts only
+# when it is exactly this long and the text right before it ends with one of these
+# prefixes, case and spacing included:
+#   Devin review markers: <!-- devin-review-comment {"id": "BUG_pr-review-job-<32hex>"} -->
+#   (also the ANALYSIS_ and SEC_ variants, which share the `pr-review-job-` suffix)
+#   semgrep findings:     Syntactic id: <32hex>
+# Checked against the saved PR comments in .project-toolkit/scratch/band-prs.json:
+# 1,062 runs follow `pr-review-job-`, the rest follow `Syntactic id: `.
+_PUBLIC_HEX_ID_LENGTH = 32
+_PUBLIC_HEX_ID_PREFIXES = ("pr-review-job-", "Syntactic id: ")
 
 # Same shape as the "hex-secret" rule in scripts/redact_secrets.py (`_RULES`).
 # tests/eval/test_actionability_scan.py checks the two agree across lengths.
@@ -70,6 +82,7 @@ class ScanResult:
     hex_reported: list[str]
     rows_scanned: int
     hunks_scanned: int
+    public_ids: int = 0
 
 
 def parse_allow_hex_rows(text: str) -> frozenset[str]:
@@ -93,6 +106,25 @@ def _row_texts(row: dict[str, Any], include_hunk: bool) -> list[str]:
     return [row["body"], *row["thread_replies"], *([hunk] if hunk is not None else [])]
 
 
+def _is_public_hex_id(text: str, run: re.Match[str]) -> bool:
+    """True for a 32-hex run that directly follows a known reviewer-bot prefix."""
+    return run.end() - run.start() == _PUBLIC_HEX_ID_LENGTH and text[: run.start()].endswith(
+        _PUBLIC_HEX_ID_PREFIXES
+    )
+
+
+def _hex_runs(text: str) -> tuple[list[int], int]:
+    """Return the lengths of the hex runs that need a verdict, and the public-id count."""
+    lengths: list[int] = []
+    public = 0
+    for run in HEX_RUN.finditer(text):
+        if _is_public_hex_id(text, run):
+            public += 1
+        else:
+            lengths.append(run.end() - run.start())
+    return lengths, public
+
+
 def _text_reasons(text: str) -> set[str]:
     reasons = set(redact_ci_sink(text, redact_assignments=True).reasons)
     reasons.update(name for name, pattern in BLOCKING_PATTERNS if pattern.search(text))
@@ -108,7 +140,7 @@ def scan_secrets(
     """Scan every row. A null ``diff_hunk`` is skipped, as is any hunk when not requested."""
     blocking: dict[str, list[str]] = {}
     hex_reported: list[str] = []
-    hunks = 0
+    hunks = public_ids = 0
     for row in rows:
         texts = _row_texts(row, include_hunk)
         hunks += int(include_hunk and row.get("diff_hunk") is not None)
@@ -116,7 +148,9 @@ def scan_secrets(
         hex_lengths: list[int] = []
         for text in texts:
             reasons |= _text_reasons(text)
-            hex_lengths += [len(run) for run in HEX_RUN.findall(text)]
+            lengths, public = _hex_runs(text)
+            hex_lengths += lengths
+            public_ids += public
         odd_hex = any(length not in HEX_ALLOWED_LENGTHS for length in hex_lengths)
         if odd_hex and row["id"] not in allow_hex_rows:
             reasons.add(HEX_SECRET_REASON)
@@ -124,7 +158,7 @@ def scan_secrets(
             blocking[row["id"]] = sorted(reasons)
         elif hex_lengths:
             hex_reported.append(row["id"])
-    return ScanResult(blocking, hex_reported, len(rows), hunks)
+    return ScanResult(blocking, hex_reported, len(rows), hunks, public_ids)
 
 
 def report_scan(result: ScanResult) -> bool:
@@ -142,7 +176,8 @@ def report_scan(result: ScanResult) -> bool:
         )
     print(
         f"scanned {result.rows_scanned} rows (+{result.hunks_scanned} hunks): "
-        f"blocking {len(result.blocking)}, hex-reported {len(result.hex_reported)}",
+        f"blocking {len(result.blocking)}, hex-reported {len(result.hex_reported)}, "
+        f"public-id {result.public_ids}",
         file=sys.stderr,
     )
     return not result.blocking
