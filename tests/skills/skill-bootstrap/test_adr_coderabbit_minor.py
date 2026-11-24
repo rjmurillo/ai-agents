@@ -280,7 +280,8 @@ def test_a_long_author_name_keeps_its_date() -> None:
 def test_a_dotted_id_cited_as_a_file_name_is_named() -> None:
     existing = adr_docs.ExistingAdrs([("a.md", "See auth.session.md for the decision.")])
 
-    assert existing.names_id("auth.session") and existing.names_id("auth")
+    # Only the document extension comes off: auth.session names neither auth nor D-1.
+    assert existing.names_id("auth.session") and not existing.names_id("auth")
 
 
 # Round 10 review findings

@@ -11,6 +11,7 @@ that fails on upstream's rule, and so do E1 (decision-log entries) and E3 (break
 from __future__ import annotations
 
 import re
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
@@ -316,6 +317,9 @@ def test_p10_a_pull_request_with_no_reason_covers_nothing(tmp_path: Path) -> Non
     assert [item["kind"] for item in payload["candidates"]] == ["commit"]
 
 
+_key17 = f"D17--{sha256(b'D17 - Use pnpm everywhere').hexdigest()[:8]}"
+
+
 def test_a_rerun_after_an_adr_names_each_decision_proposes_none_of_them(tmp_path: Path) -> None:
     repo = new_repo(tmp_path / "r")
     squash = commit(repo, f"Adopt Postgres instead of MySQL (#12)\n\n{WHY}\n")
@@ -323,7 +327,7 @@ def test_a_rerun_after_an_adr_names_each_decision_proposes_none_of_them(tmp_path
     write(repo, "DECISIONS.md", f"## D17 - Use pnpm everywhere\n\nWe use pnpm because {WHY}\n")
     prs = [_pr(12, merge_commit_sha=squash)]
     first = _scan(repo, prs)
-    assert sorted(_ids(first)) == sorted(["pr-12", f"c-{plain[:7]}", "log-D17"])
+    assert sorted(_ids(first)) == sorted(["pr-12", f"c-{plain[:7]}", f"log-{_key17}"])
     # Name only the pull request URL, the plain commit's short sha and the log id.
     write(
         repo,
@@ -449,11 +453,11 @@ def test_e1_a_decision_log_entry_with_an_id_and_no_adr_is_a_candidate(tmp_path: 
     payload = _scan(repo)
     (item,) = payload["candidates"]
     assert (item["id"], item["kind"], item["title"]) == (
-        "log-D17",
+        f"log-{_key17}",
         "decision-log",
         "D17 - Use pnpm everywhere",
     )
-    assert item["source"] == {"file": "DECISIONS.md", "entry_id": "D17"}
+    assert item["source"] == {"file": "DECISIONS.md", "entry_id": _key17}
     assert item["date"] == "2026-03-04" and item["reason"] and item["signals"] == []
     assert payload["dropped"]["log_no_id"] == 1
 
@@ -466,7 +470,7 @@ def test_e1_an_adr_that_names_the_id_hides_the_entry_but_only_as_a_whole_word(
     write(repo, "DECISIONS.md", "D17: Use pnpm everywhere\nD18: Use uv for Python tooling\n")
     write(repo, "docs/adr/0001-a.md", "# 1. A\n\nThis follows D170, and also D18.\n")
     payload = _scan(repo)
-    assert _ids(payload) == ["log-D17"]
+    assert [ident.split("--")[0] for ident in _ids(payload)] == ["log-D17"]
     assert payload["dropped"]["already_documented"] == 1
 
 

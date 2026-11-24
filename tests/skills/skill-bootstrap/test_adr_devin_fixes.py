@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
@@ -61,12 +62,12 @@ def test_drafting_one_of_two_log_twins_keeps_the_other_a_candidate(tmp_path: Pat
     assert [c["title"] for c in second["candidates"]] == ["D-1 - Pin Node to the LTS line"]
 
 
-def test_a_unique_log_id_is_recorded_bare() -> None:
+def test_a_unique_log_id_is_recorded_with_its_title_hash() -> None:
     entries = [
         ("DECISIONS.md", adr_log.LogEntry("D-7", "D-7 x", "D-7 x", "D-7 x\n\ntext here at length"))
     ]
 
-    assert adr_log._entry_keys(entries) == ["D-7"]
+    assert adr_log._entry_keys(entries) == [f"D-7--{sha256(b'D-7 x').hexdigest()[:8]}"]
 
 
 def test_a_nested_rationale_heading_stays_with_its_decision() -> None:
@@ -186,7 +187,7 @@ def test_twins_with_the_same_title_are_numbered_in_order() -> None:
     keys = adr_log._entry_keys([twin, twin, _entry("D-2", "D-2 - Other")])
 
     assert "--" in keys[0] and keys[1] == f"{keys[0]}-2"
-    assert keys[2] == "D-2"
+    assert keys[2].startswith("D-2--")
 
 
 def test_a_breaking_pr_with_no_reason_takes_the_reason_of_its_commit(tmp_path: Path) -> None:

@@ -163,7 +163,7 @@ def test_is_rule_section_changelog_decides_by_heading_only() -> None:
     assert not adr_docs.is_rule_section("changelog", "Added", "Never do this.")
     assert not adr_docs.is_rule_section("changelog", "1.2.0 policy", "Never do this.")
     assert not adr_docs.is_rule_section("changelog", "2026-01-01 policy", "Never do this.")
-    assert adr_docs.is_rule_section("changelog", "v2 policy", "Never do this.")
+    assert not adr_docs.is_rule_section("changelog", "v2 policy", "Never do this.")
     assert not adr_docs.is_rule_section("changelog", "Overview", "Never do this.")
 
 
