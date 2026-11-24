@@ -36,6 +36,7 @@ A PR with no checks is never green: `AllPassing: false` and
 | Result | Meaning | Action |
 |---|---|---|
 | Exit 7 | Required checks still pending when the budget ran out | Re-run the same command. Keep `--timeout-seconds` at or below 570 |
+| Exit 7 with `Data.DataSource == "rest"` | GraphQL is rate limited. REST cannot prove a pending check is optional, so pending checks outside the ruleset still hold the wait | Do not loop. Re-run once the GraphQL rate limit resets; report BLOCKED with the pending names if it has not |
 | `RequiredState` is `UNKNOWN` | The ruleset or merge ref could not prove the required set | FAIL. Name the reason from `MergeStateWarning` or the error |
 | Exit 3, ruleset read failed | The branch rules could not be read; the flag does not matter | Re-run once; a timeout or rate limit can clear. FAIL on a repeat and report the error. Dropping the flag does not help |
 | Exit 3 under `--required-only`, REST fallback | GraphQL was rate limited and the ruleset lists no required checks | Re-run without `--required-only` and require `AllPassing == true` |

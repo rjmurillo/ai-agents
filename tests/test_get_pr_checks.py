@@ -3648,6 +3648,28 @@ class TestQueuedMissingMain:
         assert data["MissingRequiredChecks"] == []
         assert data["AllPassing"] is True
 
+    def test_required_only_wait_holds_for_queued_check_after_optional_reports(self, capsys):
+        """An optional check reporting first must not end --wait --required-only.
+
+        The filtered required set is empty while the required checks are still
+        queued; the queued hold, not the empty-rollup guard, keeps polling.
+        """
+        optional = _check_run_node("smoke", "COMPLETED", "SUCCESS", required=False)
+        queued = _aged_rollup([optional], _FRESH)
+        done = _aged_rollup([optional, _RUN_TESTS_OK, _VALIDATE_OK], _FRESH)
+        rc, out, _, sleep_mock = self._run(
+            [queued, queued, done],
+            ["--pull-request", "1", "--wait", "--required-only", "--output-format", "json"],
+            capsys,
+        )
+        data = json.loads(out)["Data"]
+        assert rc == 0
+        assert sleep_mock.call_count == 2
+        assert data["MissingRequiredChecks"] == []
+        assert data["RequiredState"] == "SUCCESS"
+        assert data["AllPassing"] is True
+        assert {c["Name"] for c in data["Checks"]} == {"Run Python Tests", "Validate PR"}
+
     def test_wait_times_out_as_queued_not_never_reported(self, capsys):
         queued = _aged_rollup([_RUN_TESTS_OK], _FRESH)
         rc, out, err, sleep_mock = self._run(
