@@ -19,10 +19,6 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import cast
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
-
-from ai_review_common.scan_rules import parse_scan_rules
-
 # ADR-047 keeps this bootstrap inline because imports need sys.path first.
 # This file's own plugin lib wins when it holds the shared frontmatter parser,
 # so a foreign or older plugin root in the environment cannot shadow it. The
@@ -42,6 +38,7 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 from hook_utilities.frontmatter_block import split_frontmatter  # noqa: E402
+from hook_utilities.scan_rules import parse_scan_rules  # noqa: E402
 
 EXIT_SUCCESS = 0
 EXIT_ERROR = 1

@@ -230,9 +230,8 @@ def test_taste_names_the_added_file_first_among_many_touched_existing_offenders(
     linter.parent.mkdir(parents=True)
     repo_root = Path(__file__).resolve().parents[2]
     shutil.copy(repo_root / _LINTER_RELATIVE, linter)
-    # The linter imports ai_review_common.scan_rules, and its ADR-047
-    # bootstrap imports hook_utilities, both from <root>/lib.
-    for package in ("ai_review_common", "hook_utilities"):
+    # The linter's ADR-047 bootstrap imports hook_utilities from <root>/lib.
+    for package in ("hook_utilities",):
         shutil.copytree(
             repo_root / ".claude" / "lib" / package,
             repo / ".claude" / "lib" / package,

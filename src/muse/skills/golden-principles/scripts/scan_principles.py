@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
 
-from ai_review_common.scan_rules import parse_scan_rules
+from hook_utilities.scan_rules import parse_scan_rules
 
 # Allow sibling-module import of scan_principles_core when this script is run
 # directly or loaded via importlib (tests). The scripts directory is not a
