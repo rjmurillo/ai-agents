@@ -90,7 +90,9 @@ def write_jsonl_file(path: Path, rows: list[dict[str, Any]]) -> Path:
 
 
 def read_jsonl_file(path: Path) -> list[dict[str, Any]]:
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    return [
+        json.loads(line) for line in path.read_text(encoding="utf-8").split("\n") if line.strip()
+    ]
 
 
 API_KEY = "sk-test-SECRET-123456"

@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 
+from scripts.eval.actionability_io import split_jsonl_lines
 from tests.eval._actionability_arms_test_support import (
     GOOD,
     FakeCallApi,
@@ -164,7 +165,7 @@ class TestAppendLog:
 
         def reply(_message: str) -> str:
             lines_seen.append(
-                len(out.read_text(encoding="utf-8").splitlines()) if out.exists() else 0
+                len(split_jsonl_lines(out.read_text(encoding="utf-8"))) if out.exists() else 0
             )
             return GOOD
 

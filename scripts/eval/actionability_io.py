@@ -40,11 +40,21 @@ def atomic_write_text(path: Path, text: str) -> None:
         raise
 
 
+def split_jsonl_lines(text: str) -> list[str]:
+    """Split JSONL text on newline only and drop blank lines.
+
+    Not ``str.splitlines()``: that also breaks on U+2028, U+2029, and U+0085. Those reach
+    the file raw because ``write_jsonl`` keeps ``ensure_ascii=False``, so a comment body
+    holding one would be cut in half on reload.
+    """
+    return [line for line in text.split("\n") if line.strip()]
+
+
 def load_jsonl(path: Path) -> list[dict[str, Any]] | None:
     """Return the JSON objects in ``path``, one per line, or None after logging why not."""
     try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-        rows = [json.loads(line) for line in lines if line.strip()]
+        lines = split_jsonl_lines(path.read_text(encoding="utf-8"))
+        rows = [json.loads(line) for line in lines]
     except (OSError, json.JSONDecodeError) as exc:
         logger.error("Cannot read %s: %s", path, exc)
         return None

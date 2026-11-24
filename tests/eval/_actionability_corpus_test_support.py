@@ -75,7 +75,9 @@ def write_prs(path: Path, prs: Any) -> Path:
 
 
 def read_rows(path: Path) -> list[dict[str, Any]]:
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    return [
+        json.loads(line) for line in path.read_text(encoding="utf-8").split("\n") if line.strip()
+    ]
 
 
 def sample_args(prs: Path, out: Path, **overrides: Any) -> list[str]:

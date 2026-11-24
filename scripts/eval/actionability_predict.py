@@ -38,7 +38,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.eval.actionability_io import load_jsonl, write_jsonl  # noqa: E402
+from scripts.eval.actionability_io import (  # noqa: E402
+    load_jsonl,
+    split_jsonl_lines,
+    write_jsonl,
+)
 from scripts.eval.actionability_labels import (  # noqa: E402
     SPLIT_DEV,
     SPLIT_HELDOUT,
@@ -305,7 +309,7 @@ def _read_prior_records(path: Path) -> list[dict[str, Any]]:
     that is not a JSON object.
     """
     try:
-        lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        lines = split_jsonl_lines(path.read_text(encoding="utf-8"))
     except OSError as exc:
         raise OutputError(f"cannot read {path}: {type(exc).__name__}") from None
     records: list[dict[str, Any]] = []

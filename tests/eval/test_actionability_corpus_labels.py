@@ -193,7 +193,7 @@ class TestMergeLabels:
 
         assert cc.main(argv) == 0
 
-        lines = out.read_text(encoding="utf-8").splitlines()
+        lines = out.read_text(encoding="utf-8").strip().split("\n")
         assert [json.loads(line)["id"] for line in lines] == ["A", "B"]
 
 
