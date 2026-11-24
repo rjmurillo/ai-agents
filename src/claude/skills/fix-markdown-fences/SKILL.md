@@ -9,7 +9,7 @@ description: >-
   blocks bleeding into content", or "validate markdown code blocks" on any .md
   file. Do NOT use for documentation accuracy checks or verifying code examples
   (use doc-accuracy).
-license: MIT
+license: Apache-2.0
 metadata:
   routing:
     role: nested-helper

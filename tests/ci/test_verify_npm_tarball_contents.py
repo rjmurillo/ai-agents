@@ -18,7 +18,8 @@ from scripts.ci.verify_npm_tarball_contents import (
 GOOD = {
     "package/package.json": b"{}",
     "package/README.md": b"# readme",
-    "package/LICENSE": b"MIT",
+    "package/LICENSE": b"Apache-2.0",
+    "package/NOTICE": b"notice",
     "package/dist/cli.js": b"//cli",
     "package/bundle/assets/CLAUDE.md": b"top",
     "package/bundle/assets/agents/analyst.md": b"agent",
@@ -116,7 +117,13 @@ def test_an_empty_cli_js_fails(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     "absent",
-    ["package/dist/cli.js", "package/README.md", "package/LICENSE", "package/package.json"],
+    [
+        "package/dist/cli.js",
+        "package/README.md",
+        "package/LICENSE",
+        "package/NOTICE",
+        "package/package.json",
+    ],
 )
 def test_each_required_file_is_enforced(tmp_path: Path, absent: str) -> None:
     _pack(tmp_path, {k: v for k, v in GOOD.items() if k != absent})

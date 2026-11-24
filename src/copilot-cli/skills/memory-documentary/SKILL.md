@@ -6,7 +6,7 @@ description: Generate evidence-based documentary reports by searching across
   GitHub issues. Produces investigative journalism-style analysis with full citation
   chains. Use when you ask for an "evidence-based report", "investigate across all
   memory systems", "what happened with X over time". Do NOT use for a single semantic recall (use memory-search) or for citation hygiene (use memory-enhancement).
-license: MIT
+license: Apache-2.0
 metadata:
   timelessness: 8/10
   category: analysis

@@ -1,7 +1,7 @@
 ---
 name: using-serena-symbols
 description: Guidance for using Serena's LSP-powered symbol analysis. Use when you say "how do I find a symbol", "trace references for this method", "explore this file's structure", or when grep/text search would be imprecise. Do NOT use for memory guidance (use memory).
-license: MIT
+license: Apache-2.0
 metadata:
   routing:
     role: conditional-adjunct

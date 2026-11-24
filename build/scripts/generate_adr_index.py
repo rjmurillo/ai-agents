@@ -1009,7 +1009,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         # script from a different worktree (or via a symlink into this one)
         # writes into _REPO_ROOT silently, with no signal that the write
         # landed outside the caller's own checkout. Mirrors
-        # scripts/generate_third_party_notices.py:479-485 verbatim:
+        # scripts/generate_third_party_notices.py:499-505 verbatim:
         #   project_root = PROJECT_ROOT
         #   if not Path.cwd().resolve().is_relative_to(project_root.resolve()):
         #       print(f"ERROR: current directory is outside project root: {Path.cwd()}", ...)

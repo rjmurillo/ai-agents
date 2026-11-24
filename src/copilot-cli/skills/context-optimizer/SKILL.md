@@ -2,7 +2,7 @@
 name: context-optimizer
 version: 1.2.0
 description: Analyze skill content for optimal placement (Skill vs Passive Context vs Hybrid), compress markdown to pipe-delimited format, and validate compliance against the decision framework. Passive context wins for what the model cannot know (post-cutoff APIs, repo gotchas); pre-trained knowledge belongs in progressive disclosure. Use for "analyze skill placement", "compress markdown", "optimize context", "extract and index", or "audit always-on rules". Do NOT use for gathering knowledge before a task (use context-gather), for creating or improving a skill (use skillforge), or for eval-gated skill tuning (use skillopt).
-license: MIT
+license: Apache-2.0
 user-invocable: true
 allowed-tools:
   - Read

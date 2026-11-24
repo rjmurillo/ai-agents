@@ -2,7 +2,7 @@
 
 AI Agents is an open-source multi-agent toolkit for software development with Claude Code, GitHub Copilot CLI, and VS Code Copilot Chat. An orchestrator routes work across 29 specialized agents, including analyst, architect, code-reviewer, dependency-auditor, implementer, critic, QA, security, and DevOps, to plan, build, review, and ship code with explicit handoffs and quality gates at each stage.
 
-Built for platform teams, engineering managers, and organizations that want AI-assisted development with real governance: plan-to-ship lifecycle skills (`spec`, `plan`, `build`, `test`, `review`, `ship`) in both CLIs, run as slash commands in Claude Code, review gates and a session protocol in both CLIs, and ADR-steered agent behavior. Optional cross-session memory is available via Serena. Install from the plugin marketplace with `/plugin marketplace add rjmurillo/ai-agents` then `/plugin install project-toolkit@ai-agents`, in Claude Code or Copilot CLI. MIT licensed.
+Built for platform teams, engineering managers, and organizations that want AI-assisted development with real governance: plan-to-ship lifecycle skills (`spec`, `plan`, `build`, `test`, `review`, `ship`) in both CLIs, run as slash commands in Claude Code, review gates and a session protocol in both CLIs, and ADR-steered agent behavior. Optional cross-session memory is available via Serena. Install from the plugin marketplace with `/plugin marketplace add rjmurillo/ai-agents` then `/plugin install project-toolkit@ai-agents`, in Claude Code or Copilot CLI. Apache 2.0 licensed.
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/rjmurillo/ai-agents)
 
@@ -21,7 +21,7 @@ Built for platform teams, engineering managers, and organizations that want AI-a
 - **Review gates that loop back.** The critic returns APPROVED, APPROVED_WITH_CONCERNS, NEEDS_REVISION, or BLOCKED. NEEDS_REVISION sends the plan back to the agent that produced it. A QA failure sends the work back to the implementer.
 - **One marketplace URL, two CLIs.** The same repository URL installs as a plugin marketplace in Claude Code and in GitHub Copilot CLI.
 - **VS Code Copilot Chat support.** Agents also load in VS Code Copilot Chat from `.github/agents/`.
-- **MIT licensed.**
+- **Apache 2.0 licensed.**
 
 ## Is AI Agents right for you?
 
@@ -583,4 +583,4 @@ This project uses a **template-based generation system**. To modify agents:
 
 ## License
 
-MIT
+Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).

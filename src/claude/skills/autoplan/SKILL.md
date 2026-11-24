@@ -6,7 +6,7 @@ description: Route any request to the right skill, command, or agent chain with
   `/autoplan`, `do it`, `handle it`, `figure this out`, or when a concrete
   request names no skill. Do NOT use when the user names a specific skill or
   lifecycle command; invoke that directly.
-license: MIT
+license: Apache-2.0
 metadata:
   capability:
     kind: orchestrator

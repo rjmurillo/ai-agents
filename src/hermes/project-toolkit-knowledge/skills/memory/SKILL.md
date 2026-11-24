@@ -8,7 +8,7 @@ description: Thin router for the tiered memory system. Points callers at the
   sure which operation you need. Use memory-search for a plain lookup when
   available. Do NOT use for citations (use memory-enhancement) or narrative
   reports across systems (use memory-documentary).
-license: MIT
+license: Apache-2.0
 ---
 # Memory System Skill
 

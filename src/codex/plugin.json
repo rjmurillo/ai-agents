@@ -7,7 +7,7 @@
   },
   "homepage": "https://github.com/rjmurillo/ai-agents",
   "repository": "https://github.com/rjmurillo/ai-agents",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "keywords": ["skills", "workflow", "pull-request", "planning", "memory"],
   "extensions": {
     "com.openai": {

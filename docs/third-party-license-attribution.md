@@ -23,7 +23,7 @@ redistributed to users when they install a plugin.
 
 ## License Compatibility
 
-This project is MIT-licensed. Compatible inbound licenses:
+This project is licensed under Apache-2.0. Compatible inbound licenses:
 
 | License | Compatible | Notes |
 |---------|-----------|-------|
@@ -36,7 +36,7 @@ This project is MIT-licensed. Compatible inbound licenses:
 | Unlicense | Yes | Public domain dedication |
 | MPL-2.0 | Yes (with care) | File-level copyleft, attribution required |
 | LGPL | Caution | Dynamic linking only |
-| GPL | No | Copyleft incompatible with MIT distribution |
+| GPL | No | Copyleft incompatible with Apache-2.0 distribution |
 | AGPL | No | Network copyleft, incompatible |
 
 Before adding a dependency with GPL, LGPL, or AGPL, consult legal counsel.
