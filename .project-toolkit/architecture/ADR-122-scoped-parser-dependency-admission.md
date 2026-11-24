@@ -1,13 +1,14 @@
 ---
 id: ADR-122
 status: accepted
-date: 2026-11-18
+date: 2026-11-22
 decision-makers:
   - rjmurillo
 supersedes: []
 superseded-by: null
 explainer: null
 implemented: true
+review-by: 2026-12-20
 ---
 
 # ADR-122: Admit the C# Parser Dependencies Without Hiding Their Coupling
@@ -21,6 +22,9 @@ On 2026-11-18, an amendment recorded the parser dependencies as permanent design
 A later 2026-11-18 amendment added item 8, the TypeScript admission for issue #7435.
 A third 2026-11-18 amendment added item 9, the Python admission for issue #7436.
 A fourth 2026-11-18 amendment recorded PowerShell's subprocess parser in item 7.
+A 2026-11-20 amendment added item 10, eight change-scoped admissions for issue #7493.
+Item 10 reaches past the C# parser named in the title: it admits cohesion and coupling drops in six non-scanner files.
+The debate for item 10 appears in `.project-toolkit/critique/ADR-122-debate-log-2.md`.
 
 ## Context
 
@@ -31,9 +35,10 @@ The unchanged regression tolerance rejects this transition with exit 10.
 The maintainer authorized a scoped policy change: "waiver, full send."
 That instruction grants neither GitHub approval nor permission to bypass protections.
 On 2026-11-18, the maintainer ruled that the parser dependencies are permanent design.
-They are not a temporary waiver, and no time bound applies.
+They are not a temporary waiver, and no time bound applies. Item 10, by contrast, is a one-time waiver.
 Item 8 extends this decision to the TypeScript parser (issue #7435).
 Item 9 extends it to the Python parser (issue #7436).
+Item 10 admits eight score drops in issue #7493, outside the scanner file and beyond coupling.
 
 ## Decision
 
@@ -76,7 +81,7 @@ Item 9 extends it to the Python parser (issue #7436).
    Each record admits only its own transition; no record admits another's.
    The review adapter keeps its own copy of every record.
    Exits 10 and 11 report `FAIL` before any record is read.
-   On exit 0, a comparison that carries any record reports `WARN` only if exactly one record is present and valid.
+   On exit 0, a comparison that carries any parser record reports `WARN` only if exactly one parser record is present and valid.
    Otherwise it reports `UNKNOWN`.
    `tree-sitter-typescript` joins item 6 as a permanent scanner dependency.
 9. Admit the Python parser transition from issue #7436 as its own record.
@@ -94,6 +99,70 @@ Item 9 extends it to the Python parser (issue #7436).
    On 2026-11-18, the coordinator of the four Tree-sitter issues kept one record per grammar.
    Issue #7436 comment 6995934831 records that choice.
    That keeps each sibling rebase mechanical: append one record in the item 8 shape.
+
+10. Admit eight change-scoped transitions from issue #7493 as fixed records.
+   Issue #7493 ships per-prompt memory recall to Claude plugin consumers.
+   Its review required security fixes that added code to the recall modules.
+   The scanner scores cohesion from file size and definition count, and coupling from non-stdlib import count.
+   Eight comparable scores dropped by more than the 0.5 tolerance.
+   The maintainer authorized a waiver on 2026-11-20, in two structured decisions in the session.
+   D1, choice A: "Scoped waiver: amend ADR-122 so the scanner admits exactly these 5 transitions."
+   D2, choice A: "Admit all 8 transitions as fixed records in one ADR-122 item."
+   D2 widened D1 after the security fixes added three drops.
+   Issue #7493 comment 7050456436 records both decisions verbatim.
+   This item widens items 2 and 5.
+   Item 5 barred another quality; this item admits cohesion as well as coupling.
+   Item 2 limited admission to the scanner file; this item admits six other files.
+   The eight records, each as file, quality, and base to head score:
+
+   | File | Quality | Base | Head | Base blob | Head blob |
+   |---|---|---|---|---|---|
+   | `build/scripts/lib_mirror.py` | coupling | 8.0 | 7.0 | `7477415f3dd7` | `83f7c976ca63` |
+   | `scripts/memory_enhancement/hooks/user_prompt_submit_memory.py` | cohesion | 6.3 | 4.2 | `32c45daf664c` | `3d8a383a59c4` |
+   | `scripts/memory_enhancement/hooks/user_prompt_submit_memory.py` | coupling | 6.0 | 3.0 | `32c45daf664c` | `3d8a383a59c4` |
+   | `scripts/memory_enhancement/search.py` | cohesion | 4.2 | 2.0 | `1dcb875cc1a1` | `9128445e2488` |
+   | `scripts/memory_enhancement/search.py` | coupling | 5.0 | 3.0 | `1dcb875cc1a1` | `9128445e2488` |
+   | `templates/hooks/UserPromptSubmit/invoke_memory_recall.py` | cohesion | 9.2 | 7.7 | `a828ad1f7182` | `9738fc16fc73` |
+   | `templates/hooks/invoke_dispatch_claude.py` | cohesion | 5.7 | 4.6 | `0672c74a1924` | `6c83d8f9257a` |
+   | `tests/build_scripts/test_lib_mirror.py` | coupling | 7.0 | 6.0 | `e4259bb802bf` | `c8214f85fb74` |
+
+   The scanner holds the eight records as one fixed in-code list.
+   When `.qualityrc.json` carries the `changeAdmissions` key, it must equal that list exactly.
+   A different list makes the scanner refuse the config and exit 1. Without the key, no record applies.
+   A scan that assesses no file exits 0 before the list is read, as it does for the parser records.
+   A record matches a modified file with no absolute-gate reason and no evidence loss.
+   The delta for its quality must equal its base and head scores exactly, with status `compared`.
+   Each record also pins two git blob ids: the file at the comparison base and the file at head.
+   The table shows the first 12 characters of each; the records hold all 40.
+   Scores alone are not enough. Swapping one import for another, or a few lines, can leave a score unchanged.
+   A change to either pinned file blob voids its record.
+   The owner renewed only the two search.py head blob pins on 2026-11-22.
+   Decision D5 covers the hardened file and preserves both score drops.
+   [Issue #7493 approval](https://github.com/rjmurillo/ai-agents/issues/7493#issuecomment-7086682234)
+   The owner renewed the same two pins again on 2026-11-23.
+   Decision D9 covers the citation check fix. Both scores are unchanged.
+   [Issue #7493 D9 approval](https://github.com/rjmurillo/ai-agents/issues/7493#issuecomment-7120119475)
+   Decision D12 renewed the search.py pins and the recall shim pin on 2026-11-23.
+   It covers the fixes for review threads T2, T4, and T6. D12 changed no score.
+   [Issue #7493 D12 approval](https://github.com/rjmurillo/ai-agents/issues/7493#issuecomment-7121288491)
+   Decision D13 moved the search.py cohesion head score from 2.1 to 2.0 on 2026-11-23.
+   A per-file deadline check in the recall filename scan added the lines that moved it.
+   [Issue #7493 D13 approval](https://github.com/rjmurillo/ai-agents/issues/7493#issuecomment-7121992178)
+   Records pin no import set.
+   A file with two dropped qualities passes only when each quality has its own matching record.
+   Items 3 and 4 apply: raw evidence stays, `ADMITTED` prints, and the adapter reports `WARN`, never `PASS`.
+   Item 8's rule applies too: exits 10 and 11 report `FAIL` before any record is read.
+   Item 8's one-record limit covers parser records only. Item 10 allows one record per regressed quality, so a file can carry two.
+   A comparison that carries both a parser record and an item 10 record reports `UNKNOWN`.
+   The `/review` marker accepts an acknowledged `WARN` row. No machine check confirms the acknowledgement or names the admission in the marker.
+   The review adapter keeps its own copy of the eight records.
+   On exit 0 it reports `UNKNOWN` for any record that differs from its copy, or names a quality that did not regress.
+   Records go inactive once these files merge, because the base then holds the head scores.
+   A branch whose base predates a later change to these files matches no record and stays blocked.
+   This item admits no other file, quality, or transition. A later drop needs its own decision.
+   Validity: the records apply only to the #7493 pull request. Reversibility names their removal after it merges.
+   The frontmatter `review-by` date, 2026-12-20, bounds that window. If #7493 has not merged by then, item 10 is reviewed again.
+   The follow-up pull request that removes the records also removes the `review-by` field.
 
 ## Prior Art Investigation
 
@@ -114,6 +183,7 @@ This decision represents the maintainer's specific parser-dependency authorizati
 | Add a generic exception framework. | Support future policy exceptions. | Add capabilities without a present requirement. | Rejected. |
 | Exclude declared parser packages from coupling. | No special case for this or later parser transitions. | Hides real dependencies that this record keeps visible in the score. | Rejected. |
 | Add the fixed admission. | Preserve raw evidence and scoped authorization. | Maintain an explicit special case. | Selected. |
+| Item 10: restructure the recall modules to pass the size and import proxies. | No new admission shape. | Shapes security code around a heuristic; may shift scores again. | Rejected by the maintainer in D2. |
 
 ## Consequences
 
@@ -121,6 +191,9 @@ Each admission adds policy code and tests for one dependency decision.
 Each later language adds one record in three files: the scanner, the review adapter, and `.qualityrc.json`.
 Item 9 is the third record, which reached the earlier revisit trigger; item 9 records the outcome.
 Revisit the rejected generic framework if a record copy drifts, or if a grammar needs a record shape other than item 8's.
+Item 10 adds that second shape for a waiver, not a grammar. It keeps fixed in-code records, so the framework stays rejected.
+The new trigger: a third record shape, or a second waiver item like item 10. Either one reopens the framework question.
+A second waiver should instead prompt a review of the size and import-count proxies themselves.
 A fifth record is already planned under item 7, so a record count is no longer a useful trigger.
 The scanner's own coupling reaches 7.0, the floor of a "reasonable" import count.
 The next parser import drops it to 6.0; that admission must accept the lower score.
@@ -155,7 +228,16 @@ The count then comes from those commands, and no target is ever resolved.
 The parser imports run inside functions, not at module load.
 ADR-121 rule 2 scans only module-load imports, so no allowance entry applies.
 The record grants no GitHub review approval.
-Each record is inactive once the comparison base already contains its imports.
+Item 10 adds a second record shape: file, quality, scores, and base and head blob ids, with no import set.
+It still holds only fixed in-code records, so the generic-framework rejection stands.
+Its eight records live in three copies: the scanner, the review adapter, and `.qualityrc.json`.
+Item 10 admits a coupling drop of 3.0 on a core recall module, the largest drop any ADR-122 record admits.
+Item 10's change also makes the scanner skip a changed path that is a symlink to a directory.
+Git lists such a link as one changed path, and reading it as a file failed the scan.
+In changed-only mode the skip prints `SKIPPED (directory): <path>`. Outside it, a glob target can match directories as a matter of course, so they are skipped silently.
+A type change, where a scored file becomes a directory link, is not skipped and still reports `UNKNOWN`.
+Each parser record is inactive once the comparison base already contains its imports.
+Each item 10 record is inactive once the comparison base holds its head blob.
 
 ### Reversibility
 
@@ -169,6 +251,14 @@ Each record matches only when the merge base sits exactly one parser step behind
 A base two or more parser steps behind, such as 8.0 to 6.0, matches no record and stays blocked.
 Examples: a stacked branch, a cherry-pick, a revert and reintroduction, or an old `--base`.
 The record and its admission code stay. No follow-up pull request removes them.
+That applies to items 1, 8, and 9 only.
+Item 10's records are a one-time waiver and match nothing once #7493 merges.
+A follow-up pull request then removes them from the scanner, the review adapter, and `.qualityrc.json`, together with their baseline entries.
+Issue #7493 records that follow-up in its closing comment.
+The same pull request removes the item 10 matching code and adapter branch, which have no other records.
+The directory skip stays; it is not part of the waiver.
+The head blob comes from the working tree, so a checkout filter such as `autocrlf` could change it. That only affects this repository, where none is set.
+Removing `changeAdmissions` from `.qualityrc.json` alone restores ordinary blocking for those eight transitions.
 
 ## Impact on Dependent Components
 
@@ -184,4 +274,4 @@ The record and its admission code stay. No follow-up pull request removes them.
 Run parser, scanner, regression, and verdict tests.
 Compare actual scanner exits with and without the admission configuration.
 Require normal independent review, hooks, protected CI, and merge containment.
-This record authorizes no separate consumer cohesion change.
+This record authorizes no change to the global cohesion or coupling formulas.

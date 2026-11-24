@@ -27,6 +27,7 @@ on:
       - 'docs/training/**'
       - 'scripts/ci/publish_wiki.py'
       - 'scripts/ci/_wiki_links.py'
+      - 'scripts/hook_utilities/frontmatter_block.py'
       - '.github/workflows/publish-wiki.yml'
   workflow_dispatch:
     inputs:

@@ -7,6 +7,7 @@ the dry-run job fails here.
 
 from __future__ import annotations
 
+import ast
 import re
 from pathlib import Path
 
@@ -50,6 +51,53 @@ def test_runs_on_main_pushes_that_touch_the_training_tree(doc: dict) -> None:
     assert "docs/training/**" in push["paths"]
     assert "scripts/ci/publish_wiki.py" in push["paths"]
     assert "scripts/ci/_wiki_links.py" in push["paths"]
+    assert "scripts/hook_utilities/frontmatter_block.py" in push["paths"]
+
+
+def _repo_module_imports(path: Path) -> set[Path]:
+    """Return the repo files that `path` imports as `scripts.*` modules.
+
+    Package `__init__.py` files are left out on purpose. They run on import but
+    do not shape the wiki output, so a change to them need not republish.
+    """
+    package = path.parent.relative_to(ROOT).parts
+    found: set[Path] = set()
+    for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+        names: list[str] = []
+        if isinstance(node, ast.ImportFrom):
+            # A relative import resolves against the importing file's package:
+            # level 1 is that package, each extra level is one parent up.
+            base = list(package[: len(package) - node.level + 1]) if node.level else []
+            module = ".".join(base + ([node.module] if node.module else []))
+            # `from scripts.pkg import module` names the module in the alias.
+            names = [module] + [f"{module}.{a.name}" for a in node.names]
+        elif isinstance(node, ast.Import):
+            names = [alias.name for alias in node.names]
+        for name in names:
+            if not name.startswith("scripts."):
+                continue
+            candidate = ROOT.joinpath(*name.split(".")).with_suffix(".py")
+            if candidate.is_file():
+                found.add(candidate)
+    return found
+
+
+def test_push_paths_cover_every_repo_module_the_publisher_imports(doc: dict) -> None:
+    # A change to any module the publisher loads can change the wiki output, so
+    # each one must trigger a run. Walk the imports from the entry point.
+    entry = ROOT / "scripts" / "ci" / "publish_wiki.py"
+    seen: set[Path] = set()
+    queue = [entry]
+    while queue:
+        current = queue.pop()
+        if current in seen:
+            continue
+        seen.add(current)
+        queue.extend(_repo_module_imports(current) - seen)
+    imported = {p.relative_to(ROOT).as_posix() for p in seen}
+    assert "scripts/hook_utilities/frontmatter_block.py" in imported
+    missing = sorted(imported - set(doc["on"]["push"]["paths"]))
+    assert missing == []
 
 
 def test_manual_run_defaults_to_dry_run(doc: dict) -> None:
