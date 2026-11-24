@@ -1,10 +1,9 @@
-"""Guards the no-automerge exemption for workflow files and the CLI smoke pins.
+"""Guards Renovate automerge for workflow files and the CLI smoke pins.
 
-#6506 review-gates-15: a workflow file can hold secrets or write tokens, so a bump to
-it needs a human approval. The CLI smoke pins moved from the workflow into
-``.github/cli-smoke/`` (workflow-ci-01), and those CLIs run beside the smoke
-credentials, so they keep the same approval. The shared glob constants live in
-``tests/test_renovate_config.py`` beside the manager exemption they extend.
+#6506 review-gates-15 made bumps to ``.github/workflows/**`` and
+``.github/cli-smoke/**`` wait for a human approval. Richard removed that gate on
+2026-11-23 (PR #7521): CI is the gate, so these updates automerge like the rest.
+The shared glob constants live in ``tests/test_renovate_config.py``.
 """
 
 from __future__ import annotations
@@ -31,49 +30,32 @@ def config() -> dict[str, Any]:
 def test_vulnerability_alerts_do_not_force_automerge(config: dict[str, Any]) -> None:
     """Renovate appends each alert as a rule that carries `force: {vulnerabilityAlerts}`.
 
-    A forced `automerge: true` there beats every user packageRules entry, including
-    the workflow-file exemption (#6506 review-gates-15). Leaving the key out keeps
-    alert PRs on the repo default (`automerge: true`) and lets the exemption apply.
+    A forced key there beats every user packageRules entry. Leaving it out keeps
+    alert PRs on the repo default (`automerge: true`) and under the same rules as
+    every other update.
     """
     assert "automerge" not in config["vulnerabilityAlerts"]
     assert config["automerge"] is True
 
 
-def _workflow_exemptions(config: dict[str, Any]) -> list[int]:
-    return [
-        index
-        for index, rule in enumerate(config["packageRules"])
-        if rule.get("matchFileNames") == _EXEMPT_FILE_GLOBS and rule.get("automerge") is False
-    ]
+def test_workflow_file_updates_automerge(config: dict[str, Any]) -> None:
+    """A bump to .github/workflows/** or .github/cli-smoke/** automerges (PR #7521).
 
-
-def test_workflow_file_updates_require_a_manual_merge(config: dict[str, Any]) -> None:
-    """A bump to .github/workflows/** or .github/cli-smoke/** must not automerge (#6506).
-
-    Like the devcontainer exemption, this holds only while no later rule turns
-    automerge back on, and only while the rule carries no narrowing key. A
-    `matchUpdateTypes` or `matchManagers` key would leave some workflow bumps on
-    the automerge path with this test still green.
+    The rule must stay unnarrowed. A `matchUpdateTypes` or `matchManagers` key
+    would leave some workflow bumps on whatever an earlier rule decided. The
+    lookup names the two Renovate globs, not `_EXEMPT_FILE_GLOBS`, so adding a
+    Dependabot-only directory there does not break this test.
     """
     rules = config["packageRules"]
-    exemptions = _workflow_exemptions(config)
-    assert exemptions, "no packageRules entry disables automerge for the workflow file globs"
-    exemption = rules[exemptions[-1]]
-    extra = set(exemption) - {"matchFileNames", "description", "automerge"}
-    assert not extra, f"the workflow exemption is narrowed by {sorted(extra)}"
-    reenabled = [rule for rule in rules[exemptions[-1] + 1 :] if rule.get("automerge") is True]
-    assert not reenabled, f"a rule after the workflow exemption re-enables automerge: {reenabled}"
-
-
-def test_workflow_exemption_follows_the_rules_that_enable_automerge(
-    config: dict[str, Any],
-) -> None:
-    """Edge: Renovate applies rules in order, so every automerge:true rule must come first."""
-    rules = config["packageRules"]
-    index = _workflow_exemptions(config)[-1]
-    enabling = [i for i, rule in enumerate(rules) if rule.get("automerge") is True]
-    assert enabling, "expected at least one rule that enables automerge"
-    assert max(enabling) < index
+    renovate_globs = [_WORKFLOW_FILE_GLOB, _CLI_SMOKE_FILE_GLOB]
+    matches = [i for i, rule in enumerate(rules) if rule.get("matchFileNames") == renovate_globs]
+    assert matches, "no packageRules entry targets the workflow file globs"
+    rule = rules[matches[-1]]
+    assert rule["automerge"] is True
+    extra = set(rule) - {"matchFileNames", "description", "automerge"}
+    assert not extra, f"the workflow rule is narrowed by {sorted(extra)}"
+    later_off = [r for r in rules[matches[-1] + 1 :] if r.get("automerge") is False]
+    assert not later_off, f"a later rule turns automerge off: {later_off}"
 
 
 def test_no_regex_custom_manager_remains(config: dict[str, Any]) -> None:
@@ -84,10 +66,8 @@ def test_no_regex_custom_manager_remains(config: dict[str, Any]) -> None:
 def test_exemption_globs_cover_workflow_and_lockfile_paths() -> None:
     """Edge: the globs match a workflow, a CLI manifest, and a CLI lockfile.
 
-    A local Renovate run (``--platform=local --dry-run=full``, renovate 44.221.6) showed the
-    ``matchFileNames`` rule resolving ``automerge: false`` on the lockFileMaintenance
-    update of each ``.github/cli-smoke/*/package.json``. This test pins that the lockfile
-    paths stay under the exempt globs. It cannot show Renovate's behavior itself.
+    This test pins that the lockfile paths stay under the globs. It cannot show
+    Renovate's behavior itself.
     """
     paths = [
         ".github/workflows/ci.yml",
@@ -100,12 +80,12 @@ def test_exemption_globs_cover_workflow_and_lockfile_paths() -> None:
     assert not fnmatch("src/ci.yml", _WORKFLOW_FILE_GLOB)
 
 
-def test_cli_smoke_lock_maintenance_gets_its_own_branch(config: dict[str, Any]) -> None:
-    """The cli-smoke lock refresh is stated in config, on a branch of its own.
+def test_cli_smoke_lock_maintenance_rides_the_shared_branch(config: dict[str, Any]) -> None:
+    """The cli-smoke lock refresh automerges on the shared branch (PR #7521).
 
     Renovate puts every lockFileMaintenance update on ``renovate/lock-file-maintenance``
-    and automerges a branch only when every update in it allows it. Without a separate
-    branch topic, the exemption would also stop the repo-root refresh from automerging.
+    and automerges a branch only when every update in it allows it. With every
+    refresh allowed, the separate branch topic is no longer needed.
     """
     rules = config["packageRules"]
     matches = [
@@ -116,8 +96,6 @@ def test_cli_smoke_lock_maintenance_gets_its_own_branch(config: dict[str, Any]) 
     assert len(matches) == 1, "expected exactly one lockFileMaintenance packageRules entry"
     rule = rules[matches[0]]
     assert rule["matchFileNames"] == [_CLI_SMOKE_FILE_GLOB]
-    assert rule["automerge"] is False
-    assert rule["branchTopic"] not in ("", "lock-file-maintenance")
-    assert not [r for r in rules[matches[0] + 1 :] if r.get("automerge") is True]
-    # The refresh outside the exempt paths keeps automerging.
+    assert rule["automerge"] is True
+    assert "branchTopic" not in rule
     assert config["lockFileMaintenance"]["automerge"] is True
