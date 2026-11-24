@@ -105,3 +105,48 @@ def test_the_rule_quotes_the_checker_error() -> None:
         encoding="utf-8"
     )
     assert 'GateError(f"git cannot name a fork point with {ref!r}", 3)' in source
+
+
+def test_a_limitation_is_not_retried_as_contention(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """act prints `docker pull` on every run; that alone must not trigger a retry.
+
+    A retry of an explained failure can add a second, unrelated failure (a
+    docker cp race with files a concurrent test run creates), which would then
+    block the downgrade the first run qualified for.
+    """
+    first = (
+        f"      {_JOB}   \U0001f433  docker pull image=catthehacker/ubuntu:full-latest\n"
+        f"      {_JOB}   \U0001f433  docker create image=catthehacker/ubuntu:full-latest\n"
+        + _failure()
+    )
+    retry = f"      {_JOB}   ❌  Failure - Main actions/checkout [1.2s]\n"
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, *, timeout, cwd=None, env=None):
+        calls.append(cmd)
+        return 1, first if len(calls) == 1 else retry, ""
+
+    monkeypatch.setattr(w, "_run", fake_run)
+    res = w._act_full_stage([".github/workflows/duplicate-code.yml"], tmp_path)
+
+    assert len(calls) == 1
+    assert res.ok is True
+    assert "duplicate-code job" in res.detail
+
+
+def test_contention_without_a_limitation_still_retries(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, *, timeout, cwd=None, env=None):
+        calls.append(cmd)
+        return (1, "", "failed to create container") if len(calls) == 1 else (0, "", "")
+
+    monkeypatch.setattr(w, "_run", fake_run)
+    res = w._act_full_stage([".github/workflows/duplicate-code.yml"], tmp_path)
+
+    assert len(calls) == 2
+    assert res.ok is True

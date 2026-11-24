@@ -2137,9 +2137,14 @@ def _run_act_workflows(
             rc, out, err = _run(cmd, timeout=timeout, cwd=repo_root, env=env)
             combined = (out + err).strip()
             captures = [(out, err)]
+            # A run a known act limitation already explains is not contention.
+            # act prints "docker pull" and "docker create" on every run, so the
+            # contention pattern matches any failure; retrying a limitation only
+            # adds a second, unrelated failure that then blocks the downgrade.
             if (
                 rc != 0
                 and _ACT_TIMEOUT_MARKER not in combined
+                and _act_limitation_hint(combined, event) is None
                 and _is_act_contention_failure(combined)
             ):
                 retry_rc, retry_out, retry_err = _run(cmd, timeout=timeout, cwd=repo_root, env=env)
