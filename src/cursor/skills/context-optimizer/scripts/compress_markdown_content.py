@@ -35,11 +35,15 @@ from pathlib import Path
 from path_validation import validate_path_within_repo
 
 # ADR-047 keeps this bootstrap inline because imports need sys.path first.
+# A plugin root from the environment wins only when its lib holds the shared
+# frontmatter parser, so a root naming a different plugin falls back to this
+# file's own plugin lib instead of failing the import.
 _PLUGIN_ROOT = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
-if _PLUGIN_ROOT:
+_LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+if _PLUGIN_ROOT and os.path.isfile(
+    Path(_PLUGIN_ROOT) / "lib" / "hook_utilities" / "frontmatter_block.py"
+):
     _LIB_DIR = Path(_PLUGIN_ROOT) / "lib"
-else:
-    _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
 
 if not os.path.isdir(_LIB_DIR):
     raise RuntimeError(

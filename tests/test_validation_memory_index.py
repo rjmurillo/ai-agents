@@ -2637,7 +2637,7 @@ class TestCheckFrontmatterValidity:
 
     def test_malformed_yaml_keeps_the_colon_space_hint(self, tmp_path: Path) -> None:
         # The parse-error branch keeps its own hint, distinct from the mapping hint.
-        (tmp_path / "bad-memory.md").write_text("---\nname: a: b\n---\nbody\n")
+        (tmp_path / "bad-memory.md").write_text("---\nname: a: b\n---\nbody\n", encoding="utf-8")
         result = check_frontmatter_validity(tmp_path)
         assert result.passed is False
         issue = result.issues[0]
