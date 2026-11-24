@@ -22,14 +22,14 @@ def _table(*rows: str) -> str:
     )
 
 
-def test_a_correct_row_ignores_its_neighbors_commands(
+def test_a_row_takes_no_anchors_from_its_neighbor_rows(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     root = _repo(tmp_path)
     doc = _table(
-        '| Unrelated fact | elsewhere | `grep -n "unrelated phrase" other.md` |',
-        f"| Token helper | `{TARGET}:3` (`magic_token`) | `sed -n '3p' {TARGET}` |",
-        '| Another fact | elsewhere | `grep -n "another phrase" more.md` |',
+        "| Unrelated fact | elsewhere | `no_such_token` |",
+        f"| Token helper | `{TARGET}:3` | - |",
+        "| Another fact | elsewhere | `another_missing_token` |",
     )
     _add_doc(root, "docs/table.md", doc)
 

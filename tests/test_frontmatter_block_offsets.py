@@ -81,6 +81,7 @@ class TestLoaderCache:
         loader = frontmatter_block._strict_loader(yaml)
 
         assert frontmatter_block._STRICT_LOADERS[yaml] is loader
+        assert frontmatter_block._strict_loader(yaml) is loader
 
     def test_a_distinct_module_object_gets_its_own_loader(self) -> None:
         stand_in = types.ModuleType("yaml_stand_in")
