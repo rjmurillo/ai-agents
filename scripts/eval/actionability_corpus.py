@@ -47,6 +47,7 @@ from scripts.eval.measure_actionability_band import (  # noqa: E402
     is_in_band,
     thread_position,
 )
+from scripts.github_core.api import gh_graphql  # noqa: E402
 from scripts.redact_secrets import redact  # noqa: E402
 from scripts.update_reviewer_signal_stats import (  # noqa: E402
     CommentData,
@@ -62,6 +63,9 @@ HEX_SECRET_REASON = "hex-secret"
 SPLIT_DEV = "dev"
 SPLIT_HELDOUT = "heldout"
 SPLIT_OUTSIDE = "outside"
+
+# The id travels as a variable, never in the query text (ADR-015).
+_HUNK_QUERY = "query($id: ID!) { node(id: $id) { ... on PullRequestReviewComment { diffHunk } } }"
 
 
 @dataclass
@@ -89,6 +93,20 @@ def _load_json_list(path: Path) -> list[Any] | None:
         logger.error("%s must hold a JSON array", path)
         return None
     return data
+
+
+def _load_jsonl(path: Path) -> list[dict[str, Any]] | None:
+    """Return the JSON objects in ``path``, one per line, or None after logging why not."""
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+        rows = [json.loads(line) for line in lines if line.strip()]
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.error("Cannot read %s: %s", path, exc)
+        return None
+    if not all(isinstance(row, dict) for row in rows):
+        logger.error("%s must hold one JSON object per line", path)
+        return None
+    return rows
 
 
 def _make_row(
@@ -269,6 +287,39 @@ def cmd_sample(args: argparse.Namespace) -> int:
     return 0
 
 
+def _fetch_hunk(node_id: str) -> str | None:
+    """Return the diff hunk for one review comment node, or None when it has none."""
+    data = gh_graphql(_HUNK_QUERY, {"id": node_id})
+    node = data.get("node")
+    hunk = node.get("diffHunk") if isinstance(node, dict) else None
+    return hunk if isinstance(hunk, str) and hunk else None
+
+
+def cmd_fetch_hunks(args: argparse.Namespace) -> int:
+    """Fill ``diff_hunk`` for rows that lack one. Write only when every call succeeds."""
+    rows = _load_jsonl(args.corpus)
+    if rows is None:
+        return 2
+    fetched = 0
+    no_hunk = 0
+    for row in rows:
+        if row.get("diff_hunk") is not None:
+            continue
+        try:
+            hunk = _fetch_hunk(row["id"])
+        except RuntimeError as exc:
+            print(f"fetch failed at row {row['id']}: {exc}", file=sys.stderr)
+            return 3
+        row["diff_hunk"] = hunk
+        if hunk is None:
+            no_hunk += 1
+        else:
+            fetched += 1
+    _write_jsonl(args.output, rows)
+    print(f"fetched {fetched}, no_hunk {no_hunk}, of {len(rows)} rows")
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
@@ -281,6 +332,11 @@ def _build_parser() -> argparse.ArgumentParser:
     sample.add_argument("--dev-count", type=int, default=40)
     sample.add_argument("--output", type=Path, required=True, help="Corpus JSONL to write")
     sample.set_defaults(handler=cmd_sample)
+
+    hunks = sub.add_parser("fetch-hunks", help="Fetch the diff hunk for each row")
+    hunks.add_argument("--corpus", type=Path, required=True, help="Corpus JSONL from sample")
+    hunks.add_argument("--output", type=Path, required=True, help="Corpus JSONL to write")
+    hunks.set_defaults(handler=cmd_fetch_hunks)
     return parser
 
 

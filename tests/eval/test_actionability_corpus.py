@@ -299,3 +299,164 @@ class TestSecretScan:
         assert "review: hex-like strings in rows" in err
         assert "PRRC_SECRET" in err
         assert _SHA40 not in err
+
+
+def _corpus_row(row_id: str, **overrides: Any) -> dict[str, Any]:
+    row: dict[str, Any] = {
+        "id": row_id,
+        "pr_number": 1,
+        "reviewer": "alice",
+        "thread_position": 0,
+        "path": "src/a.py",
+        "body": f"body {row_id}",
+        "created_at": "2026-11-20T00:00:00Z",
+        "thread_replies": [],
+        "heuristic_score": 0.5,
+        "heuristic_reasons": [],
+        "in_band": True,
+        "split": "heldout",
+        "diff_hunk": None,
+        "label": None,
+        "sampled_at": _FROZEN_NOW,
+    }
+    row.update(overrides)
+    return row
+
+
+def _write_corpus(path: Path, rows: list[dict[str, Any]]) -> Path:
+    path.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    return path
+
+
+class _FakeGraphql:
+    """Records calls and answers from a table of node id to hunk (or None for a null node)."""
+
+    def __init__(self, hunks: dict[str, str | None], fail_on: str | None = None) -> None:
+        self.hunks = hunks
+        self.fail_on = fail_on
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+
+    def __call__(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
+        variables = variables or {}
+        self.calls.append((query, variables))
+        node_id = variables["id"]
+        if node_id == self.fail_on:
+            raise RuntimeError("GraphQL transport failed")
+        hunk = self.hunks.get(node_id)
+        if hunk is None:
+            return {"node": None}
+        return {"node": {"diffHunk": hunk}}
+
+
+class TestFetchHunks:
+    def test_fills_hunks_prints_counts_and_returns_zero(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Plan M1-T8: each row gets its hunk and the run prints fetched, no_hunk, total."""
+        fake = _FakeGraphql({"A": "@@ -1 +1 @@\n-a\n+b", "B": "@@ -2 +2 @@\n-c\n+d"})
+        monkeypatch.setattr(cc, "gh_graphql", fake)
+        corpus = _write_corpus(tmp_path / "c.jsonl", [_corpus_row("A"), _corpus_row("B")])
+        out = tmp_path / "with-hunks.jsonl"
+
+        code = cc.main(["fetch-hunks", "--corpus", str(corpus), "--output", str(out)])
+
+        assert code == 0
+        rows = _read_rows(out)
+        assert [r["diff_hunk"] for r in rows] == ["@@ -1 +1 @@\n-a\n+b", "@@ -2 +2 @@\n-c\n+d"]
+        assert "fetched 2, no_hunk 0, of 2 rows" in capsys.readouterr().out
+
+    def test_row_with_no_hunk_is_flagged_and_kept(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Plan M1-T8: a null node or empty hunk keeps diff_hunk null and counts as no_hunk."""
+        monkeypatch.setattr(cc, "gh_graphql", _FakeGraphql({"A": "@@ hunk", "B": None, "C": ""}))
+        rows_in = [_corpus_row("A"), _corpus_row("B"), _corpus_row("C")]
+        corpus = _write_corpus(tmp_path / "c.jsonl", rows_in)
+        out = tmp_path / "o.jsonl"
+
+        code = cc.main(["fetch-hunks", "--corpus", str(corpus), "--output", str(out)])
+
+        assert code == 0
+        rows = _read_rows(out)
+        assert [r["id"] for r in rows] == ["A", "B", "C"]
+        assert [r["diff_hunk"] for r in rows] == ["@@ hunk", None, None]
+        assert "fetched 1, no_hunk 2, of 3 rows" in capsys.readouterr().out
+
+    def test_graphql_error_writes_nothing_names_the_row_and_returns_three(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Plan M1-T8: a RuntimeError on any row aborts the run with exit 3."""
+        monkeypatch.setattr(cc, "gh_graphql", _FakeGraphql({"A": "@@ a"}, fail_on="B"))
+        corpus = _write_corpus(tmp_path / "c.jsonl", [_corpus_row("A"), _corpus_row("B")])
+        out = tmp_path / "o.jsonl"
+
+        code = cc.main(["fetch-hunks", "--corpus", str(corpus), "--output", str(out)])
+
+        assert code == 3
+        assert not out.exists()
+        assert "B" in capsys.readouterr().err
+
+    def test_query_is_parameterized_and_never_interpolates_the_id(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Plan M1-T8: the id travels as a GraphQL variable, never in the query text."""
+        fake = _FakeGraphql({"PRRC_unique_id": "@@ h"})
+        monkeypatch.setattr(cc, "gh_graphql", fake)
+        corpus = _write_corpus(tmp_path / "c.jsonl", [_corpus_row("PRRC_unique_id")])
+
+        code = cc.main(
+            ["fetch-hunks", "--corpus", str(corpus), "--output", str(tmp_path / "o.jsonl")]
+        )
+
+        assert code == 0
+        ((query, variables),) = fake.calls
+        assert variables == {"id": "PRRC_unique_id"}
+        assert "PRRC_unique_id" not in query
+        assert "$id: ID!" in query
+        assert "diffHunk" in query
+
+    def test_rows_that_already_hold_a_hunk_are_not_refetched(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Plan M1-T8: only rows with a null hunk cost a call."""
+        fake = _FakeGraphql({"B": "@@ new"})
+        monkeypatch.setattr(cc, "gh_graphql", fake)
+        rows_in = [_corpus_row("A", diff_hunk="@@ old"), _corpus_row("B")]
+        corpus = _write_corpus(tmp_path / "c.jsonl", rows_in)
+        out = tmp_path / "o.jsonl"
+
+        assert cc.main(["fetch-hunks", "--corpus", str(corpus), "--output", str(out)]) == 0
+
+        assert [v["id"] for _, v in fake.calls] == ["B"]
+        assert [r["diff_hunk"] for r in _read_rows(out)] == ["@@ old", "@@ new"]
+
+    def test_returns_two_on_unreadable_corpus(self, tmp_path: Path) -> None:
+        """Plan M1-T8: an unreadable corpus is a config error."""
+        out = tmp_path / "o.jsonl"
+
+        code = cc.main(
+            ["fetch-hunks", "--corpus", str(tmp_path / "none.jsonl"), "--output", str(out)]
+        )
+
+        assert code == 2
+        assert not out.exists()
+
+    def test_returns_two_on_malformed_corpus_line(self, tmp_path: Path) -> None:
+        """Plan M1-T8: a line that is not a JSON object is a config error."""
+        corpus = tmp_path / "c.jsonl"
+        corpus.write_text('{"id": "A"}\nnot json\n', encoding="utf-8")
+
+        code = cc.main(
+            ["fetch-hunks", "--corpus", str(corpus), "--output", str(tmp_path / "o.jsonl")]
+        )
+
+        assert code == 2
