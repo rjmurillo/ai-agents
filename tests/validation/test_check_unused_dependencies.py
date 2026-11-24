@@ -6,21 +6,16 @@ without deptry. CLI tests run the locked deptry from the development environment
 
 from __future__ import annotations
 
-import importlib.util
-import json
 import subprocess
-import sys
-from pathlib import Path
 
 import pytest
 
-_REPO = Path(__file__).resolve().parents[2]
-_MODULE_PATH = _REPO / "scripts" / "validation" / "check_unused_dependencies.py"
-_spec = importlib.util.spec_from_file_location("check_unused_dependencies", _MODULE_PATH)
-assert _spec is not None and _spec.loader is not None
-cud = importlib.util.module_from_spec(_spec)
-sys.modules["check_unused_dependencies"] = cud
-_spec.loader.exec_module(cud)
+from tests.validation._unused_dependencies_support import (
+    cud,
+    git_init,
+    make_project,
+    write_policy,
+)
 
 
 def _raw(code: str, module: str, file: str = "pyproject.toml", line: int = 0) -> dict:
@@ -31,14 +26,8 @@ def _raw(code: str, module: str, file: str = "pyproject.toml", line: int = 0) ->
     }
 
 
-def _policy(tmp: Path, body: str) -> Path:
-    path = tmp / "policy.toml"
-    path.write_text(body, encoding="utf-8")
-    return path
-
-
 def test_cli_malformed_policy_shape_exits_two_without_traceback(tmp_path, capsys):
-    policy = _policy(tmp_path, '[[manifest]]\npath = "."\ntool_only = "ruff"\n')
+    policy = write_policy(tmp_path, '[[manifest]]\npath = "."\ntool_only = "ruff"\n')
     assert cud.main(["--root", str(tmp_path), "--policy", str(policy)]) == 2
     assert "CONFIG ERROR" in capsys.readouterr().err
 
@@ -54,9 +43,9 @@ def test_cli_malformed_policy_shape_exits_two_without_traceback(tmp_path, capsys
     ],
 )
 def test_cli_malformed_manifest_shape_exits_two(tmp_path, capsys, pyproject):
-    policy = _policy(tmp_path, '[[manifest]]\npath = "."\n')
+    policy = write_policy(tmp_path, '[[manifest]]\npath = "."\n')
     (tmp_path / "pyproject.toml").write_text(pyproject, encoding="utf-8")
-    _git_init(tmp_path)
+    git_init(tmp_path)
     assert cud.main(["--root", str(tmp_path), "--policy", str(policy)]) == 2
     assert "CONFIG ERROR" in capsys.readouterr().err
 
@@ -329,7 +318,7 @@ def test_relative_paths_resolve_against_the_deptry_directory(tmp_path):
 
 
 def test_tracked_files_lists_untracked_unignored_files(tmp_path):
-    _git_init(tmp_path)
+    git_init(tmp_path)
     (tmp_path / "a.py").write_text("", encoding="utf-8")
     assert cud.tracked_files(tmp_path) == ["a.py"]
 
@@ -358,7 +347,7 @@ def test_tracked_files_timeout_raises(tmp_path, monkeypatch):
 
 
 def test_cli_deptry_timeout_exits_three(tmp_path, monkeypatch, capsys):
-    policy = _project(tmp_path, '"pyyaml"', "import yaml\n")
+    policy = make_project(tmp_path, '"pyyaml"', "import yaml\n")
 
     def fake_run(argv, **kwargs):
         if argv[0] == "git":
@@ -371,14 +360,14 @@ def test_cli_deptry_timeout_exits_three(tmp_path, monkeypatch, capsys):
 
 
 def test_cli_outside_git_exits_three(tmp_path, capsys):
-    policy = _policy(tmp_path, '[[manifest]]\npath = "."\n')
+    policy = write_policy(tmp_path, '[[manifest]]\npath = "."\n')
     (tmp_path / "pyproject.toml").write_text('[project]\nname="x"\nversion="0"\n', encoding="utf-8")
     assert cud.main(["--root", str(tmp_path), "--policy", str(policy)]) == 3
     assert "EXTERNAL ERROR" in capsys.readouterr().err
 
 
 def test_cli_without_git_binary_exits_three(tmp_path, monkeypatch, capsys):
-    policy = _project(tmp_path, '"pyyaml"', "import yaml\n")
+    policy = make_project(tmp_path, '"pyyaml"', "import yaml\n")
 
     def missing(*_a, **_k):
         raise FileNotFoundError("git")
@@ -386,133 +375,3 @@ def test_cli_without_git_binary_exits_three(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(cud.subprocess, "run", missing)
     assert cud.main(["--root", str(tmp_path), "--policy", str(policy)]) == 3
     assert "EXTERNAL ERROR" in capsys.readouterr().err
-
-
-# --- CLI against a real deptry run -----------------------------------------
-
-
-def _git_init(path: Path) -> None:
-    subprocess.run(["git", "init", "-q", str(path)], check=True, capture_output=True)
-
-
-def _project(tmp: Path, deps: str, source: str) -> Path:
-    _git_init(tmp)
-    (tmp / "pyproject.toml").write_text(
-        f'[project]\nname = "fixture"\nversion = "0"\ndependencies = [{deps}]\n', encoding="utf-8"
-    )
-    (tmp / "app.py").write_text(source, encoding="utf-8")
-    (tmp / "sibling.py").write_text("X = 1\n", encoding="utf-8")
-    return _policy(tmp, '[[manifest]]\npath = "."\n')
-
-
-def test_cli_clean_project_exits_zero(tmp_path, capsys):
-    policy = _project(tmp_path, '"pyyaml"', "import yaml\nimport sibling\n")
-    code = cud.main(["--root", str(tmp_path), "--policy", str(policy)])
-    out = capsys.readouterr().out
-    assert code == 0, out
-    assert "1 declared packages across 1 manifests, 0 findings" in out
-
-
-def test_cli_unused_dependency_exits_one(tmp_path, capsys):
-    policy = _project(tmp_path, '"pyyaml", "jsonschema"', "import yaml\n")
-    code = cud.main(["--root", str(tmp_path), "--policy", str(policy)])
-    out = capsys.readouterr().out
-    assert code == 1
-    assert "DEP002 jsonschema" in out
-
-
-def test_cli_undeclared_third_party_import_exits_one(tmp_path, capsys):
-    policy = _project(tmp_path, '"pyyaml"', "import yaml\nimport definitely_not_installed_pkg\n")
-    code = cud.main(["--root", str(tmp_path), "--policy", str(policy)])
-    out = capsys.readouterr().out
-    assert code == 1
-    assert "DEP001 definitely_not_installed_pkg" in out
-
-
-def test_cli_local_yaml_module_does_not_hide_declared_pyyaml(tmp_path, capsys):
-    policy = _project(tmp_path, '"pyyaml"', "import yaml\nimport sibling\n")
-    (tmp_path / "x").mkdir()
-    (tmp_path / "x" / "yaml.py").write_text("Y = 1\n", encoding="utf-8")
-    code = cud.main(["--root", str(tmp_path), "--policy", str(policy)])
-    out = capsys.readouterr().out
-    assert code == 0, out
-    assert "0 findings" in out
-
-
-def test_cli_unrelated_yaml_module_does_not_hide_undeclared_yaml(tmp_path, capsys):
-    policy = _project(tmp_path, '"jsonschema"', "import jsonschema\nimport yaml\n")
-    argv = ["--root", str(tmp_path), "--policy", str(policy)]
-
-    assert cud.main(argv) == 1
-    before = capsys.readouterr().out
-    assert "DEP003 yaml" in before
-
-    (tmp_path / "x").mkdir()
-    (tmp_path / "x" / "yaml.py").write_text("Y = 1\n", encoding="utf-8")
-    assert cud.main(argv) == 1
-    after = capsys.readouterr().out
-    assert "DEP003 yaml" in after
-
-
-def test_cli_local_module_unrelated_to_installed_distributions_stays_first_party(tmp_path, capsys):
-    policy = _project(tmp_path, '"pyyaml"', "import yaml\nimport helper_mod\n")
-    (tmp_path / "x").mkdir()
-    (tmp_path / "x" / "helper_mod.py").write_text("Y = 1\n", encoding="utf-8")
-    assert cud.main(["--root", str(tmp_path), "--policy", str(policy)]) == 0
-    assert "0 findings" in capsys.readouterr().out
-
-
-def test_cli_missing_policy_exits_two(tmp_path, capsys):
-    code = cud.main(["--root", str(tmp_path), "--policy", str(tmp_path / "absent.toml")])
-    assert code == 2
-    assert "CONFIG ERROR" in capsys.readouterr().err
-
-
-def test_cli_missing_manifest_exits_two(tmp_path, capsys):
-    policy = _policy(tmp_path, '[[manifest]]\npath = "nowhere"\n')
-    _git_init(tmp_path)
-    code = cud.main(["--root", str(tmp_path), "--policy", str(policy)])
-    assert code == 2
-    assert "manifest not found" in capsys.readouterr().err
-
-
-def test_run_deptry_without_report_is_external_error(tmp_path, monkeypatch, capsys):
-    policy = _policy(tmp_path, '[[manifest]]\npath = "."\n')
-    (tmp_path / "pyproject.toml").write_text('[project]\nname="x"\nversion="0"\n', encoding="utf-8")
-    _git_init(tmp_path)
-
-    def boom(*_a, **_k):
-        raise RuntimeError("deptry produced no report")
-
-    monkeypatch.setattr(cud, "run_deptry", boom)
-    code = cud.main(["--root", str(tmp_path), "--policy", str(policy)])
-    assert code == 3
-    assert "EXTERNAL ERROR" in capsys.readouterr().err
-
-
-def test_repository_policy_is_clean(capsys):
-    code = cud.main(["--root", str(_REPO)])
-    assert code == 0, capsys.readouterr().out
-
-
-@pytest.mark.parametrize(
-    ("returncode", "report", "expected"),
-    [(2, [], 3), (1, [], 3), (0, {}, 3), (0, [{}], 3), (0, [], 0)],
-)
-def test_cli_rejects_failed_or_malformed_deptry_reports(
-    tmp_path, monkeypatch, returncode, report, expected
-):
-    policy = _project(tmp_path, '"pyyaml"', "import yaml\n")
-
-    def fake_run(argv, **kwargs):
-        if argv[0] == "git":
-            return subprocess.CompletedProcess(argv, 0, b"pyproject.toml\0app.py\0", b"")
-        assert argv[1] == "-c"
-        extra_args = json.loads(kwargs["input"])
-        assert extra_args[extra_args.index("--known-first-party") + 1] == "app"
-        output = Path(argv[argv.index("--json-output") + 1])
-        output.write_text(json.dumps(report), encoding="utf-8")
-        return subprocess.CompletedProcess(argv, returncode, "", "scanner error")
-
-    monkeypatch.setattr(cud.subprocess, "run", fake_run)
-    assert cud.main(["--root", str(tmp_path), "--policy", str(policy)]) == expected
