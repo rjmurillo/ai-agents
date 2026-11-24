@@ -45,3 +45,20 @@ The raw run lives outside the repository at `sessions/sol-loop-7469/cq6/inventor
 | A decoy folder cannot admit an installed package. | behavior | `test_checkout_decoy_cannot_hide_an_installed_package` with the installed-package check removed. | VERIFIED: the test fails without the check and passes with it. |
 | Untracked, staged-only, or bare folders are not first-party. | behavior | Tests with the HEAD-tree read replaced by a disk or index read. | VERIFIED: the disk read fails three tests; the index read fails `test_staged_but_uncommitted_module_is_not_first_party`. |
 
+
+## Amendment 2026-11-24: Owner-comment approval retired
+
+Checked on branch `chore/evict-owner-approval` after merging `8d7c067f1a` (PR #7535), 2026-11-24.
+
+| Claim | Kind | Command | Result |
+| --- | --- | --- | --- |
+| The verifier, its test, and the review procedure page are deleted. | absence | `git ls-files` on the verifier, its test, and `src/*/skills/review/resources/code-quality-approvals.md` | VERIFIED: 0 tracked files remain. |
+| The review skill no longer offers an approval step. | absence | `git grep -c approval` on `templates/skills/review.SKILL.md.tmpl` and `marker-and-no-task.md` | VERIFIED: 0 files match. |
+| No other file cites the verifier or the procedure page. | absence | `git grep -nE "code-quality-approvals\|check_code_quality_review_approval"` over the tree, excluding critique, sessions, retrospectives, and Serena memories | VERIFIED: 0 hits. |
+| The review adapter reports a code-quality exit 10 as FAIL. | behavior | Read `scripts/ai_review_common/verdict.py:717-718`, the `code-qualities-assessment` branch | VERIFIED: `if exit_code in {10, 11}: return "FAIL"`. Corrected after review: the first draft cited 787-788, the `doc-accuracy` branch. |
+| ADR-122 admission records live in assessor code. | path | Read `src/claude/skills/code-qualities-assessment/scripts/assess.py:79-107` | VERIFIED: `_TYPESCRIPT_PARSER_DEPENDENCY_ADMISSION` and `_PYTHON_PARSER_DEPENDENCY_ADMISSION` dicts. |
+| Four `yaml` rows and one cohesion row stay unadmitted on the consolidation branch. | quote | First amendment, "Change" section | VERIFIED as recorded there; not re-run. |
+| The owner directed removal on 2026-11-24. | quote | Owner message in the task session | SESSION-SOURCED, not in the tree: "Find wherever that is and evict." |
+| No CI step re-runs the assessor from a trusted copy. | absence | `git grep -lE 'code-qualities-assessment\|assess\.py' -- .github lefthook.yml` | VERIFIED: 0 files. |
+| The verifier's last version is at `8d7c067f1a`. | path | `git cat-file -e 8d7c067f1a:scripts/validation/check_code_quality_review_approval.py` | VERIFIED: present; deleted on this branch by `ade6623ba8`. |
+| The ruleset requires zero approvals and disables code-owner review. | behavior | `gh api repos/rjmurillo/ai-agents/rules/branches/main`, `pull_request` rule parameters, 2026-11-24 | VERIFIED: `required_approving_review_count: 0`, `require_code_owner_review: false`. |

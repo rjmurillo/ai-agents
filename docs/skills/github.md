@@ -95,6 +95,8 @@ uv run python .claude/skills/github/scripts/pr/get_pr_context.py --pull-request 
 
 `get_pr_checks.py` takes `--wait`, `--timeout-seconds`, `--required-only`, and `--output-format {json,human,auto}`. Keep `--wait` at or below 570 seconds, because the agent tool call is killed at 600 seconds. Under `--wait` it wakes early on a finished check suite or a push when `gh event listen` works (gh 2.105.0 or later, GitHub Event Streams access), and otherwise re-reads every 10 seconds; exit codes are the same either way.
 
+**Required versus optional checks.** Only checks the base-branch ruleset requires block a merge. Pass `--required-only` and read `Data.RequiredState` to wait on those alone. An optional check, a job waiting on an environment approval, or a review bot that has not posted never holds a merge. See [`required-vs-optional-checks.md`](../../src/claude/skills/github/references/required-vs-optional-checks.md).
+
 In a network-restricted sandbox, the read-only scripts under `scripts/pr/` run with a bare Python interpreter, not `uv run`. `uv run` resolves the whole project environment and times out with no network.
 
 **Mutating scripts.** Most take `--dry-run`. `merge_pr.py` pins the merge to the reviewed head with `--expected-head-sha`, then reads back and audits the result. `update_pr_branch.py` and `set_pr_ready.py` return exit `1` with `head_moved` when the head differs from `--expected-head-sha`. `rerun_failed_jobs.py` returns exit `100` for `cannot_be_retried`. Never retry by pushing an empty commit.
