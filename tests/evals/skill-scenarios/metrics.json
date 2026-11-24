@@ -1,0 +1,58 @@
+{
+  "skill_path": ".claude/skills/metrics/SKILL.md",
+  "skill_id": "metrics",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Weekly metrics report uses a 7 day markdown run",
+      "input": "Generate the weekly metrics report for agent usage. Which script and flags do you run, and which four metrics appear? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "collect_metrics.py",
+        "--since 7",
+        "markdown",
+        "invocation rate",
+        "coverage"
+      ],
+      "expected_gate": "metrics-collect-weekly",
+      "rationale": "Triggers table row `weekly metrics report`: run with a 7-day window and markdown output. The four collected metrics are listed under Purpose and Metrics Collected."
+    },
+    {
+      "id": "S2",
+      "desc": "Defect lineage recheck rejects relative revisions",
+      "input": "Recheck the defect lineage record at .project-toolkit/metrics/lineage/rec-1.json against HEAD~1 with --write. Will that revision be accepted, and what exit code do I get? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "defect_lineage.py",
+        "unsafe",
+        "exit 2",
+        "sha"
+      ],
+      "expected_gate": "metrics-defect-lineage",
+      "rationale": "Defect Lineage section: `--rev` must be a branch, tag, or SHA, `HEAD~1` and `main^` are rejected as unsafe with exit 2, and an unresolved revision exits 3."
+    },
+    {
+      "id": "S3",
+      "desc": "Backlog provenance report buckets",
+      "input": "Report backlog provenance for issues created in the last 7 days. Which script runs, what buckets does it use, and does it label or close any issue? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "backlog_provenance.py",
+        "human-only",
+        "unknown",
+        "read-only"
+      ],
+      "expected_gate": "metrics-backlog-provenance",
+      "rationale": "Backlog Provenance section: mutually exclusive buckets human-only, agent-only, conflict, unknown, and a read-only diagnostic that never files, labels, or closes an issue."
+    },
+    {
+      "id": "S4",
+      "desc": "Grading code quality belongs to quality-grades (negative)",
+      "input": "Grade the code quality of our scripts and skills domains from A to F and track the trend. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "backlog_provenance.py",
+        "collect_metrics.py",
+        "defect_lineage.py"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The description says `Do NOT use to grade code quality (use quality-grades)`."
+    }
+  ]
+}

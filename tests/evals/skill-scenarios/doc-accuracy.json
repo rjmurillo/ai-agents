@@ -1,0 +1,53 @@
+{
+  "skill_path": ".claude/skills/doc-accuracy/SKILL.md",
+  "skill_id": "doc-accuracy",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Pre-release docs versus code audit",
+      "input": "We ship next week. Run doc-accuracy on the repo to audit docs against code. Which script runs, and which phases need no LLM? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "doc_accuracy.py",
+        "phases 1-3",
+        "claims.json"
+      ],
+      "expected_gate": "doc-accuracy-audit",
+      "rationale": "The Scripts and Process sections name doc_accuracy.py for Phases 1-3, deterministic, producing claims.json."
+    },
+    {
+      "id": "S2",
+      "desc": "Same-PR docs and code change",
+      "input": "My PR changes both prose and code. How do I check the prose against code changed in the same diff? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "--same-pr",
+        "--diff-base",
+        "origin/main"
+      ],
+      "expected_gate": "doc-accuracy-audit",
+      "rationale": "Same-PR mode says --same-pr needs --diff-base, else exit 2, and gives the doc_accuracy.py --target . --diff-base origin/main --same-pr command."
+    },
+    {
+      "id": "S3",
+      "desc": "Vendored docs for a foreign SDK",
+      "input": "Phase 3 fails every API name in docs we vendored for another product's SDK. How do I stop the false failures? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "external-sdk",
+        "html comment"
+      ],
+      "expected_gate": "doc-accuracy-audit",
+      "rationale": "The Documenting another product's SDK section declares the file with an HTML comment doc-accuracy: external-sdk."
+    },
+    {
+      "id": "S4",
+      "desc": "Fence syntax is fix-markdown-fences (negative)",
+      "input": "Several markdown files have broken code fence syntax. Fix them. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "doc_accuracy.py",
+        "external-sdk",
+        "claims.json"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The description says 'Do NOT use for ... fixing markdown fence syntax (use fix-markdown-fences)'."
+    }
+  ]
+}
