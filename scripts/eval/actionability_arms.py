@@ -25,8 +25,13 @@ Usage:
 
 Exit codes (ADR-035):
     0 - Done
+    1 - predict: the secret scan blocked a row; no model call was made
     2 - Bad argument, missing credential, unreadable input, or a corpus that cannot be scored
-    3 - Model calls failed past --max-failure-rate (the output file is still written)
+    3 - predict: every call failed, or calls failed past --max-failure-rate
+        (the output file is still written)
+    4 - predict: the provider refused the key (HTTP 401 or 403)
+
+The full step-by-step run is in ``evals/comment-actionability/README.md``.
 """
 
 from __future__ import annotations

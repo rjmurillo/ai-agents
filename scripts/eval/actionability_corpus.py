@@ -22,7 +22,7 @@ Usage:
 
 Exit codes (ADR-035):
     0 - Done
-    1 - Secret scan (sample or fetch-hunks) found a non-hex hit; nothing written
+    1 - Secret scan (sample or fetch-hunks) found a blocking hit; nothing written
     2 - Bad argument or unreadable input
     3 - GitHub fetch failed
 """
