@@ -32,6 +32,7 @@ from __future__ import annotations
 import re
 from collections import Counter
 from dataclasses import dataclass
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
@@ -98,7 +99,9 @@ def find_log_files(root: Path) -> list[str]:
             names = [
                 entry.name
                 for entry in (root / folder).iterdir()
-                if entry.is_file() and base in entry.resolve().parents
+                if _LOG_FILE.fullmatch(entry.name)
+                and entry.is_file()
+                and base in entry.resolve().parents
             ]
         except OSError:
             continue
@@ -249,14 +252,20 @@ MAX_LOG_CANDIDATES = 1000
 
 def _entry_keys(entries: list[tuple[str, LogEntry]]) -> list[str]:
     """The id a draft records for each entry: the bare id when it names one entry, else
-    ``<id>--<n>`` in order, one word, so drafting one twin never hides the other."""
+    ``<id>--<hash>`` of the entry's title, one word that reordering the log does not change.
+    Twins with the same title also get ``-<n>`` in order."""
     total = Counter(entry.id for _rel, entry in entries if entry.id)
-    seen: Counter[str] = Counter()
-    keys: list[str] = []
-    for _rel, entry in entries:
-        ident = entry.id or ""
-        seen[ident] += 1
-        keys.append(ident if total[ident] < 2 else f"{ident}--{seen[ident]}")
+    keys = [
+        e.id or ""
+        if total[e.id or ""] < 2
+        else f"{e.id}--{sha256(e.title.encode()).hexdigest()[:8]}"
+        for _rel, e in entries
+    ]
+    repeats, seen = Counter(keys), Counter[str]()
+    for n, key in enumerate(keys):
+        seen[key] += 1
+        if "--" in key and repeats[key] > 1:
+            keys[n] = f"{key}-{seen[key]}"
     return keys
 
 
@@ -280,12 +289,10 @@ def log_candidates(
     """E1: ``(candidates, log files, log files skipped)``.
 
     A decision-log entry that has an id and is named by no ADR is a candidate. A log file yields
-    at most ``MAX_LOG_CANDIDATES``, and the rest count under ``log_over_limit``. A repeated id
-    gets the suffix ``.2``, ``.3`` and so on, from one counter per id.
+    at most ``MAX_LOG_CANDIDATES``, and the rest count under ``log_over_limit``. The candidate id
+    is ``log-`` plus the entry key, so twins of one id get distinct ids.
     """
     found: list[dict[str, Any]] = []
-    taken: set[str] = set()
-    seen: dict[str, int] = {}
     per_file: dict[str, int] = {}
     entries, files, skipped = read_log_entries(root)
     keys = _entry_keys(entries)
@@ -298,13 +305,5 @@ def log_candidates(
             dropped["log_over_limit"] += 1
         else:
             per_file[rel] = per_file.get(rel, 0) + 1
-            count = seen.get(entry.id, 0)
-            while True:
-                count += 1
-                ident = f"log-{entry.id}" if count == 1 else f"log-{entry.id}.{count}"
-                if ident not in taken:
-                    break
-            seen[entry.id] = count
-            taken.add(ident)
-            found.append(_log_candidate(rel, entry, ident, key))
+            found.append(_log_candidate(rel, entry, f"log-{key}", key))
     return found, files, skipped

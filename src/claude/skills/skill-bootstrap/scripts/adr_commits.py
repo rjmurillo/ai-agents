@@ -350,7 +350,7 @@ def _complete(item: dict[str, Any]) -> tuple[int, str, str, str, str] | None:
 
 
 def select_prs(items: list[Any], dropped: dict[str, int], base: str | None = None) -> list[PrRow]:
-    """The merged, non-bot pull requests whose body states a reason (P9).
+    """The merged, non-bot pull requests whose body states a reason or that are breaking (P9).
 
     Counts each rejection in ``dropped``: ``pr_incomplete`` (not merged or a field missing),
     ``pr_other_repo``, ``pr_bot``, ``pr_housekeeping`` (a release or version bump title) and
@@ -432,7 +432,8 @@ def web_base(remote: str) -> tuple[str, str] | None:
         return None
     # An https port belongs to the web address; an ssh port does not.
     groups = match.groupdict()
-    port = groups.get("port") or "" if groups.get("scheme") in ("http", "https") else ""
+    port = groups.get("port") or "" if groups.get("scheme") == "https" else ""
+    port = "" if port == ":443" else port
     return ("github" if host.startswith("github.") else "gitlab"), f"https://{host}{port}/{path}"
 
 

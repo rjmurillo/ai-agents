@@ -99,7 +99,7 @@ __all__ = [
 
 MAX_JSON_BYTES = 16 * MAX_READ_BYTES
 # scan refuses to write a report over this, so draft can always read what scan wrote.
-MAX_SCAN_BYTES = 256 * MAX_READ_BYTES
+MAX_SCAN_BYTES = 128 * MAX_READ_BYTES
 _KINDS = frozenset({"commit", "pr", "decision-log"})
 # ADR-073's status enum, without "accepted": a draft never asserts its own approval.
 # Acceptance needs a review, so a person sets it after the draft is written. Superseded is
@@ -406,9 +406,10 @@ def _cmd_locate(args: argparse.Namespace) -> dict[str, Any]:
 
 def _check_since(since: str | None) -> None:
     """``--since`` must be an ISO 8601 date or time: git reads a word it cannot parse as now."""
+    if since is None:
+        return
     try:
-        if since is not None:
-            datetime.fromisoformat(since)
+        datetime.fromisoformat(since.replace("Z", "+00:00"))  # 3.10 reads no "Z"
     except ValueError as exc:
         raise ConfigError(
             f"--since must be an ISO 8601 date such as 2026-01-31: {since!r}"
@@ -420,11 +421,10 @@ def _cmd_scan(args: argparse.Namespace) -> dict[str, Any]:
     target = _out_outside_repo(root, args.out)
     _check_since(args.since)
     payload = scan(root, args.rev, args.max_commits, args.since, _read_prs(args.prs_json))
-    data = _encode(json.dumps(payload, indent=2) + "\n", target)
-    if len(data) > MAX_SCAN_BYTES:
-        raise ConfigError(
-            "the scan report is over 256 MiB; narrow it with --max-commits or --since"
-        )
+    text = json.dumps(payload, indent=2) + "\n"  # ASCII, so characters count bytes
+    if len(text) > MAX_SCAN_BYTES:
+        raise ConfigError(f"scan report over {MAX_SCAN_BYTES >> 20} MiB; narrow --max-commits")
+    data = _encode(text, target)
     try:
         _create_new(target, data)
     except FileExistsError as exc:

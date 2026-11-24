@@ -144,17 +144,19 @@ def _candidates(repo: Path) -> tuple[list[dict[str, Any]], dict[str, int]]:
     return found, dropped
 
 
-def test_duplicate_ids_are_numbered_in_order(tmp_path: Path) -> None:
+def test_duplicate_ids_get_distinct_title_keys(tmp_path: Path) -> None:
     repo = _log(tmp_path, "decisions.md", _entries(["D-1", "D-1", "D-2", "D-1"]))
     found, _ = _candidates(repo)
-    assert [c["id"] for c in found] == ["log-D-1", "log-D-1.2", "log-D-2", "log-D-1.3"]
+    ids = [c["id"] for c in found]
+    assert len(set(ids)) == 4 and ids[2] == "log-D-2"
+    assert all(ids[n].startswith("log-D-1--") for n in (0, 1, 3))
 
 
 def test_a_literal_id_that_looks_like_a_suffix_never_collides(tmp_path: Path) -> None:
     repo = _log(tmp_path, "decisions.md", _entries(["D-1", "D-1.2", "D-1"]))
     found, _ = _candidates(repo)
     ids = [c["id"] for c in found]
-    assert len(ids) == len(set(ids)) == 3 and ids[:2] == ["log-D-1", "log-D-1.2"]
+    assert len(ids) == len(set(ids)) == 3
 
 
 def test_eight_thousand_entries_sharing_an_id_are_numbered_in_linear_time(

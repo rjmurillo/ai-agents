@@ -142,11 +142,11 @@ def _commit_candidates(
     covering: tuple[dict[str, int], set[int]],
     web: tuple[str, str] | None,
     dropped: dict[str, int],
-) -> tuple[list[_Pending], set[int]]:
-    """The commit candidates, and the numbers of the kept pull requests that cover a breaking
-    commit (E3): such a pull request carries the signal, because the commit is dropped."""
+) -> tuple[list[_Pending], dict[int, list[tuple[bool, str | None]]]]:
+    """The commit candidates, and for each kept pull request number the ``(breaking, reason)``
+    of the commits it covers: the PR carries the E3 signal and, if it has none, the reason."""
     pending: list[_Pending] = []
-    carried: set[int] = set()
+    carried: dict[int, list[tuple[bool, str | None]]] = {}
     for record in records:
         shape = resolve_commit_shape(record.subject, record.body)
         breaking = breaking_change(shape.subject, shape.body)
@@ -159,8 +159,8 @@ def _commit_candidates(
             dropped["not_decision_shaped"] += 1
         elif covered is not None:
             dropped["covered_by_pr"] += 1
-            if breaking:
-                carried.add(covered)
+            reason = extract_reason(shape.subject, shape.body)
+            carried.setdefault(covered, []).append((breaking, reason))
         else:
             pending.append(_commit_pending(record, web, breaking, shape))
     return pending, carried
@@ -236,8 +236,10 @@ def scan(
     pending, kept_prs = _pr_pending(pr_rows, dropped)
     commits, carried = _commit_candidates(records, covering_numbers(kept_prs), web, dropped)
     for item in pending:
-        if item.number in carried and not item.candidate["signals"]:
-            item.candidate["signals"].append("breaking-change")
+        for breaking, reason in carried.get(item.number or -1, []):
+            if breaking and not item.candidate["signals"]:
+                item.candidate["signals"].append("breaking-change")
+            item.candidate["reason"] = item.candidate["reason"] or reason
     pending += commits
     candidates = _suppress(pending, existing, dropped)
     candidates.sort(key=lambda item: item["date"] or "", reverse=True)

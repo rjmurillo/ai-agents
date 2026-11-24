@@ -371,24 +371,26 @@ def read_adr_texts(
 ) -> Iterator[tuple[str, str]]:
     """Yield ``(relative path, text)`` of the ADR-named files, one file at a time.
 
-    ``folders`` is the result of ``locate_folders(root)`` when the caller already has it. Reading
-    stops after ``MAX_ADR_FILES`` files or ``MAX_ADR_BYTES`` characters. A file not read for that
+    ``folders`` is the result of ``locate_folders(root)`` when the caller already has it. It
+    reads the highest numbers first, across folders, and stops after ``MAX_ADR_FILES`` files or
+    ``MAX_ADR_BYTES`` characters, so the newest drafts are read. A file not read for that
     reason, and a file unreadable or over ``MAX_READ_BYTES``, is counted in ``tally.skipped``.
     """
     tally = tally if tally is not None else AdrTally()
     root = root.resolve()
     total = 0
-    for rel, _source in locate_folders(root)[0] if folders is None else folders:
-        for item in sorted(adr_files(root / rel), key=lambda f: f.number, reverse=True):
-            if tally.read >= MAX_ADR_FILES or total >= MAX_ADR_BYTES:
-                tally.skipped, tally.cut = tally.skipped + 1, True
-                continue
-            text = read_bounded(root / rel / item.name)
-            if text is None:
-                tally.skipped += 1
-                continue
-            tally.read, total = tally.read + 1, total + len(text)
-            yield f"{rel}/{item.name}", text
+    pairs = locate_folders(root)[0] if folders is None else folders
+    found = [(item, rel) for rel, _ in pairs for item in adr_files(root / rel)]
+    for item, rel in sorted(found, key=lambda pair: pair[0].number, reverse=True):
+        if tally.read >= MAX_ADR_FILES or total >= MAX_ADR_BYTES:
+            tally.skipped, tally.cut = tally.skipped + 1, True
+            continue
+        text = read_bounded(root / rel / item.name)
+        if text is None:
+            tally.skipped += 1
+            continue
+        tally.read, total = tally.read + 1, total + len(text)
+        yield f"{rel}/{item.name}", text
 
 
 # Draft rendering: src/lib/adr-writer.ts, renderAdr

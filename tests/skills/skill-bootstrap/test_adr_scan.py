@@ -10,6 +10,7 @@ that fails on upstream's rule, and so do E1 (decision-log entries) and E3 (break
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -474,4 +475,5 @@ def test_e1_an_entry_id_that_repeats_gets_a_distinct_candidate_id(tmp_path: Path
     commit(repo, "Initial work")
     write(repo, "DECISIONS.md", "D1: Use pnpm everywhere\n")
     write(repo, "docs/DECISIONS.md", "D1: Use uv for Python tooling\n")
-    assert _ids(_scan(repo)) == ["log-D1", "log-D1.2"]
+    ids = _ids(_scan(repo))
+    assert len(set(ids)) == 2 and all(re.fullmatch(r"log-D1--[0-9a-f]{8}", i) for i in ids)
