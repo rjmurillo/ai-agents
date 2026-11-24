@@ -76,7 +76,7 @@ def test_a_valid_single_record_is_warn() -> None:
 
 def test_a_valid_file_with_two_records_is_warn() -> None:
     assert (
-        _verdict(_comparison(_SEARCH, {"cohesion": (4.2, 2.1), "coupling": (5.0, 3.0)})) == "WARN"
+        _verdict(_comparison(_SEARCH, {"cohesion": (4.2, 2.0), "coupling": (5.0, 3.0)})) == "WARN"
     )
 
 
@@ -142,7 +142,7 @@ def test_a_record_for_a_quality_that_did_not_regress_is_unknown() -> None:
 
 
 def test_a_regression_with_no_record_is_unknown() -> None:
-    comparison = _comparison(_SEARCH, {"cohesion": (4.2, 2.1), "coupling": (5.0, 3.0)})
+    comparison = _comparison(_SEARCH, {"cohesion": (4.2, 2.0), "coupling": (5.0, 3.0)})
     comparison["change_admissions"] = [_record(_SEARCH, "coupling")]
 
     assert _verdict(comparison) == "UNKNOWN"

@@ -7,6 +7,7 @@ by confidence score from the existing scoring infrastructure.
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import time
@@ -126,10 +127,7 @@ def search_memories(
     Returns:
         List of SearchResult sorted by relevance, then confidence, descending.
     """
-    if not query or not query.strip():
-        return []
-
-    if not memories_dir.is_dir():
+    if not query or not query.strip() or not memories_dir.is_dir():
         return []
 
     effective_root = repo_root or find_repo_root(memories_dir) or memories_dir.parent.parent
@@ -140,6 +138,26 @@ def search_memories(
     if paths is None:
         # No pure-Python search exists. No usable rg or grep means no recall.
         return []
+    # A memory named only by its filename has no content hit, so add stem matches.
+    # The scan checks the clock before each directory and each entry, skips dot
+    # entries as rg does, resolves each match as it goes, and keeps half the
+    # remaining time for ranking.
+    stop = None if deadline is None else time.monotonic() + (_time_left(deadline) or 0.0) / 2
+    base, pending, named = memories_dir.resolve(), [str(memories_dir)], []
+    while pending and _time_left(stop) != 0.0:
+        try:
+            with os.scandir(pending.pop()) as entries:
+                while _time_left(stop) != 0.0 and (entry := next(entries, None)) is not None:
+                    if entry.name.startswith("."):
+                        continue
+                    if entry.is_dir(follow_symlinks=False):
+                        pending.append(entry.path)
+                    elif entry.name.endswith(".md") and query_relevance(query, entry.name[:-3]):
+                        resolved = Path(entry.path).resolve()
+                        named += [resolved] if resolved.is_relative_to(base) else []
+        except (OSError, RuntimeError):
+            continue
+    paths = list(dict.fromkeys([*paths, *sorted(named)]))
 
     return rank_results(
         paths,
@@ -267,7 +285,7 @@ def _search_with_ripgrep(
 ) -> list[Path] | None:
     """Search using ripgrep. Returns None if rg is unavailable or fails.
 
-    Multi-word queries use OR logic via multiple -e flags.
+    Multi-word queries use OR logic, one pattern per stdin line.
     """
     rg_path = resolve_tool("rg", [repo_root, memories_dir])
     if rg_path is None:
@@ -277,10 +295,10 @@ def _search_with_ripgrep(
     if not terms:
         return None
 
-    cmd: list[str] = [rg_path, "-il", "--no-config", "--no-ignore", "--glob", "*.md"]
-    for term in terms:
-        cmd.extend(["-e", term])
-    cmd.extend(["--", str(memories_dir)])
+    # Patterns go through stdin, not argv, so other local users cannot read
+    # prompt terms from the process list.
+    cmd: list[str] = [rg_path, "-il", "--no-config", "--no-ignore", "--glob", "*.md", "-f", "-"]
+    cmd += ["--", str(memories_dir)]
 
     timeout = _search_timeout(deadline)
     if timeout is None:
@@ -290,6 +308,7 @@ def _search_with_ripgrep(
     try:
         result = subprocess.run(
             cmd,
+            input="\n".join(terms) + "\n",
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -316,7 +335,7 @@ def _search_with_grep(
 ) -> list[Path] | None:
     """Search using grep. Returns None if grep is unavailable or fails.
 
-    Multi-word queries use OR logic via multiple -e flags.
+    Multi-word queries use OR logic, one pattern per stdin line.
     """
     grep_path = resolve_tool("grep", [repo_root, memories_dir])
     if grep_path is None:
@@ -326,10 +345,9 @@ def _search_with_grep(
     if not terms:
         return None
 
-    cmd: list[str] = [grep_path, "-ril", "--include=*.md"]
-    for term in terms:
-        cmd.extend(["-e", term])
-    cmd.extend(["--", str(memories_dir)])
+    # Patterns go through stdin, not argv, so other local users cannot read
+    # prompt terms from the process list.
+    cmd: list[str] = [grep_path, "-ril", "--include=*.md", "-f", "-", "--", str(memories_dir)]
 
     timeout = _search_timeout(deadline)
     if timeout is None:
@@ -339,6 +357,7 @@ def _search_with_grep(
     try:
         result = subprocess.run(
             cmd,
+            input="\n".join(terms) + "\n",
             capture_output=True,
             text=True,
             encoding="utf-8",

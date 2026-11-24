@@ -52,11 +52,20 @@ OPT_OUT_ENV = "AI_AGENTS_MEMORY_RECALL"
 OPT_OUT_VALUES = frozenset({"0", "off", "false"})
 DISPATCHER_MODULE = "claude_hook_dispatch"
 PROJECT_DIR_ENV = "CLAUDE_PROJECT_DIR"
+LINK_TEXT = "../../src/claude/lib/memory_enhancement"
 
 
 def _lib_dir() -> Path:
-    """Directory holding the ``memory_enhancement`` package: ``<plugin root>/lib``."""
-    return Path(__file__).resolve().parents[2] / "lib"
+    """Directory holding the ``memory_enhancement`` package: ``<plugin root>/lib``.
+
+    With ``core.symlinks=false`` Git writes the ``.claude/lib`` link as a text
+    file holding its target. Only that exact ADR-119 target is followed.
+    """
+    lib = Path(__file__).resolve().parents[2] / "lib"
+    link = lib / "memory_enhancement"
+    if link.is_file() and link.read_text(encoding="utf-8", errors="replace") == LINK_TEXT:
+        return lib.parents[1] / "src" / "claude" / "lib"
+    return lib
 
 
 def _project_dir() -> Path:

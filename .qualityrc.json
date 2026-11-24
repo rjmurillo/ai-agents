@@ -43,12 +43,12 @@
       "file": "scripts/memory_enhancement/search.py",
       "quality": "cohesion",
       "baseScore": 4.2,
-      "headScore": 2.1,
+      "headScore": 2.0,
       "baseBlob": "1dcb875cc1a14544bf3ff6294a45894fe2ae1106",
-      "headBlob": "9493edf7bf19d832b68e426f09bcdf8364f62ad4",
+      "headBlob": "9128445e248852cd578927c6753b237f68ac510a",
       "authorizedBy": "rjmurillo",
       "authorizedOn": "2026-11-20",
-      "authorization": "Maintainer decisions D1 and D2, choice A: admit all 8 transitions as fixed records in one ADR-122 item. Maintainer decisions D5 (2026-11-22, issue #7493 comment 7086682234) and D9 (2026-11-23, issue #7493 comment 7120119475) renewed this head pin."
+      "authorization": "Maintainer decisions D1 and D2, choice A: admit all 8 transitions as fixed records in one ADR-122 item. Maintainer decisions D5 (2026-11-22, issue #7493 comment 7086682234), D9 (2026-11-23, issue #7493 comment 7120119475), and D12 (2026-11-23, issue #7493 comment 7121288491) renewed this head pin. Maintainer decision D13 (2026-11-23, issue #7493 comment 7121992178) set the cohesion head score to 2.0."
     },
     {
       "issue": 7493,
@@ -57,10 +57,10 @@
       "baseScore": 5.0,
       "headScore": 3.0,
       "baseBlob": "1dcb875cc1a14544bf3ff6294a45894fe2ae1106",
-      "headBlob": "9493edf7bf19d832b68e426f09bcdf8364f62ad4",
+      "headBlob": "9128445e248852cd578927c6753b237f68ac510a",
       "authorizedBy": "rjmurillo",
       "authorizedOn": "2026-11-20",
-      "authorization": "Maintainer decisions D1 and D2, choice A: admit all 8 transitions as fixed records in one ADR-122 item. Maintainer decisions D5 (2026-11-22, issue #7493 comment 7086682234) and D9 (2026-11-23, issue #7493 comment 7120119475) renewed this head pin."
+      "authorization": "Maintainer decisions D1 and D2, choice A: admit all 8 transitions as fixed records in one ADR-122 item. Maintainer decisions D5 (2026-11-22, issue #7493 comment 7086682234), D9 (2026-11-23, issue #7493 comment 7120119475), and D12 (2026-11-23, issue #7493 comment 7121288491) renewed this head pin. Maintainer decision D13 (2026-11-23, issue #7493 comment 7121992178) set the cohesion head score to 2.0."
     },
     {
       "issue": 7493,
@@ -69,10 +69,10 @@
       "baseScore": 9.2,
       "headScore": 7.7,
       "baseBlob": "a828ad1f7182aa81effb649de69f5a8b81ff2f1e",
-      "headBlob": "633448a550fef177b68fbf37a24dfa0972c7aad8",
+      "headBlob": "9738fc16fc731f74d61d21ef7bf95240a241a046",
       "authorizedBy": "rjmurillo",
       "authorizedOn": "2026-11-20",
-      "authorization": "Maintainer decisions D1 and D2, choice A: admit all 8 transitions as fixed records in one ADR-122 item."
+      "authorization": "Maintainer decisions D1 and D2, choice A: admit all 8 transitions as fixed records in one ADR-122 item. Maintainer decision D12 (2026-11-23, issue #7493 comment 7121288491) renewed this head pin."
     },
     {
       "issue": 7493,

@@ -124,7 +124,22 @@ _PARSER_DEPENDENCY_ADMISSIONS = {
 
 # ADR-122 item 10: eight change-scoped transitions from issue #7493. Each record
 # pins the file, the quality, both scores, and both git blob ids.
-_RENEWED_SEARCH_HEAD = "9493edf7bf19d832b68e426f09bcdf8364f62ad4"
+_RENEWED_SEARCH_HEAD = "9128445e248852cd578927c6753b237f68ac510a"
+_RENEWED_SHIM_HEAD = "9738fc16fc731f74d61d21ef7bf95240a241a046"
+# The decisions that renewed each head pin, keyed by the renewed head blob.
+_RENEWAL_NOTES: dict[str, str] = {
+    _RENEWED_SEARCH_HEAD: (
+        " Maintainer decisions D5 (2026-11-22, issue #7493 comment 7086682234),"
+        " D9 (2026-11-23, issue #7493 comment 7120119475), and D12"
+        " (2026-11-23, issue #7493 comment 7121288491) renewed this head pin."
+        " Maintainer decision D13 (2026-11-23, issue #7493 comment 7121992178)"
+        " set the cohesion head score to 2.0."
+    ),
+    _RENEWED_SHIM_HEAD: (
+        " Maintainer decision D12 (2026-11-23, issue #7493 comment 7121288491)"
+        " renewed this head pin."
+    ),
+}
 
 _CHANGE_ADMISSIONS = tuple(
     {
@@ -140,12 +155,7 @@ _CHANGE_ADMISSIONS = tuple(
         "authorization": (
             "Maintainer decisions D1 and D2, choice A: "
             "admit all 8 transitions as fixed records in one ADR-122 item."
-            + (
-                " Maintainer decisions D5 (2026-11-22, issue #7493 comment 7086682234) and D9"
-                " (2026-11-23, issue #7493 comment 7120119475) renewed this head pin."
-                if head_blob == _RENEWED_SEARCH_HEAD
-                else ""
-            )
+            + _RENEWAL_NOTES.get(str(head_blob), "")
         ),
     }
     for file, quality, base, head, base_blob, head_blob in (
@@ -177,7 +187,7 @@ _CHANGE_ADMISSIONS = tuple(
             "scripts/memory_enhancement/search.py",
             "cohesion",
             4.2,
-            2.1,
+            2.0,
             "1dcb875cc1a14544bf3ff6294a45894fe2ae1106",
             _RENEWED_SEARCH_HEAD,
         ),
@@ -195,7 +205,7 @@ _CHANGE_ADMISSIONS = tuple(
             9.2,
             7.7,
             "a828ad1f7182aa81effb649de69f5a8b81ff2f1e",
-            "633448a550fef177b68fbf37a24dfa0972c7aad8",
+            _RENEWED_SHIM_HEAD,
         ),
         (
             "templates/hooks/invoke_dispatch_claude.py",

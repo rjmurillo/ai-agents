@@ -111,3 +111,12 @@ VERIFIED with one stated conflict. Item 5 says not to extend admission to anothe
 | Decision D9 renews two search pins. | Quote | Read issue #7493 comment 7120119475. | VERIFIED. The receipt names blob 9493edf7bf19 and both unchanged scores. |
 | All eight admissions still match file content. | Behavior | Run `git hash-object -- scripts/memory_enhancement/search.py`. | VERIFIED. It returns the renewed pin. The other six records are unchanged. |
 | The assessor admits exactly eight drops. | Behavior | Run `assess.py --target . --changed-only --base origin/main --format json`. | VERIFIED. Exit zero, eight admissions, no unadmitted drop. |
+
+## Item 10 renewal D12 and score change D13 (2026-11-23, issue #7493)
+
+| Claim | Kind | Check | Result |
+| --- | --- | --- | --- |
+| D12 renews the search.py and shim head pins. | Quote | Read issue #7493 comment 7121288491. | VERIFIED. It names blob 9738fc16fc73 for the shim. |
+| D13 sets search.py cohesion to 2.0. | Quote | Read issue #7493 comment 7121992178. | VERIFIED. It names blob 9128445e2488 and the scores. |
+| All eight admissions match file content. | Behavior | Run `git hash-object` on both renewed files. | VERIFIED. Both match their pins. |
+| The assessor admits exactly eight drops. | Behavior | Run `assess.py --target . --changed-only --base origin/main --format json`. | VERIFIED. Exit zero, eight admissions, none unadmitted. |

@@ -83,7 +83,7 @@ def test_the_scanner_holds_the_eight_records_from_adr_122_item_10() -> None:
         (_LIB_MIRROR, "coupling", 8.0, 7.0),
         ("scripts/memory_enhancement/hooks/user_prompt_submit_memory.py", "cohesion", 6.3, 4.2),
         ("scripts/memory_enhancement/hooks/user_prompt_submit_memory.py", "coupling", 6.0, 3.0),
-        (_SEARCH, "cohesion", 4.2, 2.1),
+        (_SEARCH, "cohesion", 4.2, 2.0),
         (_SEARCH, "coupling", 5.0, 3.0),
         ("templates/hooks/UserPromptSubmit/invoke_memory_recall.py", "cohesion", 9.2, 7.7),
         ("templates/hooks/invoke_dispatch_claude.py", "cohesion", 5.7, 4.6),
@@ -95,8 +95,17 @@ def test_the_scanner_holds_the_eight_records_from_adr_122_item_10() -> None:
         if record["file"] == _SEARCH:
             assert record["authorizedOn"] == "2026-11-20"
             assert record["authorization"] == _AUTHORIZATION + (
-                " Maintainer decisions D5 (2026-11-22, issue #7493 comment 7086682234) and D9"
-                " (2026-11-23, issue #7493 comment 7120119475) renewed this head pin."
+                " Maintainer decisions D5 (2026-11-22, issue #7493 comment 7086682234),"
+                " D9 (2026-11-23, issue #7493 comment 7120119475), and D12"
+                " (2026-11-23, issue #7493 comment 7121288491) renewed this head pin."
+                " Maintainer decision D13 (2026-11-23, issue #7493 comment 7121992178)"
+                " set the cohesion head score to 2.0."
+            )
+        elif record["file"] == "templates/hooks/UserPromptSubmit/invoke_memory_recall.py":
+            assert record["authorizedOn"] == "2026-11-20"
+            assert record["authorization"] == _AUTHORIZATION + (
+                " Maintainer decision D12 (2026-11-23, issue #7493 comment 7121288491)"
+                " renewed this head pin."
             )
         else:
             assert record["authorizedOn"] == "2026-11-20"
@@ -120,7 +129,7 @@ def test_an_exact_match_attaches_the_record() -> None:
 
 
 def test_a_file_with_both_records_admits_both_qualities() -> None:
-    comparison = _admit(_comparison(_SEARCH, {"cohesion": (4.2, 2.1), "coupling": (5.0, 3.0)}))
+    comparison = _admit(_comparison(_SEARCH, {"cohesion": (4.2, 2.0), "coupling": (5.0, 3.0)}))
 
     assert comparison.change_admissions == [
         _record(_SEARCH, "cohesion"),
@@ -277,7 +286,7 @@ def test_a_config_that_is_not_a_list_raises() -> None:
 def test_each_admitted_quality_prints_one_admitted_line_and_does_not_block(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    comparison = _admit(_comparison(_SEARCH, {"cohesion": (4.2, 2.1), "coupling": (5.0, 3.0)}))
+    comparison = _admit(_comparison(_SEARCH, {"cohesion": (4.2, 2.0), "coupling": (5.0, 3.0)}))
 
     rc = _mod.check_regression([comparison], [], {}, None)
 
@@ -286,13 +295,15 @@ def test_each_admitted_quality_prints_one_admitted_line_and_does_not_block(
     assert err.count("ADMITTED: issue #7493, authorized by rjmurillo on 2026-11-20:") == 2
     assert err.count("issue #7493 comment 7086682234") == 2
     assert err.count("issue #7493 comment 7120119475") == 2
+    assert err.count("issue #7493 comment 7121288491") == 2
+    assert err.count("issue #7493 comment 7121992178") == 2
     assert "Raw cohesion regression remains reported." in err
     assert "Raw coupling regression remains reported." in err
-    assert "❌ scripts/memory_enhancement/search.py: cohesion regressed 4.2 -> 2.1" in err
+    assert "❌ scripts/memory_enhancement/search.py: cohesion regressed 4.2 -> 2.0" in err
 
 
 def test_without_records_the_same_regressions_block(capsys: pytest.CaptureFixture[str]) -> None:
-    comparison = _comparison(_SEARCH, {"cohesion": (4.2, 2.1), "coupling": (5.0, 3.0)})
+    comparison = _comparison(_SEARCH, {"cohesion": (4.2, 2.0), "coupling": (5.0, 3.0)})
 
     assert _mod.check_regression([comparison], [], {}, None) == 10
     assert "ADMITTED" not in capsys.readouterr().err
