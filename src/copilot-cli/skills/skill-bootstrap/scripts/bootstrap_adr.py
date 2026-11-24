@@ -54,7 +54,7 @@ import stat
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 
 from adr_commits import sanitize, slugify
 from adr_locate import (
@@ -72,6 +72,7 @@ from adr_locate import (
 from adr_scan import (
     ConfigError,
     GitError,
+    git_text,
     repo_root,
     scan,
 )
@@ -320,15 +321,36 @@ def _check_since(since: str | None) -> str | None:
     return since if len(since) > 10 else f"{since}T00:00:00"
 
 
+# GIT_NO_LAZY_FETCH, which stops a partial clone fetching a missing object, came in git 2.45.1.
+_NO_LAZY_FETCH_GIT = (2, 45, 1)
+
+
+def _git_version(root: Path) -> tuple[int, ...]:
+    found = re.match(r"git version ([0-9]+)\.([0-9]+)\.([0-9]+)", git_text(root, "version").stdout)
+    return tuple(int(part) for part in found.groups()) if found else (0, 0, 0)
+
+
+def _refuse_lazy_fetch(root: Path) -> None:
+    """Refuse a partial clone on a git that may fetch, so ``scan`` never reaches the network."""
+    partial = git_text(root, "config", "--get", "extensions.partialClone", ok=(0, 1)).stdout
+    if partial.strip() and _git_version(root) < _NO_LAZY_FETCH_GIT:
+        raise ConfigError(
+            "this is a partial clone, and git before 2.45.1 may fetch a missing commit;"
+            " upgrade git or scan a full clone"
+        )
+
+
 def _cmd_scan(args: argparse.Namespace) -> dict[str, Any]:
     root = repo_root(Path(args.repo))
     target = out_outside_repo(root, args.out)
     since = _check_since(args.since)
+    _refuse_lazy_fetch(root)
     payload = scan(root, args.rev, args.max_commits, since, _read_prs(args.prs_json))
     text = json.dumps(payload, indent=2) + "\n"  # ASCII, so characters count bytes
     if len(text) > MAX_SCAN_BYTES:
         raise ConfigError(f"scan report over {MAX_SCAN_BYTES >> 20} MiB; narrow --max-commits")
     data = encode(text, target)
+    out_outside_repo(root, args.out)  # again: a work tree may have been added during the scan
     try:
         create_new(target, data)
     except FileExistsError as exc:
@@ -340,8 +362,16 @@ def _cmd_draft(args: argparse.Namespace) -> dict[str, Any]:
     return draft(args.scan, args.id, args.out, args.status)
 
 
+class _Parser(argparse.ArgumentParser):
+    """A bad argument raises ConfigError, so it prints JSON and exits 2 like any other input
+    error. ``--help`` still prints text and exits 0. Subparsers inherit this class."""
+
+    def error(self, message: str) -> NoReturn:
+        raise ConfigError(message)
+
+
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
+    parser = _Parser(
         description=__doc__.split("\n\n", 1)[0],
         epilog=_HELP_EPILOG,
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -377,8 +407,8 @@ def _fail(code: int, error: str, message: str, **extra: Any) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
     try:
+        args = build_parser().parse_args(argv)
         payload = _HANDLERS[args.command](args)
     except ExistsError as exc:
         return _fail(

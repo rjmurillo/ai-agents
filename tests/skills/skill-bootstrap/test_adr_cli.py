@@ -123,7 +123,9 @@ def test_max_commits_must_be_a_positive_integer(tmp_path: Path, flag: str) -> No
         errors="replace",
         check=False,
     )
-    assert proc.returncode == 2 and "positive integer" in proc.stderr
+    payload = json.loads(proc.stdout)
+    assert proc.returncode == 2 and payload["error"] == "config"
+    assert "positive integer" in payload["message"]
 
 
 def test_scan_reports_truncation_on_the_command_line(tmp_path: Path) -> None:

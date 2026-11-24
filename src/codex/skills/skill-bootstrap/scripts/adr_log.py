@@ -70,7 +70,7 @@ _ID_IN_HEADING = re.compile(r"(?:id:[ \t]*([\w.-]+)|([A-Za-z]{1,6}-?[0-9]+))(?!\
 _FIELD = re.compile(r"([a-z_]+):(?!//)\s*(.*)\Z", _I | re.DOTALL)
 # No ``\s*`` around the mark: it is quadratic on a long run of spaces. Segments are stripped.
 _FIELD_SEPARATOR = re.compile(r"[·|]")
-_FENCE = re.compile(r"\s*(```|~~~)", _A)
+_FENCE = re.compile(r"\s*(`{3,}|~{3,})(.*)", _A)
 _MIN_ENTRY_CHARS = 20
 _TITLE_MAX = 120
 _DATE_KEYS = ("date", "decided", "modified")
@@ -144,20 +144,29 @@ def _text_outside_fields(line: str) -> str:
     kept = [
         segment
         for segment in _FIELD_SEPARATOR.split(line)
-        if not re.fullmatch(r"[a-z_]+:(?:\s.*)?", segment.strip(), _I | re.DOTALL)
+        if not _FIELD.fullmatch(segment.strip())  # the same field syntax as ``_fields_of``
     ]
     return " ".join(segment.strip() for segment in kept).strip()
+
+
+def _fence_after(fence: str | None, line: str) -> str | None:
+    """The open fence after ``line``. A closing fence uses the opener's mark, at least as many
+    times, and nothing after it, so a three-backtick line inside a four-backtick fence is text."""
+    mark = _FENCE.match(line)
+    if fence is None:
+        return mark[1] if mark else None
+    closes = mark and mark[1][0] == fence[0] and len(mark[1]) >= len(fence) and not mark[2].strip()
+    return None if closes else fence
 
 
 def _blocks(content: str) -> list[_Block]:
     blocks: list[_Block] = []
     fence: str | None = None
     for line in content.replace("\r\n", "\n").split("\n"):
-        mark = _FENCE.match(line)
-        if fence is not None or mark:
+        after = _fence_after(fence, line)
+        if fence is not None or after is not None:
             # Lines inside a fenced block belong to the enclosing entry, whatever they look like.
-            if mark and (fence is None or mark[1] == fence):
-                fence = mark[1] if fence is None else None
+            fence = after
             if blocks:
                 blocks[-1].lines.append(line)
             continue
@@ -171,7 +180,10 @@ def _blocks(content: str) -> list[_Block]:
         if heading and not found and blocks and blocks[-1].id and 0 < blocks[-1].level < level:
             blocks[-1].lines.append(line)  # a sub-heading such as ``### Rationale`` stays inside
         elif heading or found:
-            blocks.append(_Block((found[1] or found[2]) if found else None, heading, level, [line]))
+            ident = (
+                (found[1] or found[2]).rstrip(".") or None if found else None
+            )  # "id: D-7." is D-7
+            blocks.append(_Block(ident, heading, level, [line]))
         elif blocks:
             blocks[-1].lines.append(line)
     return blocks
@@ -220,9 +232,15 @@ def entry_date(text: str) -> str | None:
     about when any single entry was decided.
     """
     fields: dict[str, str] = {}
+    fence: str | None = None
     for line in text.split("\n"):
+        after = _fence_after(fence, line)
+        if fence is not None or after is not None:  # an example in a fence is not metadata
+            fence = after
+            continue
         for key, value in _fields_of(re.sub(r"^\s*[-*][ \t]+", "", line)).items():
-            fields.setdefault(key, value)
+            if key not in fields and iso_day(value):  # the first valid day per key
+                fields[key] = value
     for key in _DATE_KEYS:
         day = iso_day(fields.get(key))
         if day:

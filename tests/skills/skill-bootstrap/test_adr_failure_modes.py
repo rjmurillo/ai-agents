@@ -195,6 +195,9 @@ def test_a_collision_exits_one_names_the_twin_and_leaves_the_draft_on_disk(
     assert code == 1 and payload["error"] == "exists"
     assert payload["others"] == ["0002-written-by-someone-else.md"]
     assert draft.is_file() and draft.parent == folder.resolve()
+    assert payload["written"] is True and draft.name != "0002-written-by-someone-else.md"
+    theirs = folder / "0002-written-by-someone-else.md"
+    assert theirs.read_text(encoding="utf-8") == "theirs\n"
 
 
 def test_the_collision_message_says_where_the_draft_is_and_what_to_do(

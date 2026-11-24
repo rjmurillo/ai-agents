@@ -92,8 +92,7 @@ _CHANGELOG_CATEGORY = re.compile(r"^(?:added|changed|deprecated|removed|fixed|se
 _RELEASE_HEADING = re.compile(r"^\[?v?\d+(?:\.\d+)|^\[?unreleased\b|\d{4}-\d{2}(?:-\d{2})?", _I)
 _VERSIONED_RELEASE_HEADING = re.compile(r"^release:?\s+v?\d", _I)
 _H2_HEADING = re.compile(r"##\s+(.+)\Z", _A)
-_NEXT_TOP_HEADING = re.compile(r"\n(?=#\s)", _A)
-_TRAILING_RULE = re.compile(r"\n+-{3,}\s*\Z", _A)
+_NEXT_TOP_HEADING = re.compile(r"(?:\A|\n)(?=#\s)", _A)
 _ID_RUN = re.compile(r"[\w.-]+", _A)
 _ID_END = re.compile(r"\.(?![0-9])", _A)  # a dot before a non-digit ends an id: D-1.md
 
@@ -155,6 +154,13 @@ def split_into_sections(content: str) -> list[tuple[str | None, str]]:
     return [(heading, "\n".join(lines).strip()) for heading, lines in sections]
 
 
+def _without_trailing_rule(body: str) -> str:
+    """``body`` without a last ``---`` line. One look at the last line, so a long run of blank
+    lines costs linear time, where ``\\n+-{3,}\\s*\\Z`` retried it from every newline."""
+    head, newline, last = body.rstrip().rpartition("\n")
+    return head.rstrip() if newline and re.fullmatch(r"-{3,}", last.rstrip(), _A) else body
+
+
 def rule_sections(kind: DocKind, markdown: str) -> list[RuleSection]:
     """The sections of ``markdown`` that state a rule, in document order.
 
@@ -165,7 +171,7 @@ def rule_sections(kind: DocKind, markdown: str) -> list[RuleSection]:
     for heading, raw in split_into_sections(markdown):
         if not heading:
             continue
-        body = _TRAILING_RULE.sub("", section_body(kind, raw)).strip()
+        body = _without_trailing_rule(section_body(kind, raw)).strip()
         if is_rule_section(kind, heading, body):
             found.append(RuleSection(heading, body))
     return found
@@ -205,7 +211,9 @@ class ExistingAdrs:
             for run in _ID_RUN.findall(text):
                 token = run.strip(".").lower()
                 self.ids.add(token)
-                self.ids.update(token[: dot.start()] for dot in _ID_END.finditer(token))
+                end = _ID_END.search(token)  # one prefix per token, so memory stays linear
+                if end:
+                    self.ids.add(token[: end.start()])
             self.hashes |= hash_tokens(text)
             self.urls |= urls_in(text)
             self.numbers |= issue_numbers(text)

@@ -349,15 +349,16 @@ TRAILER = re.compile(
     r"|reported-by|suggested-by|helped-by|change-id|pr-url|cc|bug|jira|issue)\s*:",
     _I,
 )
-# A URL holds no space, comma or semicolon, and ``&`` separates only after a space, so a
-# list splits one way and a failed match is linear. ``\S+`` there made it exponential.
+# A URL holds no space, comma or semicolon, and ``&`` separates only after a space, so a list
+# splits one way (``\S+`` there was exponential). The tail reads blanks once, and blanks after
+# a dot only after the dot: ``\s*[.]?\s*`` was quadratic on a run of spaces before prose.
 _ISSUE_REF = r"(?:#\d+|gh-\d+|[\w.-]+/[\w.-]+#\d+|https?://[^\s,;]+)"
 FIXES_ONLY = re.compile(
     r"^\s*(?:fix(?:e[sd])?|close[sd]?|resolve[sd]?|refs?|see|related to|part of)\b:?\s*"
     + _ISSUE_REF
     + r"(?:(?:\s*[,;]\s*|\s+(?:&\s*)?)(?:and\s+)?"
     + _ISSUE_REF
-    + r")*\s*[.]?\s*\Z",
+    + r")*\s*(?:[.]\s*)?\Z",
     _I,
 )
 

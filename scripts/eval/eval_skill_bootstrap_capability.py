@@ -61,6 +61,7 @@ DENY_WRITES = (
     f"Bash({_SCRIPT_DIR}/bootstrap_eval.py *--out*)",
     f"Bash({_SCRIPT_DIR}/bootstrap_boundary.py *--out*)",
     f"Bash({_SCRIPT_DIR}/bootstrap_sweep.py *--out*)",
+    f"Bash({_SCRIPT_DIR}/bootstrap_adr.py *--out*)",  # scan and draft write; locate does not
 )
 _SKILL_SCRIPTS = (  # not a sandbox: print mode refuses unlisted tools; use a worktree
     "bootstrap_mine",

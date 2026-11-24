@@ -182,7 +182,8 @@ def parse_commit_object(sha: str, raw: bytes) -> CommitRecord:
     head, message = _split_object(raw)
     headers = _header_values(head)
     author_text = _decode(headers.get(b"author", b""), headers.get(b"encoding"))
-    author, date = _author_fields(author_text)
+    author, date = _author_fields(author_text[: MAX_SUBJECT_CHARS * 4])
+    author = author[:MAX_SUBJECT_CHARS]
     subject, body = _subject_and_body(_decode(message, headers.get(b"encoding")))
     return CommitRecord(sha, subject, author, date, body)
 
@@ -336,8 +337,7 @@ def _page_url(item: dict[str, Any]) -> object:
 
 
 def _complete(item: dict[str, Any]) -> tuple[int, str, str, str, str] | None:
-    """``(number, title, body, url, merged day)`` when the item has every required field and its
-    URL is a well-formed https page whose path ends in that same number."""
+    """``(number, title, body, url, merged day)`` for a complete row whose URL ends in its number."""
     number = item.get("number")
     title = item.get("title")
     url = _page_url(item)
@@ -348,10 +348,11 @@ def _complete(item: dict[str, Any]) -> tuple[int, str, str, str, str] | None:
     if not isinstance(title, str) or not title.strip() or day is None:
         return None
     page = _PR_PAGE.fullmatch(url) if isinstance(url, str) else None
-    if page is None or page.group(1).rstrip("/").rsplit("/", 1)[-1] != str(number):
+    path = page.group(1).rstrip("/") if page and not re.search(r"\s", page.group(0)) else ""
+    if not path.endswith(f"/{number}"):  # \s without re.ASCII: a Unicode blank too
         return None
     text = body.replace("\r\n", "\n").replace("\r", "\n") if isinstance(body, str) else ""
-    return number, title.strip()[:MAX_SUBJECT_CHARS], text[:MAX_BODY_CHARS], page.group(0), day
+    return number, title.strip()[:MAX_SUBJECT_CHARS], text[:MAX_BODY_CHARS], str(url), day
 
 
 def select_prs(items: list[Any], dropped: dict[str, int], base: str | None = None) -> list[PrRow]:

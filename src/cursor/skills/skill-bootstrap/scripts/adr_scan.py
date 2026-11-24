@@ -18,20 +18,17 @@ and last the suppression of every decision an existing ADR already names.
 
 Departures from the upstream source, each pinned by a test:
 
-- Upstream suppressed only on an exact URL. A decision is also hidden when an existing ADR
-  holds its full SHA, a 7 or more character prefix of it as a whole word, its pull request
-  URL, or ``#N`` for its pull request number. A URL matches whole, so ``issues/123`` does not
-  hide ``issues/12``.
+- Upstream suppressed only on an exact URL. An ADR also hides a decision when it holds the full
+  SHA, a 7+ character prefix as a whole word, the whole pull request URL, or ``#N``.
 - ADR files are read in ``.md``, ``.mdx`` and ``.adoc`` in every located folder.
-- E3: a commit with a ``type!:`` subject or a ``BREAKING CHANGE:`` footer is kept without a
-  stated rationale and without a decision-shaped title. It still has to pass P1, so a
-  ``chore!:`` subject or a release stays out. Its ``signals`` hold ``breaking-change``.
+- E3: a ``type!:`` subject or a ``BREAKING CHANGE:`` footer keeps a commit without a stated
+  rationale or a decision-shaped title, once it passes P1. ``signals`` holds ``breaking-change``.
 - E1: a decision-log entry that has an id and is not named by any ADR is a candidate.
 
 Git runs with a timeout, a clean environment, no replacement objects, and no trust in message
-text. ``git rev-list`` gives the SHAs in history order, and ``git cat-file --batch`` reads them
-(``<sha> commit <size>`` then exactly ``size`` bytes), so a commit message cannot add or hide a record. Every reply must name the SHA that was asked for, in order, with the
-type ``commit``. Anything else raises ``GitError``; the reader never resynchronizes.
+text. ``git rev-list`` gives the SHAs in order, and ``git cat-file --batch`` reads them, size
+prefixed, so a message cannot add or hide a record. Every reply must name the SHA asked for,
+in order, with type ``commit``; anything else raises ``GitError``, and the reader never resyncs.
 """
 
 from __future__ import annotations
@@ -141,7 +138,8 @@ def _commit_candidates(
     web: tuple[str, str] | None,
     dropped: dict[str, int],
 ) -> tuple[list[_Pending], dict[int, list[_Pending]]]:
-    """The commit candidates, and for each kept pull request number the commits it covers."""
+    """The commit candidates, and for each kept pull request number the commits it covers. A
+    filtered commit hands over only its SHA and URLs, never a signal or a reason."""
     pending: list[_Pending] = []
     carried: dict[int, list[_Pending]] = {}
     for record in records:
@@ -154,11 +152,16 @@ def _commit_candidates(
             dropped["no_rationale"] += 1
         elif not breaking and not is_decision_shaped_title(shape.subject):
             dropped["not_decision_shaped"] += 1
-        elif covered is not None:
+        elif covered is None:
+            pending.append(_commit_pending(record, web, breaking, shape))
+        else:
             dropped["covered_by_pr"] += 1
             carried.setdefault(covered, []).append(_commit_pending(record, web, breaking, shape))
-        else:
-            pending.append(_commit_pending(record, web, breaking, shape))
+            continue
+        if covered is not None:  # filtered out, yet its SHA and URLs still name the PR
+            names = _commit_pending(record, web, False, shape)
+            names.candidate["reason"] = None
+            carried.setdefault(covered, []).append(names)
     return pending, carried
 
 
@@ -195,13 +198,13 @@ def _pr_pending(rows: list[PrRow], dropped: dict[str, int]) -> tuple[list[_Pendi
 
 
 def _absorb(pr: _Pending, commit: _Pending) -> None:
-    """A pull request takes from a commit it covers the E3 signal, a reason it lacks, and the
-    commit's SHA and URLs, so an ADR that cites only the commit also hides the pull request."""
+    """A pull request takes from a covered commit its E3 signal, a reason it lacks, its SHA and its
+    commit URL (not a PR URL its subject names), so an ADR citing the commit hides the PR."""
     if commit.candidate["signals"] and not pr.candidate["signals"]:
         pr.candidate["signals"].append("breaking-change")
     pr.candidate["reason"] = pr.candidate["reason"] or commit.candidate["reason"]
     pr.shas += commit.shas
-    pr.urls += commit.urls
+    pr.urls += tuple(url for url in (commit.candidate["source"]["url"],) if url)
 
 
 def _suppress(
@@ -279,9 +282,7 @@ def scan(
     }
 
 
-# ---------------------------------------------------------------------------
-# Git access: run git with a timeout and read commits (no upstream source)
-# ---------------------------------------------------------------------------
+# --- Git access: run git with a timeout and read commits (no upstream source) ---
 
 GIT_TIMEOUT_S = 30
 BATCH_SHAS = 500
@@ -383,7 +384,7 @@ def repo_root(path: Path) -> Path:
     proc = git_bytes(path, "rev-parse", "--show-toplevel")
     if proc.returncode != 0:
         raise refusal(proc, f"not a git repository: {path}")
-    return Path(proc.stdout.decode("utf-8", "replace").strip()).resolve()
+    return Path(proc.stdout.decode("utf-8", "replace").removesuffix("\n")).resolve()
 
 
 def resolve_rev(root: Path, rev: str) -> str:

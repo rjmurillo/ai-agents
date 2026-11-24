@@ -91,9 +91,10 @@ def test_resolve_rev_keeps_git_stderr(monkeypatch: pytest.MonkeyPatch, tmp_path:
 # ---------------------------------------------------------------------------
 
 
-def test_git_env_drops_the_repository_variables_and_never_prompts() -> None:
-    env = adr_scan.git_env()
-    for name in (
+def test_git_env_drops_the_repository_variables_and_never_prompts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    names = (
         "GIT_DIR",
         "GIT_WORK_TREE",
         "GIT_INDEX_FILE",
@@ -103,7 +104,11 @@ def test_git_env_drops_the_repository_variables_and_never_prompts() -> None:
         "GIT_NAMESPACE",
         "GIT_PREFIX",
         "GIT_CONFIG_PARAMETERS",
-    ):
+    )
+    for name in names:
+        monkeypatch.setenv(name, "/elsewhere")
+    env = adr_scan.git_env()
+    for name in names:
         assert name not in env
     assert env["GIT_TERMINAL_PROMPT"] == "0" and env["GIT_NO_LAZY_FETCH"] == "1"
 

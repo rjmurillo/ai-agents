@@ -36,7 +36,7 @@ def same_file(first: Path, second: Path) -> bool:
 
 def _git_path(directory: Path, flag: str) -> Path | None:
     proc = git_bytes(directory, "rev-parse", "--path-format=absolute", flag)
-    text = proc.stdout.decode("utf-8", "replace").strip()
+    text = proc.stdout.decode("utf-8", "replace").removesuffix("\n")  # a path may end in a space
     return Path(text).resolve() if proc.returncode == 0 and text else None
 
 
@@ -48,7 +48,7 @@ def enclosing_tree(path: Path) -> Path | None:
     """
     ancestor = next(item for item in (path, *path.parents) if item.is_dir())
     proc = git_bytes(ancestor, "rev-parse", "--path-format=absolute", "--show-toplevel")
-    top = proc.stdout.decode("utf-8", "replace").strip()
+    top = proc.stdout.decode("utf-8", "replace").removesuffix("\n")
     if proc.returncode == 0 and top:
         return Path(top).resolve()
     if "not a git repository" in stderr_text(proc):
@@ -68,8 +68,12 @@ def work_trees(root: Path) -> list[Path]:
     A linked work tree can hold another repository, such as a submodule. git names that one
     as the tree around a path inside it, so the common-dir check alone would miss it.
     """
-    out = git_text(root, "worktree", "list", "--porcelain", "-z").stdout
-    return [Path(item[9:]).resolve() for item in out.split("\0") if item.startswith("worktree ")]
+    proc = git_text(root, "worktree", "list", "--porcelain", "-z", ok=(0, 129))
+    if proc.returncode == 0:
+        items = proc.stdout.split("\0")
+    else:  # git before 2.36 has no -z; a path holding a newline is then misread
+        items = git_text(root, "worktree", "list", "--porcelain").stdout.split("\n")
+    return [Path(item[9:]).resolve() for item in items if item.startswith("worktree ")]
 
 
 def gate_target(out_dir: Path) -> tuple[Path | None, Path]:
