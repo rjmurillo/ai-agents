@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import re
+from typing import TypeGuard
 
 _VERDICT_PATTERN = re.compile(r"VERDICT:\s*([A-Z_]+)")
 
@@ -300,6 +301,155 @@ _PARSER_DEPENDENCY_ADMISSIONS: dict[str, dict[str, object]] = {
 }
 
 
+# ADR-122 item 10: the adapter's own copy of the eight issue #7493 change
+# records. The scanner holds a second copy; a conformance test keeps them equal.
+_RENEWED_SEARCH_HEAD = "9128445e248852cd578927c6753b237f68ac510a"
+_RENEWED_SHIM_HEAD = "9738fc16fc731f74d61d21ef7bf95240a241a046"
+# The decisions that renewed each head pin, keyed by the renewed head blob.
+_RENEWAL_NOTES: dict[str, str] = {
+    _RENEWED_SEARCH_HEAD: (
+        " Maintainer decisions D5 (2026-11-22, issue #7493 comment 7086682234),"
+        " D9 (2026-11-23, issue #7493 comment 7120119475), and D12"
+        " (2026-11-23, issue #7493 comment 7121288491) renewed this head pin."
+        " Maintainer decision D13 (2026-11-23, issue #7493 comment 7121992178)"
+        " set the cohesion head score to 2.0."
+    ),
+    _RENEWED_SHIM_HEAD: (
+        " Maintainer decision D12 (2026-11-23, issue #7493 comment 7121288491)"
+        " renewed this head pin."
+    ),
+}
+
+_CHANGE_ADMISSIONS: tuple[dict[str, object], ...] = tuple(
+    {
+        "issue": 7493,
+        "file": file,
+        "quality": quality,
+        "baseScore": base,
+        "headScore": head,
+        "baseBlob": base_blob,
+        "headBlob": head_blob,
+        "authorizedBy": "rjmurillo",
+        "authorizedOn": "2026-11-20",
+        "authorization": (
+            "Maintainer decisions D1 and D2, choice A: "
+            "admit all 8 transitions as fixed records in one ADR-122 item."
+            + _RENEWAL_NOTES.get(str(head_blob), "")
+        ),
+    }
+    for file, quality, base, head, base_blob, head_blob in (
+        (
+            "build/scripts/lib_mirror.py",
+            "coupling",
+            8.0,
+            7.0,
+            "7477415f3dd715ef624f6cb14f5233d3afda9c48",
+            "83f7c976ca63a7af312b05294281f084c5dea7a2",
+        ),
+        (
+            "scripts/memory_enhancement/hooks/user_prompt_submit_memory.py",
+            "cohesion",
+            6.3,
+            4.2,
+            "32c45daf664cb0ace70a540d2fbd7088bc03cca8",
+            "3d8a383a59c4b6b0ad5a5a6e7cd8cf33fc3d4a88",
+        ),
+        (
+            "scripts/memory_enhancement/hooks/user_prompt_submit_memory.py",
+            "coupling",
+            6.0,
+            3.0,
+            "32c45daf664cb0ace70a540d2fbd7088bc03cca8",
+            "3d8a383a59c4b6b0ad5a5a6e7cd8cf33fc3d4a88",
+        ),
+        (
+            "scripts/memory_enhancement/search.py",
+            "cohesion",
+            4.2,
+            2.0,
+            "1dcb875cc1a14544bf3ff6294a45894fe2ae1106",
+            _RENEWED_SEARCH_HEAD,
+        ),
+        (
+            "scripts/memory_enhancement/search.py",
+            "coupling",
+            5.0,
+            3.0,
+            "1dcb875cc1a14544bf3ff6294a45894fe2ae1106",
+            _RENEWED_SEARCH_HEAD,
+        ),
+        (
+            "templates/hooks/UserPromptSubmit/invoke_memory_recall.py",
+            "cohesion",
+            9.2,
+            7.7,
+            "a828ad1f7182aa81effb649de69f5a8b81ff2f1e",
+            _RENEWED_SHIM_HEAD,
+        ),
+        (
+            "templates/hooks/invoke_dispatch_claude.py",
+            "cohesion",
+            5.7,
+            4.6,
+            "0672c74a1924030150352d7c96a04c0a60024d52",
+            "6c83d8f9257a717d614173604abb4a7f4cb83d1c",
+        ),
+        (
+            "tests/build_scripts/test_lib_mirror.py",
+            "coupling",
+            7.0,
+            6.0,
+            "e4259bb802bf1c14290e0fca6c425e9611caf532",
+            "c8214f85fb74aa7b18ad5f611e88e3a1220cd8b2",
+        ),
+    )
+)
+
+
+def _delta_matches_record(comparison: dict[str, object], record: dict[str, object]) -> bool:
+    """Return True when the delta for the record quality is exactly its transition."""
+    deltas = comparison.get("deltas")
+    if not isinstance(deltas, list):
+        return False
+    base, head = record["baseScore"], record["headScore"]
+    if not (isinstance(base, float) and isinstance(head, float)):
+        return False
+    expected = (base, head, round(head - base, 4), "compared")
+    return any(
+        isinstance(d, dict)
+        and d.get("quality") == record["quality"]
+        and (d.get("base"), d.get("head"), d.get("delta"), d.get("status")) == expected
+        for d in deltas
+    )
+
+
+def _is_admitted_change(comparison: dict[str, object]) -> bool:
+    """Return True only when ``change_admissions`` is exactly the regressions' fixed records."""
+    records = comparison.get("change_admissions")
+    regressions = comparison.get("regressions")
+    if not isinstance(records, list) or not records or not isinstance(regressions, list):
+        return False
+    if comparison.get("evidence_loss") or comparison.get("absolute_gate_reason") is not None:
+        return False
+    if comparison.get("is_new_file") is not False or comparison.get("change_status") != "M":
+        return False
+    path = str(comparison.get("file_path", "")).replace("\\", "/")
+    blobs = (comparison.get("base_blob"), comparison.get("head_blob"))
+    qualities = [r.get("quality") if isinstance(r, dict) else None for r in records]
+    if any(not isinstance(quality, str) for quality in qualities + regressions):
+        return False
+    if len(set(qualities)) != len(qualities) or set(qualities) != set(regressions):
+        return False
+    return all(
+        isinstance(r, dict)
+        and r in _CHANGE_ADMISSIONS
+        and r["file"] == path
+        and blobs == (r["baseBlob"], r["headBlob"])
+        and _delta_matches_record(comparison, r)
+        for r in records
+    )
+
+
 def _is_admitted_parser_transition(comparison: dict[str, object], field: str) -> bool:
     """Return True only for the exact scanner transition the *field* record admits."""
     record = _PARSER_DEPENDENCY_ADMISSIONS[field]
@@ -334,6 +484,71 @@ def _is_admitted_parser_transition(comparison: dict[str, object], field: str) ->
                 ]
             )
     return False
+
+
+# Issue #7525: drops the scanner admits because the change added no
+# third-party import root (coupling) or no duplicated line (non_redundancy).
+_RULE_ADMISSION_ISSUE = 7525
+_RULE_ADMISSION_RULES = {
+    "coupling": "no_new_third_party_import",
+    "non_redundancy": "no_new_duplicate_lines",
+}
+
+
+def _is_count(value: object) -> TypeGuard[int]:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+def _is_name_list(value: object) -> TypeGuard[list[str]]:
+    return isinstance(value, list) and all(isinstance(name, str) and name for name in value)
+
+
+def _is_valid_rule_record(quality: str, record: object) -> bool:
+    """Return True when *record* proves its rule held for *quality*.
+
+    A quality with no admission rule never validates, so a record cannot turn
+    a cohesion or testability regression into WARN.
+    """
+    rule = _RULE_ADMISSION_RULES.get(quality)
+    if rule is None or not isinstance(record, dict):
+        return False
+    if (record.get("issue"), record.get("rule")) != (_RULE_ADMISSION_ISSUE, rule):
+        return False
+    if quality == "coupling":
+        base, head = record.get("baseThirdParty"), record.get("headThirdParty")
+        return _is_name_list(base) and _is_name_list(head) and set(head) <= set(base)
+    base, head = record.get("baseDuplicateLines"), record.get("headDuplicateLines")
+    return _is_count(base) and _is_count(head) and head <= base
+
+
+def _rule_admission_verdict(comparison: dict[str, object]) -> str:
+    """Return PASS, WARN, FAIL, or UNKNOWN for one comparison without a parser record.
+
+    Evidence loss and any regression without a valid admission fail. A record
+    for a quality that did not regress, or one whose own numbers break its
+    rule, is a payload this adapter cannot vouch for.
+    """
+    regressions = comparison.get("regressions") or []
+    admissions = comparison.get("rule_admissions")
+    if not _is_name_list(regressions):
+        return "UNKNOWN"
+    if admissions is not None:
+        if (
+            not isinstance(admissions, dict)
+            or not admissions
+            or not set(admissions) <= set(regressions)
+            or comparison.get("is_new_file") is not False
+            or comparison.get("absolute_gate_reason") is not None
+            or not all(_is_valid_rule_record(q, r) for q, r in admissions.items())
+        ):
+            return "UNKNOWN"
+    if comparison.get("evidence_loss"):
+        return "FAIL"
+    if not regressions:
+        return "PASS"
+    if admissions is None or set(regressions) - set(admissions):
+        return "FAIL"
+    return "WARN"
 
 
 def _has_assessed_files(files: list[object], summary: dict[str, object]) -> bool:
@@ -519,13 +734,29 @@ def adapt_local_axis_verdict(
                 for field in _PARSER_DEPENDENCY_ADMISSIONS
                 if comparison.get(field) is not None
             ]
-            if not admitted:
-                if comparison.get("regressions") or comparison.get("evidence_loss"):
-                    return "FAIL"
+            if comparison.get("change_admissions") is not None:
+                if (
+                    admitted
+                    or comparison.get("rule_admissions") is not None
+                    or not _is_admitted_change(comparison)
+                ):
+                    return "UNKNOWN"
+                verdicts.append("WARN")
                 continue
-            if len(admitted) != 1 or not _is_admitted_parser_transition(comparison, admitted[0]):
-                return "UNKNOWN"
-            verdicts.append("WARN")
+            if admitted:
+                if comparison.get("rule_admissions") is not None:
+                    return "UNKNOWN"
+                if len(admitted) != 1 or not _is_admitted_parser_transition(
+                    comparison, admitted[0]
+                ):
+                    return "UNKNOWN"
+                verdicts.append("WARN")
+                continue
+            verdict = _rule_admission_verdict(comparison)
+            if verdict == "WARN":
+                verdicts.append(verdict)
+            elif verdict != "PASS":
+                return verdict
         return merge_verdicts(verdicts)
 
     if axis == "doc-accuracy":

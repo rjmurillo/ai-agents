@@ -1,6 +1,107 @@
 {
-  "_comment": "assess.py reads thresholds[\"coupling\"].get(\"min\") (_thresholds_for and check_thresholds in .claude/skills/code-qualities-assessment/scripts/assess.py); a config that leaves coupling.min unset has its coupling gate skipped rather than gated incorrectly (see the comment beside that read). This file leaves coupling empty, so no coupling gate fires. assess.py never reads a \"warn\" field for any quality, only each quality's \"min\", so the warn keys this file used to carry were inert and are gone; coupling.max was never read either. minConfidence (0.5) makes a quality advisory when its score confidence is lower: cohesion is a size and definition proxy at confidence 0.4, so it prints a warning and never fails the absolute gate. The regression gate still compares cohesion against the merge base. Test modules get no cohesion score, because each test case counts as a definition (issue 7410), so the test context sets no cohesion minimum. The csharpParserDependencyAdmission, typescriptParserDependencyAdmission, and pythonParserDependencyAdmission records each admit one scanner transition under ADR-122.",
+  "_comment": "assess.py reads thresholds[\"coupling\"].get(\"min\") (_thresholds_for and check_thresholds in .claude/skills/code-qualities-assessment/scripts/assess.py); a config that leaves coupling.min unset has its coupling gate skipped rather than gated incorrectly (see the comment beside that read). This file leaves coupling empty, so no coupling gate fires. assess.py never reads a \"warn\" field for any quality, only each quality's \"min\", so the warn keys this file used to carry were inert and are gone; coupling.max was never read either. minConfidence (0.5) makes a quality advisory when its score confidence is lower: cohesion is a size and definition proxy at confidence 0.4, so it prints a warning and never fails the absolute gate. The regression gate still compares cohesion against the merge base. Test modules get no cohesion score, because each test case counts as a definition (issue 7410), so the test context sets no cohesion minimum. The csharpParserDependencyAdmission, typescriptParserDependencyAdmission, and pythonParserDependencyAdmission records each admit one scanner transition under ADR-122. The changeAdmissions list admits eight issue 7493 transitions under ADR-122 item 10. firstPartyCouplingAdmission (issue 7525) admits a Python coupling drop when the change adds no third-party import root: a module is first-party only when the HEAD commit holds <root>.py or <root>/__init__.py beside the file, in a parent directory, or under an importRoots entry, and a module the scanner imports from site-packages is always third-party (see references/rule-admissions.md in the skill). The raw score and regression row stay in the report.",
   "minConfidence": 0.5,
+  "firstPartyCouplingAdmission": {
+    "importRoots": ["src/claude/lib"]
+  },
+  "changeAdmissions": [
+    {
+      "issue": 7493,
+      "file": "build/scripts/lib_mirror.py",
+      "quality": "coupling",
+      "baseScore": 8.0,
+      "headScore": 7.0,
+      "baseBlob": "7477415f3dd715ef624f6cb14f5233d3afda9c48",
+      "headBlob": "83f7c976ca63a7af312b05294281f084c5dea7a2",
+      "authorizedBy": "rjmurillo",
+      "authorizedOn": "2026-11-20",
+      "authorization": "Maintainer decisions D1 and D2, choice A: admit all 8 transitions as fixed records in one ADR-122 item."
+    },
+    {
+      "issue": 7493,
+      "file": "scripts/memory_enhancement/hooks/user_prompt_submit_memory.py",
+      "quality": "cohesion",
+      "baseScore": 6.3,
+      "headScore": 4.2,
+      "baseBlob": "32c45daf664cb0ace70a540d2fbd7088bc03cca8",
+      "headBlob": "3d8a383a59c4b6b0ad5a5a6e7cd8cf33fc3d4a88",
+      "authorizedBy": "rjmurillo",
+      "authorizedOn": "2026-11-20",
+      "authorization": "Maintainer decisions D1 and D2, choice A: admit all 8 transitions as fixed records in one ADR-122 item."
+    },
+    {
+      "issue": 7493,
+      "file": "scripts/memory_enhancement/hooks/user_prompt_submit_memory.py",
+      "quality": "coupling",
+      "baseScore": 6.0,
+      "headScore": 3.0,
+      "baseBlob": "32c45daf664cb0ace70a540d2fbd7088bc03cca8",
+      "headBlob": "3d8a383a59c4b6b0ad5a5a6e7cd8cf33fc3d4a88",
+      "authorizedBy": "rjmurillo",
+      "authorizedOn": "2026-11-20",
+      "authorization": "Maintainer decisions D1 and D2, choice A: admit all 8 transitions as fixed records in one ADR-122 item."
+    },
+    {
+      "issue": 7493,
+      "file": "scripts/memory_enhancement/search.py",
+      "quality": "cohesion",
+      "baseScore": 4.2,
+      "headScore": 2.0,
+      "baseBlob": "1dcb875cc1a14544bf3ff6294a45894fe2ae1106",
+      "headBlob": "9128445e248852cd578927c6753b237f68ac510a",
+      "authorizedBy": "rjmurillo",
+      "authorizedOn": "2026-11-20",
+      "authorization": "Maintainer decisions D1 and D2, choice A: admit all 8 transitions as fixed records in one ADR-122 item. Maintainer decisions D5 (2026-11-22, issue #7493 comment 7086682234), D9 (2026-11-23, issue #7493 comment 7120119475), and D12 (2026-11-23, issue #7493 comment 7121288491) renewed this head pin. Maintainer decision D13 (2026-11-23, issue #7493 comment 7121992178) set the cohesion head score to 2.0."
+    },
+    {
+      "issue": 7493,
+      "file": "scripts/memory_enhancement/search.py",
+      "quality": "coupling",
+      "baseScore": 5.0,
+      "headScore": 3.0,
+      "baseBlob": "1dcb875cc1a14544bf3ff6294a45894fe2ae1106",
+      "headBlob": "9128445e248852cd578927c6753b237f68ac510a",
+      "authorizedBy": "rjmurillo",
+      "authorizedOn": "2026-11-20",
+      "authorization": "Maintainer decisions D1 and D2, choice A: admit all 8 transitions as fixed records in one ADR-122 item. Maintainer decisions D5 (2026-11-22, issue #7493 comment 7086682234), D9 (2026-11-23, issue #7493 comment 7120119475), and D12 (2026-11-23, issue #7493 comment 7121288491) renewed this head pin. Maintainer decision D13 (2026-11-23, issue #7493 comment 7121992178) set the cohesion head score to 2.0."
+    },
+    {
+      "issue": 7493,
+      "file": "templates/hooks/UserPromptSubmit/invoke_memory_recall.py",
+      "quality": "cohesion",
+      "baseScore": 9.2,
+      "headScore": 7.7,
+      "baseBlob": "a828ad1f7182aa81effb649de69f5a8b81ff2f1e",
+      "headBlob": "9738fc16fc731f74d61d21ef7bf95240a241a046",
+      "authorizedBy": "rjmurillo",
+      "authorizedOn": "2026-11-20",
+      "authorization": "Maintainer decisions D1 and D2, choice A: admit all 8 transitions as fixed records in one ADR-122 item. Maintainer decision D12 (2026-11-23, issue #7493 comment 7121288491) renewed this head pin."
+    },
+    {
+      "issue": 7493,
+      "file": "templates/hooks/invoke_dispatch_claude.py",
+      "quality": "cohesion",
+      "baseScore": 5.7,
+      "headScore": 4.6,
+      "baseBlob": "0672c74a1924030150352d7c96a04c0a60024d52",
+      "headBlob": "6c83d8f9257a717d614173604abb4a7f4cb83d1c",
+      "authorizedBy": "rjmurillo",
+      "authorizedOn": "2026-11-20",
+      "authorization": "Maintainer decisions D1 and D2, choice A: admit all 8 transitions as fixed records in one ADR-122 item."
+    },
+    {
+      "issue": 7493,
+      "file": "tests/build_scripts/test_lib_mirror.py",
+      "quality": "coupling",
+      "baseScore": 7.0,
+      "headScore": 6.0,
+      "baseBlob": "e4259bb802bf1c14290e0fca6c425e9611caf532",
+      "headBlob": "c8214f85fb74aa7b18ad5f611e88e3a1220cd8b2",
+      "authorizedBy": "rjmurillo",
+      "authorizedOn": "2026-11-20",
+      "authorization": "Maintainer decisions D1 and D2, choice A: admit all 8 transitions as fixed records in one ADR-122 item."
+    }
+  ],
   "csharpParserDependencyAdmission": {
     "issue": 7406,
     "file": "src/claude/skills/code-qualities-assessment/scripts/assess.py",

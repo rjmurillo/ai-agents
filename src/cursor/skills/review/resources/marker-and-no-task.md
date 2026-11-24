@@ -32,7 +32,7 @@ After the marker lands, you may merge `origin/main` into the branch without a ne
 2. Build the axis list from the axes that ran (comma-separated stems, e.g. `analyst,architect,qa,security,...`).
 3. Write `report.txt` with the lines from `--- review report ---` through `--- end review report ---`, delimiters included and no trailers (blank lines and trailing spaces inside the block are dropped before hashing): `Reviewed-SHA: $REVIEWED_TIP` and one row per axis from its extracted verdict. Never write a row for an axis that did not run.
 4. `DIGEST=$(python3 <validate_review_marker.py> --digest report.txt)`
-5. Write `marker-message.txt`: the subject `review: /review PASS marker`, a blank line, the contents of `report.txt`, a blank line, the approval receipt and a blank line if present, then the `Reviewed-By` and `Review-Artifact: $DIGEST` trailers.
+5. Write `marker-message.txt`: the subject `review: /review PASS marker`, a blank line, the contents of `report.txt`, a blank line, then the `Reviewed-By` and `Review-Artifact: $DIGEST` trailers.
 6. `git commit --allow-empty -F marker-message.txt`
 
 ## Running without a subagent tool

@@ -32,7 +32,7 @@ After the marker lands, you may merge `origin/main` into the branch without a ne
 2. Build the axis list from the axes that ran (comma-separated stems, e.g. `analyst,architect,qa,security,...`).
 3. Write `report.txt` with the lines from `--- review report ---` through `--- end review report ---`, delimiters included and no trailers (blank lines and trailing spaces inside the block are dropped before hashing): `Reviewed-SHA: $REVIEWED_TIP` and one row per axis from its extracted verdict. Never write a row for an axis that did not run.
 4. `DIGEST=$(python3 <validate_review_marker.py> --digest report.txt)`
-5. Write `marker-message.txt`: the subject `review: /review PASS marker`, a blank line, the contents of `report.txt`, a blank line, the approval receipt and a blank line if present, then the `Reviewed-By` and `Review-Artifact: $DIGEST` trailers.
+5. Write `marker-message.txt`: the subject `review: /review PASS marker`, a blank line, the contents of `report.txt`, a blank line, then the `Reviewed-By` and `Review-Artifact: $DIGEST` trailers.
 6. `git commit --allow-empty -F marker-message.txt`
 
 ## Running without a subagent tool
@@ -53,4 +53,3 @@ The reviewer for each axis needs the axis prompt and the diff, and nothing from 
 On paths 2 and 3, run `validate_findings_scope.py` on each `axis-{role}.out` as in step 4a before extracting its verdict, so an out-of-scope finding downgrades as it does on path 1. The step 5 local axes run their scripts as written. Extract each verdict as in SKILL.md Process step 6, and keep every `axis-{role}.out` file as the evidence behind the report. An axis that crashes or emits no verdict is `UNKNOWN`.
 On path 2, apply the marker eligibility rules in SKILL.md.
 Path 3 always ends without a marker.
-

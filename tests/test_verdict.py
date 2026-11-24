@@ -1299,3 +1299,227 @@ class TestGetVerdictEmoji:
 
     def test_did_not_run(self):
         assert get_verdict_emoji("DID_NOT_RUN") == "\u2754"
+
+
+# Issue #7525 rule admission records. These live here because the
+# pytest.yml verdict coverage gate collects only this module and two siblings.
+_CQ_AXIS = "code-qualities-assessment"
+
+
+def _cq_rule_payload(regressions: list[object], admissions: object, **extra: object) -> str:
+    quality = {"value": 9.0, "confidence": 0.6, "reasons": []}
+    entry = {"file_path": "a.py", "category": "authored", "scoring_failed": False}
+    entry.update(
+        {
+            q: dict(quality)
+            for q in ("cohesion", "coupling", "encapsulation", "testability", "non_redundancy")
+        }
+    )
+    comparison: dict[str, object] = {
+        "file_path": "a.py",
+        "is_new_file": False,
+        "change_status": "M",
+        "absolute_gate_reason": None,
+        "regressions": regressions,
+        "evidence_loss": [],
+        "deltas": [],
+        "rule_admissions": admissions,
+        **extra,
+    }
+    return json.dumps({"files": [entry], "summary": {"file_count": 1}, "comparisons": [comparison]})
+
+
+_CQ_COUPLING = {
+    "issue": 7525,
+    "rule": "no_new_third_party_import",
+    "baseThirdParty": ["yaml"],
+    "headThirdParty": ["yaml"],
+}
+_CQ_NON_REDUNDANCY = {
+    "issue": 7525,
+    "rule": "no_new_duplicate_lines",
+    "baseDuplicateLines": 3,
+    "headDuplicateLines": 2,
+}
+
+
+@pytest.mark.parametrize(
+    ("regressions", "admissions", "extra", "verdict"),
+    [
+        (["coupling"], {"coupling": _CQ_COUPLING}, {}, "WARN"),
+        (
+            ["coupling", "non_redundancy"],
+            {"coupling": _CQ_COUPLING, "non_redundancy": _CQ_NON_REDUNDANCY},
+            {},
+            "WARN",
+        ),
+        (["coupling", "cohesion"], {"coupling": _CQ_COUPLING}, {}, "FAIL"),
+        (["coupling"], {"coupling": _CQ_COUPLING}, {"evidence_loss": ["testability"]}, "FAIL"),
+        (["coupling"], None, {}, "FAIL"),
+        ([], {"coupling": _CQ_COUPLING}, {}, "UNKNOWN"),
+        (["coupling"], {}, {}, "UNKNOWN"),
+        (
+            ["coupling"],
+            {"coupling": {**_CQ_COUPLING, "headThirdParty": ["yaml", "requests"]}},
+            {},
+            "UNKNOWN",
+        ),
+        (["coupling"], {"coupling": {**_CQ_COUPLING, "issue": 7512}}, {}, "UNKNOWN"),
+        (["coupling"], {"coupling": _CQ_NON_REDUNDANCY}, {}, "UNKNOWN"),
+        (
+            ["non_redundancy"],
+            {"non_redundancy": {**_CQ_NON_REDUNDANCY, "headDuplicateLines": 4}},
+            {},
+            "UNKNOWN",
+        ),
+        (
+            ["non_redundancy"],
+            {"non_redundancy": {**_CQ_NON_REDUNDANCY, "baseDuplicateLines": True}},
+            {},
+            "UNKNOWN",
+        ),
+        (["coupling"], {"coupling": _CQ_COUPLING}, {"absolute_gate_reason": "new_file"}, "UNKNOWN"),
+        (["cohesion"], {"cohesion": {**_CQ_NON_REDUNDANCY, "rule": None}}, {}, "UNKNOWN"),
+        (
+            ["cohesion"],
+            {"cohesion": {"issue": 7525, "baseDuplicateLines": 0, "headDuplicateLines": 0}},
+            {},
+            "UNKNOWN",
+        ),
+        ([["coupling"]], {"coupling": _CQ_COUPLING}, {}, "UNKNOWN"),
+        (
+            ["coupling"],
+            {"coupling": _CQ_COUPLING},
+            {"csharp_parser_dependency_admission": {"issue": 7406}},
+            "UNKNOWN",
+        ),
+    ],
+    ids=[
+        "coupling-admitted",
+        "both-admitted",
+        "unadmitted-sibling-regression",
+        "evidence-loss",
+        "no-admission",
+        "admission-without-regression",
+        "empty-admissions",
+        "third-party-grew",
+        "wrong-issue",
+        "wrong-rule-for-quality",
+        "duplicates-grew",
+        "bool-count",
+        "absolute-gate-file",
+        "unadmittable-quality-null-rule",
+        "unadmittable-quality-no-rule",
+        "unhashable-regression",
+        "parser-and-rule-record",
+    ],
+)
+def test_review_adapter_checks_every_rule_admission(
+    regressions: list[object], admissions: object, extra: dict[str, object], verdict: str
+) -> None:
+    payload = _cq_rule_payload(regressions, admissions, **extra)
+
+    assert adapt_local_axis_verdict(_CQ_AXIS, payload, 0) == verdict
+
+
+# --- ADR-122 item 10 change admissions (issue #7493) --------------------------
+# The coverage pin on scripts/ai_review_common/verdict.py runs this file, not
+# tests/test_verdict_change_admission.py, so the admission branches live here too.
+
+
+def _admission_comparison(**overrides: object) -> dict[str, object]:
+    import copy
+
+    from scripts.ai_review_common import verdict as verdict_module
+
+    record = copy.deepcopy(
+        next(
+            r
+            for r in verdict_module._CHANGE_ADMISSIONS
+            if r["file"] == "build/scripts/lib_mirror.py" and r["quality"] == "coupling"
+        )
+    )
+    comparison: dict[str, object] = {
+        "file_path": record["file"],
+        "is_new_file": False,
+        "change_status": "M",
+        "absolute_gate_reason": None,
+        "regressions": ["coupling"],
+        "evidence_loss": [],
+        "deltas": [
+            {"quality": "coupling", "base": 8.0, "head": 7.0, "delta": -1.0, "status": "compared"}
+        ],
+        "change_admissions": [record],
+        "base_blob": record["baseBlob"],
+        "head_blob": record["headBlob"],
+    }
+    comparison.update(overrides)
+    return comparison
+
+
+def _admission_verdict(comparison: dict[str, object]) -> str:
+    import json
+
+    from scripts.ai_review_common import adapt_local_axis_verdict
+
+    scored = {"value": 5.0, "confidence": 0.9, "reasons": []}
+    payload = {
+        "files": [
+            {"file_path": comparison["file_path"], "category": "authored", "coupling": scored}
+        ],
+        "summary": {"file_count": 1},
+        "comparisons": [comparison],
+    }
+    return adapt_local_axis_verdict("code-qualities-assessment", json.dumps(payload), 0)
+
+
+def test_change_admission_with_the_exact_record_is_warn() -> None:
+    assert _admission_verdict(_admission_comparison()) == "WARN"
+
+
+def test_change_admission_without_a_deltas_list_is_unknown() -> None:
+    assert _admission_verdict(_admission_comparison(deltas=None)) == "UNKNOWN"
+
+
+def test_change_admission_with_a_different_delta_is_unknown() -> None:
+    moved = [{"quality": "coupling", "base": 8.0, "head": 6.0, "delta": -2.0, "status": "compared"}]
+
+    assert _admission_verdict(_admission_comparison(deltas=moved)) == "UNKNOWN"
+
+
+def test_change_admission_with_a_different_head_blob_is_unknown() -> None:
+    assert _admission_verdict(_admission_comparison(head_blob="0" * 40)) == "UNKNOWN"
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"change_admissions": []},
+        {"evidence_loss": ["coupling"]},
+        {"absolute_gate_reason": "gate"},
+        {"is_new_file": True},
+        {"change_status": "A"},
+        {"regressions": [7]},
+        {"regressions": ["coupling", "cohesion"]},
+    ],
+    ids=[
+        "no-records",
+        "evidence-loss",
+        "absolute-gate",
+        "new-file",
+        "not-modified",
+        "non-string-quality",
+        "regressions-differ",
+    ],
+)
+def test_change_admission_rejects_each_precondition(overrides: dict[str, object]) -> None:
+    assert _admission_verdict(_admission_comparison(**overrides)) == "UNKNOWN"
+
+
+def test_change_admission_with_a_non_float_score_is_unknown() -> None:
+    from scripts.ai_review_common import verdict as verdict_module
+
+    record = dict(next(iter(verdict_module._CHANGE_ADMISSIONS)))
+    record["baseScore"] = 8
+
+    assert verdict_module._delta_matches_record({"deltas": []}, record) is False
