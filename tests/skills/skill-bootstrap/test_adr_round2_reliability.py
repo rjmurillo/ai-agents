@@ -144,11 +144,16 @@ def _candidates(repo: Path) -> tuple[list[dict[str, Any]], dict[str, int]]:
     return found, dropped
 
 
+def _bare(ident: str) -> str:
+    """A candidate id without its ``--<title hash>`` part."""
+    return ident.split("--")[0]
+
+
 def test_duplicate_ids_get_distinct_title_keys(tmp_path: Path) -> None:
     repo = _log(tmp_path, "decisions.md", _entries(["D-1", "D-1", "D-2", "D-1"]))
     found, _ = _candidates(repo)
     ids = [c["id"] for c in found]
-    assert len(set(ids)) == 4 and ids[2] == "log-D-2"
+    assert len(set(ids)) == 4 and ids[2].startswith("log-D-2--")
     assert all(ids[n].startswith("log-D-1--") for n in (0, 1, 3))
 
 
@@ -179,7 +184,7 @@ def test_a_log_file_keeps_at_most_the_cap_and_counts_the_rest(
     monkeypatch.setattr(adr_log, "MAX_LOG_CANDIDATES", 3)
     repo = _log(tmp_path, "decisions.md", _entries([f"D-{n}" for n in range(1, 6)]))
     found, dropped = _candidates(repo)
-    assert [c["id"] for c in found] == ["log-D-1", "log-D-2", "log-D-3"]
+    assert [_bare(c["id"]) for c in found] == ["log-D-1", "log-D-2", "log-D-3"]
     assert dropped["log_over_limit"] == 2
 
 
@@ -188,7 +193,7 @@ def test_the_cap_is_per_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     repo = _log(tmp_path, "decisions.md", _entries(["D-1", "D-2", "D-3"]))
     _log(tmp_path, "docs/decision-log.md", _entries(["X-1", "X-2", "X-3"]))
     found, dropped = _candidates(repo)
-    assert sorted(c["id"] for c in found) == ["log-D-1", "log-D-2", "log-X-1", "log-X-2"]
+    assert sorted(_bare(c["id"]) for c in found) == ["log-D-1", "log-D-2", "log-X-1", "log-X-2"]
     assert dropped["log_over_limit"] == 2
 
 
@@ -208,7 +213,7 @@ def test_entries_that_are_documented_or_have_no_id_do_not_count_toward_the_cap(
     dropped = dict.fromkeys(adr_docs.DROP_KEYS, 0)
     existing = adr_docs.ExistingAdrs([("a.md", "see D-1")])
     found, _files, _skipped = adr_log.log_candidates(repo, existing, dropped)
-    assert [c["id"] for c in found] == ["log-D-2", "log-D-3"]
+    assert [_bare(c["id"]) for c in found] == ["log-D-2", "log-D-3"]
     assert dropped["log_no_id"] == 1 and dropped["already_documented"] == 1
     assert dropped["log_over_limit"] == 0
 
@@ -220,7 +225,7 @@ def test_scan_reports_log_over_limit_under_dropped(
     repo = _log(tmp_path, "decisions.md", _entries(["D-1", "D-2"]))
     payload = adr_scan.scan(repo, "HEAD", 10, None, None)
     assert payload["dropped"]["log_over_limit"] == 1
-    assert [c["id"] for c in payload["candidates"]] == ["log-D-1"]
+    assert [_bare(c["id"]) for c in payload["candidates"]] == ["log-D-1"]
 
 
 # ---------------------------------------------------------------------------
@@ -261,12 +266,13 @@ def test_reading_stops_after_the_file_cap_and_counts_the_oldest(
     assert (tally.read, tally.skipped, tally.cut) == (3, 2, True)
 
 
-def test_reading_stops_after_the_text_cap_and_counts_the_rest(
+def test_reading_stops_at_the_first_file_that_would_cross_the_text_cap(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(adr_locate, "MAX_ADR_BYTES", 50)
+    # Each file holds 38 characters, so a second one would take the total to 76, past 50.
+    monkeypatch.setattr(adr_locate, "MAX_ADR_CHARS", 50)
     texts, tally = _read(_adr_repo(tmp_path, 4, size=30))
-    assert len(texts) == 2 and (tally.read, tally.skipped, tally.cut) == (2, 2, True)
+    assert len(texts) == 1 and (tally.read, tally.skipped, tally.cut) == (1, 3, True)
 
 
 def test_a_corpus_exactly_at_the_file_cap_is_not_truncated(
@@ -324,9 +330,9 @@ def test_the_scan_payload_is_not_truncated_by_default(tmp_path: Path) -> None:
     assert payload["adr_corpus_truncated"] is False
 
 
-def test_the_default_caps_are_two_thousand_files_and_thirty_two_mebibytes() -> None:
+def test_the_default_caps_are_two_thousand_files_and_32_mi_characters() -> None:
     assert adr_locate.MAX_ADR_FILES == 2000
-    assert adr_locate.MAX_ADR_BYTES == 32 * 1024 * 1024
+    assert adr_locate.MAX_ADR_CHARS == 32 * 1024 * 1024
 
 
 def test_existing_adrs_gives_the_same_names_from_a_stream_as_from_a_list() -> None:

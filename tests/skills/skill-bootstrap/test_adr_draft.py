@@ -392,7 +392,7 @@ def test_a_rerun_after_drafting_proposes_none_of_the_drafted_decisions(tmp_path:
         }
     ]  # fmt: skip
     first = adr_scan.scan(repo, "HEAD", 300, None, prs)
-    assert sorted(item["id"] for item in first["candidates"]) == sorted(
+    assert sorted(item["id"].split("--")[0] for item in first["candidates"]) == sorted(
         ["pr-12", f"c-{plain[:7]}", "log-D17"]
     )
     scan = tmp_path / "scan.json"

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any, BinaryIO
 
 import adr_commits
+import adr_docs
 import adr_locate
 import adr_reason
 import adr_shape
@@ -122,15 +124,43 @@ def test_a_whitespace_only_line_ends_the_subject() -> None:
 def test_a_shorter_fence_inside_an_adr_fence_stays_text() -> None:
     text = f"````\n{F3}\n## Example\n````\n## Real"
 
-    assert adr_locate._lines_outside_fences(text) == ["## Real"]
+    assert adr_docs.lines_outside_fences(text) == ["## Real"]
 
 
-def test_read_bounded_reads_at_most_one_byte_past_the_cap(tmp_path: Path) -> None:
+class _ReadSpy:
+    """A file handle that records every size passed to ``read``."""
+
+    def __init__(self, handle: BinaryIO, sizes: list[int]) -> None:
+        self._handle, self._sizes = handle, sizes
+
+    def __enter__(self) -> _ReadSpy:
+        return self
+
+    def __exit__(self, *_exc: object) -> None:
+        self._handle.close()
+
+    def read(self, size: int = -1) -> bytes:
+        self._sizes.append(size)
+        return self._handle.read(size)
+
+
+def test_read_bounded_reads_at_most_one_byte_past_the_cap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     big = tmp_path / "big.md"
     big.write_bytes(b"x" * (adr_locate.MAX_READ_BYTES + 1))
     exact = tmp_path / "exact.md"
     exact.write_bytes(b"x\r\n" + b"x" * (adr_locate.MAX_READ_BYTES - 3))
+    sizes: list[int] = []
+    real_open = Path.open
+
+    def spy_open(self: Path, *args: Any, **kwargs: Any) -> _ReadSpy:
+        return _ReadSpy(real_open(self, *args, **kwargs), sizes)
+
+    monkeypatch.setattr(Path, "open", spy_open)
 
     assert adr_locate.read_bounded(big) is None
     text = adr_locate.read_bounded(exact)
     assert text is not None and text.startswith("x\nx")
+    # A read of the whole file would ask for -1 bytes, or more than one past the cap.
+    assert sizes and all(0 <= size <= adr_locate.MAX_READ_BYTES + 1 for size in sizes)
