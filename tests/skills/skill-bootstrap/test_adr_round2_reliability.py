@@ -203,12 +203,14 @@ def test_entries_that_are_documented_or_have_no_id_do_not_count_toward_the_cap(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(adr_log, "MAX_LOG_CANDIDATES", 2)
-    repo = _log(tmp_path, "decisions.md", _entries(["D-1", "D-2", "D-3"]))
+    idless = "## Replication strategy overview\n\nNotes with enough prose to count as an entry."
+    repo = _log(tmp_path, "decisions.md", [idless, *_entries(["D-1", "D-2", "D-3"])])
     dropped = dict.fromkeys(adr_docs.DROP_KEYS, 0)
-    existing = adr_docs.ExistingAdrs([("a.md", "see D-1 and D-2")])
+    existing = adr_docs.ExistingAdrs([("a.md", "see D-1")])
     found, _files, _skipped = adr_log.log_candidates(repo, existing, dropped)
-    assert [c["id"] for c in found] == ["log-D-3"]
-    assert dropped["already_documented"] == 2 and dropped["log_over_limit"] == 0
+    assert [c["id"] for c in found] == ["log-D-2", "log-D-3"]
+    assert dropped["log_no_id"] == 1 and dropped["already_documented"] == 1
+    assert dropped["log_over_limit"] == 0
 
 
 def test_scan_reports_log_over_limit_under_dropped(

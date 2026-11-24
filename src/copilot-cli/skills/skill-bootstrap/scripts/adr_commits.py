@@ -106,6 +106,7 @@ _AUTHOR = re.compile(
 # fixed amount of work per commit or pull request.
 MAX_SUBJECT_CHARS = 1000
 MAX_BODY_CHARS = 64 * 1024
+_BLANK_LINE = re.compile(r"\n[ \t]*\n", _A)
 
 
 @dataclass(frozen=True)
@@ -163,9 +164,9 @@ def _author_fields(author: str) -> tuple[str, str]:
 
 
 def _subject_and_body(message: str) -> tuple[str, str]:
-    """Subject is the first paragraph joined by spaces, body is the rest, as ``%s`` and ``%b``."""
-    text = message.replace("\r\n", "\n").lstrip("\n")
-    first, _, rest = text.partition("\n\n")
+    """Subject is the first paragraph (ends at an empty or blank-only line), body is the rest."""
+    first, *others = _BLANK_LINE.split(message.replace("\r\n", "\n").lstrip("\n"), maxsplit=1)
+    rest = "".join(others)
     subject = " ".join(part.strip() for part in first.split("\n") if part.strip())
     return subject[:MAX_SUBJECT_CHARS], rest.strip()[:MAX_BODY_CHARS]
 

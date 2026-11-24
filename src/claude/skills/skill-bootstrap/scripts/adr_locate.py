@@ -10,9 +10,9 @@
 # MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align
 """Find the repository's ADR folders and read their naming and heading style.
 
-Reads the working tree only: directory listings and the newest ADR of each folder, never
-a file over 1 MiB. Standard library only. Also holds the draft renderer, which fills the
-newest ADR's headings from a scan candidate.
+Reads the working tree only: directory listings and the newest ADR of each folder, never a
+file over 1 MiB. Standard library only. Also holds the draft renderer, which fills the newest
+ADR's headings from a scan candidate.
 
 Departures from the upstream source, each pinned by a test:
 
@@ -77,8 +77,7 @@ _MAX_WALK_DIRS = 20000
 _MAX_WALK_DEPTH = 8
 NYGARD_HEADINGS: tuple[str, ...] = ("Status", "Context", "Decision", "Consequences")
 
-# adr-review's monitored folders first, then upstream docs.ts lines 43-48 (including its RFC
-# folders). One constant, pinned by a test, so a change shows up in review.
+# adr-review's folders, then upstream docs.ts lines 43-48 with its RFC folders. Pinned by a test.
 KNOWN_FOLDERS: tuple[str, ...] = (
     ".project-toolkit/architecture",
     "docs/architecture",
@@ -106,7 +105,7 @@ _ADR_NAME = re.compile(
     r"(?P<prefix>adr-)?(?P<num>[0-9]{1,6})[-_](?P<slug>.+)\.(?:md|mdx|adoc)\Z",
     re.IGNORECASE | re.ASCII,
 )
-_FENCE = re.compile(r"\s{0,3}(?:`{3,}|~{3,})", re.ASCII)
+_FENCE = re.compile(r"\s{0,3}(`{3,}|~{3,})(.*)", re.ASCII)
 # The trailing blanks and closing marks come off in code: a lazy group followed by ``[ \t]*\Z``
 # is quadratic on a long run of spaces.
 _H1 = re.compile(r"(?:#|=)[ \t]+(.+)", re.ASCII)
@@ -158,21 +157,28 @@ def adr_files(directory: Path) -> list[AdrFile]:
 def read_bounded(path: Path) -> str | None:
     """File text, or None when unreadable, not a regular file, or over ``MAX_READ_BYTES``."""
     try:
-        if path.is_symlink() or not path.is_file() or path.stat().st_size > MAX_READ_BYTES:
+        if path.is_symlink() or not path.is_file():
             return None
-        return path.read_text(encoding="utf-8", errors="replace")
+        with path.open("rb") as handle:
+            data = handle.read(MAX_READ_BYTES + 1)
     except OSError:
         return None
+    if len(data) > MAX_READ_BYTES:
+        return None
+    return data.decode("utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
 
 
 def _lines_outside_fences(text: str) -> list[str]:
     lines: list[str] = []
-    in_fence = False
+    fence = ""
     for line in text.replace("\r\n", "\n").split("\n"):
-        if _FENCE.match(line):
-            in_fence = not in_fence
-        elif not in_fence:
-            lines.append(line)
+        mark = _FENCE.match(line)
+        if not fence:
+            fence = mark[1] if mark else ""
+            if not mark:
+                lines.append(line)
+        elif mark and mark[1][0] == fence[0] and len(mark[1]) >= len(fence) and not mark[2].strip():
+            fence = ""  # only the opener's mark, as long, with nothing after it, closes
     return lines
 
 
@@ -252,8 +258,7 @@ def _walk_candidates(root: Path) -> tuple[list[str], bool]:
     """Folders holding ``MIN_SCAN_FILES`` or more ADR-named files, bounded and sorted.
 
     The flag is True when the walk stopped at ``_MAX_WALK_DIRS`` folders or did not enter the
-    folders below ``_MAX_WALK_DEPTH`` levels. Folders in ``_SKIP_DIRS`` are never entered and
-    never count as a cut.
+    folders below ``_MAX_WALK_DEPTH`` levels. ``_SKIP_DIRS`` folders never count as a cut.
     """
     found: list[str] = []
     visited, truncated = 0, False
@@ -290,10 +295,8 @@ def _accept(root: Path, rel: str, seen: set[Path]) -> Path | None:
 
 def locate_folders(root: Path) -> tuple[list[tuple[str, str]], bool]:
     """Every ADR folder as ``(path relative to the root, source)``, sorted by path, and whether
-    the directory walk was cut short (see ``_walk_candidates``).
-
-    ``source`` is ``adr-dir``, ``known`` or ``scan``. The scan runs only when the first
-    two sources find nothing.
+    the walk was cut short (see ``_walk_candidates``). ``source`` is ``adr-dir``, ``known`` or
+    ``scan``; the scan runs only when the first two find nothing.
     """
     seen: set[Path] = set()
     root = root.resolve()
@@ -316,8 +319,7 @@ _RFC_FOLDER = re.compile(r"rfcs?", re.IGNORECASE)
 
 
 def is_draft_target(rel: str) -> bool:
-    """Whether ``draft`` may write into the folder. An RFC folder is read, so its links still
-    hide decisions, but it never takes an ADR (upstream ``adr-writer.ts`` line 18 also skips it)."""
+    """Whether ``draft`` may write into the folder. An RFC folder is read but takes no ADR."""
     return _RFC_FOLDER.fullmatch(PurePosixPath(rel).name) is None
 
 
@@ -396,6 +398,7 @@ def read_adr_texts(
 # Draft rendering: src/lib/adr-writer.ts, renderAdr
 NOT_RECORDED = "Not recorded in the source."
 NO_REASON = "The source states no reason."
+_KIND_NOUN = {"pr": "pull request", "decision-log": "decision log entry"}
 _TYPE_PREFIX = re.compile(r"\A[a-z]+(?:\([^)]*\))?!?:[ \t]+", re.IGNORECASE | re.ASCII)
 _PR_SUFFIX = re.compile(r"\(#[0-9]+\)\Z", re.ASCII)
 _URL = re.compile(r"https://[^\s<>`\"']+\Z", re.ASCII)
@@ -447,9 +450,7 @@ def _quote(text: str) -> str:
 def _context(candidate: dict[str, Any]) -> str:
     reason = candidate.get("reason")
     excerpt = (candidate.get("excerpt") or "").strip()
-    noun = {"pr": "pull request", "decision-log": "decision log entry"}.get(
-        candidate["kind"], "commit"
-    )
+    noun = _KIND_NOUN.get(candidate["kind"], "commit")
     parts = [f"The reason given at the time: {reason}" if reason else NO_REASON]
     if excerpt:
         parts.append(f"From the source {noun}:\n\n{_quote(excerpt)}")
@@ -479,8 +480,8 @@ def render(style: Style, number: int, candidate: dict[str, Any], status: str) ->
         "context": _context(candidate),
         "decision": _decision(candidate),
     }
-    # The source text must always land somewhere: a folder whose newest ADR has no context or
-    # decision heading gets one appended. Only the first heading of each kind is filled.
+    # The source text always lands: a missing context or decision heading is appended. Only the
+    # first heading of each kind is filled.
     sections = list(zip(style.headings, kinds, strict=True))
     sections += [(name.capitalize(), name) for name in ("context", "decision") if name not in kinds]
     used: set[str] = set()
@@ -492,8 +493,7 @@ def render(style: Style, number: int, candidate: dict[str, Any], status: str) ->
 
 
 def adr_title(kind: str, title: str) -> str:
-    """The ADR title for a source title: a commit or pull request loses its conventional
-    ``type(scope)!:`` prefix and its trailing ``(#N)``. Upstream keeps both."""
+    """Title for an ADR: a commit or PR title loses its ``type(scope)!:`` prefix and ``(#N)``."""
     if kind == "decision-log":
         return title
     cleaned = _PR_SUFFIX.sub("", _TYPE_PREFIX.sub("", title, count=1)).strip()

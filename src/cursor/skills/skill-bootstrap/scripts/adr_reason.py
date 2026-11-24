@@ -36,6 +36,7 @@ from adr_shape import (
     TRAILER,
     flat,
     has_importer_metadata,
+    is_trailer_line,
     strip_importer_metadata,
     strip_trailers,
 )
@@ -131,6 +132,7 @@ _FILE_TOKEN = re.compile(
 )
 _QUOTED = re.compile('"[^"]*"|\u201c[^\u201d]*\u201d')
 _BREAKING_CHANGE = re.compile(r"breaking change", _I)
+_ISSUE_KEY = re.compile(r"^\s*(?:bug|issue):", _I)
 
 # A PR template's task list is a form someone ticked, never a reason.
 _TASK_ITEM = re.compile(r"^\s*(?:[*+-]|\d+[.)])\s+\[[ xX]\]", _A)
@@ -271,10 +273,17 @@ def _fit(sentence: str, labelled: bool) -> str | None:
     A long one is cut at the cap, which can hide the marker that qualified it, so a
     sentence whose marker lies past the cap is dropped rather than shown as a fragment.
     """
+    shown = _cap(sentence)
     if len(sentence) <= REASON_MAX_CHARS or labelled:
-        return _cap(sentence)
+        return shown
+    # ``_cap`` ends a cut sentence with "...": the kept prefix is what the marker must fit in.
     end = _marker_end(sentence)
-    return _cap(sentence) if end is None or end <= REASON_MAX_CHARS else None
+    return shown if end is None or end <= len(shown) - len("...") else None
+
+
+def _is_trailer(line: str) -> bool:
+    """A trailer key line. ``Issue:`` and ``Bug:`` count only when the value is a pointer."""
+    return bool(TRAILER.search(line)) and (not _ISSUE_KEY.match(line) or is_trailer_line(line))
 
 
 def _is_structural_line(line: str) -> bool:
@@ -283,7 +292,7 @@ def _is_structural_line(line: str) -> bool:
         _HEADING_LINE.search(line)
         or _TABLE_LINE.search(line)
         or _RULE_LINE.search(line)
-        or TRAILER.search(line)
+        or _is_trailer(line)
         or FIXES_ONLY.search(line)
         or _TASK_ITEM.search(line)
         or _HASH_LINE.search(line)
@@ -354,14 +363,13 @@ def _prepare_text(title: str, body: str, flat_title: str) -> str | None:
     first_line = flat(trimmed if newline < 0 else trimmed[:newline])
     if flat_title and first_line == flat_title:
         text = "" if newline < 0 else trimmed[newline:]
+    # Code and comments go first: an example in them is not the body's own bump or changelog.
+    text = _FENCE.sub("\n", _COMMENT.sub("\n", text))
     # Someone else's changes: bumps and release notes say what a dependency did.
     if _BUMP_BODY.search(text):
         return None
     dump = _DUMP_HEADING.search(text)
-    if dump:
-        text = text[: dump.start()]
-    text = _COMMENT.sub("\n", text)
-    return _FENCE.sub("\n", text)
+    return text if dump is None else text[: dump.start()]
 
 
 def _unit_text(unit: _Unit) -> tuple[str, bool, bool] | None:
@@ -419,10 +427,15 @@ def _score_units(text: str, flat_title: str) -> list[_Scored]:
         if cleaned is None:
             continue
         text_, labelled, subject_like = cleaned
-        for sentence in _split_sentences(text_):
+        for index, sentence in enumerate(_split_sentences(text_)):
             pos += 1
+            # The label introduces the first sentence only. The rest qualify on their own.
             hit = _sentence_hit(
-                sentence.strip(), labelled, subject_like, title_words, title_body_words
+                sentence.strip(),
+                labelled and index == 0,
+                subject_like,
+                title_words,
+                title_body_words,
             )
             if hit:
                 scored.append(_Scored(pos, hit[0], hit[1]))
@@ -451,7 +464,8 @@ def extract_reason(title: str, body: str | None) -> str | None:
 _BREAKING_SUBJECT = re.compile(r"^[a-z]+(?:\([^)]*\))?!:", _I)
 # The token is uppercase by the specification. BREAKING-CHANGE is its synonym.
 _BREAKING_FOOTER = re.compile(r"^BREAKING[ -]CHANGE:[ \t]+\S", re.MULTILINE | _A)
-_FOOTER_LINE = re.compile(r"^[A-Za-z][A-Za-z0-9-]*:[ \t]+\S", _A)
+# Both Conventional Commits separators: ``Key: value`` and ``Key #value``.
+_FOOTER_LINE = re.compile(r"^[A-Za-z][A-Za-z0-9-]*(?::[ \t]+|[ \t]+#)\S", _A)
 _BLANK_LINES = re.compile(r"\n[ \t]*\n", _A)
 
 
@@ -461,11 +475,13 @@ def breaking_change(subject: str, body: str) -> bool:
     True for a ``type!:`` or ``type(scope)!:`` subject, and for a ``BREAKING CHANGE:``
     or ``BREAKING-CHANGE:`` line that begins a line in the footer. The footer is the
     last paragraph, or an earlier one when only trailer paragraphs (such as
-    ``Co-Authored-By``) follow it. The phrase in mid-body prose does not count.
+    ``Co-Authored-By`` or ``Refs #1``) follow it. The phrase in mid-body prose or inside
+    a fenced example does not count.
     """
     if _BREAKING_SUBJECT.search(subject.strip()):
         return True
-    paragraphs = _BLANK_LINES.split(body.replace("\r\n", "\n").strip())
+    unfenced = _FENCE.sub("\n", body.replace("\r\n", "\n"))
+    paragraphs = _BLANK_LINES.split(unfenced.strip())
     for paragraph in reversed(paragraphs):
         if _BREAKING_FOOTER.search(paragraph):
             return True
@@ -475,5 +491,6 @@ def breaking_change(subject: str, body: str) -> bool:
 
 
 def _is_trailer_paragraph(paragraph: str) -> bool:
+    """A paragraph that opens with a footer line. Later lines continue its value."""
     lines = [line for line in paragraph.split("\n") if line.strip()]
-    return bool(lines) and all(_FOOTER_LINE.match(line) for line in lines)
+    return bool(lines) and _FOOTER_LINE.match(lines[0]) is not None

@@ -54,6 +54,7 @@ __all__ = [
     "is_one_off_change_title",
     "is_reason_bearing_line",
     "is_release_or_bump_subject",
+    "is_trailer_line",
     "mechanical_subject_regex",
     "resolve_commit_shape",
     "section_kind",
@@ -287,6 +288,7 @@ def _is_noise_line(line: str, subject_norm: str) -> bool:
     return (
         not line
         or bool(_TRAILER_LINE.search(line))
+        or bool(FIXES_ONLY.search(line))
         or bool(_GENERATED_WITH.search(line))
         or _normalize_for_echo(line) == subject_norm
         or bool(_SEPARATOR_LINE.search(line))
@@ -333,7 +335,7 @@ def resolve_commit_shape(subject: str, body: str) -> CommitShape:
     if not is_decision_commit(first):
         return CommitShape(subject, body)
     rest = "\n".join(lines[first_index + 1 :]).strip()
-    return CommitShape(first, "\n".join(part for part in (subject, rest) if part))
+    return CommitShape(first, "\n\n".join(part for part in (subject, rest) if part))
 
 
 # Reason text cleaning: importer metadata and trailers (src/lib/reason-extract.ts)
@@ -396,7 +398,7 @@ def has_importer_metadata(text: str) -> bool:
     return _IMPORTER_METADATA.search(_NEWLINES.sub("\n", text)) is not None
 
 
-def _is_trailer_line(line: str) -> bool:
+def is_trailer_line(line: str) -> bool:
     match = _TRAILER_SHAPE.match(line)
     if not match:
         return False
@@ -426,7 +428,7 @@ def strip_trailers(text: str, subject: str | None = None) -> str:
     while end > 0 and not lines[end - 1].strip():
         end -= 1
     start = end
-    while start > 0 and _is_trailer_line(lines[start - 1]):
+    while start > 0 and is_trailer_line(lines[start - 1]):
         start -= 1
     if start == 0 and end > 0 and subject is not None and flat(lines[0]) == flat(subject):
         start = 1
@@ -463,13 +465,13 @@ def is_decision_shaped_title(title: str) -> bool:
 
     Any ``type(scope)!:`` prefix is stripped. A fix-shaped type (fix, docs, chore, ...)
     drops the title. Otherwise the rest is judged: "feat: fix retry policy" is the
-    fix it is, and "feat(api): switch to gRPC" is kept.
+    fix it is, "feat(api): switch to gRPC" is kept, and so is a stated numeric bound.
     """
     prefix = _ANY_TYPE_PREFIX.match(title)
     rest = title[prefix.end() :] if prefix else title
-    if prefix and _FIX_SHAPED.search(prefix.group(1)):
+    if (prefix and _FIX_SHAPED.search(prefix.group(1))) or _FIX_SHAPED.search(rest):
         return False
-    return not _FIX_SHAPED.search(rest) and bool(_DECISION_SHAPED.search(rest))
+    return bool(_DECISION_SHAPED.search(rest)) or states_numeric_bound(rest)
 
 
 # Draft headings (src/lib/adr-writer.ts, the section kinds)

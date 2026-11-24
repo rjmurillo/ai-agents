@@ -215,9 +215,9 @@ def test_crlf_in_a_whole_importer_summary_still_strips_the_metadata_block() -> N
 
 def test_a_very_long_single_line_is_bounded_and_still_finds_an_early_reason() -> None:
     body = f"We did this because the old path leaked sockets. {'Filler words. ' * 20000}"
-    started = time.perf_counter()
+    started = time.process_time()
     out = extract_reason("x", body)
-    assert time.perf_counter() - started < 0.5
+    assert time.process_time() - started < 0.5
     assert out == "We did this because the old path leaked sockets."
 
 

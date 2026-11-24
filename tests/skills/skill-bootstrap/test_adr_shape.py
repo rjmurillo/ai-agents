@@ -359,7 +359,7 @@ def test_resolve_shape_a_merge_takes_its_body_title_and_keeps_the_merge_subject(
         "Adopt token-bucket rate limiting on all public endpoints\n\nMore detail here.",
     )
     assert shape.subject == "Adopt token-bucket rate limiting on all public endpoints"
-    assert shape.body == "Merge pull request #78 from x/y\nMore detail here."
+    assert shape.body == "Merge pull request #78 from x/y\n\nMore detail here."
 
 
 def test_resolve_shape_a_merge_skips_leading_blank_body_lines() -> None:
