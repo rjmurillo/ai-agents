@@ -20,6 +20,12 @@ Review-Artifact: sha256:<digest of the report lines>
 
 The report has one `<axis>: <VERDICT>` row per axis in the axis list. The verdict is that axis's extracted token from SKILL.md Process step 6 (`extract_verdict`, or `adapt_local_axis_verdict` for the local axes `code-qualities-assessment`, `doc-accuracy`, `golden-principles`, and `taste-lints`). The validator accepts `PASS`, `COMPLIANT`, `PARTIAL`, and `WARN`; write `WARN` only when it was acknowledged. The `security` row is stricter: only `PASS` or `COMPLIANT` backs a marker, because a `WARN` or `PARTIAL` there is an open security finding that the CRITICAL-path push gate also rejects. This holds after the step 4a scope downgrade too: a security finding that sits wholly outside the diff becomes `WARN`, and a `WARN` security row still blocks the marker, so fix it or re-run the axis once it is resolved. The validator rejects a report with a missing, extra, or failing row, a report that names another SHA, and a digest that does not match.
 
+For a verified ai-agents code-quality approval, use the verdict from the trusted procedure in [code-quality approvals](code-quality-approvals.md).
+Keep its receipt with the review and recheck both pins immediately before committing the marker.
+Any verification denial leaves the raw blocking verdict in force.
+Include the pins, raw exit, digest, approval comment link, and raw evidence links.
+Place the receipt between the report block and the trailers.
+
 ## Write steps
 
 Write the marker only after a review on path 1 or 2 below. An in-session review (path 3) never writes one, whatever its verdict.
@@ -32,7 +38,7 @@ After the marker lands, you may merge `origin/main` into the branch without a ne
 2. Build the axis list from the axes that ran (comma-separated stems, e.g. `analyst,architect,qa,security,...`).
 3. Write `report.txt` with the lines from `--- review report ---` through `--- end review report ---`, delimiters included and no trailers (blank lines and trailing spaces inside the block are dropped before hashing): `Reviewed-SHA: $REVIEWED_TIP` and one row per axis from its extracted verdict. Never write a row for an axis that did not run.
 4. `DIGEST=$(python3 <validate_review_marker.py> --digest report.txt)`
-5. Write `marker-message.txt`: the subject `review: /review PASS marker`, a blank line, the contents of `report.txt`, a blank line, then the `Reviewed-By` and `Review-Artifact: $DIGEST` trailers.
+5. Write `marker-message.txt`: the subject `review: /review PASS marker`, a blank line, the contents of `report.txt`, a blank line, the approval receipt and a blank line if present, then the `Reviewed-By` and `Review-Artifact: $DIGEST` trailers.
 6. `git commit --allow-empty -F marker-message.txt`
 
 ## Running without a subagent tool
@@ -50,4 +56,8 @@ The reviewer for each axis needs the axis prompt and the diff, and nothing from 
    Follow SKILL.md Process with these substitutions. Step 3, the complexity classifier, runs as its own `claude -p` process with the analyst prompt. Run the Stage-1 `spec-compliance` axis first, then the step 4 selection, then step 4c, one process each.
 3. **Each axis in this session, in turn.** No subagent tool and no `claude`: the case on a Codex or Muse Code host without a spawn tool. Run the axes in SKILL.md Process order. For each one, read only its axis prompt and `context.txt`, write the axis output to `axis-{role}.out`, and finish it before the next starts. It is not independent of this session, so it NEVER writes the PASS marker: report the merged verdict with the label `in-session review, no marker`, and leave the marker to a later run on path 1 or 2.
 
-On paths 2 and 3, run `validate_findings_scope.py` on each `axis-{role}.out` as in step 4a before extracting its verdict, so an out-of-scope finding downgrades as it does on path 1. The step 5 local axes run their scripts as written. Extract each verdict as in SKILL.md Process step 6, and keep every `axis-{role}.out` file as the evidence behind the report. An axis that crashes or emits no verdict is `UNKNOWN`: no verdict is a non-PASS verdict, and a non-PASS verdict writes no marker.
+On paths 2 and 3, run `validate_findings_scope.py` on each `axis-{role}.out` as in step 4a before extracting its verdict, so an out-of-scope finding downgrades as it does on path 1. The step 5 local axes run their scripts as written. Extract each verdict as in SKILL.md Process step 6, and keep every `axis-{role}.out` file as the evidence behind the report. An axis that crashes or emits no verdict is `UNKNOWN`.
+On path 2, apply the marker eligibility rules in SKILL.md.
+Path 3 always ends without a marker.
+
+When an owner approval applies, use its trusted procedure for steps 5 and 6 on every review path.

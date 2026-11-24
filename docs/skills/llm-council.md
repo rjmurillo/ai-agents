@@ -48,10 +48,17 @@ Each mode picks a council and a chairman. `--models` replaces the council. `--ch
 
 | Mode | Council | Chairman |
 | --- | --- | --- |
-| `general`, `design` | `gpt-6-astra`, `claude-opus-5.5`, `gpt-6-sol`, `claude-sonnet-5` | `gpt-6-astra` |
-| `plan` | `gpt-6-astra`, `gpt-6-sol`, `claude-sonnet-5`, `claude-opus-5.5` | `gpt-6-astra` |
-| `research`, `review` | `gpt-6-sol`, `claude-opus-5.5`, `claude-sonnet-5`, `gpt-6-astra` | `claude-opus-5.5` |
+| `general`, `design` | `gpt-6.2-astra`, `claude-opus-5.5`, `gpt-6.2-sol`, `grok-4.7` | `gpt-6.2-astra` |
+| `plan` | `gpt-6.2-astra`, `gpt-6.2-sol`, `grok-4.7`, `claude-opus-5.5` | `gpt-6.2-astra` |
+| `research`, `review` | `gpt-6.2-sol`, `claude-opus-5.5`, `grok-4.7`, `gpt-6.2-astra` | `claude-opus-5.5` |
 | `--cheap` | `meta/llama-3.3-70b-instruct`, `deepseek/deepseek-v3-0324`, `mistral-ai/mistral-medium-2505`, `openai/gpt-4.1` | `openai/gpt-4.1` |
+
+Add `gemini-4-argon` to the full `--models` list for a Google perspective.
+T3 Code runs Argon through Antigravity.
+
+```text
+/llm-council Should we build or buy? --mode design --models gpt-6.2-astra,claude-opus-5.5,gpt-6.2-sol,grok-4.7,gemini-4-argon
+```
 
 If a member is unavailable, the skill reports it and never swaps in another model. The run goes on only while at least 3 members remain, or the whole council if it is smaller.
 
@@ -101,7 +108,8 @@ Put the `## Council review` section in the PR description. A member with no read
 - Anonymous labels block direct self-recognition, but models still recognize their own style. The chairman may also be a councillor, so it is not an independent judge. Pass a `--chairman` that is not on the council when you need one.
 - Unanimity is not proof. Models with shared training data can agree on the same wrong frame. Read the Stage 1 reasoning, not only the ranking.
 - Codex `-s read-only` blocks writes but not reads. A member steered by an earlier reply could read files outside its temp directory.
-- Copilot runs in an empty directory with only the `view` tool, but `view` can still read the system temp directory.
+- The CLI route uses Copilot for Grok 4.7 and Gemini 4 Argon.
+  On long prompts, Copilot's `view` tool can read the system temp directory.
 - Copilot CLI adds 22k to 35k input tokens of overhead per call, so each Copilot councillor takes 15 to 20 seconds.
 - Questions over 24 KB may exceed a model's context. There is no streaming.
 - Four frontier runs in a row burn about 250 AI Credits. Use `--cheap` for low-stakes questions.

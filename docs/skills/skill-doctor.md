@@ -55,7 +55,7 @@ uv run python .claude/skills/skill-doctor/scripts/render_report.py --help
 | `audit_manifest.py`, `audit_batches.py` | Validate manifests; assign and import review batches |
 | `public_export.py` | Write an aggregate-only summary that is safe to share |
 
-Collector scope flags: `--repo PATH` (repeatable), `--all-conversations`, `--include-global-skills`, `--harness auto|all|claude|codex|copilot|warp|pi|grok|zcode|hermes|droid`, `--days`, `--max-sessions`, `--min-idle-minutes` (default 15; sessions newer than that are skipped), and `--out`. Exit `0` is success, `1` is invalid input or an unsupported claim, and `2` is bad arguments or an unreadable file.
+Collector scope flags: `--repo PATH` (repeatable), `--all-conversations`, `--include-global-skills`, `--harness auto|all|claude|codex|copilot|warp|pi|grok|zcode|hermes|droid|muse`, `--days`, `--max-sessions`, `--min-idle-minutes` (default 15; sessions newer than that are skipped), and `--out`. Exit `0` is success, `1` is invalid input or an unsupported claim, and `2` is bad arguments or an unreadable file.
 
 A conversation counts as failed when any applicable raw score is below 0.5. A failure caused only by a provider cutoff does not count. A passing conversation can support only a `Cut:` candidate, which removes a wasted instruction or step.
 

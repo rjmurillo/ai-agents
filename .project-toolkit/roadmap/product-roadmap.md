@@ -10,7 +10,7 @@ A single-source agent system where developers contribute once and deploy everywh
 
 ## Operating Principle for v0.7.0
 
-Subtraction outranks feature expansion (epic #5456). ADR-069 (proposed) frames the same idea: the curated context corpus is the product, and orchestration is plumbing. A change that adds machinery must retire something or show a measured benefit.
+Subtraction outranks feature expansion (epic #5456). ADR-069 (accepted 2026-11-20) frames the same idea: the curated context corpus is the product, and orchestration is plumbing. A change that adds machinery must retire something or show a measured benefit.
 
 ---
 
