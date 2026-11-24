@@ -197,7 +197,7 @@ failed_count=$(echo "$checks" | jq '.Data.FailedCount')
 if [ "$merge_ref_usable" = "false" ]; then
     echo "BLOCKED: PR merge ref cannot be built, so CI status is incomplete"
 elif [ "$required_state" = "SUCCESS" ] && [ "$(echo "$checks" | jq '.Data.Checks | length')" -eq 0 ]; then
-    echo "The branch requires no checks; re-run without --required-only to judge CI"
+    echo "The ruleset requires no checks; re-run without --required-only to judge CI"
 elif [ "$required_state" = "SUCCESS" ]; then
     echo "All required CI checks passing"
 elif [ "$failed_count" -gt 0 ]; then

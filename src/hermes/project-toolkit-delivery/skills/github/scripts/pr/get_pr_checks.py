@@ -1343,9 +1343,10 @@ def main(argv: list[str] | None = None) -> int:
         # returned a rollup object with no contexts; a missing rollup is a real
         # no-checks PR and must settle immediately. See #2304.
         # Read the unfiltered rollup: under --required-only, a PR whose checks
-        # are all optional filters to an empty list that is not a race, and
-        # waiting on it would spend the whole budget on a branch that requires
-        # no checks.
+        # are all outside the ruleset filters to an empty list that is not a
+        # rollup race, and waiting on it would spend the whole budget. Callers
+        # re-judge an empty required set without --required-only, because
+        # classic branch protection is invisible to the ruleset lookup.
         empty_present_rollup = output["HasChecks"] and not check_data.get("Checks")
         waiting_on_empty = args.wait and empty_present_rollup
 

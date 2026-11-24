@@ -36,11 +36,13 @@ That is not green.
 |---|---|---|
 | Exit 7 | Required checks still pending when the budget ran out | Re-run the same command. Keep `--timeout-seconds` at or below 570 |
 | `RequiredState` is `UNKNOWN` | The ruleset or merge ref could not prove the required set | FAIL. Name the reason from `MergeStateWarning` or the error |
-| Exit 3 under `--required-only` | The ruleset was not read, or the REST fallback found no required checks | Re-run without `--required-only` and require `AllPassing == true` |
-| Exit 0, `Data.Checks` is empty, `RequiredState` is `SUCCESS` | The branch requires no checks; the wait settles at once | Re-run without `--required-only` and require `AllPassing == true` |
+| Exit 3, ruleset read failed | The branch rules could not be read; the flag does not matter | FAIL. Report the error; a re-run will not clear it |
+| Exit 3 under `--required-only`, REST fallback | GraphQL was rate limited and the ruleset lists no required checks | Re-run without `--required-only` and require `AllPassing == true` |
+| Exit 0, `Data.Checks` is empty, `RequiredState` is `SUCCESS` | The ruleset requires no checks; the wait settles at once. Classic branch protection, which the ruleset lookup cannot see, may still require one | Re-run without `--required-only` and require `AllPassing == true` |
 | A required check is missing | The ruleset names a check that never reported | FAIL after the grace window. Do not wait longer |
 
-The last two rows matter in a consumer repo with no ruleset. There, every
+The REST fallback row and the empty `Data.Checks` row matter in a consumer repo
+with no ruleset. There, every
 check is the gate, because nothing else says which ones matter.
 
 ## What an optional check is

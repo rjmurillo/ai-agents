@@ -17,7 +17,7 @@ Never copy check names into prose, because a copied list drifts.
 |---|---|
 | Are the required checks green? | `get_pr_checks.py --pull-request N --required-only` and read `Data.RequiredState` |
 | Wait for required checks only | Add `--wait --timeout-seconds 300` to the command above |
-| Does the branch require any check? | Exit 0 with empty `Data.Checks` under `--required-only` means no. Re-run without the flag and require `AllPassing` |
+| Does the ruleset require any check? | Exit 0 with empty `Data.Checks` under `--required-only` means no. Classic protection may still require one, so re-run without the flag and require `AllPassing` |
 | Can this PR merge? | `test_pr_merge_ready.py --pull-request N` and read `CanMerge` and `CIPassing` |
 | Why is this PR blocked? | `why_pr_blocked.py --pull-request N` |
 
