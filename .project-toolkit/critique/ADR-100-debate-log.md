@@ -23,6 +23,7 @@ The full-index ADR patch has SHA-256 `431f1f3b7b42f10292112ce6a8d213a8ffff2bbae0
 | Base | `fd9817f468fc1c7ad13a97ab49d3d5bbf34ac764` |
 | Round 1 | `da74d6c746589934380c8042230d8e99c322992c` |
 | Round 2 | `da74d6c746589934380c8042230d8e99c322992c` |
+| Round 3 | `aee56e765b775a3dec2b3b420b10b042a268a255` |
 
 ## Round 1
 
@@ -47,3 +48,19 @@ Existing advisory references on ADR lines 31, 37, and 250 remain outside scope.
 | --- | --- | --- |
 | Architect | Disagree-and-Commit | `c71a5fc7-4d61-4ea6-9650-c8c9c6654ecd` |
 | Critic | Disagree-and-Commit | `c5b49daf-681f-44c9-837b-73faefd1d63c` |
+
+## Round 3
+
+Merges from main moved the code that line 37 cites.
+The reverse citation gate blocked pre-push on the stale `:6389`.
+The repair changes `git_hook_policy.py:6373` to `:6854` and `:6389` to `:6870`.
+Both lines hold the quoted code. No decision text changed.
+
+| Reviewer | Verdict | Review receipt ID |
+| --- | --- | --- |
+| Architect | Accept | not issued |
+| Critic | Accept | not issued |
+
+The architect noted that line-number citations will drift again after later merges.
+The critic noted that line 37 still cites `pr_commit_count.py`, which #5893 deleted.
+Both reservations predate this repair and stay outside its scope.
