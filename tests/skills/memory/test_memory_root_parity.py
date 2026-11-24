@@ -25,6 +25,7 @@ SCRIPTS = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "memory" 
 sys.path.insert(0, str(SCRIPTS))
 
 import search_memory
+import store_resolution
 
 SKILL_DIR = SCRIPTS.parent
 sys.path.insert(0, str(SKILL_DIR))
@@ -68,6 +69,7 @@ def test_hook_and_skill_choose_the_same_root(tmp_path: Path, layout: str) -> Non
 
     assert find_memory_root(start) == expected.resolve()
     assert memory_store.find_memory_root(start.resolve()) == expected.resolve()
+    assert store_resolution.find_memory_root(start.resolve()) == expected.resolve()
 
 
 def _both_stores(tmp_path: Path) -> Path:

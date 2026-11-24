@@ -24,12 +24,12 @@ from pathlib import Path
 from typing import Any
 
 # Bootstrap inline (ADR-047): `python3 -I` leaves the script directory off
-# sys.path, and the shared store rule lives in this skill's memory_core.
-_SKILL_DIR = Path(__file__).resolve().parents[1]
-if str(_SKILL_DIR) not in sys.path:
-    sys.path.insert(0, str(_SKILL_DIR))
+# sys.path, and the store rule lives in the sibling store_resolution module.
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
 
-from memory_core.memory_store import (  # noqa: E402
+from store_resolution import (  # noqa: E402
     Stores,
     find_memory_root,
     resolve_stores,
