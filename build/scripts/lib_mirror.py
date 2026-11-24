@@ -58,6 +58,7 @@ if str(_SCRIPT_DIR) not in sys.path:
 
 from atomic_write import publish_bytes_atomically, read_bytes_no_redirect  # noqa: E402
 from lib_hand_files import PLUGIN_LIB_COPIES  # noqa: E402
+from lib_package_roots import PACKAGE_ROOTS, PACKAGE_SUBDIRS, iter_package_pairs  # noqa: E402,F401
 
 # ---------------------------------------------------------------------------
 # Configuration (moved unchanged from scripts/sync_plugin_lib.py)
@@ -70,6 +71,7 @@ PACKAGES: tuple[str, ...] = (
     "github_core",
     "ai_review_common",
     "failure_classifier",
+    "memory_enhancement",
 )
 
 # Every plugin tree a package (or a SYNC_FILE_PAIRS-equivalent single file)
@@ -447,12 +449,9 @@ def compile_all(repo_root: Path, *, check: bool = False) -> LibMirrorResult:
     """
     result = LibMirrorResult()
 
-    for package in PACKAGES:
-        src_rel = f"scripts/{package}"
-        for plugin_root in PLUGIN_ROOTS:
-            dst_rel = f"{plugin_root}/{package}"
-            changes, had_errors = sync_pair(repo_root, src_rel, dst_rel, check_only=check)
-            _fold(result, src_rel, dst_rel, changes, had_errors, check=check)
+    for src_rel, dst_rel in iter_package_pairs(PACKAGES, PLUGIN_ROOTS):
+        changes, had_errors = sync_pair(repo_root, src_rel, dst_rel, check_only=check)
+        _fold(result, src_rel, dst_rel, changes, had_errors, check=check)
 
     for src_rel, file_name in SYNC_FILE_NAMES:
         for plugin_root in PLUGIN_ROOTS:
@@ -466,7 +465,7 @@ def compile_all(repo_root: Path, *, check: bool = False) -> LibMirrorResult:
         _fold(result, src_rel, dst_rel, changes, had_errors, check=check)
 
     result.inputs = (
-        len(PACKAGES) * len(PLUGIN_ROOTS)
+        sum(1 for _ in iter_package_pairs(PACKAGES, PLUGIN_ROOTS))
         + len(SYNC_FILE_NAMES) * len(PLUGIN_ROOTS)
         + len(PLUGIN_LIB_COPIES)
         + len(SKILLS_SIDECAR_PLUGIN_TREES)

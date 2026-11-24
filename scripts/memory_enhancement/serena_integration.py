@@ -9,17 +9,10 @@ from __future__ import annotations
 import re
 import sys
 from collections.abc import Sequence
-from datetime import UTC, date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 
-import frontmatter
-import yaml
-
-from scripts.hook_utilities.frontmatter_block import (
-    FrontmatterStatus,
-    parse_frontmatter,
-)
-
+from . import frontmatter_reader
 from .code_masking import mask_code, original_context, sub_outside_code
 from .models import (
     Citation,
@@ -28,6 +21,10 @@ from .models import (
     MemoryWithCitations,
     SourceType,
 )
+
+# Recall passes MAX_MEMORY_BYTES as ``max_bytes``; other callers read every file.
+MAX_MEMORY_BYTES = 256 * 1024
+MAX_TITLE_CHARS = 200  # cut at parse time, before scoring and output
 
 _CITATION_PATTERN = re.compile(
     r"\[cite:(?P<source_type>\w+)\]\((?P<target>[^)]+)\)"
@@ -51,9 +48,7 @@ _INLINE_LINK_PATTERN = re.compile(
 _CITATIONS_HEADER_PATTERN = re.compile(r"^##\s+Citations\s*$", re.MULTILINE)
 _LINKS_HEADER_PATTERN = re.compile(r"^##\s+Links\s*$", re.MULTILINE)
 
-_TITLE_DATE_PATTERN = re.compile(
-    r"^#\s+(?P<title>.+?)\s*\((?P<date>\d{4}-\d{2}-\d{2})\)\s*$",
-)
+_TITLE_DATE_PATTERN = re.compile(r"\((\d{4}-\d{2}-\d{2})\)")
 
 
 def parse_citation_block(text: str) -> list[Citation]:
@@ -144,7 +139,11 @@ def memory_id_from_path(file_path: Path, memories_dir: Path | None = None) -> st
     return Path(file_path).stem
 
 
-def load_memory(file_path: Path, memories_dir: Path | None = None) -> MemoryWithCitations | None:
+def load_memory(
+    file_path: Path,
+    memories_dir: Path | None = None,
+    max_bytes: int | None = None,
+) -> MemoryWithCitations | None:
     """Load a single memory file and parse its content.
 
     Supports two formats:
@@ -157,6 +156,7 @@ def load_memory(file_path: Path, memories_dir: Path | None = None) -> MemoryWith
             ``memory_id`` is path-qualified (e.g. ``workflows/foo``) so it
             matches the form ``verify --memory-id`` expects.  When absent the
             bare stem is used (backward-compatible default).
+        max_bytes: Skip a file larger than this. None reads every file.
 
     Returns:
         Parsed MemoryWithCitations, or None if the file cannot be parsed.
@@ -165,19 +165,26 @@ def load_memory(file_path: Path, memories_dir: Path | None = None) -> MemoryWith
         return None
 
     try:
+        if max_bytes is not None and file_path.stat().st_size > max_bytes:
+            print(f"Warning: skipping {file_path}: over {max_bytes} bytes", file=sys.stderr)
+            return None
         raw_text = file_path.read_text(encoding="utf-8")
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
         print(f"Warning: cannot read {file_path}: {exc}", file=sys.stderr)
         return None
     memory_id = memory_id_from_path(file_path, memories_dir)
 
-    title, created_at, updated_at, tags, confidence, content = _extract_metadata(raw_text)
-    if title is None:
-        title = Path(file_path).stem
+    try:
+        title, created_at, updated_at, tags, confidence, content = _extract_metadata(raw_text)
+        if title is None:
+            title = Path(file_path).stem
 
-    citations = parse_citation_block(content)
-    links = parse_link_block(content)
-    content = _strip_citation_link_blocks(content)
+        citations = parse_citation_block(content)
+        links = parse_link_block(content)
+        content = _strip_citation_link_blocks(content)
+    except RecursionError:
+        print(f"Warning: skipping {file_path}: nesting too deep to parse", file=sys.stderr)
+        return None
 
     try:
         return MemoryWithCitations(
@@ -242,7 +249,17 @@ def save_memory(memory: MemoryWithCitations, memories_dir: Path) -> Path:
 
     Returns:
         Path to the written file.
+
+    Raises:
+        RuntimeError: python-frontmatter is not installed. Writing needs it;
+            reading does not.
     """
+    frontmatter = frontmatter_reader.frontmatter
+    if frontmatter is None:
+        raise RuntimeError(
+            "save_memory requires python-frontmatter, which is not installed "
+            "(pip install python-frontmatter)"
+        )
     try:
         memories_dir.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
@@ -325,27 +342,18 @@ def _extract_metadata(
 ) -> tuple[str | None, datetime, datetime, list[str], float, str]:
     """Extract metadata from raw markdown text.
 
-    Tries YAML frontmatter (via `scripts/hook_utilities/frontmatter_block.py`)
-    first, then falls back to title-date header parsing.
+    Tries YAML frontmatter first, then falls back to title-date header parsing.
 
     Returns:
         Tuple of (title, created_at, updated_at, tags, confidence, content).
     """
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
 
-    stripped_text = raw_text.strip()
-    parsed = parse_frontmatter(stripped_text, yaml, allow_duplicate_keys=True)
-    if parsed.status is FrontmatterStatus.MALFORMED:
-        # Malformed YAML frontmatter; treat as plain markdown
-        print(
-            "Warning: malformed YAML frontmatter, treating as plain markdown",
-            file=sys.stderr,
-        )
-    metadata = parsed.metadata or {}
-    content_body = parsed.body.strip()
+    metadata, body, fallback_content = frontmatter_reader.read_frontmatter(raw_text)
 
     if metadata:
-        title = metadata.get("title")
+        raw_title = metadata.get("title")  # a YAML alias or mapping is never stringified
+        title = raw_title[:MAX_TITLE_CHARS] if isinstance(raw_title, str) else None
         tags = _parse_tags(metadata.get("tags"))
         raw_created = metadata.get("created_at")
         raw_updated = metadata.get("updated_at")
@@ -356,20 +364,20 @@ def _extract_metadata(
         elif raw_updated is None and raw_created is not None:
             updated_at = created_at
         confidence = _parse_confidence(metadata.get("confidence"))
-        return title, created_at, updated_at, tags, confidence, content_body
+        return title, created_at, updated_at, tags, confidence, body
 
-    content = raw_text
+    content = fallback_content
     title = None
     created_at = now
     updated_at = now
 
-    first_line = raw_text.split("\n", 1)[0]
-    header_match = _TITLE_DATE_PATTERN.match(first_line)
-    if header_match:
-        title = header_match.group("title")
-        date_str = header_match.group("date")
-        created_at = _parse_date(date_str, now)
-        updated_at = created_at
+    heading = content.partition("\n")[0].rstrip()
+    date_suffix_length = len("(YYYY-MM-DD)")
+    header_date = _TITLE_DATE_PATTERN.fullmatch(heading[-date_suffix_length:])
+    if header_date and heading.startswith("#") and heading[1:2].isspace():
+        title = heading[1:-date_suffix_length].strip()[:MAX_TITLE_CHARS] or None
+        if title:
+            updated_at = created_at = _parse_date(header_date[1], now)
 
     return title, created_at, updated_at, [], 0.0, content
 
@@ -386,7 +394,7 @@ def _parse_datetime(value: object, default: datetime) -> datetime:
     if isinstance(value, datetime):
         return _ensure_utc(value)
     if isinstance(value, date):
-        return datetime(value.year, value.month, value.day, tzinfo=UTC)
+        return datetime(value.year, value.month, value.day, tzinfo=timezone.utc)
     if isinstance(value, str):
         try:
             return _ensure_utc(datetime.fromisoformat(value))
@@ -398,14 +406,14 @@ def _parse_datetime(value: object, default: datetime) -> datetime:
 def _ensure_utc(dt: datetime) -> datetime:
     """Attach UTC to naive datetimes; convert aware datetimes to UTC."""
     if dt.tzinfo is None:
-        return dt.replace(tzinfo=UTC)
-    return dt.astimezone(UTC)
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
 
 
 def _parse_date(date_str: str, default: datetime) -> datetime:
     """Parse a YYYY-MM-DD date string into a timezone-aware datetime."""
     try:
-        return datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=UTC)
+        return datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
     except ValueError:
         return default
 
@@ -443,7 +451,7 @@ def _parse_tags(value: object) -> list[str]:
     if isinstance(value, str):
         return [value] if value else []
     if isinstance(value, list):
-        return [str(tag) for tag in value if tag is not None]
+        return [str(tag) for tag in value if isinstance(tag, (str, int, float, bool))]
     return []
 
 
