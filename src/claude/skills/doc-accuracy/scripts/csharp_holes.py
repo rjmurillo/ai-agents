@@ -293,8 +293,6 @@ _CSHARP_ATTRIBUTE_TARGET_RE = re.compile(
     r"\s*(?:assembly|module|field|event|method|param|property|return|type|typevar)\s*:(?!:)"
 )
 
-# The word before a "{" that opens a switch expression's arms.
-_CSHARP_SWITCH_BRACE_RE = re.compile(r"\bswitch\s*$")
 
 # Accessors may be expression-bodied, so "get =>" still ends an attribute.
 _CSHARP_ACCESSOR_NAMES = frozenset({"get", "set", "init", "add", "remove"})
@@ -327,22 +325,27 @@ def _csharp_attribute_section_end(code: str, start: int) -> tuple[int, bool]:
     return len(code), False
 
 
-def _is_attribute_follower(view: str, start: int, stop: int, opener: int) -> bool:
+def _is_attribute_follower(
+    view: str, start: int, stop: int, opener: int, switch_braces: dict[int, bool]
+) -> bool:
     """Whether the section from ``start`` to the "]" at ``stop`` is an attribute.
 
     ``opener`` is the index of the innermost open bracket around the
-    section, or -1 at the top level. A section directly inside "[" is
-    treated as a nested list pattern or collection element, never an
-    attribute; a lambda attribute there is the one accepted miss, and it
-    only over-reports. At the snippet end a section needs an explicit
-    target such as ``assembly:``. A name followed by "when", "and" or "or"
-    is a pattern designation. A name followed by "=>" is one too, unless it
-    is an accessor outside a switch expression's braces. A lone name
-    followed by "," or ")" inside parentheses is a designation in a tuple or
-    positional pattern; inside braces it is an enum member.
+    section, or -1 at the top level. ``switch_braces`` caches, per "{", the
+    answer of ``_follows_switch``, so sections sharing a brace check it once. A section directly inside "[", or
+    directly inside a switch expression's braces, is a list pattern or
+    collection element, never an attribute; a lambda attribute in a
+    collection is the one accepted miss, and it only over-reports. At the
+    snippet end a section needs an explicit target such as ``assembly:``.
+    A name followed by "when", "and" or "or" is a pattern designation. A
+    name followed by "=>" is one too, unless it is an accessor. A lone name
+    followed by "," or ")" inside parentheses is a designation in a tuple
+    or positional pattern; inside braces it is an enum member.
     """
     enclosing = view[opener] if opener >= 0 else ""
-    if enclosing == "[":
+    if enclosing == "{" and opener not in switch_braces:
+        switch_braces[opener] = _follows_switch(view, opener)
+    if enclosing == "[" or (enclosing == "{" and switch_braces[opener]):
         return False
     follower = _CSHARP_ATTRIBUTE_FOLLOWER_RE.match(view, stop + 1)
     if follower is None:
@@ -353,9 +356,21 @@ def _is_attribute_follower(view: str, start: int, stop: int, opener: int) -> boo
     if after in ("when", "and", "or"):
         return False
     if after == "=>":
-        in_switch = enclosing == "{" and _CSHARP_SWITCH_BRACE_RE.search(view, 0, opener)
-        return follower.group("name") in _CSHARP_ACCESSOR_NAMES and not in_switch
+        return follower.group("name") in _CSHARP_ACCESSOR_NAMES
     return not (after in (",", ")") and enclosing == "(")
+
+
+def _follows_switch(view: str, brace: int) -> bool:
+    """Whether the "{" at ``brace`` opens a switch expression's arms.
+
+    Comments are already blank in ``view``, so only blank space can sit
+    between the keyword and the brace.
+    """
+    end = _previous_code_index(view, brace) + 1
+    word = end - len("switch")
+    if word < 0 or view[word:end] != "switch":
+        return False
+    return word == 0 or not (view[word - 1].isalnum() or view[word - 1] in "_@")
 
 
 def _enclosing_brackets(view: str) -> list[int]:
@@ -393,6 +408,7 @@ def blank_csharp_attribute_named_args(code: str) -> str:
     chars = list(code)
     enclosing = _enclosing_brackets(view)
     scanned_to = 0
+    switch_braces: dict[int, bool] = {}
     attribute_closes: set[int] = set()
     for opening in re.finditer(r"\[", view):
         if opening.start() < scanned_to:
@@ -404,7 +420,7 @@ def blank_csharp_attribute_named_args(code: str) -> str:
         stop, closed = _csharp_attribute_section_end(view, opening.end())
         scanned_to = stop
         if not closed or not _is_attribute_follower(
-            view, opening.end(), stop, enclosing[opening.start()]
+            view, opening.end(), stop, enclosing[opening.start()], switch_braces
         ):
             continue
         attribute_closes.add(stop)

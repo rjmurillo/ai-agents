@@ -404,6 +404,7 @@ class TestCsharpLiteralAndAttributeArguments:
         ("var r = xs switch { [Point(MissingX: 1)] @rest => 1, _ => 0 };", "MissingX"),
         ("var r = xs switch { [Point(MissingY: 1)] get => 1, _ => 0 };", "MissingY"),
         ("[1, Build(MissingSize: 3)]", "MissingSize"),
+        ("var r = xs switch { [Point(MissingZ: 1)] rest 1, _ => 0 };", "MissingZ"),
         ("Use([Pick(flag ? FakeType : other)]);", "FakeType"),
         ("List<object> l =\n[\n    Make(flag ? MadeUpType : null),\n];", "MadeUpType"),
         ("Run(\n    [Build(Size: 3)],\n    other);", "Size"),
@@ -715,6 +716,17 @@ class TestCsharpLiteralAndAttributeArguments:
 
         result = _extract_identifiers(code, "csharp")
 
+        assert "FakeWidget" in result
+
+    def test_many_switch_arm_sections_stay_fast(self) -> None:
+        """Sections sharing one switch brace check it once, so the pass stays linear."""
+        code = "x;\n" * 200000 + " switch {" + "[a(B: 1)] get => 1, " * 4000 + "};"
+        code += "\nvar w = new FakeWidget();"
+        started = time.monotonic()
+
+        result = _extract_identifiers(code, "csharp")
+
+        assert time.monotonic() - started < 2
         assert "FakeWidget" in result
 
     def test_crafted_hole_nesting_stays_fast_and_safe(self) -> None:
