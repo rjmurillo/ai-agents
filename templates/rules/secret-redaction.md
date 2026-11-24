@@ -1,4 +1,11 @@
-<!-- Folded from the `secret-redaction` path rule. Former `paths:` scope: `.claude/skills/spec/**`, `.project-toolkit/sessions/**`, `.project-toolkit/retrospective/**`, `.claude/rules/secret-redaction.md`. -->
+---
+paths:
+  - ".claude/skills/spec/**"
+  - ".project-toolkit/sessions/**"
+  - ".project-toolkit/retrospective/**"
+  - ".claude/rules/secret-redaction.md"
+priority: high
+---
 
 # Secret and PII Redaction Before Emit
 

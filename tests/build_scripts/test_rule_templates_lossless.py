@@ -37,6 +37,7 @@ EXPECTED_RULES = frozenset(
     {
         "builder-ethos",
         "governance",
+        "secret-redaction",
         "voice",
     }
 )
