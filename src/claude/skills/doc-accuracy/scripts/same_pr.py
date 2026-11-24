@@ -916,7 +916,7 @@ class _PreparedRegions:
                 self.by_basename.setdefault(basename, []).append(idx)
                 for tok in toks:
                     self.by_token.setdefault(tok, []).append(idx)
-        self.basenames = tuple(self.by_basename)
+        self._basenames = tuple(self.by_basename)
 
     def _top_zero_overlap(self, prose_file: str) -> list[int]:
         cached = self._base_top.get(prose_file)
@@ -940,7 +940,7 @@ class _PreparedRegions:
         candidates = set(self._top_zero_overlap(prose.file))
         for tok in words:
             candidates.update(self.by_token.get(tok, ()))
-        for basename in self.basenames:
+        for basename in self._basenames:
             if basename in prose.text:
                 candidates.update(self.by_basename[basename])
         ranked = []
