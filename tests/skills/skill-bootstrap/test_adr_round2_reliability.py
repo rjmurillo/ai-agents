@@ -225,7 +225,8 @@ def _record_reads(monkeypatch: pytest.MonkeyPatch, opened: list[str]) -> None:
 
     def recording(path: Path) -> str | None:
         opened.append(path.name)
-        return real(path)
+        text: str | None = real(path)
+        return text
 
     monkeypatch.setattr(adr_locate, "read_bounded", recording)
 
