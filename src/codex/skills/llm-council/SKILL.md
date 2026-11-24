@@ -60,23 +60,24 @@ available.** Councils are task-shaped:
 
 | Mode | Council | Chairman |
 |---|---|---|
-| `general`, `design` | Astra, Opus 5.5, Sol, Sonnet 5 | Astra |
-| `plan` | Astra, Sol, Sonnet 5, Opus 5.5 | Astra |
-| `research`, `review` | Sol, Opus 5.5, Sonnet 5, Astra | Opus 5.5 |
+| `general`, `design` | GPT-6.2 Astra, Opus 5.5, GPT-6.2 Sol, Grok 4.7 | GPT-6.2 Astra |
+| `plan` | GPT-6.2 Astra, GPT-6.2 Sol, Grok 4.7, Opus 5.5 | GPT-6.2 Astra |
+| `research`, `review` | GPT-6.2 Sol, Opus 5.5, Grok 4.7, GPT-6.2 Astra | Opus 5.5 |
 | `--cheap` | Llama 3.3 70B, DeepSeek V3, Mistral Medium, GPT-4.1 | GPT-4.1 |
 
-- **Ambiguous judgment or architecture:** GPT-6 Astra owns ambiguity and
-  acceptance; Opus 5.5 supplies broad frontier judgment; Sol supplies a
-  technical counterweight; Sonnet 5 supplies an investigation-heavy take.
-- **Clear implementation plan:** Astra owns the plan and acceptance criteria;
-  Sol handles hard technical reasoning; Sonnet 5 probes failure modes; Opus 5.5
-  provides a broad alternative.
-- **Technical research or review:** Sol leads the specialist lane; Opus 5.5
-  checks broad reasoning; Sonnet 5 checks evidence; Astra adjudicates scope.
+- **Ambiguous judgment or architecture.** Astra resolves ambiguity and sets acceptance criteria.
+  Opus weighs tradeoffs. Sol checks technical feasibility. Grok challenges assumptions.
+- **Clear implementation plan.** Astra owns the plan and acceptance criteria.
+  Sol handles technical reasoning. Grok probes failure modes. Opus considers alternatives.
+- **Technical research or review.** Sol leads the technical analysis.
+  Opus checks the reasoning. Grok checks evidence. Astra adjudicates scope.
 
 These are routing defaults, not claims that one model wins every harness. The
 member list is configurable: `--models` replaces the council and `--chairman`
 replaces the chairman. If the user names members, use those.
+
+For a Google perspective, add Gemini 4 Argon (`gemini-4-argon`) to the chosen roster.
+Pass the full roster to `--models`, including Argon.
 
 ## Process
 
@@ -90,10 +91,11 @@ stop and report which members were missing.
 ### Route 1: T3 Code delegates
 
 1. Call `orchestrator_capabilities` and resolve each member to the catalog
-   model with the same family and version (`gpt-6-sol` may be listed as
-   `gpt-6-sol` or `GPT-6 Sol`). A search by family name finds candidates, but
+   model with the same family and version (`gpt-6.2-sol` may be listed as
+   `gpt-6.2-sol` or `GPT-6.2 Sol`). A search by family name finds candidates, but
    a different version, such as `claude-opus-4.7` for `claude-opus-5.5`, is not
    the member: treat the member as unavailable.
+   Use the Antigravity provider for `gemini-4-argon`.
 2. Write the question to a file and run `council_steps.py init` on a new
    `--run-dir` with
    `--unavailable MODEL=REASON` for each missing member. It writes the Stage 1
@@ -145,8 +147,9 @@ No call can write. Copilot keeps `--allow-all-tools` so a permission prompt
 cannot wedge it. `--available-tools view` hides every other tool, including
 MCP servers that plugins add. Deny rules (which win over every allow) also
 remove shell, write, url, memory, and the built-in and user MCP servers.
-Copilot runs in an empty directory, but its `view` tool can still read the
-system temp directory, which Copilot allows by default. Codex `-s read-only`
+The CLI route uses Copilot for Grok 4.7 and Gemini 4 Argon.
+For long prompts, Copilot reads a prompt file with `view`.
+That tool can also read the system temp directory. Codex `-s read-only`
 blocks writes but not
 reads, so a member steered by an earlier reply could read files outside its
 temp directory. Use this route when neither route above can reach the council,
@@ -237,17 +240,14 @@ alone.
 
 ### Model IDs
 
-Copilot CLI (charges AI Credits): `claude-opus-5.5`, `claude-sonnet-5`,
-`claude-opus-4.7`, `claude-sonnet-4.6`, `claude-haiku-4.5`, `gpt-6-astra`,
-`gpt-6-sol`, `gpt-6-luna`, `gpt-5.6-sol`, `gpt-5.6-luna`, `gpt-5.5`,
-`gpt-5.4`, `gpt-5.4-mini`, `gpt-5.3-codex`, `gpt-5-mini`, `gemini-3.8-flash`,
-`grok-4.5`, `kimi-k3`.
+The script uses the installed Claude or Codex CLI for matching model families.
+The bundled council core defines the Copilot allowlist as `COPILOT_MODELS`.
+Copilot charges AI Credits.
 
 GitHub Models REST (free tier): `meta/llama-3.3-70b-instruct`,
 `deepseek/deepseek-v3-0324`, `deepseek/deepseek-r1`,
 `mistral-ai/mistral-medium-2505`, `openai/gpt-4.1`, `openai/gpt-4.1-mini`,
-`microsoft/phi-4`. The script routes any id in its Copilot list through
-`copilot -p` and everything else through GitHub Models.
+`microsoft/phi-4`. The script tries GitHub Models after the native and Copilot checks.
 
 ## Artifact
 

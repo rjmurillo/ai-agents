@@ -405,7 +405,7 @@ class ReportRendererTests(unittest.TestCase):
         skill_text = skill_path.read_text(encoding="utf-8")
 
         self.assertIn(
-            "`raw_efficiency` = mean of efficiency scores across all scored sessions",
+            "`raw_efficiency` = mean of efficiency scores, excluding `insufficient_evidence`",
             skill_text,
         )
         self.assertIn(

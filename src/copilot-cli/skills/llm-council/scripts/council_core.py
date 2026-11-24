@@ -25,6 +25,8 @@ COPILOT_MODELS = {
     "claude-haiku-4.5",
     "gpt-6-astra",
     "gpt-6-sol",
+    "gpt-6.2-astra",
+    "gpt-6.2-sol",
     "gpt-6-luna",
     "gpt-5.6-sol",
     "gpt-5.6-luna",
@@ -34,7 +36,9 @@ COPILOT_MODELS = {
     "gpt-5.3-codex",
     "gpt-5-mini",
     "gemini-3.8-flash",
+    "gemini-4-argon",
     "grok-4.5",
+    "grok-4.7",
     "kimi-k3",
 }
 
@@ -42,18 +46,18 @@ COPILOT_MODELS = {
 # the shape; every surviving response is still ranked.
 COUNCILS_BY_MODE = {
     # Astra: ambiguous objectives and acceptance ownership; Opus: broad judgment.
-    "general": ["gpt-6-astra", "claude-opus-5.5", "gpt-6-sol", "claude-sonnet-5"],
-    "design": ["gpt-6-astra", "claude-opus-5.5", "gpt-6-sol", "claude-sonnet-5"],
-    # Sol: clear but difficult technical work; Sonnet: investigation and verification.
-    "plan": ["gpt-6-astra", "gpt-6-sol", "claude-sonnet-5", "claude-opus-5.5"],
-    "research": ["gpt-6-sol", "claude-opus-5.5", "claude-sonnet-5", "gpt-6-astra"],
-    "review": ["gpt-6-sol", "claude-opus-5.5", "claude-sonnet-5", "gpt-6-astra"],
+    "general": ["gpt-6.2-astra", "claude-opus-5.5", "gpt-6.2-sol", "grok-4.7"],
+    "design": ["gpt-6.2-astra", "claude-opus-5.5", "gpt-6.2-sol", "grok-4.7"],
+    # Sol handles technical reasoning. Grok checks assumptions and evidence.
+    "plan": ["gpt-6.2-astra", "gpt-6.2-sol", "grok-4.7", "claude-opus-5.5"],
+    "research": ["gpt-6.2-sol", "claude-opus-5.5", "grok-4.7", "gpt-6.2-astra"],
+    "review": ["gpt-6.2-sol", "claude-opus-5.5", "grok-4.7", "gpt-6.2-astra"],
 }
 DEFAULT_COUNCIL = COUNCILS_BY_MODE["general"]
 CHAIRMEN_BY_MODE = {
-    "general": "gpt-6-astra",
-    "design": "gpt-6-astra",
-    "plan": "gpt-6-astra",
+    "general": "gpt-6.2-astra",
+    "design": "gpt-6.2-astra",
+    "plan": "gpt-6.2-astra",
     "research": "claude-opus-5.5",
     "review": "claude-opus-5.5",
 }
