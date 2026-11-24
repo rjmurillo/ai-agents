@@ -31,6 +31,8 @@ _LITERALS = {
     "ok",
     "parse_error",
     "call_error",
+    "fetched",
+    "no_hunk",
 }
 
 

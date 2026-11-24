@@ -33,6 +33,7 @@ import argparse
 import json
 import logging
 import random
+import subprocess
 import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -45,6 +46,8 @@ if str(REPO_ROOT) not in sys.path:
 
 from scripts.eval.actionability_io import atomic_write_text  # noqa: E402
 from scripts.eval.actionability_labels import (  # noqa: E402
+    HUNK_FETCHED,
+    HUNK_NO_HUNK,
     LABEL_UNSURE,
     SPLIT_DEV,
     SPLIT_HELDOUT,
@@ -146,6 +149,7 @@ def _make_row(
         "in_band": is_in_band(result.score),
         "split": None,
         "diff_hunk": None,
+        "hunk_status": None,
         "label": None,
         "sampled_at": sampled_at,
     }
@@ -280,32 +284,63 @@ def _fetch_hunk(node_id: str) -> str | None:
     return hunk if isinstance(hunk, str) and hunk else None
 
 
-def cmd_fetch_hunks(args: argparse.Namespace) -> int:
-    """Fill ``diff_hunk`` for rows that lack one, then secret-scan every row.
+# What a failed gh call can raise: a GraphQL error, a timeout, or a missing or blocked binary.
+_FETCH_ERRORS = (RuntimeError, subprocess.TimeoutExpired, OSError)
 
-    Writes only when every call succeeds and the scan finds no non-hex hit.
+
+def _hunk_status(row: dict[str, Any]) -> str | None:
+    """Return the row's hunk outcome. A hunk with no recorded status counts as fetched."""
+    status = row.get("hunk_status")
+    if status is None and row.get("diff_hunk") is not None:
+        return HUNK_FETCHED
+    return status if status in (HUNK_FETCHED, HUNK_NO_HUNK) else None
+
+
+def _fetch_pending(rows: list[dict[str, Any]]) -> tuple[int, int, tuple[str, str] | None]:
+    """Fetch the hunk for each unresolved row, stopping at the first transport failure.
+
+    Returns (fetched, no_hunk, failure) where failure is (row id, exception class name).
+    The exception text is dropped: GraphQL errors can embed response bodies.
+    """
+    fetched = no_hunk = 0
+    for row in rows:
+        row["hunk_status"] = _hunk_status(row)
+    for row in rows:
+        if row["hunk_status"] is not None:
+            continue
+        try:
+            hunk = _fetch_hunk(row["id"])
+        except _FETCH_ERRORS as exc:
+            return fetched, no_hunk, (row["id"], type(exc).__name__)
+        row["diff_hunk"] = hunk
+        row["hunk_status"] = HUNK_FETCHED if hunk is not None else HUNK_NO_HUNK
+        fetched += hunk is not None
+        no_hunk += hunk is None
+    return fetched, no_hunk, None
+
+
+def cmd_fetch_hunks(args: argparse.Namespace) -> int:
+    """Fill ``diff_hunk`` for unresolved rows, secret-scan every row, then write.
+
+    The scan runs first and blocks the write: a row that fails it is never written, on
+    success or on abort. When a call fails, the rows resolved so far are written (after the
+    scan passes) so a rerun on the output resumes. ``fetched k of N`` counts rows whose hunk
+    status is resolved, whether fetched or confirmed to have none.
     """
     rows = load_jsonl(args.corpus)
     if rows is None:
         return 2
-    fetched = 0
-    no_hunk = 0
-    for row in rows:
-        if row.get("diff_hunk") is not None:
-            continue
-        try:
-            hunk = _fetch_hunk(row["id"])
-        except RuntimeError as exc:
-            print(f"fetch failed at row {row['id']}: {exc}", file=sys.stderr)
-            return 3
-        row["diff_hunk"] = hunk
-        if hunk is None:
-            no_hunk += 1
-        else:
-            fetched += 1
+    fetched, no_hunk, failure = _fetch_pending(rows)
+    resolved = sum(1 for row in rows if row["hunk_status"] is not None)
+    if failure is not None:
+        print(f"fetch failed at row {failure[0]}: {failure[1]}", file=sys.stderr)
     if not report_scan(scan_secrets(rows, allow_hex_rows=args.allow_hex_rows)):
+        print(f"fetched {resolved} of {len(rows)} rows; nothing written", file=sys.stderr)
         return 1
     write_jsonl(args.output, rows)
+    if failure is not None:
+        print(f"fetched {resolved} of {len(rows)} rows; partial output written", file=sys.stderr)
+        return 3
     print(f"fetched {fetched}, no_hunk {no_hunk}, of {len(rows)} rows")
     return 0
 

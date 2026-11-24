@@ -64,13 +64,13 @@ class TestFetchHunks:
         assert [r["diff_hunk"] for r in rows] == ["@@ hunk", None, None]
         assert "fetched 1, no_hunk 2, of 3 rows" in capsys.readouterr().out
 
-    def test_graphql_error_writes_nothing_names_the_row_and_returns_three(
+    def test_graphql_error_names_the_row_returns_three_and_keeps_partial_results(
         self,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        """Plan M1-T8: a RuntimeError on any row aborts the run with exit 3."""
+        """Plan M1-T8: a RuntimeError aborts with exit 3 and the rows fetched so far survive."""
         monkeypatch.setattr(cc, "gh_graphql", FakeGraphql({"A": "@@ a"}, fail_on="B"))
         corpus = write_corpus(tmp_path / "c.jsonl", [corpus_row("A"), corpus_row("B")])
         out = tmp_path / "o.jsonl"
@@ -78,7 +78,7 @@ class TestFetchHunks:
         code = cc.main(["fetch-hunks", "--corpus", str(corpus), "--output", str(out)])
 
         assert code == 3
-        assert not out.exists()
+        assert [(r["id"], r["diff_hunk"]) for r in read_rows(out)] == [("A", "@@ a"), ("B", None)]
         assert "B" in capsys.readouterr().err
 
     def test_query_is_parameterized_and_never_interpolates_the_id(

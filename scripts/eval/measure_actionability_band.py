@@ -243,7 +243,8 @@ def _load_prs(args: argparse.Namespace) -> tuple[list[dict[str, Any]], dict[str,
         since = datetime.now(UTC) - timedelta(days=args.days_back)
         prs = get_all_prs_with_comments(repo_params.owner, repo_params.repo, since)
     except RuntimeError as exc:
-        logger.error("GitHub fetch failed: %s", exc)
+        # Class name only: a GraphQL error can embed a response body.
+        logger.error("GitHub fetch failed: %s", type(exc).__name__)
         return 3
     meta = {
         "source": "github",

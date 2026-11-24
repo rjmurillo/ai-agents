@@ -276,3 +276,30 @@ class TestHeadSha:
         monkeypatch.setattr(mab.subprocess, "run", lambda *_a, **_k: done)
 
         assert mab.head_sha() == "abc123"
+
+
+class TestFetchErrorText:
+    def test_github_fetch_failure_logs_the_class_name_never_the_message(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Group 3d: a GraphQL error can embed a response body, so only its class is logged."""
+
+        def _leak(*_args: object, **_kwargs: object) -> list[dict[str, Any]]:
+            raise RuntimeError("response body SECRETWORD ghp_leaked")
+
+        monkeypatch.setattr(
+            mab,
+            "resolve_repo_params",
+            lambda owner, repo: type("P", (), {"owner": "o", "repo": "r"})(),
+        )
+        monkeypatch.setattr(mab, "get_all_prs_with_comments", _leak)
+
+        code = mab.main(["--output", str(tmp_path / "o.json")])
+
+        assert code == 3
+        assert "RuntimeError" in caplog.text
+        assert "SECRETWORD" not in caplog.text
+        assert "ghp_leaked" not in caplog.text

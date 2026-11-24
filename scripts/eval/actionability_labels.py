@@ -25,3 +25,7 @@ STATUS_OK = "ok"
 STATUS_PARSE_ERROR = "parse_error"
 STATUS_CALL_ERROR = "call_error"
 STATUSES = (STATUS_OK, STATUS_PARSE_ERROR, STATUS_CALL_ERROR)
+
+# Per-row diff hunk outcome. Null means the row has not been asked yet.
+HUNK_FETCHED = "fetched"
+HUNK_NO_HUNK = "no_hunk"
