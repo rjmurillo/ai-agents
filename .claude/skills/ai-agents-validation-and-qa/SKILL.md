@@ -21,6 +21,8 @@ Audience: a zero-context contributor (human or model) about to write, run, or sk
 
 ## Triggers
 
+Before authoring or editing a CI workflow, composite action, or validation script, read [ci-scripts](references/rule-ci-scripts.md).
+
 - `what counts as evidence`
 - `how do I test this change`
 - `run skill tests`
@@ -100,7 +102,7 @@ Beyond pos+neg+edge, this repo demands five specific disciplines:
 
 **1. Isolation from the real repo.** The root `conftest.py` (repo root, fixture `_guard_real_repo_head`, helper `_check_head_change`) fails any test that moves the REAL repo HEAD: every git mutation must run in a `tmp_path` repo with `cwd=` that repo. Supporting fixtures in `tests/conftest.py`: `GIT_CONFIG_COUNT` injection neutralizes host `commit.gpgsign` so tmp-repo commits work in signing environments (fixture `_isolate_git_config_for_test_git` in tests/conftest.py), and `AI_AGENTS_PROJECT_REPO=1` defaults identity for guards that check the origin remote (fixture `_default_project_repo` in tests/conftest.py). Consumer-repo simulation tests override that env var to `"0"`.
 
-**2. Runtime-contract tests for generated artifacts (FM-11).** A generated artifact that has never been executed is not done (FAILURE-MODES.md:29, index row 11; the plugin-root incident wedged every plugin customer for 33 days). The `**Ship a runtime-contract test.**` item in the `generator-pipeline` skill's `references/rule-generated-artifacts.md` points here; this section owns it:
+**2. Runtime-contract tests for generated artifacts (FM-11).** A generated artifact that has never been executed is not done (FAILURE-MODES.md:29, index row 11; the plugin-root incident wedged every plugin customer for 33 days). The `**Ship a runtime-contract test.**` item in the repo-local `ai-agents-generation-and-release` skill's `references/rule-generated-artifacts.md` points here; this section owns it:
 
 The artifact MUST have a test that executes
    it under the verified contract: set the cwd the host sets (for a plugin hook,
@@ -219,7 +221,7 @@ Re-verified 2026-10-31 at `42e409325`: line cites, the Phase 4 workflow pins, th
 ```
 
 <!-- citation-freshness: ignore -- source list as the skill was written; FAILURE-MODES and pytest.yml ranges predate the context diet -->
-Sources: `.agents/governance/TESTING-RIGOR.md` (Status :5, origin :3-16, pragma :54, cost :97), `.agents/governance/TESTING-ANTI-PATTERNS.md` (:91, :165-172), `.agents/governance/FAILURE-MODES.md` (:29, :390), the `generator-pipeline` skill's `references/rule-generated-artifacts.md` (MUST 2), `.claude/rules/claude-agents.md` (:29), `pyproject.toml [tool.pytest.ini_options]`, root `conftest.py`, `tests/conftest.py`, `.github/workflows/pytest.yml` (:508-524), ADR-034, `scripts/validate_session_json.py` (`_QA_SKIP_CHECKERS`), and the 2026-05-10 and 2026-06-02 retros in `.project-toolkit/retrospective/`.
+Sources: `.agents/governance/TESTING-RIGOR.md` (Status :5, origin :3-16, pragma :54, cost :97), `.agents/governance/TESTING-ANTI-PATTERNS.md` (:91, :165-172), `.agents/governance/FAILURE-MODES.md` (:29, :390), the repo-local `ai-agents-generation-and-release` skill's `references/rule-generated-artifacts.md` (MUST 2), `.claude/rules/claude-agents.md` (:29), `pyproject.toml [tool.pytest.ini_options]`, root `conftest.py`, `tests/conftest.py`, `.github/workflows/pytest.yml` (:508-524), ADR-034, `scripts/validate_session_json.py` (`_QA_SKIP_CHECKERS`), and the 2026-05-10 and 2026-06-02 retros in `.project-toolkit/retrospective/`.
 
 Calibration replay of a threshold detector over merged PRs (Phase 3, item 4) stays manual: it needs the GitHub API.
 

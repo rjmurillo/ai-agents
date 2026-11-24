@@ -2,7 +2,7 @@
 
 ## Summary
 
-- **Rounds**: 5 of 10 (round 5 was critic only)
+- **Rounds**: 6 of 10 (round 5 was critic only)
 - **Outcome**: Consensus
 - **Final Status**: unchanged (the edit changes no ADR status or decision)
 - **Scope**: citations of three moved rules in ADR-062, ADR-071, ADR-096, ADR-100, ADR-102,
@@ -117,6 +117,20 @@ text, along with the architecture README row for ADR-093.
 | Agent | Position |
 |-------|----------|
 | critic | Accept. Keep historical numbers with reasoned markers, as the 2026-11-20 precedent did. |
+
+## Round 6 Summary
+
+Richard moved the generated-artifacts and ci-scripts references into repo-local skills.
+Twelve citations across seven ADRs now point to those files.
+ADR-062 already cites the unchanged lsp-first destination.
+
+| Agent | Position |
+|-------|----------|
+| architect | Accept. All 12 lines change only paths. ADR-107 C6 and ADR-109 B1 and B5 stay intact. |
+| critic | Accept. The diff preserves the C6 negative control and B1 and B5 sequencing. |
+
+Both seats reviewed the diff independently.
+The lifecycle, conformance, and citation gates verify paths and parser behavior.
 
 ## Final Verdicts
 

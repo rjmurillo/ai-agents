@@ -56,7 +56,7 @@ Historical agent-reported recovery was not treated as independently proven succe
 ## Corrections that change the next action
 
 Required-check renames need overlap and observed emitted contexts before policy changes.
-This is verified in [the `pipeline-validator` skill's `references/rule-ci-scripts.md`](../../../../src/claude/skills/pipeline-validator/references/rule-ci-scripts.md), MUST 22.
+This is verified in [the repo-local `ai-agents-validation-and-qa` skill's `references/rule-ci-scripts.md`](../../../../.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md), MUST 22.
 The historical credential-owner attribution was not adopted as a diagnosis.
 
 Local test selection can fall back to collection without executing tests.

@@ -200,6 +200,6 @@ Primary sources: the eight retros named in Phase 1;
 `copilot-hooks-observations.md`, `root-cause-governance-enforcement.md`,
 `root-cause-late-feedback.md`, `root-cause-scope-creep-tools.md`,
 `ci-infrastructure-observations.md` (reproduce-on-main rule);
-the `generator-pipeline` skill's `references/rule-generated-artifacts.md`, `canonical-source-mirror.md`,
+the repo-local `ai-agents-generation-and-release` skill's `references/rule-generated-artifacts.md`, `canonical-source-mirror.md`,
 `retros.md`. Update this skill when FAILURE-MODES.md gains a pattern or a new
 incident retro of customer-wedge-class severity lands.

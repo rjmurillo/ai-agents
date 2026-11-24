@@ -1,6 +1,6 @@
 {
-  "skill_path": ".claude/skills/pipeline-validator/SKILL.md",
-  "reference_path": ".claude/skills/pipeline-validator/references/rule-ci-scripts.md",
+  "skill_path": ".claude/skills/ai-agents-validation-and-qa/SKILL.md",
+  "reference_path": ".claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md",
   "rule_id": "ci-scripts",
   "scenarios": [
     {

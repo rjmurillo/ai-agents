@@ -254,7 +254,7 @@ exactly the contradiction class issue #5201 exists to eliminate.
   re-transcribe. Mirrored byte-identically at `.claude/lib/` and
   `src/copilot-cli/lib/` via `scripts/sync_plugin_lib.py` then
   `build/scripts/build_all.py --platform copilot-cli` (per
-  the former `generated-artifacts` rule (now at `src/claude/skills/generator-pipeline/references/rule-generated-artifacts.md`)'s sync-before-build chain).
+  the former `generated-artifacts` rule (now at `.claude/skills/ai-agents-generation-and-release/references/rule-generated-artifacts.md`)'s sync-before-build chain).
 - Schema: `.agents/schemas/skill-output.schema.json`:
   - `Error.Type` moved into the object's `required` array.
   - Top-level `required` gained `Data`, alongside the pre-existing

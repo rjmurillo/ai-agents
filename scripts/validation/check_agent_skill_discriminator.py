@@ -583,7 +583,10 @@ def print_report(result: CheckResult) -> None:
         print()
         print("Raising the recorded baseline score is not one of the options.")
         print("A ratchet baseline may only fall")
-        print("(the pipeline-validator skill, references/rule-ci-scripts.md, 'Count ratchets').")
+        print(
+            "(the repo-local ai-agents-validation-and-qa skill, "
+            "references/rule-ci-scripts.md, 'Count ratchets')."
+        )
     print()
     print(f"See {AUDIT_PATH}")
     print(f"and {GOVERNANCE_PATH}")
@@ -690,7 +693,8 @@ def _refuse_incomplete_corpus(corpus: list[str] | None, repo_root: Path) -> int 
             "Full-corpus mode scores what the commit contains and will not "
             "fall back to a filesystem walk, which counts untracked files "
             "and reads a partial checkout as an empty repository "
-            "(the pipeline-validator skill, references/rule-ci-scripts.md MUST-9).",
+            "(the repo-local ai-agents-validation-and-qa skill, "
+            "references/rule-ci-scripts.md MUST-9).",
             file=sys.stderr,
         )
         return 2
@@ -761,7 +765,8 @@ def _refuses_write_from_outside(repo_root: Path) -> bool:
         f"{cwd}. --update-baseline records the checkout it is run from; a "
         "repo root that is not an ancestor of the current directory means "
         "the two disagree about which tree is being recorded "
-        "(the pipeline-validator skill, references/rule-ci-scripts.md MUST-7).",
+        "(the repo-local ai-agents-validation-and-qa skill, "
+        "references/rule-ci-scripts.md MUST-7).",
         file=sys.stderr,
     )
     return True

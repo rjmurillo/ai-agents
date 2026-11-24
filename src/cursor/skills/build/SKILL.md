@@ -64,6 +64,8 @@ translation:
 
 ## Process
 
+Folded rules: before you write or change code, read [code-quality](references/rule-code-quality.md); for PowerShell files also read [powershell](references/rule-powershell.md), and for C# files [csharp](references/rule-csharp.md).
+
 **Delegation on each host.** "Delegate to the `X` agent" means the host's subagent tool: Claude Code `Task` with `subagent_type="X"`; Copilot CLI `task` with `agent_type="project-toolkit:X"`; Codex `spawn_agent` with `agent_type="X"`, plus `fork_turns="none"` when the agent reviews or judges work (the default hands it your whole history); Muse Code `subagent_spawn` with `role="X"` and an `objective`, plus `worktree_isolation: true` for an agent that writes files. If the host has no subagent tool, or no `X` agent is installed, run the step yourself in this session.
 
 ### Phase 0: Existing-PR check
@@ -331,7 +333,3 @@ Writes: `implementation-change`, `validation-record`. Next: `/test`.
   project with different risk tolerance changes that table alone.
 - **Non-pytest stacks.** Phase 3 step 3 names pytest because this project uses
   it. The unconditional-TDD rule is stack-independent; swap the runner.
-
-Folded rules: before you write or change code, read [code-quality](references/rule-code-quality.md); for PowerShell files also read [powershell](references/rule-powershell.md), and for C# files [csharp](references/rule-csharp.md).
-
-For an edit under `templates/` or to a generated file, use the `generator-pipeline` skill.

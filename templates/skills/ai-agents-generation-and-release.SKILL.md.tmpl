@@ -28,6 +28,8 @@ Jargon, defined once:
 
 ## Triggers
 
+Before changing a generator or a customer-facing generated artifact, read [generated-artifacts](references/rule-generated-artifacts.md).
+
 - `regenerate the mirrors`
 - `run the drift checks`
 - `why is the plugin version gate red`

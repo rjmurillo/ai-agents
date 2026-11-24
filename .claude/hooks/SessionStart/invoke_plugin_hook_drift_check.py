@@ -43,7 +43,7 @@ Exit Codes:
 References:
     - Issue #5085 (installed plugin enforces guards deleted from main)
     - ADR-097 (tool-call hooks retired; the shipped state is zero of them)
-    - the `pipeline-validator` skill's `references/rule-ci-scripts.md` MUST 8, which names
+    - the repo-local `ai-agents-validation-and-qa` skill's `references/rule-ci-scripts.md` MUST 8, which names
       `~/.claude/plugins/cache` and `~/.copilot/installed-plugins` as the
       copies that "can be arbitrarily old"
 """

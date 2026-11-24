@@ -257,24 +257,33 @@ def test_repo_only_rule_turning_shipped_moves_to_plugin_tree(tmp_path: Path) -> 
 
 
 _FOLDED_RULES = {
-    "ci-scripts": "pipeline-validator",
     "code-quality": "build",
     "csharp": "build",
     "efficiency": "programming-advisor",
-    "generated-artifacts": "generator-pipeline",
     "lossless-queue-reads": "pr-comment-responder",
     "lsp-first": "using-serena-symbols",
     "powershell": "build",
 }
 
 
-@pytest.mark.parametrize("name", sorted(_FOLDED_RULES))
-def test_folded_rule_lives_in_a_skill_reference_not_templates_rules(name: str) -> None:
+_REPO_LOCAL_FOLDED_RULES = {
+    "ci-scripts": "ai-agents-validation-and-qa",
+    "generated-artifacts": "ai-agents-generation-and-release",
+}
+
+
+@pytest.mark.parametrize("name,skill", sorted((_FOLDED_RULES | _REPO_LOCAL_FOLDED_RULES).items()))
+def test_folded_rule_lives_in_a_skill_reference_not_templates_rules(name: str, skill: str) -> None:
     """A folded rule has no template, and its skill reference keeps the former scope."""
     assert name not in _template_names()
     assert name not in _PINNED_REPO_ONLY
-    skill = _FOLDED_RULES[name]
-    ref = _REPO_ROOT / "src" / "claude" / "skills" / skill / "references" / f"rule-{name}.md"
+    filename = f"rule-{name}.md"
+    if name in _REPO_LOCAL_FOLDED_RULES:
+        skills_root = _REPO_ROOT / ".claude" / "skills"
+        assert not any((_REPO_ROOT / "src").glob(f"**/skills/*/references/{filename}"))
+    else:
+        skills_root = _REPO_ROOT / "src" / "claude" / "skills"
+    ref = skills_root / skill / "references" / filename
     assert ref.is_file(), ref
     first = ref.read_text(encoding="utf-8").splitlines()[0]
     assert first.startswith("<!--") and "paths" in first, first

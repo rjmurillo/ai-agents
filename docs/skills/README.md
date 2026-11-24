@@ -192,7 +192,6 @@ The **Slash command** column tells you how the skill is meant to start:
 
 | Skill | Slash command | Use it to |
 | --- | --- | --- |
-| [`generator-pipeline`](generator-pipeline.md) | match | Edit templates and generated files the right way |
 | [`pipeline-validator`](pipeline-validator.md) | by name | Trigger and watch Azure DevOps validation pipelines |
 | [`windows-image-updater`](windows-image-updater.md) | by name | Move OneBranch pipelines to a newer Windows container image |
 

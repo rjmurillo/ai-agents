@@ -27,7 +27,7 @@ before or around dispatch (bad payload, unknown event, unexpected error).
 
 Failure policy: an unreadable or malformed manifest, stdin read failure, or
 unexpected grouped-runtime exception exits 2 (loud, fail-closed) regardless of
-mode, per the ``generator-pipeline`` skill's
+mode, per the repo-local ``ai-agents-generation-and-release`` skill's
 ``references/rule-generated-artifacts.md`` (never silently disable a hook
 surface). Fail-closed means a broken dispatcher blocks rather than waves
 through.

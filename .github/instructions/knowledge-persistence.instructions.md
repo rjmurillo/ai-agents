@@ -11,13 +11,13 @@ Choosing which surface a fact belongs on binds earlier, before you know which tr
 ## MUST
 
 1. **Canonical rule lives in `templates/rules/`**. A convention that must bind across Claude, Codex, and Copilot MUST be written to `templates/rules/<name>.md`, not only to Serena memory or Copilot Memory (ADR-109 B2: `templates/rules/` is the edit location for every rule `rule_templates.py` compiles, `testing.md` included; its GitHub Actions example writes the literal `${{ a && b }}` using the backslash-before-tag literal-brace escape, see the generator table in governance). `AGENTS.md` directs every harness to read `.claude/rules/*.md` first, so Claude (reads the compiled, binplaced tree directly) and Codex (reads `AGENTS.md`) both resolve to it, and Copilot reads the generated mirror.
-2. **Regenerate the mirrors in the same change**. Adding or editing a `templates/rules/<name>.md` file MUST regenerate `src/claude/rules/<name>.md`, `.claude/rules/<name>.md`, `.github/instructions/<name>.instructions.md`, and `src/copilot-cli/instructions/<name>.instructions.md`, committed in the same change. Run the one command the `generator-pipeline` skill's `references/rule-generated-artifacts.md` documents:
+2. **Regenerate the mirrors in the same change**. Adding or editing a `templates/rules/<name>.md` file MUST regenerate `src/claude/rules/<name>.md`, `.claude/rules/<name>.md`, `.github/instructions/<name>.instructions.md`, and `src/copilot-cli/instructions/<name>.instructions.md`, committed in the same change. Run the one command the repo-local `ai-agents-generation-and-release` skill's `references/rule-generated-artifacts.md` documents:
 
    ```bash
    uv run python build/scripts/build_all.py
    ```
 
-   This command compiles the template, binplaces it, and regenerates both instruction mirrors; a stale mirror is torn state (see the `generator-pipeline` skill's `references/rule-generated-artifacts.md`).
+   This command compiles the template, binplaces it, and regenerates both instruction mirrors; a stale mirror is torn state (see the repo-local `ai-agents-generation-and-release` skill's `references/rule-generated-artifacts.md`).
 3. **Leave the plugin manifests alone**. `.claude/` and `src/copilot-cli/` ship in the project-toolkit plugin, but the manifests carry no `version` field: Claude Code resolves freshness from the commit SHA instead, so a rule change needs no manifest edit. Adding a `version` back fails `validate_plugin_version_bump.py` (see `.claude/rules/plugin-version-bump.md` and ADR-092).
 4. **Scope by `paths:`**. Set `paths:` to the narrowest glob that fires where the convention applies (`tests/**`, `**/*.ps1`). A universally-binding convention sets `paths: ["**"]`.
 5. **Index a new Serena memory by hand**. A memory under `.serena/memories/` MUST get a keyword line in `memory-index.md` in the same change, or keyword retrieval cannot reach it. `memory_index.py --ci` checks only that index rows resolve to files, never the reverse, so nothing catches the omission. Write `(0)` as the token placeholder; the `memory-token-update` pre-commit job rewrites it to the real count.
@@ -122,6 +122,6 @@ Three further MUST NOT items moved to the always-on Universal Rules (items 7, 8,
 
 - `AGENTS.md`. Directs every harness to read `.claude/rules/*.md` by `paths` first; the Codex common denominator.
 - `generate_rules.py`. Generates both instruction mirrors from `.claude/rules/`.
-- The `generator-pipeline` skill's `references/rule-generated-artifacts.md`. Regenerate-and-commit-in-the-same-change discipline.
+- The repo-local `ai-agents-generation-and-release` skill's `references/rule-generated-artifacts.md`. Regenerate-and-commit-in-the-same-change discipline.
 - `.claude/rules/plugin-version-bump.md`. Why the manifests carry no version field.
 - `.claude/rules/canonical-source-mirror.md`. Load-bearing "mirrors" claims must cite and quote the source.

@@ -370,7 +370,7 @@ def refuses_write_from_outside(repo_root: Path) -> bool:
         f"Refusing to renormalize {top_level} while running from {cwd}. "
         "--fix stages into the tree git resolves, and a tree that is not an "
         "ancestor of the current directory means the two disagree about "
-        "which checkout is being changed (the pipeline-validator skill, "
+        "which checkout is being changed (the repo-local ai-agents-validation-and-qa skill, "
         "references/rule-ci-scripts.md MUST-7). "
         f"Requested root: {repo_root}.",
         file=sys.stderr,
