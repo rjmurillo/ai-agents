@@ -118,6 +118,9 @@ def _write_minimal_lib_sources(repo_root: Path) -> None:
         init_file = pkg_dir / "__init__.py"
         if not init_file.exists():
             init_file.write_text("", encoding="utf-8")
+        for sub in lib_mirror.PACKAGE_SUBDIRS.get(package, ()):
+            (pkg_dir / sub).mkdir(exist_ok=True)
+            (pkg_dir / sub / "__init__.py").touch()
 
     hook_utilities = repo_root / "scripts" / "hook_utilities"
     bootstrap = hook_utilities / "bootstrap.py"
