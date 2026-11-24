@@ -52,7 +52,7 @@ uv run python .claude/skills/code-qualities-assessment/scripts/assess.py --targe
 | --- | --- |
 | `--target` | Required. File, directory, or glob. |
 | `--context` | Force `production`, `test`, or `generated` thresholds for every file. Omit it so each file uses its own category. |
-| `--changed-only` | Assess only changed files. With `--base`, files changed from that revision. |
+| `--changed-only` | Assess only changed files. With `--base`, files changed from that revision. A changed path that is a symlink to a directory is skipped with a `SKIPPED (directory)` line on stderr. |
 | `--base` | Base revision for `--changed-only`, such as `origin/main`. |
 | `--gate-mode` | `auto` (default), `regression`, or `absolute`. |
 | `--regression-tolerance` | Score drop tolerated before a quality counts as regressed. Default 0.5. |

@@ -28,6 +28,7 @@ The relevant fragment, copied verbatim:
         ("scripts/github_core", ".claude/lib/github_core"),
         ("scripts/ai_review_common", ".claude/lib/ai_review_common"),
         ("scripts/failure_classifier", ".claude/lib/failure_classifier"),
+        ("scripts/memory_enhancement", ".claude/lib/memory_enhancement"),
     ]
 
 See `.claude/rules/canonical-source-mirror.md`.
@@ -62,6 +63,7 @@ SOURCE_ROOTS: tuple[str, ...] = (
     "scripts/hook_utilities",
     "scripts/ai_review_common",
     "scripts/failure_classifier",
+    "scripts/memory_enhancement",
 )
 
 # `.claude/lib/` package directories that are allowed to exist without a
@@ -170,7 +172,14 @@ def _load_sync_pairs() -> list[tuple[str, str]]:
     """
     import lib_mirror
 
-    pairs: list[tuple[str, str]] = lib_mirror.SYNC_PAIRS
+    pairs: list[tuple[str, str]] = list(lib_mirror.SYNC_PAIRS)
+    # lib_mirror ships each PACKAGE_SUBDIRS child as its own directory pair
+    # (lib_package_roots.package_pairs). Count those as registered too, so a
+    # shipped child passes and an unlisted one still fails.
+    for package, subs in lib_mirror.PACKAGE_SUBDIRS.items():
+        pairs.extend(
+            (f"scripts/{package}/{sub}", f"{_LIB_DIR_REL}/{package}/{sub}") for sub in subs
+        )
     return pairs
 
 

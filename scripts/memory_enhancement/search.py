@@ -7,20 +7,27 @@ by confidence score from the existing scoring infrastructure.
 
 from __future__ import annotations
 
+import os
 import re
-import shutil
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
 from .confidence import calculate_confidence
-from .models import VerificationResult
+from .models import MemoryWithCitations, VerificationResult
+from .recall_log import note
 from .serena_integration import load_memory
 from .stores import find_memory_root
-from .verification import STALE_REASON_MARKERS, verify_all_citations
+from .tool_resolver import resolve_tool
+from .verification import STALE_REASON_MARKERS, cited_file_exceeds, verify_citation
 
 _SEARCH_TIMEOUT = 5
+# Most candidate files loaded and scored per recall. The file search matches any
+# one term anywhere in a file, so a broad query can match hundreds of files.
+# Opt-in: only the recall path passes it, so the search CLI scores every match.
+MAX_CANDIDATES = 50
 _DEFAULT_MAX_RESULTS = 5
 _SNIPPET_LENGTH = 200
 _STEM_LENGTH = 5
@@ -91,6 +98,10 @@ def search_memories(
     max_results: int = _DEFAULT_MAX_RESULTS,
     repo_root: Path | None = None,
     min_relevance: float = 0.0,
+    deadline: float | None = None,
+    max_candidates: int | None = None,
+    max_memory_bytes: int | None = None,
+    max_verify_bytes: int | None = None,
 ) -> list[SearchResult]:
     """Search memories and return ranked results.
 
@@ -106,23 +117,48 @@ def search_memories(
         min_relevance: Drop results whose query relevance (fraction of query
             terms naming the memory, see ``query_relevance``) is below this.
             Applied before the ``max_results`` cut. 0.0 keeps every match.
+        deadline: ``time.monotonic()`` value after which no new work starts.
+            The file-search timeouts shrink to the time left, and ranking
+            returns what it has. None means no deadline.
+        max_candidates: Most files to load and score. None scores every match.
+        max_memory_bytes: Skip memory files larger than this. None reads all.
+        max_verify_bytes: Skip citation checks on cited files larger than
+            this (status "unverified"). None verifies all.
 
     Returns:
         List of SearchResult sorted by relevance, then confidence, descending.
     """
-    if not query or not query.strip():
-        return []
-
-    if not memories_dir.is_dir():
+    if not query or not query.strip() or not memories_dir.is_dir():
         return []
 
     effective_root = repo_root or find_memory_root(memories_dir) or memories_dir.parent.parent
 
-    paths = _search_with_ripgrep(query, memories_dir)
+    paths = _search_with_ripgrep(query, memories_dir, deadline, effective_root)
     if paths is None:
-        paths = _search_with_grep(query, memories_dir)
+        paths = _search_with_grep(query, memories_dir, deadline, effective_root)
     if paths is None:
+        # No pure-Python search exists. No usable rg or grep means no recall.
         return []
+    # A memory named only by its filename has no content hit, so add stem matches.
+    # The scan checks the clock before each directory and each entry, skips dot
+    # entries as rg does, resolves each match as it goes, and keeps half the
+    # remaining time for ranking.
+    stop = None if deadline is None else time.monotonic() + (_time_left(deadline) or 0.0) / 2
+    base, pending, named = memories_dir.resolve(), [str(memories_dir)], []
+    while pending and _time_left(stop) != 0.0:
+        try:
+            with os.scandir(pending.pop()) as entries:
+                while _time_left(stop) != 0.0 and (entry := next(entries, None)) is not None:
+                    if entry.name.startswith("."):
+                        continue
+                    if entry.is_dir(follow_symlinks=False):
+                        pending.append(entry.path)
+                    elif entry.name.endswith(".md") and query_relevance(query, entry.name[:-3]):
+                        resolved = Path(entry.path).resolve()
+                        named += [resolved] if resolved.is_relative_to(base) else []
+        except (OSError, RuntimeError):
+            continue
+    paths = list(dict.fromkeys([*paths, *sorted(named)]))
 
     return rank_results(
         paths,
@@ -131,7 +167,36 @@ def search_memories(
         memories_dir=memories_dir,
         query=query,
         min_relevance=min_relevance,
+        deadline=deadline,
+        max_candidates=max_candidates,
+        max_memory_bytes=max_memory_bytes,
+        max_verify_bytes=max_verify_bytes,
     )
+
+
+def _time_left(deadline: float | None) -> float | None:
+    """Seconds until *deadline* (never negative), or None when there is none."""
+    return None if deadline is None else max(0.0, deadline - time.monotonic())
+
+
+def _search_timeout(deadline: float | None) -> float | None:
+    """The subprocess timeout that fits the deadline, or None when none is left."""
+    left = _time_left(deadline)
+    if left is None:
+        return _SEARCH_TIMEOUT
+    return min(_SEARCH_TIMEOUT, left) if left > 0 else None
+
+
+def _bounded_candidates(paths: list[Path], query: str, limit: int) -> list[Path]:
+    """Keep at most *limit* paths in a deterministic order.
+
+    Order is stem relevance to the query, best first, then path. The stem is
+    the cheap part of the label ``_score_memory_file`` scores, so no file is
+    read. A memory that matches only through its frontmatter title can fall
+    outside the cut when more than *limit* files match.
+    """
+    ordered = sorted(paths, key=lambda p: (-query_relevance(query, p.stem), str(p)))
+    return ordered[:limit]
 
 
 def rank_results(
@@ -141,6 +206,10 @@ def rank_results(
     memories_dir: Path | None = None,
     query: str = "",
     min_relevance: float = 0.0,
+    deadline: float | None = None,
+    max_candidates: int | None = None,
+    max_memory_bytes: int | None = None,
+    max_verify_bytes: int | None = None,
 ) -> list[SearchResult]:
     """Load each matched file, score relevance and confidence, drop results
     below ``min_relevance``, and sort descending.
@@ -155,14 +224,31 @@ def rank_results(
             leaves relevance at 0.0.
         min_relevance: Drop results with relevance below this value before
             truncating to ``max_results``.
+        deadline: ``time.monotonic()`` value after which no further file is
+            loaded and citation checks are skipped (status "unverified").
+        max_candidates: Most files loaded and scored, chosen by
+            ``_bounded_candidates``. None scores every path.
+        max_memory_bytes: Skip memory files larger than this. None reads all.
+        max_verify_bytes: Skip citation checks on cited files larger than
+            this. None verifies all.
 
     Returns:
         Sorted list of SearchResult by relevance, then confidence, descending.
     """
     results: list[SearchResult] = []
+    candidates = paths
+    if max_candidates is not None:
+        candidates = _bounded_candidates(paths, query, max_candidates)
+        if len(paths) > max_candidates:
+            note(f"scoring {max_candidates} of {len(paths)} matching memories (candidate cap)")
 
-    for file_path in paths:
-        result = _score_memory_file(file_path, repo_root, memories_dir, query)
+    for file_path in candidates:
+        if _time_left(deadline) == 0.0:
+            note("deadline reached, returning the memories scored so far")
+            break
+        result = _score_memory_file(
+            file_path, repo_root, memories_dir, query, deadline, max_memory_bytes, max_verify_bytes
+        )
         if result is not None and result.relevance >= min_relevance:
             results.append(result)
 
@@ -192,12 +278,17 @@ def _split_query_terms(query: str) -> list[str]:
     return safe
 
 
-def _search_with_ripgrep(query: str, memories_dir: Path) -> list[Path] | None:
+def _search_with_ripgrep(
+    query: str,
+    memories_dir: Path,
+    deadline: float | None = None,
+    repo_root: Path | None = None,
+) -> list[Path] | None:
     """Search using ripgrep. Returns None if rg is unavailable or fails.
 
-    Multi-word queries use OR logic via multiple -e flags.
+    Multi-word queries use OR logic, one pattern per stdin line.
     """
-    rg_path = shutil.which("rg")
+    rg_path = resolve_tool("rg", [repo_root, memories_dir])
     if rg_path is None:
         return None
 
@@ -205,21 +296,30 @@ def _search_with_ripgrep(query: str, memories_dir: Path) -> list[Path] | None:
     if not terms:
         return None
 
-    cmd: list[str] = [rg_path, "-il", "--no-ignore", "--glob", "*.md"]
-    for term in terms:
-        cmd.extend(["-e", term])
-    cmd.extend(["--", str(memories_dir)])
+    # Patterns go through stdin, not argv, so other local users cannot read
+    # prompt terms from the process list.
+    cmd: list[str] = [rg_path, "-il", "--no-config", "--no-ignore", "--glob", "*.md", "-f", "-"]
+    cmd += ["--", str(memories_dir)]
+
+    timeout = _search_timeout(deadline)
+    if timeout is None:
+        note("deadline reached before the file search started")
+        return None
 
     try:
         result = subprocess.run(
             cmd,
+            input="\n".join(terms) + "\n",
             capture_output=True,
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=_SEARCH_TIMEOUT,
+            timeout=timeout,
         )
-    except (subprocess.TimeoutExpired, OSError):
+    except subprocess.TimeoutExpired:
+        note(f"{Path(cmd[0]).stem} timed out after {timeout:g}s")
+        return None
+    except OSError:
         return None
 
     if result.returncode not in (0, 1):
@@ -229,12 +329,17 @@ def _search_with_ripgrep(query: str, memories_dir: Path) -> list[Path] | None:
     return _parse_file_list(result.stdout, memories_dir)
 
 
-def _search_with_grep(query: str, memories_dir: Path) -> list[Path] | None:
+def _search_with_grep(
+    query: str,
+    memories_dir: Path,
+    deadline: float | None = None,
+    repo_root: Path | None = None,
+) -> list[Path] | None:
     """Search using grep. Returns None if grep is unavailable or fails.
 
-    Multi-word queries use OR logic via multiple -e flags.
+    Multi-word queries use OR logic, one pattern per stdin line.
     """
-    grep_path = shutil.which("grep")
+    grep_path = resolve_tool("grep", [repo_root, memories_dir])
     if grep_path is None:
         return None
 
@@ -242,21 +347,29 @@ def _search_with_grep(query: str, memories_dir: Path) -> list[Path] | None:
     if not terms:
         return None
 
-    cmd: list[str] = [grep_path, "-ril", "--include=*.md"]
-    for term in terms:
-        cmd.extend(["-e", term])
-    cmd.extend(["--", str(memories_dir)])
+    # Patterns go through stdin, not argv, so other local users cannot read
+    # prompt terms from the process list.
+    cmd: list[str] = [grep_path, "-ril", "--include=*.md", "-f", "-", "--", str(memories_dir)]
+
+    timeout = _search_timeout(deadline)
+    if timeout is None:
+        note("deadline reached before the file search started")
+        return None
 
     try:
         result = subprocess.run(
             cmd,
+            input="\n".join(terms) + "\n",
             capture_output=True,
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=_SEARCH_TIMEOUT,
+            timeout=timeout,
         )
-    except (subprocess.TimeoutExpired, OSError):
+    except subprocess.TimeoutExpired:
+        note(f"{Path(cmd[0]).stem} timed out after {timeout:g}s")
+        return None
+    except OSError:
         return None
 
     if result.returncode not in (0, 1):
@@ -297,13 +410,16 @@ def _score_memory_file(
     repo_root: Path,
     memories_dir: Path | None = None,
     query: str = "",
+    deadline: float | None = None,
+    max_memory_bytes: int | None = None,
+    max_verify_bytes: int | None = None,
 ) -> SearchResult | None:
     """Load a memory file, compute confidence, and build a SearchResult."""
-    memory = load_memory(file_path, memories_dir)
+    memory = load_memory(file_path, memories_dir, max_memory_bytes)
     if memory is None:
         return None
 
-    verification_results = verify_all_citations(memory, repo_root)
+    verification_results = _verify_within(memory, repo_root, deadline, max_verify_bytes)
     confidence = calculate_confidence(memory, verification_results)
     citation_status = _determine_citation_status(verification_results)
     snippet = memory.content[:_SNIPPET_LENGTH]
@@ -323,6 +439,33 @@ def _score_memory_file(
     )
 
 
+_UNCHECKED = "unchecked"
+
+
+def _verify_within(
+    memory: MemoryWithCitations,
+    repo_root: Path,
+    deadline: float | None,
+    max_verify_bytes: int | None = None,
+) -> list[VerificationResult]:
+    """Verify each citation while time remains and cited files stay small.
+
+    Out of time, or a cited file over *max_verify_bytes*, stops the check. Each
+    citation left unchecked counts as a failure with reason "unchecked", so a
+    skipped check never raises confidence and the status reads "unverified".
+    """
+    results: list[VerificationResult] = []
+    for index, citation in enumerate(memory.citations):
+        if _time_left(deadline) == 0.0 or (
+            max_verify_bytes is not None
+            and cited_file_exceeds(citation, repo_root, max_verify_bytes)
+        ):
+            rest = memory.citations[index:]
+            return results + [VerificationResult.create(c, False, _UNCHECKED) for c in rest]
+        results.append(verify_citation(citation, repo_root))
+    return results
+
+
 def _determine_citation_status(results: list[VerificationResult]) -> str:
     """Classify overall citation status from verification results.
 
@@ -330,7 +473,7 @@ def _determine_citation_status(results: list[VerificationResult]) -> str:
     - "stale" means file exists but content changed (e.g., line count exceeded)
     - "broken" means target is missing entirely
     """
-    if not results:
+    if not results or any(r.reason == _UNCHECKED for r in results):
         return "unverified"
 
     all_valid = all(r.is_valid for r in results)

@@ -39,6 +39,11 @@
 .claude/skills/repository-pr-recovery/scripts/instruments.py
 src/claude/skills/adr-review/scripts/detect_adr_changes.py
 src/claude/skills/chestertons-fence/scripts/investigate.py
+# ADR-122 item 10 (issue #7493): this file holds change-admission records whose
+# file fields are repository paths, compared against git diff paths. The
+# scanner never opens them, so the scripts/ literals are known false positives,
+# like the #4013 entries above. Added for issue #7493 on 2026-11-20.
+src/claude/skills/code-qualities-assessment/scripts/assess.py
 src/claude/skills/github/scripts/pr/new_pr.py
 src/claude/skills/github/scripts/pr/pr_validations.py
 src/claude/skills/github/scripts/pr/prepare_pr_body.py

@@ -13,8 +13,11 @@ Re-exec once under ``.venv`` so the registered command behaves the same as
 ``uv run``. Everything here is stdlib, so this module still imports under the
 interpreter that is missing the dependency.
 
-A consumer plugin install has no ``scripts/`` tree and no ``.venv``; there the
-hooks keep failing open and this module is never reached.
+Only the project registration in ``.claude/settings.json`` reaches this module.
+The recall shim skips it when it runs inside the grouped dispatcher
+(``claude_hook_dispatch`` in ``sys.modules``), where stdin is already consumed,
+the recall closure needs no third-party package, and a consumer's ``.venv`` is
+the consumer's own code (ADR-109 amendment 2026-11-20).
 """
 
 from __future__ import annotations

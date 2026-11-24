@@ -229,3 +229,52 @@ def test_real_repo_registry_is_complete() -> None:
     assert result.returncode == 0, (
         "Real sync registry is incomplete:\n" + result.stdout + result.stderr
     )
+
+
+# ---- memory_enhancement (issue #7493) ------------------------------------------
+
+
+def _memory_tree(tmp_path: Path, *children: str) -> None:
+    root = _make_package(tmp_path / "scripts", "memory_enhancement")
+    for child in children:
+        _make_package(root, child)
+
+
+def _run_cli(repo_root: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, str(SCRIPT), "--repo-root", str(repo_root)],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+
+
+def test_memory_enhancement_is_a_checked_source_root() -> None:
+    assert "scripts/memory_enhancement" in vsr.SOURCE_ROOTS
+
+
+def test_a_shipped_memory_enhancement_child_passes_the_cli(tmp_path: Path) -> None:
+    _memory_tree(tmp_path, "hooks")
+
+    result = _run_cli(tmp_path)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_an_unlisted_memory_enhancement_child_fails_the_cli(tmp_path: Path) -> None:
+    _memory_tree(tmp_path, "hooks", "unshipped")
+
+    result = _run_cli(tmp_path)
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "scripts/memory_enhancement/unshipped" in result.stdout
+    assert "scripts/memory_enhancement/hooks " not in result.stdout + " "
+
+
+def test_loaded_pairs_register_each_package_subdir() -> None:
+    sources = {src for src, _ in vsr._load_sync_pairs()}
+
+    assert "scripts/memory_enhancement/hooks" in sources
+    assert "scripts/memory_enhancement" in sources

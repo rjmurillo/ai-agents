@@ -252,7 +252,7 @@ class TestInvokerExitCodes:
                 encoding="utf-8",
                 errors="replace",
                 cwd=repo,
-                env=_harness_env(),
+                env=_harness_env(repo),
                 timeout=10,
                 check=False,
             )
@@ -264,7 +264,7 @@ class TestInvokerExitCodes:
         assert "<session-reflection>" in reflection.stderr
         assert note.read_text(encoding="utf-8") == original
 
-        copilot_env = _harness_env()
+        copilot_env = _harness_env(repo)
         copilot_env.pop("COPILOT_AGENT_PROMPT", None)
         copilot_env.pop("GITHUB_COPILOT_API_TOKEN", None)
         transformed = subprocess.run(

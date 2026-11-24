@@ -76,6 +76,36 @@ _POWERSHELL_NON_CODE_PATTERN = re.compile(
 )
 
 
+# Cited files larger than this are not read during recall (stat first).
+MAX_VERIFY_BYTES = 256 * 1024
+
+
+def cited_file_exceeds(citation: Citation, repo_root: Path, limit: int) -> bool:
+    """True when verifying *citation* would read a file larger than *limit* bytes.
+
+    Only citations that read file content count: a file citation with a line
+    number, and a function citation. Unresolvable targets return False and fail
+    in the verifier as before.
+    """
+    if citation.source_type is SourceType.FILE:
+        match = _FILE_LINE_PATTERN.match(citation.target)
+        if match is None or match.group("line") is None:
+            return False
+    elif citation.source_type is SourceType.FUNCTION:
+        match = _FUNCTION_PATTERN.match(citation.target)
+        if match is None:
+            return False
+    else:
+        return False
+    resolved, error = _validate_path_containment(match.group("path"), repo_root)
+    if error or resolved is None:
+        return False
+    try:
+        return resolved.stat().st_size > limit
+    except OSError:
+        return False
+
+
 def verify_citation(citation: Citation, repo_root: Path) -> VerificationResult:
     """Verify a single citation against the repository.
 
