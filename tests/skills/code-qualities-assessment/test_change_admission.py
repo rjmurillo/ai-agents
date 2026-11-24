@@ -21,7 +21,7 @@ from .test_assess import _commit, _init_repo, _regression_argv, _run_git, _write
 
 _AXIS = "code-qualities-assessment"
 # No absolute minimums, so files added beside a change never fail the run.
-_NO_MINIMUMS = {
+_NO_MINIMUMS: dict[str, dict[str, int]] = {
     key: {} for key in ("cohesion", "coupling", "encapsulation", "testability", "nonRedundancy")
 }
 _ADMISSION = {"firstPartyCouplingAdmission": {"importRoots": ["lib"]}}
