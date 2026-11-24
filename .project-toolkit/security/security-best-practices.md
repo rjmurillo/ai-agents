@@ -1,5 +1,7 @@
 # Security Best Practices Enforcement Guide
 
+<!-- doc-accuracy: external-sdk dotnet -- C# examples use the .NET base class library, ASP.NET Core Identity, BCrypt.Net, and Microsoft.Data.SqlClient, not this repository -->
+
 ## Purpose
 
 This guide defines security best practices that should be enforced during code review and development. It covers input validation, error handling, logging, cryptography, and testing requirements.

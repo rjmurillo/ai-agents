@@ -1,5 +1,7 @@
 # Claude Code Skill Frontmatter Requirements and Model Identifiers (2026)
 
+<!-- doc-accuracy: external-sdk PyYAML -- Python examples call PyYAML, not this repository -->
+
 **Analysis Date**: January 3, 2026
 **Project**: ai-agents
 **Scope**: Claude Code skill YAML frontmatter schema, model identifier standards, and best practices

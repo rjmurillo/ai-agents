@@ -1,5 +1,7 @@
 # Security Testing Reference
 
+<!-- doc-accuracy: external-sdk xUnit -- C# examples use xUnit and ASP.NET Core test hosting, not this repository -->
+
 This reference contains section 5 from the [Security Best Practices Enforcement Guide](./security-best-practices.md).
 It preserves the section's coverage targets, required security test examples, and checklist.
 

@@ -6,6 +6,8 @@ review-by: 2026-07-11
 
 # DRY Principle
 
+<!-- doc-accuracy: external-sdk dotnet -- C# examples use ADO.NET and the .NET base class library, not this repository -->
+
 Every piece of knowledge must have a single, unambiguous, authoritative representation within the system. Attribution: Andy Hunt and Dave Thomas, The Pragmatic Programmer (1999).
 
 ## Scope of Redundancy

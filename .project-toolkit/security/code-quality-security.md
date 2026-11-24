@@ -1,5 +1,7 @@
 # Code Quality Security Guide
 
+<!-- doc-accuracy: external-sdk ASP.NET-Core -- C# examples use ASP.NET Core and the .NET base class library, not this repository -->
+
 ## Purpose
 
 This guide identifies code quality issues that have security implications. Poor code quality increases attack surface, makes vulnerabilities harder to detect, and complicates security reviews.

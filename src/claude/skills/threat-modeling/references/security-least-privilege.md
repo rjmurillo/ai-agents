@@ -6,6 +6,8 @@ review-by: 2026-07-11
 
 # Principle of Least Privilege
 
+<!-- doc-accuracy: external-sdk Azure-Storage -- C# examples use the Azure Storage and Azure Identity SDKs, not this repository -->
+
 Every program and user should operate using the minimum set of privileges necessary to complete their task.
 
 **Origin**: Jerome Saltzer, MULTICS operating system (1974)

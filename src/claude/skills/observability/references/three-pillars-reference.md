@@ -6,6 +6,8 @@ review-by: 2026-07-11
 
 # Observability Three Pillars
 
+<!-- doc-accuracy: external-sdk OpenTelemetry -- C# examples use the OpenTelemetry .NET SDK, not this repository -->
+
 Understand a system's internal state by examining its external outputs. Three complementary signal types provide complete visibility.
 
 ## Observability vs Monitoring

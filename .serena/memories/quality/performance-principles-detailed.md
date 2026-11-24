@@ -1,5 +1,7 @@
 # Performance Principles (Detailed)
 
+<!-- doc-accuracy: external-sdk dotnet -- C# examples use the .NET base class library, not this repository -->
+
 ## Pool and Reuse Pattern
 
 ### Core Concept

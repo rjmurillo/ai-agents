@@ -1,5 +1,7 @@
 # Calibration Examples
 
+<!-- doc-accuracy: external-sdk Stripe -- examples call the Stripe SDK, not this repository -->
+
 Reference examples for consistent code quality scoring across teams.
 
 See [Advanced Calibration Notes](calibration-advanced-notes.md) for automated scoring, language adaptations, and the workshop.

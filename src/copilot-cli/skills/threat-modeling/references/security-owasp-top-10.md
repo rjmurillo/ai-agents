@@ -6,6 +6,8 @@ review-by: 2026-07-11
 
 # OWASP Top 10 (2021)
 
+<!-- doc-accuracy: external-sdk EF-Core -- C# examples use Entity Framework Core, not this repository -->
+
 Industry-standard vulnerability categories for web application security. Use as a checklist during Phase 2 (Threat Identification) to ensure coverage.
 
 ## The 10 Categories

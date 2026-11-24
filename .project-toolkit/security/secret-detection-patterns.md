@@ -1,5 +1,7 @@
 # Secret Detection Patterns
 
+<!-- doc-accuracy: external-sdk Azure-Key-Vault -- C# examples use the Azure Key Vault SDK, not this repository -->
+
 ## Purpose
 
 This document defines patterns for detecting hardcoded secrets, credentials, and sensitive data in code. Use these patterns to identify potential security risks before code reaches production.

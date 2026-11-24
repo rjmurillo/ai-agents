@@ -324,7 +324,7 @@ Suppress specific violations with inline comments:
 
 ```csharp
 // style-enforcement: ignore STYLE-001
-var data = GetData();  // CRLF line ending allowed here
+var data = "payload";  // CRLF line ending allowed here
 ```
 
 ```python

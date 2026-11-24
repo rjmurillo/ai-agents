@@ -6,6 +6,8 @@ review-by: 2026-07-11
 
 # Tell, Don't Ask
 
+<!-- doc-accuracy: external-sdk dotnet -- C# examples use the .NET base class library, not this repository -->
+
 > "Tell objects what to do, don't ask them for data and act on it yourself."
 
 Attribution: Pragmatic Programmers, related to Law of Demeter.

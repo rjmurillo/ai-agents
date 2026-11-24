@@ -6,6 +6,8 @@ review-by: 2026-07-11
 
 # Programming by Intention
 
+<!-- doc-accuracy: external-sdk dotnet -- C# examples are illustrative .NET code, not this repository -->
+
 Express intent over implementation. Write code that reads like a description of what it does, not how it does it.
 
 ## The Sergeant Pattern

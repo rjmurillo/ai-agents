@@ -1,5 +1,7 @@
 # Advanced Calibration Notes
 
+<!-- doc-accuracy: external-sdk Stripe -- examples call the Stripe SDK, not this repository -->
+
 Supplement to the five quality sections in [Calibration Examples](calibration-examples.md).
 
 ## How assess.py scores coupling

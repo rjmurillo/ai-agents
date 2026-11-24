@@ -1,5 +1,7 @@
 # Frontmatter Parsing: Buy vs Build vs Extend Evaluation
 
+<!-- doc-accuracy: external-sdk python-frontmatter -- Python examples call python-frontmatter and PyYAML, not this repository -->
+
 **Date**: 2026-09-16
 **Driving issue**: [#5275](https://github.com/rjmurillo/ai-agents/issues/5275) (Three ADR frontmatter parsers disagree on closing-fence strictness)
 **Depth tier**: Quick (Phase 0 of `buy-vs-build-framework`)

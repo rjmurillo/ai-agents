@@ -1,5 +1,7 @@
 # Strategic Analysis: Claude Code PowerShell Performance
 
+<!-- doc-accuracy: external-sdk PowerShell-SDK -- C# examples use the PowerShell hosting SDK and Newtonsoft.Json, not this repository -->
+
 **Date**: 2025-12-23
 **Session**: 80
 **Status**: In Progress

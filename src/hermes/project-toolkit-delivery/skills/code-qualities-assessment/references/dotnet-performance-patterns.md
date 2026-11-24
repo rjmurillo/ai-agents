@@ -7,6 +7,8 @@ note: Zero-Allocation Coroutines wiki page not found. Content focuses on allocat
 
 # .NET Performance Patterns for Quality Assessment
 
+<!-- doc-accuracy: external-sdk dotnet -- C# examples use the .NET base class library, not this repository -->
+
 Allocation-free and performance-conscious patterns relevant to code quality scoring. These patterns affect testability, coupling, and encapsulation scores.
 
 ## Allocation-Free Patterns

@@ -1,5 +1,7 @@
 # .NET BCL-Grade Code Standards
 
+<!-- doc-accuracy: external-sdk dotnet -- C# examples use the .NET base class library and xUnit, not this repository; ADR-124 tracks declaration proof -->
+
 > **Status**: Canonical Source of Truth
 > **Last Updated**: 2026-02-21
 > **RFC 2119**: This document uses RFC 2119 key words.

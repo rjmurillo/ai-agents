@@ -1,5 +1,7 @@
 # Integration Patterns Reference
 
+<!-- doc-accuracy: external-sdk NextAuth -- TypeScript examples use NextAuth, Prisma, and TanStack Query, not this repository -->
+
 ## Package Manager Detection
 
 | File | Package Manager | Install Command |
