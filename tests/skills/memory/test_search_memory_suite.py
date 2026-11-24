@@ -446,6 +446,18 @@ class TestMainFunction:
         assert output["SearchStatus"]["SerenaSucceeded"] is False
         assert output["Diagnostic"]["RepositoryNotes"]["MemoryCount"] == 1
 
+    def test_missing_explicit_store_is_not_reported_as_succeeded(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        missing = tmp_path / "no-such-store"
+
+        assert main(["retry", "--serena-path", str(missing), "--episodes-path", str(missing)]) == 0
+
+        status = json.loads(capsys.readouterr().out)["SearchStatus"]
+        assert status["SerenaQueried"] is True
+        assert status["SerenaSucceeded"] is False
+        assert status["EpisodesSucceeded"] is False
+
     def test_empty_results(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         serena = tmp_path / "memories"
         serena.mkdir()

@@ -388,11 +388,13 @@ def main(argv: list[str] | None = None) -> int:
             for warning in token_budget["Warnings"]:
                 print(f"WARNING: {warning}", file=sys.stderr)
     else:
+        # A queried store that is not a directory returned no hits by absence,
+        # not by search, so report it as not succeeded.
         search_status = {
             "SerenaQueried": serena_path is not None,
-            "SerenaSucceeded": serena_path is not None,
+            "SerenaSucceeded": serena_path is not None and serena_path.is_dir(),
             "EpisodesQueried": True,
-            "EpisodesSucceeded": True,
+            "EpisodesSucceeded": episodes_path.is_dir(),
         }
         if notes_path is not None:
             search_status.update(RepositoryNotesQueried=True, RepositoryNotesSucceeded=True)
