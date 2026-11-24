@@ -15,13 +15,23 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
+# ADR-047: this file's own plugin lib wins. The environment root is the
+# fallback for a copy outside its plugin.
+_LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+_PLUGIN_ROOT = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+if _PLUGIN_ROOT and not os.path.isfile(_LIB_DIR / "hook_utilities" / "scan_rules.py"):
+    _LIB_DIR = Path(_PLUGIN_ROOT) / "lib"
+if not os.path.isdir(_LIB_DIR):
+    raise RuntimeError(f"Plugin lib not found at {_LIB_DIR}. Set CLAUDE_PLUGIN_ROOT.")
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
 
-from hook_utilities.scan_rules import parse_scan_rules
+from hook_utilities.scan_rules import parse_scan_rules  # noqa: E402
 
 # Allow sibling-module import of scan_principles_core when this script is run
 # directly or loaded via importlib (tests). The scripts directory is not a

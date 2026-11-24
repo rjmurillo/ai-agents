@@ -47,8 +47,8 @@ ReviewedFinding = tuple[str, str, int, str]
 #   read-only ``!`git ...``` context lines in two SKILL.md files.
 # - python_os_environ: a reference example that drops CI variables from a child
 #   process environment.
-# - invisible_unicode: a literal byte-order mark passed to ``lstrip`` so a SKILL.md
-#   that starts with one still parses.
+# The invisible_unicode entry for skillforge's ``_conformance_parse.py`` was
+# dropped after #7531 wrote that byte-order mark as an ``﻿`` escape.
 _GH_ISSUE = "skills/github/scripts/issue/check_existing_pr_for_issue.py"
 FORCE_ALLOWED_FINDINGS: dict[str, frozenset[ReviewedFinding]] = {
     "project-toolkit-delivery": frozenset(
@@ -117,12 +117,6 @@ FORCE_ALLOWED_FINDINGS: dict[str, frozenset[ReviewedFinding]] = {
     ),
     "project-toolkit-authoring": frozenset(
         {
-            (
-                "invisible_unicode",
-                "skills/skillforge/scripts/_conformance_parse.py",
-                323,
-                "ad52dc0382dc78c25e2fa1c5647ea1c2e37bdad5479c7609db76fd47fbb8681d",
-            ),
             (
                 "python_os_environ",
                 "skills/skillforge/references/script-design-rules.md",
