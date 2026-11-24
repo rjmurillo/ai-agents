@@ -420,8 +420,8 @@ def test_parse_frontmatter_rejects_trailing_text_after_the_fence():
 
     This parser's fence used to be `text.find("\\n---", 3)`, a substring search
     that accepted any line merely starting with three dashes. It now shares
-    `scripts/validation/frontmatter_contract.py` with every other ADR-adjacent
-    parser, so a forged close is refused here too.
+    `scripts/hook_utilities/frontmatter_block.py` with every other parser, so a
+    forged close is refused here too.
     """
     text = "---\nmodel: opus\n--- nope\nBody.\n"
     assert sc.parse_frontmatter(text) == {}

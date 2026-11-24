@@ -74,6 +74,12 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.hook_utilities.frontmatter_block import split_frontmatter  # noqa: E402
+
 SECTIONS_TO_COMPARE = (
     "Core Identity",
     "Core Mission",
@@ -356,11 +362,16 @@ class AgentResult:
 
 
 def remove_yaml_frontmatter(content: str) -> str:
-    """Remove YAML frontmatter from markdown content."""
-    match = re.match(r"^---\r?\n[\s\S]*?\r?\n---\r?\n([\s\S]*)$", content)
-    if match:
-        return match.group(1)
-    return content
+    """Remove YAML frontmatter from markdown content.
+
+    Locates the block with ``scripts/hook_utilities/frontmatter_block.py``. The
+    body starts on the line after the closing fence line, so blank lines that
+    follow the fence are kept. Content with no complete block is returned as is.
+    """
+    split = split_frontmatter(content)
+    if not split.found:
+        return content
+    return content[split.fence_end :]
 
 
 # CommonMark fenced code block opener/closer: 0-3 leading spaces, then three

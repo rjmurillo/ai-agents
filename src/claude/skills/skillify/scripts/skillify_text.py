@@ -5,9 +5,32 @@ Frontmatter, markdown sections, list counting, and tokenizing. Stdlib only.
 
 from __future__ import annotations
 
+import os
 import re
+import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from pathlib import Path
+
+# ADR-047 keeps this bootstrap inline because imports need sys.path first.
+# This file's own plugin lib wins when it holds the shared frontmatter parser,
+# so a foreign or older plugin root in the environment cannot shadow it. The
+# environment root is the fallback for a script copied outside its plugin.
+_PLUGIN_ROOT = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+_LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+if _PLUGIN_ROOT and not os.path.isfile(_LIB_DIR / "hook_utilities" / "frontmatter_block.py"):
+    _LIB_DIR = Path(_PLUGIN_ROOT) / "lib"
+
+if not os.path.isdir(_LIB_DIR):
+    raise RuntimeError(
+        "Expected portability helper lib directory not found: "
+        f"{_LIB_DIR}. Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT to the "
+        "plugin root, or run from an ai-agents checkout."
+    )
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from hook_utilities.frontmatter_block import split_frontmatter  # noqa: E402
 
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
 KEY_RE = re.compile(r"^([A-Za-z0-9_-]+):\s*(.*)$")
@@ -49,17 +72,17 @@ class SkillifyError(Exception):
 def parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
     """Split YAML-ish frontmatter into top-level string values and the body.
 
+    The fence rule is ``hook_utilities.frontmatter_block.split_frontmatter``.
+
     Reads top-level keys with scalar, folded, literal, or quoted values.
     Indented lines under a key, including a nested map, are appended to that
     key's value as plain text. No nested structure is parsed.
     """
-    lines = text.lstrip(BOM).splitlines()
-    if not lines or lines[0].strip() != "---":
-        return {}, "\n".join(lines)
-    end = next((i for i in range(1, len(lines)) if lines[i].strip() == "---"), None)
-    if end is None:
-        return {}, "\n".join(lines)
-    return _top_level_values(lines[1:end]), "\n".join(lines[end + 1 :])
+    text = text.lstrip(BOM)
+    split = split_frontmatter(text)
+    if not split.found:
+        return {}, "\n".join(text.splitlines())
+    return _top_level_values(split.raw.splitlines()), "\n".join(split.body.splitlines())
 
 
 def _top_level_values(lines: Sequence[str]) -> dict[str, str]:

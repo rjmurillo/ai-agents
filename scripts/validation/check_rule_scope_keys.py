@@ -61,9 +61,13 @@ if str(_SCRIPT_DIR) not in sys.path:
 
 import yaml  # noqa: E402
 from instruction_budget_globs import (  # noqa: E402
-    _FRONTMATTER_RE,
     UnsupportedApplyToError,
     _UniqueKeySafeLoader,
+)
+
+from scripts.hook_utilities.frontmatter_block import (  # noqa: E402
+    decode_frontmatter_yaml,
+    split_frontmatter,
 )
 
 RULES_SUBDIR = Path(".claude") / "rules"
@@ -82,15 +86,19 @@ def _frontmatter(text: str) -> dict[str, object]:
     divergence the gate exists to prevent, so a duplicate key is a violation
     rather than a coin flip. Reuses `_UniqueKeySafeLoader` from the
     mirror-side budget parser, which already rejects this class; a second
-    implementation would be a second thing to keep in step.
+    implementation would be a second thing to keep in step. The block comes
+    from `scripts/hook_utilities/frontmatter_block.py`.
 
     Raises `UnsupportedApplyToError` for a duplicate key and `yaml.YAMLError`
     for unparsable YAML. The caller turns both into a finding, not a crash.
     """
-    match = _FRONTMATTER_RE.match(text)
-    if match is None:
+    split = split_frontmatter(text)
+    if not split.found:
         return {}
-    data = yaml.load(match.group(1), Loader=_UniqueKeySafeLoader)
+    # Drop the fence newlines so YAML error marks match what this gate has
+    # always reported: line 1 is the block's first line.
+    raw = split.raw.removeprefix("\n").removesuffix("\n")
+    data = decode_frontmatter_yaml(raw, yaml, loader=_UniqueKeySafeLoader)
     return data if isinstance(data, dict) else {}
 
 

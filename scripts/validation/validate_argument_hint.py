@@ -25,6 +25,12 @@ from pathlib import Path
 
 import yaml
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from scripts.hook_utilities.frontmatter_block import (
+    split_frontmatter,
+)
+
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _SCRIPT_DIR.parents[1]
 
@@ -60,15 +66,16 @@ def _single_quote_text(value: str) -> str:
 
 
 def _raw_frontmatter_lines(text: str) -> list[str] | None:
-    """Return frontmatter lines without fences, or None when absent."""
+    """Return frontmatter lines without fences, or None when absent.
 
-    lines = text.splitlines()
-    if not lines or lines[0] != "---":
+    The fences come from ``scripts/hook_utilities/frontmatter_block.py``. The
+    first returned line is file line 2, so callers number from 2.
+    """
+
+    split = split_frontmatter(text)
+    if not split.found:
         return None
-    for index in range(1, len(lines)):
-        if lines[index] == "---":
-            return lines[1:index]
-    return None
+    return text.splitlines()[1 : len(text[: split.raw_end].splitlines())]
 
 
 def _strip_inline_comment(raw_value: str) -> str:

@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -305,6 +306,492 @@ class TestCsharpPreprocessorSymbols:
         result = _extract_identifiers(code, "csharp")
 
         assert "FakeWidget" in result
+
+
+class TestCsharpLiteralAndAttributeArguments:
+    """Names in C# literals and attribute arguments are data, not symbols."""
+
+    LITERALS = (
+        ('var s = "Hello WidgetFactory";', "WidgetFactory"),
+        ('var s = @"C:\\Temp\\VerbatimName";', "VerbatimName"),
+        ('var s = @"say ""QuotedName"" now";', "QuotedName"),
+        ('var s = $"Hi InterpText {x}";', "InterpText"),
+        ('var s = $@"Path InterpVerbatim {x}";', "InterpVerbatim"),
+        ('var s = """\nRawBlockName\n""";', "RawBlockName"),
+        ('var s = "Escaped \\" StillString";', "StillString"),
+        ("var c = 'Q'; var d = '\\''; var e = \"CharTail\";", "CharTail"),
+        ('var s = $"Total {total:N2} at {when:HH:mm}";', "N2"),
+        ('var s = $"{when:HH:mm} done";', "HH"),
+        ('var s = $$"""\n{{price:Currency}}\n""";', "Currency"),
+        ('var s = $"{order?.Total:N2}";', "N2"),
+        ('var s = $"{a ?? b:C2}";', "C2"),
+        ('var s = $"{items?[0]:X8}";', "X8"),
+        ('var s = $"{d:HH\\"mm}";', "HH"),
+        ('var s = $@"{d:HH""mm}";', "HH"),
+        ('var s = $"{record.Total:N2}";', "N2"),
+        ('foreach (var record in rs) { var s = $"{record.Total:D5}"; }', "D5"),
+        ('var s = $"{where:N2} {var:F1} {item.record:C2} {this.@class:X4}";', "N2"),
+        ('var s = $"{item.record:C2} {this.@class:X4}";', "X4"),
+        ('var s = $"{var:F1}";', "F1"),
+    )
+
+    def test_names_in_literals_are_not_extracted(self) -> None:
+        for line, name in self.LITERALS:
+            code = f"{line}\nvar w = new RealWidget();"
+
+            result = _extract_identifiers(code, "csharp")
+
+            assert name not in result, line
+            assert "RealWidget" in result, line
+
+    def test_interpolation_hole_stays_code(self) -> None:
+        code = 'var s = $"Total {Ledger.Sum()} and {{Braced}}";'
+
+        result = _extract_identifiers(code, "csharp")
+
+        assert "Ledger" in result
+        assert "Total" not in result
+        assert "Braced" not in result
+
+    def test_unterminated_string_stays_visible(self) -> None:
+        """A string with no closing quote is a typo; its text is not hidden."""
+        for code in (
+            'var s = "open TrailingName\nvar w = new FakeWidget();',
+            'var c = "x; var w = new FakeWidget();',
+            "var c = 'x; var w = new FakeWidget();",
+        ):
+            result = _extract_identifiers(code, "csharp")
+
+            assert "FakeWidget" in result, code
+        assert "TrailingName" in _extract_identifiers('var s = "open TrailingName', "csharp")
+
+    def test_attribute_named_arguments_are_not_extracted(self) -> None:
+        code = '[DllImport("k32", EntryPoint = "Beep", SetLastError: true)]\nvoid F() {}'
+
+        result = _extract_identifiers(code, "csharp")
+
+        assert "EntryPoint" not in result
+        assert "SetLastError" not in result
+        assert "Beep" not in result
+
+    def test_attribute_name_and_typeof_argument_stay_code(self) -> None:
+        code = "[TypeConverter(typeof(FakeConverter), Mode = Kind.Fast)]\nclass C {}"
+
+        result = _extract_identifiers(code, "csharp")
+
+        assert "TypeConverter" in result
+        assert "FakeConverter" in result
+        assert "Kind" in result
+        assert "Mode" not in result
+
+    def test_parameter_attribute_named_argument_is_not_extracted(self) -> None:
+        code = "void F([Range(Minimum = 1)] int count) {}"
+
+        result = _extract_identifiers(code, "csharp")
+
+        assert "Minimum" not in result
+        assert "Range" in result
+
+    # Each case keeps a made-up name in real code visible next to a literal.
+    REAL_CODE_STAYS_VISIBLE = (
+        ('var s = $"""\n{FakeWidget.Make()}\n""";', "FakeWidget"),
+        ('var s = $$"""\n{x} {{FakeWidget.Make()}}\n""";', "FakeWidget"),
+        ('var s = @"open\nvar w = new FakeWidget();', "FakeWidget"),
+        ('var s = """\nvar w = new FakeWidget();', "FakeWidget"),
+        ("var c = '\\\nvar w = new FakeWidget(); var d = 'x';", "FakeWidget"),
+        ('var s = $"{F("}")} tail"; var w = new FakeWidget();', "FakeWidget"),
+        ("Run([Build(Size: 3)]);", "Size"),
+        ("var r = xs switch { [Point(MissingX: 1)] @rest => 1, _ => 0 };", "MissingX"),
+        ("var r = xs switch { [Point(MissingY: 1)] get => 1, _ => 0 };", "MissingY"),
+        ("[1, Build(MissingSize: 3)]", "MissingSize"),
+        ("var r = xs switch { [Point(MissingZ: 1)] rest 1, _ => 0 };", "MissingZ"),
+        ("Use([Pick(flag ? FakeType : other)]);", "FakeType"),
+        ("List<object> l =\n[\n    Make(flag ? MadeUpType : null),\n];", "MadeUpType"),
+        ("Run(\n    [Build(Size: 3)],\n    other);", "Size"),
+        ("Run(\n    other,\n    [Build(Size: 3)]\n);", "Size"),
+        ("Run(\n    [Build(Size: 3)] // note\n);", "Size"),
+        ("Process(\n    [\n        Create(name: x, FakeOpt: y),\n    ]\n);", "FakeOpt"),
+        ("Process(\n    [\n        Make(new W { A = 1, FakeProp = 2 }),\n    ]\n);", "FakeProp"),
+        ("Process(\n    [\n        Items.Select(FakeType => 1),\n    ]\n);", "FakeType"),
+        ("var r = arr switch {\n    [Point(FakeX: 1), ..] when flag => 1,\n};", "FakeX"),
+        ("if (grid[i][Find(FakeArg: 2)] is null) {}", "FakeArg"),
+        ("var v = grid[i][Compute(FakeArg: 2)]\n    is int n;", "FakeArg"),
+        ("var d = new Dictionary<K, int> {\n    [Key(FakeName: 1)] = 2,\n};", "FakeName"),
+        ("handlers[i](FakeParam: 1);", "FakeParam"),
+        ('var s = $"{\n/* " */ var z = FakeWidget.Go();', "FakeWidget"),
+        ("var r = arr switch {\n    [Point(FakeX: 1), ..] rest => 1,\n};", "FakeX"),
+        ("var r = xs switch { [] => 0,\n    [Point(FakeX: 1)] one when ok => 1 };", "FakeX"),
+        ("if (t is (1, [Point(FakeX: 1)] rest)) {}", "FakeX"),
+        ("if (t is ([Point(FakeX: 1)] rest, 2)) {}", "FakeX"),
+        ("var r = (a, b) switch { ([Point(FakeX: 1)] xs, _) => 1 };", "FakeX"),
+        ("if (o is [_, [Point(FakeX: 1)] inner]) {}", "FakeX"),
+        ("if (o is { Items: [_, [Point(FakeX: 1)] w] }) {}", "FakeX"),
+        ("var r = x switch { [Point(FakeX: 1)] v and { Length: 1 } => 1 };", "FakeX"),
+        ("if (o is Pair([Point(FakeX: 1)] v and var w, _)) {}", "FakeX"),
+        ("var r = x switch { [Point(FakeX: 1)] v or [] => 1 };", "FakeX"),
+        ("var q = '\"'; var w = new FakeWidget();", "FakeWidget"),
+        ('var s = $"{Ledger.Sum():N2} {(ok ? FakeWidget.A : 0)}";', "FakeWidget"),
+        ('var s = $"{Ledger.Sum():N2}";', "Ledger"),
+        ('var s = $"{global::FakeWidget.Name}";', "FakeWidget"),
+        ('$"{\nvar e = cond ? [Z(A: 1)] : [];\nvar a = new FakeWidget(); }', "FakeWidget"),
+        ("var d = '\\''; var w = new FakeWidget();", "FakeWidget"),
+        ('var s = $"{F(name: FakeWidget.A)}";', "FakeWidget"),
+        ('var s = $"{(ok ? 0 : FakeWidget.A)}";', "FakeWidget"),
+        ('var s = $"{ok ? RealY.A : FakeWidget.B}";', "FakeWidget"),
+        ('var s = $"{\nvar e = cond ? a : new FakeWidget(); }";', "FakeWidget"),
+        ('var s = $"{value\nlabel: FakeWidget.Go(); }";', "FakeWidget"),
+        ('var s = $"{name; class A : FakeBase { }', "FakeBase"),
+        ('var s = $"{x; done: FakeWidget.Go(); }', "FakeWidget"),
+        ('var s = $"{a ?? b ? c : FakeWidget.B}";', "FakeWidget"),
+        ('var s = $"{x:N2\nvar w = new FakeWidget(); }";', "FakeWidget"),
+        ('var s = $"{d:HH\\"mm}"; } var w = new FakeWidget();', "FakeWidget"),
+        ('var s = $"{a?.b class A : FakeBase { }', "FakeBase"),
+        ('var s = $"{a ?? b class A : FakeBase { }', "FakeBase"),
+        ('var s = $"{x: {new FakeWidget()} }";', "FakeWidget"),
+        ('var s = $"{c ?[1] : FakeWidget.B}";', "FakeWidget"),
+        ('var s = $"{x /* a\n */ class A : FakeBase { }', "FakeBase"),
+        ('var s = $"{x?[0] case 1: FakeWidget.Go(); }', "FakeWidget"),
+        ('var s = $"{d:a\\}"; var w = new FakeWidget();', "FakeWidget"),
+        ('var s = $"{d"; var w = new FakeWidget();', "FakeWidget"),
+        ('var s = $"{d:a"; var w = new FakeWidget();', "FakeWidget"),
+        ('var s = $"{F("x")} {d"; var w = new FakeWidget();', "FakeWidget"),
+        ('var s = $$"""{{x}"""; var w = new FakeWidget();', "FakeWidget"),
+        ('var s = $$"""{{x:N2}"""; var w = new FakeWidget();', "FakeWidget"),
+        ('var s = $"{c ??.case 1: FakeWidget.Go(); }', "FakeWidget"),
+        ('var s = $"{d"; var w = new FakeWidget("x");', "FakeWidget"),
+        ('var s = $"{d:N2"; var w = new FakeWidget("x");', "FakeWidget"),
+        ('var s = $"{d"; var w = new FakeWidget(); var t = "x";', "FakeWidget"),
+        ('var s = $"{d"; var w = new FakeWidget($"{y}");', "FakeWidget"),
+        ('var s = $"{d"; [FakeAttr("x")] class C {}', "FakeAttr"),
+        ('Console.WriteLine($"T: {o.Total"); var v = new FakeService("db");', "FakeService"),
+        ('var s = $@"{d"; var w = new FakeWidget();', "FakeWidget"),
+        ('var s = @$"{d"; var w = new FakeWidget();', "FakeWidget"),
+        ('var p = $@"C:\\{dir"; var v = new FakeService();', "FakeService"),
+        ('var s = $"{d"; var w = new FakeWidget(); // C:\\"', "FakeWidget"),
+        ('var s = $"{\n    FakeWidget.Make() }";', "FakeWidget"),
+        ('var s = $"{F("x)}"; var w = new FakeWidget();', "FakeWidget"),
+        ('var s = $"{ $"{x "\n} FakeWidget.Go(); var t = "y";', "FakeWidget"),
+        ('var s = $"{ $"{x"\nvar a = 1;\n} var t = new FakeThing("x");', "FakeThing"),
+        ('var s = $"{F(@"FakeLit")}"; var w = new FakeWidget();', "FakeWidget"),
+        ('var s = $"{\n    F("x")\n}"; FakeWidget.Go();', "FakeWidget"),
+        ('var s = $"{x:N2\n}"; FakeWidget.Go();', "FakeWidget"),
+        ('var s = $"{d"; var w = new FakeWidget();\nif (x) { y(); }\n}', "FakeWidget"),
+        ('var s = $@"{x}\nVerbatimTail" + Fake.A; var w = new FakeWidget();', "FakeWidget"),
+        ('var s = $$"""\n{{done: FakeWidget.Go(); }\n"""', "FakeWidget"),
+        ('var s = $@"{a // don\'t\n} {FakeWidget.Go()}";', "FakeWidget"),
+    )
+
+    # Real attribute sections whose named arguments are blanked.
+    ATTRIBUTE_FORMS = (
+        ('[DllImport("k", EntryPoint = "B")] /* x */ static extern void F();', "DllImport"),
+        ('[DllImport("k", @EntryPoint = "B")]\nstatic extern void G();', "DllImport"),
+        ('[assembly: Marker(EntryPoint = "B")]', "Marker"),
+        ("int P { [Attr(EntryPoint = 1)] get => 1; }", "Attr"),
+        ("[Attr(EntryPoint = 1)] @event E;", "Attr"),
+        ("[Benchmark(EntryPoint = true)]\n(int, int) Compute() {}", "Benchmark"),
+        ("class C {\n    [Attr(EntryPoint = 1)]\n    ~C() {}\n}", "Attr"),
+        ("// leading comment\n[Attr(EntryPoint = 1)]\npublic void M() {}", "Attr"),
+        ("void A() {}\n[Other]\n[Attr(EntryPoint = 1)]\npublic void M() {}", "Attr"),
+        ('enum E {\n    [Display(EntryPoint = "r")] Red,\n}', "Display"),
+        ('enum E { Red, [Display(EntryPoint = "g")] Green }', "Display"),
+        ('int P {\n    [Obsolete(EntryPoint = "X")] get => _p;\n}', "Obsolete"),
+        ('int P { get => 1; [Obsolete(EntryPoint = "X")] set => _p = value; }', "Obsolete"),
+        ("void F([Range(EntryPoint = 1)] int count, [In] Foo p) {}", "Range"),
+        ("[Attr(\n    EntryPoint\n        = 1)]\npublic void M() {}", "Attr"),
+    )
+
+    def test_attribute_forms_blank_named_arguments(self) -> None:
+        for code, attribute in self.ATTRIBUTE_FORMS:
+            result = _extract_identifiers(code, "csharp")
+
+            assert "EntryPoint" not in result, code
+            assert attribute in result, code
+
+    def test_unclosed_string_leaves_the_snippet_unblanked(self, caplog) -> None:
+        """Accepted over-report: a string that never closes stops all blanking."""
+        code = 'x = $"{a\n' * 200 + '[Conditional("DEBUG")]\nvar w = new FakeWidget();'
+        closed = '[Conditional("DEBUG")]\nvar w = new FakeWidget();'
+
+        with caplog.at_level("WARNING"):
+            result = _extract_identifiers(code, "csharp")
+            control = _extract_identifiers(closed, "csharp")
+
+        assert "DEBUG" in result
+        assert "FakeWidget" in result
+        assert "DEBUG" not in control
+        assert "could not read the snippet" in caplog.text
+
+    def test_valid_raw_verbatim_and_char_literals_still_blank(self) -> None:
+        cases = (
+            ('var a = """\n    RawLine\n    """;\nvar w = new FakeWidget();', "RawLine"),
+            ('var a = """Single RawWord""";\nvar w = new FakeWidget();', "RawWord"),
+            ('var a = @"single VerbWord";\nvar w = new FakeWidget();', "VerbWord"),
+            ('var s = $"""{"""x"""} RawNest""";\nvar w = new FakeWidget();', "RawNest"),
+            ('var a = $@"one {x} VerbHole ""q""";\nvar w = new FakeWidget();', "VerbHole"),
+            ('var u = @"one LineHid"u8;\nvar w = new FakeWidget();', "LineHid"),
+            (
+                "var c = '\\x41'; var d = '\\u00e9'; var e = '\\''; var f = 'Q';\n"
+                "var w = new FakeWidget();",
+                "x41",
+            ),
+            ("var c = '\\U0001F600'; var e = 'Q'; var w = new FakeWidget();", "U0001F600"),
+        )
+        for code, literal in cases:
+            result = _extract_identifiers(code, "csharp")
+
+            assert literal not in result, code
+            assert "FakeWidget" in result, code
+
+    def test_multi_line_verbatim_leaves_the_snippet_unblanked(self) -> None:
+        """Accepted over-report: a verbatim string that spans lines is not blanked.
+
+        Its close may be a later literal's quote, borrowed because its own
+        close is missing, so the whole snippet is scanned as raw code.
+        """
+        cases = (
+            ('var a = @"first\nVerbLine";\nvar w = new FakeWidget();', "VerbLine"),
+            ('var a = $@"first\nTotal = {x} VerbHole";\nvar w = new FakeWidget();', "VerbHole"),
+            (
+                "var q = @\"SELECT SqlCol\n FROM Users\n WHERE Status = 'Active'\";\n"
+                "var w = new FakeWidget();",
+                "SqlCol",
+            ),
+            ('var j = @"{\n  ""JsonKey"": 1\n}";\nvar w = new FakeWidget();', "JsonKey"),
+            ('var a = @"x\nVerbTail"; var b = "HidAq";\nvar w = new FakeWidget();', "HidAq"),
+            ('var q = @"SqlB\nWHERE (x)";\nvar w = new FakeWidget();', "SqlB"),
+        )
+        for code, literal in cases:
+            result = _extract_identifiers(code, "csharp")
+
+            assert literal in result, code
+            assert "FakeWidget" in result, code
+
+    def test_nested_verbatim_string_in_hole_is_blanked(self) -> None:
+        result = _extract_identifiers('var s = $"{F(@"FakeLit")}";', "csharp")
+
+        assert "FakeLit" not in result
+
+    def test_hole_over_the_line_cap_is_left_visible(self) -> None:
+        body = "    a +\n" * 17
+        code = 'var s = $"{\n' + body + '    FakeOperand\n} LitText";'
+        short = 'var s = $"{\n' + "    a +\n" * 3 + '    FakeOperand\n} LitText";'
+
+        over = _extract_identifiers(code, "csharp")
+        under = _extract_identifiers(short, "csharp")
+
+        assert "FakeOperand" in over
+        assert "FakeOperand" in under
+        assert "LitText" not in under
+
+    def test_recursion_limit_falls_back_to_unblanked_code(self, caplog) -> None:
+        code = '$"{' * 2000 + '"Quoted" [Attr(Named = 1)]' + '}"' * 2000
+
+        with caplog.at_level("WARNING"):
+            result = _extract_identifiers(code, "csharp")
+
+        assert "Quoted" in result
+        assert "Named" in result
+        assert "could not read the snippet" in caplog.text
+
+    def test_real_code_beside_literals_stays_visible(self) -> None:
+        for code, name in self.REAL_CODE_STAYS_VISIBLE:
+            result = _extract_identifiers(code, "csharp")
+
+            assert name in result, code
+
+    def test_raw_interpolated_text_is_blanked_around_holes(self) -> None:
+        code = 'var s = $$"""\nRawText {Literal} {{Ledger.Sum()}}\n""";'
+
+        result = _extract_identifiers(code, "csharp")
+
+        assert "Ledger" in result
+        assert "RawText" not in result
+        assert "Literal" not in result
+
+    def test_unterminated_verbatim_and_raw_stay_visible(self) -> None:
+        """A verbatim or raw string with no close is a typo; nothing is hidden."""
+        for code in (
+            'var s = @"open OpeningName\nvar w = new FakeWidget();',
+            'var s = """open OpeningName var w = new FakeWidget();',
+            'var s = $"{x?.y : $$"""{{ var a = new FakeWidget(); }',
+            'var a = """x;\nvar w = new FakeWidget();\nvar b = """\nok\n""";',
+            'var a = """\n    text\nvar w = new FakeWidget();\nvar b = """\n    x\n    """;',
+            'var s = $"""\n    {Order.Total\n    """;\n'
+            'FakeWidget.Go();\nvar t = """\n    x\n    """;',
+            'var a = """abc;\nFakeWidget.Go();\nvar b = """\n    x\n    """;',
+            'var p = @"C:\\temp;\nvar w = new FakeWidget();\nConsole.WriteLine("done");',
+            'var a = @"say ""hi"";\nFakeWidget.Go();\nvar b = "x";',
+            "var c = 'ab; var w = new FakeWidget(); var d = 'x';",
+            'Log(@"line one\nline two", Level.Info, "tag"); FakeWidget.Go();',
+            'var s = @"a\nb" + FakeWidget.Name + "c";',
+            'Foo(@"a\nb"); FakeWidget.Bar(MadeUp1.X, "y");',
+            'Assert.Equal(@"line1\nline2", FakeWidget(Expected, "x"));',
+            "var a = "
+            + '"""'
+            + "\ntext\nvar w = new FakeWidget();\nvar b = "
+            + '"""'
+            + "\nx\n"
+            + '"""'
+            + ";",
+            "M('a,FakeWidget,'b');",
+            'Log($@"first\nsee http://host/{id}\nthird", FakeWidget.X, "y");',
+            'var a = @"x;\nvar w = new FakeWidget();\nLog(p + " done");',
+            'var a = @"x;\nFakeWidget.Go();\nvar s = a + ", " + b;',
+            'var a = @"x;\nFakeWidget.Go();\nstring Sep() => " ";',
+            'var a = @"x;\nFakeWidget.Go();\nswitch (k) { case ".": break; }',
+            'var a = @"x;\nFakeWidget.Go();\nreturn a + " ";',
+            'var a = $@"x {y};\nFakeWidget.Go();\nvar s = a + " ";',
+            'var a = @"x;\nvar b = "lit"; FakeWidget.Go(); var c = "z";',
+            'var a = @"x;\nM("lit", FakeWidget.Go(), "z");',
+            'var a = @"say ""hi"";\nvar b = "x"; FakeWidget.Go("y");',
+            'var a = @"say ""hi"";\nFakeWidget.Go();\nvar b = c + ", ";',
+            "var s = $"
+            + '"""'
+            + '\n    {Wrap(\n        $"x", FakeWidget.Name)}\n    '
+            + '"""'
+            + ";",
+            'var s4 = $@"x {A.X} ""q"";\nFakeWidget.Go();\nvar s5 = '
+            + '"""'
+            + "\n    raw\n    "
+            + '"""'
+            + ";",
+            'var s0 = $@"x {A.X} ""q"";\nFakeWidget.Go();\nvar s1 = $"""\n    q\n    """;',
+            'var s0 = @"x ""q"";\nFakeWidget.Go();\nvar s1 = "y";',
+            'var s0 = @"a ""q"" b;\nFakeWidget.Go();\n/* " { */ Other.Go();',
+            'var s0 = @"a ""q"" b;\nFakeWidget.Go();\nvar c5 = \'"\';',
+            'var s1 = $@"x {A.X} ""q"";\nFakeWidget.Go();\nvar c2 = \'{\';',
+            'var sql = @"SELECT *\nFROM t WHERE a = (" + @"SELECT id\nFROM u)"; '
+            'FakeWidget.Run(sql); Log("done");',
+            'var a = @"x\nk=" + y; /* a\nsay "hi */ FakeWidget.Go(); var s = "z";',
+            'var a = @"SELECT\nWHERE x ="; var b = @"multi\nline" + FakeWidget.Go() + @"z";',
+            'var b = @"x\ny =" + $@"multi {\nk} line" + FakeWidget.Go() + "z";',
+            'var a = @"x\ny =" + @"p\nq" + FakeWidget.Go() + "z";',
+            'Run(@"a\nb)", @"\nc"); FakeWidget.Go("x");',
+            'var a = @"x;\nvar b = @"multi\nline" + FakeWidget.Go() + @"z";',
+            'var a = @"x;\nM(); var b = @"line1\nline2"; FakeWidget.Run(); var c = "z";',
+            'var a = @"x;\nFakeWidget.Go();\nLog(\n    ".");',
+            'var a = @"x;\nLog(" + @");\nFakeWidget.Go();\nLog(\n    ".");',
+            'var a = @"x;\nFakeWidget.Go();\nvar q = from c in xs select ".";',
+            "var s = $" + '"""' + '\n    {"unclosed FakeWidget();\n    }\n    ' + '"""' + ";",
+        ):
+            result = _extract_identifiers(code, "csharp")
+
+            assert "FakeWidget" in result, code
+            assert "OpeningName" in result or "OpeningName" not in code, code
+
+    def test_literal_nested_in_a_hole_is_blanked(self) -> None:
+        code = 'var s = $"{Get("NestedKey")} and {Ledger.Sum()}";'
+
+        result = _extract_identifiers(code, "csharp")
+
+        assert "NestedKey" not in result
+        assert "Get" in result
+        assert "Ledger" in result
+
+    def test_empty_strings_and_block_comment_quotes_open_nothing(self) -> None:
+        code = 'var a = ""; /* don\'t " */ var w = new FakeWidget(); var b = @"";'
+
+        result = _extract_identifiers(code, "csharp")
+
+        assert "FakeWidget" in result
+
+    def test_chained_attribute_named_argument_is_not_extracted(self) -> None:
+        code = '[Fact][Trait(Category = "x")]\nvoid F() {}'
+
+        result = _extract_identifiers(code, "csharp")
+
+        assert "Category" not in result
+        assert "Trait" in result
+
+    def test_attribute_before_comment_and_declaration_is_blanked(self) -> None:
+        code = '[Obsolete(DiagnosticId = "X")] // old\npublic void M() {}'
+
+        result = _extract_identifiers(code, "csharp")
+
+        assert "DiagnosticId" not in result
+        assert "Obsolete" in result
+
+    def test_long_marker_run_finishes_quickly(self) -> None:
+        code = "$" * 20000 + "\n" + "([" * 20000 + "\nvar w = new FakeWidget();"
+
+        result = _extract_identifiers(code, "csharp")
+
+        assert "FakeWidget" in result
+
+    def test_many_switch_arm_sections_stay_fast(self) -> None:
+        """Sections sharing one switch brace check it once, so the pass stays linear."""
+        code = "x;\n" * 200000 + " switch {" + "[a(B: 1)] get => 1, " * 4000 + "};"
+        code += "\nvar w = new FakeWidget();"
+        started = time.monotonic()
+
+        result = _extract_identifiers(code, "csharp")
+
+        assert time.monotonic() - started < 2
+        assert "FakeWidget" in result
+
+    def test_crafted_hole_nesting_stays_fast_and_safe(self) -> None:
+        cases = (
+            '$@"{\n' * 40 + "var w = new FakeWidget();",
+            '$"{' * 2000 + "FakeWidget" + '}"' * 2000,
+            '$$"""' + "{{x}}" * 50000 + '"""; var w = new FakeWidget();',
+            "[a]\n" + "//,[b]//\n" * 20000 + ")\nvar w = new FakeWidget();",
+            " " * 50000 + "[" * 20000 + "\nvar w = new FakeWidget();",
+            '$"{' + "a:" * 50000 + "\nvar w = new FakeWidget();",
+            '$$"""' + "{{x:N}}" * 50000 + '"""; var w = new FakeWidget();',
+            '$"{x; ' + "a: {b} " * 20000 + "\nvar w = new FakeWidget();",
+            '$"{d"\n' * 20000 + "var w = new FakeWidget();",
+            '$"{a"' * 20000 + "\nvar w = new FakeWidget();",
+            '$@"{d\n' * 3000 + "var w = new FakeWidget();",
+            '$"{/*\n' * 20000 + "var w = new FakeWidget();",
+            '$"{@"q\n' * 20000 + "var w = new FakeWidget();",
+            'x = $"{a\n' * 3000 + "var w = new FakeWidget();",
+            "x = "
+            + '"""'
+            + "\n" * 1
+            + ("x = " + '"""' + "\n") * 20000
+            + "var w = new FakeWidget();",
+            ("x = $$" + '"""' + "\n{{ a\n") * 3000 + "var w = new FakeWidget();",
+            "var x = " + '$@"{' * 60 + "q" + '\n}"a' * 60 + ";\nvar w = new FakeWidget();",
+            "x = $"
+            + '"""'
+            + "\n"
+            + ("    {/*\n    " + '"""' + "*/x}\n") * 20000
+            + "var w = new FakeWidget();",
+            '"""a""" ' * 320000 + "\nvar w = new FakeWidget();",
+        )
+        for code in cases:
+            started = time.monotonic()
+
+            result = _extract_identifiers(code, "csharp")
+
+            assert time.monotonic() - started < 10, code[:20]
+            assert "FakeWidget" in result, code[:20]
+
+    def test_unclosed_bracket_does_not_reach_later_statements(self) -> None:
+        code = "[Broken(\nvar a = 1;\nvar w = Build(Size: 3);"
+
+        result = _extract_identifiers(code, "csharp")
+
+        assert "Size" in result
+
+    def test_named_argument_in_ordinary_call_stays_code(self) -> None:
+        code = "var w = Build(Size: 3);"
+
+        result = _extract_identifiers(code, "csharp")
+
+        assert "Size" in result
+
+    def test_comment_quote_does_not_open_a_literal(self) -> None:
+        code = "// don't\nvar w = new FakeWidget();"
+
+        result = _extract_identifiers(code, "csharp")
+
+        assert "FakeWidget" in result
+
+    def test_other_languages_keep_string_text(self) -> None:
+        result = _extract_identifiers('let s = "Hello WidgetFactory";', "typescript")
+
+        assert "WidgetFactory" in result
 
 
 class TestExtractQuantitativeClaims:
@@ -2412,6 +2899,57 @@ class TestMain:
         self._csharp_repo(
             tmp_path,
             "#if NETFRAMEWORK\nvar w = new FakeWidget();\n#endif",
+        )
+
+        rc = main(["--target", str(tmp_path), "--format", "json"])
+
+        payload = json.loads(capsys.readouterr().out)
+        assert rc == 10
+        assert payload["gate_result"]["blocking_findings"] == 1
+        symbols = [f["evidence"]["symbol"] for f in payload["compilability_data"]["findings"]]
+        assert symbols == ["FakeWidget"]
+
+    @staticmethod
+    def _csharp_attribute_repo(tmp_path: Path, body: str) -> None:
+        TestMain._csharp_repo(tmp_path, body)
+        (tmp_path / "Marker.cs").write_text(
+            "namespace Demo;\npublic class Marker : Attribute\n{\n"
+            "    public Marker(string symbol) { }\n"
+            "    public string Label { get; set; }\n}\n",
+            encoding="utf-8",
+        )
+
+    def test_names_in_strings_and_attribute_arguments_pass_gate(
+        self, tmp_path: Path, capsys
+    ) -> None:
+        """Names that sit only in literals or attribute arguments are data."""
+        self._csharp_attribute_repo(
+            tmp_path,
+            "public class Demo\n{\n"
+            '    [Marker("DEBUG", Label = "MadeUpLabel")]\n'
+            "    public void Run()\n    {\n"
+            '        var w = new RealWidget();\n        var s = "Hello WidgetFactory";\n'
+            "    }\n}",
+        )
+
+        rc = main(["--target", str(tmp_path), "--format", "json"])
+
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["compilability_data"]["findings"] == []
+        assert rc == 0
+        assert payload["gate_result"]["verdict"] == "PASS"
+
+    def test_unknown_type_beside_string_and_attribute_still_fails_gate(
+        self, tmp_path: Path, capsys
+    ) -> None:
+        """Control: a made-up type in real code in the same block still fails."""
+        self._csharp_attribute_repo(
+            tmp_path,
+            "public class Demo\n{\n"
+            '    [Marker("DEBUG", Label = "MadeUpLabel")]\n'
+            "    public void Run()\n    {\n"
+            '        var w = new FakeWidget();\n        var s = "Hello WidgetFactory";\n'
+            "    }\n}",
         )
 
         rc = main(["--target", str(tmp_path), "--format", "json"])

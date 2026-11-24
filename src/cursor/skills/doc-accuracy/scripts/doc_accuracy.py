@@ -24,6 +24,7 @@ Exit Codes:
 
 import argparse
 import builtins
+import importlib
 import io
 import json
 import logging
@@ -36,6 +37,7 @@ import sys
 import tokenize
 from dataclasses import dataclass
 from pathlib import Path
+from types import ModuleType
 from typing import Any, cast
 
 logger = logging.getLogger(__name__)
@@ -1342,6 +1344,14 @@ def _python_stdlib_imported_names(code: str) -> set[str]:
 _CSHARP_DIRECTIVE_LINE_RE = re.compile(r"^[ \t]*#[ \t]*[a-z]+\b.*$", re.MULTILINE)
 
 
+def _sibling_module(stem: str) -> ModuleType:
+    """Import a sibling script module by name, as ``_same_pr_scan`` does."""
+    scripts_dir = str(Path(__file__).resolve().parent)
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    return importlib.import_module(stem)
+
+
 def _extract_identifiers(code: str, lang: str = "") -> list[str]:
     """Extract potential identifiers from a code snippet.
 
@@ -1356,9 +1366,14 @@ def _extract_identifiers(code: str, lang: str = "") -> list[str]:
 
     For C# (``lang == "csharp"``) preprocessor directive lines are blanked
     first, so ``#if NETFRAMEWORK`` does not report an unresolved symbol
-    (issue #7453). Other languages keep lines starting with ``#``, because
-    JavaScript and TypeScript private members use that prefix, and keep the
-    language-agnostic scan.
+    (issue #7453). Then string and char literal text is blanked, keeping
+    interpolation holes, so ``[Conditional("DEBUG")]`` does not report
+    ``DEBUG``. Named-argument names in attribute argument lists are blanked
+    too, so ``EntryPoint`` in ``[DllImport("k32", EntryPoint = "Beep")]`` is
+    not reported. The attribute name itself stays a checked code reference.
+    Comments are still scanned. Other languages keep lines starting with
+    ``#``, because JavaScript and TypeScript private members use that prefix,
+    and keep the language-agnostic scan.
     """
     stdlib_names: set[str] = set()
     if lang == "python":
@@ -1366,6 +1381,15 @@ def _extract_identifiers(code: str, lang: str = "") -> list[str]:
         stdlib_names = _python_stdlib_imported_names(code)
     elif lang == "csharp":
         code = _CSHARP_DIRECTIVE_LINE_RE.sub("", code)
+        blanked = _sibling_module("csharp_literals").blank_csharp_literals(code)
+        if blanked is None:
+            # An unclosed string, a multi-line verbatim string, or the
+            # recursion limit stopped the scan. Scanning the unblanked code
+            # can only report extra names, never hide one.
+            logger.warning("C# literal scan could not read the snippet; scanning raw code")
+        else:
+            holes = _sibling_module("csharp_holes")
+            code = holes.blank_csharp_attribute_named_args(blanked)
     # Match CamelCase and snake_case identifiers (3+ chars)
     identifiers = re.findall(r"\b([A-Z][a-zA-Z0-9]+)\b", code)
     # Also match method calls

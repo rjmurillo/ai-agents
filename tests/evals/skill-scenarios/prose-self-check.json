@@ -1,0 +1,57 @@
+{
+  "skill_path": ".claude/skills/prose-self-check/SKILL.md",
+  "skill_id": "prose-self-check",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Self-check of a PR description draft names the helper scripts",
+      "input": "I wrote a PR description in draft.md. Before I post it, run a prose self-check on it. Which scripts do you run first, and what exit code means the lint pass is clean? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "prose_lint.py",
+        "burstiness.py",
+        "exit 0",
+        "layer 4"
+      ],
+      "expected_gate": "run-prose-lint-and-burstiness",
+      "rationale": "SKILL.md Process: run prose_lint.py (Layers 1 and 2, exits 1 on any high-severity finding) and burstiness.py over the artifact, then do Layer 4 by hand. A generic answer would proofread by eye."
+    },
+    {
+      "id": "S2",
+      "desc": "Does a draft read as AI-written, with structural tells present",
+      "input": "Does this read as AI-written? \"Honestly, this change is not just a refactor, it's a rethink of the loader. Want me to also update the docs?\" Name the specific tells and how you would fix each. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "contrast framing",
+        "trailing offer",
+        "signposting",
+        "delete"
+      ],
+      "expected_gate": "flag-structural-ai-tells",
+      "rationale": "SKILL.md Layer 2 lists contrast_framing, trailing_offer, and signposting as the three scripted structural tells, each with a prescribed fix (state the claim directly, delete the offer, delete the opener)."
+    },
+    {
+      "id": "S3",
+      "desc": "Lint exits 0 but the prose may still be empty",
+      "input": "prose_lint.py exited 0 on my retrospective, so I think it is done. Is that enough before I emit it? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "layer 4",
+        "disagreeable claim",
+        "filler",
+        "emptiness"
+      ],
+      "expected_gate": "apply-emptiness-gate",
+      "rationale": "SKILL.md Anti-Patterns: stopping at exit 0 clears Layers 1 and 2 only. Layer 4 requires naming the one disagreeable claim per paragraph, otherwise the paragraph is filler."
+    },
+    {
+      "id": "S4",
+      "desc": "Code style review, which belongs to style-enforcement (negative)",
+      "input": "Check my Python module for naming conventions, import order, and line length against the repo style guide. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "prose_lint.py",
+        "burstiness.py",
+        "disagreeable claim"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The description says 'Do NOT use for code style (use style-enforcement)'. This is a style request about code, not an AI-tell audit of prose."
+    }
+  ]
+}

@@ -318,7 +318,7 @@ class TestKnownAgents:
 
     @pytest.mark.parametrize(
         "closing",
-        ["---not-a-closing-fence", "----", "--- trailing prose", "---\tx"],
+        ["---not-a-closing-fence", "--- trailing prose", "---\tx"],
     )
     def test_a_partial_line_does_not_close_the_frontmatter_block(self, tmp_path, closing):
         """The closing fence must be a line holding nothing but three hyphens.
@@ -415,9 +415,24 @@ class TestKnownAgents:
         assert vamr.known_agents(tmp_path, ".md") == {"analyst"}
 
     @pytest.mark.parametrize(
+        "fence",
+        ["----", "-----"],
+    )
+    def test_a_fence_of_four_or_more_hyphens_is_a_fence(self, tmp_path, fence):
+        """Four or more hyphens open and close a block, per frontmatter_block.
+
+        The old rule rejected ``----``; the repository's one parser
+        (``scripts/hook_utilities/frontmatter_block.py``) follows
+        python-frontmatter, whose boundary is three or more hyphens.
+        """
+        (tmp_path / "analyst.md").write_text(
+            f"{fence}\ndescription: An agent.\n{fence}\n", encoding="utf-8"
+        )
+        assert vamr.known_agents(tmp_path, ".md") == {"analyst"}
+
+    @pytest.mark.parametrize(
         ("label", "opening"),
         [
-            ("four hyphens", "----\n"),
             ("two hyphens", "--\n"),
             ("leading blank line", "\n---\n"),
             ("leading space", " ---\n"),
@@ -425,7 +440,7 @@ class TestKnownAgents:
         ],
     )
     def test_a_malformed_opening_fence_excludes_the_file(self, tmp_path, label, opening):
-        """Only three hyphens at the first byte open a block.
+        """Only a run of three or more hyphens at the first byte opens a block.
 
         The anchor is what stops a body-level horizontal rule from turning the
         prose above it into a pseudo-block, so loosening it is not safe.

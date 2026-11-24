@@ -59,9 +59,8 @@ if str(_SCRIPT_DIR) not in sys.path:
 
 import yaml  # noqa: E402
 from instruction_budget_globs import (  # noqa: E402
-    _FRONTMATTER_RE,
     UnsupportedApplyToError,
-    _UniqueKeySafeLoader,
+    load_unique_frontmatter,
 )
 
 CANONICAL_GLOBS: tuple[tuple[str, str], ...] = (
@@ -159,11 +158,7 @@ def _frontmatter(text: str) -> dict[str, object]:
     PyYAML keeps the last value when a key repeats, and nothing guarantees a
     harness resolves the duplicate the same way.
     """
-    match = _FRONTMATTER_RE.match(text)
-    if match is None:
-        return {}
-    data = yaml.load(match.group(1), Loader=_UniqueKeySafeLoader)
-    return data if isinstance(data, dict) else {}
+    return load_unique_frontmatter(text)
 
 
 def _optional(block: dict[str, object], key: str) -> str | None:

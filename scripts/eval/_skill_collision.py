@@ -25,7 +25,7 @@ if str(_REPO_ROOT) not in sys.path:  # pragma: no cover
     # Script bootstrap. tests/eval/test_skill_collision_report.py runs it in a subprocess.
     sys.path.insert(0, str(_REPO_ROOT))
 
-from scripts.validation.frontmatter_split import split_leading_frontmatter  # noqa: E402
+from scripts.hook_utilities.frontmatter_block import load_frontmatter  # noqa: E402
 
 PROFILE_FULL = "full"
 DEFAULT_TRUNCATIONS: tuple[int, ...] = (80, 160, 320)
@@ -189,14 +189,7 @@ def truncation_profile(chars: int) -> str:
 
 
 def _parse_frontmatter(text: str) -> dict[str, Any] | None:
-    block, _ = split_leading_frontmatter(text)
-    if not block:
-        return None
-    try:
-        parsed = yaml.safe_load(block)
-    except yaml.YAMLError:
-        return None
-    return parsed if isinstance(parsed, dict) else None
+    return load_frontmatter(text, yaml, allow_duplicate_keys=True)
 
 
 def _string_field(frontmatter: dict[str, Any], key: str) -> str:

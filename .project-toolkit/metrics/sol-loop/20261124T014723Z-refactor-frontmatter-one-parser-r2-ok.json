@@ -1,0 +1,50 @@
+{
+  "author_family": "anthropic",
+  "branch": "refactor/frontmatter-one-parser",
+  "counts": {
+    "dropped": 2,
+    "kept": 0,
+    "overlap": 0,
+    "raw": 2,
+    "sol_only": 0
+  },
+  "critic_sha256": "09cddabf87b2fd45bc9f31ea7047a27d5f76c58e8495d11cbcecefef4b524418",
+  "dropped": [
+    {
+      "finding": {
+        "claim": "The duplicate-key test passes with the duplicate scan disabled",
+        "file": "tests/validation/test_skillforge_frontmatter_exemption.py",
+        "fix": "Change opus to haiku in the test.",
+        "id": "S7",
+        "line": 285,
+        "repro": "Patch the scan to return False. Changing sonnet leaves the effective model: opus unchanged, so the exemption still returns False",
+        "severity": "nit"
+      },
+      "reason": "nit"
+    },
+    {
+      "finding": {
+        "claim": "The docstring names the previous entry point",
+        "file": "src/claude/skills/autoplan/scripts/resolve_route.py",
+        "fix": "Name those two calls in the docstring.",
+        "id": "S8",
+        "line": 303,
+        "repro": "The function calls split_frontmatter and decode_frontmatter_yaml",
+        "severity": "nit"
+      },
+      "reason": "nit"
+    }
+  ],
+  "failure_class": "",
+  "findings": [],
+  "head_sha": "bc362e4712e0322143bc1e5f856aa9a21afb33ac",
+  "key": "refactor/frontmatter-one-parser",
+  "model": "gpt-6.2-sol",
+  "overlap_rule": "same file and line within 3 of a critic path:line or range",
+  "pr": "",
+  "round": 2,
+  "schema_version": 2,
+  "status": "ok",
+  "timestamp": "2026-11-24T01:47:23Z",
+  "verdict": "APPROVE"
+}

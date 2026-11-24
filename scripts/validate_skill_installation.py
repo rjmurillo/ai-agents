@@ -25,12 +25,18 @@ import logging
 import sys
 from pathlib import Path
 
-import frontmatter
 import yaml
+
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.hook_utilities import frontmatter_block  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
+_MALFORMED_PREFIX = "invalid YAML frontmatter: "
 REQUIRED_FRONTMATTER_FIELDS = ("name", "description")
 OPTIONAL_FRONTMATTER_FIELDS = ("version", "model", "license", "metadata")
 
@@ -40,20 +46,30 @@ GLOBAL_SKILL_PATHS = {
 
 
 def parse_frontmatter(skill_md: Path) -> dict | None:
-    """Extract YAML frontmatter from a SKILL.md file."""
+    """Extract YAML frontmatter from a SKILL.md file.
+
+    Uses `scripts/hook_utilities/frontmatter_block.py`. Returns None when the
+    file is unreadable, the block is missing or malformed, or the mapping is empty.
+    """
     try:
-        post = frontmatter.load(skill_md)
+        text = skill_md.read_text(encoding="utf-8")
     except OSError as e:
         logger.error("  Cannot read %s: %s", skill_md, e)
         return None
-    except yaml.YAMLError as e:
-        logger.error("  Invalid YAML frontmatter in %s: %s", skill_md, e)
+
+    result = frontmatter_block.parse_frontmatter(text.strip(), yaml, allow_duplicate_keys=True)
+    if result.status is frontmatter_block.FrontmatterStatus.MALFORMED:
+        logger.error(
+            "  Invalid YAML frontmatter in %s: %s",
+            skill_md,
+            (result.error or "").removeprefix(_MALFORMED_PREFIX),
+        )
         return None
 
-    if not post.metadata:
+    if not result.metadata:
         return None
 
-    return dict(post.metadata)
+    return dict(result.metadata)
 
 
 def validate_skill_dir(skill_dir: Path, verbose: bool = False) -> list[str]:
