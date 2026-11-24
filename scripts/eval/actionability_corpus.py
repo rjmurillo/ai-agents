@@ -36,7 +36,6 @@ import random
 import subprocess
 import sys
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -44,7 +43,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.eval.actionability_io import load_jsonl, write_jsonl  # noqa: E402
+from scripts.eval.actionability_io import (  # noqa: E402
+    head_sha,
+    load_jsonl,
+    utc_now_iso,
+    write_jsonl,
+)
 from scripts.eval.actionability_labels import (  # noqa: E402
     DEFAULT_SEED,
     HUNK_FETCHED,
@@ -92,11 +96,6 @@ class Skipped:
     unknown_position: int = 0
     duplicate_id: int = 0
     missing_id: int = 0
-
-
-def utc_now_iso() -> str:
-    """Return the current UTC time. Patched in tests so output stays byte-stable."""
-    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 def _load_json_list(path: Path) -> list[Any] | None:
@@ -244,6 +243,10 @@ def cmd_sample(args: argparse.Namespace) -> int:
     outside = stratified_sample(outside_pool, args.outside_count, rng)
     assign_splits(band, outside, args.dev_count, rng)
     corpus = band + outside
+    head = head_sha()
+    for row in corpus:
+        row["corpus_seed"] = args.seed
+        row["corpus_head_sha"] = head
 
     if not report_scan(scan_secrets(corpus, allow_hex_rows=args.allow_hex_rows)):
         return 1
@@ -251,7 +254,8 @@ def cmd_sample(args: argparse.Namespace) -> int:
     print(
         f"sampled {len(band)} band, {len(outside)} outside of {len(rows)} candidates; "
         f"skipped unknown_position {skipped.unknown_position}, "
-        f"duplicate_id {skipped.duplicate_id}, missing_id {skipped.missing_id}"
+        f"duplicate_id {skipped.duplicate_id}, missing_id {skipped.missing_id}; "
+        f"seed {args.seed}, head {head}"
     )
     return 0
 

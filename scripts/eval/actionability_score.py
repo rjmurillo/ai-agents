@@ -30,6 +30,7 @@ from scripts.eval.actionability_labels import (
 Arm = Callable[[dict[str, Any], dict[str, Any] | None], bool]
 
 PROVENANCE_FIELDS = ("provider", "model", "prompt_sha256")
+CORPUS_PROVENANCE_FIELDS = ("corpus_seed", "corpus_head_sha")
 
 PASS_GAP = 0.10
 ASSUMED_DISCORDANCE = (0.1, 0.2, 0.3)
@@ -148,6 +149,10 @@ def _is_number_or_none(value: object) -> bool:
     return value is None or _finite_number(value)
 
 
+def _is_int_or_none(value: object) -> bool:
+    return value is None or (isinstance(value, int) and not isinstance(value, bool))
+
+
 # (key, predicate, description). Checked against ``record.get(key)``, so an absent key
 # fails unless None is allowed. A label of None is handled later as "unlabeled".
 _CORPUS_CHECKS = (
@@ -156,6 +161,8 @@ _CORPUS_CHECKS = (
     ("in_band", lambda v: isinstance(v, bool), "a bool"),
     ("heuristic_score", _finite_number, "a finite number"),
     ("label", _is_str_or_none, "a string or null"),
+    ("corpus_seed", _is_int_or_none, "an int or null"),
+    ("corpus_head_sha", _is_str_or_none, "a string or null"),
 )
 _PREDICTION_CHECKS = (
     ("id", _is_nonempty_str, "a non-empty string"),
@@ -320,6 +327,20 @@ def _require_scorable_band(
         )
 
 
+def _corpus_provenance(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Return the sampling seed and head every row agrees on, or raise when they differ.
+
+    A row that lacks the field counts as a different value from a row that has it.
+    """
+    found: dict[str, Any] = {}
+    for field in CORPUS_PROVENANCE_FIELDS:
+        values = {row.get(field) for row in rows}
+        if len(values) > 1:
+            raise ScoreInputError(f"corpus rows disagree on {field}")
+        found[field] = values.pop() if values else None
+    return found
+
+
 def build_report(
     rows: list[dict[str, Any]],
     predictions: list[dict[str, Any]],
@@ -331,6 +352,7 @@ def build_report(
     """Score the arms on labeled rows. Raises ScoreInputError when inputs cannot be scored."""
     _validate_records(rows, _CORPUS_CHECKS, "corpus")
     _validate_records(predictions, _PREDICTION_CHECKS, "predictions")
+    corpus_provenance = _corpus_provenance(rows)
     labeled, unsure = _label_truth(rows)
     by_id = _index_predictions(predictions)
     provenance = _provenance(predictions)
@@ -341,6 +363,7 @@ def build_report(
         "seed": seed,
         "bootstrap_iterations": iterations,
         **provenance,
+        **corpus_provenance,
         "labels": {"unsure_dropped": unsure, "scored": len(labeled)},
         "heldout_band": _subset_report(band, by_id, arms),
         "non_dev": _subset_report(non_dev, by_id, arms),

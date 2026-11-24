@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -249,7 +250,7 @@ class TestHeadSha:
         def _boom(*_args: object, **_kwargs: object) -> None:
             raise OSError("no git")
 
-        monkeypatch.setattr(mab.subprocess, "run", _boom)
+        monkeypatch.setattr(subprocess, "run", _boom)
 
         assert mab.head_sha() == "unknown"
 
@@ -257,23 +258,23 @@ class TestHeadSha:
         """Hygiene 6d: a hung git yields "unknown"."""
 
         def _timeout(*_args: object, **_kwargs: object) -> None:
-            raise mab.subprocess.TimeoutExpired(cmd="git", timeout=10)
+            raise subprocess.TimeoutExpired(cmd="git", timeout=10)
 
-        monkeypatch.setattr(mab.subprocess, "run", _timeout)
+        monkeypatch.setattr(subprocess, "run", _timeout)
 
         assert mab.head_sha() == "unknown"
 
     def test_returns_unknown_when_git_prints_nothing(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Hygiene 6d: empty stdout yields "unknown"."""
-        done = mab.subprocess.CompletedProcess(args=["git"], returncode=128, stdout="", stderr="x")
-        monkeypatch.setattr(mab.subprocess, "run", lambda *_a, **_k: done)
+        done = subprocess.CompletedProcess(args=["git"], returncode=128, stdout="", stderr="x")
+        monkeypatch.setattr(subprocess, "run", lambda *_a, **_k: done)
 
         assert mab.head_sha() == "unknown"
 
     def test_returns_the_trimmed_sha_on_success(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Hygiene 6d: the happy path strips the trailing newline."""
-        done = mab.subprocess.CompletedProcess(args=["git"], returncode=0, stdout="abc123\n")
-        monkeypatch.setattr(mab.subprocess, "run", lambda *_a, **_k: done)
+        done = subprocess.CompletedProcess(args=["git"], returncode=0, stdout="abc123\n")
+        monkeypatch.setattr(subprocess, "run", lambda *_a, **_k: done)
 
         assert mab.head_sha() == "abc123"
 
@@ -303,3 +304,22 @@ class TestFetchErrorText:
         assert "RuntimeError" in caplog.text
         assert "SECRETWORD" not in caplog.text
         assert "ghp_leaked" not in caplog.text
+
+
+class TestFromJsonProvenance:
+    def test_from_json_records_only_the_basename(self, tmp_path: Path) -> None:
+        """Group 5c: the result must not leak the operator's directory layout."""
+        nested = tmp_path / "private" / "scratch"
+        nested.mkdir(parents=True)
+        source = nested / "prs.json"
+        source.write_text(json.dumps([]), encoding="utf-8")
+        out = tmp_path / "result.json"
+
+        code = mab.main(["--from-json", str(source), "--output", str(out)])
+
+        text = out.read_text(encoding="utf-8")
+        payload = json.loads(text)
+        assert code == 0
+        assert payload["path"] == "prs.json"
+        assert "private" not in text
+        assert str(tmp_path) not in text

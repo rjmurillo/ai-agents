@@ -34,7 +34,6 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import subprocess
 import sys
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -45,7 +44,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.eval.actionability_io import atomic_write_text  # noqa: E402
+from scripts.eval.actionability_io import atomic_write_text, head_sha  # noqa: E402
 from scripts.github_core.api import (  # noqa: E402
     get_all_prs_with_comments,
     resolve_repo_params,
@@ -190,23 +189,6 @@ def measure_band(prs: list[dict[str, Any]]) -> BandReport:
     )
 
 
-def head_sha() -> str:
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=REPO_ROOT,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=10,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return "unknown"
-    return result.stdout.strip() or "unknown"
-
-
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--owner", default="", help="Repository owner (default: from git remote)")
@@ -233,7 +215,8 @@ def _load_prs(args: argparse.Namespace) -> tuple[list[dict[str, Any]], dict[str,
         if not isinstance(prs, list):
             logger.error("--from-json must hold a JSON array of PR nodes")
             return 2
-        return prs, {"source": "file", "path": str(args.from_json)}
+        # Basename only: the result file must not leak the operator's directory layout.
+        return prs, {"source": "file", "path": args.from_json.name}
 
     if not 1 <= args.days_back <= 365:
         logger.error("--days-back must be between 1 and 365, got %d", args.days_back)

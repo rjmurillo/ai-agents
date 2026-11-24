@@ -14,11 +14,15 @@ from __future__ import annotations
 import json
 import logging
 import os
+import subprocess
 import tempfile
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def atomic_write_text(path: Path, text: str) -> None:
@@ -53,3 +57,26 @@ def load_jsonl(path: Path) -> list[dict[str, Any]] | None:
 def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
     text = "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows)
     atomic_write_text(path, text)
+
+
+def utc_now_iso() -> str:
+    """Return the current UTC time to the second. Patched in tests so output stays byte-stable."""
+    return datetime.now(UTC).isoformat(timespec="seconds")
+
+
+def head_sha() -> str:
+    """Return this checkout's HEAD commit, or "unknown" when git cannot answer."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return "unknown"
+    return result.stdout.strip() or "unknown"

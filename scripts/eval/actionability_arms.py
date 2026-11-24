@@ -32,6 +32,7 @@ Exit codes (ADR-035):
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
 import sys
@@ -43,7 +44,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.eval.actionability_io import atomic_write_text, load_jsonl  # noqa: E402
+from scripts.eval.actionability_io import (  # noqa: E402
+    atomic_write_text,
+    head_sha,
+    load_jsonl,
+    utc_now_iso,
+)
 from scripts.eval.actionability_labels import (  # noqa: E402
     DEFAULT_SEED,
     STATUS_AUTH_ERROR,
@@ -143,6 +149,15 @@ def _warn_non_ok(counts: dict[str, int], band_n: int) -> None:
         )
 
 
+def _sha256_of(path: Path) -> str | None:
+    """SHA-256 of the file bytes, or None when the file cannot be read."""
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        print(f"error: cannot read {path}", file=sys.stderr)
+        return None
+
+
 def cmd_score(args: argparse.Namespace) -> int:
     """Score the arms on a labeled corpus and write the report JSON."""
     if args.bootstrap < 1:
@@ -159,6 +174,13 @@ def cmd_score(args: argparse.Namespace) -> int:
     except ScoreInputError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    hashes = {
+        "corpus_sha256": _sha256_of(args.corpus),
+        "predictions_sha256": _sha256_of(args.predictions),
+    }
+    if None in hashes.values():
+        return 2
+    report.update(scored_at=utc_now_iso(), head_sha=head_sha(), **hashes)
     missing = report["predictions"]["missing"]
     if missing:
         print(

@@ -74,8 +74,12 @@ class TestScoreCli:
         assert report["verdict"] == "pass"
         assert "verdict" in capsys.readouterr().out
 
-    def test_same_inputs_and_seed_give_byte_identical_reports(self, tmp_path: Path) -> None:
-        """Plan M1-T15: the report has no clock in it."""
+    def test_same_inputs_and_seed_give_byte_identical_reports(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Plan M1-T15: with the clock and head frozen, the report bytes repeat."""
+        monkeypatch.setattr(aa, "utc_now_iso", lambda: "2026-11-24T12:00:00+00:00")
+        monkeypatch.setattr(aa, "head_sha", lambda: "deadbeef")
         corpus, preds, first = _files(tmp_path, _rows(), _preds())
         second = tmp_path / "second.json"
 
