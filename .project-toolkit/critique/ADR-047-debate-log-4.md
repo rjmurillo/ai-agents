@@ -154,3 +154,10 @@ Line 74 now names both amendments' exception sets.
 
 One Accept and one Disagree-and-Commit vote close this round.
 No P0 or P1 finding remains open.
+
+### Count correction (round 16 review)
+
+The qa reviewer could not reproduce 14 with the ledger row 16 command.
+Row 16 now names an exact command and filter.
+It gives 12 on origin/main and 11 at HEAD.
+The ADR now says 11. No decision text changed.
