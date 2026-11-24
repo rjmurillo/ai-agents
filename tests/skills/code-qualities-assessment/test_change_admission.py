@@ -10,6 +10,7 @@ A new third-party import or a new duplicate still fails.
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -328,7 +329,9 @@ def test_coupling_admission_covers_python_only(
 
     rc = _run(tmp_path, _ADMISSION)
 
-    comparison = _comparison(capsys.readouterr().out, "web/caller.ts")
+    out, err = capsys.readouterr()
+    comparison = _comparison(out, "web/caller.ts")
+    assert "NOT ADMITTED: web/caller.ts: coupling: language is not Python" in err
     assert rc == 10
     assert comparison["regressions"] == ["coupling"]
     assert comparison["change_admissions"] is None
@@ -372,3 +375,22 @@ def test_swapping_one_duplicate_for_another_still_fails(
 
     assert rc == 10
     assert _comparison(capsys.readouterr().out, "tools/body.py")["change_admissions"] is None
+
+
+def test_git_index_timeout_is_a_script_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _shared_extraction(tmp_path, monkeypatch, "from pkg.shared import split")
+    real_run = subprocess.run
+
+    def hung_ls_files(argv: list[str], *args: Any, **kwargs: Any) -> Any:
+        if argv[:2] == ["git", "ls-files"]:
+            raise subprocess.TimeoutExpired(argv, float(kwargs["timeout"]))
+        return real_run(argv, *args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", hung_ls_files)
+
+    rc = _run(tmp_path, _ADMISSION)
+
+    assert rc == 1
+    assert "git ls-files timed out after 60 seconds" in capsys.readouterr().err

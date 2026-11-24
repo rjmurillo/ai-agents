@@ -1091,6 +1091,7 @@ _ISSUE_CHANGE_ADMISSIONS = 7525
 _FIRST_PARTY_COUPLING_KEY = "firstPartyCouplingAdmission"
 _COUPLING_RULE = "no_new_third_party_import"
 _NON_REDUNDANCY_RULE = "no_new_duplicate_lines"
+_GIT_LS_FILES_TIMEOUT_SECONDS = 60
 
 
 def _first_party_import_roots(config: dict[str, Any]) -> list[Path] | None:
@@ -1118,12 +1119,18 @@ def _tracked_python_paths(workspace: Path) -> frozenset[str]:
     """
     import subprocess
 
-    result = subprocess.run(
-        ["git", "ls-files", "-z", "--", "*.py"],
-        cwd=workspace,
-        capture_output=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            ["git", "ls-files", "-z", "--", "*.py"],
+            cwd=workspace,
+            capture_output=True,
+            check=False,
+            timeout=_GIT_LS_FILES_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            f"git ls-files timed out after {_GIT_LS_FILES_TIMEOUT_SECONDS} seconds"
+        ) from exc
     if result.returncode != 0:
         error = result.stderr.decode("utf-8", errors="replace").strip()
         raise RuntimeError(f"git ls-files failed: {error}")
@@ -1211,6 +1218,7 @@ def _coupling_admission(
     """Admit a Python coupling drop whose third-party roots did not grow."""
     head_path = Path(comparison.file_path)
     if detect_language(head_path) != "python":
+        print(f"NOT ADMITTED: {head_path}: coupling: language is not Python", file=sys.stderr)
         return None
     base = _python_third_party_roots(base_text, head_path, import_roots)
     head = _python_third_party_roots(head_text, head_path, import_roots)
@@ -1290,8 +1298,11 @@ def _apply_change_admissions(
         revision = revision or resolve_comparison_base(base)
         texts = _comparison_texts(comparison, revision)
         if texts is None:
-            reason = "base or head text is unreadable"
-            print(f"NOT ADMITTED: {comparison.file_path}: {reason}", file=sys.stderr)
+            for quality in wanted:
+                print(
+                    f"NOT ADMITTED: {comparison.file_path}: {quality}: base or head text is unreadable",
+                    file=sys.stderr,
+                )
             continue
         records: dict[str, dict[str, Any]] = {}
         for quality in wanted:

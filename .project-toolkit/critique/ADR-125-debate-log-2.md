@@ -71,3 +71,13 @@ The edits below change no decision, so no new round was opened.
 
 The same review fixed two adapter gaps in code: a record for an unadmittable quality, and non-string regression names.
 Both now return UNKNOWN, with tests.
+
+## Round 2 review wording edits
+
+The `/review` round 2 decision-rigor axis on head `cf3d852f8e` raised four wording findings.
+The edits below change no decision, so no new round was opened.
+
+- The "Why" section now quotes the original revisit trigger and names both re-pin causes.
+- The scope sentence now lists the config key and the JSON field, not only exit behavior.
+- Alternatives now cover an opt-in non-redundancy admission and a ratio-score fix.
+- Consequences now give the reason for the opt-in asymmetry and name the upstream-only import gap.

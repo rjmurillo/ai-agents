@@ -81,7 +81,8 @@ Removing the verifier and review procedure reverses this decision.
 
 Issue #7525 reports that the approval loop costs more than it protects.
 The owner reports three re-pins on tracking issue #7528 for one consolidation branch.
-The Consequences section asked for a revisit in this case.
+The Consequences section says to revisit if unrelated main changes repeatedly force new approvals.
+The #7528 re-pins came from main moving and from the branch's own fix commits.
 
 The frontmatter consolidation branch was assessed at `0a101a596` against `a217e3a3d1` on 2026-11-24.
 It produced 74 regression rows.
@@ -92,8 +93,8 @@ Its duplicated lines fell from 56 to 33, yet the ratio score fell 7.3 to 6.0.
 
 ### Change
 
-This amendment changes Decision 1 for exit behavior only.
-Scores, raw regression rows, and the report stay as before.
+This amendment changes Decision 1 in three ways: exit behavior, one optional config key, and one JSON field.
+Scores and raw regression rows stay as before.
 
 1. The assessor admits a non-redundancy drop when no line gained a copy.
    Each line's repeat count at head must not exceed its count at base.
@@ -135,6 +136,8 @@ For non-redundancy it sees only totals; the assessor enforces the per-line rule.
 | Count distinct modules, not statements | Clears 1 of 72 coupling rows and changes every score. |
 | Stop gating coupling | Loses the signal for a new third-party dependency. |
 | Drop first-party imports from the score | Conflicts with first-party Go scoring from PR #7051 (issue #7047). |
+| Make the non-redundancy admission opt-in | Every consumer keeps a gate that punishes deleting unique lines. |
+| Fix the non-redundancy ratio score | Changes every score and every absolute verdict, not only regressions. |
 | Bind approval to rows, not commits | Keeps an owner comment per branch; tracked in issue #7525. |
 
 ### Consequences
@@ -154,6 +157,9 @@ The approval verifier reads the config from the integration commit instead.
 Base imports resolve against the head tree, so a renamed file can misjudge a base import.
 Removing `firstPartyCouplingAdmission` reverses the coupling rule.
 Reversing the non-redundancy rule takes a code change.
+Coupling is opt-in because first-party imports are real coupling; that trade is a repository choice.
+Non-redundancy is on for all because a file that adds no copy of any line cannot have gained duplication.
+A shipped plugin file that adds an upstream-only first-party import is admitted; no gate parses those imports yet.
 Revisit these rules if an admitted row hides a dependency a reviewer later rejects.
 The reviewer records each such case as a comment on issue #7525.
 The evidence base is one branch; other branches were not replayed.
