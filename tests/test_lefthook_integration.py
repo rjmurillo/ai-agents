@@ -263,12 +263,15 @@ def test_installed_python_hooks_run_ruff_and_preserve_exit_policy(
         _write_file(repo, path, (PROJECT_ROOT / path).read_text(encoding="utf-8"))
     monkeypatch.setenv("UV_PROJECT", str(PROJECT_ROOT))
     monkeypatch.delenv("SKIP_AUTOFIX", raising=False)
+    monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
     monkeypatch.setenv("PYTHONUTF8", "1")
     assert LEFTHOOK is not None
     monkeypatch.setenv("LEFTHOOK_BIN", Path(LEFTHOOK).as_posix())
     _run_lefthook(repo, "install")
     source = "src/two words.py"
     _write_file(repo, source, '"""Sample."""\nVALUE = 1\n')
+    _write_file(repo, "src/untracked.py", "VALUE = untracked_name\n")
     _git(repo, "add", "--", source)
 
     def run_hook() -> tuple[int, str]:
@@ -286,6 +289,12 @@ def test_installed_python_hooks_run_ruff_and_preserve_exit_policy(
     assert code == 0, output
     assert "D100" in output and "[FAIL] python-quality-advisory" in output, output
     assert _git(repo, "show", f":{source}").stdout == "VALUE = 1\n"
+
+    _write_file(repo, source, '"""Sample."""\nVALUE = missing_name\n')
+    _git(repo, "add", "--", source)
+    code, output = run_hook()
+    assert code == 0, output
+    assert "F821" in output and "[FAIL] python-check" in output, output
 
     _write_file(repo, "ruff.toml", "not valid toml\n")
     code, output = run_hook()
