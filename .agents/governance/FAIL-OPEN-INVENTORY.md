@@ -111,7 +111,7 @@ of these return success not because they found nothing, but because they could
 not run at all, and the two outcomes print differently only to a human reading
 stdout.
 
-The YAML job name is `yaml-advisory` (`scripts/validation/git_hook_policy.py:9185`).
+The YAML job name is `yaml-advisory` (`scripts/validation/git_hook_policy.py:9196`).
 
 Command-start handling: `_run_command` catches `OSError` at `scripts/validation/git_hook_policy.py:995-1047`, returning exit 3.
 The old `except FileNotFoundError` never ran; a missing tool was reported as findings.
