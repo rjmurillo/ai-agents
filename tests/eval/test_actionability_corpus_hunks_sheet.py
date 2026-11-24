@@ -232,3 +232,73 @@ class TestSheet:
 
         assert code == 2
         assert not out.exists()
+
+
+class TestFetchHunksSecretScan:
+    def _run(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, hunk: str) -> tuple[int, Path]:
+        monkeypatch.setattr(cc, "gh_graphql", FakeGraphql({"A": hunk}))
+        corpus = write_corpus(tmp_path / "c.jsonl", [corpus_row("A")])
+        out = tmp_path / "o.jsonl"
+        code = cc.main(["fetch-hunks", "--corpus", str(corpus), "--output", str(out)])
+        return code, out
+
+    def test_token_in_a_hunk_exits_one_and_writes_nothing(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Plan M1-T9 after M1-T8, premortem R4: a planted token in a hunk blocks the output."""
+        token = "ghp_" + "A1b2C3d4" * 5
+
+        code, out = self._run(tmp_path, monkeypatch, f"@@ -1 +1 @@\n+TOKEN = '{token}'")
+
+        err = capsys.readouterr().err
+        assert code == 1
+        assert not out.exists()
+        assert "A" in err
+        assert "github-token" in err
+        assert token not in err
+
+    def test_commit_sha_in_a_hunk_passes_and_is_reported(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Plan M1-T9 after M1-T8, premortem R4: hex-only hits are reported, not failed."""
+        sha = "b" * 40
+
+        code, out = self._run(tmp_path, monkeypatch, f"@@ -1 +1 @@\n+# see {sha}")
+
+        err = capsys.readouterr().err
+        assert code == 0
+        assert out.exists()
+        assert "review: hex-like strings in rows A" in err
+        assert sha not in err
+
+    def test_clean_hunk_prints_no_scan_report(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Plan M1-T9 after M1-T8: no hit, no report line."""
+        code, _ = self._run(tmp_path, monkeypatch, "@@ -1 +1 @@\n+x = 1")
+
+        assert code == 0
+        assert "review:" not in capsys.readouterr().err
+
+    def test_hunk_fetched_earlier_is_scanned_too(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Plan M1-T9 after M1-T8: every non-null hunk is scanned, not only new ones."""
+        monkeypatch.setattr(cc, "gh_graphql", FakeGraphql({}))
+        token = "ghp_" + "Z9y8X7w6" * 5
+        corpus = write_corpus(tmp_path / "c.jsonl", [corpus_row("A", diff_hunk=f"+{token}")])
+        out = tmp_path / "o.jsonl"
+
+        code = cc.main(["fetch-hunks", "--corpus", str(corpus), "--output", str(out)])
+
+        assert code == 1
+        assert not out.exists()

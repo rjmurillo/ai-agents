@@ -21,7 +21,7 @@ Usage:
 
 Exit codes (ADR-035):
     0 - Done
-    1 - Secret scan found a non-hex hit; nothing written
+    1 - Secret scan (sample or fetch-hunks) found a non-hex hit; nothing written
     2 - Bad argument or unreadable input
     3 - GitHub fetch failed
 """
@@ -210,16 +210,22 @@ def assign_splits(
         row["split"] = SPLIT_OUTSIDE
 
 
-def scan_secrets(rows: list[dict[str, Any]]) -> tuple[dict[str, list[str]], list[str]]:
-    """Scan bodies and replies. Return (non-hex hits by row id, ids with hex-only hits).
+def _scannable_texts(row: dict[str, Any]) -> list[str]:
+    hunk = row.get("diff_hunk")
+    return [row["body"], *row["thread_replies"], *([hunk] if hunk is not None else [])]
 
-    Only reason names are returned, never the matched text.
+
+def scan_secrets(rows: list[dict[str, Any]]) -> tuple[dict[str, list[str]], list[str]]:
+    """Scan bodies, replies, and diff hunks. Return (non-hex hits by row id, hex-only ids).
+
+    Only reason names are returned, never the matched text. A null ``diff_hunk``
+    is skipped, so the same scan serves ``sample`` and ``fetch-hunks``.
     """
     failures: dict[str, list[str]] = {}
     hex_only: list[str] = []
     for row in rows:
         reasons: set[str] = set()
-        for text in [row["body"], *row["thread_replies"]]:
+        for text in _scannable_texts(row):
             reasons.update(redact(text).reasons)
         non_hex = sorted(reasons - {HEX_SECRET_REASON})
         if non_hex:
@@ -300,7 +306,10 @@ def _fetch_hunk(node_id: str) -> str | None:
 
 
 def cmd_fetch_hunks(args: argparse.Namespace) -> int:
-    """Fill ``diff_hunk`` for rows that lack one. Write only when every call succeeds."""
+    """Fill ``diff_hunk`` for rows that lack one, then secret-scan every row.
+
+    Writes only when every call succeeds and the scan finds no non-hex hit.
+    """
     rows = load_jsonl(args.corpus)
     if rows is None:
         return 2
@@ -319,6 +328,8 @@ def cmd_fetch_hunks(args: argparse.Namespace) -> int:
             no_hunk += 1
         else:
             fetched += 1
+    if not _report_secret_scan(rows):
+        return 1
     write_jsonl(args.output, rows)
     print(f"fetched {fetched}, no_hunk {no_hunk}, of {len(rows)} rows")
     return 0
