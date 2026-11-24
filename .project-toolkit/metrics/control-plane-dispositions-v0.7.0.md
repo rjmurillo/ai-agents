@@ -294,7 +294,7 @@ different owners and states.
   QA-evidence, or session-evidence refresh pattern." One residual gap is
   named and explicitly out of this item's scope: the `-m` fallback at
   `qa_report.py:335` can still over-report if a QA commit falls off the
-  first-parent chain (ADR-100 lines 278-292); nothing in the last 40
+  first-parent chain (ADR-100 lines 279-293); nothing in the last 40
   merges shows it recurring.
 
 #### Item 6: push-ceiling telemetry re-measure
