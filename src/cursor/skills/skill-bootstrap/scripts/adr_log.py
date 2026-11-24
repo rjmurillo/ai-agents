@@ -179,7 +179,7 @@ def _blocks(content: str) -> list[_Block]:
             and (blocks[-1].level or outer + 1) < level
         ):
             # A sub-heading stays with its decision: deeper than a ``## D-7`` heading, or for a
-            # ledger record (level 0) deeper than the section around it. A peer section ends it.
+            # ledger record (level 0) deeper than ``outer + 1``, a record's level inside its section.
             blocks[-1].lines.append(line)
         elif heading or found:
             ident = (
