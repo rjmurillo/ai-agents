@@ -1,0 +1,39 @@
+{
+  "measured_at": "2026-11-24T07:20:16+00:00",
+  "head_sha": "951c9dba9cb81ef2eb42b4a6ae98f793ddf6ba2c",
+  "band": [
+    0.4,
+    0.6
+  ],
+  "kill_criterion_1_threshold": 0.05,
+  "prs_examined": 837,
+  "source": "github",
+  "repository": "rjmurillo/ai-agents",
+  "days_back": 90,
+  "window": "PR updatedAt on or after now minus days_back, not comment createdAt",
+  "total": 4647,
+  "in_band": 819,
+  "neutral_no_signal": 742,
+  "band_share": 0.1762,
+  "neutral_no_signal_share": 0.1597,
+  "openers": {
+    "total": 4034,
+    "in_band": 800,
+    "neutral_no_signal": 723
+  },
+  "replies": {
+    "total": 613,
+    "in_band": 19,
+    "neutral_no_signal": 19
+  },
+  "unknown_position": {
+    "total": 0,
+    "in_band": 0,
+    "neutral_no_signal": 0
+  },
+  "truncation": {
+    "prs_at_thread_limit": [],
+    "threads_at_comment_limit": 0
+  },
+  "kill_criterion_1_fired": false
+}
