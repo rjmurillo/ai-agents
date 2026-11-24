@@ -432,6 +432,11 @@ class TestFrontmatterOnlyDetection:
         assert data["ModifiedFrontmatterOnly"] == []
         assert data["RecommendedAction"] == "review"
 
+    def test_blank_line_after_the_fence_is_a_body_change(self, adr_repo: Path) -> None:
+        adr = adr_repo / self.ADR_REL
+        adr.write_text("---\nstatus: proposed\nimplemented: true\n---\n" + self.BODY)
+        assert _is_frontmatter_only_change(self.ADR_REL, "HEAD~1", adr_repo) is False
+
     def test_path_traversal_fails_closed(self, adr_repo: Path) -> None:
         assert _is_frontmatter_only_change("../outside.md", "HEAD~1", adr_repo) is False
 

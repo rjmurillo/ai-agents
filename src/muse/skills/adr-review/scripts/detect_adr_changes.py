@@ -287,7 +287,9 @@ def _is_frontmatter_only_change(file_path: str, since_commit: str, base_path: Pa
     new_split = split_frontmatter(new_content)
     if not old_split.found or not new_split.found:
         return False
-    if old_split.body != new_split.body:
+    # Compare from just past the closing fence line, so a blank line added
+    # right after the fence counts as a body change.
+    if show.stdout[old_split.fence_end :] != new_content[new_split.fence_end :]:
         return False
     return _only_non_decision_fields_changed(show.stdout, new_content)
 

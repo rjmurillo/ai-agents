@@ -104,10 +104,7 @@ from generate_agents_common import (  # noqa: E402
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
 from yaml_loader import ConfigError, load_platform_config, validate_relative_path  # noqa: E402
 
-from scripts.hook_utilities.frontmatter_block import (  # noqa: E402
-    FrontmatterStatus,
-    parse_frontmatter,
-)
+from scripts.hook_utilities.frontmatter_block import decode_frontmatter_yaml  # noqa: E402
 
 T = TypeVar("T")
 KEEP_KEY = "frontmatterKeep"
@@ -140,13 +137,13 @@ def parse_agent(text: str, source: str) -> tuple[dict[str, object], str]:
     parsed = read_yaml_frontmatter(text)
     if parsed is None:
         raise AgentCopyError(f"{source}: no frontmatter block")
-    result = parse_frontmatter(text, yaml, allow_duplicate_keys=True)
-    if result.status is FrontmatterStatus.MALFORMED:
-        detail = (result.error or "").removeprefix("invalid YAML frontmatter: ")
-        raise AgentCopyError(f"{source}: unparseable frontmatter: {detail}")
-    if result.status is not FrontmatterStatus.VALID or result.metadata is None:
+    try:
+        loaded = decode_frontmatter_yaml(parsed["frontmatter_raw"], yaml, allow_duplicate_keys=True)
+    except yaml.YAMLError as exc:
+        raise AgentCopyError(f"{source}: unparseable frontmatter: {exc}") from exc
+    if not isinstance(loaded, dict):
         raise AgentCopyError(f"{source}: frontmatter is not a mapping")
-    return result.metadata, parsed["body"]
+    return loaded, parsed["body"]
 
 
 @dataclass(frozen=True)

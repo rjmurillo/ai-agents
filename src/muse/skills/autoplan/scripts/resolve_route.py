@@ -120,7 +120,10 @@ if not os.path.isdir(_LIB_DIR):
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
-from hook_utilities.frontmatter_block import FrontmatterStatus, parse_frontmatter  # noqa: E402
+from hook_utilities.frontmatter_block import (  # noqa: E402
+    decode_frontmatter_yaml,
+    split_frontmatter,
+)
 
 try:
     import yaml
@@ -309,13 +312,20 @@ def _read_frontmatter(path: Path) -> dict[str, object]:
         text = path.read_text(encoding="utf-8")
     except OSError:
         return {}
-    result = parse_frontmatter(text, yaml, allow_duplicate_keys=True)
-    if result.status is FrontmatterStatus.MALFORMED:
+    split = split_frontmatter(text)
+    if not split.found:
+        return {}
+    try:
+        data = decode_frontmatter_yaml(
+            split.raw.removeprefix("\n").removesuffix("\n"), yaml, allow_duplicate_keys=True
+        )
+    except yaml.YAMLError as exc:
         # Foreign plugin roots never pass the routing-role gate, so say which
         # skill dropped out instead of skipping it silently.
-        reason = (result.error or "").splitlines()[0]
+        reason = exc.__class__.__name__
         print(f"warning: skipped {path}: unparseable frontmatter ({reason})", file=sys.stderr)
-    return result.metadata if result.status is FrontmatterStatus.VALID else {}
+        return {}
+    return data if isinstance(data, dict) else {}
 
 
 def _load_catalog(roots: list[Root]) -> list[Skill]:

@@ -58,8 +58,11 @@ if _VALIDATION_PACKAGE_SENTINEL.is_file() and str(_PROJECT_ROOT) not in sys.path
 
 import yaml
 
-from scripts.hook_utilities.frontmatter_block import FrontmatterStatus
-from scripts.hook_utilities.frontmatter_block import parse_frontmatter as fm_parse
+from scripts.hook_utilities.frontmatter_block import (
+    FrontmatterStatus,
+    decode_frontmatter_yaml,
+    split_frontmatter,
+)
 from scripts.validation.models import ValidationResult
 
 # Valid model identifiers.
@@ -241,30 +244,38 @@ def parse_frontmatter(content: str) -> FrontmatterResult:
     """
     result = FrontmatterResult()
 
-    parsed = fm_parse(content, yaml, allow_duplicate_keys=True, loader=_Yaml12Loader)
-    if parsed.status is FrontmatterStatus.ABSENT:
+    split = split_frontmatter(content)
+    if split.status is FrontmatterStatus.ABSENT:
         result.errors.append("Frontmatter must start with '---' on line 1")
         return result
-    if parsed.status is FrontmatterStatus.UNTERMINATED:
+    if split.status is FrontmatterStatus.UNTERMINATED:
         result.errors.append("Frontmatter must end with '---'")
         return result
 
-    # The core's raw block starts at the newline after the opening fence and
-    # ends with the newline before the closing fence; the line view wants neither.
-    frontmatter_content = parsed.raw.removeprefix("\n").removesuffix("\n")
+    # The payload runs from the line after the opening fence to the closing
+    # fence. The fence rule lets the opening fence absorb whitespace-only lines,
+    # so slice from the first newline instead of using ``split.raw``: a
+    # tab-only line there must still reach the tab check and the YAML load.
+    frontmatter_content = content[content.find("\n") + 1 : split.raw_end].removesuffix("\n")
 
     # Check for tab characters
     if "\t" in frontmatter_content:
         result.errors.append("Frontmatter must use spaces for indentation (tabs not allowed)")
 
-    typed_frontmatter: dict[object, object] = {
-        key: value for key, value in (parsed.metadata or {}).items()
-    }
-    if parsed.status is FrontmatterStatus.MALFORMED:
-        detail = (parsed.error or "").removeprefix("invalid YAML frontmatter: ")
-        result.errors.append(f"Frontmatter YAML parse error: {detail}")
-    elif parsed.status is FrontmatterStatus.NOT_A_MAPPING:
+    try:
+        loaded = (
+            decode_frontmatter_yaml(
+                frontmatter_content, yaml, allow_duplicate_keys=True, loader=_Yaml12Loader
+            )
+            or {}
+        )
+    except yaml.YAMLError as exc:
+        result.errors.append(f"Frontmatter YAML parse error: {exc}")
+        loaded = {}
+    if not isinstance(loaded, dict):
         result.errors.append("Frontmatter must be a YAML mapping")
+        loaded = {}
+    typed_frontmatter: dict[object, object] = dict(loaded)
 
     for field_name in STRING_ONLY_FIELDS:
         if field_name in typed_frontmatter and not isinstance(typed_frontmatter[field_name], str):

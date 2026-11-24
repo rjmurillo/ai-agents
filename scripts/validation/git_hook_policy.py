@@ -46,7 +46,7 @@ from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
 from scripts.ci import diff_line_scope
 from scripts.ci.run_pytest_partition import PYTEST_DIST_MODE
-from scripts.hook_utilities.frontmatter_block import parse_frontmatter, split_frontmatter
+from scripts.hook_utilities.frontmatter_block import decode_frontmatter_yaml, split_frontmatter
 from scripts.hook_utilities.utilities import recent_host_session_dates
 from scripts.validation import (
     cli_smoke_paths,
@@ -174,6 +174,7 @@ ALLOWED_REPO_ROOT_ENTRIES = frozenset(
     }
 )
 ADR_ID_RE = re.compile(r"ADR-\d+", re.IGNORECASE)
+FRONTMATTER_FIELD_RE = re.compile(r"^([A-Za-z0-9_-]+):(.*)$")
 # Issue #5205: thresholds calibrated against the 86 debate logs in
 # .project-toolkit/critique on main. All 86 clear these; the smallest is 454 bytes.
 DEBATE_LOG_MIN_BYTES = 300
@@ -1575,29 +1576,50 @@ def _split_frontmatter(content: bytes) -> tuple[bytes, bytes]:
     own code point and back, so two bodies holding different invalid bytes
     still compare unequal. ``errors="replace"`` would map them all to one
     replacement character and let a real body edit ride in under a metadata
-    change. Blank lines right after the closing fence belong to the fence under
-    the shared rule, so they are not part of the body.
+    change. The body starts right after the closing fence line, so a blank line
+    added there is a body change.
     """
     text = content.decode("utf-8", "surrogateescape")
     split = split_frontmatter(text)
     if not split.found:
         return b"", content
     frontmatter = split.raw.removeprefix("\n")
-    body = text[split.body_start :]
+    body = text[split.fence_end :]
     return frontmatter.encode("utf-8", "surrogateescape"), body.encode("utf-8", "surrogateescape")
+
+
+def _has_duplicate_frontmatter_keys(frontmatter: str) -> bool:
+    seen: set[str] = set()
+    for line in frontmatter.splitlines():
+        if line.startswith((" ", "\t")):
+            continue
+        match = FRONTMATTER_FIELD_RE.match(line)
+        if match is None:
+            continue
+        key = match.group(1)
+        if key in seen:
+            return True
+        seen.add(key)
+    return False
 
 
 def _parse_frontmatter(frontmatter: str) -> dict[str, object] | None:
     """Load one block's text, cut by ``_split_frontmatter``, as a mapping.
 
-    The block is re-fenced and read by the shared parser, which rejects a
-    repeated key at any depth. An empty or comment-only block is ``{}``. A
-    block that is malformed or not a mapping is ``None``.
+    A repeated top-level key is refused; nested mappings keep YAML's
+    last-one-wins, so merge keys and nested repeats load as they always have.
+    An empty or comment-only block is ``{}``. A block that is malformed or not
+    a mapping is ``None``. The YAML load goes through the shared decoder.
     """
-    if frontmatter and not frontmatter.endswith("\n"):
-        frontmatter += "\n"
-    result = parse_frontmatter(f"---\n{frontmatter}---\n", yaml)
-    return result.metadata if result.ok else None
+    if _has_duplicate_frontmatter_keys(frontmatter):
+        return None
+    try:
+        loaded = decode_frontmatter_yaml(frontmatter, yaml, allow_duplicate_keys=True)
+    except yaml.YAMLError:
+        return None
+    if loaded is None:
+        return {}
+    return loaded if isinstance(loaded, dict) else None
 
 
 def _only_implemented_field_changed(
