@@ -411,12 +411,19 @@ def _git(repo: Path, *args: str) -> None:
     )
 
 
+def _commit_base(repo: Path) -> None:
+    """Commit the fixture with a repo-local identity; CI runners have none globally."""
+    _git(repo, "init", "-b", "main")
+    _git(repo, "config", "user.email", "t@example.com")
+    _git(repo, "config", "user.name", "t")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", "base")
+
+
 class TestBaseRef:
     def test_hand_added_baseline_entry_fails_against_base(self, tmp_path, monkeypatch) -> None:
         repo = _repo(tmp_path, {"a": 1})
-        _git(repo, "init", "-b", "main")
-        _git(repo, "add", ".")
-        _git(repo, "commit", "-m", "base")
+        _commit_base(repo)
         # Branch hand-edits the baseline to cover its own new clone "b".
         (repo / ".jscpd-baseline.json").write_text(
             gate.render_baseline({"a": 1, "b": 1}), encoding="utf-8"
@@ -431,9 +438,7 @@ class TestBaseRef:
 
     def test_unknown_ref_is_external_error(self, tmp_path, monkeypatch) -> None:
         repo = _repo(tmp_path, {"a": 1})
-        _git(repo, "init", "-b", "main")
-        _git(repo, "add", ".")
-        _git(repo, "commit", "-m", "base")
+        _commit_base(repo)
         runner = _fake_jscpd(tmp_path, {"a": 1})
         assert _run(repo, runner, "--base-ref", "nope", monkeypatch=monkeypatch) == 3
 
