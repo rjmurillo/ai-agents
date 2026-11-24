@@ -1,6 +1,6 @@
 """Secret scan for corpus rows, shared by sample, fetch-hunks, and predict.
 
-Plan task M1-T9, premortem R4. Scans comment bodies, thread replies, and diff
+Plan task M1-T9, premortem R4. Scans comment bodies, thread replies, file paths, and diff
 hunks. Only row ids and reason names ever leave this module, never matched text.
 
 A row is blocked when any of these fire:
@@ -102,8 +102,15 @@ def add_allow_hex_argument(parser: argparse.ArgumentParser) -> None:
 
 
 def _row_texts(row: dict[str, Any], include_hunk: bool) -> list[str]:
+    """The row fields that can leave the machine: body, replies, path, and the hunk if asked."""
     hunk = row.get("diff_hunk") if include_hunk else None
-    return [row["body"], *row["thread_replies"], *([hunk] if hunk is not None else [])]
+    path = row.get("path")
+    return [
+        row["body"],
+        *row["thread_replies"],
+        *([path] if isinstance(path, str) else []),
+        *([hunk] if hunk is not None else []),
+    ]
 
 
 def _is_public_hex_id(text: str, run: re.Match[str]) -> bool:
