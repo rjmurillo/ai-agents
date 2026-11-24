@@ -8,6 +8,7 @@ from __future__ import annotations
 import importlib
 import json
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -36,9 +37,12 @@ def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("EVAL_PROVIDER", raising=False)
 
 
+_EVAL_DIR = Path(__file__).resolve().parents[2] / "scripts" / "eval"
+
+
 def _http_message(status: int) -> str:
     """The real message `_eval_common.safe_http_error_message` builds for a status."""
-    eval_dir = str(Path(pm.__file__).resolve().parent)
+    eval_dir = str(_EVAL_DIR)
     if eval_dir not in sys.path:
         sys.path.insert(0, eval_dir)
     common = importlib.import_module("_eval_common")
@@ -93,7 +97,9 @@ class TestAuthExit:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Group 2a: a 429 is a call_error and the run continues."""
-        replies = iter([RuntimeError(_http_message(429)), GOOD, GOOD, GOOD, GOOD, GOOD])
+        replies: Iterator[Exception | str] = iter(
+            [RuntimeError(_http_message(429)), GOOD, GOOD, GOOD, GOOD, GOOD]
+        )
 
         def reply(_message: str) -> str:
             item = next(replies)

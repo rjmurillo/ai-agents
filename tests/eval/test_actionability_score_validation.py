@@ -275,9 +275,9 @@ class TestArmCRealBoolOnly:
     def test_non_numeric_confidence_never_overrides_the_heuristic(self) -> None:
         """Group 1e: a string confidence cannot be compared to 0.7, so it is not applied."""
         row = make_row("r", score=0.5)
-        prediction = aa.Prediction.from_dict(
-            make_prediction("r", is_actionable=False, confidence="0.9")
-        )
+        record = make_prediction("r", is_actionable=False)
+        record["confidence"] = "0.9"
+        prediction = aa.Prediction.from_dict(record)
 
         assert aa.arm_c(row, prediction) is True
 

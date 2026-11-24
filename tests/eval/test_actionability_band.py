@@ -13,6 +13,7 @@ import importlib
 import importlib.util
 import sys
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -25,7 +26,7 @@ corpus = importlib.import_module("scripts.eval.actionability_corpus")
 _EVAL_DIR = Path(__file__).resolve().parents[2] / "scripts" / "eval"
 
 
-def _load_band_cli() -> object:
+def _load_band_cli() -> ModuleType:
     spec = importlib.util.spec_from_file_location(
         "band_cli_probe", _EVAL_DIR / "measure_actionability_band.py"
     )
@@ -97,12 +98,12 @@ class TestMirrorsProduction:
 class TestSingleSource:
     def test_cli_and_corpus_use_the_library_objects(self) -> None:
         """Identity: no second copy of the functions or the sentinel."""
-        assert band_cli.is_in_band is band.is_in_band  # type: ignore[attr-defined]
-        assert band_cli.thread_position is band.thread_position  # type: ignore[attr-defined]
+        assert band_cli.is_in_band is band.is_in_band
+        assert band_cli.thread_position is band.thread_position
         assert corpus.is_in_band is band.is_in_band
         assert corpus.thread_position is band.thread_position
         assert corpus.UNKNOWN_POSITION == band.UNKNOWN_POSITION
-        assert band_cli.BAND_MIN == band.BAND_MIN  # type: ignore[attr-defined]
+        assert band_cli.BAND_MIN == band.BAND_MIN
 
     @pytest.mark.parametrize("module", ["measure_actionability_band.py", "actionability_corpus.py"])
     def test_neither_module_defines_the_policy_itself(self, module: str) -> None:

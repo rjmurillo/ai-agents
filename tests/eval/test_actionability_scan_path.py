@@ -57,7 +57,7 @@ class TestScanSecretsPath:
 
     def test_a_row_with_no_path_key_still_scans(self) -> None:
         """Rows written before a path existed are not an error here."""
-        row = {"id": "R", "body": "clean", "thread_replies": [], "diff_hunk": None}
+        row: dict[str, Any] = {"id": "R", "body": "clean", "thread_replies": [], "diff_hunk": None}
 
         assert scan.scan_secrets([row]).blocking == {}
 
