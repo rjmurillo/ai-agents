@@ -338,3 +338,26 @@ def test_a_trailer_paragraph_may_continue_a_value_on_an_indented_line() -> None:
     )
 
     assert adr_reason.breaking_change("feat: rename the field", body)
+
+
+# Round 11 review findings
+
+
+@pytest.mark.parametrize("closing", ["Closes #12, #13", "Refs #12 #13", "Fixes #12"])
+def test_a_footer_may_name_several_issues(closing: str) -> None:
+    body = f"Body.\n\nBREAKING CHANGE: the old name is gone.\n\n{closing}"
+
+    assert adr_reason.breaking_change("feat: rename the field", body)
+
+
+@pytest.mark.parametrize("closing", ["Refs #12,#13", "Refs #12 #13 later"])
+def test_an_issue_list_with_trailing_prose_is_not_a_footer(closing: str) -> None:
+    body = f"Body.\n\nBREAKING CHANGE: the old name is gone.\n\nMore prose.\n\n{closing}"
+
+    assert not adr_reason.breaking_change("feat: rename the field", body)
+
+
+def test_a_double_blank_line_does_not_hide_the_footer() -> None:
+    body = "Body.\n\nBREAKING CHANGE: the old name is gone.\n\n\n\nSigned-off-by: a <a@b>"
+
+    assert adr_reason.breaking_change("feat: rename the field", body)
