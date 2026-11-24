@@ -319,7 +319,9 @@ Bounds: 30 s per call, 600 s of fallback time per run.
    - Loss: `reviewThreads(first: 100)` and `comments(first: 50)` request no `pageInfo` (`api.py:1313-1317`). Count PRs and threads that hit either limit and report the loss. Do not present a partial read as the full set.
 2. **Build a labeled corpus.** Sample 200 comments, stratified: 100 from the band, 100 outside it, across every reviewer in the signal table.
    - Unit: the eval scores the same unit production scores, with thread position recorded per row.
-   - Labeler: Richard or a maintainer he names. A second labeler double-labels 50 items, and the report states the agreement rate.
+   - Labelers (owner decision, 2026-11-24): a council of 3 non-Anthropic models. Arm C runs on Anthropic, so no labeler shares its vendor. The label is the majority vote. The council sees only the blinded sheet, never arm output.
+   - Agreement floor: all three models must agree on at least 70 percent of items. Below that, the labels are too noisy to decide anything, and the eval stops before scoring.
+   - The owner spot-checks 20 items, drawn at random with a recorded seed. The report states the council's agreement rate and the spot-check match rate.
    - Labelers see the comment, its file path, and the diff hunk it points at. The current fetch has no hunk, so the corpus builder fetches it separately. They do not see thread replies, heuristic scores, or any arm's output.
    - Hold out 40 band items as a dev split for prompt work. Freeze the prompt, provider, and model, and commit them, before the other 160 items are scored.
    - Labels must not come from thread replies. The heuristic already reads replies, so reply-derived labels make it grade itself.
@@ -333,15 +335,24 @@ Bounds: 30 s per call, 600 s of fallback time per run.
 
 6. **Run arm C on an HTTP transport** with the model CI would use. CLI-cell results count for accuracy only, since CLI spawn time does not transfer to CI latency.
 
-Pass bar: C beats the better of A and B on held-out band items by at least 10 points of accuracy, with the CI lower bound above 0.
-Before scoring, compute the smallest gap the held-out band size can detect. If the CI straddles 0 and the point gap is at least 10 points, the result is inconclusive, not a kill. Label 100 more band items once, then decide.
+Verdict rule (owner decision, 2026-11-24). The gap is C minus the better of A and B, on held-out band items.
+
+- **Pass:** the gap is at least 10 points, and the CI lower bound is above 0.
+- **Fail:** the CI upper bound is under 10 points. Only this is evidence that the gain is below the bar.
+- **Inconclusive:** anything else. A small sample cannot fail the fallback by itself.
+
+Why: at 60 held-out items the smallest gap the eval can detect is about 11 to 20 points, depending on how often C and the baseline disagree. Under the old rule, noise alone could fire kill criterion 2.
+
+On a look-1 inconclusive, label 100 more band items once, then score all held-out band items together (look 2).
+Look 2 uses a 97.5 percent interval, which splits the error budget over the two looks.
+A look-2 inconclusive is final. Kill criterion 2 does not fire, and the owner decides.
 
 ## Kill criteria
 
 Drop the model fallback, and delete `scripts/llm_classification`, if any holds:
 
 1. Fewer than 5 percent of comments land in the band (eval step 1). The fallback would move nothing.
-2. Arm C fails the pass bar against arm B. A one-character tie-break rule would do the job.
+2. The verdict is fail: the CI upper bound on the gap is under 10 points. A one-character tie-break rule would then do the job.
 3. The signal table's reviewer ranking is the same under A and C. Nobody downstream would act differently.
 4. The `agent-claude` environment's `ANTHROPIC_API_KEY` cannot reach a model from the CI runner, and no other transport is configured. (Owner, 2026-11-24: a CI secret is acceptable if the eval passes. The secret already exists.)
 5. At steady state, the chosen CI transport still caps out: `fallback_capped` above 10 percent of `band_total` under the 600 s budget at measured p95. Steady state starts after `band_total / min(LLM_FALLBACK_MAX_CALLS, 600 / p50)` daily runs, or after one backfill run with the caps raised. The M1 decision record projects that run count.

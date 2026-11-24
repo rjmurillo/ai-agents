@@ -88,8 +88,8 @@ Sizes are complexity, not time: S one concern, M several concerns or a new modul
 | M1-T8 | Fetch diff hunks for sampled rows | Each row carries path and hunk; rows with no hunk are flagged, not dropped | M | M1-T7 |
 | M1-T9 | Scan the corpus for secrets | `scripts/redact_secrets.py` reports no matches | S | M1-T8 |
 | M1-T10 | Generate the blinded labeling sheet | Shows comment, path, hunk; omits replies, scores, arm outputs; a test asserts both | S | M1-T8 |
-| M1-T11 | Label 200 items | Labeler named; every row labeled per rubric. Human effort: 200 judgments | M | M1-T6, M1-T9, M1-T10 |
-| M1-T12 | Double-label 50 items | Second labeler named; agreement rate recorded | M | M1-T11 |
+| M1-T11 | Label 200 items with a non-Anthropic council | 3 non-Anthropic models label the blinded sheet; majority vote written as `label`; per-model votes kept beside it | M | M1-T6, M1-T9, M1-T10 |
+| M1-T12 | Check agreement and spot-check | All-three agreement at or above 70 percent, else stop before scoring; owner spot-checks 20 seeded items; both rates recorded | S | M1-T11 |
 | M1-T13 | Implement arms A and B | Unit tests at the 0.5 boundary | S | M1-T5 |
 | M1-T14 | Implement arm C | Heuristic, then a `scripts/eval` HTTP provider cell, then the 0.7 apply rule; tests with a fake provider | M | M1-T5 |
 | M1-T15 | Implement metrics, latency, bootstrap CI, and minimum detectable gap | Seeded, reproducible tests on fixed inputs | M | M1-T13, M1-T14 |
@@ -191,7 +191,7 @@ Parallel tracks after M1-T5: labeling (T6 to T12) and runner (T13 to T15).
 
 | ID | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|---|
-| R1 | Model-made labels grade a model arm with a model's judgment | High | Arm C scores inflated when labeler and arm C share a vendor or prompt style | Labeling method is open (owner, 2026-11-24). If a council labels: council members exclude arm C's vendor, labels come from majority vote, council never sees arm outputs, and a human spot-checks a sample. Decide before M1-T11 |
+| R1 | Model-made labels grade a model arm with a model's judgment | High | Arm C scores inflated when labeler and arm C share a vendor or prompt style | Decided 2026-11-24: 3 non-Anthropic models, majority vote, 70 percent all-three agreement floor, owner spot-checks 20, council sees only the blinded sheet |
 | R2 | The fetch drops rows: no `pageInfo` on `reviewThreads(first: 100)` and `comments(first: 50)`, PR `updatedAt` window | High | Band share and corpus skew toward small PRs | M1-T3 counts and reports truncation; result states window semantics; fixing the fetch is deferred, not hidden |
 | R3 | Replies are scored as comments, so "thanks, fixed" rows enter the band | High | Kill criterion 1 measured on the wrong unit | Split band share by thread position; rubric fixes the unit to match production |
 | R4 | 60 held-out band items cannot detect a 10-point gain | High | Kill criterion 2 fires on noise | Minimum detectable gap computed first; inconclusive branch adds 100 band items once |
@@ -222,6 +222,10 @@ Parallel tracks after M1-T5: labeling (T6 to T12) and runner (T13 to T15).
 | 2026-11-23 | G0 (CI secret) moved before G1 | Kill criterion 4 needs the answer; asking after M3 risks wasted build work | Ask at M4 |
 | 2026-11-24 | G0 answered: a CI secret is acceptable if the eval passes | Owner decision; kill criterion 4 cleared conditionally | No secret (fires criterion 4) |
 | 2026-11-24 | Labels will not be hand-made; owner suggests an LLM council; method decided later | Owner decision | Owner labels 200 by hand |
+| 2026-11-24 | Labels: council of 3 non-Anthropic models, majority vote, 70 percent all-three agreement floor, 20 owner spot-checks | Arm C runs on Anthropic; same-vendor labels would inflate it | Council including Anthropic models |
+| 2026-11-24 | Verdict: fail only when the CI upper bound is under 0.10; else inconclusive unless pass; one extension at a 97.5 percent interval, then inconclusive is final | At 60 items the detectable gap (about 0.11 to 0.20) exceeds the 0.10 bar, so noise could fire kill criterion 2 | Keep "gap under 0.10 fails" |
+| 2026-11-24 | Secret scan: 64-char hex blocks unless allow-listed; 40-char SHAs still pass | Closes the 256-bit key path to the model API | Report 64-hex only |
+| 2026-11-24 | After these changes: full review round 2, then open a PR | Owner decision | Review with no PR; stop |
 | 2026-11-24 | Secrets are optional; absence is never an error and never silent; a present key that fails is always an error | Owner asked for no false positives and no false negatives. The job already runs under `agent-claude`, which holds `ANTHROPIC_API_KEY` (names listed 2026-11-24) | Fail when the key is absent (false alarms on forks); stay silent (today's false negative) |
 | 2026-11-24 | Build only M1-T2 to M1-T5 now | Owner decision; band share alone could kill the effort | Stop at plan; build all of M1 |
 

@@ -53,8 +53,10 @@ Step 7 needs `ANTHROPIC_API_KEY`, or a `--provider` that `call_api` accepts.
    ```
 
 5. Label the sheet per `RUBRIC.md`. Set `label` to `actionable`,
-   `not_actionable`, or `unsure`. The labeling method is still open (plan
-   risk R1).
+   `not_actionable`, or `unsure`. A council of 3 non-Anthropic models labels
+   it, and the majority vote is the label. Stop if all three agree on fewer
+   than 70 percent of items. The owner spot-checks 20 seeded items. The
+   council tooling is plan task M1-T11 and is not built yet.
 
 6. Merge the labels back into the corpus.
 
@@ -85,7 +87,10 @@ Step 7 needs `ANTHROPIC_API_KEY`, or a `--provider` that `call_api` accepts.
        --output .project-toolkit/scratch/predictions.jsonl
    ```
 
-8. Score the three arms.
+8. Score the three arms. The verdict is `pass` when the gap is at least 0.10
+   and the CI lower bound is above 0, `fail` only when the CI upper bound is
+   under 0.10, and `inconclusive` otherwise. On a look-1 `inconclusive`, label
+   100 more band items once and rerun with `--look 2`.
 
    ```bash
    uv run python scripts/eval/actionability_arms.py score \
@@ -96,11 +101,13 @@ Step 7 needs `ANTHROPIC_API_KEY`, or a `--provider` that `call_api` accepts.
 
 ## Secret scan
 
-`sample`, `fetch-hunks`, and `predict` scan comment text, replies, and hunks.
+`sample`, `fetch-hunks`, and `predict` scan comment text, replies, file paths,
+and hunks.
 
 - A token shape or a credential assignment blocks the step. Nothing is written,
   and no model call is made.
-- A 40 or 64 character hex run is a commit SHA. It is reported, not blocked.
+- A 40 character hex run is a git commit SHA. It is reported, not blocked.
+- A 64 character hex run blocks. It may be a sha256 digest or a 256-bit key.
 - A 32 character hex run after `pr-review-job-` or `Syntactic id:` is a
   public reviewer bot id. It is counted, not blocked.
 - Any other hex run blocks. After you read the row, pass its id with
