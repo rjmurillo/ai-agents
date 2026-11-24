@@ -454,8 +454,8 @@ def origin_web_base(root: Path) -> tuple[Web, str | None]:
 # and the May 2024 security releases of 2.39 to 2.44.
 _NO_LAZY_FETCH_GIT = (2, 45, 1)
 _NO_LAZY_FETCH_BACKPORTS = {(2, 39): 4, (2, 40): 2, (2, 41): 1, (2, 42): 2, (2, 43): 4, (2, 44): 1}
-_PROMISOR = re.compile(  # a ``git config --get-regexp`` line that marks a partial clone
-    r"(?:extensions\.partialclone|remote\..*\.partialclonefilter) \S"
+_PROMISOR = re.compile(  # a partial-clone config line; any filter value counts, even empty
+    r"extensions\.partialclone \S|remote\..*\.partialclonefilter(?: |\Z)"
     r"|remote\..*\.promisor(?:\Z| (?!false|no|off|0\b)\S)"  # a bare key means true
 )
 _GIT_VERSION = re.compile(r"git version ([0-9]+)\.([0-9]+)\.([0-9]+)", re.ASCII)

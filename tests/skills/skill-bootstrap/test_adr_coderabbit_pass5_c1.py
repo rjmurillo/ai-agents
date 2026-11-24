@@ -77,6 +77,19 @@ def test_c11_scan_refuses_a_partial_clone_on_a_git_that_may_fetch(
         _scan(repo)
 
 
+@pytest.mark.parametrize("value", ["", "blob:none"])
+def test_c11_scan_refuses_any_filter_value_on_a_git_that_may_fetch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    repo = new_repo(tmp_path / "r")
+    commit(repo, "Initial work")
+    git(repo, "config", "remote.origin.partialclonefilter", value)
+    _fake_git_version(monkeypatch, "2.37.0")
+
+    with pytest.raises(adr_scan.ConfigError, match="partial clone"):
+        _scan(repo)
+
+
 def test_c11_the_refusal_comes_before_the_rev_is_resolved(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
