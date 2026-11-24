@@ -1,6 +1,6 @@
 ---
 name: ai-agents-validation-and-qa
-description: What counts as evidence in ai-agents and how to produce it. Covers the TESTING-RIGOR pos+neg+edge bar, test layout and collection reality, coverage proof commands, runtime-contract tests with negative controls, and ADR-034 QA skip semantics at session end. Use when you say `what counts as evidence`, `how do I test this change`, `run skill tests`, `can I skip QA`. Do NOT use for CI failure triage (use `ai-agents-debugging-playbook`) or measurement tooling (use `ai-agents-diagnostics-toolkit`).
+description: What counts as evidence in ai-agents, how to produce it, and the contract for authoring CI workflows, composite actions, and validation scripts. Covers TESTING-RIGOR pos+neg+edge, test layout, coverage proof, runtime-contract tests, ADR-034 QA skips, and CI script rules (references/rule-ci-scripts.md). Use when you say `what counts as evidence`, `how do I test this change`, `run skill tests`, `can I skip QA`, or when authoring or editing a CI workflow, composite action, or validation script. Do NOT use for CI failure triage (use `ai-agents-debugging-playbook`) or measurement tooling (use `ai-agents-diagnostics-toolkit`).
 version: 1.0.0
 license: Apache-2.0
 metadata:

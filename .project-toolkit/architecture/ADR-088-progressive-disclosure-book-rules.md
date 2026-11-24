@@ -1,7 +1,7 @@
 ---
 id: ADR-088
 status: proposed
-date: 2026-07-27
+date: 2026-11-24
 decision-makers: []
 supersedes: []
 superseded-by: null
@@ -218,6 +218,48 @@ The trade carries the same late-retrieval risk as the original decision. The
 weekly `software-engineering-library` activation gate now lists
 `pragmatic-programmer` and `forbidden-patterns` among its moved references, so a
 reference that stops activating raises the existing rollback alert.
+
+## Amendment 2026-11-24 (context-diet staging)
+
+Decision-maker: rjmurillo, on the context-diet capability eval of 2026-11-24
+(`scripts/eval/eval-rule-activation.py`, `tests/evals/rule-scenarios/code-quality.json`,
+`claude-sonnet-5-5`, recorded in the PR #7541 description; raw run JSON is not
+committed). Panel: reduced (architect, critic); see `.project-toolkit/critique/ADR-088-debate-log.md`.
+
+`templates/rules/code-quality.md` moves from the always-on-on-code-files
+baseline into the `build` skill at `references/rule-code-quality.md` (with a
+pointer at `build/SKILL.md:70`), and the rule template plus its generated rule
+mirrors are deleted. ADR-088 originally kept `code-quality.md` always-on under
+the assumption that routine edits lose those checks without passive context.
+In the 2026-11-24 eval (`code-quality.json`, n=4 scenarios), `code-quality`
+scored 4.44 base, 4.44 full, and 4.22 routed (0.00 gain over baseline; routed
+4.22 above `MIN_ACTIVATION_SCORE = 3.5` and within PR #7541's 0.6 keep floor).
+Limits: one repeat, one judge per call, and target-only routing (the router saw
+only `build`), so full-catalog activation was not measured and the 0.22 gap is
+within noise. Because baseline already matches full, losing passive load carries
+no measured baseline regression. The trimmed `unified-software-engineering.md`
+remains the always-on code-files baseline; the 2026-07-27 and issue #5951
+statements keeping `code-quality.md` always-on describe the earlier state.
+
+In the same change, `scripts/validation/instruction_budget_constants.py`
+ratchets the always-on ceilings downward from 86,000 bytes to 66,000 bytes for
+`.py` (measured 62,255 B; 3,745 B headroom), 60,000 bytes for `.cs` (measured
+55,856 B; 4,144 B headroom), and 60,000 bytes for `.ps1` (measured 55,856 B;
+4,144 B headroom), and lowers fixture ceilings `F1` (276,000 to 235,000 B;
+measured 221,809 B) and `F2` (220,000 to 210,000 B; measured 199,979 B). That
+tight headroom is intentional for a non-regression ratchet, though a routine
+rule addition may trip the gate.
+
+Consequences and monitoring: `build/references/rule-code-quality.md` is excluded
+from the Hermes delivery pack (`templates/platforms/hermes.yaml`, 397 of 400
+files) because the pack is near its 400-file cap; Hermes users stay on the base
+arm (4.44 vs 4.44 full). All eight context-diet moved references (`ci-scripts`,
+`code-quality`, `csharp`, `efficiency`, `generated-artifacts`,
+`lossless-queue-reads`, `lsp-first`, `powershell`) carry reference-mode
+scenarios in `tests/evals/rule-scenarios/*.json`; wiring those eight
+non-`software-engineering-library` references into a scheduled activation
+monitor with an owner, cadence, and consecutive-run rollback state remains
+follow-up work under the same criterion as issue #3589.
 
 ## Related Decisions
 
