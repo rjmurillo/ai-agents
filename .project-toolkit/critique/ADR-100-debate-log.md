@@ -23,7 +23,7 @@ The full-index ADR patch has SHA-256 `431f1f3b7b42f10292112ce6a8d213a8ffff2bbae0
 | Base | `fd9817f468fc1c7ad13a97ab49d3d5bbf34ac764` |
 | Round 1 | `da74d6c746589934380c8042230d8e99c322992c` |
 | Round 2 | `da74d6c746589934380c8042230d8e99c322992c` |
-| Round 3 | `aee56e765b775a3dec2b3b420b10b042a268a255` |
+| Round 3 | `e1e3aeb35d09aa3edfb975403cf3b49b7812291b` |
 
 ## Round 1
 
@@ -64,3 +64,7 @@ Both lines hold the quoted code. No decision text changed.
 The architect noted that line-number citations will drift again after later merges.
 The critic noted that line 37 still cites `pr_commit_count.py`, which #5893 deleted.
 Both reservations predate this repair and stay outside its scope.
+
+Editing line 37 made the gate re-check its `:6727` citation.
+That line cited `_check_commit_limit`, which #5893 deleted with the size ceilings.
+A `citation-freshness: ignore` comment above line 37 marks it as history, as ADR-101 line 188 does.
