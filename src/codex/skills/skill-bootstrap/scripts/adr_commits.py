@@ -60,7 +60,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlsplit
 
-from adr_reason import breaking_change, extract_reason
+from adr_reason import extract_reason
 from adr_shape import is_release_or_bump_subject
 
 __all__ = [
@@ -70,7 +70,6 @@ __all__ = [
     "SLUG_MAX",
     "CommitRecord",
     "PrRow",
-    "breaking_change",
     "commit_pr_number",
     "commit_urls",
     "covering_numbers",
@@ -79,7 +78,6 @@ __all__ = [
     "hash_tokens",
     "iso_day",
     "issue_numbers",
-    "one_line",
     "parse_commit_object",
     "sanitize",
     "select_prs",
@@ -201,18 +199,12 @@ _URL = re.compile(r"(?:https?|git)://[^\s<>()\[\]\"'`]+", _A)
 _WORD_RUN = re.compile(r"[A-Za-z0-9_.-]+", _A)
 _HASH = re.compile(r"(?<![0-9A-Za-z_])[0-9a-fA-F]{7,64}(?![0-9A-Za-z_])", _A)
 _ISSUE = re.compile(r"(?<![0-9A-Za-z_/&])#([0-9]+)(?![0-9A-Za-z_])", _A)
-_SPACE_RUN = re.compile(r"\s+")
 
 
 def sanitize(text: str, limit: int | None = None) -> str:
     """Normalize line endings, drop NUL and other control bytes, and cut to ``limit`` chars."""
     cleaned = _CONTROL.sub("", text.replace("\r\n", "\n").replace("\r", "\n"))
     return cleaned if limit is None else cleaned[:limit]
-
-
-def one_line(text: str) -> str:
-    """``text`` with each whitespace run, line breaks included, as one space, and trimmed."""
-    return _SPACE_RUN.sub(" ", text).strip()
 
 
 def iso_day(value: object) -> str | None:
@@ -318,18 +310,24 @@ def _merge_sha(item: dict[str, Any]) -> str | None:
     return text if _HEX_SHA.fullmatch(text) else None
 
 
+_API_PULLS = re.compile(r"/repos/[^/]+/[^/]+/pulls/", re.ASCII)
+
+
 def _page_url(item: dict[str, Any]) -> object:
     """The pull request page: ``html_url``, else ``url`` unless that is a REST API address.
 
     A raw GitHub pull object holds both. Its ``url`` is the API endpoint, on an ``api.`` host
-    or under ``/repos/``, and is not the page a reader opens.
+    or under ``/repos/<owner>/<repo>/pulls/``, and is not the page a reader opens.
     """
     if item.get("html_url"):
         return item["html_url"]
     url = item.get("url")
     if isinstance(url, str):
-        parts = urlsplit(url)
-        if (parts.hostname or "").startswith("api.") or "/repos/" in parts.path:
+        try:
+            parts = urlsplit(url)
+        except ValueError:  # a malformed host such as "https://[x"; the row is incomplete
+            return None
+        if (parts.hostname or "").startswith("api.") or _API_PULLS.search(parts.path):
             return None
     return url
 
@@ -450,7 +448,7 @@ def commit_pr_number(record: CommitRecord, promoted: str) -> int | None:
         return from_squash
     merge = record.subject.startswith("Merge pull request #")
     digits = record.subject[len("Merge pull request #") :].split(" ", 1)[0]
-    return int(digits) if merge and digits.isdigit() else None
+    return int(digits) if merge and digits.isascii() and digits.isdigit() else None
 
 
 _MERGE_LINE = re.compile(r"merge (?:pull request|branch)\b", _I)

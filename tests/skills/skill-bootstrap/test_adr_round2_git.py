@@ -17,12 +17,16 @@ from draft_helpers import _cand, _scan_file
 # ---------------------------------------------------------------------------
 
 
-def test_git_env_drops_the_discovery_limit_variables(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_git_env_drops_the_ceiling_and_lets_discovery_cross_mounts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("GIT_CEILING_DIRECTORIES", "/somewhere")
-    monkeypatch.setenv("GIT_DISCOVERY_ACROSS_FILESYSTEM", "1")
+    monkeypatch.setenv("GIT_DISCOVERY_ACROSS_FILESYSTEM", "0")
+
     env = adr_scan.git_env()
+
     assert "GIT_CEILING_DIRECTORIES" not in env
-    assert "GIT_DISCOVERY_ACROSS_FILESYSTEM" not in env
+    assert env["GIT_DISCOVERY_ACROSS_FILESYSTEM"] == "1"
 
 
 def test_a_ceiling_at_the_repository_does_not_turn_an_in_repo_folder_into_scratch(

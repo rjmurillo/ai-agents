@@ -48,7 +48,6 @@ from typing import Any
 from adr_commits import (
     CommitRecord,
     PrRow,
-    breaking_change,
     commit_pr_number,
     commit_urls,
     covering_numbers,
@@ -63,7 +62,7 @@ from adr_commits import (
 )
 from adr_docs import DROP_KEYS, ExistingAdrs, log_candidates
 from adr_locate import AdrTally, locate_folders, read_adr_texts
-from adr_reason import extract_reason
+from adr_reason import breaking_change, extract_reason
 from adr_shape import (
     CommitShape,
     has_stated_rationale,
@@ -97,7 +96,7 @@ __all__ = [
     "web_base",
 ]
 
-MAX_COMMITS = 100_000
+MAX_COMMITS = 10_000
 Candidate = dict[str, Any]
 
 
@@ -295,7 +294,7 @@ class GitError(Exception):
 # child at another repository, or hide the work tree around a folder, whatever ``-C`` says.
 _LOCAL_GIT_ENV = frozenset(
     "GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_CEILING_DIRECTORIES GIT_COMMON_DIR GIT_CONFIG "
-    "GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS GIT_DIR GIT_DISCOVERY_ACROSS_FILESYSTEM "
+    "GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS GIT_DIR "
     "GIT_GRAFT_FILE GIT_IMPLICIT_WORK_TREE GIT_INDEX_FILE GIT_NAMESPACE GIT_NO_REPLACE_OBJECTS "
     "GIT_OBJECT_DIRECTORY GIT_PREFIX GIT_REPLACE_REF_BASE GIT_SHALLOW_FILE GIT_WORK_TREE".split()
 )
@@ -308,7 +307,14 @@ def git_env() -> dict[str, str]:
     ``dubious ownership``) the same on every locale.
     """
     env = {key: value for key, value in os.environ.items() if key not in _LOCAL_GIT_ENV}
-    env.update(GIT_TERMINAL_PROMPT="0", GIT_NO_LAZY_FETCH="1", LC_ALL="C")
+    # Discovery may cross a mount inside the work tree, so a folder on another filesystem is
+    # still seen as inside it, and the draft gate stays strict.
+    env.update(
+        GIT_TERMINAL_PROMPT="0",
+        GIT_NO_LAZY_FETCH="1",
+        GIT_DISCOVERY_ACROSS_FILESYSTEM="1",
+        LC_ALL="C",
+    )
     return env
 
 

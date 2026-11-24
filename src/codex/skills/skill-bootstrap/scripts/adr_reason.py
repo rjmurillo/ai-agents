@@ -151,11 +151,10 @@ _HTML_TAG = re.compile(
 _DANGLING_LINK = re.compile(
     r"(?:\b(?:because of|due to|of|to|by|with|from|for|on|in|and|or)|,)\s*\ue000", _A
 )
-# ``(?<!\s)`` lets a match start only where a whitespace run begins. Search takes the leftmost
-# match, which already starts there, so results are unchanged, and a long run of blanks that
-# no hole follows is scanned once instead of once per position.
-_HOLE_BEFORE_PUNCT = re.compile(r"(?<!\s)\s*\ue000\s*([.,;:!?])", _A)
-_HOLE = re.compile(r"(?<!\s)\s*\ue000\s*", _A)
+# Applied to flat text only (``_sentence_hit`` flattens first), where a whitespace run is one
+# space, so ``\s?`` matches what ``\s*`` did, in linear time, and two holes in a row both go.
+_HOLE_BEFORE_PUNCT = re.compile(r"\s?\ue000\s?([.,;:!?])", _A)
+_HOLE = re.compile(r"\s?\ue000\s?", _A)
 
 _COMMENT = re.compile(r"<!--[\s\S]*?(?:-->|\Z)", _A)
 _FENCE = re.compile(r"^[ \t]*(```|~~~)[\s\S]*?(?:^[ \t]*\1|\Z)", _A | re.MULTILINE)
@@ -200,7 +199,7 @@ def commit_sha_of(source_url: str | None) -> str | None:
 
 
 def _strip_markup(text: str) -> str:
-    out = re.sub(r"!?\[([^\]]*)\]\([^)]*\)", r"\1", text)
+    out = re.sub(r"!?\[([^\[\]]*)\]\([^()]*\)", r"\1", text)
     out = _HTML_TAG.sub(" ", out)
     out = re.sub(r"https?://\S+", f" {_URL_HOLE} ", out)
     out = re.sub(r"(\*\*|__)(.+?)\1", r"\2", out)
@@ -390,7 +389,7 @@ def _sentence_hit(
     """Score and display text of one sentence, or None when it does not qualify."""
     if _DANGLING_LINK.search(sentence):
         return None
-    s = _HOLE_BEFORE_PUNCT.sub(r"\1", sentence)
+    s = _HOLE_BEFORE_PUNCT.sub(r"\1", flat(sentence))
     s = _HOLE.sub(" ", s).strip()
     if len(_words(s)) < _MIN_WORDS or not _is_mostly_english(s) or _NOISE_SENTENCE.search(s):
         return None

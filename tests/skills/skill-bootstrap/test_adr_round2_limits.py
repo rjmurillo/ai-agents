@@ -123,12 +123,12 @@ def test_a_max_commits_above_the_ceiling_exits_two_with_config(tmp_path: Path) -
         "--repo",
         str(repo),
         "--max-commits",
-        "100001",
+        "10001",
         "--out",
         str(tmp_path / "scan.json"),
     )
     assert code == 2 and payload["error"] == "config"
-    assert "100000" in str(payload["message"])
+    assert "10000" in str(payload["message"])
     assert not (tmp_path / "scan.json").exists()
 
 
@@ -156,8 +156,8 @@ def test_the_ceiling_value_itself_is_accepted(tmp_path: Path) -> None:
         "--repo",
         str(repo),
         "--max-commits",
-        "100000",
+        "10000",
         "--out",
         str(tmp_path / "scan.json"),
     )
-    assert code == 0 and payload["max_commits"] == 100000
+    assert code == 0 and payload["max_commits"] == 10000

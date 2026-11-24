@@ -69,6 +69,8 @@ def test_the_hole_patterns_are_linear_on_a_long_run_of_blanks() -> None:
     ("text", "expected"),
     [
         ("see   ,", "see,"),
+        ("see   in", "see  in"),
+        ("( ).", "(  )."),
         ("a  b", "a b"),
         (" start", "start"),
         ("end ", "end"),
@@ -78,7 +80,7 @@ def test_the_hole_patterns_are_linear_on_a_long_run_of_blanks() -> None:
     ],
 )
 def test_the_hole_patterns_keep_their_results(text: str, expected: str) -> None:
-    filled = adr_reason._HOLE_BEFORE_PUNCT.sub(r"\1", text)
+    filled = adr_reason._HOLE_BEFORE_PUNCT.sub(r"\1", adr_reason.flat(text))
     assert adr_reason._HOLE.sub(" ", filled).strip() == expected
 
 

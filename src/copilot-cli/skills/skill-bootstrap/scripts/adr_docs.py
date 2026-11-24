@@ -52,6 +52,7 @@ from adr_locate import read_bounded
 from adr_reason import extract_reason
 
 __all__ = [
+    "MAX_LOG_FILES",
     "CHANGELOG_FILES",
     "CONTRIBUTING_FILES",
     "DROP_KEYS",
@@ -219,6 +220,7 @@ DROP_KEYS = (
 
 _LOG_FILE = re.compile(r"(?:decisions?[-_]log|decisions|.*ledger.*)\.md\Z", _I)
 _LOG_DIRS = ("", "docs")
+MAX_LOG_FILES = 20
 # Blanks and closing marks come off in ``_heading_text``: a lazy group before ``[ \t]*#*[ \t]*\Z``
 # is quadratic on a long run of spaces.
 _HEADING = re.compile(r"#{1,6}[ \t]+(.+)", _A)
@@ -385,12 +387,13 @@ def read_log_entries(root: Path) -> tuple[list[tuple[str, LogEntry]], int, int]:
     """``(entries, files, skipped)`` for the decision log files under ``root``.
 
     An entry is ``(relative file, entry)``. ``files`` counts the log files found, and
-    ``skipped`` counts those that were unreadable or over ``MAX_READ_BYTES``.
+    ``skipped`` counts those that were unreadable, over ``MAX_READ_BYTES``, or past the first
+    ``MAX_LOG_FILES`` in path order.
     """
     entries: list[tuple[str, LogEntry]] = []
     files = find_log_files(root)
-    skipped = 0
-    for rel in files:
+    skipped = max(0, len(files) - MAX_LOG_FILES)
+    for rel in files[:MAX_LOG_FILES]:
         text = read_bounded(root / rel)
         if text is None:
             skipped += 1

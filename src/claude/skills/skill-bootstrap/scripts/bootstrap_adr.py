@@ -53,14 +53,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import stat
 import sys
 from pathlib import Path
 from typing import Any
 
-from adr_commits import one_line, sanitize, slugify
+from adr_commits import sanitize, slugify
 from adr_locate import (
+    FULL_SHA,
     MAX_READ_BYTES,
     NOT_RECORDED,
     Style,
@@ -83,6 +83,7 @@ from adr_scan import (
     scan,
     stderr_text,
 )
+from adr_shape import flat
 
 __all__ = [
     "DEFAULT_MAX_COMMITS",
@@ -101,7 +102,6 @@ __all__ = [
 
 MAX_JSON_BYTES = 16 * MAX_READ_BYTES
 _KINDS = frozenset({"commit", "pr", "decision-log"})
-_SHA = re.compile(r"[0-9A-Fa-f]{40}|[0-9A-Fa-f]{64}", re.ASCII)
 # ADR-073's status enum, without "accepted": a draft never asserts its own approval.
 # Acceptance needs a review, so a person sets it after the draft is written. Superseded is
 # allowed on a draft for compatibility, but a person must add the superseding reference by
@@ -188,12 +188,12 @@ def _prepare_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
     kind = candidate.get("kind")
     if not isinstance(kind, str) or kind not in _KINDS:
         raise ConfigError(f"candidate {candidate.get('id')!r} has an unknown kind")
-    title = one_line(_text(candidate.get("title"), "title", True) or "")
+    title = flat(_text(candidate.get("title"), "title", True) or "")
     reason = _text(candidate.get("reason"), "reason")
     return {
         **candidate,
         "title": adr_title(kind, title),
-        "reason": None if reason is None else one_line(reason),
+        "reason": None if reason is None else flat(reason),
         "excerpt": _text(candidate.get("excerpt"), "excerpt"),
         "source": clean_source(candidate.get("source")),
     }
@@ -273,7 +273,9 @@ def _file_name(style: Style, number: int, candidate: dict[str, Any]) -> str:
         source = candidate.get("source")
         sha = source.get("sha") if isinstance(source, dict) else None
         base = (
-            f"decision-{sha[:7].lower()}" if isinstance(sha, str) and _SHA.fullmatch(sha) else None
+            f"decision-{sha[:7].lower()}"
+            if isinstance(sha, str) and FULL_SHA.fullmatch(sha)
+            else None
         )
         slug = base or f"decision-{slugify(str(candidate['id'])) or 'unnamed'}"
     return f"{style.prefix}{number:0{style.width}d}-{slug}.md"

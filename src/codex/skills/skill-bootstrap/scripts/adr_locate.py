@@ -41,11 +41,10 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from adr_commits import iso_day, one_line, sanitize
-from adr_shape import section_kind
+from adr_commits import iso_day, sanitize
+from adr_shape import flat, section_kind
 
 __all__ = [
-    "ADR_EXTENSIONS",
     "KNOWN_FOLDERS",
     "MAX_ADR_BYTES",
     "MAX_ADR_FILES",
@@ -53,6 +52,7 @@ __all__ = [
     "NOT_RECORDED",
     "NO_REASON",
     "NYGARD_HEADINGS",
+    "FULL_SHA",
     "AdrFile",
     "AdrTally",
     "Style",
@@ -69,7 +69,6 @@ __all__ = [
     "render_h1",
 ]
 
-ADR_EXTENSIONS = (".md", ".mdx", ".adoc")
 MAX_READ_BYTES = 1024 * 1024
 MAX_ADR_FILES = 2000
 MAX_ADR_BYTES = 32 * 1024 * 1024
@@ -398,9 +397,11 @@ NO_REASON = "The source states no reason."
 _TYPE_PREFIX = re.compile(r"\A[a-z]+(?:\([^)]*\))?!?:[ \t]+", re.IGNORECASE | re.ASCII)
 _PR_SUFFIX = re.compile(r"\(#[0-9]+\)\Z", re.ASCII)
 _URL = re.compile(r"https://[^\s<>`\"']+\Z", re.ASCII)
-_SHA = re.compile(r"[0-9A-Fa-f]{40}|[0-9A-Fa-f]{64}", re.ASCII)
-# A mark that starts a heading, quote, list, fence, rule, table or list number.
-_MD_LEAD = re.compile(r"[#>+*=`~|-]|[0-9]+[.)](?=[ \t]|\Z)", re.ASCII)
+FULL_SHA = re.compile(r"[0-9A-Fa-f]{40}|[0-9A-Fa-f]{64}", re.ASCII)
+# Any leading ASCII punctuation may start structure (``<!--``, ``[x]: u``, ``___``), and a
+# backslash before it is always a valid escape. A list number keeps its digits: ``12\. x``.
+_MD_LEAD = re.compile(r"[!-/:-@\[-`{-~]", re.ASCII)
+_LIST_NUMBER = re.compile(r"\A([0-9]+)([.)])(?=[ \t]|\Z)", re.ASCII)
 
 
 def clean_source(source: object) -> dict[str, Any]:
@@ -411,8 +412,8 @@ def clean_source(source: object) -> dict[str, Any]:
     """
     cleaned: dict[str, Any] = {}
     for key, value in (source if isinstance(source, dict) else {}).items():
-        text = one_line(sanitize(value)) if isinstance(value, str) else value
-        pattern = {"sha": _SHA, "url": _URL, "pr_url": _URL}.get(key)
+        text = flat(sanitize(value)) if isinstance(value, str) else value
+        pattern = {"sha": FULL_SHA, "url": _URL, "pr_url": _URL}.get(key)
         if pattern is None or (isinstance(text, str) and pattern.fullmatch(text)):
             cleaned[key] = text
     return cleaned
@@ -421,7 +422,7 @@ def clean_source(source: object) -> dict[str, Any]:
 def _plain(text: str) -> str:
     """One line of ``text`` that cannot start Markdown structure: a backslash goes in front of a
     leading mark, so ``## x`` or a code fence shows as text."""
-    return f"\\{text}" if _MD_LEAD.match(text) else text
+    return f"\\{text}" if _MD_LEAD.match(text) else _LIST_NUMBER.sub(r"\1\\\2", text, count=1)
 
 
 def _link(candidate: dict[str, Any]) -> str:

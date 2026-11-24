@@ -10,7 +10,7 @@ added by this port, so those cases are new.
 
 from __future__ import annotations
 
-import adr_commits
+import adr_reason
 import adr_shape
 import pytest
 
@@ -90,7 +90,7 @@ def test_decision_shaped_title_the_leading_issue_number_after_the_prefix_is_igno
     ["feat!: drop the v1 API", "feat(api)!: drop the v1 API", "FIX(core)!: rename the flag"],
 )
 def test_breaking_change_a_bang_after_the_type_or_scope_is_breaking(subject: str) -> None:
-    assert adr_commits.breaking_change(subject, "") is True
+    assert adr_reason.breaking_change(subject, "") is True
 
 
 @pytest.mark.parametrize(
@@ -106,7 +106,7 @@ def test_breaking_change_a_bang_after_the_type_or_scope_is_breaking(subject: str
     ],
 )
 def test_breaking_change_a_footer_line_in_the_trailer_paragraph_is_breaking(body: str) -> None:
-    assert adr_commits.breaking_change("feat: drop the v1 API", body) is True
+    assert adr_reason.breaking_change("feat: drop the v1 API", body) is True
 
 
 @pytest.mark.parametrize(
@@ -123,7 +123,7 @@ def test_breaking_change_a_footer_line_in_the_trailer_paragraph_is_breaking(body
     ],
 )
 def test_breaking_change_the_phrase_in_mid_body_prose_is_not_breaking(body: str) -> None:
-    assert adr_commits.breaking_change("feat: drop the v1 API", body) is False
+    assert adr_reason.breaking_change("feat: drop the v1 API", body) is False
 
 
 @pytest.mark.parametrize(
@@ -131,4 +131,4 @@ def test_breaking_change_the_phrase_in_mid_body_prose_is_not_breaking(body: str)
     ["feat: add a ! to the greeting", "feat(a!b): odd scope", "fix: handle bang! in names", ""],
 )
 def test_breaking_change_a_bang_elsewhere_in_the_subject_is_not_breaking(subject: str) -> None:
-    assert adr_commits.breaking_change(subject, "") is False
+    assert adr_reason.breaking_change(subject, "") is False
