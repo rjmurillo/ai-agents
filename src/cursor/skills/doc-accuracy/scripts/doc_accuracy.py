@@ -2262,6 +2262,13 @@ def _try_c_family_code_view(
     return "".join(chars)
 
 
+# Pseudo-token kinds the JavaScript scan emits in place of a raw token.
+_JS_CONTROL_END = "control-end"
+_JS_STATEMENT_END = "statement-end"
+_JS_PROPERTY = "property"
+_JS_NON_NULL = "non-null"
+
+
 def _scan_c_family(
     code: str, i: int, lang: str, *, in_hole: bool, budget: _ScanBudget
 ) -> tuple[int, _Spans]:
@@ -2312,15 +2319,15 @@ def _scan_c_family(
             if token == "(":
                 control_parens.append(previous in _JS_CONTROL_HEADS)
             elif token == ")" and control_parens and control_parens.pop():
-                token = "control-end"
+                token = _JS_CONTROL_END
             elif token == "{":
                 statement_braces.append(previous in _JS_STATEMENT_BLOCK_PRECEDERS)
             elif token == "}" and statement_braces and statement_braces.pop():
-                token = "statement-end"
+                token = _JS_STATEMENT_END
             elif previous in (".", "?.") and token in _JS_KEYWORDS:
-                token = "property"
+                token = _JS_PROPERTY
             elif token == "!" and lang == "typescript" and not _js_regex_allowed(previous):
-                token = "non-null"
+                token = _JS_NON_NULL
             previous = token
             i = match.end()
             continue
