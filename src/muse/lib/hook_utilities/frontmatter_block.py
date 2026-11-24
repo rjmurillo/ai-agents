@@ -193,7 +193,8 @@ def _strict_loader(yaml: ModuleType) -> type:
     """Return a ``SafeLoader`` subclass that rejects a repeated mapping key.
 
     Built from the caller's ``yaml`` module so this file never imports it, and
-    cached per module object. Hashable keys go in a set. A YAML key need not be
+    cached per module object. Hashable keys go in a set, so a repeated ``.nan``
+    key is refused (PyYAML returns one shared NaN object). A YAML key need not be
     hashable (``? [a, b]`` builds a list key), so those are compared with ``==``
     in a list instead: a ``TypeError`` would escape the caller's
     ``yaml.YAMLError`` handling.

@@ -16,7 +16,7 @@ Verified 2026-07-03 against the working tree.
 | Eval commands and flags | `scripts/eval/eval-prompt-change.py:1-60`, `scripts/eval/eval-agent-vs-baseline.py:472-573` | `uv run python scripts/eval/eval-prompt-change.py --help` <!-- citation-freshness: ignore -- verified at the cited range; the gate reads earlier rows' shell commands as anchors --> |
 | Scenario/fixture locations | `tests/evals/`, `evals/` | `ls tests/evals/ evals/` |
 | Verbatim-quote rule (7 fix commits) | `.claude/rules/canonical-source-mirror.md` | `sed -n '1,30p' .claude/rules/canonical-source-mirror.md` |
-| CONTRIBUTING pwsh commands are dead | `CONTRIBUTING.md:155`; no `.ps1` outside `.venv` | `find . -name '*.ps1' -not -path './.venv/*'` <!-- citation-freshness: ignore -- a fact verified on the date at the top of this file; the cited text has since changed --> |
+| CONTRIBUTING pwsh commands were dead | PR #2871 repointed them to Python; no tracked `.ps1` or `.psm1` | `git ls-files '*.ps1' '*.psm1'` |
 | Reproduce-on-main rule (PR #1361) | `.serena/memories/ci-infrastructure-observations.md:8` | `sed -n '8p' .serena/memories/ci-infrastructure-observations.md` |
 | Runtime-contract exemplar passes (29 test functions at 42e409325) | `tests/build_scripts/test_generate_hooks_runtime_contract.py` | `uv run pytest tests/build_scripts/test_generate_hooks_runtime_contract.py -q` |
 | Failure mode 9 and 11 index rows (names, not FM-N ids; row 9 is `Confident-incorrectness recurrence`) | `.agents/governance/FAILURE-MODES.md:27-29` | `sed -n '27,29p' .agents/governance/FAILURE-MODES.md` |

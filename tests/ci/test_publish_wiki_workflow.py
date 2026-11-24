@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import ast
 import re
-from fnmatch import fnmatch
+import sys
 from pathlib import Path
 
 import pytest
@@ -54,38 +54,84 @@ def test_runs_on_main_pushes_that_touch_the_training_tree(doc: dict) -> None:
     assert "scripts/ci/_wiki_links.py" in push["paths"]
 
 
+def _imported_modules(tree: ast.Module, package: str) -> list[str]:
+    """Every ``scripts`` module a parsed file names, in any import shape."""
+    names: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            names.extend(a.name for a in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            if node.level:
+                anchor = package.split(".")[: len(package.split(".")) - node.level + 1]
+                base = ".".join([*anchor, node.module] if node.module else anchor)
+            else:
+                base = node.module or ""
+            names.append(base)
+            # `from scripts.pkg import mod` may name a submodule, not an attribute.
+            names.extend(f"{base}.{a.name}" for a in node.names if a.name != "*")
+        elif (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "import_module"
+            and node.args
+            and isinstance(node.args[0], ast.Constant)
+            and isinstance(node.args[0].value, str)
+        ):
+            names.append(node.args[0].value)
+    return [n for n in names if n == "scripts" or n.startswith("scripts.")]
+
+
 def _repo_import_closure(module: str) -> set[str]:
-    """Repo-relative paths of every ``scripts.*`` module ``module`` loads, transitively."""
+    """Repo-relative paths of every ``scripts`` module ``module`` loads, transitively."""
     found: set[str] = set()
+    seen: set[str] = set()
     pending = [module]
     while pending:
         name = pending.pop()
+        if name in seen:
+            continue
+        seen.add(name)
         parts = name.split(".")
-        candidates = [
+        # Importing a submodule runs every parent package's __init__ first.
+        pending.extend(".".join(parts[:depth]) for depth in range(1, len(parts)))
+        for path in (
             ROOT.joinpath(*parts).with_suffix(".py"),
             ROOT.joinpath(*parts, "__init__.py"),
-        ]
-        # Importing a submodule runs every parent package's __init__ first.
-        for depth in range(1, len(parts)):
-            init = ROOT.joinpath(*parts[:depth], "__init__.py")
-            if init.is_file() and str(init.relative_to(ROOT)) not in found:
-                pending.append(".".join(parts[:depth]))
-        for path in candidates:
-            rel = str(path.relative_to(ROOT))
-            if not path.is_file() or rel in found:
+        ):
+            if not path.is_file():
                 continue
             tree = ast.parse(path.read_text(encoding="utf-8"))
             if all(
                 isinstance(n, ast.Expr) and isinstance(n.value, ast.Constant) for n in tree.body
             ):
                 continue  # a docstring-only package marker runs no code
-            found.add(rel)
-            for node in ast.walk(tree):
-                if isinstance(node, ast.ImportFrom) and (node.module or "").startswith("scripts."):
-                    pending.append(node.module or "")
-                elif isinstance(node, ast.Import):
-                    pending.extend(a.name for a in node.names if a.name.startswith("scripts."))
+            found.add(str(path.relative_to(ROOT)))
+            package = name if path.name == "__init__.py" else ".".join(parts[:-1])
+            pending.extend(_imported_modules(tree, package))
     return found
+
+
+def _github_path_match(path: str, pattern: str) -> bool:
+    """Match like a GitHub path filter: `*` stays in one segment, `**` spans them."""
+    regex = ""
+    i = 0
+    while i < len(pattern):
+        if pattern.startswith("**/", i):
+            regex += "(?:.*/)?"
+            i += 3
+        elif pattern.startswith("**", i):
+            regex += ".*"
+            i += 2
+        elif pattern[i] == "*":
+            regex += "[^/]*"
+            i += 1
+        elif pattern[i] == "?":
+            regex += "[^/]"
+            i += 1
+        else:
+            regex += re.escape(pattern[i])
+            i += 1
+    return re.fullmatch(regex, path) is not None
 
 
 def test_the_path_filter_covers_every_repo_module_the_script_imports(doc: dict) -> None:
@@ -94,7 +140,7 @@ def test_the_path_filter_covers_every_repo_module_the_script_imports(doc: dict) 
     closure = _repo_import_closure("scripts.ci.publish_wiki")
 
     assert "scripts/hook_utilities/frontmatter_block.py" in closure
-    uncovered = sorted(p for p in closure if not any(fnmatch(p, g) for g in patterns))
+    uncovered = sorted(p for p in closure if not any(_github_path_match(p, g) for g in patterns))
     assert uncovered == []
 
 
@@ -158,3 +204,44 @@ def test_concurrency_is_per_ref_and_queues(doc: dict) -> None:
         "group": "publish-wiki-${{ github.ref }}",
         "cancel-in-progress": False,
     }
+
+
+def test_the_closure_follows_every_import_shape(tmp_path, monkeypatch) -> None:
+    """Submodule, relative, bare-package, and import_module() imports all count."""
+    pkg = tmp_path / "scripts" / "pkg"
+    pkg.mkdir(parents=True)
+    (tmp_path / "scripts" / "__init__.py").write_text("X = 1\n", encoding="utf-8")
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "entry.py").write_text(
+        "import importlib\nfrom scripts.pkg import sub\nfrom .rel import y\n"
+        "importlib.import_module('scripts.pkg.dyn')\n",
+        encoding="utf-8",
+    )
+    for leaf in ("sub", "rel", "dyn"):
+        (pkg / f"{leaf}.py").write_text("V = 1\n", encoding="utf-8")
+    monkeypatch.setattr(sys.modules[__name__], "ROOT", tmp_path)
+
+    closure = _repo_import_closure("scripts.pkg.entry")
+
+    assert closure == {
+        "scripts/__init__.py",
+        "scripts/pkg/entry.py",
+        "scripts/pkg/sub.py",
+        "scripts/pkg/rel.py",
+        "scripts/pkg/dyn.py",
+    }
+
+
+@pytest.mark.parametrize(
+    ("path", "pattern", "expected"),
+    [
+        ("scripts/hook_utilities/guards.py", "scripts/hook_utilities/**", True),
+        ("scripts/hook_utilities/sub/x.py", "scripts/hook_utilities/**", True),
+        ("scripts/ci/sub/x.py", "scripts/ci/*", False),
+        ("scripts/ci/x.py", "scripts/ci/*", True),
+        ("docs/training/a/b.md", "docs/training/**", True),
+        ("scripts/ci/publish_wiki.py", "scripts/ci/publish_wiki.py", True),
+    ],
+)
+def test_path_matching_follows_github_glob_rules(path: str, pattern: str, expected: bool) -> None:
+    assert _github_path_match(path, pattern) is expected

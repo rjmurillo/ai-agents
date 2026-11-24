@@ -9,7 +9,9 @@ Follow-ups from PR #7531's review:
 
 from __future__ import annotations
 
+import gc
 import types
+import weakref
 
 import yaml
 
@@ -39,6 +41,13 @@ class TestOpenEnd:
         assert split.raw_start > split.open_end
         assert text[split.open_end : split.raw_end] == "\t\nname: x\n"
 
+    def test_open_end_on_crlf_text_starts_the_next_line(self) -> None:
+        text = "---\r\nname: x\r\n---\r\nBody\r\n"
+
+        split = split_frontmatter(text)
+
+        assert text[split.open_end : split.raw_end] == "name: x\r\n"
+
     def test_open_end_is_zero_without_a_closed_block(self) -> None:
         assert split_frontmatter("no fence\n").open_end == 0
         assert split_frontmatter("---\nname: x\n").open_end == 0
@@ -57,6 +66,12 @@ class TestMergeKeyMarker:
         assert result.error is not None
         assert "duplicate key <<" in result.error
 
+    def test_a_repeated_nan_key_is_refused(self) -> None:
+        """PyYAML returns one shared NaN object, so the set check sees a repeat."""
+        result = parse_frontmatter("---\n.nan: 1\n.nan: 2\n---\n", yaml)
+
+        assert result.status is FrontmatterStatus.MALFORMED
+
     def test_a_repeated_unhashable_key_is_still_refused(self) -> None:
         result = parse_frontmatter("---\n? [a, b]\n: 1\n? [a, b]\n: 2\n---\n", yaml)
 
@@ -65,9 +80,24 @@ class TestMergeKeyMarker:
 
 class TestLoaderCache:
     def test_the_cache_is_keyed_by_module_object(self) -> None:
-        parse_frontmatter("---\na: 1\n---\n", yaml)
+        loader = frontmatter_block._strict_loader(yaml)
 
-        assert yaml in frontmatter_block._STRICT_LOADERS
+        assert frontmatter_block._STRICT_LOADERS[yaml] is loader
+
+    def test_the_cache_keeps_its_module_alive(self) -> None:
+        """A strong key means no freed module's id can be reused to hit a stale loader."""
+        stand_in = types.ModuleType("yaml_kept_alive")
+        stand_in.__dict__.update(yaml.__dict__)
+        probe = weakref.ref(stand_in)
+        try:
+            frontmatter_block._strict_loader(stand_in)
+            del stand_in
+            gc.collect()
+            assert probe() is not None
+        finally:
+            kept = probe()
+            if kept is not None:
+                frontmatter_block._STRICT_LOADERS.pop(kept, None)
 
     def test_a_distinct_module_object_gets_its_own_loader(self) -> None:
         stand_in = types.ModuleType("yaml_stand_in")
