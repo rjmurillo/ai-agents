@@ -64,6 +64,10 @@ SPLIT_DEV = "dev"
 SPLIT_HELDOUT = "heldout"
 SPLIT_OUTSIDE = "outside"
 
+# The only keys a labeler may see (rubric: body, path, hunk). Premortem R3: the sheet is
+# built from this list, never by copying a corpus row, so a new corpus field cannot leak.
+SHEET_FIELDS = ("id", "path", "diff_hunk", "body")
+
 # The id travels as a variable, never in the query text (ADR-015).
 _HUNK_QUERY = "query($id: ID!) { node(id: $id) { ... on PullRequestReviewComment { diffHunk } } }"
 
@@ -320,6 +324,18 @@ def cmd_fetch_hunks(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_sheet(args: argparse.Namespace) -> int:
+    """Write the blinded labeling sheet: allowlisted fields, seeded shuffle, blank labels."""
+    rows = _load_jsonl(args.corpus)
+    if rows is None:
+        return 2
+    sheet = [{**{key: row.get(key) for key in SHEET_FIELDS}, "label": None} for row in rows]
+    random.Random(args.seed).shuffle(sheet)
+    _write_jsonl(args.output, sheet)
+    print(f"wrote {len(sheet)} rows with fields {', '.join([*SHEET_FIELDS, 'label'])}")
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
@@ -337,6 +353,12 @@ def _build_parser() -> argparse.ArgumentParser:
     hunks.add_argument("--corpus", type=Path, required=True, help="Corpus JSONL from sample")
     hunks.add_argument("--output", type=Path, required=True, help="Corpus JSONL to write")
     hunks.set_defaults(handler=cmd_fetch_hunks)
+
+    sheet = sub.add_parser("sheet", help="Write the blinded labeling sheet")
+    sheet.add_argument("--corpus", type=Path, required=True, help="Corpus JSONL")
+    sheet.add_argument("--output", type=Path, required=True, help="Sheet JSONL to write")
+    sheet.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    sheet.set_defaults(handler=cmd_sheet)
     return parser
 
 
