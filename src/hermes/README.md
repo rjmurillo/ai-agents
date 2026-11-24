@@ -73,7 +73,6 @@ Project Toolkit skills for memory, context, decisions, requirements, strategy, a
 - `codebase-documenter`
 - `context-gather`
 - `context-hub-setup`
-- `context-optimizer`
 - `curating-memories`
 - `cynefin-classifier`
 - `decision-critic`
@@ -89,19 +88,25 @@ Project Toolkit skills for memory, context, decisions, requirements, strategy, a
 - `pre-mortem`
 - `programming-advisor`
 - `prompt-engineer`
-- `prose-self-check`
 - `reflect`
 - `requirements-interview`
 - `retrospective`
-- `skill-bootstrap`
-- `skillforge`
-- `skillify`
-- `skillopt`
 - `software-engineering-library`
 - `spec`
 - `using-serena-symbols`
 - `work-operating-model`
 - `world-model-diagnostic`
+
+## project-toolkit-authoring
+
+Project Toolkit skills for writing, tuning, and bootstrapping skills, and for placing context.
+
+- `context-optimizer`
+- `prose-self-check`
+- `skill-bootstrap`
+- `skillforge`
+- `skillify`
+- `skillopt`
 
 ## Excluded skills
 

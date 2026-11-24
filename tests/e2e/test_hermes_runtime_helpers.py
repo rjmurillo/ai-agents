@@ -163,8 +163,9 @@ def test_python_json_rejects_a_snippet_with_empty_stdout(tmp_path: Path) -> None
         hr.python_json(Path(sys.executable), "pass", {"PATH": "/usr/bin:/bin"}, cwd=tmp_path)
 
 
-def test_force_is_allowed_for_a_caution_pack_on_the_allowlist() -> None:
-    assert hr.force_for_verdict("project-toolkit-delivery", "caution") is True
+@pytest.mark.parametrize("pack", ["project-toolkit-delivery", "project-toolkit-authoring"])
+def test_force_is_allowed_for_a_caution_pack_on_the_allowlist(pack: str) -> None:
+    assert hr.force_for_verdict(pack, "caution") is True
 
 
 def test_a_safe_pack_installs_without_force() -> None:
@@ -178,7 +179,8 @@ def test_a_pack_off_the_allowlist_fails_unless_safe(verdict: str) -> None:
         hr.force_for_verdict("project-toolkit-knowledge", verdict)
 
 
+@pytest.mark.parametrize("pack", ["project-toolkit-delivery", "project-toolkit-authoring"])
 @pytest.mark.parametrize("verdict", ["dangerous", "unknown"])
-def test_an_allowlisted_pack_never_gets_force_past_a_worse_verdict(verdict: str) -> None:
+def test_an_allowlisted_pack_never_gets_force_past_a_worse_verdict(pack: str, verdict: str) -> None:
     with pytest.raises(ValueError, match="--force"):
-        hr.force_for_verdict("project-toolkit-delivery", verdict)
+        hr.force_for_verdict(pack, verdict)

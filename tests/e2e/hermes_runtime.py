@@ -31,7 +31,9 @@ QUICK_TIMEOUT_SECONDS = 120
 
 # Packs whose ``caution`` guard verdict was reviewed and accepted. Name a pack here
 # only with that review; the smoke fails for every other pack rated ``caution``.
-FORCE_ALLOWED_PACKS: frozenset[str] = frozenset({"project-toolkit-delivery"})
+FORCE_ALLOWED_PACKS: frozenset[str] = frozenset(
+    {"project-toolkit-delivery", "project-toolkit-authoring"}
+)
 
 # Snippets run with the Python that Hermes installed into, so they can import its
 # own modules. They print one JSON document on stdout.

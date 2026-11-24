@@ -25,7 +25,7 @@ finally:
 
 SKILL_REL = Path("skills") / "skillopt"
 SHIPPED_ROOTS = (".claude", "src/claude", "src/copilot-cli", "src/codex")
-BODY_ROOTS = (*SHIPPED_ROOTS, "src/cursor", "src/hermes/project-toolkit-knowledge")
+BODY_ROOTS = (*SHIPPED_ROOTS, "src/cursor", "src/hermes/project-toolkit-authoring")
 TRIGGERS = (
     "optimize this skill",
     "make this skill better",

@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "project-toolkit-authoring",
+  "description": "Project Toolkit skills for writing, tuning, and bootstrapping skills, and for placing context.",
+  "author": {
+    "name": "rjmurillo"
+  },
+  "license": "Apache-2.0"
+}

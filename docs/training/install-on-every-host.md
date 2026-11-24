@@ -17,7 +17,7 @@ We ran the commands on 2026-11-11 with main at `d34536c95c`. Counts come from th
 | Cursor | Agent CLI 2026.10.14-0f9edde | 105 | 28 | Local plugin directory | Partly |
 | Grok Build | 1.0.77 | 105 | 29 | Marketplace | Yes |
 | Pi | 1.5.0 | 105 | None | `pi install` from git | Yes |
-| Hermes | Agent v0.23.0 | 91, in two packs | None | `hermes plugins install` per pack | Yes |
+| Hermes | Agent v0.23.0 | 89, in three packs | None | `hermes plugins install` per pack | Yes |
 | Muse personal agent | Not run | 105 | None | Copy skill folders | No |
 | Muse Code | 1.4.15, at `fc91afcf2` | 105 | 25; a signed-in run spawned all 25 | Copy skill and agent folders | Partly |
 
@@ -277,14 +277,17 @@ pi remove git:github.com/rjmurillo/ai-agents
 
 ### Install on Hermes
 
-Hermes caps a plugin at 400 files. The toolkit does not fit in one plugin, so it ships as two packs ([ADR-115](../../.project-toolkit/architecture/ADR-115-native-plugin-support-per-host.md) Decision 6):
+Hermes caps a plugin at 400 files. The toolkit does not fit in one plugin, so it ships as three packs ([ADR-115](../../.project-toolkit/architecture/ADR-115-native-plugin-support-per-host.md) Decision 6):
 
 | Pack | Skills | Holds |
 |------|--------|-------|
-| `project-toolkit-delivery` | 50 | Pull request work, build, test, quality gates, security review, operations |
-| `project-toolkit-knowledge` | 41 | Memory, context, decisions, requirements, strategy, documentation |
+| `project-toolkit-delivery` | 49 | Pull request work, build, test, quality gates, security review, operations |
+| `project-toolkit-knowledge` | 34 | Memory, context, decisions, requirements, strategy, documentation |
+| `project-toolkit-authoring` | 6 | Writing, tuning, and bootstrapping skills, and placing context |
 
-That is 91 skills. Another 14 skills ship in no pack. Hermes rates 7 of them dangerous. Six more refer to an excluded skill. `skill-doctor` has a file over the 1 MiB limit. [src/hermes/README.md](../../src/hermes/README.md) lists each one with its reason. A skill in one pack never refers to a skill in the other pack. No sign-in is needed.
+That is 89 skills. Another 15 skills ship in no pack. Hermes rates 7 of them dangerous. Seven more refer to an excluded skill. `skill-doctor` has a file over the 1 MiB limit. [src/hermes/README.md](../../src/hermes/README.md) lists each one with its reason. A skill in one pack never refers to a skill in another pack. No sign-in is needed.
+
+Six skills used to ship in the knowledge pack: `skill-bootstrap`, `skillopt`, `skillforge`, `context-optimizer`, `skillify`, and `prose-self-check`. They moved to `project-toolkit-authoring` because the knowledge pack reached the 400-file cap and the six refer to each other. If you installed only the knowledge pack, install `project-toolkit-authoring` to keep them.
 
 1. Install the knowledge pack and enable it:
 
@@ -308,7 +311,19 @@ That is 91 skills. Another 14 skills ship in no pack. Hermes rates 7 of them dan
    hermes plugins install --force --enable rjmurillo/ai-agents/src/hermes/project-toolkit-delivery
    ```
 
-   The repository smoke allows `--force` for this one pack only (`FORCE_ALLOWED_PACKS` in `tests/e2e/hermes_runtime.py`).
+   The repository smoke allows `--force` only for this pack and the authoring pack (`FORCE_ALLOWED_PACKS` in `tests/e2e/hermes_runtime.py`).
+
+4. Install the authoring pack the same way. Run it without extra flags first:
+
+   ```bash
+   hermes plugins install rjmurillo/ai-agents/src/hermes/project-toolkit-authoring
+   ```
+
+   The guard at the pinned hermes-agent commit `63d0b94120` rates it `CAUTION`, with 99 findings: 49 `LOW`, 49 `MEDIUM`, and 1 `HIGH` (counted 2026-11-24). The `HIGH` one is an example `os.environ` filter at `src/claude/skills/skillforge/references/script-design-rules.md:232`. It is reference prose that nothing runs. Another Hermes build may count differently. If you accept the findings, install with `--force --enable`:
+
+   ```bash
+   hermes plugins install --force --enable rjmurillo/ai-agents/src/hermes/project-toolkit-authoring
+   ```
 
 Update: see "Check Hermes" below. `hermes plugins check-updates` cannot tell for these packs. Reinstall each pack with `--force`.
 
@@ -317,6 +332,7 @@ Uninstall:
 ```bash
 hermes plugins remove project-toolkit-delivery
 hermes plugins remove project-toolkit-knowledge
+hermes plugins remove project-toolkit-authoring
 ```
 
 ### Install on Muse
@@ -708,9 +724,10 @@ The repository smoke for this host is `tests/e2e/test_pi_package_smoke.py`. It a
 hermes plugins list
 hermes plugins doctor project-toolkit-knowledge
 hermes plugins doctor project-toolkit-delivery
+hermes plugins doctor project-toolkit-authoring
 ```
 
-The list shows both packs with status `enabled` and source `user`. Each doctor run prints:
+The list shows all three packs with status `enabled` and source `user`. Each doctor run prints:
 
 ```text
   OK: runtime discovery, manifest parsing, import, and registration passed
@@ -721,9 +738,10 @@ Then count the skills on disk:
 ```bash
 ls -d "${HERMES_HOME:-$HOME/.hermes}"/plugins/project-toolkit-delivery/skills/*/ | wc -l
 ls -d "${HERMES_HOME:-$HOME/.hermes}"/plugins/project-toolkit-knowledge/skills/*/ | wc -l
+ls -d "${HERMES_HOME:-$HOME/.hermes}"/plugins/project-toolkit-authoring/skills/*/ | wc -l
 ```
 
-We got `50` and `41`. Hermes gets skills only.
+Expect `49`, `34`, and `6`. Hermes gets skills only.
 
 Not run: a Hermes model turn that uses a skill. `hermes skills list` showed no plugin skills in our run, so do not use it as your check.
 
@@ -731,14 +749,16 @@ Stale check: Hermes does not tell you. For these packs, `hermes plugins check-up
 
 ```bash
 hermes plugins install --force --enable rjmurillo/ai-agents/src/hermes/project-toolkit-knowledge
+hermes plugins install --force --enable rjmurillo/ai-agents/src/hermes/project-toolkit-delivery
+hermes plugins install --force --enable rjmurillo/ai-agents/src/hermes/project-toolkit-authoring
 ```
 
-The help says `--ref COMMIT_SHA` installs one exact 40-character commit. Not run: `--force` over an existing pack, and `--ref`.
+`--force` also skips the `CAUTION` block on delivery and authoring, so read their findings first. The help says `--ref COMMIT_SHA` installs one exact 40-character commit. Not run: `--force` over an existing pack, and `--ref`.
 
 If it fails:
 
-- `Decision: BLOCKED`: Hermes rated the pack `CAUTION`. See step 3 of the install.
-- `No plugin named 'project-toolkit-delivery'` when you enable: the install was blocked, so nothing was installed. Finish step 3.
+- `Decision: BLOCKED`: Hermes rated the pack `CAUTION`. See step 3 of the install for delivery and step 4 for authoring.
+- `No plugin named 'project-toolkit-delivery'` when you enable: the install was blocked, so nothing was installed. Finish step 3, or step 4 for authoring.
 - A fresh Hermes data root sets up its Python dependencies on the first install. Let it finish.
 - A skill you expect is missing: check the excluded list in [src/hermes/README.md](../../src/hermes/README.md).
 
