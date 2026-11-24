@@ -17,31 +17,27 @@ feeds them to ``git cat-file --batch``, and passes each raw object to ``parse_co
 
 Departures from the upstream source, each pinned by a test:
 
-- Commits are parsed from raw objects, never from delimited ``git log`` text. The size-prefixed
-  ``cat-file --batch`` output and the ``rev-list`` SHA order let no message forge a record, even
-  one holding NUL bytes that ``git hash-object`` wrote past git's own checks. Upstream guarded
-  with a 40-hex header check on delimited text.
-- A subject is cut at ``MAX_SUBJECT_CHARS`` and a body at ``MAX_BODY_CHARS``, so every later
-  pattern has bounded input.
-- ``slugify`` folds accented Latin letters to ASCII before it cuts at the first other character,
-  so ``Cafe policy`` is ``cafe-policy``, not ``caf-policy``. A title with no ASCII letter or
-  digit gives ``""``, and the caller falls back to ``decision-<sha7>``.
+- Commits are parsed from raw objects, not delimited ``git log`` text (upstream checked a 40-hex
+  header). Size-prefixed ``cat-file --batch`` output in ``rev-list`` SHA order lets no message
+  forge a record, even one holding NUL bytes that ``git hash-object`` wrote past git's checks.
+- A subject is cut at ``MAX_SUBJECT_CHARS`` and a body at ``MAX_BODY_CHARS``: bounded input.
+- ``slugify`` folds accented Latin to ASCII before it cuts at the first other character
+  (``Cafe policy`` is ``cafe-policy``, not ``caf-policy``); no ASCII letter or digit gives ``""``,
+  and the caller falls back to ``decision-<sha7>``.
 - ``iso_day`` accepts only a real calendar day, as upstream does, and returns the day.
 - ``hash_tokens`` reads hex words whole, so ``abc1234`` inside a longer word is not a SHA.
-- The commit/PR dedup matches both the merge SHA and a subject ending ``(#N)``. Upstream used
-  the SHA for a fresh read and ``(#N)`` for stored rows.
+- Commit/PR dedup matches both the merge SHA and a subject ending ``(#N)``. Upstream used the
+  SHA for a fresh read and ``(#N)`` for stored rows.
 
-Pull request selection reads an offline JSON list (``--prs-json``); upstream used the network. Each
-object needs these fields, under either name; other fields, as in a ``bootstrap_mine.py`` export,
-are ignored. A bad number, title, body, URL or merge time is ``pr_incomplete``.
-
-- ``number``: integer. ``title``: string. ``body``: string or null.
-- ``url`` or ``html_url``: an ``https://`` page whose path ends in ``number``, as
-  ``/pull/<number>`` when a segment is ``pull``.
-- ``merged_at`` or ``mergedAt``: a bare ``YYYY-MM-DD`` or a full ISO 8601 ``T`` timestamp with
-  nothing after it, or null when the pull request is not merged.
-- ``author`` or ``user``: an object with ``login`` and ``is_bot`` (bool) or ``type`` (``Bot``).
-- ``merge_commit_sha``, or ``mergeCommit`` holding ``oid``: the merge commit SHA, when known.
+Pull request selection reads an offline JSON list (``--prs-json``), not the network. Each object
+needs these fields, under either name; others (as in a ``bootstrap_mine.py`` export) are ignored.
+A bad or missing one is ``pr_incomplete``. ``number``: integer. ``title``: string. ``body``:
+string or null, never omitted. ``url`` or ``html_url``: an ``https://`` page whose path ends in
+``number``, as ``/pull/<number>`` when a segment is ``pull``. ``merged_at`` or ``mergedAt``: a
+bare ``YYYY-MM-DD`` or a full ISO 8601 ``T`` timestamp with nothing after it, or null when not
+merged. ``author`` or ``user``: an object with a nonblank string ``login``, and optionally
+``is_bot`` (bool) or ``type`` (``Bot``). Optional: ``merge_commit_sha``, or ``mergeCommit``
+holding ``oid``.
 
 Regex notes: see the module docstring of ``adr_shape.py``; they apply to every module here.
 """
@@ -56,8 +52,9 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlsplit
 
+import adr_shape
 from adr_reason import breaking_change, extract_reason
-from adr_shape import is_release_or_bump_subject
+from adr_shape import is_decision_commit, is_decision_shaped_title, is_release_or_bump_subject
 
 __all__ = [
     "EXCERPT_CHARS",
@@ -75,6 +72,7 @@ __all__ = [
     "iso_day",
     "issue_numbers",
     "parse_commit_object",
+    "passes_floor",
     "sanitize",
     "select_prs",
     "slugify",
@@ -166,12 +164,11 @@ def _subject_and_body(message: str, cap: int | None = MAX_BODY_CHARS) -> tuple[s
 
 
 def parse_commit_object(sha: str, raw: bytes) -> CommitRecord:
-    """Parse the raw bytes of one commit object as ``git cat-file commit`` prints them.
-
-    Author name and date come from the first ``author`` header. The message (after the first
-    blank line) is decoded with the ``encoding`` header's codec when known, else UTF-8. Text that
-    looks like a header, holds NUL, or imitates a record boundary is message text. A malformed
-    object never raises: no author gives empty fields, a bad timestamp an empty date."""
+    """Parse one raw commit object as ``git cat-file commit`` prints it. Author name and date come
+    from the first ``author`` header; the message (after the first blank line) is decoded with
+    the ``encoding`` header's codec when known, else UTF-8. Text that looks like a header, holds
+    NUL, or imitates a record boundary is message text. A malformed object never raises: no
+    author gives empty fields, a bad timestamp an empty date."""
     head, message = _split_object(raw)
     headers = _header_values(head)
     author_text = _decode(headers.get(b"author", b""), headers.get(b"encoding"))
@@ -239,10 +236,9 @@ def issue_numbers(text: str) -> set[int]:
 
 
 def word_tokens(text: str) -> set[str]:
-    """The whole words of ``text``, lowercased, so an id is found by set membership. A word is a
-    run of letters, digits, ``_`` and ``-``: ``D-001`` is in ``see d-001.`` and not in ``D-0010``.
-    A word that holds a dot (``v1.2``) is kept whole, without edge dots, so it is found in
-    ``(v1.2).`` and not in ``v1.25``."""
+    """The whole words of ``text``, lowercased, for set lookup. A word is a run of letters, digits,
+    ``_`` and ``-``: ``D-001`` is in ``see d-001.``, not in ``D-0010``. A dotted word (``v1.2``)
+    is also kept whole without edge dots: found in ``(v1.2).``, not in ``v1.25``."""
     words: set[str] = set()
     for found in _WORD_RUN.findall(text):
         run = found.lower()
@@ -282,17 +278,26 @@ def trailing_pr_number(subject: str) -> int | None:
     return int(match.group(1)) if match else None
 
 
-def _is_bot(item: dict[str, Any]) -> bool:
-    user = item.get("author") or item.get("user") or {}
-    if not isinstance(user, dict):
-        return False
-    login = str(user.get("login") or "")
-    return (
-        user.get("is_bot") is True
-        or user.get("type") == "Bot"
-        or bool(_BOT_SUFFIX.search(login))
-        or bool(_BOT_LOGIN.match(login))
+def passes_floor(subject: str, breaking: bool) -> bool:
+    """P1 (``is_decision_commit``) with its release-or-bump clause lifted for E3, as ``type!:``
+    lifts it. The suffix is a ``STATED_WHY`` word the prefix checks never see, a bump title is
+    never a file action, and the length is read without it. ``chore:`` and ``Bump`` stay out."""
+    if not (breaking and is_release_or_bump_subject(subject)):
+        return is_decision_commit(subject)
+    trimmed = subject.strip()
+    return len(trimmed) >= adr_shape.MIN_DECISION_SUBJECT_CHARS and is_decision_commit(
+        f"{trimmed} breaking"
     )
+
+
+def _is_bot(item: dict[str, Any]) -> bool | None:
+    """Is the author a bot? None, an incomplete row, unless it has a nonblank string ``login``."""
+    user = item.get("author") or item.get("user")
+    login = user.get("login") if isinstance(user, dict) else None
+    if not isinstance(user, dict) or not isinstance(login, str) or not login.strip():
+        return None
+    bot = user.get("is_bot") is True or user.get("type") == "Bot"
+    return bot or bool(_BOT_SUFFIX.search(login) or _BOT_LOGIN.match(login))
 
 
 def _merge_sha(item: dict[str, Any]) -> str | None:
@@ -350,33 +355,30 @@ def _names_number(url: object, number: int) -> bool:
 
 
 def _complete(item: dict[str, Any]) -> tuple[int, str, str, str, str] | None:
-    """``(number, title, body, url, merged day)`` for a complete row whose URL names its number."""
-    number = item.get("number")
-    title = item.get("title")
-    url = _page_url(item)
-    day = _merged_day(item.get("merged_at") or item.get("mergedAt"))
-    body = item.get("body")
+    """``(number, title, body, url, merged day)`` of a complete row (module docstring), or None."""
+    number, title, body = item.get("number"), item.get("title"), item.get("body")
+    url, day = _page_url(item), _merged_day(item.get("merged_at") or item.get("mergedAt"))
     if not (isinstance(number, int) and not isinstance(number, bool) and number > 0):
         return None
-    if not isinstance(title, str) or not title.strip() or day is None:
+    if not isinstance(title, str) or not title.strip() or day is None or "body" not in item:
         return None
     if not (body is None or isinstance(body, str)) or not _names_number(url, number):
+        return None
+    if _is_bot(item) is None:
         return None
     text = body.replace("\r\n", "\n").replace("\r", "\n") if isinstance(body, str) else ""
     return number, title.strip()[:MAX_SUBJECT_CHARS], text, str(url), day  # the caller caps text
 
 
 def select_prs(items: list[Any], dropped: dict[str, int], base: str | None = None) -> list[PrRow]:
-    """The merged, non-bot pull requests whose body states a reason or that are breaking (P9).
-
-    Counts each rejection in ``dropped``: ``pr_incomplete`` (not merged or a field bad),
-    ``pr_other_repo``, ``pr_bot``, ``pr_housekeeping`` (a release or version bump title),
-    ``pr_no_reason``, and ``pr_duplicate`` for a later row of a number already kept (the first row
-    wins). ``base`` is this repository's origin web address. A row not at ``<base>/pull/<number>``
-    by host, port (443 is the default) and path, ignoring case, is another repository's: dropped,
-    it covers no commit. With no origin (``base`` is None) every complete row is kept. A GitLab
-    origin matches no row: its URLs are not under ``/pull/``. The export must come from the
-    repository's own origin."""
+    """The merged, non-bot pull requests whose body states a reason or that are breaking (P9),
+    with a decision-shaped title (P8) unless breaking and past ``passes_floor``. Drops count as
+    ``pr_incomplete``, ``pr_other_repo``, ``pr_duplicate`` (a later row of a number kept; a
+    number is kept only past every filter), ``pr_bot``, ``pr_housekeeping`` (a release or bump),
+    ``pr_no_reason`` or ``pr_not_decision_shaped``. The export must come from this origin: a row
+    not at ``<base>/pull/<number>`` (``base``, its web address) by host, port (443 default) and
+    path, ignoring case, covers no commit. ``base`` None (no origin) keeps every complete row;
+    ``""`` (off GitHub and GitLab) keeps none, nor does GitLab, whose URLs are not ``/pull/``."""
     rows: list[PrRow] = []
     seen: set[int] = set()
     for item in items:
@@ -386,16 +388,19 @@ def select_prs(items: list[Any], dropped: dict[str, int], base: str | None = Non
             continue
         number, title, body, url, day = fields
         breaking, body = breaking_change(title, body), body[:MAX_BODY_CHARS]  # before the cap
-        if base is not None and _origin(base, f"/pull/{number}") != _origin(url):
+        rescued = breaking and passes_floor(title, True)  # E3, as for a commit
+        if base is not None and (not base or _origin(base, f"/pull/{number}") != _origin(url)):
             dropped["pr_other_repo"] = dropped.get("pr_other_repo", 0) + 1
         elif number in seen:
             dropped["pr_duplicate"] = dropped.get("pr_duplicate", 0) + 1
         elif _is_bot(item):
             dropped["pr_bot"] = dropped.get("pr_bot", 0) + 1
-        elif is_release_or_bump_subject(title):
+        elif is_release_or_bump_subject(title) and not rescued:
             dropped["pr_housekeeping"] = dropped.get("pr_housekeeping", 0) + 1
         elif not (reason := extract_reason(title, body[:BODY_CAP])) and not breaking:
             dropped["pr_no_reason"] = dropped.get("pr_no_reason", 0) + 1
+        elif not is_decision_shaped_title(title) and not rescued:
+            dropped["pr_not_decision_shaped"] = dropped.get("pr_not_decision_shaped", 0) + 1
         else:
             seen.add(number)
             rows.append(PrRow(number, title, body, url, day, _merge_sha(item), reason, breaking))
@@ -414,10 +419,9 @@ _BLANK_RUN = re.compile(r"\n{3,}")
 
 
 def excerpt(title: str, body: str) -> str:
-    """The quoted source text: template comments and checklist lines are form, not content. The
-    body is cut before any pattern runs: ``<!--.*?-->`` is quadratic on many unclosed ``<!--``,
-    and only ``EXCERPT_CHARS`` of the result are kept. A comment still open after that pass
-    closes past the cut, so the rest of the sample is comment text."""
+    """The quoted source text, without template comments and checklist lines (form, not content).
+    The body is cut first, as ``<!--.*?-->`` is quadratic on many unclosed ``<!--`` and only
+    ``EXCERPT_CHARS`` are kept; a comment still open then runs past the cut, to the end."""
     body = _HTML_COMMENT.sub("", body[: EXCERPT_CHARS * 4]).partition("<!--")[0]
     body = _BLANK_RUN.sub("\n\n", _TASK_LINE.sub("", body))
     return sanitize(f"{title}\n\n{body}".strip(), EXCERPT_CHARS)
@@ -434,9 +438,8 @@ _HOSTED = re.compile(r"(?:github|gitlab)\.[a-z0-9.-]+\Z", re.ASCII)
 
 
 def web_base(remote: str) -> tuple[str, str] | None:
-    """``(kind, https base)`` for an https or ssh GitHub or GitLab remote, else None. ``kind`` is
-    ``github`` or ``gitlab``. Only the host and the repository path are kept, so a
-    ``user:token@`` in the remote never reaches the result."""
+    """``(kind, https base)`` for an https or ssh GitHub or GitLab remote (``kind`` is ``github``
+    or ``gitlab``), else None. Only host and path are kept: a ``user:token@`` never leaks."""
     text = remote.strip()
     match = _URL_REMOTE.fullmatch(text) or _SCP_REMOTE.fullmatch(text)
     if match is None:
@@ -481,9 +484,8 @@ _MERGE_LINE = re.compile(r"merge (?:pull request|branch)\b", _I)
 
 
 def without_merge_lines(body: str) -> str:
-    """A promoted merge's body without its ``Merge pull request #N from x/y`` line, which
-    ``resolve_commit_shape`` keeps so the ``#N`` survives. That line names the pull request and
-    gives no reason, so the rationale check must not read it."""
+    """A promoted merge's body without the ``Merge pull request #N from x/y`` line that
+    ``resolve_commit_shape`` keeps for its ``#N``: it gives no reason, so the check skips it."""
     return "\n".join(line for line in body.split("\n") if not _MERGE_LINE.match(line.strip()))
 
 
