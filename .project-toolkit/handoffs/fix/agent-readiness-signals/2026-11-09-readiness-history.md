@@ -178,3 +178,37 @@ D14 still owns only L1-L6 and L10-L12 scanner repairs.
 L7-L9, illustrative-example acceptance, suppressions, and threshold changes remain unauthorized.
 Full-corpus documentation acceptance remains unproved.
 No push, PR creation, or merge occurred during this resume.
+
+## Resume Snapshot (2026-11-20 UTC, after D28 and D29)
+
+The branch tip is the handoff commit after `b6f4f9e56`.
+D24 document repairs landed as `a9d7fa2ec`, `6b69843a3`, and `be029fa05`.
+D27 scanner fixes landed as `6a8c7e8c8`.
+`f56b96104` merged `origin/main` through `a5e0847ff`.
+`b6f4f9e56` added ADR-124 as proposed.
+
+Main merged an unrelated ADR-123 while the draft was open.
+The SDK symbols draft is now ADR-124, with its debate log and claims ledger.
+Round 1 is preserved. Round 2 has not run.
+Issue [#7501](https://github.com/rjmurillo/ai-agents/issues/7501) tracks the residual work.
+
+The owner recorded two more decisions:
+
+- D28 A narrowly amends D25 to allow occurrence binding and positive member checks.
+- D29 A ships this branch with the residual tracked.
+
+The full-corpus replay at `6a8c7e8c8` exited 10 with 1,137 high findings.
+All are `unresolved_symbol`: 817 C#, 287 TypeScript, and 33 Python.
+The run took 12 minutes 56 seconds and 328,940 KiB peak RSS.
+Under D29 the branch ships with that exit 10 recorded.
+No CI workflow or lefthook job runs the full-corpus scan.
+
+Post-merge checks passed: marker verify, `build_all.py --check`, citations, and portability.
+Focused tests reported 5,453 passed and 5 skipped.
+Final gates and the fourteen independent reviews come next.
+No push, pull request, or merge has happened yet.
+
+D11's duplicate-repair worktree remains preserved until merge.
+Its path is `/home/richard/worktrees/ai-agents4/fix-readiness-d11-dupli-a60624f87ff01c00`.
+Its branch is `fix/readiness-d11-duplicates`.
+The owner authorized removing that worktree and branch after merge.

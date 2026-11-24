@@ -1,33 +1,35 @@
 # Agent readiness handoff
 
-## Current Resume (2026-11-20 UTC, after D28 and D29)
+## Current Resume (2026-11-24 UTC, after D-SDK1 and D-SDK2)
 
-The branch tip is the handoff commit after `b6f4f9e56`.
-D24 document repairs landed as `a9d7fa2ec`, `6b69843a3`, and `be029fa05`.
-D27 scanner fixes landed as `6a8c7e8c8`.
-`f56b96104` merged `origin/main` through `a5e0847ff`.
-`b6f4f9e56` added ADR-124 as proposed.
+Doc accuracy now passes on this branch with zero blocking findings.
+It reported 524 blocking findings before the repairs below.
 
-Main merged an unrelated ADR-123 while the draft was open.
-The SDK symbols draft is now ADR-124, with its debate log and claims ledger.
-Round 1 is preserved. Round 2 has not run.
-Issue [#7501](https://github.com/rjmurillo/ai-agents/issues/7501) tracks the residual work.
+The owner recorded two more decisions on 2026-11-23:
 
-The owner recorded two more decisions:
+- D-SDK1 A: clear doc accuracy by repairing documents, not by building the ADR-124 bundle.
+  Twenty-five example-heavy docs now carry the documented `external-sdk` marker.
+  One template example no longer calls an undeclared helper.
+- D-SDK2: the owner approved the 136 code-quality score regressions again.
+  The rows match the earlier approval by path and score.
+  Evidence and approval sit on issue #7512, comments 7119150449 and 7119195568.
 
-- D28 A narrowly amends D25 to allow occurrence binding and positive member checks.
-- D29 A ships this branch with the residual tracked.
+Commit `e7a70a4ce` reverted `0cdd2e8b6`.
+That commit cleared C# types through a hand-kept `using` allowlist.
+No decision covered that list, and Proposed ADR-124 rejects one.
+The revert left 23 `System` findings in five docs, now marked as well.
 
-The full-corpus replay at `6a8c7e8c8` exited 10 with 1,137 high findings.
-All are `unresolved_symbol`: 817 C#, 287 TypeScript, and 33 Python.
-The run took 12 minutes 56 seconds and 328,940 KiB peak RSS.
-Under D29 the branch ships with that exit 10 recorded.
-No CI workflow or lefthook job runs the full-corpus scan.
+Commit `f8eb91a96` split three files that crossed 500 lines.
+The taste count ratchet then passed.
 
-Post-merge checks passed: marker verify, `build_all.py --check`, citations, and portability.
-Focused tests reported 5,453 passed and 5 skipped.
-Final gates and the fourteen independent reviews come next.
-No push, pull request, or merge has happened yet.
+Review round 1 ran at `e9c2fdca1` against `main` at `d02754546`.
+All 16 axes returned WARN or PASS, none CRITICAL_FAIL.
+The fix round addresses the findings in one batch.
+The ledger is in the review scratch directory and is not committed.
+
+ADR-124 stays Proposed. Round 2 inputs from review go to issue #7501.
+Issue #7525 tracks replacing the per-commit code-quality approval.
+Main is red on four Renovate tests from #7521. PR #7524 fixes them.
 
 D11's duplicate-repair worktree remains preserved until merge.
 Its path is `/home/richard/worktrees/ai-agents4/fix-readiness-d11-dupli-a60624f87ff01c00`.
@@ -259,6 +261,10 @@ The interrupted full documentation assessment provides no current acceptance.
   - Provenance: The operator selected D2's recommended complete-family option.
 - Use an isolated official PowerShell runtime for validation.
   - Provenance: The operator selected the isolated-runtime option after Snap failed.
+- Clear doc accuracy with the documented external-sdk marker on example docs.
+  - Provenance: The owner chose D-SDK1 option A on 2026-11-23.
+- Drop the hand-kept C# using allowlist from the scanner.
+  - Provenance: Review found no decision covering it, and ADR-124 rejects one.
 
 ## Latest Validation Evidence
 
