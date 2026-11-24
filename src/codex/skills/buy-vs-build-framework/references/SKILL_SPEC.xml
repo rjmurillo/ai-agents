@@ -11,7 +11,7 @@
     </timelessness-rationale>
     <model>claude-opus-4-5</model>
     <model-rationale>Requires deep reasoning, strategic synthesis, and multi-stakeholder perspective balancing. Opus needed for nuanced judgment.</model-rationale>
-    <license>MIT</license>
+    <license>Apache-2.0</license>
   </metadata>
 
   <description>
