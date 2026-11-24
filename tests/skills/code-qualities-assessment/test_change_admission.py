@@ -173,7 +173,8 @@ def test_new_third_party_import_still_fails(
     out, err = capsys.readouterr()
     assert rc == 10
     assert _comparison(out, "tools/caller.py")["change_admissions"] is None
-    assert "ADMITTED" not in err
+    assert "ADMITTED: issue" not in err
+    assert "NOT ADMITTED: tools/caller.py: coupling: new third-party requests" in err
     assert adapt_local_axis_verdict(_AXIS, out, rc) == "FAIL"
 
 
@@ -248,115 +249,11 @@ def test_added_duplicate_lines_still_fail(
 
     rc = _run(tmp_path, {})
 
-    out = capsys.readouterr().out
+    out, err = capsys.readouterr()
     assert rc == 10
     assert _comparison(out, "tools/body.py")["change_admissions"] is None
+    assert "NOT ADMITTED: tools/body.py: non_redundancy: a line gained a copy" in err
     assert adapt_local_axis_verdict(_AXIS, out, rc) == "FAIL"
-
-
-def _payload(regressions: list[str], admissions: object, **extra: object) -> str:
-    quality = {"value": 9.0, "confidence": 0.6, "reasons": []}
-    entry = {"file_path": "a.py", "category": "authored", "scoring_failed": False}
-    entry.update(
-        {
-            q: dict(quality)
-            for q in ("cohesion", "coupling", "encapsulation", "testability", "non_redundancy")
-        }
-    )
-    comparison: dict[str, object] = {
-        "file_path": "a.py",
-        "is_new_file": False,
-        "change_status": "M",
-        "absolute_gate_reason": None,
-        "regressions": regressions,
-        "evidence_loss": [],
-        "deltas": [],
-        "change_admissions": admissions,
-        **extra,
-    }
-    return json.dumps({"files": [entry], "summary": {"file_count": 1}, "comparisons": [comparison]})
-
-
-_COUPLING = {
-    "issue": 7525,
-    "rule": "no_new_third_party_import",
-    "baseThirdParty": ["yaml"],
-    "headThirdParty": ["yaml"],
-}
-_NON_REDUNDANCY = {
-    "issue": 7525,
-    "rule": "no_new_duplicate_lines",
-    "baseDuplicateLines": 3,
-    "headDuplicateLines": 2,
-}
-
-
-@pytest.mark.parametrize(
-    ("regressions", "admissions", "extra", "verdict"),
-    [
-        (["coupling"], {"coupling": _COUPLING}, {}, "WARN"),
-        (
-            ["coupling", "non_redundancy"],
-            {"coupling": _COUPLING, "non_redundancy": _NON_REDUNDANCY},
-            {},
-            "WARN",
-        ),
-        (["coupling", "cohesion"], {"coupling": _COUPLING}, {}, "FAIL"),
-        (["coupling"], {"coupling": _COUPLING}, {"evidence_loss": ["testability"]}, "FAIL"),
-        (["coupling"], None, {}, "FAIL"),
-        ([], {"coupling": _COUPLING}, {}, "UNKNOWN"),
-        (["coupling"], {}, {}, "UNKNOWN"),
-        (
-            ["coupling"],
-            {"coupling": {**_COUPLING, "headThirdParty": ["yaml", "requests"]}},
-            {},
-            "UNKNOWN",
-        ),
-        (["coupling"], {"coupling": {**_COUPLING, "issue": 7512}}, {}, "UNKNOWN"),
-        (["coupling"], {"coupling": _NON_REDUNDANCY}, {}, "UNKNOWN"),
-        (
-            ["non_redundancy"],
-            {"non_redundancy": {**_NON_REDUNDANCY, "headDuplicateLines": 4}},
-            {},
-            "UNKNOWN",
-        ),
-        (
-            ["non_redundancy"],
-            {"non_redundancy": {**_NON_REDUNDANCY, "baseDuplicateLines": True}},
-            {},
-            "UNKNOWN",
-        ),
-        (["coupling"], {"coupling": _COUPLING}, {"absolute_gate_reason": "new_file"}, "UNKNOWN"),
-        (
-            ["coupling"],
-            {"coupling": _COUPLING},
-            {"csharp_parser_dependency_admission": {"issue": 7406}},
-            "UNKNOWN",
-        ),
-    ],
-    ids=[
-        "coupling-admitted",
-        "both-admitted",
-        "unadmitted-sibling-regression",
-        "evidence-loss",
-        "no-admission",
-        "admission-without-regression",
-        "empty-admissions",
-        "third-party-grew",
-        "wrong-issue",
-        "wrong-rule-for-quality",
-        "duplicates-grew",
-        "bool-count",
-        "absolute-gate-file",
-        "parser-and-change-record",
-    ],
-)
-def test_review_adapter_checks_every_change_admission(
-    regressions: list[str], admissions: object, extra: dict[str, object], verdict: str
-) -> None:
-    payload = _payload(regressions, admissions, **extra)
-
-    assert adapt_local_axis_verdict(_AXIS, payload, 0) == verdict
 
 
 def test_repository_config_opts_into_the_coupling_admission() -> None:

@@ -58,3 +58,16 @@ The doc-accuracy axis (rule R3) flagged Change item 4 against `assess.py`.
 Item 4 now reads "Each admitted row's record is stored under `change_admissions`".
 The local variable that fills the field is now `records`.
 The meaning is unchanged, so no new round was opened.
+
+## Post-review wording edits
+
+The `/review` axes on head `44f7f2fa53` raised wording findings on the amendment.
+The edits below change no decision, so no new round was opened.
+
+- The #7512 and #7528 counts are now attributed to issue #7525 and the owner.
+- Consequences now say a non-redundancy drop of any size passes when no line gained a copy.
+- The revisit trigger names its record: a comment on issue #7525.
+- Consequences now say the evidence base is one branch.
+
+The same review fixed two adapter gaps in code: a record for an unadmittable quality, and non-string regression names.
+Both now return UNKNOWN, with tests.

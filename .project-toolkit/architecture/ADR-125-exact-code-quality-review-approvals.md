@@ -80,7 +80,7 @@ Removing the verifier and review procedure reverses this decision.
 ### Why
 
 Issue #7525 reports that the approval loop costs more than it protects.
-Tracking issue #7528 needed three re-pins for one consolidation branch.
+The owner reports three re-pins on tracking issue #7528 for one consolidation branch.
 The Consequences section asked for a revisit in this case.
 
 The frontmatter consolidation branch was assessed at `0a101a596` against `a217e3a3d1` on 2026-11-24.
@@ -120,7 +120,7 @@ That branch still needs one owner approval, or code changes, for those rows.
 ### Relation to ADR-122
 
 ADR-122 rejected a generic exception framework with no present need.
-Issue #7525 is that need: three approval rounds on #7512 and three re-pins on #7528.
+Issue #7525 is that need. It reports three approval rounds on #7512; the owner reports three re-pins on #7528.
 ADR-122 records name one file and one score transition, authorized by a person.
 These admissions are rules instead; they hold for any file whose change meets them.
 The adapter checks each record's own numbers against its rule.
@@ -148,9 +148,12 @@ A Python file swapping one third-party package for another still blocks.
 Coupling admissions cover Python only; other languages keep the old behavior.
 Consumers keep the old coupling behavior until they opt in.
 The non-redundancy admission applies to every consumer with no opt-out.
+A non-redundancy drop of any size passes when no line gained a copy.
 Ordinary runs read the branch's own config, so an `importRoots` edit needs review.
 The approval verifier reads the config from the integration commit instead.
 Base imports resolve against the head tree, so a renamed file can misjudge a base import.
 Removing `firstPartyCouplingAdmission` reverses the coupling rule.
 Reversing the non-redundancy rule takes a code change.
 Revisit these rules if an admitted row hides a dependency a reviewer later rejects.
+The reviewer records each such case as a comment on issue #7525.
+The evidence base is one branch; other branches were not replayed.

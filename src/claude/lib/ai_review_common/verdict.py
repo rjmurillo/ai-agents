@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import re
+from typing import TypeGuard
 
 _VERDICT_PATTERN = re.compile(r"VERDICT:\s*([A-Z_]+)")
 
@@ -345,31 +346,29 @@ _CHANGE_ADMISSION_RULES = {
 }
 
 
-def _is_count(value: object) -> bool:
+def _is_count(value: object) -> TypeGuard[int]:
     return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
 
-def _is_name_list(value: object) -> bool:
+def _is_name_list(value: object) -> TypeGuard[list[str]]:
     return isinstance(value, list) and all(isinstance(name, str) and name for name in value)
 
 
 def _is_valid_change_record(quality: str, record: object) -> bool:
-    """Return True when *record* proves its rule held for *quality*."""
-    if not isinstance(record, dict):
+    """Return True when *record* proves its rule held for *quality*.
+
+    A quality with no admission rule never validates, so a record cannot turn
+    a cohesion or testability regression into WARN.
+    """
+    rule = _CHANGE_ADMISSION_RULES.get(quality)
+    if rule is None or not isinstance(record, dict):
         return False
-    if (record.get("issue"), record.get("rule")) != (
-        _CHANGE_ADMISSION_ISSUE,
-        _CHANGE_ADMISSION_RULES.get(quality),
-    ):
+    if (record.get("issue"), record.get("rule")) != (_CHANGE_ADMISSION_ISSUE, rule):
         return False
     if quality == "coupling":
         base, head = record.get("baseThirdParty"), record.get("headThirdParty")
-        if not (isinstance(base, list) and isinstance(head, list)):
-            return False
         return _is_name_list(base) and _is_name_list(head) and set(head) <= set(base)
     base, head = record.get("baseDuplicateLines"), record.get("headDuplicateLines")
-    if not (isinstance(base, int) and isinstance(head, int)):
-        return False
     return _is_count(base) and _is_count(head) and head <= base
 
 
@@ -382,7 +381,7 @@ def _change_admission_verdict(comparison: dict[str, object]) -> str:
     """
     regressions = comparison.get("regressions") or []
     admissions = comparison.get("change_admissions")
-    if not isinstance(regressions, list):
+    if not _is_name_list(regressions):
         return "UNKNOWN"
     if admissions is not None:
         if (
@@ -596,10 +595,10 @@ def adapt_local_axis_verdict(
                 verdicts.append("WARN")
                 continue
             verdict = _change_admission_verdict(comparison)
-            if verdict != "PASS":
-                if verdict != "WARN":
-                    return verdict
+            if verdict == "WARN":
                 verdicts.append(verdict)
+            elif verdict != "PASS":
+                return verdict
         return merge_verdicts(verdicts)
 
     if axis == "doc-accuracy":

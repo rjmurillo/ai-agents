@@ -1,16 +1,37 @@
 # Change admissions
 
 Two change admissions keep a raw drop in the report but stop it from failing
-the gate (rjmurillo/ai-agents issue #7525). A non-redundancy drop is admitted
-when the change added no duplicated line, as when a file only loses unique
-lines. A Python coupling drop is admitted when the change added no
-third-party import root, as when local logic moves into a shared first-party
-module. This one is off unless the config sets
-`"firstPartyCouplingAdmission": {"importRoots": [...]}`. A module counts as
-first-party when it sits beside the file, under one of the file's parent
-directories, or under an `importRoots` entry. A new third-party import, a new
-duplicate, or any other regressed quality still exits 10. Admitted rows are
-listed under `change_admissions` on the comparison.
+the gate (rjmurillo/ai-agents issue #7525). Raw scores and regression rows
+stay in the JSON and on stderr either way.
+
+## Non-redundancy
+
+A non-redundancy drop is admitted when no line gained a copy: each line's
+repeat count at head is at most its count at base. A file that only loses
+unique lines passes, whatever the size of the drop. This admission is on for
+every consumer and language, and has no config switch.
+
+## Coupling (Python, opt-in)
+
+A Python coupling drop is admitted when the change added no third-party import
+root, as when local logic moves into a shared first-party module. It is off
+unless the config sets `"firstPartyCouplingAdmission": {"importRoots": [...]}`.
+
+A root is first-party only when the git index tracks `<root>.py` or
+`<root>/__init__.py` in one of these folders:
+
+- the importing file's folder, or a parent folder inside the workspace
+- a folder named in `importRoots`
+
+A root the scanner's interpreter can import from its site-packages is always
+third-party, so a same-named folder cannot hide an installed dependency. A
+bare folder, or a module the index does not track, is not first-party.
+
+## Still failing
+
+A new third-party root, a line that gained a copy, or any other regressed
+quality still exits 10. A declined candidate prints
+`NOT ADMITTED: <file>: <quality>: <reason>` on stderr.
 
 ## Fields
 
@@ -21,4 +42,5 @@ Each admitted quality maps to a record under `change_admissions`:
 | `coupling` | `no_new_third_party_import` | `baseThirdParty`, `headThirdParty`: sorted import roots |
 | `non_redundancy` | `no_new_duplicate_lines` | `baseDuplicateLines`, `headDuplicateLines`: counts |
 
-Every record also carries `issue: 7525`. A regressed quality with no record still exits 10.
+Every record also carries `issue: 7525`. The review adapter reports admitted
+rows as WARN. It checks the totals; the assessor enforces the per-line rule.

@@ -1132,31 +1132,24 @@ def _tracked_python_paths(workspace: Path) -> frozenset[str]:
 
 @cache
 def _is_installed_package(root: str) -> bool:
-    """Return True when the running interpreter imports *root* from site-packages.
+    """Return True when *root* is importable from the interpreter's site-packages.
 
-    An installed package stays third-party even when the checkout holds a
-    directory of the same name, so a branch cannot add a decoy to admit a new
-    dependency.
+    Only the site directories are searched, never ``sys.path``, so neither the
+    checkout nor the scanner's own folder can supply a same-named decoy. An
+    installed package therefore stays third-party.
     """
-    import importlib.util
+    import importlib.machinery
     import site
     import sysconfig
 
-    try:
-        spec = importlib.util.find_spec(root)
-    except (ImportError, ValueError):
-        return False
-    if spec is None:
-        return False
     site_dirs = {sysconfig.get_paths()[key] for key in ("purelib", "platlib")}
     site_dirs.update(site.getsitepackages())
     site_dirs.add(site.getusersitepackages())
-    roots = [Path(d).resolve() for d in site_dirs if d]
-    locations = list(spec.submodule_search_locations or []) or [spec.origin or ""]
-    return any(
-        location and any(Path(location).resolve().is_relative_to(r) for r in roots)
-        for location in locations
-    )
+    search = sorted(d for d in site_dirs if d and Path(d).is_dir())
+    try:
+        return importlib.machinery.PathFinder.find_spec(root, search) is not None
+    except (ImportError, ValueError):
+        return False
 
 
 def _is_first_party_root(root: str, file_path: Path, import_roots: list[Path]) -> bool:
@@ -1221,7 +1214,12 @@ def _coupling_admission(
         return None
     base = _python_third_party_roots(base_text, head_path, import_roots)
     head = _python_third_party_roots(head_text, head_path, import_roots)
-    if base is None or head is None or not head <= base:
+    if base is None or head is None:
+        print(f"NOT ADMITTED: {head_path}: coupling: source does not parse", file=sys.stderr)
+        return None
+    if not head <= base:
+        added = ", ".join(sorted(head - base))
+        print(f"NOT ADMITTED: {head_path}: coupling: new third-party {added}", file=sys.stderr)
         return None
     return {
         "issue": _ISSUE_CHANGE_ADMISSIONS,
@@ -1244,6 +1242,7 @@ def _non_redundancy_admission(
     base = _duplicate_lines(_code_lines(base_text, detect_language(base_path)))
     head = _duplicate_lines(_code_lines(head_text, detect_language(head_path)))
     if head - base:
+        print(f"NOT ADMITTED: {head_path}: non_redundancy: a line gained a copy", file=sys.stderr)
         return None
     return {
         "issue": _ISSUE_CHANGE_ADMISSIONS,
@@ -1291,6 +1290,8 @@ def _apply_change_admissions(
         revision = revision or resolve_comparison_base(base)
         texts = _comparison_texts(comparison, revision)
         if texts is None:
+            reason = "base or head text is unreadable"
+            print(f"NOT ADMITTED: {comparison.file_path}: {reason}", file=sys.stderr)
             continue
         records: dict[str, dict[str, Any]] = {}
         for quality in wanted:
