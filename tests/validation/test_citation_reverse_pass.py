@@ -479,8 +479,8 @@ def test_added_bare_colon_is_checked_against_the_unique_file(
     assert "docs/notes.md:1" in out
 
 
-def test_a_table_row_blocks_when_its_own_cell_anchor_moves(tmp_path: Path) -> None:
-    """The reverse pass reads a table citation from its own cell (path coverage)."""
+def test_a_table_row_blocks_when_its_anchor_moves(tmp_path: Path) -> None:
+    """The reverse pass reads a citation in a Markdown table row (path coverage)."""
     row = f"| Helper | `{TARGET}:3` (`magic_token`) | `sed -n '3p' {TARGET}` |\n"
     root = _repo_with_doc(tmp_path, "| Fact | Source | Check |\n|---|---|---|\n" + row)
     _commit_file(root, TARGET, INSERTED_ABOVE)
