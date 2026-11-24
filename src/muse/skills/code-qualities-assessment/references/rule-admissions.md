@@ -46,5 +46,6 @@ Every record also carries `issue: 7525`. The review adapter reports admitted
 rows as WARN. It checks the totals; the assessor enforces the per-line rule.
 
 These rules differ from the `changeAdmissions` records in `.qualityrc.json`
-(ADR-122 item 10, issue #7493). Those records name one file, quality, score
-transition, and blob pair each, and land under `change_admissions`.
+(ADR-122 item 10, issue #7493). Each of those records names one file, quality,
+score transition, and blob pair. The scanner writes the matched records to
+`change_admissions`, a separate field.
