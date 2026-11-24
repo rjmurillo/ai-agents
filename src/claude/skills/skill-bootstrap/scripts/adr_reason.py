@@ -11,13 +11,12 @@
 
 Picks up to two sentences of a commit body that SAY why. Rules, all deterministic:
 
-- A sentence qualifies only through a causal marker (because, so that, to avoid, ...)
-  or an explicit "Why:" / "Reason:" label. Strong markers outrank medium ones.
+- A sentence qualifies only through a causal marker (because, so that, ...) or a "Why:"
+  label. Strong markers outrank medium ones. Quoted text and inline code never qualify.
 - The text is the author's own words, cleaned of markup. Nothing is paraphrased.
-- Importer metadata, trailers, "Fixes #N" lines, bot bodies, release-note dumps,
-  tables, code, HTML comments and URLs are never reasons.
-- A sentence that only repeats the title is dropped.
-- None when nothing qualifies. A wrong reason is worse than none.
+- Importer metadata, trailers, "Fixes #N" lines, bot bodies, release-note dumps, tables,
+  code, HTML comments, URLs and title echoes are never reasons. None when nothing
+  qualifies: a wrong reason is worse than none.
 
 ``breaking_change`` is new (extension E3, Conventional Commits 1.0.0). It sits here because a
 breaking commit skips the rationale gate that this module feeds.
@@ -28,29 +27,27 @@ Regex notes: see the module docstring of ``adr_shape.py``; they apply to every m
 from __future__ import annotations
 
 import re
+from bisect import bisect_right
 from typing import NamedTuple
 
+from adr_shape import CODE_BLOCK as _CODE
 from adr_shape import (
-    FENCED_BLOCK,
+    FENCE_MARK_LINE,
     FIXES_ONLY,
     REASON_CONVENTIONAL_PREFIX,
-    TRAILER,
     flat,
     has_importer_metadata,
-    is_trailer_line,
+    is_known_trailer,
     strip_importer_metadata,
     strip_trailers,
 )
 
 __all__ = ["REASON_MAX_CHARS", "breaking_change", "commit_sha_of", "extract_reason"]
 
-# Per-sentence cap, cut at a word boundary. A display choice.
-REASON_MAX_CHARS = 180
+REASON_MAX_CHARS = 180  # per sentence, cut at a word boundary
 _MAX_SENTENCES = 2
-# Only the head of a body is read: a 280k-character line must not cost a second.
-_MAX_INPUT_CHARS = 6000
-# Fewer words than this is a heading or a label, not a statement.
-_MIN_WORDS = 5
+_MAX_INPUT_CHARS = 6000  # only the head is read: a 280k-character line must not cost a second
+_MIN_WORDS = 5  # fewer words is a heading or a label, not a statement
 
 _A = re.ASCII
 _I = re.IGNORECASE | re.ASCII
@@ -62,11 +59,10 @@ _DUMP_WORDS = (
 )
 _DUMP_HEADING = re.compile(
     rf"^[ \t]{{0,3}}(?:#{{1,6}}[ \t]*(?:\*\*)?{_DUMP_WORDS}\b|\*\*{_DUMP_WORDS}\b"
-    rf"|{_DUMP_WORDS}(?:\*\*)?:?[ \t]*$)|^\s{{0,3}}#{{1,6}}\s*\[?v?\d+\.\d+",
+    rf"|{_DUMP_WORDS}(?:\*\*)?:?[ \t]*$)|^[ \t]{{0,3}}#{{1,6}}[ \t]*\[?v?\d+\.\d+",
     _I | re.MULTILINE,
 )
-# A named dependency moving from or to a version ("Updates to the protocol" is prose).
-# ``[ \t]*`` after a line anchor, never ``\s*``, which eats newlines and rescans blank runs.
+# A dependency moving to a version. ``[ \t]*`` after ``^``: ``\s*`` rescans blank runs.
 _BUMP_BODY = re.compile(
     r"^[ \t]*(?:bumps?|updates?|upgrades?)\s+\[?`?[\w@/.-]+`?\]?(?:\([^)]*\))?\s+(?:from|to)"
     r"\s+v?\d|this pr contains the following updates|^[ \t]*dependabot will resolve",
@@ -98,15 +94,21 @@ _PROBLEM = re.compile(
 )
 _WEAK = re.compile(r"\b(?:security|performance|memory leak|crash(?:es|ed)?)\b|\bvulnerab", _I)
 _LABEL = re.compile(r"^(why|reason|rationale|motivation)\s*:\s*", _I)
-# A label followed by a placeholder or a pointer says nothing.
-_EMPTY_LABEL_BODY = re.compile(r"^(?:n/?a|none|see|tbd|todo|-)\b", _I)
+_EMPTY_LABEL_BODY = re.compile(r"^(?:n/?a|none|see|tbd|todo|-)\b", _I)  # placeholder or pointer
 _NEGATED = re.compile(r"(?:\bnot|\bnever|n't)\s+(?:just\s+|only\s+|simply\s+)?because\b", _I)
 _FILE_TOKEN = re.compile(
     r"\b[\w-]+\.(?:ts|tsx|js|jsx|mjs|md|json|py|rs|go|txt|yml|yaml|css|html|toml|sh)\b", _I
 )
-_QUOTED = re.compile('"[^"]*"|\u201c[^\u201d]*\u201d')
+# A straight quote opens only after a non-word and closes only before one: ``12"`` is inches.
+_QUOTED = re.compile('(?<!\\w)"[^"]*"(?!\\w)|\u201c[^\u201d]*\u201d', _A)
 _BREAKING_CHANGE = re.compile(r"breaking change", _I)
-_ISSUE_KEY = re.compile(r"^\s*(?:bug|issue):", _I)
+# Inline code is wrapped in this mark until display: scoring blanks it, it is not prose.
+_CODE_MARK = "\ue001"
+_CODE_SPAN = re.compile(f"{_CODE_MARK}[^{_CODE_MARK}]*{_CODE_MARK}")
+_NO_SPLIT = re.compile(f"{_QUOTED.pattern}|{_CODE_SPAN.pattern}", _A)
+_OPEN_CAUSE = re.compile(
+    r"\b(?:because|so that|in order to|to avoid|to prevent|due to|since|caused by)\Z", _I
+)
 
 # A PR template's task list is a form someone ticked, never a reason.
 _TASK_ITEM = re.compile(r"^\s*(?:[*+-]|\d+[.)])\s+\[[ xX]\]", _A)
@@ -130,8 +132,6 @@ _DANGLING_LINK = re.compile(
 _HOLE_BEFORE_PUNCT = re.compile(r"\s?\ue000\s?([.,;:!?])", _A)
 _HOLE = re.compile(r"\s?\ue000\s?", _A)
 
-# Code and comments in source order: the one that opens first holds the other's markers.
-_CODE = re.compile(rf"{FENCED_BLOCK.pattern}|<!--[\s\S]*?(?:-->|\Z)", _A | re.MULTILINE)
 # A SHA-256 object name is 64 hex digits, a SHA-1 one 40 or an abbreviation of it.
 _COMMIT_SHA = re.compile(
     r"(?:/commit/|^git://commit/)([0-9a-f]{64}|[0-9a-f]{7,40})(?:[/?#]|\Z)", _A
@@ -148,7 +148,7 @@ _CAPITAL_START = re.compile(r"[A-Z]", _A)
 _QUESTION_END = re.compile(r"\?\Z", _A)
 
 # Fixed-width stand-in for upstream's lookbehind: the abbreviation test runs after the split.
-_SENTENCE_BREAK = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9\"'(`\[])", _A)
+_SENTENCE_BREAK = re.compile(rf"(?<=[.!?])\s+(?={_CODE_MARK}?[A-Z0-9\"'(`\[])", _A)
 _ABBREVIATION_END = re.compile(
     r"(?<![A-Za-z0-9_])(?:e\.g|i\.e|etc|vs|cf|[Mm]r|[Mm]rs|[Mm]s|[Dd]r|Inc|Ltd|[Jj]r|[Ss]r|St)\.\Z",
     _A,
@@ -179,9 +179,9 @@ def _strip_markup(text: str) -> str:
     # One level of balanced parentheses (``Raft_(algorithm)``); an unclosed run stays linear.
     out = re.sub(r"!?\[([^\[\]]*)\]\((?:[^()]|\([^()]*\))*\)", r"\1", text)
     out = _HTML_TAG.sub(" ", out)
-    out = re.sub(r"https?://\S+", f" {_URL_HOLE} ", out)
+    out = re.sub(r"https?://[^\s`]+", f" {_URL_HOLE} ", out)
     out = re.sub(r"(\*\*|__)(.+?)\1", r"\2", out)
-    out = re.sub(r"`([^`]*)`", r"\1", out)
+    out = re.sub(r"(?<!`)(``?)(?!`)([^`]+)\1(?!`)", rf"{_CODE_MARK}\2{_CODE_MARK}", out)
     out = re.sub(r"(^|\s)[*_]([^*_\s][^*_]*)[*_](?=\s|[.,;:!?]|\Z)", r"\1\2", out)
     return flat(out)
 
@@ -235,23 +235,20 @@ def _blank(match: re.Match[str]) -> str:
 
 
 def _asserted(sentence: str) -> str:
-    """The author's own claims: quotes and file names blanked, so offsets still line up."""
-    return _FILE_TOKEN.sub(_blank, _QUOTED.sub(_blank, sentence))
+    """The author's own claims: quotes, inline code and file names blanked, offsets kept."""
+    return _FILE_TOKEN.sub(_blank, _QUOTED.sub(_blank, _CODE_SPAN.sub(_blank, sentence)))
 
 
 def _fit(sentence: str, labelled: bool, need: float = 2.0) -> str | None:
-    """The text to show for a qualifying sentence. A long one is cut to a prefix plus "...", and
-    dropped when that prefix no longer scores ``need`` by the scoring rule: no fragment reasons."""
+    """A long sentence cut to a prefix plus "...", or None when the prefix no longer scores
+    ``need`` with a word of a strong marker's cause after it: no fragment reasons."""
     shown = _cap(sentence)
     if len(sentence) <= REASON_MAX_CHARS or labelled:
         return shown
     kept = _asserted(sentence)[: len(shown) - len("...")]
+    if not any(_words(kept[m.end() :]) for m in _STRONG.finditer(kept)):
+        kept = _STRONG.sub(" ", kept)
     return shown if _score(kept, False) >= need else None
-
-
-def _is_trailer(line: str) -> bool:
-    """A trailer key line. ``Issue:`` and ``Bug:`` count only when the value is a pointer."""
-    return bool(TRAILER.search(line)) and (not _ISSUE_KEY.match(line) or is_trailer_line(line))
 
 
 def _is_rule_line(line: str) -> bool:
@@ -265,12 +262,13 @@ def _is_rule_line(line: str) -> bool:
 
 
 def _is_structural_line(line: str) -> bool:
-    """Headings, tables, rules, trailers, issue pointers, task items and hash-led lines."""
+    """Headings, tables, rules, trailers, issue pointers, tasks, hash-led and fence-mark lines."""
     return bool(
         _HEADING_LINE.search(line)
         or _TABLE_LINE.search(line)
         or _is_rule_line(line)
-        or _is_trailer(line)
+        or is_known_trailer(line)
+        or FENCE_MARK_LINE.match(line.strip())
         or FIXES_ONLY.search(line)
         or _TASK_ITEM.search(line)
         or _HASH_LINE.search(line)
@@ -278,10 +276,11 @@ def _is_structural_line(line: str) -> bool:
 
 
 def _starts_new_item(prev: str, line: str) -> bool:
-    """Short unpunctuated lines are list entries, not a wrapped paragraph."""
+    """Short unpunctuated lines are list entries, unless one ends on a causal marker (wrapped)."""
     return (
         len(prev) < 60
         and not _LINE_END_PUNCT.search(prev)
+        and not _OPEN_CAUSE.search(prev.rstrip())
         and bool(_CAPITAL_START.match(line.strip()))
     )
 
@@ -316,12 +315,15 @@ def _to_units(text: str) -> list[_Unit]:
 
 
 def _split_sentences(text: str) -> list[str]:
-    """Split after . ! ? and a blank before a capital, digit, quote or bracket, not after e.g."""
+    """Split after . ! ? and a blank before a capital, digit, quote or bracket, not after e.g.
+    and not inside a quotation or inline code, so either is blanked whole when scored."""
+    spans = [(m.start(), m.end()) for m in _NO_SPLIT.finditer(text)]
     pieces: list[str] = []
     last = 0
     for match in _SENTENCE_BREAK.finditer(text):
         window = text[max(0, match.start() - _ABBREVIATION_WINDOW) : match.start()]
-        if _ABBREVIATION_END.search(window):
+        inside = bisect_right(spans, (match.start(), len(text) + 1)) - 1
+        if _ABBREVIATION_END.search(window) or (inside >= 0 and spans[inside][1] > match.start()):
             continue
         pieces.append(text[last : match.start()])
         last = match.end()
@@ -389,7 +391,7 @@ def _sentence_hit(
     if score < need:
         return None
     shown = _fit(s, labelled, need)
-    return None if shown is None else (score, shown)
+    return None if shown is None else (score, flat(shown.replace(_CODE_MARK, "")))
 
 
 def _score_units(text: str, flat_title: str) -> list[_Scored]:
@@ -432,8 +434,6 @@ def extract_reason(title: str, body: str | None) -> str | None:
     return " ".join(s.text for s in sorted(best, key=lambda s: s.pos))
 
 
-# --- E3: breaking-change signal (extension, Conventional Commits 1.0.0) ---
-
 _BREAKING_SUBJECT = re.compile(r"^[a-z]+(?:\([^)]*\))?!:", _I)
 # The token is uppercase by the specification. BREAKING-CHANGE is its synonym.
 _BREAKING_FOOTER = re.compile(r"^BREAKING[ -]CHANGE:[ \t]+\S", re.MULTILINE | _A)
@@ -441,14 +441,14 @@ _BREAKING_FOOTER = re.compile(r"^BREAKING[ -]CHANGE:[ \t]+\S", re.MULTILINE | _A
 _ISSUE_LIST = r"#[^\s#,]+(?:,?[ \t]+#[^\s#,]+){0,999}"  # #12, #13; bounded, so memory is flat
 _FOOTER_LINE = re.compile(rf"[A-Za-z][A-Za-z0-9-]*(?::[ \t]+\S|[ \t]+{_ISSUE_LIST}[ \t]*\Z)", _A)
 _BLANK_LINES = re.compile(r"\n(?:[ \t]*\n)+", _A)  # a run of blank lines is one break
-_FENCE_LINE = re.compile(r"[ \t]{0,3}(`{3,}|~{3,})(.*)", _A)
+_FENCE_LINE = re.compile(r" {0,3}(`{3,}|~{3,})(.*)", _A)
 
 
 def breaking_change(subject: str, body: str) -> bool:
     """Does the commit mark itself as a breaking change? True for a ``type!:`` subject, and for a
-    ``BREAKING CHANGE:`` or ``BREAKING-CHANGE:`` line with only footer lines above it in a footer
-    paragraph: the last one, or an earlier one when only trailer paragraphs (``Co-Authored-By``,
-    ``Refs #1``) follow it. The phrase in prose or inside a closed fenced example does not count."""
+    ``BREAKING CHANGE:`` or ``BREAKING-CHANGE:`` line in a footer paragraph: the last one, or an
+    earlier one when only trailer paragraphs (``Co-Authored-By``, ``Refs #1``) follow it. The
+    phrase in prose or in a fenced example, closed or not (CommonMark), does not count."""
     if _BREAKING_SUBJECT.search(subject.strip()):
         return True
     paragraphs = _BLANK_LINES.split(_outside_fences(body.replace("\r\n", "\n")).strip())
@@ -461,34 +461,34 @@ def breaking_change(subject: str, body: str) -> bool:
 
 
 def _breaking_footer_paragraph(paragraph: str) -> bool:
-    """A breaking token opens a line with only footers, or their indented values, above it."""
-    for index, line in enumerate(paragraph.split("\n")):
-        if _BREAKING_FOOTER.match(line):
-            return True
-        if not (_FOOTER_LINE.match(line) or (index and line[:1] in (" ", "\t"))):
-            return False
-    return False
+    """The first line is a footer and a later line, or that one, opens with a breaking token. A
+    footer value may run on over unindented lines (Conventional Commits 1.0.0, item 10)."""
+    lines = paragraph.split("\n")
+    if not (_FOOTER_LINE.match(lines[0]) or _BREAKING_FOOTER.match(lines[0])):
+        return False
+    return any(_BREAKING_FOOTER.match(line) for line in lines)
 
 
 def _outside_fences(text: str) -> str:
-    """``text`` minus closed fences (own mark, as long, alone); inline code opens none."""
+    """``text`` minus its fences; an unclosed one runs to the end. Inline code opens none."""
     out: list[str] = []
-    held: list[str] = []
     fence = ""
     for line in text.split("\n"):
         mark = _FENCE_LINE.match(line)
-        if fence and mark and mark[1][0] == fence[0] and len(mark[1]) >= len(fence) > 0:
-            if not mark[2].strip():
-                fence, held = "", []
-            else:
-                held.append(line)
-        elif fence:
-            held.append(line)
+        if fence:
+            fence = "" if _closes(fence, mark) else fence
         elif mark and not (mark[1][0] == "`" and "`" in mark[2]):
-            fence, held = mark[1], [line]
+            fence = mark[1]
         else:
             out.append(line)
-    return "\n".join(out + held)
+    return "\n".join(out)
+
+
+def _closes(fence: str, mark: re.Match[str] | None) -> bool:
+    """Own mark, at least as long, then only spaces or tabs: U+00A0 after it is text."""
+    if mark is None or mark[1][0] != fence[0] or len(mark[1]) < len(fence):
+        return False
+    return not mark[2].strip(" \t")
 
 
 def _is_trailer_paragraph(paragraph: str) -> bool:

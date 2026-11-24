@@ -295,11 +295,11 @@ FOOTER = "BREAKING CHANGE: the old name is gone."
         (f"Body.\n\n{FENCE3}old{FENCE3} is renamed to {FENCE3}new{FENCE3}.\n\n{FOOTER}", True),
         (f"Body.\n\n{FENCE4}\n{FENCE3}\n{FENCE4}\n\n{FOOTER}", True),
         (f"Body.\n\n{FENCE3}\nls\n{FENCE3}bash\nmore\n{FENCE3}\n\n{FOOTER}", True),
-        (f"Body.\n\n{FENCE3}\nexample\n\n{FOOTER}", True),
+        (f"Body.\n\n{FENCE3}\nexample\n\n{FOOTER}", False),
         (f"Body.\n\n{FENCE3}\nBREAKING CHANGE: demo only\n{FENCE3}", False),
     ],
 )
-def test_only_a_closed_fence_hides_a_breaking_footer(body: str, breaking: bool) -> None:
+def test_a_closed_or_unclosed_fence_hides_a_breaking_footer(body: str, breaking: bool) -> None:
     assert adr_reason.breaking_change("feat: rename the field", body) is breaking
 
 
