@@ -94,3 +94,8 @@ records 21 claims and the four `adr-generator` exit gates.
   the cost as 770 bytes (estimated 190 tokens) per `SessionStart` event and
   notes that a session can pay that cost more than once. No behavioral or
   decision change.
+- CodeRabbit (PR #7503, review on `6b6ba165e`, 2026-11-24, P2): two citations
+  of `122d56c74` lacked an ISO date, which `universal.md` MUST 9 requires on
+  the same line. The fix dates them and the three undated `15c13340a`
+  citations in the same amendment, all 2026-11-20 by `git log --format=%cs`.
+  No behavioral or decision change.

@@ -225,7 +225,7 @@ this repository: tell the model where the record lives and which tool reads
 it, and let the model fetch what the task needs.
 
 The guide is the `RETRO_LOOKUP_GUIDE` constant in
-`SessionStart/invoke_context_loader.py`. At `122d56c74` it runs 770 bytes. It
+`SessionStart/invoke_context_loader.py`. At `122d56c74` (2026-11-20) it runs 770 bytes. It
 names the retrospective directory, a `grep` over it, the caveat that
 `INDEX.md` is a curated subset, and, for promoted learnings, the
 `memory-search` skill to search and Serena `read_memory` to open a hit. It
@@ -249,10 +249,10 @@ Two alternatives were measured or weighed and rejected:
   At `15c13340a` (2026-11-20) the directory held 244 Markdown files,
   `INDEX.md` included.
   Real issue titles served as prompts, each naming one retrospective by its
-  filename number. At `15c13340a`, at the 0.5 floor: 3 of 25 prompts recalled
+  filename number. At `15c13340a` (2026-11-20), at the 0.5 floor: 3 of 25 prompts recalled
   the named file. The sample drew 30 numbered files; 1 title failed to fetch
   and 4 files carried an ADR or session number, not an issue or PR number.
-  At `15c13340a`, 1 of 40 recent issue titles whose number names no
+  At `15c13340a` (2026-11-20), 1 of 40 recent issue titles whose number names no
   retrospective still injected one.
   Each search took a median 0.68 seconds, measured once on one machine.
   Title relevance rarely finds the right retrospective, so the earlier
@@ -260,13 +260,13 @@ Two alternatives were measured or weighed and rejected:
 - **Per-prompt recall by issue or PR number.** A prompt that names `#N`
   would get the paths of retrospectives whose filename carries `N`. It is a
   filename pattern that reads no file. Its cost was not measured. At
-  `15c13340a`, by the matcher in the claims ledger, 117 filenames carry a
+  `15c13340a` (2026-11-20), by the matcher in the claims ledger, 117 filenames carry a
   number, and 21 of those name an ADR or a session, so a bare `#N` could
   match the wrong kind of record. It covers only
   numbered files, and only prompts that cite a number. The owner chose the
   guide alone.
 
-At `122d56c74` the guide costs 770 bytes per `SessionStart` event in Claude Code
+At `122d56c74` (2026-11-20) the guide costs 770 bytes per `SessionStart` event in Claude Code
 in this repository, an estimated 190 tokens at four characters per token.
 `SessionStart` can repeat within a session (for example, at startup and after
 compaction), so a session can pay that cost more than once. The first entry set
