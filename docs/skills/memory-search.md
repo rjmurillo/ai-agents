@@ -46,7 +46,7 @@ uv run python .claude/skills/memory/scripts/search_memory.py "git hooks" --max-r
 | `query` | Search query, 1 to 500 characters. |
 | `--max-results` | 1 to 100. Default 10. |
 | `--format` | `json` (default) or `table`. |
-| `--serena-path` | Path to the Serena memories directory. |
+| `--serena-path` | Memory folder to search. Overrides the resolved repository store. |
 | `--episodes-path` | Path to the Tier 2 episode store directory. |
 
 Without the script, search the corpus by filename or consult its index.

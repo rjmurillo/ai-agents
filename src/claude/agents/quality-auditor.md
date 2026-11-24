@@ -41,7 +41,7 @@ You have access to:
 - **Read/Search**: Scan repository structure and file contents
 - **Bash**: Run `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/quality-grades/scripts/grade_domains.py; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`
 - **Write/Edit**: Generate quality reports
-- **Memory search** (ADR-126): the `memory-search` skill over the repository memory folder the `memory-search` skill resolves (ADR-126)
+- **Memory search** (ADR-126): the `memory-search` skill over the repository memory folder
   - `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/search_memory.py "topic"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`
   - Keyword match on memory filenames; no semantic or graph search
 - **Memory writes**: the `memory` skill; Serena write tools when Serena is active

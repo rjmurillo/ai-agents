@@ -17,6 +17,7 @@ import pytest
 
 from memory_enhancement import search
 from memory_enhancement.hooks import session_end_memory
+from memory_enhancement.hooks import user_prompt_submit_memory as recall_hook
 from memory_enhancement.serena_integration import load_memory
 
 SCRIPTS = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "memory" / "scripts"
@@ -108,6 +109,23 @@ def test_session_end_starts_from_the_project_directory(
     assert session_end_memory.main() == 0
 
     assert "git mv .project-toolkit/memory/notes/* .serena/memories/" in capsys.readouterr().err
+
+
+def test_recall_fails_open_when_store_resolution_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = _repo_with_links(tmp_path)
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(repo))
+
+    def _boom(root: Path) -> Path:
+        raise OSError("resolve failed")
+
+    monkeypatch.setattr("memory_enhancement.stores.repository_memory_dir", _boom)
+
+    block = recall_hook.recall_block("what is the retry policy here")
+
+    assert block == ""
+    assert "memory recall failed: OSError: resolve failed" in capsys.readouterr().err
 
 
 def test_search_script_skips_the_env_link_end_to_end(

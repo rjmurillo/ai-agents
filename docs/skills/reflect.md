@@ -44,7 +44,7 @@ The skill runs four phases:
 3. **Propose learnings.** Present the labeled summary and wait for approval.
 4. **Persist.** Use [memory](memory.md) to update the record or save a Markdown note.
 
-Serena writes go to the checkout where the server started. Do not call Serena write tools from a linked worktree. Edit `.serena/memories/` in your own checkout, or hand the change to the parent session.
+Serena writes go to the checkout where the server started. Do not call Serena write tools from a linked worktree. Edit the repository memory files in your own checkout, or hand the change to the parent session.
 
 Priority tiers set invocation timing: HIGH (corrections and immediate fixes) invoke immediately, MEDIUM (praise, preferences, edge cases, questions) invoke once the threshold is met, and LOW (repeated patterns, session-end consolidation). The detail lives in the references:
 

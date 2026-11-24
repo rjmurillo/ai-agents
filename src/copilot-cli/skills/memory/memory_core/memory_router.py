@@ -155,14 +155,14 @@ def invoke_serena_search(
     max_results: int = 10,
     skip_content: bool = False,
 ) -> list[MemoryResult]:
-    """Perform lexical search across Serena memory files.
+    """Perform lexical search across the repository memory files.
 
-    Searches .serena/memories/ for files matching query keywords.
+    Searches the resolved memory folder for files matching query keywords.
     Scoring: based on percentage of query keywords matching in filename.
 
     Args:
         query: Search query string.
-        memory_path: Path to Serena memories directory.
+        memory_path: Memory folder to search; defaults to the resolved store.
         max_results: Maximum results to return.
         skip_content: When True, skips file content reading and SHA-256 hashing.
 

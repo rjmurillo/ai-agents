@@ -212,9 +212,10 @@ def test_hook_recalls_notes_only_inside_a_checkout(
 
     assert recall_hook.main() == 0
 
-    out = capsys.readouterr().out
+    captured = capsys.readouterr()
     expected = "Source: .project-toolkit/memory/notes/client-retry-policy.md"
-    assert (expected in out) is with_git
+    assert (expected in captured.out) is with_git
+    assert ("recall skipped" in captured.err and "has no .git" in captured.err) is not with_git
 
 
 def test_cli_defaults_to_notes_when_no_serena_corpus(tmp_path: Path) -> None:

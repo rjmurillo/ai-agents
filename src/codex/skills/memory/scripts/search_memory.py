@@ -294,7 +294,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--serena-path",
         type=Path,
         default=None,
-        help="Path to Serena memories directory",
+        help="Memory folder to search; overrides the resolved repository store",
     )
     parser.add_argument(
         "--episodes-path",
@@ -405,7 +405,9 @@ def main(argv: list[str] | None = None) -> int:
             "EpisodesSucceeded": episodes_path is not None and episodes_path.is_dir(),
         }
         if notes_path is not None:
-            search_status.update(RepositoryNotesQueried=True, RepositoryNotesSucceeded=True)
+            search_status.update(
+                RepositoryNotesQueried=True, RepositoryNotesSucceeded=notes_path.is_dir()
+            )
         output = {
             "Query": query,
             "Count": len(results),

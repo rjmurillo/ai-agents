@@ -148,26 +148,35 @@ def recall_block(user_input: str) -> str:
     if not query:
         return ""
 
-    repo_root = _find_repo_root(_project_dir())
-    if repo_root is None:
-        return ""
-
-    from ..stores import repository_memory_dir
-
-    # A Serena folder that leaves the repository is refused with a note, even
-    # when repository_memory_dir would fall back to the notes folder.
-    serena = repo_root / ".serena" / "memories"
-    if serena.is_dir() and not _is_contained_directory(serena, repo_root):
-        return ""
-    memories_dir = repository_memory_dir(repo_root)
-    if memories_dir is None or not _is_contained_directory(memories_dir, repo_root):
-        return ""
-
     try:
+        located = _locate_store()
+        if located is None:
+            return ""
+        memories_dir, repo_root = located
         return _search_and_format(query, memories_dir, repo_root, deadline)
     except Exception as exc:  # fail-open: recall must never block a prompt
         print(f"[WARNING] memory recall failed: {type(exc).__name__}: {exc}", file=sys.stderr)
         return ""
+
+
+def _locate_store() -> tuple[Path, Path] | None:
+    """Return (memory folder, repository root) for recall, or None (ADR-126).
+
+    A Serena folder that leaves the repository is refused with a note, even
+    when repository_memory_dir would fall back to the notes folder.
+    """
+    from ..stores import repository_memory_dir
+
+    repo_root = _find_repo_root(_project_dir())
+    if repo_root is None:
+        return None
+    serena = repo_root / ".serena" / "memories"
+    if serena.is_dir() and not _is_contained_directory(serena, repo_root):
+        return None
+    memories_dir = repository_memory_dir(repo_root)
+    if memories_dir is None or not _is_contained_directory(memories_dir, repo_root):
+        return None
+    return memories_dir, repo_root
 
 
 def note(message: str) -> None:
@@ -259,7 +268,12 @@ def _find_repo_root(start: Path | None = None) -> Path | None:
     from ..stores import find_memory_root
 
     root = find_memory_root(start)
-    return root if root is not None and (root / ".git").exists() else None
+    if root is None:
+        return None
+    if not (root / ".git").exists():
+        note(f"recall skipped: memory root {root} has no .git")
+        return None
+    return root
 
 
 def _search_and_format(
