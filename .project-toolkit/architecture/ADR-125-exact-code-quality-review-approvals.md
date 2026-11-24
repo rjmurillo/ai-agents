@@ -46,12 +46,17 @@ The readiness branch needs a scoped decision across files and qualities.
 8. Report exact approvals as WARN and retain the raw FAIL for audit.
 9. Keep ordinary warning acknowledgement and SHA-bound review proof.
 
+> Items 2 to 8 above and the next two lines are retired.
+> See "Amendment 2026-11-24: Owner-comment approval retired".
+
 The GitHub comment locator supplies the issue and comment IDs.
 The verifier reads the comment's owner and body from the canonical repository.
 The review marker continues to attest to the verdict of the reviewed commit.
 Other review axes continue to gate independently.
 
 ## Alternatives
+
+> The chosen row, an explicit owner comment, is retired by the last amendment.
 
 | Alternative | Consequence |
 | --- | --- |
@@ -62,6 +67,8 @@ Other review axes continue to gate independently.
 | Verify an explicit owner comment | A precise owner decision remains visible in the tracking issue. |
 
 ## Consequences
+
+> Lines on the verifier and owner comments are retired. See the last amendment.
 
 Land the verifier on main before requesting an approval for readiness.
 Require evidence for each row in the tracking issue.
@@ -110,6 +117,7 @@ Scores and raw regression rows stay as before.
 5. The review adapter reports an admitted row as WARN.
 6. A run with only admitted rows exits 0, so no owner comment applies.
 7. Other regressions still exit 10 and still need this ADR's approval path.
+   Retired by the last amendment: they now FAIL with no approval path.
    These include new third-party roots, new duplicate copies, and other qualities.
 
 The repository config sets `importRoots` to `src/claude/lib`.
@@ -117,6 +125,7 @@ On the consolidation branch, 69 of 74 rows are admitted.
 Four remaining rows add a direct `yaml` import.
 One remaining row is a cohesion drop of 0.9 from file growth.
 That branch still needs one owner approval, or code changes, for those rows.
+After the last amendment, only code changes clear them.
 
 ### Relation to ADR-122
 
@@ -157,6 +166,7 @@ The non-redundancy admission applies to every consumer with no opt-out.
 A non-redundancy drop of any size passes when no line gained a copy.
 Ordinary runs read the branch's own config, so an `importRoots` edit needs review.
 The approval verifier reads the config from the integration commit instead.
+Retired by the last amendment: the verifier is deleted.
 Base imports resolve against the head tree, so a renamed file can misjudge a base import.
 Removing `firstPartyCouplingAdmission` reverses the coupling rule.
 Reversing the non-redundancy rule takes a code change.
@@ -166,3 +176,65 @@ A shipped plugin file that adds an upstream-only first-party import is admitted;
 Revisit these rules if an admitted row hides a dependency a reviewer later rejects.
 The reviewer records each such case as a comment on issue #7525.
 The evidence base is one branch; other branches were not replayed.
+
+## Amendment 2026-11-24: Owner-comment approval retired
+
+### Why
+
+The owner directed on 2026-11-24 that the owner-comment approval protocol be removed.
+The owner declined to post approval comments for any branch.
+The directive was given in a task session; no file in the tree records it.
+The first amendment admitted 69 of 74 rows on the consolidation branch.
+The other 5 rows still needed one owner comment, re-posted after each new commit.
+Issue #7525 tracked that cost; this change answers it by removing the comment.
+
+The original fence was the ruleset: it requires zero approvals.
+So only a verified owner comment could prove an owner accepted a drop.
+With no override at all, nothing needs proving, so the fence has no job left.
+
+### Change
+
+1. Original Decision items 2 to 8 are retired.
+   The approval verifier, its test, and the review procedure page are deleted.
+   The review skill no longer offers an approval step.
+2. Original Decision items 1 and 9 stand, as the first amendment changed them.
+   The assessor keeps its scores, output, and configuration.
+   Warning acknowledgement and SHA-bound review proof stay.
+3. The first amendment's items 1 to 6 stand unchanged.
+   Admitted rows still report WARN and still exit 0.
+4. The first amendment's item 7 is replaced.
+   A regression the assessor does not admit exits 10.
+   The review adapter reports it as FAIL.
+   The branch fixes the code, or a reviewed change adds an assessor rule.
+   A new rule needs an ADR amendment, as the first amendment did.
+   No owner comment can clear it.
+5. ADR-122 admission records are unchanged and follow ADR-122's own process.
+
+### Alternatives
+
+| Alternative | Consequence |
+| --- | --- |
+| Keep the verifier, bind approval to rows | Still needs an owner comment per branch; the owner rejected comments. |
+| Keep the pinned trusted assessor run, drop only the comment | Keeps tamper resistance for exit 10, but keeps the script the owner asked to remove. |
+| Expiring waiver file reviewed in the PR | Moves the owner decision into a file; still a per-branch approval step. |
+| Let exit 10 report WARN | Every regression passes, including a new third-party dependency. |
+
+### Consequences
+
+A non-admitted drop now blocks the review until the code changes.
+On the consolidation branch at `0a101a596` (2026-11-24), that is 4 `yaml` rows and 1 cohesion row.
+A false regression needs a code change or a reviewed assessor rule.
+The gate now runs only the branch's own `assess.py` and `.qualityrc.json`.
+A branch can edit either one to admit its own rows.
+That was already true for admitted rows; now it is true for every row.
+The control is human review of any diff to those two files.
+That control is advisory: the ruleset requires zero approvals and disables code-owner review.
+No CI step re-runs the assessor from a trusted copy.
+Original Consequences on approval comments, re-pins, comment edits, and the GitHub API no longer apply.
+The first amendment's line on the verifier reading config from the integration commit no longer applies.
+Markers written under the old procedure remain attestations of their own review.
+Reversing this amendment means restoring four things from `8d7c067f1a` (2026-11-24):
+the verifier, its test, the procedure page, and the review-skill approval steps.
+The verifier alone does nothing, because no review step calls it.
+Revisit if a false regression blocks a merge and no code fix exists.
+Revisit too if a branch edits the assessor or its config to admit its own rows.
