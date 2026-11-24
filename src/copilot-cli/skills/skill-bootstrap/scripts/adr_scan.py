@@ -28,11 +28,9 @@ Departures from the upstream source, each pinned by a test:
   ``chore!:`` subject or a release stays out. Its ``signals`` hold ``breaking-change``.
 - E1: a decision-log entry that has an id and is not named by any ADR is a candidate.
 
-Git runs with a timeout, a clean environment, and no trust in message text. Commits are
-read in two steps. ``git rev-list`` gives the SHAs in history order. Those
-SHAs go to ``git cat-file --batch``, whose reply is size-prefixed
-(``<sha> commit <size>`` then exactly ``size`` bytes), so a commit message cannot add
-or hide a record. Every reply must name the SHA that was asked for, in order, with the
+Git runs with a timeout, a clean environment, no replacement objects, and no trust in message
+text. ``git rev-list`` gives the SHAs in history order, and ``git cat-file --batch`` reads them
+(``<sha> commit <size>`` then exactly ``size`` bytes), so a commit message cannot add or hide a record. Every reply must name the SHA that was asked for, in order, with the
 type ``commit``. Anything else raises ``GitError``; the reader never resynchronizes.
 """
 
@@ -142,11 +140,10 @@ def _commit_candidates(
     covering: tuple[dict[str, int], set[int]],
     web: tuple[str, str] | None,
     dropped: dict[str, int],
-) -> tuple[list[_Pending], dict[int, list[tuple[bool, str | None]]]]:
-    """The commit candidates, and for each kept pull request number the ``(breaking, reason)``
-    of the commits it covers: the PR carries the E3 signal and, if it has none, the reason."""
+) -> tuple[list[_Pending], dict[int, list[_Pending]]]:
+    """The commit candidates, and for each kept pull request number the commits it covers."""
     pending: list[_Pending] = []
-    carried: dict[int, list[tuple[bool, str | None]]] = {}
+    carried: dict[int, list[_Pending]] = {}
     for record in records:
         shape = resolve_commit_shape(record.subject, record.body)
         breaking = breaking_change(shape.subject, shape.body)
@@ -159,8 +156,7 @@ def _commit_candidates(
             dropped["not_decision_shaped"] += 1
         elif covered is not None:
             dropped["covered_by_pr"] += 1
-            reason = extract_reason(shape.subject, shape.body)
-            carried.setdefault(covered, []).append((breaking, reason))
+            carried.setdefault(covered, []).append(_commit_pending(record, web, breaking, shape))
         else:
             pending.append(_commit_pending(record, web, breaking, shape))
     return pending, carried
@@ -198,6 +194,16 @@ def _pr_pending(rows: list[PrRow], dropped: dict[str, int]) -> tuple[list[_Pendi
     return pending, kept
 
 
+def _absorb(pr: _Pending, commit: _Pending) -> None:
+    """A pull request takes from a commit it covers the E3 signal, a reason it lacks, and the
+    commit's SHA and URLs, so an ADR that cites only the commit also hides the pull request."""
+    if commit.candidate["signals"] and not pr.candidate["signals"]:
+        pr.candidate["signals"].append("breaking-change")
+    pr.candidate["reason"] = pr.candidate["reason"] or commit.candidate["reason"]
+    pr.shas += commit.shas
+    pr.urls += commit.urls
+
+
 def _suppress(
     pending: list[_Pending], existing: ExistingAdrs, dropped: dict[str, int]
 ) -> list[Candidate]:
@@ -211,11 +217,16 @@ def _suppress(
 
 
 def _unique_ids(candidates: list[Candidate]) -> None:
-    """Keep ids unique. A commit whose 7-character id is taken gets a 12-character one."""
+    """Keep ids unique. A commit whose 7-character id is taken gets a 12-character one, and any
+    id still taken gets ``.2``, ``.3`` and so on, so ``draft --id`` always names one candidate."""
     seen: set[str] = set()
     for candidate in candidates:
         if candidate["id"] in seen and candidate["kind"] == "commit":
             candidate["id"] = f"c-{candidate['source']['sha'][:12]}"
+        base, count = candidate["id"], 1
+        while candidate["id"] in seen:
+            count += 1
+            candidate["id"] = f"{base}.{count}"
         seen.add(candidate["id"])
 
 
@@ -236,10 +247,8 @@ def scan(
     pending, kept_prs = _pr_pending(pr_rows, dropped)
     commits, carried = _commit_candidates(records, covering_numbers(kept_prs), web, dropped)
     for item in pending:
-        for breaking, reason in carried.get(item.number or -1, []):
-            if breaking and not item.candidate["signals"]:
-                item.candidate["signals"].append("breaking-change")
-            item.candidate["reason"] = item.candidate["reason"] or reason
+        for covered in carried.get(item.number or -1, []):
+            _absorb(item, covered)
     pending += commits
     candidates = _suppress(pending, existing, dropped)
     candidates.sort(key=lambda item: item["date"] or "", reverse=True)
@@ -305,20 +314,13 @@ _LOCAL_GIT_ENV = frozenset(
 
 
 def git_env() -> dict[str, str]:
-    """The environment for a git child: no repository redirection, no prompt, English messages.
-
-    ``LC_ALL=C`` keeps the stderr texts this module matches (``not a git repository``,
-    ``dubious ownership``) the same on every locale.
-    """
+    """The environment for a git child: no repository redirection and no prompt. No replacement
+    objects, so a replaced commit is never read under the original's SHA. ``LC_ALL=C`` keeps the
+    stderr texts matched here (``dubious ownership``) the same on every locale. Discovery may
+    cross a mount, so the draft gate still sees a mounted folder as inside the work tree."""
     env = {key: value for key, value in os.environ.items() if key not in _LOCAL_GIT_ENV}
-    # Discovery may cross a mount inside the work tree, so a folder on another filesystem is
-    # still seen as inside it, and the draft gate stays strict.
-    env.update(
-        GIT_TERMINAL_PROMPT="0",
-        GIT_NO_LAZY_FETCH="1",
-        GIT_DISCOVERY_ACROSS_FILESYSTEM="1",
-        LC_ALL="C",
-    )
+    env.update(GIT_TERMINAL_PROMPT="0", GIT_NO_LAZY_FETCH="1", GIT_NO_REPLACE_OBJECTS="1")
+    env.update(GIT_DISCOVERY_ACROSS_FILESYSTEM="1", LC_ALL="C")
     return env
 
 
@@ -349,8 +351,7 @@ def git_text(
     """Run git and decode stdout and stderr as UTF-8 with replacement."""
     proc = git_bytes(repo, *args)
     if proc.returncode not in ok:
-        message = proc.stderr.decode("utf-8", "replace").strip()
-        raise GitError(f"git {' '.join(args)} failed: {message}")
+        raise GitError(f"git {' '.join(args)} failed: {stderr_text(proc)}")
     return subprocess.CompletedProcess(
         proc.args,
         proc.returncode,
@@ -449,8 +450,7 @@ def _batches(shas: list[str], sizes: list[int], dropped: dict[str, int]) -> list
 def _read_batch(root: Path, shas: list[str]) -> list[CommitRecord]:
     proc = git_bytes(root, "cat-file", "--batch", stdin=("\n".join(shas) + "\n").encode("ascii"))
     if proc.returncode != 0:
-        message = proc.stderr.decode("utf-8", "replace").strip()
-        raise GitError(f"git cat-file --batch failed: {message}")
+        raise GitError(f"git cat-file --batch failed: {stderr_text(proc)}")
     data, pos, records = proc.stdout, 0, []
     for expected in shas:
         header = _BATCH_HEADER.match(data, pos)

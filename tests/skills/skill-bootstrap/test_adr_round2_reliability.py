@@ -164,6 +164,7 @@ def test_eight_thousand_entries_sharing_an_id_are_numbered_in_linear_time(
 ) -> None:
     # The per-file cap would hide the quadratic search, so lift it where it exists.
     monkeypatch.setattr(adr_log, "MAX_LOG_CANDIDATES", 10**6, raising=False)
+    monkeypatch.setattr(adr_log, "MAX_LOG_ENTRIES", 10**6)
     repo = _log(tmp_path, "decisions.md", _entries(["D-1"] * 8000))
     started = time.perf_counter()
     found, _ = _candidates(repo)
@@ -333,5 +334,5 @@ def test_existing_adrs_gives_the_same_names_from_a_stream_as_from_a_list() -> No
     ]
     from_list = adr_docs.ExistingAdrs(texts)
     from_stream = adr_docs.ExistingAdrs(iter(texts))
-    for name in ("words", "hashes", "urls", "numbers"):
+    for name in ("ids", "hashes", "urls", "numbers"):
         assert getattr(from_list, name) == getattr(from_stream, name), name

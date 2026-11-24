@@ -349,11 +349,13 @@ TRAILER = re.compile(
     r"|reported-by|suggested-by|helped-by|change-id|pr-url|cc|bug|jira|issue)\s*:",
     _I,
 )
-_ISSUE_REF = r"(?:#\d+|gh-\d+|[\w.-]+/[\w.-]+#\d+|https?://\S+)"
+# A URL holds no space, comma or semicolon, and ``&`` separates only after a space, so a
+# list splits one way and a failed match is linear. ``\S+`` there made it exponential.
+_ISSUE_REF = r"(?:#\d+|gh-\d+|[\w.-]+/[\w.-]+#\d+|https?://[^\s,;]+)"
 FIXES_ONLY = re.compile(
     r"^\s*(?:fix(?:e[sd])?|close[sd]?|resolve[sd]?|refs?|see|related to|part of)\b:?\s*"
     + _ISSUE_REF
-    + r"(?:[\s,;&]+(?:and\s+)?"
+    + r"(?:(?:\s*[,;]\s*|\s+(?:&\s*)?)(?:and\s+)?"
     + _ISSUE_REF
     + r")*\s*[.]?\s*\Z",
     _I,

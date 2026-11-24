@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import adr_locate
+import adr_write
 import bootstrap_adr
 import pytest
 from adr_helpers import commit, git, new_repo, run_cli, write
@@ -107,7 +108,7 @@ def _fold_case(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """
     if _case_insensitive(tmp_path):
         return
-    real_tree: Callable[[Path], Path | None] = bootstrap_adr._enclosing_tree
+    real_tree: Callable[[Path], Path | None] = adr_write.enclosing_tree
 
     def folded_tree(path: Path) -> Path | None:
         return real_tree(Path(str(path).replace("/REPO", "/repo")))
@@ -116,8 +117,8 @@ def _fold_case(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         one, two = str(first).lower(), str(second).lower()
         return one == two and Path(str(first).replace("/REPO", "/repo")).exists()
 
-    monkeypatch.setattr(bootstrap_adr, "_enclosing_tree", folded_tree)
-    monkeypatch.setattr(bootstrap_adr, "_same_file", folded_same)
+    monkeypatch.setattr(adr_write, "enclosing_tree", folded_tree)
+    monkeypatch.setattr(adr_write, "same_file", folded_same)
 
 
 def test_a_case_variant_of_an_adr_folder_writes_into_the_located_folder(
@@ -306,14 +307,14 @@ def test_scan_and_draft_create_their_files_through_one_function(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     repo = _adr_repo(tmp_path / "r")
-    real = bootstrap_adr._create_new
+    real = bootstrap_adr.create_new
     calls: list[Path] = []
 
     def recording(target: Path, data: bytes) -> None:
         calls.append(target)
         real(target, data)
 
-    monkeypatch.setattr(bootstrap_adr, "_create_new", recording)
+    monkeypatch.setattr(bootstrap_adr, "create_new", recording)
     out = tmp_path / "scan.json"
     assert bootstrap_adr.main(["scan", "--repo", str(repo), "--out", str(out)]) == 0
     _draft(tmp_path, repo, repo / "docs" / "adr")

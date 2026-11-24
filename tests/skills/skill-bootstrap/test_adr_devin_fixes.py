@@ -185,7 +185,7 @@ def test_twins_with_the_same_title_are_numbered_in_order() -> None:
 
     keys = adr_log._entry_keys([twin, twin, _entry("D-2", "D-2 - Other")])
 
-    assert keys[0].endswith("-1") and keys[1].endswith("-2") and keys[0][:-2] == keys[1][:-2]
+    assert "--" in keys[0] and keys[1] == f"{keys[0]}-2"
     assert keys[2] == "D-2"
 
 

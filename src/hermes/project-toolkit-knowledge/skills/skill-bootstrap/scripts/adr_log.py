@@ -43,6 +43,7 @@ from adr_reason import extract_reason
 
 __all__ = [
     "MAX_LOG_CANDIDATES",
+    "MAX_LOG_ENTRIES",
     "MAX_LOG_FILES",
     "LogEntry",
     "entry_date",
@@ -58,6 +59,7 @@ _A = re.ASCII
 _LOG_FILE = re.compile(r"(?:decisions?[-_]log|decisions|.*ledger.*)\.md\Z", _I)
 _LOG_DIRS = ("", "docs")
 MAX_LOG_FILES = 20
+MAX_LOG_ENTRIES = 5000
 # Blanks and closing marks come off in ``_heading_text``: a lazy group before ``[ \t]*#*[ \t]*\Z``
 # is quadratic on a long run of spaces.
 _HEADING = re.compile(r"#{1,6}[ \t]+(.+)", _A)
@@ -228,12 +230,15 @@ def entry_date(text: str) -> str | None:
     return None
 
 
-def read_log_entries(root: Path) -> tuple[list[tuple[str, LogEntry]], int, int]:
+def read_log_entries(
+    root: Path, dropped: dict[str, int] | None = None
+) -> tuple[list[tuple[str, LogEntry]], int, int]:
     """``(entries, files, skipped)`` for the decision log files under ``root``.
 
     An entry is ``(relative file, entry)``. ``files`` counts the log files found, and
     ``skipped`` counts those that were unreadable, over ``MAX_READ_BYTES``, or past the first
-    ``MAX_LOG_FILES`` in path order.
+    ``MAX_LOG_FILES`` in path order. A file keeps its first ``MAX_LOG_ENTRIES`` entries, and the
+    rest count under ``dropped["log_over_limit"]``, so memory stays bounded.
     """
     entries: list[tuple[str, LogEntry]] = []
     files = find_log_files(root)
@@ -243,7 +248,10 @@ def read_log_entries(root: Path) -> tuple[list[tuple[str, LogEntry]], int, int]:
         if text is None:
             skipped += 1
         else:
-            entries.extend((rel, entry) for entry in split_decision_log(text))
+            parsed = split_decision_log(text)
+            entries.extend((rel, entry) for entry in parsed[:MAX_LOG_ENTRIES])
+            if dropped is not None:
+                dropped["log_over_limit"] += max(0, len(parsed) - MAX_LOG_ENTRIES)
     return entries, len(files), skipped
 
 
@@ -253,19 +261,24 @@ MAX_LOG_CANDIDATES = 1000
 def _entry_keys(entries: list[tuple[str, LogEntry]]) -> list[str]:
     """The id a draft records for each entry: the bare id when it names one entry, else
     ``<id>--<hash>`` of the entry's title, one word that reordering the log does not change.
-    Twins with the same title also get ``-<n>`` in order."""
-    total = Counter(entry.id for _rel, entry in entries if entry.id)
-    keys = [
-        e.id or ""
-        if total[e.id or ""] < 2
-        else f"{e.id}--{sha256(e.title.encode()).hexdigest()[:8]}"
-        for _rel, e in entries
-    ]
-    repeats, seen = Counter(keys), Counter[str]()
-    for n, key in enumerate(keys):
-        seen[key] += 1
-        if "--" in key and repeats[key] > 1:
-            keys[n] = f"{key}-{seen[key]}"
+    Ids compare without regard to case, as ``ExistingAdrs.names_id`` does. A key already taken,
+    by a same-title twin or a literal id, gets ``-2``, ``-3`` and so on, so no key repeats."""
+    total = Counter((e.id or "").lower() for _rel, e in entries if e.id)
+    keys: list[str] = []
+    taken: set[str] = set()
+    following: dict[str, int] = {}
+    for _rel, e in entries:
+        key = e.id or ""
+        if e.id and total[e.id.lower()] > 1:
+            key = f"{e.id}--{sha256(e.title.encode()).hexdigest()[:8]}"
+        if e.id:
+            base, count = key, following.get(key.lower(), 1)
+            while key.lower() in taken:
+                count += 1
+                key = f"{base}-{count}"
+            following[base.lower()] = count
+            taken.add(key.lower())
+        keys.append(key)
     return keys
 
 
@@ -294,7 +307,7 @@ def log_candidates(
     """
     found: list[dict[str, Any]] = []
     per_file: dict[str, int] = {}
-    entries, files, skipped = read_log_entries(root)
+    entries, files, skipped = read_log_entries(root, dropped)
     keys = _entry_keys(entries)
     for (rel, entry), key in zip(entries, keys, strict=True):
         if entry.id is None:

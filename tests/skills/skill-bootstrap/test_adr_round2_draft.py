@@ -232,13 +232,13 @@ def test_a_twin_after_the_write_reports_written_true(
 ) -> None:
     repo = _adr_repo(tmp_path / "r")
     scan = _scan_file(tmp_path, repo, _cand())
-    real = bootstrap_adr._create_new
+    real = bootstrap_adr.create_new
 
     def racing(target: Path, data: bytes) -> None:
         real(target, data)
         (target.parent / "0002-other-decision.md").write_text("# 2. Other\n", encoding="utf-8")
 
-    monkeypatch.setattr(bootstrap_adr, "_create_new", racing)
+    monkeypatch.setattr(bootstrap_adr, "create_new", racing)
     with pytest.raises(bootstrap_adr.ExistsError) as caught:
         bootstrap_adr.draft(scan, "c-1234567", str(repo / "docs" / "adr"), "Proposed")
     assert caught.value.written is True and caught.value.others == ["0002-other-decision.md"]
@@ -249,13 +249,13 @@ def test_the_exists_payload_carries_written_through_main(
 ) -> None:
     repo = _adr_repo(tmp_path / "r")
     scan = _scan_file(tmp_path, repo, _cand())
-    real = bootstrap_adr._create_new
+    real = bootstrap_adr.create_new
 
     def racing(target: Path, data: bytes) -> None:
         real(target, data)
         (target.parent / "0002-other-decision.md").write_text("# 2. Other\n", encoding="utf-8")
 
-    monkeypatch.setattr(bootstrap_adr, "_create_new", racing)
+    monkeypatch.setattr(bootstrap_adr, "create_new", racing)
     args = ["draft", "--scan", scan, "--id", "c-1234567", "--out", str(repo / "docs" / "adr")]
     assert bootstrap_adr.main(args) == 1
     payload = json.loads(capsys.readouterr().out)

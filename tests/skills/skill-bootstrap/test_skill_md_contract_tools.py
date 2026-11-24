@@ -53,6 +53,7 @@ def test_every_script_on_disk_is_bundled_and_documented() -> None:
         "scripts/adr_log.py",
         "scripts/adr_reason.py",
         "scripts/adr_shape.py",
+        "scripts/adr_write.py",
         "scripts/bootstrap_friction.py",
         "scripts/bootstrap_sweep.py",
         "scripts/bootstrap_sweep_import.py",

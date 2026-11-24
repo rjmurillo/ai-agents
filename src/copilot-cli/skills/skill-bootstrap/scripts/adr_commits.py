@@ -39,7 +39,7 @@ call. Each object needs these fields, under either name:
 
 - ``number``: integer.
 - ``title``: string. ``body``: string or null.
-- ``url`` or ``html_url``: an ``https://`` string.
+- ``url`` or ``html_url``: an ``https://`` page whose path ends in ``number``.
 - ``merged_at`` or ``mergedAt``: an ISO timestamp, or null when the pull request is not merged.
 - ``author`` or ``user``: an object with ``login`` and ``is_bot`` (bool) or ``type`` (``Bot``).
 - ``merge_commit_sha``, or ``mergeCommit`` holding ``oid``: the merge commit SHA, when known.
@@ -198,7 +198,8 @@ _ISO_DAY = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", _A)
 _URL = re.compile(r"(?:https?|git)://[^\s<>()\[\]\"'`]+", _A)
 _WORD_RUN = re.compile(r"[A-Za-z0-9_.-]+", _A)
 _HASH = re.compile(r"(?<![0-9A-Za-z_])[0-9a-fA-F]{7,64}(?![0-9A-Za-z_])", _A)
-_ISSUE = re.compile(r"(?<![0-9A-Za-z_/&])#([0-9]+)(?![0-9A-Za-z_])", _A)
+# Nine digits at most: CPython refuses int() on a run of more than 4,300 digits.
+_ISSUE = re.compile(r"(?<![0-9A-Za-z_/&])#([0-9]{1,9})(?![0-9A-Za-z_])", _A)
 
 
 def sanitize(text: str, limit: int | None = None) -> str:
@@ -268,7 +269,9 @@ def word_tokens(text: str) -> set[str]:
 BODY_CAP = 8000
 _BOT_LOGIN = re.compile(r"(?:dependabot|renovate)\b", re.IGNORECASE | re.ASCII)
 _BOT_SUFFIX = re.compile(r"\[bot\]\Z", re.IGNORECASE | re.ASCII)
-_TRAILING_PR = re.compile(r"\(#([0-9]+)\)\s*\Z", re.ASCII)
+_TRAILING_PR = re.compile(r"\(#([0-9]{1,9})\)\s*\Z", re.ASCII)
+_MERGE_PR = re.compile(r"Merge pull request #([0-9]{1,9})(?![0-9])", re.ASCII)
+_PR_PAGE = re.compile(r"https://[A-Za-z0-9.-]+(?::[0-9]{1,5})?(/[^\s?#]*)(?:[?#]\S*)?", re.ASCII)
 _HEX_SHA = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}", re.ASCII)
 
 
@@ -333,7 +336,8 @@ def _page_url(item: dict[str, Any]) -> object:
 
 
 def _complete(item: dict[str, Any]) -> tuple[int, str, str, str, str] | None:
-    """``(number, title, body, url, merged day)`` when the item has every required field."""
+    """``(number, title, body, url, merged day)`` when the item has every required field and its
+    URL is a well-formed https page whose path ends in that same number."""
     number = item.get("number")
     title = item.get("title")
     url = _page_url(item)
@@ -343,10 +347,11 @@ def _complete(item: dict[str, Any]) -> tuple[int, str, str, str, str] | None:
         return None
     if not isinstance(title, str) or not title.strip() or day is None:
         return None
-    if not isinstance(url, str) or not url.startswith("https://") or re.search(r"\s", url):
+    page = _PR_PAGE.fullmatch(url) if isinstance(url, str) else None
+    if page is None or page.group(1).rstrip("/").rsplit("/", 1)[-1] != str(number):
         return None
     text = body.replace("\r\n", "\n").replace("\r", "\n") if isinstance(body, str) else ""
-    return number, title.strip()[:MAX_SUBJECT_CHARS], text[:MAX_BODY_CHARS], url, day
+    return number, title.strip()[:MAX_SUBJECT_CHARS], text[:MAX_BODY_CHARS], page.group(0), day
 
 
 def select_prs(items: list[Any], dropped: dict[str, int], base: str | None = None) -> list[PrRow]:
@@ -354,7 +359,8 @@ def select_prs(items: list[Any], dropped: dict[str, int], base: str | None = Non
 
     Counts each rejection in ``dropped``: ``pr_incomplete`` (not merged or a field missing),
     ``pr_other_repo``, ``pr_bot``, ``pr_housekeeping`` (a release or version bump title) and
-    ``pr_no_reason``. ``base`` is the web address of this repository's origin. A row whose URL
+    ``pr_no_reason``, and ``pr_duplicate`` for a later row of a number already kept, so the
+    first row wins. ``base`` is the web address of this repository's origin. A row whose URL
     is not under ``<base>/pull/``, compared without regard to case, is another repository's, so
     it is dropped and covers no commit. With no known origin (``base`` is None) the export
     cannot be checked and every complete row is kept. A GitLab origin matches no row, because
@@ -362,6 +368,7 @@ def select_prs(items: list[Any], dropped: dict[str, int], base: str | None = Non
     export must come from the repository's own origin.
     """
     rows: list[PrRow] = []
+    seen: set[int] = set()
     for item in items:
         fields = _complete(item) if isinstance(item, dict) else None
         if fields is None:
@@ -370,6 +377,8 @@ def select_prs(items: list[Any], dropped: dict[str, int], base: str | None = Non
         number, title, body, url, day = fields
         if base is not None and not url.lower().startswith(f"{base.lower()}/pull/"):
             dropped["pr_other_repo"] = dropped.get("pr_other_repo", 0) + 1
+        elif number in seen:
+            dropped["pr_duplicate"] = dropped.get("pr_duplicate", 0) + 1
         elif _is_bot(item):
             dropped["pr_bot"] = dropped.get("pr_bot", 0) + 1
         elif is_release_or_bump_subject(title):
@@ -379,6 +388,7 @@ def select_prs(items: list[Any], dropped: dict[str, int], base: str | None = Non
         ):
             dropped["pr_no_reason"] = dropped.get("pr_no_reason", 0) + 1
         else:
+            seen.add(number)
             rows.append(PrRow(number, title, body, url, day, _merge_sha(item), reason))
     return rows
 
@@ -449,13 +459,17 @@ def commit_urls(
     return commit, pull
 
 
+def _named_numbers(record: CommitRecord, promoted: str) -> tuple[int | None, ...]:
+    """A merge names its own pull request, and the ``(#M)`` of a promoted title is earlier work,
+    so ``Merge pull request #N`` wins. Else a squash subject's ``(#N)``, promoted or stored."""
+    merge = _MERGE_PR.match(record.subject)
+    if merge is not None:
+        return (int(merge.group(1)),)
+    return trailing_pr_number(promoted), trailing_pr_number(record.subject)
+
+
 def commit_pr_number(record: CommitRecord, promoted: str) -> int | None:
-    from_squash = trailing_pr_number(promoted) or trailing_pr_number(record.subject)
-    if from_squash is not None:
-        return from_squash
-    merge = record.subject.startswith("Merge pull request #")
-    digits = record.subject[len("Merge pull request #") :].split(" ", 1)[0]
-    return int(digits) if merge and digits.isascii() and digits.isdigit() else None
+    return next((number for number in _named_numbers(record, promoted) if number), None)
 
 
 _MERGE_LINE = re.compile(r"merge (?:pull request|branch)\b", _I)
@@ -476,13 +490,8 @@ def covering_pr(
     """The number of the kept pull request this commit became (P10), or None.
 
     The commit's SHA is a kept pull request's merge commit, or a number it names is kept: a
-    subject ending ``(#N)``, as stored or promoted, or ``Merge pull request #N``.
+    subject ending ``(#N)``, as stored or promoted, or for a merge only ``Merge pull request #N``.
     """
     if record.sha.lower() in by_sha:
         return by_sha[record.sha.lower()]
-    named = (
-        trailing_pr_number(promoted),
-        trailing_pr_number(record.subject),
-        commit_pr_number(record, promoted),
-    )
-    return next((number for number in named if number in numbers), None)
+    return next((n for n in _named_numbers(record, promoted) if n in numbers), None)

@@ -30,7 +30,6 @@ from adr_commits import (
     hash_tokens,
     issue_numbers,
     urls_in,
-    word_tokens,
 )
 
 __all__ = [
@@ -95,6 +94,8 @@ _VERSIONED_RELEASE_HEADING = re.compile(r"^release:?\s+v?\d", _I)
 _H2_HEADING = re.compile(r"##\s+(.+)\Z", _A)
 _NEXT_TOP_HEADING = re.compile(r"\n(?=#\s)", _A)
 _TRAILING_RULE = re.compile(r"\n+-{3,}\s*\Z", _A)
+_ID_RUN = re.compile(r"[\w.-]+", _A)
+_ID_END = re.compile(r"\.(?![0-9])", _A)  # a dot before a non-digit ends an id: D-1.md
 
 
 class RuleSection(NamedTuple):
@@ -185,6 +186,7 @@ DROP_KEYS = (
     "pr_not_decision_shaped",
     "log_no_id",
     "log_over_limit",
+    "pr_duplicate",
     "commit_too_large",
 )
 
@@ -195,12 +197,15 @@ class ExistingAdrs:
     _MIN_SHA_PREFIX = 7
 
     def __init__(self, texts: Iterable[tuple[str, str]]) -> None:
-        self.words: set[str] = set()
+        self.ids: set[str] = set()
         self.hashes: set[str] = set()
         self.urls: set[str] = set()
         self.numbers: set[int] = set()
         for _path, text in texts:
-            self.words |= word_tokens(text)
+            for run in _ID_RUN.findall(text):
+                token = run.strip(".").lower()
+                self.ids.add(token)
+                self.ids.update(token[: dot.start()] for dot in _ID_END.finditer(token))
             self.hashes |= hash_tokens(text)
             self.urls |= urls_in(text)
             self.numbers |= issue_numbers(text)
@@ -220,5 +225,7 @@ class ExistingAdrs:
         return number is not None and number in self.numbers
 
     def names_id(self, ident: str) -> bool:
-        """Does an ADR name this decision-log id as a whole word?"""
-        return ident.lower() in self.words
+        """Does an ADR name this decision-log id as a whole token? Edge dots are sentence marks and
+        a dot before a non-digit ends an id, so ``D-1.`` and ``D-1.md`` name ``D-1``, and
+        ``D-1.2`` names only ``D-1.2``."""
+        return ident.lower() in self.ids
