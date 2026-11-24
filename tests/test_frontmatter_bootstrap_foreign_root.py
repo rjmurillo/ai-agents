@@ -11,6 +11,7 @@ one, cannot shadow it.
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -18,7 +19,11 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-_PROBE = '"hook_utilities" / "frontmatter_block.py"'
+_PROBES = (
+    "from hook_utilities.frontmatter_block import",
+    "from hook_utilities import frontmatter_block",
+)
+_BOOTSTRAP = "_LIB_DIR = Path(__file__).resolve().parents[3]"
 
 
 def _env(plugin_root: Path | None) -> dict[str, str]:
@@ -61,7 +66,8 @@ def _bootstrapped_scripts() -> list[str]:
         path = REPO_ROOT / rel
         if path.is_symlink() or not path.is_file():
             continue
-        if _PROBE in path.read_text(encoding="utf-8"):
+        text = path.read_text(encoding="utf-8")
+        if _BOOTSTRAP in text and any(probe in text for probe in _PROBES):
             found.append(rel)
     return sorted(found)
 
@@ -130,12 +136,15 @@ def test_script_imports_with_a_plugin_root_lacking_the_parser(tmp_path: Path, sc
     assert result.returncode == 0, result.stderr
 
 
-def test_script_outside_its_plugin_falls_back_to_the_plugin_root(tmp_path: Path) -> None:
+@pytest.mark.parametrize("script", _SCRIPTS)
+def test_script_outside_its_plugin_falls_back_to_the_plugin_root(
+    tmp_path: Path, script: str
+) -> None:
     """A copied script whose own lib lacks the parser uses the environment root."""
-    source = REPO_ROOT / "src/claude/skills/skillforge/scripts/frontmatter.py"
-    copied = tmp_path / "loose" / "skills" / "skillforge" / "scripts" / "frontmatter.py"
-    copied.parent.mkdir(parents=True)
-    copied.write_bytes(source.read_bytes())
+    source = (REPO_ROOT / script).resolve()
+    copied_dir = tmp_path / "loose" / "skills" / source.parent.parent.name / "scripts"
+    shutil.copytree(source.parent, copied_dir, ignore=shutil.ignore_patterns("__pycache__"))
+    copied = copied_dir / source.name
     (tmp_path / "loose" / "lib").mkdir()
     assert not (tmp_path / "loose" / "lib" / "hook_utilities").exists()
     plugin_root = REPO_ROOT / "src" / "claude"

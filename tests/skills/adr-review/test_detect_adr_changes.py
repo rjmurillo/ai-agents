@@ -434,7 +434,8 @@ class TestFrontmatterOnlyDetection:
 
     def test_blank_line_after_the_fence_is_a_body_change(self, adr_repo: Path) -> None:
         adr = adr_repo / self.ADR_REL
-        adr.write_text("---\nstatus: proposed\nimplemented: true\n---\n" + self.BODY)
+        text = "---\nstatus: proposed\nimplemented: true\n---\n" + self.BODY
+        adr.write_text(text, encoding="utf-8")
         assert _is_frontmatter_only_change(self.ADR_REL, "HEAD~1", adr_repo) is False
 
     def test_path_traversal_fails_closed(self, adr_repo: Path) -> None:
