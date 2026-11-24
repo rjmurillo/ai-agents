@@ -191,4 +191,3 @@ once; read every thread with `pr-comment-responder` before you call it ready.
 - [ ] The final state was read on the current head, not a cached event.
 - [ ] (T3 Code) `unwatch_pull_request` ran before handoff.
 
-Before you page review threads, comments, or notifications, read the `pr-comment-responder` skill's `references/rule-lossless-queue-reads.md`. Never treat a partial page as the full set.

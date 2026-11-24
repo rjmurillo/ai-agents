@@ -53,7 +53,7 @@ using or documenting an environment variable.
 |---|---|---|
 | `SKIP_PREPUSH` | REMOVED | Historical: abused 3x within hours of creation (session 1187, retro `.project-toolkit/retrospective/2026-02-08-session-1187-skip-prepush-abuse.md`) |
 | `SKIP_TESTS` | REMOVED | Removed from the pre-push hook during the Lefthook migration, but it outlived that as the env default for `pre_pr.py --skip-tests`, which was parsed and never read; flag, env default, and the `--verbose` beside it were deleted once no gate set `skip_flag` |
-| `SKIP_LSP_GATE`, `LSP_GATE_MODE`, `LSP_DOWN` | REMOVED | LSP-first runtime gate retired (ADR-062 amended); guidance is static steering in `.claude/rules/lsp-first.md` |
+| `SKIP_LSP_GATE`, `LSP_GATE_MODE`, `LSP_DOWN` | REMOVED | LSP-first runtime gate retired (ADR-062 amended); guidance is static steering in the `using-serena-symbols` skill's `references/rule-lsp-first.md` |
 
 Lesson encoded: a global bypass with no teeth (no telemetry, no approval step) will be reached for under pressure. New escape hatches must be narrow, announced in output, and observable.
 

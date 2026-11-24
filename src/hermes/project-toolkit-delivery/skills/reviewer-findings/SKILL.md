@@ -336,4 +336,3 @@ attention, not your compliance.
 - **Resolving a thread with prose.** A verdict without a command, a file and
   line, or a measurement is an opinion. Close the thread with the evidence.
 
-Before you page review threads, comments, or notifications, read the `pr-comment-responder` skill's `references/rule-lossless-queue-reads.md`. Never treat a partial page as the full set.

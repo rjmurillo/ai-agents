@@ -12,8 +12,9 @@ gate blocks a raw search. ADR-062 paired it with PreToolUse guards that blocked
 Read, Grep, and Glob until an LSP was tried; the 2026-07-17 amendment (issue
 #3214) retired them and kept the steering.
 
-Scope is code extensions, not `**`: Claude reads `paths`, Copilot mirrors read
-`applyTo`. Markdown, logs, and plain text go back to grep, so do not widen it.
+Scope is code files only. Until the 2026-11-24 ADR-062 amendment this text was
+a path rule scoped to code extensions; it is now a skill reference. Markdown,
+logs, and plain text go back to grep.
 
 ## The three tiers
 

@@ -16,7 +16,9 @@ implemented: true
 Accepted as amended (repo-owner @rjmurillo, 2026-07-18). Originally proposed
 2026-05-31; amended 2026-07-17 (adr-review consensus 6/6 Accept) to retire the
 runtime enforcement layer and retain only the static steering. See the
-Amendment section below.
+Amendment section below. Amended again 2026-11-24 (reduced panel): the steering
+moves from a path rule into the `using-serena-symbols` skill; see the last
+section.
 
 ## Date
 
@@ -292,9 +294,12 @@ Register in `.claude/settings.json` and plugin `.claude/hooks/hooks.json`;
 generate `src/copilot-cli/hooks/hooks.json` via `build/scripts/generate_hooks.py`
 (Copilot uses `permissionDecision`, Claude uses exit-2; the generator owns the
 translation and preserves the ADR-061 shim crash policy). One canonical rule,
-the former `lsp-first` rule (now at `src/claude/skills/using-serena-symbols/references/rule-lsp-first.md`), mirrored to `.github/instructions/` and
-`src/copilot-cli/instructions/` by `build/scripts/generate_rules.py`; passes
-`build/scripts/validate_install_parity.py`.
+the former `lsp-first` rule, was mirrored to `.github/instructions/` and
+`src/copilot-cli/instructions/` by `build/scripts/generate_rules.py` and passed
+`build/scripts/validate_install_parity.py`. Since the 2026-11-24 amendment it
+has no mirror: the text lives at
+`src/claude/skills/using-serena-symbols/references/rule-lsp-first.md` and its
+skill copies.
 
 ## Prior Art Investigation
 
@@ -449,3 +454,43 @@ ADR-088 moved the book-derived rule cited above into the `software-engineering-l
 
 - Current guidance now lives at `.claude/skills/software-engineering-library/references/release-it.md`.
 
+## Amendment 2026-11-24 (accepted): the lsp-first steering moves into a skill reference
+
+Decision-maker: rjmurillo, on the context-diet capability eval of 2026-11-24.
+Panel: reduced (architect, critic); see `.project-toolkit/critique/ADR-062-debate-log.md`.
+
+The three-tier preference no longer ships as a path rule. Its text moves,
+unchanged apart from frontmatter and one scope note, into the
+`using-serena-symbols` skill as `references/rule-lsp-first.md`, in every
+harness copy of that skill (`src/claude`, `src/copilot-cli`, `src/codex`,
+`src/cursor`, `src/muse`, the Hermes knowledge pack). The skill ends with a
+pointer to it before navigating or searching code. The reference's first line
+records the former `paths:` scope. Removed: `templates/rules/lsp-first.md` and
+every copy generated from it (`src/claude/rules`, `.claude/rules`,
+`.github/instructions`, `src/copilot-cli/instructions`, `src/cursor/rules`, and
+its lossless fixture).
+
+Rationale: a path rule loads on every turn that touches a matching file. The
+eval (`scripts/eval/eval-rule-activation.py`,
+`tests/evals/rule-scenarios/lsp-first.json`) scored 3.58 with no rule, 4.83
+with the rule loaded, and 4.83 routed through the skill: no loss above the
+eval's 0.6 floor. It ran one repeat and one judge and offered the router only
+the target skill, so real activation in a full catalog was not measured.
+
+Consequences, from the release that ships this change:
+
+- Plugin consumers on every harness lose the passive load and carry no Serena
+  line. They get the steering only when they open `using-serena-symbols`.
+- In this repository, Copilot loses the `.github/instructions` copy. Claude and
+  Codex keep the `AGENTS.md` Serena line, which now names the skill. Copilot
+  CLI also reads `AGENTS.md`, but that was not verified for this line.
+- An agent that searches code without opening the skill no longer sees the
+  preference, which is the moment it targeted. Watch for grep-first navigation.
+
+The 2026-07-17 statements that the rule "ships as context every session", that
+the preference has two enforcement-free carriers, that the file "and its two
+mirrors stay", and that "Serena Init (AGENTS.md BLOCKING) stays" describe the
+state before this amendment. The steering is retained; its carrier is now the
+skill reference. Unchanged: the preference itself and its advisory status, the
+compressed Serena line in this repository's `AGENTS.md`, and the retirement of
+the runtime enforcement layer.

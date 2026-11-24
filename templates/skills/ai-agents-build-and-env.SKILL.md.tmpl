@@ -141,7 +141,7 @@ deprecated as of uv 0.11.26). Never disable TLS verification.
 
 ### Phase 5: Editor and LSP Reality
 
-This repo prefers LSP-first navigation (ADR-062, `.claude/rules/lsp-first.md`):
+This repo prefers LSP-first navigation (ADR-062, the `using-serena-symbols` skill's `references/rule-lsp-first.md`):
 use Serena symbol tools over grep for code navigation. This is static steering
 now, not a runtime gate. The PreToolUse LSP gate and its environment escapes
 (`SKIP_LSP_GATE`, `LSP_GATE_MODE`, `LSP_DOWN`) were retired; no Read

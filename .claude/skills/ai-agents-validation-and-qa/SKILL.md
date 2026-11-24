@@ -218,7 +218,7 @@ Re-verified 2026-10-31 at `42e409325`: line cites, the Phase 4 workflow pins, th
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_drift.py check --repo . --skills-root .claude/skills --name ai-agents-validation-and-qa --require; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
-Sources: `.agents/governance/TESTING-RIGOR.md` (Status :5, origin :3-16, pragma :54, cost :97), `.agents/governance/TESTING-ANTI-PATTERNS.md` (:91, :165-172), `.agents/governance/FAILURE-MODES.md` (:29, :390), `.claude/rules/generated-artifacts.md` (:68-74), `.claude/rules/claude-agents.md` (:29), `pyproject.toml [tool.pytest.ini_options]`, root `conftest.py`, `tests/conftest.py`, `.github/workflows/pytest.yml` (:508-524), ADR-034, `scripts/validate_session_json.py` (`_QA_SKIP_CHECKERS`), and the 2026-05-10 and 2026-06-02 retros in `.project-toolkit/retrospective/`.
+Sources: `.agents/governance/TESTING-RIGOR.md` (Status :5, origin :3-16, pragma :54, cost :97), `.agents/governance/TESTING-ANTI-PATTERNS.md` (:91, :165-172), `.agents/governance/FAILURE-MODES.md` (:29, :390), the `generator-pipeline` skill's `references/rule-generated-artifacts.md` (:68-74), `.claude/rules/claude-agents.md` (:29), `pyproject.toml [tool.pytest.ini_options]`, root `conftest.py`, `tests/conftest.py`, `.github/workflows/pytest.yml` (:508-524), ADR-034, `scripts/validate_session_json.py` (`_QA_SKIP_CHECKERS`), and the 2026-05-10 and 2026-06-02 retros in `.project-toolkit/retrospective/`.
 
 Calibration replay of a threshold detector over merged PRs (Phase 3, item 4) stays manual: it needs the GitHub API.
 

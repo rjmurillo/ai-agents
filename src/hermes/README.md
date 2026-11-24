@@ -22,7 +22,6 @@ Project Toolkit skills for GitHub pull request work, build, test, and quality ga
 - `dx-review`
 - `execution-plans`
 - `fix-markdown-fences`
-- `generator-pipeline`
 - `git-advanced-workflows`
 - `github`
 - `github-url-intercept`
@@ -110,6 +109,7 @@ These skills ship in no pack.
 
 - `adr-review`: plugin_guard returns dangerous for this skill (ADR-115 Decision 6).
 - `cva-analysis`: plugin_guard returns dangerous for this skill (ADR-115 Decision 6).
+- `generator-pipeline`: Its only reference is excluded below to keep the delivery pack under its 400-file cap.
 - `memory-gate`: Refers to excluded skill(s): memory-search.
 - `memory-maintenance`: plugin_guard returns dangerous for this skill (ADR-115 Decision 6).
 - `memory-reflexion`: Refers to excluded skill(s): memory-maintenance and memory-search.
@@ -131,7 +131,6 @@ These files of a shipped skill ship in no pack.
 - `build/references/rule-code-quality.md`: Folded path rule; the delivery pack is at its 400-file cap.
 - `build/references/rule-csharp.md`: Folded path rule; the delivery pack is at its 400-file cap.
 - `build/references/rule-powershell.md`: Folded path rule; the delivery pack is at its 400-file cap.
-- `generator-pipeline/references/rule-generated-artifacts.md`: Folded path rule; the delivery pack is at its 400-file cap.
 - `pipeline-validator/references/rule-ci-scripts.md`: Folded path rule; the delivery pack is at its 400-file cap.
 - `pr-comment-responder/references/rule-lossless-queue-reads.md`: Folded path rule; the delivery pack is at its 400-file cap.
 - `retrospective/scripts/copilot_journal.py`: Needs the skill-doctor parser, which Hermes does not ship, so --journal always reports unavailable there.

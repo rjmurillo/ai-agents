@@ -17,7 +17,7 @@ Choosing which surface a fact belongs on binds earlier, before you know which tr
 ## MUST
 
 1. **Canonical rule lives in `templates/rules/`**. A convention that must bind across Claude, Codex, and Copilot MUST be written to `templates/rules/<name>.md`, not only to Serena memory or Copilot Memory (ADR-109 B2: `templates/rules/` is the edit location for every rule `rule_templates.py` compiles, `testing.md` included; its GitHub Actions example writes the literal `${{ a && b }}` using the backslash-before-tag literal-brace escape, see the generator table in governance). `AGENTS.md` directs every harness to read `.claude/rules/*.md` first, so Claude (reads the compiled, binplaced tree directly) and Codex (reads `AGENTS.md`) both resolve to it, and Copilot reads the generated mirror.
-2. **Regenerate the mirrors in the same change**. Adding or editing a `templates/rules/<name>.md` file MUST regenerate `src/claude/rules/<name>.md`, `.claude/rules/<name>.md`, `.github/instructions/<name>.instructions.md`, and `src/copilot-cli/instructions/<name>.instructions.md`, committed in the same change. Run the one command `.claude/rules/generated-artifacts.md` documents:
+2. **Regenerate the mirrors in the same change**. Adding or editing a `templates/rules/<name>.md` file MUST regenerate `src/claude/rules/<name>.md`, `.claude/rules/<name>.md`, `.github/instructions/<name>.instructions.md`, and `src/copilot-cli/instructions/<name>.instructions.md`, committed in the same change. Run the one command the `generator-pipeline` skill's `references/rule-generated-artifacts.md` documents:
 
    ```bash
    uv run python build/scripts/build_all.py

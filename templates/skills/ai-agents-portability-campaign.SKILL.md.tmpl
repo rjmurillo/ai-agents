@@ -40,7 +40,7 @@ Read:
 4. `.project-toolkit/architecture/ADR-068-consolidated-hook-dispatcher.md`
 5. `.project-toolkit/architecture/ADR-071-plugin-hook-runtime-contract-verification.md`
 6. `.project-toolkit/architecture/ADR-097-zero-tool-use-hooks.md`
-7. `.claude/rules/generated-artifacts.md`
+7. the `generator-pipeline` skill's `references/rule-generated-artifacts.md`
 
 Do not run open-ended documentation research. Re-search or re-probe only when
 the reference skill's refresh rules apply.
