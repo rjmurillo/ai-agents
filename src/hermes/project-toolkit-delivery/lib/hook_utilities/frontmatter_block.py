@@ -181,22 +181,6 @@ def split_frontmatter(text: str) -> FrontmatterSplit:
 _STRICT_LOADERS: dict[int, type] = {}
 
 
-class _MergeKey:
-    """Stands for a real ``<<`` merge key in the duplicate check.
-
-    A quoted ``"<<"`` constructs to the plain string ``"<<"``, which PyYAML keeps
-    as an ordinary key beside a real merge. Using that string for the merge
-    would report the pair as a duplicate. This sentinel equals only itself and
-    prints as ``'<<'`` so the duplicate-merge message reads the same.
-    """
-
-    def __repr__(self) -> str:
-        return "'<<'"
-
-
-_MERGE_KEY = _MergeKey()
-
-
 def _strict_loader(yaml: ModuleType) -> type:
     """Return a ``SafeLoader`` subclass that rejects a repeated mapping key.
 
@@ -216,14 +200,16 @@ def _strict_loader(yaml: ModuleType) -> type:
         if id(node) in checked:
             return
         checked.add(id(node))
-        seen: list[Any] = []
+        # A quoted `"<<"` constructs to the same string as a merge, so each entry
+        # records whether it was a merge. Only like compares with like.
+        seen: list[tuple[bool, Any]] = []
         for key_node, value_node in node.value:
-            if key_node.tag == "tag:yaml.org,2002:merge":
+            is_merge = key_node.tag == "tag:yaml.org,2002:merge"
+            if is_merge:
                 # construct_mapping flattens `<<` without this constructor, so an
                 # inline merged mapping is checked here or not at all. A second
-                # `<<` at one level is a repeated key like any other. A quoted
-                # `"<<"` is a string key, so the merge gets its own sentinel.
-                key: Any = _MERGE_KEY
+                # `<<` at one level is a repeated key like any other.
+                key: Any = "<<"
                 merged = (
                     value_node.value if isinstance(value_node, yaml.SequenceNode) else [value_node]
                 )
@@ -232,11 +218,11 @@ def _strict_loader(yaml: ModuleType) -> type:
                         reject_repeats(loader, source)
             else:
                 key = loader.construct_object(key_node, deep=True)
-            if any(key == earlier for earlier in seen):
+            if any((is_merge, key) == earlier for earlier in seen):
                 raise yaml.constructor.ConstructorError(
                     None, None, f"duplicate key {key!r} in frontmatter mapping", key_node.start_mark
                 )
-            seen.append(key)
+            seen.append((is_merge, key))
 
     def no_duplicate_keys(loader: Any, node: Any) -> dict[Any, Any]:  # noqa: ANN401 - yaml is untyped here
         reject_repeats(loader, node)
