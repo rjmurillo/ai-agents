@@ -41,7 +41,7 @@ description: Does something useful when you need it
 ---
 name: advanced-skill
 version: 2.0.0
-license: MIT
+license: Apache-2.0
 description: Complex orchestration skill requiring maximum reasoning capability
 allowed-tools: Bash(pwsh:*), Read, Write, Grep
 metadata:
@@ -270,7 +270,7 @@ model-rationale: cost. The 'haiku' rolling alias resolves via the platform model
 description: >-
   Repair malformed markdown code fence closings. Use when you say "fix markdown
   fences", "repair code block closings", or "markdown rendering broken".
-license: MIT
+license: Apache-2.0
 ---
 ```
 
@@ -287,7 +287,7 @@ description: >-
   Multi-phase documentation verification treating code as source of truth. Use
   when you say "check documentation accuracy", "verify code examples compile",
   or "audit docs vs code".
-license: MIT
+license: Apache-2.0
 ---
 ```
 
@@ -301,7 +301,7 @@ coordinates multi-step investigation and still inherits.
 name: analyze
 version: 1.1.0
 description: Systematic multi-step codebase analysis producing prioritized findings with file-line evidence. Use when you say "analyze this codebase", "run security assessment", or "find code smells".
-license: MIT
+license: Apache-2.0
 user-invocable: true
 allowed-tools:
   - Read

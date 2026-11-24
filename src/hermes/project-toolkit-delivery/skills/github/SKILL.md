@@ -2,9 +2,27 @@
 name: github
 version: 4.0.0
 description: Execute GitHub operations (PRs, issues, milestones, labels, comments, merges) using Python scripts with structured output and error handling. Use when working with pull requests, issues, review comments, CI checks, or milestones instead of raw gh. Use when you say "create a PR", "add label to issue", or "check CI status". Do NOT use to read a pasted github.com URL (use github-url-intercept).
-license: MIT
+license: Apache-2.0
+size-exception: true
 ---
 # GitHub Skill
+
+<!--
+size-exception rationale (Apache-2.0 relicense).
+
+What the check wants: the skill_size validator blocks a SKILL.md over 24576
+bytes. The Copilot CLI copy of this skill was 24571 bytes before the relicense.
+Changing the frontmatter from MIT to Apache-2.0 adds 7 bytes and crosses the cap.
+
+Why the idiomatic fix is deferred: moving reference sections into references/
+is a skill content change, and the relicense PR is limited to license metadata.
+Remove this exception when the body moves into references/.
+
+Preserved invariant: The skill body is unchanged by the relicense; only the frontmatter license value grew.
+Behavioral tests: `tests/skills/github/test_skill_md_contract.py`
+Review trigger: Revisit when the body moves into references/ and every rendered copy measures under 24576 bytes.
+vendor-portability: upstream-only. The test path references an rjmurillo/ai-agents contributor test; installed plugin consumers do not have it.
+-->
 
 Use these scripts instead of raw `gh` commands for consistent error handling and structured output.
 

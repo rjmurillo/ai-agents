@@ -2,7 +2,7 @@
 name: ai-agents-research-frontier
 description: "Three ranked open research programs for this repo, each with honest current-state evidence, first concrete steps, and a falsifiable milestone. Verified governance (ADR-069, accepted), cross-harness abstraction (ADR-072 and ADR-068, accepted), and the self-improving loop. Use when you say `research frontier`, `open problems`, `what should we research next`. Do NOT use for how to run an experiment here (use `ai-agents-research-methodology`)."
 version: 1.0.0
-license: MIT
+license: Apache-2.0
 metadata:
   distribution: repo-local
   routing:

@@ -174,7 +174,7 @@ medical approval, W3C status, NASA publication approval, or ASD-STE100 complianc
 - Focus page: <https://styleguide.mailchimp.com/voice-and-tone/>
 - Source terms: CC BY-NC 4.0 with attribution.
 - Classification: B (reference only). The non-commercial condition is not imported
-  into this MIT repository.
+  into this repository.
 - Accessed: 2026-08-18.
 - Method: independent expression of high-level voice and tone ideas. No source prose,
   examples, word lists, or distinctive phrasing are included.

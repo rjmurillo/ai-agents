@@ -2,7 +2,7 @@
 name: repository-completion-proof
 version: 1.0.0
 description: Prove ai-agents PR completion after review, recovery, or trust verification. Do NOT use for consumer behavior (use repository-consumer-proof).
-license: MIT
+license: Apache-2.0
 metadata:
   distribution: repo-local
   capability:

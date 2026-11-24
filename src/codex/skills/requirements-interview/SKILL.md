@@ -8,7 +8,7 @@ allowed-tools:
   - Grep
   - Write
   - Bash
-license: MIT
+license: Apache-2.0
 user-invocable: true
 metadata:
   routing:
