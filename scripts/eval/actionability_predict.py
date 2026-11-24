@@ -57,6 +57,11 @@ from scripts.eval.actionability_scan import (  # noqa: E402
     report_scan,
     scan_secrets,
 )
+from scripts.eval.actionability_validate import (  # noqa: E402
+    SENT_ROW_CHECKS,
+    RecordError,
+    validate_records,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -428,9 +433,17 @@ def cmd_predict(args: argparse.Namespace) -> int:
     rows = load_jsonl(args.corpus)
     if rows is None:
         return EXIT_CONFIG
-    selected = [r for r in rows if r.get("in_band") and r.get("split") == args.split]
+    positions = [
+        i for i, r in enumerate(rows, start=1) if r.get("in_band") and r.get("split") == args.split
+    ]
+    selected = [rows[i - 1] for i in positions]
     if not selected:
         logger.error("no in_band rows in split %r of %s", args.split, args.corpus)
+        return EXIT_CONFIG
+    try:
+        validate_records(selected, SENT_ROW_CHECKS, "corpus", numbers=positions)
+    except RecordError as exc:
+        print(f"error: {exc}", file=sys.stderr)
         return EXIT_CONFIG
     scan = scan_secrets(selected, allow_hex_rows=args.allow_hex_rows, include_hunk=False)
     if not report_scan(scan):

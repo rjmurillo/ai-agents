@@ -20,11 +20,17 @@ from typing import Any
 from scripts.eval.actionability_labels import (
     LABEL_TRUTH,
     LABEL_UNSURE,
-    SPLIT_DEV,
     SPLIT_HELDOUT,
     SPLIT_OUTSIDE,
     STATUS_OK,
     STATUSES,
+)
+from scripts.eval.actionability_validate import (
+    PREDICTION_CHECKS,
+    SCORE_CORPUS_CHECKS,
+    Check,
+    RecordError,
+    validate_records,
 )
 
 Arm = Callable[[dict[str, Any], dict[str, Any] | None], bool]
@@ -41,7 +47,6 @@ CI_LOW_PERCENTILE = 2.5
 CI_HIGH_PERCENTILE = 97.5
 
 BASELINES = ("A", "B")
-SPLITS = (SPLIT_DEV, SPLIT_HELDOUT, SPLIT_OUTSIDE)
 
 
 class ScoreInputError(ValueError):
@@ -123,69 +128,11 @@ def verdict(gap: float, ci_low: float) -> str:
     return "pass" if ci_low > 0 else "inconclusive"
 
 
-def _finite_number(value: object) -> bool:
-    """True for a real int or float that is finite. A bool is not a number here."""
-    if isinstance(value, bool) or not isinstance(value, int | float):
-        return False
+def _validate(records: list[dict[str, Any]], checks: Sequence[Check], where: str) -> None:
     try:
-        return math.isfinite(float(value))
-    except OverflowError:
-        return False
-
-
-def _is_nonempty_str(value: object) -> bool:
-    return isinstance(value, str) and bool(value)
-
-
-def _is_str_or_none(value: object) -> bool:
-    return value is None or isinstance(value, str)
-
-
-def _is_bool_or_none(value: object) -> bool:
-    return value is None or isinstance(value, bool)
-
-
-def _is_number_or_none(value: object) -> bool:
-    return value is None or _finite_number(value)
-
-
-def _is_int_or_none(value: object) -> bool:
-    return value is None or (isinstance(value, int) and not isinstance(value, bool))
-
-
-# (key, predicate, description). Checked against ``record.get(key)``, so an absent key
-# fails unless None is allowed. A label of None is handled later as "unlabeled".
-_CORPUS_CHECKS = (
-    ("id", _is_nonempty_str, "a non-empty string"),
-    ("split", lambda v: v in SPLITS, f"one of {', '.join(SPLITS)}"),
-    ("in_band", lambda v: isinstance(v, bool), "a bool"),
-    ("heuristic_score", _finite_number, "a finite number"),
-    ("label", _is_str_or_none, "a string or null"),
-    ("corpus_seed", _is_int_or_none, "an int or null"),
-    ("corpus_head_sha", _is_str_or_none, "a string or null"),
-)
-_PREDICTION_CHECKS = (
-    ("id", _is_nonempty_str, "a non-empty string"),
-    ("status", lambda v: isinstance(v, str), "a string"),
-    ("is_actionable", _is_bool_or_none, "a bool or null"),
-    ("confidence", _is_number_or_none, "a finite number or null"),
-    ("latency_s", _is_number_or_none, "a finite number or null"),
-    ("provider", _is_str_or_none, "a string or null"),
-    ("model", _is_str_or_none, "a string or null"),
-    ("prompt_sha256", _is_str_or_none, "a string or null"),
-)
-
-
-def _validate_records(
-    records: list[dict[str, Any]],
-    checks: Sequence[tuple[str, Callable[[object], bool], str]],
-    where: str,
-) -> None:
-    """Raise ScoreInputError naming the first record and key that breaks a check."""
-    for index, record in enumerate(records, start=1):
-        for key, accepts, description in checks:
-            if not accepts(record.get(key)):
-                raise ScoreInputError(f"{where} row {index}: {key} must be {description}")
+        validate_records(records, checks, where)
+    except RecordError as exc:
+        raise ScoreInputError(str(exc)) from None
 
 
 def _label_truth(rows: list[dict[str, Any]]) -> tuple[list[tuple[dict[str, Any], bool]], int]:
@@ -350,8 +297,8 @@ def build_report(
     iterations: int,
 ) -> dict[str, Any]:
     """Score the arms on labeled rows. Raises ScoreInputError when inputs cannot be scored."""
-    _validate_records(rows, _CORPUS_CHECKS, "corpus")
-    _validate_records(predictions, _PREDICTION_CHECKS, "predictions")
+    _validate(rows, SCORE_CORPUS_CHECKS, "corpus")
+    _validate(predictions, PREDICTION_CHECKS, "predictions")
     corpus_provenance = _corpus_provenance(rows)
     labeled, unsure = _label_truth(rows)
     by_id = _index_predictions(predictions)

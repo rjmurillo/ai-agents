@@ -64,6 +64,11 @@ from scripts.eval.actionability_scan import (  # noqa: E402
     report_scan,
     scan_secrets,
 )
+from scripts.eval.actionability_validate import (  # noqa: E402
+    HUNK_ROW_CHECKS,
+    RecordError,
+    validate_records,
+)
 from scripts.eval.measure_actionability_band import (  # noqa: E402
     UNKNOWN_POSITION,
     is_in_band,
@@ -309,6 +314,11 @@ def cmd_fetch_hunks(args: argparse.Namespace) -> int:
     """
     rows = load_jsonl(args.corpus)
     if rows is None:
+        return 2
+    try:
+        validate_records(rows, HUNK_ROW_CHECKS, "corpus")
+    except RecordError as exc:
+        print(f"error: {exc}", file=sys.stderr)
         return 2
     fetched, no_hunk, failure = _fetch_pending(rows)
     resolved = sum(1 for row in rows if row["hunk_status"] is not None)
