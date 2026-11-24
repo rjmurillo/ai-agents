@@ -5,9 +5,16 @@ The arm functions are passed in, so this module has no dependency on the arms
 module and never rescores a comment: it reads only what the corpus and the
 predictions files already hold (premortem R1).
 
-Pass bar (spec, Eval method): arm C beats the better of A and B on held-out band
-items by at least 10 points of accuracy, with the bootstrap CI lower bound above 0.
-A gap of at least 10 points with a CI that reaches 0 is inconclusive, not a kill.
+Verdict rule (owner decision D1; spec, Eval method and kill criterion 2):
+
+* pass:         gap >= 0.10 and ci_low > 0
+* fail:         ci_high < 0.10. Only this proves the gain is below the bar.
+* inconclusive: everything else, including a gap under 0.10 whose interval still
+  reaches 0.10, and a gap of 0.10 or more whose interval reaches 0.
+
+The one-time extension is look 2. It widens the interval from 95 to 97.5 percent
+(1.25th to 98.75th percentile, Bonferroni over two looks). An inconclusive result at look 2
+is final and does not fire kill criterion 2.
 """
 
 from __future__ import annotations
@@ -43,8 +50,11 @@ ASSUMED_DISCORDANCE = (0.1, 0.2, 0.3)
 # Two-sided alpha 0.05 and 80 percent power: z(0.975) + z(0.80).
 Z_ALPHA_PLUS_Z_BETA = 1.96 + 0.8416
 
-CI_LOW_PERCENTILE = 2.5
-CI_HIGH_PERCENTILE = 97.5
+# Bootstrap percentile cuts per look. Look 2 splits alpha 0.05 over two looks, so each look
+# gets 0.025 two-sided: the 1.25th to 98.75th percentile, a 97.5 percent interval.
+LOOKS = (1, 2)
+CI_PERCENTILES = {1: (2.5, 97.5), 2: (1.25, 98.75)}
+CI_LEVELS = {1: 0.95, 2: 0.975}
 
 BASELINES = ("A", "B")
 
@@ -102,30 +112,62 @@ def gap_from_counts(correct_c: int, correct_best: int, n: int) -> float:
     return (correct_c - correct_best) / n
 
 
+def ci_percentiles(look: int) -> tuple[float, float]:
+    """Return the (low, high) percentile cuts for ``look``. Raises ValueError otherwise."""
+    if look not in CI_PERCENTILES:
+        raise ValueError(f"look must be one of {LOOKS}, got {look!r}")
+    return CI_PERCENTILES[look]
+
+
 def paired_bootstrap_ci(
-    diffs: Sequence[int], seed: int, iterations: int
+    diffs: Sequence[int], seed: int, iterations: int, look: int = 1
 ) -> tuple[float, float] | None:
-    """95 percent CI on the mean of per-row C-minus-best correctness differences.
+    """CI on the mean of per-row C-minus-best correctness differences.
 
     The best baseline is chosen once, from the point estimate, before this runs.
     Each iteration resamples rows with replacement and recomputes the mean. The
-    bounds are the nearest-rank 2.5th and 97.5th percentiles of those means.
+    bounds are nearest-rank percentiles of those means: 2.5th and 97.5th at look 1,
+    1.25th and 98.75th at look 2. The same seed gives the same means at both looks, so
+    the look-2 interval always contains the look-1 interval.
     """
-    return _bootstrap_bounds(diffs, seed, iterations) if diffs else None
+    return _bootstrap_bounds(diffs, seed, iterations, look) if diffs else None
 
 
-def _bootstrap_bounds(diffs: Sequence[int], seed: int, iterations: int) -> tuple[float, float]:
+def _bootstrap_bounds(
+    diffs: Sequence[int], seed: int, iterations: int, look: int = 1
+) -> tuple[float, float]:
+    low_pct, high_pct = ci_percentiles(look)
     n = len(diffs)
     rng = random.Random(seed)
     means = sorted(sum(rng.choices(diffs, k=n)) / n for _ in range(iterations))
-    return _rank_value(means, CI_LOW_PERCENTILE), _rank_value(means, CI_HIGH_PERCENTILE)
+    return _rank_value(means, low_pct), _rank_value(means, high_pct)
 
 
-def verdict(gap: float, ci_low: float) -> str:
-    """Apply the spec pass bar: pass, inconclusive, or fail."""
-    if gap < PASS_GAP:
+def verdict(gap: float, ci_low: float, ci_high: float) -> str:
+    """Apply the verdict rule: pass, fail, or inconclusive.
+
+    Fail needs ``ci_high < PASS_GAP``: only an interval that lies wholly under the bar proves
+    the gain is below it. A small gap whose interval still reaches the bar is inconclusive.
+    """
+    if gap >= PASS_GAP and ci_low > 0:
+        return "pass"
+    if ci_high < PASS_GAP:
         return "fail"
-    return "pass" if ci_low > 0 else "inconclusive"
+    return "inconclusive"
+
+
+def kill_criterion_2(result: str, look: int) -> str:
+    """fired only on fail. Inconclusive is pending at look 1 and not fired at look 2."""
+    if result == "fail":
+        return "fired"
+    if result == "inconclusive" and look == LOOKS[0]:
+        return "pending"
+    return "not_fired"
+
+
+def is_final(result: str, look: int) -> bool:
+    """A result is final unless it is inconclusive at look 1, which may take the one extension."""
+    return result != "inconclusive" or look == LOOKS[-1]
 
 
 def _validate(records: list[dict[str, Any]], checks: Sequence[Check], where: str) -> None:
@@ -212,6 +254,7 @@ def _gap_section(
     arms: Mapping[str, Arm],
     seed: int,
     iterations: int,
+    look: int,
 ) -> dict[str, Any]:
     n = len(items)
     truth = [t for _, t in items]
@@ -220,13 +263,18 @@ def _gap_section(
     best = "B" if totals["B"] > totals["A"] else "A"
     gap = gap_from_counts(totals["C"], totals[best], n)
     diffs = [c - b for c, b in zip(correct["C"], correct[best], strict=True)]
-    interval = _bootstrap_bounds(diffs, seed, iterations)
+    interval = _bootstrap_bounds(diffs, seed, iterations, look)
     discordance = sum(1 for d in diffs if d) / n
+    result = verdict(gap, interval[0], interval[1])
     return {
         "best_baseline": best,
         "gap": gap,
         "gap_ci": list(interval),
-        "verdict": verdict(gap, interval[0]),
+        "gap_ci_level": CI_LEVELS[look],
+        "look": look,
+        "verdict": result,
+        "final": is_final(result, look),
+        "kill_criterion_2": kill_criterion_2(result, look),
         "minimum_detectable_gap": {
             "assumed": {str(d): min_detectable_gap(n, d) for d in ASSUMED_DISCORDANCE},
             "observed": {"discordance": discordance, "gap": min_detectable_gap(n, discordance)},
@@ -298,8 +346,11 @@ def build_report(
     *,
     seed: int,
     iterations: int,
+    look: int = 1,
 ) -> dict[str, Any]:
     """Score the arms on labeled rows. Raises ScoreInputError when inputs cannot be scored."""
+    if look not in LOOKS:
+        raise ScoreInputError(f"look must be one of {LOOKS}, got {look!r}")
     _validate(rows, SCORE_CORPUS_CHECKS, "corpus")
     _validate(predictions, PREDICTION_CHECKS, "predictions")
     corpus_provenance = _corpus_provenance(rows)
@@ -317,7 +368,7 @@ def build_report(
         "labels": {"unsure_dropped": unsure, "scored": len(labeled)},
         "heldout_band": _subset_report(band, by_id, arms),
         "non_dev": _subset_report(non_dev, by_id, arms),
-        **_gap_section(band, by_id, arms, seed, iterations),
+        **_gap_section(band, by_id, arms, seed, iterations, look),
         "predictions": _prediction_counts(band, by_id),
         "latency_s": _latency_section(predictions, {row["id"] for row, _ in band}),
     }

@@ -135,25 +135,17 @@ class TestPairedBootstrap:
 
 
 class TestVerdict:
+    """The full rule table is in test_actionability_verdict_rule.py (owner decision D1)."""
+
     def test_pass_needs_a_ten_point_gap_and_a_positive_lower_bound(self) -> None:
         """Plan M1-T15 and spec pass bar."""
-        assert sc.verdict(0.10, 0.01) == "pass"
-        assert sc.verdict(0.25, 0.12) == "pass"
-
-    def test_gap_at_the_bar_with_a_straddling_interval_is_inconclusive(self) -> None:
-        """Plan M1-T15 and spec: CI straddles 0 with gap >= 10 points is inconclusive."""
-        assert sc.verdict(0.10, 0.0) == "inconclusive"
-        assert sc.verdict(0.18, -0.03) == "inconclusive"
-
-    def test_gap_under_the_bar_fails_even_with_a_positive_interval(self) -> None:
-        """Plan M1-T15: 9.99 points does not meet a 10 point bar."""
-        assert sc.verdict(0.0999, 0.05) == "fail"
-        assert sc.verdict(-0.1, -0.2) == "fail"
+        assert sc.verdict(0.10, 0.01, 0.30) == "pass"
+        assert sc.verdict(0.25, 0.12, 0.40) == "pass"
 
     def test_ten_point_gap_from_counts_meets_the_bar_exactly(self) -> None:
         """Plan M1-T15: 6 of 60 rows is 0.1 with no float drift."""
         assert sc.gap_from_counts(36, 30, 60) == 0.1
-        assert sc.verdict(sc.gap_from_counts(36, 30, 60), 0.02) == "pass"
+        assert sc.verdict(sc.gap_from_counts(36, 30, 60), 0.02, 0.20) == "pass"
 
 
 def _labeled(row_id: str, truth: str, **kwargs: Any) -> dict[str, Any]:

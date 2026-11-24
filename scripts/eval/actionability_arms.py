@@ -63,7 +63,11 @@ from scripts.eval.actionability_labels import (  # noqa: E402
     STATUS_PARSE_ERROR,
 )
 from scripts.eval.actionability_predict import register_predict_parser  # noqa: E402
-from scripts.eval.actionability_score import ScoreInputError, build_report  # noqa: E402
+from scripts.eval.actionability_score import (  # noqa: E402
+    LOOKS,
+    ScoreInputError,
+    build_report,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -168,13 +172,21 @@ def cmd_score(args: argparse.Namespace) -> int:
     if args.bootstrap < 1:
         print("error: --bootstrap must be at least 1", file=sys.stderr)
         return 2
+    if args.look not in LOOKS:
+        print(f"error: --look must be one of {LOOKS}, got {args.look}", file=sys.stderr)
+        return 2
     rows = load_jsonl(args.corpus)
     predictions = load_jsonl(args.predictions)
     if rows is None or predictions is None:
         return 2
     try:
         report = build_report(
-            rows, predictions, ARM_FUNCTIONS, seed=args.seed, iterations=args.bootstrap
+            rows,
+            predictions,
+            ARM_FUNCTIONS,
+            seed=args.seed,
+            iterations=args.bootstrap,
+            look=args.look,
         )
     except ScoreInputError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -201,6 +213,8 @@ def cmd_score(args: argparse.Namespace) -> int:
         f"verdict {report['verdict']}: gap {report['gap']:.4f} "
         f"(95% CI {low:.4f} to {high:.4f}) over {band_n} heldout band rows, "
         f"best baseline {report['best_baseline']}; "
+        f"look {report['look']}{' (final)' if report['final'] else ''}, "
+        f"kill criterion 2 {report['kill_criterion_2']}; "
         f"predictions ok {counts[STATUS_OK]}, parse_error {counts[STATUS_PARSE_ERROR]}, "
         f"call_error {counts[STATUS_CALL_ERROR]}{_auth_part(counts)}, "
         f"missing {counts['missing']} of {band_n}"
@@ -221,6 +235,12 @@ def _build_parser() -> argparse.ArgumentParser:
     score.add_argument("--output", type=Path, required=True, help="Report JSON to write")
     score.add_argument("--seed", type=int, default=DEFAULT_SEED)
     score.add_argument("--bootstrap", type=int, default=10000, help="Bootstrap iterations")
+    score.add_argument(
+        "--look",
+        type=int,
+        default=1,
+        help="1 (95 percent interval) or 2, the one-time extension (97.5 percent interval)",
+    )
     score.set_defaults(handler=cmd_score)
     return parser
 
