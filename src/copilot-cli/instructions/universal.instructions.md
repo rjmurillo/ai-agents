@@ -59,8 +59,8 @@ These rules apply to every change in the active host repository.
    the active host checkout and cite the search, or narrow the claim to the
    scope actually searched.
 
-10. Record long-running work in a durable handoff. Session log creation is
-    discontinued.
+10. Long-running work MUST keep its state in a durable handoff, not only in
+    an optional memory store. Session log creation is discontinued.
 
 11. MUST NOT mutate a host-owned memory or handoff store from a linked worktree
     when it resolves to another checkout. Route the write through the owning
