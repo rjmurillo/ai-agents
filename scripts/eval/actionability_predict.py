@@ -19,7 +19,6 @@ makes ``call_api`` retry without it, which doubles the requests.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import importlib
 import json
 import logging
@@ -32,12 +31,15 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, TextIO, cast
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+# Must exist before the first scripts.* import below, so it cannot come from actionability_io.
+_BOOTSTRAP_ROOT = Path(__file__).resolve().parents[2]
+if str(_BOOTSTRAP_ROOT) not in sys.path:
+    sys.path.insert(0, str(_BOOTSTRAP_ROOT))
 
 from scripts.eval.actionability_io import (  # noqa: E402
+    REPO_ROOT,
     load_jsonl,
+    sha256_hex,
     split_jsonl_lines,
     write_jsonl,
 )
@@ -114,7 +116,7 @@ def is_auth_failure(exc: BaseException) -> bool:
 def load_prompt() -> tuple[str, str]:
     """Return the system prompt text and the SHA-256 of the prompt file bytes."""
     raw = PROMPT_PATH.read_bytes()
-    return raw.decode("utf-8").strip(), hashlib.sha256(raw).hexdigest()
+    return raw.decode("utf-8").strip(), sha256_hex(raw)
 
 
 def _new_token() -> str:

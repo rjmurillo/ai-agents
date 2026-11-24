@@ -14,9 +14,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+# Must exist before the first scripts.* import below, so it cannot come from actionability_io.
+_BOOTSTRAP_ROOT = Path(__file__).resolve().parents[2]
+if str(_BOOTSTRAP_ROOT) not in sys.path:
+    sys.path.insert(0, str(_BOOTSTRAP_ROOT))
 
 from scripts.eval.actionability_io import load_jsonl, write_jsonl  # noqa: E402
 from scripts.eval.actionability_labels import (  # noqa: E402

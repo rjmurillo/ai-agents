@@ -11,6 +11,7 @@ mode 0600.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -72,6 +73,16 @@ def load_jsonl(path: Path) -> list[dict[str, Any]] | None:
 def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
     text = "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows)
     atomic_write_text(path, text)
+
+
+def sha256_hex(data: bytes) -> str:
+    """Return the SHA-256 of ``data`` as lowercase hex."""
+    return hashlib.sha256(data).hexdigest()
+
+
+def file_sha256(path: Path) -> str:
+    """Return the SHA-256 of the file's bytes. Raises OSError when it cannot be read."""
+    return sha256_hex(path.read_bytes())
 
 
 def utc_now_iso() -> str:

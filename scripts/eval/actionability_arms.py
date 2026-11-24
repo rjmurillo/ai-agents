@@ -37,7 +37,6 @@ The full step-by-step run is in ``evals/comment-actionability/README.md``.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import logging
 import sys
@@ -45,12 +44,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+# Must exist before the first scripts.* import below, so it cannot come from actionability_io.
+_BOOTSTRAP_ROOT = Path(__file__).resolve().parents[2]
+if str(_BOOTSTRAP_ROOT) not in sys.path:
+    sys.path.insert(0, str(_BOOTSTRAP_ROOT))
 
 from scripts.eval.actionability_io import (  # noqa: E402
     atomic_write_text,
+    file_sha256,
     head_sha,
     load_jsonl,
     utc_now_iso,
@@ -167,7 +168,7 @@ def _warn_non_ok(counts: dict[str, int], band_n: int) -> None:
 def _sha256_of(path: Path) -> str | None:
     """SHA-256 of the file bytes, or None when the file cannot be read."""
     try:
-        return hashlib.sha256(path.read_bytes()).hexdigest()
+        return file_sha256(path)
     except OSError:
         print(f"error: cannot read {path}", file=sys.stderr)
         return None
