@@ -353,3 +353,27 @@ def test_the_pass5_patterns_are_linear_on_hostile_input(text: str) -> None:
     adr_reason.extract_reason("Adopt X", text)
 
     assert time.perf_counter() - start < LIMIT_S
+
+
+# A-echo: a long title restated with a short reason after it keeps the reason
+
+LONG_TITLE = (
+    "Use SQLite as the primary local database for mobile clients operating in environments"
+    " where network connections are unreliable or unavailable"
+)
+
+
+def test_a_long_title_restated_with_a_short_reason_keeps_the_reason() -> None:
+    body = f"{LONG_TITLE} because access fails often."
+
+    assert _reason(body, LONG_TITLE) == body
+
+
+def test_a_long_title_restated_alone_is_still_an_echo() -> None:
+    assert _reason(f"{LONG_TITLE}.", LONG_TITLE) is None
+
+
+def test_a_title_that_already_says_because_is_an_echo_when_restated() -> None:
+    title = "Use SQLite for local storage because devices often lose network access"
+
+    assert _reason(f"{title}.", title) is None

@@ -201,8 +201,8 @@ def _repeats_title(sentence: str, title_words: list[str], title_body_words: list
     if not sw or not title_words:
         return False
     in_title = set(title_words)
-    if sum(1 for w in sw if w in in_title) / len(sw) >= 0.8:
-        return True
+    if sum(1 for w in sw if w in in_title) / len(sw) >= 0.8:  # an echo unless new words say why
+        return _score(" ".join(w for w in sw if w not in in_title), False) == 0
     # The importer cuts titles at 80 characters: a body opening with the title is an echo,
     # unless what follows the title states a reason.
     head = title_body_words[:-1]
