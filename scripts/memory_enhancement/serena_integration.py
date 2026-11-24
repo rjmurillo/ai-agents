@@ -169,7 +169,7 @@ def load_memory(
             print(f"Warning: skipping {file_path}: over {max_bytes} bytes", file=sys.stderr)
             return None
         raw_text = file_path.read_text(encoding="utf-8")
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
         print(f"Warning: cannot read {file_path}: {exc}", file=sys.stderr)
         return None
     memory_id = memory_id_from_path(file_path, memories_dir)

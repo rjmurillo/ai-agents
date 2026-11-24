@@ -141,3 +141,37 @@ def test_a_normal_h1_title_and_date_still_parse(tmp_path: Path) -> None:
     assert memory is not None
     assert memory.title == "Gateway cutover"
     assert memory.created_at.date().isoformat() == "2026-11-20"
+
+
+def test_a_non_utf8_file_is_skipped_with_a_warning(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = tmp_path / "cp1252.md"
+    path.write_bytes("# Gateway cutover\n\ncafé notes\n".encode("cp1252"))
+
+    assert si.load_memory(path, tmp_path) is None
+
+    assert "cannot read" in capsys.readouterr().err
+
+
+def test_one_non_utf8_match_leaves_recall_for_the_valid_match(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from memory_enhancement.hooks import user_prompt_submit_memory as hook
+
+    (tmp_path / ".git").mkdir()
+    memories = tmp_path / ".serena" / "memories"
+    memories.mkdir(parents=True)
+    (memories / "gateway-cutover-notes.md").write_bytes(
+        "# Gateway cutover notes\n\ncutover café\n".encode("cp1252")
+    )
+    (memories / "gateway-cutover-policy.md").write_text(
+        "# Gateway cutover policy\n\nRun the cutover at night.\n", encoding="utf-8"
+    )
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+
+    out = hook.recall_block("gateway cutover")
+
+    assert "<memory-context>" in out
+    assert "gateway-cutover-policy" in out
+    assert "gateway-cutover-notes" not in out
