@@ -1,0 +1,56 @@
+{
+  "skill_path": ".claude/skills/security-detection/SKILL.md",
+  "skill_id": "security-detection",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Did staged changes touch security-critical files",
+      "input": "I staged .github/workflows/deploy.yml and src/Auth/Login.cs. What is the risk level for each file? Does the staged change require security review? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "both critical",
+        "auth/login.cs",
+        "workflow",
+        "review required"
+      ],
+      "expected_gate": "flag-security-critical-files",
+      "rationale": "The detector and the skill both classify files under .github/workflows and Auth directories as Critical. Both matches require review."
+    },
+    {
+      "id": "S2",
+      "desc": "Run the detector on staged files",
+      "input": "How do I check my staged files for infrastructure and security-critical changes before committing? Name the script and the flag. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "detect_infrastructure.py",
+        "--use-git-staged"
+      ],
+      "expected_gate": "run-detect-infrastructure",
+      "rationale": "Usage section gives python detect_infrastructure.py --use-git-staged for staged files. A generic answer would not name that script or flag."
+    },
+    {
+      "id": "S3",
+      "desc": "Classify a mixed file list by risk level",
+      "input": "Which of these need a security review: .husky/pre-commit, infra/main.tf, certs/server.pem, docs/readme.md? Give each a risk level. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "critical",
+        ".husky",
+        "*.pem",
+        "*.tf",
+        "high"
+      ],
+      "expected_gate": "classify-by-risk-level",
+      "rationale": "Detected Patterns puts .husky/* and *.pem in Critical and *.tf in High. A markdown doc matches neither list, so the output is No infrastructure/security files detected for it."
+    },
+    {
+      "id": "S4",
+      "desc": "Scan source for injection patterns (negative)",
+      "input": "Scan my Python source for command injection patterns such as shell=True with interpolated strings before I submit. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "detect_infrastructure.py",
+        "--use-git-staged",
+        "--require-security-review"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The description says Detection only. Do NOT use to scan source for injection patterns (use security-scan). This skill matches file paths, not code content."
+    }
+  ]
+}

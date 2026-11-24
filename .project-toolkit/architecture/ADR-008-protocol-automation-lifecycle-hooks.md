@@ -135,7 +135,7 @@ its row and gains a retirement note rather than disappearing.
 
 | Hook | File | Type | Status |
 |------|------|------|--------|
-| **SessionStart: Context Loader** | `SessionStart/invoke_context_loader.py` | SessionStart | Implemented, narrowed by #5170 and the 2026-11-20 amendment |
+| **SessionStart: Context Loader** | `SessionStart/invoke_context_loader.py` | SessionStart | Implemented, narrowed by #5170 and the first 2026-11-20 amendment; prints a lookup guide since the second |
 | **PreCompact: Compact Checkpoint** | `PreCompact/invoke_compact_checkpoint.py` | PreCompact | Implemented, trimmed by #3273 |
 | **PreToolUse: False Completion Gate** | `PreToolUse/invoke_false_completion_gate.py` | PreToolUse | Retired by #3184 |
 | **PostToolUse: Plan State Sync** | `PostToolUse/invoke_plan_state_sync.py` | PostToolUse | Retired by #3184 |
@@ -213,7 +213,83 @@ to retire the hook outright is a separate decision; it touches the hook
 registration and the `AUTHORIZED_HOOKS` ledger. Retrospectives stay
 reachable on demand through the `retrospective` skill and the retrospective
 `INDEX.md`. The criterion "SessionStart loads context" is now met only by
-that reminder, when a skeleton exists.
+that reminder, when a skeleton exists. Partly superseded by the second entry
+below, which adds a static lookup guide.
+
+### Amendment 2026-11-20, second entry (retrospective lookup guide)
+
+The Context Loader hook now prints a static lookup guide. It replaces the
+dropped injection with a pointer. The repository owner directed this shape.
+The model is an external memory plugin the owner runs, which is not part of
+this repository: tell the model where the record lives and which tool reads
+it, and let the model fetch what the task needs.
+
+The guide is the `RETRO_LOOKUP_GUIDE` constant in
+`SessionStart/invoke_context_loader.py`. At `122d56c74` (2026-11-20) it runs 770 bytes. It
+names the retrospective directory, a `grep` over it, the caveat that
+`INDEX.md` is a curated subset, and, for promoted learnings, the
+`memory-search` skill to search and Serena `read_memory` to open a hit. It
+prints only when `.project-toolkit/retrospective/` is a real directory with no
+symlinked component. The guide is a constant, so no filename, title, or body
+text from that directory reaches it, and branch-controlled retrospective prose
+cannot enter session context through it. A pending-skeleton reminder, when one
+exists, prints first; it shows only dates the hook re-renders from skeleton
+filenames, as before. The audit log records `pending-retros:N` when a skeleton
+is pending and `retro-guide` when the guide prints, or `(none)` when the
+directory is missing or untrusted and nothing prints. Three statements in the
+previous entry no longer hold: that the hook prints only the reminder and
+nothing when no skeleton is pending, that the "SessionStart loads context"
+criterion is met only by that reminder, and that the hook is inert in this
+repository.
+
+Two alternatives were measured or weighed and rejected:
+
+- **Per-prompt recall by title relevance.** It would reuse the
+  `UserPromptSubmit` memory-recall scorer on the retrospective directory.
+  At `15c13340a` (2026-11-20) the directory held 244 Markdown files,
+  `INDEX.md` included.
+  Real issue titles served as prompts, each naming one retrospective by its
+  filename number. At `15c13340a` (2026-11-20), at the 0.5 floor: 3 of 25 prompts recalled
+  the named file. The sample drew 30 numbered files; 1 title failed to fetch
+  and 4 files carried an ADR or session number, not an issue or PR number.
+  At `15c13340a` (2026-11-20), 1 of 40 recent issue titles whose number names no
+  retrospective still injected one.
+  Each search took a median 0.68 seconds, measured once on one machine.
+  Title relevance rarely finds the right retrospective, so the earlier
+  objection to a per-prompt stage still holds.
+- **Per-prompt recall by issue or PR number.** A prompt that names `#N`
+  would get the paths of retrospectives whose filename carries `N`. It is a
+  filename pattern that reads no file. Its cost was not measured. At
+  `15c13340a` (2026-11-20), by the matcher in the claims ledger, 117 filenames carry a
+  number, and 21 of those name an ADR or a session, so a bare `#N` could
+  match the wrong kind of record. It covers only
+  numbered files, and only prompts that cite a number. The owner chose the
+  guide alone.
+
+At `122d56c74` (2026-11-20) the guide costs 770 bytes per `SessionStart` event in Claude Code
+in this repository, an estimated 190 tokens at four characters per token.
+`SessionStart` can repeat within a session (for example, at startup and after
+compaction), so a session can pay that cost more than once. The first entry set
+that per-event cost to zero; this entry raises it from zero to 770 bytes per
+event, under a fifth of the 4,000-character injection the first entry removed.
+The hook ships to no Copilot or plugin consumer. No eval has measured whether it
+changes a session. #7471 names the signal that would: a counterfactual delta,
+the same scenario run with and without the guide.
+`tests/hooks/test_context_loader_no_injection.py` pins that the output is
+exactly the constant, four required strings in it, an 800-character
+ceiling, the symlink refusal and its `(none)` audit line, and the absence of
+directory text. The guide stores no data, so reverting the hook change loses
+nothing.
+
+This is an owner-directed, bounded exception to the rule the first entry
+applied, that machinery which cannot show a measured benefit is retired. It
+does not follow that rule. The owner accepts an unmeasured cost because it is
+small and capped: the test holds the guide to 800 characters, a fifth of what
+the first entry removed. Review trigger: when the counterfactual delta #7471
+names is run for this guide, retire the guide if it shows no change in
+sessions. The first entry left open whether to retire the hook outright
+because it was inert. The guide makes the hook active again, so that question
+is closed.
 
 ### Acceptance Criteria Mapping
 
@@ -223,9 +299,9 @@ hook.
 
 | Criteria | Hook | Evidence | Still met by a hook |
 |----------|------|----------|---------------------|
-| SessionStart loads context | Context Loader | Auto-injects HANDOFF.md + latest retro | Partially, HANDOFF.md dropped by #5168/#5170, latest retro dropped by the 2026-11-20 amendment; only the pending-skeleton reminder remains |
+| SessionStart loads context | Context Loader | Auto-injects HANDOFF.md + latest retro | Partially, HANDOFF.md dropped by #5168/#5170, latest retro dropped by the first 2026-11-20 amendment; the hook prints a static lookup guide and the pending-skeleton reminder |
 | Hook execution logged | All hooks | Audit trail in `.project-toolkit/.hook-state/` | Yes, for the survivors |
-| Zero context reading failures | Context Loader | Eliminates manual context loading requirement | No, the hook injects no retrospective content since the 2026-11-20 amendment; retrospectives load on demand |
+| Zero context reading failures | Context Loader | Eliminates manual context loading requirement | No, the hook injects no retrospective content since the first 2026-11-20 amendment; the guide it prints since the second tells the model how to load one on demand |
 | PreToolUse blocks false completion | False Completion Gate | Blocks commit/PR without test evidence | No, retired by #3184 |
 | Stop generates retros | Auto-Retrospective | Creates `.project-toolkit/retrospective/{date}-auto-retro.md` | No, retired by #3349 |
 

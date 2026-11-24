@@ -601,7 +601,6 @@ module = [
     "scripts.validate_agent_matrix_refs",
     "scripts.validate_workflows",
     "scripts.validation.check_adr_lifecycle",
-    "scripts.validation.frontmatter_contract",
     "scripts.validation.instruction_budget_globs",
 ]
 disallow_subclassing_any = false

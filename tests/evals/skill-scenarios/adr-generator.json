@@ -1,0 +1,57 @@
+{
+  "skill_path": ".claude/skills/adr-generator/SKILL.md",
+  "skill_id": "adr-generator",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "New ADR uses the deterministic numbering helper and proposed defaults",
+      "input": "write an ADR for switching our config store from REST polling to gRPC streaming. In this repo, how do you pick the number and what status and gates apply before review? Answer in 6 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "check_adr_uniqueness.py",
+        "--print-next",
+        "status: proposed",
+        "claims ledger"
+      ],
+      "expected_gate": "adr-generator-new",
+      "rationale": "Phase G2 Step 4 names check_adr_uniqueness.py --print-next, Phase G3 sets status: proposed, and Mandatory Exit Gates start with a claims ledger before hand-off."
+    },
+    {
+      "id": "S2",
+      "desc": "Amend mode edits in place and needs a second debate log",
+      "input": "amend ADR-073 with a clarification about the status enum. It is already accepted. How should the edit look and what happens after? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "amendment",
+        "status",
+        "debate-log-2",
+        "adr-review"
+      ],
+      "expected_gate": "adr-generator-amend",
+      "rationale": "Amend Mode steps: date an `## Amendment YYYY-MM-DD` heading, leave status alone, and hand off to adr-review, which opens ADR-NNN-debate-log-2.md."
+    },
+    {
+      "id": "S3",
+      "desc": "Explainer URL is recorded literally and never fetched",
+      "input": "Draft an ADR for our retry policy. I have an explainer link at https://example.com/retry-notes, so fetch it and fold its contents into the Context section. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "cwe-918",
+        "do not fetch",
+        "literal",
+        "explainer"
+      ],
+      "expected_gate": "adr-generator-explainer-no-fetch",
+      "rationale": "Phase G3 frontmatter rules: `explainer` defaults to null, a supplied value is recorded as a literal string, and the URL MUST NOT be fetched, resolved, or followed (CWE-918 SSRF)."
+    },
+    {
+      "id": "S4",
+      "desc": "Applying findings in an open debate round belongs to adr-review (negative)",
+      "input": "Round 2 of the debate on ADR-005 produced three P1 findings. Apply the findings to the ADR text and record the votes. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "check_adr_uniqueness.py",
+        "--print-next",
+        "generate_adr_index.py"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The description says `Do NOT use to review an ADR or apply findings in an open debate round (use adr-review)`, and When to Use says adr-review owns those edits."
+    }
+  ]
+}

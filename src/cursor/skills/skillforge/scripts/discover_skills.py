@@ -41,6 +41,26 @@ from typing import Any
 
 from _inflection import has_term as _has_term
 
+# ADR-047 keeps this bootstrap inline because imports need sys.path first.
+# This file's own plugin lib wins when it holds the shared frontmatter parser,
+# so a foreign or older plugin root in the environment cannot shadow it. The
+# environment root is the fallback for a script copied outside its plugin.
+_PLUGIN_ROOT = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+_LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+if _PLUGIN_ROOT and not os.path.isfile(_LIB_DIR / "hook_utilities" / "frontmatter_block.py"):
+    _LIB_DIR = Path(_PLUGIN_ROOT) / "lib"
+
+if not os.path.isdir(_LIB_DIR):
+    raise RuntimeError(
+        "Expected portability helper lib directory not found: "
+        f"{_LIB_DIR}. Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT to the "
+        "plugin root, or run from an ai-agents checkout."
+    )
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from hook_utilities.frontmatter_block import load_frontmatter, split_frontmatter  # noqa: E402
+
 # Import shared constants (optional - used for validation if available)
 try:
     from _constants import SEMVER_REGEX, VALID_AGENT_TYPES
@@ -286,46 +306,48 @@ DOMAIN_KEYWORDS = {
 
 
 def extract_frontmatter(content: str) -> dict[str, Any]:
-    """Extract YAML frontmatter from markdown content."""
-    frontmatter = {}
+    """Extract YAML frontmatter from markdown content.
 
-    if content.startswith("---"):
-        parts = content.split("---", 2)
-        if len(parts) >= 3:
-            yaml_content = parts[1].strip()
+    The block comes from ``hook_utilities.frontmatter_block``. PyYAML loads it
+    when installed, last-one-wins on a repeated key. Without PyYAML, or when
+    the load yields no mapping, a basic ``key: value`` reader runs over the
+    block text.
+    """
+    frontmatter: dict[str, Any] = {}
 
-            # Try proper YAML parsing first
-            try:
-                import yaml
+    split = split_frontmatter(content)
+    if not split.found:
+        return frontmatter
+    yaml_content = split.raw.strip()
 
-                parsed = yaml.safe_load(yaml_content)
-                if isinstance(parsed, dict):
-                    frontmatter = parsed
-                # else: non-dict YAML (e.g., scalar) - keep empty dict
-            except ImportError:
-                # PyYAML not installed - use fallback parser below
-                pass
-            except Exception:
-                # Malformed YAML - use fallback parser below
-                pass
+    # Try proper YAML parsing first
+    try:
+        import yaml
 
-            # Fallback to basic parsing if YAML parsing failed or returned non-dict
-            if not frontmatter:
-                current_key = None
-                for line in yaml_content.split("\n"):
-                    if ":" in line and not line.startswith(" "):
-                        key, value = line.split(":", 1)
-                        current_key = key.strip()
-                        frontmatter[current_key] = value.strip()
-                    elif line.startswith("  ") and current_key == "metadata":
-                        # Basic nested parsing for metadata
-                        if "metadata" not in frontmatter or not isinstance(
-                            frontmatter["metadata"], dict
-                        ):
-                            frontmatter["metadata"] = {}
-                        if ":" in line:
-                            key, value = line.strip().split(":", 1)
-                            frontmatter["metadata"][key.strip()] = value.strip()
+        parsed = load_frontmatter(content, yaml)
+        if parsed:
+            return parsed
+    except ImportError:
+        # PyYAML not installed - use fallback parser below
+        pass
+    except Exception:
+        # Malformed YAML - use fallback parser below
+        pass
+
+    # Fallback to basic parsing if YAML parsing failed or returned no mapping
+    current_key = None
+    for line in yaml_content.split("\n"):
+        if ":" in line and not line.startswith(" "):
+            key, value = line.split(":", 1)
+            current_key = key.strip()
+            frontmatter[current_key] = value.strip()
+        elif line.startswith("  ") and current_key == "metadata":
+            # Basic nested parsing for metadata
+            if "metadata" not in frontmatter or not isinstance(frontmatter["metadata"], dict):
+                frontmatter["metadata"] = {}
+            if ":" in line:
+                key, value = line.strip().split(":", 1)
+                frontmatter["metadata"][key.strip()] = value.strip()
 
     return frontmatter
 

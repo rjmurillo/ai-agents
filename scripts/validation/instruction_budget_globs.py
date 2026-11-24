@@ -3,12 +3,21 @@
 from __future__ import annotations
 
 import re
+import sys
 from collections.abc import Hashable
 from functools import cache
+from pathlib import Path
 
-import yaml
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
 
-_FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
+import yaml  # noqa: E402
+
+from scripts.hook_utilities.frontmatter_block import (  # noqa: E402
+    FrontmatterStatus,
+    parse_frontmatter,
+)
 
 
 class UnsupportedApplyToError(ValueError):
@@ -31,6 +40,12 @@ class _UniqueKeySafeLoader(yaml.SafeLoader):
     repeats. A rule with two ``applyTo`` keys would then be scored on whichever
     came last, so a universal ``applyTo`` could be masked by a trailing
     directory-scoped one and dodge the budget. Fail closed on any duplicate.
+
+    This loader is this module's own policy, passed to the shared parser. It is
+    not the shared parser's duplicate-key loader: keys compare by Python dict
+    semantics (a repeated ``.nan`` is a duplicate because PyYAML reuses one NaN
+    object), values build shallow (a self-referencing sequence loads), and a
+    duplicate or unhashable key raises ``UnsupportedApplyToError``.
     """
 
 
@@ -59,6 +74,24 @@ _UniqueKeySafeLoader.add_constructor(
     yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
     _construct_unique_mapping,
 )
+
+
+def load_unique_frontmatter(text: str) -> dict[str, object]:
+    """Return the leading frontmatter mapping, rejecting duplicate keys.
+
+    The fence and the load come from ``scripts/hook_utilities/frontmatter_block.py``;
+    the duplicate-key policy is ``_UniqueKeySafeLoader``, passed as ``loader``.
+    Fail closed on any duplicate, at any depth.
+
+    Returns ``{}`` when there is no block, the block never closes, or the block
+    is empty or not a mapping. Raises ``UnsupportedApplyToError`` when the YAML
+    is invalid, a key repeats, or a key is unhashable.
+    """
+    result = parse_frontmatter(text, yaml, loader=_UniqueKeySafeLoader)
+    if result.status is FrontmatterStatus.MALFORMED:
+        detail = (result.error or "").removeprefix("invalid YAML frontmatter: ")
+        raise UnsupportedApplyToError(f"frontmatter is not valid YAML: {detail}")
+    return result.metadata or {}
 
 
 # VS Code's matcher special-cases these three globs as matching every file even
@@ -345,15 +378,8 @@ def parse_applyto(text: str) -> set[str]:
     the ceiling. A file with no frontmatter block, or frontmatter without an
     ``applyTo`` key, is legitimately unscoped and returns an empty set.
     """
-    fm_match = _FRONTMATTER_RE.match(text)
-    if fm_match is None:
-        return set()
-    try:
-        data = yaml.load(fm_match.group(1), Loader=_UniqueKeySafeLoader)
-    except yaml.YAMLError as exc:
-        msg = f"frontmatter is not valid YAML: {exc}"
-        raise UnsupportedApplyToError(msg) from exc
-    if not isinstance(data, dict) or "applyTo" not in data:
+    data = load_unique_frontmatter(text)
+    if "applyTo" not in data:
         return set()
     patterns: set[str] = set()
     for glob in _iter_applyto_globs(data["applyTo"]):

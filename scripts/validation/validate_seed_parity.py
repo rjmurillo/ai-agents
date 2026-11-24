@@ -51,7 +51,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.validation.frontmatter_split import split_leading_frontmatter  # noqa: E402
+from scripts.hook_utilities.frontmatter_block import split_frontmatter  # noqa: E402
 
 CANONICAL_DIR = REPO_ROOT / ".claude" / "skills" / "review" / "references"
 CI_PROMPTS_DIR = REPO_ROOT / ".github" / "prompts"
@@ -179,7 +179,7 @@ def check_role(role: str) -> tuple[bool, str]:
     # working tree post-regen).
     ci_body_after_strip = re.sub(r"\A(?:<!--[^\n]*-->\n){1,5}\n?", "", ci_text)
 
-    _, canonical_body = split_leading_frontmatter(canonical_text)
+    canonical_body = split_frontmatter(canonical_text).body
     canonical_body = _strip_appended_output_schema(canonical_body)
     canonical_body = _strip_balanced_fence(canonical_body, ci_body_after_strip)
 

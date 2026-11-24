@@ -70,6 +70,16 @@ from typing import Any, cast
 from _anthropic_api import call_api, load_api_key_for_selected_provider
 from _eval_common import MalformedProviderMetadataError
 
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.hook_utilities.frontmatter_block import (  # noqa: E402
+    FrontmatterStatus,
+    parse_frontmatter,
+    split_frontmatter,
+)
+
 MODEL = "claude-sonnet-4-6"
 # Immutable first-parent of the #2127 merge commit (817e466f8).
 # This is the exact state of main the instant before #2127 landed.
@@ -203,15 +213,16 @@ def resolve_candidate_path(name: str, repo_root: Path) -> str:
 def extract_description(markdown: str, source_label: str) -> str:
     """Extract the YAML frontmatter `description` field from a SKILL/agent file.
 
-    Parses the leading `---` ... `---` frontmatter block with PyYAML so folded
-    scalars (skills) and plain scalars (agents) both collapse to one line.
+    Parses the leading frontmatter block with PyYAML, through
+    `scripts/hook_utilities/frontmatter_block.py`, so folded scalars (skills)
+    and plain scalars (agents) both collapse to one line.
 
     Raises RuntimeError if there is no frontmatter, no `description` key, or an
     empty description. `source_label` names the origin (e.g. "before .claude/...")
     for actionable errors.
     """
-    match = re.search(r"(?s)\A﻿?---\r?\n(.*?)\r?\n---", markdown)
-    if not match:
+    markdown = markdown.removeprefix("\ufeff")
+    if not split_frontmatter(markdown).found:
         raise RuntimeError(f"No YAML frontmatter found in {source_label}.")
 
     try:
@@ -219,12 +230,13 @@ def extract_description(markdown: str, source_label: str) -> str:
     except ModuleNotFoundError as exc:  # pragma: no cover - env guard
         raise RuntimeError("PyYAML is required to parse frontmatter but is not installed.") from exc
 
-    try:
-        front = yaml.safe_load(match.group(1))
-    except yaml.YAMLError as exc:
-        raise RuntimeError(f"Invalid YAML frontmatter in {source_label}: {exc}.") from exc
+    parsed = parse_frontmatter(markdown, yaml, allow_duplicate_keys=True)
+    if parsed.status is FrontmatterStatus.MALFORMED:
+        detail = (parsed.error or "").removeprefix("invalid YAML frontmatter: ")
+        raise RuntimeError(f"Invalid YAML frontmatter in {source_label}: {detail}.")
 
-    if not isinstance(front, dict) or "description" not in front:
+    front = parsed.metadata
+    if front is None or "description" not in front:
         raise RuntimeError(f"No 'description' field in frontmatter of {source_label}.")
 
     desc = front["description"]
