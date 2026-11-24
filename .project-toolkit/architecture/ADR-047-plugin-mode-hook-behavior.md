@@ -232,7 +232,7 @@ if not os.path.isdir(_lib_dir):
 
 When creating a new hook or skill script:
 
-1. Use the standard 7-line import boilerplate if importing from `.claude/lib/`
+1. Use the standard 7-line import boilerplate if importing from `.claude/lib/`. A skill script that imports `hook_utilities.frontmatter_block` uses the 2026-11-24 amendment's shape instead
 2. Use `get_project_directory()` for consumer project paths
 3. **Validate all paths are within project boundary before file operations**
 4. Use `os.makedirs(path, exist_ok=True)` for required directories **AFTER path validation**
@@ -289,7 +289,7 @@ When creating a new hook or skill script:
 | Script copied outside its plugin, no environment root | manifest walk-up, else exit 2 | `ImportError` or `RuntimeError` |
 | Neither lib holds the parser | `ImportError`; exit 2 only when the lib directory is missing | `ImportError`; `RuntimeError` when the lib directory is missing |
 
-**Test impact**: `tests/test_frontmatter_bootstrap_foreign_root.py` runs every copy. It covers a stale root, a root that lacks the parser, and the fallback for a copied script. It also imports each copy under Python 3.10 when a 3.10 interpreter is available, and skips that case otherwise. `tests/test_plugin_path_resolution.py` still passes (83 passed with the bootstrap test on 2026-11-24), because each script still names `CLAUDE_PLUGIN_ROOT`. The bootstrap test finds copies by their parser import and the `parents[3]` line, so a copy written in another shape is not checked.
+**Test impact**: `tests/test_frontmatter_bootstrap_foreign_root.py` runs every authored copy under `src/claude/skills/` and `.claude/skills/`. The generated plugin mirrors are not run there; all 77 generated copies, 16 each in copilot-cli, codex, cursor, and muse plus 13 in the hermes packs, are byte-identical to their sources (compared 2026-11-24 UTC), and `build_all.py --check` keeps every generated tree in sync. It covers a stale root, a root that lacks the parser, and the fallback for a copied script. It also imports each copy under Python 3.10 when a 3.10 interpreter is available, and skips that case otherwise. `tests/test_plugin_path_resolution.py` still passes (83 passed with the bootstrap test on 2026-11-24), because each script still names `CLAUDE_PLUGIN_ROOT`. The bootstrap test finds copies by their parser import and the `parents[3]` line, so a copy written in another shape is not checked.
 
 **Trade-off**: A new skill script that imports the shared parser copies this shape; a hook keeps the boilerplate. This shape fails with exit 1 (`RuntimeError` or `ImportError`) where the boilerplate exits 2, the ADR-035 config-error code. The shape assumes a script sits four levels below its plugin root; a shallower copy raises `IndexError`.
 
