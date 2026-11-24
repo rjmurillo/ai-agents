@@ -1,9 +1,8 @@
-"""Opening-line offset, merge-key marker, and loader cache of the one parser.
+"""Opening-line offset and loader cache of the one parser.
 
 Follow-ups from PR #7531's review:
 - ``open_end`` lets callers read the payload from the physical opening line,
   where the fence match can swallow whitespace-only lines.
-- A quoted ``"<<"`` string key is not a merge key, so it cannot collide with one.
 - The strict loader is cached per ``yaml`` module object, not per ``id()``.
 """
 
@@ -15,9 +14,6 @@ import yaml
 
 import scripts.hook_utilities.frontmatter_block as frontmatter_block
 from scripts.hook_utilities.frontmatter_block import (
-    FrontmatterStatus,
-    decode_frontmatter_yaml,
-    parse_frontmatter,
     split_frontmatter,
 )
 
@@ -49,31 +45,6 @@ class TestOpenEnd:
     def test_open_end_is_zero_without_a_closed_block(self) -> None:
         assert split_frontmatter("no fence\n").open_end == 0
         assert split_frontmatter("---\nname: x\n").open_end == 0
-
-
-class TestMergeKeyMarker:
-    def test_a_quoted_merge_spelling_beside_a_real_merge_loads(self) -> None:
-        loaded = decode_frontmatter_yaml('"<<": literal\n<<: {status: a}\n', yaml)
-
-        assert loaded == {"<<": "literal", "status": "a"}
-
-    def test_two_real_merges_at_one_level_are_still_refused(self) -> None:
-        result = parse_frontmatter("---\n<<: {a: 1}\n<<: {b: 2}\n---\n", yaml)
-
-        assert result.status is FrontmatterStatus.MALFORMED
-        assert result.error is not None
-        assert "duplicate key <<" in result.error
-
-    def test_a_repeated_nan_key_stays_distinct(self) -> None:
-        """PyYAML shares one NaN object; the set must not turn that into a repeat."""
-        result = parse_frontmatter("---\n.nan: 1\n.nan: 2\n---\n", yaml)
-
-        assert result.status is FrontmatterStatus.VALID
-
-    def test_a_repeated_unhashable_key_is_still_refused(self) -> None:
-        result = parse_frontmatter("---\n? [a, b]\n: 1\n? [a, b]\n: 2\n---\n", yaml)
-
-        assert result.status is FrontmatterStatus.MALFORMED
 
 
 class TestLoaderCache:

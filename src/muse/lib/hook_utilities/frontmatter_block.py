@@ -185,19 +185,15 @@ def split_frontmatter(text: str) -> FrontmatterSplit:
 
 _STRICT_LOADERS: dict[ModuleType, type] = {}
 
-# Marks a `<<` merge key, so a quoted "<<" string key never matches it.
-_MERGE_KEY = object()
-
 
 def _strict_loader(yaml: ModuleType) -> type:
     """Return a ``SafeLoader`` subclass that rejects a repeated mapping key.
 
     Built from the caller's ``yaml`` module so this file never imports it, and
-    cached per module object. Hashable keys go in a set; a repeated ``.nan``
-    key still counts as distinct, as it did with ``==``. A YAML key need not be
-    hashable (``? [a, b]`` builds a list key), so those are compared with ``==``
-    in a list instead: a ``TypeError`` would escape the caller's
-    ``yaml.YAMLError`` handling.
+    cached per module object.
+    Keys are compared with ``==`` in a list, not a set, because a YAML key need
+    not be hashable (``? [a, b]`` builds a list key). A ``TypeError`` there
+    would escape the caller's ``yaml.YAMLError`` handling.
     """
     cached = _STRICT_LOADERS.get(yaml)
     if cached is not None:
@@ -210,14 +206,18 @@ def _strict_loader(yaml: ModuleType) -> type:
         if id(node) in checked:
             return
         checked.add(id(node))
-        seen: set[Any] = set()
-        unhashable: list[Any] = []
+        # A quoted `"<<"` constructs to the same string as a merge, so each entry
+        # records whether it was a merge. Only like compares with like. The keys
+        # compare with bare `==`, never as tuples: tuple equality tests identity
+        # first, which would make PyYAML's shared NaN a duplicate here.
+        seen: list[tuple[bool, Any]] = []
         for key_node, value_node in node.value:
-            if key_node.tag == "tag:yaml.org,2002:merge":
+            is_merge = key_node.tag == "tag:yaml.org,2002:merge"
+            if is_merge:
                 # construct_mapping flattens `<<` without this constructor, so an
                 # inline merged mapping is checked here or not at all. A second
                 # `<<` at one level is a repeated key like any other.
-                key: Any = _MERGE_KEY
+                key: Any = "<<"
                 merged = (
                     value_node.value if isinstance(value_node, yaml.SequenceNode) else [value_node]
                 )
@@ -226,18 +226,11 @@ def _strict_loader(yaml: ModuleType) -> type:
                         reject_repeats(loader, source)
             else:
                 key = loader.construct_object(key_node, deep=True)
-            try:
-                # `key == key` keeps NaN, which never equals itself, distinct as before.
-                repeated = key in seen and key == key
-                seen.add(key)
-            except TypeError:
-                repeated = any(key == earlier for earlier in unhashable)
-                unhashable.append(key)
-            if repeated:
-                shown = "<<" if key is _MERGE_KEY else repr(key)
+            if any(is_merge == merge and key == earlier for merge, earlier in seen):
                 raise yaml.constructor.ConstructorError(
-                    None, None, f"duplicate key {shown} in frontmatter mapping", key_node.start_mark
+                    None, None, f"duplicate key {key!r} in frontmatter mapping", key_node.start_mark
                 )
+            seen.append((is_merge, key))
 
     def no_duplicate_keys(loader: Any, node: Any) -> dict[Any, Any]:  # noqa: ANN401 - yaml is untyped here
         reject_repeats(loader, node)
