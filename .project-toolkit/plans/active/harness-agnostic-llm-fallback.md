@@ -4,7 +4,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Status** | In Progress (M1-T1 to M1-T5 done; labeling method open) |
+| **Status** | In Progress (M1-T1 to M1-T10 and M1-T13 to M1-T15 built; labeling method open) |
 | **Created** | 2026-11-23 |
 | **Owner** | Richard Murillo (plan drafted by Claude) |
 | **Complexity** | Medium |
@@ -233,6 +233,9 @@ Parallel tracks after M1-T5: labeling (T6 to T12) and runner (T13 to T15).
 | 2026-11-23 | Revised after pre-mortem (7 risks) and critic (19 defects, verdict REVISE) | Claude (analyst, critic) |
 | 2026-11-24 | M1-T2, T3 done: `scripts/eval/measure_actionability_band.py`, 18 tests | Claude |
 | 2026-11-24 | M1-T4, T5 done: 819 of 4,647 comments in band (17.6 percent) across 837 PRs, measured 2026-11-24 at `951c9dba9c`. Openers 800 of 4,034, replies 19 of 613. 0 truncated PRs, 0 truncated threads. Kill criterion 1 cleared. | Claude |
+| 2026-11-24 | M1-T6 to T10, T13 to T15 built: rubric, runbook, sampler, hunk fetch, secret scan, blinded sheet, merge-labels, predict, score. 629 tests at `2915538c12`. Real-data `sample` exits 0: 200 rows, 0 blocking, 56 SHA rows reported, 39 public bot ids. | Claude (implementer) |
+| 2026-11-24 | Review round 1 at `b990cd6470`: CRITICAL_FAIL (JSONL broke on U+2028; kill criterion 1 compared a rounded share). Fixed in 10 commits. Round 2 correctness axis only, at `2915538c12`: all 10 fixed, WARN on one finding left as intended behavior (breaker exits 3 on a trailing streak; pinned by `test_the_breaker_fires_even_when_the_failure_rate_is_low`). No review marker: the other axes were not rerun. | Claude |
+| 2026-11-24 | Open owner decisions from review: verdict rule can fail on noise at n=60 (detectable gap 0.114 to 0.198 vs 0.10 bar); labeler agreement floor; 64-hex handling; 0.7 gate is commenter-influenceable before any production wiring; measure kill criterion 3 early. | Claude |
 
 ## Blockers
 
