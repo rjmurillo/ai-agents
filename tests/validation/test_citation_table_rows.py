@@ -1,10 +1,10 @@
-"""A Markdown table cell is the unit a citation asserts about.
+"""A Markdown table row is a complete unit for the citation-freshness gate.
 
 Table cells end in `|`, not sentence punctuation, so the wrap rule in
 ``citation_anchors._context_lines`` used to join neighbor rows into a row's
-sentence, and the same-line segment took the whole row. A re-verify command in
-another cell, or in a neighbor row, then became a required anchor and failed a
-correct citation (found editing a provenance table in the PR #7531 follow-ups).
+sentence. A neighbor row's quoted command then became a required anchor and
+failed a correct citation (found editing a provenance table in the PR #7531
+follow-ups). Anchors from the row's own cells still count.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ def test_a_correct_row_ignores_its_neighbors_commands(
     root = _repo(tmp_path)
     doc = _table(
         '| Unrelated fact | elsewhere | `grep -n "unrelated phrase" other.md` |',
-        f"| Token helper | `{TARGET}:3` | `sed -n '3p' {TARGET}` |",
+        f"| Token helper | `{TARGET}:3` (`magic_token`) | `sed -n '3p' {TARGET}` |",
         '| Another fact | elsewhere | `grep -n "another phrase" more.md` |',
     )
     _add_doc(root, "docs/table.md", doc)
@@ -37,17 +37,6 @@ def test_a_correct_row_ignores_its_neighbors_commands(
 
     assert code == 0, out
     assert "examined 1 citation(s)" in out
-
-
-def test_a_row_whose_command_is_not_at_the_cited_line_passes_alone(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    root = _repo(tmp_path)
-    _add_doc(root, "docs/table.md", _table(f"| Helper | `{TARGET}:3` | `grep -n helper x.md` |"))
-
-    code, out = _run(root, capsys)
-
-    assert code == 0, out
 
 
 def test_a_row_with_its_own_wrong_anchor_still_fails(
@@ -74,34 +63,13 @@ def test_prose_lines_still_wrap_into_each_other(
     assert code == 1
 
 
-def test_a_non_markdown_line_starting_with_a_pipe_is_not_split_into_cells(
+def test_a_claim_cell_anchor_in_the_same_row_still_counts(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Only Markdown has table cells; elsewhere a wrong anchor after a pipe still counts."""
+    """A row's other cells hold the claim the citation backs, so they stay anchors."""
     root = _repo(tmp_path)
-    _add_doc(root, "tools/run.txt", f"| see {TARGET}:3 | `no_such_token`\n")
+    _add_doc(root, "docs/table.md", _table(f"| `no_such_token` is honored | `{TARGET}:3` | - |"))
 
     code, _out = _run(root, capsys)
 
     assert code == 1
-
-
-@pytest.mark.parametrize(
-    ("row", "expected"),
-    [
-        (f"| `a | b` and `{TARGET}:3` (`magic_token`) | `ls` |", 0),
-        (f"| a \\| b and `{TARGET}:3` (`magic_token`) | `ls` |", 0),
-        (f"| it`s `{TARGET}:3` | `no_such_token` |", 0),
-        (f"| it`s `{TARGET}:3` (`no_such_token`) | `ls` |", 1),
-    ],
-    ids=["pipe-in-code-span", "escaped-pipe", "unbalanced-backtick", "unbalanced-own-cell"],
-)
-def test_cell_boundaries(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str], row: str, expected: int
-) -> None:
-    root = _repo(tmp_path)
-    _add_doc(root, "docs/table.md", _table(row))
-
-    code, out = _run(root, capsys)
-
-    assert code == expected, out

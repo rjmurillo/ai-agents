@@ -409,9 +409,7 @@ def _scan_added_lines(
                     citing_file,
                     line_number,
                     line_text,
-                    _same_line_segment(
-                        scannable, matches, index, citing_file.endswith((".md", ".md.tmpl"))
-                    ),
+                    _same_line_segment(scannable, matches, index),
                     match,
                     tracked,
                     head_files,

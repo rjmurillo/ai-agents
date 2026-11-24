@@ -114,7 +114,10 @@ def _repo_import_closure(module: str) -> set[str]:
 
 
 def _github_path_match(path: str, pattern: str) -> bool:
-    """Match like a GitHub path filter: `*` stays in one segment, `**` spans them."""
+    """Match like a GitHub path filter: `*` stays in one segment, `**` spans them.
+
+    `?` makes the preceding character optional, as GitHub's filter syntax says.
+    """
     regex = ""
     i = 0
     while i < len(pattern):
@@ -128,7 +131,7 @@ def _github_path_match(path: str, pattern: str) -> bool:
             regex += "[^/]*"
             i += 1
         elif pattern[i] == "?":
-            regex += "[^/]"
+            regex += "?"  # GitHub: zero or one of the preceding character
             i += 1
         else:
             regex += re.escape(pattern[i])
@@ -256,6 +259,12 @@ def test_the_closure_follows_a_bare_package_import(tmp_path, monkeypatch) -> Non
         ("scripts/ci/x.py", "scripts/ci/*", True),
         ("docs/training/a/b.md", "docs/training/**", True),
         ("scripts/ci/publish_wiki.py", "scripts/ci/publish_wiki.py", True),
+        ("a.py", "**/a.py", True),
+        ("x/y/a.py", "**/a.py", True),
+        ("xa.py", "**/a.py", False),
+        ("ac", "ab?c", True),
+        ("abc", "ab?c", True),
+        ("axc", "ab?c", False),
     ],
 )
 def test_path_matching_follows_github_glob_rules(path: str, pattern: str, expected: bool) -> None:

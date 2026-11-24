@@ -333,8 +333,7 @@ def _line_cites(
             int(end_group) if end_group else start,
             end_group is not None,
         )
-        markdown = citing_file.endswith((".md", ".md.tmpl"))
-        cites.append((cite, _same_line_segment(scannable, matches, index, markdown)))
+        cites.append((cite, _same_line_segment(scannable, matches, index)))
     return cites
 
 

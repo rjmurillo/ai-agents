@@ -315,22 +315,17 @@ def _gap_split(line: str, prev_end: int, next_start: int) -> int:
     return prev_end + point
 
 
-def _same_line_segment(
-    line: str, matches: list[re.Match[str]], index: int, markdown: bool = False
-) -> str:
+def _same_line_segment(line: str, matches: list[re.Match[str]], index: int) -> str:
     """Return the slice of the citation line owned by one citation.
 
     Text between two citations binds to the nearer one (a midpoint split,
     snapped so it never bisects a span, quote, or identifier), so an anchor
     written beside one citation is never pooled into a sibling citation's
     check on the same line. Neighbor lines stay shared: a wrapped sentence's
-    anchor legitimately serves every citation it describes. In Markdown, a
-    citation in a table row owns only its own cell.
+    anchor legitimately serves every citation it describes.
     """
-    in_table = markdown and _table_row(line)
-    lo, hi = _cell_bounds(line, matches[index].start()) if in_table else (0, len(line))
     if len(matches) == 1:
-        return line[lo:hi]
+        return line
     if index == 0:
         start = 0
     else:
@@ -339,26 +334,7 @@ def _same_line_segment(
         end = len(line)
     else:
         end = _gap_split(line, matches[index].end(), matches[index + 1].start())
-    return line[max(start, lo) : min(end, hi)]
-
-
-def _cell_bounds(line: str, point: int) -> tuple[int, int]:
-    """Return the table cell around ``point``: a row's other cells assert nothing.
-
-    A pipe inside a backtick span or escaped as ``\\|`` does not split a cell.
-    """
-    pipes: list[int] = []
-    in_code = False
-    # An unbalanced backtick opens no span, so it cannot hide the row's pipes.
-    spans = line.count("`") % 2 == 0
-    for i, char in enumerate(line):
-        if char == "`" and spans:
-            in_code = not in_code
-        elif char == "|" and not in_code and (i == 0 or line[i - 1] != "\\"):
-            pipes.append(i)
-    lo = max((p + 1 for p in pipes if p < point), default=0)
-    hi = min((p for p in pipes if p >= point), default=len(line))
-    return lo, hi
+    return line[start:end]
 
 
 def _relocated_range(

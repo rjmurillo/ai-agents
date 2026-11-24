@@ -64,11 +64,11 @@ class TestMergeKeyMarker:
         assert result.error is not None
         assert "duplicate key <<" in result.error
 
-    def test_a_repeated_nan_key_is_refused(self) -> None:
-        """PyYAML returns one shared NaN object, so the set check sees a repeat."""
+    def test_a_repeated_nan_key_stays_distinct(self) -> None:
+        """PyYAML shares one NaN object; the set must not turn that into a repeat."""
         result = parse_frontmatter("---\n.nan: 1\n.nan: 2\n---\n", yaml)
 
-        assert result.status is FrontmatterStatus.MALFORMED
+        assert result.status is FrontmatterStatus.VALID
 
     def test_a_repeated_unhashable_key_is_still_refused(self) -> None:
         result = parse_frontmatter("---\n? [a, b]\n: 1\n? [a, b]\n: 2\n---\n", yaml)
