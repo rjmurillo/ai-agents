@@ -358,13 +358,14 @@ TRAILER = re.compile(
     _I,
 )
 # A URL holds no space, comma or semicolon, and ``&`` separates only after a space, so a list
-# splits one way (``\S+`` there was exponential). The tail reads blanks once, and blanks after
-# a dot only after the dot: ``\s*[.]?\s*`` was quadratic on a run of spaces before prose.
+# splits one way; the tail reads a blank run once. Overlapping tokens were exponential.
 _ISSUE_REF = r"(?:#\d+|gh-\d+|[\w.-]+/[\w.-]+#\d+|https?://[^\s,;]+)"
+_REF_SEP = r"(?:\s*[,;]\s*|\s+(?:&\s*)?)(?:and\s+)?"
 FIXES_ONLY = re.compile(
     r"^\s*(?:fix(?:e[sd])?|close[sd]?|resolve[sd]?|refs?|see|related to|part of)\b:?\s*"
     + _ISSUE_REF
-    + r"(?:(?:\s*[,;]\s*|\s+(?:&\s*)?)(?:and\s+)?"
+    + r"(?:"
+    + _REF_SEP
     + _ISSUE_REF
     + r")*\s*(?:[.]\s*)?\Z",
     _I,
@@ -383,7 +384,7 @@ _PROSE_KEY = re.compile(r"^(?:why|reason|rationale|motivation|note)\Z", _I)
 _REFERENCE_KEY = re.compile(r"^(?:issue|bug)\Z", _I)
 _REFERENCE = r"(?:" + _ISSUE_REF + r"|[A-Z][A-Z0-9]+-\d+|\d+)"
 _REFERENCES_ONLY = re.compile(
-    r"^" + _REFERENCE + r"(?:[\s,;&]+(?:and\s+)?" + _REFERENCE + r")*\s*[.]?\s*\Z", _A
+    r"^" + _REFERENCE + r"(?:" + _REF_SEP + _REFERENCE + r")*\s*(?:[.]\s*)?\Z", _A
 )
 # A longer value is a sentence, not a list of references. It also bounds the match above.
 _MAX_REFERENCE_VALUE_CHARS = 200

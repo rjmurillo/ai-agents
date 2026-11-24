@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 import adr_commits
 import adr_locate
 import adr_shape
@@ -78,3 +80,31 @@ def test_a_breaking_marker_keeps_a_bump_title_out_of_housekeeping(subject: str, 
     assert adr_shape.is_release_or_bump_subject(subject) is bump
     if not bump:
         assert adr_shape.is_decision_commit(subject)
+
+
+def test_an_api_address_in_html_url_is_incomplete_without_an_origin() -> None:
+    row = {
+        "number": 3,
+        "title": "Adopt Rust for the parser",
+        "body": WHY,
+        "html_url": "https://api.github.com/repos/o/r/pulls/3",
+        "merged_at": "2026-03-04T10:00:00Z",
+        "author": {"login": "ada"},
+    }
+    dropped: dict[str, int] = {}
+
+    assert adr_commits.select_prs([row], dropped) == [] and dropped["pr_incomplete"] == 1
+
+
+def test_an_ampersand_joined_url_list_before_prose_is_rejected_quickly() -> None:
+    value = "https://a/b&" * 22 + " prose here"
+
+    start = time.process_time()
+    matched = adr_shape._REFERENCES_ONLY.search(value)
+
+    assert matched is None and time.process_time() - start < 0.5
+
+
+@pytest.mark.parametrize("value", ["#1, #2 and #3.", "12 & 13", "ABC-12; 13", "https://x?a=1&b=2"])
+def test_reference_lists_still_count_as_references(value: str) -> None:
+    assert adr_shape._REFERENCES_ONLY.search(value)

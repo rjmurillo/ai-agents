@@ -309,9 +309,7 @@ _API_PULLS = re.compile(r"/repos/[^/]+/[^/]+/pulls/", re.ASCII)
 def _page_url(item: dict[str, Any]) -> object:
     """The PR page: ``html_url``, else ``url`` unless that is the REST API address a raw GitHub pull
     object also holds (an ``api.`` host or ``/repos/<owner>/<repo>/pulls/``)."""
-    if item.get("html_url"):
-        return item["html_url"]
-    url = item.get("url")
+    url = item.get("html_url") or item.get("url")  # either alias, judged the same way
     if isinstance(url, str):
         try:
             parts = urlsplit(url)
